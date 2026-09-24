@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.1 |
+| **Version** | 0.4.2 |
 | **Status** | Draft |
-| **Date** | 2026-09-19 |
+| **Date** | 2026-09-24 |
 | **Related Specs** | [Agent Profiles](../features/agent-profiles.md), [App Binding](../protocols/app-binding.md), [Session Core](session-core.md), [Prompt Cache](prompt-cache.md), [World State](world-state.md), [External CLI SubAgent](../features/external-cli-subagent.md) |
 
 Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, App Binding, and AppServer clients.
@@ -63,7 +63,7 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 8 | Mode protocol | Mode selection and transition rules. |
 | 9 | User-input request protocol | Included only when the tool is available. |
 | 10 | Bootstrap files | DotCraft-owned workspace bootstrap files. Repository `AGENTS.md` content is excluded and belongs to project instructions (§4a). |
-| 11 | Memory | Durable and inferred memory. |
+| 11 | Memory | Durable and inferred memory. Omitted when the Thread has memory disabled; see [Memory](../features/memory.md). |
 | 12 | Skill self-learning | Included only when skill management is available. |
 | 13 | Always-loaded skills | Full content for skills that must always be loaded. |
 | 14 | Skills summary | Skill discovery and routing summary. |

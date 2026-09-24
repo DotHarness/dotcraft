@@ -34,4 +34,4 @@ DotCraft 回复之后，这个工作区就可以接着处理真正的任务了�
 
 - [Desktop](./features/entry-points/desktop) — 认识主界面：会话、审批和工作区切换
 - [插件与工具](./features/agent-system/plugins-tools) — 给 Agent 接上完成任务所需的能力
-- [长期记忆与梦境](./features/agent-system/memory) — 让下一次会话记得这次的结论
+- [记忆与梦境](./features/agent-system/memory) — 让下一次会话记得这次的结论

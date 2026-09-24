@@ -85,18 +85,7 @@ public sealed class ChatClientRegistry
         ResolveSubAgentRuntime(config, effectiveMainProviderId, effectiveMainModel).Model;
 
     /// <summary>
-    /// Resolves the effective memory consolidation runtime.
-    /// </summary>
-    public EffectiveModelRuntime ResolveConsolidationRuntime(
-        AppConfig config,
-        string? providerIdOverride = null,
-        string? mainModelOverride = null) =>
-        ResolveRuntimeMetadata(
-            config,
-            ModelProviderResolver.ResolveConsolidation(config, providerIdOverride, mainModelOverride));
-
-    /// <summary>
-    /// Resolves the effective memory consolidation model.
+    /// Resolves the model Dreams runs use.
     /// </summary>
     public string ResolveConsolidationModel(AppConfig config)
     {
@@ -121,15 +110,6 @@ public sealed class ChatClientRegistry
         string effectiveMainProviderId,
         string effectiveMainModel) =>
         GetChatClient(ResolveSubAgentRuntime(config, effectiveMainProviderId, effectiveMainModel));
-
-    /// <summary>
-    /// Gets a cached provider-neutral chat client for the effective memory consolidation model.
-    /// </summary>
-    public IChatClient GetConsolidationChatClient(
-        AppConfig config,
-        string? providerIdOverride = null,
-        string? mainModelOverride = null) =>
-        GetChatClient(ResolveConsolidationRuntime(config, providerIdOverride, mainModelOverride));
 
     /// <summary>
     /// Gets a cached provider-neutral chat client for a specific provider runtime.

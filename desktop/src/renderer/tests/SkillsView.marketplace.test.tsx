@@ -193,7 +193,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
         endPoint: null,
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: true,
-        memoryAutoConsolidateEnabled: null,
+        memoryEnabled: null,
         defaultApprovalPolicy: null
       },
       userDefaults: {
@@ -201,7 +201,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
         endPoint: null,
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: null,
-        memoryAutoConsolidateEnabled: null,
+        memoryEnabled: null,
         defaultApprovalPolicy: null
       }
     })
@@ -614,7 +614,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
         endPoint: null,
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: false,
-        memoryAutoConsolidateEnabled: null,
+        memoryEnabled: null,
         defaultApprovalPolicy: null
       },
       userDefaults: {
@@ -622,7 +622,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
         endPoint: null,
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: null,
-        memoryAutoConsolidateEnabled: null,
+        memoryEnabled: null,
         defaultApprovalPolicy: null
       }
     })

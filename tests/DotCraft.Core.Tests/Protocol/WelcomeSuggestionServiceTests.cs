@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Memory;
 using DotCraft.Tools;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -68,6 +69,22 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SuggestAsync_WhenMemoryDisabled_ReturnsNoneEvenWithPersistedSnapshot()
+    {
+        await WritePersistedCacheAsync("persisted-snapshot");
+        var service = CreateService(memoryEnabled: false);
+
+        var result = await service.SuggestAsync(new WelcomeSuggestionRequest
+        {
+            Identity = CreateIdentity(),
+            MaxItems = 4
+        });
+
+        Assert.Equal("none", result.Source);
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
     public async Task SuggestAsync_WhenWorkspaceConfigDisablesSuggestions_ReturnsNone()
     {
         await CreateThreadWithMessagesAsync(
@@ -101,8 +118,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
             "继续",
             "Make sure the generated suggestions feel like likely next tasks, not generic categories.");
 
-        _memoryStore.WriteLongTerm("The team is working on Desktop dynamic welcome suggestions.");
-        _memoryStore.AppendHistory("Recent focus: thread history, welcome shortcuts, and workspace memory integration.");
+        File.WriteAllText(_memoryStore.LongTermFilePath, "The team is working on Desktop dynamic welcome suggestions.");
 
         var initialThreadCount = (await _threadStore.LoadIndexAsync()).Count;
         var initialActiveFileCount = Directory.EnumerateFiles(Path.Combine(_craftPath, "threads", "active"), "*.jsonl").Count();
@@ -150,8 +166,8 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
                                     new JsonObject
                                     {
                                         ["title"] = "Reuse workspace memory",
-                                        ["prompt"] = "Audit how MEMORY.md and HISTORY.md are loaded today and propose the cleanest way to feed them into welcome suggestions.",
-                                        ["reason"] = "Workspace memory appears in both recent messages and HISTORY.md."
+                                        ["prompt"] = "Audit how MEMORY.md is loaded today and propose the cleanest way to feed it into welcome suggestions.",
+                                        ["reason"] = "Workspace memory appears in recent messages and MEMORY.md."
                                     },
                                     new JsonObject
                                     {
@@ -182,7 +198,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         Assert.NotEmpty(_sessionService.LastSubmittedContent);
         Assert.Null(_sessionService.LastSubmittedMessages);
         Assert.Contains(
-            "Inspect workspace MEMORY.md and HISTORY.md, infer the likely next tasks",
+            "Inspect workspace MEMORY.md, infer the likely next tasks",
             string.Concat(_sessionService.LastSubmittedContent.OfType<TextContent>().Select(item => item.Text)));
 
         var remainingThreads = await _threadStore.LoadIndexAsync();
@@ -196,11 +212,9 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     [Fact]
     public async Task ReadWelcomeWorkspaceMemory_ExtractsHighlights()
     {
-        _memoryStore.WriteLongTerm("""
+        File.WriteAllText(_memoryStore.LongTermFilePath, """
             The current focus is improving Desktop welcome suggestions.
             Make the generated prompts specific to thread history and memory from ConversationWelcome.tsx.
-            """);
-        _memoryStore.AppendHistory("""
             Welcome suggestion output should mention concrete modules like WelcomeSuggestionService.cs or settings keys in .craft/config.json instead of generic onboarding.
             """);
 
@@ -215,7 +229,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     [Fact]
     public async Task WelcomeSuggestionTools_ReturnJsonStrings()
     {
-        _memoryStore.WriteLongTerm("Desktop welcome suggestions should use workspace memory.");
+        File.WriteAllText(_memoryStore.LongTermFilePath, "Desktop welcome suggestions should use workspace memory.");
 
         var methods = new WelcomeSuggestionToolMethods(_memoryStore);
 
@@ -312,8 +326,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     [Fact]
     public async Task ScheduleRefresh_WithMemoryOnlyEvidence_GeneratesPersistedCache()
     {
-        _memoryStore.WriteLongTerm("The workspace is reducing Desktop welcome suggestion cost by using memory-only evidence.");
-        _memoryStore.AppendHistory("Decision: refresh welcome suggestions after successful memory consolidation.");
+        File.WriteAllText(_memoryStore.LongTermFilePath, "The workspace is reducing Desktop welcome suggestion cost by using memory-only evidence.");
 
         _sessionService.SubmitInputHandler = (threadId, _, _) =>
         {
@@ -385,7 +398,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         await CreateThreadWithMessagesAsync(
             "Review how welcome suggestions are generated from workspace history and memory.",
             "Tighten the prompt so suggestions mention specific modules and tasks.");
-        _memoryStore.WriteLongTerm("Workspace memory says welcome suggestions should be concrete and implementation-specific.");
+        File.WriteAllText(_memoryStore.LongTermFilePath, "Workspace memory says welcome suggestions should be concrete and implementation-specific.");
 
         _sessionService.SubmitInputHandler = (threadId, _, _) =>
         {
@@ -469,7 +482,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         await CreateThreadWithMessagesAsync(
             "Review how welcome suggestions reuse workspace history and memory in Desktop.",
             "Trace the welcome suggestion service and tighten its cache refresh behavior.");
-        _memoryStore.WriteLongTerm("Desktop welcome suggestions should be refreshed from memory only.");
+        File.WriteAllText(_memoryStore.LongTermFilePath, "Desktop welcome suggestions should be refreshed from memory only.");
 
         var service = CreateService();
         service.ScheduleRefresh(_workspacePath);
@@ -485,7 +498,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         await CreateThreadWithMessagesAsync(
             "Review how welcome suggestions reuse workspace history and memory in Desktop.",
             "Trace the welcome suggestion service and tighten its cache refresh behavior.");
-        _memoryStore.WriteLongTerm("Desktop welcome suggestions should be refreshed from memory only.");
+        File.WriteAllText(_memoryStore.LongTermFilePath, "Desktop welcome suggestions should be refreshed from memory only.");
 
         var submitCount = 0;
         _sessionService.SubmitInputHandler = (_, _, _) =>
@@ -553,7 +566,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         await CreateThreadWithMessagesAsync(
             "Review how welcome suggestions reuse workspace history and memory in Desktop.",
             "Trace the welcome suggestion service and tighten its cache refresh behavior.");
-        _memoryStore.WriteLongTerm("Desktop welcome suggestions should be refreshed from memory only.");
+        File.WriteAllText(_memoryStore.LongTermFilePath, "Desktop welcome suggestions should be refreshed from memory only.");
 
         _sessionService.SubmitInputHandler = (_, _, _) => [];
 
@@ -574,12 +587,12 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ScheduleRefresh_OnMemoryConsolidated_WritesPersistedCache_AndSubsequentSuggestServesIt()
+    public async Task ScheduleRefresh_WritesPersistedCache_AndSubsequentSuggestServesIt()
     {
         await CreateThreadWithMessagesAsync(
             "Review how welcome suggestions reuse workspace history and memory in Desktop.",
             "Trace the welcome suggestion service and tighten its cache refresh behavior.");
-        _memoryStore.WriteLongTerm("Desktop welcome suggestions should use only MEMORY.md and HISTORY.md.");
+        File.WriteAllText(_memoryStore.LongTermFilePath, "Desktop welcome suggestions should use only MEMORY.md.");
 
         _sessionService.SubmitInputHandler = (threadId, _, _) =>
         {
@@ -660,7 +673,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         await CreateThreadWithMessagesAsync(
             "Review welcome suggestion debounce behavior.",
             "Ensure repeated turn-complete signals coalesce into one refresh.");
-        _memoryStore.WriteLongTerm("Welcome suggestion refreshes are triggered after memory consolidation.");
+        File.WriteAllText(_memoryStore.LongTermFilePath, "Welcome suggestion refreshes are triggered after completed turns.");
 
         var submitCount = 0;
         _sessionService.SubmitInputHandler = (_, _, _) =>
@@ -822,7 +835,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         await File.WriteAllTextAsync(cachePath, JsonSerializer.Serialize(payload));
     }
 
-    private WelcomeSuggestionService CreateService(bool welcomeSuggestionsEnabled = true) =>
+    private WelcomeSuggestionService CreateService(bool welcomeSuggestionsEnabled = true, bool memoryEnabled = true) =>
         new(
             _sessionService,
             _persistence,
@@ -833,7 +846,8 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
                 WelcomeSuggestions = new AppConfig.WelcomeSuggestionsConfig
                 {
                     Enabled = welcomeSuggestionsEnabled
-                }
+                },
+                Memory = new MemoryConfig { Enabled = memoryEnabled }
             },
             _craftPath,
             NullLogger<WelcomeSuggestionService>.Instance);

@@ -26,7 +26,7 @@ public sealed class DreamsService(
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        if (_loopTask != null || !config.Dreams.Enabled)
+        if (_loopTask != null || !config.Dreams.Enabled || !config.Memory.Enabled)
             return Task.CompletedTask;
 
         _lifetimeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -295,6 +295,8 @@ public sealed class DreamsService(
         var previous = stateStore.Load();
         if (!config.Dreams.Enabled)
             return CompleteSkipped("dreams_disabled", previous, nextRunAt, trigger);
+        if (!config.Memory.Enabled)
+            return CompleteSkipped("memory_disabled", previous, nextRunAt, trigger);
 
         if (!await _runGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
             return IsRunning(previous)
@@ -423,7 +425,6 @@ public sealed class DreamsService(
                 state.AutoApplied = false;
             }
             state.DreamWritten = true;
-            state.HistoryWritten = false;
             if (!string.IsNullOrWhiteSpace(result.OutputStoreId))
             {
                 var topics = dreamStore.ListTopicFiles(result.OutputStoreId);

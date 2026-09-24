@@ -49,8 +49,6 @@ public sealed class DreamsRunRegistry(
 
         await WriteInputFileAsync(inputDir, "memory/MEMORY.md", memoryStore.ReadLongTerm(), cancellationToken)
             .ConfigureAwait(false);
-        await WriteInputFileAsync(inputDir, "memory/HISTORY.md", memoryStore.ReadHistory(), cancellationToken)
-            .ConfigureAwait(false);
 
         if (!string.IsNullOrWhiteSpace(input.ExistingDream))
         {
@@ -148,7 +146,6 @@ public sealed class DreamsRunRegistry(
         var sb = new StringBuilder();
         sb.AppendLine($"Dream run {run.RunId} sources:");
         sb.AppendLine("- memory:MEMORY.md (type=memory)");
-        sb.AppendLine("- memory:HISTORY.md (type=memory)");
         sb.AppendLine("- dream:index (type=dream)");
 
         foreach (var topic in run.Input.TopicFiles)
@@ -288,7 +285,6 @@ public sealed class DreamsRunRegistry(
         return sourceId switch
         {
             "memory:MEMORY.md" => memoryStore.ReadLongTerm(),
-            "memory:HISTORY.md" => memoryStore.ReadHistory(),
             "dream:index" => dreamStore.ReadDream(),
             _ when sourceId.StartsWith("dream:memory/", StringComparison.Ordinal) =>
                 dreamStore.ReadTopicFile(sourceId["dream:memory/".Length..]),
@@ -394,7 +390,6 @@ public sealed class DreamsRunRegistry(
         sb.AppendLine();
         sb.AppendLine("## Memory Sources");
         sb.AppendLine("- memory/MEMORY.md");
-        sb.AppendLine("- memory/HISTORY.md");
         sb.AppendLine("- active-dream-store/INDEX.md when present");
         sb.AppendLine("- active-dream-store/memory/*.md when present");
         return sb.ToString();
@@ -439,10 +434,7 @@ public sealed class DreamsRunRegistry(
         IReadOnlySet<string>? threadIds)
     {
         if (IncludesType(sourceTypes, "memory"))
-        {
             yield return new DreamSourceDescriptor("memory:MEMORY.md", "memory", null);
-            yield return new DreamSourceDescriptor("memory:HISTORY.md", "memory", null);
-        }
 
         if (IncludesType(sourceTypes, "dream"))
             yield return new DreamSourceDescriptor("dream:index", "dream", null);
@@ -466,7 +458,7 @@ public sealed class DreamsRunRegistry(
 
     private static bool IsAllowedSource(RegisteredDreamRun run, string sourceId)
     {
-        if (sourceId is "memory:MEMORY.md" or "memory:HISTORY.md" or "dream:index")
+        if (sourceId is "memory:MEMORY.md" or "dream:index")
             return true;
         if (sourceId.StartsWith("dream:memory/", StringComparison.Ordinal))
         {

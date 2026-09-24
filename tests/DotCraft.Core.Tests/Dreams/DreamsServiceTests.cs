@@ -1,4 +1,5 @@
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Memory;
 using DotCraft.Dreams;
 using DotCraft.Sessions;
@@ -60,6 +61,20 @@ public sealed class DreamsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RunOnceAsync_WhenMemoryDisabled_SkipsWithoutCallingRunner()
+    {
+        await SaveThreadAsync("thread_one");
+        var runner = new FakeRunner();
+        var service = CreateService(runner, minCompletedTurns: 0, memoryEnabled: false);
+
+        var state = await service.RunOnceAsync(force: true);
+
+        Assert.Equal(DreamsRunStatuses.Skipped, state.Status);
+        Assert.Equal("memory_disabled", state.Message);
+        Assert.Equal(0, runner.Calls);
+    }
+
+    [Fact]
     public async Task RunOnceAsync_ForceCreatesPendingStoreAndState()
     {
         await SaveThreadAsync("thread_one");
@@ -73,7 +88,6 @@ public sealed class DreamsServiceTests : IDisposable
 
         Assert.Equal(DreamsRunStatuses.Succeeded, state.Status);
         Assert.True(state.DreamWritten);
-        Assert.False(state.HistoryWritten);
         Assert.Equal(1, state.CompletedTurnWatermark);
         Assert.Equal(1, state.CandidateThreadCount);
         Assert.Equal("thread_dream_fake", state.ThreadId);
@@ -275,18 +289,19 @@ public sealed class DreamsServiceTests : IDisposable
         int minCompletedTurns,
         bool autoApply = false,
         TimeSpan? interval = null,
-        TimeSpan? startupDelay = null)
+        TimeSpan? startupDelay = null,
+        bool memoryEnabled = true)
     {
         runner.Store ??= _dreamStore;
         var config = new AppConfig
         {
+            Memory = new MemoryConfig { Enabled = memoryEnabled },
             Dreams = new DreamsConfig
             {
                 Enabled = true,
                 MinCompletedTurnsSinceLastRun = minCompletedTurns,
                 ThreadLookbackCount = 20,
                 AutoApply = autoApply,
-                HistoryTailChars = 20_000,
                 Interval = interval ?? TimeSpan.FromHours(24),
                 StartupDelay = startupDelay ?? TimeSpan.Zero
             }

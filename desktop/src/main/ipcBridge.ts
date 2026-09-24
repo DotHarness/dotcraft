@@ -626,7 +626,7 @@ interface WorkspaceCoreConfigSnapshot {
   welcomeSuggestionsEnabled: boolean | null
   skillsSelfLearningEnabled: boolean | null
   skillsIncludeSharedSkills: boolean | null
-  memoryAutoConsolidateEnabled: boolean | null
+  memoryEnabled: boolean | null
   dreamsEnabled: boolean | null
   dreamsInterval: string | null
   dreamsThreadLookbackCount: number | null
@@ -709,7 +709,7 @@ function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
     welcomeSuggestionsEnabled: null,
     skillsSelfLearningEnabled: null,
     skillsIncludeSharedSkills: null,
-    memoryAutoConsolidateEnabled: null,
+    memoryEnabled: null,
     dreamsEnabled: null,
     dreamsInterval: null,
     dreamsThreadLookbackCount: null,
@@ -729,7 +729,7 @@ function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapsho
     welcomeSuggestionsEnabled: readNestedBoolean(parsed, 'WelcomeSuggestions', 'Enabled'),
     skillsSelfLearningEnabled: readSkillsSelfLearningEnabled(parsed),
     skillsIncludeSharedSkills: readNestedBoolean(parsed, 'Skills', 'IncludeSharedSkills'),
-    memoryAutoConsolidateEnabled: readNestedBoolean(parsed, 'Memory', 'AutoConsolidateEnabled'),
+    memoryEnabled: readNestedBoolean(parsed, 'Memory', 'Enabled'),
     dreamsEnabled: readNestedBoolean(parsed, 'Dreams', 'Enabled'),
     dreamsInterval: readNestedString(parsed, 'Dreams', 'Interval'),
     dreamsThreadLookbackCount: readNestedInteger(parsed, 'Dreams', 'ThreadLookbackCount'),

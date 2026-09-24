@@ -94,10 +94,6 @@ internal sealed class ThreadRuntimeNotificationCoordinator
                 {
                     MaintenanceKind = "compacting"
                 },
-                SessionThreadRuntimeSignal.MaintenanceConsolidatingStarted => current with
-                {
-                    MaintenanceKind = "consolidating"
-                },
                 SessionThreadRuntimeSignal.MaintenanceCompleted => current with
                 {
                     MaintenanceKind = null

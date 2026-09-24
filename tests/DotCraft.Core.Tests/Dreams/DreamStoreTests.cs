@@ -36,7 +36,6 @@ public sealed class DreamStoreTests : IDisposable
         var result = store.SaveDreamRun("# Dream Memory\n", "dream run refreshed workspace focus");
 
         Assert.True(result.DreamWritten);
-        Assert.False(result.HistoryWritten);
         Assert.Contains("/INDEX.md", string.Join("/", result.WrittenPaths), StringComparison.Ordinal);
         Assert.Equal("# Dream Memory\n", NormalizeNewlines(store.ReadDream()));
         Assert.False(string.IsNullOrWhiteSpace(store.GetActiveStoreId()));

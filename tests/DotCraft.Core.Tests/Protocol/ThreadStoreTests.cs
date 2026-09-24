@@ -485,7 +485,7 @@ public sealed class ThreadStoreTests : IDisposable
         var path = GetCanonicalPath(thread.Id, archived: false);
         var initialLineCount = File.ReadAllLines(path).Length;
 
-        thread.Turns[0].Items.Add(CreateMemoryNotice(thread.Turns[0], 3));
+        thread.Turns[0].Items.Add(CreateForkNotice(thread.Turns[0], 3));
         await _store.SaveThreadAsync(thread);
 
         var lines = File.ReadAllLines(path);
@@ -493,7 +493,7 @@ public sealed class ThreadStoreTests : IDisposable
         using var last = JsonDocument.Parse(lines[^1]);
         Assert.Equal(RolloutKinds.ItemAppended, last.RootElement.GetProperty("kind").GetString());
         Assert.Equal(
-            "memoryConsolidated",
+            "forked",
             last.RootElement
                 .GetProperty("itemAppended")
                 .GetProperty("item")
@@ -510,7 +510,7 @@ public sealed class ThreadStoreTests : IDisposable
         await _store.SaveThreadAsync(thread);
 
         var noticeThread = CloneThreadSnapshotForTest(thread);
-        noticeThread.Turns[0].Items.Add(CreateMemoryNotice(noticeThread.Turns[0], 3));
+        noticeThread.Turns[0].Items.Add(CreateForkNotice(noticeThread.Turns[0], 3));
 
         await Task.WhenAll(
             Task.Run(() => _store.SaveThreadAsync(noticeThread)),
@@ -528,7 +528,7 @@ public sealed class ThreadStoreTests : IDisposable
         Assert.Contains(
             loaded.Turns.Single().Items,
             item => item.Type == ItemType.SystemNotice
-                && item.AsSystemNotice?.Kind == "memoryConsolidated");
+                && item.AsSystemNotice?.Kind == "forked");
 
         var rollout = await File.ReadAllTextAsync(GetCanonicalPath(thread.Id, archived: false));
         Assert.Contains("\"kind\":\"context_compacted\"", rollout);
@@ -2539,7 +2539,7 @@ public sealed class ThreadStoreTests : IDisposable
         thread.LastActiveAt = DateTimeOffset.UtcNow;
     }
 
-    private static SessionItem CreateMemoryNotice(SessionTurn turn, int seq) => new()
+    private static SessionItem CreateForkNotice(SessionTurn turn, int seq) => new()
     {
         Id = SessionIdGenerator.NewItemId(seq),
         TurnId = turn.Id,
@@ -2549,7 +2549,7 @@ public sealed class ThreadStoreTests : IDisposable
         CompletedAt = DateTimeOffset.UtcNow,
         Payload = new SystemNoticePayload
         {
-            Kind = "memoryConsolidated"
+            Kind = "forked"
         }
     };
 

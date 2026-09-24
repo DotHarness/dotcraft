@@ -4915,9 +4915,6 @@
             "type": "string"
           }
         },
-        "historyWritten": {
-          "type": "boolean"
-        },
         "id": {
           "type": "string"
         },
@@ -5057,9 +5054,6 @@
         },
         "enabled": {
           "type": "boolean"
-        },
-        "historyTailChars": {
-          "type": "integer"
         },
         "interval": {
           "type": "string"
@@ -11646,9 +11640,6 @@
         "manualCompaction": {
           "type": "boolean"
         },
-        "manualMemoryConsolidation": {
-          "type": "boolean"
-        },
         "mcpApps": {
           "type": "boolean"
         },
@@ -16277,42 +16268,6 @@
       },
       "additionalProperties": true
     },
-    "ThreadMemoryConsolidateStartParams": {
-      "title": "ThreadMemoryConsolidateStartParams",
-      "type": "object",
-      "properties": {
-        "threadId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "ThreadMemoryConsolidateStartResponse": {
-      "title": "ThreadMemoryConsolidateStartResponse",
-      "type": "object",
-      "properties": {
-        "historyWritten": {
-          "type": "boolean"
-        },
-        "memoryWritten": {
-          "type": "boolean"
-        },
-        "message": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "outcome": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
     "ThreadModeSetParams": {
       "title": "ThreadModeSetParams",
       "type": "object",
@@ -20477,7 +20432,7 @@
             }
           ]
         },
-        "memoryAutoConsolidateEnabled": {
+        "memoryEnabled": {
           "anyOf": [
             {
               "type": "boolean"
@@ -20607,7 +20562,7 @@
             }
           ]
         },
-        "memoryAutoConsolidateEnabled": {
+        "memoryEnabled": {
           "anyOf": [
             {
               "type": "boolean"

@@ -346,7 +346,6 @@ public sealed class AppServerDreamsTests : IDisposable
                 Interval = interval ?? TimeSpan.FromHours(24),
                 StartupDelay = TimeSpan.Zero,
                 ThreadLookbackCount = threadLookback,
-                HistoryTailChars = 20_000,
                 MinCompletedTurnsSinceLastRun = minCompletedTurns
             }
         };

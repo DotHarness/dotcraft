@@ -2118,12 +2118,6 @@ export function App(): JSX.Element {
                 ? p.contextUsage as ContextUsageSnapshotWire
                 : null
             })
-            if (kind === 'consolidationFailed') {
-              addToast(
-                serverMessage ?? translate(localeRef.current, 'systemNotice.consolidationFailed.message'),
-                'warning'
-              )
-            }
             break
           }
 

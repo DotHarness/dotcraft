@@ -1311,24 +1311,21 @@ describe('InputComposer layout', () => {
     expect(screen.getByRole('dialog', { name: 'Select model' })).toBeInTheDocument()
   })
 
-  it.each(['compacting', 'consolidating'] as const)(
-    'keeps the model picker available while thread maintenance is %s',
-    (maintenanceKind) => {
-      useConversationStore.setState({
-        turnStatus: 'idle',
-        activeTurnId: null,
-        maintenanceKind
-      })
+  it('keeps the model picker available while thread maintenance is compacting', () => {
+    useConversationStore.setState({
+      turnStatus: 'idle',
+      activeTurnId: null,
+      maintenanceKind: 'compacting'
+    })
 
-      renderComposer()
+    renderComposer()
 
-      const modelButton = screen.getByRole('button', { name: 'Select model' })
-      expect(modelButton).toBeEnabled()
+    const modelButton = screen.getByRole('button', { name: 'Select model' })
+    expect(modelButton).toBeEnabled()
 
-      fireEvent.click(modelButton)
-      expect(screen.getByRole('dialog', { name: 'Select model' })).toBeInTheDocument()
-    }
-  )
+    fireEvent.click(modelButton)
+    expect(screen.getByRole('dialog', { name: 'Select model' })).toBeInTheDocument()
+  })
 
   it.each(['waitingApproval', 'waitingInput'] as const)(
     'keeps the model picker available while the turn is %s',
@@ -1349,29 +1346,6 @@ describe('InputComposer layout', () => {
     renderComposer({ modelDisabled: true })
 
     expect(screen.getByRole('button', { name: 'Select model' })).toBeDisabled()
-  })
-
-  it('sends directly while background memory consolidation is active', async () => {
-    useConversationStore.setState({
-      turnStatus: 'idle',
-      activeTurnId: null,
-      maintenanceKind: null,
-      backgroundMemoryStatus: 'consolidating'
-    })
-
-    renderComposer()
-
-    const textbox = screen.getByRole('textbox')
-    textbox.textContent = 'next while memory is consolidating'
-    fireEvent.input(textbox)
-    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
-
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('turn/start', expect.objectContaining({
-        threadId: 'thread-1'
-      }))
-    })
-    expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/enqueue', expect.anything())
   })
 
   it('preserves an idle draft when turn start races with a regular active turn', async () => {
@@ -1422,7 +1396,7 @@ describe('InputComposer layout', () => {
     useConversationStore.setState({
       turnStatus: 'idle',
       activeTurnId: null,
-      maintenanceKind: 'consolidating'
+      maintenanceKind: 'compacting'
     })
 
     renderComposer()

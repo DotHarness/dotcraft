@@ -76,7 +76,7 @@ public sealed class SessionEventHandler
 
     /// <summary>
     /// Called when a system-level maintenance event arrives (<see cref="SessionEventType.SystemEvent"/>).
-    /// The payload carries the event kind (compacting, compacted, consolidating, consolidationSkipped, consolidationFailed, etc.) and an optional message.
+    /// The payload carries the event kind (compacting, compacted, etc.) and an optional message.
     /// Optional; if null, system events are silently dropped.
     /// </summary>
     public Func<SystemEventPayload, Task>? OnSystemEvent { get; init; }

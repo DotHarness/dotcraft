@@ -93,7 +93,7 @@ function installWindowApi(locale = 'en'): void {
           endPoint: null,
           welcomeSuggestionsEnabled: null,
           skillsSelfLearningEnabled: null,
-          memoryAutoConsolidateEnabled: null,
+          memoryEnabled: null,
           defaultApprovalPolicy: null
         },
         userDefaults: {
@@ -101,7 +101,7 @@ function installWindowApi(locale = 'en'): void {
           endPoint: null,
           welcomeSuggestionsEnabled: null,
           skillsSelfLearningEnabled: null,
-          memoryAutoConsolidateEnabled: null,
+          memoryEnabled: null,
           defaultApprovalPolicy: null
         }
       })

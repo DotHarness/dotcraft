@@ -51,8 +51,7 @@ internal sealed class AppServerRuntimeConfigRefresher(
         var mergedConfig = LoadMergedWorkspaceConfig(useGlobalFallback: true);
         appConfigMonitor.Current.Memory = new MemoryConfig
         {
-            AutoConsolidateEnabled = mergedConfig.Memory.AutoConsolidateEnabled,
-            ConsolidateEveryNTurns = mergedConfig.Memory.ConsolidateEveryNTurns
+            Enabled = mergedConfig.Memory.Enabled
         };
     }
 
@@ -69,7 +68,6 @@ internal sealed class AppServerRuntimeConfigRefresher(
             StartupDelay = mergedConfig.Dreams.StartupDelay,
             ThreadLookbackCount = mergedConfig.Dreams.ThreadLookbackCount,
             AutoApply = mergedConfig.Dreams.AutoApply,
-            HistoryTailChars = mergedConfig.Dreams.HistoryTailChars,
             MinCompletedTurnsSinceLastRun = mergedConfig.Dreams.MinCompletedTurnsSinceLastRun
         };
     }

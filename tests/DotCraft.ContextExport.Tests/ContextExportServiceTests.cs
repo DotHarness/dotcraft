@@ -126,7 +126,6 @@ public sealed class ContextExportServiceTests : IDisposable
         var memoryDir = Path.Combine(_craft, "memory");
         Directory.CreateDirectory(memoryDir);
         await File.WriteAllTextAsync(Path.Combine(memoryDir, "MEMORY.md"), "Remember: use readonly export.");
-        await File.WriteAllTextAsync(Path.Combine(memoryDir, "HISTORY.md"), "old event\n\nrecent memory event");
 
         var result = await new ContextExportService().ExportAsync(new ContextExportOptions
         {
@@ -137,7 +136,6 @@ public sealed class ContextExportServiceTests : IDisposable
         Assert.Contains("compacted summary", result.Markdown);
         Assert.Contains("recent request", result.Markdown);
         Assert.Contains("Remember: use readonly export.", result.Markdown);
-        Assert.Contains("recent memory event", result.Markdown);
         Assert.Contains("Compaction", result.Markdown);
     }
 

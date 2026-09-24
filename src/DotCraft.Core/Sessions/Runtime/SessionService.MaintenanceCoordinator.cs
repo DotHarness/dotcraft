@@ -13,7 +13,6 @@ public sealed partial class SessionService
 {
     private sealed class MaintenanceCoordinator(SessionService owner)
     {
-        private readonly MemoryConsolidationExecutor _memory = new(owner);
         public Task<ThreadCompactResult> StartCompact(string threadId, CancellationToken ct)
         {
             var thread = GetLoadedThreadForAdmission(threadId);
@@ -27,7 +26,7 @@ public sealed partial class SessionService
                 throw new InvalidOperationException($"Thread '{threadId}' has a running Turn. Wait for it to complete or cancel it first.");
             ThrowIfThreadMaintenanceActive(threadId);
 
-            var maintenance = RegisterThreadMaintenance(threadId, "compacting");
+            var maintenance = RegisterCompactingMaintenance(threadId);
             return Task.Run(async () =>
             {
                 try
@@ -70,7 +69,7 @@ public sealed partial class SessionService
                 var session = await owner.Persistence.LoadModelHistoryAsync(threadId, maintenanceCt);
                 var coordinator = GetCompactionCoordinatorForThread(thread);
                 var historyForEstimate = PrepareProviderVisibleHistory(
-                    SnapshotSessionHistoryForConsolidation(session, thread)).ToList();
+                    SnapshotSessionHistory(session, thread)).ToList();
                 var tokenTracker = owner.AgentFactory.GetOrCreateTokenTracker(threadId);
                 var manualPromptSnapshot = owner.TryPrepareManualPromptRequestSnapshot(
                     threadId,
@@ -385,88 +384,6 @@ public sealed partial class SessionService
             }
         }
 
-        public Task<ThreadMemoryConsolidationResult> StartMemoryConsolidation(
-            string threadId,
-            CancellationToken ct)
-        {
-            var thread = GetLoadedThreadForAdmission(threadId);
-            if (thread.Status != ThreadStatus.Active)
-                throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {thread.Status}). Cannot consolidate memory.");
-            if (thread.HistoryMode != HistoryMode.Server)
-                throw new InvalidOperationException($"Thread '{threadId}' uses client-managed history and cannot be consolidated by Session Core.");
-            if (thread.Turns.Count == 0)
-                throw new InvalidOperationException($"Thread '{threadId}' has no history to consolidate.");
-            if (thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
-                throw new InvalidOperationException($"Thread '{threadId}' has a running Turn. Wait for it to complete or cancel it first.");
-            ThrowIfThreadMaintenanceActive(threadId);
-
-            var maintenance = RegisterThreadMaintenance(threadId, "consolidating");
-            return Task.Run(async () =>
-            {
-                try
-                {
-                    return await ConsolidateMemoryAsync(threadId, maintenance, ct).ConfigureAwait(false);
-                }
-                catch
-                {
-                    await maintenance.CompleteAsync().ConfigureAwait(false);
-                    throw;
-                }
-            }, CancellationToken.None);
-        }
-
-        private async Task<ThreadMemoryConsolidationResult> ConsolidateMemoryAsync(
-            string threadId,
-            ThreadMaintenanceRegistration maintenance,
-            CancellationToken ct)
-        {
-            var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
-
-            IReadOnlyList<ChatMessage> history;
-            SessionTurn completedTurn;
-            PromptRequestSnapshot? requestSnapshot;
-            using (await owner.Gate.AcquireAsync(threadId, ct))
-            {
-                thread = await owner.GetOrLoadThreadAsync(threadId, ct);
-                if (thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
-                    throw new InvalidOperationException($"Thread '{threadId}' has a running Turn. Wait for it to complete or cancel it first.");
-                completedTurn = thread.Turns.LastOrDefault(t => t.Status == TurnStatus.Completed)
-                    ?? throw new InvalidOperationException($"Thread '{threadId}' has no completed turn to consolidate.");
-
-                await owner.EnsurePerThreadAgentIfMissingAsync(threadId, thread, ct);
-                var agent = owner.GetThreadAgentOrDefault(threadId);
-                var session = await owner.Persistence.LoadModelHistoryAsync(threadId, ct);
-                history = SnapshotSessionHistoryForConsolidation(session, thread);
-                if (history.Count == 0)
-                    throw new InvalidOperationException($"Thread '{threadId}' has no model-visible history to consolidate.");
-
-                requestSnapshot = owner.TryGetValidLastPromptRequestSnapshot(threadId, history);
-                if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
-                    runtime.ResetTurnsSinceConsolidation();
-            }
-
-            var broker = owner.GetOrCreateBroker(threadId);
-            broker.PublishSystemEvent("consolidating");
-
-            using var linkedMaintenanceCts = CancellationTokenSource.CreateLinkedTokenSource(ct, maintenance.Token);
-            try
-            {
-                return await _memory.RunAsync(
-                    threadId,
-                    thread,
-                    completedTurn,
-                    history,
-                    requestSnapshot,
-                    () => completedTurn.Items.Count + 1,
-                    broker,
-                    linkedMaintenanceCts.Token);
-            }
-            finally
-            {
-                await maintenance.CompleteAsync().ConfigureAwait(false);
-            }
-        }
-
         public CompactionPipeline GetCompactionPipelineForThread(string threadId)
         {
             owner._runtimeRegistry.TryGetThread(threadId, out var thread);
@@ -554,61 +471,6 @@ public sealed partial class SessionService
                 throw new InvalidOperationException(
                     $"Thread '{threadId}' has active thread maintenance ({maintenance.Kind}). Wait for it to complete or cancel it first.");
             }
-        }
-
-        public bool TryScheduleMemoryConsolidation(
-            string threadId,
-            SessionThread thread,
-            SessionTurn turn,
-            List<ChatMessage> session,
-            SessionEventChannel eventChannel,
-            Func<int> nextItemSequence)
-        {
-            if (ThreadVisibility.IsInternal(thread))
-                return false;
-
-            var memoryConfig = owner._appConfigMonitor?.Current.Memory
-                ?? owner.AgentFactory.RuntimeContext.Config.Memory;
-
-            if (!memoryConfig.AutoConsolidateEnabled)
-                return false;
-
-            var interval = Math.Max(1, memoryConfig.ConsolidateEveryNTurns);
-            if (!owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
-                return false;
-
-            var count = runtime.IncrementTurnsSinceConsolidation();
-
-            if (count < interval)
-                return false;
-
-            var history = SnapshotSessionHistoryForConsolidation(session, thread);
-            if (history.Count == 0)
-                return false;
-            var requestSnapshot = owner.TryGetValidLastPromptRequestSnapshot(
-                threadId,
-                history,
-                invalidateOnMismatch: false);
-            // Some providers/session adapters persist a normalized consolidation
-            // history that cannot byte-match the just-sent request prefix. A
-            // snapshot captured by this same completed turn is still fresh because
-            // no compaction boundary has crossed it yet.
-            if (requestSnapshot is null
-                && owner.TryGetLastPromptRequestSnapshot(threadId) is { } freshTurnSnapshot
-                && string.Equals(freshTurnSnapshot.TurnId, turn.Id, StringComparison.Ordinal))
-            {
-                requestSnapshot = freshTurnSnapshot;
-            }
-
-            var work = new AutoMemoryConsolidationWork(
-                thread,
-                turn,
-                history,
-                requestSnapshot,
-                nextItemSequence,
-                ThreadConversationIdentity.Create(thread, turn,
-                    owner.GetOrCreateResponsesContextWindow(threadId).CurrentWindowId, ProviderRequestKind.Memory));
-            return TryStartAutoMemoryConsolidation(threadId, work, eventChannel);
         }
 
         public async Task TryAppendCompactionCheckpointAsync(
@@ -699,9 +561,9 @@ public sealed partial class SessionService
                 $"Thread '{thread.Id}' does not have an effective tool snapshot for compaction.");
         }
 
-        private ThreadMaintenanceRegistration RegisterThreadMaintenance(string threadId, string kind)
+        private ThreadMaintenanceRegistration RegisterCompactingMaintenance(string threadId)
         {
-            var state = new ThreadMaintenanceState(kind);
+            var state = new ThreadMaintenanceState("compacting");
             if (!owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime)
                 || !runtime.TrySetMaintenance(state))
             {
@@ -712,9 +574,7 @@ public sealed partial class SessionService
 
             owner.ThreadRuntimeSignalForBroadcast?.Invoke(
                 threadId,
-                kind == "compacting"
-                    ? SessionThreadRuntimeSignal.MaintenanceCompactingStarted
-                    : SessionThreadRuntimeSignal.MaintenanceConsolidatingStarted,
+                SessionThreadRuntimeSignal.MaintenanceCompactingStarted,
                 null);
             return new ThreadMaintenanceRegistration(owner, threadId, state);
         }
@@ -726,78 +586,7 @@ public sealed partial class SessionService
             return thread;
         }
 
-        private bool TryStartAutoMemoryConsolidation(
-            string threadId,
-            AutoMemoryConsolidationWork work,
-            SessionEventChannel? eventChannel)
-        {
-            if (!owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
-                return false;
-
-            if (!runtime.TryStartAutoMemoryConsolidation())
-            {
-                runtime.SetPendingAutoMemoryConsolidation(work);
-                return true;
-            }
-
-            runtime.ResetTurnsSinceConsolidation();
-            eventChannel?.EmitSystemEvent("consolidating");
-
-            using var flow = ExecutionContext.IsFlowSuppressed() ? default : ExecutionContext.SuppressFlow();
-            _ = Task.Run(async () =>
-            {
-                var current = work;
-                var broker = owner.GetOrCreateBroker(threadId);
-                try
-                {
-                    while (true)
-                    {
-                        await _memory.RunAsync(
-                            threadId,
-                            current.Thread,
-                            current.Turn,
-                            current.History,
-                            current.RequestSnapshot,
-                            current.NextItemSequence,
-                            broker,
-                            CancellationToken.None,
-                            current.Identity);
-
-                        if (runtime.TryTakePendingAutoMemoryConsolidation(out current))
-                        {
-                            runtime.ResetTurnsSinceConsolidation();
-                            broker.PublishTurnSystemEvent(current.Turn.Id, "consolidating");
-                            continue;
-                        }
-
-                        runtime.CompleteAutoMemoryConsolidation();
-
-                        if (runtime.TryTakePendingAutoMemoryConsolidation(out current))
-                        {
-                            if (runtime.TryStartAutoMemoryConsolidation())
-                            {
-                                runtime.ResetTurnsSinceConsolidation();
-                                broker.PublishTurnSystemEvent(current.Turn.Id, "consolidating");
-                                continue;
-                            }
-
-                            runtime.SetPendingAutoMemoryConsolidation(current);
-                        }
-
-                        break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    owner.Logger?.LogWarning(ex, "Automatic memory consolidation runner failed for thread {ThreadId}", threadId);
-                    runtime.CompleteAutoMemoryConsolidation();
-                }
-            });
-
-            return true;
-        }
-
-        private static IReadOnlyList<ChatMessage> SnapshotSessionHistoryForConsolidation(
+        private static IReadOnlyList<ChatMessage> SnapshotSessionHistory(
             List<ChatMessage> session,
             SessionThread thread)
         {

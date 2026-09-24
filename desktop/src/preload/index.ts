@@ -653,7 +653,7 @@ const api = {
         providerPreferences: ProviderPreferences
         welcomeSuggestionsEnabled: boolean | null
         skillsSelfLearningEnabled: boolean | null
-        memoryAutoConsolidateEnabled: boolean | null
+        memoryEnabled: boolean | null
         dreamsEnabled: boolean | null
         dreamsInterval: string | null
         dreamsThreadLookbackCount: number | null
@@ -665,7 +665,7 @@ const api = {
         providerPreferences: ProviderPreferences
         welcomeSuggestionsEnabled: boolean | null
         skillsSelfLearningEnabled: boolean | null
-        memoryAutoConsolidateEnabled: boolean | null
+        memoryEnabled: boolean | null
         dreamsEnabled: boolean | null
         dreamsInterval: string | null
         dreamsThreadLookbackCount: number | null

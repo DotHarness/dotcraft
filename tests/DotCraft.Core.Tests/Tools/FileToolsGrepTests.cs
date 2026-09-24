@@ -60,14 +60,14 @@ public sealed class FileToolsGrepTests : IDisposable
     {
         Directory.CreateDirectory(Path.Combine(_workspace, ".craft", "memory"));
         Directory.CreateDirectory(Path.Combine(_workspace, "node_modules", "pkg"));
-        await File.WriteAllTextAsync(Path.Combine(_workspace, ".craft", "memory", "HISTORY.md"), "needle in memory");
+        await File.WriteAllTextAsync(Path.Combine(_workspace, ".craft", "memory", "MEMORY.md"), "needle in memory");
         await File.WriteAllTextAsync(Path.Combine(_workspace, "node_modules", "pkg", "ignored.txt"), "needle in dependency");
         var missingRg = Path.Combine(_workspace, "missing-rg.exe");
         var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false, ripgrepPath: missingRg);
 
         var result = await tools.GrepFiles("needle");
 
-        Assert.Contains("HISTORY.md", result, StringComparison.Ordinal);
+        Assert.Contains("MEMORY.md", result, StringComparison.Ordinal);
         Assert.Contains("needle in memory", result, StringComparison.Ordinal);
         Assert.DoesNotContain("ignored.txt", result, StringComparison.Ordinal);
     }

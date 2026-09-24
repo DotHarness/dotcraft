@@ -117,8 +117,7 @@ public sealed partial class AppConfig
     public string? WorkspaceConfigPath { get; set; }
 
     /// <summary>
-    /// Long-term memory consolidation settings. These settings are independent
-    /// from context compaction.
+    /// Workspace memory settings.
     /// </summary>
     [ConfigField(Ignore = true)]
     public MemoryConfig Memory { get; set; } = new();
@@ -130,10 +129,9 @@ public sealed partial class AppConfig
     public DreamsConfig Dreams { get; set; } = new();
 
     /// <summary>
-    /// Model used for memory consolidation. When empty, uses the effective MainAgent model.
-    /// When set, use this model for consolidation only (e.g. a non-thinking model to avoid tool_choice restrictions in thinking mode).
+    /// Model used for Dreams runs. When empty, uses the effective MainAgent model.
     /// </summary>
-    [ConfigField(Hint = "Model for memory consolidation. Empty = use main Model. Set to a non-thinking model if main model does not support tool_choice in thinking mode.")]
+    [ConfigField(Hint = "Model for Dreams runs. Empty = use main Model.")]
     public string ConsolidationModel { get; set; } = string.Empty;
 
     /// <summary>

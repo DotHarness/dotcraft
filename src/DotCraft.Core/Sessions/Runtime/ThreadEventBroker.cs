@@ -197,9 +197,6 @@ internal sealed class ThreadEventBroker(string threadId)
             "compacting" => ("context.limit_reached", "Context token limit reached, compacting conversation..."),
             "compacted" => ("context.compacted", "Context compacted successfully."),
             "compactSkipped" => ("context.compact_skipped", "Context compaction skipped (insufficient history)."),
-            "consolidating" => ("memory.consolidating", "Consolidating memory..."),
-            "consolidated" => ("memory.consolidated", "Memory consolidation complete."),
-            "consolidationFailed" => ("memory.consolidation_failed", "Memory consolidation failed."),
             _ => ($"system.{kind}", null)
         };
     }

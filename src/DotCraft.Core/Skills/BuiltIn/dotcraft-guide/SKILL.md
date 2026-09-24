@@ -24,7 +24,7 @@ Cite only `www.dotcraft.net` and `github.com/DotHarness/dotcraft`. Never invent 
 |---|---|
 | Something done once, right now | Just do it. Nothing to persist |
 | A convention for everyone working in this repository | `AGENTS.md` |
-| A fact about the user or project to recall later | `.craft/memory/MEMORY.md` — `$memory` |
+| A preference or correction to keep for later sessions | `.craft/memory/MEMORY.md` |
 | A setting for this project | `<workspace>/.craft/config.json` |
 | A personal default, credentials, or endpoints | `~/.craft/config.json` |
 | A custom model's context window or Fast capability | `<workspace>/.craft/models.json`, or `~/.craft/models.json` for every workspace |
@@ -62,6 +62,5 @@ Read the one that matches the task. They sit next to this file, in the directory
 
 - A failure that needs logs, rollouts, or `state.db` — `dotcraft-doctor`, in the bundled `dotcraft` plugin. If it is not installed, say so and point to Desktop > Plugins rather than guessing at a cause. An error already visible in this conversation you can simply answer.
 - Writing or installing a skill — `$skill-authoring`, `$skill-installer`. Plugins — `$plugin-creator`. Hooks — `$create-hooks`. Schedules — the `Automation` tool. Workflows — `$workflow-authoring`. Charts and interactive views — `$visualize`.
-- How memory retrieval and consolidation work — `$memory`. The `Memory` and `Dreams` settings stay here.
 - Building an application on the SDKs, in-process Harness, or AppServer protocol — `$dotcraft-api`.
 - Editing DotCraft's own source or documentation — `dotcraft-dev-guide`, `dotcraft-docs-guide`.

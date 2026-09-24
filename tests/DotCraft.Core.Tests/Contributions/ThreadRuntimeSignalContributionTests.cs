@@ -52,7 +52,6 @@ public sealed class ThreadRuntimeSignalContributionTests
             SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation,
             SessionThreadRuntimeSignal.ContextCompacted,
             SessionThreadRuntimeSignal.MaintenanceCompactingStarted,
-            SessionThreadRuntimeSignal.MaintenanceConsolidatingStarted,
             SessionThreadRuntimeSignal.MaintenanceCompleted
         ];
         foreach (var signal in signalOnly)

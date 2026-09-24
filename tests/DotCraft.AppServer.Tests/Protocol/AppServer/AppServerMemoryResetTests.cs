@@ -40,8 +40,8 @@ public sealed class AppServerMemoryResetTests : IDisposable
     {
         var memoryStore = new MemoryStore(_workspaceCraftPath);
         var dreamStore = new DreamStore(_workspaceCraftPath);
-        memoryStore.WriteLongTerm("remember this");
-        memoryStore.AppendHistory("historic event");
+        File.WriteAllText(memoryStore.LongTermFilePath, "remember this");
+        File.WriteAllText(Path.Combine(memoryStore.MemoryDirectoryPath, "HISTORY.md"), "legacy event");
         dreamStore.SaveDreamRun("# Dream Memory\n\n- passive context", "dream history");
         File.WriteAllText(Path.Combine(dreamStore.DreamsDirectoryPath, "state.json"), "{}");
         var derivedDir = Path.Combine(memoryStore.MemoryDirectoryPath, "derived");
@@ -54,7 +54,7 @@ public sealed class AppServerMemoryResetTests : IDisposable
             """
             {
               "Memory": {
-                "AutoConsolidateEnabled": false
+                "Enabled": false
               }
             }
             """);
@@ -63,7 +63,7 @@ public sealed class AppServerMemoryResetTests : IDisposable
         {
             Memory = new MemoryConfig
             {
-                AutoConsolidateEnabled = false
+                Enabled = false
             }
         });
         var welcomeSuggestions = new FakeWelcomeSuggestionService();
@@ -96,7 +96,7 @@ public sealed class AppServerMemoryResetTests : IDisposable
                 .OrderBy(static name => name)
                 .ToArray());
         Assert.True(File.Exists(configPath));
-        Assert.False(harness.Monitor.Current.Memory.AutoConsolidateEnabled);
+        Assert.False(harness.Monitor.Current.Memory.Enabled);
 
         var threads = await harness.Service.FindThreadsAsync(harness.Identity);
         Assert.Contains(threads, summary => summary.Id == thread.Id);
@@ -107,7 +107,7 @@ public sealed class AppServerMemoryResetTests : IDisposable
     public async Task MemoryReset_ObjectParams_ReturnsEmptyObject()
     {
         var memoryStore = new MemoryStore(_workspaceCraftPath);
-        memoryStore.WriteLongTerm("remember this");
+        File.WriteAllText(memoryStore.LongTermFilePath, "remember this");
         using var harness = new AppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
             memoryStore: memoryStore);

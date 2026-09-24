@@ -1566,27 +1566,6 @@ describe('notification dispatch payload format', () => {
     expect(s().systemLabel).toBe('systemStatus.compacting.manual')
   })
 
-  it('dispatches consolidationSkipped and clears systemLabel', () => {
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
-    dispatch({ method: 'system/event', params: { kind: 'consolidating', turnId: null } })
-    expect(s().systemLabel).toBe('systemStatus.consolidating')
-
-    dispatch({ method: 'system/event', params: { kind: 'consolidationSkipped' } })
-    expect(s().systemLabel).toBeNull()
-  })
-
-  it('dispatches turn-scoped consolidating as background memory status', () => {
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
-    dispatch({ method: 'system/event', params: { kind: 'consolidating', turnId: 'turn_1' } })
-
-    expect(s().backgroundMemoryStatus).toBe('consolidating')
-    expect(s().maintenanceKind).toBeNull()
-    expect(s().systemLabel).toBeNull()
-
-    dispatch({ method: 'system/event', params: { kind: 'consolidated', turnId: 'turn_1' } })
-    expect(s().backgroundMemoryStatus).toBeNull()
-  })
-
   it('ignores system/event from non-active threads', () => {
     s().setContextUsage({
       tokens: 195_000,

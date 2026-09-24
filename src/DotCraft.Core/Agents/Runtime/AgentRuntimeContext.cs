@@ -52,6 +52,7 @@ public sealed class AgentRuntimeContext
         BotPath = source.BotPath;
         UserDataPath = source.UserDataPath;
         MemoryStore = source.MemoryStore;
+        MemoryEnabled = source.MemoryEnabled;
         DreamStore = source.DreamStore;
         SkillsLoader = source.SkillsLoader;
         ContextPageManager = source.ContextPageManager;
@@ -207,6 +208,8 @@ public sealed class AgentRuntimeContext
     /// The memory store for context persistence.
     /// </summary>
     public required MemoryStore MemoryStore { get; init; }
+
+    public bool MemoryEnabled { get; init; } = true;
 
     /// <summary>
     /// Optional Dreams store for passive workspace memory context.

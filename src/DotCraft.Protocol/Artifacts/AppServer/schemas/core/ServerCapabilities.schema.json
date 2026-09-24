@@ -71,9 +71,6 @@
     "manualCompaction": {
       "type": "boolean"
     },
-    "manualMemoryConsolidation": {
-      "type": "boolean"
-    },
     "mcpApps": {
       "type": "boolean"
     },

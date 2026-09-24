@@ -186,7 +186,7 @@ internal sealed class SessionEventChannel(
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Emits a system-level maintenance event (context compaction, memory consolidation).
+    /// Emits a system-level maintenance event, such as context compaction.
     /// Called by <see cref="SessionService"/> during the Turn's post-processing phase.
     /// </summary>
     public void EmitSystemEvent(

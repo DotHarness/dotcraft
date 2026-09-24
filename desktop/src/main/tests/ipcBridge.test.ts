@@ -1499,7 +1499,7 @@ describe('registerIpcHandlers', () => {
       if (pathText.includes('sample-project')) {
         return JSON.stringify({
           Memory: {
-            AutoConsolidateEnabled: true
+            Enabled: true
           },
           Skills: {
             SelfLearning: {
@@ -1510,7 +1510,7 @@ describe('registerIpcHandlers', () => {
       }
       return JSON.stringify({
         Memory: {
-          AutoConsolidateEnabled: false
+          Enabled: false
         },
         Skills: {
           SelfLearning: {
@@ -1541,8 +1541,8 @@ describe('registerIpcHandlers', () => {
 
     const result = await handlers.get('workspace-config:get-core')?.({})
     expect(result).toMatchObject({
-      workspace: { skillsSelfLearningEnabled: true, memoryAutoConsolidateEnabled: true },
-      userDefaults: { skillsSelfLearningEnabled: false, memoryAutoConsolidateEnabled: false }
+      workspace: { skillsSelfLearningEnabled: true, memoryEnabled: true },
+      userDefaults: { skillsSelfLearningEnabled: false, memoryEnabled: false }
     })
   })
 

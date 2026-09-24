@@ -14,7 +14,7 @@ namespace DotCraft.Context;
 /// Enhanced context provider combining memory, skills, and system prompt.
 /// </summary>
 public sealed class MemoryContextProvider(
-    MemoryStore memoryStore,
+    MemoryStore? memoryStore,
     SkillsLoader skillsLoader,
     string dotCraftPath,
     string workspacePath,

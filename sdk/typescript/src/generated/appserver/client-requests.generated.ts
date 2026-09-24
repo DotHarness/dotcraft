@@ -158,7 +158,6 @@ export interface ClientRequestMethods {
   "thread/items/list": { params: Models.ThreadItemsListParams; result: Models.ThreadItemsListResult };
   "thread/list": { params: Models.ThreadListParams; result: Models.ThreadListResult };
   "thread/maintenance/interrupt": { params: Models.ThreadMaintenanceInterruptParams; result: Models.RpcEmpty };
-  "thread/memory/consolidate/start": { params: Models.ThreadMemoryConsolidateStartParams; result: Models.ThreadMemoryConsolidateStartResponse };
   "thread/mode/set": { params: Models.ThreadModeSetParams; result: Models.RpcEmpty };
   "thread/pause": { params: Models.ThreadPauseParams; result: Models.RpcEmpty };
   "thread/read": { params: Models.ThreadReadParams; result: Models.ThreadReadResult };

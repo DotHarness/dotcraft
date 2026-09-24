@@ -5956,13 +5956,6 @@
           "const": null
         },
         {
-          "name": "historyWritten",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
           "name": "id",
           "type": "string",
           "required": false,
@@ -6112,13 +6105,6 @@
         {
           "name": "enabled",
           "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "historyTailChars",
-          "type": "integer",
           "required": false,
           "nullable": false,
           "const": null
@@ -14597,13 +14583,6 @@
           "const": null
         },
         {
-          "name": "manualMemoryConsolidation",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
           "name": "mcpApps",
           "type": "boolean",
           "required": false,
@@ -20031,63 +20010,6 @@
       "variants": []
     },
     {
-      "id": "core.ThreadMemoryConsolidateStartParams",
-      "name": "ThreadMemoryConsolidateStartParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ThreadMemoryConsolidateStartParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ThreadMemoryConsolidateStartResponse",
-      "name": "ThreadMemoryConsolidateStartResponse",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ThreadMemoryConsolidateStartResponse.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "historyWritten",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "memoryWritten",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "message",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "outcome",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.ThreadModeSetParams",
       "name": "ThreadModeSetParams",
       "module": "core",
@@ -25135,7 +25057,7 @@
           "const": null
         },
         {
-          "name": "memoryAutoConsolidateEnabled",
+          "name": "memoryEnabled",
           "type": "boolean",
           "required": false,
           "nullable": true,
@@ -25230,7 +25152,7 @@
           "const": null
         },
         {
-          "name": "memoryAutoConsolidateEnabled",
+          "name": "memoryEnabled",
           "type": "boolean",
           "required": false,
           "nullable": true,
@@ -29719,26 +29641,6 @@
       "direction": "clientToServer",
       "paramsType": "core.ThreadMaintenanceInterruptParams",
       "resultType": "core.RpcEmpty",
-      "module": "core",
-      "capability": "threadManagement",
-      "scope": "thread",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "thread/memory/consolidate/start",
-      "descriptorMember": "ThreadMemoryConsolidateStart",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.ThreadMemoryConsolidateStartParams",
-      "resultType": "core.ThreadMemoryConsolidateStartResponse",
       "module": "core",
       "capability": "threadManagement",
       "scope": "thread",

@@ -181,7 +181,6 @@ public sealed class DashBoardDreamsEndpointTests : IDisposable
             Interval = TimeSpan.FromHours(24),
             StartupDelay = TimeSpan.Zero,
             ThreadLookbackCount = 20,
-            HistoryTailChars = 20_000,
             MinCompletedTurnsSinceLastRun = 1
         }
     };

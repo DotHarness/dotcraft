@@ -1224,7 +1224,6 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
 
         var diagnostics = MaintenanceForkCacheShaper.Apply(
             snapshot,
-            [],
             options,
             new MaintenanceForkCacheOptions(
                 ModelProviderProtocols.OpenAIResponses,

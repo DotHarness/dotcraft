@@ -33,8 +33,7 @@ public sealed class OpenAIResponsesMaintenanceHistoryTests
         using var retrying = new StreamRetryingChatClient(adapter, new StreamRetryOptions(0, TimeSpan.FromSeconds(5)));
         var snapshot = PromptRequestSnapshot.Capture([new ChatMessage(ChatRole.User, "remember blue")], null);
         var result = await new MaintenanceForkRunner(retrying, new TraceCollector(new TraceStore())).RunAsync(snapshot,
-            new MaintenanceForkTask(MaintenanceForkTaskKind.MemoryConsolidation, "Extract durable memory."), null,
-            new MaintenanceForkToolExecutionOptions(_ => ModeToolPolicyDecision.Allow));
+            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
 
         Assert.Equal("done", result.Text);
         Assert.Equal(0, completedAttempts);
@@ -64,11 +63,11 @@ public sealed class OpenAIResponsesMaintenanceHistoryTests
             providerId: "openai", mode: "agent", threadId: "thread_test", turnId: "turn_001");
 
         var result = await new MaintenanceForkRunner(adapter).RunAsync(snapshot,
-            new MaintenanceForkTask(MaintenanceForkTaskKind.MemoryConsolidation, "Extract memory only."));
+            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context only."));
 
         Assert.Null(result.FallbackReason);
         using var request = JsonDocument.Parse(ModelReaderWriter.Write(Assert.Single(transport.Requests)).ToString());
-        Assert.Contains("Extract memory only.", request.RootElement.GetProperty("input").ToString());
+        Assert.Contains("Summarize older context only.", request.RootElement.GetProperty("input").ToString());
         Assert.DoesNotContain("covered", request.RootElement.GetProperty("input").ToString());
         Assert.Empty(records);
         Assert.Same(original, ProviderRequestContextScope.Current);
@@ -77,7 +76,6 @@ public sealed class OpenAIResponsesMaintenanceHistoryTests
 
     [Theory]
     [InlineData(ProviderRequestKind.Compaction)]
-    [InlineData(ProviderRequestKind.Memory)]
     public async Task AuxiliaryRequestUsesExplicitMessagesWithoutMutatingCanonicalHistory(
         ProviderRequestKind requestKind)
     {

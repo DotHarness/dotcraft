@@ -133,18 +133,6 @@ describe('selectLatestCreatePlanTurnId', () => {
 })
 
 describe('maintenance state', () => {
-  it('tracks consolidation maintenance from system events', () => {
-    s().onSystemEvent('consolidating')
-
-    expect(s().maintenanceKind).toBe('consolidating')
-    expect(s().systemLabel).toBe('systemStatus.consolidating')
-
-    s().onSystemEvent('consolidationCancelled')
-
-    expect(s().maintenanceKind).toBeNull()
-    expect(s().systemLabel).toBeNull()
-  })
-
   it('tracks only thread-level compaction as maintenance', () => {
     s().onSystemEvent('compacting', { turnId: 'turn-1' })
     expect(s().maintenanceKind).toBeNull()
@@ -156,13 +144,6 @@ describe('maintenance state', () => {
     expect(s().maintenanceKind).toBeNull()
   })
 
-  it('hydrates consolidation maintenance label from runtime snapshots', () => {
-    s().setMaintenanceKind('consolidating')
-
-    expect(s().maintenanceKind).toBe('consolidating')
-    expect(s().systemLabel).toBe('systemStatus.consolidating')
-  })
-
   it('hydrates manual compaction label from runtime snapshots', () => {
     s().setMaintenanceKind('compacting')
 
@@ -171,7 +152,7 @@ describe('maintenance state', () => {
   })
 
   it('clears only maintenance-derived labels when runtime maintenance ends', () => {
-    s().setMaintenanceKind('consolidating')
+    s().setMaintenanceKind('compacting')
     s().setMaintenanceKind(null)
 
     expect(s().maintenanceKind).toBeNull()
@@ -1966,22 +1947,6 @@ describe('system events', () => {
     expect(s().systemLabel).toBeNull()
   })
 
-  it('clears label on "consolidationFailed" event', () => {
-    s().onTurnStarted(makeTurn())
-    s().onSystemEvent('consolidating')
-    expect(s().systemLabel).toBe('systemStatus.consolidating')
-    s().onSystemEvent('consolidationFailed')
-    expect(s().systemLabel).toBeNull()
-  })
-
-  it('clears label on "consolidationSkipped" event', () => {
-    s().onTurnStarted(makeTurn())
-    s().onSystemEvent('consolidating')
-    expect(s().systemLabel).toBe('systemStatus.consolidating')
-    s().onSystemEvent('consolidationSkipped')
-    expect(s().systemLabel).toBeNull()
-  })
-
   it('ignores unknown system event kinds', () => {
     s().onTurnStarted(makeTurn())
     s().onSystemEvent('unknown-event-xyz')
@@ -2302,25 +2267,6 @@ describe('systemNotice items', () => {
     s().onItemCompleted(payload)
     const count = s().turns[0].items.filter((i) => i.type === 'systemNotice').length
     expect(count).toBe(1)
-  })
-
-  it('appends a memory consolidation notice to turn.items on item/completed', () => {
-    s().onTurnStarted(makeTurn())
-    s().onItemCompleted({
-      turnId: 'turn-1',
-      item: {
-        id: 'notice-memory',
-        type: 'systemNotice',
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        payload: {
-          kind: 'memoryConsolidated'
-        }
-      }
-    })
-
-    const notice = s().turns[0].items.find((i) => i.type === 'systemNotice')
-    expect(notice?.systemNotice?.kind).toBe('memoryConsolidated')
   })
 
   it('preserves fork source thread id on fork notices', () => {

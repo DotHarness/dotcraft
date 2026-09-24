@@ -45,7 +45,7 @@ public sealed class ContextExportService
                 ? $"Model history warning ({warning.Code}): {warning.Message}"
                 : $"Model history warning for turn '{warning.TurnId}' ({warning.Code}): {warning.Message}");
         }
-        var memory = _reader.LoadMemory(loaded.Paths, options.History, options.HistoryTailChars);
+        var memory = _reader.LoadMemory(loaded.Paths);
         var markdown = BuildMarkdown(loaded, memory, replay, options, warnings);
 
         return new ContextExportResult
@@ -73,7 +73,6 @@ public sealed class ContextExportService
         AppendMetadata(sb, "Generated At", DateTimeOffset.UtcNow.ToString("O"));
         AppendMetadata(sb, "Profile", options.Profile.ToString());
         AppendMetadata(sb, "Tool Results", options.ToolResults.ToString());
-        AppendMetadata(sb, "History", options.History.ToString());
         AppendMetadata(sb, "Workspace", loaded.Paths.WorkspacePath);
         AppendMetadata(sb, "Craft Path", loaded.Paths.CraftPath);
         AppendMetadata(sb, "Rollout", loaded.RolloutPath);
@@ -91,7 +90,7 @@ public sealed class ContextExportService
         AppendMetadata(sb, "Turn Count", thread.Turns.Count.ToString());
         sb.AppendLine();
 
-        AppendMemory(sb, memory, options);
+        AppendMemory(sb, memory);
         AppendContinuity(sb, loaded.ContinuityEvents);
         AppendCurrentContext(sb, modelHistory, options);
         AppendConversation(sb, thread, options);
@@ -109,8 +108,7 @@ public sealed class ContextExportService
 
     private static void AppendMemory(
         StringBuilder sb,
-        ContextWorkspaceMemory memory,
-        ContextExportOptions options)
+        ContextWorkspaceMemory memory)
     {
         sb.AppendLine("## Workspace Memory");
         sb.AppendLine($"Source: `{memory.MemoryPath}`");
@@ -122,29 +120,6 @@ public sealed class ContextExportService
         else
         {
             AppendCodeBlock(sb, "markdown", memory.Memory.TrimEnd());
-        }
-
-        sb.AppendLine();
-        sb.AppendLine("## Memory History");
-        if (options.History == ContextExportHistoryMode.None)
-        {
-            sb.AppendLine("Omitted by `--history none`.");
-        }
-        else
-        {
-            sb.AppendLine($"Source: `{memory.HistoryPath}`");
-            if (string.IsNullOrWhiteSpace(memory.History))
-            {
-                sb.AppendLine();
-                sb.AppendLine("(empty)");
-            }
-            else
-            {
-                var label = options.History == ContextExportHistoryMode.Tail
-                    ? $"markdown title=\"tail {options.HistoryTailChars} chars\""
-                    : "markdown";
-                AppendCodeBlock(sb, label, memory.History.TrimEnd());
-            }
         }
 
         sb.AppendLine();

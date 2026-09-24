@@ -4,7 +4,7 @@ import { buildComposerHistory, queuedInputToComposerDraft, linearLengthOfCompose
 import { useComposerContextStore } from '../../stores/composerContextStore'
 import { useRef, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react'
 import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
-import { Archive, Bot, ChevronsDown, FileText, ListChecks, Target } from 'lucide-react'
+import { Bot, ChevronsDown, FileText, ListChecks, Target } from 'lucide-react'
 import { readAppServerErrorFields } from '../../../shared/appServerError'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -98,7 +98,6 @@ const MAX_TEXT_LENGTH = 100_000
 const MAX_IMAGES = 5
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const MANUAL_COMPACTION_TIMEOUT_MS = 5 * 60 * 1000
-const MANUAL_MEMORY_CONSOLIDATION_TIMEOUT_MS = 5 * 60 * 1000
 
 
 /** AppServer maps a running turn and active maintenance alike onto this code. */
@@ -191,7 +190,6 @@ export function InputComposer(props: InputComposerProps): JSX.Element {
       turnStatus === 'running'
       || waitingForInput
       || maintenanceKind === 'compacting'
-      || maintenanceKind === 'consolidating'
     )),
     awaitingApproval: !hasSubmitOverride && turnStatus === 'waitingApproval',
     variant: props.variant ?? 'default',
@@ -265,7 +263,6 @@ function InputComposerCore({
   const [goalPillActive, setGoalPillActive] = useState(false)
   const [goalBusy, setGoalBusy] = useState(false)
   const [compactBusy, setCompactBusy] = useState(false)
-  const [consolidateBusy, setConsolidateBusy] = useState(false)
   const [editingQueuedInputId, setEditingQueuedInputId] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [editorFocused, setEditorFocused] = useState(false)
@@ -333,16 +330,14 @@ function InputComposerCore({
   const followUpMode = isRunning ? followUpPreference : 'queue'
   const isWaitingApproval = !hasSubmitOverride && turnStatus === 'waitingApproval'
   const isWaitingInput = !hasSubmitOverride && turnStatus === 'waitingInput'
-  const isMaintenanceActive = !hasSubmitOverride && (maintenanceKind === 'compacting' || maintenanceKind === 'consolidating')
+  const isMaintenanceActive = !hasSubmitOverride && maintenanceKind === 'compacting'
   const isBusyForInput = isRunning || isMaintenanceActive
   const canUseCommandPicker = capabilities?.commandManagement === true
   const canUseSkillPicker = capabilities?.skillsManagement === true
   const canUseThreadGoals = !isAgentBuilder && capabilities?.threadGoals === true
   const canUseManualCompaction = !isAgentBuilder && capabilities?.manualCompaction === true
-  const canUseManualMemoryConsolidation = !isAgentBuilder && capabilities?.manualMemoryConsolidation === true
   const turnsLength = turns.length
   const canCompactCurrentThread = canUseManualCompaction && turnsLength > 0 && turnStatus === 'idle' && !isMaintenanceActive
-  const canConsolidateCurrentThread = canUseManualMemoryConsolidation && turnsLength > 0 && turnStatus === 'idle' && !isMaintenanceActive
   const canUseSystemActions = !isAgentBuilder
   const canUseAgentProfiles = !isAgentBuilder && capabilities?.agentProfileManagement === true
   const rawProfileId = (activeThread?.configuration as Record<string, unknown> | null | undefined)?.agentProfileId
@@ -370,7 +365,7 @@ function InputComposerCore({
   const isAgentBuilderModeSlashQuery = isAgentBuilder
     && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent')
   const isExactSystemSlashQuery = !isAgentBuilder
-    && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'init' || normalizedSlashQuery === 'compact' || normalizedSlashQuery === 'consolidate')
+    && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'init' || normalizedSlashQuery === 'compact')
   const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery && !isAgentBuilderModeSlashQuery
   const showCommandQueryPopover = commandQuery !== null && canUseSlashPicker
   const showCommandPopover = showSlashPopover || showCommandQueryPopover
@@ -447,15 +442,6 @@ function InputComposerCore({
           icon: <ChevronsDown size={15} strokeWidth={2} aria-hidden />
         })
       }
-      if (canConsolidateCurrentThread) {
-        actions.push({
-          id: 'consolidate',
-          label: t('composer.system.consolidate'),
-          description: t('composer.system.consolidate.description'),
-          keywords: ['consolidate', 'memory'],
-          icon: <Archive size={15} strokeWidth={2} aria-hidden />
-        })
-      }
       if (canUseThreadGoals) {
         actions.push({
           id: 'goal',
@@ -467,7 +453,7 @@ function InputComposerCore({
       }
       return actions
     },
-    [canCompactCurrentThread, canConsolidateCurrentThread, canUseAgentProfiles, canUseCommandPicker, canUseSystemActions, canUseThreadGoals, hasProfile, initAvailable, t, threadMode]
+    [canCompactCurrentThread, canUseAgentProfiles, canUseCommandPicker, canUseSystemActions, canUseThreadGoals, hasProfile, initAvailable, t, threadMode]
   )
 
   useEffect(() => {
@@ -1146,8 +1132,7 @@ function InputComposerCore({
       let clearInput = false
       if (systemCommand.kind === 'plan') clearInput = await setComposerMode('plan')
       else if (systemCommand.kind === 'agent') clearInput = await setComposerMode('agent')
-      else if (systemCommand.kind === 'compact') clearInput = await compactThreadContext()
-      else clearInput = await consolidateThreadMemory()
+      else clearInput = await compactThreadContext()
       if (clearInput) {
         resetComposerInput()
       }
@@ -1270,7 +1255,7 @@ function InputComposerCore({
       console.error('turn/start failed:', err)
       const currentMaintenanceKind = useConversationStore.getState().maintenanceKind
       if (isTurnBusyError(err)
-        && (currentMaintenanceKind === 'compacting' || currentMaintenanceKind === 'consolidating')) {
+        && currentMaintenanceKind === 'compacting') {
         try {
           await sendFollowUpWithEcho(crypto.randomUUID(), inputParts, visibleText, 'queue')
           return
@@ -1286,7 +1271,7 @@ function InputComposerCore({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, consolidateThreadMemory, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer])
+  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,
@@ -1428,7 +1413,7 @@ function InputComposerCore({
         })
         return
       }
-      if (state.maintenanceKind === 'compacting' || state.maintenanceKind === 'consolidating') {
+      if (state.maintenanceKind === 'compacting') {
         await window.api.appServer.sendRequest('thread/maintenance/interrupt', { threadId })
       }
     } catch (err) {
@@ -1545,43 +1530,6 @@ function InputComposerCore({
     }
   }
 
-  async function consolidateThreadMemory(): Promise<boolean> {
-    if (consolidateBusy) return false
-    if (!canConsolidateCurrentThread) {
-      addToast(t('composer.consolidate.unavailable'), 'warning')
-      return false
-    }
-
-    setConsolidateBusy(true)
-    addToast(t('composer.consolidate.started'), 'info')
-    try {
-      const result = (await window.api.appServer.sendRequest(
-        'thread/memory/consolidate/start',
-        { threadId },
-        MANUAL_MEMORY_CONSOLIDATION_TIMEOUT_MS
-      )) as {
-        outcome?: string
-        message?: string
-        memoryWritten?: boolean
-        historyWritten?: boolean
-      }
-      const outcome = String(result.outcome ?? '').toLowerCase()
-      if (outcome === 'succeeded') {
-        addToast(t('composer.consolidate.succeeded'), 'success')
-      } else if (outcome === 'skipped') {
-        addToast(t('composer.consolidate.skipped'), 'info')
-      } else {
-        addToast(t('composer.consolidate.failed', { error: result.message || outcome || 'unknown' }), 'error')
-      }
-      return true
-    } catch (err) {
-      addToast(t('composer.consolidate.failed', { error: err instanceof Error ? err.message : String(err) }), 'error')
-      return false
-    } finally {
-      setConsolidateBusy(false)
-    }
-  }
-
   const canSend = useMemo(() => {
     const textLen = (richRef.current?.getText() ?? '').trim().length
     return (textLen > 0 || images.length > 0 || files.length > 0 || contexts.length > 0) && pastedText.pending === 0 && !isWaitingApproval && !isWaitingInput && !modelLoading
@@ -1669,10 +1617,6 @@ function InputComposerCore({
       void compactThreadContext()
       return
     }
-    if (actionId === 'consolidate') {
-      void consolidateThreadMemory()
-      return
-    }
     if (actionId !== 'goal') return
     if (currentGoal) {
       setGoalPopoverOpen(true)
@@ -1680,7 +1624,7 @@ function InputComposerCore({
     } else {
       enterGoalComposeMode()
     }
-  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, consolidateThreadMemory, sendMessage, toggleMode])
+  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, sendMessage, toggleMode])
 
   const onSelectSkill = useCallback((skillName: string): void => {
     richRef.current?.insertSkillTag(skillName)
@@ -2027,12 +1971,11 @@ const composerDockStyle: CSSProperties = {
   padding: '0 clamp(20px, 4vw, 40px)'
 }
 
-function parseSystemSlashCommand(text: string): { kind: 'plan' | 'agent' | 'compact' | 'consolidate' } | null {
+function parseSystemSlashCommand(text: string): { kind: 'plan' | 'agent' | 'compact' } | null {
   const trimmed = text.trim().toLowerCase()
   if (trimmed === '/plan') return { kind: 'plan' }
   if (trimmed === '/agent') return { kind: 'agent' }
   if (trimmed === '/compact') return { kind: 'compact' }
-  if (trimmed === '/consolidate') return { kind: 'consolidate' }
   return null
 }
 

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.0 |
+| **Version** | 0.11.0 |
 | **Status** | Living |
 | **Date** | 2026-09-24 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
@@ -351,7 +351,6 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
     "threadSubscriptions": true,
     "threadGoals": true,
     "manualCompaction": true,
-    "manualMemoryConsolidation": true,
     "threadMaintenanceInterrupt": true,
     "dynamicToolRebind": true,
     "runtimeAdditionalContext": true,
@@ -407,7 +406,6 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.threadSubscriptions` | boolean | Server supports passive `thread/subscribe` observers independent from `turn/start`. |
 | `capabilities.threadGoals` | boolean | Server supports the complete thread goal runtime contract: `thread/goal/*` control methods, goal notifications, prompt-visible goal context, usage accounting, budget transitions, and model goal tools. Automatic idle continuation still depends on server config. |
 | `capabilities.manualCompaction` | boolean | Server supports manual context compaction with `thread/compact/start`. |
-| `capabilities.manualMemoryConsolidation` | boolean | Server supports manual long-term memory consolidation with `thread/memory/consolidate/start`. |
 | `capabilities.threadMaintenanceInterrupt` | boolean | Server supports `thread/maintenance/interrupt`. |
 | `capabilities.dynamicToolRebind` | boolean | Server supports rebinding Runtime Dynamic Tools to the current client connection via `thread/resume.dynamicTools`. |
 | `capabilities.runtimeAdditionalContext` | boolean | Server supports thread-bound runtime context supplied by the AppServer client through `thread/start.additionalContext` and `thread/resume.additionalContext`. |
@@ -1290,40 +1288,17 @@ Servers advertise this method with `capabilities.manualCompaction = true`. The m
 
 Compaction cancellation, provider timeout, backend failure, and replacement validation failure must be observable in trace storage with a terminal result. User interruption maps to `outcome = "cancelled"` and `compactCancelled`. Provider timeout, missing or overlong local summaries, invalid provider-native output, and persistence failure map to `outcome = "failed"` and `compactFailed`. Failure messages use the machine-readable reasons defined by the selected backend.
 
-### 4.17 `thread/memory/consolidate/start`
+### 4.17 `thread/maintenance/interrupt`
 
-Manually consolidate the current thread's model-visible history into workspace long-term memory.
+Interrupts active thread-level maintenance such as manual compaction. This method is advertised with `capabilities.threadMaintenanceInterrupt = true`.
 
-**Direction**: client → server (request)
+If no maintenance is active, the request succeeds as a no-op. If maintenance is active, the server signals its cancellation token and later emits the matching terminal `system/event` (`compactCancelled`). Cancelling maintenance does not cancel any completed turn and does not remove queued inputs.
 
-**Params**:
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `threadId` | string | yes | Thread ID. |
-
-**Result**:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `outcome` | string | `"succeeded"`, `"skipped"`, `"failed"`, or `"cancelled"`. |
-| `message` | string? | Optional skip/failure reason. |
-| `memoryWritten` | boolean | Whether `MEMORY.md` was updated. |
-| `historyWritten` | boolean | Whether `HISTORY.md` was appended. |
-
-Servers advertise this method with `capabilities.manualMemoryConsolidation = true`. The method is valid only for Active, server-managed, idle threads with at least one completed turn, no active thread maintenance, and non-empty model-visible history. Manual consolidation bypasses `Memory.AutoConsolidateEnabled` because it is an explicit user action, but it still requires the server to have a memory consolidator. The server emits thread-scoped `system/event` notifications in the order `consolidating` → `consolidated` / `consolidationSkipped` / `consolidationFailed` / `consolidationCancelled`. While running, the thread reports `maintenanceKind = "consolidating"` through `thread/runtimeChanged`; new input must be queued instead of submitted with `turn/start`. On success it persists a `SystemNotice` item with `kind = "memoryConsolidated"` into the latest completed turn.
-
-### 4.18 `thread/maintenance/interrupt`
-
-Interrupts active thread-level maintenance such as manual compaction or memory consolidation. This method is advertised with `capabilities.threadMaintenanceInterrupt = true`.
-
-If no maintenance is active, the request succeeds as a no-op. If maintenance is active, the server signals its cancellation token and later emits the matching terminal `system/event` (`compactCancelled` or `consolidationCancelled`). Cancelling maintenance does not cancel any completed turn and does not remove queued inputs.
-
-### 4.19 Worktree Methods
+### 4.18 Worktree Methods
 
 Worktree methods are advertised with `capabilities.gitWorktrees = true`. They create, inspect, and switch DotCraft-managed Git worktrees bound to threads. Thread state stays in the original workspace; the worktree is only the execution workspace.
 
-#### 4.19.1 `worktree/createAndFork`
+#### 4.18.1 `worktree/createAndFork`
 
 Create a Git worktree, optionally copy dirty source changes, then fork a source thread into that worktree.
 
@@ -1353,7 +1328,7 @@ Semantics:
 - The forked thread's rollout, memory, goals, plans, app bindings, and metadata remain in the original state workspace.
 - Dirty handoff failure is recoverable and must not switch the active thread in clients.
 
-#### 4.19.2 `worktree/createAndStart`
+#### 4.18.2 `worktree/createAndStart`
 
 Create a Git worktree, optionally copy dirty source changes, then start a new empty thread in that worktree.
 
@@ -1383,7 +1358,7 @@ Semantics:
 - The thread's rollout, memory, goals, plans, app bindings, and metadata remain in the original state workspace.
 - After success, the server emits `thread/started` for the new thread.
 
-#### 4.19.3 `thread/worktree/handoff`
+#### 4.18.3 `thread/worktree/handoff`
 
 Move an existing thread between its local workspace and a DotCraft-managed worktree without changing the thread ID.
 
@@ -1410,7 +1385,7 @@ Semantics:
 - When no conflict exists, worktree -> local stashes modified, deleted, and non-ignored untracked worktree changes, detaches the worktree from its branch, checks out the worktree branch in the local workspace, applies the stashed changes locally, clears `thread.worktree`, clears `configuration.executionWorkspaceOverride`, and removes the registered managed worktree.
 - After success, the server emits `thread/updated` with the updated compact thread.
 
-#### 4.19.4 `worktree/list`
+#### 4.18.4 `worktree/list`
 
 List registered DotCraft-managed worktrees for the connected workspace.
 
@@ -1427,7 +1402,7 @@ List registered DotCraft-managed worktrees for the connected workspace.
 
 The list is scoped to registered worktrees under `.craft/worktrees`. Clients must not treat arbitrary external Git worktrees as managed DotCraft worktrees unless the server registers them.
 
-#### 4.19.5 `worktree/status`
+#### 4.18.5 `worktree/status`
 
 Return current Git status metadata for the worktree bound to a thread.
 
@@ -1460,11 +1435,11 @@ This method is a lightweight refresh path for worktree indicators. Full file, di
 | `hasCommitsAheadOfBase` | boolean | Whether `HEAD` has commits ahead of the recorded `baseHead` / `baseRef`. |
 | `aheadCount` | number | Commit count for `base..HEAD`; zero when unreadable or not ahead. |
 
-### 4.20 Thread Recovery Methods
+### 4.19 Thread Recovery Methods
 
 Thread recovery is a trusted adapter surface advertised through the existing `threadManagement` capability. The snapshot is a versioned JSON document owned by DotCraft; clients transfer it without interpreting or rewriting its Session fields.
 
-#### 4.20.1 `thread/recovery/export`
+#### 4.19.1 `thread/recovery/export`
 
 Flush and export a terminal Thread into the workspace-local restricted recovery staging directory.
 
@@ -1489,7 +1464,7 @@ Flush and export a terminal Thread into the workspace-local restricted recovery 
 
 The server first loads the Thread into its runtime, enters maintenance under the Thread's Turn-start lock, and flushes persistence before capture. It rejects ephemeral or client-managed Threads, active Turns, active thread maintenance, or a non-terminal newest Turn. The result's `terminalTurnId` is the durable boundary actually captured. The package contains the executable Session snapshot defined by Session Core.
 
-#### 4.20.2 `thread/recovery/restore`
+#### 4.19.2 `thread/recovery/restore`
 
 Validate and atomically install a JSON snapshot from the workspace-local restricted recovery staging directory.
 
@@ -1522,7 +1497,7 @@ Before starting the agent, the server **must** ensure the in-memory thread is lo
 
 The response is returned **immediately** with the initial Turn object (status `"running"`, empty `items`). The agent's output then streams as notifications: `turn/started`, followed by `item/*` events, and finally `turn/completed` (or `turn/failed` / `turn/cancelled`).
 
-Clients must not call `turn/start` while the thread has a running/waiting turn or active blocking thread maintenance. The server rejects both cases with `TurnInProgress`. While a regular Turn is active, interactive clients should use `turn/steer` to add input to that Turn. During blocking maintenance, or when the active execution cannot accept steering, clients should use `turn/enqueue`. Turn-scoped automatic memory consolidation status does not count as active thread maintenance and must not prevent `turn/start`.
+Clients must not call `turn/start` while the thread has a running/waiting turn or active blocking thread maintenance. The server rejects both cases with `TurnInProgress`. While a regular Turn is active, interactive clients should use `turn/steer` to add input to that Turn. During blocking maintenance, or when the active execution cannot accept steering, clients should use `turn/enqueue`.
 
 For persisted server-managed threads, the execution lifecycle of a started turn is owned by the AppServer, not by the single request transport that submitted it. If the client WebSocket disconnects after `turn/start` has begun, the server must continue consuming the turn event stream so the turn can complete or fail normally. The disconnected client may miss notifications and should recover by reconnecting, establishing `thread/subscribe`, and reloading the Thread header and history head pages.
 
@@ -1784,7 +1759,7 @@ Suggest a source-control summary from the **source thread’s** recent conversat
 
 Return welcome-screen quick suggestions for the current workspace. This method is intended for clients that render an empty or ready-to-start conversation state and want to show a small set of prompts that feel relevant to the user's recent work.
 
-The result is advisory and read-only. The server derives these suggestions from workspace-scoped memory artifacts such as `MEMORY.md` and `HISTORY.md`; it should not inspect full conversation history on this path.
+The result is advisory and read-only. The server derives these suggestions from the workspace `MEMORY.md`; it should not inspect conversation history on this path. When `Memory.Enabled` is `false`, the server produces no dynamic suggestions.
 
 **Direction**: client → server (request)
 
@@ -1824,7 +1799,7 @@ The result is advisory and read-only. The server derives these suggestions from 
 - The server may inspect workspace-local memory through internal read-only mechanisms before generating suggestions, but those inspection steps are implementation-defined and not part of the wire contract.
 - Servers may cache results for a short period and return the same `fingerprint` across repeated calls while the underlying workspace evidence has not materially changed.
 - Servers SHOULD serve this method from a persisted workspace cache and SHOULD NOT trigger synchronous model generation from this request path. The persisted cache is a cross-process restart snapshot of the most recent successful dynamic result; it should not be deleted on normal client shutdown, and failed, canceled, or insufficient-context refresh attempts should leave the previous snapshot available.
-- Cache refresh should run asynchronously after successful long-term memory consolidation. If the current memory evidence fingerprint already matches the persisted snapshot, the server may skip regeneration.
+- Cache refresh should run asynchronously after a successful turn. If the current memory evidence fingerprint already matches the persisted snapshot, the server may skip regeneration.
 
 **Errors** (non-exhaustive): missing `identity.workspacePath`; unsupported capability; invalid `maxItems`; workspace not available.
 
@@ -1917,7 +1892,7 @@ The server SHOULD broadcast this notification only when the effective snapshot a
     "waitingOnInput": false,
     "waitingOnPlanConfirmation": false,
     "busy": true,
-    "maintenanceKind": "consolidating"
+    "maintenanceKind": "compacting"
   }
 }
 ```
@@ -1932,7 +1907,7 @@ The server SHOULD broadcast this notification only when the effective snapshot a
 | `runtime.waitingOnInput` | boolean | Whether the thread currently has one or more unresolved model-initiated user input requests. |
 | `runtime.waitingOnPlanConfirmation` | boolean | Whether the latest completed turn ran in plan mode, contains a successful `CreatePlan` call, and has not yet been cleared by the next `turn/start`. |
 | `runtime.busy` | boolean | Whether the thread is currently unable to start a new turn because a turn, approval, model-initiated input request, or blocking maintenance operation is active. |
-| `runtime.maintenanceKind` | string? | Current blocking thread maintenance kind (`"compacting"` or manual `"consolidating"`), or omitted/null when no maintenance is active. Automatic memory consolidation does not set this field. |
+| `runtime.maintenanceKind` | string? | Current blocking thread maintenance kind (`"compacting"`), or omitted/null when no maintenance is active. |
 
 `activeTurnId` and `activeTurnStartedAt` are one atomic snapshot: servers set both from the same current non-terminal Turn and clear both when that Turn becomes terminal. A follow-up Turn replaces both values. These fields let summary UIs display current-turn elapsed time without polling Turn history; they do not make `thread/runtimeChanged` a complete Turn lifecycle stream.
 
@@ -2455,7 +2430,7 @@ Emitted each time the agent completes an LLM iteration and produces a `UsageCont
 
 #### `system/event`
 
-Emitted when a system-level maintenance operation occurs during a Turn's post-processing phase. These operations (context compaction, memory consolidation) are not part of the agent's conversational output but affect the session's internal state.
+Emitted when a system-level maintenance operation occurs during a Turn's post-processing phase. These operations, such as context compaction, are not part of the agent's conversational output but affect the session's internal state.
 
 **Params**:
 
@@ -2477,8 +2452,8 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
 | Field | Type | Description |
 |-------|------|-------------|
 | `threadId` | string | Parent thread. |
-| `turnId` | string? | Active turn. May be null for asynchronous thread-scoped maintenance events such as `consolidated`, `consolidationSkipped`, and `consolidationFailed`. |
-| `kind` | string | Event kind. One of: `"compactWarning"`, `"compactError"`, `"compacting"`, `"compacted"`, `"compactSkipped"`, `"compactFailed"`, `"compactCancelled"`, `"streamError"`, `"consolidating"`, `"consolidated"`, `"consolidationSkipped"`, `"consolidationFailed"`, `"consolidationCancelled"`. |
+| `turnId` | string? | Active turn. May be null for thread-scoped maintenance events, such as those of manual compaction. |
+| `kind` | string | Event kind. One of: `"compactWarning"`, `"compactError"`, `"compacting"`, `"compacted"`, `"compactSkipped"`, `"compactFailed"`, `"compactCancelled"`, `"streamError"`. |
 | `messageKey` | string? | Stable client-localization key. May be null when no key exists. |
 | `params` | object? | Optional interpolation params for `messageKey`. User text, model output, and raw tool output MUST NOT be translated by the server. |
 | `fallbackText` | string? | English fallback text suitable for display when the client has no translation. |
@@ -2498,11 +2473,6 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
 | `compactSkipped` | Compaction was evaluated but not executed (below threshold, nothing new to summarize, or circuit breaker tripped). |
 | `compactFailed` | Compaction attempted but failed (backend error, provider timeout, invalid replacement, or persistence failure). Repeated failures trip that backend's circuit breaker. |
 | `compactCancelled` | Thread-scoped manual compaction was interrupted by the user. |
-| `consolidating` | Memory consolidation is starting. When `turnId` is non-null, this is non-blocking automatic background consolidation; when `turnId` is null, this is blocking manual consolidation. |
-| `consolidated` | Memory consolidation completed successfully. MEMORY.md / HISTORY.md have been updated. |
-| `consolidationSkipped` | Memory consolidation completed without writing MEMORY.md or HISTORY.md (for example, the model did not call `save_memory` or produced no valid changes). Clients should dismiss any active consolidation status and should not show a success marker. |
-| `consolidationFailed` | Memory consolidation failed. Clients should dismiss any active consolidation status and may surface `message`. |
-| `consolidationCancelled` | Memory consolidation was interrupted by the user. Clients should dismiss any active consolidation status. |
 | `streamError` | A provider stream disconnected or timed out while idle before the sampling request completed. The server is retrying. `params` carry the one-based `attempt`, the `max` budget, the classified `providerError`, and the upstream `httpStatus` when known; `fallbackText` uses `Reconnecting... x/y`. |
 
 **Emission rules**:
@@ -2512,10 +2482,8 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
 - Auto-compaction is a synchronous pair: `compacting` → one of `compacted` / `compactSkipped` / `compactFailed`.
 - Reactive compaction fires on the Turn's error path when the model rejects a request with `prompt_too_long`, `context_length_exceeded`, or another conservatively classified context-overflow equivalent. The Turn still fails, but `compacting` and its terminal event are emitted first so UIs know the history was repaired before the user retries.
 - Provider stream retry emits `streamError` during agent execution before the retry delay. The event is transient and does not persist a `SystemNotice`. Servers only retry attempts that have not emitted visible item output. Visible output is assistant text, reasoning text, a tool call, or a tool-argument delta. Usage metadata, provider error frames, and `FunctionResultContent` echoed from request input are non-visible updates; the retry layer buffers them before the first visible update and discards the failed attempt's buffer when retrying. After visible output, a stream failure remains a normal failed Turn with partial state preserved. Idle-timeout detection must surface retry or failure promptly; cleanup of the failed provider stream is best-effort and must not indefinitely delay the retry notification or terminal failure.
-- Automatic memory consolidation is fire-and-forget after a configured number of successful Turns; it is independent from compaction and the Turn completes without awaiting it. Its start event is turn-scoped `consolidating` and should be displayed as a non-blocking background status. The terminal event is one of `consolidated`, `consolidationSkipped`, or `consolidationFailed`. Manual consolidation emits thread-scoped `consolidating` and remains blocking thread maintenance. See [Memory Consolidation](../features/memory-consolidation.md) for the design contract.
 - Clients that do not need system maintenance status can opt out via `optOutNotificationMethods: ["system/event"]` during `initialize`.
 - On a successful partial replacement `compacted` event, whether the selected backend replaced neutral or provider-native history, Session Core includes `contextUsage` when available and additionally persists a `SystemNotice` SessionItem (kind = `"compacted"`) into the current or latest completed turn, emitting the normal `item/started` + `item/completed` pair for it. This gives clients a persistent timeline marker that survives thread reload, alongside the transient `system/event` notification used to drive toast/status-line and context-ring UX. Cold-cache tool-result clearing that returns `outcome = "micro"` is transient, updates optimized session/context usage, and must not append a persistent notice. See [Session Core](../architecture/session-core.md#systemnotice) for the payload schema.
-- On a successful `consolidated` event, Session Core additionally persists a `SystemNotice` SessionItem (kind = `"memoryConsolidated"`) into the completed turn and emits the normal `item/started` + `item/completed` pair through the thread event broker. `consolidationSkipped` does not create a persistent notice.
 - Thread fork creation additionally places a persistent `SystemNotice` SessionItem (kind = `"forked"`, `sourceThreadId = <source thread id>`) at the end of the selected copied history in the forked thread. Fork lifecycle responses and `thread/started` contain only the Thread header; clients retrieve the marker through `thread/items/list`.
 
 ### 6.8 Plan Notifications
@@ -2990,7 +2958,7 @@ Clients can suppress specific notification methods per connection by listing exa
 | `turn/diff/updated` | Client does not render aggregated Turn diffs; per-call file changes remain in `toolResult.structuredContent`. |
 | `subagent/progress` | Client does not display SubAgent real-time progress. |
 | `item/usage/delta` | Client does not need real-time token consumption display; will use `turn/completed.tokenUsage` for final totals. |
-| `system/event` | Client does not need system maintenance status (compaction, consolidation). |
+| `system/event` | Client does not need system maintenance status (compaction). |
 | `plan/updated` | Client does not need real-time plan/todo progress display. |
 | `system/jobResult` | Client does not need automation result notifications (e.g. batch or headless client). |
 | `plugin/snapshot/updated` | Client refreshes plugin state with `plugin/list` on demand instead of reacting to snapshot invalidation. |
@@ -7107,7 +7075,7 @@ Update workspace-level config values.
 | `welcomeSuggestionsEnabled` | boolean \| null | no | Workspace-level override for personalized welcome suggestions. `true` enables, `false` disables, and `null` removes the explicit override so server defaults apply. |
 | `skillsSelfLearningEnabled` | boolean \| null | no | Workspace-level override for `Skills.SelfLearning.Enabled`. `true` enables the SkillManage tool surface and skill-authoring built-in skill, `false` disables, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect on next AppServer restart (`Skills.SelfLearning.Enabled` is a `ProcessRestart` field). |
 | `skillsIncludeSharedSkills` | boolean \| null | no | Workspace-level override for `Skills.IncludeSharedSkills`, which discovers user skills from the shared `~/.agents/skills` root. `true` enables discovery, `false` disables it, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect on next AppServer restart (`Skills.IncludeSharedSkills` is a `ProcessRestart` field). |
-| `memoryAutoConsolidateEnabled` | boolean \| null | no | Workspace-level override for `Memory.AutoConsolidateEnabled`. `true` enables turn-count-based long-term memory consolidation, `false` disables it, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect for future successful turns without restart. |
+| `memoryEnabled` | boolean \| null | no | Workspace-level override for `Memory.Enabled`. `true` lets new threads use and maintain memory, `false` disables memory and the features that depend on it, and `null` removes the explicit override so server defaults apply (`true` by default). Existing threads keep the value they captured at creation. |
 | `dreamsEnabled` | boolean \| null | no | Workspace-level override for `Dreams.Enabled`. `true` enables scheduled Dreams, `false` disables scheduled Dreams, and `null` removes the explicit override so server defaults apply (`false` by default). |
 | `dreamsInterval` | string \| null | no | Workspace-level override for `Dreams.Interval` as a positive `TimeSpan` string. `null` removes the explicit override. |
 | `dreamsThreadLookbackCount` | number \| null | no | Workspace-level override for `Dreams.ThreadLookbackCount`, which limits how many eligible candidate threads are listed in each Dreams source manifest. Must be a positive integer when provided; `null` removes the explicit override. |
@@ -7137,7 +7105,7 @@ Update workspace-level config values.
   "welcomeSuggestionsEnabled": true,
   "skillsSelfLearningEnabled": true,
   "skillsIncludeSharedSkills": true,
-  "memoryAutoConsolidateEnabled": true,
+  "memoryEnabled": true,
   "dreamsEnabled": true,
   "dreamsInterval": "24:00:00",
   "dreamsThreadLookbackCount": 20,
@@ -7152,7 +7120,7 @@ Update workspace-level config values.
 - This method updates **workspace default** only, not any active thread state.
 - Clients that need immediate effect in a running thread should additionally call `thread/config/update`.
 - Server preserves unrelated configuration state.
-- At least one of `providerId`, `providerPreferences`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `skillsIncludeSharedSkills`, `memoryAutoConsolidateEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, or `toolsLspEnabled` must be provided.
+- At least one of `providerId`, `providerPreferences`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `skillsIncludeSharedSkills`, `memoryEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, or `toolsLspEnabled` must be provided.
 - `providerPreferences` replaces the complete workspace map. Each workspace record atomically overrides the personal record for the same provider; fields are never merged across scopes.
 - Provider-aware saves persist `ProviderId` and `ProviderPreferences` while preserving unrelated configuration state. Credentials and endpoints are changed through `provider/create` and `provider/update`.
 - A supplied field is stored as the workspace override for that setting. Setting a field to `null` removes the override, and a subsequent read reports the server default.
@@ -7514,9 +7482,9 @@ Clear the current workspace's durable memory artifacts.
 
 **Semantics**:
 
-- The server clears the contents of the current workspace memory root, including `MEMORY.md`, `HISTORY.md`, and derived memory files, and clears Dreams-derived memory under `.craft/dreams`, while preserving the memory and Dreams directories themselves.
+- The server clears the contents of the current workspace memory root, including `MEMORY.md` and any files left by earlier versions, and clears Dreams-derived memory under `.craft/dreams`, while preserving the memory and Dreams directories themselves.
 - The operation does not delete sessions, archived sessions, thread history, skills, plugins, automation tasks, or configuration.
-- The operation preserves `Memory.AutoConsolidateEnabled`; future successful turns may create new memory according to the current configuration.
+- The operation preserves `Memory.Enabled`; later threads may save new memory according to the current configuration.
 - The server clears memory-derived welcome suggestion caches so clients do not continue displaying suggestions generated from deleted memory.
 - On success, the server emits `workspace/configChanged` with `source: "memory/reset"` and `regions: ["memory"]`.
 
@@ -7546,7 +7514,6 @@ Return current Dreams configuration and latest run state for the connected works
   "interval": "24:00:00",
   "threadLookbackCount": 20,
   "autoApply": false,
-  "historyTailChars": 20000,
   "minCompletedTurnsSinceLastRun": 5,
   "nextRunAt": "2026-05-12T00:00:00Z",
   "running": false,
@@ -7563,7 +7530,6 @@ Return current Dreams configuration and latest run state for the connected works
     "evidenceSearchCount": 3,
     "evidenceReadCount": 4,
     "dreamWritten": true,
-    "historyWritten": false,
     "outputStoreId": "store_20260511000000_pending",
     "reviewStatus": "pending",
     "autoApplied": false,
@@ -7595,7 +7561,7 @@ Shortcut for requesting an immediate Dream Run with default manual parameters.
 
 - If Dreams is enabled and idle, the server persists a `running` state, starts one forced Dream Run in the background, and returns a status snapshot quickly.
 - If a Dream Run is already active, the server returns the active status snapshot without starting a duplicate run.
-- If Dreams is disabled, the server returns a skipped or disabled status without starting a run.
+- If Dreams or memory (`Memory.Enabled`) is disabled, the server returns a skipped or disabled status without starting a run.
 - With `Dreams.AutoApply = false`, successful runs generate pending output stores and do not affect prompts until `dreams/apply`. With `Dreams.AutoApply = true`, future successful runs immediately switch the active Dream Store, record `reviewStatus = "applied"`, and set `autoApplied = true`; existing pending runs are unchanged.
 - Actual model runs create a new internal Session Core thread with `originChannel = "dreams"` and `dotcraft.internal = "dreams"` metadata. The Dashboard may surface the trace/session for that thread; default `thread/list` responses continue to hide it unless `includeInternal = true`.
 - Skipped attempts before model generation do not create Session threads.

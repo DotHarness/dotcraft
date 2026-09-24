@@ -47,7 +47,7 @@ public sealed class DreamsToolProviderTests : IDisposable
     public async Task DreamsFileTools_ReadSearchInputSnapshotsAndWriteOnlyOutputStore()
     {
         await SaveThreadAsync("thread_source", "Use typed clients for protocol work.");
-        _memoryStore.WriteLongTerm("# Memory\nPrefer focused tests.");
+        File.WriteAllText(_memoryStore.LongTermFilePath, "# Memory\nPrefer focused tests.");
         _dreamStore.SaveDreamRun(
             "# Dream Memory\n\n- See memory/protocol.md",
             [new DreamTopicFileWrite { Path = "protocol.md", Content = "# Protocol\nUse typed clients." }],

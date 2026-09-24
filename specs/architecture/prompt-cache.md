@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.0 |
+| **Version** | 0.2.1 |
 | **Status** | Living |
-| **Date** | 2026-09-16 |
+| **Date** | 2026-09-25 |
 | **Parent Specs** | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [OpenAI Subscription Auth](openai-subscription-auth.md), [Dynamic Workflows](../features/dynamic-workflows.md) |
 | **Related Specs** | [Prompt Composition](prompt-composition.md), [World State](world-state.md) |
 
@@ -178,7 +178,7 @@ Breakpoint placement contract:
 
 1. **System prompt** — marked at the end of the system message so the entire system prompt is cached as one segment.
 2. **Snapshot prefix** — marked at the last message of a captured snapshot so successive maintenance forks reuse the snapshot segment.
-3. **Maintenance fork cache mode** — one-shot maintenance forks with no tool execution use `readOnlyPrefix`: they mark only the reusable system / snapshot prefix and do not mark the appended maintenance task tail. Tool-executing maintenance forks use `writeThrough`: they keep an internal cache-state path separate from the main conversation so tool-loop tails can advance their own remembered breakpoints without overwriting the main thread's remembered points.
+3. **Maintenance fork cache mode** — maintenance forks are one-shot and execute no tools. They use `readOnlyPrefix`: they mark only the reusable system / snapshot prefix, do not mark the appended maintenance task tail, and do not commit remembered breakpoints.
 
 Anthropic cache markers are provider-visible content-block annotations. They MUST NOT be implemented
 by splitting, duplicating, reordering, or otherwise changing the semantic shape of messages. In
@@ -252,7 +252,7 @@ These rules apply to every protocol unless the protocol contract above explicitl
    A shared key influences cache routing but does not require every request in the lineage to have
    the same complete input. Cache reads remain limited to exact prefixes present in both requests.
 7. **One canonical body per request.** Wire bodies must not contain duplicate top-level JSON keys. Downstream policies and inspectors are allowed to assume the body parses cleanly into a flat object.
-8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. One-shot maintenance forks may use that state key in `readOnlyPrefix` mode without committing new remembered breakpoints. This internal state key MUST NOT replace provider-visible cache-session or current-thread routing identity.
+8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. Maintenance forks use that state key in `readOnlyPrefix` mode without committing new remembered breakpoints. This internal state key MUST NOT replace provider-visible cache-session or current-thread routing identity.
 9. **Tool identity shape is cache state.** Canonical namespace/name pairs, flat aliases, namespace grouping, and child ordering come from the immutable Turn snapshot. Provider adapters must not re-sanitize names, derive namespaces from runtime source names, or enumerate collision groups in discovery order. History replay uses persisted canonical tuples for namespace-capable providers and persisted flat aliases for flat-only providers.
 10. **Thread-scoped context is history, not prefix.** Content that depends on the running thread or on an attached client connection MUST NOT reach the system prompt / `instructions` channel on any protocol. It travels as a thread context item, placed and carried as specified in [Prompt Composition](prompt-composition.md).
 11. **Thread context items append; they do not mutate.** Rewriting an already-sent item, or rebuilding the system prompt because a binding or capability changed, invalidates the whole cached prefix and is forbidden. Replacing native SubAgent role instructions is the one exception and establishes an explicit replacement boundary.
@@ -287,7 +287,7 @@ Dynamic Workflow prompt guidance follows the same stable-prefix rules:
 | Volatile content leaks into the cached prefix | Prompt construction MUST keep timestamps, runtime context, and any other request-local data confined to the latest user turn |
 | Reasoning encrypted content mutated between turns | Conversion layers MUST pass `encrypted_content` through unchanged; round-trip tests cover the case |
 | Cache-read drop after reasoning settings change | Prompt-cache diagnostics MUST include a reasoning/thinking fingerprint and classify the drop as a request-shape change instead of likely server-side routing |
-| One-shot maintenance fork writes an unneeded tail breakpoint | Fork cache shaping MUST use `readOnlyPrefix` when no tool execution is enabled, mark only the reusable prefix, and skip committing fork-local remembered breakpoints |
+| Maintenance fork writes an unneeded tail breakpoint | Fork cache shaping MUST use `readOnlyPrefix`, mark only the reusable prefix, and skip committing fork-local remembered breakpoints |
 | Provider sticky-routing flap (ChatGPT OAuth) | Recognised as an upstream limitation. The runtime reports observed coverage faithfully and does not retry just to chase a higher hit rate |
 | Provider returns an empty post-tool response | After at least one tool result has been returned to the model, a normally completed response with no assistant content, reasoning output, or tool call ends the turn successfully without retrying or emitting `agent_empty_response`. An interrupted stream or explicit provider error still fails the turn |
 | A tool identity cannot be represented by the target provider | Request serialization fails locally with stable `invalid_provider_tool_identity` diagnostics before HTTP transport; the runtime must not send a request known to violate the provider's name/length grammar |

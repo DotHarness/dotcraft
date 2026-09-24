@@ -94,7 +94,6 @@ export function MessageStream(): JSX.Element {
   const streamingMessageLastDeltaAt = useConversationStore((s) => s.streamingMessageLastDeltaAt)
   const streamingReasoning = useConversationStore((s) => s.streamingReasoning)
   const systemLabel = useConversationStore((s) => s.systemLabel)
-  const backgroundMemoryStatus = useConversationStore((s) => s.backgroundMemoryStatus)
   const streamRetry = useConversationStore((s) => s.streamRetry)
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const showThinkingContent = useUIStore((s) => s.showThinkingContent)
@@ -116,8 +115,6 @@ export function MessageStream(): JSX.Element {
   const queuedInputCount = useConversationStore((s) => s.queuedInputs.length)
   const [editing, setEditing] = useState<InlineEditState | null>(null)
   const prevThreadIdRef = useRef<string | null>(null)
-  const effectiveSystemLabel = systemLabel
-    ?? (backgroundMemoryStatus === 'consolidating' ? 'systemStatus.consolidating' : null)
 
   // Only the latest Turn changes during normal streaming, and ResizeObserver already
   // handles height-only changes, so do not walk the full history on every text delta.
@@ -128,7 +125,7 @@ export function MessageStream(): JSX.Element {
     (streamRetry?.attempt ?? 0) +
     (turnStatus === 'running' && activeTurnId ? activeTurnId.length : 0) +
     (turnStatus === 'running' ? (streamingMessageLastDeltaAt ?? 0) : 0) +
-    (effectiveSystemLabel?.length ?? 0)
+    (systemLabel?.length ?? 0)
 
   const { scrollRef, showScrollButton, scrollToBottom } = useAutoScroll(contentLength)
   useAutomationRunReveal(scrollRef)
@@ -325,7 +322,7 @@ export function MessageStream(): JSX.Element {
                   showIdleThinkingFallback={
                     turnStatus === 'running' &&
                     isActiveTurn &&
-                    !effectiveSystemLabel
+                    !systemLabel
                   }
                   isActiveTurn={isActiveTurn}
                   isLastTurn={idx === turns.length - 1}
@@ -380,7 +377,7 @@ export function MessageStream(): JSX.Element {
             />
           )}
 
-          {effectiveSystemLabel && <SystemStatusDivider labelKey={effectiveSystemLabel} />}
+          {systemLabel && <SystemStatusDivider labelKey={systemLabel} />}
 
           {streamRetry && <StreamRetryNotice status={streamRetry} />}
 

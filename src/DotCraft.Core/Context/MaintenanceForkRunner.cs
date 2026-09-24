@@ -15,10 +15,7 @@ namespace DotCraft.Context;
 public enum MaintenanceForkTaskKind
 {
     /// <summary>Summarize conversation context for history compaction.</summary>
-    ContextCompaction,
-
-    /// <summary>Extract durable user/project memory from recent conversation context.</summary>
-    MemoryConsolidation
+    ContextCompaction
 }
 
 /// <summary>
@@ -52,26 +49,6 @@ public sealed record MaintenanceForkResult(
     string? Text,
     string? FallbackReason,
     TokenUsageSnapshot? TokenUsage);
-
-/// <summary>
-/// Optional execution settings for maintenance forks that intentionally allow
-/// local tool calls while preserving the model-visible tool schema.
-/// </summary>
-public sealed record MaintenanceForkToolExecutionOptions(
-    Func<FunctionInvocationContext, ModeToolPolicyDecision> ToolPolicy)
-{
-    /// <summary>Whether multiple tool calls from one model response may run concurrently.</summary>
-    public bool AllowConcurrentInvocation { get; init; }
-
-    /// <summary>Whether recoverable tool exceptions should include detailed messages.</summary>
-    public bool IncludeDetailedErrors { get; init; }
-
-    /// <summary>
-    /// Maximum model continuations after tool-loop termination. The default is
-    /// inherited from <see cref="StreamingFunctionInvokingChatClient"/>.
-    /// </summary>
-    public int? MaximumGuidanceContinuationsPerRequest { get; init; }
-}
 
 /// <summary>
 /// Machine-readable fallback reasons returned by maintenance forks.
@@ -118,8 +95,7 @@ internal sealed record MaintenanceForkPromptCacheState(
     string StateKey,
     string StateKeyHash,
     string CacheShapeKind,
-    string CacheMarkerSource,
-    PromptCacheMaintenanceWriteMode CacheWriteMode);
+    string CacheMarkerSource);
 
 /// <summary>
 /// Runs provider-agnostic maintenance requests by reusing a captured prompt
@@ -155,34 +131,13 @@ public sealed class MaintenanceForkRunner(
         IReadOnlyList<ChatMessage>? messagesBeforeTask,
         CancellationToken cancellationToken = default)
     {
-        return await RunAsync(
-            snapshot,
-            task,
-            messagesBeforeTask,
-            toolExecution: null,
-            cancellationToken);
-    }
-
-    /// <summary>
-    /// Runs a maintenance fork with optional local tool execution guarded by a
-    /// runtime policy. Tool schemas are copied from the snapshot unchanged.
-    /// </summary>
-    public async Task<MaintenanceForkResult> RunAsync(
-        PromptRequestSnapshot snapshot,
-        MaintenanceForkTask task,
-        IReadOnlyList<ChatMessage>? messagesBeforeTask,
-        MaintenanceForkToolExecutionOptions? toolExecution,
-        CancellationToken cancellationToken = default)
-    {
         var parentContext = ProviderRequestContextScope.Current;
-        var requestKind = task.Kind == MaintenanceForkTaskKind.MemoryConsolidation
-            ? ProviderRequestKind.Memory : ProviderRequestKind.Compaction;
         var identity = parentContext?.CurrentIdentity ?? new ProviderConversationIdentity(
             snapshot.ThreadId ?? "maintenance", snapshot.ThreadId ?? "maintenance", null, null,
-            snapshot.TurnId, Guid.CreateVersion7().ToString(), requestKind, 0, "maintenance", null);
+            snapshot.TurnId, Guid.CreateVersion7().ToString(), ProviderRequestKind.Compaction, 0, "maintenance", null);
         using var auxiliaryScope = new AuxiliaryProviderRequestScope(identity with
         {
-            RequestKind = requestKind,
+            RequestKind = ProviderRequestKind.Compaction,
             TurnId = snapshot.TurnId ?? identity.TurnId
         }, parentContext?.Diagnostics ?? traceCollector);
         using var retryScope = ModelStreamRetryRuntimeScope.Suppress();
@@ -190,15 +145,12 @@ public sealed class MaintenanceForkRunner(
         var options = BuildOptions(snapshot, task);
         var sessionKey = ResolveTraceSessionKey(snapshot);
         var maintenancePathKey = BuildMaintenancePathKey(snapshot, task, sessionKey);
-        var cacheWriteMode = ResolveCacheWriteMode(toolExecution);
-        var promptCacheState = CreatePromptCacheState(snapshot, maintenancePathKey, cacheWriteMode);
+        var promptCacheState = CreatePromptCacheState(snapshot, maintenancePathKey);
         var cacheDiagnostics = MaintenanceForkCacheShaper.Apply(
             snapshot,
-            messages,
             options,
             cacheOptions,
-            promptCacheState,
-            cacheWriteMode);
+            promptCacheState);
         var taskPrompt = FormatTask(task);
         var estimatedInputTokens = EstimateInputTokens(snapshot, messages, options, messagesBeforeTask, task);
         traceCollector?.RecordMaintenanceForkRequest(
@@ -249,19 +201,8 @@ public sealed class MaintenanceForkRunner(
 
         try
         {
-            using var runtimeScope = BeginMaintenanceRuntimeScope(
-                snapshot,
-                sessionKey,
-                maintenancePathKey,
-                promptCacheState,
-                toolExecution);
-            var responseClient = CreateResponseClient(toolExecution);
-            var response = await GetResponseAsync(
-                responseClient,
-                messages,
-                options,
-                toolExecution,
-                cancellationToken);
+            using var runtimeScope = BeginMaintenanceRuntimeScope(snapshot, sessionKey, promptCacheState);
+            var response = await chatClient.GetResponseAsync(messages, options, cancellationToken);
             TokenUsageSnapshot? usage = response.Usage is null
                 ? null
                 : TokenUsageExtractor.FromResponse(response);
@@ -307,70 +248,21 @@ public sealed class MaintenanceForkRunner(
         }
     }
 
-    private IChatClient CreateResponseClient(MaintenanceForkToolExecutionOptions? toolExecution)
-    {
-        if (toolExecution == null)
-            return chatClient;
-
-        var invokingClient = new StreamingFunctionInvokingChatClient(chatClient)
-        {
-            AllowConcurrentInvocation = toolExecution.AllowConcurrentInvocation,
-            IncludeDetailedErrors = toolExecution.IncludeDetailedErrors,
-            ModeToolPolicy = toolExecution.ToolPolicy
-        };
-        if (toolExecution.MaximumGuidanceContinuationsPerRequest is { } continuations)
-            invokingClient.MaximumGuidanceContinuationsPerRequest = continuations;
-
-        return traceCollector == null
-            ? invokingClient
-            : new TracingChatClient(invokingClient, traceCollector);
-    }
-
-    private async Task<ChatResponse> GetResponseAsync(
-        IChatClient responseClient,
-        IReadOnlyList<ChatMessage> messages,
-        ChatOptions options,
-        MaintenanceForkToolExecutionOptions? toolExecution,
-        CancellationToken cancellationToken)
-    {
-        if (toolExecution != null && traceCollector != null)
-        {
-            return await responseClient
-                .GetStreamingResponseAsync(messages, options, cancellationToken)
-                .ToAgentResponseAsync(cancellationToken);
-        }
-
-        return await responseClient.GetResponseAsync(
-            messages,
-            options,
-            cancellationToken);
-    }
-
     private static IDisposable BeginMaintenanceRuntimeScope(
         PromptRequestSnapshot snapshot,
         string sessionKey,
-        string maintenancePathKey,
-        MaintenanceForkPromptCacheState? promptCacheState,
-        MaintenanceForkToolExecutionOptions? toolExecution)
+        MaintenanceForkPromptCacheState? promptCacheState)
     {
         var previousSessionKey = TracingChatClient.CurrentSessionKey;
         TracingChatClient.CurrentSessionKey = sessionKey;
-        var callStateKey = toolExecution == null ? null : maintenancePathKey;
-        var callStateScope = callStateKey == null ? null : TracingChatClient.UseCallStateKey(callStateKey);
         var promptCacheScope = promptCacheState == null
             ? null
             : PromptCacheStateScope.Use(
                 promptCacheState.StateKey,
                 sessionKey,
-                new PromptCacheMaintenanceScope(snapshot.Messages.Count, promptCacheState.CacheWriteMode));
-        return new MaintenanceRuntimeScope(previousSessionKey, callStateKey, callStateScope, promptCacheScope);
+                new PromptCacheMaintenanceScope(snapshot.Messages.Count));
+        return new MaintenanceRuntimeScope(previousSessionKey, promptCacheScope);
     }
-
-    private static PromptCacheMaintenanceWriteMode ResolveCacheWriteMode(
-        MaintenanceForkToolExecutionOptions? toolExecution) =>
-        toolExecution == null
-            ? PromptCacheMaintenanceWriteMode.ReadOnlyPrefix
-            : PromptCacheMaintenanceWriteMode.WriteThrough;
 
     private static string BuildMaintenancePathKey(
         PromptRequestSnapshot snapshot,
@@ -385,16 +277,11 @@ public sealed class MaintenanceForkRunner(
 
     private sealed class MaintenanceRuntimeScope(
         string? previousSessionKey,
-        string? callStateKey,
-        IDisposable? callStateScope,
         IDisposable? promptCacheScope) : IDisposable
     {
         public void Dispose()
         {
             promptCacheScope?.Dispose();
-            if (callStateKey != null)
-                TracingChatClient.ResetCallState(callStateKey);
-            callStateScope?.Dispose();
             TracingChatClient.CurrentSessionKey = previousSessionKey;
         }
     }
@@ -451,7 +338,6 @@ Task: {FormatKind(task.Kind)}
     private static string FormatKind(MaintenanceForkTaskKind kind) => kind switch
     {
         MaintenanceForkTaskKind.ContextCompaction => "context_compaction",
-        MaintenanceForkTaskKind.MemoryConsolidation => "memory_consolidation",
         _ => kind.ToString()
     };
 
@@ -469,8 +355,7 @@ Task: {FormatKind(task.Kind)}
 
     private MaintenanceForkPromptCacheState? CreatePromptCacheState(
         PromptRequestSnapshot snapshot,
-        string maintenancePathKey,
-        PromptCacheMaintenanceWriteMode cacheWriteMode)
+        string maintenancePathKey)
     {
         if (cacheOptions?.PromptCaching == null)
             return null;
@@ -487,19 +372,8 @@ Task: {FormatKind(task.Kind)}
             maintenancePathKey,
             ComputeCacheStateKeyHash(maintenancePathKey),
             "anthropic-cache-control",
-            CacheMarkerSourceForAnthropic(cacheWriteMode),
-            cacheWriteMode);
+            "system+snapshot_prefix");
     }
-
-    private static string CacheMarkerSourceForAnthropic(PromptCacheMaintenanceWriteMode cacheWriteMode) =>
-        cacheWriteMode == PromptCacheMaintenanceWriteMode.ReadOnlyPrefix
-            ? "system+snapshot_prefix"
-            : "system+snapshot_prefix+fork_tail";
-
-    private static string CacheMarkerSourceForOpenAICompatible(PromptCacheMaintenanceWriteMode cacheWriteMode) =>
-        cacheWriteMode == PromptCacheMaintenanceWriteMode.ReadOnlyPrefix
-            ? "system+snapshot_prefix"
-            : "system+snapshot_prefix+fork_tail";
 
     private static string ComputeCacheStateKeyHash(string cacheStateKey)
     {
@@ -551,11 +425,9 @@ internal static class MaintenanceForkCacheShaper
 {
     public static MaintenanceForkCacheDiagnostics Apply(
         PromptRequestSnapshot snapshot,
-        List<ChatMessage> messages,
         ChatOptions options,
         MaintenanceForkCacheOptions? cacheOptions,
-        MaintenanceForkPromptCacheState? promptCacheState = null,
-        PromptCacheMaintenanceWriteMode cacheWriteMode = PromptCacheMaintenanceWriteMode.WriteThrough)
+        MaintenanceForkPromptCacheState? promptCacheState = null)
     {
         if (cacheOptions == null)
             return MaintenanceForkCacheDiagnostics.None;
@@ -564,7 +436,7 @@ internal static class MaintenanceForkCacheShaper
         return protocol switch
         {
             ModelProviderProtocols.Anthropic => ApplyAnthropic(promptCacheState),
-            ModelProviderProtocols.OpenAIResponses => ApplyOpenAIResponses(snapshot, options, cacheWriteMode),
+            ModelProviderProtocols.OpenAIResponses => ApplyOpenAIResponses(snapshot, options),
             _ => MaintenanceForkCacheDiagnostics.None
         };
     }
@@ -594,33 +466,14 @@ internal static class MaintenanceForkCacheShaper
             CacheMarkerSource: promptCacheState.CacheMarkerSource,
             CacheStateKeyKind: "maintenanceFork",
             CacheStateKeyHash: promptCacheState.StateKeyHash,
-            CacheWriteMode: FormatCacheWriteMode(promptCacheState.CacheWriteMode),
-            TailCacheWriteSkipped: promptCacheState.CacheWriteMode == PromptCacheMaintenanceWriteMode.ReadOnlyPrefix,
-            ProviderImplicitCacheWrite: false);
-    }
-
-    private static MaintenanceForkCacheDiagnostics ApplyOpenAICompatible(
-        MaintenanceForkPromptCacheState? promptCacheState)
-    {
-        if (promptCacheState == null)
-            return MaintenanceForkCacheDiagnostics.None;
-
-        return new MaintenanceForkCacheDiagnostics(
-            true,
-            promptCacheState.CacheShapeKind,
-            PromptCacheKeyPresent: null,
-            CacheMarkerSource: promptCacheState.CacheMarkerSource,
-            CacheStateKeyKind: "maintenanceFork",
-            CacheStateKeyHash: promptCacheState.StateKeyHash,
-            CacheWriteMode: FormatCacheWriteMode(promptCacheState.CacheWriteMode),
-            TailCacheWriteSkipped: promptCacheState.CacheWriteMode == PromptCacheMaintenanceWriteMode.ReadOnlyPrefix,
+            CacheWriteMode: "readOnlyPrefix",
+            TailCacheWriteSkipped: true,
             ProviderImplicitCacheWrite: false);
     }
 
     private static MaintenanceForkCacheDiagnostics ApplyOpenAIResponses(
         PromptRequestSnapshot snapshot,
-        ChatOptions options,
-        PromptCacheMaintenanceWriteMode cacheWriteMode)
+        ChatOptions options)
     {
         var promptCacheKey = ProviderPromptCacheMetadata.ResolveKey(
             options,
@@ -639,10 +492,4 @@ internal static class MaintenanceForkCacheShaper
             TailCacheWriteSkipped: null,
             ProviderImplicitCacheWrite: true);
     }
-
-    private static string FormatCacheWriteMode(PromptCacheMaintenanceWriteMode cacheWriteMode) =>
-        cacheWriteMode == PromptCacheMaintenanceWriteMode.ReadOnlyPrefix
-            ? "readOnlyPrefix"
-            : "writeThrough";
-
 }

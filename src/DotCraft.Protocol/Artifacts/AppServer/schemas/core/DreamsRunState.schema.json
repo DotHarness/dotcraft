@@ -46,9 +46,6 @@
         "type": "string"
       }
     },
-    "historyWritten": {
-      "type": "boolean"
-    },
     "id": {
       "type": "string"
     },

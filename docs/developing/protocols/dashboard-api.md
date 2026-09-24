@@ -66,7 +66,7 @@ The fingerprint covers both content and ordered sources. Equivalent snapshots ar
 
 Each completed provider stream attempt emits a `ProviderResponseDiagnostic` with `eventType=stream_attempt`. Its metadata includes `requestIndex`, `attemptNumber`, `retryLimit`, `outcome`, `retryDecision`, `failureKind`, `durationMs`, and `visibleOutputEmitted`. OpenAI Responses diagnostics also include the final HTTP status, upstream request ID, and SHA-256 hashes of the effective session, thread, and prompt-cache identities. Raw routing identities, credentials, request bodies, and response bodies are excluded.
 
-Maintenance requests such as context compaction and memory consolidation also record `MaintenanceForkRequest` / `MaintenanceForkResponse` events. These events preserve snapshot/cache metadata, raw model text, tool-call-only responses, empty responses, and fallback reasons so Dashboard can diagnose issues such as `summary_unavailable`.
+Maintenance requests such as context compaction also record `MaintenanceForkRequest` / `MaintenanceForkResponse` events. These events preserve snapshot/cache metadata, raw model text, tool-call-only responses, empty responses, and fallback reasons so Dashboard can diagnose issues such as `summary_unavailable`.
 
 `DeferredToolLoading` is used for provider-native deferred tool loading, currently OpenAI Responses and Anthropic beta tool references. It records the tools newly activated by `SearchTools`, the configured strategy, the effective mode, the provider protocol, and the provider wire shape; it does not mean top-level `tools` were injected and it is not marked as a prompt-cache tool extension.
 

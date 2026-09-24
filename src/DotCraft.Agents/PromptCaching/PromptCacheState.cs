@@ -1,14 +1,6 @@
 namespace DotCraft.Agents;
 
-internal sealed record PromptCacheMaintenanceScope(
-    int SnapshotMessageCount,
-    PromptCacheMaintenanceWriteMode CacheWriteMode = PromptCacheMaintenanceWriteMode.WriteThrough);
-
-internal enum PromptCacheMaintenanceWriteMode
-{
-    WriteThrough,
-    ReadOnlyPrefix
-}
+internal sealed record PromptCacheMaintenanceScope(int SnapshotMessageCount);
 
 internal sealed record PromptCacheStateOverride(
     string CacheStateKey,

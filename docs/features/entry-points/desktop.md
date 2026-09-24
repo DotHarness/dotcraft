@@ -22,7 +22,7 @@ Use the view's actions to send a follow-up after confirming the prompt or copy i
 
 ## Keep several projects in one window
 
-Switching workspaces switches projects: configuration, skills, memory, and automations all follow the project and stay out of each other's way. The memory switches, Dreams, and one-click memory reset live under **Settings → Personalization**, and [Memory and Dreams](../agent-system/memory) explains what each one covers.
+Switching workspaces switches projects: configuration, skills, memory, and automations all follow the project and stay out of each other's way. The memory switch, Dreams, and memory deletion live under **Settings → Personalization**, and [Memory and Dreams](../agent-system/memory) explains what each one covers.
 
 ## Set up a model
 

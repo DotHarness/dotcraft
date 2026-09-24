@@ -35,16 +35,16 @@ dotcraft context search --query "provider timeout gpt-5.3" --workspace "D:\path\
 dotcraft context export --thread thread_20260601_ab12cd --workspace "D:\path\to\project" --output handoff.md
 ```
 
-默认输出就是按交接场景准备的：工具结果保留摘要而不是完整输出，记忆历史只带最近一段。想更保守，把工具结果整个去掉：
+默认输出就是按交接场景准备的：工具结果保留摘要而不是完整输出。想更保守，把工具结果整个去掉：
 
 ```bash
-dotcraft context export --thread thread_20260601_ab12cd --tool-results none --history tail --output handoff.md
+dotcraft context export --thread thread_20260601_ab12cd --tool-results none --output handoff.md
 ```
 
 想要最完整的一份 transcript：
 
 ```bash
-dotcraft context export --thread thread_20260601_ab12cd --profile transcript --tool-results full --history full --output transcript.md
+dotcraft context export --thread thread_20260601_ab12cd --profile transcript --tool-results full --output transcript.md
 ```
 
 不写 `--output` 时，Markdown 直接输出到 stdout。

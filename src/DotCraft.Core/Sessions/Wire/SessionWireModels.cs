@@ -179,30 +179,6 @@ public sealed record ThreadCompactResult
 }
 
 /// <summary>
-/// Result returned by a manual thread memory consolidation request.
-/// </summary>
-public sealed record ThreadMemoryConsolidationResult
-{
-    /// <summary>
-    /// Lowercase consolidation outcome: <c>succeeded</c>, <c>skipped</c>, <c>failed</c>, or <c>cancelled</c>.
-    /// </summary>
-    public string Outcome { get; init; } = "skipped";
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Message { get; init; }
-
-    /// <summary>
-    /// Whether <c>MEMORY.md</c> was updated.
-    /// </summary>
-    public bool MemoryWritten { get; init; }
-
-    /// <summary>
-    /// Whether <c>HISTORY.md</c> was appended.
-    /// </summary>
-    public bool HistoryWritten { get; init; }
-}
-
-/// <summary>
 /// Wire DTO for a thread.
 /// </summary>
 public sealed record SessionWireThread

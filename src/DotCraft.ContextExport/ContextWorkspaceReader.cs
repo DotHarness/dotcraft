@@ -95,28 +95,14 @@ internal sealed class ContextWorkspaceReader
             warnings);
     }
 
-    public ContextWorkspaceMemory LoadMemory(
-        ContextWorkspacePaths paths,
-        ContextExportHistoryMode historyMode,
-        int historyTailChars)
+    public ContextWorkspaceMemory LoadMemory(ContextWorkspacePaths paths)
     {
-        var memoryDir = Path.Combine(paths.CraftPath, "memory");
-        var memoryPath = Path.Combine(memoryDir, "MEMORY.md");
-        var historyPath = Path.Combine(memoryDir, "HISTORY.md");
+        var memoryPath = Path.Combine(paths.CraftPath, "memory", "MEMORY.md");
         var memory = File.Exists(memoryPath)
             ? File.ReadAllText(memoryPath, Encoding.UTF8)
             : string.Empty;
 
-        var history = string.Empty;
-        if (historyMode != ContextExportHistoryMode.None && File.Exists(historyPath))
-        {
-            var full = File.ReadAllText(historyPath, Encoding.UTF8);
-            history = historyMode == ContextExportHistoryMode.Full
-                ? full
-                : TakeTail(full, Math.Max(0, historyTailChars));
-        }
-
-        return new ContextWorkspaceMemory(memoryPath, historyPath, memory, history);
+        return new ContextWorkspaceMemory(memoryPath, memory);
     }
 
     public IReadOnlyList<ContextThreadIndexRow> LoadThreadIndex(
@@ -211,16 +197,6 @@ internal sealed class ContextWorkspaceReader
             warnings.Add($"Unable to open state database {dbPath}: {ex.Message}");
             return null;
         }
-    }
-
-    public static string TakeTail(string value, int maxChars)
-    {
-        if (maxChars <= 0 || string.IsNullOrEmpty(value))
-            return string.Empty;
-        if (value.Length <= maxChars)
-            return value;
-
-        return value[^maxChars..].TrimStart();
     }
 
     public static string NormalizeWhitespace(string value)
@@ -378,9 +354,7 @@ internal sealed record ContextWorkspacePaths(string WorkspacePath, string CraftP
 
 internal sealed record ContextWorkspaceMemory(
     string MemoryPath,
-    string HistoryPath,
-    string Memory,
-    string History);
+    string Memory);
 
 internal sealed record ContextLoadedThread(
     ContextWorkspacePaths Paths,

@@ -27,7 +27,7 @@ dotcraft config show --json
 | `SubagentMaxConcurrency` | Maximum concurrent subagents | `3` |
 | `AgentInterruptMessageEnabled` | Tell the model when a turn is intentionally interrupted, including an active-turn fork | `true` |
 | `MaxSessionQueueSize` | Maximum queued requests per session; `0` means unlimited | `3` |
-| `ConsolidationModel` | Memory consolidation model. Empty uses the main model | Empty |
+| `ConsolidationModel` | Model for Dreams runs. Empty uses the main model | Empty |
 | `DebugMode` | Prints untruncated tool arguments in the console | `false` |
 | `EnabledTools` | Globally enabled tool names. Empty enables all tools | `[]` |
 
@@ -121,8 +121,7 @@ A `chatgptOAuth` provider authenticates with a ChatGPT subscription instead of a
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `Memory.AutoConsolidateEnabled` | Enables automatic long-term memory consolidation | `true` |
-| `Memory.ConsolidateEveryNTurns` | Successful turns per thread between long-term memory consolidation attempts | `5` |
+| `Memory.Enabled` | Lets new sessions use and maintain workspace memory. Dreams and welcome suggestions also require it | `true` |
 | `Skills.DisabledSkills` | Skill names disabled for this workspace. A disabled skill stays on disk but is left out of agent context | `[]` |
 | `Skills.IncludeSharedSkills` | Also loads personal skills from `~/.agents/skills`, the directory shared with other agent tools. Takes effect on restart | `true` |
 | `Skills.IncludeBuiltInSkills` | Deploys the skills DotCraft ships, such as `dotcraft-guide`, into the workspace on start. A host that brings its own skills turns this off. Takes effect on restart | `true` |

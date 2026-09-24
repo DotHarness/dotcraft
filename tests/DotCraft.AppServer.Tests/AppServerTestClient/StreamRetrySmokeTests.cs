@@ -127,7 +127,6 @@ public sealed class StreamRetrySmokeTests
         Assert.Empty(root.GetProperty("McpServers").EnumerateObject());
         Assert.Empty(root.GetProperty("LspServers").EnumerateObject());
         Assert.Equal(0, root.GetProperty("ExternalChannels").GetArrayLength());
-        Assert.False(root.GetProperty("Memory").GetProperty("AutoConsolidateEnabled").GetBoolean());
 
         var provider = root.GetProperty("Providers").GetProperty("openai-chat");
         Assert.Equal("http://127.0.0.1:54321", provider.GetProperty("EndPoint").GetString());

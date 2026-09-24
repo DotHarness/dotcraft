@@ -35,7 +35,7 @@ describe('SettingsView plugin MCP servers', () => {
         endPoint: null,
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: null,
-        memoryAutoConsolidateEnabled: null,
+        memoryEnabled: null,
         defaultApprovalPolicy: null
       },
       userDefaults: {
@@ -43,7 +43,7 @@ describe('SettingsView plugin MCP servers', () => {
         endPoint: null,
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: null,
-        memoryAutoConsolidateEnabled: null,
+        memoryEnabled: null,
         defaultApprovalPolicy: null
       }
     })

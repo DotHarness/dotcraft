@@ -11,7 +11,7 @@ namespace DotCraft.Context;
 /// <summary>The kernel-owned inputs the built-in system prompt sections read from.</summary>
 internal sealed class PromptSectionSources
 {
-    internal required MemoryStore MemoryStore { get; init; }
+    internal MemoryStore? MemoryStore { get; init; }
 
     internal required SkillsLoader SkillsLoader { get; init; }
 

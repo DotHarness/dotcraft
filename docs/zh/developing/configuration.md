@@ -27,7 +27,7 @@ dotcraft config show --json
 | `SubagentMaxConcurrency` | 最大并发 subagent 数量 | `3` |
 | `AgentInterruptMessageEnabled` | 向模型说明 turn 被主动中断，包括从运行中的 turn 分叉 | `true` |
 | `MaxSessionQueueSize` | 每个 Session 最大排队请求数，`0` 表示无限制 | `3` |
-| `ConsolidationModel` | 记忆整合专用模型，空值使用主模型 | 空 |
+| `ConsolidationModel` | 梦境运行使用的模型，空值使用主模型 | 空 |
 | `DebugMode` | 控制台不截断工具调用参数输出 | `false` |
 | `EnabledTools` | 全局启用的工具名称列表，为空时启用所有工具 | `[]` |
 
@@ -121,8 +121,7 @@ Sign in with ChatGPT 示例：
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
-| `Memory.AutoConsolidateEnabled` | 启用长期记忆自动沉淀 | `true` |
-| `Memory.ConsolidateEveryNTurns` | 每个线程成功完成多少轮后触发一次长期记忆沉淀 | `5` |
+| `Memory.Enabled` | 让新会话使用并维护工作区记忆。梦境和欢迎页建议也依赖此开关 | `true` |
 | `Skills.DisabledSkills` | 当前工作区禁用的 skill 名称列表。被禁用的 skill 仍留在磁盘上，但不会注入 Agent 上下文 | `[]` |
 | `Skills.IncludeSharedSkills` | 同时从 `~/.agents/skills` 读取个人 skill，该目录与其他 agent 工具共用。重启后生效 | `true` |
 | `Skills.IncludeBuiltInSkills` | 启动时把 DotCraft 自带的 skill（如 `dotcraft-guide`）部署进工作区。自带 skill 的宿主可以关掉它。重启后生效 | `true` |

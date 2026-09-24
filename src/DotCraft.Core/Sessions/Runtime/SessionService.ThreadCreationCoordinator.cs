@@ -118,6 +118,8 @@ public sealed partial class SessionService
             {
                 config.ContextWindow = CloneNullableContextWindowConfig(source.Configuration.ContextWindow);
             }
+            config.MemoryScope = source.Configuration?.MemoryScope;
+            config.MemoryEnabled = source.Configuration?.MemoryEnabled;
             config = ThreadWorkspaceResolver.Apply(
                 identity.WorkspacePath,
                 config,

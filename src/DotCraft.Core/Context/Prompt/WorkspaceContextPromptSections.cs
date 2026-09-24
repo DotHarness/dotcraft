@@ -35,10 +35,13 @@ internal static class WorkspaceContextPromptSections
     internal static string? Memory(SystemPromptSectionContext context)
     {
         var sources = context.RequireSources();
+        if (sources.MemoryStore is not { } memoryStore)
+            return null;
+
         var memory = sources.GetContextPage(
             context.ThreadId,
-            ContextPageKeys.MemoryLongTerm(MemoryVariant(sources.MemoryStore, sources.DreamStore)),
-            () => BuildMemoryContext(sources));
+            ContextPageKeys.MemoryLongTerm(MemoryVariant(memoryStore, sources.DreamStore)),
+            () => BuildMemoryContext(sources, memoryStore));
         return string.IsNullOrWhiteSpace(memory) ? null : $"# Memory\n\n{memory}";
     }
 
@@ -100,20 +103,21 @@ internal static class WorkspaceContextPromptSections
         return sb.ToString();
     }
 
-    private static string BuildMemoryContext(PromptSectionSources sources)
+    private static string BuildMemoryContext(PromptSectionSources sources, MemoryStore memoryStore)
     {
         var parts = new List<string>
         {
-            $"Memory files: {Path.GetFullPath(sources.MemoryStore.MemoryDirectoryPath)}",
+            $"Memory files: {Path.GetFullPath(memoryStore.MemoryDirectoryPath)}",
             """
-Use this directory for memory operations.
-- Save useful stable facts in MEMORY.md. Promptly apply user requests to remember, correct, or forget information.
-- Read the current file before editing. Make targeted changes and preserve unrelated information.
-- HISTORY.md contains generated summaries of past events. Search it to recall past events. Do not create or modify this file.
-- Use memory as background context. Follow current instructions and verified evidence, and update outdated facts.
+MEMORY.md holds lessons the user taught in earlier sessions. Use it as background context; current instructions and verified evidence take precedence.
+- Promptly apply the user's requests to remember, correct, or forget information.
+- Otherwise, save a lesson only when the user taught or corrected it and it will apply to future sessions, such as a standing preference or an approach they steered you toward or away from. Do not save facts you worked out yourself, task status, or anything the repository already records.
+- If you are unsure whether a lesson lasts beyond the current task, do not save it.
+- Save it in the same reply that responds to the user's message, before continuing the task.
+- Read the file before editing. Make targeted changes and preserve unrelated entries.
 """
         };
-        var longTerm = sources.MemoryStore.GetMemoryContext();
+        var longTerm = memoryStore.GetMemoryContext();
         if (!string.IsNullOrWhiteSpace(longTerm))
             parts.Add(longTerm);
 

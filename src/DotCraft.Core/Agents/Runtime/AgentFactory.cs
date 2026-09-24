@@ -44,15 +44,11 @@ public sealed class AgentFactory : IAsyncDisposable
     private readonly ChatClientRegistry _chatClientRegistry;
     private readonly IChatClient? _compactionChatClientOverride;
     private CompactionPipeline? _defaultCompactionPipeline;
-    private IMemoryConsolidator? _defaultConsolidator;
     private static readonly ConcurrentDictionary<MethodInfo, bool> StreamArgumentsOptOutCache = new();
     private readonly CustomCommandLoader? _customCommandLoader;
     private readonly PlanStore? _planStore;
     private readonly Action<string, StructuredPlan>? _onPlanUpdated;
     private readonly HookRunner? _hookRunner;
-    private readonly MemoryStore _memoryStore;
-    private readonly Action<string>? _onConsolidatorStatus;
-    private readonly IMemoryConsolidator? _memoryConsolidatorOverride;
     private readonly IToolDispatcher _toolDispatcher;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<AgentFactory> _logger;
@@ -73,11 +69,9 @@ public sealed class AgentFactory : IAsyncDisposable
         CustomCommandLoader? customCommandLoader = null,
         PlanStore? planStore = null,
         Action<string, StructuredPlan>? onPlanUpdated = null,
-        Action<string>? onConsolidatorStatus = null,
         HookRunner? hookRunner = null,
         ChatClientRegistry? chatClientRegistry = null,
         IChatClient? chatClient = null,
-        IMemoryConsolidator? memoryConsolidator = null,
         IChatClient? compactionChatClient = null,
         IContextPageManager? contextPageManager = null,
         IToolDispatcher? toolDispatcher = null,
@@ -91,9 +85,6 @@ public sealed class AgentFactory : IAsyncDisposable
         _planStore = planStore;
         _onPlanUpdated = onPlanUpdated;
         _hookRunner = hookRunner;
-        _memoryStore = memoryStore;
-        _onConsolidatorStatus = onConsolidatorStatus;
-        _memoryConsolidatorOverride = memoryConsolidator;
         _compactionChatClientOverride = compactionChatClient;
         _chatClientOverride = chatClient;
         _toolDispatcher = toolDispatcher ?? new ToolDispatcher();
@@ -260,66 +251,6 @@ public sealed class AgentFactory : IAsyncDisposable
                 factory._logger);
         }, (this, compactionConfig, effectiveConfig));
     }
-
-    /// <summary>
-    /// Creates a provider-aware memory consolidator for the current thread runtime.
-    /// </summary>
-    public IMemoryConsolidator? CreateConsolidatorForRuntime(
-        AppConfig config,
-        string? providerIdOverride,
-        string? modelOverride,
-        ContextWindowMode? contextWindowModeOverride = null,
-        MemoryStore? memoryStore = null)
-    {
-        if (_memoryConsolidatorOverride != null)
-            return _memoryConsolidatorOverride;
-
-        var store = memoryStore ?? _memoryStore;
-
-        var mainRuntime = _chatClientRegistry.ResolveMainRuntime(config, providerIdOverride, modelOverride);
-        var consolidationRuntime = _chatClientRegistry.ResolveConsolidationRuntime(
-            config,
-            mainRuntime.ProviderId,
-            mainRuntime.Model);
-        var fallback = new MemoryConsolidator(
-            ProviderChatClientAdapters.CreateRequestAdaptedClient(
-                _chatClientOverride ?? _chatClientRegistry.GetChatClient(consolidationRuntime),
-                config,
-                consolidationRuntime,
-                useDefaultReasoning: false),
-            store,
-            _onConsolidatorStatus);
-
-        return new MemoryForkConsolidator(
-            new MaintenanceForkRunner(
-                ProviderChatClientAdapters.CreateRequestAdaptedClient(
-                    _chatClientOverride ?? _chatClientRegistry.GetChatClient(mainRuntime),
-                    config,
-                    mainRuntime,
-                    useDefaultReasoning: false),
-                _traceCollector,
-                new MaintenanceForkCacheOptions(
-                    mainRuntime.Protocol,
-                    config.PromptCaching,
-                    mainRuntime.Model)),
-            fallback,
-            store,
-            mainRuntime.Model,
-            consolidationRuntime.Model,
-            ModelCatalog.ResolveCompactionConfig(
-                config,
-                mainRuntime.Model,
-                contextWindowModeOverride ?? config.Compaction.ContextWindowMode).BlockingLimit(),
-            _runtimeContext.WorkspacePath);
-    }
-
-    /// <summary>
-    /// Gets the memory consolidator for persisting conversation knowledge.
-    /// Session Core drives consolidation independently from context
-    /// compaction, using completed thread history as input.
-    /// </summary>
-    public IMemoryConsolidator? Consolidator =>
-        _defaultConsolidator ??= CreateConsolidatorForRuntime(_config, null, null);
 
     /// <summary>
     /// Gets or creates a token tracker for the specified session.
@@ -760,7 +691,7 @@ public sealed class AgentFactory : IAsyncDisposable
             };
             // Reads the same inputs a replacement of the memory target sees, so both compose from one set of facts.
             createBuiltInProvider = () => new MemoryContextProvider(
-                ctx.MemoryStore,
+                ctx.MemoryEnabled ? ctx.MemoryStore : null,
                 ctx.SkillsLoader,
                 ctx.BotPath,
                 ctx.WorkspacePath,

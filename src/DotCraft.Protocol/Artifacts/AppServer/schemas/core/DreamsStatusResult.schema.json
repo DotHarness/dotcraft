@@ -20,9 +20,6 @@
     "enabled": {
       "type": "boolean"
     },
-    "historyTailChars": {
-      "type": "integer"
-    },
     "interval": {
       "type": "string"
     },

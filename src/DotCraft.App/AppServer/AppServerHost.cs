@@ -1472,11 +1472,8 @@ public sealed class AppServerHost(
 
     private void OnThreadRuntimeSignal(string threadId, SessionThreadRuntimeSignal signal, SessionTurn? turn)
     {
-        if (signal == SessionThreadRuntimeSignal.MemoryConsolidated)
-        {
+        if (signal == SessionThreadRuntimeSignal.TurnCompleted)
             runtime.WelcomeSuggestionService.ScheduleRefresh(runtime.Paths.WorkspacePath, threadId);
-            return;
-        }
 
         if (_threadRuntimeNotifications.ApplySignal(threadId, signal, turn, _activeTransports))
             RequestHubTurnNotification(threadId, signal);
