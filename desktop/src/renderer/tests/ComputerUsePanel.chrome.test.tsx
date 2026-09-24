@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { installDesktopApiMock } from './desktopApiMock'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
+import { ComputerUsePanel } from '../components/settings/panels/computerUse/ComputerUsePanel'
 import { SettingsView } from '../components/settings/SettingsView'
-import { SettingsSidebar } from '../components/layout/SettingsSidebar'
 import { useConnectionStore } from '../stores/connectionStore'
 import { usePluginStore, type PluginEntry } from '../stores/pluginStore'
 import { useUIStore } from '../stores/uiStore'
@@ -14,29 +14,6 @@ const appServerSendRequest = vi.fn()
 const chromeCheckSetup = vi.fn()
 const chromeInstallNativeHost = vi.fn()
 const chromeOpenChrome = vi.fn()
-
-const browserPlugin: PluginEntry = {
-  id: 'browser',
-  displayName: 'Browser',
-  description: 'Control the in-app browser with DotCraft',
-  version: '1.0.0',
-  enabled: false,
-  installed: false,
-  installable: true,
-  removable: false,
-  source: 'builtin',
-  rootPath: '',
-  interface: {
-    displayName: 'Browser',
-    shortDescription: 'Control the in-app browser with DotCraft',
-    developerName: 'DotHarness',
-    category: 'Coding'
-  },
-  functions: [],
-  skills: [{ name: 'browser', description: 'Browser', enabled: false }],
-  mcpServers: [],
-  lspServers: []
-}
 
 const uninstalledChromePlugin: PluginEntry = {
   id: 'chrome',
@@ -69,15 +46,27 @@ const installedChromePlugin: PluginEntry = {
   skills: [{ name: 'chrome', description: 'Chrome', enabled: true }]
 }
 
-function renderView(): void {
+let catalog: PluginEntry[] = []
+let revision = 1
+
+function setCatalog(plugins: PluginEntry[]): void {
+  catalog = plugins
+  usePluginStore.setState({ plugins })
+}
+
+function renderPanel(): void {
   render(
     <LocaleProvider>
-      <div style={{ display: 'flex', height: 800 }}>
-        <SettingsSidebar />
-        <SettingsView workspacePath="X:\\fixtures\\workspace" />
-      </div>
+      <ComputerUsePanel />
     </LocaleProvider>
   )
+}
+
+async function openChromeDetail(): Promise<void> {
+  renderPanel()
+  fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
+  await waitFor(() => expect(chromeCheckSetup).toHaveBeenCalledTimes(2))
+  await act(() => Promise.all(chromeCheckSetup.mock.results.map((result) => result.value)))
 }
 
 function installWindowApi(locale = 'en'): void {
@@ -95,6 +84,7 @@ function installWindowApi(locale = 'en'): void {
   chromeOpenChrome.mockResolvedValue({ ok: true })
 
   installDesktopApiMock({
+    platform: 'darwin',
     settings: { get: settingsGet, set: settingsSet },
     workspaceConfig: {
       getCore: vi.fn().mockResolvedValue({
@@ -136,13 +126,18 @@ function installWindowApi(locale = 'en'): void {
   })
 }
 
-describe('SettingsView Chrome computer control', () => {
+describe('ComputerUsePanel Chrome control', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     installWindowApi()
-    appServerSendRequest.mockImplementation(async (method: string) => {
+    revision = 1
+    appServerSendRequest.mockImplementation(async (method: string, params?: { id?: string }) => {
       if (method === 'channel/list') return { channels: [] }
-      if (method === 'plugin/list') return { plugins: [browserPlugin, uninstalledChromePlugin], diagnostics: [], snapshotRevision: 1 }
+      if (method === 'plugin/list') return { plugins: catalog, diagnostics: [], snapshotRevision: revision }
+      if (method === 'plugin/install') {
+        catalog = catalog.map((plugin) => plugin.id === params?.id ? installedChromePlugin : plugin)
+        return { outcome: 'applied', plugin: installedChromePlugin, snapshotRevision: ++revision }
+      }
       if (method === 'skills/list') return { skills: [] }
       return {}
     })
@@ -155,40 +150,43 @@ describe('SettingsView Chrome computer control', () => {
       }
     })
     usePluginStore.setState({
-      plugins: [browserPlugin, uninstalledChromePlugin],
+      plugins: [],
       diagnostics: [],
       loading: false,
       error: null,
       selectedPluginId: null,
       selectedPlugin: null,
-      detailLoading: false
+      detailLoading: false,
+      snapshotRevision: 0,
+      completeSnapshotRevision: 0
     })
+    setCatalog([uninstalledChromePlugin])
     useUIStore.setState({ activeMainView: 'settings', activeSettingsTab: 'general', sidebarCollapsed: false })
   })
 
-  it('renders the Chrome install shortcut when the plugin is not installed', async () => {
-    renderView()
+  it('turns Chrome on through the install dialog when the plugin is not installed', async () => {
+    renderPanel()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Computer use' }))
+    const toggle = await screen.findByRole('switch', { name: 'Toggle Google Chrome' })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
+    expect(chromeCheckSetup).not.toHaveBeenCalled()
 
-    expect(await screen.findByText('Control')).toBeInTheDocument()
-    expect(screen.getByText('Chrome')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Install' })).toBeInTheDocument()
-    expect(screen.queryByText('Always allowed apps')).not.toBeInTheDocument()
+    fireEvent.click(toggle)
+    const dialog = await screen.findByRole('dialog')
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('plugin/install', expect.anything())
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add to DotCraft' }))
+
+    await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledWith('plugin/install', { id: 'chrome' }))
+    expect(await screen.findByRole('button', { name: 'Refresh status' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(chromeCheckSetup).toHaveBeenCalled()
   })
 
   it('opens Chrome management details and runs setup checks', async () => {
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'channel/list') return { channels: [] }
-      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [], snapshotRevision: 1 }
-      if (method === 'skills/list') return { skills: [] }
-      return {}
-    })
-    usePluginStore.setState({ plugins: [browserPlugin, installedChromePlugin] })
+    setCatalog([installedChromePlugin])
 
-    renderView()
-    fireEvent.click(await screen.findByRole('button', { name: 'Computer use' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
+    await openChromeDetail()
 
     await waitFor(() => expect(chromeCheckSetup).toHaveBeenCalled())
     await waitFor(() => expect(screen.getByText('Google Chrome')).toBeInTheDocument())
@@ -209,13 +207,7 @@ describe('SettingsView Chrome computer control', () => {
   })
 
   it('shows the Chrome extensions shortcut only when the extension needs attention', async () => {
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'channel/list') return { channels: [] }
-      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [], snapshotRevision: 1 }
-      if (method === 'skills/list') return { skills: [] }
-      return {}
-    })
-    usePluginStore.setState({ plugins: [browserPlugin, installedChromePlugin] })
+    setCatalog([installedChromePlugin])
     chromeCheckSetup.mockResolvedValue({
       extension: { ok: false, code: 'extensionNotReady', message: 'DotCraft Chrome extension is not ready.', action: 'openExtensions' },
       nativeHost: { ok: true, code: 'nativeHostReady', message: 'Chrome Native Host is installed.' },
@@ -225,9 +217,7 @@ describe('SettingsView Chrome computer control', () => {
       bridge: { ok: true, code: 'backendConnected', message: 'Chrome backend is connected.' }
     })
 
-    renderView()
-    fireEvent.click(await screen.findByRole('button', { name: 'Computer use' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
+    await openChromeDetail()
 
     const openExtensions = await screen.findByRole('button', { name: 'Open extensions' })
     fireEvent.click(openExtensions)
@@ -242,13 +232,7 @@ describe('SettingsView Chrome computer control', () => {
   })
 
   it('shows a disconnected status when the Chrome backend is down', async () => {
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'channel/list') return { channels: [] }
-      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [], snapshotRevision: 1 }
-      if (method === 'skills/list') return { skills: [] }
-      return {}
-    })
-    usePluginStore.setState({ plugins: [browserPlugin, installedChromePlugin] })
+    setCatalog([installedChromePlugin])
     chromeCheckSetup.mockResolvedValue({
       extension: { ok: true, code: 'extensionReady', message: 'DotCraft Chrome extension is ready.' },
       nativeHost: { ok: true, code: 'nativeHostReady', message: 'Chrome Native Host is installed.' },
@@ -258,9 +242,7 @@ describe('SettingsView Chrome computer control', () => {
       bridge: { ok: false, code: 'backendDisconnected', message: 'Chrome backend is disconnected.', action: 'clickExtensionRefresh' }
     })
 
-    renderView()
-    fireEvent.click(await screen.findByRole('button', { name: 'Computer use' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
+    await openChromeDetail()
 
     expect(await screen.findByText('Disconnected')).toBeInTheDocument()
     expect(screen.queryByText('Diagnostics')).not.toBeInTheDocument()
@@ -270,13 +252,7 @@ describe('SettingsView Chrome computer control', () => {
   })
 
   it('shows Install Host when the native host is missing', async () => {
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'channel/list') return { channels: [] }
-      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [], snapshotRevision: 1 }
-      if (method === 'skills/list') return { skills: [] }
-      return {}
-    })
-    usePluginStore.setState({ plugins: [browserPlugin, installedChromePlugin] })
+    setCatalog([installedChromePlugin])
     chromeCheckSetup.mockResolvedValue({
       extension: { ok: true, code: 'extensionReady', message: 'DotCraft Chrome extension is ready.' },
       nativeHost: {
@@ -292,22 +268,14 @@ describe('SettingsView Chrome computer control', () => {
       bridge: { ok: false, code: 'backendDisconnected', message: 'Chrome backend is disconnected.', action: 'clickExtensionRefresh' }
     })
 
-    renderView()
-    fireEvent.click(await screen.findByRole('button', { name: 'Computer use' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
+    await openChromeDetail()
 
     expect(await screen.findByRole('button', { name: 'Install Host' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Install or repair Native Host' })).not.toBeInTheDocument()
   })
 
   it('shows Repair Host when the native host wrapper needs repair', async () => {
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'channel/list') return { channels: [] }
-      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [], snapshotRevision: 1 }
-      if (method === 'skills/list') return { skills: [] }
-      return {}
-    })
-    usePluginStore.setState({ plugins: [browserPlugin, installedChromePlugin] })
+    setCatalog([installedChromePlugin])
     chromeCheckSetup.mockResolvedValue({
       extension: { ok: true, code: 'extensionReady', message: 'DotCraft Chrome extension is ready.' },
       nativeHost: {
@@ -323,9 +291,7 @@ describe('SettingsView Chrome computer control', () => {
       bridge: { ok: false, code: 'backendDisconnected', message: 'Chrome backend is disconnected.', action: 'clickExtensionRefresh' }
     })
 
-    renderView()
-    fireEvent.click(await screen.findByRole('button', { name: 'Computer use' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
+    await openChromeDetail()
 
     expect(await screen.findByRole('button', { name: 'Repair Host' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Install or repair Native Host' })).not.toBeInTheDocument()
@@ -333,20 +299,25 @@ describe('SettingsView Chrome computer control', () => {
   })
 
   it('repairs the Chrome native host from the detail action', async () => {
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'channel/list') return { channels: [] }
-      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [], snapshotRevision: 1 }
-      if (method === 'skills/list') return { skills: [] }
-      return {}
-    })
-    usePluginStore.setState({ plugins: [browserPlugin, installedChromePlugin] })
+    setCatalog([installedChromePlugin])
 
-    renderView()
-    fireEvent.click(await screen.findByRole('button', { name: 'Computer use' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
+    await openChromeDetail()
     fireEvent.click(await screen.findByRole('button', { name: 'Repair Host' }))
 
     await waitFor(() => expect(chromeInstallNativeHost).toHaveBeenCalled())
     expect(chromeCheckSetup).toHaveBeenCalled()
+  })
+
+  it('opens the Chrome detail page from the Chrome settings deep link', async () => {
+    setCatalog([installedChromePlugin])
+
+    render(
+      <LocaleProvider>
+        <SettingsView workspacePath="X:\\fixtures\\workspace" openChromeSettingsSeq={1} />
+      </LocaleProvider>
+    )
+
+    expect(await screen.findByRole('button', { name: 'Refresh status' })).toBeInTheDocument()
+    expect(useUIStore.getState().activeSettingsTab).toBe('computerControl')
   })
 })
