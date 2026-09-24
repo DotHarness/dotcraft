@@ -51,6 +51,18 @@ public interface IApprovalService
         string operation,
         string target,
         ApprovalContext? context = null);
+
+    /// <summary>Services that cannot show labels fall back to the plain resource request.</summary>
+    Task<bool> RequestResourceApprovalAsync(ResourceApprovalRequest request, ApprovalContext? context = null) =>
+        RequestResourceApprovalAsync(request.Kind, request.Operation, request.Target, context);
+}
+
+public sealed record ResourceApprovalRequest(string Kind, string Operation, string Target)
+{
+    public string? TargetLabel { get; init; }
+
+    /// <summary>When false, an always-accept decision only covers the thread; the caller owns any permanent grant.</summary>
+    public bool PersistAcceptAlways { get; init; } = true;
 }
 
 /// <summary>

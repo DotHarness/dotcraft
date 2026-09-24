@@ -60,6 +60,17 @@ internal sealed class HookApprovalService(
         return await inner.RequestResourceApprovalAsync(kind, operation, target, context).ConfigureAwait(false);
     }
 
+    public async Task<bool> RequestResourceApprovalAsync(
+        ResourceApprovalRequest request,
+        ApprovalContext? context = null)
+    {
+        var hookContext = BuildContext(request.Kind, request.Operation, request.Target, context);
+        if (!await RunPermissionHookAsync(hookContext).ConfigureAwait(false))
+            return false;
+
+        return await inner.RequestResourceApprovalAsync(request, context).ConfigureAwait(false);
+    }
+
     private async Task<bool> RunPermissionHookAsync(Dictionary<string, object?> hookContext)
     {
         try

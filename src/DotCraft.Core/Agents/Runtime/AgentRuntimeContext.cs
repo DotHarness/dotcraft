@@ -369,8 +369,8 @@ public sealed class AgentRuntimeContext
     public IAcpExtensionProxy? AcpExtensionProxy { get; init; }
 
     /// <summary>
-    /// Optional Node REPL proxy for Desktop-hosted browser automation.
-    /// Available only when the current AppServer thread is bound to a client that declared nodeRepl and browserUse support.
+    /// Optional Node REPL proxy for Desktop-hosted browser and computer use automation.
+    /// Available only when the current AppServer thread is bound to a client that declared nodeRepl with browserUse or computerUse support.
     /// </summary>
     public INodeReplProxy? NodeReplProxy { get; init; }
 

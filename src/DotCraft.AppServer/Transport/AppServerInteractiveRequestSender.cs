@@ -64,6 +64,7 @@ internal sealed class AppServerInteractiveRequestSender
             ApprovalType = request.ApprovalType,
             Operation = request.Operation,
             Target = request.Target,
+            TargetLabel = request.TargetLabel,
             ScopeKey = request.ScopeKey,
             Reason = request.Reason,
             ExpiresAt = request.ExpiresAt,

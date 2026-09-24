@@ -600,6 +600,49 @@ public sealed class SessionApprovalServiceTests
     }
 
     [Fact]
+    public async Task AcceptAlways_ClientOwnedResource_CoversThreadWithoutPersisting()
+    {
+        var storeDir = Path.Combine(Path.GetTempPath(), $"dotcraft_test_{Guid.NewGuid():N}");
+        try
+        {
+            var store = new ApprovalStore(storeDir);
+            var (svc, channel, _) = MakeApprovalService(store: store);
+            var approval = new ResourceApprovalRequest("computerUse", "use", @"C:\Apps\Notepad.exe")
+            {
+                TargetLabel = "Notepad",
+                PersistAcceptAlways = false
+            };
+
+            var request = svc.RequestResourceApprovalAsync(approval);
+            ApprovalRequestPayload? payload = null;
+            await foreach (var evt in DrainWithTimeout(channel))
+            {
+                if (evt.EventType != SessionEventType.ApprovalRequested)
+                    continue;
+                payload = evt.ItemPayload?.Payload as ApprovalRequestPayload;
+                break;
+            }
+
+            Assert.NotNull(payload);
+            Assert.Equal("Notepad", payload!.TargetLabel);
+            svc.TryResolve(payload.RequestId, SessionApprovalDecision.AcceptAlways);
+            Assert.True(await request);
+            Assert.False(store.IsResourceOperationApproved("computerUse", "use", approval.Target));
+            Assert.True(await svc.RequestResourceApprovalAsync(approval));
+
+            var (nextTurn, nextChannel, _) = MakeApprovalService(store: store);
+            var pending = nextTurn.RequestResourceApprovalAsync(approval);
+            Assert.NotNull(await GetApprovalRequestIdAsync(nextChannel));
+            Assert.False(pending.IsCompleted);
+        }
+        finally
+        {
+            if (Directory.Exists(storeDir))
+                Directory.Delete(storeDir, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task AcceptForSession_IsSharedAcrossTurnsInSameThread()
     {
         var registry = new SessionApprovalScopeRegistry();

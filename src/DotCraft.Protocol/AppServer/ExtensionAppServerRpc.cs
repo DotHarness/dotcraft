@@ -83,6 +83,8 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<NodeReplEvaluateParams, NodeReplEvaluateResult> ExtNodeReplEvaluate = new("ext/nodeRepl/evaluate", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "node-repl", scope: "connection", capability: "nodeRepl", errors: CommonErrors);
 
+    public static readonly RpcRequest<NodeReplRequestApprovalParams, NodeReplRequestApprovalResult> ExtNodeReplRequestApproval = new("ext/nodeRepl/requestApproval", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "node-repl", scope: "connection", capability: "nodeRepl", errors: CommonErrors);
+
     public static readonly RpcRequest<ExternalChannelGetParams, ExternalChannelGetResult> ExternalChannelGet = new("externalChannel/get", RpcDirection.ClientToServer, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "externalChannelManagement", errors: CommonErrors);
 
     public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, ExternalChannelListResult> ExternalChannelList = new("externalChannel/list", RpcDirection.ClientToServer, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "externalChannelManagement", errors: CommonErrors);

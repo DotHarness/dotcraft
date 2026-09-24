@@ -2217,6 +2217,39 @@
       ]
     },
     {
+      "name": "ext/nodeRepl/requestApproval",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/node-repl/NodeReplRequestApprovalParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/node-repl/NodeReplRequestApprovalResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "node-repl",
+      "x-dotcraft-capability": "nodeRepl",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
       "name": "externalChannel/get",
       "paramStructure": "by-name",
       "params": [

@@ -1643,6 +1643,51 @@ public sealed class NodeReplEvaluateResult : ExtensibleJsonObject
 
 }
 
+/// <summary>Executable wire contract for NodeReplRequestApprovalParams.</summary>
+[ContractModule("node-repl")]
+public sealed class NodeReplRequestApprovalParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("approvalType")]
+    [JsonPropertyOrder(2)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ApprovalType { get; init; }
+
+    [JsonPropertyName("evaluationId")]
+    [JsonPropertyOrder(1)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> EvaluationId { get; init; }
+
+    [JsonPropertyName("operation")]
+    [JsonPropertyOrder(3)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Operation { get; init; }
+
+    [JsonPropertyName("target")]
+    [JsonPropertyOrder(4)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Target { get; init; }
+
+    [JsonPropertyName("targetLabel")]
+    [JsonPropertyOrder(5)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> TargetLabel { get; init; }
+
+    [JsonPropertyName("threadId")]
+    [JsonPropertyOrder(0)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ThreadId { get; init; }
+
+}
+
+/// <summary>Executable wire contract for NodeReplRequestApprovalResult.</summary>
+[ContractModule("node-repl")]
+public sealed class NodeReplRequestApprovalResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("approved")]
+    public bool Approved { get; init; }
+
+}
+
 /// <summary>Executable wire contract for NodeReplImageResult.</summary>
 [ContractModule("node-repl")]
 public sealed class NodeReplImageResult : ExtensibleJsonObject

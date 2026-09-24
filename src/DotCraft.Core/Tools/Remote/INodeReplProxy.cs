@@ -7,9 +7,13 @@ namespace DotCraft.Tools;
 public interface INodeReplProxy
 {
     /// <summary>
-    /// Returns whether the current thread is bound to a client that declared Node REPL and browser support.
+    /// Returns whether the current thread is bound to a client that declared Node REPL with browser or computer use support.
     /// </summary>
     bool IsAvailable { get; }
+
+    bool IsBrowserUseAvailable => IsAvailable;
+
+    bool IsComputerUseAvailable => false;
 
     /// <summary>
     /// Evaluates JavaScript in the Desktop Node REPL runtime for the current thread.

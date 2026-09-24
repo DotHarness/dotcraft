@@ -86,6 +86,8 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.NodeReplEvaluateParams))]
 [JsonSerializable(typeof(AppServer.NodeReplEvaluateResult))]
 [JsonSerializable(typeof(AppServer.NodeReplImageResult))]
+[JsonSerializable(typeof(AppServer.NodeReplRequestApprovalParams))]
+[JsonSerializable(typeof(AppServer.NodeReplRequestApprovalResult))]
 [JsonSerializable(typeof(AppServer.SocialBindingAcceptParams))]
 [JsonSerializable(typeof(AppServer.SocialBindingIntent))]
 [JsonSerializable(typeof(AppServer.SocialBindingRebindParams))]

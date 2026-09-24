@@ -3044,6 +3044,13 @@
           "const": null
         },
         {
+          "name": "targetLabel",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "threadId",
           "type": "string",
           "required": true,
@@ -3122,6 +3129,13 @@
           "type": "string",
           "required": true,
           "nullable": false,
+          "const": null
+        },
+        {
+          "name": "targetLabel",
+          "type": "string",
+          "required": false,
+          "nullable": true,
           "const": null
         }
       ],
@@ -4998,6 +5012,13 @@
           "const": null
         },
         {
+          "name": "computerUse",
+          "type": "core.ComputerUseCapability",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "configChange",
           "type": "boolean",
           "required": false,
@@ -5416,6 +5437,24 @@
           "name": "commands",
           "type": "array<core.CommandInfo>",
           "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ComputerUseCapability",
+      "name": "ComputerUseCapability",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ComputerUseCapability.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "backend",
+          "type": "string",
+          "required": true,
           "nullable": false,
           "const": null
         }
@@ -11112,6 +11151,77 @@
           "name": "mediaType",
           "type": "string",
           "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "node-repl.NodeReplRequestApprovalParams",
+      "name": "NodeReplRequestApprovalParams",
+      "module": "node-repl",
+      "kind": "object",
+      "schema": "schemas/node-repl/NodeReplRequestApprovalParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "approvalType",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "evaluationId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "operation",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "targetLabel",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "node-repl.NodeReplRequestApprovalResult",
+      "name": "NodeReplRequestApprovalResult",
+      "module": "node-repl",
+      "kind": "object",
+      "schema": "schemas/node-repl/NodeReplRequestApprovalResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "approved",
+          "type": "boolean",
+          "required": true,
           "nullable": false,
           "const": null
         }
@@ -26973,6 +27083,26 @@
       "direction": "serverToClient",
       "paramsType": "node-repl.NodeReplEvaluateParams",
       "resultType": "node-repl.NodeReplEvaluateResult",
+      "module": "node-repl",
+      "capability": "nodeRepl",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "ext/nodeRepl/requestApproval",
+      "descriptorMember": "ExtNodeReplRequestApproval",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "node-repl.NodeReplRequestApprovalParams",
+      "resultType": "node-repl.NodeReplRequestApprovalResult",
       "module": "node-repl",
       "capability": "nodeRepl",
       "scope": "connection",

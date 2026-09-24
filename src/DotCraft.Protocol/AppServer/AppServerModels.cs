@@ -63,6 +63,13 @@ public sealed class NodeReplCapability : ExtensibleJsonObject
     public required string Backend { get; init; }
 }
 
+/// <summary>Desktop application automation support declared by a client.</summary>
+public sealed class ComputerUseCapability : ExtensibleJsonObject
+{
+    [JsonPropertyName("backend")]
+    public required string Backend { get; init; }
+}
+
 /// <summary>Browser runtime support declared by a client.</summary>
 public sealed class BrowserUseCapability : ExtensibleJsonObject
 {
@@ -180,6 +187,10 @@ public sealed class ClientCapabilities : ExtensibleJsonObject
     [JsonPropertyName("browserUse")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BrowserUseCapability? BrowserUse { get; init; }
+
+    [JsonPropertyName("computerUse")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ComputerUseCapability? ComputerUse { get; init; }
 
     [JsonPropertyName("extensions")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1647,6 +1658,10 @@ public sealed class ApprovalRequestParams : ExtensibleJsonObject
 
     [JsonPropertyName("target")]
     public required string Target { get; init; }
+
+    [JsonPropertyName("targetLabel")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TargetLabel { get; init; }
 
     [JsonPropertyName("scopeKey")]
     public required string ScopeKey { get; init; }

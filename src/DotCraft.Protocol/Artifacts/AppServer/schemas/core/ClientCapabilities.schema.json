@@ -74,6 +74,16 @@
         }
       ]
     },
+    "computerUse": {
+      "anyOf": [
+        {
+          "$ref": "./ComputerUseCapability.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "configChange": {
       "anyOf": [
         {
