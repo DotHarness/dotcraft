@@ -9,6 +9,7 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Skeleton } from '../ui/Skeleton'
+import { UserAvatar } from '../ui/UserAvatar'
 import { SettingsPageHeader } from './SettingsPageHeader'
 import { settingsMetaTextStyle, settingsPlaceholderStyle } from './settingsTypography'
 import { TokenActivityHeatmap, type HeatmapMode } from './profile/TokenActivityHeatmap'
@@ -247,7 +248,7 @@ function ProfileHeader({
         textAlign: 'center'
       }}
     >
-      <Avatar name={displayName} avatarUrl={avatarUrl} />
+      <UserAvatar name={displayName} avatarUrl={avatarUrl} size={72} />
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
         <span style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)' }}>
@@ -292,44 +293,6 @@ function ProfileHeader({
           </span>
         )}
       </div>
-    </div>
-  )
-}
-
-function Avatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }): JSX.Element {
-  const [failed, setFailed] = useState(false)
-  const initials = useMemo(() => deriveInitials(name), [name])
-
-  if (avatarUrl && !failed) {
-    return (
-      <img
-        src={avatarUrl}
-        alt={name}
-        width={72}
-        height={72}
-        onError={() => setFailed(true)}
-        style={{ width: '72px', height: '72px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-      />
-    )
-  }
-  return (
-    <div
-      aria-hidden
-      style={{
-        width: '72px',
-        height: '72px',
-        borderRadius: '50%',
-        flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--accent)',
-        color: '#fff',
-        fontSize: '24px',
-        fontWeight: 600
-      }}
-    >
-      {initials}
     </div>
   )
 }
@@ -525,14 +488,6 @@ function computeLongestStreak(active: Set<string>): number {
     }
   }
   return longest
-}
-
-function deriveInitials(name: string): string {
-  const cleaned = name.replace(/^@/, '').trim()
-  if (!cleaned) return '?'
-  const parts = cleaned.split(/[\s_-]+/).filter(Boolean)
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
-  return cleaned.slice(0, 2).toUpperCase()
 }
 
 /** Compact duration: "2h 10m" / "10m" / "45s"; em-dash when none. */

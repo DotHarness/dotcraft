@@ -1608,8 +1608,10 @@ never read as different components. The workflow lives in
   and the level-1 shadow.
 - The header names the author on the left and the line on the right, both
   `--type-secondary` in `--text-secondary`. Lines read as `L` (old side) or `R`
-  (new side) plus the number. The author is "You" for the reader, with no avatar,
-  and the product for a model review comment, which adds a bold title and no footer.
+  (new side) plus the number. A `24px` circle leads the author, `10px` before it:
+  for "You" it is the profile avatar, falling back to initials and then to a person
+  glyph on `--bg-tertiary`; for a model review comment it is the DotCraft mark on
+  `--bg-tertiary`, and the card adds a bold title and no footer.
 - The body is a bare field at `--type-ui`. Footer actions sit on the `sm` band: a
   draft shows Cancel (`ghost`), dictation, and Comment (`primary`, disabled while
   empty); a saved comment at rest shows only a `ghost` Delete, and while editing

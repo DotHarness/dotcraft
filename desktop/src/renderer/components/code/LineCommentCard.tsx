@@ -2,8 +2,11 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { DiffAnnotationContext } from '../../../shared/composerContext'
 import { useT } from '../../contexts/LocaleContext'
 import { Button } from '../ui/Button'
+import { DotCraftLogo } from '../ui/DotCraftLogo'
 import { Textarea } from '../ui/Input'
+import { CurrentUserAvatar } from '../ui/UserAvatar'
 import { VoiceInputControl } from '../conversation/VoiceInputControl'
+import { focusComposer } from '../conversation/composerFocus'
 import { useCommentVoice } from '../conversation/useCommentVoice'
 import './line-comment.css'
 
@@ -22,12 +25,14 @@ export function lineCommentLabel(
 }
 
 function LineCommentShell({
+  avatar,
   author,
   label,
   children,
   footer,
   onPointerDown
 }: {
+  avatar: ReactNode
   author: string
   label: string
   children: ReactNode
@@ -38,7 +43,10 @@ function LineCommentShell({
     <div className="dc-line-comment" data-find-skip>
       <div className="dc-line-comment__card" onPointerDown={onPointerDown}>
         <div className="dc-line-comment__header">
-          <span className="dc-line-comment__author">{author}</span>
+          <span className="dc-line-comment__identity">
+            {avatar}
+            <span className="dc-line-comment__author">{author}</span>
+          </span>
           <span>{label}</span>
         </div>
         <div className="dc-line-comment__body">{children}</div>
@@ -68,6 +76,11 @@ export function LineCommentCard({
   const t = useT()
   const [comment, setComment] = useState(initialComment)
   const [editing, setEditing] = useState(!saved)
+  const [synced, setSynced] = useState(initialComment)
+  if (initialComment !== synced) {
+    setSynced(initialComment)
+    if (!saved || !editing) setComment(initialComment)
+  }
   const input = useRef<HTMLTextAreaElement>(null)
   const update = (value: string) => {
     setComment(value)
@@ -87,10 +100,9 @@ export function LineCommentCard({
   function submit() {
     if (!canSubmit) return
     onSubmit(comment)
-    if (saved) {
-      setEditing(false)
-      input.current?.blur()
-    }
+    setEditing(false)
+    input.current?.blur()
+    focusComposer()
   }
 
   function cancel() {
@@ -130,6 +142,7 @@ export function LineCommentCard({
 
   return (
     <LineCommentShell
+      avatar={<CurrentUserAvatar size={24} />}
       author={t('lineComment.you')}
       label={label}
       footer={footer}
@@ -181,7 +194,15 @@ export function ModelLineCommentCard({
 }): JSX.Element {
   const t = useT()
   return (
-    <LineCommentShell author={t('lineComment.modelAuthor')} label={label}>
+    <LineCommentShell
+      avatar={
+        <span className="dc-line-comment__mark" aria-hidden>
+          <DotCraftLogo size={16} />
+        </span>
+      }
+      author={t('lineComment.modelAuthor')}
+      label={label}
+    >
       {title && <strong className="dc-line-comment__title">{title}</strong>}
       <p className="dc-line-comment__text">{body}</p>
     </LineCommentShell>
