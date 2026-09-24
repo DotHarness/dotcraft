@@ -1,5 +1,5 @@
 ---
-version: "0.27.0"
+version: "0.28.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -129,6 +129,10 @@ The ownership and compatibility contract for that graph is defined in
 intent, component rules, and review checklist that new and changed Desktop UI
 must follow.
 
+The file runs from foundations (color, type, layout, surfaces, shape, motion) to
+the shared controls built on them, then to overlays, inputs, and the conversation,
+and ends with page grammars and feature surfaces.
+
 ## Overview
 
 DotCraft Desktop is a quiet operational tool for repeated agent work. It should
@@ -149,7 +153,9 @@ The design posture is neutral-first:
 The brand accent is intentionally conservative. It is not the default
 call-to-action color.
 
-## Colors
+## Color
+
+### Neutral roles
 
 Neutral tokens carry most UI structure.
 
@@ -164,20 +170,32 @@ Neutral tokens carry most UI structure.
   detail.
 - `--border-default`: ordinary control, input, and card boundaries.
 - `--border-active`: hover, focused, or active neutral boundaries.
+- `--border-subtle`: the quietest rule in the system, for separating stacked
+  groups (see Detail sections). `--border-default` draws a control's own edge and
+  is not used to divide a page into regions.
+
+The text colour ramp is `--text-primary` → `--text-secondary` → `--text-dimmed`
+→ `--text-disabled`. `--text-tertiary` is an alias of `--text-dimmed`, not a
+fifth step.
+
+### Accent
 
 `--accent` and `--accent-hover` are reserved for restrained brand or navigation
 emphasis:
 
 - field focus borders, focus-visible outlines, and accessibility affordances;
-- selected navigation, segmented controls, or active state accents when neutral
-  inversion is not appropriate;
+- selected navigation or live-state accents when neutral inversion is not
+  appropriate;
 - links or small inline affordances where product recognition helps;
 - setup or onboarding moments where DotCraft is intentionally presented as the
   product.
 
 Do not use `--accent` as the default primary button background for ordinary
 actions such as create, start, close, save, submit, continue, manage, configure,
-or refresh.
+or refresh. Selection inside a segmented control, a pressed toggle, and an open
+menu trigger are neutral states, not accent ones.
+
+### Semantic colors
 
 Semantic colors communicate state, not decoration:
 
@@ -185,25 +203,34 @@ Semantic colors communicate state, not decoration:
 - `--warning`: caution, pending review, risky but recoverable.
 - `--error`: destructive action, failed state, blocked state.
 - `--info`: informational status when neutral text is insufficient.
-- `--permission-full-access`: the full-access / auto-approve permission state — a warmer orange than `--warning`, used only on the composer approval pill and small option icons.
+- `--permission-full-access`: the full-access / auto-approve permission state — a
+  warmer orange than `--warning`, used only on the composer approval pill and small
+  option icons.
 
 Semantic colors should normally appear in icons, compact badges, borders, small
 text, or alert surfaces. They should not take over an entire view.
 
-`--success-bg`, `--warning-bg`, and `--error-bg` are the tinted surfaces for
-those hues. Each is mixed off its hue token, so both themes follow one value.
-Use them behind status badges and notice strips, with the hue itself as the
-foreground; reach for a local `color-mix` only where a surface needs a different
-strength than the shared step.
+Each hue has two companions. `--success-bg`, `--warning-bg`, `--error-bg`, and
+`--info-bg` are its tinted surfaces, mixed off the hue token so both themes follow
+one value; use them behind status badges and notice strips, and reach for a local
+`color-mix` only where a surface needs a different strength than the shared step.
+`--success-text` and its siblings are the reading colours for anything readable on
+a tint. The two roles are separate tokens because a status colour chosen to carry a
+16px glyph does not clear AA as 13px running text on a tint of itself — the yellow
+reads at 2.3:1 on a light surface. Use the `-text` token wherever a status colour
+becomes prose.
+
+### Inverse surface
 
 One inverse surface exists. `--bg-inverse` is the opposite theme's tertiary tone
 — light in dark mode, dark in light mode — with `--text-on-inverse`,
 `--text-on-inverse-muted`, `--border-on-inverse`, and `--fill-on-inverse` on top
 of it. It is reserved for transient, non-interactive labels: tooltips, and nothing
-else. Menus, popovers, dialogs, and hover cards are places
-the pointer goes, and they keep the ordinary elevated surface. Do not reach for
-the inverse pair to make a control stand out; that is what the Elevation rule
-below already forbids.
+else. Menus, popovers, dialogs, and hover cards are places the pointer goes, and
+they keep the ordinary elevated surface. Do not reach for the inverse pair to make
+a control stand out; the Surfaces and elevation rules already forbid that.
+
+### Identity and data colors
 
 Feature, channel, and provider colors are allowed only as small identity accents
 inside icons, avatars, badges, media previews, or charts. They must not become a
@@ -237,18 +264,13 @@ Features do not read or redefine `--dc-token-*`; they belong to the highlighter.
 
 ## Typography
 
-Desktop typography is compact and readable:
+Desktop typography is compact and readable. Card and panel headings use modest
+weight increases rather than display-scale type; hero-scale type is reserved for
+true entry surfaces, not compact panels, toolbars, menus, cards, or dialogs.
+Letter spacing is `0` unless a specific technical label style documents a
+different value.
 
-- ordinary UI text uses 13px tokenized type where possible;
-- supporting text uses 12px tokenized secondary text;
-- card and panel headings use modest weight increases rather than display-scale
-  type;
-- hero-scale type is reserved for true entry surfaces, not compact panels,
-  toolbars, menus, cards, or dialogs;
-- letter spacing is `0` unless a specific technical label style documents a
-  different value.
-
-### The type scale
+### UI type scale
 
 Sizes come from the `--type-*` tokens in `tokens.css`. Do not write a raw `px`
 font size in a component: a literal cannot be retuned by context, and every
@@ -259,7 +281,7 @@ literal is a new tier nobody agreed to.
 | `--type-title` | 28 / 34 | entry surfaces only |
 | `--type-detail-title` | 20 / 27 | the named subject in an identity-led detail header |
 | `--type-page-title` | 18 / 23 | panel page heading |
-| `--type-heading` | 15 / 20 | card and group heading |
+| `--type-heading` | 15 / 20 | card, group, and dialog heading |
 | `--type-body` | 14 / 21 | conversation and document body |
 | `--type-ui` | 13 / 18 | ordinary UI text, row labels, inputs |
 | `--type-secondary` | 12 / 16 | supporting text; use `--type-secondary-prose-line-height` (18) when it wraps |
@@ -271,11 +293,7 @@ incidental metadata (version strings, timestamps) drops to `--text-dimmed`.
 Pairing the smallest size with the dimmest colour is what makes small text
 unreadable, so do not do both at once.
 
-The text colour ramp is `--text-primary` → `--text-secondary` → `--text-dimmed`
-→ `--text-disabled`. `--text-tertiary` is an alias of `--text-dimmed`, not a
-fifth step.
-
-### The conversation scale
+### Conversation type scale
 
 The transcript has its own four tiers. Code follows the code font size setting;
 the other three derive from `--conversation-font-size`, so one value sizes the
@@ -302,15 +320,77 @@ per em than Latin. Lift tiers in pairs so the gap between them survives, and kee
 the override scoped — a global lift reflows fixed-height rows in the composer and
 sidebar.
 
+### Fonts
+
 UI fonts are system-first and must not require bundled web fonts. `--font-ui`,
 `--font-body`, and `--font-sans` may switch by document language for CJK locales
 while preserving the same weight and spacing scale.
 
+## Appearance preferences
+
+The palette is stated as a per-variant seed — `--seed-surface`, `--seed-ink`, `--seed-accent`,
+and a 0-100 contrast — and `foundations/tokens.css` derives the surface, text, and border ramps
+from it with `color-mix`. `surface` is the base plane: the page in dark, the card in light, so
+both variants move away from it by mixing in ink. Desktop writes only what CSS
+cannot compute (the seed colors, the normalized contrast multiplier `--contrast-k`, and
+`--on-accent`), and writes nothing at all for a default seed. The layering rules and the
+formulas live in `specs/architecture/desktop-styles.md`.
+
+Desktop exposes an Appearance settings tab backed by `settings.json` and applied to the
+renderer root element:
+
+- Theme mode `system | light | dark` via `data-theme` (`system` resolves from the OS).
+- A custom accent sets `--seed-accent`, from which `--accent`, `--accent-hover`, and the
+  foreground `--on-accent` derive; unset writes nothing and the per-theme token defaults
+  answer. A custom accent stays restrained per the Accent rules — it is not promoted to a
+  primary-action fill.
+- Code font size overrides `--text-code-size`.
+- Diff markers (`color` vs `+/-`) change how `InlineDiffView` / `DiffViewer` present changes.
+- `data-reduce-motion` (`system | on | off`) gates animations; `data-pointer-cursors`
+  toggles pointer cursors on interactive elements.
+
+When adding animated, accent-driven, or code-sized UI, rely on these tokens/attributes rather
+than hardcoding colors, sizes, or unconditional animations, so user preferences are honored.
+
 ## Layout
+
+### Density and stability
 
 Desktop surfaces should favor dense but organized operational layouts.
 
 - Keep common workflows ergonomic for repeated use.
+- Use stable dimensions for fixed-format controls such as boards, rows,
+  toolbars, icon buttons, counters, tabs, and menus.
+- Constrain content with explicit grid, flex, min/max, or aspect-ratio rules so
+  hover states, labels, icons, loading text, and dynamic content do not resize
+  or shift the layout.
+- Avoid nested cards and decorative section cards. Page sections should be
+  unframed layouts or full-width bands with constrained inner content.
+- Cards are for repeated items, modals, or genuinely framed tools.
+- A notice that interrupts a surface takes that surface's content column: the
+  same width and centering as the rows, cards, or grid it sits above, never the
+  full content box. A notice wider than the column it interrupts reads as a
+  different page. Where several elements share a column, they read its width from
+  one place, so a new element cannot silently opt out of it.
+
+### View color assignment
+
+View-level color assignment stays neutral:
+
+| Surface | Main visual color | Emphasis |
+|---------|-------------------|----------|
+| Conversation | Neutral surfaces | Neutral inversion for send/primary actions; small semantic/tool status colors |
+| Automations | Neutral catalog/list surfaces | Neutral primary action; semantic status badges |
+| Skills / Plugins / Catalogs | Neutral cards and rows | Neutral management actions; small provider/icon colors |
+| Settings | Neutral grouped rows | Subtle selected navigation and focus states |
+| Channels | Neutral cards/forms | Small channel identity icons; semantic connection state |
+| Detail viewers | Content-native when needed | Neutral viewer chrome |
+| Modals and dialogs | Neutral elevated surfaces | One neutral inverted primary action |
+| Setup / onboarding | Neutral product surface | Restrained brand accent is allowed |
+| Release highlights | Neutral modal surface | Media previews may contain their own colors |
+
+### Catalog pages
+
 - Catalog browse, manage, and detail surfaces use one 48px top control band: navigation
   (tabs or breadcrumb) stays left, page-level management actions stay right, and
   both sides share the same vertical center. Do not position catalog actions in
@@ -336,35 +416,11 @@ Desktop surfaces should favor dense but organized operational layouts.
   manage toolbar, and none above a group. A rule above the first group is a frame
   edge rather than a separator, and one above the rest is redundant with the gap
   already between them.
-- Use stable dimensions for fixed-format controls such as boards, rows,
-  toolbars, icon buttons, counters, tabs, and menus.
-- Constrain content with explicit grid, flex, min/max, or aspect-ratio rules so
-  hover states, labels, icons, loading text, and dynamic content do not resize
-  or shift the layout.
-- Avoid nested cards and decorative section cards. Page sections should be
-  unframed layouts or full-width bands with constrained inner content.
-- Cards are for repeated items, modals, or genuinely framed tools.
-- A notice that interrupts a surface takes that surface's content column: the
-  same width and centering as the rows, cards, or grid it sits above, never the
-  full content box. A notice wider than the column it interrupts reads as a
-  different page. Where several elements share a column, they read its width from
-  one place, so a new element cannot silently opt out of it.
+- Catalog top bars prefer icon-only actions with tooltips for repeated management
+  commands such as Refresh and Manage, keeping the labelled action for the one
+  principal command.
 
-View-level color assignment stays neutral:
-
-| Surface | Main Visual Color | Emphasis |
-|---------|-------------------|----------|
-| Conversation | Neutral surfaces | Neutral inversion for send/primary actions; small semantic/tool status colors |
-| Automations | Neutral catalog/list surfaces | Neutral primary action; semantic status badges |
-| Skills / Plugins / Catalogs | Neutral cards and rows | Neutral management actions; small provider/icon colors |
-| Settings | Neutral grouped rows | Subtle selected navigation and focus states |
-| Channels | Neutral cards/forms | Small channel identity icons; semantic connection state |
-| Detail viewers | Content-native when needed | Neutral viewer chrome |
-| Modals and dialogs | Neutral elevated surfaces | One neutral inverted primary action |
-| Setup / onboarding | Neutral product surface | Restrained brand accent is allowed |
-| Release highlights | Neutral modal surface | Media previews may contain their own colors |
-
-## Elevation & Depth
+## Surfaces and elevation
 
 Use depth instead of color variety.
 
@@ -391,60 +447,25 @@ Use depth instead of color variety.
   (`--main-surface-edge-glow`), brightest at centre and fading out toward both
   ends. It is a functional affordance in a neutral tone, which is why the rule
   below against glow on ordinary controls does not reach it.
-- File viewers and docked file lists inherit the surrounding main surface instead
-  of introducing a secondary panel fill. Use secondary and tertiary surfaces for
-  controls, hover states, and selected rows within them.
-- Editable file viewers keep the same neutral viewer chrome as read-only files.
-  Source, read-only code, and Markdown source share Shiki grammars, paired theme
-  tokens, code font, size, line height, gutter, text origin, indentation, and wrapping.
-  CodeMirror supplies editing mechanics, not a second syntax palette. Focus adds
-  only caret, selection, and current-line feedback. Asynchronous highlighting maps
-  existing spans through edits until the current document's result arrives; stale
-  results never replace current content or reset selection and scroll position.
-- Markdown opens as an editable semantic document using document typography and
-  shared code typography/theme inside code. Syntax-tree decorations cover headings,
-  lists, quotes, emphasis, links, inline/fenced code, GFM tables and strikethrough.
-  Heading markers reveal when the focused selection touches the marker; emphasis,
-  strikethrough, inline-code and link markers reveal within their focused structure.
-  Lists retain source markers. Top-level quote markers stay hidden; nested quotes
-  keep their markers. Tables retain their cell layout, hiding pipe/delimiter syntax;
-  closed code fences retain their rendered boundary and language label during focus.
-  Mermaid reuses the existing renderer. The header owns View source /
-  View preview. Each mode retains its own selection and scroll position, with
-  history restored only for the matching content version.
-- The floating editor toolbar sits 16px from the bottom and right, with compact
-  undo/redo controls, 1px gaps, 4px padding, a neutral border, 8px corners, a 90%
-  elevated surface and backdrop blur. This is a local exception to the opaque
-  ordinary-menu rule, not a new overlay treatment. Source shows undo/redo and
-  reports failed saves through notifications. Semantic Markdown additionally shows
-  icon-labelled Saving… / Save failed. Hide the toolbar when it has no useful state.
-- Focused file editors own their Find shortcut. A top floating find bar contains
-  query, result count, previous/next and close; it does not expose replacement or
-  open the window-wide find overlay simultaneously.
-- Large files keep their corresponding view read-only, with a neutral outlined
-  notice inside the body rather than a yellow warning strip. External-change
-  review is a single-column diff with insertion/deletion highlighting. Its fixed
-  footer orders wrapping, Edit, Reject (danger), Accept (success). Keep the underlying
-  editor session mounted. An over-limit diff shows an unavailable-preview message
-  without removing applicable decisions. Behavior and size limits are specified in
-  [Desktop UX §10.1](../clients/desktop-client.md#101-viewer-panel).
 
 Do not use glow rings, highlighted borders, accent borders, or decorative
 gradients to make ordinary controls "stand out." Use placement, hierarchy,
 weight, spacing, and neutral inversion first.
 
-## Shapes
+## Shape
 
 Ordinary controls and cards use 8px radius or less unless an established
 component family uses another token.
 
-- Compact text buttons and catalog-toolbar controls: 10px.
-- Compact icon buttons: 6px or 8px depending on the local family.
+- Text buttons: the `--button-text-radius` pill at every size (see Buttons).
+- Icon buttons, fields, and selects: `8px` (`--button-radius`) on the standard
+  band, `10px` on the compact bands — the settings surface, catalog top bars, and
+  the in-app browser toolbar.
+- Small transcript icon actions (copy, fork, edit) and the `iconSm` button size:
+  `6px`.
 - Cards and repeated items: 8px.
 - Dialogs and elevated popovers: 8px to 10px.
 - Pills, badges, and toggles: `999px` when the shape is semantically pill-like.
-  A standalone, high-emphasis primary action may also take the `999px` pill as a
-  documented exception (see Actions); ordinary in-row or repeated buttons do not.
 
 Keep shape language restrained. Large rounded rectangles should not be used as
 decoration.
@@ -456,16 +477,6 @@ identity-mark family. Avatars, status dots, thumbnails, favicons, action glyphs,
 and illustrations keep their own shape rules. Choose a role instead of deriving
 corner geometry from an arbitrary size:
 
-Agent avatars derive their complete visual identity and interaction rendering from
-the shared `@dotcraft/avatar` package. Hosts pass names, state, expression, gesture,
-and hand/work-prop intent without copying or overriding internal SVG artwork. At
-`20px` and below, keep the robot arms but hide face, hand, overlay-skin, and effect layers
-while retaining the head and back silhouettes. Item effects animate only at `44px` and above with
-motion enabled. A left-side hold owns the left hand. Native work props take priority
-over decorative hand poses when both are requested. Rarity is catalog and settings chrome; it
-never paints onto an avatar in product lists. See
-[Avatar System](../features/avatar-system.md).
-
 | Role | Standard size / radius | Use |
 | --- | --- | --- |
 | Compact | `24px / 6px` | Dense metadata, prompt prefixes, and connection rows. Inline marks may reduce to `18px` while retaining the compact radius. |
@@ -475,24 +486,25 @@ never paints onto an avatar in product lists. See
 Use `object-fit: contain`; cropping belongs to thumbnails. Identity-mark shells
 are transparent. Each icon or logo asset owns its complete visual treatment,
 including any background required for reliable contrast. Artwork that remains
-legible in both themes may stay transparent. An item that ships no artwork gets the
-shared neutral fallback mark, never a generated initial: one shape per kind — a cube
-for a Skill, a plug for a Plugin, a message bubble for a Channel, each echoing that
-destination's own icon — shaded from `--text-primary` over the neutral fallback
-ground, at 68% of the shell. Each mark is one connected silhouette; only the cube
-carries more than one tone, because its three faces tile without overlapping, and a
-second tone on an appendage reads as two shapes crossing instead of one object.
-One kind, one shape, at every size and weight: a Skill is a cube wherever it appears
-— the destination, the reference chip in a message or tool row, the included-content
-row, the fallback mark — filled at identity sizes and drawn as line art inline.
-`Puzzle` belongs to Plugins and Extensions and is not borrowed by another kind. A column of such items then
-reads as one family instead of as many unrelated colours, and the shape survives the
-`16px` sizes where an initial cannot. Overlapping marks separate with a ring in the
-page colour; the `1px` hairline alone is too quiet at that size. Hero shells use
-only the near-invisible `1px`
-`--identity-mark-hero-border` hairline (about 8% ink); compact and list shells
-remain unframed unless interaction requires a boundary. Reserve circles for
-people, presence/status, toggles, and circular actions.
+legible in both themes may stay transparent. Hero shells use only the
+near-invisible `1px` `--identity-mark-hero-border` hairline (about 8% ink);
+compact and list shells remain unframed unless interaction requires a boundary.
+Reserve circles for people, presence/status, toggles, and circular actions.
+
+An item that ships no artwork gets the shared neutral fallback mark, never a
+generated initial: one shape per kind — a cube for a Skill, a plug for a Plugin, a
+message bubble for a Channel, each echoing that destination's own icon — shaded
+from `--text-primary` over the neutral fallback ground, at 68% of the shell. Each
+mark is one connected silhouette; only the cube carries more than one tone, because
+its three faces tile without overlapping, and a second tone on an appendage reads as
+two shapes crossing instead of one object. One kind, one shape, at every size and
+weight: a Skill is a cube wherever it appears — the destination, the reference chip
+in a message or tool row, the included-content row, the fallback mark — filled at
+identity sizes and drawn as line art inline. `Puzzle` belongs to Plugins and
+Extensions and is not borrowed by another kind. A column of such items then reads as
+one family instead of as many unrelated colours, and the shape survives the `16px`
+sizes where an initial cannot. Overlapping marks separate with a ring in the page
+colour; the `1px` hairline alone is too quiet at that size.
 
 Identity marks use the renderer's supported squircle treatment. Their documented
 `6px`, `8px`, and `16px` radii are the base geometry; on engines that support
@@ -508,159 +520,37 @@ the row's top. Plugins and channels share this rhythm.
 Use the shared `IdentityMark` primitive and semantic radius tokens. Apply optical
 padding to the artwork, not the shell.
 
-## Components
+### Agent avatars
 
-### Actions
+Agent avatars derive their complete visual identity and interaction rendering from
+the shared `@dotcraft/avatar` package. Hosts pass names, state, expression, gesture,
+and hand/work-prop intent without copying or overriding internal SVG artwork. At
+`20px` and below, keep the robot arms but hide face, hand, overlay-skin, and effect layers
+while retaining the head and back silhouettes. Item effects animate only at `44px` and above with
+motion enabled. A left-side hold owns the left hand. Native work props take priority
+over decorative hand poses when both are requested. Rarity is catalog and settings chrome; it
+never paints onto an avatar in product lists. See
+[Avatar System](../features/avatar-system.md).
 
-Each immediate decision area may have at most one primary action.
-
-Primary actions use neutral inversion:
-
-```ts
-{
-  border: '1px solid var(--text-primary)',
-  backgroundColor: 'var(--text-primary)',
-  color: 'var(--bg-primary)',
-  fontWeight: 600
-}
-```
-
-Action buttons are frameless by default. Secondary actions use a neutral frameless
-fill:
-
-- background: a subtle `--text-primary` tint (~6%, hover ~11%);
-- border: transparent (reserved in the box model, not painted);
-- text: `var(--text-primary)`.
-
-A visible border is reserved for the `outline` variant and used only for special or
-important framed actions — it is not the default for ordinary controls.
-
-Ordinary management actions, including `Manage`, `Configure`, `Refresh`, and
-repeated row controls, are secondary actions unless they are the one immediate
-submit/continue action. They must not use decorative gradients, accent-tinted
-borders, glow rings, or provider colors.
-
-Tertiary actions are transparent text/icon controls with neutral hover feedback.
-Use them for inline affordances, low-frequency commands, and compact toolbars.
-
-Quiet actions are the one control that carries no hover feedback at all
-(`.dc-quiet-action`). Reserve them for text that is primarily a label and only
-secondarily a target — an agent name, a provenance line — where a hover block
-would read as chrome wrapped around a name. A quiet action never rewrites the
-type of what it wraps: it inherits the surrounding size, weight, and line height
-rather than moving the text onto the button band. Two rules are not optional.
-Focus must stay visible, since hover no longer signals that the text is
-interactive. And the affordance has to live somewhere else — a chevron beside it,
-or a tooltip naming the action. A row should keep at most one quiet action; if
-everything in it goes silent, nothing in it reads as reachable.
-
-Inline references and subagent names are not quiet actions. They answer hover by
-lifting their text to `--text-primary` (see Inline Reference Chips), which is the
-one hover treatment a text-only target may carry — never a fill, border, or pill
-drawn around the words.
-
-Destructive actions must use explicit copy such as Delete, Remove, Discard, or
-Stop. The danger affordance is a frameless `--error` fill (~10% tint, hover ~18%)
-with `--error` text — not a bordered outline. Keep surrounding chrome neutral and
-require confirmation where appropriate. An icon-only delete uses the `IconButton`
-danger tone; a reversible remove (a blocked domain, a download record) stays neutral.
-
-The hierarchy follows the surface, not the verb:
-
-- a dialog footer sits on the standard band and carries at most one `primary`;
-  Close is `primary` only when it is the footer's sole action.
-- Retry is `secondary`; it becomes `primary` only as the sole action of an error
-  state, such as the connection error screen.
-- a decision inside a card or review footer makes the accepting choice `primary`
-  and the others `outline`, matching the approval composer.
-- an app banner pairs an `outline` principal action with a `ghost` dismissal.
-- a small mutually exclusive choice is the shared `SegmentedControl`, never a row
-  of hand-styled toggles.
-
-Buttons that share a row share one control band, so the row reads as one strip
-rather than a set of controls that each chose a height. A surface picks its band
-once; nothing opts in per control.
-
-| Band | Height / radius / type | Where it applies | `size` |
-| --- | --- | --- | --- |
-| Standard | `32px` / `8px` / `13px` | every surface not named below, including dialogs | `default` |
-| Compact | `28px` / `10px` / `12px` | a denser row inside a standard-band surface | `sm` |
-| Catalog top bar | `28px` / `10px` / `13px` | every control in a catalog top bar — text, icon, compound trigger, search field | `toolbar` |
-| Settings surface | `28px` / `10px` / `13px` | every button, select, and icon button inside `.dc-settings-surface` | token-scoped |
-| Prominent pill | `38px` / `999px` / `13px` | one standalone high-emphasis call to action | `prominent` |
-| Install pill | `28px` / `999px` / `12px` | the plugin-package Install action across browse, manage, and detail | `sm` |
-| Icon, standard | `32px` / `8px` | ordinary icon buttons | `icon` |
-| Icon, compact | `28px` / `10px` | icon buttons on either compact band above | `iconSm` |
-| Icon, viewer chrome | `16px`, `24px`, or `28px` | a viewer tab slot or toolbar that already reserves that footprint; the in-app browser toolbar scopes the catalog band (`28px` / `10px`) over every control, including its address field | — |
-
-Horizontal padding is around `12–14px` (`10px` on the settings band), icon+label
-controls keep a `6px` gap, and every band sets `box-sizing: border-box`.
-
-The two compact bands are shorter and rounder than the standard one because they
-run a strip of many small controls rather than one decision. The settings band is
-scoped by token rather than chosen per control, which is why a group's header
-action fits inside a header instead of overhanging the gap to the card below, and
-why `sm` reads as a `10px` radius there: the scope rewrites it, and there is no
-`--button-radius-sm` token. Dialogs open outside that container and keep the
-standard band.
-
-The prominent pill is a deliberate exception, not a second default: the single
-primary button in a focused setup or install dialog, or a lone full-width confirm.
-When one shares a row with other buttons, raise the others to its height so the
-row still aligns. Ordinary in-row and repeated actions stay on the standard band;
-native-app installation and other row actions keep the ordinary radius.
-
-Settings and catalog header actions carry their glyph when the verb has one — Plus
-for create, a trash glyph for Delete, the refresh glyph for Refresh — at `15px`
-with the shared `6px` gap, so the label never has to do the work of the icon.
-Catalog top bars prefer icon-only actions with tooltips for repeated management
-commands such as Refresh and Manage, keeping the labelled action for the one
-principal command.
-
-These action rules are implemented by the shared `Button` component and its
-`.dc-button` styles. Route new text and icon actions through it instead of
-re-deriving inline button styles. Choose the action hierarchy with the `variant`
-prop and the footprint with the `size` prop:
-
-- `variant`: `primary` (neutral inversion, the one immediate action), `secondary`
-  (frameless neutral fill, the common action), `ghost` (transparent tertiary),
-  `danger` (frameless semantic fill, paired with explicit Delete/Remove/Stop copy),
-  `accent` (restrained brand, never the default create/save/manage), `outline` (the
-  one bordered variant — only for special / important framed actions), `outlineGhost`
-  (the same frame without a fill, for a framed action inside a card that already
-  carries its own surface).
-- `size`: `default` (the `32px` control band), `sm`, `icon`, `iconSm`,
-  `prominent` (the standalone `38px` pill CTA), `toolbar` (the catalog top-bar band).
-
-All ordinary action labels use `text-box: trim-both cap alphabetic`; compound
-labels use the shared `ButtonLabel` slot and keep icons outside that slot.
-Loading overlays the spinner without changing the control's footprint or accessible name.
-
-Text buttons use a dedicated `--button-text-radius` pill radius: default actions
-are 32px high, compact actions 28px, and prominent actions 38px. Catalog and Builder
-toolbars use the same 28px height and 10px radius. Icon buttons, navigation, menu
-rows and Composer controls retain their own geometry. Builder Create is primary;
-Preview/Edit is secondary with a subtle fill.
-
-Buttons are frameless by default. Every variant keeps a `1px` border in the box
-model but only `outline` paints it visibly, so switching a button between fills and
-frames never shifts height or alignment — the "border-reserved" treatment. Heights
-come from `--button-height` / `--button-height-sm` so buttons, selects, and icon
-buttons share one control band.
+## Motion
 
 Ordinary controls remain geometrically stable through hover, focus, open, and
 pressed states. Use color, surface, border, or shadow changes for interaction
 feedback; do not translate, scale, rotate, bounce, or spring the control on
 press. Transform-based control motion is allowed only when a feature explicitly
 requires and documents it (for example, a directional affordance or a functional
-drag interaction), and it must honor the shared reduced-motion preference.
+drag interaction), and it must honor the shared reduced-motion preference. The
+documented cases follow.
 
-Disclosure is that documented directional affordance. Every expand/collapse toggle
-uses the shared `DisclosureChevron` (`14px`, stroke `1.8`) and rotates it on
-`--duration-expand` rather than swapping glyphs: `inline` for a row or section
-that opens in place (points right, turns `90deg`), `reveal` for content that opens
-below the control (points down, turns `180deg`). When the chevron is its own
-target it sits in an `IconButton` with `aria-expanded`.
+### Disclosure
+
+Every expand/collapse toggle uses the shared `DisclosureChevron` (`14px`, stroke
+`1.8`) and rotates it on `--duration-expand` rather than swapping glyphs: `inline`
+for a row or section that opens in place (points right, turns `90deg`), `reveal`
+for content that opens below the control (points down, turns `180deg`). When the
+chevron is its own target it sits in an `IconButton` with `aria-expanded`.
+
+### Mode toggles
 
 A mode toggle may reveal its label when it turns on. The control keeps its band
 height and its icon position and grows only on `max-width` and inline padding —
@@ -668,95 +558,10 @@ over `--duration-expand` on `--ease-expand`, the label fading in on opacity — 
 the change reads as the control settling into a state, not as press feedback. The
 growth is taken from the row's flexible neighbor; fixed peers do not move. The
 shared reduced-motion rule collapses the transition. The in-app browser Annotate
-control is the reference case; ordinary toggles keep the icon-only `active` tint.
+control is the reference case. Ordinary toggles stay icon-only and show their
+pressed state with the neutral `active` tone (see Icon buttons).
 
-### Icon Buttons
-
-Icon buttons (the shared `IconButton`, styled by `.dc-icon-button`) are frameless by
-default, matching the frameless action language:
-
-- the footprint of the band they sit in (see the control band table above);
-- transparent surface with a reserved `1px` transparent border;
-- `var(--text-secondary)` icon color, with a neutral hover fill
-  (`var(--bg-tertiary)` + `var(--text-primary)`);
-- `active` with `activeTone="neutral"` marks a pressed toggle, such as code-block
-  wrap or an explorer toggle; the accent tone is kept for live states such as a
-  running screen view, and never becomes an accent border.
-- `aria-pressed` marks a mode toggle and pairs with the neutral active tone.
-- `aria-expanded="true"` marks an open menu or popover with a neutral fill; opening
-  ordinary chrome is not a selected accent state.
-- destructive icon-only actions use the shared danger tone rather than a locally
-  painted red border.
-
-The shared hover, focus, disabled, open, and danger treatments apply at every
-footprint in that table.
-
-Thread List icon actions answer on the foreground alone. The thread or project
-row already owns the hover and current-state surface, so its compact actions and
-its section-header options and create actions stay transparent through rest,
-hover, focus, open, and pressed, moving their icon from the quiet foreground to
-the primary one; a second rounded surface inside an already highlighted row reads
-as a box drawn on a box. `focus-visible` keeps the shared outline and the hit
-target stays fixed. Pin may use its filled icon instead of an active background.
-Archive stays neutral here because archived threads are recoverable; danger colour
-is for the irreversible. These rows carry a details card, so their tooltips take
-the block axis (see Hover Annotations).
-
-Compound triggers combine a principal action with a menu of related commands. Both
-segments share one intent and one size; the group clips the outer corners while each
-segment drops the radius and border on the edge they meet, so the pair reads as a
-single control.
-
-Compound triggers use one joined geometry. Both segments meet flush and avoid a
-doubled seam; when an outline variant is used, the pair reads as one neutral outer
-frame. Hover changes only the hovered segment. The menu glyph sits at reduced opacity
-so the chevron reads as an affordance rather than a second action.
-
-Emphasis is carried by intent, not by a second treatment:
-
-- the `primary` neutral inversion is for the principal action of a surface. The
-  catalog create control is the reference case.
-- the `secondary` same-color fill is for quiet compound triggers that sit among
-  other chrome rather than leading it.
-- the `outline` neutral frame is for matched open-target controls in the thread
-  header and file viewer. These controls are the reference cases and should keep
-  the same frame treatment even when one omits its text label for compactness.
-- the `outlineGhost` frame is for the open, preview, and review actions of a
-  transcript card, on the toolbar band; Undo beside them stays `ghost` at the same
-  size.
-
-Use the shared `SplitButton` rather than composing a button pair, chevron, and
-positioned menu per feature, so segment geometry, keyboard navigation, outside-click
-dismissal, and focus restoration stay identical everywhere.
-
-A compound trigger takes the height of whichever control band it sits in, so the row
-still reads as one band. Compact thread-header Apps triggers remain frameless and
-omit connection counts.
-
-A visible neutral frame (`bordered`: `var(--bg-secondary)` +
-`1px solid var(--border-default)`) is opt-in and reserved for special or important
-icon controls. Every dialog close is the shared `DialogCloseButton` (`30px`, a `16px`
-X), borderless with neutral hover feedback; a dialog that positions it passes
-placement only, never a colour or fill that would override the hover state.
-
-A menu trigger is the shared `MoreActionsButton`: the horizontal ellipsis at `16px`,
-`aria-haspopup="menu"`, `aria-expanded` while open, and a tooltip that repeats its
-label. It takes the footprint of its band; a Thread List trigger adds the list's
-foreground-only class. The menu it opens is the shared `ContextMenu`; a feature
-does not draw its own bordered popover.
-
-The composer footer's icon-only controls (the `+` trigger and the microphone) share
-`.dc-composer-icon-control`: round and frameless, the composer's hover fill, and a
-neutral fill while their menu is open or recording runs. Each takes the height of
-the controls beside it; Send and Stop keep their own treatment.
-
-An icon-only copy action is always the shared `CopyButton`: frameless on every
-surface, including error blocks and diagram toolbars. It confirms in place by
-swapping to a `--success` check and relabelling its tooltip, with no toast. A copy
-action that carries a text label, such as Copy link in a dialog, is an ordinary
-`Button` and follows that surface's variant.
-
-### Navigation Icon Motion
+### Navigation icon motion
 
 Sidebar destinations answer hover and keyboard focus with one short glyph motion.
 This covers New chat, Search, Channels, Agents, Automations, Plugins, and Settings,
@@ -792,7 +597,281 @@ move; one part of the glyph does, for 340–720ms:
   2.5 units wide; two strokes a unit or two apart, such as a lid held over a rim,
   merge into one, so the glyph never draws them together.
 
-### Status Indicators
+## Controls
+
+### Action hierarchy
+
+Decide the hierarchy before choosing a treatment. Each immediate decision area may
+have at most one primary action.
+
+Primary actions use neutral inversion:
+
+```ts
+{
+  border: '1px solid var(--text-primary)',
+  backgroundColor: 'var(--text-primary)',
+  color: 'var(--bg-primary)',
+  fontWeight: 600
+}
+```
+
+Secondary actions use a neutral frameless fill: a subtle `--text-primary` tint
+(~6%, hover ~11%), a transparent border reserved in the box model, and
+`var(--text-primary)` text. Ordinary management actions, including `Manage`,
+`Configure`, `Refresh`, and repeated row controls, are secondary actions unless they
+are the one immediate submit/continue action. They must not use decorative
+gradients, accent-tinted borders, glow rings, or provider colors.
+
+Tertiary actions are transparent text/icon controls with neutral hover feedback.
+Use them for inline affordances, low-frequency commands, and compact toolbars.
+
+Destructive actions must use explicit copy such as Delete, Remove, Discard, or
+Stop. The danger affordance is a frameless `--error` fill (~10% tint, hover ~18%)
+with `--error` text — not a bordered outline. Keep surrounding chrome neutral and
+require confirmation where appropriate. An icon-only delete uses the `IconButton`
+danger tone; a reversible remove (a blocked domain, a download record) stays neutral.
+
+The hierarchy follows the surface, not the verb:
+
+- a dialog footer sits on the standard band and carries at most one `primary`;
+  Close is `primary` only when it is the footer's sole action.
+- Retry is `secondary`; it becomes `primary` only as the sole action of an error
+  state, such as the connection error screen.
+- a decision inside a card or review footer makes the accepting choice `primary`
+  and the others `outline`, matching the approval composer.
+- an app banner pairs an `outline` principal action with a `ghost` dismissal.
+- a settings page or segment has one principal action (see Settings groups).
+- a small mutually exclusive choice is the shared `SegmentedControl`, never a row
+  of hand-styled toggles. Its selected segment is a raised neutral surface, not an
+  accent fill.
+
+Quiet actions are the one control that carries no hover feedback at all
+(`.dc-quiet-action`). Reserve them for text that is primarily a label and only
+secondarily a target — an agent name, a provenance line — where a hover block
+would read as chrome wrapped around a name. A quiet action never rewrites the
+type of what it wraps: it inherits the surrounding size, weight, and line height
+rather than moving the text onto the button band. Two rules are not optional.
+Focus must stay visible, since hover no longer signals that the text is
+interactive. And the affordance has to live somewhere else — a chevron beside it,
+or a tooltip naming the action. A row should keep at most one quiet action; if
+everything in it goes silent, nothing in it reads as reachable.
+
+Inline references and subagent names are not quiet actions. They answer hover by
+lifting their text to `--text-primary` (see Inline reference chips), which is the
+one hover treatment a text-only target may carry — never a fill, border, or pill
+drawn around the words.
+
+### Buttons
+
+Labelled actions route through the shared `Button` component and its
+`.dc-button` styles instead of re-deriving inline button styles; icon-only actions
+use `IconButton` (see Icon buttons). The `variant` prop picks the hierarchy and the
+`size` prop picks the footprint:
+
+- `variant`: `primary` (neutral inversion, the one immediate action), `secondary`
+  (frameless neutral fill, the common action), `ghost` (transparent tertiary),
+  `danger` (frameless semantic fill, paired with explicit Delete/Remove/Stop copy),
+  `accent` (restrained brand, never the default create/save/manage), `outline` (the
+  bordered variant on a `--bg-secondary` fill), `outlineGhost` (the same frame
+  without a fill).
+- `size`: `default`, `sm`, `toolbar`, `prominent`, `icon`, `iconSm`, with the
+  geometry below.
+
+Buttons are frameless by default. Every variant keeps a `1px` border in the box
+model but only `outline` and `outlineGhost` paint it, so switching a button between
+fills and frames never shifts height or alignment. A visible frame is reserved for
+special or important framed actions:
+
+- `outline` for matched open-target controls in the thread header and file viewer,
+  which keep the same frame even when one omits its text label for compactness, and
+  for the non-accepting choices of a card or review decision.
+- `outlineGhost` for a framed action inside a card that already carries its own
+  surface: the open, preview, and review actions of a transcript card, on the
+  `toolbar` size. Undo beside them stays `ghost` at the same size.
+
+Buttons that share a row share one control band, so the row reads as one strip
+rather than a set of controls that each chose a height. A surface picks its band
+once, by `size` or by rescoping the band tokens (`--button-height`,
+`--button-height-sm`, `--button-radius`, `--button-padding-x`); nothing opts in
+per control.
+
+| Band | Text buttons | Icon buttons, fields, selects | Where it applies |
+| --- | --- | --- | --- |
+| Standard (`default`) | `32px`, pill, `13px`, `12px` inline padding | `32px` / `8px` | every surface not named below, including dialogs |
+| Compact (`sm`) | `28px`, pill, `12px`, `10px` padding | — | a denser row inside a standard-band surface; the plugin-package Install action across browse, manage, and detail |
+| Catalog top bar (`toolbar`) | `28px` / `10px` / `13px`, `8px` padding | `28px` / `10px` (`CatalogToolbarIconButton`) | every control in a catalog or Builder top bar, including compound triggers |
+| Settings surface (token scope) | `28px`, pill; `default` and `sm` share the height | `28px` / `10px` | everything inside `.dc-settings-surface` |
+| In-app browser toolbar (token scope) | — | `28px` / `10px`, including the address field | the browser toolbar |
+| Prominent (`prominent`) | `38px`, pill, `13px`, `18px` padding | — | one standalone high-emphasis call to action |
+| Viewer chrome | — | `16px`, `24px`, or `28px` | a viewer tab slot or toolbar that already reserves that footprint |
+| Transcript row actions | — | `24px` / `6px` | copy, fork, and edit on transcript rows and blocks |
+
+Text buttons use a dedicated `--button-text-radius` pill at every text size; only
+`toolbar` keeps the `10px` band radius. The settings scope rewrites the height and
+`--button-radius`, so its icon buttons, selects, and fields take `28px / 10px`
+while its text buttons stay pills at the shorter height. The `icon` size is a
+`--button-height` square on `--button-radius`; `iconSm` is a fixed `28px / 6px`
+square. Icon+label controls keep a `6px` gap, and every band sets
+`box-sizing: border-box`. The compact bands are shorter than the standard one
+because they run a strip of many small controls rather than one decision, which is
+also why a settings group's header action fits inside its header instead of
+overhanging the gap to the card below. Dialogs open outside `.dc-settings-surface`
+and keep the standard band.
+
+The prominent size is a deliberate exception, not a second default: the single
+primary button in a focused setup or install dialog, or a lone full-width confirm.
+When one shares a row with other buttons, raise the others to its height so the
+row still aligns. Ordinary in-row and repeated actions stay on their surface's
+band.
+
+All ordinary action labels use `text-box: trim-both cap alphabetic`; compound
+labels use the shared `ButtonLabel` slot and keep icons outside that slot.
+Loading overlays the spinner without changing the control's footprint or
+accessible name.
+
+Settings and catalog header actions carry their glyph when the verb has one — Plus
+for create, a trash glyph for Delete, the refresh glyph for Refresh — at `15px`
+with the shared `6px` gap, so the label never has to do the work of the icon.
+In the Builder toolbar, Create is `primary` and Preview/Edit is `secondary`.
+
+### Icon buttons
+
+Icon-only controls use the shared `IconButton` (styled by `.dc-icon-button`). It
+is frameless by default, matching the frameless action language:
+
+- the footprint and radius of the band it sits in (see Buttons); `size` and
+  `radius` props override them only where the band table names another footprint;
+- transparent surface with a reserved `1px` transparent border;
+- `var(--text-secondary)` icon color, with a neutral hover fill
+  (`var(--bg-tertiary)` + `var(--text-primary)`);
+- `active` with `activeTone="neutral"` marks a pressed toggle, such as code-block
+  wrap, file-review wrap, the catalog filter, or an explorer toggle; the accent tone
+  is kept for live states such as a running screen view, and never becomes an
+  accent border;
+- `aria-pressed` marks a mode toggle and pairs with the neutral active tone;
+- `aria-expanded="true"` marks an open menu or popover with a neutral fill; opening
+  ordinary chrome is not a selected accent state;
+- destructive icon-only actions use `tone="danger"` rather than a locally painted
+  red border.
+
+The shared hover, focus, disabled, open, and danger treatments apply at every
+footprint. A visible neutral frame (`bordered`: `var(--bg-secondary)` +
+`1px solid var(--border-default)`) is opt-in and reserved for special or important
+icon controls.
+
+Thread List icon actions answer on the foreground alone. The thread or project
+row already owns the hover and current-state surface, so its compact actions and
+its section-header options and create actions stay transparent through rest,
+hover, focus, open, and pressed, moving their icon from the quiet foreground to
+the primary one; a second rounded surface inside an already highlighted row reads
+as a box drawn on a box. `focus-visible` keeps the shared outline and the hit
+target stays fixed. Pin may use its filled icon instead of an active background.
+Archive stays neutral here because archived threads are recoverable; danger colour
+is for the irreversible. These rows carry a details card, so their tooltips take
+the block axis (see Hover annotations).
+
+### Shared icon actions
+
+Recurring icon actions are single components, so every surface draws them the same
+way:
+
+- **Copy** is always the shared `CopyButton`: frameless on every surface, including
+  error blocks and diagram toolbars. It confirms in place by swapping to a
+  `--success` check and relabelling its tooltip, with no toast. A copy action that
+  carries a text label, such as Copy link in a dialog, is an ordinary `Button` and
+  follows that surface's variant.
+- **Dialog close** is always the shared `DialogCloseButton` (`30px`, a `16px` X),
+  borderless with neutral hover feedback, in the top-right aligned with the header
+  badge row. A dialog that positions it passes placement only, never a colour or
+  fill that would override the hover state.
+- **More actions** is always the shared `MoreActionsButton`: the horizontal ellipsis
+  at `16px`, `aria-haspopup="menu"`, `aria-expanded` while open, and a tooltip that
+  repeats its label. It takes the footprint of its band; a Thread List trigger adds
+  the list's foreground-only class. The menu it opens is the shared `ContextMenu`; a
+  feature does not draw its own bordered popover.
+
+### Compound triggers
+
+Compound triggers combine a principal action with a menu of related commands. Both
+segments share one intent and one size and meet flush in one joined geometry: the
+group clips the outer corners while each segment drops the radius and border on the
+edge they meet, so the pair reads as a single control without a doubled seam. When
+the outline variant is used, the pair reads as one neutral outer frame. Hover
+changes only the hovered segment. The menu glyph sits at reduced opacity so the
+chevron reads as an affordance rather than a second action.
+
+Emphasis is carried by intent, not by a second treatment: `primary` for the
+principal action of a surface, with the catalog create control as the reference
+case, and `secondary` for quiet compound triggers that sit among other chrome
+rather than leading it.
+
+Use the shared `SplitButton` rather than composing a button pair, chevron, and
+positioned menu per feature, so segment geometry, keyboard navigation,
+outside-click dismissal, and focus restoration stay identical everywhere. A
+compound trigger takes the height of whichever control band it sits in, so the row
+still reads as one band. Compact thread-header Apps triggers remain frameless and
+omit connection counts.
+
+### Status menu buttons
+
+A compact status menu button combines a current-state label with an overflow
+menu when a repeated row would otherwise expose several competing actions. It
+is a state affordance, not a second primary action:
+
+- the trigger takes the control band of the surface it sits in and carries the
+  shared status indicator, a concise label, a trailing chevron, and a persistent
+  `1px solid var(--border-default)` outline;
+- hover and open states may strengthen the neutral fill and border together,
+  but the frame never becomes an accent border;
+- the indicator follows Status indicators, and the label stays neutral;
+- clicking the trigger opens the ordinary shared menu treatment; destructive
+  commands remain explicit danger menu items and require confirmation when
+  they revoke durable authority or delete data;
+- a required next step such as Install, Connect, Add, or Review remains a
+  direct shared `Button` instead of being hidden in the status menu;
+- loading states disable the control and use one in-control progress signal;
+- the trigger exposes `aria-haspopup`, `aria-expanded`, keyboard open/close,
+  and restores focus after the menu closes.
+
+The visible frame is a deliberate exception to the frameless ordinary-button
+rule because the trigger combines status and menu responsibilities. Use the
+shared `StatusMenuButton` rather than composing a badge, chevron, and positioned
+menu per feature. Workspace-level app connection rows are the reference
+treatment: `Connected` combines principal status with Reconnect and Disconnect.
+Conversation app selection uses a `PillSwitch` instead because it is a
+reversible on/off choice rather than a status menu.
+
+### Scrollbars
+
+A scrollbar is a control, so it is sized by what the pointer must catch rather
+than by how much ink it should spend. Those are two different numbers, and the
+shared treatment keeps them apart: `--scrollbar-size` is the grab target and
+`--scrollbar-thumb-inset` insets the painted slider inside it, so the bar can
+read as quiet while remaining easy to take hold of. Widening the visible slider
+to make it catchable, or narrowing the target to make it discreet, gives up one
+requirement to serve the other.
+
+This matters most at a window edge. A frameless window reserves a resize border
+just inside its own edge, and a scroll region flush against that edge puts its
+scrollbar inside the reserved strip; a target no wider than the strip is caught
+by the window, not by the thumb.
+
+The thumb also carries a floor (`min-width` / `min-height`). A thumb sized in
+proportion to a long document shrinks toward nothing, and a slider a few pixels
+tall cannot be grabbed however wide its track is.
+
+Three states, all neutral: `--scrollbar-thumb` at rest, `--scrollbar-thumb-hover`
+under the pointer, `--scrollbar-thumb-active` while dragging. Tracks and corners
+stay transparent so the bar never draws a channel through a surface.
+
+Features do not set `scrollbar-width`. Chromium treats it as overriding the
+shared geometry entirely, so a region that sets it silently opts out of every
+rule above; use it only to hide a scrollbar deliberately (`none`), and reach for
+`dc-scrollbar-stable` when a region needs to reserve the gutter instead.
+
+## Status and loading
+
+### Status indicators
 
 A status indicator is one glyph that says what state something is in, read
 together with the label beside it. Every surface uses the same one, so a row in
@@ -831,12 +910,14 @@ and reads at the row's own text colour. When the label does not already name the
 state, the indicator carries an accessible name of its own, since colour alone is not
 readable.
 
+### Badges
+
 When the state is the whole content rather than an attribute of a row, use a
 badge instead: the tinted surface tokens (`--success-bg`, `--warning-bg`,
 `--error-bg`, `--info-bg`) with the reading ink (`--success-text`,
 `--warning-text`, `--error-text`, `--info-text`) as the foreground, and no
-indicator inside it. A badge and an
-indicator never appear together for the same fact.
+indicator inside it. A badge and an indicator never appear together for the same
+fact.
 
 The tint is the whole badge. A badge carries no border, because a frame turns a
 state into a chip that looks pressable, and a column of framed states reads as a
@@ -847,6 +928,8 @@ the row is hovered or selected the badge drops its hue and goes neutral: the
 highlight is already the stronger signal, and two of them competing is what makes a
 list of waiting work look loud. A state keeps its own hue, and that hue comes from the
 fixed status tokens rather than `--accent`, which the reader is free to change.
+
+### Reporting only trouble
 
 A settings surface says nothing when everything is fine. A green badge
 confirming that a binary was found, a section headed Status that only ever
@@ -859,135 +942,95 @@ row they describe, as an indicator or as plain secondary text.
 
 Words that classify rather than report — default, custom, customized, the name
 of a tier — are labels, not status, so they carry no pill, border, or fill on a
-settings row any more than they do above a transcript block. Set them in the
-hint size on `--text-dimmed` beside the title they qualify, and drop the ones a
-section heading already says.
+settings row any more than they do above a transcript block (see Message
+markers). Set them in the hint size on `--text-dimmed` beside the title they
+qualify, and drop the ones a section heading already says.
 
-### Status Menu Buttons
+### Loading and progress
 
-A compact status menu button combines a current-state label with an overflow
-menu when a repeated row would otherwise expose several competing actions. It
-is a state affordance, not a second primary action:
+Loading is communicated by a placeholder shaped like the content that will
+arrive, not by a generic spinner or a "Loading…" label. The shared building
+block is the `Skeleton` family (`Skeleton`, `SkeletonRow`, `SkeletonList`,
+`SkeletonCatalogGrid`) — a `--bg-tertiary` block on the `skeleton-pulse`
+animation; the pulse itself is the running signal.
 
-- the trigger takes the control band of the surface it sits in and carries the
-  shared status indicator, a concise label, a trailing chevron, and a persistent
-  `1px solid var(--border-default)` outline;
-- hover and open states may strengthen the neutral fill and border together,
-  but the frame never becomes an accent border;
-- the indicator follows Status Indicators above, and the label stays neutral;
-- clicking the trigger opens the ordinary shared menu treatment; destructive
-  commands remain explicit danger menu items and require confirmation when
-  they revoke durable authority or delete data;
-- a required next step such as Install, Connect, Add, or Review remains a
-  direct shared `Button` instead of being hidden in the status menu;
-- loading states disable the control and use one in-control progress signal;
-- the trigger exposes `aria-haspopup`, `aria-expanded`, keyboard open/close,
-  and restores focus after the menu closes.
+- Known-shape content → skeleton, not a centered spinner. When the layout of
+  what is loading is known (a plan, a list, a card grid), render a shape-matched
+  skeleton. Reserve the spinner for genuinely shapeless, indeterminate waits inside
+  a control — a busy button, an inline refresh, a connection check, a running turn
+  in a list row.
+- There is one spinner: the shared `Spinner`. It is a track ring carrying a
+  three-quarter arc, both drawn in `currentColor` at a twelfth of its own diameter,
+  turning once per `--animate-spinner`. It has no colour of its own — it borrows the
+  ink of whatever it sits in, so a button, a row, and a dialog all wait in their own
+  voice and no wait ever claims the accent. Size it to the box it occupies; never
+  give it a hue, a thicker ring, or a second animation.
+- Partial content renders as it arrives. Once part of a streamed payload has
+  parsed, render those parts as real content and keep pulsing skeleton rows only
+  for what is still streaming. Do not hold arrived content behind a spinner.
+- One running signal per surface. If a surface already shows it is working — a
+  shimmering badge (`tool-running-gradient-text`), visibly growing diff text, a
+  streaming caret — do not add a second spinner beside it. Remove the redundant
+  indicator, along with any elapsed-time counter that rides with it.
+- Mark loading regions `aria-busy`; give content-free skeletons `role="status"`
+  with an `aria-label` so the loading state is announced. Skeleton blocks
+  themselves stay `aria-hidden`.
+- Skeleton animation honors `data-reduce-motion` via the global reduced-motion
+  rule; never gate the *meaning* of a loading state on motion — under reduced
+  motion the skeleton still reads as a placeholder.
+- A wait with no shape to match — the in-app browser loading a page — runs a 2px
+  accent bar along the toolbar's bottom edge, pulsing on opacity. It is
+  `aria-hidden`; the Reload/Stop control is the accessible state. Under reduced
+  motion the bar stays as a static rule.
 
-The visible frame is a deliberate exception to the frameless ordinary-button
-rule because the trigger combines status and menu responsibilities. Use the
-shared `StatusMenuButton` rather than composing a badge, chevron, and positioned
-menu per feature. Workspace-level app connection rows are the reference
-treatment: `Connected` combines principal status with Reconnect and Disconnect.
-Conversation app selection uses a `PillSwitch` instead because it is a
-reversible on/off choice rather than a status menu.
+The workspace launch transition is the one wait with no shape to match, because the
+workspace it is opening does not exist on screen yet. While it connects or prepares, the
+brand mark breathes on a slow four-second loop, peaking three percent above rest and
+scaled about its own centre so it never drifts. This is not a second running signal
+beside the shimmering caption: the caption reports progress, and the breath only keeps
+the surface from reading as a hung frame during a wait that has no upper bound. It
+carries no state, appears on no other surface, and rests at both ends of its loop so the
+reduced-motion collapse leaves the mark still.
 
-### Dialog Headers
+## Overlays
 
-Dialogs that carry an identity icon share one header treatment so they read as
-one family regardless of their differing bodies (forms, confirmations, pickers).
-Use the shared header rather than re-implementing per dialog.
+Every overlay sits on the opaque elevated surface and follows the border rules in
+Surfaces and elevation. Tooltips are the one exception: they take the inverse pair.
 
-- The identity icon sits in a neutral rounded badge: a ~36px square with `8–9px`
-  radius, a `--bg-tertiary` background, and the glyph at `18px` in
-  `--text-secondary`. The badge gives every dialog the same quiet, recognizable
-  anchor; a bare icon without the badge is not used. When the dialog's subject
-  carries its own product artwork — a skill or plugin avatar — that artwork
-  occupies the badge's footprint instead of being nested inside a neutral badge,
-  which would read as two boxes.
-- The title sits below the badge using the panel/dialog heading scale (`15px`,
-  weight `600`, `--text-primary`). Do not use hero-scale type for dialog titles —
-  even prominent dialogs stay at the dialog-heading scale.
-- An optional one or two line description follows the title in
-  `--text-secondary`.
-- When the dialog has a close affordance, it is a borderless, transparent icon
-  button in the top-right, aligned with the badge row (see Icon Buttons). A
-  dialog-level overflow menu joins it there, to the left of close, rather than
-  sitting beside the title.
-- A dialog previews its subject; it does not double as a place to change the
-  subject's state. Enabling, disabling, and similar switches stay in the manage
-  surface that owns them, so one control governs the state rather than two that
-  can disagree.
+### Menus, popovers, and pickers
 
-The badge stays neutral by default. A semantic tint (success/warning/error) is
-allowed only when the dialog's whole purpose is that state, following the
-semantic-color rules; ordinary dialogs keep the neutral badge.
+Floating menus, context menus, select dropdowns, compact popovers, and command
+palettes share one overlay language:
 
-Transient choice dialogs may omit a visible Cancel button when backdrop click
-and Escape both dismiss safely and no operation is running. This applies to
-short-lived destination and branch/changelist choices. Destructive
-confirmations, long forms, edit modes, and running/error recovery flows retain
-an explicit Cancel or Close action.
+- a single solid, opaque elevated surface shared by every floating menu so they
+  look identical regardless of backdrop;
+- no gradient or translucency on the menu surface;
+- ordinary menu frames are borderless;
+- shadow/elevation separates the overlay from the background;
+- a submenu, flyout, or stacked overlay carries one `1px var(--glass-border)`
+  hairline on the overlapping edge only — the overlap is the only case that earns
+  a border;
+- rows are borderless at rest;
+- hover, open, highlighted, and selected rows use neutral background elevation;
+- focus-visible rings remain available for keyboard accessibility.
 
-Workspace onboarding keeps its dedicated circular step navigation and selection
-cards. Those controls express progress or choice, not ordinary button hierarchy;
-only regular actions such as Start, Change folder, Login, and Retry use the shared
-Button variants.
+The thread sidebar and thread-header overflow menus are the reference treatment
+for ordinary Desktop menus: neutral overlay surface, quiet elevation, no outer
+frame, and borderless rows.
 
-### Toasts
-
-Toasts are transient cards in the top-right stack. A toast is either present or
-gone:
-there is no remaining-time bar, hovering or focusing the stack holds every card,
-and a repeated identical notice replaces its twin instead of stacking.
-
-- Levels are `info`, `success`, `warning`, and `error`. Errors auto-dismiss like
-  everything else; a toast that must persist passes duration `0`.
-- `info` is the neutral card: elevated overlay tone, neutral border, neutral text.
-  The other three tint the whole card — surface, border, title, icon, close, and
-  action all take that level's colour. An outcome you are meant to read in passing
-  should not depend on finding a small glyph to learn how it went.
-- The tint is mixed into the elevated surface rather than laid over it as a
-  transparent wash, so a toast stays opaque against whatever it covers.
-- Surface and border take the level's own colour (`--success` and friends); anything
-  readable on a tinted card takes that level's reading colour (`--success-text` and
-  friends). The two roles are separate tokens because a status colour chosen to
-  carry a 16px glyph does not clear AA as 13px running text on a tint of itself —
-  the yellow reads at 2.3:1 on a light surface. Use the `-text` token wherever a
-  status colour becomes prose, not only here.
-- Give a toast a `key` when it reports the outcome of something that already showed
-  an in-flight toast, so the result replaces the notice rather than joining it.
-- An arrival is not an outcome. A toast that hands the user something newly possible
-  — a plugin just installed, offering Try now — stays the neutral `info` card and puts
-  that thing's `IdentityMark` in the leading slot: the mark says which thing, the
-  action says what it makes possible, and there is no verdict to colour. The tinted
-  levels report a finished outcome with nothing left to do — removed, failed, blocked
-  — and keep the level glyph, since the subject may no longer be there to have a mark.
-  Either way the title names the subject.
-- A card is `max-content` wide against the stack's right edge and caps at the column
-  width, so a short notice stays short instead of reserving the full 380px.
-- The title is one medium-weight line in a 24px box, matching the icon, the action,
-  and the close control, so one line of text is always a 42px card. `description`
-  adds a second, quieter line in the level's reading colour; with it present the
-  actions move to their own row below the text, since an inline action beside two
-  lines has no line to sit on.
-- The action is a filled `secondary` pill, tinted to the level on a tinted card. It
-  is the one thing on a card the user is invited to press, so it is the one thing
-  that may carry a fill. The close control stays a frameless `IconButton`.
-- Offer inline Undo only when a compensating server call exists, such as archive
-  and unarchive. Perform the change immediately and let Undo reverse it; never
-  defer the change until the toast expires. Permanent deletes keep their
-  confirmation dialog and offer no Undo.
-- Offer a forward action such as Try now only when the notice itself is what made
-  that destination reachable, and reaching it is this one press.
-- The stack is one polite live region; individual cards carry no `role="alert"`.
+Ordinary text-only field selects may expand toward the left when opened so the
+longest option can be read without a tooltip. The trigger finishes its width
+transition before the menu is revealed, preventing option text from reflowing
+while the overlay is visible. The expanded width is capped to the viewport and
+extreme labels wrap inside the menu. Rich options with icons or descriptions,
+and frameless toolbar selects, keep their fixed-width treatment. Reduced-motion
+preferences skip the staged animation.
 
 ### Tooltips
 
 A tooltip is the one overlay that is pure annotation: `pointer-events: none`,
 gone on the next pointer move, never a place the user can travel to. That is what
-separates it from the menu family below, and it is why it does not share their
-surface.
+separates it from the menu family, and it is why it does not share their surface.
 
 - The surface is the inverse pair (`--bg-inverse` / `--text-on-inverse`): a light
   tooltip over a dark app, a dark one over a light app. A label does not belong
@@ -1000,6 +1043,10 @@ surface.
   keycap chip beside it is sized to match.
 - Copy stays short. The single-line form clamps at 320px with an ellipsis; only
   a genuine explanation takes the multiline form, which wraps to 32rem.
+- A tooltip inside a row that carries a details card takes the block axis (see
+  Hover annotations).
+
+### Keyboard shortcuts
 
 Keyboard shortcuts inside a tooltip — and everywhere else a shortcut is shown —
 use one continuous chip:
@@ -1012,10 +1059,7 @@ use one continuous chip:
   emboss, and no per-key frames;
 - the DOM keeps one `<kbd>` per key; the joins are drawn, not typed.
 
-A tooltip inside a row that carries a details card takes the block axis. See
-Hover Annotations below.
-
-### Hover Annotations
+### Hover annotations
 
 Two things can be worth saying about the row under the pointer, and they are not
 the same thing. A tooltip names the control the pointer is on. A details card —
@@ -1023,7 +1067,7 @@ the sidebar's `SidebarEntryDetailsCard` — describes the row's subject: its
 project, its branch, when it last ran. The card is why a row can stay one shape
 whether or not it came from a channel: metadata that only identifies the row
 lives in the annotation instead of in a column the list has to reserve, which is
-the trade the Selection Rows rule already asks for.
+the trade the Selection rows rule already asks for.
 
 Both statements are true at the same moment, so they coexist rather than
 compete. Closing the card when the pointer reaches the row's own actions would
@@ -1054,40 +1098,100 @@ card even with the axes already correct. Anchor to what is drawn, or reserve the
 control's footprint in the row so it can stay in flow.
 
 The card itself is an ordinary elevated surface, not the inverse pair: it is
-sometimes a place the pointer can travel, so it follows the Colors rule above
+sometimes a place the pointer can travel, so it follows the Inverse surface rule
 rather than the tooltip's inversion. It tucks under the row's trailing edge and
-carries the single `--glass-border` hairline on that overlapping edge, as the
-Elevation rule requires. It opens on a delay and closes on a short grace period;
-a tooltip on a control the pointer has already arrived at does not.
+carries the single `--glass-border` hairline on that overlapping edge, as
+Surfaces and elevation requires. It opens on a delay and closes on a short grace
+period; a tooltip on a control the pointer has already arrived at does not.
 
-### Menus, Popovers, and Pickers
+### Toasts
 
-Floating menus, context menus, select dropdowns, compact popovers, and command
-palettes share one overlay language:
+Toasts are transient cards in the top-right stack. A toast is either present or
+gone: there is no remaining-time bar, hovering or focusing the stack holds every
+card, and a repeated identical notice replaces its twin instead of stacking.
 
-- a single solid, opaque elevated surface shared by every floating menu so they
-  look identical regardless of backdrop;
-- no gradient or translucency on the menu surface;
-- ordinary menu frames are borderless;
-- shadow/elevation separates the overlay from the background;
-- a submenu, flyout, or stacked overlay carries one `1px var(--glass-border)`
-  hairline on the overlapping edge only — the overlap is the only case that earns
-  a border;
-- rows are borderless at rest;
-- hover, open, highlighted, and selected rows use neutral background elevation;
-- focus-visible rings remain available for keyboard accessibility.
+- Levels are `info`, `success`, `warning`, and `error`. Errors auto-dismiss like
+  everything else; a toast that must persist passes duration `0`.
+- `info` is the neutral card: elevated overlay tone, neutral border, neutral text.
+  The other three tint the whole card — surface, border, title, icon, close, and
+  action all take that level's colour. An outcome you are meant to read in passing
+  should not depend on finding a small glyph to learn how it went.
+- The tint is mixed into the elevated surface rather than laid over it as a
+  transparent wash, so a toast stays opaque against whatever it covers.
+- Surface and border take the level's own colour (`--success` and friends); anything
+  readable on a tinted card takes that level's reading colour (`--success-text` and
+  friends), per Semantic colors.
+- Give a toast a `key` when it reports the outcome of something that already showed
+  an in-flight toast, so the result replaces the notice rather than joining it.
+- An arrival is not an outcome. A toast that hands the user something newly possible
+  — a plugin just installed, offering Try now — stays the neutral `info` card and puts
+  that thing's `IdentityMark` in the leading slot: the mark says which thing, the
+  action says what it makes possible, and there is no verdict to colour. The tinted
+  levels report a finished outcome with nothing left to do — removed, failed, blocked
+  — and keep the level glyph, since the subject may no longer be there to have a mark.
+  Either way the title names the subject.
+- A card is `max-content` wide against the stack's right edge and caps at the column
+  width, so a short notice stays short instead of reserving the full 380px.
+- The title is one medium-weight line in a 24px box, matching the icon, the action,
+  and the close control, so one line of text is always a 42px card. `description`
+  adds a second, quieter line in the level's reading colour; with it present the
+  actions move to their own row below the text, since an inline action beside two
+  lines has no line to sit on.
+- The action is a filled `secondary` pill, tinted to the level on a tinted card. It
+  is the one thing on a card the user is invited to press, so it is the one thing
+  that may carry a fill. The close control stays a frameless `IconButton`.
+- Offer inline Undo only when a compensating server call exists, such as archive
+  and unarchive. Perform the change immediately and let Undo reverse it; never
+  defer the change until the toast expires. Permanent deletes keep their
+  confirmation dialog and offer no Undo.
+- Offer a forward action such as Try now only when the notice itself is what made
+  that destination reachable, and reaching it is this one press.
+- The stack is one polite live region; individual cards carry no `role="alert"`.
 
-Ordinary text-only field selects may expand toward the left when opened so the
-longest option can be read without a tooltip. The trigger finishes its width
-transition before the menu is revealed, preventing option text from reflowing
-while the overlay is visible. The expanded width is capped to the viewport and
-extreme labels wrap inside the menu. Rich options with icons or descriptions,
-and frameless toolbar selects, keep their fixed-width treatment. Reduced-motion
-preferences skip the staged animation.
+### Dialog headers
 
-The thread sidebar and thread-header overflow menus are the reference treatment
-for ordinary Desktop menus: neutral overlay surface, quiet elevation, no outer
-frame, and borderless rows.
+Dialogs that carry an identity icon share one header treatment so they read as
+one family regardless of their differing bodies (forms, confirmations, pickers).
+Use the shared header rather than re-implementing per dialog.
+
+- The identity icon sits in a neutral rounded badge: a ~36px square with `8–9px`
+  radius, a `--bg-tertiary` background, and the glyph at `18px` in
+  `--text-secondary`. The badge gives every dialog the same quiet, recognizable
+  anchor; a bare icon without the badge is not used. When the dialog's subject
+  carries its own product artwork — a skill or plugin avatar — that artwork
+  occupies the badge's footprint instead of being nested inside a neutral badge,
+  which would read as two boxes.
+- The title sits below the badge in `--type-heading` (`15px`, weight `600`,
+  `--text-primary`). Do not use hero-scale type for dialog titles — even
+  prominent dialogs stay at the dialog-heading scale.
+- An optional one or two line description follows the title in
+  `--text-secondary`.
+- Close is the shared `DialogCloseButton` (see Shared icon actions). A dialog-level
+  overflow menu joins it in the top-right, to the left of close, rather than
+  sitting beside the title.
+- A dialog previews its subject; it does not double as a place to change the
+  subject's state. Enabling, disabling, and similar switches stay in the manage
+  surface that owns them, so one control governs the state rather than two that
+  can disagree.
+
+The badge stays neutral by default. A semantic tint (success/warning/error) is
+allowed only when the dialog's whole purpose is that state, following the
+Semantic colors rules; ordinary dialogs keep the neutral badge.
+
+### Dialog actions
+
+A dialog footer follows the Action hierarchy.
+
+Transient choice dialogs may omit a visible Cancel button when backdrop click
+and Escape both dismiss safely and no operation is running. This applies to
+short-lived destination and branch/changelist choices. Destructive
+confirmations, long forms, edit modes, and running/error recovery flows retain
+an explicit Cancel or Close action.
+
+Workspace onboarding keeps its dedicated circular step navigation and selection
+cards. Those controls express progress or choice, not ordinary button hierarchy;
+only regular actions such as Start, Change folder, Login, and Retry use the shared
+Button variants.
 
 ### Reply selection overlays
 
@@ -1097,6 +1201,91 @@ surface, neutral hover treatment, and compact controls. Its comment editor is a
 separate width mode. One active portal per window follows the selected range and
 stays inside the viewport. Reply text context menus use native platform chrome
 and native editing commands.
+
+## Inputs
+
+Text inputs, textareas, selects, search boxes, and picker triggers stay neutral:
+
+- use `--bg-primary`, `--bg-secondary`, or dedicated input tokens such as
+  `--composer-input-background`;
+- use `--border-default` for the rest state;
+- use `--accent` only for subtle focus affordances;
+- use `--text-primary` for values and secondary/dimmed tokens for placeholders;
+- do not use brand or semantic fills for ordinary input backgrounds.
+
+### Focus and hover
+
+A field's focus indicator is its own border, and nothing else. Focus moves the
+border to `--accent`; it never adds an outline, a ring, or an outer glow around
+the control. An outline drawn outside the border box reads as a second frame
+stacked on the first, so ordinary `outline` focus styling is suppressed on every
+field and the global `:focus-visible` outline remains only as the fallback for
+elements that have no focus treatment of their own. This holds for every field
+shape below, and for composed fields such as combo boxes and inputs with a
+trailing action.
+
+Fields carry no hover state. The pointer usually comes to rest inside the field
+it just focused, so a hover border competes with the focus border for the same
+1px and hides it exactly when it matters. Focus is also the only state that must
+never be outranked: whatever a field's resting shape, the focus border wins while
+it has focus.
+
+### Field shapes
+
+Three shapes exist, the first two `--bg-primary` with an `8–10px` radius:
+
+- bordered at rest with `--border-default`, moving to `--accent` on focus. This is
+  the default. Dense multi-field dialog forms use it so the columns stay legible.
+- frameless at rest, showing the accent border only on focus. A simple action
+  dialog's single message/objective input (commit message, thread goal) is the
+  reference case.
+- bare: no frame, fill, or sizing of its own, for the inner field of a composed
+  control — a search row, a combo box, an input with a trailing action. The shell
+  paints the frame and owns the focus state; the field contributes only the shared
+  reset. A bare field never appears on its own.
+
+Validation combines copy, border/icon treatment, and semantic tokens. Error or
+warning color identifies the issue without taking over the form.
+
+### Shared field components
+
+Desktop-owned text fields use the shared `Input` and `Textarea` components rather
+than a locally styled native element, so height, radius, placeholder, hover,
+focus, invalid, and disabled treatments stay identical. The components own their
+own height and never set `flex`; callers place them in a row or column layout and
+pass only their genuine deltas. Two cases stay native: a visually hidden control
+that supplies semantics, and an inline editor embedded in a canvas surface whose
+own class already follows the focus rule above.
+
+Visible select controls, checkboxes, and editable suggestion fields in Desktop-owned
+UI use the shared `Select`, `Checkbox`, and `Combobox` components so their menus,
+focus treatment, disabled state, and keyboard behavior remain consistent. A native
+form control may remain only when it is visually hidden and supplies semantics.
+Third-party content rendered in sandboxed views is outside this rule.
+
+Desktop-owned opaque RGB color choices use the shared `ColorPickerDialog`, not
+`input[type="color"]`. The compact Host-owned dialog contains a Hex field, saturation/value
+plane, Hue control, and explicit Done/Reset actions. Edits preview inside the dialog; Done
+commits, Reset clears the semantic override immediately, and every close path cancels. A hidden
+native file input may still open the system file chooser because file access remains a platform
+capability rather than a Desktop-owned visual editor.
+
+### Search and filters
+
+Search uses one composed control across catalog and feature pages: a pill-radius
+shell containing the search glyph and a bare `Input`. When filters are available,
+one compact filter icon sits beside the shell, matching its height, and opens
+filter dimensions as submenus; pages do not place a row of select fields beside
+search. While any filter is applied the icon shows the neutral `active` tone. The
+shell keeps the ordinary field focus border. Filter dimensions use semantic
+leading icons only when every peer dimension has one; the selected option uses a
+trailing check so its label stays aligned with the other options.
+
+### Editable titles
+
+An always-editable page or detail title reads as text rather than a form box. It
+stays frameless while focused; the caret and text selection communicate editing,
+so the title does not add an underline or a surrounding focus frame.
 
 ### Headings that name a selection
 
@@ -1122,104 +1311,83 @@ changed in place, rather than repeating the choice in a control beside it:
 An entry heading carries no second line of guidance that repeats what the input's
 own placeholder and state already say.
 
-### Inputs
+## Composer
 
-Text inputs, textareas, selects, search boxes, and picker triggers stay neutral:
-
-- use `--bg-primary`, `--bg-secondary`, or dedicated input tokens such as
-  `--composer-input-background`;
-- composer-adjacent activity docks use `--background-activity-dock-background`,
-  which stays visually close to `--composer-input-background` while preserving
-  soft glass translucency; when attached to the composer, they keep their top and
-  side frame but omit the bottom border on the shared edge;
-- when a composer-adjacent dock overlaps the composer, the composer draws a
-  `--composer-top-accessory-separator` hairline on the shared edge so the two
-  surfaces remain distinct in both light and dark themes;
-- the composer card keeps model, context-window, and send controls in its primary
+- The primary message composer uses `--composer-input-rest-border` so the light
+  theme has a subtle frame while the dark theme can remain effectively frameless,
+  shows a soft brand-gradient glow that gently breathes on focus
+  (`--composer-focus-glow`), and lifts slightly on hover.
+- The composer card keeps model, context-window, and send controls in its primary
   action row; project, the machine tools run on (Run on), work location,
   source-control branch or changelist, and provider subscription status form the
   context row below the card, with subscription status immediately following the
   branch or changelist control. Context-row chips share one footer pill (28px,
   pill radius, `--composer-footer-text`) and open their menus upward from the
-  row; the work-location chip names the branch it works on in a hover tooltip;
-- the send control is one 32px button whose glyph follows the turn: Send at rest
+  row; the work-location chip names the branch it works on in a hover tooltip.
+- The send control is one 32px button whose glyph follows the turn: Send at rest
   or with a draft to steer or queue, Stop while a turn runs with an empty draft,
   and a spinner while stopping. The glyphs stack in one cell and crossfade on
   opacity alone so the control never moves or scales; reduced motion collapses
-  the fade;
-- use `--border-default` for rest state; the primary message composer uses
-  `--composer-input-rest-border` so the light theme has a subtle frame while the
-  dark theme can remain effectively frameless, shows a soft brand-gradient glow
-  that gently breathes on focus (`--composer-focus-glow`), and lifts slightly on
-  hover;
-- use `--accent` only for subtle focus affordances;
-- use `--text-primary` for values and secondary/dimmed tokens for placeholders;
-- do not use brand or semantic fills for ordinary input backgrounds.
+  the fade.
+- The footer's other icon-only controls (the `+` trigger and the microphone) share
+  `.dc-composer-icon-control`: round and frameless, the composer's hover fill, and a
+  neutral fill while their menu is open or recording runs. Each takes the height of
+  the controls beside it.
+- Composer-adjacent activity docks use `--background-activity-dock-background`,
+  which stays visually close to `--composer-input-background` while preserving
+  soft glass translucency; when attached to the composer, they keep their top and
+  side frame but omit the bottom border on the shared edge.
+- When a composer-adjacent dock overlaps the composer, the composer draws a
+  `--composer-top-accessory-separator` hairline on the shared edge so the two
+  surfaces remain distinct in both light and dark themes.
 
-A field's focus indicator is its own border, and nothing else. Focus moves the
-border to `--accent`; it never adds an outline, a ring, or an outer glow around
-the control. An outline drawn outside the border box reads as a second frame
-stacked on the first, so ordinary `outline` focus styling is suppressed on every
-field and the global `:focus-visible` outline remains only as the fallback for
-elements that have no focus treatment of their own. This holds for every field
-shape below, and for composed fields such as combo boxes and inputs with a
-trailing action.
+## Conversation
 
-Fields carry no hover state. The pointer usually comes to rest inside the field
-it just focused, so a hover border competes with the focus border for the same
-1px and hides it exactly when it matters. Focus is also the only state that must
-never be outranked: whatever a field's resting shape, the focus border wins while
-it has focus.
+The transcript uses the Conversation type scale. Icon actions on its rows take the
+transcript row footprint, and the framed actions on its cards use `outlineGhost`
+(see Buttons).
 
-Three shapes exist, the first two `--bg-primary` with an `8–10px` radius:
+### Message markers
 
-- bordered at rest with `--border-default`, moving to `--accent` on focus. This is
-  the default. Dense multi-field dialog forms use it so the columns stay legible.
-- frameless at rest, showing the accent border only on focus. A simple action
-  dialog's single message/objective input (commit message, thread goal) is the
-  reference case.
-- bare: no frame, fill, or sizing of its own, for the inner field of a composed
-  control — a search row, a combo box, an input with a trailing action. The shell
-  paints the frame and owns the focus state; the field contributes only the shared
-  reset. A bare field never appears on its own.
+A user bubble holds only what the person wrote. Everything the client knows
+*about* the message lives outside it.
 
-Search uses one composed control across catalog and feature pages: a pill-radius
-shell containing the search glyph and a bare `Input`. When filters are available,
-one compact filter icon sits beside the shell and opens filter dimensions as
-submenus; pages do not place a row of select fields beside search. The shell keeps
-the ordinary field focus border. Filter dimensions use semantic leading icons only
-when every peer dimension has one; the selected option uses a trailing check so its
-label stays aligned with the other options.
+Origin goes above the bubble (`.dc-message-origin`): a right-aligned line of
+small icon plus label, on `--text-tertiary`, with no pill, border, or fill. It
+names where the turn came from — steered conversation, another thread, an
+automation — and nothing more. When the origin has somewhere to go the line is a
+quiet action and lifts to `--text-secondary` on hover; an origin with no
+destination stays inert, so a target that goes nowhere never looks reachable.
 
-An always-editable page or detail title reads as text rather than a form box. It
-stays frameless while focused; the caret and text selection communicate editing,
-so the title does not add an underline or a surrounding focus frame.
+Special state goes into the message action row below the bubble
+(`.dc-message-state`): the same small icon plus label, sitting after the actions.
+State is information rather than an action, so it stays visible at rest while the
+timestamp and copy controls beside it remain hover-revealed.
 
-Desktop-owned text fields use the shared `Input` and `Textarea` components rather
-than a locally styled native element, so height, radius, placeholder, hover,
-focus, invalid, and disabled treatments stay identical. The components own their
-own height and never set `flex`; callers place them in a row or column layout and
-pass only their genuine deltas. Two cases stay native: a visually hidden control
-that supplies semantics, and an inline editor embedded in a canvas surface whose
-own class already follows the focus rule above.
+Tooltips on these markers carry only what the visible line does not already say.
+The tooltip is a single clamped line; spending it on a verbatim echo of the text
+under the cursor pushes the part that matters — the originating thread name, the
+job name — past the ellipsis. When a marker has no detail beyond its label, it
+carries no tooltip. Accessible names are exempt: they keep the full sentence,
+since assistive technology is not subject to the clamp.
 
-Validation combines copy, border/icon treatment, and semantic tokens. Error or
-warning color identifies the issue without taking over the form.
+### Block labels
 
-Visible select controls, checkboxes, and editable suggestion fields in Desktop-owned
-UI use the shared `Select`, `Checkbox`, and `Combobox` components so their menus,
-focus treatment, disabled state, and keyboard behavior remain consistent. A native
-form control may remain only when it is visually hidden and supplies semantics.
-Third-party content rendered in sandboxed views is outside this rule.
+The same holds for the label above a block inside the transcript — the `Plan` on
+a plan card, the `Created` on a scheduled task, the `Loaded` on a skill. A label
+names what the block is; it is not a status chip, so it carries no pill, border,
+or fill. Rank it by colour and placement instead: a label sitting above a title
+stays below that title in weight, so the two do not compete for the same glance.
+When the block is still running, the label shimmers on its own text
+(`tool-running-gradient-text`) rather than gaining a badge — the running signal
+belongs to the words that are already there.
 
-Desktop-owned opaque RGB color choices use the shared `ColorPickerDialog`, not
-`input[type="color"]`. The compact Host-owned dialog contains a Hex field, saturation/value
-plane, Hue control, and explicit Done/Reset actions. Edits preview inside the dialog; Done
-commits, Reset clears the semantic override immediately, and every close path cancels. A hidden
-native file input may still open the system file chooser because file access remains a platform
-capability rather than a Desktop-owned visual editor.
+A label that shares its row with the block's own controls forms one header row:
+label left, actions right, both on the same vertical centre. This is preferred to
+floating the controls over the card, which reserves no space for them and lets
+long labels slide underneath.
 
-### Inline Reference Chips
+### Inline reference chips
 
 File, command, skill, link, scheduled-task, and profile references — in the
 composer, in sent bubbles, in markdown, and in tool rows — are quiet inline content
@@ -1247,45 +1415,46 @@ afterwards. Keyboard focus is the only state that draws a ring, through the shar
 locate. A reference never paints a ring from a focus event, which a mouse click
 fires too.
 
-### Message Markers
+### Inline visualization
 
-A user bubble holds only what the person wrote. Everything the client knows
-*about* the message lives outside it.
+Assistant inline visualizations are conversation-native media, not tool cards. Their host is
+transparent and unframed, with no header or attribution row. Host actions sit just outside the
+visualization content edge in a narrow host-owned action rail so they never cover the rendered
+media. A single available command is exposed directly as a borderless tertiary icon button
+rather than being hidden behind an overflow menu. It may appear on hover, keyboard focus, or
+coarse-pointer devices and is not included when the visualization is copied as an image.
 
-Origin goes above the bubble (`.dc-message-origin`): a right-aligned line of
-small icon plus label, on `--text-tertiary`, with no pill, border, or fill. It
-names where the turn came from — steered conversation, another thread, an
-automation — and nothing more. When the origin has somewhere to go the line is a
-quiet action and lifts to `--text-secondary` on hover; an origin with no
-destination stays inert, so a target that goes nowhere never looks reachable.
+Historical visualization views are lazy-loaded near the message viewport. Before the preload
+boundary is reached, reserve the expected content shape without a running animation. From the
+first runtime request through iframe readiness, use one animated, shape-matched skeleton; do not
+show a second spinner or eagerly open off-screen visualization views.
 
-Special state goes into the message action row below the bubble
-(`.dc-message-state`): the same small icon plus label, sitting after the actions.
-State is information rather than an action, so it stays visible at rest while the
-timestamp and copy controls beside it remain hover-revealed.
+Desktop injects the active neutral surface, text, border, focus, accent, and font tokens into the
+visualization document. Ordinary visualization buttons are `32px` controls with an `8px` radius,
+matching the Desktop icon and field band; primary actions use neutral inversion rather than an
+accent fill. Feature colors remain available for charts and diagrams, not ordinary controls.
 
-The same holds for the label above a block inside the transcript — the `Plan` on
-a plan card, the `Created` on a scheduled task, the `Loaded` on a skill. A label
-names what the block is; it is not a status chip, so it carries no pill, border,
-or fill. Rank it by colour and placement instead: a label sitting above a title
-stays below that title in weight, so the two do not compete for the same glance.
-When the block is still running, the label shimmers on its own text
-(`tool-running-gradient-text`) rather than gaining a badge — the running signal
-belongs to the words that are already there.
+### Interactive tool UI
 
-A label that shares its row with the block's own controls forms one header row:
-label left, actions right, both on the same vertical centre. This is preferred to
-floating the controls over the card, which reserves no space for them and lets
-long labels slide underneath.
+MCP tools may render an interactive UI in a sandboxed iframe (see
+[Desktop MCP Apps behavior](../clients/desktop-client.md#582-mcp-apps-interactive-tool-views), aligned with MCP Apps).
+The app owns the inner UI; Desktop owns only the host frame around it.
 
-Tooltips on these markers carry only what the visible line does not already say.
-The tooltip is a single clamped line; spending it on a verbatim echo of the text
-under the cursor pushes the part that matters — the originating thread name, the
-job name — past the ellipsis. When a marker has no detail beyond its label, it
-carries no tooltip. Accessible names are exempt: they keep the full sentence,
-since assistive technology is not subject to the clamp.
+- The host frame is a single neutral surface (`--bg-secondary`, `--border-default`,
+  8–10px radius) with a quiet header (tool title / app attribution) and the iframe
+  below. When an MCP App explicitly sets `prefersBorder: false`, keep the quiet
+  header and controls but remove the host border and background. Do not add
+  decorative chrome around the iframe.
+- The iframe content is the app's own HTML/CSS; Desktop does not restyle it. Hand the
+  theme (light/dark) and accent to the UI via host context (`ui/initialize` /
+  host-config) so apps can match the desktop; apps choose whether to honor it.
+- Keep the frame compact by default; honor `ui/request-display-mode` for expand.
+- Non-Desktop clients do not render the iframe; they show the tool result's text. Do not
+  design flows that require the interactive UI.
 
-### Selection Rows
+## Lists and pages
+
+### Selection rows
 
 Compact selectors, menu items, picker options, sidebar thread rows,
 plugin/skill rows, popover command rows, and compact breadcrumb controls share
@@ -1311,69 +1480,7 @@ when it is several. Metadata that only some rows carry belongs there by default:
 a column reserved for it makes the rows that have it a different shape from the
 rows that do not, and the list reads as ragged rather than as one column.
 
-### Scrollbars
-
-A scrollbar is a control, so it is sized by what the pointer must catch rather
-than by how much ink it should spend. Those are two different numbers, and the
-shared treatment keeps them apart: `--scrollbar-size` is the grab target and
-`--scrollbar-thumb-inset` insets the painted slider inside it, so the bar can
-read as quiet while remaining easy to take hold of. Widening the visible slider
-to make it catchable, or narrowing the target to make it discreet, gives up one
-requirement to serve the other.
-
-This matters most at a window edge. A frameless window reserves a resize border
-just inside its own edge, and a scroll region flush against that edge puts its
-scrollbar inside the reserved strip; a target no wider than the strip is caught
-by the window, not by the thumb.
-
-The thumb also carries a floor (`min-width` / `min-height`). A thumb sized in
-proportion to a long document shrinks toward nothing, and a slider a few pixels
-tall cannot be grabbed however wide its track is.
-
-Three states, all neutral: `--scrollbar-thumb` at rest, `--scrollbar-thumb-hover`
-under the pointer, `--scrollbar-thumb-active` while dragging. Tracks and corners
-stay transparent so the bar never draws a channel through a surface.
-
-Features do not set `scrollbar-width`. Chromium treats it as overriding the
-shared geometry entirely, so a region that sets it silently opts out of every
-rule above; use it only to hide a scrollbar deliberately (`none`), and reach for
-`dc-scrollbar-stable` when a region needs to reserve the gutter instead.
-
-### Detail Sections
-
-A detail page stacks several groups — what an item contributes, its metadata, its
-settings. Those groups are frameless: a section is marked by a rule under its
-heading in `--border-subtle`, not by a border around its rows, and rows inside a
-section carry no dividers of their own. Boxing each group turns one readable
-column into a stack of cards competing for the same attention, and nesting a
-bordered table inside a bordered section doubles the frame.
-
-`--border-subtle` is the quietest rule in the system, for separating stacked
-groups. `--border-default` draws a control's own edge and is not used to divide a
-page into regions.
-
-A detail page presents its subject; standing state controls stay in the manage
-surface that owns them, for the same reason a dialog does not carry them (see
-Dialog Headers). Plugin detail also manages its included Skills in a separate,
-counted section. Each row uses a Skill identity mark, a document-preview button,
-and an independent trailing switch backed by the same state as Skills management.
-Uninstalled Skills remain read-only previews; installed Skills under a disabled
-plugin show an off, disabled switch. Skill preview dialogs carry no switches.
-The section previews five Skills and hides the rest behind one disclosure row of the
-same height, which names the next two hidden Skills and counts the remainder ("See
-Page diff, Form fill, and 3 more") over a stack of their marks, so the row says what
-expanding reveals rather than only how much; the heading keeps the full count.
-Expanding shows every Skill and turns the row into Show less. Collapsed, the label
-starts at the Skill titles; expanded, it starts at the mark column. The row carries
-no hover fill — it is a label, not a list row — and lightens its text instead.
-The metadata section lists capabilities, developer, category, and version before the
-website, privacy, and terms links. Version appears only when the plugin declares one,
-and category names the category alone rather than repeating the developer.
-Plugin detail uses one task-oriented primary CTA slot rather
-than a standing management switch: Install and Enable show in-control progress,
-then the same slot becomes Try in chat when the plugin is ready.
-
-### Settings Groups
+### Settings groups
 
 A settings group is a heading over a card, not a card with a heading in it. The
 title, its optional description, and any group-level actions sit above the card as
@@ -1402,6 +1509,92 @@ selected state alone and carry no status pill. An inline notice uses the shared
 banner geometry — 14px padding, 12px gap, a 20px glyph, a 13px/600 title with an
 optional secondary line — in the level's own colour, and has no dismiss control:
 its height follows its content, and the header's refresh is the retry.
+
+### Detail sections
+
+A detail page stacks several groups — what an item contributes, its metadata, its
+settings. Those groups are frameless: a section is marked by a rule under its
+heading in `--border-subtle`, not by a border around its rows, and rows inside a
+section carry no dividers of their own. Boxing each group turns one readable
+column into a stack of cards competing for the same attention, and nesting a
+bordered table inside a bordered section doubles the frame.
+
+A detail page presents its subject; standing state controls stay in the manage
+surface that owns them, for the same reason a dialog does not carry them (see
+Dialog headers).
+
+Plugin detail manages its included Skills in a separate, counted section. Each row
+uses a Skill identity mark, a document-preview button, and an independent trailing
+switch backed by the same state as Skills management. Uninstalled Skills remain
+read-only previews; installed Skills under a disabled plugin show an off, disabled
+switch. Skill preview dialogs carry no switches. The section previews five Skills
+and hides the rest behind one disclosure row of the same height, which names the
+next two hidden Skills and counts the remainder ("See Page diff, Form fill, and 3
+more") over a stack of their marks, so the row says what expanding reveals rather
+than only how much; the heading keeps the full count. Expanding shows every Skill
+and turns the row into Show less. Collapsed, the label starts at the Skill titles;
+expanded, it starts at the mark column. The row carries no hover fill — it is a
+label, not a list row — and lightens its text instead.
+
+The plugin metadata section lists capabilities, developer, category, and version
+before the website, privacy, and terms links. Version appears only when the plugin
+declares one, and category names the category alone rather than repeating the
+developer. Plugin detail uses one task-oriented primary CTA slot rather than a
+standing management switch: Install and Enable show in-control progress, then the
+same slot becomes Try in chat when the plugin is ready.
+
+### Plugin surfaces
+
+A plugin settings page uses the same settings grammar as built-in settings: a
+group heading over a card of rows, with wide visual choices in a block row rather
+than a card nested inside a card. Plugin artwork may carry its own colours; the
+controls around it stay on the shared neutral borders, radii, spacing, focus, and
+selection states. What a plugin may contribute, and how the Host composites it,
+is defined in [Desktop Plugins](desktop-plugins.md).
+
+## Viewers and editors
+
+- File viewers and docked file lists inherit the surrounding main surface instead
+  of introducing a secondary panel fill. Use secondary and tertiary surfaces for
+  controls, hover states, and selected rows within them.
+- Editable file viewers keep the same neutral viewer chrome as read-only files.
+  Source, read-only code, and Markdown source share Shiki grammars, paired theme
+  tokens, code font, size, line height, gutter, text origin, indentation, and wrapping.
+  CodeMirror supplies editing mechanics, not a second syntax palette. Focus adds
+  only caret, selection, and current-line feedback. Asynchronous highlighting maps
+  existing spans through edits until the current document's result arrives; stale
+  results never replace current content or reset selection and scroll position.
+- Markdown opens as an editable semantic document using document typography and
+  shared code typography/theme inside code. Syntax-tree decorations cover headings,
+  lists, quotes, emphasis, links, inline/fenced code, GFM tables and strikethrough.
+  Heading markers reveal when the focused selection touches the marker; emphasis,
+  strikethrough, inline-code and link markers reveal within their focused structure.
+  Lists retain source markers. Top-level quote markers stay hidden; nested quotes
+  keep their markers. Tables retain their cell layout, hiding pipe/delimiter syntax;
+  closed code fences retain their rendered boundary and language label during focus.
+  Mermaid reuses the existing renderer. The header owns View source /
+  View preview. Each mode retains its own selection and scroll position, with
+  history restored only for the matching content version.
+- The floating editor toolbar sits 16px from the bottom and right, with compact
+  undo/redo controls, 1px gaps, 4px padding, a neutral border, 8px corners, a 90%
+  elevated surface and backdrop blur. This is a local exception to the opaque
+  ordinary-menu rule, not a new overlay treatment. Source shows undo/redo and
+  reports failed saves through notifications. Semantic Markdown additionally shows
+  icon-labelled Saving… / Save failed. Hide the toolbar when it has no useful state.
+- Focused file editors own their Find shortcut. A top floating find bar contains
+  query, result count, previous/next and close; it does not expose replacement or
+  open the window-wide find overlay simultaneously.
+- Large files keep their corresponding view read-only, with a neutral outlined
+  notice inside the body rather than a yellow warning strip.
+- External-change review is a single-column diff with insertion/deletion
+  highlighting. Its fixed footer orders the wrap toggle, Edit, Reject, and Accept:
+  wrap is a neutral pressed-tone icon button, Edit and Reject are `outline`, and
+  Accept is `primary`, as for any review decision. Keep the underlying editor
+  session mounted. An over-limit diff shows an unavailable-preview message without
+  removing applicable decisions. Behavior and size limits are specified in
+  [Desktop UX §10.1](../clients/desktop-client.md#101-viewer-panel).
+
+## Feature surfaces
 
 ### Pet
 
@@ -1443,134 +1636,82 @@ neutral posture above while letting the collection's own colour show.
 - The tab icon is the companion's head at Lucide weight: antenna light, rounded
   body, and the terminal prompt as its face, matching the logo mark.
 
-### Interactive Tool UI
+### Automations
 
-MCP tools may render an interactive UI in a sandboxed iframe (see
-[Desktop MCP Apps behavior](../clients/desktop-client.md#582-mcp-apps-interactive-tool-views), aligned with MCP Apps).
-The app owns the inner UI; Desktop owns only the host frame around it.
+Automations uses one list and one directly editable detail surface. The hierarchy is
+editable title, prompt, labelled detail rows, frequency rows, and collapsed advanced
+settings. Agent Profile is an identity choice and includes the profile avatar and
+description. Show fields only for the selected execution mode. Dirty drafts expose
+Cancel and Save; pending saves disable duplicate submission and errors retain the
+draft. Preserve dirty drafts when controls update. There is no second settings
+modal. The action row relies on spacing and does not add a horizontal rule above
+Cancel and Save. The list and editor reuse the shared resizable divider and edge
+glow.
 
-- The host frame is a single neutral surface (`--bg-secondary`, `--border-default`,
-  8–10px radius) with a quiet header (tool title / app attribution) and the iframe
-  below. When an MCP App explicitly sets `prefersBorder: false`, keep the quiet
-  header and controls but remove the host border and background. Do not add
-  decorative chrome around the iframe.
-- The iframe content is the app's own HTML/CSS; Desktop does not restyle it. Hand the
-  theme (light/dark) and accent to the UI via host context (`ui/initialize` /
-  host-config) so apps can match the desktop; apps choose whether to honor it.
-- Keep the frame compact by default; honor `ui/request-display-mode` for expand.
-- Non-Desktop clients do not render the iframe; they show the tool result's text. Do not
-  design flows that require the interactive UI.
+The primary creation action stages the built-in `$automations` skill in the Welcome
+composer and starts a conversation; it does not add a handoff banner inside the
+list. Manual creation uses the same editor. Suggestions are direct-add templates:
+hover or focus exchanges their identity icon for Add, pending creation shows
+activity, and success inserts the task without leaving the surface or opening its
+detail.
 
-### Inline Visualization
+Trusted automation tool cards show an operation snapshot and open the latest
+definition. Run cards navigate by definition and run ids, and locate the exact turn
+for follow-ups. Their summary uses the scheduled-work calendar reference, and their
+compact disclosure shows timing, execution, and notification metadata rather than
+repeating the prompt.
 
-Assistant inline visualizations are conversation-native media, not tool cards. Their host is
-transparent and unframed, with no header or attribution row. Host actions sit just outside the
-visualization content edge in a narrow host-owned action rail so they never cover the rendered
-media. A single available command is exposed directly as a borderless tertiary icon button
-rather than being hidden behind an overflow menu. It may appear on hover, keyboard focus, or
-coarse-pointer devices and is not included when the visualization is copied as an image.
+Previous runs are compact conversation-selection rows rather than result cards: the
+whole available row opens the exact run, status is a small leading marker, identity
+stays in the middle, and relative time stays on the trailing edge. Do not repeat an
+"open run" action in every row. An automation attached to an existing conversation
+exposes one page-level "Open chat" action in the detail footer; that action opens
+the attached conversation rather than a particular historical turn. DotCraft-only
+run actions such as worktree review remain secondary to the row's navigation
+target.
 
-Historical visualization views are lazy-loaded near the message viewport. Before the preload
-boundary is reached, reserve the expected content shape without a running animation. From the
-first runtime request through iframe readiness, use one animated, shape-matched skeleton; do not
-show a second spinner or eagerly open off-screen visualization views.
+History markers express running, unread, and archived state in that priority order;
+execution errors remain in accessible status tooltips. Archived rows retain their
+place, fade their title, and exchange the trailing time for Unarchive on hover or
+keyboard focus without shifting layout. The context menu owns reading and archive
+actions; the section menu owns bulk actions. Touch surfaces expose a menu button.
 
-Desktop injects the active neutral surface, text, border, focus, accent, and font tokens into the
-visualization document. Ordinary visualization buttons follow the shared 32px / 8px Desktop
-action treatment; primary actions use neutral inversion rather than an accent fill. Feature
-colors remain available for charts and diagrams, not ordinary controls.
+Task-list state controls and the detail pause/resume button share persisted state
+and pending protection. Paused tasks show Play; active tasks reveal Pause over an
+idle circle when the status control is hovered or focused. Completed tasks show
+completion, and running tasks show activity before every other list marker. Pending
+schedule changes retain the current icon instead of impersonating execution.
 
-## Loading & Progress
+Task rows reserve one trailing action slot. An unread-run marker occupies it at
+rest; row hover, keyboard focus, or an open menu exchanges the marker for More
+actions without moving title or timing. The menu owns Run now, Pause/Resume, and
+Delete as allowed by task state. Completed tasks expose only Delete. Coarse-pointer
+surfaces keep the menu trigger visible. The scheduled task group label names the
+objects directly; it does not use a possessive "Your" heading.
 
-Loading is communicated by a placeholder shaped like the content that will
-arrive, not by a generic spinner or a "Loading…" label. The shared building
-block is the shared `Skeleton` family (`Skeleton`, `SkeletonRow`,
-`SkeletonList`, `SkeletonCatalogGrid`) — a `--bg-tertiary` block on the
-`skeleton-pulse` animation; the pulse itself is the running signal.
+The task subtitle places schedule and relative next-run time together, without a
+repeated execution-mode label or a duplicate next-run paragraph in details. Active,
+paused, and running tasks keep the schedule; only active tasks add the next-run
+countdown, running tasks add their in-progress label, and completed tasks replace
+the subtitle with their lifecycle label. Countdown text refreshes each minute and
+on visibility changes; overdue timestamps read as due now.
 
-- Known-shape content → skeleton, not a centered spinner. When the layout of
-  what is loading is known (a plan, a list, a card grid), render a shape-matched
-  skeleton. Reserve the spinner for genuinely shapeless, indeterminate waits inside
-  a control — a busy button, an inline refresh, a connection check, a running turn
-  in a list row.
-- There is one spinner: the shared `Spinner`. It is a track ring carrying a
-  three-quarter arc, both drawn in `currentColor` at a twelfth of its own diameter,
-  turning once per `--animate-spinner`. It has no colour of its own — it borrows the
-  ink of whatever it sits in, so a button, a row, and a dialog all wait in their own
-  voice and no wait ever claims the accent. Size it to the box it occupies; never
-  give it a hue, a thicker ring, or a second animation.
-- Partial content renders as it arrives. Once part of a streamed payload has
-  parsed, render those parts as real content and keep pulsing skeleton rows only
-  for what is still streaming. Do not hold arrived content behind a spinner.
-- One running signal per surface. If a surface already shows it is working — a
-  shimmering badge (`tool-running-gradient-text`), visibly growing diff text, a
-  streaming caret — do not add a second spinner beside it. Remove the redundant
-  indicator, along with any elapsed-time counter that rides with it.
-- Mark loading regions `aria-busy`; give content-free skeletons `role="status"`
-  with an `aria-label` so the loading state is announced. Skeleton blocks
-  themselves stay `aria-hidden`.
-- Skeleton animation honors `data-reduce-motion` via the global reduced-motion
-  rule; never gate the *meaning* of a loading state on motion — under reduced
-  motion the skeleton still reads as a placeholder.
-- A wait with no shape to match — the in-app browser loading a page — runs a 2px
-  accent bar along the toolbar's bottom edge, pulsing on opacity. It is
-  `aria-hidden`; the Reload/Stop control is the accessible state. Under reduced
-  motion the bar stays as a static rule.
+The design system mounts production components and deterministic stateful fixtures;
+it covers editing, save errors/conflicts, pause/resume, history, long content and
+narrow widths.
 
-The workspace launch transition is the one wait with no shape to match, because the
-workspace it is opening does not exist on screen yet. While it connects or prepares, the
-brand mark breathes on a slow four-second loop, peaking three percent above rest and
-scaled about its own centre so it never drifts. This is not a second running signal
-beside the shimmering caption: the caption reports progress, and the breath only keeps
-the surface from reading as a hung frame during a wait that has no upper bound. It
-carries no state, appears on no other surface, and rests at both ends of its loop so the
-reduced-motion collapse leaves the mark still.
-
-## Appearance Preferences
-
-The palette is stated as a per-variant seed — `--seed-surface`, `--seed-ink`, `--seed-accent`,
-and a 0-100 contrast — and `foundations/tokens.css` derives the surface, text, and border ramps
-from it with `color-mix`. `surface` is the base plane: the page in dark, the card in light, so
-both variants move away from it by mixing in ink. Desktop writes only what CSS
-cannot compute (the seed colors, the normalized contrast multiplier `--contrast-k`, and
-`--on-accent`), and writes nothing at all for a default seed. The layering rules and the
-formulas live in `specs/architecture/desktop-styles.md`.
-
-Desktop exposes an Appearance settings tab backed by `settings.json` and applied to the
-renderer root element:
-
-- Theme mode `system | light | dark` via `data-theme` (`system` resolves from the OS).
-- A custom accent sets `--seed-accent`, from which `--accent`, `--accent-hover`, and the
-  foreground `--on-accent` derive; unset writes nothing and the per-theme token defaults
-  answer. A custom accent stays restrained per the Colors rules — it is not promoted to a
-  primary-action fill.
-- Code font size overrides `--text-code-size`.
-- Diff markers (`color` vs `+/-`) change how `InlineDiffView` / `DiffViewer` present changes.
-- `data-reduce-motion` (`system | on | off`) gates animations; `data-pointer-cursors`
-  toggles pointer cursors on interactive elements.
-
-When adding animated, accent-driven, or code-sized UI, rely on these tokens/attributes rather
-than hardcoding colors, sizes, or unconditional animations, so user preferences are honored.
-
-### Plugin surfaces
-
-A plugin settings page uses the same settings grammar as built-in settings: a
-group heading over a card of rows, with wide visual choices in a block row rather
-than a card nested inside a card. Plugin artwork may carry its own colours; the
-controls around it stay on the shared neutral borders, radii, spacing, focus, and
-selection states. What a plugin may contribute, and how the Host composites it,
-is defined in [Desktop Plugins](desktop-plugins.md).
-
-## Do's and Don'ts
+## Do's and don'ts
 
 Do:
 
 - Use tokens and existing style constants before adding new local styles.
 - Decide the action hierarchy before choosing a button treatment.
-- Route text and icon actions through the shared `Button` component and its
-  variants rather than hand-rolling per-call inline button styles.
+- Route text and icon actions through the shared `Button`, `IconButton`, and
+  shared icon-action components rather than hand-rolling per-call inline button
+  styles.
 - Keep action and icon buttons frameless by default; reserve a visible border for
-  the `outline` variant / `bordered` icon buttons in special or important cases.
+  the `outline` / `outlineGhost` variants and `bordered` icon buttons in special or
+  important cases.
 - Keep every view's main visual language neutral unless this file assigns a
   stronger role.
 - Update `desktop/src/renderer/styles/foundations/tokens.css` and this file together when adding a
@@ -1587,8 +1728,6 @@ Don't:
   migration step.
 - Use brand blue, accent borders, decorative gradients, or glow rings for
   ordinary actions.
-- Add a visible border to ordinary buttons; frameless is the default and borders
-  are reserved for `outline` / `bordered` special cases.
 - Add page-specific palettes to feature views.
 - Put cards inside decorative cards.
 - Add visible borders to ordinary menu rows, picker options, or sidebar rows.
@@ -1597,56 +1736,3 @@ Don't:
   dialogs.
 - Wrap an inline reference — a file, skill, link, agent, job, or profile value —
   in a pill, border, or fill, at rest or on hover; hover lifts the text instead.
-
-## Automation editing and run identity
-
-Automations uses one list and one directly editable detail surface. The hierarchy is
-editable title, prompt, labelled detail rows, frequency rows, and collapsed advanced
-settings. Agent Profile is an identity choice and includes the profile avatar and description.
-Dirty drafts expose Cancel and Save; pending saves disable duplicate submission
-and errors retain the draft. There is no second settings modal. Show fields only for the
-selected execution mode. The primary creation action stages the built-in `$automations` skill
-in the Welcome composer and starts a conversation; it does not add a handoff banner inside
-the list. Manual creation uses the same editor. Suggestions are direct-add templates: hover or
-focus exchanges their identity icon for Add, pending creation shows activity, and success inserts
-the task without leaving the surface or opening its detail. The list and editor reuse the shared
-resizable divider and edge glow. The
-action row relies on spacing and does not add a horizontal rule above Cancel and Save.
-
-Trusted automation tool cards show an operation snapshot and open the latest definition.
-Run cards navigate by definition and run ids, and locate the exact turn for follow-ups.
-Their summary uses the scheduled-work calendar reference, and their compact disclosure
-shows timing, execution, and notification metadata rather than repeating the prompt.
-Previous runs are compact conversation-selection rows rather than result cards: the whole
-available row opens the exact run, status is a small leading marker, identity stays in the
-middle, and relative time stays on the trailing edge. Do not repeat an "open run" action in
-every row. An automation attached to an existing conversation exposes one page-level
-"Open chat" action in the detail footer; that action opens the attached conversation rather
-than a particular historical turn. DotCraft-only run actions such as worktree review remain
-secondary to the row's navigation target.
-History markers express running, unread, and archived state in that priority order;
-execution errors remain in accessible status tooltips. Archived rows retain their
-place, fade their title, and exchange the trailing time for Unarchive on hover or
-keyboard focus without shifting layout. The context menu owns reading and archive
-actions; the section menu owns bulk actions. Touch surfaces expose a menu button.
-Task-list state controls and the detail pause/resume button share persisted state
-and pending protection. Paused tasks show Play; active tasks reveal Pause over an idle
-circle when the status control is hovered or focused. Completed tasks show completion,
-and running tasks show activity before every other list marker. Pending schedule changes
-retain the current icon instead of impersonating execution. The second line keeps the schedule
-for active, paused, and running tasks; only active tasks add the next-run countdown, running
-tasks add their in-progress label, and completed tasks replace timing with completion.
-Preserve dirty drafts when controls update.
-
-Task rows reserve one trailing action slot. An unread-run marker occupies it at rest; row hover,
-keyboard focus, or an open menu exchanges the marker for More actions without moving title or
-timing. The menu owns Run now, Pause/Resume, and Delete as allowed by task state. Completed
-tasks expose only Delete. Coarse-pointer surfaces keep the menu trigger visible. The scheduled
-task group label names the objects directly; it does not use a possessive "Your" heading.
-The task subtitle places schedule and relative next-run time together, without a
-repeated execution-mode label or a duplicate next-run paragraph in details. Pause
-keeps the schedule but omits next-run timing; completion replaces the subtitle with
-its lifecycle label. Countdown text
-refreshes each minute and on visibility changes; overdue timestamps read as due now.
-The design system mounts production components and deterministic stateful fixtures; it
-covers editing, save errors/conflicts, pause/resume, history, long content and narrow widths.

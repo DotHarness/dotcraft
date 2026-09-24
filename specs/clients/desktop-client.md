@@ -765,7 +765,7 @@ Required behavior:
 
 The plugin browse top bar carries icon-only Refresh and Manage actions plus one
 compound Create control, which is the bar's only labelled action and follows the
-compound-trigger treatment in [Desktop DESIGN.md](../architecture/DESIGN.md#icon-buttons).
+compound-trigger treatment in [Desktop DESIGN.md](../architecture/DESIGN.md#compound-triggers).
 Its principal segment starts a plugin authoring conversation; its menu
 gathers every way of getting a plugin into the workspace — authoring one, adding a
 marketplace, and installing from a local folder — so the surface needs no separate
