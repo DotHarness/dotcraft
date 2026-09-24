@@ -3648,6 +3648,16 @@ export const MESSAGES_EN = {
   'agentBuilder.model.context.default': 'Default',
   'agentBuilder.model.context.max': 'MAX',
   'agentBuilder.model.providerUnavailable': 'Provider “{{provider}}” is not available in this workspace.',
+  'agentBuilder.toolbar.back': 'Back',
+  'agentBuilder.toolbar.saving': 'Saving…',
+  'agentBuilder.toolbar.saveFailed': 'Save failed',
+  'agentBuilder.toolbar.updated': 'Updated {{time}}',
+  'agentBuilder.toolbar.saved': 'Saved',
+  'agentBuilder.toolbar.edit': 'Edit',
+  'agentBuilder.toolbar.preview': 'Preview',
+  'agentBuilder.toolbar.moreActions': 'More actions',
+  'agentBuilder.toolbar.delete': 'Delete',
+  'agentBuilder.toolbar.create': 'Create',
 
   // Validation
   'settings.subAgents.validation.nameRequired': 'A name is required.',
