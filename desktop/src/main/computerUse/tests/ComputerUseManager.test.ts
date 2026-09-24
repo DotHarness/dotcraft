@@ -25,6 +25,7 @@ class FakeDriver {
   calls: Array<{ tool: string; args: Record<string, unknown> }> = []
   closed = 0
   killed = 0
+  snapshots = 0
   block: Promise<void> | null = null
 
   async start(): Promise<void> {
@@ -39,7 +40,7 @@ class FakeDriver {
       return {
         content: [{ type: 'text', text: 'ok' }, { type: 'image', data: 'cG5n', mimeType: 'image/png' }],
         structuredContent: {
-          snapshot_id: 'snap-1', capture_id: 'cap-1', screenshot_width: 800, screenshot_height: 600,
+          snapshot_id: `snap-${++this.snapshots}`, screenshot_width: 800, screenshot_height: 600,
           window_title: 'Untitled - Notepad', tree_markdown: '[0] Document'
         }
       }
@@ -124,7 +125,7 @@ describe('ComputerUseManager', () => {
     const { manager, context } = setup({ alwaysAllowed: [{ id: NOTEPAD.id.toUpperCase(), displayName: 'Notepad' }] })
     const ctx = context()
 
-    await manager.handleHostCall('click', { window: { id: 101 }, x: 10, y: 20, screenshotId: 'cap-1' }, ctx)
+    await manager.handleHostCall('click', { window: { id: 101 }, x: 10, y: 20 }, ctx)
     await expect(manager.handleHostCall('type_text', { window: { id: 202 }, text: 'rm -rf' }, ctx))
       .rejects.toThrow(/^app_blocked/)
 
@@ -147,7 +148,7 @@ describe('ComputerUseManager', () => {
     await manager.handleHostCall('click', { window: { id: 101 }, element_index: 0 }, ctx)
 
     expect(state).toMatchObject({
-      screenshots: [{ id: 'cap-1', width: 800, height: 600 }],
+      screenshots: [{ id: 'snap-1', width: 800, height: 600 }],
       accessibility: { tree: '[0] Document' }
     })
     expect(ctx.emitImage).toHaveBeenCalledWith({ mediaType: 'image/png', dataBase64: 'cG5n' })
@@ -155,6 +156,34 @@ describe('ComputerUseManager', () => {
       tool: 'click',
       args: { pid: 11, window_id: 101, element_index: 0, snapshot_id: 'snap-1', delivery_mode: 'foreground' }
     })
+  })
+
+  it("rejects pixel actions that name a screenshot other than the window's latest", async () => {
+    const { manager, drivers, context } = setup()
+    const ctx = context()
+    const observe = async (input: Record<string, unknown> = {}) =>
+      (await manager.handleHostCall('get_window_state', { window: { id: 101 }, ...input }, ctx)) as { screenshots: Array<{ id: string }> }
+    const actions: Array<[string, Record<string, unknown>]> = [
+      ['click', { x: 10, y: 20 }],
+      ['scroll', { x: 10, y: 20, scrollY: 3 }],
+      ['drag', { from_x: 1, from_y: 2, to_x: 30, to_y: 40 }]
+    ]
+
+    const stale = (await observe()).screenshots[0].id
+    const latest = (await observe()).screenshots[0].id
+    for (const [method, input] of actions) {
+      await expect(manager.handleHostCall(method, { window: { id: 101 }, ...input, screenshotId: stale }, ctx))
+        .rejects.toThrow(/^screenshot_stale/)
+      await manager.handleHostCall(method, { window: { id: 101 }, ...input, screenshotId: latest }, ctx)
+      await manager.handleHostCall(method, { window: { id: 101 }, ...input }, ctx)
+    }
+    await observe({ include_screenshot: false, include_text: true })
+    await expect(manager.handleHostCall('click', { window: { id: 101 }, x: 10, y: 20, screenshotId: latest }, ctx))
+      .rejects.toThrow(/^screenshot_stale/)
+
+    const inputs = drivers[0].calls.filter((call) => ['click', 'scroll', 'drag'].includes(call.tool))
+    expect(inputs).toHaveLength(6)
+    expect(inputs.some((call) => 'capture_id' in call.args)).toBe(false)
   })
 
   it('rejects a concurrent request instead of queueing it', async () => {

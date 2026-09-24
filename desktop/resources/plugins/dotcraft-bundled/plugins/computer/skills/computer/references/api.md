@@ -27,12 +27,12 @@ All methods return promises. Errors reject with an `Error` whose message starts 
 | Call | Notes |
 |---|---|
 | `click({ window, element_index })` | Clicks an element from the latest `include_text` observation. |
-| `click({ window, x, y, screenshotId, click_count = 1, mouse_button = "left" })` | Clicks a screenshot pixel. `mouse_button` is `left`, `right` or `middle`; `click_count` is 1 to 3. |
+| `click({ window, x, y, screenshotId?, click_count = 1, mouse_button = "left" })` | Clicks a screenshot pixel. `mouse_button` is `left`, `right` or `middle`; `click_count` is 1 to 3. |
 | `type_text({ window, text })` | Types literal text into the focused control. |
 | `press_key({ window, key })` | Presses a key or chord such as `Return`, `Tab`, `Escape`, `F5`, `ctrl+s` or `ctrl+shift+Tab`. |
-| `scroll({ window, x, y, scrollX = 0, scrollY = 0, screenshotId })` | Scrolls at a screenshot pixel. Positive `scrollY` scrolls down and positive `scrollX` scrolls right, in wheel notches. |
+| `scroll({ window, x, y, scrollX = 0, scrollY = 0, screenshotId? })` | Scrolls at a screenshot pixel. Positive `scrollY` scrolls down and positive `scrollX` scrolls right, in wheel notches. |
 | `set_value({ window, element_index, value })` | Sets an editable element's value directly. |
-| `drag({ window, from_x, from_y, to_x, to_y, screenshotId })` | Drags between screenshot pixels. |
+| `drag({ window, from_x, from_y, to_x, to_y, screenshotId? })` | Drags between screenshot pixels. |
 
 ## Example
 

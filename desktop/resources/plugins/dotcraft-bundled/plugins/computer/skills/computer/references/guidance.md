@@ -23,7 +23,7 @@
 ## When something fails
 
 - An error that starts with `timeout` means the effect is unknown. Observe the window before retrying so input is not repeated.
-- `stale_element_token`, `snapshot_id_required` or a capture error: observe again and redo the step with the new indexes or screenshot id.
+- `stale_element_token`, `snapshot_id_required` or `screenshot_stale`: observe again and redo the step with the new indexes or screenshot id.
 - `window_target_not_found` or an invalid handle: list windows again.
 - `computer_use_busy`: another request is using the computer. Wait briefly and try once more.
 - `driver_unavailable`: retry once. If it fails again, tell the user that computer use is not working right now.

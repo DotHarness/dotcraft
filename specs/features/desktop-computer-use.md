@@ -87,7 +87,7 @@ The Node REPL is not an OS sandbox. The skill forbids launching the driver or na
 | `drag({ window, from_x, from_y, to_x, to_y, screenshotId? })` | Drags between screenshot pixels. |
 | `activate_window({ window })` | Brings the window to the foreground. |
 
-Element indexes and screenshot ids are valid only for the observation that produced them. Pixel coordinates are in the screenshot's own pixel space. Input methods use foreground delivery: the runtime activates the target window, injects input, and restores the previous foreground window and cursor where the driver can.
+Element indexes and screenshot ids are valid only for the latest observation of their window; any later observation replaces them, including one without a screenshot. Pixel coordinates are in the screenshot's own pixel space, and a pixel action that names a `screenshotId` other than the window's latest screenshot fails with `screenshot_stale` before any input is sent. Input methods use foreground delivery: the runtime activates the target window, injects input, and restores the previous foreground window and cursor where the driver can.
 
 Every method that takes `window` or `app` is authorized first (Section 6). `list_apps`, `list_windows` and `get_window` are not authorization-gated.
 
@@ -100,10 +100,11 @@ Every method that takes `window` or `app` is authorized first (Section 6). `list
 | `app_blocked` | The target application is blocked (Section 6.1). |
 | `app_not_approved` | The user declined, the approval timed out, or the thread policy denied access. |
 | `app_unidentified` | The runtime could not resolve the window's application. |
+| `screenshot_stale` | A pixel action named a screenshot that is not the window's latest; observe the window again. |
 | `driver_unavailable` | The driver could not start or stopped unexpectedly. |
 | `timeout` | The request exceeded its deadline; its effect is unknown and must be observed before retrying. |
 
-Driver error codes such as `stale_element_token`, `capture_expired` or `ambiguous_window_target` pass through unchanged.
+Driver error codes such as `stale_element_token` or `ambiguous_window_target` pass through unchanged.
 
 ---
 
