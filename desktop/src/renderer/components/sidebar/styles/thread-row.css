@@ -1,0 +1,32 @@
+/* Hover is CSS, not pointer events: after a row is archived, the row that slides
+   under a still pointer receives no mouseenter until the pointer moves. */
+.dc-thread-row[data-hover]:hover {
+  background-color: var(--sidebar-control-hover);
+}
+
+.dc-thread-row__hover-action {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dc-thread-row[data-hover]:hover .dc-thread-row__hover-action,
+.dc-thread-row[data-hover] .dc-thread-row__hover-action[data-pinned],
+.dc-thread-row[data-hover] .dc-thread-row__hover-action:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Display stays out of inline styles so the archive action can take over the slot. */
+.dc-thread-row__status {
+  display: inline-flex;
+}
+
+.dc-thread-row[data-hover]:hover:has(.dc-thread-row__archive) .dc-thread-row__status,
+.dc-thread-row[data-hover]:has(.dc-thread-row__archive:focus-visible) .dc-thread-row__status {
+  display: none;
+}
+
+.dc-thread-row[data-hover]:hover .dc-status-badge {
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  color: var(--text-secondary);
+}

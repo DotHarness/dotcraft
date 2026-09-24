@@ -1,4 +1,4 @@
-import type { CSSProperties, HTMLAttributes, ReactNode, Ref } from 'react'
+import type { CSSProperties, HTMLAttributes, ReactNode } from 'react'
 import { CornerDownRight } from 'lucide-react'
 import { SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
 
@@ -44,10 +44,9 @@ export interface ThreadRowLayoutProps {
   statusSlotMinWidth?: string
   statusJustifySelf?: CSSProperties['justifySelf']
   statusContentJustify?: CSSProperties['justifyContent']
-  statusSlotRef?: Ref<HTMLDivElement>
-  statusSlotProps?: HTMLAttributes<HTMLDivElement>
 
   active?: boolean
+  hoverable?: boolean
 
   rowTestId?: string
   gridTestId?: string
@@ -83,9 +82,8 @@ export function ThreadRowLayout({
   statusSlotMinWidth = '24px',
   statusJustifySelf = 'center',
   statusContentJustify = 'center',
-  statusSlotRef,
-  statusSlotProps,
   active = false,
+  hoverable = false,
   rowTestId,
   gridTestId,
   nameTestId,
@@ -101,8 +99,9 @@ export function ThreadRowLayout({
 
   return (
     <div
-      className="dotcraft-sidebar-row-radius"
+      className="dotcraft-sidebar-row-radius dc-thread-row"
       data-testid={rowTestId}
+      data-hover={hoverable ? 'true' : undefined}
       {...containerProps}
       style={{
         display: 'flex',
@@ -118,7 +117,7 @@ export function ThreadRowLayout({
         padding: `3px 6px 3px ${paddingLeft}px`,
         boxSizing: 'border-box',
         borderRadius: 'var(--sidebar-row-radius)',
-        backgroundColor: active ? 'var(--sidebar-control-active)' : 'transparent',
+        backgroundColor: active ? 'var(--sidebar-control-active)' : undefined,
         gap: '8px',
         userSelect: 'none',
         ...containerStyle
@@ -172,9 +171,7 @@ export function ThreadRowLayout({
             </span>
           )}
           <div
-            ref={statusSlotRef}
             data-testid={statusTestId}
-            {...statusSlotProps}
             style={{
               width: statusSlotWidth,
               minWidth: statusSlotMinWidth,

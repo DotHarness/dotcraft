@@ -57,6 +57,7 @@
 @import "./shared/reduced-motion.css";
 @import "./shared/pointer.css";
 @import "../components/sidebar/styles/appearance.css";
+@import "../components/sidebar/styles/thread-row.css";
 @import "../components/desktopPlugins/styles/overlay-seat.css";
 
 @import "../components/automations/automations.css";

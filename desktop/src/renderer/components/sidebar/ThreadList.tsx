@@ -1702,30 +1702,19 @@ function ReadonlyThreadRow({
   })
   const rowProjectKey = projectIdentity(project)
   const subAgentDepth = getSubAgentDepth(thread)
-  const [hovered, setHovered] = useState(false)
-  const [pinButtonFocused, setPinButtonFocused] = useState(false)
-  const [archiveButtonFocused, setArchiveButtonFocused] = useState(false)
   const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null)
   // Pin/archive route to the target workspace connection by path, so they only
   // apply to local secondary / Chats rows. Remote rows keep the static marker.
   const supportsLocalActions = !subAgent && !isRemoteProject(project)
   const isPinned = pinned
-  const showPinAction =
-    supportsLocalActions && (hovered || pinButtonFocused || isPinned)
-  const showArchiveAction =
-    supportsLocalActions && (hovered || archiveButtonFocused)
-  // On hover the archive action replaces the status content in a compact 24px
-  // slot; otherwise the relative-time / waiting badge slot may grow to fit.
-  const statusColumn = showArchiveAction
+  const statusColumn = running
     ? '24px'
-    : running
-      ? '24px'
-      : waiting
-        ? 'minmax(74px, max-content)'
-        : 'minmax(24px, max-content)'
-  const statusSlotWidth = showArchiveAction ? '24px' : running ? '24px' : 'max-content'
+    : waiting
+      ? 'minmax(74px, max-content)'
+      : 'minmax(24px, max-content)'
+  const statusSlotWidth = running ? '24px' : 'max-content'
   const statusSlotMinWidth = '24px'
-  const statusSlotJustifySelf = showArchiveAction ? 'center' : running ? 'center' : 'end'
+  const statusSlotJustifySelf = running ? 'center' : 'end'
   // Center the time/badge within its (>=24px) slot so secondary-project rows line
   // up with the foreground ThreadEntry's centered status slot.
   const statusContentJustify = 'center'
@@ -1764,9 +1753,8 @@ function ReadonlyThreadRow({
 
   const statusContent = (
     <span
-      aria-hidden={showArchiveAction}
+      className="dc-thread-row__status"
       style={{
-        display: showArchiveAction ? 'none' : 'inline-flex',
         alignItems: 'center',
         justifyContent: statusContentJustify,
         width: running ? '100%' : 'auto',
@@ -1775,8 +1763,7 @@ function ReadonlyThreadRow({
         lineHeight: 'var(--type-secondary-line-height)',
         whiteSpace: 'nowrap',
         overflow: 'hidden',
-        textOverflow: 'clip',
-        opacity: showArchiveAction ? 0 : 1
+        textOverflow: 'clip'
       }}
     >
       {running ? (
@@ -1827,21 +1814,15 @@ function ReadonlyThreadRow({
                   tooltipPlacement="top"
                   size={22}
                   radius={6}
-                  className="dc-thread-list-icon-button"
+                  className="dc-thread-list-icon-button dc-thread-row__hover-action"
                   aria-pressed={isPinned}
+                  data-pinned={isPinned ? 'true' : undefined}
                   data-testid={`project-thread-pin-${rowProjectKey}-${thread.id}`}
                   onClick={(e) => {
                     e.stopPropagation()
                     toggleWorkspacePin(project.path, thread.id, project.pinnedThreadIds ?? [])
                   }}
-                  onFocus={() => setPinButtonFocused(true)}
-                  onBlur={() => setPinButtonFocused(false)}
-                  style={{
-                    cursor: showPinAction ? 'pointer' : 'default',
-                    opacity: showPinAction ? 1 : 0,
-                    pointerEvents: showPinAction ? 'auto' : 'none',
-                    transition: 'opacity 120ms ease, color 120ms ease'
-                  }}
+                  style={{ transition: 'opacity 120ms ease, color 120ms ease' }}
                 />
               ) : (
                 pinned && (
@@ -1870,44 +1851,31 @@ function ReadonlyThreadRow({
               tooltipPlacement="top"
               size={24}
               radius={8}
-              className="dc-thread-list-icon-button"
+              className="dc-thread-list-icon-button dc-thread-row__hover-action dc-thread-row__archive"
               data-testid={`project-thread-archive-${rowProjectKey}-${thread.id}`}
               onClick={(e) => {
                 e.stopPropagation()
                 void archiveWorkspaceThread(project.path, thread, t)
               }}
-              onFocus={() => setArchiveButtonFocused(true)}
-              onBlur={() => setArchiveButtonFocused(false)}
               style={{
                 borderRadius: 'var(--sidebar-icon-control-radius)',
-                cursor: showArchiveAction ? 'pointer' : 'default',
                 position: 'absolute',
                 right: 0,
                 top: '50%',
                 transform: 'translateY(-50%)',
-                opacity: showArchiveAction ? 1 : 0,
-                pointerEvents: showArchiveAction ? 'auto' : 'none',
                 transition: 'opacity 120ms ease, color 120ms ease',
                 zIndex: 2
               }}
             />
           ) : undefined
         }
+        hoverable
         containerStyle={{ cursor: 'pointer', textAlign: 'left' }}
         containerProps={{
           onClick: () => void openThread(),
           onContextMenu: (event) => {
             event.preventDefault()
             setContextMenu({ x: event.clientX, y: event.clientY })
-          },
-          onMouseEnter: (e) => {
-            setHovered(true)
-            ;(e.currentTarget as HTMLDivElement).style.backgroundColor =
-              'var(--sidebar-control-hover)'
-          },
-          onMouseLeave: (e) => {
-            setHovered(false)
-            ;(e.currentTarget as HTMLDivElement).style.backgroundColor = 'transparent'
           }
         }}
       />

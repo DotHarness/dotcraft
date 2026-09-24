@@ -62,16 +62,12 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(thread.displayName ?? '')
-  const [hovered, setHovered] = useState(false)
-  const [pinButtonFocused, setPinButtonFocused] = useState(false)
-  const [archiveButtonFocused, setArchiveButtonFocused] = useState(false)
   const [dropActive, setDropActive] = useState(false)
   // `anim` drives the two transient post-drop animations. `success` plays
   // `dropSuccessPulse` on the row + `slideInBadge` on the inline bound icon;
   // `fail` plays `shake` on the row. Clears itself after the animation window.
   const [anim, setAnim] = useState<'success' | 'fail' | null>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
-  const actionSlotRef = useRef<HTMLDivElement>(null)
 
   const dragActive = useDragDropStore((s) => s.active)
   const dragKind = dragActive?.kind ?? null
@@ -112,14 +108,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     relativeTime,
     origin: threadOriginBadge({ thread, isSubAgent, t })
   })
-  // Hide the archive action during a drag session so the right side stays
-  // clean while the drop-hint / already-bound pill is shown.
   const canPin = !isSubAgent && thread.status !== 'archived'
   const isPinned = canPin && pinnedThreadIds.includes(thread.id)
-  const showPinAction =
-    canPin && !renaming && !dragKind && (hovered || pinButtonFocused || isPinned)
-  const showArchiveAction =
-    !isSubAgent && !renaming && !dragKind && (hovered || archiveButtonFocused)
   const showPendingApprovalBadge = !isActive && hasPendingApproval
   const showPendingUserInputBadge = !isActive && !showPendingApprovalBadge && hasPendingUserInput
   const showPendingPlanBadge =
@@ -139,20 +129,13 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     && thread.status === 'active'
     && hasUnreadCompleted
   const compactStatusColumn = '24px'
-  // Only the pending pill grows past the compact slot, and the archive action
-  // replaces it on hover.
-  const showPendingSlot = !showArchiveAction && showPendingInStatus
-  const statusColumn = showPendingSlot ? 'minmax(24px, max-content)' : compactStatusColumn
-  const statusSlotWidth = showPendingSlot ? 'max-content' : compactStatusColumn
-  const statusSlotJustifySelf = showPendingSlot ? 'end' : 'center'
+  const statusColumn = showPendingInStatus ? 'minmax(24px, max-content)' : compactStatusColumn
+  const statusSlotWidth = showPendingInStatus ? 'max-content' : compactStatusColumn
+  const statusSlotJustifySelf = showPendingInStatus ? 'end' : 'center'
 
   const performArchiveThread = useCallback(async (): Promise<void> => {
     await archiveThreadWithUndo({ threadId: thread.id, t })
   }, [t, thread.id])
-
-  const resetArchiveActionState = useCallback((): void => {
-    setArchiveButtonFocused(false)
-  }, [])
 
   function handleClick(): void {
     if (renaming) return
@@ -281,6 +264,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
         subAgentDepth={subAgentDepth}
         canPin={canPin}
         subAgentLabel={t('threadEntry.subAgent')}
+        hoverable={!renaming && !dragKind}
         rowTestId={`thread-entry-${thread.id}`}
         gridTestId={`thread-layout-${thread.id}`}
         nameTestId={`thread-title-${thread.id}`}
@@ -291,23 +275,13 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
         statusColumn={statusColumn}
         statusSlotWidth={statusSlotWidth}
         statusJustifySelf={statusSlotJustifySelf}
-        statusSlotRef={actionSlotRef}
-        statusSlotProps={{
-          onBlurCapture: (e) => {
-            const nextTarget = e.relatedTarget as Node | null
-            if (nextTarget && actionSlotRef.current?.contains(nextTarget)) return
-            resetArchiveActionState()
-          }
-        }}
         containerStyle={{
           cursor: dimmedTarget ? 'not-allowed' : 'pointer',
           backgroundColor: dropActive
             ? 'color-mix(in srgb, var(--accent) 14%, transparent)'
             : isActive
               ? 'var(--sidebar-control-active)'
-              : hovered && !alreadyBound && !dragKind
-                ? 'var(--sidebar-control-hover)'
-                : 'transparent',
+              : undefined,
           // dropActive = hovered valid target; alreadyBound = inset outline marking
           // the existing binding; otherwise the success pulse keyframe owns this.
           boxShadow: dropActive
@@ -333,11 +307,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
           onContextMenu: handleContextMenu,
           onDragOver: handleDragOver,
           onDragLeave: handleDragLeave,
-          onDrop: (e) => void handleDrop(e),
-          onMouseEnter: () => setHovered(true),
-          onMouseLeave: () => {
-            setHovered(false)
-          }
+          onDrop: (e) => void handleDrop(e)
         }}
         leading={
           <>
@@ -360,18 +330,12 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                   tooltipPlacement="top"
                   size={22}
                   radius={6}
-                  className="dc-thread-list-icon-button"
+                  className="dc-thread-list-icon-button dc-thread-row__hover-action"
                   aria-pressed={isPinned}
+                  data-pinned={isPinned ? 'true' : undefined}
                   data-testid={`thread-pin-${thread.id}`}
                   onClick={handleTogglePinned}
-                  onFocus={() => setPinButtonFocused(true)}
-                  onBlur={() => setPinButtonFocused(false)}
-                  style={{
-                    cursor: showPinAction ? 'pointer' : 'default',
-                    opacity: showPinAction ? 1 : 0,
-                    pointerEvents: showPinAction ? 'auto' : 'none',
-                    transition: 'opacity 120ms ease, color 120ms ease'
-                  }}
+                  style={{ transition: 'opacity 120ms ease, color 120ms ease' }}
                 />
               </span>
             )}
@@ -452,14 +416,12 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
         }
         status={
           <span
-            aria-hidden={showArchiveAction}
+            className="dc-thread-row__status"
             style={{
-              display: showArchiveAction ? 'none' : 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               width: '100%',
-              overflow: 'hidden',
-              opacity: showArchiveAction ? 0 : 1
+              overflow: 'hidden'
             }}
           >
             <span
@@ -476,7 +438,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                   className="dc-status-badge"
                   data-size="compact"
                   data-tone={showPendingApprovalBadge || showPendingUserInputBadge ? 'warning' : 'info'}
-                  data-quiet={isActive || hovered ? 'true' : undefined}
+                  data-quiet={isActive ? 'true' : undefined}
                   data-testid={
                     showPendingApprovalBadge
                       ? `thread-pending-approval-${thread.id}`
@@ -533,21 +495,17 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
               tooltipPlacement="top"
               size={24}
               radius={8}
-              className="dc-thread-list-icon-button"
+              className="dc-thread-list-icon-button dc-thread-row__hover-action dc-thread-row__archive"
               onClick={(e) => {
                 e.stopPropagation()
                 void performArchiveThread()
               }}
-              onFocus={() => setArchiveButtonFocused(true)}
               style={{
                 borderRadius: 'var(--sidebar-icon-control-radius)',
-                cursor: showArchiveAction ? 'pointer' : 'default',
                 position: 'absolute',
                 right: 0,
                 top: '50%',
                 transform: 'translateY(-50%)',
-                opacity: showArchiveAction ? 1 : 0,
-                pointerEvents: showArchiveAction ? 'auto' : 'none',
                 transition: 'opacity 120ms ease, color 120ms ease',
                 zIndex: 2
               }}
