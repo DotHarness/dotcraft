@@ -160,10 +160,7 @@
   height: 14px;
   color: currentColor;
   opacity: 0;
-  transform: rotate(0deg);
-  transition:
-    transform var(--duration-expand) var(--ease-expand),
-    opacity var(--duration-fast) var(--ease-standard);
+  transition: opacity var(--duration-fast) var(--ease-standard);
 }
 
 .dc-tool-row > summary:hover .dc-tool-chevron,
@@ -171,11 +168,6 @@
 .dc-tool-row[open] > summary .dc-tool-chevron,
 .dc-tool-chevron[data-visible="true"] {
   opacity: 1;
-}
-
-.dc-tool-row[open] > summary .dc-tool-chevron,
-.dc-tool-chevron[data-expanded="true"] {
-  transform: rotate(90deg);
 }
 
 .dc-automation-tool-details {

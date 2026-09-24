@@ -125,6 +125,17 @@
   border-color: var(--border-active);
 }
 
+/* Inside a card, which already carries a surface. */
+.dc-button[data-variant="outlineGhost"] {
+  background: transparent;
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+.dc-button[data-variant="outlineGhost"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background: var(--bg-tertiary);
+  border-color: var(--border-active);
+}
+
 /* Restrained brand accent; not the default primary for ordinary actions. */
 .dc-button[data-variant="accent"] {
   background: transparent;

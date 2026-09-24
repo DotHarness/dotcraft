@@ -1,10 +1,11 @@
 import { useState, type CSSProperties, type KeyboardEvent } from 'react'
-import { ChevronDown, ChevronUp, FolderOpen } from 'lucide-react'
+import { FolderOpen } from 'lucide-react'
 import { useT } from '../../../contexts/LocaleContext'
 import type { ChangesDiffMode } from '../../../stores/uiStore'
 import type { TurnFileChange } from '../../../types/turnDiff'
 import { ActionTooltip } from '../../ui/ActionTooltip'
 import { CopyButton } from '../../ui/CopyButton'
+import { DisclosureChevron } from '../../ui/DisclosureChevron'
 import { IconButton } from '../../ui/IconButton'
 import { DiffViewer } from '../DiffViewer'
 import { ChangePath } from './ChangePath'
@@ -110,7 +111,7 @@ export function FileDiffSection({
         />
         <FileStats additions={file.additions} deletions={file.deletions} dim={isReverted} />
         <span style={{ color: 'var(--text-secondary)', width: '16px', display: 'inline-flex', justifyContent: 'center' }}>
-          {expanded ? <ChevronUp size={15} strokeWidth={1.8} /> : <ChevronDown size={15} strokeWidth={1.8} />}
+          <DisclosureChevron expanded={expanded} />
         </span>
       </div>
       </ActionTooltip>

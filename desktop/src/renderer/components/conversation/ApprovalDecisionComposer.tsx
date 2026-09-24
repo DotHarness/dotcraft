@@ -15,7 +15,7 @@ import {
   ComposerToolbarTrailingSlots
 } from './ComposerSurfaceSlots'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
-import { Button } from '../ui/Button'
+import { DecisionDismissButton, DecisionSubmitButton } from './DecisionComposerChrome'
 import {
   DEFAULT_COMPOSER_MASCOT_EFFECT_STATE,
   type ComposerMascotEffectState
@@ -256,26 +256,20 @@ export function ApprovalDecisionComposer({
               submit={(
                 <>
                   {showFooterReject && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                    <DecisionDismissButton
+                      label={declineOption?.label ?? t('approval.option.decline.label')}
+                      ariaLabel={t('approval.rejectShortcutAria')}
                       onClick={() => {
                         void sendDecision(declineValue)
                       }}
                       disabled={locked}
-                      aria-label={t('approval.rejectShortcutAria')}
-                    >
-                      <span>{declineOption?.label ?? t('approval.option.decline.label')}</span>
-                      <span style={kbdChipStyle}>Esc</span>
-                    </Button>
+                    />
                   )}
-                  <Button
-                    variant="primary"
+                  <DecisionSubmitButton
+                    label={selectedOption.label}
                     onClick={submitSelected}
                     disabled={locked}
-                  >
-                    {selectedOption.label}
-                  </Button>
+                  />
                 </>
               )}
             />
@@ -385,19 +379,4 @@ function detailValueStyle(mono: boolean): CSSProperties {
     // options off-screen; each value gets a small local scroll area when needed.
     whiteSpace: mono ? 'pre-wrap' : 'normal'
   }
-}
-
-const kbdChipStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minWidth: '28px',
-  height: '20px',
-  padding: '0 6px',
-  borderRadius: '4px',
-  border: '1px solid var(--border-default)',
-  background: 'var(--bg-secondary)',
-  color: 'var(--text-secondary)',
-  fontSize: 'var(--conversation-meta-size)',
-  fontFamily: 'var(--font-mono, ui-monospace)'
 }

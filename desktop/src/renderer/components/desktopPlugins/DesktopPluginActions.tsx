@@ -38,6 +38,7 @@ export function DesktopPluginMessageActions({
           >
             <IconButton
               size={24}
+              radius={6}
               label={label}
               tooltipLabel={`${label} · ${contribution.host.plugin.displayName}`}
               tooltipPlacement="top"

@@ -613,7 +613,9 @@ prop and the footprint with the `size` prop:
   (frameless neutral fill, the common action), `ghost` (transparent tertiary),
   `danger` (frameless semantic fill, paired with explicit Delete/Remove/Stop copy),
   `accent` (restrained brand, never the default create/save/manage), `outline` (the
-  one bordered variant — only for special / important framed actions).
+  one bordered variant — only for special / important framed actions), `outlineGhost`
+  (the same frame without a fill, for a framed action inside a card that already
+  carries its own surface).
 - `size`: `default` (the `32px` control band), `sm`, `icon`, `iconSm`,
   `prominent` (the standalone `38px` pill CTA), `toolbar` (the catalog top-bar band).
 
@@ -640,6 +642,13 @@ press. Transform-based control motion is allowed only when a feature explicitly
 requires and documents it (for example, a directional affordance or a functional
 drag interaction), and it must honor the shared reduced-motion preference.
 
+Disclosure is that documented directional affordance. Every expand/collapse toggle
+uses the shared `DisclosureChevron` (`14px`, stroke `1.8`) and rotates it on
+`--duration-expand` rather than swapping glyphs: `inline` for a row or section
+that opens in place (points right, turns `90deg`), `reveal` for content that opens
+below the control (points down, turns `180deg`). When the chevron is its own
+target it sits in an `IconButton` with `aria-expanded`.
+
 A mode toggle may reveal its label when it turns on. The control keeps its band
 height and its icon position and grows only on `max-width` and inline padding —
 over `--duration-expand` on `--ease-expand`, the label fading in on opacity — so
@@ -657,9 +666,10 @@ default, matching the frameless action language:
 - transparent surface with a reserved `1px` transparent border;
 - `var(--text-secondary)` icon color, with a neutral hover fill
   (`var(--bg-tertiary)` + `var(--text-primary)`);
-- `active` marks a selected/toggled state with a subtle accent tint.
-- `aria-pressed` marks a mode toggle; its on state uses the same accent tint and
-  never an accent border.
+- `active` with `activeTone="neutral"` marks a pressed toggle, such as code-block
+  wrap or an explorer toggle; the accent tone is kept for live states such as a
+  running screen view, and never becomes an accent border.
+- `aria-pressed` marks a mode toggle and pairs with the neutral active tone.
 - `aria-expanded="true"` marks an open menu or popover with a neutral fill; opening
   ordinary chrome is not a selected accent state.
 - destructive icon-only actions use the shared danger tone rather than a locally
@@ -698,6 +708,9 @@ Emphasis is carried by intent, not by a second treatment:
 - the `outline` neutral frame is for matched open-target controls in the thread
   header and file viewer. These controls are the reference cases and should keep
   the same frame treatment even when one omits its text label for compactness.
+- the `outlineGhost` frame is for the open, preview, and review actions of a
+  transcript card, on the toolbar band; Undo beside them stays `ghost` at the same
+  size.
 
 Use the shared `SplitButton` rather than composing a button pair, chevron, and
 positioned menu per feature, so segment geometry, keyboard navigation, outside-click

@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react'
-import { ChevronDown, ChevronUp, Redo2, Undo2 } from 'lucide-react'
+import { Redo2, Undo2 } from 'lucide-react'
 import type { MessageKey } from '../../../shared/locales'
 import { useT } from '../../contexts/LocaleContext'
 import { useTurnDiffActions, type TurnPatchOutcome } from '../../hooks/useTurnDiffActions'
@@ -12,6 +12,7 @@ import { basename } from '../../utils/path'
 import { toWorkspaceRelativePath } from '../../utils/workspacePaths'
 import { ChangePath } from '../detail/changes/ChangePath'
 import { Button } from '../ui/Button'
+import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { FileDiffStats } from './FileDiffStats'
 import { InlineDiffView } from './InlineDiffView'
@@ -60,7 +61,7 @@ export const TurnCompletionSummary = memo(function TurnCompletionSummary({ turnI
         </div>
         <div className={styles.actions}>
           <TurnPatchButton turnId={turnId} rows={rows} workspacePath={workspacePath} />
-          <Button variant="ghost" size="sm" onClick={() => useUIStore.getState().showChangesForKey(rows[0].key)}>
+          <Button variant="outlineGhost" size="toolbar" onClick={() => useUIStore.getState().showChangesForKey(rows[0].key)}>
             {t('turnChanges.review')}
           </Button>
         </div>
@@ -86,7 +87,7 @@ export const TurnCompletionSummary = memo(function TurnCompletionSummary({ turnI
               aria-expanded={showAll}
               onClick={() => setShowAll((current) => !current)}
             >
-              {showAll ? <ChevronUp size={15} strokeWidth={1.8} aria-hidden /> : <ChevronDown size={15} strokeWidth={1.8} aria-hidden />}
+              <DisclosureChevron expanded={showAll} direction="reveal" />
               {showAll
                 ? t('turnChanges.collapseFiles')
                 : t(hiddenCount === 1 ? 'turnChanges.showMoreFiles.one' : 'turnChanges.showMoreFiles.other', { count: hiddenCount })}
@@ -144,7 +145,7 @@ function TurnPatchButton({
   return (
     <Button
       variant="ghost"
-      size="sm"
+      size="toolbar"
       disabled={pending || applicable.length === 0}
       onClick={() => { void handleClick() }}
     >
@@ -203,7 +204,7 @@ function TurnFileRow({
           />
         </span>
         <span className={styles.chevron}>
-          {expanded ? <ChevronUp size={15} strokeWidth={1.8} /> : <ChevronDown size={15} strokeWidth={1.8} />}
+          <DisclosureChevron expanded={expanded} />
         </span>
       </div>
       {expanded && (

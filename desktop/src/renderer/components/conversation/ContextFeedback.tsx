@@ -48,11 +48,21 @@ export function ContextFeedback({
                         : `${context.path.split(/[\\/]/).pop()}:${context.startLine}–${context.endLine} (${context.side === 'left' ? '−' : '+'})`}
                   </span>
                   {onEdit && <IconButton
-                    icon={<Pencil size={13} />}
+                    size={24}
+                    radius={6}
+                    icon={<Pencil size={14} />}
                     label={t('composer.context.edit')}
+                    tooltipLabel={t('composer.context.edit')}
                     onClick={() => setEditing(context.id)}
                   />}
-                  {onRemove && <IconButton icon={<X size={13} />} label={t('composer.context.remove')} onClick={() => onRemove(context.id)} />}
+                  {onRemove && <IconButton
+                    size={24}
+                    radius={6}
+                    icon={<X size={14} />}
+                    label={t('composer.context.remove')}
+                    tooltipLabel={t('composer.context.remove')}
+                    onClick={() => onRemove(context.id)}
+                  />}
 
                 </div>
                 {context.kind === 'pageReference' && (
@@ -100,7 +110,14 @@ export function ContextFeedback({
           </ol>
         )}
       </PillDropdown>
-      {onRemove && <IconButton icon={<X size={12} />} label={t('composer.context.removeFeedback')} onClick={() => contexts.forEach(context => onRemove(context.id))} />}
+      {onRemove && <IconButton
+        size={24}
+        radius={6}
+        icon={<X size={14} />}
+        label={t('composer.context.removeFeedback')}
+        tooltipLabel={t('composer.context.removeFeedback')}
+        onClick={() => contexts.forEach(context => onRemove(context.id))}
+      />}
 
     </div>
   )

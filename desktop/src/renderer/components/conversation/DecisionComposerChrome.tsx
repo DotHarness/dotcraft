@@ -90,6 +90,7 @@ export function DecisionSubmitButton({
   return (
     <Button
       variant="primary"
+      size="sm"
       onClick={onClick}
       disabled={disabled}
     >

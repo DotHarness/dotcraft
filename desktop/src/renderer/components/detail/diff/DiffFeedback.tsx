@@ -129,16 +129,22 @@ export function DiffFeedbackProvider({
                 {entry.endLine}
               </span>
               <IconButton
-                icon={<Pencil size={13} />}
+                size={24}
+                radius={6}
+                icon={<Pencil size={14} />}
                 label={t('composer.context.edit')}
+                tooltipLabel={t('composer.context.edit')}
                 onClick={() => {
                   setDraft(entry)
                   setEditing(true)
                 }}
               />
               <IconButton
-                icon={<X size={13} />}
+                size={24}
+                radius={6}
+                icon={<X size={14} />}
                 label={t('composer.context.remove')}
+                tooltipLabel={t('composer.context.remove')}
                 onClick={() => {
                   if (threadId)
                     useComposerContextStore

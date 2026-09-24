@@ -4,6 +4,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import type { ThreadToolAction } from '../../utils/threadToolDisplay'
+import { Button } from '../ui/Button'
 
 interface ThreadActionCardProps {
   action: ThreadToolAction
@@ -44,13 +45,9 @@ export const ThreadActionCard = memo(function ThreadActionCard({ action }: Threa
           <span style={subtitleStyle}>{subtitle}</span>
         </span>
       </button>
-      <button
-        type="button"
-        onClick={openChat}
-        style={openButtonStyle}
-      >
+      <Button variant="outlineGhost" size="toolbar" onClick={openChat} style={{ flexShrink: 0 }}>
         {t('threadActionCard.openChat')}
-      </button>
+      </Button>
     </div>
   )
 })
@@ -121,20 +118,4 @@ const subtitleStyle: CSSProperties = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap'
-}
-
-const openButtonStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '6px',
-  minHeight: '32px',
-  padding: '5px 14px',
-  borderRadius: '8px',
-  border: '1px solid var(--border-default)',
-  background: 'transparent',
-  color: 'var(--text-primary)',
-  cursor: 'pointer',
-  fontSize: 'var(--conversation-secondary-size)',
-  fontWeight: 500,
-  flexShrink: 0
 }

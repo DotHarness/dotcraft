@@ -1,13 +1,15 @@
 import { useMemo, useState, type CSSProperties } from 'react'
-import { ChevronDown, ChevronUp, Lightbulb } from 'lucide-react'
+import { Lightbulb } from 'lucide-react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { ConversationItem } from '../../types/conversation'
 import { extractPartialTodos } from '../../stores/conversationStore'
 import { extractPartialJsonStringValue } from '../../utils/toolCallDisplay'
 import { parsePlanMarkdown } from '../../utils/planMarkdown'
 import { MarkdownRenderer } from './MarkdownRenderer'
-import { CompactIconButton } from '../ui/CompactIconButton'
+import { Button } from '../ui/Button'
 import { CopyButton } from '../ui/CopyButton'
+import { DisclosureChevron } from '../ui/DisclosureChevron'
+import { IconButton } from '../ui/IconButton'
 import { PlanTodoStatusIcon } from '../plan/PlanTodoStatusIcon'
 
 interface CreatePlanCardProps {
@@ -66,9 +68,14 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
   ) : null
 
   const expandButton = canExpand ? (
-    <CompactIconButton
-      icon={expanded ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
+    <IconButton
+      size={24}
+      radius={6}
+      icon={<DisclosureChevron expanded={expanded} direction="reveal" />}
       label={translate(locale, expanded ? 'toolCall.plan.collapseAria' : 'toolCall.plan.expandAria')}
+      tooltipLabel={translate(locale, expanded ? 'toolCall.plan.collapseAria' : 'toolCall.plan.expandAria')}
+      tooltipPlacement="top"
+      aria-expanded={expanded}
       onClick={() => {
         setExpanded((v) => !v)
       }}
@@ -159,21 +166,16 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
             <MarkdownRenderer content={parsed.content} containOverflow />
           </div>
           {!expanded && (
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => {
                 setExpanded(true)
               }}
-              style={{
-                ...expandToggleStyle,
-                position: 'absolute',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                bottom: 0
-              }}
+              style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 0 }}
             >
               {translate(locale, 'toolCall.plan.expandButton')}
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -278,17 +280,6 @@ function normalizeTodoStatus(value: unknown): PlanTodo['status'] {
     return value
   }
   return 'pending'
-}
-
-const expandToggleStyle: CSSProperties = {
-  border: '1px solid var(--text-primary)',
-  borderRadius: '999px',
-  padding: '4px 10px',
-  background: 'var(--text-primary)',
-  color: 'var(--bg-primary)',
-  cursor: 'pointer',
-  fontSize: 'var(--conversation-secondary-size)',
-  fontWeight: 600
 }
 
 function planMarkdownFrameStyle(expanded: boolean): CSSProperties {

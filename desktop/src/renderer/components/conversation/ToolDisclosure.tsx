@@ -1,5 +1,5 @@
-import { ChevronRight } from 'lucide-react'
 import { useRef, type JSX, type ReactNode } from 'react'
+import { DisclosureChevron } from '../ui/DisclosureChevron'
 
 interface ToolDisclosureProps {
   expanded: boolean
@@ -100,11 +100,10 @@ export function ToolCollapseChevron({
     <span
       className="dc-tool-chevron"
       data-testid="tool-disclosure-icon"
-      data-expanded={expanded ? 'true' : undefined}
       data-visible={visible ? 'true' : undefined}
       aria-hidden={visible === false}
     >
-      <ChevronRight size={13} strokeWidth={1.8} aria-hidden />
+      <DisclosureChevron expanded={expanded} />
     </span>
   )
 }

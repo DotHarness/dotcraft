@@ -1,6 +1,6 @@
 import { ContextPreview } from './ContextPreview'
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { FileText, X } from 'lucide-react'
+import { FileText } from 'lucide-react'
 import {
   canRestorePastedText,
   type PastedTextContext,
@@ -8,7 +8,7 @@ import {
 import { useComposerContextStore } from '../../stores/composerContextStore'
 import { useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
-import { IconButton } from '../ui/IconButton'
+import { AttachmentRemoveButton } from './AttachmentRemoveButton'
 import { ComposerFeedbackAttachments } from './ComposerFeedbackAttachments'
 import type { RichInputAreaHandle } from './RichInputArea'
 import type { usePastedText } from './usePastedText'
@@ -117,12 +117,7 @@ export function ComposerContextAttachments({
                 </span>
               )}
             </div>
-            <IconButton
-              icon={<X size={12} />}
-              size={18}
-              label={t('composer.context.remove')}
-              onClick={() => remove(context.id)}
-            />
+            <AttachmentRemoveButton label={t('composer.context.remove')} onRemove={() => remove(context.id)} />
           </div>
         ))}
       {pastedText.pendingPastes.map((paste) => (
@@ -149,12 +144,7 @@ export function ComposerContextAttachments({
               </span>
             )}
           </div>
-          <IconButton
-            icon={<X size={12} />}
-            size={18}
-            label={t('composer.context.remove')}
-            onClick={() => pastedText.discard(paste.id)}
-          />
+          <AttachmentRemoveButton label={t('composer.context.remove')} onRemove={() => pastedText.discard(paste.id)} />
         </div>
       ))}
       {active && (

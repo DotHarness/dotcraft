@@ -1,7 +1,7 @@
 import { Children, forwardRef, type ButtonHTMLAttributes, type JSX, type ReactNode } from 'react'
 import { Spinner } from './Spinner'
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent' | 'outline'
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent' | 'outline' | 'outlineGhost'
 
 export type ButtonSize = 'default' | 'sm' | 'icon' | 'iconSm' | 'prominent' | 'toolbar'
 

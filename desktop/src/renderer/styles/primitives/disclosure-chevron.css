@@ -1,0 +1,12 @@
+.dc-disclosure-chevron {
+  flex-shrink: 0;
+  transition: transform var(--duration-expand) var(--ease-expand);
+}
+
+.dc-disclosure-chevron[data-expanded][data-direction="inline"] {
+  transform: rotate(90deg);
+}
+
+.dc-disclosure-chevron[data-expanded][data-direction="reveal"] {
+  transform: rotate(180deg);
+}

@@ -9,6 +9,7 @@ import { useViewerTabStore } from '../../stores/viewerTabStore'
 import type { FileDiff } from '../../types/toolCall'
 import { toAbsoluteWorkspacePath } from '../../utils/workspacePaths'
 import { OpenTargetButton } from './OpenTargetButton'
+import { Button } from '../ui/Button'
 
 interface TurnArtifactsProps {
   turnId: string
@@ -120,31 +121,19 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
               </span>
             </button>
             {isHtml ? (
-              <button
-                type="button"
+              <Button
+                variant="outlineGhost"
+                size="toolbar"
                 aria-label={t('turnArtifacts.previewAria', { file: name })}
+                iconLeft={<ExternalLink size={14} strokeWidth={1.8} />}
                 onClick={() => { void openLocalHtml(diff) }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  minHeight: '32px',
-                  padding: '5px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-default)',
-                  background: 'transparent',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                  fontSize: 'var(--conversation-secondary-size)',
-                  fontWeight: 500,
-                  flexShrink: 0
-                }}
+                style={{ flexShrink: 0 }}
               >
-                <ExternalLink size={15} strokeWidth={1.8} aria-hidden />
                 {t('turnArtifacts.preview')}
-              </button>
+              </Button>
             ) : (
               <OpenTargetButton
+                variant="outlineGhost"
                 targetPath={absPath}
                 tooltipLabel={t('turnArtifacts.openTitle', { path: diff.filePath })}
                 menuAriaLabel={t('turnArtifacts.openMenuAria')}

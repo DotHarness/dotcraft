@@ -38,6 +38,7 @@
 @import "./primitives/quiet-action.css";
 @import "./primitives/message-state.css";
 @import "./primitives/icon-button.css";
+@import "./primitives/disclosure-chevron.css";
 @import "./primitives/toast.css";
 @import "./primitives/scroll-region.css";
 @import "./primitives/status-indicator.css";

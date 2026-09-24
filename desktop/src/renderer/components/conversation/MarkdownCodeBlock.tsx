@@ -1,8 +1,8 @@
 import { Fragment, useMemo, useState, type HTMLAttributes } from 'react'
 import { WrapText } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import { CompactIconButton } from '../ui/CompactIconButton'
 import { CopyButton } from '../ui/CopyButton'
+import { IconButton } from '../ui/IconButton'
 import { LineSpans } from '../code/CodeSpans'
 import {
   fileCacheKey,
@@ -94,10 +94,15 @@ export function PlainCodeBlock({
           transition: 'opacity 120ms ease'
         }}
       >
-        <CompactIconButton
+        <IconButton
+          size={24}
+          radius={6}
           icon={<WrapText size={14} aria-hidden />}
           label={wrapLabel}
+          tooltipLabel={wrapLabel}
+          tooltipPlacement="top"
           active={wordWrap}
+          activeTone="neutral"
           aria-pressed={wordWrap}
           onClick={() => setWordWrap((current) => !current)}
         />
