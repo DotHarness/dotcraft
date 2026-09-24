@@ -22306,6 +22306,38 @@
       "variants": []
     },
     {
+      "id": "core.TurnDiffUpdatedNotification",
+      "name": "TurnDiffUpdatedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/TurnDiffUpdatedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "diff",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "turnId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.TurnEnqueueParams",
       "name": "TurnEnqueueParams",
       "module": "core",
@@ -30056,6 +30088,22 @@
       "kind": "notification",
       "direction": "serverToClient",
       "paramsType": "core.TurnNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": null,
+      "scope": "thread",
+      "notificationOptOut": true,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "turn/diff/updated",
+      "descriptorMember": "TurnDiffUpdated",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.TurnDiffUpdatedNotification",
       "resultType": "core.RpcEmpty",
       "module": "core",
       "capability": null,

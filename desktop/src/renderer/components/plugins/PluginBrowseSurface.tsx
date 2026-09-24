@@ -1,7 +1,7 @@
 import { RemoteDesktopPluginControls } from './RemoteDesktopPluginControls'
 import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { AtSign, Ellipsis, Settings, Tags, Trash2 } from 'lucide-react'
+import { AtSign, Settings, Tags, Trash2 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import type { MarketplaceEntry, PluginDiagnosticEntry, PluginEntry } from '../../stores/pluginStore'
 import type { PluginCatalogSurface } from '../../stores/uiStore'
@@ -18,7 +18,7 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { RefreshIcon } from '../ui/AppIcons'
 import { Button } from '../ui/Button'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
-import { IconButton } from '../ui/IconButton'
+import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { SkeletonCatalogGrid } from '../ui/Skeleton'
 import { SplitButton, type SplitButtonItem } from '../ui/SplitButton'
 import { AddMarketplaceDialog } from './AddMarketplaceDialog'
@@ -261,12 +261,9 @@ function MarketplaceSectionHeader({
       <div style={{ flex: 1 }} />
       {marketplace.removable && (
         <span style={revealedActionStyle(actionsVisible)}>
-          <IconButton
+          <MoreActionsButton
             label={t('plugins.marketplace.actions')}
-            tooltipLabel={t('plugins.marketplace.actions')}
-            tooltipPlacement="bottom"
-            aria-haspopup="menu"
-            aria-expanded={position != null}
+            open={position != null}
             size={28}
             onFocus={() => setActionFocused(true)}
             onBlur={() => setActionFocused(false)}
@@ -274,7 +271,6 @@ function MarketplaceSectionHeader({
               const rect = event.currentTarget.getBoundingClientRect()
               setPosition({ x: rect.right - 200, y: rect.bottom + 4 })
             }}
-            icon={<Ellipsis size={15} aria-hidden />}
           />
         </span>
       )}

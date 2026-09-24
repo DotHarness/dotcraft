@@ -18,9 +18,11 @@ import { parseUserMessageSegments, segmentsFromNativeInputParts } from './parseU
 import type { ConversationItem, InputPart, UserMessageImageRef } from '../../types/conversation'
 import { openConversationLink, openImagePathInViewer } from '../../utils/conversationDeepLink'
 import { stripSystemReminderBlocks } from '../../utils/systemReminderText'
+import { formatMessageTime } from '../../utils/messageTime'
 import { resolveLocalReferencePath, resolveSkillReferencePath } from '../../utils/referencePaths'
 import { addToast } from '../../stores/toastStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import { ReferencePathContextMenu } from './ReferencePathContextMenu'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { Button } from '../ui/Button'
@@ -82,8 +84,6 @@ export function UserMessageBlock({
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [hovered, setHovered] = useState(false)
   const [focusedWithin, setFocusedWithin] = useState(false)
-  const [editButtonHovered, setEditButtonHovered] = useState(false)
-  const [editButtonFocused, setEditButtonFocused] = useState(false)
   const [hydratedImages, setHydratedImages] = useState<Array<{ url: string; absolutePath?: string }>>(
     (imageDataUrls ?? []).map((url) => ({ url }))
   )
@@ -101,7 +101,6 @@ export function UserMessageBlock({
   const textSegments = segments
   const sentTime = formatMessageTime(createdAt)
   const actionsVisible = hovered || focusedWithin
-  const editButtonChromeVisible = editButtonHovered || editButtonFocused
   const isGuidance = deliveryMode === 'guidance'
 
   useEffect(() => {
@@ -335,7 +334,7 @@ export function UserMessageBlock({
                     color: 'var(--text-secondary)',
                     cursor: !remoteWorkspaceActive && workspacePath && activeThreadId ? 'pointer' : 'default',
                     font: 'inherit',
-                    fontSize: '12px',
+                    fontSize: 'var(--conversation-secondary-size)',
                     lineHeight: 1.2
                   }}
                 >
@@ -384,7 +383,7 @@ export function UserMessageBlock({
               justifyContent: 'flex-end',
               gap: '6px',
               color: 'var(--text-tertiary)',
-              fontSize: '11px',
+              fontSize: 'var(--conversation-meta-size)',
               lineHeight: 1,
               userSelect: 'none'
             }}
@@ -403,41 +402,21 @@ export function UserMessageBlock({
               </ActionTooltip>
             )}
             {editable && onEdit && (
-              <ActionTooltip
+              <IconButton
+                size={24}
+                radius={6}
+                icon={<Pencil size={14} aria-hidden />}
                 label={t('conversation.editMessage')}
-                placement="top"
-                wrapperStyle={{
+                tooltipLabel={t('conversation.editMessage')}
+                tooltipPlacement="top"
+                tooltipWrapperStyle={{
                   display: 'inline-flex',
                   opacity: actionsVisible ? 1 : 0,
                   pointerEvents: actionsVisible ? 'auto' : 'none',
                   transition: 'opacity 120ms ease'
                 }}
-              >
-                <button
-                  type="button"
-                  onClick={onEdit}
-                  aria-label={t('conversation.editMessage')}
-                  onMouseEnter={() => setEditButtonHovered(true)}
-                  onMouseLeave={() => setEditButtonHovered(false)}
-                  onFocus={() => setEditButtonFocused(true)}
-                  onBlur={() => setEditButtonFocused(false)}
-                  style={{
-                    width: '24px',
-                    height: '24px',
-                    borderRadius: '6px',
-                    border: '1px solid transparent',
-                    background: editButtonChromeVisible ? 'var(--bg-tertiary)' : 'transparent',
-                    color: editButtonChromeVisible ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    transition: 'opacity 120ms ease, color 120ms ease, background 120ms ease, border-color 120ms ease'
-                  }}
-                >
-                  <Pencil size={14} aria-hidden />
-                </button>
-              </ActionTooltip>
+                onClick={onEdit}
+              />
             )}
             <MessageCopyButton
               getText={() => displayText}
@@ -461,31 +440,6 @@ export function UserMessageBlock({
       )}
     </>
   )
-}
-
-function formatMessageTime(createdAt?: string): { label: string; title: string } | null {
-  if (!createdAt) return null
-  const date = new Date(createdAt)
-  if (!Number.isFinite(date.getTime())) return null
-
-  return {
-    label: new Intl.DateTimeFormat(undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      hourCycle: 'h23'
-    }).format(date),
-    title: new Intl.DateTimeFormat(undefined, {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-      hourCycle: 'h23'
-    }).format(date)
-  }
 }
 
 function SkillRefChip({ skillName }: { skillName: string }): JSX.Element {
@@ -519,8 +473,6 @@ function SkillRefChip({ skillName }: { skillName: string }): JSX.Element {
         onContextMenu={(event) => { void handleContextMenu(event) }}
         style={{
           margin: '0 4px',
-          fontSize: '12px',
-          lineHeight: 1.25,
           maxWidth: 'var(--inline-reference-max-width)'
         }}
       >
@@ -547,8 +499,6 @@ function CommandRefChip({ commandText }: { commandText: string }): JSX.Element {
         className="dc-ref dc-ref-command"
         style={{
           margin: '0 4px',
-          fontSize: '12px',
-          lineHeight: 1.25,
           maxWidth: 'var(--inline-reference-max-width)'
         }}
       >
@@ -607,8 +557,6 @@ function FileRefChip({
         }}
         style={{
           margin: '0 4px',
-          fontSize: '12px',
-          lineHeight: 1.25,
           maxWidth: 'var(--inline-reference-max-width)',
           cursor: canOpen ? 'pointer' : 'default',
           fontFamily: 'inherit'

@@ -21,10 +21,21 @@ export function ContextFeedback({
   const t = useT()
   const [editing, setEditing] = useState<string | null>(null)
   if (!contexts.length) return null
-  const label =
-    contexts.length === 1
+  const comments = contexts.filter((context) => context.kind === 'diffAnnotation').length
+  const annotations = contexts.length - comments
+  const commentsLabel =
+    comments === 1
+      ? t('composer.context.commentSingle')
+      : t('composer.context.commentCount', { count: comments })
+  const annotationsLabel =
+    annotations === 1
       ? t('composer.context.feedbackSingle')
-      : t('composer.context.feedbackCount', { count: contexts.length })
+      : t('composer.context.feedbackCount', { count: annotations })
+  const label = !annotations
+    ? commentsLabel
+    : !comments
+      ? annotationsLabel
+      : t('composer.context.mixedSummary', { annotations: annotationsLabel, comments: commentsLabel })
   return (
     <div className="dc-feedback-attachments">
       <PillDropdown
@@ -48,11 +59,21 @@ export function ContextFeedback({
                         : `${context.path.split(/[\\/]/).pop()}:${context.startLine}–${context.endLine} (${context.side === 'left' ? '−' : '+'})`}
                   </span>
                   {onEdit && <IconButton
-                    icon={<Pencil size={13} />}
+                    size={24}
+                    radius={6}
+                    icon={<Pencil size={14} />}
                     label={t('composer.context.edit')}
+                    tooltipLabel={t('composer.context.edit')}
                     onClick={() => setEditing(context.id)}
                   />}
-                  {onRemove && <IconButton icon={<X size={13} />} label={t('composer.context.remove')} onClick={() => onRemove(context.id)} />}
+                  {onRemove && <IconButton
+                    size={24}
+                    radius={6}
+                    icon={<X size={14} />}
+                    label={t('composer.context.remove')}
+                    tooltipLabel={t('composer.context.remove')}
+                    onClick={() => onRemove(context.id)}
+                  />}
 
                 </div>
                 {context.kind === 'pageReference' && (
@@ -100,7 +121,14 @@ export function ContextFeedback({
           </ol>
         )}
       </PillDropdown>
-      {onRemove && <IconButton icon={<X size={12} />} label={t('composer.context.removeFeedback')} onClick={() => contexts.forEach(context => onRemove(context.id))} />}
+      {onRemove && <IconButton
+        size={24}
+        radius={6}
+        icon={<X size={14} />}
+        label={t(annotations ? 'composer.context.removeFeedback' : 'composer.context.removeComments')}
+        tooltipLabel={t(annotations ? 'composer.context.removeFeedback' : 'composer.context.removeComments')}
+        onClick={() => contexts.forEach(context => onRemove(context.id))}
+      />}
 
     </div>
   )

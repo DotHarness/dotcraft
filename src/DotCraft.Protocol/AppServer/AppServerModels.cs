@@ -1545,6 +1545,19 @@ public sealed class TurnNotification : ExtensibleJsonObject
     public string? Reason { get; init; }
 }
 
+/// <summary>Latest complete snapshot of a Turn's aggregated file-edit diff.</summary>
+public sealed class TurnDiffUpdatedNotification : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")]
+    public required string ThreadId { get; init; }
+
+    [JsonPropertyName("turnId")]
+    public required string TurnId { get; init; }
+
+    [JsonPropertyName("diff")]
+    public required string Diff { get; init; }
+}
+
 /// <summary>Item lifecycle notification payload.</summary>
 public sealed class ItemNotification : ExtensibleJsonObject
 {

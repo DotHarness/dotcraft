@@ -11,5 +11,5 @@ export function SystemStatusDivider({ labelKey }: { labelKey: string }): JSX.Ele
   const t = useT()
   const label = t(labelKey)
   const Icon = ICONS[labelKey] ?? ChevronsDown
-  return <NoticeDivider ariaLabel={label} title={label} icon={<Icon size={12} aria-hidden />} active />
+  return <NoticeDivider ariaLabel={label} title={label} icon={<Icon size={14} aria-hidden />} active />
 }

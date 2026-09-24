@@ -184,7 +184,7 @@ function badgeStyle(open: boolean, active: boolean): CSSProperties {
         ? composerFooterControlHoverBackground
         : 'transparent',
     color: 'var(--composer-footer-highlight, var(--text-primary))',
-    fontSize: '12px',
+    fontSize: 'var(--type-ui-size)',
     lineHeight: 1.0,
     whiteSpace: 'nowrap',
     boxSizing: 'border-box',

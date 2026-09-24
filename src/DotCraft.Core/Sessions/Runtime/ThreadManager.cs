@@ -265,6 +265,8 @@ internal sealed class TurnExecutionState : IDisposable
 
     public SemaphoreSlim GoalAccountingLock { get; } = new(1, 1);
 
+    public TurnDiffTracker DiffTracker { get; } = new();
+
     public void EnqueueGoalSteering(string text)
     {
         if (string.IsNullOrWhiteSpace(text))

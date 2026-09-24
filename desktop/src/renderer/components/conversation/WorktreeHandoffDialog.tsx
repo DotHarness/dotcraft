@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowRightLeft, Check, CheckCircle2, Circle, X } from 'lucide-react'
+import { ArrowRightLeft, Check, CheckCircle2, Circle } from 'lucide-react'
 import { Spinner } from '../ui/Spinner'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { addToast } from '../../stores/toastStore'
 import type { Thread } from '../../types/thread'
 import { Button } from '../ui/Button'
-import { IconButton } from '../ui/IconButton'
+import { DialogCloseButton } from '../ui/DialogCloseButton'
 import { Input } from '../ui/Input'
 
 type HandoffMode = 'local' | 'worktree'
@@ -318,13 +318,7 @@ export function WorktreeHandoffDialog({
       }}
     >
       <div style={modalStyle} onMouseDown={(event) => event.stopPropagation()}>
-        <IconButton
-          icon={<X size={17} strokeWidth={2} aria-hidden />}
-          label={t('workspaceFooter.close')}
-          size={30}
-          style={closeButtonPositionStyle}
-          onClick={handleClose}
-        />
+        <DialogCloseButton label={t('workspaceFooter.close')} onClose={handleClose} style={closeButtonPositionStyle} />
         <div style={phase === 'success' ? successIconShellStyle : iconShellStyle}>
           {phase === 'success' ? (
             <Check size={28} strokeWidth={2.2} aria-hidden />
@@ -451,17 +445,7 @@ const modalStyle: CSSProperties = {
 const closeButtonPositionStyle: CSSProperties = {
   position: 'absolute',
   top: '16px',
-  right: '16px',
-  width: '30px',
-  height: '30px',
-  border: 'none',
-  borderRadius: '8px',
-  background: 'transparent',
-  color: 'var(--text-dimmed)',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  cursor: 'pointer'
+  right: '16px'
 }
 
 const iconShellStyle: CSSProperties = {

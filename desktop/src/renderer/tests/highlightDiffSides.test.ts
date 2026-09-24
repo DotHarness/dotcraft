@@ -6,8 +6,6 @@ import type { FileDiff } from '../types/toolCall'
 function diff(partial: Partial<FileDiff>): FileDiff {
   return {
     filePath: 'F:/work/src/Sample.cs',
-    turnId: 'turn-1',
-    turnIds: ['turn-1'],
     additions: 1,
     deletions: 1,
     status: 'written',

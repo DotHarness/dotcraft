@@ -25,8 +25,6 @@ function makeItem(
 function makeDiff(path: string, isNewFile: boolean): FileDiff {
   return {
     filePath: path,
-    turnId: 'turn-1',
-    turnIds: ['turn-1'],
     additions: 0,
     deletions: 0,
     diffHunks: [],
@@ -51,11 +49,11 @@ describe('formatToolGroupLabel write dedup', () => {
       makeItem('WriteFile', '1', 'write', 'src/new.ts'),
       makeItem('EditFile', '2', 'edit', 'src/new.ts')
     ]
-    const changedFiles = new Map<string, FileDiff>([
-      ['src/new.ts', makeDiff('src/new.ts', true)]
+    const itemDiffs = new Map<string, FileDiff>([
+      ['1', makeDiff('src/new.ts', true)]
     ])
 
-    const label = formatToolGroupLabel('write', items, 'en', changedFiles)
+    const label = formatToolGroupLabel('write', items, 'en', itemDiffs)
     expect(label).toBe('Created 1 files')
   })
 
@@ -67,12 +65,12 @@ describe('formatToolGroupLabel write dedup', () => {
       makeItem('WriteFile', '4', 'write', 'src/c.ts'),
       makeItem('EditFile', '5', 'edit', 'src/c.ts')
     ]
-    const changedFiles = new Map<string, FileDiff>([
-      ['src/b.ts', makeDiff('src/b.ts', false)],
-      ['src/c.ts', makeDiff('src/c.ts', true)]
+    const itemDiffs = new Map<string, FileDiff>([
+      ['3', makeDiff('src/b.ts', false)],
+      ['4', makeDiff('src/c.ts', true)]
     ])
 
-    const label = formatToolGroupLabel('write', items, 'en', changedFiles)
+    const label = formatToolGroupLabel('write', items, 'en', itemDiffs)
     expect(label).toBe('Created 1, modified 2 files')
   })
 })

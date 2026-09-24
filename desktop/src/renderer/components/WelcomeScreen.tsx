@@ -3,6 +3,7 @@ import { isWorkspaceLockedSwitchError } from '../../shared/workspaceSwitchErrors
 import type { AppLocale } from '../../shared/locales'
 import { useLocale, useSetUiLocale, useT } from '../contexts/LocaleContext'
 import { ActionTooltip } from './ui/ActionTooltip'
+import { SegmentedControl } from './settings/ui/SegmentedControl'
 import { DotCraftFullLogo } from './ui/DotCraftLogo'
 import { elementToLaunchLogoRect, type LaunchLogoRect } from './WorkspaceLaunchTransition'
 import { ChevronRight, FolderOpen, MessageCircle } from 'lucide-react'
@@ -146,48 +147,18 @@ export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Elem
           lineHeight: 'var(--type-secondary-line-height)',
           color: 'var(--text-dimmed)'
         }}>{t('welcome.language')}</span>
-        <div
-          style={{
-            display: 'inline-flex',
-            border: '1px solid var(--border-default)',
-            borderRadius: '999px',
-            background: 'var(--bg-secondary)',
-            overflow: 'hidden'
+        <SegmentedControl<'en' | 'zh-Hans'>
+          value={locale === 'zh-Hans' ? 'zh-Hans' : 'en'}
+          options={[
+            { value: 'en', label: 'EN' },
+            { value: 'zh-Hans', label: '中文' }
+          ]}
+          onChange={(value) => {
+            void handleLocaleSwitch(value)
           }}
-        >
-          {(
-            [
-              ['en', 'EN'],
-              ['zh-Hans', '中文']
-            ] as const
-          ).map(([value, label]) => {
-            const active = locale === value
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => {
-                  void handleLocaleSwitch(value)
-                }}
-                disabled={switchingLocale || loading}
-                style={{
-                  border: 'none',
-                  background: active ? 'var(--accent)' : 'transparent',
-                  color: active ? 'var(--on-accent)' : 'var(--text-secondary)',
-                  padding: '6px 10px',
-                  fontSize: 'var(--type-secondary-size)',
-                  fontWeight: 'var(--type-ui-emphasis-weight)',
-                  lineHeight: 'var(--type-secondary-line-height)',
-                  cursor: switchingLocale || loading ? 'default' : 'pointer',
-                  opacity: switchingLocale || loading ? 0.7 : 1
-                }}
-                aria-label={label}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </div>
+          disabled={switchingLocale || loading}
+          ariaLabel={t('welcome.language')}
+        />
       </div>
 
       <div className="welcome-logo-focus" aria-hidden="true" ref={logoRef}>

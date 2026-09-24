@@ -7,6 +7,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import type { ThreadGoal } from '../types/thread'
 import type { FileDiff } from '../types/toolCall'
+import type { TurnDiff } from '../types/turnDiff'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const appServerSendRequest = vi.fn()
@@ -47,11 +48,9 @@ function makeGoal(threadId: string, objective: string, createdAt: string): Threa
   }
 }
 
-function makeDiff(filePath: string, turnId: string): FileDiff {
+function makeDiff(filePath: string): FileDiff {
   return {
     filePath,
-    turnId,
-    turnIds: [turnId],
     additions: 1,
     deletions: 0,
     status: 'written',
@@ -68,6 +67,11 @@ function makeDiff(filePath: string, turnId: string): FileDiff {
       }
     ]
   }
+}
+
+function turnDiffsOf(turnId: string, diff: FileDiff): Map<string, TurnDiff> {
+  const row = { key: `${turnId}::${diff.filePath}`, turnId, diff, patchText: '', truncated: false }
+  return new Map([[turnId, { turnId, source: 'history' as const, files: [row] }]])
 }
 
 function completedToolTurn(
@@ -387,9 +391,7 @@ describe('MessageStream', () => {
         completedToolTurn('turn-3', 'src/recent-3.ts'),
         completedToolTurn('turn-4', 'src/recent-4.ts')
       ],
-      changedFiles: new Map([
-        ['docs/old-artifact.md', makeDiff('docs/old-artifact.md', 'turn-1')]
-      ]),
+      turnDiffs: turnDiffsOf('turn-1', makeDiff('docs/old-artifact.md')),
       turnStatus: 'idle',
       activeTurnId: null
     })

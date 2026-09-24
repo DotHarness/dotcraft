@@ -5,6 +5,7 @@ import type { SystemDetailTab } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
+import { latestTurnDiff, turnPatchTotals } from '../../stores/turnDiffs'
 import { FilePlus2, FolderOpen, ListChecks, SquareTerminal, Plus, X, Globe, PanelRight, MousePointer2, Bot, Workflow } from 'lucide-react'
 import { ChangesTab } from '../detail/ChangesTab'
 import { PlanTab } from '../detail/PlanTab'
@@ -68,9 +69,7 @@ export function DetailPanel({
   const closeViewerTabInStore = useViewerTabStore((s) => s.closeTab)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
 
-  const changedFiles = useConversationStore((s) => s.changedFiles)
-
-  const changedFileCount = changedFiles.size
+  const fileCount = useConversationStore((s) => turnPatchTotals(latestTurnDiff(s.turnDiffs, s.turns)?.files ?? []).files)
   const runningSubagentCount = useSubAgentStore((s) =>
     activeThreadId
       ? (s.childrenByParent.get(activeThreadId) ?? []).filter(isSubAgentChildRunning).length
@@ -146,7 +145,7 @@ export function DetailPanel({
 
   const handleAddTabAction = (action: AddTabMenuAction | null): void => {
     if (!action) return
-    if (remoteWorkspace && (action === 'openFile' || action === 'newTerminal' || action === 'newChanges')) {
+    if (remoteWorkspace && (action === 'openFile' || action === 'newTerminal')) {
       return
     }
     performAddTabAction(action, { threadId: activeThreadId, workspacePath, t })
@@ -197,7 +196,7 @@ export function DetailPanel({
               action: 'newChanges' as const,
               label: t('detailPanel.tabChanges'),
               shortcut: fmt(ACTION_SHORTCUTS.viewChanges),
-              enabled: !remoteWorkspace
+              enabled: true
             }]),
         ...(openSystemTabs.includes('plan')
           ? []
@@ -226,7 +225,7 @@ export function DetailPanel({
     changes: {
       label: t('detailPanel.tabChanges'),
       icon: <FilePlus2 size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />,
-      badge: changedFileCount > 0 ? changedFileCount : undefined
+      badge: fileCount > 0 ? fileCount : undefined
     },
     plan: {
       label: t('detailPanel.tabPlan'),
@@ -321,7 +320,7 @@ export function DetailPanel({
             onClick={() => {
               void handleOpenAddTabMenu()
             }}
-            icon={<Plus size={14} aria-hidden style={{ display: 'block' }} />}
+            icon={<Plus size={16} aria-hidden style={{ display: "block" }} />}
           />
         </div>
 
@@ -365,7 +364,7 @@ export function DetailPanel({
             remoteWorkspace={remoteWorkspace}
           />
         )}
-        {activeDetailTab.kind === 'system' && activeDetailTab.id === 'changes' && !remoteWorkspace && (
+        {activeDetailTab.kind === 'system' && activeDetailTab.id === 'changes' && (
           <ChangesTab workspacePath={workspacePath} />
         )}
         {activeDetailTab.kind === 'system' && activeDetailTab.id === 'plan' && <PlanTab />}

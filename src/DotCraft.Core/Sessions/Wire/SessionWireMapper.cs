@@ -197,6 +197,7 @@ public static class SessionWireMapper
             SessionEventType.UserInputResolved => "item/tool/requestUserInput/resolved",
             SessionEventType.SubAgentProgress => "subagent/progress",
             SessionEventType.UsageDelta => "item/usage/delta",
+            SessionEventType.TurnDiffUpdated => "turn/diff/updated",
             SessionEventType.SystemEvent => "system/event",
             _ => evt.EventType.ToString()
         };
@@ -366,6 +367,7 @@ public static class SessionWireMapper
             TurnCancelledPayload => "turnCancelled",
             TurnFailedPayload => "turnFailed",
             SubAgentProgressPayload => "subAgentProgress",
+            TurnDiffUpdatedPayload => "turnDiffUpdated",
             SystemEventPayload => "systemEvent",
             _ => null
         };

@@ -47,7 +47,7 @@ function createController(threadId: () => string | null): PetActivityController 
       pendingUserInput: conversation.pendingUserInput,
       streamingMessage: conversation.streamingMessage,
       streamingReasoning: conversation.streamingReasoning,
-      changedFiles: conversation.changedFiles,
+      turnDiffs: conversation.turnDiffs,
       readTurnId
     })
   }

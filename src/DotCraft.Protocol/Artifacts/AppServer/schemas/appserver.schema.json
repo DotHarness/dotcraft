@@ -18287,6 +18287,27 @@
         "sourceId"
       ]
     },
+    "TurnDiffUpdatedNotification": {
+      "title": "TurnDiffUpdatedNotification",
+      "type": "object",
+      "properties": {
+        "diff": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "diff",
+        "threadId",
+        "turnId"
+      ]
+    },
     "TurnEnqueueParams": {
       "title": "TurnEnqueueParams",
       "type": "object",

@@ -25,7 +25,7 @@ interface ConversationNavigationLocation {
   threadId: string | null
   detailVisible: boolean
   activeDetailTab: ActiveDetailTab
-  selectedChangedFile: string | null
+  selectedChangeKey: string | null
 }
 
 interface SettingsNavigationLocation {
@@ -149,7 +149,7 @@ export function captureAppNavigationLocation(): AppNavigationLocation {
       threadId: activeThreadId,
       detailVisible: ui.detailPanelPreferredVisible,
       activeDetailTab: ui.activeDetailTab,
-      selectedChangedFile: ui.selectedChangedFile
+      selectedChangeKey: ui.selectedChangeKey
     }
   }
 
@@ -305,7 +305,7 @@ function restoreLocation(location: AppNavigationLocation): void {
   if (location.kind === 'conversation') {
     useThreadStore.getState().setActiveThreadId(location.threadId)
     ui.setActiveMainView('conversation')
-    ui.selectChangedFile(location.selectedChangedFile)
+    ui.selectChangeKey(location.selectedChangeKey)
     if (location.activeDetailTab.kind === 'system') {
       ui.setActiveDetailTab(location.activeDetailTab.id, { reveal: false })
     } else if (location.activeDetailTab.kind === 'viewer' && location.threadId) {

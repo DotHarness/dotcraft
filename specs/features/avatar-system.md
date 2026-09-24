@@ -90,7 +90,7 @@ host can override one slot without touching the others.
 | `head` | Head top | Replaces the antenna and its status light | Existing hats and novelty objects live here. |
 | `face` | Brow band, a faceplate over the screen, or a rim site | Brow and rim items sit in front of the body behind the face marks; a faceplate replaces the face marks | Brow and rim items never paint on the white screen. Rim items sit on the blue rim outside the screen at one of two mount sites (section 6), combine with every hat, and are exclusive with brow items and faceplates because they share the face slot. A faceplate carries its own expression layers and stays visible at compact size because it defines the head silhouette. |
 | `hand` | Screen-left hand | Inside the left arm group | Shares the arm pivot; stows for laptop and question-sign work props. |
-| `back` | Behind the body | First layer inside the rig, plus an optional front layer drawn over the face and under the work props | Wings, capes, packs, rings, orbits, and auras. An orbit around the body, with or without a visible ring, renders its far half behind and its near half in front; bodies on the orbit exist in both layers and the shared phase animation shows the matching copy. Flat rings such as the halo stay behind. |
+| `back` | Behind the body | First layer inside the rig, plus an optional front layer drawn over the face and under the work props | Wings, capes, packs, rings, orbits, and auras. An orbit around the body, with or without a visible ring, renders its far half behind and its near half in front; bodies on the orbit exist in both layers and the shared phase animation shows the matching copy. Flat rings such as the halo stay behind. A creature that holds on to the robot draws its gripping claws, and anything it carries in front of the body such as a cloud, in the front layer. |
 | `skin` | Body and arm material | One material layer spans the torso and independently moving arms, under the screen and held props | Overlay skins retain the palette paint; paint skins replace it. Face marks keep the palette in both kinds. |
 
 Slot precedence for derivation and conflict resolution is `head > face > hand > back > skin`.
@@ -204,9 +204,12 @@ reduced-motion, and motion-off rules:
 - Animated gradient stops on a skin's paint for flowing color (holographic, energy).
 - CSS transforms on overlay groups clipped to the torso-and-arm silhouette for sheen sweeps.
 - CSS transforms on item groups with a declared pivot for wing flaps, cape sway, and a blade that
-  extends and retracts from its emitter; animated `fill` for a blade's color cycle.
+  extends and retracts from its emitter; animated `fill` for a blade's color cycle. A tail whips
+  through nested joint groups, each rotating on its own delay so the swing travels to the tip.
 - Opacity keyframes for glow pulses, flames, blinking nodes, and steam.
-- Static SVG filters (`feGaussianBlur`) for glow halos. Filters are never animated.
+- Static SVG filters (`feGaussianBlur`) for glow halos. Filters are never animated. A glow inside a
+  moving group is a radial gradient instead, because a filter under an animated transform is
+  recomputed on every frame.
 - Opacity phase loops that swap the behind-body and in-front copies of an orbiting body at the
   half-orbit boundary.
 
@@ -242,6 +245,9 @@ show the same static paint as before.
 ## 10. Paint Contract For New Items
 
 - Recognizable objects with natural colors, rounded silhouettes, and a white outer contour.
+- A creature is one silhouette: its head, body, and tail share a single white contour, so no outline
+  cuts across the neck; only limbs and props in front of it keep their own. Snouted creatures show
+  no nostrils, which read as a pig snout at avatar size; the silhouette carries the snout.
 - Every item attaches to the robot. It rests on the top edge, sits in the brow band or on the rim,
   is held at the hand, emerges from behind the body silhouette at a plausible anchor (the arm roots
   are its shoulders, the lower white edge its base, the antenna its crown), or is tied to it by a

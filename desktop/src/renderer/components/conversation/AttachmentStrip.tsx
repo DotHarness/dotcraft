@@ -7,6 +7,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { openConversationLink } from '../../utils/conversationDeepLink'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
+import { AttachmentRemoveButton } from './AttachmentRemoveButton'
 import { ImageLightbox } from './ImageLightbox'
 
 interface AttachmentStripProps {
@@ -156,15 +157,7 @@ export function AttachmentStrip({
                       <span className="dc-context-attachment__subtitle">{file.fileName.includes('.') ? file.fileName.split('.').pop()?.toUpperCase() : t('menu.file')}</span>
                     </span>
                   </button>
-                  <IconButton
-                    icon={<X size={11} strokeWidth={2.4} aria-hidden />}
-                    label={removeFileLabel}
-                    tooltipLabel={removeFileLabel}
-                    tooltipPlacement="top"
-                    size={16}
-                    radius={8}
-                    onClick={() => { onRemoveFile(idx) }}
-                  />
+                  <AttachmentRemoveButton label={removeFileLabel} onRemove={() => { onRemoveFile(idx) }} />
                 </div>
               </ActionTooltip>
             ))}

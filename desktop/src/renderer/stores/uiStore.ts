@@ -173,7 +173,7 @@ export interface UIState {
    * explorer once consumed.
    */
   explorerRevealPath: string | null
-  selectedChangedFile: string | null
+  selectedChangeKey: string | null
   changesDiffModeByThread: Record<string, ChangesDiffMode>
   changesWordWrap: boolean
   /** Prevents re-triggering the auto-show after the user manually hides the panel. */
@@ -251,12 +251,12 @@ interface UIStore extends UIState {
   /** Open the explorer and request it expand to / reveal the given directory. */
   revealInExplorer(absoluteDir: string): void
   consumeExplorerReveal(): void
-  selectChangedFile(filePath: string | null): void
+  selectChangeKey(key: string | null): void
   getChangesDiffMode(threadId: string | null): ChangesDiffMode
   setChangesDiffMode(threadId: string | null, mode: ChangesDiffMode): void
   toggleChangesWordWrap(): void
-  /** Open detail panel, switch to Changes tab, select the given file */
-  showChangesForFile(filePath: string): void
+  /** Open detail panel, switch to Changes tab, select the given row */
+  showChangesForKey(key: string): void
   markAutoShowForTurn(turnId: string): void
   markAutoShowPlanForItem(itemId: string): void
   /** Auto-show detail panel once for a reason. Returns true when newly triggered. */
@@ -372,7 +372,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   explorerVisible: false,
   explorerWidth: EXPLORER_DEFAULT_WIDTH,
   explorerRevealPath: null,
-  selectedChangedFile: null,
+  selectedChangeKey: null,
   changesDiffModeByThread: {},
   changesWordWrap: false,
   autoShowTriggeredForTurn: null,
@@ -701,8 +701,8 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     }
   },
 
-  selectChangedFile(filePath) {
-    set({ selectedChangedFile: filePath })
+  selectChangeKey(key) {
+    set({ selectedChangeKey: key })
   },
 
   getChangesDiffMode(threadId) {
@@ -724,14 +724,14 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     set((state) => ({ changesWordWrap: !state.changesWordWrap }))
   },
 
-  showChangesForFile(filePath) {
+  showChangesForKey(key) {
     const state = get()
     const detailPanelPreferredVisible = true
     set({
       activeDetailTab: { kind: 'system', id: 'changes' },
       openSystemTabs: withSystemTabOpen(state.openSystemTabs, 'changes'),
       lastActiveSystemTab: 'changes',
-      selectedChangedFile: filePath,
+      selectedChangeKey: key,
       detailPanelPreferredVisible,
       detailPanelPreferredVisibleByThread: withActiveThreadDetailVisibility(
         state.detailPanelPreferredVisibleByThread,

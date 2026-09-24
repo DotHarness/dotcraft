@@ -3,7 +3,6 @@ import { showReplyTextContextMenu } from './replyTextContextMenu'
 import type { TextContextMenuRequest } from '../shared/textContextMenu'
 import { app, ipcMain, BrowserWindow, dialog, Notification, shell, session, type OpenDialogOptions } from 'electron'
 import { promises as fs, existsSync } from 'fs'
-import { execFile } from 'child_process'
 import * as os from 'os'
 import * as path from 'path'
 import type { DesktopAppServerClient } from './DesktopAppServerClient'
@@ -14,6 +13,9 @@ import type {
 } from './settings'
 import { resolveTaskCompletionNotificationMode } from './settings'
 import type { GitHeadInspection } from '../shared/gitHead'
+import type { GitApplyPatchOptions } from '../shared/gitApply'
+import { runGitCommand } from './gitCommand'
+import { applyGitPatch } from './gitApplyPatch'
 import { sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import type { InlineVisualizationCaptureRect } from '../shared/inlineVisualization'
 import {
@@ -144,12 +146,6 @@ interface ModulesRescanSummaryPayload {
   changedRunningModuleIds: string[]
 }
 
-interface GitCommandResult {
-  stdout: string
-  stderr: string
-  exitCode: number
-}
-
 interface GitBranchEntry {
   name: string
   current: boolean
@@ -161,44 +157,10 @@ interface GitBranchListResult {
   branches: GitBranchEntry[]
 }
 
-interface ExecFileError extends Error {
-  code?: number | string
-}
-
 export interface ServerRequestPayload {
   bridgeId: string
   method: string
   params: unknown
-}
-
-function runGitCommand(
-  cwd: string,
-  args: string[],
-  allowedExitCodes: number[] = [0]
-): Promise<GitCommandResult> {
-  return new Promise((resolve, reject) => {
-    execFile('git', args, { cwd }, (err, stdout, stderr) => {
-      const execError = err as ExecFileError | null
-      const exitCode = err ? (typeof execError?.code === 'number' ? execError.code : null) : 0
-      if (exitCode !== null && allowedExitCodes.includes(exitCode)) {
-        resolve({
-          stdout: String(stdout),
-          stderr: String(stderr),
-          exitCode
-        })
-        return
-      }
-      if (err) {
-        reject(new Error(String(stderr || err.message).trim()))
-        return
-      }
-      resolve({
-        stdout: String(stdout),
-        stderr: String(stderr),
-        exitCode: exitCode ?? 0
-      })
-    })
-  })
 }
 
 function isSameOrInsidePath(candidatePath: string, parentPath: string): boolean {
@@ -1462,11 +1424,6 @@ export function registerIpcHandlers(
     }
   })
 
-  handleSafe('file:delete', async (_event, absPath: string) => {
-    const resolved = assertPathWithinWorkspace(absPath, workspacePath, mainLocale(callbacks))
-    await fs.unlink(resolved)
-  })
-
   handleSafe('file:exists', async (_event, absPath: string): Promise<boolean> => {
     const resolved = assertPathWithinWorkspace(absPath, workspacePath, mainLocale(callbacks))
     try {
@@ -1504,6 +1461,9 @@ export function registerIpcHandlers(
       const commit = await runGitCommand(gitWorkspacePath, ['commit', '-m', message, '--', ...commitFiles])
       return commit.stdout.trim()
     }
+  )
+  handleSafe('git:applyPatch', async (_event, wsPath: string, patchText: string, options: GitApplyPatchOptions) =>
+    applyGitPatch(assertGitWorkspacePath(wsPath, workspacePath, mainLocale(callbacks)), patchText, options)
   )
   handleSafe('git:branch', async (_event, wsPath: string): Promise<string | null> => {
     const locale = mainLocale(callbacks)
@@ -2618,9 +2578,9 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('shell:reveal-local-path')
   ipcMain.removeHandler('file:write')
   ipcMain.removeHandler('file:read')
-  ipcMain.removeHandler('file:delete')
   ipcMain.removeHandler('file:exists')
   ipcMain.removeHandler('git:commit')
+  ipcMain.removeHandler('git:applyPatch')
   ipcMain.removeHandler('git:branch')
   ipcMain.removeHandler('git:inspectHead')
   ipcMain.removeHandler('git:listBranches')

@@ -10,7 +10,7 @@ import {
   useDesktopPluginRegistry
 } from '../../plugins/desktopPluginRegistry'
 import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
-import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import { buildSettingsTabs, type SettingsTabGroup } from '../settings/settingsTabs'
 import {
   SIDEBAR_NAV_BORDER_INACTIVE,
@@ -52,34 +52,33 @@ export function SettingsSidebar(): JSX.Element {
   if (sidebarCollapsed) {
     return (
       <div style={collapsedContainerStyle}>
-        <ActionTooltip label={t('common.backToApp')} placement="right">
-          <button
-            className="dotcraft-sidebar-nav-button dotcraft-sidebar-icon-control-radius"
-            type="button"
-            onClick={requestCloseSettings}
-            aria-label={t('common.backToApp')}
-            style={collapsedBackButtonStyle}
-          >
-            <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
-          </button>
-        </ActionTooltip>
+        <IconButton
+          size={32}
+          radius={8}
+          className="dc-sidebar-icon-button"
+          label={t('common.backToApp')}
+          tooltipLabel={t('common.backToApp')}
+          tooltipPlacement="right"
+          onClick={requestCloseSettings}
+          icon={<ArrowLeft size={16} aria-hidden="true" />}
+        />
 
         {tabs.map((tab) => {
           const active = activeSidebarTab === tab.id
           const TabIcon = tab.icon
           return (
-            <ActionTooltip key={tab.id} label={tab.label} placement="right">
-              <button
-                className="dotcraft-sidebar-nav-button dotcraft-sidebar-icon-control-radius"
-                type="button"
-                onClick={() => setActiveSettingsTab(tab.id)}
-                aria-label={tab.label}
-                data-active={active ? 'true' : undefined}
-                style={collapsedButtonStyle}
-              >
-                <TabIcon size={16} strokeWidth={2} aria-hidden="true" />
-              </button>
-            </ActionTooltip>
+            <IconButton
+              key={tab.id}
+              size={32}
+              radius={8}
+              className="dc-sidebar-icon-button"
+              label={tab.label}
+              tooltipLabel={tab.label}
+              tooltipPlacement="right"
+              active={active}
+              onClick={() => setActiveSettingsTab(tab.id)}
+              icon={<TabIcon size={16} aria-hidden="true" />}
+            />
           )
         })}
       </div>
@@ -201,22 +200,6 @@ const backRowStyle: CSSProperties = {
 const expandedTabStyle: CSSProperties = {
   ...SIDEBAR_NAV_ROW_OUTER,
   ...SIDEBAR_NAV_BORDER_INACTIVE
-}
-
-const collapsedButtonStyle: CSSProperties = {
-  width: 32,
-  height: 32,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: 'none',
-  borderRadius: 'var(--sidebar-icon-control-radius)',
-  padding: 0
-}
-
-const collapsedBackButtonStyle: CSSProperties = {
-  ...collapsedButtonStyle,
-  color: 'var(--text-secondary)'
 }
 
 const iconSlotStyle: CSSProperties = SIDEBAR_NAV_ICON_SLOT

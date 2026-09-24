@@ -62,7 +62,7 @@ import {
 import { resolveCoreToolRenderPlan, type ToolRendererFamily } from '../../utils/toolRendererRegistry'
 import { useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { DesktopPluginToolRendererOutlet } from '../desktopPlugins/DesktopPluginToolRenderer'
-import { toAbsoluteWorkspacePath } from '../../utils/diffExtractor'
+import { toAbsoluteWorkspacePath } from '../../utils/workspacePaths'
 import { FileDiffStats } from './FileDiffStats'
 import { parseWorkflowRunId, WorkflowToolCard } from '../workflow/WorkflowToolCard'
 
@@ -276,7 +276,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   )
   const planTodos = useConversationStore((s) => s.plan?.todos)
   const { lookup: subAgentLookup } = useSubAgentLookup(threadId, rendererFamily === 'subagent')
-  const skillManageDiff = isSkillManageTool ? buildSkillManageDiff(args, item.result, turnId) : null
+  const skillManageDiff = isSkillManageTool ? buildSkillManageDiff(args, item.result) : null
   const renderableFileDiff = hasRenderableDiff(fileDiff) ? fileDiff : undefined
   const renderableStreamingFileDiff = hasRenderableDiff(streamingFileDiff) ? streamingFileDiff : undefined
   const remoteToolHostRow = useRemoteToolHostRow({
@@ -752,7 +752,7 @@ function ExpandedContent({
       ? toAbsoluteWorkspacePath(workspacePath, filePath)
       : filePath
     return (
-      <div className="selectable" style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: 1.5 }}>
+      <div className="selectable" style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-code-size)', lineHeight: 1.5 }}>
         {filePath && (
           <FileResultHeader
             filePath={filePath}
@@ -805,13 +805,13 @@ function ExpandedContent({
 
     if (lines && lines.length > 0) {
       return (
-        <div className="selectable" style={{ fontSize: '12px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-          <div style={{ color: 'var(--text-dimmed)', marginBottom: '6px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div className="selectable" style={{ fontSize: 'var(--conversation-secondary-size)', lineHeight: 'var(--conversation-line-height)', color: 'var(--text-secondary)' }}>
+          <div style={{ color: 'var(--text-dimmed)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span aria-hidden>{icon}</span>
             <span>{section}</span>
           </div>
           {inv && (
-            <div style={{ color: 'var(--text-dimmed)', marginBottom: '8px', fontSize: '11px', lineHeight: 1.4 }}>
+            <div style={{ color: 'var(--text-dimmed)', marginBottom: '8px' }}>
               {inv}
             </div>
           )}
@@ -829,7 +829,7 @@ function ExpandedContent({
     const output = result ?? ''
 
     return (
-      <div className="selectable" style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: '1.5', color: 'var(--text-secondary)' }}>
+      <div className="selectable" style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--conversation-secondary-size)', lineHeight: 'var(--conversation-line-height)', color: 'var(--text-secondary)' }}>
         {shellCommand && (
           <div
             data-testid="shell-command"
@@ -865,9 +865,9 @@ function ExpandedContent({
     : null
 
   return (
-    <div className="selectable" style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: '1.5' }}>
+    <div className="selectable" style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--conversation-secondary-size)', lineHeight: 'var(--conversation-line-height)' }}>
       {invocation && (
-        <div style={{ color: 'var(--text-dimmed)', marginBottom: '6px', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ color: 'var(--text-dimmed)', marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {invocation}
         </div>
       )}
@@ -890,8 +890,8 @@ function RequestUserInputResultList({ lines }: { lines: RequestUserInputResultLi
       style={{
         display: 'grid',
         gap: '5px',
-        fontSize: '12px',
-        lineHeight: 1.5,
+        fontSize: 'var(--conversation-secondary-size)',
+        lineHeight: 'var(--conversation-line-height)',
         color: 'var(--text-secondary)'
       }}
     >
@@ -938,7 +938,7 @@ export function WebSearchResultsTable({
           width: '100%',
           borderCollapse: 'collapse',
           tableLayout: 'fixed',
-          fontSize: '12px'
+          fontSize: 'var(--conversation-secondary-size)'
         }}
       >
         <thead>
@@ -1022,7 +1022,6 @@ function WebSearchResultCell({
           color: 'var(--text-secondary)',
           cursor: 'pointer',
           textAlign: 'left',
-          fontSize: '12px',
           fontFamily: monospace ? 'var(--font-mono)' : 'inherit',
           overflow: 'hidden',
           textOverflow: 'ellipsis',

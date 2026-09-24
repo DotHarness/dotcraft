@@ -162,7 +162,7 @@ describe('InputComposer layout', () => {
       detailPanelVisible: true,
       detailPanelWidth: 400,
       activeDetailTab: 'changes',
-      selectedChangedFile: null,
+      selectedChangeKey: null,
       autoShowTriggeredForTurn: null,
       composerPrefill: null,
       composerFileAttachmentRequest: null,

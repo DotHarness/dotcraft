@@ -55,8 +55,8 @@ function goalComposePillStyle(active: boolean): CSSProperties {
     background: active ? composerFooterControlHoverBackground : 'transparent',
     color: 'var(--composer-footer-text)',
     cursor: 'pointer',
-    fontSize: 'var(--type-secondary-size)',
-    lineHeight: 'var(--type-secondary-line-height)',
+    fontSize: 'var(--type-ui-size)',
+    lineHeight: 'var(--type-ui-line-height)',
     fontWeight: 'var(--type-ui-emphasis-weight)',
     outline: 'none',
     transition: 'background-color 120ms ease, color 120ms ease'

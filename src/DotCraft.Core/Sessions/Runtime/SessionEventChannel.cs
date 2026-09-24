@@ -83,6 +83,9 @@ internal sealed class SessionEventChannel(
     public void EmitTurnCancelled(SessionTurn turn, string reason) =>
         Write(SessionEventType.TurnCancelled, null, new TurnCancelledPayload { Turn = SnapshotTurn(turn), Reason = reason });
 
+    public void EmitTurnDiffUpdated(string diff) =>
+        Write(SessionEventType.TurnDiffUpdated, null, new TurnDiffUpdatedPayload { Diff = diff });
+
     // -------------------------------------------------------------------------
     // Item events
     // -------------------------------------------------------------------------

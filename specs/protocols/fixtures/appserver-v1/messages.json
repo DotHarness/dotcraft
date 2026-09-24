@@ -458,6 +458,21 @@
       ]
     },
     {
+      "name": "turn-diff-updated",
+      "tags": ["serverNotification", "turn", "diff"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "method": "turn/diff/updated",
+          "params": {
+            "threadId": "thread_fixture",
+            "turnId": "turn_fixture",
+            "diff": "diff --git a/a.txt b/a.txt\nnew file mode 100644\nindex 0000000000000000000000000000000000000000..257cc5642cb1a054f08cc83f2d943e56fd3ebe99\n--- /dev/null\n+++ b/a.txt\n@@ -0,0 +1 @@\n+foo\n"
+          }
+        }
+      ]
+    },
+    {
       "name": "approval-callback",
       "tags": ["serverRequest", "approval"],
       "messages": [

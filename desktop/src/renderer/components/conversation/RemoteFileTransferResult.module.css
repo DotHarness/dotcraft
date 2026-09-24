@@ -3,8 +3,8 @@
   flex-direction: column;
   gap: 8px;
   min-width: 0;
-  font-size: var(--type-secondary-size);
-  line-height: var(--type-secondary-prose-line-height);
+  font-size: var(--conversation-secondary-size);
+  line-height: var(--conversation-line-height);
 }
 
 .route {
@@ -59,13 +59,12 @@
 
 .copy {
   margin: -3px 0;
-  color: var(--text-dimmed);
   opacity: 0;
   transition: opacity var(--duration-fast) var(--ease-standard);
 }
 
 .pathCell:hover .copy,
-.pathCell[data-copied] .copy,
+.copy[data-copied],
 .copy:focus-visible {
   opacity: 1;
 }

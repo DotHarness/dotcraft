@@ -43,6 +43,7 @@ import { editorHighlight } from './editorHighlight'
 import { markdownEditing } from './markdownEditing'
 import { EditorFind } from './EditorFind'
 import { FileReview } from './FileReview'
+import { FileEditorComments, lineCommentField } from './FileEditorComments'
 import './file-editor.css'
 
 interface FileEditorProps {
@@ -102,6 +103,7 @@ export function FileEditor({
     EditorState.readOnly.of(readOnly),
     EditorView.editable.of(!readOnly),
     editorHighlight(pool, absolutePath, preview),
+    lineCommentField,
     search(),
     ...(wordWrap || preview ? [EditorView.lineWrapping] : []),
     EditorView.contentAttributes.of({
@@ -264,13 +266,17 @@ export function FileEditor({
         inert={Boolean(session.review)}
         aria-hidden={Boolean(session.review)}
       />
+      {!session.review && (
+        <FileEditorComments view={view} tabId={tabId} absolutePath={absolutePath} preview={preview} />
+      )}
       {finding && view && !session.review && (
         <EditorFind view={view} revision={revision} onClose={() => setFinding(false)} />
       )}
       {showToolbar && (
         <div className="dc-file-editor__toolbar" role="status">
           <IconButton
-            size={26}
+            size={24}
+            radius={6}
             label={t('viewer.undo')}
             disabled={!undoCount}
             onClick={() => {
@@ -279,7 +285,8 @@ export function FileEditor({
             icon={<Undo2 size={14} aria-hidden />}
           />
           <IconButton
-            size={26}
+            size={24}
+            radius={6}
             label={t('viewer.redo')}
             disabled={!redoCount}
             onClick={() => {

@@ -589,6 +589,31 @@ public class SerializationTests
     }
 
     [Fact]
+    public void TurnDiffUpdatedNotification_RoundTripsThroughContractJson()
+    {
+        var notification = new DotCraft.Protocol.AppServer.TurnDiffUpdatedNotification
+        {
+            ThreadId = "thread_001",
+            TurnId = "turn_001",
+            Diff = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-foo\n+bar\n"
+        };
+
+        var json = JsonSerializer.Serialize(notification, DotCraft.Protocol.AppServerContractJson.Options);
+        var deserialized = JsonSerializer.Deserialize<DotCraft.Protocol.AppServer.TurnDiffUpdatedNotification>(
+            json,
+            DotCraft.Protocol.AppServerContractJson.Options);
+
+        Assert.NotNull(deserialized);
+        Assert.Equal("thread_001", deserialized!.ThreadId);
+        Assert.Equal("turn_001", deserialized.TurnId);
+        Assert.Equal(notification.Diff, deserialized.Diff);
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal(
+            new[] { "diff", "threadId", "turnId" },
+            document.RootElement.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
     public void SessionItem_NullPayload_RoundTrip()
     {
         var item = BuildItem(ItemType.UserMessage, ItemStatus.Started, null);

@@ -1,6 +1,6 @@
 import { translate, type AppLocale } from '../../shared/locales'
 import type { FileDiff } from '../types/toolCall'
-import { computeDiffHunks } from './diffExtractor'
+import { computeDiffHunks } from './diffHunks'
 
 export const SKILL_MANAGE_TOOL_NAME = 'SkillManage'
 
@@ -147,7 +147,6 @@ export function formatSkillManageRunningLabel(
 
 function buildFileDiff(
   filePath: string,
-  turnId: string,
   originalContent: string,
   currentContent: string,
   isNewFile: boolean
@@ -155,8 +154,6 @@ function buildFileDiff(
   const { hunks, additions, deletions } = computeDiffHunks(originalContent, currentContent)
   return {
     filePath,
-    turnId,
-    turnIds: [turnId],
     additions,
     deletions,
     diffHunks: hunks,
@@ -169,8 +166,7 @@ function buildFileDiff(
 
 export function buildSkillManageDiff(
   args: Record<string, unknown> | undefined,
-  resultText: string | undefined,
-  turnId: string
+  resultText: string | undefined
 ): FileDiff | null {
   const display = getSkillManageDisplay(args, resultText)
   if (display.result && display.result.success !== true) return null
@@ -181,25 +177,25 @@ export function buildSkillManageDiff(
     case 'create': {
       const content = readString(args?.content)
       if (!content) return null
-      return buildFileDiff(`${skillRoot}/SKILL.md`, turnId, '', content, true)
+      return buildFileDiff(`${skillRoot}/SKILL.md`, '', content, true)
     }
     case 'edit': {
       const content = readString(args?.content)
       if (!content) return null
-      return buildFileDiff(`${skillRoot}/SKILL.md`, turnId, '', content, true)
+      return buildFileDiff(`${skillRoot}/SKILL.md`, '', content, true)
     }
     case 'patch': {
       const oldString = readString(args?.oldString)
       const newString = readString(args?.newString)
       if (!oldString && !newString) return null
       const filePath = readString(args?.filePath) || 'SKILL.md'
-      return buildFileDiff(`${skillRoot}/${filePath}`, turnId, oldString, newString, false)
+      return buildFileDiff(`${skillRoot}/${filePath}`, oldString, newString, false)
     }
     case 'write_file': {
       const filePath = readString(args?.filePath)
       const fileContent = readString(args?.fileContent)
       if (!filePath) return null
-      return buildFileDiff(`${skillRoot}/${filePath}`, turnId, '', fileContent, true)
+      return buildFileDiff(`${skillRoot}/${filePath}`, '', fileContent, true)
     }
     default:
       return null

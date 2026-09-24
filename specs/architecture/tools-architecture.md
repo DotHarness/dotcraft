@@ -7,9 +7,9 @@ in the invocation context. Native bindings receive the original arguments and co
 
 | Field | Value |
 |---|---|
-| Version | 0.2.4 |
+| Version | 0.3.1 |
 | Status | Living |
-| Date | 2026-09-16 |
+| Date | 2026-09-24 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 | Related | [Session Core](session-core.md), [Remote Tool Host](remote-tool-host.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md), [Desktop Client](../clients/desktop-client.md), [Plugin Architecture](plugin-architecture.md) |
 
@@ -285,6 +285,18 @@ Methods declared to return `ToolExecutionResult`, `Task<ToolExecutionResult>` or
 runtime envelope has no generated output schema, and a null envelope is `tool_result_invalid`.
 Ordinary return values retain their existing serialization behavior. An explicit business result,
 including an uncertain external outcome, MUST NOT be overwritten by the adapter.
+
+A generated tool that returns an ordinary value MAY attach client-only `structuredContent` through
+a runtime-owned, invocation-scoped attachment scope. `AIFunctionToolRuntime` establishes the scope
+for each invocation and merges the attachment only into a non-envelope result; an explicit
+`ToolExecutionResult` is never overwritten. Attaching without an active scope is a no-op.
+Attachments never alter model-visible content and follow the audience rules in
+[Section 9](#9-result-and-audience-contract). `WriteFile` and `EditFile` use this scope to attach
+their per-call file change, whose shape is defined in [Session Core](session-core.md#toolresult).
+
+`ReadFile`, `WriteFile`, and `EditFile` decode an existing file as UTF-8 unless a UTF-8, UTF-16, or
+UTF-32 byte-order mark selects that encoding. They return an error instead of decoding bytes that are
+not valid text in that encoding and never rewrite such a file; `GrepFiles` still searches it.
 
 Result forwarding does not bypass source containment or audience normalization. In particular,
 .NET plugin results still cross the host's copy-out boundary in

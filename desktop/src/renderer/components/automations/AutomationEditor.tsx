@@ -1,12 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { ArrowUpRight, ChevronRight, CirclePause, CirclePlay, MoreHorizontal, Play, Trash2, X } from 'lucide-react'
+import { ArrowUpRight, ChevronRight, CirclePause, CirclePlay, Play, Trash2, X } from 'lucide-react'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { useT } from '../../contexts/LocaleContext'
 import { useAutomationsStore, editableAutomation, type AutomationDefinition, type AutomationInput } from '../../stores/automationsStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { Button } from '../ui/Button'
-import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
+import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { Input, Textarea } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { AgentProfileDropdown } from './AgentProfileDropdown'
@@ -95,18 +96,21 @@ export function AutomationEditor({ automation, initial, onClose, onSaved, onDirt
       <header className="dc-automation-editor-toolbar">
         <span data-status={automation ? draft.status : 'new'}>{automation ? t(`automation.status.${draft.status}`) : t('automation.new')}</span>
         {automation && onAction ? (
-          <Button variant="ghost" size="iconSm" disabled={dirty || saving} aria-label={t('automation.actions')} onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setMenu({ x: rect.right - 180, y: rect.bottom }) }}>
-            <MoreHorizontal size={16} />
-          </Button>
+          <MoreActionsButton size={28} disabled={dirty || saving} label={t('automation.actions')} open={menu != null} onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setMenu({ x: rect.right - 180, y: rect.bottom }) }} />
         ) : null}
         {automation && onAction && !completed ? (
-          <ActionTooltip label={t(automation.status === 'paused' ? 'automation.resume' : 'automation.pause')} disabledReason={dirty ? t('automation.saveBeforeAction') : undefined}>
-          <Button variant="ghost" size="iconSm" disabled={dirty || saving || actionPending} aria-label={t(automation.status === 'paused' ? 'automation.resume' : 'automation.pause')} onClick={() => onAction(automation.status === 'paused' ? 'resume' : 'pause')}>
-            {automation.status === 'paused' ? <CirclePlay size={17} /> : <CirclePause size={17} />}
-          </Button>
-          </ActionTooltip>
+          <IconButton
+            size={28}
+            disabled={dirty || saving || actionPending}
+            label={t(automation.status === 'paused' ? 'automation.resume' : 'automation.pause')}
+            tooltipLabel={t(automation.status === 'paused' ? 'automation.resume' : 'automation.pause')}
+            tooltipPlacement="bottom"
+            disabledReason={dirty ? t('automation.saveBeforeAction') : undefined}
+            icon={automation.status === 'paused' ? <CirclePlay size={16} /> : <CirclePause size={16} />}
+            onClick={() => onAction(automation.status === 'paused' ? 'resume' : 'pause')}
+          />
         ) : null}
-        <Button variant="ghost" size="iconSm" aria-label={t('common.close')} onClick={onClose}><X size={18} /></Button>
+        <IconButton size={28} label={t('common.close')} tooltipLabel={t('common.close')} tooltipPlacement="bottom" icon={<X size={16} />} onClick={onClose} />
       </header>
       {menu && automation ? <ContextMenu position={menu} onClose={() => setMenu(null)} items={[
         { label: t('automation.runNow'), icon: <Play size={15} />, onClick: () => { setMenu(null); onAction?.('run') } },
@@ -137,7 +141,7 @@ export function AutomationEditor({ automation, initial, onClose, onSaved, onDirt
 
         {draft.executionMode === 'independent' ? (
           <details className="dc-automation-advanced">
-            <summary><span>{t('automation.advanced')}</span><ChevronRight size={14} aria-hidden /></summary>
+            <summary><span>{t('automation.advanced')}</span><ChevronRight size={14} strokeWidth={1.8} aria-hidden /></summary>
             <div className="dc-automation-fields">
               <SettingRow label={t('automation.agent')}><AgentProfileDropdown value={draft.agentProfileId} onChange={(agentProfileId) => update({ agentProfileId })} /></SettingRow>
               <SettingRow label={t('automation.workspace')}>

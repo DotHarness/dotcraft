@@ -38,7 +38,7 @@ export function SystemNoticeBlock({ item }: SystemNoticeBlockProps): JSX.Element
     return (
       <NoticeDivider
         ariaLabel={t('systemNotice.forked.title')}
-        icon={<GitFork size={12} aria-hidden />}
+        icon={<GitFork size={14} aria-hidden />}
         title={t('systemNotice.forked.title')}
       />
     )
@@ -48,7 +48,7 @@ export function SystemNoticeBlock({ item }: SystemNoticeBlockProps): JSX.Element
     return (
       <NoticeDivider
         ariaLabel={t('systemNotice.memoryConsolidated.title')}
-        icon={<Archive size={12} aria-hidden />}
+        icon={<Archive size={14} aria-hidden />}
         title={t('systemNotice.memoryConsolidated.updated')}
       />
     )
@@ -58,7 +58,7 @@ export function SystemNoticeBlock({ item }: SystemNoticeBlockProps): JSX.Element
     const route = remoteRouteDivider(notice.reason, notice.initiator)
     if (!route) return null
     const title = t(route.key, { host: notice.hostName ?? notice.hostId ?? '' })
-    return <NoticeDivider ariaLabel={title} icon={<route.icon size={12} aria-hidden />} title={title} />
+    return <NoticeDivider ariaLabel={title} icon={<route.icon size={14} aria-hidden />} title={title} />
   }
 
   if (notice.kind !== 'compacted' || notice.mode === 'micro') return null
@@ -73,7 +73,7 @@ export function SystemNoticeBlock({ item }: SystemNoticeBlockProps): JSX.Element
   return (
     <NoticeDivider
       ariaLabel={t(titleKey)}
-      icon={<ChevronsDown size={12} aria-hidden />}
+      icon={<ChevronsDown size={14} aria-hidden />}
       title={t(titleKey)}
     />
   )

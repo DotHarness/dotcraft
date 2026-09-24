@@ -75,8 +75,8 @@ const imageGenerationRowStyle: CSSProperties = {
   minHeight: '28px',
   padding: '3px 6px',
   color: 'var(--text-secondary)',
-  fontSize: '12px',
-  lineHeight: 1.35,
+  fontSize: 'var(--conversation-font-size)',
+  lineHeight: 'var(--conversation-line-height)',
   userSelect: 'none'
 }
 
@@ -89,8 +89,7 @@ const imageGenerationLabelStyle: CSSProperties = {
   minWidth: 0,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-  fontWeight: 600
+  whiteSpace: 'nowrap'
 }
 
 const imageGenerationSkeletonFrameStyle: CSSProperties = {

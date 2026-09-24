@@ -8,7 +8,7 @@ import type { AppUpdateState } from '../../../shared/appUpdate'
 import { useT } from '../../contexts/LocaleContext'
 import { useWindowMaximized } from '../../hooks/useWindowMaximized'
 import { useUIStore } from '../../stores/uiStore'
-import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { DotCraftLogo } from '../ui/DotCraftLogo'
 import { AppUpdateDialog } from '../update/AppUpdateDialog'
@@ -98,48 +98,44 @@ export function CustomMenuBar(): JSX.Element {
       }}
       onDoubleClick={handleTitleBarDoubleClick}
     >
-      <ActionTooltip label={sidebarLabel} shortcut={ACTION_SHORTCUTS.toggleSidebar} placement="bottom">
-        <button
-          type="button"
-          onClick={toggleSidebar}
-          onMouseEnter={() => setSidebarButtonHovered(true)}
-          onMouseLeave={() => setSidebarButtonHovered(false)}
-          aria-label={sidebarLabel}
-          style={{
-            ...topBarIconButtonStyle,
-            ...noDrag,
-            width: 36,
-            height: TITLE_BAR_OVERLAY_HEIGHT,
-            borderRadius: 0,
-            color: sidebarButtonHovered ? 'var(--text-primary)' : 'var(--text-secondary)'
-          }}
-        >
-          {sidebarButtonHovered
-            ? sidebarCollapsed
-              ? <PanelLeftOpen size={17} strokeWidth={2} aria-hidden="true" />
-              : <PanelLeftClose size={17} strokeWidth={2} aria-hidden="true" />
-            : <DotCraftLogo size={20} />}
-        </button>
-      </ActionTooltip>
+      <IconButton
+        size={28}
+        label={sidebarLabel}
+        tooltipLabel={sidebarLabel}
+        shortcut={ACTION_SHORTCUTS.toggleSidebar}
+        tooltipPlacement="bottom"
+        onClick={toggleSidebar}
+        onMouseEnter={() => setSidebarButtonHovered(true)}
+        onMouseLeave={() => setSidebarButtonHovered(false)}
+        style={{ ...noDrag, margin: '0 4px' }}
+        icon={sidebarButtonHovered
+          ? sidebarCollapsed
+            ? <PanelLeftOpen size={16} aria-hidden="true" />
+            : <PanelLeftClose size={16} aria-hidden="true" />
+          : <DotCraftLogo size={20} />}
+      />
 
       <AppNavigationControls />
 
       {updateButtonVisible && (
-        <ActionTooltip label={updateLabel} placement="bottom">
-          <button
-            type="button"
-            onClick={() => setUpdateDialogOpen(true)}
-            aria-label={updateLabel}
-            style={updateButtonStyle(updateState.status)}
-          >
-            {updateState.status === 'downloading'
-              ? <Spinner size={16} />
-              : <Download size={16} strokeWidth={2} aria-hidden="true" />}
-            {(updateState.status === 'available' || updateState.status === 'error') && (
-              <span style={updateBadgeStyle} aria-hidden="true" />
-            )}
-          </button>
-        </ActionTooltip>
+        <IconButton
+          size={28}
+          label={updateLabel}
+          tooltipLabel={updateLabel}
+          tooltipPlacement="bottom"
+          onClick={() => setUpdateDialogOpen(true)}
+          style={updateButtonStyle(updateState.status)}
+          icon={(
+            <>
+              {updateState.status === 'downloading'
+                ? <Spinner size={16} />
+                : <Download size={16} aria-hidden="true" />}
+              {(updateState.status === 'available' || updateState.status === 'error') && (
+                <span style={updateBadgeStyle} aria-hidden="true" />
+              )}
+            </>
+          )}
+        />
       )}
 
       <div style={{ ...noDrag, display: 'flex', alignItems: 'center', marginLeft: 6 }}>
@@ -269,20 +265,16 @@ const topBarIconButtonStyle: CSSProperties = {
 function updateButtonStyle(status: AppUpdateState['status']): CSSProperties {
   const active = status === 'available' || status === 'error'
   return {
-    ...topBarIconButtonStyle,
+    ...noDrag,
     position: 'relative',
-    width: 32,
-    height: TITLE_BAR_OVERLAY_HEIGHT,
-    borderRadius: 0,
-    color: active ? 'var(--accent)' : 'var(--text-secondary)',
-    backgroundColor: 'transparent'
+    color: active ? 'var(--accent)' : undefined
   }
 }
 
 const updateBadgeStyle: CSSProperties = {
   position: 'absolute',
-  top: 8,
-  right: 7,
+  top: 4,
+  right: 4,
   width: 7,
   height: 7,
   borderRadius: 999,

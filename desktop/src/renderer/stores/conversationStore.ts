@@ -25,13 +25,16 @@ import {
 } from '../types/conversation'
 import { isShellToolName } from '../utils/shellTools'
 import type { FileDiff } from '../types/toolCall'
+import type { TurnDiff } from '../types/turnDiff'
 import {
-  mergeFileDiffIncrement,
-  computeCumulativeFileDiff,
-  computeIncrementalPerItemDiff,
-  parseResultPath,
-  toAbsoluteWorkspacePath
-} from '../utils/diffExtractor'
+  applyLiveTurnDiff,
+  deriveItemDiffs,
+  foldHistoryTurnDiffs,
+  refreshTurnFileChanges,
+  setTurnFileStatus as withTurnFileStatus
+} from './turnDiffs'
+import { parseUnifiedDiff } from '../utils/unifiedDiff'
+import { toAbsoluteWorkspacePath } from '../utils/workspacePaths'
 import {
   computeStreamingFileDiff,
   extractStreamingFilePath
@@ -345,12 +348,12 @@ interface ConversationState {
   /** Server-persisted FIFO inputs queued behind the active turn. */
   queuedInputs: QueuedTurnInput[]
   threadMode: ThreadMode
-  /** Workspace root path (for cumulative diff disk reads) */
+  /** Workspace root path; diff paths are shown relative to it */
   workspacePath: string
   remoteWorkspaceActive: boolean
-  /** File diffs accumulated for the active thread (cross-turn), keyed by filePath */
-  changedFiles: Map<string, FileDiff>
-  /** Per tool-call item incremental diff (Detail Panel uses cumulative changedFiles) */
+  /** Files changed by each turn of the active thread, keyed by turnId */
+  turnDiffs: ReadonlyMap<string, TurnDiff>
+  /** Per tool-call item diff, keyed by ConversationItem.id */
   itemDiffs: Map<string, FileDiff>
   /** Live per-item file diff shown while WriteFile/EditFile arguments stream in */
   streamingItemDiffs: Map<string, FileDiff>
@@ -454,15 +457,10 @@ interface ConversationActions {
    * Called as soon as turn/start returns its response (before turn/started arrives).
    */
   promoteOptimisticTurn(localId: string, serverId: string): void
-  upsertChangedFile(diff: FileDiff): void
-  /** Store incremental diff for one toolCall item (keyed by ConversationItem.id) */
-  upsertItemDiff(itemId: string, diff: FileDiff): void
-  /** Mark all files in a turn as reverted in client state. */
-  revertFilesForTurn(turnId: string): void
-  /** Mark a single file as reverted (state only; caller must write disk via IPC) */
-  revertFile(filePath: string): void
-  /** Mark a single file as written/re-applied (state only; caller must write disk via IPC) */
-  reapplyFile(filePath: string): void
+  /** turn/diff/updated: a full snapshot of the turn's aggregated diff; an empty diff means unavailable. */
+  onTurnDiffUpdated(params: { turnId: string; diff: string }): void
+  /** State only; the caller applies the patch to disk first. */
+  setTurnFileStatus(turnId: string, key: string, status: FileDiff['status']): void
   /** Replace entire plan state from plan/updated notification */
   onPlanUpdated(plan: Partial<AgentPlan>): void
   /** Adds an approvalCard item to the current turn and sets waitingApproval state. */
@@ -519,7 +517,7 @@ const initialState: ConversationState = {
   threadMode: 'agent',
   workspacePath: '',
   remoteWorkspaceActive: false,
-  changedFiles: new Map<string, FileDiff>(),
+  turnDiffs: new Map<string, TurnDiff>(),
   itemDiffs: new Map<string, FileDiff>(),
   streamingItemDiffs: new Map<string, FileDiff>(),
   streamingBaselines: new Map<string, StreamingFileBaseline>(),
@@ -856,6 +854,7 @@ function mergeToolResultIntoToolCall(
     result: toolResult.result ?? item.result ?? '',
     transferProgress: undefined,
     contentItems: toolResult.contentItems ?? item.contentItems,
+    structuredResult: toolResult.structuredResult ?? item.structuredResult,
     success: toolResult.success ?? item.success ?? true,
     duration,
     completedAt
@@ -1606,11 +1605,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       return wireTurnToConversationTurn(t)
     })
 
-    // When a thread is loaded from history the live wire events (onItemCompleted for
-    // toolResult) never fire, so changedFiles must be reconstructed here.
-    const rehydratedChangedFiles = new Map<string, FileDiff>()
-    const rehydratedItemDiffs = new Map<string, FileDiff>()
-    const rehydrateLocalDiffs = !get().remoteWorkspaceActive
     const rehydratedTurns = converted.map((turn) => {
       const resultByCallId = new Map<string, ConversationItem>()
       const commandExecutionByCallId = new Map<string, ConversationItem>()
@@ -1650,6 +1644,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         const merged: ConversationItem = {
           ...item,
           result: resultText,
+          structuredResult: resultItem.structuredResult ?? item.structuredResult,
           success,
           duration: endMs - startMs,
           completedAt: resultItem.completedAt
@@ -1657,39 +1652,9 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         const mergedWithToolExecution = toolExecution
           ? mergeToolExecutionIntoToolCall(merged, toolExecution)
           : merged
-        const mergedWithCommandExecution = commandExecution
+        return commandExecution
           ? mergeCommandExecutionIntoToolCall(mergedWithToolExecution, commandExecution)
           : mergedWithToolExecution
-
-        if (rehydrateLocalDiffs && item.arguments && (item.toolName === 'WriteFile' || item.toolName === 'EditFile')) {
-          const fp =
-            (item.arguments.path as string | undefined) ?? parseResultPath(resultText) ?? ''
-          if (fp) {
-            const existingBefore = rehydratedChangedFiles.get(fp)
-            const perItem = computeIncrementalPerItemDiff(
-              item.toolName as 'WriteFile' | 'EditFile',
-              item.arguments,
-              resultText,
-              turn.id,
-              existingBefore
-            )
-            if (perItem) {
-              rehydratedItemDiffs.set(item.id, perItem)
-            }
-            const mergedDiff = mergeFileDiffIncrement(
-              rehydratedChangedFiles.get(fp),
-              item.toolName as 'WriteFile' | 'EditFile',
-              item.arguments,
-              resultText,
-              turn.id
-            )
-            if (mergedDiff) {
-              rehydratedChangedFiles.set(mergedDiff.filePath, mergedDiff)
-            }
-          }
-        }
-
-        return mergedWithCommandExecution
       })
 
       return { ...turn, items: mergedItems.filter((item) => item.type !== 'toolExecution') }
@@ -1734,6 +1699,11 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         terminalApplied.turns,
         state.pendingToolCompletionsByCallKey
       )
+      const itemDiffs = deriveItemDiffs(
+        toolCompletionApplied.turns,
+        preserveExistingRealtime ? state.itemDiffs : new Map(),
+        state.workspacePath
+      )
       return {
         turns: toolCompletionApplied.turns,
         turnStatus: restoredTurnStatus,
@@ -1750,12 +1720,13 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         maintenanceKind: null,
         backgroundMemoryStatus: null,
         streamRetry: null,
-        changedFiles: preserveExistingRealtime
-          ? new Map([...rehydratedChangedFiles, ...state.changedFiles])
-          : rehydratedChangedFiles,
-        itemDiffs: preserveExistingRealtime
-          ? new Map([...rehydratedItemDiffs, ...state.itemDiffs])
-          : rehydratedItemDiffs,
+        itemDiffs,
+        turnDiffs: foldHistoryTurnDiffs(
+          toolCompletionApplied.turns,
+          itemDiffs,
+          preserveExistingRealtime ? state.turnDiffs : new Map(),
+          state.workspacePath
+        ),
         streamingItemDiffs: new Map<string, FileDiff>(),
         streamingBaselines: new Map<string, StreamingFileBaseline>(),
         shellRuntimeByCallId: preserveExistingRealtime
@@ -2053,7 +2024,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         return {
           turns,
           pendingTerminalByCallId: nextPending,
-          pendingToolCompletionsByCallKey: nextPendingToolCompletions
+          pendingToolCompletionsByCallKey: nextPendingToolCompletions,
+          ...(nextPendingToolCompletions !== state.pendingToolCompletionsByCallKey
+            ? refreshTurnFileChanges(turns, turnId, state.itemDiffs, state.turnDiffs, state.workspacePath)
+            : {})
         }
       })
     } else if (type === 'commandExecution') {
@@ -2328,7 +2302,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         const baselineContent = baseline?.originalContent ?? (previewPath ? nextStreamingBaselines.get(itemId)?.originalContent : undefined)
         const streamingDiff = computeStreamingFileDiff({
           toolName: capturedToolName as 'WriteFile' | 'EditFile',
-          turnId,
           argumentsPreview: capturedPreview,
           filePath: previewPath ?? baseline?.path ?? null,
           baselineContent
@@ -2352,7 +2325,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         turns: nextTurns,
         streamingItemDiffs: nextStreamingItemDiffs,
         streamingBaselines: nextStreamingBaselines,
-        pendingToolCompletionsByCallKey: nextPendingToolCompletions
+        pendingToolCompletionsByCallKey: nextPendingToolCompletions,
+        ...(nextPendingToolCompletions !== state.pendingToolCompletionsByCallKey
+          ? refreshTurnFileChanges(nextTurns, turnId, state.itemDiffs, state.turnDiffs, state.workspacePath)
+          : {})
       }
     })
 
@@ -2385,7 +2361,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
           const streamingDiff = computeStreamingFileDiff({
             toolName,
-            turnId,
             argumentsPreview: preview,
             filePath: resolvedPath,
             baselineContent: originalContent
@@ -2581,7 +2556,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         return {
           turns,
           pendingTerminalByCallId: nextPending,
-          pendingToolCompletionsByCallKey: nextPendingToolCompletions
+          pendingToolCompletionsByCallKey: nextPendingToolCompletions,
+          ...(nextPendingToolCompletions !== s.pendingToolCompletionsByCallKey
+            ? refreshTurnFileChanges(turns, turnId, s.itemDiffs, s.turnDiffs, s.workspacePath)
+            : {})
         }
       })
     } else if (type === 'commandExecution') {
@@ -2775,49 +2753,14 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         }
         return {
           turns: nextTurns,
-          pendingToolCompletionsByCallKey: pending
+          pendingToolCompletionsByCallKey: pending,
+          ...(matched ? refreshTurnFileChanges(nextTurns, turnId, s.itemDiffs, s.turnDiffs, s.workspacePath) : {})
         }
       })
 
-      // Cumulative diff (async — may read disk); requires workspace path for IPC
       const matchedCallItem = get()
         .turns.find((t) => t.id === turnId)
         ?.items.find((i) => i.type === 'toolCall' && i.toolCallId === callId)
-      const toolName = matchedCallItem?.toolName ?? ''
-      const args = matchedCallItem?.arguments
-      const afterToolState = get()
-      const wsPath = afterToolState.remoteWorkspaceActive ? '' : afterToolState.workspacePath
-      if (args && (toolName === 'WriteFile' || toolName === 'EditFile')) {
-        const fp = (args.path as string | undefined) ?? parseResultPath(resultText) ?? ''
-        if (fp && matchedCallItem?.id) {
-          const existingBeforeCumulative = get().changedFiles.get(fp)
-          const incremental = computeIncrementalPerItemDiff(
-            toolName as 'WriteFile' | 'EditFile',
-            args,
-            resultText,
-            turnId,
-            existingBeforeCumulative
-          )
-          if (incremental) {
-            useConversationStore.getState().upsertItemDiff(matchedCallItem.id, incremental)
-          }
-          if (wsPath) {
-            void computeCumulativeFileDiff({
-              filePath: fp,
-              toolName,
-              args,
-              resultText,
-              turnId,
-              existing: existingBeforeCumulative,
-              workspacePath: wsPath
-            }).then((diff) => {
-              if (diff) {
-                useConversationStore.getState().upsertChangedFile(diff)
-              }
-            })
-          }
-        }
-      }
       if (matchedCallItem?.id) {
         set((s) => {
           const nextStreamingItemDiffs = new Map(s.streamingItemDiffs)
@@ -3011,33 +2954,22 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     })
   },
 
-  upsertChangedFile(diff) {
-    set((state) => {
-      const next = new Map(state.changedFiles)
-      next.set(diff.filePath, diff)
-      return { changedFiles: next }
-    })
+  onTurnDiffUpdated({ turnId, diff }) {
+    if (!turnId) return
+    set((state) => ({
+      turnDiffs: applyLiveTurnDiff(
+        state.turnDiffs,
+        state.turns,
+        state.itemDiffs,
+        turnId,
+        diff === '' ? null : parseUnifiedDiff(diff, state.workspacePath),
+        state.workspacePath
+      )
+    }))
   },
 
-  upsertItemDiff(itemId, diff) {
-    set((state) => {
-      const next = new Map(state.itemDiffs)
-      next.set(itemId, diff)
-      return { itemDiffs: next }
-    })
-  },
-
-  revertFilesForTurn(turnId) {
-    set((state) => {
-      const next = new Map(state.changedFiles)
-      for (const [key, entry] of next.entries()) {
-        const ids = entry.turnIds?.length ? entry.turnIds : [entry.turnId]
-        if (ids.includes(turnId)) {
-          next.set(key, { ...entry, status: 'reverted' })
-        }
-      }
-      return { changedFiles: next }
-    })
+  setTurnFileStatus(turnId, key, status) {
+    set((state) => ({ turnDiffs: withTurnFileStatus(state.turnDiffs, turnId, key, status) }))
   },
 
   setWorkspacePath(path) {
@@ -3337,26 +3269,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     set({ pendingUserInput: null, turnStatus: 'running' })
   },
 
-  revertFile(filePath) {
-    set((state) => {
-      const entry = state.changedFiles.get(filePath)
-      if (!entry) return {}
-      const next = new Map(state.changedFiles)
-      next.set(filePath, { ...entry, status: 'reverted' })
-      return { changedFiles: next }
-    })
-  },
-
-  reapplyFile(filePath) {
-    set((state) => {
-      const entry = state.changedFiles.get(filePath)
-      if (!entry) return {}
-      const next = new Map(state.changedFiles)
-      next.set(filePath, { ...entry, status: 'written' })
-      return { changedFiles: next }
-    })
-  },
-
   onPlanUpdated(rawPlan) {
     const plan: AgentPlan = {
       title: (rawPlan.title as string) ?? '',
@@ -3375,7 +3287,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       ...initialState,
       workspacePath: state.workspacePath,
       remoteWorkspaceActive: state.remoteWorkspaceActive,
-      changedFiles: new Map<string, FileDiff>(),
+      turnDiffs: new Map<string, TurnDiff>(),
       itemDiffs: new Map<string, FileDiff>(),
       streamingItemDiffs: new Map<string, FileDiff>(),
       streamingBaselines: new Map<string, StreamingFileBaseline>(),

@@ -66,7 +66,6 @@ interface RemoteServersStore extends RemoteServersState {
   openInDesktop(hostId: string, stackId: string): Promise<boolean>
   openDashboard(hostId: string, stackId: string): Promise<void>
   disconnect(hostId: string, stackId: string): Promise<void>
-  clearError(): void
 }
 
 function messageOf(error: unknown): string {
@@ -287,9 +286,5 @@ export const useRemoteServersStore = create<RemoteServersStore>((set, get) => ({
             : state.activeStack
       }))
     }
-  },
-
-  clearError() {
-    set({ error: null })
   }
 }))

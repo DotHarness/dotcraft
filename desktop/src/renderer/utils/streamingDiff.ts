@@ -1,12 +1,11 @@
 import type { FileDiff } from '../types/toolCall'
-import { computeDiffHunks } from './diffExtractor'
+import { computeDiffHunks } from './diffHunks'
 import { extractPartialJsonStringValue } from './toolCallDisplay'
 
 type FileToolName = 'WriteFile' | 'EditFile'
 
 interface StreamingDiffOptions {
   toolName: FileToolName
-  turnId: string
   argumentsPreview: string
   filePath: string | null
   baselineContent?: string | null
@@ -76,15 +75,12 @@ function applyLineRangeEdit(
 
 function buildFileDiff(
   filePath: string,
-  turnId: string,
   originalContent: string,
   currentContent: string
 ): FileDiff {
   const { hunks, additions, deletions } = computeDiffHunks(originalContent, currentContent)
   return {
     filePath,
-    turnId,
-    turnIds: [turnId],
     additions,
     deletions,
     diffHunks: hunks,
@@ -97,7 +93,6 @@ function buildFileDiff(
 
 function buildEditFileDiffWithBaseline(
   filePath: string,
-  turnId: string,
   baselineContent: string,
   argumentsPreview: string
 ): FileDiff | null {
@@ -108,7 +103,7 @@ function buildEditFileDiffWithBaseline(
 
   if (startLine != null && endLine != null && rangeReplacement != null) {
     const nextContent = applyLineRangeEdit(baselineContent, startLine, endLine, rangeReplacement)
-    return buildFileDiff(filePath, turnId, baselineContent, nextContent)
+    return buildFileDiff(filePath, baselineContent, nextContent)
   }
 
   const oldText = extractPartialJsonStringValue(argumentsPreview, 'oldText') ?? ''
@@ -121,12 +116,11 @@ function buildEditFileDiffWithBaseline(
   const nextContent = oldText
     ? replaceSingleOccurrence(baselineContent, oldText, newText)
     : baselineContent
-  return buildFileDiff(filePath, turnId, baselineContent, nextContent)
+  return buildFileDiff(filePath, baselineContent, nextContent)
 }
 
 function buildEditFileFallbackDiff(
   filePath: string,
-  turnId: string,
   argumentsPreview: string
 ): FileDiff | null {
   const oldText = extractPartialJsonStringValue(argumentsPreview, 'oldText') ?? ''
@@ -134,7 +128,7 @@ function buildEditFileFallbackDiff(
     ?? extractPartialJsonStringValue(argumentsPreview, 'content')
     ?? ''
   if (!oldText && !newText) return null
-  return buildFileDiff(filePath, turnId, oldText, newText)
+  return buildFileDiff(filePath, oldText, newText)
 }
 
 export function extractStreamingFilePath(argumentsPreview: string): string | null {
@@ -142,7 +136,7 @@ export function extractStreamingFilePath(argumentsPreview: string): string | nul
 }
 
 export function computeStreamingFileDiff(options: StreamingDiffOptions): FileDiff | null {
-  const { toolName, turnId, argumentsPreview, baselineContent } = options
+  const { toolName, argumentsPreview, baselineContent } = options
   const filePath = options.filePath ?? extractStreamingFilePath(argumentsPreview)
   if (!filePath) return null
 
@@ -150,13 +144,13 @@ export function computeStreamingFileDiff(options: StreamingDiffOptions): FileDif
     const content = extractPartialJsonStringValue(argumentsPreview, 'content')
     if (content == null) return null
     const originalContent = baselineContent ?? ''
-    return buildFileDiff(filePath, turnId, originalContent, content)
+    return buildFileDiff(filePath, originalContent, content)
   }
 
   if (baselineContent != null) {
-    const withBaseline = buildEditFileDiffWithBaseline(filePath, turnId, baselineContent, argumentsPreview)
+    const withBaseline = buildEditFileDiffWithBaseline(filePath, baselineContent, argumentsPreview)
     if (withBaseline) return withBaseline
   }
 
-  return buildEditFileFallbackDiff(filePath, turnId, argumentsPreview)
+  return buildEditFileFallbackDiff(filePath, argumentsPreview)
 }

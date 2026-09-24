@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Ellipsis, MessageCircle } from 'lucide-react'
+import { MessageCircle } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -11,7 +11,7 @@ import { ModalHeader } from '../ui/ModalHeader'
 import { SkillAvatar } from './SkillAvatar'
 import { VariantBadge } from './VariantBadge'
 import { Button } from '../ui/Button'
-import { IconButton } from '../ui/IconButton'
+import { MoreActionsButton } from '../ui/MoreActionsButton'
 
 interface SkillDetailDialogProps {
   skill: SkillEntry
@@ -76,13 +76,10 @@ export function SkillDetailDialog({
           onClose={onClose}
           closeLabel={t('common.close')}
           actions={!previewOnly ? (
-            <IconButton
-              icon={<Ellipsis size={16} aria-hidden />}
+            <MoreActionsButton
               label={t('skillDetail.moreActions')}
-              tooltipLabel={t('skillDetail.moreActions')}
               size={30}
-              aria-haspopup="menu"
-              aria-expanded={menuPosition != null}
+              open={menuPosition != null}
               onClick={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect()
                 setMenuPosition({ x: rect.right - 160, y: rect.bottom + 6 })

@@ -18,13 +18,11 @@ export function ThinkingIndicator({
 }: ThinkingIndicatorProps): JSX.Element {
   const t = useT()
   const [expanded, setExpanded] = useState(false)
-  const [hovered, setHovered] = useState(false)
   const canExpand = !!reasoning
 
   const label = streaming
     ? t('conversation.thinking.streaming')
     : t('conversation.thinking.completed', { seconds: elapsedSeconds ?? 0 })
-  const rowColor = hovered || expanded ? 'var(--text-secondary)' : 'var(--text-dimmed)'
 
   return (
     <div>
@@ -37,25 +35,10 @@ export function ThinkingIndicator({
         placement="top"
       >
         <button
+          type="button"
+          className="dc-thinking-row"
+          data-expandable={canExpand ? 'true' : undefined}
           onClick={() => canExpand && setExpanded((v) => !v)}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-          onFocus={() => setHovered(true)}
-          onBlur={() => setHovered(false)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            width: '100%',
-            background: 'none',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: canExpand ? 'pointer' : 'default',
-            padding: '3px 6px',
-            color: rowColor,
-            fontSize: '12px',
-            textAlign: 'left'
-          }}
           aria-expanded={expanded}
         >
           <span
@@ -63,7 +46,7 @@ export function ThinkingIndicator({
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '3px',
+              gap: '6px',
               flex: '0 1 auto',
               minWidth: 0,
               maxWidth: '100%'
@@ -76,7 +59,7 @@ export function ThinkingIndicator({
               {label}
             </span>
             {canExpand && (
-              <ToolCollapseChevron expanded={expanded} visible={hovered || expanded} />
+              <ToolCollapseChevron expanded={expanded} visible={expanded} />
             )}
           </span>
         </button>
@@ -91,8 +74,8 @@ export function ThinkingIndicator({
             background: 'transparent',
             color: 'var(--text-dimmed)',
             fontStyle: 'italic',
-            fontSize: '13px',
-            lineHeight: 1.6,
+            fontSize: 'var(--conversation-font-size)',
+            lineHeight: 'var(--conversation-line-height)',
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word'
           }}

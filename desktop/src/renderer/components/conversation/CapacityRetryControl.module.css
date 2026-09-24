@@ -16,7 +16,7 @@
   border-radius: 6px;
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-size: var(--type-secondary-size);
+  font-size: var(--conversation-secondary-size);
   cursor: pointer;
 }
 

@@ -571,7 +571,7 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
   const toolResultContentItems = type === 'toolResult'
     ? normalizePluginFunctionContentItems(raw.contentItems ?? payload.contentItems)
     : undefined
-  const invocationStructuredResult = isStructuredInvocation
+  const invocationStructuredResult = isStructuredInvocation || type === 'toolResult'
     ? ((raw.structuredResult as unknown)
       ?? (payload.structuredResult as unknown)
       ?? (payload.structuredContent as unknown))

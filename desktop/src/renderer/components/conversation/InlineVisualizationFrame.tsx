@@ -240,8 +240,8 @@ export function InlineVisualizationFrame({ threadId, turnId, itemId, file }: Pro
 const containerStyle: CSSProperties = { position: 'relative', width: '100%', minWidth: 0, margin: '8px 0', paddingRight: INLINE_VISUALIZATION_ACTION_RAIL_WIDTH, boxSizing: 'border-box' }
 const iframeStyle: CSSProperties = { width: '100%', border: 0, background: 'transparent', overflow: 'hidden' }
 const idlePlaceholderStyle: CSSProperties = { width: '100%', height: 180, borderRadius: 8, background: 'var(--bg-tertiary)', opacity: 0.55 }
-const fallbackStyle: CSSProperties = { display: 'flex', minHeight: 44, margin: '8px 0', padding: '8px 10px 8px 12px', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: 8, background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: 12 }
-const overflowHintStyle: CSSProperties = { marginTop: '4px', color: 'var(--text-secondary)', fontSize: '11px' }
+const fallbackStyle: CSSProperties = { display: 'flex', minHeight: 44, margin: '8px 0', padding: '8px 10px 8px 12px', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: 8, background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: 'var(--conversation-secondary-size)' }
+const overflowHintStyle: CSSProperties = { marginTop: '4px', color: 'var(--text-secondary)', fontSize: 'var(--conversation-meta-size)' }
 const visuallyHiddenStyle: CSSProperties = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }
 
 function readVisualizationThemeTokens(): InlineVisualizationThemeTokens {

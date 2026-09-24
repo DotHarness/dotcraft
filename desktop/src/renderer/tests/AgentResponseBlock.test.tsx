@@ -9,6 +9,7 @@ import { useThreadStore } from '../stores/threadStore'
 import { useWorkflowRunStore } from '../stores/workflowRunStore'
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
+import type { TurnDiff } from '../types/turnDiff'
 import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
 import { withTestCorePresentation } from './testToolPresentation'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -112,11 +113,9 @@ function makeImageGenerationItem(
   }
 }
 
-function makeDiff(filePath: string, turnId: string): FileDiff {
+function makeDiff(filePath: string): FileDiff {
   return {
     filePath,
-    turnId,
-    turnIds: [turnId],
     additions: 1,
     deletions: 0,
     status: 'written',
@@ -133,6 +132,11 @@ function makeDiff(filePath: string, turnId: string): FileDiff {
       }
     ]
   }
+}
+
+function turnDiffsOf(turnId: string, diff: FileDiff): Map<string, TurnDiff> {
+  const row = { key: `${turnId}::${diff.filePath}`, turnId, diff, patchText: '', truncated: false }
+  return new Map([[turnId, { turnId, source: 'history' as const, files: [row] }]])
 }
 
 function renderBlock(
@@ -1984,9 +1988,7 @@ describe('AgentResponseBlock completed turn folding', () => {
   it('keeps a successful Workflow handoff message and card together outside the processed summary', async () => {
     useConversationStore.setState({
       workspacePath: 'F:/workspace',
-      changedFiles: new Map([
-        ['reports/release.md', makeDiff('reports/release.md', 'turn-folded-workflow-handoff')]
-      ])
+      turnDiffs: turnDiffsOf('turn-folded-workflow-handoff', makeDiff('reports/release.md'))
     })
     const turn: ConversationTurn = {
       id: 'turn-folded-workflow-handoff',
@@ -2039,7 +2041,7 @@ describe('AgentResponseBlock completed turn folding', () => {
 
     const handoff = screen.getByText('I’ll hand the independent checks to one workflow.')
     const workflowCard = await screen.findByRole('region', { name: /Running workflow release-review/ })
-    const fileChanges = screen.getByText('1 file changed')
+    const fileChanges = screen.getByRole('region', { name: /release\.md/ })
     const footer = container.querySelector('[data-testid="agent-message-footer"]') as HTMLElement
     expect(handoff).toBeInTheDocument()
     expect(workflowCard).toBeInTheDocument()
@@ -2518,9 +2520,7 @@ describe('AgentResponseBlock historical tool trimming', () => {
   it('hides historical tool details and artifacts while preserving plans and assistant text', () => {
     useConversationStore.setState({
       workspacePath: 'F:/workspace',
-      changedFiles: new Map([
-        ['docs/old-artifact.md', makeDiff('docs/old-artifact.md', 'turn-trimmed')]
-      ])
+      turnDiffs: turnDiffsOf('turn-trimmed', makeDiff('docs/old-artifact.md'))
     })
 
     const turn: ConversationTurn = {
@@ -2626,7 +2626,7 @@ describe('AgentResponseBlock historical tool trimming', () => {
     expect(screen.queryByText(/Shell/)).toBeNull()
     expect(screen.queryByText('raw tool result')).toBeNull()
     expect(screen.queryByText('old-artifact.md')).toBeNull()
-    expect(screen.queryByText(/file changed/)).toBeNull()
+    expect(screen.queryByRole('region', { name: /old-artifact\.md/ })).toBeNull()
 
     fireEvent.click(processedSummary)
 

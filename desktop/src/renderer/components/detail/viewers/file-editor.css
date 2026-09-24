@@ -68,6 +68,19 @@
 .dc-file-editor .cm-content ::selection {
   background: color-mix(in srgb, var(--accent) 25%, transparent) !important;
 }
+.dc-file-editor__comment .dc-line-comment {
+  position: static;
+  width: auto;
+  --dc-line-comment-inset: 0px;
+}
+.dc-file-editor__selection-actions {
+  position: fixed;
+  z-index: 20;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--glass-surface-strong);
+  box-shadow: var(--glass-shadow-soft);
+}
 .dc-file-editor .cm-searchMatch {
   background: var(--find-match-bg);
 }
@@ -304,17 +317,6 @@
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
-}
-.dc-file-review .dc-file-review__wrap {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-}
-.dc-file-review .dc-button.dc-file-review__reject {
-  color: var(--error-text);
-}
-.dc-file-review .dc-button.dc-file-review__accept {
-  color: var(--success);
 }
 
 @container (max-width: 400px) {

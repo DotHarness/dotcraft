@@ -1,8 +1,7 @@
 import { useEffect, useState, type JSX, type ReactNode } from 'react'
-import { AlertTriangle, X } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 
 import { SettingsPanelShell } from '../../SettingsPanelShell'
-import { Button } from '../../../ui/Button'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useRemoteServersStore } from '../../../../stores/remoteServersStore'
 import { ServerDetail } from './ServerDetail'
@@ -141,9 +140,6 @@ export function ServersPanel({ embedded = false, onSubPageChange }: ServersPanel
             <AlertTriangle size={18} />
           </span>
           <div style={{ flex: 1, fontSize: 12.5, color: 'var(--text-secondary)' }}>{store.error}</div>
-          <Button variant="ghost" size="icon" aria-label={t('settings.servers.error.dismiss')} onClick={() => store.clearError()}>
-            <X size={16} />
-          </Button>
         </div>
       )}
       <ServerList

@@ -176,8 +176,11 @@ export function BrowserPageFeedback({
             </div>
             <div className="dc-browser-page-feedback__close">
               <IconButton
-                icon={<X size={15} />}
+                size={24}
+                radius={6}
+                icon={<X size={14} />}
                 label={t('common.cancel')}
+                tooltipLabel={t('common.cancel')}
                 onClick={() => setReference(null)}
               />
             </div>

@@ -3,10 +3,10 @@
  * a portal so the menu is never clipped by the panel body's `overflow: hidden`.
  */
 import { useRef, useState } from 'react'
-import { ChevronsDownUp, ChevronsUpDown, MoreHorizontal, WrapText } from 'lucide-react'
+import { ChevronsDownUp, ChevronsUpDown, WrapText } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
-import { IconButton } from '../ui/IconButton'
+import { MoreActionsButton } from '../ui/MoreActionsButton'
 
 interface ChangesActionsMenuProps {
   wordWrap: boolean
@@ -41,16 +41,12 @@ export function ChangesActionsMenu({
 
   return (
     <>
-      <IconButton
+      <MoreActionsButton
         ref={buttonRef}
         size={28}
         label={t('viewer.moreActions')}
-        tooltipLabel={t('viewer.moreActions')}
-        tooltipPlacement="bottom"
-        aria-haspopup="menu"
-        aria-expanded={position != null}
+        open={position != null}
         onClick={toggleOpen}
-        icon={<MoreHorizontal size={16} aria-hidden style={{ display: 'block' }} />}
       />
       {position && (
         <ContextMenu

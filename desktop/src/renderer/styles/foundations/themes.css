@@ -191,7 +191,7 @@ html[data-theme="light"] {
   --font-sans: var(--font-sans-ko);
 }
 
-/* Settings run the compact control band (see DESIGN.md → Actions); `sm` collapses onto
+/* Settings run the compact control band (see DESIGN.md → Buttons); `sm` collapses onto
    the default height so the two sizes are one band here. */
 .dc-settings-surface {
   --button-height: 28px;

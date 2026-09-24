@@ -1,6 +1,6 @@
 import { startPendingWelcomeTurn } from './utils/startPendingWelcomeTurn'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { translate, type AppLocale } from '../shared/locales'
 import { useLocale } from './contexts/LocaleContext'
 import { basename } from './utils/path'
@@ -64,6 +64,7 @@ import {
   type WorkspaceLaunchTransitionPhase
 } from './components/WorkspaceLaunchTransition'
 import { ConfirmDialogHost } from './components/ui/ConfirmDialog'
+import { Button } from './components/ui/Button'
 import { ToastContainer } from './components/ui/ToastContainer'
 import { DesktopPluginMainViewOutlet } from './components/desktopPlugins/DesktopPluginOutlets'
 import { CoreMainViewBoundary, coreMainViews } from './core/coreMainViewRoutes'
@@ -521,34 +522,6 @@ function buildBrowserUseApproval(
       })
       useConversationStore.getState().setGenericApproval(null)
     }
-  }
-}
-
-function topBannerSecondaryButtonStyle(disabled = false): CSSProperties {
-  return {
-    padding: '6px 10px',
-    border: '1px solid var(--border-default)',
-    borderRadius: '8px',
-    background: 'transparent',
-    color: 'var(--text-primary)',
-    fontSize: '12px',
-    fontWeight: 600,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.6 : 1
-  }
-}
-
-function topBannerPrimaryButtonStyle(disabled = false): CSSProperties {
-  return {
-    padding: '6px 10px',
-    border: '1px solid var(--text-primary)',
-    borderRadius: '8px',
-    background: 'var(--text-primary)',
-    color: 'var(--bg-primary)',
-    fontSize: '12px',
-    fontWeight: 700,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.6 : 1
   }
 }
 
@@ -2160,6 +2133,16 @@ export function App(): JSX.Element {
             break
           }
 
+          case 'turn/diff/updated': {
+            const tid = (p.threadId as string | undefined) ?? ''
+            if (!tid || !shouldUpdateActiveConversation(tid) || shouldDeferActiveConversationUpdate(tid)) break
+            conv.onTurnDiffUpdated({
+              turnId: (p.turnId as string | undefined) ?? '',
+              diff: typeof p.diff === 'string' ? p.diff : ''
+            })
+            break
+          }
+
           case 'item/approval/resolved': {
             const resolved = extractApprovalResolvedParams(p)
             if (shouldUpdateActiveConversation(resolved.threadId)) {
@@ -2410,10 +2393,12 @@ export function App(): JSX.Element {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const changedFilesSize = useConversationStore((s) => s.changedFiles.size)
+  const activeTurnFileCount = useConversationStore((s) =>
+    s.activeTurnId ? (s.turnDiffs.get(s.activeTurnId)?.files.length ?? 0) : 0
+  )
   const activeTurnIdForAutoShow = useConversationStore((s) => s.activeTurnId)
   useEffect(() => {
-    if (changedFilesSize === 0) return
+    if (activeTurnFileCount === 0) return
     const uiState = useUIStore.getState()
     const currentTurnId = activeTurnIdForAutoShow
     if (!currentTurnId) return
@@ -2423,7 +2408,7 @@ export function App(): JSX.Element {
       useUIStore.getState().setActiveDetailTab('changes')
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [changedFilesSize])
+  }, [activeTurnFileCount])
 
   const streamingPlanItemId = useConversationStore(selectStreamingPlanItemId)
   useEffect(() => {
@@ -2552,7 +2537,6 @@ export function App(): JSX.Element {
       }
 
       if (ctrl && e.shiftKey && e.key === 'G') {
-        if (remoteWorkspaceActiveRef.current) return
         e.preventDefault()
         performAddTabAction('newChanges', {
           threadId: useThreadStore.getState().activeThreadId,
@@ -3540,26 +3524,26 @@ export function App(): JSX.Element {
               {translate(locale, pendingRestartMessageKey)}
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => ignorePendingRestart()}
                 disabled={pendingRestartApplying}
-                style={topBannerSecondaryButtonStyle(pendingRestartApplying)}
               >
                 {translate(locale, 'settings.pendingRestart.ignore')}
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   void applyPendingRestart()
                 }}
                 disabled={pendingRestartApplying}
-                style={topBannerPrimaryButtonStyle(pendingRestartApplying)}
               >
                 {pendingRestartApplying
                   ? translate(locale, pendingRestartApplyingKey)
                   : translate(locale, pendingRestartApplyKey)}
-              </button>
+              </Button>
             </span>
           </div>
         )}

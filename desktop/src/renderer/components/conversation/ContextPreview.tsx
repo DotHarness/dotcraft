@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
 import type { PastedTextContext } from '../../../shared/composerContext'
 import { useT } from '../../contexts/LocaleContext'
 import { useLayerPresence } from '../../contexts/LayerContext'
 import { Button } from '../ui/Button'
-import { IconButton } from '../ui/IconButton'
+import { DialogCloseButton } from '../ui/DialogCloseButton'
 
 export function ContextPreview({
   context,
@@ -62,11 +61,7 @@ export function ContextPreview({
             })}
           </div>
         </div>
-        <IconButton
-          icon={<X size={16} />}
-          label={t('common.close')}
-          onClick={onClose}
-        />
+        <DialogCloseButton label={t('common.close')} onClose={onClose} />
       </header>
       <div className="dc-context-preview__body">
         {error ? (
@@ -78,21 +73,20 @@ export function ContextPreview({
         )}
       </div>
       <footer>
-        {onRemove && <Button variant="ghost" size="sm" onClick={onRemove}>
+        {onRemove && <Button variant="ghost" onClick={onRemove}>
           {t('composer.context.remove')}
         </Button>}
         <span className="dc-context-preview__spacer" />
         {onRestore && (
           <Button
-            variant="secondary"
-            size="sm"
+            variant="primary"
             disabled={restoring || text === null || !!error}
             onClick={onRestore}
           >
             {t('composer.context.restore')}
           </Button>
         )}
-        <Button variant="primary" size="sm" onClick={onClose}>
+        <Button variant={onRestore ? 'secondary' : 'primary'} onClick={onClose}>
           {t('common.close')}
         </Button>
       </footer>

@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { Check, Copy } from 'lucide-react'
 import type { MermaidConfig, RenderResult } from 'mermaid'
 import type { ThemeMode } from '../../../shared/theme'
 import { useDocumentThemeMode } from '../../utils/theme'
 import { useT } from '../../contexts/LocaleContext'
-import { IconButton } from '../ui/IconButton'
+import { CopyButton } from '../ui/CopyButton'
 import { sanitizeMermaidSvg } from './mermaidSanitize'
 
 interface MermaidDiagramProps {
@@ -81,9 +80,7 @@ export function MermaidDiagram({ source, fallback }: MermaidDiagramProps): JSX.E
   const t = useT()
   const themeMode = useDocumentThemeMode()
   const idRef = useRef<string>(`dc-mermaid-${nextMermaidId++}`)
-  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [renderState, setRenderState] = useState<MermaidRenderState>({ status: 'loading' })
-  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -115,38 +112,13 @@ export function MermaidDiagram({ source, fallback }: MermaidDiagramProps): JSX.E
     }
   }, [source, themeMode])
 
-  useEffect(() => {
-    return () => {
-      if (copyResetTimerRef.current != null) clearTimeout(copyResetTimerRef.current)
-    }
-  }, [])
-
-  async function handleCopySource(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(source)
-      setCopied(true)
-      if (copyResetTimerRef.current != null) clearTimeout(copyResetTimerRef.current)
-      copyResetTimerRef.current = setTimeout(() => {
-        setCopied(false)
-        copyResetTimerRef.current = null
-      }, 1500)
-    } catch {
-      // Ignore clipboard failures in read-only rendered markdown.
-    }
-  }
-
   return (
     <div style={diagramFrameStyle}>
       <div style={toolbarStyle}>
-          <IconButton
-            size={28}
-            bordered
-            label={copied ? t('markdown.mermaid.copiedSource') : t('markdown.mermaid.copySource')}
-            tooltipLabel={copied ? t('markdown.mermaid.copiedSource') : t('markdown.mermaid.copySource')}
-            tooltipPlacement="top"
-            onClick={() => { void handleCopySource() }}
-            style={{ borderRadius: 7, color: copied ? 'var(--success)' : undefined }}
-            icon={copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
+          <CopyButton
+            getText={() => source}
+            label={t('markdown.mermaid.copySource')}
+            copiedLabel={t('markdown.mermaid.copiedSource')}
           />
       </div>
 
@@ -495,11 +467,11 @@ const messageStyle: CSSProperties = {
   minHeight: '72px',
   padding: '36px 16px 16px',
   color: 'var(--text-secondary)',
-  fontSize: '13px'
+  fontSize: 'var(--conversation-secondary-size)'
 }
 
 const errorMessageStyle: CSSProperties = {
   padding: '36px 16px 0',
   color: 'var(--warning)',
-  fontSize: '12px'
+  fontSize: 'var(--conversation-secondary-size)'
 }

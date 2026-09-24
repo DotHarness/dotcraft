@@ -1,4 +1,5 @@
 import type { JSX } from 'react'
+import { Button } from '../ui/Button'
 
 /**
  * Speech bubble shown above the composer mascot. There is deliberately no close
@@ -110,26 +111,9 @@ export function MascotBubble({
       {actions.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '9px' }}>
           {actions.map((action, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={action.onClick}
-              style={{
-                fontSize: 'var(--type-secondary-size)',
-                lineHeight: 'var(--type-secondary-line-height)',
-                fontWeight: 'var(--type-ui-emphasis-weight)',
-                fontFamily: 'inherit',
-                borderRadius: '8px',
-                padding: '5px 10px',
-                cursor: 'pointer',
-                border: action.primary ? '1px solid var(--text-primary)' : '1px solid var(--border-default)',
-                background: action.primary ? 'var(--text-primary)' : 'transparent',
-                color: action.primary ? 'var(--bg-primary)' : 'var(--text-primary)',
-                transition: 'background-color 100ms ease'
-              }}
-            >
+            <Button key={i} size="sm" variant={action.primary ? 'primary' : 'secondary'} onClick={action.onClick}>
               {action.label}
-            </button>
+            </Button>
           ))}
         </div>
       )}

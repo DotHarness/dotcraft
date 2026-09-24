@@ -4,6 +4,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { ResponseFeedback } from '../components/conversation/ResponseFeedback'
 import { DiffViewer } from '../components/detail/DiffViewer'
 import { useComposerContextStore } from '../stores/composerContextStore'
+import { useLineCommentDraftStore } from '../stores/lineCommentDraftStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useVoiceStore } from '../voice/voiceStore'
@@ -13,6 +14,7 @@ import type { FileDiff } from '../types/toolCall'
 beforeEach(() => {
   Range.prototype.getBoundingClientRect = vi.fn(() => ({ left: 0, top: 0, right: 200, bottom: 24, width: 200, height: 24 }) as DOMRect)
   useComposerContextStore.setState({ byThread: {} })
+  useLineCommentDraftStore.setState({ byThread: {} })
   useThreadStore.setState({ activeThreadId: 'task' })
   useConversationStore.setState({ turns: [] })
   useVoiceStore.setState({
@@ -58,8 +60,6 @@ it('captures only the actual selected reply text with its source identity', () =
 
 const diff: FileDiff = {
   filePath: '/workspace/a.ts',
-  turnId: 'turn',
-  turnIds: ['turn'],
   additions: 1,
   deletions: 1,
   status: 'written',
@@ -80,24 +80,27 @@ const diff: FileDiff = {
 }
 
 it.each(['inline', 'split'] as const)(
-  'keeps old-side range and user comment when using %s diff',
+  'comments on a selected old-side range when using %s diff',
   (mode) => {
     render(
       <LocaleProvider>
         <DiffViewer diff={diff} workspacePath="/workspace" mode={mode} />
       </LocaleProvider>,
     )
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Comment on old line 40' }),
-    )
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Comment on old line 41' }),
-      { shiftKey: true },
-    )
-    fireEvent.change(screen.getByRole('textbox', { name: 'Your comment' }), {
-      target: { value: 'Keep the old behavior' },
+    fireEvent.click(screen.getByRole('button', { name: 'Select old line 40' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select old line 41' }), {
+      shiftKey: true,
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.keyDown(
+      screen.getByRole('button', { name: 'Comment on old line 41' }),
+      { key: 'Enter' },
+    )
+    fireEvent.change(
+      screen.getByRole('textbox', { name: 'Comment on lines L40 to L41' }),
+      { target: { value: 'Keep the old behavior' } },
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Comment' }))
+    expect(useLineCommentDraftStore.getState().getDrafts('task')).toEqual([])
     expect(useComposerContextStore.getState().getContexts('task')).toEqual([
       expect.objectContaining({
         kind: 'diffAnnotation',
@@ -110,6 +113,25 @@ it.each(['inline', 'split'] as const)(
     ])
   },
 )
+
+it('discards a new draft on Cancel without submitting an empty comment', () => {
+  render(
+    <LocaleProvider>
+      <DiffViewer diff={diff} workspacePath="/workspace" mode="inline" />
+    </LocaleProvider>,
+  )
+  fireEvent.keyDown(
+    screen.getByRole('button', { name: 'Comment on new line 45' }),
+    { key: 'Enter' },
+  )
+  const input = screen.getByRole('textbox', { name: 'Comment on line R45' })
+  expect(screen.getByRole('button', { name: 'Comment' })).toHaveProperty('disabled', true)
+  fireEvent.keyDown(input, { key: 'Enter' })
+  expect(useComposerContextStore.getState().getContexts('task')).toEqual([])
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  expect(screen.queryByRole('textbox')).toBeNull()
+  expect(useLineCommentDraftStore.getState().getDrafts('task')).toEqual([])
+})
 
 it('renders model review at the matching new line without making it a user draft', () => {
   act(() =>
@@ -139,6 +161,5 @@ it('renders model review at the matching new line without making it a user draft
     </LocaleProvider>,
   )
   expect(screen.getByText('Check the new value')).toBeTruthy()
-  expect(screen.getByText('Model review · 45–45')).toBeTruthy()
   expect(useComposerContextStore.getState().getContexts('task')).toEqual([])
 })

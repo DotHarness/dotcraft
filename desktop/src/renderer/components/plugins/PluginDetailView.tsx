@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
-import { Code2, Ellipsis, ExternalLink, Link, MessageCircle, Plus, Settings, Trash2 } from 'lucide-react'
+import { Code2, ExternalLink, Link, MessageCircle, Plus, Settings, Trash2 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import type { PluginEntry } from '../../stores/pluginStore'
 import { getPluginContentSummaries } from '../../utils/pluginContentSummaries'
@@ -12,7 +12,7 @@ import {
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { Button } from '../ui/Button'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
-import { IconButton } from '../ui/IconButton'
+import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { AppBindingPanel } from './AppBindingPanel'
 import { MorphingActionPill } from './MorphingActionPill'
 import { PluginIcon, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
@@ -91,9 +91,9 @@ export function PluginDetailView({
               </a>
             </ActionTooltip>
             {plugin.installed && (
-              <IconButton
-                icon={<Ellipsis size={16} aria-hidden />}
+              <MoreActionsButton
                 label={t('plugins.moreActions')}
+                open={detailMenuPosition != null}
                 onClick={(event) => {
                   event.stopPropagation()
                   const rect = event.currentTarget.getBoundingClientRect()

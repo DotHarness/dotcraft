@@ -44,7 +44,6 @@ export function createRefSpan(kind: RefType, value: string): HTMLSpanElement {
   span.setAttribute('data-ref-type', kind)
   // The chip's box comes from the shared .dc-ref* classes in tokens.css; only what
   // differs from the sent-message bubble ref stays inline.
-  span.style.fontSize = '13px'
   span.style.cursor = 'default'
 
   iconSlot.className = 'dc-ref-icon-slot'

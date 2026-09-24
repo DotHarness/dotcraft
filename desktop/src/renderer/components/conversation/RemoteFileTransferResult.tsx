@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, Check, Copy } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import { formatTransferSize, type RemoteFileTransferDisplay } from '../../utils/remoteToolHostDisplay'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { IconButton } from '../ui/IconButton'
+import { CopyButton } from '../ui/CopyButton'
 import styles from './RemoteFileTransferResult.module.css'
 
 export function RemoteFileTransferResult({ display, locale }: {
@@ -65,40 +64,19 @@ function Endpoint({ machine, path, locale }: { machine: string; path: string; lo
 }
 
 function PathCell({ path, locale }: { path: string; locale: AppLocale }): JSX.Element {
-  const [copied, setCopied] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => {
-    if (timer.current != null) clearTimeout(timer.current)
-  }, [])
-
-  async function copy(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(path)
-      setCopied(true)
-      if (timer.current != null) clearTimeout(timer.current)
-      timer.current = setTimeout(() => setCopied(false), 1500)
-    } catch {
-      setCopied(false)
-    }
-  }
-
-  const copyLabel = translate(locale, 'toolCall.remoteToolHost.transfer.copyPath')
   return (
-    <span className={styles.pathCell} data-copied={copied || undefined}>
+    <span className={styles.pathCell}>
       <ActionTooltip label={path} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
         <code className={styles.path}>{path}</code>
       </ActionTooltip>
-      <IconButton
+      <CopyButton
         size={22}
-        radius={6}
+        iconSize={13}
         className={styles.copy}
-        label={copyLabel}
-        tooltipLabel={copyLabel}
-        tooltipPlacement="top"
+        getText={() => path}
+        label={translate(locale, 'toolCall.remoteToolHost.transfer.copyPath')}
+        copiedLabel={translate(locale, 'common.copied')}
         tooltipWrapperStyle={{ flexShrink: 0 }}
-        style={{ color: copied ? 'var(--success)' : undefined }}
-        icon={copied ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
-        onClick={() => { void copy() }}
       />
     </span>
   )

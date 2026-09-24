@@ -8,6 +8,7 @@
 @import "../components/conversation/styles/welcome-heading.css";
 @import "../components/conversation/styles/composer-focus.css";
 @import "../components/conversation/styles/composer-submit.css";
+@import "../components/conversation/styles/composer-controls.css";
 @import "../components/conversation/styles/model-picker.css";
 @import "../components/conversation/styles/reference-chips.css";
 @import "../components/conversation/styles/message-stream.css";
@@ -38,6 +39,7 @@
 @import "./primitives/quiet-action.css";
 @import "./primitives/message-state.css";
 @import "./primitives/icon-button.css";
+@import "./primitives/disclosure-chevron.css";
 @import "./primitives/toast.css";
 @import "./primitives/scroll-region.css";
 @import "./primitives/status-indicator.css";
@@ -47,7 +49,6 @@
 @import "./primitives/input-with-action.css";
 @import "./primitives/color-picker.css";
 @import "./primitives/shortcut-key.css";
-@import "./shared/whats-new.css";
 @import "./shared/action-tooltip.css";
 @import "../components/conversation/styles/inline-visualization.css";
 @import "../components/conversation/styles/context-attachments.css";
@@ -57,6 +58,7 @@
 @import "./shared/reduced-motion.css";
 @import "./shared/pointer.css";
 @import "../components/sidebar/styles/appearance.css";
+@import "../components/sidebar/styles/thread-row.css";
 @import "../components/desktopPlugins/styles/overlay-seat.css";
 
 @import "../components/automations/automations.css";

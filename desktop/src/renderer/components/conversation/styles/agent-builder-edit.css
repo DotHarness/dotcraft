@@ -3,8 +3,8 @@
   flex-direction: column;
   gap: 8px;
   color: var(--text-secondary);
-  font-size: var(--type-secondary-size);
-  line-height: var(--type-secondary-prose-line-height);
+  font-size: var(--conversation-secondary-size);
+  line-height: var(--conversation-line-height);
 }
 
 .dc-profile-edit-text {
@@ -16,11 +16,6 @@
 .dc-profile-edit-markdown {
   max-height: 260px;
   overflow-y: auto;
-}
-
-.dc-profile-edit-markdown .markdown-body {
-  font-size: var(--type-secondary-size);
-  line-height: 1.55;
 }
 
 .dc-profile-edit-chips {

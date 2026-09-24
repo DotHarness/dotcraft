@@ -93,7 +93,7 @@ export function EditorFind({
         disabled={!matches.count}
         onClick={() => findNext(view)}
       />
-      <IconButton size={24} label={t('find.close')} icon={<X size={14} />} onClick={close} />
+      <IconButton size={24} label={t('find.close')} icon={<X size={16} />} onClick={close} />
     </div>
   )
 }

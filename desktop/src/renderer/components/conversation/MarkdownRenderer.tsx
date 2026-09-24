@@ -75,6 +75,12 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   )
 })
 
+const minorHeadingStyle: React.CSSProperties = {
+  margin: '10px 0 6px',
+  fontWeight: 600,
+  color: 'var(--text-primary)'
+}
+
 const baseComponents: Components = {
   p({ children, ...props }) {
     return (
@@ -95,9 +101,9 @@ const baseComponents: Components = {
       <h1
         style={{
           margin: '2px 0 10px',
-          fontSize: '1.45rem',
+          fontSize: '1.5em',
           lineHeight: 1.24,
-          fontWeight: 650,
+          fontWeight: 600,
           letterSpacing: 0,
           color: 'var(--text-primary)'
         }}
@@ -113,9 +119,9 @@ const baseComponents: Components = {
       <h2
         style={{
           margin: '14px 0 8px',
-          fontSize: '1.18rem',
+          fontSize: '1.25em',
           lineHeight: 1.3,
-          fontWeight: 640,
+          fontWeight: 600,
           letterSpacing: 0,
           color: 'var(--text-primary)'
         }}
@@ -131,9 +137,9 @@ const baseComponents: Components = {
       <h3
         style={{
           margin: '12px 0 7px',
-          fontSize: '1.02rem',
+          fontSize: '1.125em',
           lineHeight: 1.34,
-          fontWeight: 630,
+          fontWeight: 600,
           color: 'var(--text-primary)'
         }}
         {...props}
@@ -141,6 +147,18 @@ const baseComponents: Components = {
         {children}
       </h3>
     )
+  },
+
+  h4({ children, ...props }) {
+    return <h4 style={minorHeadingStyle} {...props}>{children}</h4>
+  },
+
+  h5({ children, ...props }) {
+    return <h5 style={minorHeadingStyle} {...props}>{children}</h5>
+  },
+
+  h6({ children, ...props }) {
+    return <h6 style={minorHeadingStyle} {...props}>{children}</h6>
   },
 
   ul({ children, ...props }) {
@@ -235,8 +253,8 @@ const baseComponents: Components = {
           style={{
             borderCollapse: 'collapse',
             width: '100%',
-            fontSize: 'var(--text-body-secondary-size)',
-            lineHeight: 'var(--text-body-secondary-line-height)'
+            fontSize: 'var(--conversation-secondary-size)',
+            lineHeight: 'var(--conversation-line-height)'
           }}
           {...props}
         >
@@ -351,8 +369,6 @@ function InlineReferenceLink({
         style={{
           margin: '0 4px',
           maxWidth: 'min(100%, var(--inline-reference-max-width))',
-          fontSize: '12px',
-          lineHeight: 1.25,
           cursor: href ? 'pointer' : 'default'
         }}
         {...props}

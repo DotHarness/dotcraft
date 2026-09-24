@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Check, Download, ExternalLink, Plus, Settings, Sparkles, X } from 'lucide-react'
+import { Check, Download, ExternalLink, Plus, Settings, Sparkles } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useSkillsStore, type SkillEntry } from '../../stores/skillsStore'
 import { useSkillMarketStore, type SkillMarketProviderFilter } from '../../stores/skillMarketStore'
@@ -21,7 +21,8 @@ import { useUIStore } from '../../stores/uiStore'
 import type { ThreadSummary } from '../../types/thread'
 import { CatalogBreadcrumb, CatalogFilterButton, CatalogScrollArea, CatalogSearchBox, CatalogToolbarIconButton, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
-import { IconButton } from '../ui/IconButton'
+import { DialogCloseButton } from '../ui/DialogCloseButton'
+import { Button } from '../ui/Button'
 import { stripYamlFrontmatter } from '../../utils/skillMarkdown'
 
 type ViewMode = 'browse' | 'manage'
@@ -741,15 +742,7 @@ function MarketSkillDetailDialog({
             <h2 id="skill-market-detail-title" style={modalTitle}>{skill.name}</h2>
             <p style={modalSubtitle}>{skill.description || skill.slug}</p>
           </div>
-          <IconButton
-            icon={<X size={18} aria-hidden />}
-            label={t('skillDetail.close')}
-            tooltipLabel={t('skillDetail.close')}
-            tooltipPlacement="bottom"
-            size={32}
-            radius={6}
-            onClick={onClose}
-          />
+          <DialogCloseButton label={t('skillDetail.close')} onClose={onClose} />
         </header>
         <div style={metaRow}>
           <Meta label={t('skillMarket.provider')} value={providerLabel(skill.provider)} />
@@ -769,41 +762,33 @@ function MarketSkillDetailDialog({
           )}
         </div>
         <footer style={modalFooter}>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            iconLeft={<ExternalLink size={14} aria-hidden />}
             onClick={() => {
               if (skill.sourceUrl) void window.api.shell.openExternal(skill.sourceUrl)
             }}
             disabled={!skill.sourceUrl}
-            style={!skill.sourceUrl ? disabledSecondaryBtn : secondaryBtn}
           >
-            <ExternalLink size={14} aria-hidden />
             {t('skillMarket.openSource')}
-          </button>
+          </Button>
           <ActionTooltip
             label={installLabel}
             disabledReason={installDisabledReason ?? undefined}
             placement="top"
           >
-            <button type="button" onClick={onInstall} disabled={installButtonDisabled} style={installButtonDisabled ? disabledSecondaryBtn : secondaryBtn}>
-              <Download size={14} aria-hidden />
+            <Button variant="secondary" iconLeft={<Download size={14} aria-hidden />} onClick={onInstall} disabled={installButtonDisabled}>
               {installing ? t('skillMarket.installing') : installLabel}
-            </button>
+            </Button>
           </ActionTooltip>
           <ActionTooltip
             label={dotCraftInstallLabel}
             disabledReason={dotCraftDisabledReason ?? undefined}
             placement="top"
           >
-            <button
-              type="button"
-              onClick={onDotCraftInstall}
-              disabled={dotCraftButtonDisabled}
-              style={dotCraftButtonDisabled ? disabledPrimaryBtn : primaryBtn}
-            >
-              <Sparkles size={14} aria-hidden />
+            <Button variant="primary" iconLeft={<Sparkles size={14} aria-hidden />} onClick={onDotCraftInstall} disabled={dotCraftButtonDisabled}>
               {dotCraftInstalling ? t('skillMarket.dotCraftInstallPreparing') : dotCraftInstallLabel}
-            </button>
+            </Button>
           </ActionTooltip>
         </footer>
       </div>
@@ -1066,36 +1051,4 @@ const modalFooter: React.CSSProperties = {
   alignItems: 'center',
   gap: '8px',
   flexWrap: 'wrap'
-}
-
-const secondaryBtn: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '6px',
-  padding: '7px 12px',
-  fontSize: '13px',
-  borderRadius: '6px',
-  border: '1px solid var(--border-default)',
-  backgroundColor: 'var(--bg-tertiary)',
-  color: 'var(--text-primary)',
-  cursor: 'pointer'
-}
-
-const primaryBtn: React.CSSProperties = {
-  ...secondaryBtn,
-  backgroundColor: 'var(--accent)',
-  borderColor: 'var(--accent)',
-  color: 'var(--on-accent)'
-}
-
-const disabledSecondaryBtn: React.CSSProperties = {
-  ...secondaryBtn,
-  opacity: 0.55,
-  cursor: 'not-allowed'
-}
-
-const disabledPrimaryBtn: React.CSSProperties = {
-  ...primaryBtn,
-  opacity: 0.65,
-  cursor: 'not-allowed'
 }

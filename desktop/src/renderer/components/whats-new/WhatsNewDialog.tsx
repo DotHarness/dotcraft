@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import {
   ChevronLeft,
   ChevronRight,
-  X,
   Sparkles,
   ExternalLink
 } from 'lucide-react'
@@ -19,7 +18,7 @@ import {
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { Skeleton } from '../ui/Skeleton'
 import { Button, ButtonLabel } from '../ui/Button'
-import { IconButton } from '../ui/IconButton'
+import { DialogCloseButton } from '../ui/DialogCloseButton'
 
 interface WhatsNewDialogProps {
   releases: WhatsNewRelease[]
@@ -87,12 +86,7 @@ export function WhatsNewDialog({
               {t('whatsNew.title')}
             </h2>
           </div>
-          <IconButton
-            className="whats-new-close-button"
-            label={t('whatsNew.closeAria')}
-            icon={<X size={18} strokeWidth={2} aria-hidden="true" />}
-            onClick={onClose}
-          />
+          <DialogCloseButton label={t('whatsNew.closeAria')} onClose={onClose} />
         </header>
 
         <div style={contentStyle}>
@@ -127,7 +121,6 @@ export function WhatsNewDialog({
             {olderRelease && (
               <Button
                 variant="ghost"
-                size="sm"
                 onClick={() => setActiveIndex((index) => index + 1)}
               >
                 <ChevronLeft size={14} strokeWidth={2} aria-hidden="true" />
@@ -137,7 +130,6 @@ export function WhatsNewDialog({
             {newerRelease && (
               <Button
                 variant="ghost"
-                size="sm"
                 onClick={() => setActiveIndex((index) => index - 1)}
               >
                 <ButtonLabel>{t('whatsNew.showNewer', { version: newerRelease.version })}</ButtonLabel>

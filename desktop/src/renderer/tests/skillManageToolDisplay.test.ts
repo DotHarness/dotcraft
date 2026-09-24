@@ -54,8 +54,7 @@ describe('skillManageToolDisplay', () => {
         oldString: 'before',
         newString: 'after'
       },
-      JSON.stringify({ success: true, message: 'ok' }),
-      'turn-1'
+      JSON.stringify({ success: true, message: 'ok' })
     )
 
     expect(diff?.filePath).toBe('demo/SKILL.md')
@@ -72,8 +71,7 @@ describe('skillManageToolDisplay', () => {
         filePath: 'scripts/check.ps1',
         fileContent: 'Write-Host ok'
       },
-      JSON.stringify({ success: true, message: 'ok' }),
-      'turn-1'
+      JSON.stringify({ success: true, message: 'ok' })
     )
 
     expect(diff?.filePath).toBe('demo/scripts/check.ps1')

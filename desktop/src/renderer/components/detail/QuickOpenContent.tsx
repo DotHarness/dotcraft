@@ -18,6 +18,7 @@ import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { Search, AlertCircle } from 'lucide-react'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
+import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 
 const MAX_FILE_LIST = 500
@@ -273,9 +274,9 @@ export function QuickOpenContent({
           <div style={{ ...statusStyle, display: 'flex', gap: '8px', alignItems: 'center' }}>
             <AlertCircle size={14} aria-hidden />
             <span>{t('quickOpen.retry')}</span>
-            <button onClick={() => void loadFiles()} style={retryButtonStyle}>
+            <Button size="sm" onClick={() => void loadFiles()}>
               {t('common.retry')}
-            </button>
+            </Button>
           </div>
         )}
 
@@ -363,16 +364,6 @@ const statusStyle: CSSProperties = {
   padding: '16px 12px',
   color: 'var(--text-secondary)',
   fontSize: '13px'
-}
-
-const retryButtonStyle: CSSProperties = {
-  background: 'transparent',
-  border: '1px solid var(--border-default)',
-  color: 'var(--text-secondary)',
-  padding: '2px 8px',
-  borderRadius: '4px',
-  cursor: 'pointer',
-  fontSize: '12px'
 }
 
 const listStyle: CSSProperties = {

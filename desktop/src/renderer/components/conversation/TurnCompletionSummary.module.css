@@ -1,0 +1,111 @@
+.card {
+  margin-top: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  font-size: var(--conversation-font-size);
+  line-height: var(--conversation-line-height);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.heading {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  overflow: hidden;
+  font-weight: var(--type-ui-emphasis-weight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats {
+  flex-shrink: 0;
+  font-size: var(--conversation-secondary-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.item + .item {
+  border-top: 1px solid var(--border-default);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.row[aria-expanded='true'] {
+  background: var(--bg-tertiary);
+}
+
+.path {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+}
+
+.pathLink {
+  display: flex;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chevron {
+  display: inline-flex;
+  justify-content: center;
+  width: 16px;
+  color: var(--text-secondary);
+}
+
+.diff {
+  border-top: 1px solid var(--border-default);
+}
+
+.moreToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-top: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.moreToggle:hover {
+  color: var(--text-primary);
+}

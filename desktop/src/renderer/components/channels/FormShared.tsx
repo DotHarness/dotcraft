@@ -155,6 +155,7 @@ export function SecretInput({
       />
       <IconButton
         size={24}
+        radius={6}
         label={visible ? t('common.hideSecret') : t('common.showSecret')}
         aria-pressed={visible}
         disabled={disabled}
@@ -163,10 +164,9 @@ export function SecretInput({
           position: 'absolute',
           right: '8px',
           top: '50%',
-          transform: 'translateY(-50%)',
-          borderRadius: 4
+          transform: 'translateY(-50%)'
         }}
-        icon={visible ? <EyeOff size={14} strokeWidth={1.5} aria-hidden /> : <Eye size={14} strokeWidth={1.5} aria-hidden />}
+        icon={visible ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
       />
     </div>
   )

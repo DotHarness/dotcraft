@@ -71,6 +71,7 @@ public enum SessionEventType
     UserInputResolved,
     SubAgentProgress,
     UsageDelta,
+    TurnDiffUpdated,
     SystemEvent
 }
 

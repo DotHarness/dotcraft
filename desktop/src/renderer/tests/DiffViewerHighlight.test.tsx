@@ -10,8 +10,6 @@ import { installDesktopApiMock } from './desktopApiMock'
 function makeDiff(overrides: Partial<FileDiff> = {}): FileDiff {
   return {
     filePath: 'src/a.ts',
-    turnId: 'turn-1',
-    turnIds: ['turn-1'],
     additions: 1,
     deletions: 1,
     diffHunks: [

@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { Archive, ArrowRightLeft, GitFork, Laptop, MoreHorizontal, Pencil, Pin, PanelLeft } from 'lucide-react'
+import { Archive, ArrowRightLeft, GitFork, Laptop, Pencil, Pin, PanelLeft } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
+import { writtenFileSummaries } from '../../stores/turnDiffs'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useSourceControlStore } from '../../stores/sourceControlStore'
 import { useThreadStore } from '../../stores/threadStore'
@@ -18,6 +19,7 @@ import { ThreadAppBindingsButton } from './ThreadAppBindingsButton'
 import { ScreenViewHeaderSlot } from './screenView/ScreenViewHeaderSlot'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { IconButton } from '../ui/IconButton'
+import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { Input } from '../ui/Input'
 import { isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
@@ -44,7 +46,7 @@ export function ThreadHeader({
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(threadName)
   const renameInputRef = useRef<HTMLInputElement>(null)
-  const changedFiles = useConversationStore((s) => s.changedFiles)
+  const hasWrittenFiles = useConversationStore((s) => writtenFileSummaries(s.turnDiffs).length > 0)
   const detailPanelPreferredVisible = useUIStore((s) => s.detailPanelPreferredVisible)
   const toggleDetailPanel = useUIStore((s) => s.toggleDetailPanel)
   const activeThread = useThreadStore((s) => s.activeThread)
@@ -89,8 +91,6 @@ export function ThreadHeader({
     void usePerforceChangelistStore.getState().ensure(threadId)
   }, [canPreparePerforce, threadId])
 
-  const writtenFiles = Array.from(changedFiles.values()).filter((f) => f.status === 'written')
-  const hasWrittenFiles = writtenFiles.length > 0
   const activeThreadIsSubAgent = activeThread ? isSubAgentThread(activeThread) : false
   const pinned = pinnedThreadIds.includes(threadId)
   const canFork = canForkThread(capabilities)
@@ -161,9 +161,7 @@ export function ThreadHeader({
       addToast(t('threadHeader.remoteLocalGitUnavailable'), 'warning')
       return
     }
-    const files = Array.from(useConversationStore.getState().changedFiles.values()).filter(
-      (f) => f.status === 'written'
-    )
+    const files = writtenFileSummaries(useConversationStore.getState().turnDiffs)
     if (files.length === 0) return
 
     addToast(t('commit.committing'), 'info', 60_000)
@@ -209,9 +207,7 @@ export function ThreadHeader({
       addToast(t('perforcePrepare.toast.offline'), 'warning')
       return
     }
-    const files = Array.from(useConversationStore.getState().changedFiles.values()).filter(
-      (f) => f.status === 'written'
-    )
+    const files = writtenFileSummaries(useConversationStore.getState().turnDiffs)
     if (files.length === 0) return
 
     addToast(t('perforcePrepare.preparing'), 'info', 60_000)
@@ -306,7 +302,7 @@ export function ThreadHeader({
             style={{
               flex: 1,
               height: 'auto',
-              fontSize: '14px',
+              fontSize: 'var(--conversation-font-size)',
               fontWeight: 600,
               background: 'var(--bg-secondary)',
               borderRadius: '4px',
@@ -334,7 +330,7 @@ export function ThreadHeader({
                   margin: 0,
                   minWidth: 0,
                   maxWidth: '100%',
-                  fontSize: '14px',
+                  fontSize: 'var(--conversation-font-size)',
                   fontWeight: 600,
                   color: 'var(--text-primary)',
                   overflow: 'hidden',
@@ -374,7 +370,7 @@ export function ThreadHeader({
                           border: '1px solid var(--border-default)',
                           color: 'var(--text-secondary)',
                           backgroundColor: 'var(--bg-secondary)',
-                          fontSize: '11px',
+                          fontSize: 'var(--conversation-meta-size)',
                           fontWeight: 500,
                           lineHeight: 1,
                           overflow: 'hidden',
@@ -391,14 +387,10 @@ export function ThreadHeader({
               </h1>
             </ActionTooltip>
 
-            <IconButton
+            <MoreActionsButton
                 size={28}
                 label={t('threadHeader.moreActions')}
-                tooltipPlacement="bottom"
-                tooltipLabel={t('threadHeader.moreActions')}
-                icon={<MoreHorizontal size={16} aria-hidden />}
-                aria-haspopup="menu"
-                aria-expanded={menuPosition != null}
+                open={menuPosition != null}
                 onClick={(event) => {
                   const rect = event.currentTarget.getBoundingClientRect()
                   setMenuPosition({ x: rect.left, y: rect.bottom + 4 })

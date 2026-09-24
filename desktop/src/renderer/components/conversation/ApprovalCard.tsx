@@ -20,6 +20,6 @@ export function ApprovalCard({ item }: ApprovalCardProps): JSX.Element | null {
 const pendingStatusStyle: CSSProperties = {
   padding: '4px 8px',
   color: 'var(--text-dimmed)',
-  fontSize: 'var(--type-secondary-size)',
-  lineHeight: 'var(--type-secondary-line-height)'
+  fontSize: 'var(--conversation-font-size)',
+  lineHeight: 'var(--conversation-line-height)'
 }

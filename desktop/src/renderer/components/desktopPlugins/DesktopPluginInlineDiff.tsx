@@ -8,8 +8,6 @@ export function DesktopPluginInlineDiff({ filePath, line, before, after }: Inlin
   const added = after.split('\n')
   const diff: FileDiff = {
     filePath,
-    turnId: 'desktop-plugin-inline-diff',
-    turnIds: ['desktop-plugin-inline-diff'],
     additions: added.length,
     deletions: removed.length,
     diffHunks: [{

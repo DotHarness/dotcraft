@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/TurnDiffUpdatedNotification.schema.json",
+  "title": "TurnDiffUpdatedNotification",
+  "type": "object",
+  "properties": {
+    "diff": {
+      "type": "string"
+    },
+    "threadId": {
+      "type": "string"
+    },
+    "turnId": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "diff",
+    "threadId",
+    "turnId"
+  ]
+}

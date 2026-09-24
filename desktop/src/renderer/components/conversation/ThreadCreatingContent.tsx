@@ -14,7 +14,7 @@ export function ThreadCreatingContent({ text }: { text: string }): JSX.Element {
       <div className="dc-conversation-message-stream">
         <ConversationColumn className="dc-conversation-column-stack">
           <UserMessageBlock text={text} />
-          <NoticeDivider ariaLabel={label} title={label} icon={<MessageSquarePlus size={12} aria-hidden />} active />
+          <NoticeDivider ariaLabel={label} title={label} icon={<MessageSquarePlus size={14} aria-hidden />} active />
         </ConversationColumn>
       </div>
     </div>

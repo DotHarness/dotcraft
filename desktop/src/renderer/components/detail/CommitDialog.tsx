@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronRight, GitBranch, GitCommitHorizontal } from 'lucide-react'
+import { GitBranch, GitCommitHorizontal } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
+import { threadFileSummaries } from '../../stores/turnDiffs'
 import { ModalHeader } from '../ui/ModalHeader'
 import { Button } from '../ui/Button'
+import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { Textarea } from '../ui/Input'
 
 interface CommitDialogProps {
@@ -21,9 +23,9 @@ interface CommitDialogProps {
 /** A blank message means autogenerate; the dialog hands off and closes. Spec §16.5. */
 export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogProps): JSX.Element {
   const t = useT()
-  const changedFiles = useConversationStore((s) => s.changedFiles)
+  const turnDiffs = useConversationStore((s) => s.turnDiffs)
 
-  const allFiles = Array.from(changedFiles.values())
+  const allFiles = useMemo(() => threadFileSummaries(turnDiffs), [turnDiffs])
   const writtenFiles = allFiles.filter((f) => f.status === 'written')
   const revertedCount = allFiles.length - writtenFiles.length
 
@@ -121,7 +123,7 @@ export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogP
         <button
           type="button"
           onClick={() => setFilesExpanded((v) => !v)}
-          aria-label={filesExpanded ? t('commit.collapseFiles') : t('commit.expandFiles')}
+          aria-expanded={filesExpanded}
           style={{
             ...infoRowStyle,
             width: '100%',
@@ -137,7 +139,7 @@ export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogP
             <span>{t('commit.changesSummary', { files: writtenFiles.length })}</span>
             <span style={{ color: 'var(--success)' }}>+{totalAdditions}</span>
             <span style={{ color: 'var(--error)' }}>-{totalDeletions}</span>
-            {filesExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+            <DisclosureChevron expanded={filesExpanded} />
           </span>
         </button>
 

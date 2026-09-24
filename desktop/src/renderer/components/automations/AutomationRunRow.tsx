@@ -1,4 +1,4 @@
-import { Archive, MoreHorizontal } from 'lucide-react'
+import { Archive } from 'lucide-react'
 import { Spinner } from '../ui/Spinner'
 import { useT } from '../../contexts/LocaleContext'
 import type { AppLocale } from '../../../shared/locales/types'
@@ -6,6 +6,7 @@ import type { AutomationRun } from '../../types/automation'
 import { openAutomationRun } from '../../stores/automationRunNavigation'
 import { formatRelativeTime } from '../../utils/relativeTime'
 import { Button } from '../ui/Button'
+import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { runThreadBusy, type RunThread } from './useAutomationRunThreads'
@@ -39,7 +40,7 @@ export function AutomationRunRow({ run, thread, automationName, locale, pending,
       <time dateTime={run.createdAt} title={new Date(run.createdAt).toLocaleString(locale)}>{formatRelativeTime(run.createdAt, new Date(), locale)}</time>
     </button>
     {archived && <Button variant="ghost" size="sm" className="dc-automation-run-restore" disabled={pending} onClick={onRestore}>{t('automation.unarchive')}</Button>}
-    <Button variant="ghost" size="iconSm" className="dc-automation-run-touch-menu" disabled={pending} aria-label={t('automation.historyActions')}
-      onClick={event => { const rect = event.currentTarget.getBoundingClientRect(); onMenu({ x: rect.right, y: rect.bottom }) }}><MoreHorizontal size={15} /></Button>
+    <MoreActionsButton size={28} className="dc-automation-run-touch-menu" disabled={pending} label={t('automation.historyActions')}
+      onClick={event => { const rect = event.currentTarget.getBoundingClientRect(); onMenu({ x: rect.right, y: rect.bottom }) }} />
   </article>
 }

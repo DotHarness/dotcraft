@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   Anchor,
-  ChevronDown,
   ChevronRight,
-  Copy,
   FileSearch,
   RefreshCw,
   Settings as SettingsIcon,
@@ -18,6 +16,8 @@ import { usePluginStore, type PluginEntry } from '../../../stores/pluginStore'
 import { addToast } from '../../../stores/toastStore'
 import type { MessageKey } from '../../../../shared/locales'
 import { PluginIcon, pluginTitle } from '../../plugins/PluginCatalogItem'
+import { CopyButton } from '../../ui/CopyButton'
+import { DisclosureChevron } from '../../ui/DisclosureChevron'
 import { IconButton } from '../../ui/IconButton'
 import { Button } from '../../ui/Button'
 import { PillSwitch } from '../../ui/PillSwitch'
@@ -370,8 +370,8 @@ function HookRow({
   return (
     <SettingsRow orientation="block" style={{ gap: 0 }}>
       <div style={hookHeaderStyle}>
-        <button type="button" onClick={onToggleExpanded} style={expandButtonStyle}>
-          {expanded ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
+        <button type="button" onClick={onToggleExpanded} style={expandButtonStyle} aria-expanded={expanded}>
+          <DisclosureChevron expanded={expanded} />
           <span>{t('settings.hooks.hookOrdinal', { number: String(index + 1) })}</span>
         </button>
         <span style={trustBadgeStyle(hook.trustStatus)}>
@@ -380,15 +380,12 @@ function HookRow({
         </span>
         <div style={{ flex: 1 }} />
         {!readOnlyActions && hook.command && (
-          <IconButton
-            icon={<Copy size={14} aria-hidden />}
+          <CopyButton
+            getText={() => hook.command ?? ''}
             label={t('settings.hooks.copyCommand')}
-            tooltipLabel={t('settings.hooks.copyCommand')}
+            copiedLabel={t('common.copied')}
             size={28}
-            onClick={() => {
-              void navigator.clipboard?.writeText(hook.command ?? '')
-              addToast(t('toast.copied'), 'success')
-            }}
+            radius={null}
           />
         )}
         {!readOnlyActions && hook.sourcePath && (

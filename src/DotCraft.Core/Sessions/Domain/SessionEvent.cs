@@ -93,6 +93,9 @@ public sealed class SessionEvent
     public UsageDeltaPayload? UsageDeltaPayload => Payload as UsageDeltaPayload;
 
     [JsonIgnore]
+    public TurnDiffUpdatedPayload? TurnDiffUpdatedPayload => Payload as TurnDiffUpdatedPayload;
+
+    [JsonIgnore]
     public SystemEventPayload? SystemEventPayload => Payload as SystemEventPayload;
 }
 
@@ -293,6 +296,15 @@ public sealed record UsageDeltaPayload
     /// event when they have not received a thread snapshot yet.
     /// </summary>
     public ContextUsageSnapshot? ContextUsage { get; init; }
+}
+
+/// <summary>
+/// Payload for turn/diff/updated events: the latest complete snapshot of the Turn's aggregated diff.
+/// </summary>
+public sealed record TurnDiffUpdatedPayload
+{
+    /// <summary>Git-style unified diff; empty when the Turn has no net changes or the aggregate is unavailable.</summary>
+    public required string Diff { get; init; }
 }
 
 /// <summary>

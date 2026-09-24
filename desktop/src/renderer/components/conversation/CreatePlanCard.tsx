@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { Check, ChevronDown, ChevronUp, Copy, Lightbulb } from 'lucide-react'
+import { useMemo, useState, type CSSProperties } from 'react'
+import { Lightbulb } from 'lucide-react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { ConversationItem } from '../../types/conversation'
-import { addToast } from '../../stores/toastStore'
 import { extractPartialTodos } from '../../stores/conversationStore'
 import { extractPartialJsonStringValue } from '../../utils/toolCallDisplay'
 import { parsePlanMarkdown } from '../../utils/planMarkdown'
 import { MarkdownRenderer } from './MarkdownRenderer'
-import { CompactIconButton } from '../ui/CompactIconButton'
+import { Button } from '../ui/Button'
+import { CopyButton } from '../ui/CopyButton'
+import { DisclosureChevron } from '../ui/DisclosureChevron'
+import { IconButton } from '../ui/IconButton'
 import { PlanTodoStatusIcon } from '../plan/PlanTodoStatusIcon'
 
 interface CreatePlanCardProps {
@@ -40,8 +42,6 @@ export function hasCreatePlanDisplayData(item: ConversationItem): boolean {
 
 export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Element {
   const [expanded, setExpanded] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const parsed = useMemo(() => parseCreatePlanData(item), [item])
   const isRunning = item.status !== 'completed'
 
@@ -58,57 +58,24 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
     isRunning ? 'toolCall.plan.previewBadgeRunning' : 'toolCall.plan.previewBadge'
   )
 
-  useEffect(() => {
-    return () => {
-      if (copyResetTimerRef.current != null) {
-        clearTimeout(copyResetTimerRef.current)
-        copyResetTimerRef.current = null
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    if (copyResetTimerRef.current != null) {
-      clearTimeout(copyResetTimerRef.current)
-      copyResetTimerRef.current = null
-    }
-    setCopied(false)
-  }, [item.id])
-
-  async function handleCopy(): Promise<void> {
-    if (!copyContent) return
-    try {
-      await navigator.clipboard.writeText(copyContent)
-      setCopied(true)
-      addToast(translate(locale, 'toast.copied'), 'success', 2000)
-      if (copyResetTimerRef.current != null) {
-        clearTimeout(copyResetTimerRef.current)
-      }
-      copyResetTimerRef.current = setTimeout(() => {
-        setCopied(false)
-        copyResetTimerRef.current = null
-      }, 1500)
-    } catch {
-      // Ignore clipboard failures silently.
-    }
-  }
-
   const copyButton = copyContent ? (
-    <CompactIconButton
-      icon={copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-      label={translate(locale, copied ? 'toolCall.plan.copiedAria' : 'toolCall.plan.copyAria')}
-      active={copied}
-      activeColor="var(--success)"
-      onClick={() => {
-        void handleCopy()
-      }}
+    <CopyButton
+      key={item.id}
+      getText={() => copyContent}
+      label={translate(locale, 'toolCall.plan.copyAria')}
+      copiedLabel={translate(locale, 'toolCall.plan.copiedAria')}
     />
   ) : null
 
   const expandButton = canExpand ? (
-    <CompactIconButton
-      icon={expanded ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
+    <IconButton
+      size={24}
+      radius={6}
+      icon={<DisclosureChevron expanded={expanded} direction="reveal" />}
       label={translate(locale, expanded ? 'toolCall.plan.collapseAria' : 'toolCall.plan.expandAria')}
+      tooltipLabel={translate(locale, expanded ? 'toolCall.plan.collapseAria' : 'toolCall.plan.expandAria')}
+      tooltipPlacement="top"
+      aria-expanded={expanded}
       onClick={() => {
         setExpanded((v) => !v)
       }}
@@ -143,7 +110,7 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
             gap: '5px',
             minWidth: 0,
             color: 'var(--text-secondary)',
-            fontSize: 'var(--type-ui-size)',
+            fontSize: 'var(--conversation-secondary-size)',
             fontWeight: 500,
             lineHeight: 1.2
           }}
@@ -166,8 +133,9 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
           margin: '0 0 8px',
           minWidth: 0,
           color: 'var(--text-primary)',
-          fontSize: '18px',
-          fontWeight: 700,
+          fontSize: 'var(--conversation-font-size)',
+          lineHeight: 'var(--conversation-line-height)',
+          fontWeight: 600,
           overflowWrap: 'anywhere',
           wordBreak: 'break-word'
         }}
@@ -182,7 +150,8 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
             minWidth: 0,
             color: 'var(--text-secondary)',
             whiteSpace: 'pre-wrap',
-            lineHeight: 1.5,
+            fontSize: 'var(--conversation-font-size)',
+            lineHeight: 'var(--conversation-line-height)',
             overflowWrap: 'anywhere',
             wordBreak: 'break-word'
           }}
@@ -197,21 +166,16 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
             <MarkdownRenderer content={parsed.content} containOverflow />
           </div>
           {!expanded && (
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => {
                 setExpanded(true)
               }}
-              style={{
-                ...expandToggleStyle,
-                position: 'absolute',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                bottom: 0
-              }}
+              style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 0 }}
             >
               {translate(locale, 'toolCall.plan.expandButton')}
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -225,8 +189,8 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
             display: 'grid',
             gap: '6px',
             color: 'var(--text-primary)',
-            fontSize: '14px',
-            lineHeight: 1.6
+            fontSize: 'var(--conversation-font-size)',
+            lineHeight: 'var(--conversation-line-height)'
           }}
         >
           {parsed.todos.map((todo) => {
@@ -316,17 +280,6 @@ function normalizeTodoStatus(value: unknown): PlanTodo['status'] {
     return value
   }
   return 'pending'
-}
-
-const expandToggleStyle: CSSProperties = {
-  border: '1px solid var(--text-primary)',
-  borderRadius: '999px',
-  padding: '4px 10px',
-  background: 'var(--text-primary)',
-  color: 'var(--bg-primary)',
-  cursor: 'pointer',
-  fontSize: '12px',
-  fontWeight: 600
 }
 
 function planMarkdownFrameStyle(expanded: boolean): CSSProperties {

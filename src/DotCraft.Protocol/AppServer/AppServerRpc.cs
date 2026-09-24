@@ -125,6 +125,10 @@ public static partial class AppServerRpc
     public static readonly RpcNotification<TurnNotification> TurnCancelled =
         new("turn/cancelled", RpcDirection.ServerToClient, "1", Spec, scope: "thread", notificationOptOut: true);
 
+    /// <summary>turn/diff/updated notification.</summary>
+    public static readonly RpcNotification<TurnDiffUpdatedNotification> TurnDiffUpdated =
+        new("turn/diff/updated", RpcDirection.ServerToClient, "1", Spec, scope: "thread", notificationOptOut: true);
+
     /// <summary>item/started notification.</summary>
     public static readonly RpcNotification<ItemNotification> ItemStarted =
         new("item/started", RpcDirection.ServerToClient, "1", Spec, scope: "thread", notificationOptOut: true);

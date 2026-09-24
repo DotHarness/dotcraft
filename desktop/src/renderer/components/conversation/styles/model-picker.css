@@ -87,29 +87,6 @@
   font-weight: 640;
 }
 
-.model-picker-icon {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.model-picker-icon:hover:not(:disabled) {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.model-picker-icon:disabled {
-  opacity: 0.38;
-  cursor: default;
-}
-
 .model-picker-fast[aria-pressed='true'] {
   color: var(--text-primary);
 }

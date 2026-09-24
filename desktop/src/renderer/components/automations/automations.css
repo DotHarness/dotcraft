@@ -408,7 +408,7 @@
   list-style: none;
 }
 .dc-automation-advanced > summary::-webkit-details-marker { display: none; }
-.dc-automation-advanced > summary svg { transition: transform 120ms ease; }
+.dc-automation-advanced > summary svg { transition: transform var(--duration-expand) var(--ease-expand); }
 .dc-automation-advanced[open] > summary svg { transform: rotate(90deg); }
 .dc-automation-advanced .dc-automation-fields { margin-top: 4px; }
 

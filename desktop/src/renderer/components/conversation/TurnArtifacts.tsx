@@ -1,12 +1,15 @@
 import { memo, type CSSProperties } from 'react'
 import { ExternalLink, FileText, Globe2 } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
+import { turnWrittenFiles } from '../../stores/turnDiffs'
 import { useUIStore } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import type { FileDiff } from '../../types/toolCall'
-import { toAbsPath } from '../../hooks/useFileChangeActions'
+import { toAbsoluteWorkspacePath } from '../../utils/workspacePaths'
 import { OpenTargetButton } from './OpenTargetButton'
+import { Button } from '../ui/Button'
 
 interface TurnArtifactsProps {
   turnId: string
@@ -21,7 +24,7 @@ interface Artifact {
 
 export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifactsProps): JSX.Element | null {
   const t = useT()
-  const changedFiles = useConversationStore((s) => s.changedFiles)
+  const writtenFiles = useConversationStore(useShallow((s) => turnWrittenFiles(s.turnDiffs, turnId)))
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
   const openFile = useViewerTabStore((s) => s.openFile)
@@ -30,16 +33,15 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
   const setActiveViewerTab = useUIStore((s) => s.setActiveViewerTab)
   const setDetailPanelVisible = useUIStore((s) => s.setDetailPanelVisible)
 
-  const artifacts = Array.from(changedFiles.values())
-    .filter((file) => file.status === 'written' && turnIncludesFile(file, turnId))
-    .map(toArtifact)
+  const artifacts = writtenFiles
+    .map((row) => toArtifact(row.diff))
     .filter((item): item is Artifact => item !== null)
 
   if (artifacts.length === 0) return null
 
   async function openLocalHtml(diff: FileDiff): Promise<void> {
     if (!currentThreadId || !workspacePath) return
-    const absPath = toAbsPath(diff.filePath, workspacePath)
+    const absPath = toAbsoluteWorkspacePath(workspacePath, diff.filePath)
     try {
       const { url } = await window.api.workspace.viewer.toViewerUrl({ absolutePath: absPath })
       const existing = focusBrowserTabByUrl({ threadId: currentThreadId, url })
@@ -67,7 +69,7 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
 
   async function openLocalFile(diff: FileDiff): Promise<void> {
     if (!currentThreadId || !workspacePath) return
-    const absPath = toAbsPath(diff.filePath, workspacePath)
+    const absPath = toAbsoluteWorkspacePath(workspacePath, diff.filePath)
     try {
       const classified = await window.api.workspace.viewer.classify({ absolutePath: absPath })
       const tabId = openFile({
@@ -88,7 +90,7 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
       {artifacts.map(({ kind, diff }) => {
         const name = basename(diff.filePath)
-        const absPath = workspacePath ? toAbsPath(diff.filePath, workspacePath) : diff.filePath
+        const absPath = workspacePath ? toAbsoluteWorkspacePath(workspacePath, diff.filePath) : diff.filePath
         const isHtml = kind === 'html'
         const handleCardOpen = (): void => {
           void (isHtml ? openLocalHtml(diff) : openLocalFile(diff))
@@ -119,31 +121,19 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
               </span>
             </button>
             {isHtml ? (
-              <button
-                type="button"
+              <Button
+                variant="outlineGhost"
+                size="toolbar"
                 aria-label={t('turnArtifacts.previewAria', { file: name })}
+                iconLeft={<ExternalLink size={14} strokeWidth={1.8} />}
                 onClick={() => { void openLocalHtml(diff) }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  minHeight: '32px',
-                  padding: '5px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-default)',
-                  background: 'transparent',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  flexShrink: 0
-                }}
+                style={{ flexShrink: 0 }}
               >
-                <ExternalLink size={15} strokeWidth={1.8} aria-hidden />
                 {t('turnArtifacts.preview')}
-              </button>
+              </Button>
             ) : (
               <OpenTargetButton
+                variant="outlineGhost"
                 targetPath={absPath}
                 tooltipLabel={t('turnArtifacts.openTitle', { path: diff.filePath })}
                 menuAriaLabel={t('turnArtifacts.openMenuAria')}
@@ -157,11 +147,6 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
     </div>
   )
 })
-
-function turnIncludesFile(file: FileDiff, turnId: string): boolean {
-  const ids = file.turnIds?.length ? file.turnIds : [file.turnId]
-  return ids.includes(turnId)
-}
 
 function toArtifact(diff: FileDiff): Artifact | null {
   if (isInlineVisualizationPath(diff.filePath)) return null
@@ -234,7 +219,8 @@ const artifactTextWrapStyle: CSSProperties = {
 
 const artifactTitleStyle: CSSProperties = {
   display: 'block',
-  fontSize: '14px',
+  fontSize: 'var(--conversation-font-size)',
+  lineHeight: 'var(--conversation-line-height)',
   fontWeight: 600,
   color: 'var(--text-primary)',
   overflow: 'hidden',
@@ -245,6 +231,7 @@ const artifactTitleStyle: CSSProperties = {
 const artifactSubtitleStyle: CSSProperties = {
   display: 'block',
   marginTop: '2px',
-  fontSize: '12px',
+  fontSize: 'var(--conversation-secondary-size)',
+  lineHeight: 'var(--conversation-line-height)',
   color: 'var(--text-secondary)'
 }

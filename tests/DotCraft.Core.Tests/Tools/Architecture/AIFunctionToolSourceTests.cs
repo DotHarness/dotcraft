@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Configuration;
@@ -132,6 +133,49 @@ public sealed class AIFunctionToolSourceTests
     }
 
     [Fact]
+    public async Task Runtime_MergesInvocationScopedAttachmentIntoOrdinaryResult()
+    {
+        var function = AIFunctionFactory.Create(
+            async () =>
+            {
+                await Task.Yield();
+                ToolResultAttachmentScope.Current!.SetStructuredContent(
+                    JsonSerializer.SerializeToElement(new { kind = "fileChange" }));
+                return "Wrote it.";
+            },
+            name: "Attach");
+
+        var result = await new AIFunctionToolRuntime(function).InvokeAsync(Context("Attach"), new JsonObject());
+
+        Assert.True(result.Success);
+        Assert.Equal("Wrote it.", result.Content);
+        Assert.Equal("fileChange", result.StructuredContent?.GetProperty("kind").GetString());
+    }
+
+    [Fact]
+    public async Task Runtime_ReturnsExplicitEnvelopeWithoutMergingAttachment()
+    {
+        var envelope = ToolExecutionResult.Succeeded("Explicit.");
+        var function = AIFunctionFactory.Create(
+            () =>
+            {
+                ToolResultAttachmentScope.Current!.SetStructuredContent(
+                    JsonSerializer.SerializeToElement(new { kind = "fileChange" }));
+                return envelope;
+            },
+            new AIFunctionFactoryOptions
+            {
+                Name = "Envelope",
+                MarshalResult = (value, _, _) => new ValueTask<object?>(value)
+            });
+
+        var result = await new AIFunctionToolRuntime(function).InvokeAsync(Context("Envelope"), new JsonObject());
+
+        Assert.Same(envelope, result);
+        Assert.Null(result.StructuredContent);
+    }
+
+    [Fact]
     public async Task Source_ProjectsGeneratedResultAndStreamingMetadata()
     {
         var function = GeneratedToolFunctions.ShellTools_Exec(
@@ -257,6 +301,17 @@ public sealed class AIFunctionToolSourceTests
                 name is "send_user_message_async" or "sleep" or "current_time");
         }
     }
+
+    private static ToolInvocationContext Context(string toolName) => new(
+        "thread_test",
+        "turn_test",
+        "call_test",
+        ToolInvocationAudience.Model,
+        new ToolName(null, toolName),
+        new ToolDefinitionId(ToolSourceKind.CoreNative, "test", new SourceToolId(toolName)),
+        new RuntimeBindingId($"native:test:{toolName}:1"),
+        1,
+        DateTimeOffset.UtcNow);
 
     private static ToolPlanningContext CreatePlanningContext(
         ToolPlanningThreadKind threadKind = ToolPlanningThreadKind.Unknown) => new(

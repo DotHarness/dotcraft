@@ -9,8 +9,7 @@
 .dca-fx-orbit-back { opacity: 0; }
 .dca-fx-sparkle > path { transform-box: fill-box; transform-origin: center; }
 .dca-fx-spray { opacity: 0; transform-box: fill-box; transform-origin: center; }
-.dca-fx-glint-rise { transform: translateY(-720px); }
-.dca-fx-glint-flow { transform: translateX(-1200px); }
+.dca-fx-eye-flare { opacity: .25; }
 
 @keyframes dca-fx-pulse { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
 @keyframes dca-fx-flare { 0%, 100% { opacity: .8; } 12% { opacity: 1; } 20% { opacity: .7; } 28% { opacity: 1; } 60% { opacity: .9; } }
@@ -60,8 +59,20 @@
 @keyframes dca-fx-reach { 0%, 100% { transform: scale(.8); } 40% { transform: scale(1.05); } }
 @keyframes dca-fx-foam { 0%, 100% { opacity: .55; } 40% { opacity: 1; } }
 @keyframes dca-fx-spray { 0% { opacity: 0; transform: translate(0, 10px) scale(.4); } 25% { opacity: 1; transform: translate(10px, -12px) scale(1); } 100% { opacity: 0; transform: translate(44px, -76px) scale(.2); } }
-@keyframes dca-fx-glint-rise { 0%, 22% { transform: translateY(0); } 52%, 100% { transform: translateY(-720px); } }
-@keyframes dca-fx-glint-flow { 0% { transform: translateX(0); } 30%, 100% { transform: translateX(-1200px); } }
+@keyframes dca-fx-coil { 0%, 100% { transform: rotate(calc(var(--dca-coil) * -1deg)); } 50% { transform: rotate(calc(var(--dca-coil) * 1deg)); } }
+@keyframes dca-fx-whisker { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(6deg); } }
+@keyframes dca-fx-whisker-tip { 0%, 100% { transform: rotate(-9deg); } 50% { transform: rotate(10deg); } }
+@keyframes dca-fx-frill-l { 0% { transform: rotate(-3deg); } 100% { transform: rotate(3deg); } }
+@keyframes dca-fx-frill-r { 0% { transform: rotate(3deg); } 100% { transform: rotate(-3deg); } }
+@keyframes dca-fx-frill-flare { 0%, 24%, 50%, 100% { transform: scale(1); } 30% { transform: scale(1.1); } 40% { transform: scale(1.06); } }
+@keyframes dca-fx-rear {
+  0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); } 12% { transform: translate(0, -6px) rotate(-1.2deg) scale(1); }
+  23% { transform: translate(0, 4px) rotate(.8deg) scale(.99); } 30% { transform: translate(0, -12px) rotate(-2deg) scale(1.05); }
+  40% { transform: translate(0, -9px) rotate(-1.6deg) scale(1.04); } 54% { transform: translate(0, 0) rotate(0deg) scale(1); }
+  77% { transform: translate(0, -6px) rotate(-1deg) scale(1); }
+}
+@keyframes dca-fx-eye-flare { 0%, 22%, 54%, 100% { opacity: .25; } 28%, 42% { opacity: 1; } }
+@keyframes dca-fx-drift { 0% { transform: translateX(-10px); } 100% { transform: translateX(10px); } }
 @keyframes dca-fx-orbit {
   0% { transform: translate(450px, 0); } 8.33% { transform: translate(390px, 52px); } 16.67% { transform: translate(225px, 90px); }
   25% { transform: translate(0, 104px); } 33.33% { transform: translate(-225px, 90px); } 41.67% { transform: translate(-390px, 52px); }
@@ -120,8 +131,15 @@
 .dca-robot[data-effects='live'] .dca-fx-reach { animation: dca-fx-reach 5.6s ease-in-out infinite; }
 .dca-robot[data-effects='live'] .dca-fx-foam { animation: dca-fx-foam 5.6s ease-in-out infinite; animation-delay: inherit; }
 .dca-robot[data-effects='live'] .dca-fx-spray { animation: dca-fx-spray 4.8s ease-out infinite; }
-.dca-robot[data-effects='live'] .dca-fx-glint-rise { animation: dca-fx-glint-rise 8.4s linear infinite; }
-.dca-robot[data-effects='live'] .dca-fx-glint-flow { animation: dca-fx-glint-flow 8.4s linear infinite; }
+.dca-robot[data-effects='live'] .dca-fx-coil { animation: dca-fx-coil 3.6s ease-in-out infinite; }
+.dca-robot[data-effects='live'] .dca-fx-whisker { animation: dca-fx-whisker 3.6s ease-in-out infinite; }
+.dca-robot[data-effects='live'] .dca-fx-whisker-tip { animation: dca-fx-whisker-tip 3.6s ease-in-out infinite; }
+.dca-robot[data-effects='live'] .dca-fx-frill-l { animation: dca-fx-frill-l 1.8s ease-in-out infinite alternate; }
+.dca-robot[data-effects='live'] .dca-fx-frill-r { animation: dca-fx-frill-r 1.8s ease-in-out infinite alternate; }
+.dca-robot[data-effects='live'] .dca-fx-frill-flare { animation: dca-fx-frill-flare 7.2s ease-in-out infinite; }
+.dca-robot[data-effects='live'] .dca-fx-rear { animation: dca-fx-rear 7.2s ease-in-out infinite; }
+.dca-robot[data-effects='live'] .dca-fx-eye-flare { animation: dca-fx-eye-flare 7.2s ease-in-out infinite; }
+.dca-robot[data-effects='live'] .dca-fx-drift { animation: dca-fx-drift 6s ease-in-out infinite alternate; }
 .dca-robot[data-effects='live'] .dca-skin-holo stop { animation: dca-fx-holo 6s linear infinite; }
 .dca-robot[data-effects='live'] .dca-skin-holo stop:nth-child(2) { animation-delay: -1.2s; }
 .dca-robot[data-effects='live'] .dca-skin-holo stop:nth-child(3) { animation-delay: -2.4s; }

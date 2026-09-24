@@ -18,7 +18,7 @@ export function StreamRetryNotice({ status }: { status: StreamRetryStatus }): JS
     <NoticeDivider
       ariaLabel={label}
       title={label}
-      icon={<RefreshCw size={12} aria-hidden />}
+      icon={<RefreshCw size={14} aria-hidden />}
       active
     />
   )

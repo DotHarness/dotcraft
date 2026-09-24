@@ -16,7 +16,7 @@ const conversationLocation: AppNavigationLocation = {
   threadId: null,
   detailVisible: false,
   activeDetailTab: { kind: 'launcher' },
-  selectedChangedFile: null
+  selectedChangeKey: null
 }
 
 beforeEach(() => {
@@ -29,7 +29,7 @@ beforeEach(() => {
     selectedChannelKey: null,
     activeDetailTab: { kind: 'launcher' },
     detailPanelPreferredVisible: false,
-    selectedChangedFile: null
+    selectedChangeKey: null
   })
   useAppNavigationStore.getState().reset()
 })

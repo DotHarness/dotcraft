@@ -1,11 +1,9 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { Check, Copy } from 'lucide-react'
+import type { CSSProperties } from 'react'
 import type { FileDiff } from '../../types/toolCall'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { IconButton } from '../ui/IconButton'
+import { CopyButton } from '../ui/CopyButton'
 import { useUIStore } from '../../stores/uiStore'
 import { translate, type AppLocale } from '../../../shared/locales'
-import { addToast } from '../../stores/toastStore'
 import { FileDiffStats } from './FileDiffStats'
 
 interface InlineDiffViewProps {
@@ -63,7 +61,6 @@ export function InlineDiffView({
           displayPath={displayPath}
           additions={totalAdd}
           deletions={totalDel}
-          meta={headerMode === 'full' && diff.isNewFile ? '(new file)' : undefined}
           copyPath={conversationFileTool}
           inlineStats={conversationFileTool}
           locale={locale}
@@ -89,7 +86,6 @@ export function InlineDiffView({
                     padding: '2px 8px',
                     background: 'var(--bg-secondary)',
                     color: 'var(--text-dimmed)',
-                    fontSize: '11px',
                     userSelect: 'none',
                     minWidth: 'max-content'
                   }}
@@ -203,28 +199,6 @@ export function FileResultHeader({
   inlineStats = false,
   locale = 'en'
 }: FileResultHeaderProps): JSX.Element {
-  const [copied, setCopied] = useState(false)
-  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => () => {
-    if (resetTimerRef.current != null) clearTimeout(resetTimerRef.current)
-  }, [])
-
-  async function handleCopyPath(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(resolvedPath)
-      setCopied(true)
-      addToast(translate(locale, 'toast.copied'), 'success', 2000)
-      if (resetTimerRef.current != null) clearTimeout(resetTimerRef.current)
-      resetTimerRef.current = setTimeout(() => {
-        setCopied(false)
-        resetTimerRef.current = null
-      }, 1500)
-    } catch {
-      // Ignore clipboard failures silently.
-    }
-  }
-
   const stats = (
     <FileDiffStats
       additions={additions}
@@ -245,7 +219,7 @@ export function FileResultHeader({
         background: 'var(--bg-tertiary)',
         borderBottom: '1px solid var(--border-default)',
         color: 'var(--text-secondary)',
-        fontSize: '11px'
+        fontSize: 'var(--conversation-secondary-size)'
       }}
     >
       <ActionTooltip
@@ -268,20 +242,13 @@ export function FileResultHeader({
       {meta && <span style={{ color: 'var(--text-dimmed)', flexShrink: 0 }}>{meta}</span>}
       {stats}
       {copyPath && (
-          <IconButton
-            size={24}
-            data-testid="file-path-copy"
+          <CopyButton
+            getText={() => resolvedPath}
             label={translate(locale, 'viewer.copyPath')}
-            tooltipLabel={translate(locale, 'viewer.copyPath')}
-            tooltipPlacement="top"
+            copiedLabel={translate(locale, 'common.copied')}
+            iconSize={13}
             tooltipWrapperStyle={{ marginLeft: 'auto', flexShrink: 0 }}
-            onClick={() => { void handleCopyPath() }}
-            style={{
-              margin: '-2px -4px -2px 0',
-              borderRadius: '6px',
-              color: copied ? 'var(--success)' : 'var(--text-dimmed)'
-            }}
-            icon={copied ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
+            style={{ margin: '-2px -4px -2px 0' }}
           />
       )}
     </div>
@@ -294,6 +261,5 @@ const lineNumberStyle: CSSProperties = {
   textAlign: 'right',
   paddingRight: '6px',
   color: 'var(--text-dimmed)',
-  userSelect: 'none',
-  fontSize: '11px'
+  userSelect: 'none'
 }

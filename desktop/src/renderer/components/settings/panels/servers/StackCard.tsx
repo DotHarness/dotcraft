@@ -2,7 +2,6 @@ import { useEffect, useState, type JSX } from 'react'
 import {
   Download,
   ExternalLink,
-  MoreHorizontal,
   Pencil,
   Play,
   RotateCw,
@@ -14,6 +13,8 @@ import { Spinner } from '../../../ui/Spinner'
 
 import { Button } from '../../../ui/Button'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
+import { ContextMenu, type ContextMenuPosition } from '../../../ui/ContextMenu'
+import { MoreActionsButton } from '../../../ui/MoreActionsButton'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useRemoteServersStore } from '../../../../stores/remoteServersStore'
 import { addToast } from '../../../../stores/toastStore'
@@ -76,7 +77,7 @@ export function StackCard({
   const connectBusy = operationKind === 'connect'
   const active = store.activeStack?.hostId === host.id && store.activeStack?.stackId === stack.id
 
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
   const [logsOpen, setLogsOpen] = useState(false)
   const [logsText, setLogsText] = useState('')
   const [logsLoading, setLogsLoading] = useState(false)
@@ -87,7 +88,7 @@ export function StackCard({
   }, [host.id, stack.id])
 
   useEffect(() => {
-    if (operationBusy) setMenuOpen(false)
+    if (operationBusy) setMenuPosition(null)
   }, [operationBusy])
 
   const tone: s.StatusIndicatorTone = operationBusy
@@ -130,7 +131,7 @@ export function StackCard({
     opts?: { title: string; message: string; danger?: boolean; confirmLabel?: string }
   ): Promise<void> => {
     if (operationBusy) return
-    setMenuOpen(false)
+    setMenuPosition(null)
     if (opts) {
       const ok = await confirm({
         title: opts.title,
@@ -157,90 +158,71 @@ export function StackCard({
         {appVersion && (
           <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{appVersion}</span>
         )}
-        <div style={{ position: 'relative' }}>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t('settings.servers.stack.more')}
-            disabled={operationBusy}
-            onClick={() => setMenuOpen((v) => !v)}
-          >
-            <MoreHorizontal size={16} />
-          </Button>
-          {menuOpen && (
-            <>
-              <div style={{ position: 'fixed', inset: 0, zIndex: 19 }} onClick={() => setMenuOpen(false)} />
-              <div style={s.overflowMenu}>
-                <button
-                  style={s.overflowItem}
-                  onClick={() =>
-                    confirmAndRun('update', {
-                      title: t('settings.servers.confirm.updateTitle', { name: stack.name }),
-                      message: t('settings.servers.confirm.updateMessage'),
-                      confirmLabel: t('settings.servers.stack.update')
+        <MoreActionsButton
+          size={28}
+          label={t('settings.servers.stack.more')}
+          disabled={operationBusy}
+          open={menuPosition != null}
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect()
+            setMenuPosition({ x: rect.right - 184, y: rect.bottom + 4 })
+          }}
+        />
+        {menuPosition && (
+          <ContextMenu
+            position={menuPosition}
+            onClose={() => setMenuPosition(null)}
+            items={[
+              {
+                label: t('settings.servers.stack.update'),
+                icon: <Download size={14} />,
+                onClick: () => confirmAndRun('update', {
+                  title: t('settings.servers.confirm.updateTitle', { name: stack.name }),
+                  message: t('settings.servers.confirm.updateMessage'),
+                  confirmLabel: t('settings.servers.stack.update')
+                })
+              },
+              { label: t('settings.servers.stack.restart'), icon: <RotateCw size={14} />, onClick: () => confirmAndRun('restart') },
+              running
+                ? {
+                    label: t('settings.servers.stack.stop'),
+                    icon: <Square size={14} />,
+                    onClick: () => confirmAndRun('stop', {
+                      title: t('settings.servers.confirm.stopTitle', { name: stack.name }),
+                      message: t('settings.servers.confirm.stopMessage'),
+                      danger: true,
+                      confirmLabel: t('settings.servers.stack.stop')
                     })
                   }
-                >
-                  <Download size={14} />
-                  {t('settings.servers.stack.update')}
-                </button>
-                <button style={s.overflowItem} onClick={() => confirmAndRun('restart')}>
-                  <RotateCw size={14} />
-                  {t('settings.servers.stack.restart')}
-                </button>
-                {running ? (
-                  <button
-                    style={s.overflowItem}
-                    onClick={() =>
-                      confirmAndRun('stop', {
-                        title: t('settings.servers.confirm.stopTitle', { name: stack.name }),
-                        message: t('settings.servers.confirm.stopMessage'),
-                        danger: true,
-                        confirmLabel: t('settings.servers.stack.stop')
-                      })
-                    }
-                  >
-                    <Square size={14} />
-                    {t('settings.servers.stack.stop')}
-                  </button>
-                ) : (
-                  <button style={s.overflowItem} onClick={() => confirmAndRun('start')}>
-                    <Play size={14} />
-                    {t('settings.servers.stack.start')}
-                  </button>
-                )}
-                <div style={{ height: 1, background: 'var(--border-default)', margin: '4px 6px' }} />
-                <button
-                  style={s.overflowItem}
-                  onClick={() => {
-                    setMenuOpen(false)
-                    onEdit()
-                  }}
-                >
-                  <Pencil size={14} />
-                  {t('settings.servers.stack.edit')}
-                </button>
-                <button
-                  style={{ ...s.overflowItem, color: 'var(--error)' }}
-                  onClick={async () => {
-                    setMenuOpen(false)
-                    const ok = await confirm({
-                      title: t('settings.servers.confirm.removeStackTitle', { name: stack.name }),
-                      message: t('settings.servers.confirm.removeStackMessage'),
-                      danger: true,
-                      confirmLabel: t('settings.servers.stack.remove')
-                    })
-                    if (!ok) return
-                    await store.updateHost(host.id, { stacks: host.stacks.filter((st) => st.id !== stack.id) })
-                  }}
-                >
-                  <Trash2 size={14} />
-                  {t('settings.servers.stack.remove')}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+                : { label: t('settings.servers.stack.start'), icon: <Play size={14} />, onClick: () => confirmAndRun('start') },
+              { type: 'separator' as const },
+              {
+                label: t('settings.servers.stack.edit'),
+                icon: <Pencil size={14} />,
+                onClick: () => {
+                  setMenuPosition(null)
+                  onEdit()
+                }
+              },
+              {
+                label: t('settings.servers.stack.remove'),
+                icon: <Trash2 size={14} />,
+                danger: true,
+                onClick: async () => {
+                  setMenuPosition(null)
+                  const ok = await confirm({
+                    title: t('settings.servers.confirm.removeStackTitle', { name: stack.name }),
+                    message: t('settings.servers.confirm.removeStackMessage'),
+                    danger: true,
+                    confirmLabel: t('settings.servers.stack.remove')
+                  })
+                  if (!ok) return
+                  await store.updateHost(host.id, { stacks: host.stacks.filter((st) => st.id !== stack.id) })
+                }
+              }
+            ]}
+          />
+        )}
       </div>
 
       <div style={s.stackMeta} aria-live="polite">

@@ -9,9 +9,9 @@
 
 ## Purpose and scope
 
-Provide accurate embedded-browser automation and preserve user-selected context from pasted text, web pages, assistant responses, and code diffs through the existing Desktop composer. Browser runtime details remain owned by the in-app browser specification; this specification owns the complete user workflow and context contract.
+Provide accurate embedded-browser automation and preserve user-selected context from pasted text, web pages, assistant responses, code diffs, and file previews through the existing Desktop composer. Browser runtime details remain owned by the in-app browser specification; this specification owns the complete user workflow and context contract.
 
-Included capabilities are browser observation and interaction accuracy, the browser toolbar, ordinary user downloads, page selection, find/zoom/context-menu controls, capability-based runtime documentation, turn-scoped tab cleanup, pasted-text attachments, response annotations, and user/model diff comments.
+Included capabilities are browser observation and interaction accuracy, the browser toolbar, ordinary user downloads, page selection, find/zoom/context-menu controls, capability-based runtime documentation, turn-scoped tab cleanup, pasted-text attachments, response annotations, and user/model line comments on diffs and file previews.
 
 Task sorting and sidebar changes, general document editing, cross-origin iframe input, AX APIs, account migration, and new browser permission systems are outside this feature.
 
@@ -69,13 +69,23 @@ Submission contains a reversible file reference, not automatic expansion of the 
 
 ### Feedback sources
 
-Browser annotation starts from the browser toolbar. The selected element or region stays outlined with a dashed accent outline and a speech-bubble marker at its bottom-right corner. The compact comment editor sits 25px from the selection, preferring the right side, then the left, then below, then above, and keeps 16px from the page edges. Response text selection exposes separate Add to chat and Comment actions beside the selected text; it never substitutes a predefined excerpt for an empty selection. Diff editors and comments appear at their corresponding code lines rather than in a detached comments section.
+Browser annotation starts from the browser toolbar. The selected element or region stays outlined with a dashed accent outline and a speech-bubble marker at its bottom-right corner. The compact comment editor sits 25px from the selection, preferring the right side, then the left, then below, then above, and keeps 16px from the page edges. Response text selection exposes separate Add to chat and Comment actions beside the selected text; it never substitutes a predefined excerpt for an empty selection.
 
-The composer summarizes feedback in a compact count entry. Opening it reveals the sources and selected text separately from user comments, with per-entry edit and removal. Pasted text retains its separate file-card presentation. New empty comments expose dictation; populated comments expose a circular 28px primary confirm action with a check glyph, while existing-comment editing has explicit cancel/save controls. Dictation targets the active comment and is discarded with that editor, without replacing the task composer draft. Comments use existing field and action primitives, without a full-width form beneath the source or duplicate selected text in the compact annotation editor.
+### Line comments
+
+Line comments belong to the Changes panel diff, in unified and split views, and to text file previews. They appear at their code lines as cards rather than in a detached comments section. The in-transcript edited-files card and external-change review carry no line comments.
+
+A diff starts a comment from the hover "+" on a row's line-number edge, or on keyboard focus of that control. Clicking line numbers selects lines and Shift+click extends the selection on the same side; "+" on a selected line comments on the whole selection, and dragging from "+" selects a range. A file preview starts a comment from a Comment action beside a non-empty text selection; a rendered Markdown preview switches to source first. A line that already ends a comment or an open draft does not start another.
+
+A draft opens focused, with Cancel, dictation, and a Comment action that stays disabled while the text is empty. Enter submits and returns focus to the task composer, Shift+Enter inserts a newline, and Escape or Cancel discards the draft. Any number of drafts may be open; they persist in memory per thread until submitted or discarded, so collapsing a file or switching tasks does not discard them. A submitted comment stays on its line as the same card, showing only Delete until its text is focused; editing then offers Delete, Cancel, dictation, and Save, and Cancel restores the saved text. The card names its author, with the profile avatar for the reader, and its line as `L` (old side) or `R` (new side) plus the line number, with a range as start and end.
+
+### Composer summary
+
+The composer summarizes feedback in a compact count entry that counts line comments separately from page and response annotations. Opening it reveals the sources and selected text separately from user comments, with per-entry edit and removal. Pasted text retains its separate file-card presentation. The compact editor used for page and response annotations exposes dictation while empty and a circular 28px primary confirm action with a check glyph once populated, and never submits empty text; editing an existing comment has explicit cancel/save controls. Dictation targets the active comment and is discarded with that editor, without replacing the task composer draft. Comments use existing field and action primitives, without a full-width form beneath the source or duplicate selected text in the compact annotation editor.
 
 The single-line comment editor keeps the same height and text baseline when focus changes or dictation and save actions switch. Action controls do not determine the input height.
 
-Response annotations retain source thread/turn/item, selected text, and the user's comment. Diff annotations retain file, old/new side, line range, selected code snapshot, and comment. User annotations and model review comments remain separate data sources.
+Response annotations retain source thread/turn/item, selected text, and the user's comment. Diff annotations retain file, old/new side, line range, selected code snapshot, and comment. A file-preview comment is a diff annotation on the new side. User annotations and model review comments remain separate data sources.
 
 Model review comments are parsed from completed assistant responses' `code-comment` directives and mapped to their file and line positions. Commentary text is not a source of finalized review comments. This does not introduce multi-user review state or automatic remapping across revisions.
 
@@ -107,5 +117,5 @@ Existing ordinary text, file, command, skill, and image inputs remain usable. Ex
 - The page-side selection layer's hover outline, drag threshold, pointer changes, and Escape tiers are verified in a DOM fixture; capture coordinates at page zoom are verified in Electron.
 - Long pastes retain complete files beyond the previous editor limit and honour the conversion/restoration thresholds.
 - Mixed context survives start/queue/steer, failure recovery, task switching, queue editing, and historical decoding without silently losing source content.
-- Diff side/range mapping and separate user/model comments work in unified and split views.
+- Diff side/range mapping and separate user/model comments work in unified and split views and in file previews.
 - Production surfaces match the accepted design-system specimens at the same theme and width, and all supported UI locales are updated.

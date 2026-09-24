@@ -16,6 +16,8 @@ import { useMenuAim } from '../../hooks/useMenuAim'
 import type { InferenceSpeedWire, ModelCatalogItem, ReasoningEffortWire } from '../../stores/modelCatalogStore'
 import type { ContextWindowMode } from '../../types/thread'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 import { PillSwitch } from '../ui/PillSwitch'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
 import {
@@ -672,25 +674,16 @@ export function ModelPicker({
               <strong>{t('composer.modelListError')}</strong>
               <span style={{ color: 'var(--text-secondary)' }}>{errorMessage}</span>
               {onRetry && (
-                <button
-                  type="button"
+                <Button
+                  size="sm"
+                  style={{ alignSelf: 'flex-start', marginTop: '4px' }}
                   onClick={(event) => {
                     event.stopPropagation()
                     onRetry()
                   }}
-                  style={{
-                    alignSelf: 'flex-start',
-                    padding: '3px 0 0',
-                    border: 'none',
-                    background: 'transparent',
-                    color: 'var(--accent)',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: 600
-                  }}
                 >
                   {t('composer.modelListRetry')}
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -699,15 +692,16 @@ export function ModelPicker({
             <div className="model-picker-panel">
               <div className="model-picker-head">
                 {speedVisible ? (
-                  <button
-                    type="button"
-                    className="model-picker-icon model-picker-fast"
+                  <IconButton
+                    size={32}
+                    className="model-picker-fast"
                     aria-pressed={speedValue === 'fast'}
-                    aria-label={t('composer.speed.fast')}
+                    label={t('composer.speed.fast')}
+                    tooltipLabel={t('composer.speed.fast')}
+                    tooltipPlacement="top"
                     onClick={() => onSpeedChange?.(speedValue === 'fast' ? 'standard' : 'fast')}
-                  >
-                    <Zap aria-hidden size={16} strokeWidth={2.2} fill={speedValue === 'fast' ? 'currentColor' : 'none'} />
-                  </button>
+                    icon={<Zap aria-hidden size={16} fill={speedValue === 'fast' ? 'currentColor' : 'none'} />}
+                  />
                 ) : (
                   <span className="model-picker-slot" />
                 )}
@@ -724,14 +718,14 @@ export function ModelPicker({
                   </button>
                 </div>
                 {differsFromDefaults ? (
-                  <button
-                    type="button"
-                    className="model-picker-icon"
-                    aria-label={t('composer.reasoning.resetToDefault')}
+                  <IconButton
+                    size={32}
+                    label={t('composer.reasoning.resetToDefault')}
+                    tooltipLabel={t('composer.reasoning.resetToDefault')}
+                    tooltipPlacement="top"
                     onClick={resetDefaults}
-                  >
-                    <RotateCcw aria-hidden size={15} strokeWidth={2} />
-                  </button>
+                    icon={<RotateCcw aria-hidden size={16} />}
+                  />
                 ) : (
                   <span className="model-picker-slot" />
                 )}

@@ -536,8 +536,8 @@ const questionStyle: CSSProperties = {
 
 const questionProgressStyle: CSSProperties = {
   color: 'var(--text-dimmed)',
-  fontSize: 'var(--type-secondary-size)',
-  lineHeight: 'var(--type-secondary-line-height)',
+  fontSize: 'var(--conversation-meta-size)',
+  lineHeight: 'var(--conversation-meta-line-height)',
   fontWeight: 500,
   whiteSpace: 'nowrap'
 }

@@ -10,7 +10,9 @@ import { stripInlineVisualizationDirectives } from './inlineVisualizationParser'
 import { ResponseFeedback } from './ResponseFeedback'
 import { MessageCopyButton } from './MessageCopyButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import { canForkThread, canForkWorktree, runThreadFork, type ThreadForkMode } from '../../utils/threadFork'
+import { formatMessageTime } from '../../utils/messageTime'
 import { ForkChoiceDialog } from './ForkChoiceDialog'
 import { DesktopPluginMessageActions } from '../desktopPlugins/DesktopPluginActions'
 
@@ -43,11 +45,8 @@ export function AgentMessage({
   const capabilities = useConnectionStore((s) => s.capabilities)
   const [hovered, setHovered] = useState(false)
   const [focusedWithin, setFocusedWithin] = useState(false)
-  const [forkButtonHovered, setForkButtonHovered] = useState(false)
-  const [forkButtonFocused, setForkButtonFocused] = useState(false)
   const [forkChoiceOpen, setForkChoiceOpen] = useState(false)
   const actionsVisible = hovered || focusedWithin
-  const forkButtonChromeVisible = forkButtonHovered || forkButtonFocused
   const forkAvailable = canForkThread(capabilities) && Boolean(threadId && turnId)
   const worktreeForkAvailable = canForkWorktree(capabilities)
   const sentTime = formatMessageTime(createdAt)
@@ -121,7 +120,7 @@ export function AgentMessage({
             justifyContent: 'flex-start',
             gap: '6px',
             color: 'var(--text-tertiary)',
-            fontSize: '11px',
+            fontSize: 'var(--conversation-meta-size)',
             lineHeight: 1,
             userSelect: 'none'
           }}
@@ -139,45 +138,25 @@ export function AgentMessage({
             }}
           />
           {forkAvailable && !streaming && (
-            <ActionTooltip
+            <IconButton
+              size={24}
+              radius={6}
+              icon={<GitBranch size={14} aria-hidden />}
               label={t('conversation.forkMessage')}
-              placement="top"
-              wrapperStyle={{
+              tooltipLabel={t('conversation.forkMessage')}
+              tooltipPlacement="top"
+              tooltipWrapperStyle={{
                 position: 'static',
                 display: 'inline-flex',
                 opacity: actionsVisible ? 1 : 0,
                 pointerEvents: actionsVisible ? 'auto' : 'none',
                 transition: 'opacity 120ms ease'
               }}
-            >
-              <button
-                type="button"
-                aria-label={t('conversation.forkMessage')}
-                onMouseEnter={() => setForkButtonHovered(true)}
-                onMouseLeave={() => setForkButtonHovered(false)}
-                onFocus={() => setForkButtonFocused(true)}
-                onBlur={() => setForkButtonFocused(false)}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  handleForkClick()
-                }}
-                style={{
-                  width: '24px',
-                  height: '24px',
-                  borderRadius: '6px',
-                  border: '1px solid transparent',
-                  background: forkButtonChromeVisible ? 'var(--bg-tertiary)' : 'transparent',
-                  color: forkButtonChromeVisible ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  transition: 'opacity 120ms ease, color 120ms ease, background 120ms ease, border-color 120ms ease'
-                }}
-              >
-                <GitBranch size={14} strokeWidth={2.1} aria-hidden />
-              </button>
-            </ActionTooltip>
+              onClick={(event) => {
+                event.stopPropagation()
+                handleForkClick()
+              }}
+            />
           )}
           {!streaming && threadId && turnId && itemId && (
             <DesktopPluginMessageActions
@@ -218,29 +197,4 @@ export function AgentMessage({
       )}
     </div>
   )
-}
-
-function formatMessageTime(createdAt?: string): { label: string; title: string } | null {
-  if (!createdAt) return null
-  const date = new Date(createdAt)
-  if (!Number.isFinite(date.getTime())) return null
-
-  return {
-    label: new Intl.DateTimeFormat(undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      hourCycle: 'h23'
-    }).format(date),
-    title: new Intl.DateTimeFormat(undefined, {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-      hourCycle: 'h23'
-    }).format(date)
-  }
 }

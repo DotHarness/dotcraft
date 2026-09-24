@@ -14,6 +14,7 @@ import { settingsPlaceholderStyle } from './settingsTypography'
 import { SettingsPanelShell } from './SettingsPanelShell'
 import { Skeleton } from '../ui/Skeleton'
 import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 
 interface ArchivedThreadsSettingsViewProps {
   workspacePath?: string
@@ -275,23 +276,18 @@ export function ArchivedThreadsSettingsView({
                   >
                     {restoring ? t('archivedThreads.restoring') : t('archivedThreads.restore')}
                   </Button>
-                  <ActionTooltip
+                  <IconButton
+                    tone="danger"
+                    icon={<Trash2 size={14} aria-hidden />}
                     label={t('archivedThreads.delete')}
-                    disabledReason={restoring || deleting ? t('archivedThreads.delete') : undefined}
-                    placement="top"
-                  >
-                    <Button
-                      variant="danger"
-                      size="icon"
-                      onClick={() => {
-                        void confirmDeleteThread(thread.id)
-                      }}
-                      disabled={restoring || deleting}
-                      aria-label={t('archivedThreads.delete')}
-                    >
-                      <Trash2 size={14} strokeWidth={2} aria-hidden />
-                    </Button>
-                  </ActionTooltip>
+                    tooltipLabel={t('archivedThreads.delete')}
+                    tooltipPlacement="top"
+                    disabled={restoring || deleting}
+                    disabledReason={t('archivedThreads.delete')}
+                    onClick={() => {
+                      void confirmDeleteThread(thread.id)
+                    }}
+                  />
                 </div>
               }
             />

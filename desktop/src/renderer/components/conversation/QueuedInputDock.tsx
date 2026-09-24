@@ -242,24 +242,24 @@ function QueuedInputDockRow({
         </Button>
       </ActionTooltip>
       <IconButton
-        icon={<Trash2 size={14} strokeWidth={1.8} aria-hidden />}
+        icon={<Trash2 size={14} aria-hidden />}
         label={t('composer.queueRemove')}
         tooltipLabel={t('composer.queueRemove')}
         tooltipPlacement="top"
         size={24}
-        radius={5}
+        radius={6}
         onClick={() => onRemove?.(item.id)}
         disabled={!onRemove || isLocalEcho}
       />
       <IconButton
         icon={editing
           ? <Spinner size={14} testId={`queued-editing-${item.id}`} />
-          : <Pencil size={14} strokeWidth={1.8} aria-hidden />}
+          : <Pencil size={14} aria-hidden />}
         label={t('composer.queueEdit')}
         tooltipLabel={t('composer.queueEdit')}
         tooltipPlacement="top"
         size={24}
-        radius={5}
+        radius={6}
         onClick={() => onEdit?.(item.id)}
         disabled={!canEdit || editing}
         aria-busy={editing}
@@ -318,7 +318,7 @@ const dockHeaderStyle: CSSProperties = {
   gap: '8px',
   padding: '0 4px 0 10px',
   color: 'var(--text-secondary)',
-  fontSize: '12px'
+  fontSize: 'var(--type-ui-size)'
 }
 
 
@@ -353,8 +353,8 @@ function queueSectionStyle(separated: boolean): CSSProperties {
 const queueSectionLabelStyle: CSSProperties = {
   padding: '1px 0 5px 18px',
   color: 'var(--text-dimmed)',
-  fontSize: '11px',
-  lineHeight: '14px'
+  fontSize: 'var(--type-secondary-size)',
+  lineHeight: 'var(--type-secondary-line-height)'
 }
 
 const queueRowsStyle: CSSProperties = {
@@ -371,7 +371,7 @@ const queueRowStyle: CSSProperties = {
   alignItems: 'center',
   gap: '6px',
   color: 'var(--text-secondary)',
-  fontSize: '12px',
+  fontSize: 'var(--type-ui-size)',
   borderRadius: '7px',
   background: 'transparent'
 }
