@@ -7,6 +7,7 @@ import type { FileDiff } from '../../../types/toolCall'
 import { UnifiedDiffBody } from '../diff/UnifiedDiffBody'
 import { useDiffModel } from '../diff/useDiffModel'
 import { Button } from '../../ui/Button'
+import { IconButton } from '../../ui/IconButton'
 
 export function canPreviewFileReview(text: string): boolean {
   return (
@@ -83,16 +84,16 @@ export function FileReview({
       </div>
       <div className="dc-file-review__footer">
         <div className="dc-file-review__actions">
-          <Button
-            className="dc-file-review__wrap"
-            size="toolbar"
-            variant="outline"
-            aria-label={t(wrap ? 'viewer.disableWordWrap' : 'viewer.enableWordWrap')}
+          <IconButton
+            size={28}
+            label={t(wrap ? 'viewer.disableWordWrap' : 'viewer.enableWordWrap')}
+            tooltipLabel={t(wrap ? 'viewer.disableWordWrap' : 'viewer.enableWordWrap')}
             aria-pressed={wrap}
+            active={wrap}
+            activeTone="neutral"
             onClick={() => setWrap(!wrap)}
-          >
-            <WrapText size={16} aria-hidden />
-          </Button>
+            icon={<WrapText size={16} aria-hidden />}
+          />
           <Button
             size="toolbar"
             variant="outline"
@@ -102,7 +103,6 @@ export function FileReview({
             {t('viewer.edit')}
           </Button>
           <Button
-            className="dc-file-review__reject"
             size="toolbar"
             variant="outline"
             disabled={pending}
@@ -111,9 +111,8 @@ export function FileReview({
             {t('viewer.reject')}
           </Button>
           <Button
-            className="dc-file-review__accept"
             size="toolbar"
-            variant="outline"
+            variant="primary"
             disabled={pending}
             onClick={() => void decide('accept')}
           >

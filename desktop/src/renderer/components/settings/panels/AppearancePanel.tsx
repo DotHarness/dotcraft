@@ -37,6 +37,7 @@ import { SettingsPanelShell } from '../SettingsPanelShell'
 import { SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { SegmentedControl } from '../ui/SegmentedControl'
 import { PillSwitch } from '../../ui/PillSwitch'
+import { IconButton } from '../../ui/IconButton'
 import { AppearancePreview } from './AppearancePreview'
 import { requestColorPickerDialog } from '../../ui/ColorPickerDialog'
 
@@ -295,25 +296,9 @@ export function AppearancePanel(): JSX.Element {
           description={t('settings.appearance.contrast.hint')}
           control={
             <div style={stepperStyle}>
-              <button
-                type="button"
-                aria-label={t('settings.appearance.contrast.decrease')}
-                disabled={contrast <= CONTRAST_MIN}
-                onClick={() => handleContrast(contrast - CONTRAST_STEP)}
-                style={stepperButtonStyle(contrast <= CONTRAST_MIN)}
-              >
-                <Minus size={15} strokeWidth={2} aria-hidden />
-              </button>
+              <IconButton label={t('settings.appearance.contrast.decrease')} tooltipLabel={t('settings.appearance.contrast.decrease')} disabled={contrast <= CONTRAST_MIN} onClick={() => handleContrast(contrast - CONTRAST_STEP)} icon={<Minus size={14} aria-hidden />} />
               <span style={stepperValueStyle}>{contrast}</span>
-              <button
-                type="button"
-                aria-label={t('settings.appearance.contrast.increase')}
-                disabled={contrast >= CONTRAST_MAX}
-                onClick={() => handleContrast(contrast + CONTRAST_STEP)}
-                style={stepperButtonStyle(contrast >= CONTRAST_MAX)}
-              >
-                <Plus size={15} strokeWidth={2} aria-hidden />
-              </button>
+              <IconButton label={t('settings.appearance.contrast.increase')} tooltipLabel={t('settings.appearance.contrast.increase')} disabled={contrast >= CONTRAST_MAX} onClick={() => handleContrast(contrast + CONTRAST_STEP)} icon={<Plus size={14} aria-hidden />} />
             </div>
           }
         />
@@ -325,25 +310,9 @@ export function AppearancePanel(): JSX.Element {
           description={t('settings.appearance.interfaceZoom.hint')}
           control={
             <div style={stepperStyle}>
-              <button
-                type="button"
-                aria-label={t('settings.appearance.interfaceZoom.decrease')}
-                disabled={uiFontPx <= UI_FONT_SIZE_MIN}
-                onClick={() => handleUiFontSize(uiFontPx - 1)}
-                style={stepperButtonStyle(uiFontPx <= UI_FONT_SIZE_MIN)}
-              >
-                <Minus size={15} strokeWidth={2} aria-hidden />
-              </button>
+              <IconButton label={t('settings.appearance.interfaceZoom.decrease')} tooltipLabel={t('settings.appearance.interfaceZoom.decrease')} disabled={uiFontPx <= UI_FONT_SIZE_MIN} onClick={() => handleUiFontSize(uiFontPx - 1)} icon={<Minus size={14} aria-hidden />} />
               <span style={stepperValueStyle}>{uiFontPx}px</span>
-              <button
-                type="button"
-                aria-label={t('settings.appearance.interfaceZoom.increase')}
-                disabled={uiFontPx >= UI_FONT_SIZE_MAX}
-                onClick={() => handleUiFontSize(uiFontPx + 1)}
-                style={stepperButtonStyle(uiFontPx >= UI_FONT_SIZE_MAX)}
-              >
-                <Plus size={15} strokeWidth={2} aria-hidden />
-              </button>
+              <IconButton label={t('settings.appearance.interfaceZoom.increase')} tooltipLabel={t('settings.appearance.interfaceZoom.increase')} disabled={uiFontPx >= UI_FONT_SIZE_MAX} onClick={() => handleUiFontSize(uiFontPx + 1)} icon={<Plus size={14} aria-hidden />} />
             </div>
           }
         />
@@ -366,25 +335,9 @@ export function AppearancePanel(): JSX.Element {
           description={t('settings.appearance.codeFontSize.hint')}
           control={
             <div style={stepperStyle}>
-            <button
-              type="button"
-              aria-label={t('settings.appearance.codeFontSize.decrease')}
-              disabled={codeSize <= CODE_FONT_SIZE_MIN}
-              onClick={() => handleCodeFontSize(codeSize - 1)}
-              style={stepperButtonStyle(codeSize <= CODE_FONT_SIZE_MIN)}
-            >
-              <Minus size={15} strokeWidth={2} aria-hidden />
-            </button>
+            <IconButton label={t('settings.appearance.codeFontSize.decrease')} tooltipLabel={t('settings.appearance.codeFontSize.decrease')} disabled={codeSize <= CODE_FONT_SIZE_MIN} onClick={() => handleCodeFontSize(codeSize - 1)} icon={<Minus size={14} aria-hidden />} />
             <span style={stepperValueStyle}>{codeSize}px</span>
-            <button
-              type="button"
-              aria-label={t('settings.appearance.codeFontSize.increase')}
-              disabled={codeSize >= CODE_FONT_SIZE_MAX}
-              onClick={() => handleCodeFontSize(codeSize + 1)}
-              style={stepperButtonStyle(codeSize >= CODE_FONT_SIZE_MAX)}
-            >
-              <Plus size={15} strokeWidth={2} aria-hidden />
-            </button>
+            <IconButton label={t('settings.appearance.codeFontSize.increase')} tooltipLabel={t('settings.appearance.codeFontSize.increase')} disabled={codeSize >= CODE_FONT_SIZE_MAX} onClick={() => handleCodeFontSize(codeSize + 1)} icon={<Plus size={14} aria-hidden />} />
             </div>
           }
         />
@@ -601,24 +554,7 @@ const hexLabelStyle: CSSProperties = {
 const stepperStyle: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
-  border: '1px solid var(--border-default)',
-  borderRadius: 8,
-  overflow: 'hidden'
-}
-
-function stepperButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 30,
-    height: 30,
-    border: 'none',
-    background: 'var(--bg-tertiary)',
-    color: 'var(--text-primary)',
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.5 : 1
-  }
+  gap: 2
 }
 
 const stepperValueStyle: CSSProperties = {

@@ -121,7 +121,6 @@ export function WhatsNewDialog({
             {olderRelease && (
               <Button
                 variant="ghost"
-                size="sm"
                 onClick={() => setActiveIndex((index) => index + 1)}
               >
                 <ChevronLeft size={14} strokeWidth={2} aria-hidden="true" />
@@ -131,7 +130,6 @@ export function WhatsNewDialog({
             {newerRelease && (
               <Button
                 variant="ghost"
-                size="sm"
                 onClick={() => setActiveIndex((index) => index - 1)}
               >
                 <ButtonLabel>{t('whatsNew.showNewer', { version: newerRelease.version })}</ButtonLabel>

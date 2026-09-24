@@ -2,7 +2,6 @@ import { useState, type CSSProperties } from 'react'
 import { Check, MessageCircle, Plus } from 'lucide-react'
 import type { PluginEntry } from '../../stores/pluginStore'
 import { styles as catalogStyles } from '../catalog/CatalogSurface'
-import { ActionTooltip } from '../ui/ActionTooltip'
 import { Button } from '../ui/Button'
 import { IdentityMark, type IdentityMarkRole } from '../ui/IdentityMark'
 import { IdentityMarkFallback } from '../ui/IdentityMarkFallback'
@@ -56,27 +55,22 @@ export function PluginCatalogItem({
       </span>
       <span style={catalogStyles.statusIcon}>
         {showTry ? (
-          <ActionTooltip label={tryLabel}>
-            <button
-              type="button"
-              aria-label={tryLabel}
-              onClick={(event) => {
-                event.stopPropagation()
-                onTryInChat?.()
-              }}
-              style={tryAction(active)}
-            >
-              <MessageCircle size={14} aria-hidden />
-              <span>{tryLabel}</span>
-            </button>
-          </ActionTooltip>
+          <Button
+            size="sm"
+            iconLeft={<MessageCircle size={14} aria-hidden />}
+            onClick={(event) => {
+              event.stopPropagation()
+              onTryInChat?.()
+            }}
+          >
+            {tryLabel}
+          </Button>
         ) : showInstall ? (
           <Button size="sm"
             onClick={(event) => {
               event.stopPropagation()
               onInstall?.()
             }}
-            style={{ backgroundColor: actionBackground(active) }}
           >
             {installLabel}
           </Button>
@@ -125,25 +119,6 @@ function actionBackground(rowActive: boolean): string {
   return rowActive
     ? 'color-mix(in srgb, var(--text-primary) 9%, var(--bg-tertiary))'
     : 'var(--bg-tertiary)'
-}
-
-function tryAction(rowActive: boolean): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 5,
-    height: 28,
-    padding: '0 9px',
-    border: 'none',
-    borderRadius: 8,
-    backgroundColor: actionBackground(rowActive),
-    color: 'var(--text-primary)',
-    fontSize: 12,
-    lineHeight: 1,
-    whiteSpace: 'nowrap',
-    cursor: 'pointer',
-    transition: 'background-color 120ms ease'
-  }
 }
 
 function iconAction(rowActive: boolean): CSSProperties {

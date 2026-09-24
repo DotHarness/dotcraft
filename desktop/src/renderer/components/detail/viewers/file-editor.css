@@ -305,17 +305,6 @@
   gap: 8px;
   justify-content: flex-end;
 }
-.dc-file-review .dc-file-review__wrap {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-}
-.dc-file-review .dc-button.dc-file-review__reject {
-  color: var(--error-text);
-}
-.dc-file-review .dc-button.dc-file-review__accept {
-  color: var(--success);
-}
 
 @container (max-width: 400px) {
   .dc-file-review__footer {

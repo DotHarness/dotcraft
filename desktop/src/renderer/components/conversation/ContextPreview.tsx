@@ -73,21 +73,20 @@ export function ContextPreview({
         )}
       </div>
       <footer>
-        {onRemove && <Button variant="ghost" size="sm" onClick={onRemove}>
+        {onRemove && <Button variant="ghost" onClick={onRemove}>
           {t('composer.context.remove')}
         </Button>}
         <span className="dc-context-preview__spacer" />
         {onRestore && (
           <Button
-            variant="secondary"
-            size="sm"
+            variant="primary"
             disabled={restoring || text === null || !!error}
             onClick={onRestore}
           >
             {t('composer.context.restore')}
           </Button>
         )}
-        <Button variant="primary" size="sm" onClick={onClose}>
+        <Button variant={onRestore ? 'secondary' : 'primary'} onClick={onClose}>
           {t('common.close')}
         </Button>
       </footer>

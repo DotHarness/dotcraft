@@ -297,33 +297,27 @@ export function CatalogFilterButton({
   ariaLabel: string
 }): JSX.Element {
   const [position, setPosition] = useState<ContextMenuPosition | null>(null)
-  const [hovered, setHovered] = useState(false)
   const active = groups.some((group) => group.isActive ?? group.value !== 'all')
 
   return (
     <>
-      <button
-        type="button"
-        aria-label={ariaLabel}
+      <IconButton
+        size={36}
+        radius={12}
+        label={ariaLabel}
+        tooltipLabel={ariaLabel}
+        tooltipPlacement="bottom"
         aria-haspopup="menu"
         aria-expanded={position != null}
-        data-active={active ? '' : undefined}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onFocus={() => setHovered(true)}
-        onBlur={() => setHovered(false)}
+        active={active}
+        activeTone="neutral"
         onClick={(event) => {
           const rect = event.currentTarget.getBoundingClientRect()
           setPosition({ x: rect.right - 200, y: rect.bottom + 6 })
         }}
-        style={{
-          ...styles.filterButton,
-          backgroundColor: hovered || position ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
-          color: active ? 'var(--text-primary)' : 'var(--text-secondary)'
-        }}
-      >
-        <ListFilter size={16} aria-hidden />
-      </button>
+        style={{ flex: '0 0 36px' }}
+        icon={<ListFilter size={16} aria-hidden />}
+      />
       {position && (
         <ContextMenu
           position={position}
@@ -559,20 +553,6 @@ export const styles = {
     lineHeight: 1,
     whiteSpace: 'nowrap'
   },
-  filterButton: {
-    width: '36px',
-    height: '36px',
-    flex: '0 0 36px',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 0,
-    border: 'none',
-    borderRadius: '12px',
-    backgroundColor: 'var(--bg-secondary)',
-    color: 'var(--text-secondary)',
-    cursor: 'pointer'
-  },
   browseMain: {
     flex: 1,
     minHeight: 0,
@@ -654,17 +634,6 @@ export const styles = {
     gap: '8px',
     color: 'var(--text-secondary)',
     fontSize: 'var(--type-ui-size)'
-  },
-  breadcrumbButton: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '4px',
-    border: 'none',
-    background: 'transparent',
-    color: 'var(--text-secondary)',
-    cursor: 'pointer',
-    padding: 0,
-    fontSize: '13px'
   },
   /**
    * Mirrors `styles.tab` (border included), because the same slot carries tabs on

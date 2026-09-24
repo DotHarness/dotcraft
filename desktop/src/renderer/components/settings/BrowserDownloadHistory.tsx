@@ -59,9 +59,9 @@ export function BrowserDownloadHistory(): JSX.Element {
                 max={record.totalBytes || undefined} value={record.totalBytes ? record.receivedBytes : undefined} />}
             </div>
             {record.state === 'completed' && <Button size="sm" onClick={() => void run(() => api.openDownload({ id: record.id }))}>{t('viewer.browser.openDownload')}</Button>}
-            {record.state === 'progressing' ? <IconButton icon={<X size={16} />} label={t('common.cancel')}
+            {record.state === 'progressing' ? <IconButton icon={<X size={16} />} label={t('common.cancel')} tooltipLabel={t('common.cancel')}
               onClick={() => void run(() => api.cancelDownload({ id: record.id }))} /> :
-              <IconButton icon={<Trash2 size={16} />} label={t('browser.downloads.remove')}
+              <IconButton icon={<Trash2 size={14} />} label={t('browser.downloads.remove')} tooltipLabel={t('browser.downloads.remove')}
                 onClick={() => void run(() => api.removeDownload({ id: record.id }))} />}
           </div>)}
     </SettingsGroup>

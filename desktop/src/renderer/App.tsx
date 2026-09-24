@@ -1,6 +1,6 @@
 import { startPendingWelcomeTurn } from './utils/startPendingWelcomeTurn'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { translate, type AppLocale } from '../shared/locales'
 import { useLocale } from './contexts/LocaleContext'
 import { basename } from './utils/path'
@@ -64,6 +64,7 @@ import {
   type WorkspaceLaunchTransitionPhase
 } from './components/WorkspaceLaunchTransition'
 import { ConfirmDialogHost } from './components/ui/ConfirmDialog'
+import { Button } from './components/ui/Button'
 import { ToastContainer } from './components/ui/ToastContainer'
 import { DesktopPluginMainViewOutlet } from './components/desktopPlugins/DesktopPluginOutlets'
 import { CoreMainViewBoundary, coreMainViews } from './core/coreMainViewRoutes'
@@ -521,34 +522,6 @@ function buildBrowserUseApproval(
       })
       useConversationStore.getState().setGenericApproval(null)
     }
-  }
-}
-
-function topBannerSecondaryButtonStyle(disabled = false): CSSProperties {
-  return {
-    padding: '6px 10px',
-    border: '1px solid var(--border-default)',
-    borderRadius: '8px',
-    background: 'transparent',
-    color: 'var(--text-primary)',
-    fontSize: '12px',
-    fontWeight: 600,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.6 : 1
-  }
-}
-
-function topBannerPrimaryButtonStyle(disabled = false): CSSProperties {
-  return {
-    padding: '6px 10px',
-    border: '1px solid var(--text-primary)',
-    borderRadius: '8px',
-    background: 'var(--text-primary)',
-    color: 'var(--bg-primary)',
-    fontSize: '12px',
-    fontWeight: 700,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.6 : 1
   }
 }
 
@@ -3551,26 +3524,26 @@ export function App(): JSX.Element {
               {translate(locale, pendingRestartMessageKey)}
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => ignorePendingRestart()}
                 disabled={pendingRestartApplying}
-                style={topBannerSecondaryButtonStyle(pendingRestartApplying)}
               >
                 {translate(locale, 'settings.pendingRestart.ignore')}
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   void applyPendingRestart()
                 }}
                 disabled={pendingRestartApplying}
-                style={topBannerPrimaryButtonStyle(pendingRestartApplying)}
               >
                 {pendingRestartApplying
                   ? translate(locale, pendingRestartApplyingKey)
                   : translate(locale, pendingRestartApplyKey)}
-              </button>
+              </Button>
             </span>
           </div>
         )}

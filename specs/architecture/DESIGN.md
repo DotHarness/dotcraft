@@ -562,7 +562,20 @@ drawn around the words.
 Destructive actions must use explicit copy such as Delete, Remove, Discard, or
 Stop. The danger affordance is a frameless `--error` fill (~10% tint, hover ~18%)
 with `--error` text — not a bordered outline. Keep surrounding chrome neutral and
-require confirmation where appropriate.
+require confirmation where appropriate. An icon-only delete uses the `IconButton`
+danger tone; a reversible remove (a blocked domain, a download record) stays neutral.
+
+The hierarchy follows the surface, not the verb:
+
+- a dialog footer sits on the standard band and carries at most one `primary`;
+  Close is `primary` only when it is the footer's sole action.
+- Retry is `secondary`; it becomes `primary` only as the sole action of an error
+  state, such as the connection error screen.
+- a decision inside a card or review footer makes the accepting choice `primary`
+  and the others `outline`, matching the approval composer.
+- an app banner pairs an `outline` principal action with a `ghost` dismissal.
+- a small mutually exclusive choice is the shared `SegmentedControl`, never a row
+  of hand-styled toggles.
 
 Buttons that share a row share one control band, so the row reads as one strip
 rather than a set of controls that each chose a height. A surface picks its band

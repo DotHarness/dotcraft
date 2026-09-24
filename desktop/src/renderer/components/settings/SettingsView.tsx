@@ -4124,9 +4124,6 @@ export function SettingsView({
                               icon={<Archive size={14} aria-hidden />}
                               label={t('settings.dreams.archive')}
                               tooltipLabel={t('settings.dreams.archive')}
-                              size={24}
-                              radius={8}
-                              className="dc-thread-list-icon-button"
                               disabled={running || dreamsArchiveBusy}
                               onClick={() => void handleArchiveDreamRun(run)}
                             />
@@ -4250,16 +4247,13 @@ export function SettingsView({
                           key={domain}
                           label={domain}
                           control={
-                            <ActionTooltip label={t('settings.browserUse.remove')} placement="top">
-                              <Button
-                                variant="danger"
-                                size="icon"
-                                onClick={() => void handleRemoveBrowserUseDomain('blocked', domain)}
-                                aria-label={t('settings.browserUse.remove')}
-                              >
-                                <Trash2 size={14} strokeWidth={2} aria-hidden />
-                              </Button>
-                            </ActionTooltip>
+                            <IconButton
+                              icon={<Trash2 size={14} aria-hidden />}
+                              label={t('settings.browserUse.remove')}
+                              tooltipLabel={t('settings.browserUse.remove')}
+                              tooltipPlacement="top"
+                              onClick={() => void handleRemoveBrowserUseDomain('blocked', domain)}
+                            />
                           }
                         />
                       ))}
@@ -4285,16 +4279,13 @@ export function SettingsView({
                           key={domain}
                           label={domain}
                           control={
-                            <ActionTooltip label={t('settings.browserUse.remove')} placement="top">
-                              <Button
-                                variant="danger"
-                                size="icon"
-                                onClick={() => void handleRemoveBrowserUseDomain('allowed', domain)}
-                                aria-label={t('settings.browserUse.remove')}
-                              >
-                                <Trash2 size={14} strokeWidth={2} aria-hidden />
-                              </Button>
-                            </ActionTooltip>
+                            <IconButton
+                              icon={<Trash2 size={14} aria-hidden />}
+                              label={t('settings.browserUse.remove')}
+                              tooltipLabel={t('settings.browserUse.remove')}
+                              tooltipPlacement="top"
+                              onClick={() => void handleRemoveBrowserUseDomain('allowed', domain)}
+                            />
                           }
                         />
                       ))}
@@ -4697,37 +4688,16 @@ export function SettingsView({
                         onChange={(e) => setMcpDraft((prev) => ({ ...prev, name: e.target.value }))}
                         placeholder={t('settings.mcp.field.namePlaceholder')}
                       />
-                      <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
-                        {(['stdio', 'streamableHttp'] as const).map((transport) => {
-                          const active = mcpDraft.transport === transport
-                          return (
-                            <button
-                              key={transport}
-                              type="button"
-                              onClick={() =>
-                                setMcpDraft((prev) => ({
-                                  ...prev,
-                                  transport: transport as McpTransport
-                                }))
-                              }
-                              style={{
-                                flex: 1,
-                                padding: '8px 12px',
-                                borderRadius: '8px',
-                                border: active ? '1px solid var(--accent)' : '1px solid var(--border-default)',
-                                background: active ? 'var(--bg-tertiary)' : 'transparent',
-                                color: 'var(--text-primary)',
-                                fontSize: '13px',
-                                fontWeight: 600,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              {transport === 'stdio'
-                                ? t('settings.mcp.transport.stdio')
-                                : t('settings.mcp.transport.http')}
-                            </button>
-                          )
-                        })}
+                      <div style={{ marginTop: '12px' }}>
+                        <SegmentedControl<McpTransport>
+                          value={mcpDraft.transport}
+                          options={[
+                            { value: 'stdio', label: t('settings.mcp.transport.stdio') },
+                            { value: 'streamableHttp', label: t('settings.mcp.transport.http') }
+                          ]}
+                          onChange={(transport) => setMcpDraft((prev) => ({ ...prev, transport }))}
+                          ariaLabel={t('channels.transport')}
+                        />
                       </div>
                     </SettingsGroup>
 

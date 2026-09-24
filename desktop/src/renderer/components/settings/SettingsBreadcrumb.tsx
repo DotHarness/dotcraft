@@ -1,6 +1,7 @@
-import type { CSSProperties, JSX } from 'react'
+import type { JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import { BreadcrumbSeparator, CatalogHoverButton, styles as catalogStyles } from '../catalog/CatalogSurface'
+import { BreadcrumbSeparator, styles as catalogStyles } from '../catalog/CatalogSurface'
+import { Button } from '../ui/Button'
 
 interface SettingsBreadcrumbProps {
   /** Label of the list page the back button returns to. */
@@ -19,27 +20,19 @@ export function SettingsBreadcrumb({ parentLabel, currentLabel, onBack, disabled
   const t = useT()
   return (
     <div style={catalogStyles.breadcrumb}>
-      <CatalogHoverButton
+      <Button
         type="button"
+        size="sm"
+        variant="ghost"
         onClick={onBack}
         disabled={disabled}
         aria-label={t('settings.breadcrumb.backTo', { label: parentLabel })}
-        baseStyle={disabled ? { ...backButtonStyle, cursor: 'default', opacity: 0.6 } : backButtonStyle}
+        style={catalogStyles.catalogBreadcrumbButton}
       >
         {parentLabel}
-      </CatalogHoverButton>
+      </Button>
       <BreadcrumbSeparator />
       <span style={catalogStyles.breadcrumbCurrent}>{currentLabel}</span>
     </div>
   )
-}
-
-// Pad the back segment into a rounded hover pill, then pull it left by the same
-// padding so the leading word still lines up with the page title at x=0.
-const backButtonStyle: CSSProperties = {
-  ...catalogStyles.breadcrumbButton,
-  padding: '6px 10px',
-  borderRadius: '8px',
-  lineHeight: 1.2,
-  marginLeft: '-10px'
 }

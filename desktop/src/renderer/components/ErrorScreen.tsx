@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CircleAlert, RotateCw, Settings } from 'lucide-react'
+import { Button } from './ui/Button'
 import { CopyButton } from './ui/CopyButton'
 import { Spinner } from './ui/Spinner'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -140,43 +141,17 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
           {description}
         </p>
 
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="prominent"
           onClick={() => { void handleAction() }}
           disabled={retryPending}
           aria-busy={retryPending}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            minWidth: '220px',
-            padding: '11px 24px',
-            backgroundColor: 'var(--text-primary)',
-            color: 'var(--bg-primary)',
-            border: '1px solid var(--text-primary)',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: 500,
-            cursor: retryPending ? 'not-allowed' : 'pointer',
-            opacity: retryPending ? 0.78 : 1,
-            transition: 'background-color 150ms ease',
-            boxShadow: 'var(--shadow-level-1)'
-          }}
-          onMouseEnter={(e) => {
-            if (retryPending) return
-            ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary))'
-          }}
-          onMouseLeave={(e) => {
-            if (retryPending) return
-            ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--text-primary)'
-          }}
+          iconLeft={retryPending ? <Spinner size={16} /> : <ActionIcon size={16} aria-hidden="true" />}
+          style={{ minWidth: '220px' }}
         >
-          {retryPending
-            ? <Spinner size={16} />
-            : <ActionIcon size={16} strokeWidth={1.8} aria-hidden="true" />}
           {displayedActionLabel}
-        </button>
+        </Button>
 
         {/* Always expanded rather than collapsible, so a bug report can be copied
             without an extra click. */}

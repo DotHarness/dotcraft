@@ -16,6 +16,7 @@ import { useMenuAim } from '../../hooks/useMenuAim'
 import type { InferenceSpeedWire, ModelCatalogItem, ReasoningEffortWire } from '../../stores/modelCatalogStore'
 import type { ContextWindowMode } from '../../types/thread'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 import { PillSwitch } from '../ui/PillSwitch'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
@@ -673,25 +674,16 @@ export function ModelPicker({
               <strong>{t('composer.modelListError')}</strong>
               <span style={{ color: 'var(--text-secondary)' }}>{errorMessage}</span>
               {onRetry && (
-                <button
-                  type="button"
+                <Button
+                  size="sm"
+                  style={{ alignSelf: 'flex-start', marginTop: '4px' }}
                   onClick={(event) => {
                     event.stopPropagation()
                     onRetry()
                   }}
-                  style={{
-                    alignSelf: 'flex-start',
-                    padding: '3px 0 0',
-                    border: 'none',
-                    background: 'transparent',
-                    color: 'var(--accent)',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: 600
-                  }}
                 >
                   {t('composer.modelListRetry')}
-                </button>
+                </Button>
               )}
             </div>
           )}
