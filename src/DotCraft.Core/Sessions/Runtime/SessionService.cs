@@ -1196,6 +1196,7 @@ public sealed partial class SessionService(
             preference = ModelPreferenceRules.Normalize(currentConfig, runtime.ProviderId, preference);
         }
 
+        captured.MemoryEnabled ??= currentConfig.Memory.Enabled;
         captured.Reasoning ??= CloneReasoningConfig(preference.Reasoning);
         captured.Speed ??= preference.Speed;
         captured.ContextWindow ??= new ThreadContextWindowConfig
@@ -1231,6 +1232,7 @@ public sealed partial class SessionService(
     {
         AgentProfileId = source.AgentProfileId,
         MemoryScope = source.MemoryScope,
+        MemoryEnabled = source.MemoryEnabled,
         AgentProfileSource = source.AgentProfileSource,
         AgentProfileFingerprint = source.AgentProfileFingerprint,
         AgentBuilderTargetId = source.AgentBuilderTargetId,
@@ -3727,13 +3729,6 @@ public sealed partial class SessionService(
                 FlushTurnDiff(turnRuntime, eventChannel);
                 eventChannel.EmitTurnCompleted(turn);
 
-                _ = TryScheduleMemoryConsolidation(
-                    threadId,
-                    thread,
-                    turn,
-                    session,
-                    eventChannel,
-                    NextItemSeq);
                 ThreadRuntimeSignalForBroadcast?.Invoke(
                     threadId,
                     ThreadSummaryRuntime.ContainsSuccessfulCreatePlanInPlanMode(thread, turn)
@@ -4241,18 +4236,6 @@ public sealed partial class SessionService(
         return await work.ConfigureAwait(false);
     }
 
-    /// <inheritdoc/>
-    public async Task<ThreadMemoryConsolidationResult> ConsolidateThreadMemoryAsync(
-        string threadId,
-        CancellationToken ct = default)
-    {
-        var work = await InvokeThreadCommandAsync(
-            threadId,
-            _ => Task.FromResult(Maintenance.StartMemoryConsolidation(threadId, ct)),
-            ct);
-        return await work.ConfigureAwait(false);
-    }
-
     // =========================================================================
     // Configuration
     // =========================================================================
@@ -4551,16 +4534,11 @@ public sealed partial class SessionService(
         agentFactory.RuntimeContext.ContextPageManager.ForgetThread(threadId);
     }
 
-    /// <summary>The store a Thread reads and consolidates into; the prompt and consolidation must agree.</summary>
-    internal MemoryStore ResolveMemoryStore(ThreadConfiguration? config) =>
+    private MemoryStore ResolveMemoryStore(ThreadConfiguration? config) =>
         MemoryScopes.Resolve(config?.MemoryScope, DataPath)
         ?? (string.IsNullOrEmpty(config?.WorkspaceOverride)
             ? agentFactory.RuntimeContext.MemoryStore
             : new MemoryStore(Path.Combine(config.WorkspaceOverride, Path.GetFileName(DataPath))));
-
-    private void MarkMemoryContextDirty(MemoryStore store) =>
-        agentFactory.RuntimeContext.ContextPageManager.MarkDirty(ContextPageKeys.MemoryLongTerm(
-            WorkspaceContextPromptSections.MemoryVariant(store, agentFactory.RuntimeContext.DreamStore)));
 
     private void EnsureHookRewakeHandler()
     {
@@ -5153,6 +5131,8 @@ public sealed partial class SessionService(
     {
         if (!string.IsNullOrWhiteSpace(config.AgentProfileId) || !string.IsNullOrWhiteSpace(config.MemoryScope))
             return true;
+        if (config.MemoryEnabled == false)
+            return true;
         if (!string.IsNullOrWhiteSpace(config.AgentProfileSource))
             return true;
         if (!string.IsNullOrWhiteSpace(config.AgentProfileFingerprint))
@@ -5490,21 +5470,6 @@ public sealed partial class SessionService(
             && (text.Contains("NetworkTimeout", StringComparison.OrdinalIgnoreCase)
                 || text.Contains("Network timeout", StringComparison.OrdinalIgnoreCase));
     }
-
-    private bool TryScheduleMemoryConsolidation(
-        string threadId,
-        SessionThread thread,
-        SessionTurn turn,
-        List<ChatMessage> session,
-        SessionEventChannel eventChannel,
-        Func<int> nextItemSequence)
-        => Maintenance.TryScheduleMemoryConsolidation(
-            threadId,
-            thread,
-            turn,
-            session,
-            eventChannel,
-            nextItemSequence);
 
     private async Task TryAppendCompactionCheckpointAsync(
         string threadId,
@@ -6037,7 +6002,8 @@ public sealed partial class SessionService(
 
         scopedContext = new AgentRuntimeContext(scopedContext ?? threadBaseContext)
         {
-            MemoryStore = ResolveMemoryStore(config)
+            MemoryStore = ResolveMemoryStore(config),
+            MemoryEnabled = config.MemoryEnabled ?? true
         };
 
         var toolContext = CloneContextWithWorkspace(

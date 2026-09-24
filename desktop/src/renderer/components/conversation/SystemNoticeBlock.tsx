@@ -1,4 +1,4 @@
-import { Archive, ChevronsDown, GitFork, Monitor, PlugZap, Unplug } from 'lucide-react'
+import { ChevronsDown, GitFork, Monitor, PlugZap, Unplug } from 'lucide-react'
 import { NoticeDivider } from './NoticeDivider'
 import { useT } from '../../contexts/LocaleContext'
 import type { ConversationItem } from '../../types/conversation'
@@ -40,16 +40,6 @@ export function SystemNoticeBlock({ item }: SystemNoticeBlockProps): JSX.Element
         ariaLabel={t('systemNotice.forked.title')}
         icon={<GitFork size={14} aria-hidden />}
         title={t('systemNotice.forked.title')}
-      />
-    )
-  }
-
-  if (notice.kind === 'memoryConsolidated') {
-    return (
-      <NoticeDivider
-        ariaLabel={t('systemNotice.memoryConsolidated.title')}
-        icon={<Archive size={14} aria-hidden />}
-        title={t('systemNotice.memoryConsolidated.updated')}
       />
     )
   }

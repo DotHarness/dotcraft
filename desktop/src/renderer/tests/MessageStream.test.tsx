@@ -878,58 +878,6 @@ describe('MessageStream', () => {
     })
   })
 
-  it('renders non-blocking background memory status with the same gradient divider', () => {
-    useConversationStore.setState({
-      turns: [makeRunningTurn()],
-      turnStatus: 'idle',
-      activeTurnId: null,
-      systemLabel: null,
-      backgroundMemoryStatus: 'consolidating',
-      maintenanceKind: null
-    })
-
-    renderWithLocale(<MessageStream />)
-
-    expect(screen.getByRole('status', { name: 'Consolidating memory' })).toBeInTheDocument()
-    expect(screen.getByText('Consolidating memory')).toBeInTheDocument()
-  })
-
-  it('renders a persistent memory consolidation notice divider', () => {
-    useConversationStore.setState({
-      turns: [{
-        id: 'turn-1',
-        threadId: 'thread-1',
-        status: 'completed',
-        startedAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        items: [
-          {
-            id: 'u1',
-            type: 'userMessage',
-            status: 'completed',
-            text: 'Remember this preference',
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: 'notice-memory',
-            type: 'systemNotice',
-            status: 'completed',
-            createdAt: new Date().toISOString(),
-            completedAt: new Date().toISOString(),
-            systemNotice: { kind: 'memoryConsolidated' }
-          }
-        ]
-      }],
-      turnStatus: 'idle',
-      activeTurnId: null
-    })
-
-    renderWithLocale(<MessageStream />)
-
-    expect(screen.getByRole('separator', { name: 'Long-term memory updated' })).toBeInTheDocument()
-    expect(screen.getByText('Long-term memory updated')).toBeInTheDocument()
-  })
-
   it('shows the inline edit affordance only on the last completed text-only user message', () => {
     useConversationStore.setState({
       turns: [

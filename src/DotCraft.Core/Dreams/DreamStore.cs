@@ -330,7 +330,7 @@ public sealed class DreamStore
             SetActiveStore(descriptor.StoreId);
             var written = new List<string> { $"stores/{descriptor.StoreId}/INDEX.md" };
             written.AddRange(normalizedWrites.Select(write => $"stores/{descriptor.StoreId}/memory/{write.Path}"));
-            return new DreamStoreWriteResult(true, false, normalizedWrites.Count, normalizedDeletes.Count, written);
+            return new DreamStoreWriteResult(true, normalizedWrites.Count, normalizedDeletes.Count, written);
         }
     }
 
@@ -547,10 +547,9 @@ public sealed class DreamStore
 /// </summary>
 public readonly record struct DreamStoreWriteResult(
     bool DreamWritten,
-    bool HistoryWritten,
     int TopicFilesWritten,
     int TopicFilesDeleted,
     IReadOnlyList<string> WrittenPaths)
 {
-    public bool AnyWritten => DreamWritten || HistoryWritten || TopicFilesWritten > 0 || TopicFilesDeleted > 0;
+    public bool AnyWritten => DreamWritten || TopicFilesWritten > 0 || TopicFilesDeleted > 0;
 }

@@ -1,6 +1,6 @@
 # Entry points overview
 
-One workspace opens from several surfaces: the desktop app, a terminal, your editor, a bot in a group chat. Whichever you come in through, you're talking to the same agent. It reads the same `.craft/` and shares the same threads and the same long-term memory. All that changes is the surface you talk to it through.
+One workspace opens from several surfaces: the desktop app, a terminal, your editor, a bot in a group chat. Whichever you come in through, you're talking to the same agent. It reads the same `.craft/` and shares the same threads and the same memory. All that changes is the surface you talk to it through.
 
 ![Desktop, CLI, editors, and chat bots all connecting to one AppServer and a shared session core](/entry-points-topology.svg)
 

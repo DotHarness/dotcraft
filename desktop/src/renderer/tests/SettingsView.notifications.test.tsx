@@ -41,7 +41,7 @@ describe('SettingsView notification settings', () => {
             endPoint: null,
             welcomeSuggestionsEnabled: null,
             skillsSelfLearningEnabled: null,
-            memoryAutoConsolidateEnabled: null,
+            memoryEnabled: null,
             defaultApprovalPolicy: 'default'
           },
           userDefaults: {
@@ -49,7 +49,7 @@ describe('SettingsView notification settings', () => {
             endPoint: null,
             welcomeSuggestionsEnabled: null,
             skillsSelfLearningEnabled: null,
-            memoryAutoConsolidateEnabled: null,
+            memoryEnabled: null,
             defaultApprovalPolicy: null
           }
         })

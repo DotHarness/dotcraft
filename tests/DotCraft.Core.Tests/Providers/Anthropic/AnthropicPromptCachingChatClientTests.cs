@@ -646,7 +646,7 @@ public sealed class AnthropicPromptCachingChatClientTests : IDisposable
         using (PromptCacheStateScope.Use(
                    cacheStateKey,
                    traceSessionKey: "thread_1",
-                   new PromptCacheMaintenanceScope(2, PromptCacheMaintenanceWriteMode.ReadOnlyPrefix)))
+                   new PromptCacheMaintenanceScope(2)))
         {
             await client.GetResponseAsync([
                 new ChatMessage(ChatRole.User, "stable prefix"),
@@ -674,47 +674,6 @@ public sealed class AnthropicPromptCachingChatClientTests : IDisposable
                 prepared.PendingCachePoints,
                 point => point.Trace.MessageIndex == 1);
             Assert.False(snapshotPrefix.Trace.Remembered);
-        }
-    }
-
-    [Fact]
-    public async Task UseCacheStateKey_WriteThroughMaintenance_MarksTailAndCommitsForkState()
-    {
-        var capture = new CaptureChatClient();
-        var client = CreateClient(
-            "claude-opus-4-1",
-            capture: capture,
-            sessionKey: "thread_1");
-        const string cacheStateKey = "thread_1:maintenance:memory_consolidation:turn_1";
-
-        using (PromptCacheStateScope.Use(
-                   cacheStateKey,
-                   traceSessionKey: "thread_1",
-                   new PromptCacheMaintenanceScope(2)))
-        {
-            await client.GetResponseAsync([
-                new ChatMessage(ChatRole.User, "stable prefix"),
-                new ChatMessage(ChatRole.Assistant, "stable assistant"),
-                new ChatMessage(ChatRole.User, "fork tail")
-            ]);
-        }
-
-        AssertAnthropicCacheControl(AssertLastTextContent(capture.LastMessages![2]), expectedTtl: null);
-
-        using (PromptCacheStateScope.Use(
-                   cacheStateKey,
-                   traceSessionKey: "thread_1",
-                   new PromptCacheMaintenanceScope(2)))
-        {
-            var prepared = client.Prepare([
-                new ChatMessage(ChatRole.User, "stable prefix"),
-                new ChatMessage(ChatRole.Assistant, "stable assistant"),
-                new ChatMessage(ChatRole.User, "next fork tail")
-            ], null);
-
-            Assert.Contains(
-                prepared.PendingCachePoints,
-                point => point.Trace.MessageIndex == 1 && point.Trace.Remembered);
         }
     }
 

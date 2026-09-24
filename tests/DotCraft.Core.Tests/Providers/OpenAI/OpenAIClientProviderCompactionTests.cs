@@ -21,24 +21,24 @@ public sealed partial class OpenAIClientProviderTests
         var parentAttempt = ModelStreamAttemptRuntimeScope.Current!;
         parentAttempt.CaptureTransportResponse(202, "parent-request", null, null, null);
         await using var server = RecordingHttpServer.Start(JsonResponse(SuccessfulResponseJson,
-            headers: new Dictionary<string, string> { [OpenAIAuthConstants.TurnStateHeader] = "memory-state" }));
+            headers: new Dictionary<string, string> { [OpenAIAuthConstants.TurnStateHeader] = "aux-state" }));
         var provider = CreateOAuthProvider("11111111-2222-4333-8444-555555555555", "account-test");
         var client = provider.GetOpenAIClient(OAuthRuntime($"{server.Endpoint}/backend-api/codex")).GetResponsesClient();
         var legacy = CreateCodexRuntimeContext("main", "main-turn", "main-window");
         legacy.TryCaptureTurnState("main-state");
         using var legacyScope = OpenAIResponsesCodexRuntimeScope.Set(legacy);
-        var identity = new ProviderConversationIdentity("memory", "root", null, null, "memory-turn", "memory-window",
-            ProviderRequestKind.Memory, 0, "user", null);
+        var identity = new ProviderConversationIdentity("aux", "root", null, null, "aux-turn", "aux-window",
+            ProviderRequestKind.Compaction, 0, "user", null);
         using var auxiliary = new AuxiliaryProviderRequestScope(identity);
         await client.CreateResponseAsync(CreateNonStreamingResponseOptions("gpt-test", "maintenance"));
         var request = Assert.Single(server.Requests);
         Assert.False(request.Headers.ContainsKey(OpenAIAuthConstants.TurnStateHeader));
-        Assert.Equal("memory", request.Headers[OpenAIAuthConstants.ThreadIdHeader]);
-        Assert.Equal("memory-window", request.Headers[OpenAIAuthConstants.WindowIdHeader]);
+        Assert.Equal("aux", request.Headers[OpenAIAuthConstants.ThreadIdHeader]);
+        Assert.Equal("aux-window", request.Headers[OpenAIAuthConstants.WindowIdHeader]);
         Assert.Equal("main-state", legacy.TurnState);
         Assert.Equal(202, parentAttempt.StatusCode);
         Assert.Equal("parent-request", parentAttempt.RequestId);
-        Assert.Equal("memory-state", ProviderRequestContextScope.Current!.ConversationState!.ContinuationState);
+        Assert.Equal("aux-state", ProviderRequestContextScope.Current!.ConversationState!.ContinuationState);
     }
 
     [Theory]

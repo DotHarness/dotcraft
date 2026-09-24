@@ -270,10 +270,6 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ManualCompaction { get; init; }
 
-    [JsonPropertyName("manualMemoryConsolidation")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool ManualMemoryConsolidation { get; init; }
-
     [JsonPropertyName("appBindingVersion")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int AppBindingVersion { get; init; }

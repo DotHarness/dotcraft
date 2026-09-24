@@ -23,7 +23,6 @@ public sealed class DreamsInputCollector(
         CancellationToken cancellationToken = default)
     {
         var explicitMemory = TrimPreview(memoryStore.ReadLongTerm(), MaxPreviewChars);
-        var hasMemoryHistory = !string.IsNullOrWhiteSpace(memoryStore.ReadHistory());
         var existingDream = TrimPreview(dreamStore.ReadDream(), MaxPreviewChars);
         var topicFiles = dreamStore.ListTopicFiles();
         var threads = new List<DreamsThreadInput>();
@@ -70,7 +69,6 @@ public sealed class DreamsInputCollector(
             topicFiles,
             threads,
             threads.Sum(static thread => thread.CompletedTurnCount),
-            hasMemoryHistory,
             NormalizeInstructions(request?.Instructions));
     }
 

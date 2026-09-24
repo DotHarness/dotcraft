@@ -50,7 +50,6 @@ internal static class InitializeContractMapper
         ThreadFork = value.ThreadFork,
         GitWorktrees = value.GitWorktrees,
         ManualCompaction = value.ManualCompaction,
-        ManualMemoryConsolidation = value.ManualMemoryConsolidation,
         DynamicToolRebind = value.DynamicToolRebind,
         RuntimeAdditionalContext = value.RuntimeAdditionalContext,
         AppBindingVersion = value.AppBindingVersion,

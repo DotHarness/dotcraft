@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.4.1 |
+| **Version** | 0.4.2 |
 | **Status** | Living |
-| **Date** | 2026-09-01 |
+| **Date** | 2026-09-24 |
 | **Parent Specs** | [Session Core](session-core.md), [Prompt Cache](prompt-cache.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 ## Overview
@@ -77,7 +77,7 @@ For a version-1 thread, a normal `ProviderRequestKind.Turn` Responses request in
 1. the current canonical generation;
 2. plus only the current MEAI sampling tail not already represented by that generation.
 
-Auxiliary `ProviderRequestKind.Compaction` and `ProviderRequestKind.Memory` requests use the
+Auxiliary `ProviderRequestKind.Compaction` requests use the
 messages supplied by their caller. They retain the active request identity and cache-routing
 metadata, but they do not consume, append, abort, or otherwise mutate the active canonical
 provider-history generation. A provider-native compact backend captures its input through the
@@ -228,7 +228,7 @@ provider response IDs, or any future provider-native recovery payload.
   byte-identical prefix and append only completed provider items and new local tail items.
 - Request-local sanitization never emits `provider_history_replaced`; successful neutral or
   provider-native compaction emits exactly one replacement for the new context window.
-- Local compaction and memory requests use their explicit maintenance input without consuming or
+- Local compaction requests use their explicit maintenance input without consuming or
   appending the active canonical provider-history generation.
 - Coverage accounting uses the sanitizer-normalized sampling projection even when replay or fork
   materialization reconstructs multiple MEAI tool messages for one assistant tool-call block.
@@ -264,15 +264,11 @@ artifact destination. Both provider-native and SDK result content use the same c
 
 ## Maintenance isolation
 
-Automatic and manual memory consolidation create a detached Memory request context for each work
-item, including fallback requests and tool continuations. Identity and diagnostics are explicit;
-provider history, compaction bridges, mutable conversation state, and parent tool-loop/retry callbacks
-are not shared. Auxiliary HTTP attempts must not overwrite parent attempt diagnostics, and tool
-argument normalization must not modify captured source messages. Automatic scheduling suppresses
-ambient execution-context flow before starting
-the worker. Direct maintenance-fork calls establish the same isolation.
+Maintenance forks create a detached auxiliary request context for each work item, including
+fallback requests. Identity and diagnostics are explicit; provider history, compaction bridges,
+mutable conversation state, and parent tool-loop/retry callbacks are not shared. Auxiliary HTTP
+attempts must not overwrite parent attempt diagnostics, and tool argument normalization must not
+modify captured source messages.
 
 Auxiliary requests must not acquire a provider-history bridge through service lookup. Normal Turn
-coverage validation remains strict. Regression tests must enter through SessionService automatic
-scheduling, including concurrent next Turns and queued maintenance, rather than constructing only
-an already-correct Memory context at the adapter boundary.
+coverage validation remains strict.

@@ -285,10 +285,6 @@ public interface ISessionService
     Task<ThreadCompactResult> CompactThreadAsync(string threadId, CancellationToken ct = default) =>
         throw new NotSupportedException("Manual context compaction is not supported by this session service.");
 
-    /// <summary>Consolidates model-visible context into durable workspace memory.</summary>
-    Task<ThreadMemoryConsolidationResult> ConsolidateThreadMemoryAsync(string threadId, CancellationToken ct = default) =>
-        throw new NotSupportedException("Manual memory consolidation is not supported by this session service.");
-
     /// <summary>Cancels active Thread maintenance.</summary>
     Task CancelThreadMaintenanceAsync(string threadId, CancellationToken ct = default) =>
         Task.CompletedTask;

@@ -318,32 +318,6 @@ public sealed class ChatClientRegistryTests
     }
 
     [Fact]
-    public void ResolveConsolidationRuntime_UsesThreadProviderAndConsolidationModel()
-    {
-        var config = new AppConfig
-        {
-            ProviderId = "test",
-            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "workspace-model"  } },
-            ConsolidationModel = "memory-model",
-            Providers =
-            {
-                ["anthropic-main"] = new AppConfig.ModelProviderConfig
-                {
-                    Protocol = "anthropic",
-                    ApiKey = "sk-ant-test"
-                }
-            }
-        };
-        var registry = new ChatClientRegistry();
-
-        var consolidation = registry.ResolveConsolidationRuntime(config, "anthropic-main", "thread-model");
-
-        Assert.Equal("anthropic-main", consolidation.ProviderId);
-        Assert.Equal("anthropic", consolidation.Protocol);
-        Assert.Equal("memory-model", consolidation.Model);
-    }
-
-    [Fact]
     public void GetChatClient_CacheKeyIncludesNetworkTimeout()
     {
         var registry = TestModelProviderRegistry.Create();

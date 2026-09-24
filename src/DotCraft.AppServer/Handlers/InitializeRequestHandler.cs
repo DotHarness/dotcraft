@@ -40,7 +40,6 @@ internal sealed class InitializeRequestHandler(
             ThreadFork = true,
             GitWorktrees = true,
             ManualCompaction = true,
-            ManualMemoryConsolidation = services.MemoryStore != null,
             DynamicToolRebind = services.WireDynamicToolProxy != null,
             RuntimeAdditionalContext = services.WireRuntimeAdditionalContextProvider != null,
             ThreadMaintenanceInterrupt = true,

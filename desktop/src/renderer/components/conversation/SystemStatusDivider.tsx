@@ -1,9 +1,8 @@
-import { Archive, ChevronsDown, Plug, type LucideIcon } from 'lucide-react'
+import { ChevronsDown, Plug, type LucideIcon } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { NoticeDivider } from './NoticeDivider'
 
 const ICONS: Record<string, LucideIcon> = {
-  'systemStatus.consolidating': Archive,
   'systemStatus.connectingApps': Plug
 }
 

@@ -11,7 +11,7 @@ namespace DotCraft.Context;
 
 /// <summary>Assembles the complete system prompt from the <see cref="ISystemPromptSection"/> contributions resolved per build; see <see cref="SystemPromptSectionCatalog"/> for the built-in set.</summary>
 public sealed class PromptBuilder(
-    MemoryStore memoryStore,
+    MemoryStore? memoryStore,
     SkillsLoader skillsLoader,
     string craftPath,
     string workspacePath,

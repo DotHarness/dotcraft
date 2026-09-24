@@ -1291,7 +1291,6 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
     private static string FormatMaintenanceKind(MaintenanceForkTaskKind kind) => kind switch
     {
         MaintenanceForkTaskKind.ContextCompaction => "context_compaction",
-        MaintenanceForkTaskKind.MemoryConsolidation => "memory_consolidation",
         _ => kind.ToString()
     };
 

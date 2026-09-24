@@ -1081,67 +1081,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitInputAsync_PassesCapturedPromptRequestSnapshotToMemoryForkConsolidator()
-    {
-        IChatClient chatClient = new FakeChatClient([new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")])]);
-        var consolidator = new CapturingForkConsolidator();
-        await using var agentFactory = CreateAgentFactory(
-            chatClient,
-            configureConfig: config => config.Memory.ConsolidateEveryNTurns = 1,
-            memoryConsolidator: consolidator);
-        var defaultAgent = new StreamingFunctionInvokingChatClient(chatClient).AsAIAgent(
-            new ChatOptions
-            {
-                Instructions = "stable base",
-                ModelId = "gpt-test"
-            });
-        var svc = new SessionService(
-            agentFactory,
-            defaultAgent,
-            new SessionPersistenceService(new ThreadStore(_tempDir)),
-            new SessionGate());
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
-
-        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-        var snapshot = await consolidator.WaitForSnapshotAsync();
-
-        Assert.NotNull(snapshot);
-        Assert.Equal(thread.Id, snapshot.ThreadId);
-        Assert.Equal("agent", snapshot.Mode);
-        Assert.Equal("stable base", snapshot.BaseInstructions);
-        Assert.Equal("gpt-test", snapshot.ModelId);
-        Assert.Contains(snapshot.Messages, message => message.Role == ChatRole.User && message.Text.Contains("hello", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task ManualCompactionInvalidatesSnapshotBeforeExplicitMemoryConsolidation()
-    {
-        IChatClient chatClient = new FakeChatClient([new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")])]);
-        var consolidator = new CapturingForkConsolidator();
-        await using var agentFactory = CreateAgentFactory(
-            chatClient,
-            configureConfig: config =>
-            {
-                ConfigureSmallCompaction(config);
-                config.Memory.AutoConsolidateEnabled = false;
-            },
-            memoryConsolidator: consolidator,
-            compactionChatClient: new SummaryChatClient("<summary>compacted history</summary>"));
-        var svc = CreateService(agentFactory, chatClient);
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
-
-        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("first " + new string('u', 600))]));
-        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("second " + new string('u', 600))]));
-        var compactResult = await svc.CompactThreadAsync(thread.Id);
-        Assert.Equal("partial", compactResult.Outcome);
-
-        await svc.ConsolidateThreadMemoryAsync(thread.Id);
-        var snapshot = await consolidator.WaitForSnapshotAsync();
-
-        Assert.Null(snapshot);
-    }
-
-    [Fact]
     public async Task SubmitInputAsync_ColdCacheMicroCompactionDoesNotPersistSystemNotice()
     {
         var updates = new List<ChatResponseUpdate>();
@@ -1178,7 +1117,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
             configureConfig: config =>
             {
                 ConfigureAnthropicProvider(config);
-                config.Memory.AutoConsolidateEnabled = false;
             });
         var seedService = CreateService(seedFactory, seedChatClient);
         var thread = await seedService.CreateThreadAsync(MakeIdentity());
@@ -1192,7 +1130,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
             configureConfig: config =>
             {
                 ConfigureAnthropicProvider(config);
-                config.Memory.AutoConsolidateEnabled = false;
                 config.CompactionContextWindowExplicit = true;
                 config.Compaction.ContextWindow = 50_000;
                 config.Compaction.SummaryReserveTokens = 5_000;
@@ -2058,7 +1995,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
 
         static void ConfigureRegressionWindow(AppConfig config)
         {
-            config.Memory.AutoConsolidateEnabled = false;
             config.CompactionContextWindowExplicit = true;
             config.Compaction.ContextWindow = 130_000;
             config.Compaction.SummaryReserveTokens = 0;
@@ -2832,7 +2768,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         IChatClient chatClientFactory,
         IReadOnlyList<IToolSource>? toolProviders = null,
         Action<AppConfig>? configureConfig = null,
-        IMemoryConsolidator? memoryConsolidator = null,
         IChatClient? compactionChatClient = null,
         IApprovalService? approvalService = null,
         IToolDispatcher? toolDispatcher = null,
@@ -2856,7 +2791,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
             toolDispatcher: toolDispatcher,
             toolSources: toolProviders ?? Array.Empty<IToolSource>(),
             planStore: planStore,
-            memoryConsolidator: memoryConsolidator,
             compactionChatClient: compactionChatClient);
     }
 
@@ -2998,7 +2932,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     private static void ConfigureSmallCompaction(AppConfig config)
     {
         config.CompactionContextWindowExplicit = true;
-        config.Memory.AutoConsolidateEnabled = false;
         config.Compaction.ContextWindow = 10_000;
         config.Compaction.SummaryReserveTokens = 1_000;
         config.Compaction.AutoCompactBufferTokens = 500;
@@ -3813,37 +3746,5 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
             JsonObject arguments,
             CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(ToolExecutionResult.Succeeded("ok"));
-    }
-
-    private sealed class CapturingForkConsolidator : IMemoryForkConsolidator
-    {
-        private readonly TaskCompletionSource<PromptRequestSnapshot?> _snapshotSource =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public Task<MemoryConsolidationResult> ConsolidateAsync(
-            IReadOnlyList<ChatMessage> messagesToArchive,
-            CancellationToken cancellationToken = default)
-        {
-            _snapshotSource.TrySetResult(null);
-            return Task.FromResult(MemoryConsolidationResult.Skipped("legacy_path"));
-        }
-
-        public Task<MemoryConsolidationResult> ConsolidateAsync(
-            IReadOnlyList<ChatMessage> messagesToArchive,
-            PromptRequestSnapshot? snapshot,
-            CancellationToken cancellationToken = default)
-        {
-            _snapshotSource.TrySetResult(snapshot);
-            return Task.FromResult(MemoryConsolidationResult.Skipped("captured"));
-        }
-
-        public async Task<PromptRequestSnapshot?> WaitForSnapshotAsync()
-        {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            using var registration = cts.Token.Register(
-                static state => ((TaskCompletionSource<PromptRequestSnapshot?>)state!).TrySetCanceled(),
-                _snapshotSource);
-            return await _snapshotSource.Task;
-        }
     }
 }

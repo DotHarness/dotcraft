@@ -1052,10 +1052,6 @@ public sealed class DreamsRunState : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<string>> EvidenceThreadIds { get; init; }
 
-    [JsonPropertyName("historyWritten")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> HistoryWritten { get; init; }
-
     [JsonPropertyName("id")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Id { get; init; }
@@ -1141,10 +1137,6 @@ public sealed class DreamsStatusResult : ExtensibleJsonObject
     [JsonPropertyName("enabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Enabled { get; init; }
-
-    [JsonPropertyName("historyTailChars")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int> HistoryTailChars { get; init; }
 
     [JsonPropertyName("interval")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -5793,36 +5785,6 @@ public sealed class ThreadMcpPolicy : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadMemoryConsolidateStartParams.</summary>
-public sealed class ThreadMemoryConsolidateStartParams : ExtensibleJsonObject
-{
-    [JsonPropertyName("threadId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ThreadId { get; init; }
-
-}
-
-/// <summary>Executable wire contract for ThreadMemoryConsolidateStartResponse.</summary>
-public sealed class ThreadMemoryConsolidateStartResponse : ExtensibleJsonObject
-{
-    [JsonPropertyName("historyWritten")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> HistoryWritten { get; init; }
-
-    [JsonPropertyName("memoryWritten")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> MemoryWritten { get; init; }
-
-    [JsonPropertyName("message")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> Message { get; init; }
-
-    [JsonPropertyName("outcome")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Outcome { get; init; }
-
-}
-
 /// <summary>Executable wire contract for ThreadModeSetParams.</summary>
 public sealed class ThreadModeSetParams : ExtensibleJsonObject
 {
@@ -7124,9 +7086,9 @@ public sealed class WorkspaceConfigUpdateParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> DreamsThreadLookbackCount { get; init; }
 
-    [JsonPropertyName("memoryAutoConsolidateEnabled")]
+    [JsonPropertyName("memoryEnabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> MemoryAutoConsolidateEnabled { get; init; }
+    public Optional<bool?> MemoryEnabled { get; init; }
 
     [JsonPropertyName("providerId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -7177,9 +7139,9 @@ public sealed class WorkspaceConfigUpdateResult : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> DreamsThreadLookbackCount { get; init; }
 
-    [JsonPropertyName("memoryAutoConsolidateEnabled")]
+    [JsonPropertyName("memoryEnabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> MemoryAutoConsolidateEnabled { get; init; }
+    public Optional<bool?> MemoryEnabled { get; init; }
 
     [JsonPropertyName("providerId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

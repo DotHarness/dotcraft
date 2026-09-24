@@ -199,7 +199,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
     }
 
     [Fact]
-    public async Task WorkspaceConfigUpdate_MemoryAutoConsolidateOnly_WritesConfigUpdatesMonitorAndEmitsMemoryRegion()
+    public async Task WorkspaceConfigUpdate_MemoryEnabledOnly_WritesConfigUpdatesMonitorAndEmitsMemoryRegions()
     {
         var configPath = Path.Combine(_workspaceCraftPath, "config.json");
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
@@ -208,20 +208,21 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
-            memoryAutoConsolidateEnabled = false
+            memoryEnabled = false
         });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
         AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.Memory);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.WelcomeSuggestions);
         var json = await File.ReadAllTextAsync(configPath);
         using var doc = JsonDocument.Parse(json);
-        Assert.False(doc.RootElement.GetProperty("Memory").GetProperty("AutoConsolidateEnabled").GetBoolean());
-        Assert.False(harness.Monitor.Current.Memory.AutoConsolidateEnabled);
+        Assert.False(doc.RootElement.GetProperty("Memory").GetProperty("Enabled").GetBoolean());
+        Assert.False(harness.Monitor.Current.Memory.Enabled);
     }
 
     [Fact]
-    public async Task WorkspaceConfigUpdate_MemoryAutoConsolidateNull_RemovesLeafAndPrunesEmptySection()
+    public async Task WorkspaceConfigUpdate_MemoryEnabledNull_RemovesLeafAndPrunesEmptySection()
     {
         var configPath = Path.Combine(_workspaceCraftPath, "config.json");
         await File.WriteAllTextAsync(
@@ -229,7 +230,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
             """
             {
               "Memory": {
-                "AutoConsolidateEnabled": false
+                "Enabled": false
               }
             }
             """);
@@ -238,7 +239,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         {
             Memory = new MemoryConfig
             {
-                AutoConsolidateEnabled = false
+                Enabled = false
             }
         });
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath, appConfigMonitor: monitor);
@@ -252,7 +253,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
               "id": 1,
               "method": "workspace/config/update",
               "params": {
-                "memoryAutoConsolidateEnabled": null
+                "memoryEnabled": null
               }
             }
             """);
@@ -267,12 +268,12 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
         var response = Assert.Single(sent, d => d.RootElement.TryGetProperty("result", out _));
-        Assert.Equal(JsonValueKind.Null, response.RootElement.GetProperty("result").GetProperty("memoryAutoConsolidateEnabled").ValueKind);
+        Assert.Equal(JsonValueKind.Null, response.RootElement.GetProperty("result").GetProperty("memoryEnabled").ValueKind);
         AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.Memory);
         var json = await File.ReadAllTextAsync(configPath);
         using var doc = JsonDocument.Parse(json);
         Assert.False(doc.RootElement.TryGetProperty("Memory", out _));
-        Assert.True(harness.Monitor.Current.Memory.AutoConsolidateEnabled);
+        Assert.True(harness.Monitor.Current.Memory.Enabled);
     }
 
     [Fact]
@@ -493,7 +494,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
             providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = Preference("gpt-test-new") },
             welcomeSuggestionsEnabled = false,
             skillsSelfLearningEnabled = true,
-            memoryAutoConsolidateEnabled = false,
+            memoryEnabled = false,
             defaultApprovalPolicy = "autoApprove"
         });
         await harness.ExecuteRequestAsync(req);

@@ -56,7 +56,6 @@ internal sealed class ThreadRequestHandler(
         table.Map(Contract.AppServerRpc.ThreadGoalClear, HandleThreadGoalClearAsync);
         table.Map(Contract.AppServerRpc.ItemWidgetStateSet, HandleItemWidgetStateSetAsync);
         table.Map(Contract.AppServerRpc.ThreadCompactStart, HandleThreadCompactStartAsync);
-        table.Map(Contract.AppServerRpc.ThreadMemoryConsolidateStart, HandleThreadMemoryConsolidateStartAsync);
         table.Map(Contract.AppServerRpc.ThreadMaintenanceInterrupt, HandleThreadMaintenanceInterruptAsync);
         table.Map(Contract.AppServerRpc.ThreadRollback, HandleThreadRollbackAsync);
         table.Map(Contract.AppServerRpc.ThreadSubscribe, HandleThreadSubscribeAsync);
@@ -606,21 +605,6 @@ internal sealed class ThreadRequestHandler(
                 ? default
                 : Protocol.Optional<Contract.ContextUsageSnapshot?>.FromValue(
                     ThreadContractMapper.ToContract(result.ContextUsage))
-        });
-    }
-
-    private async Task<AppServerTypedResult<Contract.ThreadMemoryConsolidateStartResponse>> HandleThreadMemoryConsolidateStartAsync(
-        AppServerTypedRequest<Contract.ThreadMemoryConsolidateStartParams> request,
-        CancellationToken ct)
-    {
-        var threadId = Require(request.Params.ThreadId, "'threadId' is required.");
-        var result = await sessionService.ConsolidateThreadMemoryAsync(threadId, ct);
-        return AppServerTypedResult<Contract.ThreadMemoryConsolidateStartResponse>.FromResult(new()
-        {
-            Outcome = result.Outcome,
-            Message = OmitIfNull(result.Message),
-            MemoryWritten = result.MemoryWritten,
-            HistoryWritten = result.HistoryWritten
         });
     }
 

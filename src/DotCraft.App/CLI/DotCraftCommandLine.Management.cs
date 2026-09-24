@@ -168,16 +168,13 @@ public static partial class DotCraftCommandLine
         profile.AcceptOnlyFromAmong("handoff", "transcript");
         var toolResults = StringOption("--tool-results", "Tool result detail: none, summary, or full.");
         toolResults.AcceptOnlyFromAmong("none", "summary", "full");
-        var history = StringOption("--history", "Memory history detail: none, tail, or full.");
-        history.AcceptOnlyFromAmong("none", "tail", "full");
         var command = new Command("export", "Export one thread as Markdown.")
         {
             thread,
             workspace,
             output,
             profile,
-            toolResults,
-            history
+            toolResults
         };
         command.SetAction((parseResult, cancellationToken) => ContextCliRunner.ExportAsync(
             new ContextExportCommandOptions(
@@ -185,8 +182,7 @@ public static partial class DotCraftCommandLine
                 parseResult.GetValue(workspace),
                 parseResult.GetValue(output),
                 parseResult.GetValue(profile),
-                parseResult.GetValue(toolResults),
-                parseResult.GetValue(history)),
+                parseResult.GetValue(toolResults)),
             parseResult.InvocationConfiguration.Output,
             parseResult.InvocationConfiguration.Error,
             cancellationToken));

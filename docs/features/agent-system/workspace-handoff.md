@@ -35,16 +35,16 @@ Once you have the thread id:
 dotcraft context export --thread thread_20260601_ab12cd --workspace "D:\path\to\project" --output handoff.md
 ```
 
-The default output is already shaped for a handoff: tool results are kept as summaries rather than full output, and only recent memory history travels with it. For something stricter, drop tool results entirely:
+The default output is already shaped for a handoff: tool results are kept as summaries rather than full output. For something stricter, drop tool results entirely:
 
 ```bash
-dotcraft context export --thread thread_20260601_ab12cd --tool-results none --history tail --output handoff.md
+dotcraft context export --thread thread_20260601_ab12cd --tool-results none --output handoff.md
 ```
 
 For the most complete transcript:
 
 ```bash
-dotcraft context export --thread thread_20260601_ab12cd --profile transcript --tool-results full --history full --output transcript.md
+dotcraft context export --thread thread_20260601_ab12cd --profile transcript --tool-results full --output transcript.md
 ```
 
 Without `--output`, the Markdown goes to stdout.

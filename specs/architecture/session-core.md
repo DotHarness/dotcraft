@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.0 |
+| **Version** | 0.10.0 |
 | **Status** | Living |
-| **Date** | 2026-09-23 |
-| **Related Specs** | [subagents.md](../features/subagents.md), [appserver-protocol.md](../protocols/appserver-protocol.md), [context-compaction.md](context-compaction.md), [responses-provider-history.md](responses-provider-history.md), [prompt-composition.md](prompt-composition.md), [memory-consolidation.md](../features/memory-consolidation.md), [multi-folder-projects.md](../features/multi-folder-projects.md), [goal.md](../features/goal.md), [external-channel-adapter.md](../protocols/external-channel-adapter.md) |
+| **Date** | 2026-09-24 |
+| **Related Specs** | [subagents.md](../features/subagents.md), [appserver-protocol.md](../protocols/appserver-protocol.md), [context-compaction.md](context-compaction.md), [responses-provider-history.md](responses-provider-history.md), [prompt-composition.md](prompt-composition.md), [memory.md](../features/memory.md), [multi-folder-projects.md](../features/multi-folder-projects.md), [goal.md](../features/goal.md), [external-channel-adapter.md](../protocols/external-channel-adapter.md) |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -462,7 +462,7 @@ Fields:
   - `UserInputResponse` — User's answer to a Plan Mode input request.
   - `Error` — An error occurred during the Turn.
   - `SystemNotice` — Persistent system-level marker in the conversation timeline (e.g. context compaction point). Emits `item/started` + `item/completed` back-to-back; no streaming phase.
-- Thread maintenance — A thread-level busy state for long-running blocking maintenance outside the normal Turn stream: manual context compaction and manual memory consolidation. While active, new input is accepted only through the queued-input path and starts after the maintenance terminal event. Automatic memory consolidation is non-blocking background work and does not make the thread maintenance-busy.
+- Thread maintenance — A thread-level busy state for long-running blocking maintenance outside the normal Turn stream, such as manual context compaction. While active, new input is accepted only through the queued-input path and starts after the maintenance terminal event.
 - `Status` (enum: `Started`, `Streaming`, `Completed`)
   - `Started` — Item has been created, payload may be partial or empty.
   - `Streaming` — Item is receiving incremental updates (deltas). Valid for `AgentMessage`, `ReasoningContent`, runtime-projected `CommandExecution`, and AppServer-projected streamed `ToolCall` argument previews.
@@ -881,7 +881,7 @@ The `shell` block is defined by [Shell Command Safety](shell-command-safety.md) 
 
 ```
 {
-  "kind": string,              // Notice classifier. Known values: "compacted", "memoryConsolidated", "forked", "remoteRoute".
+  "kind": string,              // Notice classifier. Known values: "compacted", "forked", "remoteRoute".
   "trigger": string,           // For kind="compacted": "auto" | "reactive" | "manual"
   "mode": string,              // For kind="compacted": the compaction mode, "micro" or "partial"
   "tokensBefore": number,      // Approximate input tokens right before compaction ran
@@ -906,7 +906,6 @@ model conversation. Micro compaction clears cold-cache tool results without inst
 replacement history: it emits only the transient `system/event` needed to
 refresh context usage and must not create a persistent timeline divider.
 Persisted compaction notices therefore carry `mode = "partial"`.
-`memoryConsolidated` notices have no compaction-specific token fields.
 `forked` notices mark the boundary between copied source history and new
 fork-specific work. They carry `sourceThreadId`, are not model-visible, and
 must not mutate the source thread.
@@ -1055,7 +1054,7 @@ WaitingApproval/WaitingInput ──────────► Cancelled
 
 - `Running` → `Completed`
   - The agent finishes its response. The final `AgentMessage` Item is marked Completed.
-  - Session Core commits the terminal rollout batch, runs Stop hooks, and schedules eligible background consolidation.
+  - Session Core commits the terminal rollout batch and runs Stop hooks.
 
 - `Running` → `Failed`
   - An unrecoverable error occurs: agent exception, tool execution error, timeout.
@@ -1350,11 +1349,6 @@ SessionEvent
     | `compactSkipped` | Compaction was evaluated but not executed (e.g. below threshold, nothing new to summarize, circuit breaker tripped). | Synchronous, immediately after the coordinator returns `Skipped`. |
     | `compactFailed` | Compaction attempted but failed (backend, validation, transport, or persistence error). The selected backend's circuit breaker may trip after several consecutive failures. | Synchronous, immediately after the coordinator returns `Failed`. |
     | `compactCancelled` | Thread-scoped manual compaction was interrupted by the user. | Asynchronous/thread-scoped, when the maintenance cancellation token is signalled. |
-    | `consolidating` | Memory consolidation is starting. Consolidation is driven by Session Core after every configured number of successful Turns, independent from compaction. | Reserved for asynchronous memory-maintenance notifications. |
-    | `consolidated` | Memory consolidation completed successfully. MEMORY.md and HISTORY.md have been updated. | Reserved for asynchronous memory-maintenance notifications. |
-    | `consolidationSkipped` | Memory consolidation completed without writing MEMORY.md or HISTORY.md (for example, no `save_memory` call or no valid changes). UIs should dismiss any active consolidation status and should not show a success marker. | Asynchronous, after the background consolidation task returns no changes. |
-    | `consolidationFailed` | Memory consolidation failed (LLM error, provider error, or persistence failure). UIs should dismiss any active consolidation status. | Asynchronous, after the background consolidation task throws. |
-    | `consolidationCancelled` | Memory consolidation was interrupted by the user. UIs should dismiss any active consolidation status. | Asynchronous, after the maintenance cancellation token is signalled. |
     | `streamError` | A provider streaming response disconnected, timed out while idle, or otherwise ended before the sampling request completed; Session Core is retrying. `params` carry the one-based `attempt`, the `max` budget, the classified `providerError`, and the upstream `httpStatus` when known. `fallbackText` uses the compact form `Reconnecting... x/y`. | Turn-scoped, during agent execution, before the retry delay. |
 
   - **Emission rules**:
@@ -1364,12 +1358,11 @@ SessionEvent
     - Auto-compaction events (`compacting`, `compacted`, `compactSkipped`, `compactFailed`) are synchronous within Step 5k and always fire in the order `compacting` -> one terminal event (`compacted` / `compactSkipped` / `compactFailed`). The coordinator selects one backend according to [Context Compaction](context-compaction.md). The local backend retains the existing cache-aware micro/partial rules: count-based tool-result clearing is not part of the hot auto-threshold path, and a lightweight clearing pass may run only after a provider-aware idle gap indicates that the relevant prompt cache is cold.
     - Manual compaction uses `ISessionService.CompactThreadAsync(threadId)` and is exposed to AppServer clients as `thread/compact/start`. It is allowed only for Active, server-managed threads with existing history and no `Running` / `WaitingApproval` turn or active thread maintenance. It registers thread maintenance with `maintenanceKind = "compacting"`, emits the same `compacting` -> terminal `system/event` sequence through the thread event broker, and prevents new turns from starting until the terminal event. The selected backend does not run a microcompact pre-pass. A local backend first tries partial compaction and may fall back to full-history compaction. A provider-native backend replaces only its native generation and leaves neutral model history unchanged. On success, Session Core persists the replacement domain, updates context usage, invalidates request-boundary anchors, and appends a `SystemNotice` with `kind = "compacted"` and `trigger = "manual"` to the latest completed turn. On cancellation it emits `compactCancelled` and installs nothing.
     - The pipeline may also be invoked **reactively** from the Turn's error path when the model rejects a request with `prompt_too_long`, `context_length_exceeded`, or another conservatively classified context-overflow equivalent. In that case the Turn still fails, but `compacting` followed by `compacted` / `compactFailed` is emitted first so UIs know the history was repaired before the user retries.
-    - Automatic memory consolidation is a non-blocking background task scheduled by Session Core after a configured number of successful Turns and after the terminal rollout commit for that Turn has finished. It is not spawned by the compaction pipeline, and Turn completion is **not** deferred for consolidation. Its start event (`consolidating`) is emitted through the turn-scoped `SessionEventChannel`; its terminal events (`consolidated` / `consolidationSkipped` / `consolidationFailed` / `consolidationCancelled`) are emitted through the thread event broker with `turnId = null`. Automatic consolidation does not register thread maintenance, does not set `maintenanceKind = "consolidating"`, and does not prevent the next user input from starting a Turn immediately. Session Core serializes automatic consolidation per thread; if another automatic trigger arrives while one is active, at most one follow-up attempt is scheduled after the active attempt completes. On `consolidated`, Session Core persists a `SystemNotice` item with `kind = "memoryConsolidated"` into the completed Turn and broadcasts `item/started` + `item/completed` through the thread event broker. Manual consolidation uses `ISessionService.ConsolidateThreadMemoryAsync(threadId)` and is exposed to AppServer clients as `thread/memory/consolidate/start`. It is allowed only for Active, server-managed, idle threads with at least one completed Turn, no active thread maintenance, and non-empty model-visible history; it bypasses `Memory.AutoConsolidateEnabled`, registers thread maintenance with `maintenanceKind = "consolidating"`, emits thread-scoped `consolidating` → terminal `system/event`, awaits the maintenance result, and appends the same persistent notice on success. See [Memory Consolidation](../features/memory-consolidation.md) for the design contract.
     - `ISessionService.CancelThreadMaintenanceAsync(threadId)` interrupts active thread maintenance. AppServer exposes this as `thread/maintenance/interrupt`.
     - Turn-scoped system events are emitted through the turn-scoped `SessionEventChannel`, so they are guaranteed to arrive before `turn/completed`. Thread-scoped maintenance events may arrive later.
     - The protocol is language-neutral. System events carry `messageKey`, optional `params`, and an English `fallbackText`; `message` is a compatibility alias for `fallbackText`. Clients that support UI localization translate `messageKey` locally and fall back to `fallbackText`. User text, model output, and raw tool output remain original text and are not translated by Session Core.
     - Provider stream retry events (`streamError`) are transient and must not create a persistent `SystemNotice`. Retry is not gated on whether the attempt already produced visible output. A stream that breaks after delivering updates is treated as a response that ended early: its delivered output is committed to model history, the tool calls it carries are settled, and the next attempt is built from the grown history so the model continues instead of repeating. Items and deltas already delivered to clients are never withdrawn, and no delta rollback semantics are introduced. A failure raised before any update reaches the runtime is retried by the transport layer instead, which buffers usage metadata, provider error frames, and `FunctionResultContent` echoed from request input so a discarded attempt surfaces none of them. The first attempt of a retry sequence is not surfaced, because a transport blip that recovers immediately is noise. Idle-timeout detection must surface the retry or failure promptly; cleanup of the failed provider stream is best-effort and must not indefinitely delay the retry notification or terminal failure.
-  - **Adapters**: Adapters that display session maintenance status (e.g., a progress indicator for consolidation, status text for compaction) should consume `system/event` notifications. Adapters that do not need maintenance status may ignore this event type or opt out via `optOutNotificationMethods`.
+  - **Adapters**: Adapters that display session maintenance status (e.g., status text for compaction) should consume `system/event` notifications. Adapters that do not need maintenance status may ignore this event type or opt out via `optOutNotificationMethods`.
 
 #### Local Summary Compaction Contract
 
@@ -1380,7 +1373,7 @@ response lacking provider-required reasoning. This affects new replacements only
 These requirements apply to the local summary backend. The backend-neutral orchestration,
 provider-native replacement contract, and failure policy are defined in
 [Context Compaction](context-compaction.md). Context compaction is a short-term context-window
-optimization. It is not long-term memory consolidation and must not attempt to preserve every
+optimization. It is not long-term memory and must not attempt to preserve every
 historical detail.
 
 - The compact summary is a handoff for the next model-visible history. It should preserve only the current task, key decisions, important files read or changed, critical errors/fixes, constraints, and concrete next steps needed to continue.
@@ -2062,6 +2055,8 @@ Model preference resolution is thread-aware:
 - external CLI SubAgents do not consume native model preferences
 - changing provider or preference on an existing thread atomically replaces the corresponding provider/model/reasoning/speed/context values while preserving the rest of `ThreadConfiguration`; workspace changes affect Welcome and future threads only
 - provider and SubAgent preference changes invalidate cached agents, but an already-running turn is never switched mid-flight
+
+A server-managed thread also captures the workspace memory switch at creation and keeps it with its memory scope for the thread's lifetime; see [Memory](../features/memory.md#5-memory-switch).
 
 Context-window resolution is thread-aware:
 

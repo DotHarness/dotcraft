@@ -110,7 +110,7 @@ internal sealed class AnthropicPromptCachingChatClient : DelegatingChatClient
         var candidates = BuildCachePointCandidates(preparedMessages);
         var selected = SelectCachePoints(state, candidates, keys.MaintenanceScope, insertedSystemMessage);
         ApplyCacheControl(preparedMessages, selected, cacheControl);
-        var commitCachePoints = keys.MaintenanceScope?.CacheWriteMode != PromptCacheMaintenanceWriteMode.ReadOnlyPrefix;
+        var commitCachePoints = keys.MaintenanceScope is null;
         var llmCallIndex = selected.Count == 0
             ? (int?)null
             : state.NextLlmCallIndex();
@@ -168,7 +168,6 @@ internal sealed class AnthropicPromptCachingChatClient : DelegatingChatClient
             ? null
             : new PromptCacheMaintenanceSelection(
                 maintenanceScope.SnapshotMessageCount,
-                maintenanceScope.CacheWriteMode == PromptCacheMaintenanceWriteMode.ReadOnlyPrefix,
                 insertedSystemMessage);
         return PromptCachePointSelector.Select(candidates, remembered, maintenance)
             .ToList();

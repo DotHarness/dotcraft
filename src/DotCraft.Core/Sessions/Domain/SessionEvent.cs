@@ -309,7 +309,7 @@ public sealed record TurnDiffUpdatedPayload
 
 /// <summary>
 /// Payload for system/event events. Carries information about system-level maintenance
-/// operations (context compaction, memory consolidation) that occur during a Turn's
+/// operations, such as context compaction, that occur during a Turn's
 /// post-processing phase.
 /// </summary>
 public sealed record SystemEventPayload
@@ -317,8 +317,7 @@ public sealed record SystemEventPayload
     /// <summary>
     /// System event kind. One of: "compactWarning", "compactError",
     /// "compacting", "compacted", "compactSkipped", "compactFailed",
-    /// "streamError", "consolidating", "consolidated", "consolidationSkipped",
-    /// "consolidationFailed".
+    /// "streamError".
     /// </summary>
     public required string Kind { get; init; }
 

@@ -4,7 +4,6 @@ import { BrowserDownloadHistory } from './BrowserDownloadHistory'
 import { ChatGptOAuthPanel } from './ChatGptOAuthPanel'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import {
-  Archive,
   Hand,
   ListChecks,
   OctagonAlert,
@@ -49,7 +48,6 @@ import { RefreshIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
-import { Skeleton } from '../ui/Skeleton'
 import { PillSwitch } from '../ui/PillSwitch'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { SettingsGroup, SettingsRow } from './SettingsGroup'
@@ -78,6 +76,14 @@ import {
   type ValueRow
 } from './ui/EditableList'
 import { SettingsSelect } from './ui/SettingsSelect'
+import { DreamsPanel } from './panels/memory/DreamsPanel'
+import { MemorySettingsGroup } from './panels/memory/MemorySettingsGroup'
+import { useDreamsSettings } from './panels/memory/useDreamsSettings'
+import {
+  DEFAULT_DREAMS_INTERVAL,
+  DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT,
+  normalizeDreamsInterval
+} from './panels/memory/dreamsModel'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { GeneralPanel } from './panels/GeneralPanel'
 import { FollowUpBehaviorRow } from './panels/FollowUpBehaviorRow'
@@ -172,7 +178,7 @@ interface WorkspaceCoreConfig {
   welcomeSuggestionsEnabled: boolean | null
   skillsSelfLearningEnabled: boolean | null
   skillsIncludeSharedSkills: boolean | null
-  memoryAutoConsolidateEnabled: boolean | null
+  memoryEnabled: boolean | null
   dreamsEnabled: boolean | null
   dreamsInterval: string | null
   dreamsThreadLookbackCount: number | null
@@ -191,7 +197,7 @@ const EMPTY_WORKSPACE_CORE_CONFIG: WorkspaceCoreConfig = {
   welcomeSuggestionsEnabled: null,
   skillsSelfLearningEnabled: null,
   skillsIncludeSharedSkills: null,
-  memoryAutoConsolidateEnabled: null,
+  memoryEnabled: null,
   dreamsEnabled: null,
   dreamsInterval: null,
   dreamsThreadLookbackCount: null,
@@ -293,193 +299,10 @@ function isOfficialOpenAIEndpoint(endpoint: string): boolean {
 }
 
 type VisibleApprovalPolicy = 'default' | 'autoApprove'
-type DreamsRunStatus = 'running' | 'succeeded' | 'skipped' | 'failed' | 'canceled'
-type DreamsReviewStatus = 'pending' | 'applied' | 'discarded' | 'archived'
-
-interface DreamsRunState {
-  id: string
-  status: DreamsRunStatus
-  startedAt: string
-  endedAt?: string | null
-  processedThreadCount: number
-  candidateThreadCount: number
-  dreamWritten: boolean
-  historyWritten: boolean
-  topicFilesWritten: number
-  topicFilesDeleted: number
-  evidenceSearchCount: number
-  evidenceReadCount: number
-  outputStoreId?: string | null
-  reviewStatus?: DreamsReviewStatus | null
-  autoApplied: boolean
-  errorType?: string | null
-  evidenceThreadIds: string[]
-  writtenPaths: string[]
-  threadId?: string | null
-  turnId?: string | null
-  turnIds: string[]
-  trigger?: string | null
-  message?: string | null
-  inputManifestPath?: string | null
-}
-
-interface DreamsStatus {
-  enabled: boolean
-  interval: string
-  threadLookbackCount: number
-  autoApply: boolean
-  historyTailChars: number
-  minCompletedTurnsSinceLastRun: number
-  nextRunAt?: string | null
-  running: boolean
-  activeDreamStoreId?: string | null
-  lastRun: DreamsRunState | null
-}
-
-const DEFAULT_DREAMS_INTERVAL = '24:00:00'
-const DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT = 20
-const DREAMS_INTERVAL_OPTIONS = ['06:00:00', '12:00:00', '24:00:00', '168:00:00'] as const
-const DREAMS_THREAD_LOOKBACK_OPTIONS = [10, 20, 50, 100] as const
 const SETTINGS_SELECT_WIDTH = '240px'
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms))
-}
-
-function formatDreamsIntervalOption(value: string, t: (key: MessageKey | string, vars?: Record<string, string | number>) => string): string {
-  switch (value) {
-    case '06:00:00':
-      return t('settings.personalization.dreamsInterval.6h')
-    case '12:00:00':
-      return t('settings.personalization.dreamsInterval.12h')
-    case '24:00:00':
-      return t('settings.personalization.dreamsInterval.24h')
-    case '168:00:00':
-      return t('settings.personalization.dreamsInterval.7d')
-    default:
-      return value
-  }
-}
 
 function normalizeVisibleApprovalPolicy(value: unknown): VisibleApprovalPolicy | null {
   return value === 'default' || value === 'autoApprove' ? value : null
-}
-
-function normalizeDreamsInterval(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const trimmed = value.trim()
-  if (trimmed === '') return null
-  const dayMatch = /^(\d+)\.(\d{1,2}):(\d{2}):(\d{2})$/.exec(trimmed)
-  if (dayMatch) {
-    const days = Number(dayMatch[1])
-    const hours = Number(dayMatch[2])
-    const minutes = Number(dayMatch[3])
-    const seconds = Number(dayMatch[4])
-    if (Number.isFinite(days) && Number.isFinite(hours) && minutes < 60 && seconds < 60) {
-      return `${String(days * 24 + hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-    }
-  }
-  return trimmed
-}
-
-function normalizeDreamsRunStatus(value: unknown): DreamsRunStatus {
-  return value === 'running' || value === 'succeeded' || value === 'skipped' || value === 'failed' || value === 'canceled'
-    ? value
-    : 'skipped'
-}
-
-function normalizeDreamsReviewStatus(value: unknown): DreamsReviewStatus | null {
-  return value === 'pending' || value === 'applied' || value === 'discarded' || value === 'archived'
-    ? value
-    : null
-}
-
-function asStringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string')
-    : []
-}
-
-function normalizeDreamsRunState(value: unknown): DreamsRunState | null {
-  if (value == null || typeof value !== 'object') return null
-  const source = value as Partial<DreamsRunState>
-  return {
-    id: typeof source.id === 'string' ? source.id : '',
-    status: normalizeDreamsRunStatus(source.status),
-    startedAt: typeof source.startedAt === 'string' ? source.startedAt : '',
-    endedAt: typeof source.endedAt === 'string' ? source.endedAt : null,
-    processedThreadCount:
-      typeof source.processedThreadCount === 'number' && Number.isFinite(source.processedThreadCount)
-        ? source.processedThreadCount
-        : 0,
-    candidateThreadCount:
-      typeof source.candidateThreadCount === 'number' && Number.isFinite(source.candidateThreadCount)
-        ? source.candidateThreadCount
-        : 0,
-    dreamWritten: source.dreamWritten === true,
-    historyWritten: source.historyWritten === true,
-    topicFilesWritten:
-      typeof source.topicFilesWritten === 'number' && Number.isFinite(source.topicFilesWritten)
-        ? source.topicFilesWritten
-        : 0,
-    topicFilesDeleted:
-      typeof source.topicFilesDeleted === 'number' && Number.isFinite(source.topicFilesDeleted)
-        ? source.topicFilesDeleted
-        : 0,
-    evidenceSearchCount:
-      typeof source.evidenceSearchCount === 'number' && Number.isFinite(source.evidenceSearchCount)
-        ? source.evidenceSearchCount
-        : 0,
-    evidenceReadCount:
-      typeof source.evidenceReadCount === 'number' && Number.isFinite(source.evidenceReadCount)
-        ? source.evidenceReadCount
-        : 0,
-    outputStoreId: typeof source.outputStoreId === 'string' ? source.outputStoreId : null,
-    reviewStatus: normalizeDreamsReviewStatus(source.reviewStatus),
-    autoApplied: source.autoApplied === true,
-    errorType: typeof source.errorType === 'string' ? source.errorType : null,
-    evidenceThreadIds: asStringArray(source.evidenceThreadIds),
-    writtenPaths: asStringArray(source.writtenPaths),
-    threadId: typeof source.threadId === 'string' ? source.threadId : null,
-    turnId: typeof source.turnId === 'string' ? source.turnId : null,
-    turnIds: asStringArray(source.turnIds),
-    trigger: typeof source.trigger === 'string' ? source.trigger : null,
-    message: typeof source.message === 'string' ? source.message : null,
-    inputManifestPath: typeof source.inputManifestPath === 'string' ? source.inputManifestPath : null
-  }
-}
-
-function normalizeDreamsRunList(value: unknown): DreamsRunState[] {
-  const source = value != null && typeof value === 'object' ? value as { runs?: unknown } : {}
-  return Array.isArray(source.runs)
-    ? source.runs.map(normalizeDreamsRunState).filter((run): run is DreamsRunState => run != null)
-    : []
-}
-
-function normalizeDreamsStatus(value: unknown): DreamsStatus {
-  const source = value != null && typeof value === 'object' ? value as Partial<DreamsStatus> : {}
-  const lastRun = normalizeDreamsRunState(source.lastRun)
-  return {
-    enabled: source.enabled !== false,
-    interval: normalizeDreamsInterval(source.interval) ?? DEFAULT_DREAMS_INTERVAL,
-    threadLookbackCount:
-      typeof source.threadLookbackCount === 'number' && Number.isInteger(source.threadLookbackCount) && source.threadLookbackCount > 0
-        ? source.threadLookbackCount
-        : DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT,
-    autoApply: source.autoApply === true,
-    historyTailChars:
-      typeof source.historyTailChars === 'number' && Number.isFinite(source.historyTailChars)
-        ? source.historyTailChars
-        : 0,
-    minCompletedTurnsSinceLastRun:
-      typeof source.minCompletedTurnsSinceLastRun === 'number' && Number.isFinite(source.minCompletedTurnsSinceLastRun)
-        ? source.minCompletedTurnsSinceLastRun
-        : 0,
-    nextRunAt: typeof source.nextRunAt === 'string' ? source.nextRunAt : null,
-    running: source.running === true,
-    activeDreamStoreId: typeof source.activeDreamStoreId === 'string' ? source.activeDreamStoreId : null,
-    lastRun
-  }
 }
 
 function resolveEffectiveProviderPreference(
@@ -508,9 +331,9 @@ function normalizeWorkspaceCoreConfig(value: unknown): WorkspaceCoreConfig {
       typeof source.skillsIncludeSharedSkills === 'boolean'
         ? source.skillsIncludeSharedSkills
         : null,
-    memoryAutoConsolidateEnabled:
-      typeof source.memoryAutoConsolidateEnabled === 'boolean'
-        ? source.memoryAutoConsolidateEnabled
+    memoryEnabled:
+      typeof source.memoryEnabled === 'boolean'
+        ? source.memoryEnabled
         : null,
     dreamsEnabled:
       typeof source.dreamsEnabled === 'boolean'
@@ -829,7 +652,7 @@ export function SettingsView({
     welcomeSuggestionsEnabled: null,
     skillsSelfLearningEnabled: null,
     skillsIncludeSharedSkills: null,
-    memoryAutoConsolidateEnabled: null,
+    memoryEnabled: null,
     dreamsEnabled: null,
     dreamsInterval: null,
     dreamsThreadLookbackCount: null,
@@ -876,20 +699,9 @@ export function SettingsView({
   const [includeSharedSkills, setIncludeSharedSkills] = useState(true)
   const [applyingIncludeSharedSkills, setApplyingIncludeSharedSkills] = useState(false)
   const [skillsRestartPending, setSkillsRestartPending] = useState(false)
-  const [memoryAutoConsolidateEnabled, setMemoryAutoConsolidateEnabled] = useState(true)
-  const [applyingMemoryAutoConsolidate, setApplyingMemoryAutoConsolidate] = useState(false)
+  const [memoryEnabled, setMemoryEnabled] = useState(true)
+  const [applyingMemory, setApplyingMemory] = useState(false)
   const [resettingMemory, setResettingMemory] = useState(false)
-  const [dreamsEnabled, setDreamsEnabled] = useState(false)
-  const [dreamsInterval, setDreamsInterval] = useState(DEFAULT_DREAMS_INTERVAL)
-  const [dreamsThreadLookbackCount, setDreamsThreadLookbackCount] = useState(DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT)
-  const [dreamsAutoApply, setDreamsAutoApply] = useState(false)
-  const [dreamsStatus, setDreamsStatus] = useState<DreamsStatus | null>(null)
-  const [dreamRuns, setDreamRuns] = useState<DreamsRunState[]>([])
-  const [dreamRunsLoading, setDreamRunsLoading] = useState(false)
-  const [archivingDreamRunId, setArchivingDreamRunId] = useState<string | null>(null)
-  const [archivingAllDreamRuns, setArchivingAllDreamRuns] = useState(false)
-  const [applyingDreams, setApplyingDreams] = useState(false)
-  const [runningDreams, setRunningDreams] = useState(false)
   const [defaultApprovalPolicy, setDefaultApprovalPolicy] = useState<VisibleApprovalPolicy>('default')
   const [applyingDefaultApprovalPolicy, setApplyingDefaultApprovalPolicy] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -927,6 +739,13 @@ export function SettingsView({
   const dreamsCapabilityEnabled = capabilities?.dreams === true
   const sessionImportEnabled = isSessionImportAvailable(capabilities)
   const personalizationAvailable = workspaceCoreApiAvailable || memoryManagementEnabled || dreamsCapabilityEnabled
+  const dreams = useDreamsSettings({
+    available: dreamsCapabilityEnabled,
+    personalizationActive: activeSettingsTab === 'personalization',
+    dreamsPageActive: activeSettingsTab === 'dreams',
+    dashboardUrl,
+    reloadWorkspaceCore
+  })
   const browserUsePlugin = plugins.find((plugin) => plugin.id === 'browser') ?? null
   const browserUsePluginReady = !pluginManagementEnabled || browserUsePlugin?.installed === true
   const selectedProvider = providers.find((provider) => provider.id === selectedProviderId) ?? null
@@ -1000,31 +819,16 @@ export function SettingsView({
       core.userDefaults.skillsIncludeSharedSkills ??
       true
     setIncludeSharedSkills(resolvedIncludeSharedSkills)
-    const resolvedMemoryAutoConsolidateEnabled =
-      core.workspace.memoryAutoConsolidateEnabled ??
-      core.userDefaults.memoryAutoConsolidateEnabled ??
-      true
-    setMemoryAutoConsolidateEnabled(resolvedMemoryAutoConsolidateEnabled)
-    const resolvedDreamsEnabled =
-      core.workspace.dreamsEnabled ??
-      core.userDefaults.dreamsEnabled ??
-      false
-    setDreamsEnabled(resolvedDreamsEnabled)
-    const resolvedDreamsInterval =
-      core.workspace.dreamsInterval ??
-      core.userDefaults.dreamsInterval ??
-      DEFAULT_DREAMS_INTERVAL
-    setDreamsInterval(resolvedDreamsInterval)
-    const resolvedDreamsThreadLookbackCount =
-      core.workspace.dreamsThreadLookbackCount ??
-      core.userDefaults.dreamsThreadLookbackCount ??
-      DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT
-    setDreamsThreadLookbackCount(resolvedDreamsThreadLookbackCount)
-    const resolvedDreamsAutoApply =
-      core.workspace.dreamsAutoApply ??
-      core.userDefaults.dreamsAutoApply ??
-      false
-    setDreamsAutoApply(resolvedDreamsAutoApply)
+    setMemoryEnabled(core.workspace.memoryEnabled ?? core.userDefaults.memoryEnabled ?? true)
+    dreams.applyConfig({
+      enabled: core.workspace.dreamsEnabled ?? core.userDefaults.dreamsEnabled ?? false,
+      interval: core.workspace.dreamsInterval ?? core.userDefaults.dreamsInterval ?? DEFAULT_DREAMS_INTERVAL,
+      threadLookbackCount:
+        core.workspace.dreamsThreadLookbackCount
+        ?? core.userDefaults.dreamsThreadLookbackCount
+        ?? DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT,
+      autoApply: core.workspace.dreamsAutoApply ?? core.userDefaults.dreamsAutoApply ?? false
+    })
     const resolvedDefaultApprovalPolicy =
       core.workspace.defaultApprovalPolicy ??
       core.userDefaults.defaultApprovalPolicy ??
@@ -1594,50 +1398,6 @@ export function SettingsView({
     }
   }
 
-  const applyDreamsStatusSnapshot = useCallback((status: DreamsStatus): void => {
-    setDreamsStatus(status)
-    setDreamsEnabled(status.enabled)
-    setDreamsInterval(status.interval)
-    setDreamsThreadLookbackCount(status.threadLookbackCount)
-    setDreamsAutoApply(status.autoApply)
-  }, [])
-
-  const reloadDreamsStatus = useCallback(async (): Promise<void> => {
-    if (!dreamsCapabilityEnabled) {
-      setDreamsStatus(null)
-      return
-    }
-
-    try {
-      const result = await window.api.appServer.sendRequest('dreams/status', {}, 20_000)
-      applyDreamsStatusSnapshot(normalizeDreamsStatus(result))
-    } catch (err) {
-      addToast(t('settings.personalization.dreamsStatusFailed', {
-        error: err instanceof Error ? err.message : String(err)
-      }), 'error')
-    }
-  }, [applyDreamsStatusSnapshot, dreamsCapabilityEnabled, t])
-
-  const reloadDreamRuns = useCallback(async (): Promise<void> => {
-    if (!dreamsCapabilityEnabled) {
-      setDreamRuns([])
-      return
-    }
-
-    setDreamRunsLoading(true)
-    try {
-        const result = await window.api.appServer.sendRequest('dreams/list', {}, 20_000)
-      const runs = normalizeDreamsRunList(result)
-      setDreamRuns(runs)
-    } catch (err) {
-      addToast(t('settings.dreams.loadFailed', {
-        error: err instanceof Error ? err.message : String(err)
-      }), 'error')
-    } finally {
-      setDreamRunsLoading(false)
-    }
-  }, [dreamsCapabilityEnabled, t])
-
   const handleWelcomeSuggestionsToggle = useCallback(
     async (checked: boolean): Promise<void> => {
       const previous = welcomeSuggestionsEnabled
@@ -1715,252 +1475,29 @@ export function SettingsView({
     [includeSharedSkills, reloadWorkspaceCore, t]
   )
 
-  const handleMemoryAutoConsolidateToggle = useCallback(
+  const handleMemoryToggle = useCallback(
     async (checked: boolean): Promise<void> => {
-      const previous = memoryAutoConsolidateEnabled
-      setMemoryAutoConsolidateEnabled(checked)
-      setApplyingMemoryAutoConsolidate(true)
+      const previous = memoryEnabled
+      setMemoryEnabled(checked)
+      setApplyingMemory(true)
       try {
         const result = await window.api.appServer.sendRequest('workspace/config/update', {
-          memoryAutoConsolidateEnabled: checked
-        }) as { memoryAutoConsolidateEnabled?: boolean | null }
-        const persisted = typeof result?.memoryAutoConsolidateEnabled === 'boolean'
-          ? result.memoryAutoConsolidateEnabled
+          memoryEnabled: checked
+        }) as { memoryEnabled?: boolean | null }
+        const persisted = typeof result?.memoryEnabled === 'boolean'
+          ? result.memoryEnabled
           : checked
-        setMemoryAutoConsolidateEnabled(persisted)
+        setMemoryEnabled(persisted)
         await reloadWorkspaceCore()
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        setMemoryAutoConsolidateEnabled(previous)
-        addToast(t('settings.personalization.longTermMemorySaveFailed', { error: msg }), 'error')
+        setMemoryEnabled(previous)
+        addToast(t('settings.personalization.memory.saveFailed', { error: msg }), 'error')
       } finally {
-        setApplyingMemoryAutoConsolidate(false)
+        setApplyingMemory(false)
       }
     },
-    [memoryAutoConsolidateEnabled, reloadWorkspaceCore, t]
-  )
-
-  const handleDreamsEnabledToggle = useCallback(
-    async (checked: boolean): Promise<void> => {
-      const previous = dreamsEnabled
-      setDreamsEnabled(checked)
-      setApplyingDreams(true)
-      try {
-        await window.api.appServer.sendRequest('workspace/config/update', {
-          dreamsEnabled: checked
-        })
-        await reloadDreamsStatus()
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        setDreamsEnabled(previous)
-        addToast(t('settings.personalization.dreamsSaveFailed', { error: msg }), 'error')
-      } finally {
-        setApplyingDreams(false)
-      }
-    },
-    [dreamsEnabled, reloadDreamsStatus, t]
-  )
-
-  const handleDreamsAutoApplyToggle = useCallback(
-    async (checked: boolean): Promise<void> => {
-      if (checked && !dreamsAutoApply) {
-        const confirmed = await confirm({
-          title: t('settings.personalization.dreamsAutoApply.warningTitle'),
-          message: t('settings.personalization.dreamsAutoApply.warningBody'),
-          confirmLabel: t('settings.personalization.dreamsAutoApply.warningConfirm'),
-          cancelLabel: t('common.cancel'),
-          danger: true
-        })
-        if (!confirmed) return
-      }
-
-      const previous = dreamsAutoApply
-      setDreamsAutoApply(checked)
-      setApplyingDreams(true)
-      try {
-        await window.api.appServer.sendRequest('workspace/config/update', {
-          dreamsAutoApply: checked
-        })
-        await reloadWorkspaceCore()
-        await reloadDreamsStatus()
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        setDreamsAutoApply(previous)
-        addToast(t('settings.personalization.dreamsSaveFailed', { error: msg }), 'error')
-      } finally {
-        setApplyingDreams(false)
-      }
-    },
-    [confirm, dreamsAutoApply, reloadDreamsStatus, reloadWorkspaceCore, t]
-  )
-
-  const handleDreamsIntervalChange = useCallback(
-    async (nextInterval: string): Promise<void> => {
-      const previous = dreamsInterval
-      setDreamsInterval(nextInterval)
-      setApplyingDreams(true)
-      try {
-        await window.api.appServer.sendRequest('workspace/config/update', {
-          dreamsInterval: nextInterval
-        })
-        await reloadDreamsStatus()
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        setDreamsInterval(previous)
-        addToast(t('settings.personalization.dreamsSaveFailed', { error: msg }), 'error')
-      } finally {
-        setApplyingDreams(false)
-      }
-    },
-    [dreamsInterval, reloadDreamsStatus, t]
-  )
-
-  const handleDreamsThreadLookbackChange = useCallback(
-    async (nextCount: number): Promise<void> => {
-      const previous = dreamsThreadLookbackCount
-      setDreamsThreadLookbackCount(nextCount)
-      setApplyingDreams(true)
-      try {
-        await window.api.appServer.sendRequest('workspace/config/update', {
-          dreamsThreadLookbackCount: nextCount
-        })
-        await reloadDreamsStatus()
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        setDreamsThreadLookbackCount(previous)
-        addToast(t('settings.personalization.dreamsSaveFailed', { error: msg }), 'error')
-      } finally {
-        setApplyingDreams(false)
-      }
-    },
-    [dreamsThreadLookbackCount, reloadDreamsStatus, t]
-  )
-
-  const handleRunDreamsNow = useCallback(
-    async (): Promise<void> => {
-      if (runningDreams) return
-
-      setRunningDreams(true)
-      try {
-          const result = await window.api.appServer.sendRequest('dreams/run', {}, 20_000)
-        let status = normalizeDreamsStatus(result)
-        applyDreamsStatusSnapshot(status)
-        for (let attempt = 0; status.running && attempt < 12; attempt++) {
-          await delay(1500)
-            const next = await window.api.appServer.sendRequest('dreams/status', {}, 20_000)
-          status = normalizeDreamsStatus(next)
-          applyDreamsStatusSnapshot(status)
-        }
-        if (status.lastRun?.status === 'failed') {
-          addToast(t('settings.personalization.dreamsRunFailed', {
-            error: status.lastRun.message ?? t('settings.personalization.dreamsStatus.failed')
-          }), 'error')
-        } else if (status.lastRun?.status === 'skipped') {
-          addToast(t('settings.personalization.dreamsRunSkipped'), 'info')
-        } else if (status.lastRun?.status === 'succeeded') {
-          addToast(t('settings.personalization.dreamsRunSucceeded'), 'success')
-        }
-        if (activeSettingsTab === 'dreams') {
-          await reloadDreamRuns()
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        addToast(t('settings.personalization.dreamsRunFailed', { error: msg }), 'error')
-      } finally {
-        setRunningDreams(false)
-      }
-    },
-    [activeSettingsTab, applyDreamsStatusSnapshot, reloadDreamRuns, runningDreams, t]
-  )
-
-  const openDreamReview = useCallback(
-    async (runId: string): Promise<void> => {
-      if (!dashboardUrl) return
-      const baseUrl = dashboardUrl.replace(/#.*$/, '')
-      await window.api.shell.openExternal(`${baseUrl}#dreams/run/${encodeURIComponent(runId)}`)
-    },
-    [dashboardUrl]
-  )
-
-  const handleArchiveDreamRun = useCallback(
-    async (run: DreamsRunState): Promise<void> => {
-      if (run.status === 'running' || archivingDreamRunId != null || archivingAllDreamRuns) return
-
-      const confirmed = await confirm({
-        title: t('settings.dreams.archiveConfirmTitle'),
-        message: t('settings.dreams.archiveConfirmMessage'),
-        confirmLabel: t('settings.dreams.archive'),
-        cancelLabel: t('common.cancel')
-      })
-      if (!confirmed) return
-
-      setArchivingDreamRunId(run.id)
-      try {
-        await window.api.appServer.sendRequest('dreams/archive', { runId: run.id }, 20_000)
-        addToast(t('settings.dreams.archiveSucceeded'), 'success')
-        await reloadDreamRuns()
-      } catch (err) {
-        addToast(t('settings.dreams.actionFailed', {
-          error: err instanceof Error ? err.message : String(err)
-        }), 'error')
-      } finally {
-        setArchivingDreamRunId(null)
-      }
-    },
-    [archivingAllDreamRuns, archivingDreamRunId, confirm, reloadDreamRuns, t]
-  )
-
-  const handleArchiveAllDreamRuns = useCallback(
-    async (): Promise<void> => {
-      if (
-        dreamRuns.length === 0 ||
-        dreamRunsLoading ||
-        archivingDreamRunId != null ||
-        archivingAllDreamRuns ||
-        dreamRuns.some((run) => run.status === 'running')
-      ) {
-        return
-      }
-
-      const confirmed = await confirm({
-        title: t('settings.dreams.archiveAllConfirmTitle'),
-        message: t('settings.dreams.archiveAllConfirmMessage', { count: dreamRuns.length }),
-        confirmLabel: t('settings.dreams.archiveAll'),
-        cancelLabel: t('common.cancel')
-      })
-      if (!confirmed) return
-
-      setArchivingAllDreamRuns(true)
-      let archivedCount = 0
-      let firstError = ''
-      try {
-        for (const run of dreamRuns) {
-          try {
-            await window.api.appServer.sendRequest('dreams/archive', { runId: run.id }, 20_000)
-            archivedCount += 1
-          } catch (err) {
-            if (!firstError) {
-              firstError = err instanceof Error ? err.message : String(err)
-            }
-          }
-        }
-
-        if (archivedCount === dreamRuns.length) {
-          addToast(t('settings.dreams.archiveAllSucceeded', { count: archivedCount }), 'success')
-        } else if (archivedCount > 0) {
-          addToast(t('settings.dreams.archiveAllPartial', {
-            archived: archivedCount,
-            total: dreamRuns.length
-          }), 'warning')
-        } else {
-          addToast(t('settings.dreams.actionFailed', { error: firstError }), 'error')
-        }
-        await reloadDreamRuns()
-      } finally {
-        setArchivingAllDreamRuns(false)
-      }
-    },
-    [archivingAllDreamRuns, archivingDreamRunId, confirm, dreamRuns, dreamRunsLoading, reloadDreamRuns, t]
+    [memoryEnabled, reloadWorkspaceCore, t]
   )
 
   const handleResetMemory = useCallback(
@@ -1968,9 +1505,9 @@ export function SettingsView({
       if (resettingMemory) return
 
       const confirmed = await confirm({
-        title: t('settings.personalization.resetMemoryConfirmTitle'),
-        message: t('settings.personalization.resetMemoryConfirmMessage'),
-        confirmLabel: t('settings.personalization.resetMemoryButton'),
+        title: t('settings.personalization.memory.deleteConfirmTitle'),
+        message: t('settings.personalization.memory.deleteConfirmMessage'),
+        confirmLabel: t('settings.personalization.memory.deleteButton'),
         cancelLabel: t('common.cancel'),
         danger: true
       })
@@ -1979,10 +1516,9 @@ export function SettingsView({
       setResettingMemory(true)
       try {
           await window.api.appServer.sendRequest('memory/reset', {}, 20_000)
-        addToast(t('settings.personalization.resetMemorySuccess'), 'success')
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        addToast(t('settings.personalization.resetMemoryFailed', { error: msg }), 'error')
+        addToast(t('settings.personalization.memory.deleteSuccess'), 'success')
+      } catch {
+        addToast(t('settings.personalization.memory.deleteFailed'), 'error')
       } finally {
         setResettingMemory(false)
       }
@@ -2072,7 +1608,7 @@ export function SettingsView({
     mcpEnabled,
     subAgentEnabled,
     reloadWorkspaceCore,
-    reloadDreamsStatus,
+    reloadDreamsStatus: dreams.reloadStatus,
     reloadMcpData: async () => {
       await Promise.all([reloadMcpServers(), reloadMcpStatuses()])
     },
@@ -2166,19 +1702,6 @@ export function SettingsView({
     runWithoutAppNavigationRecording(() => setActiveSettingsTab(fallback))
     replaceCurrentAppNavigationLocation()
   }, [activeSettingsTab, dreamsCapabilityEnabled, personalizationAvailable])
-
-  useEffect(() => {
-    if (activeSettingsTab === 'personalization' && dreamsCapabilityEnabled) {
-      void reloadDreamsStatus()
-    }
-  }, [activeSettingsTab, dreamsCapabilityEnabled, reloadDreamsStatus])
-
-  useEffect(() => {
-    if (activeSettingsTab === 'dreams' && dreamsCapabilityEnabled) {
-      void reloadDreamsStatus()
-      void reloadDreamRuns()
-    }
-  }, [activeSettingsTab, dreamsCapabilityEnabled, reloadDreamRuns, reloadDreamsStatus])
 
   useEffect(() => {
     let cancelled = false
@@ -2810,26 +2333,6 @@ export function SettingsView({
       usePendingRestartStore.getState().clear()
     }
   }, [])
-
-  const dreamsIntervalOptions = useMemo(() => {
-    return DREAMS_INTERVAL_OPTIONS.includes(dreamsInterval as typeof DREAMS_INTERVAL_OPTIONS[number])
-      ? [...DREAMS_INTERVAL_OPTIONS]
-      : [dreamsInterval, ...DREAMS_INTERVAL_OPTIONS]
-  }, [dreamsInterval])
-
-  const dreamsThreadLookbackOptions = useMemo(() => {
-    return DREAMS_THREAD_LOOKBACK_OPTIONS.includes(dreamsThreadLookbackCount as typeof DREAMS_THREAD_LOOKBACK_OPTIONS[number])
-      ? [...DREAMS_THREAD_LOOKBACK_OPTIONS]
-      : [dreamsThreadLookbackCount, ...DREAMS_THREAD_LOOKBACK_OPTIONS]
-  }, [dreamsThreadLookbackCount])
-
-  const dreamsRunDisabled = runningDreams || dreamsStatus?.running === true || dreamsEnabled === false
-  const dreamsArchiveBusy = archivingDreamRunId != null || archivingAllDreamRuns
-  const archiveAllDreamRunsDisabled =
-    dreamRuns.length === 0 ||
-    dreamRunsLoading ||
-    dreamsArchiveBusy ||
-    dreamRuns.some((run) => run.status === 'running')
 
   return (
     <div
@@ -3649,14 +3152,19 @@ export function SettingsView({
                       label={t('settings.personalization.welcomeSuggestions')}
                       description={t('settings.personalization.welcomeSuggestionsHint')}
                       control={
-                        <PillSwitch
-                          checked={welcomeSuggestionsEnabled}
-                          disabled={applyingWelcomeSuggestions}
-                          aria-label={t('settings.personalization.welcomeSuggestions')}
-                          onChange={(checked) => {
-                            void handleWelcomeSuggestionsToggle(checked)
-                          }}
-                        />
+                        <ActionTooltip
+                          label=""
+                          disabledReason={memoryEnabled ? undefined : t('settings.personalization.memory.requiredForSuggestions')}
+                        >
+                          <PillSwitch
+                            checked={welcomeSuggestionsEnabled}
+                            disabled={applyingWelcomeSuggestions || !memoryEnabled}
+                            aria-label={t('settings.personalization.welcomeSuggestions')}
+                            onChange={(checked) => {
+                              void handleWelcomeSuggestionsToggle(checked)
+                            }}
+                          />
+                        </ActionTooltip>
                       }
                     />
                   )}
@@ -3708,133 +3216,28 @@ export function SettingsView({
                     />
                   </SettingsGroup>
                 )}
-                {(workspaceCoreApiAvailable || memoryManagementEnabled) && (
-                  <SettingsGroup
-                    title={t('settings.personalization.group.memory')}
-                  >
-                    {workspaceCoreApiAvailable && (
-                      <SettingsRow
-                        label={t('settings.personalization.longTermMemory')}
-                        description={t('settings.personalization.longTermMemoryHint')}
-                        control={
-                          <PillSwitch
-                            checked={memoryAutoConsolidateEnabled}
-                            disabled={applyingMemoryAutoConsolidate}
-                            aria-label={t('settings.personalization.longTermMemory')}
-                            onChange={(checked) => {
-                              void handleMemoryAutoConsolidateToggle(checked)
-                            }}
-                          />
+                {(workspaceCoreApiAvailable || memoryManagementEnabled || dreamsCapabilityEnabled) && (
+                  <MemorySettingsGroup
+                    memoryToggle={workspaceCoreApiAvailable
+                      ? {
+                          enabled: memoryEnabled,
+                          applying: applyingMemory,
+                          onToggle: (checked) => {
+                            void handleMemoryToggle(checked)
+                          }
                         }
-                      />
-                    )}
-                    {memoryManagementEnabled && (
-                      <SettingsRow
-                        label={t('settings.personalization.resetMemory')}
-                        description={t('settings.personalization.resetMemoryHint')}
-                        control={
-                          <Button
-                            variant="danger"
-                            disabled={resettingMemory}
-                            onClick={() => void handleResetMemory()}
-                          >
-                            {resettingMemory
-                              ? t('settings.personalization.resettingMemory')
-                              : t('settings.personalization.resetMemoryButton')}
-                          </Button>
+                      : null}
+                    dreams={dreamsCapabilityEnabled ? dreams : null}
+                    onManageDreams={() => setActiveSettingsTab('dreams')}
+                    deleteMemories={memoryManagementEnabled
+                      ? {
+                          deleting: resettingMemory,
+                          onDelete: () => {
+                            void handleResetMemory()
+                          }
                         }
-                      />
-                    )}
-                  </SettingsGroup>
-                )}
-                {dreamsCapabilityEnabled && (
-                  <SettingsGroup
-                    title={t('settings.personalization.group.dreams')}
-                    headerAction={
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        <Button
-                          onClick={() => setActiveSettingsTab('dreams')}
-                        >
-                          {t('settings.personalization.dreamsManage')}
-                        </Button>
-                        <Button
-                          disabled={dreamsRunDisabled}
-                          onClick={() => void handleRunDreamsNow()}
-                        >
-                          {runningDreams || dreamsStatus?.running === true
-                            ? t('settings.personalization.dreamsRunning')
-                            : t('settings.personalization.dreamsRunNow')}
-                        </Button>
-                      </div>
-                    }
-                  >
-                    <SettingsRow
-                      label={t('settings.personalization.dreams')}
-                      description={t('settings.personalization.dreamsHint')}
-                      control={
-                        <PillSwitch
-                          checked={dreamsEnabled}
-                          disabled={applyingDreams || runningDreams}
-                          aria-label={t('settings.personalization.dreams')}
-                          onChange={(checked) => {
-                            void handleDreamsEnabledToggle(checked)
-                          }}
-                        />
-                      }
-                    />
-                    <SettingsRow
-                      label={t('settings.personalization.dreamsAutoApply')}
-                      description={t('settings.personalization.dreamsAutoApplyHint')}
-                      control={
-                        <PillSwitch
-                          checked={dreamsAutoApply}
-                          disabled={applyingDreams || runningDreams}
-                          aria-label={t('settings.personalization.dreamsAutoApply')}
-                          onChange={(checked) => {
-                            void handleDreamsAutoApplyToggle(checked)
-                          }}
-                        />
-                      }
-                    />
-                    <SettingsRow
-                      label={t('settings.personalization.dreamsInterval')}
-                      description={t('settings.personalization.dreamsIntervalHint')}
-                      control={
-                        <SettingsSelect
-                          ariaLabel={t('settings.personalization.dreamsInterval')}
-                          value={dreamsInterval}
-                          disabled={applyingDreams || runningDreams}
-                          onValueChange={(nextInterval) => {
-                            void handleDreamsIntervalChange(nextInterval)
-                          }}
-                          style={{ minWidth: '140px' }}
-                          options={dreamsIntervalOptions.map((optionValue) => ({
-                            value: optionValue,
-                            label: formatDreamsIntervalOption(optionValue, t)
-                          }))}
-                        />
-                      }
-                    />
-                    <SettingsRow
-                      label={t('settings.personalization.dreamsThreadLookback')}
-                      description={t('settings.personalization.dreamsThreadLookbackHint')}
-                      control={
-                        <SettingsSelect
-                          ariaLabel={t('settings.personalization.dreamsThreadLookback')}
-                          value={String(dreamsThreadLookbackCount)}
-                          disabled={applyingDreams || runningDreams}
-                          onValueChange={(nextCount) => {
-                            void handleDreamsThreadLookbackChange(Number(nextCount))
-                          }}
-                          style={{ minWidth: '120px' }}
-                          options={dreamsThreadLookbackOptions.map((optionValue) => ({
-                            value: String(optionValue),
-                            label: optionValue
-                          }))}
-                        />
-                      }
-                    />
-                  </SettingsGroup>
+                      : null}
+                  />
                 )}
               </SettingsPanelShell>
               </GeneralPanel>
@@ -3842,120 +3245,13 @@ export function SettingsView({
 
             {dreamsCapabilityEnabled && activeSettingsTab === 'dreams' && (
               <GeneralPanel>
-              <SettingsPanelShell
-                  title={t('settings.dreams.title')}
-                  description={
-                    <SettingsDescriptionWithLearnMore topic="memory" aboutKey="settings.dreams.title">
-                      {t('settings.dreams.description')}
-                    </SettingsDescriptionWithLearnMore>
-                  }
-                  breadcrumb={
-                    <SettingsBreadcrumb
-                      parentLabel={t('settings.tab.personalization')}
-                      currentLabel={t('settings.dreams.title')}
-                      onBack={() => setActiveSettingsTab('personalization')}
-                    />
-                  }
-                  action={
-                    <IconButton
-                      icon={<RefreshIcon size={15} />}
-                      label={t('settings.dreams.refresh')}
-                      tooltipLabel={t('settings.dreams.refresh')}
-                      disabled={dreamRunsLoading}
-                      onClick={() => void reloadDreamRuns()}
-                    />
-                  }
-                >
-                <SettingsGroup
-                  title={t('settings.dreams.runs')}
-                  headerAction={
-                    <Button
-                      variant="danger"
-                      disabled={archiveAllDreamRunsDisabled}
-                      onClick={() => void handleArchiveAllDreamRuns()}
-                    >
-                      {t('settings.dreams.archiveAll')}
-                    </Button>
-                  }
-                >
-                  {dreamRunsLoading && dreamRuns.length === 0 &&
-                    ['58%', '44%', '64%'].map((labelWidth, index) => (
-                      <SettingsRow
-                        key={`dream-run-skeleton-${index}`}
-                        label={
-                          <span
-                            role={index === 0 ? 'status' : undefined}
-                            aria-label={index === 0 ? t('settings.dreams.loading') : undefined}
-                          >
-                            <Skeleton width={labelWidth} height={13} />
-                          </span>
-                        }
-                        description={<Skeleton width="34%" height={11} />}
-                        control={<Skeleton width={99} height={32} radius={8} />}
-                      />
-                    ))}
-
-                  {!dreamRunsLoading && dreamRuns.length === 0 && (
-                    <SettingsRow>
-                      <div style={settingsPlaceholderStyle()}>{t('settings.dreams.empty')}</div>
-                    </SettingsRow>
-                  )}
-
-                  {!dreamRunsLoading && dreamRuns.map((run) => {
-                    const runTime = run.endedAt ?? run.startedAt
-                    const statusColor = run.status === 'succeeded'
-                      ? 'var(--success)'
-                      : run.status === 'failed'
-                        ? 'var(--error)'
-                        : run.status === 'running'
-                          ? 'var(--info)'
-                          : 'var(--text-secondary)'
-                    const running = run.status === 'running'
-                    return (
-                      <SettingsRow
-                        key={run.id}
-                        label={
-                          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {runTime
-                              ? new Date(runTime).toLocaleString(locale)
-                              : t('settings.personalization.dreamsStatus.unknownTime')}
-                          </span>
-                        }
-                        description={
-                          <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-                            <span style={{ color: statusColor }}>
-                              {t(`settings.personalization.dreamsStatus.${run.status}`)}
-                            </span>
-                            <span aria-hidden>·</span>
-                            <span>{t('settings.dreams.threadCount', { count: run.processedThreadCount })}</span>
-                          </span>
-                        }
-                        control={
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                            <ActionTooltip
-                              label={dashboardUrl ? t('settings.dreams.openReview') : t('settings.dreams.dashboardUnavailable')}
-                            >
-                              <Button
-                                disabled={!dashboardUrl || running}
-                                onClick={() => void openDreamReview(run.id)}
-                              >
-                                {t('settings.dreams.openReview')}
-                              </Button>
-                            </ActionTooltip>
-                            <IconButton
-                              icon={<Archive size={14} aria-hidden />}
-                              label={t('settings.dreams.archive')}
-                              tooltipLabel={t('settings.dreams.archive')}
-                              disabled={running || dreamsArchiveBusy}
-                              onClick={() => void handleArchiveDreamRun(run)}
-                            />
-                          </div>
-                        }
-                      />
-                    )
-                  })}
-                </SettingsGroup>
-              </SettingsPanelShell>
+                <DreamsPanel
+                  dreams={dreams}
+                  memoryEnabled={memoryEnabled}
+                  dashboardUrl={dashboardUrl}
+                  locale={locale}
+                  onBack={() => setActiveSettingsTab('personalization')}
+                />
               </GeneralPanel>
             )}
 

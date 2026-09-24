@@ -41,13 +41,11 @@ public sealed record DreamsRunInput(
     IReadOnlyList<DreamsTopicFileInput> TopicFiles,
     IReadOnlyList<DreamsThreadInput> Threads,
     int CompletedTurnCount,
-    bool HasMemoryHistory = false,
     string? AdditionalInstructions = null)
 {
     public bool HasEvidence =>
         !string.IsNullOrWhiteSpace(ExplicitMemory)
         || !string.IsNullOrWhiteSpace(ExistingDream)
-        || HasMemoryHistory
         || TopicFiles.Count > 0
         || Threads.Count > 0;
 }
@@ -158,8 +156,6 @@ public sealed class DreamsRunState
     public int CandidateThreadCount { get; set; }
 
     public bool DreamWritten { get; set; }
-
-    public bool HistoryWritten { get; set; }
 
     public int TopicFilesWritten { get; set; }
 

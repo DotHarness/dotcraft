@@ -538,6 +538,36 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
     }
 
     [Fact]
+    public async Task CancelledManualCompaction_DrainsQueuedInputsInReorderedOrder()
+    {
+        var mainChat = new StreamingReplyChatClient("ok");
+        var summaryChat = new BlockingSummaryChatClient();
+        await using var agentFactory = CreateAgentFactory(summaryChat);
+        var service = CreateService(agentFactory, mainChat);
+        var thread = await service.CreateThreadAsync(MakeIdentity(), threadId: "thread-reorder-queue");
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("turn 0 " + new string('u', 1200))]));
+        var compactTask = service.CompactThreadAsync(thread.Id);
+        await summaryChat.Started.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var second = await service.EnqueueTurnInputAsync(thread.Id, [new TextContent("second")]);
+        var third = await service.EnqueueTurnInputAsync(thread.Id, [new TextContent("third")]);
+        await service.ReorderQueuedTurnInputsAsync(thread.Id, [third.Id, second.Id]);
+
+        await service.CancelThreadMaintenanceAsync(thread.Id);
+        await compactTask;
+
+        await WaitUntilAsync(() =>
+            thread.Turns.Count >= 3
+            && thread.Turns.Take(3).All(turn => turn.Status == TurnStatus.Completed)
+            && thread.QueuedInputs.Count == 0);
+
+        Assert.Equal(
+            ["third", "second"],
+            thread.Turns.Skip(1).Take(2).Select(turn => turn.Input?.AsUserMessage?.Text ?? string.Empty).ToArray());
+    }
+
+    [Fact]
     public async Task CompactThreadAsync_RejectsEmptyClientManagedAndActiveThreads()
     {
         var mainChat = new BlockingChatClient();

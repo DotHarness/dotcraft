@@ -64,9 +64,7 @@ export function PetExchangeGroup({ settings, onWear }: PetExchangeGroupProps): J
               <Button size="sm" variant="secondary" disabled={spare < EXCHANGE_COUNT} onClick={() => setTray(autoTray(bag, outfit, tier))}>{t('settings.pet.exchange.fill')}</Button>
               <Button size="sm" variant="ghost" disabled={!tray.length} onClick={() => setTray([])}>{t('settings.pet.exchange.clear')}</Button>
               <span className="pet-settings-meta">
-                {spare < EXCHANGE_COUNT
-                  ? t('settings.pet.exchange.needed', { count: EXCHANGE_COUNT - spare, rarity: rarityLabel(tier) })
-                  : t('settings.pet.exchange.inTray', { count: tray.length, total: EXCHANGE_COUNT })}
+                {spare >= EXCHANGE_COUNT && t('settings.pet.exchange.inTray', { count: tray.length, total: EXCHANGE_COUNT })}
               </span>
               <Button variant="primary" disabled={!valid} onClick={trade} aria-label={t('settings.pet.exchange.actionLabel', { rarity: rarityLabel(target) })}>
                 {t('settings.pet.exchange.action')}

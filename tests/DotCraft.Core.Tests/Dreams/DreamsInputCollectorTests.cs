@@ -74,8 +74,7 @@ public sealed class DreamsInputCollectorTests : IDisposable
     [Fact]
     public async Task CollectAsync_AppliesLookbackAndIncludesTopicManifestWithoutTranscripts()
     {
-        _memoryStore.WriteLongTerm("explicit memory");
-        _memoryStore.AppendHistory(new string('x', 40));
+        File.WriteAllText(_memoryStore.LongTermFilePath, "explicit memory");
         _dreamStore.SaveDreamRun(
             "# Dream Memory\nold dream",
             [new DreamTopicFileWrite { Path = "api-conventions.md", Content = "# API Conventions\nUse typed clients." }],
@@ -89,8 +88,7 @@ public sealed class DreamsInputCollectorTests : IDisposable
         {
             Dreams = new DreamsConfig
             {
-                ThreadLookbackCount = 1,
-                HistoryTailChars = 10
+                ThreadLookbackCount = 1
             }
         };
         var collector = new DreamsInputCollector(config, _workspace, _memoryStore, _dreamStore, _threadStore);

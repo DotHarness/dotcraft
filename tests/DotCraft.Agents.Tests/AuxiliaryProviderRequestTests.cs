@@ -8,7 +8,6 @@ namespace DotCraft.Tests;
 public sealed class AuxiliaryProviderRequestTests
 {
     [Theory]
-    [InlineData(ProviderRequestKind.Memory)]
     [InlineData(ProviderRequestKind.Compaction)]
     public async Task AuxiliaryToolLoopCannotUseParentHistoryOrSamplingCallbacks(ProviderRequestKind kind)
     {

@@ -33,12 +33,6 @@ public sealed class DreamsConfig
     public bool AutoApply { get; set; }
 
     /// <summary>
-    /// Maximum memory/HISTORY.md tail characters included in a run.
-    /// </summary>
-    [ConfigField(Min = 0, Hint = "Maximum memory/HISTORY.md tail characters included in a Dreams run.", Reload = ReloadBehavior.ProcessRestart, HasReload = true)]
-    public int HistoryTailChars { get; set; } = 20_000;
-
-    /// <summary>
     /// Minimum new completed turns across eligible threads before scheduled model work.
     /// </summary>
     [ConfigField(Min = 1, Hint = "Minimum new completed turns before scheduled Dreams call the model.", Reload = ReloadBehavior.ProcessRestart, HasReload = true)]

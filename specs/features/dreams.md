@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.5.0 |
+| **Version** | 0.6.0 |
 | **Status** | Living |
-| **Date** | 2026-08-01 |
-| **Related Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Memory Consolidation](memory-consolidation.md), [Desktop Client](../clients/desktop-client.md), [Automations Lifecycle](automations-lifecycle.md) |
+| **Date** | 2026-09-24 |
+| **Related Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Memory](memory.md), [Desktop Client](../clients/desktop-client.md), [Automations Lifecycle](automations-lifecycle.md) |
 
 Purpose: Define **Dreams**, DotCraft's workspace-level background memory maintenance product and runtime capability. Dreams gives each workspace an offline memory management loop that can run from AppServer without an active client or conversation session.
 
@@ -37,12 +37,11 @@ Dreams is not a chat feature and not a standalone app. It is a workspace memory 
 2. Separate passive inferred memory from explicit long-term memory.
 3. Keep the product loop reviewable: schedule or request a run, generate a pending output store, let the user apply or discard it.
 4. Make Dreams observable enough for Desktop review, Dashboard traces, and diagnostics.
-5. Preserve the existing turn-time memory consolidation workflow.
-6. Use Session Core for actual Dream model work so pruning and consolidation turns are inspectable.
+5. Use Session Core for actual Dream model work so pruning and consolidation turns are inspectable.
 
 ### 2.2 Non-Goals
 
-- Replacing `MEMORY.md` or turn-time memory consolidation.
+- Replacing or writing agent-maintained `MEMORY.md`.
 - Creating a standalone Dreams app in the baseline design.
 - Requiring a client to remain open for background memory maintenance.
 - Introducing remote memory administration or cross-workspace memory sharing.
@@ -57,8 +56,7 @@ Dreams is not a chat feature and not a standalone app. It is a workspace memory 
 | Concept | Definition |
 |---------|------------|
 | **Dreams** | Workspace background memory organization capability. |
-| **Explicit Memory** | Durable facts, preferences, project context, and recurring instructions stored in `.craft/memory/MEMORY.md`. |
-| **Historical Memory** | Append-only, grep-searchable event log stored in `.craft/memory/HISTORY.md`. |
+| **Explicit Memory** | Durable lessons the agent saved at the user's direction in `.craft/memory/MEMORY.md`. See [Memory](memory.md). |
 | **Dream Store** | Passive inferred workspace context stored as `.craft/dreams/stores/<storeId>/INDEX.md` plus optional topic markdown files. |
 | **Active Dream Store** | The Dream Store currently injected into future agent prompts. |
 | **Pending Dream Store** | A generated output store awaiting user review. Pending stores do not affect prompts. |
@@ -67,12 +65,14 @@ Dreams is not a chat feature and not a standalone app. It is a workspace memory 
 | **Dream Input Window** | Workspace memory artifacts and recent thread transcripts inspected by one Dream Run. |
 | **Dream Status** | Latest scheduler and run state exposed to AppServer clients. |
 
-Relationship to memory consolidation:
+Relationship to explicit memory:
 
 | Workflow | Scope | Trigger | Writes | Product role |
 |----------|-------|---------|--------|--------------|
-| Long-term memory consolidation | One server-managed thread's model-visible history | Successful turn counter or manual thread action | `.craft/memory/MEMORY.md`, `.craft/memory/HISTORY.md` | Extract explicit durable memory from conversation flow. |
+| Explicit memory | The current Thread | The agent, while responding to the user | `.craft/memory/MEMORY.md` | Keep lessons the user taught. |
 | Dreams | Workspace-wide recent history and memory artifacts | AppServer schedule or manual workspace action | pending `.craft/dreams/stores/<storeId>/` output store and `.craft/dreams/runs/<runId>/state.json`; apply switches `.craft/dreams/active.json` | Maintain reviewable passive inferred workspace context offline. |
+
+Dreams depends on the workspace memory switch. While `Memory.Enabled` is `false`, Dreams starts no runs and Dream Memory is not injected; `Dreams.*` settings keep their stored values.
 
 ---
 
@@ -102,7 +102,6 @@ Dreams uses a dedicated workspace Dreams root:
           <topic>.md
   memory/
     MEMORY.md
-    HISTORY.md
 ```
 
 Artifact authority:
@@ -111,11 +110,10 @@ Artifact authority:
 2. System, developer, workspace, and tool instructions.
 3. `.craft/memory/MEMORY.md` explicit memory.
 4. Active Dream Store `INDEX.md` passive inferred memory.
-5. `.craft/memory/HISTORY.md` searched evidence.
 
 Active Dream Store memory must not be treated as explicit user instruction. It is helpful inferred background context and should be ignored when it conflicts with more authoritative sources.
 
-`memory/HISTORY.md` remains append-only event memory for explicit memory consolidation. Dreams may read it as evidence, but Dreams must not write `.craft/memory/*`.
+Dreams may read `.craft/memory/MEMORY.md` as evidence, but Dreams must not write `.craft/memory/*`.
 
 `memory/reset` clears Dream Stores and Dreams-derived run state together with explicit memory artifacts, while preserving the `.craft/memory` and `.craft/dreams` directories.
 
@@ -179,13 +177,13 @@ Baseline scheduling behavior:
 - Allows a manual "Run now" request from clients.
 - Allows only one active Dream Run per workspace.
 
-Dreams does not run because an individual turn completed. That responsibility belongs to long-term memory consolidation.
+Dreams does not run because an individual turn completed.
 
 ### 6.2 Scheduled Eligibility
 
 A scheduled check may start a Dream Run only when all are true:
 
-- `Dreams.Enabled = true`.
+- `Memory.Enabled = true` and `Dreams.Enabled = true`.
 - No Dream Run is already active for the workspace.
 - The configured interval has elapsed since the last completed run attempt that performed or skipped model work.
 - At least `Dreams.MinCompletedTurnsSinceLastRun` new completed turns exist across eligible threads.
@@ -201,7 +199,7 @@ Manual runs:
 
 - Bypass interval timing.
 - Do not start if another run is already active.
-- Respect `Dreams.Enabled`.
+- Respect `Memory.Enabled` and `Dreams.Enabled`.
 - May still skip when there is no useful input evidence.
 - Return quickly; clients observe completion through `dreams/status` polling or a later refresh.
 
@@ -388,8 +386,6 @@ Dream Memory must not:
 - Be treated as proof that a task is current or complete.
 - Introduce hidden requirements not present in the user request or repo.
 
-`memory/HISTORY.md` is still not loaded wholesale into normal agent context. It is only searched or tail-trimmed by specific workflows.
-
 ---
 
 ## 8. Configuration And State
@@ -402,7 +398,6 @@ Baseline configuration lives under `Dreams`.
 | `Dreams.Interval` | `24:00:00` | Minimum elapsed time between scheduled Dream eligibility checks that can run model work. |
 | `Dreams.ThreadLookbackCount` | `20` | Maximum recent eligible threads listed in the per-run source manifest. |
 | `Dreams.AutoApply` | `false` | Automatically applies future successful Dream Runs as the active Dream Store. Existing pending runs are unchanged. |
-| `Dreams.HistoryTailChars` | `20000` | Maximum `HISTORY.md` tail characters included in a run. |
 | `Dreams.MinCompletedTurnsSinceLastRun` | `5` | Minimum new completed turns across eligible threads before scheduled model work. |
 | `Dreams.StartupDelay` | `00:05:00` | Delay before the first eligibility check after AppServer startup. |
 
@@ -423,7 +418,6 @@ Latest run state fields:
 | `evidenceSearchCount` | Number of evidence search tool calls used by the run. |
 | `evidenceReadCount` | Number of evidence read tool calls used by the run. |
 | `dreamWritten` | Whether the candidate output store contains a valid `INDEX.md`. |
-| `historyWritten` | Deprecated for Dreams store runs; remains `false`. |
 | `outputStoreId` | Candidate Dream Store id generated by the run. |
 | `reviewStatus` | `pending`, `applied`, `discarded`, or `archived` when review state exists. |
 | `autoApplied` | Whether the run was automatically applied because `Dreams.AutoApply` was enabled at success time. |
@@ -479,7 +473,6 @@ Result:
   "interval": "24:00:00",
   "threadLookbackCount": 20,
   "autoApply": false,
-  "historyTailChars": 20000,
   "minCompletedTurnsSinceLastRun": 5,
   "nextRunAt": "2026-05-12T00:00:00Z",
   "running": false,
@@ -496,7 +489,6 @@ Result:
     "evidenceSearchCount": 3,
     "evidenceReadCount": 4,
     "dreamWritten": true,
-    "historyWritten": false,
     "outputStoreId": "store_20260511000000_pending",
     "reviewStatus": "pending",
     "autoApplied": false,
@@ -607,8 +599,7 @@ Successful Dreams setting changes emit `workspace/configChanged` with `regions: 
 
 `memory/reset` clears:
 
-- `.craft/memory/MEMORY.md`
-- `.craft/memory/HISTORY.md`
+- `.craft/memory/*`
 - `.craft/dreams/stores/*`
 - `.craft/dreams/runs/*`
 - `.craft/dreams/state.json`
@@ -621,25 +612,23 @@ The memory and Dreams root directories remain in place.
 
 ## 10. Desktop UX Contract
 
-Desktop presents Dreams from Settings -> Personalization.
+Desktop presents Dreams as one row in the Memory group of Settings -> Personalization, after the memory switch. The row holds the Dreams toggle and a "Manage" entry into the Dreams page.
 
-Required user-visible controls:
+The Dreams page holds:
 
-- Long-term memory toggle for turn-time memory consolidation.
-- Dreams toggle for background workspace memory organization.
+- Manual "Run now" action.
 - Auto-update Dreams toggle for applying future successful runs automatically.
 - Run frequency.
 - Recent-thread range.
 - Last run status.
-- Manual "Run now" action.
-- "Manage Dreams" entry into a lightweight run-history surface.
-- Run-history rows with a "Review" action that opens Dashboard at
+- Run history, with a "Review" action per run that opens Dashboard at
   `dashboardUrl#dreams/run/<runId>` when a Dashboard URL is available.
 
 Required UX behavior:
 
 - Hide Dreams controls when `capabilities.dreams` is false or absent.
-- Load `dreams/status` when entering the personalization settings surface.
+- While memory is disabled, show the Dreams toggle disabled with its stored value and a tooltip asking the user to enable memories.
+- Load `dreams/status` when entering the personalization settings surface or the Dreams page.
 - Refresh status after saving Dreams settings.
 - Refresh Dreams status when receiving `workspace/configChanged` with `regions: ["memory"]`.
 - Disable "Run now" while `running = true`.
@@ -734,7 +723,6 @@ Dreams is best-effort maintenance.
 Runtime rules:
 
 - Dream failure does not fail active turns.
-- Dream failure does not disable long-term memory consolidation.
 - Dream failure does not trip context compaction circuit breakers.
 - Failed runs do not switch the active Dream Store.
 - Skipped runs should be normal when there is insufficient new history.
@@ -745,7 +733,6 @@ Cost controls:
 
 - Fixed interval.
 - Thread lookback limit.
-- explicit memory history tail limit for input snapshots.
 - Minimum completed-turn eligibility.
 
 Safety boundaries:
@@ -769,12 +756,12 @@ Dreams may still call the configured model provider like other DotCraft model wo
 - Scheduler skips without model calls when there are too few new completed turns.
 - Scheduler starts at most one run per workspace at a time.
 - Manual runs bypass interval timing but respect active-run and enabled checks.
+- Neither scheduled nor manual runs start while `Memory.Enabled = false`, and Dream Memory is not injected.
 - Actual model runs create one new internal Session Core Dream Run thread with `originChannel = "dreams"`.
 - Actual model runs submit two turns: pruning pass and consolidation pass.
 - Pre-model skipped attempts do not create Session threads.
 - Dream Run threads are hidden from ordinary `thread/list` by default but remain visible to Dashboard trace/session views.
 - Dream Run state includes `threadId`, `turnId`, `turnIds`, `trigger`, `outputStoreId`, `reviewStatus`, `usage`, and `inputManifestPath` when applicable.
-- Dream Run threads do not trigger long-term memory consolidation.
 - Input collection reads eligible recent top-level server-managed threads without mutating them.
 - A successful run writes a valid output store with `INDEX.md`.
 - With `Dreams.AutoApply = false`, a successful run stays pending and does not affect prompts until applied.
@@ -785,7 +772,6 @@ Dreams may still call the configured model provider like other DotCraft model wo
 - Missing active Dream Store does not affect agent prompt building.
 - Non-empty active Dream Store index is included in main agent context by default after `MEMORY.md`.
 - Dream Memory prompt text includes lower-authority language.
-- `memory/HISTORY.md` is still not loaded wholesale into normal agent context.
 - `memory/reset` clears Dreams artifacts and derived state.
 - `initialize` advertises `capabilities.dreams` when the server supports Dreams.
 - `dreams/status` returns config, running state, active store id, next run time, and last run state.
@@ -794,7 +780,7 @@ Dreams may still call the configured model provider like other DotCraft model wo
 - Workspace config read/update supports Dreams fields and validation.
 - Successful Dreams config changes emit `workspace/configChanged` with `regions: ["memory"]`.
 - Desktop hides Dreams controls when capability is unavailable.
-- Desktop shows Dreams controls under Personalization when available.
+- Desktop shows the Dreams row in the Personalization Memory group when available, disabled while memory is off.
 - Desktop exposes a lightweight Dreams run-history surface that opens Dashboard review links.
 - Desktop supports single Archive and Archive all through `dreams/archive`; neither operation physically deletes Dreams artifacts.
 - Desktop does not expose permanent Dream Run deletion.

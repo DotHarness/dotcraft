@@ -113,7 +113,7 @@ const workspaceCoreConfigSide = {
   model: 'claude-fable-5',
   welcomeSuggestionsEnabled: false,
   skillsSelfLearningEnabled: null,
-  memoryAutoConsolidateEnabled: null,
+  memoryEnabled: null,
   dreamsEnabled: null,
   dreamsInterval: null,
   dreamsThreadLookbackCount: null,

@@ -2,15 +2,14 @@ namespace DotCraft.Sessions;
 
 /// <summary>
 /// Payload for SystemNotice items. Used to mark maintenance and lifecycle
-/// events such as context compaction, long-term memory consolidation, and
-/// fork boundaries so clients can render persistent dividers in the
+/// events such as context compaction and fork boundaries so clients can render persistent dividers in the
 /// conversation timeline.
 /// </summary>
 public sealed record SystemNoticePayload
 {
     /// <summary>
     /// Notice classifier. Known values include <c>"compacted"</c>,
-    /// <c>"memoryConsolidated"</c>, <c>"forked"</c>, and <c>"remoteRoute"</c>. Leaving this as a
+    /// <c>"forked"</c>, and <c>"remoteRoute"</c>. Leaving this as a
     /// string keeps future kinds additive without rev'ing the wire protocol.
     /// </summary>
     public string Kind { get; init; } = string.Empty;

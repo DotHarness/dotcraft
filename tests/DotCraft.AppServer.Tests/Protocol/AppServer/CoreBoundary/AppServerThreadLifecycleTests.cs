@@ -2034,7 +2034,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     public async Task ThreadRead_HydratesActiveMaintenanceRuntime()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-        _h.Service.RuntimeSnapshotHandler = t => ThreadSummaryRuntime.FromThread(t, "consolidating");
+        _h.Service.RuntimeSnapshotHandler = t => ThreadSummaryRuntime.FromThread(t, "compacting");
 
         var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(msg);
@@ -2046,7 +2046,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             .GetProperty("thread")
             .GetProperty("runtime");
         Assert.True(runtime.GetProperty("busy").GetBoolean());
-        Assert.Equal("consolidating", runtime.GetProperty("maintenanceKind").GetString());
+        Assert.Equal("compacting", runtime.GetProperty("maintenanceKind").GetString());
     }
 
     [Fact]

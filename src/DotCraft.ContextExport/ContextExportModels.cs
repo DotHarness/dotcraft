@@ -38,27 +38,6 @@ public enum ContextExportToolResultMode
 }
 
 /// <summary>
-/// Controls how workspace memory history is included in exports.
-/// </summary>
-public enum ContextExportHistoryMode
-{
-    /// <summary>
-    /// Omit <c>HISTORY.md</c>.
-    /// </summary>
-    None,
-
-    /// <summary>
-    /// Include the tail of <c>HISTORY.md</c>.
-    /// </summary>
-    Tail,
-
-    /// <summary>
-    /// Include the full <c>HISTORY.md</c>.
-    /// </summary>
-    Full
-}
-
-/// <summary>
 /// Filters context search results by thread status.
 /// </summary>
 public enum ContextSearchStatusFilter
@@ -104,16 +83,6 @@ public sealed class ContextExportOptions
     /// Tool result inclusion mode. Defaults to <see cref="ContextExportToolResultMode.Summary"/>.
     /// </summary>
     public ContextExportToolResultMode ToolResults { get; init; } = ContextExportToolResultMode.Summary;
-
-    /// <summary>
-    /// Memory history inclusion mode. Defaults to <see cref="ContextExportHistoryMode.Tail"/>.
-    /// </summary>
-    public ContextExportHistoryMode History { get; init; } = ContextExportHistoryMode.Tail;
-
-    /// <summary>
-    /// Maximum characters included from the tail of <c>HISTORY.md</c>.
-    /// </summary>
-    public int HistoryTailChars { get; init; } = 12_000;
 
     /// <summary>
     /// Maximum characters included in summary previews.

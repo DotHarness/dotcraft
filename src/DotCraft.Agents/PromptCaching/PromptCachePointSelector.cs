@@ -17,7 +17,6 @@ internal sealed record SelectedCachePoint(
 
 internal sealed record PromptCacheMaintenanceSelection(
     int SnapshotMessageCount,
-    bool ReadOnlyPrefix,
     bool InsertedSystemMessage);
 
 /// <summary>Provider-neutral selection of stable prompt-cache boundaries.</summary>
@@ -47,13 +46,6 @@ internal static class PromptCachePointSelector
         var selected = NewSelection();
         AddLatest(selected, candidates, remembered, ChatRole.System);
         AddLatestSnapshotPrefix(selected, candidates, remembered, maintenance);
-        if (maintenance.ReadOnlyPrefix)
-            return selected;
-
-        var latestTail = FindLatestConversationTail(candidates);
-        AddNearestRememberedBefore(selected, candidates, remembered, latestTail?.Sequence ?? int.MaxValue);
-        if (latestTail is not null)
-            AddSelected(selected, latestTail, remembered.Contains(latestTail.Hash), latest: true);
         return selected;
     }
 
@@ -108,20 +100,6 @@ internal static class PromptCachePointSelector
                 return candidates[i];
         }
         return null;
-    }
-
-    private static void AddNearestRememberedBefore(
-        Dictionary<string, SelectedCachePoint> selected,
-        IReadOnlyList<CachePointCandidate> candidates,
-        HashSet<string> remembered,
-        int beforeSequence)
-    {
-        var candidate = candidates.Where(candidate => candidate.Sequence < beforeSequence)
-            .Where(candidate => remembered.Contains(candidate.Hash))
-            .OrderByDescending(static candidate => candidate.Sequence)
-            .FirstOrDefault(candidate => !selected.ContainsKey(candidate.Hash));
-        if (candidate is not null)
-            AddSelected(selected, candidate, remembered: true, latest: false);
     }
 
     private static void AddLatest(

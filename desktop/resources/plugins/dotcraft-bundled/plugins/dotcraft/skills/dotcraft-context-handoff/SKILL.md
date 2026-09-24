@@ -15,7 +15,6 @@ If the goal is to identify a root cause rather than prepare a handoff, use `dotc
 
 - Treat `.craft/state.db`, `.craft/threads/**/*.jsonl`, and `.craft/memory/*` as evidence. Do not edit them during handoff work.
 - Start with `--tool-results summary`. Use `--tool-results full` only when the user explicitly needs complete tool or command output.
-- Prefer `--history tail` for handoffs. Use `--history full` only when old memory history is directly relevant.
 - Do not paste full exports into chat unless requested. Summarize the file path, thread id, warnings, and strongest evidence.
 - Preserve evidence links: include thread id, rollout path, trace source, event id, timestamp, and search preview when explaining why a session was chosen.
 
@@ -36,13 +35,13 @@ dotcraft context export --thread thread_20260601_ab12cd --workspace "D:\path\to\
 Export with a narrower output scope:
 
 ```powershell
-dotcraft context export --thread thread_20260601_ab12cd --tool-results none --history tail
+dotcraft context export --thread thread_20260601_ab12cd --tool-results none
 ```
 
 Export an audit transcript:
 
 ```powershell
-dotcraft context export --thread thread_20260601_ab12cd --profile transcript --tool-results full --history full
+dotcraft context export --thread thread_20260601_ab12cd --profile transcript --tool-results full
 ```
 
 ## Workflow
@@ -50,7 +49,7 @@ dotcraft context export --thread thread_20260601_ab12cd --profile transcript --t
 1. Identify the workspace. Accept either the workspace root or the `.craft` directory in `--workspace`.
 2. Search with the user's symptom, provider error, tool name, model id, trace event text, or thread id.
 3. Pick the best hit by score and evidence, not score alone. Prefer hits with a rollout path and trace evidence.
-4. Run export for that thread. Keep the default `handoff`, `summary`, and `tail` modes unless there is a specific reason to widen them.
+4. Run export for that thread. Keep the default `handoff` and `summary` modes unless there is a specific reason to widen them.
 5. Check export warnings. Rollback warnings, corrupt rollout lines, or ignored compaction checkpoints should be mentioned in the handoff summary.
 6. Give the user a concise result: chosen thread, output file, why it matched, and any privacy or continuity caveats.
 
@@ -60,7 +59,7 @@ dotcraft context export --thread thread_20260601_ab12cd --profile transcript --t
 - Current model context uses the same canonical rollout replay as runtime hydration: the latest decodable surviving checkpoint plus valid tail model history, with whole-Turn UI fallback when an exact batch is rejected.
 - Compaction checkpoints are listed as continuity events. Malformed checkpoints are skipped while replay continues toward an earlier valid checkpoint.
 - Replay warnings identify rejected records and fallback Turns without exposing reasoning, ProtectedData, AdditionalProperties, or internal provider metadata.
-- `MEMORY.md` is included, and `HISTORY.md` follows the selected `--history` mode.
+- `MEMORY.md` is included.
 - Reasoning content is omitted. Tool calls are kept, and tool results follow `--tool-results`.
 
 ## Report Shape

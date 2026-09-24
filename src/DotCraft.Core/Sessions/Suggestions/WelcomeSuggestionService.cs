@@ -39,8 +39,6 @@ public sealed class WelcomeSuggestionService(
     private const int MaxSnippetLength = 300;
     private const int MaxHighlightCount = 5;
     internal const int MemoryCharsLimit = 5_000;
-    internal const int HistoryTailCharsLimit = 3_000;
-    internal const int TotalMemoryCharsLimit = 8_000;
     private static readonly TimeSpan SuggestTimeout = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan RefreshDebounce = TimeSpan.FromSeconds(1);
@@ -461,27 +459,24 @@ public sealed class WelcomeSuggestionService(
     {
         cancellationToken.ThrowIfCancellationRequested();
         var memoryText = TrimToLimit(memoryStore.ReadLongTerm(), MemoryCharsLimit);
-        var historyText = ReadHistoryTailFromFile(memoryStore.HistoryFilePath, HistoryTailCharsLimit);
-        var combinedMemory = CombineMemory(memoryText, historyText, TotalMemoryCharsLimit);
         var fingerprint = BuildFingerprint(
             workspacePath,
             maxItems,
             memoryStore.LongTermFilePath,
-            memoryStore.HistoryFilePath,
-            combinedMemory);
+            memoryText);
 
         return Task.FromResult(new WelcomeSuggestionEvidence(
             fingerprint,
-            !string.IsNullOrWhiteSpace(combinedMemory)));
+            !string.IsNullOrWhiteSpace(memoryText)));
     }
 
     private bool IsWelcomeSuggestionsEnabled(string workspacePath)
     {
-        return appConfig.WelcomeSuggestions.Enabled;
+        return appConfig.WelcomeSuggestions.Enabled && appConfig.Memory.Enabled;
     }
 
     private static string BuildGenerationPrompt(int maxItems) =>
-        $"Inspect workspace MEMORY.md and HISTORY.md, infer the likely next tasks, and call {WelcomeSuggestionMethods.ToolName} exactly once with exactly {maxItems} concrete suggestions. If you cannot produce {maxItems} concrete suggestions from memory evidence, do not call the tool.";
+        $"Inspect workspace MEMORY.md, infer the likely next tasks, and call {WelcomeSuggestionMethods.ToolName} exactly once with exactly {maxItems} concrete suggestions. If you cannot produce {maxItems} concrete suggestions from memory evidence, do not call the tool.";
 
     private static List<WelcomeSuggestion> ParseSuggestionItems(JsonObject? arguments, int maxItems)
     {
@@ -561,10 +556,9 @@ public sealed class WelcomeSuggestionService(
         return normalized is "ok" or "okay" or "thanks" or "thank you" or "got it" or "continue" or "继续" or "好的" or "收到" or "明白了";
     }
 
-    internal static string[] ExtractMemoryHighlights(string memoryText, string historyText)
+    internal static string[] ExtractMemoryHighlights(string memoryText)
     {
         return ExtractCandidateHighlights(memoryText)
-            .Concat(ExtractCandidateHighlights(historyText))
             .Where(text => ScoreSnippetSpecificity(text) > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderByDescending(ScoreSnippetSpecificity)
@@ -572,45 +566,6 @@ public sealed class WelcomeSuggestionService(
             .Take(MaxHighlightCount)
             .Select(text => SanitizeSuggestionField(text, 180))
             .ToArray();
-    }
-
-    internal static string CombineMemory(string memoryText, string historyText, int totalMemoryCharsLimit)
-    {
-        var sb = new StringBuilder();
-        if (!string.IsNullOrWhiteSpace(memoryText))
-        {
-            sb.AppendLine("## MEMORY.md");
-            sb.AppendLine(memoryText.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(historyText))
-        {
-            if (sb.Length > 0)
-                sb.AppendLine();
-            sb.AppendLine("## HISTORY.md (tail)");
-            sb.AppendLine(historyText.Trim());
-        }
-
-        var combined = sb.ToString().Trim();
-        return TrimToLimit(combined, totalMemoryCharsLimit);
-    }
-
-    internal static string ReadHistoryTailFromFile(string historyFilePath, int maxChars)
-    {
-        if (!File.Exists(historyFilePath))
-            return string.Empty;
-
-        try
-        {
-            var content = File.ReadAllText(historyFilePath, Encoding.UTF8);
-            if (content.Length <= maxChars)
-                return content;
-            return content[^maxChars..];
-        }
-        catch
-        {
-            return string.Empty;
-        }
     }
 
     internal static string TrimToLimit(string? text, int maxChars)
@@ -684,14 +639,12 @@ public sealed class WelcomeSuggestionService(
         string workspacePath,
         int maxItems,
         string memoryPath,
-        string historyPath,
         string memoryContext)
     {
         var sb = new StringBuilder();
         sb.AppendLine(workspacePath);
         sb.AppendLine($"maxItems:{maxItems}");
         sb.AppendLine($"memoryMtime:{GetFileTimestamp(memoryPath):O}");
-        sb.AppendLine($"historyMtime:{GetFileTimestamp(historyPath):O}");
         sb.AppendLine(memoryContext);
 
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));

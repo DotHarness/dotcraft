@@ -232,12 +232,6 @@ public sealed class ServerCapabilitySnapshot
     public bool ManualCompaction { get; set; }
 
     /// <summary>
-    /// Server supports manual long-term memory consolidation via <c>thread/memory/consolidate/start</c>.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool ManualMemoryConsolidation { get; set; }
-
-    /// <summary>
     /// Server supports rebinding Runtime Dynamic Tools via <c>thread/resume.dynamicTools</c>.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

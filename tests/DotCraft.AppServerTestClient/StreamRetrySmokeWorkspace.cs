@@ -50,10 +50,6 @@ internal static class StreamRetrySmokeWorkspace
             {
                 [providerId] = provider
             },
-            ["Memory"] = new JsonObject
-            {
-                ["AutoConsolidateEnabled"] = false
-            },
             ["Tracing"] = new JsonObject
             {
                 ["Enabled"] = true

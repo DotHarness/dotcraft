@@ -234,7 +234,7 @@ internal static class OpenAIResponsesCodexMetadata
     internal static OpenAIResponsesRoutingIdentity ResolveRoutingIdentity()
     {
         var requestContext = ProviderRequestContextScope.Current;
-        if (requestContext?.CurrentIdentity.RequestKind is not (ProviderRequestKind.Memory or ProviderRequestKind.Compaction)
+        if (requestContext?.CurrentIdentity.RequestKind is not ProviderRequestKind.Compaction
             && OpenAIResponsesRoutingIdentityScope.Current is { } requestIdentity)
             return requestIdentity;
 
@@ -317,7 +317,6 @@ internal static class OpenAIResponsesCodexMetadata
         {
             ProviderRequestKind.Turn => "turn",
             ProviderRequestKind.Compaction => "compaction",
-            ProviderRequestKind.Memory => "memory",
             _ => throw new ArgumentOutOfRangeException(nameof(requestKind), requestKind, null)
         };
 

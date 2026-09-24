@@ -54,7 +54,7 @@
         }
       ]
     },
-    "memoryAutoConsolidateEnabled": {
+    "memoryEnabled": {
       "anyOf": [
         {
           "type": "boolean"

@@ -159,7 +159,7 @@ describe('InputComposer follow-up routing', () => {
   })
 
   it('queues maintenance follow-ups even when Steer is preferred', async () => {
-    useConversationStore.setState({ turnStatus: 'idle', activeTurnId: null, maintenanceKind: 'consolidating' })
+    useConversationStore.setState({ turnStatus: 'idle', activeTurnId: null, maintenanceKind: 'compacting' })
     renderComposer()
     fireEvent.keyDown(draft(), { key: 'Enter' })
     await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('turn/enqueue', expect.anything()))

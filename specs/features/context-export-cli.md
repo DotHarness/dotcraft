@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
+| **Version** | 0.2.0 |
 | **Status** | Draft |
-| **Date** | 2026-06-01 |
+| **Date** | 2026-09-24 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) |
 
 Purpose: define a local, read-only CLI that turns DotCraft workspace sessions, trace metadata, and memory into handoff artifacts for external coding agents and troubleshooting workflows.
@@ -23,13 +23,13 @@ The feature is a local CLI surface, not an AppServer protocol extension. It read
 - Provide a one-command Markdown handoff for an external coding agent.
 - Preserve conversation continuity around rollback and context compaction.
 - Allow users and Doctor skills to locate relevant historical sessions from an error message, symptom, thread id, tool name, provider message, or natural-language query.
-- Make output scope explicit, especially for tool results and memory history.
+- Make output scope explicit, especially for tool results.
 
 ## 3. Non-Goals
 
 - No remote AppServer or JSON-RPC API in the first version.
 - No LLM, embedding, or network-backed ranking in the first version.
-- No mutation, repair, rollback, compaction, memory consolidation, or workspace cleanup.
+- No mutation, repair, rollback, compaction, memory writes, or workspace cleanup.
 - No default export of Dreams memory. Dreams may be added later with explicit low-authority labeling.
 
 ## 4. Command Contract
@@ -46,13 +46,11 @@ Optional:
 - `--output <file>` writes Markdown to a file; omission writes to stdout.
 - `--profile handoff|transcript` records the requested export profile in metadata. Default: `handoff`; the current renderer uses the same document shape for both values.
 - `--tool-results none|summary|full` controls tool result rendering. Default: `summary`.
-- `--history none|tail|full` controls `.craft/memory/HISTORY.md` inclusion. Default: `tail`.
 
 Current export output includes:
 
 - thread metadata
 - workspace memory from `.craft/memory/MEMORY.md`
-- HISTORY tail unless disabled
 - continuity events for rollback and compaction
 - a current-context section that reflects the latest surviving compaction checkpoint when one exists
 - surviving turns ordered by turn start time
@@ -114,7 +112,7 @@ The built-in Doctor plugin should provide a skill that teaches agents to:
 
 - Export renders a handoff Markdown document for an existing thread.
 - Export respects `--tool-results none|summary|full`.
-- Export includes `MEMORY.md` and HISTORY tail by default.
+- Export includes `MEMORY.md`.
 - Export applies rollback records and excludes removed turns.
 - Export recognizes surviving compaction checkpoints and later tail turns.
 - Export emits tool results faithfully within the selected `none|summary|full` scope, including `RequestUserInput` answers.

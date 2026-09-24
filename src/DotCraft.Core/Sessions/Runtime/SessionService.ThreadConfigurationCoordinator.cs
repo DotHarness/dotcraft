@@ -23,11 +23,14 @@ public sealed partial class SessionService
             var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
             using (await owner.AcquireThreadAgentLockAsync(threadId, ct))
             {
+                var previous = thread.Configuration;
                 thread.Configuration = ThreadWorkspaceResolver.Apply(
                     thread.WorkspacePath,
                     config,
                     config.Cwd,
                     config.RuntimeWorkspaceRoots);
+                thread.Configuration.MemoryScope = previous?.MemoryScope;
+                thread.Configuration.MemoryEnabled = previous?.MemoryEnabled;
                 owner.SetThreadAgent(threadId, await owner.BuildAgentForThreadAsync(thread, ct));
                 await owner.PersistThreadWithMaterializationAsync(thread, ct);
                 owner.ThreadUpdatedForBroadcast?.Invoke(thread);

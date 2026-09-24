@@ -34,7 +34,7 @@ export interface ThreadRuntimeSnapshot {
   waitingOnApproval: boolean
   waitingOnInput?: boolean
   waitingOnPlanConfirmation: boolean
-  maintenanceKind?: 'compacting' | 'consolidating' | string | null
+  maintenanceKind?: 'compacting' | string | null
 }
 
 export interface SubAgentThreadSourceWire {

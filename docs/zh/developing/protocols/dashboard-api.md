@@ -66,7 +66,7 @@ fingerprint 同时覆盖内容和有序来源。等价快照会去重。该诊�
 
 每个完成的 provider stream attempt 都会产生一条 `eventType=stream_attempt` 的 `ProviderResponseDiagnostic`。其 metadata 包含 `requestIndex`、`attemptNumber`、`retryLimit`、`outcome`、`retryDecision`、`failureKind`、`durationMs` 和 `visibleOutputEmitted`。OpenAI Responses 诊断还会包含最终 HTTP status、上游 request ID，以及实际 session、thread 和 prompt-cache identity 的 SHA-256 哈希。原始路由 identity、凭据、请求体和响应体不会写入 trace。
 
-上下文压缩和记忆整理等维护请求会额外记录 `MaintenanceForkRequest` / `MaintenanceForkResponse`。这些事件保留维护请求的 snapshot/cache 元数据、模型原始文本、tool-call-only 响应、空响应和 fallback reason，便于从 Dashboard 诊断 `summary_unavailable` 一类问题。
+上下文压缩等维护请求会额外记录 `MaintenanceForkRequest` / `MaintenanceForkResponse`。这些事件保留维护请求的 snapshot/cache 元数据、模型原始文本、tool-call-only 响应、空响应和 fallback reason，便于从 Dashboard 诊断 `summary_unavailable` 一类问题。
 
 `DeferredToolLoading` 用于 provider-native 延迟工具加载，目前包括 OpenAI Responses 和 Anthropic beta tool references。它记录本次由 `SearchTools` 新激活的工具、配置策略、实际生效模式、provider protocol 和 provider wire shape。该事件不代表顶层 `tools` 被注入，也不会标记为 prompt-cache tool extension。
 

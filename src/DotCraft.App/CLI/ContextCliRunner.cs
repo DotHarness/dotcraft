@@ -9,8 +9,7 @@ internal sealed record ContextExportCommandOptions(
     string? WorkspacePath,
     string? OutputPath,
     string? Profile,
-    string? ToolResults,
-    string? History);
+    string? ToolResults);
 
 internal sealed record ContextSearchCommandOptions(
     string Query,
@@ -70,8 +69,7 @@ internal static class ContextCliRunner
             ThreadId = options.ThreadId.Trim(),
             WorkspacePath = options.WorkspacePath,
             Profile = ParseEnum(options.Profile, ContextExportProfile.Handoff, "--profile"),
-            ToolResults = ParseEnum(options.ToolResults, ContextExportToolResultMode.Summary, "--tool-results"),
-            History = ParseEnum(options.History, ContextExportHistoryMode.Tail, "--history")
+            ToolResults = ParseEnum(options.ToolResults, ContextExportToolResultMode.Summary, "--tool-results")
         }, ct).ConfigureAwait(false);
 
         if (string.IsNullOrWhiteSpace(options.OutputPath))

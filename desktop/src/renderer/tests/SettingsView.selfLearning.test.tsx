@@ -161,7 +161,7 @@ describe('SettingsView self-learning settings', () => {
         endPoint: null,
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: false,
-        memoryAutoConsolidateEnabled: false,
+        memoryEnabled: null,
         dreamsEnabled: null,
         dreamsInterval: null,
         dreamsThreadLookbackCount: null,
@@ -175,7 +175,7 @@ describe('SettingsView self-learning settings', () => {
         endPoint: null,
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: null,
-        memoryAutoConsolidateEnabled: null,
+        memoryEnabled: null,
         dreamsEnabled: null,
         dreamsInterval: null,
         dreamsThreadLookbackCount: null,
@@ -188,7 +188,6 @@ describe('SettingsView self-learning settings', () => {
       interval: '24:00:00',
       threadLookbackCount: 20,
       autoApply: false,
-      historyTailChars: 20000,
       minCompletedTurnsSinceLastRun: 5,
       nextRunAt: null,
       running: false,
@@ -213,9 +212,9 @@ describe('SettingsView self-learning settings', () => {
           core.workspace.defaultApprovalPolicy = params.defaultApprovalPolicy
           return { defaultApprovalPolicy: core.workspace.defaultApprovalPolicy }
         }
-        if (typeof params?.memoryAutoConsolidateEnabled === 'boolean') {
-          core.workspace.memoryAutoConsolidateEnabled = params.memoryAutoConsolidateEnabled
-          return { memoryAutoConsolidateEnabled: core.workspace.memoryAutoConsolidateEnabled }
+        if (typeof params?.memoryEnabled === 'boolean') {
+          core.workspace.memoryEnabled = params.memoryEnabled
+          return { memoryEnabled: core.workspace.memoryEnabled }
         }
         if (typeof params?.dreamsEnabled === 'boolean') {
           core.workspace.dreamsEnabled = params.dreamsEnabled
@@ -253,7 +252,6 @@ describe('SettingsView self-learning settings', () => {
           processedThreadCount: 2,
           candidateThreadCount: 2,
           dreamWritten: true,
-          historyWritten: false,
           topicFilesWritten: 0,
           topicFilesDeleted: 0,
           evidenceSearchCount: 1,
@@ -403,7 +401,7 @@ describe('SettingsView self-learning settings', () => {
         endPoint: null,
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: null,
-        memoryAutoConsolidateEnabled: null,
+        memoryEnabled: null,
         defaultApprovalPolicy: null
       },
       userDefaults: {
@@ -411,7 +409,7 @@ describe('SettingsView self-learning settings', () => {
         endPoint: null,
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: null,
-        memoryAutoConsolidateEnabled: null,
+        memoryEnabled: null,
         defaultApprovalPolicy: null
       }
     })
@@ -477,21 +475,59 @@ describe('SettingsView self-learning settings', () => {
     })
   })
 
-  it('saves long-term memory toggle without restart banner', async () => {
+  it('saves the memory toggle without restart banner', async () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
-    const toggle = await screen.findByRole('switch', { name: 'Enable long-term memory' })
-    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    const toggle = await screen.findByRole('switch', { name: 'Enable memories' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
 
     fireEvent.click(toggle)
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        memoryAutoConsolidateEnabled: true
+        memoryEnabled: false
       })
     })
     expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
+  })
+
+  it('disables settings that depend on memory while memory is off', async () => {
+    workspaceConfigGetCore.mockImplementation(async () => ({
+      workspace: { memoryEnabled: false, welcomeSuggestionsEnabled: true, dreamsEnabled: true },
+      userDefaults: {}
+    }))
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'dreams/status') {
+        return { enabled: true, interval: '24:00:00', threadLookbackCount: 20, autoApply: false, running: false, lastRun: null }
+      }
+      if (method === 'channel/list') {
+        return { channels: [] }
+      }
+      return {}
+    })
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        workspaceConfigManagement: true,
+        memoryManagement: true,
+        dreams: true
+      }
+    })
+
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: 'Enable memories' })).toHaveAttribute('aria-checked', 'false')
+    })
+    const dreamsToggle = screen.getByRole('switch', { name: 'Dreams' })
+    expect(dreamsToggle).toBeDisabled()
+    expect(dreamsToggle).toHaveAttribute('aria-checked', 'true')
+    const suggestionsToggle = screen.getByRole('switch', { name: 'Enable suggestions' })
+    expect(suggestionsToggle).toBeDisabled()
+    expect(suggestionsToggle).toHaveAttribute('aria-checked', 'true')
   })
 
   it('resets memory after confirmation and shows success toast', async () => {
@@ -501,18 +537,18 @@ describe('SettingsView self-learning settings', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Reset' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
 
     await waitFor(() => {
       expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Reset memory?',
+        title: 'Delete all memories?',
         danger: true
       }))
       expect(appServerSendRequest).toHaveBeenCalledWith('memory/reset', {}, 20_000)
     })
     expect(useToastStore.getState().toasts).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ message: 'Memory reset', type: 'success' })
+        expect.objectContaining({ message: 'Memories deleted', type: 'success' })
       ])
     )
   })
@@ -529,7 +565,7 @@ describe('SettingsView self-learning settings', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
 
-    expect(screen.queryByText('Reset memory')).not.toBeInTheDocument()
+    expect(screen.queryByText('Delete memories')).not.toBeInTheDocument()
   })
 
   it('keeps Dreams controls hidden when the server capability is absent', async () => {
@@ -537,7 +573,7 @@ describe('SettingsView self-learning settings', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
 
-    expect(screen.queryByText('Enable Dreams')).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: 'Dreams' })).not.toBeInTheDocument()
     expect(screen.queryByText('Dreams')).not.toBeInTheDocument()
     expect(appServerSendRequest).not.toHaveBeenCalledWith('dreams/status', {}, 20_000)
   })
@@ -558,13 +594,13 @@ describe('SettingsView self-learning settings', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
 
-    expect(await screen.findByRole('switch', { name: 'Enable Dreams' })).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('switch', { name: 'Auto-update Dreams' })).toHaveAttribute('aria-checked', 'false')
-    expect(screen.queryByText('Dreams status')).not.toBeInTheDocument()
+    expect(await screen.findByRole('switch', { name: 'Dreams' })).toHaveAttribute('aria-checked', 'true')
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('dreams/status', {}, 20_000)
     })
 
+    fireEvent.click(screen.getByRole('button', { name: 'Manage Dreams' }))
+    expect(await screen.findByRole('switch', { name: 'Auto-update Dreams' })).toHaveAttribute('aria-checked', 'false')
     fireEvent.click(screen.getByRole('switch', { name: 'Auto-update Dreams' }))
     await chooseSelectValue('Dreams frequency', '12:00:00')
     await chooseSelectValue('Recent threads', '50')
@@ -599,6 +635,7 @@ describe('SettingsView self-learning settings', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Dreams' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Run now' }))
 
     await waitFor(() => {
@@ -625,13 +662,12 @@ describe('SettingsView self-learning settings', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Dreams' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Run now' }))
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('dreams/run', {}, 20_000)
     })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Manage Dreams' }))
 
     expect(await screen.findByText('2 threads')).toBeInTheDocument()
     expect(screen.getByText('Succeeded')).toBeInTheDocument()
@@ -676,11 +712,11 @@ describe('SettingsView self-learning settings', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Dreams' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Run now' }))
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('dreams/run', {}, 20_000)
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Manage Dreams' }))
 
     expect(await screen.findByText('2 threads')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Archive', exact: true }))
@@ -727,6 +763,7 @@ describe('SettingsView self-learning settings', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Dreams' }))
     const runNow = await screen.findByRole('button', { name: 'Run now' })
     fireEvent.click(runNow)
     await waitFor(() => {
@@ -737,7 +774,6 @@ describe('SettingsView self-learning settings', () => {
     await waitFor(() => {
       expect(appServerSendRequest.mock.calls.filter(([method]) => method === 'dreams/run')).toHaveLength(2)
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Manage Dreams' }))
 
     expect(await screen.findAllByRole('button', { name: 'Review' })).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: 'Archive all' }))
@@ -818,13 +854,13 @@ describe('SettingsView self-learning settings', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Reset' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
 
     await waitFor(() => {
       expect(useToastStore.getState().toasts).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            message: 'Failed to reset memory: disk denied',
+            message: 'Unable to delete memories',
             type: 'error'
           })
         ])
@@ -1097,7 +1133,7 @@ describe('SettingsView self-learning settings', () => {
         endPoint: null,
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: null,
-        memoryAutoConsolidateEnabled: null,
+        memoryEnabled: null,
         dreamsEnabled: null,
         dreamsInterval: null,
         dreamsThreadLookbackCount: null,
@@ -1111,7 +1147,7 @@ describe('SettingsView self-learning settings', () => {
         endPoint: null,
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: null,
-        memoryAutoConsolidateEnabled: null,
+        memoryEnabled: null,
         dreamsEnabled: null,
         dreamsInterval: null,
         dreamsThreadLookbackCount: null,

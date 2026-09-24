@@ -269,7 +269,6 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<ThreadMaintenanceInterruptParams, global::DotCraft.Protocol.RpcEmpty> ThreadMaintenanceInterrupt = new("thread/maintenance/interrupt", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);
 
-    public static readonly RpcRequest<ThreadMemoryConsolidateStartParams, ThreadMemoryConsolidateStartResponse> ThreadMemoryConsolidateStart = new("thread/memory/consolidate/start", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);
 
     public static readonly RpcRequest<ThreadModeSetParams, global::DotCraft.Protocol.RpcEmpty> ThreadModeSet = new("thread/mode/set", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);
 

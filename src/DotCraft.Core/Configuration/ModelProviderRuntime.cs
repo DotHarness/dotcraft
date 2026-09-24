@@ -27,17 +27,6 @@ public static class ModelProviderResolver
         };
     }
 
-    public static EffectiveModelRuntime ResolveConsolidation(
-        AppConfig config,
-        string? providerIdOverride = null,
-        string? mainModelOverride = null)
-    {
-        var model = string.IsNullOrWhiteSpace(config.ConsolidationModel)
-            ? mainModelOverride
-            : config.ConsolidationModel;
-        return ResolveMain(config, providerIdOverride, model);
-    }
-
     public static EffectiveModelRuntime ResolveSubAgent(
         AppConfig config,
         string effectiveMainProviderId,

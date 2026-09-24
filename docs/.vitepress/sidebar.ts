@@ -191,7 +191,7 @@ export const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         link: '/zh/features/agent-system/',
         items: [
           { text: withIcon('cpu', '总览'), link: '/zh/features/agent-system/' },
-          { text: withIcon('brain', '长期记忆与梦境'), link: '/zh/features/agent-system/memory' },
+          { text: withIcon('brain', '记忆与梦境'), link: '/zh/features/agent-system/memory' },
           { text: withIcon('sparkles', '技能与自学习'), link: '/zh/features/agent-system/skills' },
           { text: withIcon('puzzle', '插件与工具'), link: '/zh/features/agent-system/plugins-tools' },
           { text: withIcon('satelliteDish', 'DotCraft 卫星'), link: '/zh/features/agent-system/satellite' },

@@ -101,7 +101,7 @@ The agent runs in AppServer, so your work outlives the editor. For the full list
 
 ## Sessions shared across clients
 
-An ACP session is a full workspace session. It lives in the same store as your Desktop and bot sessions and shares the same long-term memory. What you work out in the editor is available in a Desktop or QQ bot session in the same workspace, and the other way around.
+An ACP session is a full workspace session. It lives in the same store as your Desktop and bot sessions and shares the same memory. What you work out in the editor is available in a Desktop or QQ bot session in the same workspace, and the other way around.
 
 With `--remote`, several clients stay connected to one AppServer at once. A session you open in Obsidian is visible and continuable in the desktop app in real time. For the model behind this, see [Unified Session Core](../../developing/architecture/session-core).
 

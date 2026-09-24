@@ -66,7 +66,6 @@ internal sealed class CoreTestableSessionService : ISessionService, IThreadAgent
         _materializedNativeSubAgentForks;
     private readonly List<(string ParentThreadId, string ChildThreadId, int MessageCount)>
         _materializedNativeSubAgentForks = [];
-    public Func<string, CancellationToken, Task<ThreadMemoryConsolidationResult>>? ConsolidateThreadMemoryHandler { get; set; }
     public Func<SessionThread, ThreadSummaryRuntime>? RuntimeSnapshotHandler { get; set; }
     public Func<string, CancellationToken, Task<ThreadRecoveryPackage>>? ExportThreadRecoveryHandler { get; set; }
     public Func<string, string, CancellationToken, Task<string>>? RestoreThreadRecoveryHandler { get; set; }
@@ -1109,16 +1108,6 @@ internal sealed class CoreTestableSessionService : ISessionService, IThreadAgent
 
     public Task CleanBackgroundTerminalsAsync(string threadId, CancellationToken ct = default) =>
         Task.CompletedTask;
-
-    public Task<ThreadMemoryConsolidationResult> ConsolidateThreadMemoryAsync(
-        string threadId,
-        CancellationToken ct = default) =>
-        ConsolidateThreadMemoryHandler?.Invoke(threadId, ct)
-        ?? Task.FromResult(new ThreadMemoryConsolidationResult
-        {
-            Outcome = "skipped",
-            Message = "not_configured"
-        });
 
     public async Task<SessionThread> RollbackThreadAsync(string threadId, int numTurns, CancellationToken ct = default)
     {

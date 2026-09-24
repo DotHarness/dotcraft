@@ -24,7 +24,7 @@ export type ItemType =
 
 /**
  * Payload for systemNotice items. Known kinds include `compacted`,
- * `memoryConsolidated`, and `forked`; the optional fields below mirror
+ * `forked`, and `remoteRoute`; the optional fields below mirror
  * `SystemNoticePayload` on the wire.
  */
 export interface SystemNoticeInfo {

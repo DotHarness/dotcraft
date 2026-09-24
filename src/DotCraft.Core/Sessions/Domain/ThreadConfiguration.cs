@@ -23,6 +23,12 @@ public sealed class ThreadConfiguration
     public string? MemoryScope { get; set; }
 
     /// <summary>
+    /// Whether this Thread uses and maintains memory, captured from the workspace at creation. Unset means enabled.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public bool? MemoryEnabled { get; set; }
+
+    /// <summary>
     /// Optional source of the Agent Profile snapshot, such as <c>builtIn</c>, <c>user</c>, or <c>workspace</c>.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]

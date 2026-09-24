@@ -166,8 +166,7 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
             {
               "models": [
                 { "slug": "main-model", "visibility": "list", "priority": 1, "use_responses_lite": true },
-                { "slug": "subagent-model", "visibility": "list", "priority": 2, "use_responses_lite": true },
-                { "slug": "consolidation-model", "visibility": "list", "priority": 3, "use_responses_lite": true }
+                { "slug": "subagent-model", "visibility": "list", "priority": 2, "use_responses_lite": true }
               ]
             }
             """));
@@ -178,16 +177,13 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
 
         var config = OAuthConfig("main-model");
         config.SubAgent.ProviderPreferences["chatgpt"] = new ModelPreference { Model = "subagent-model" };
-        config.ConsolidationModel = "consolidation-model";
         var registry = new ChatClientRegistry(provider);
 
         var main = registry.ResolveMainRuntime(config);
         var subAgent = registry.ResolveSubAgentRuntime(config, main.ProviderId, main.Model);
-        var consolidation = registry.ResolveConsolidationRuntime(config);
 
         Assert.False(main.UseResponsesLite);
         Assert.False(subAgent.UseResponsesLite);
-        Assert.False(consolidation.UseResponsesLite);
         Assert.Equal("acct_runtime", main.ChatGptAccountId);
     }
 

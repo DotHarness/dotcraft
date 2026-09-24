@@ -54,7 +54,6 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
     public CancellationToken LastSubmitCancellationToken { get; private set; }
     public Func<string, IList<AIContent>, ChatMessage[]?, IEnumerable<SessionEvent>>? SubmitInputHandler { get; set; }
     public Func<SessionThread, CancellationToken, Task>? CreateThreadHandler { get; set; }
-    public Func<string, CancellationToken, Task<ThreadMemoryConsolidationResult>>? ConsolidateThreadMemoryHandler { get; set; }
     public Func<SessionThread, ThreadSummaryRuntime>? RuntimeSnapshotHandler { get; set; }
     public Func<string, CancellationToken, Task<ThreadRecoveryPackage>>? ExportThreadRecoveryHandler { get; set; }
     public Func<string, string, CancellationToken, Task<string>>? RestoreThreadRecoveryHandler { get; set; }
@@ -926,16 +925,6 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
 
     public Task CleanBackgroundTerminalsAsync(string threadId, CancellationToken ct = default) =>
         Task.CompletedTask;
-
-    public Task<ThreadMemoryConsolidationResult> ConsolidateThreadMemoryAsync(
-        string threadId,
-        CancellationToken ct = default) =>
-        ConsolidateThreadMemoryHandler?.Invoke(threadId, ct)
-        ?? Task.FromResult(new ThreadMemoryConsolidationResult
-        {
-            Outcome = "skipped",
-            Message = "not_configured"
-        });
 
     public async Task<SessionThread> RollbackThreadAsync(string threadId, int numTurns, CancellationToken ct = default)
     {

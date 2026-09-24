@@ -29,16 +29,10 @@ public sealed class WelcomeSuggestionToolSource(
 
 public sealed class WelcomeWorkspaceMemoryResult
 {
-    [Description("Tail-trimmed MEMORY.md content.")]
+    [Description("Trimmed MEMORY.md content.")]
     public string Memory { get; set; } = string.Empty;
 
-    [Description("Tail-trimmed HISTORY.md content.")]
-    public string HistoryTail { get; set; } = string.Empty;
-
-    [Description("Combined workspace memory context.")]
-    public string Combined { get; set; } = string.Empty;
-
-    [Description("Short highlights extracted from workspace memory and recent history.")]
+    [Description("Short highlights extracted from workspace memory.")]
     public string[] MemoryHighlights { get; set; } = [];
 }
 
@@ -50,15 +44,13 @@ public sealed class WelcomeSuggestionToolItem
     [Description("Full prompt text inserted into the welcome composer when clicked.")]
     public string Prompt { get; set; } = string.Empty;
 
-    [Description("Brief explanation of which history or memory signals inspired this suggestion.")]
+    [Description("Brief explanation of which memory signals inspired this suggestion.")]
     public string Reason { get; set; } = string.Empty;
 }
 
 internal sealed class WelcomeSuggestionToolMethods(MemoryStore memoryStore)
 {
     private const int MemoryCharsLimit = 5_000;
-    private const int HistoryTailCharsLimit = 3_000;
-    private const int TotalMemoryCharsLimit = 8_000;
 
     private static readonly JsonSerializerOptions JsonOptions = JsonSerializerOptions.Web;
 
@@ -66,19 +58,15 @@ internal sealed class WelcomeSuggestionToolMethods(MemoryStore memoryStore)
         Icon = "🧠",
         DisplayType = typeof(WelcomeSuggestionToolDisplays),
         DisplayMethod = nameof(WelcomeSuggestionToolDisplays.ReadWelcomeWorkspaceMemory))]
-    [Description("Read workspace MEMORY.md and the recent tail of HISTORY.md for welcome suggestion grounding. Returns a compact JSON string.")]
+    [Description("Read workspace MEMORY.md for welcome suggestion grounding. Returns a compact JSON string.")]
     public Task<string> ReadWelcomeWorkspaceMemory()
     {
         var memoryText = WelcomeSuggestionService.TrimToLimit(memoryStore.ReadLongTerm(), MemoryCharsLimit);
-        var historyTail = WelcomeSuggestionService.ReadHistoryTailFromFile(memoryStore.HistoryFilePath, HistoryTailCharsLimit);
-        var combined = WelcomeSuggestionService.CombineMemory(memoryText, historyTail, TotalMemoryCharsLimit);
 
         return Task.FromResult(Serialize(new WelcomeWorkspaceMemoryResult
         {
             Memory = memoryText,
-            HistoryTail = historyTail,
-            Combined = combined,
-            MemoryHighlights = WelcomeSuggestionService.ExtractMemoryHighlights(memoryText, historyTail)
+            MemoryHighlights = WelcomeSuggestionService.ExtractMemoryHighlights(memoryText)
         }));
     }
 

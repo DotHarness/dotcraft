@@ -1,5 +1,5 @@
 ---
-version: "0.29.0"
+version: "0.30.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -1508,8 +1508,15 @@ Explanatory text belongs to the row it explains: a control row is label, hint,
 control, with the hint in the `--type-hint` tier under the label and the control
 on the right. A group description is reserved for list groups whose rows are
 items — paired PCs, servers, people — and so have nowhere else to say what the
-group is; it defines the feature in one sentence rather than describing a
+group is, and for a group whose rows together configure one feature, such as
+Memory; it defines the feature in one sentence rather than describing a
 scenario or a benefit. A row never repeats its group's title.
+
+A setting that works only while another setting is on keeps its row when that
+prerequisite is off: its control is disabled with its stored value unchanged, and
+a tooltip on the control names the prerequisite, such as "Enable memories to use
+Dreams". The hint keeps defining the setting rather than describing the
+dependency, and turning the prerequisite back on restores the setting as stored.
 
 Each page or segment has one principal action, and it carries the primary neutral
 inversion wherever it sits in the header; refresh and other quiet actions beside

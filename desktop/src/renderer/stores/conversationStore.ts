@@ -53,8 +53,7 @@ export type { ShellRuntimeEntry } from './shellRuntimeBuffer'
 
 export type PlanTodoStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 
-export type MaintenanceKind = 'compacting' | 'consolidating'
-export type BackgroundMemoryStatus = 'consolidating'
+export type MaintenanceKind = 'compacting'
 
 export interface PlanTodoItem {
   id: string
@@ -338,8 +337,6 @@ interface ConversationState {
   outputTokens: number
   /** Transient system status translation key, e.g. "systemStatus.compacting". */
   systemLabel: string | null
-  /** Thread-scoped background memory work that should not block input. */
-  backgroundMemoryStatus: BackgroundMemoryStatus | null
   /** Transient provider stream retry rows for the active turn; never persisted. */
   streamRetry: StreamRetryStatus | null
   /** Thread-level maintenance that should keep input in queue mode. */
@@ -510,7 +507,6 @@ const initialState: ConversationState = {
   inputTokens: 0,
   outputTokens: 0,
   systemLabel: null,
-  backgroundMemoryStatus: null,
   streamRetry: null,
   maintenanceKind: null,
   pendingMessage: null,
@@ -1362,38 +1358,20 @@ function upsertItemById(items: ConversationItem[], item: ConversationItem): Conv
 
 const SYSTEM_LABELS: Record<string, string | null> = {
   compacting: 'systemStatus.compacting',
-  consolidating: 'systemStatus.consolidating',
   compacted: null,
   compactFailed: null,
   compactSkipped: null,
-  compactCancelled: null,
-  consolidated: null,
-  consolidationSkipped: null,
-  consolidationFailed: null,
-  consolidationCancelled: null
+  compactCancelled: null
 }
 
-const CONSOLIDATION_TERMINAL_EVENTS = new Set([
-  'consolidated',
-  'consolidationSkipped',
-  'consolidationFailed',
-  'consolidationCancelled'
-])
-
-const MAINTENANCE_SYSTEM_LABELS = new Set([
-  'systemStatus.compacting.manual',
-  'systemStatus.consolidating'
-])
+const MANUAL_COMPACTING_LABEL = 'systemStatus.compacting.manual'
 
 function systemLabelForEvent(
   kind: string,
   params?: { turnId?: string | null }
 ): string | null | undefined {
-  if (kind === 'consolidating' && params?.turnId) {
-    return undefined
-  }
   if (kind === 'compacting' && !params?.turnId) {
-    return 'systemStatus.compacting.manual'
+    return MANUAL_COMPACTING_LABEL
   }
   return SYSTEM_LABELS[kind]
 }
@@ -1402,42 +1380,22 @@ function maintenanceKindForSystemEvent(
   kind: string,
   params?: { turnId?: string | null }
 ): MaintenanceKind | null | undefined {
-  if (kind === 'consolidating') return params?.turnId ? undefined : 'consolidating'
   if (kind === 'compacting' && !params?.turnId) return 'compacting'
   if (
     kind === 'compacted'
     || kind === 'compactSkipped'
     || kind === 'compactFailed'
     || kind === 'compactCancelled'
-    || kind === 'consolidated'
-    || kind === 'consolidationSkipped'
-    || kind === 'consolidationFailed'
-    || kind === 'consolidationCancelled'
   ) {
     return null
   }
   return undefined
 }
 
-function backgroundMemoryStatusForSystemEvent(
-  kind: string,
-  params?: { turnId?: string | null }
-): BackgroundMemoryStatus | null | undefined {
-  if (kind === 'consolidating' && params?.turnId) return 'consolidating'
-  if (CONSOLIDATION_TERMINAL_EVENTS.has(kind)) return null
-  return undefined
-}
-
 function normalizeMaintenanceKind(kind: MaintenanceKind | string | null | undefined): MaintenanceKind | null {
-  if (kind === 'compacting' || kind === 'consolidating') return kind
-  return null
+  return kind === 'compacting' ? kind : null
 }
 
-function systemLabelForMaintenanceKind(kind: MaintenanceKind): string {
-  return kind === 'compacting'
-    ? 'systemStatus.compacting.manual'
-    : 'systemStatus.consolidating'
-}
 
 function computeSeverity(tokens: number, snapshot: {
   warningThreshold: number
@@ -1719,7 +1677,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           ? (activeTurn.startedAt ? new Date(activeTurn.startedAt).getTime() : Date.now())
           : null,
         maintenanceKind: null,
-        backgroundMemoryStatus: null,
         streamRetry: null,
         itemDiffs,
         turnDiffs: foldHistoryTurnDiffs(
@@ -2799,15 +2756,11 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   onSystemEvent(kind, params) {
     const label = systemLabelForEvent(kind, params)
     const maintenanceKind = maintenanceKindForSystemEvent(kind, params)
-    const backgroundMemoryStatus = backgroundMemoryStatusForSystemEvent(kind, params)
     if (label !== undefined) {
       set({ systemLabel: label })
     }
     if (maintenanceKind !== undefined) {
       set({ maintenanceKind })
-    }
-    if (backgroundMemoryStatus !== undefined) {
-      set({ backgroundMemoryStatus })
     }
 
     if (kind === 'streamError') {
@@ -2863,13 +2816,13 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       if (maintenanceKind) {
         return {
           maintenanceKind,
-          systemLabel: systemLabelForMaintenanceKind(maintenanceKind)
+          systemLabel: MANUAL_COMPACTING_LABEL
         }
       }
 
       return {
         maintenanceKind: null,
-        systemLabel: state.systemLabel != null && MAINTENANCE_SYSTEM_LABELS.has(state.systemLabel)
+        systemLabel: state.systemLabel === MANUAL_COMPACTING_LABEL
           ? null
           : state.systemLabel
       }

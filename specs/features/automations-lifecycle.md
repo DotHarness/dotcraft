@@ -108,8 +108,8 @@ periodic jobs continue at the next occurrence. Interrupted runs are recorded on 
 
 Follow-ups default to thread mode and continue the specified conversation. Independent
 runs create a new conversation each time and name the automation as their memory scope,
-so successive runs share one long-term memory written by ordinary consolidation rather
-than by a reported field. Thread mode carries continuity in the target conversation and
+so successive runs share one long-term memory that the agent maintains, rather
+than a reported field. Thread mode carries continuity in the target conversation and
 names no scope. Record exact turn ids. Git workspaces default to a fresh worktree per
 run; non-Git use project mode. Reported summaries have a hard size limit.
 Explicit worktree provisioning failure is an error, never a silent fallback. Missing or

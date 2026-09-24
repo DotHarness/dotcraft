@@ -1198,7 +1198,6 @@ export interface DreamsRunState {
   evidenceReadCount?: number;
   evidenceSearchCount?: number;
   evidenceThreadIds?: string[];
-  historyWritten?: boolean;
   id?: string;
   inputManifestPath?: string | null;
   message?: string | null;
@@ -1226,7 +1225,6 @@ export interface DreamsStatusResult {
   activeDreamStoreId?: string | null;
   autoApply?: boolean;
   enabled?: boolean;
-  historyTailChars?: number;
   interval?: string;
   lastRun?: DreamsRunState | null;
   minCompletedTurnsSinceLastRun?: number;
@@ -2942,7 +2940,6 @@ export interface ServerCapabilities {
   hooksManagement?: boolean;
   inlineVisualizations?: boolean;
   manualCompaction?: boolean;
-  manualMemoryConsolidation?: boolean;
   mcpApps?: boolean;
   mcpElicitation?: boolean;
   mcpManagement?: boolean;
@@ -4018,19 +4015,6 @@ export interface ThreadMcpServerConfig {
   [key: string]: unknown;
 }
 
-export interface ThreadMemoryConsolidateStartParams {
-  threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface ThreadMemoryConsolidateStartResponse {
-  historyWritten?: boolean;
-  memoryWritten?: boolean;
-  message?: string | null;
-  outcome?: string;
-  [key: string]: unknown;
-}
-
 export interface ThreadModeSetParams {
   mode?: string;
   threadId?: string;
@@ -5018,7 +5002,7 @@ export interface WorkspaceConfigUpdateParams {
   dreamsEnabled?: boolean | null;
   dreamsInterval?: string | null;
   dreamsThreadLookbackCount?: number | null;
-  memoryAutoConsolidateEnabled?: boolean | null;
+  memoryEnabled?: boolean | null;
   providerId?: string | null;
   providerPreferences?: Record<string, ModelPreference> | null;
   skillsIncludeSharedSkills?: boolean | null;
@@ -5034,7 +5018,7 @@ export interface WorkspaceConfigUpdateResult {
   dreamsEnabled?: boolean | null;
   dreamsInterval?: string | null;
   dreamsThreadLookbackCount?: number | null;
-  memoryAutoConsolidateEnabled?: boolean | null;
+  memoryEnabled?: boolean | null;
   providerId?: string | null;
   providerPreferences?: Record<string, ModelPreference> | null;
   skillsIncludeSharedSkills?: boolean | null;

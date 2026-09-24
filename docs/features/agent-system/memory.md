@@ -1,6 +1,6 @@
 # Memory & Dreams
 
-DotCraft carries useful project context into later conversations: decisions you discussed, preferences you set, problems you already worked around.
+DotCraft carries what you teach it into later conversations: the preferences you state and the corrections you make.
 
 ![How DotCraft saves and reuses memory](/memory-lifecycle-topology.svg)
 
@@ -9,20 +9,22 @@ DotCraft carries useful project context into later conversations: decisions you 
 | Type | What it helps with |
 |---|---|
 | **Conversation history** | Reopen an earlier conversation and pick up where you left off |
-| **Saved memory** | Keep stable project context, preferences, and decisions, carried into every conversation |
+| **Saved memory** | Keep your preferences and corrections, carried into every conversation |
 | **Dreams** | Track recent focus and open questions that have not settled yet |
 
 ## Manage memory
 
 Tell DotCraft what to remember, correct, or forget, for example: “Remember that I prefer short answers.” Later conversations can use the saved information.
 
-To clear a project's memory, open **Settings → Personalization → Reset memory** in Desktop. This also clears Dreams and keeps your conversation history.
+To stop using memory, turn off **Settings → Personalization → Enable memories** in Desktop. New conversations then start without memory, and Dreams and welcome suggestions pause until you turn it back on.
+
+To clear a project's memory, open **Settings → Personalization → Delete memories**. This also clears Dreams and keeps your conversation history.
 
 ## Dreams
 
 Dreams reviews recent workspace activity and creates tentative notes for later conversations.
 
-Turn it on in Desktop under **Settings → Personalization → Dreams**. Each run waits for your review, and later conversations use it only once you apply it. You can also turn on auto-update so successful runs take effect directly.
+Turn it on in Desktop under **Settings → Personalization → Dreams**. Each run waits for your review, and later conversations use it only once you apply it. To let runs take effect directly, turn on auto-update under **Manage**.
 
 ![Reviewing a Dreams run](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.gif)
 

@@ -43,7 +43,6 @@ export interface ServerCapabilities {
   threadGoals?: boolean
   subAgentSessions?: boolean
   manualCompaction?: boolean
-  manualMemoryConsolidation?: boolean
   remoteToolHost?: boolean
   appBindingVersion?: number
   extensions?: Record<string, unknown>
