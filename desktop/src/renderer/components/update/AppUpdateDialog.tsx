@@ -1,10 +1,10 @@
-import { useEffect, type CSSProperties } from 'react'
+import { useEffect, useMemo, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertCircle, CheckCircle2, Download, ExternalLink } from 'lucide-react'
+import DOMPurify from 'dompurify'
 
 import type { AppUpdateState } from '../../../shared/appUpdate'
 import { useT } from '../../contexts/LocaleContext'
-import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import { Button } from '../ui/Button'
 import { ModalHeader } from '../ui/ModalHeader'
 
@@ -12,12 +12,14 @@ interface AppUpdateDialogProps {
   state: AppUpdateState
   onClose: () => void
   onDownload: () => void
+  onInstall: () => void
 }
 
 export function AppUpdateDialog({
   state,
   onClose,
-  onDownload
+  onDownload,
+  onInstall
 }: AppUpdateDialogProps): JSX.Element {
   const t = useT()
   const update = state.update
@@ -25,24 +27,27 @@ export function AppUpdateDialog({
   const downloaded = state.status === 'downloaded'
   const failed = state.status === 'error'
   const error = failed ? state.error : undefined
-  const canClose = !downloading && !downloaded
   const progress = state.progress
+  const releaseNotesHtml = useMemo(
+    () => (update?.releaseNotes ? DOMPurify.sanitize(update.releaseNotes) : ''),
+    [update?.releaseNotes]
+  )
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape' && canClose) {
+      if (event.key === 'Escape') {
         event.preventDefault()
         onClose()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [canClose, onClose])
+  }, [onClose])
 
-  const primaryLabel = downloading
-    ? t('update.downloading')
-    : downloaded
-      ? t('update.installing')
+  const primaryLabel = downloaded
+    ? t('update.restart')
+    : downloading
+      ? t('update.downloading')
       : failed
         ? t('update.retry')
         : t('update.download')
@@ -51,7 +56,7 @@ export function AppUpdateDialog({
     <div
       style={backdropStyle}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget && canClose) {
+        if (event.target === event.currentTarget) {
           onClose()
         }
       }}
@@ -69,7 +74,7 @@ export function AppUpdateDialog({
           description={
             update ? t('update.subtitle', { version: update.latestVersion }) : t('update.checking')
           }
-          onClose={canClose ? onClose : undefined}
+          onClose={onClose}
           closeLabel={t('update.closeAria')}
           style={headerStyle}
         />
@@ -77,11 +82,17 @@ export function AppUpdateDialog({
         <div style={contentStyle}>
           {update ? (
             <div className="app-update-notes" style={notesStyle}>
-              <MarkdownRenderer
-                content={update.releaseNotes || t('update.noReleaseNotes')}
-                linkMode="external"
-                containOverflow
-              />
+              {releaseNotesHtml ? (
+                <div
+                  className="markdown-body markdown-body--contained"
+                  onClick={openReleaseNotesLink}
+                  dangerouslySetInnerHTML={{ __html: releaseNotesHtml }}
+                />
+              ) : (
+                <div className="markdown-body markdown-body--contained">
+                  <p>{t('update.noReleaseNotes')}</p>
+                </div>
+              )}
             </div>
           ) : (
             <p style={bodyStyle}>{t('update.checkingBody')}</p>
@@ -92,7 +103,7 @@ export function AppUpdateDialog({
               <div style={progressLabelStyle}>
                 <span>{downloaded ? t('update.installing') : t('update.downloading')}</span>
                 <span style={progressBytesStyle}>
-                  {formatBytes(progress?.transferredBytes ?? 0)} / {formatBytes(progress?.totalBytes ?? update?.sizeBytes ?? 0)}
+                  {formatBytes(progress?.transferredBytes ?? 0)} / {formatBytes(progress?.totalBytes ?? 0)}
                   {' · '}
                   {Math.round(progress?.percent ?? 0)}%
                 </span>
@@ -111,7 +122,7 @@ export function AppUpdateDialog({
           {downloaded && (
             <div style={successStyle}>
               <CheckCircle2 size={16} strokeWidth={2} aria-hidden="true" />
-              {t('update.installSoon')}
+              {t('update.readyToRestart')}
             </div>
           )}
 
@@ -130,7 +141,7 @@ export function AppUpdateDialog({
                 variant="ghost"
                 iconLeft={<ExternalLink size={14} strokeWidth={2} aria-hidden="true" />}
                 onClick={() => {
-                  void window.api.shell.openExternal(update.htmlUrl as string)
+                  void window.api.shell.openExternal(update.htmlUrl)
                 }}
               >
                 {t('update.viewRelease')}
@@ -145,8 +156,8 @@ export function AppUpdateDialog({
             )}
             <Button
               variant="primary"
-              onClick={onDownload}
-              disabled={!update || downloading || downloaded}
+              onClick={downloaded ? onInstall : onDownload}
+              disabled={!update || downloading}
               loading={downloading}
             >
               {primaryLabel}
@@ -158,6 +169,14 @@ export function AppUpdateDialog({
   )
 
   return createPortal(dialog, document.body)
+}
+
+function openReleaseNotesLink(event: ReactMouseEvent<HTMLDivElement>): void {
+  const anchor = (event.target as HTMLElement).closest('a[href]')
+  if (!anchor) return
+  event.preventDefault()
+  const href = anchor.getAttribute('href') ?? ''
+  if (/^https?:\/\//i.test(href)) void window.api.shell.openExternal(href)
 }
 
 function formatBytes(bytes: number): string {
@@ -198,7 +217,7 @@ const dialogStyle: CSSProperties = {
 }
 
 const headerStyle: CSSProperties = {
-  margin: '20px 22px 0'
+  margin: '20px 22px 16px'
 }
 
 const contentStyle: CSSProperties = {

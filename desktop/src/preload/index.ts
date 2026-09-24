@@ -1632,8 +1632,11 @@ const api = {
     check(): Promise<AppUpdateState> {
       return ipcRenderer.invoke('app:update-check')
     },
-    downloadAndInstall(): Promise<AppUpdateState> {
-      return ipcRenderer.invoke('app:update-download-and-install')
+    download(): Promise<AppUpdateState> {
+      return ipcRenderer.invoke('app:update-download')
+    },
+    install(): Promise<void> {
+      return ipcRenderer.invoke('app:update-install')
     },
     onStateChanged(callback: (state: AppUpdateState) => void): UnsubscribeFn {
       const token = ++appUpdateStateToken

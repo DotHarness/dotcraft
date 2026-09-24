@@ -45,9 +45,15 @@ const SCREEN_VIEW_DEFAULT: ApiOverrides<Api>['screenView'] = {
   onState: () => () => undefined
 }
 
+/** General settings reads update support whenever it opens. */
+const UPDATES_DEFAULT: ApiOverrides<Api>['updates'] = {
+  getState: () => Promise.resolve({ status: 'unsupported', currentVersion: '' })
+}
+
 export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
   const api = strictApi({
     ...overrides,
+    updates: { ...UPDATES_DEFAULT, ...overrides.updates },
     satellites: { ...SATELLITES_DEFAULT, ...overrides.satellites },
     desktopPet: { ...DESKTOP_PET_DEFAULT, ...overrides.desktopPet },
     screenView: { ...SCREEN_VIEW_DEFAULT, ...overrides.screenView }

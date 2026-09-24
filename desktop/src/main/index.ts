@@ -285,7 +285,6 @@ let workspaceActivationGeneration = 0
 let whatsNewMediaCache: WhatsNewMediaCache | null = null
 let whatsNewCatalog: WhatsNewCatalog | null = null
 let appUpdateService: AppUpdateService | null = null
-let initialUpdateCheckStarted = false
 let desktopProcessRegistration: DesktopProcessRegistrationHandle | null = null
 const isTrayMode = process.argv.includes('--tray')
 const CHROME_SETTINGS_DEEP_LINK_PORT = Number.parseInt(process.env.DOTCRAFT_DESKTOP_DEEPLINK_PORT || '32178', 10)
@@ -837,13 +836,7 @@ function getAppUpdateService(): AppUpdateService {
 }
 
 function scheduleInitialUpdateCheck(): void {
-  if (initialUpdateCheckStarted) return
-  initialUpdateCheckStarted = true
-  setTimeout(() => {
-    void getAppUpdateService().checkForUpdates().catch((error) => {
-      console.warn('[desktop] failed to check for updates', error)
-    })
-  }, 1200)
+  setTimeout(() => getAppUpdateService().start(), 1200)
 }
 
 
@@ -3030,9 +3023,8 @@ function registerMenuPopupIpc(): void {
   ))
   ipcMain.handle('app:update-get-state', () => getAppUpdateService().getState())
   ipcMain.handle('app:update-check', () => getAppUpdateService().checkForUpdates())
-  ipcMain.handle('app:update-download-and-install', () => (
-    getAppUpdateService().downloadAndInstall()
-  ))
+  ipcMain.handle('app:update-download', () => getAppUpdateService().download())
+  ipcMain.handle('app:update-install', () => getAppUpdateService().install())
   ipcMain.handle('profile:get-github-identity', (_event, username: string) =>
     getGitHubIdentity(typeof username === 'string' ? username : '')
   )

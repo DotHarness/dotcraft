@@ -72,17 +72,6 @@ export function CustomMenuBar(): JSX.Element {
     }
   }, [])
 
-  const handleDownloadUpdate = useCallback((): void => {
-    void window.api.updates.downloadAndInstall()
-      .then(setUpdateState)
-      .catch((error: unknown) => {
-        setUpdateState((current) => ({
-          ...current,
-          status: 'error',
-          error: error instanceof Error ? error.message : String(error)
-        }))
-      })
-  }, [])
 
   return (
     <div
@@ -130,7 +119,7 @@ export function CustomMenuBar(): JSX.Element {
               {updateState.status === 'downloading'
                 ? <Spinner size={16} />
                 : <Download size={16} aria-hidden="true" />}
-              {(updateState.status === 'available' || updateState.status === 'error') && (
+              {(updateState.status === 'downloaded' || updateState.status === 'error') && (
                 <span style={updateBadgeStyle} aria-hidden="true" />
               )}
             </>
@@ -190,7 +179,8 @@ export function CustomMenuBar(): JSX.Element {
         <AppUpdateDialog
           state={updateState}
           onClose={() => setUpdateDialogOpen(false)}
-          onDownload={handleDownloadUpdate}
+          onDownload={() => void window.api.updates.download()}
+          onInstall={() => void window.api.updates.install()}
         />
       )}
     </div>
@@ -263,7 +253,7 @@ const topBarIconButtonStyle: CSSProperties = {
 }
 
 function updateButtonStyle(status: AppUpdateState['status']): CSSProperties {
-  const active = status === 'available' || status === 'error'
+  const active = status === 'downloaded' || status === 'error'
   return {
     ...noDrag,
     position: 'relative',

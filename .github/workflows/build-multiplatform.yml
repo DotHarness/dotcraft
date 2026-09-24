@@ -280,14 +280,14 @@ jobs:
       shell: bash
       run: |
         mkdir -p desktop/dist/installer
-        mv desktop/dist/*Setup*.exe desktop/dist/installer/ || true
+        mv desktop/dist/*-Setup.exe desktop/dist/*-Setup.exe.blockmap desktop/dist/latest.yml desktop/dist/installer/
 
     - name: Upload app installer - Windows
       if: runner.os == 'Windows'
       uses: actions/upload-artifact@v6
       with:
         name: DotCraft-Installer-${{ matrix.runtime_id }}
-        path: desktop/dist/installer/*.exe
+        path: desktop/dist/installer/*
 
     - name: Upload app artifacts - macOS
       if: runner.os == 'macOS'
@@ -383,14 +383,12 @@ jobs:
           echo "Renamed: $(basename "$file") -> $new_name"
         done
 
-        # Rename app artifacts - Windows
-        for file in artifacts/DotCraft-Installer-win-*/*.exe; do
-          [ -f "$file" ] || continue
-          target=$(basename "$(dirname "$file")")
-          target=${target#DotCraft-Installer-}
-          new_name="DotCraft-${VERSION}-${target}-Setup.exe"
-          cp "$file" "release/$new_name"
-          echo "Renamed: $(basename "$file") -> $new_name"
+        # Desktop installers keep their built names because latest.yml points at them
+        cp artifacts/DotCraft-Installer-win-*/*-Setup.exe artifacts/DotCraft-Installer-win-*/*-Setup.exe.blockmap release/
+        yq '.files += load("artifacts/DotCraft-Installer-win-arm64/latest.yml").files' artifacts/DotCraft-Installer-win-x64/latest.yml > release/latest.yml
+        for arch in x64 arm64; do
+          test -f "release/DotCraft-${VERSION}-win-${arch}-Setup.exe"
+          yq -e ".files[] | select(.url == \"DotCraft-${VERSION}-win-${arch}-Setup.exe\")" release/latest.yml > /dev/null
         done
 
         # Rename Satellite installers

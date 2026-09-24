@@ -2,7 +2,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AppUpdateInfo, AppUpdateState } from '../../shared/appUpdate'
+import type { AppUpdateState } from '../../shared/appUpdate'
 import { AppUpdateDialog } from '../components/update/AppUpdateDialog'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -23,50 +23,46 @@ beforeEach(() => {
 })
 
 describe('AppUpdateDialog', () => {
-  it('renders release notes through the shared markdown renderer', () => {
+  it('renders sanitized release notes and opens their links externally', () => {
     renderDialog({
-      releaseNotes: [
-        '# DotCraft v0.1.9',
-        '',
-        '1. **Docker Deployment**',
-        '',
-        '[View release](https://example.com/release)'
-      ].join('\n')
+      status: 'available',
+      releaseNotes: '<h1>DotCraft v0.7.4</h1><img src="x" onerror="alert(1)"><p><a href="https://example.com/release">Details</a></p>'
     })
 
-    expect(screen.getByRole('heading', { name: 'DotCraft v0.1.9', level: 1 })).toBeInTheDocument()
-    expect(screen.getByRole('listitem')).toHaveTextContent('Docker Deployment')
-    expect(document.querySelector('strong')).toHaveTextContent('Docker Deployment')
-    expect(document.body.textContent).not.toContain('**Docker Deployment**')
+    expect(screen.getByRole('heading', { name: 'DotCraft v0.7.4', level: 1 })).toBeInTheDocument()
+    expect(document.querySelector('[onerror]')).toBeNull()
 
-    fireEvent.click(screen.getByRole('link', { name: /view release/i }))
+    fireEvent.click(screen.getByRole('link', { name: 'Details' }))
     expect(openExternal).toHaveBeenCalledWith('https://example.com/release')
+  })
+
+  it('installs a downloaded update from the primary action', () => {
+    const { onDownload, onInstall } = renderDialog({ status: 'downloaded' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restart to update' }))
+
+    expect(onInstall).toHaveBeenCalledOnce()
+    expect(onDownload).not.toHaveBeenCalled()
   })
 })
 
-function renderDialog(update?: Partial<AppUpdateInfo>): void {
+function renderDialog({ status, releaseNotes }: { status: AppUpdateState['status']; releaseNotes?: string }) {
+  const onDownload = vi.fn()
+  const onInstall = vi.fn()
   const state: AppUpdateState = {
-    status: 'available',
-    currentVersion: '0.1.8',
+    status,
+    currentVersion: '0.7.3',
     update: {
-      currentVersion: '0.1.8',
-      latestVersion: '0.1.9',
-      tagName: 'v0.1.9',
-      assetName: 'DotCraft-v0.1.9-win-x64-Setup.exe',
-      sizeBytes: 192 * 1024 * 1024,
-      downloadUrl: 'https://github.com/DotHarness/dotcraft/releases/download/v0.1.9/DotCraft-v0.1.9-win-x64-Setup.exe',
-      htmlUrl: 'https://github.com/DotHarness/dotcraft/releases/tag/v0.1.9',
-      ...update
+      latestVersion: '0.7.4',
+      releaseNotes,
+      htmlUrl: 'https://github.com/DotHarness/dotcraft/releases/tag/v0.7.4'
     }
   }
 
   render(
     <LocaleProvider>
-      <AppUpdateDialog
-        state={state}
-        onClose={vi.fn()}
-        onDownload={vi.fn()}
-      />
+      <AppUpdateDialog state={state} onClose={vi.fn()} onDownload={onDownload} onInstall={onInstall} />
     </LocaleProvider>
   )
+  return { onDownload, onInstall }
 }
