@@ -248,6 +248,7 @@ $targets = @(
     @{ Type = "xml"; Path = "src/DotCraft.App/DotCraft.App.csproj" },
     @{ Type = "xml"; Path = "src/DotCraft.Oratorio/DotCraft.Oratorio.csproj" },
     @{ Type = "xml"; Path = "src/DotCraft.Satellite/DotCraft.Satellite.csproj" },
+    @{ Type = "dotnetPackage"; Path = "src/DotCraft.Core/DotCraft.Core.csproj" },
     @{ Type = "dotnetPackage"; Path = "src/DotCraft.Harness/DotCraft.Harness.csproj" },
     @{ Type = "dotnetPackage"; Path = "sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj" },
     @{ Type = "packageJson"; Path = "desktop/package.json" },

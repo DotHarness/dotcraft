@@ -10,7 +10,8 @@ internal sealed record PluginHostVersion(Version Product)
 
     private static readonly Lazy<PluginHostVersion> Lazy = new(Resolve, isThreadSafe: true);
 
-    /// <summary>Gets the Host identity of the running process, resolved from the entry assembly.</summary>
+    /// <summary>Gets the Host identity of the running process: the version of the assembly that carries the
+    /// plugin API, so an application embedding DotCraft is measured by the engine it embeds.</summary>
     public static PluginHostVersion Current => Lazy.Value;
 
     /// <summary>Determines whether this Host satisfies a manifest's declared minimum Host version.
@@ -36,18 +37,19 @@ internal sealed record PluginHostVersion(Version Product)
         return true;
     }
 
-    private static PluginHostVersion Resolve() => new(ResolveProduct());
+    private static PluginHostVersion Resolve() => For(typeof(PluginHostVersion).Assembly);
 
-    private static Version ResolveProduct()
+    internal static PluginHostVersion For(Assembly assembly) => new(ResolveProduct(assembly));
+
+    private static Version ResolveProduct(Assembly assembly)
     {
-        var entry = Assembly.GetEntryAssembly();
-        var informational = entry
-            ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+        var informational = assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
             ?.InformationalVersion;
         if (TryReadLeadingVersion(informational, out var fromInformational))
             return fromInformational;
 
-        var assemblyVersion = entry?.GetName().Version;
+        var assemblyVersion = assembly.GetName().Version;
         return assemblyVersion == null
             ? new Version(0, 0, 0)
             : new Version(assemblyVersion.Major, assemblyVersion.Minor, Math.Max(assemblyVersion.Build, 0));

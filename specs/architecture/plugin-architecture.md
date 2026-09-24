@@ -206,7 +206,7 @@ The module exports one activation function. Activation may register renderer eff
 
 `dotnet` is optional. When present, `version` is mandatory and:
 
-- `minHostVersion` is required and is the canonical `MAJOR.MINOR.PATCH` minimum DotCraft host version the plugin runs on. A host below it blocks the plugin before any of its code is loaded.
+- `minHostVersion` is required and is the canonical `MAJOR.MINOR.PATCH` minimum DotCraft host version the plugin runs on. A host below it blocks the plugin before any of its code is loaded. The host version is the version of `DotCraft.Core`, the assembly that carries the plugin API, so an application that embeds DotCraft is measured by the engine it embeds rather than by its own version.
 - `entryAssembly` is required and names one managed entry assembly.
 - `entryType` is required and is the full CLR name of one public, concrete, non-generic type that implements `DotCraft.Plugins.IDotCraftPlugin` and has a public parameterless constructor.
 - `exportedApiAssemblies` is optional and defaults to an empty array. Every entry names a separate managed contract assembly whose public API may be consumed by declared dependent plugins. The entry assembly itself cannot be exported.

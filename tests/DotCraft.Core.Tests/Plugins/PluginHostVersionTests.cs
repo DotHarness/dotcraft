@@ -66,4 +66,16 @@ public sealed class PluginHostVersionTests
         Assert.Same(current, PluginHostVersion.Current);
         Assert.NotNull(current.Product);
     }
+
+    [Fact]
+    public void Current_IsTheVersionOfThePluginApiAssemblyRatherThanTheEntryAssembly()
+    {
+        var api = typeof(PluginHostVersion).Assembly;
+        var entry = System.Reflection.Assembly.GetEntryAssembly()!;
+
+        Assert.Equal(PluginHostVersion.PluginApiAssemblyName, api.GetName().Name);
+        Assert.Equal(PluginHostVersion.For(api).Product, PluginHostVersion.Current.Product);
+        Assert.NotEqual(PluginHostVersion.For(entry).Product, PluginHostVersion.Current.Product);
+        Assert.NotEqual(new Version(0, 0, 0), PluginHostVersion.Current.Product);
+    }
 }

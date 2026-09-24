@@ -44,7 +44,7 @@ Co-authored-by: DotCraft <273930855+dotcraft-ai@users.noreply.github.com>
 
     private static string GetIdentityLine()
     {
-        // The entry assembly carries the product version; test hosts and embedding apps report 0.0.0 or their own.
+        // An unversioned build of DotCraft.Core reports 0.0.0 and names no version.
         var product = PluginHostVersion.Current.ProductText;
         return product == "0.0.0"
             ? "You are DotCraft, a helpful AI assistant."
