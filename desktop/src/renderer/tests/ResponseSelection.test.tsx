@@ -17,7 +17,7 @@ beforeEach(() => {
   useComposerContextStore.setState({ byThread: {} })
   useThreadStore.setState({ activeThreadId: 'task' })
   useVoiceStore.setState({ initialized: true, recording: null, finalizing: null,
-    snapshot: { model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }, sessions: [], capacity: 2 } })
+    snapshot: { model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }, chatGpt: { signedIn: false, enabled: true }, sessions: [], capacity: 2 } })
   installDesktopApiMock({ settings: { get: async () => ({ locale: 'en' }) }, shell: { showReplyTextMenu: showMenu } })
 })
 

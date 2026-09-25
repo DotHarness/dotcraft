@@ -3292,6 +3292,31 @@
       "variants": []
     },
     {
+      "id": "core.AuthOpenAiStatusParams",
+      "name": "AuthOpenAiStatusParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/AuthOpenAiStatusParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "includeToken",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "refreshToken",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.AuthOpenAiStatusResult",
       "name": "AuthOpenAiStatusResult",
       "module": "core",
@@ -3311,6 +3336,13 @@
           "type": "string",
           "required": false,
           "nullable": true,
+          "const": null
+        },
+        {
+          "name": "authToken",
+          "type": "string",
+          "required": false,
+          "nullable": false,
           "const": null
         },
         {
@@ -26228,7 +26260,7 @@
       "descriptorMember": "AuthOpenAiStatus",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "core.RpcEmpty",
+      "paramsType": "core.AuthOpenAiStatusParams",
       "resultType": "core.AuthOpenAiStatusResult",
       "module": "core",
       "capability": null,

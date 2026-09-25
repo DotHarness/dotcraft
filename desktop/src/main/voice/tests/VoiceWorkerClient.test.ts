@@ -18,13 +18,13 @@ describe('UtilityVoiceWorkerClient', () => {
       }
     })
     const fork = vi.fn(() => worker as unknown as UtilityProcess)
-    const client = new UtilityVoiceWorkerClient({ modulePath: 'voiceWorker.js' }, fork)
+    const client = new UtilityVoiceWorkerClient({ modulePath: 'voiceWorker.js', modelPath: 'ggml-base.bin' }, fork)
 
-    await expect(client.transcribe('session-a', 'a.wav', 'ggml-base.bin')).resolves.toEqual({
+    await expect(client.transcribe('session-a', 'a.wav')).resolves.toEqual({
       transcript: 'hello',
       language: 'en'
     })
-    await expect(client.transcribe('session-b', 'b.wav', 'ggml-base.bin')).resolves.toEqual({
+    await expect(client.transcribe('session-b', 'b.wav')).resolves.toEqual({
       transcript: 'hello',
       language: 'en'
     })
@@ -43,10 +43,10 @@ describe('UtilityVoiceWorkerClient', () => {
       if (message.method === 'initialize') worker.respond(message.id, {})
     })
     const client = new UtilityVoiceWorkerClient(
-      { modulePath: 'voiceWorker.js' },
+      { modulePath: 'voiceWorker.js', modelPath: 'ggml-base.bin' },
       () => worker as unknown as UtilityProcess
     )
-    const transcription = client.transcribe('session-a', 'a.wav', 'ggml-base.bin')
+    const transcription = client.transcribe('session-a', 'a.wav')
     await vi.waitFor(() => expect(worker.messages.at(-1)?.method).toBe('transcribe'))
 
     await client.cancel('session-a')
@@ -65,14 +65,14 @@ describe('UtilityVoiceWorkerClient', () => {
     })
     const workers = [first, second]
     const fork = vi.fn(() => workers.shift() as unknown as UtilityProcess)
-    const client = new UtilityVoiceWorkerClient({ modulePath: 'voiceWorker.js' }, fork)
-    const failed = client.transcribe('session-a', 'a.wav', 'ggml-base.bin')
+    const client = new UtilityVoiceWorkerClient({ modulePath: 'voiceWorker.js', modelPath: 'ggml-base.bin' }, fork)
+    const failed = client.transcribe('session-a', 'a.wav')
     await vi.waitFor(() => expect(first.messages.at(-1)?.method).toBe('transcribe'))
 
     first.crash()
 
     await expect(failed).rejects.toMatchObject({ code: 'worker-crashed' } satisfies Partial<VoiceWorkerError>)
-    await expect(client.transcribe('session-a', 'a.wav', 'ggml-base.bin')).resolves.toEqual({
+    await expect(client.transcribe('session-a', 'a.wav')).resolves.toEqual({
       transcript: 'recovered',
       language: undefined
     })

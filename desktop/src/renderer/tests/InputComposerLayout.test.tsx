@@ -147,7 +147,7 @@ describe('InputComposer layout', () => {
     useComposerDraftStore.setState({ draftsByThread: {} })
     useVoiceStore.setState({
       initialized: false,
-      snapshot: { model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }, sessions: [], capacity: 2 },
+      snapshot: { model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }, chatGpt: { signedIn: false, enabled: true }, sessions: [], capacity: 2 },
       recording: null,
       finalizing: null,
       microphonePermission: 'unknown',
@@ -269,7 +269,7 @@ describe('InputComposer layout', () => {
   it('uses the compact voice footer while recording', () => {
     useVoiceStore.setState({
       initialized: true,
-      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, sessions: [], capacity: 2 },
+      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, chatGpt: { signedIn: false, enabled: true }, sessions: [], capacity: 2 },
       recording: { threadId: 'thread-1', startedAt: 0, elapsedMs: 1_000, level: 0.5 }
     })
 
@@ -292,7 +292,7 @@ describe('InputComposer layout', () => {
     })
     useVoiceStore.setState({
       initialized: true,
-      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, sessions: [], capacity: 2 },
+      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, chatGpt: { signedIn: false, enabled: true }, sessions: [], capacity: 2 },
       recording: null,
       finalizing: { threadId: 'thread-1', intent: 'insert', durationMs: 1_000 }
     })
@@ -313,6 +313,7 @@ describe('InputComposer layout', () => {
       initialized: true,
       snapshot: {
         model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 },
+        chatGpt: { signedIn: false, enabled: true },
         sessions: [{
           sessionId: 'voice-session',
           threadId: 'thread-1',
@@ -341,6 +342,7 @@ describe('InputComposer layout', () => {
       initialized: true,
       snapshot: {
         model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 },
+        chatGpt: { signedIn: false, enabled: true },
         sessions: [{
           sessionId: 'voice-session',
           threadId: 'thread-1',
@@ -388,6 +390,7 @@ describe('InputComposer layout', () => {
       initialized: true,
       snapshot: {
         model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 },
+        chatGpt: { signedIn: false, enabled: true },
         sessions: [{
           sessionId: 'other-voice-session',
           threadId: 'thread-2',
@@ -411,7 +414,7 @@ describe('InputComposer layout', () => {
   it('keeps this composer normal while another thread is finalizing audio', () => {
     useVoiceStore.setState({
       initialized: true,
-      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, sessions: [], capacity: 2 },
+      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, chatGpt: { signedIn: false, enabled: true }, sessions: [], capacity: 2 },
       recording: null,
       finalizing: { threadId: 'thread-2', intent: 'insert', durationMs: 1_000 }
     })
@@ -429,6 +432,7 @@ describe('InputComposer layout', () => {
       initialized: true,
       snapshot: {
         model: { phase: 'downloading', bytesDownloaded: 50, bytesTotal: 100 },
+        chatGpt: { signedIn: false, enabled: true },
         sessions: [],
         capacity: 2
       },
@@ -446,7 +450,7 @@ describe('InputComposer layout', () => {
   it('uses the compact voice footer in the agent builder composer', () => {
     useVoiceStore.setState({
       initialized: true,
-      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, sessions: [], capacity: 2 },
+      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, chatGpt: { signedIn: false, enabled: true }, sessions: [], capacity: 2 },
       recording: { threadId: 'agent-builder-intro', startedAt: 0, elapsedMs: 1_000, level: 0.5 }
     })
 
@@ -546,6 +550,7 @@ describe('InputComposer layout', () => {
       initialized: true,
       snapshot: {
         model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 },
+        chatGpt: { signedIn: false, enabled: true },
         sessions: phase === 'transcribing' ? [{
           sessionId: 'agent-builder-voice-session',
           threadId: 'agent-builder-intro',
@@ -577,7 +582,7 @@ describe('InputComposer layout', () => {
   it('keeps a missing-device microphone available for retry', () => {
     useVoiceStore.setState({
       initialized: true,
-      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, sessions: [], capacity: 2 },
+      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, chatGpt: { signedIn: false, enabled: true }, sessions: [], capacity: 2 },
       localErrors: { 'thread-1': 'device-missing' }
     })
 
@@ -598,6 +603,7 @@ describe('InputComposer layout', () => {
         voice: {
           getSnapshot: vi.fn().mockResolvedValue({
             model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null },
+            chatGpt: { signedIn: false, enabled: true },
             sessions: [],
             capacity: 2
           }),

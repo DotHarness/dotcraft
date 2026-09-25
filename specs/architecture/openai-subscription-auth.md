@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 1.1.0 |
+| Version | 1.2.0 |
 | Status | Living |
-| Date | 2026-09-24 |
+| Date | 2026-09-25 |
 
 DotCraft natively supports authenticating outgoing model requests against a user's ChatGPT
 subscription (Plus, Pro, Team, Business, Enterprise, Edu) as an alternative to the standard
@@ -463,7 +463,7 @@ which also mounts this user data directory.
 
 | Method | Direction | Purpose |
 |---|---|---|
-| `auth/openai/status` | request | Returns logged-in account metadata or `loggedIn: false` |
+| `auth/openai/status` | request | Returns logged-in account metadata or `loggedIn: false`; optionally the current access token |
 | `auth/openai/login` | request | Starts a login flow; blocks until the user completes the browser step |
 | `auth/openai/logout` | request | Revokes + clears local tokens; unbinds the provider |
 | `auth/openai/usage` | request | Returns the cached usage snapshot; triggers an inline fetch when none is cached |
@@ -477,6 +477,19 @@ different device.
 
 The capability flags `authOpenAiOAuth` and `authOpenAiUsage` (in the `initialize` response)
 advertise whether the auth and usage surfaces are available.
+
+`auth/openai/status` accepts optional params:
+
+| Param | Type | Meaning |
+|---|---|---|
+| `includeToken` | boolean | Add `authToken`, the current access token, to the result |
+| `refreshToken` | boolean | Force a token refresh before answering; otherwise the usual proactive refresh applies |
+
+`authToken` is returned only when `includeToken` is true and the server holds the ChatGPT
+credentials locally. A model-service connection reports its remote sign-in state but never returns
+a token. A refresh failure answers with `loggedIn` as usual and no `authToken`. Clients use the
+token only for their own ChatGPT backend requests (see
+[Voice Input](../features/voice-input.md#5a-chatgpt-transcription)) and must not persist or log it.
 
 ## Desktop UX
 
@@ -496,6 +509,10 @@ Settings → Providers:
 - Successful login creates or updates the requested provider, then opens its saved editor.
   Editor navigation is independent of workspace activation. A valid OAuth selection must not
   be replaced merely because it has no API key. Late login results must not change another editor.
+
+Voice input:
+- While signed in, Desktop transcribes voice input through ChatGPT unless the user turns that
+  off in Settings → Voice. [Voice Input](../features/voice-input.md) owns the behavior.
 
 Composer footer:
 - When the active provider's `AuthMethod` is `chatgptOAuth`, a compact icon-only usage control is
@@ -524,8 +541,9 @@ Composer footer:
 - The `client_id` is a public identifier that several third-party clients also use; OpenAI's
   backend cannot distinguish DotCraft from any other client sharing that id on this code path.
   Rate limits and account-level usage caps apply globally to that identity.
-- Only the `/backend-api/codex` Responses surface is supported. Chat-Completions, Assistants,
-  Batch, and Files endpoints are not available on the ChatGPT backend.
+- Model requests use only the `/backend-api/codex` surface. Chat-Completions, Assistants, Batch,
+  and Files endpoints are not available on the ChatGPT backend. Desktop voice input additionally
+  uploads audio to `/backend-api/transcribe` from Electron Main.
 - The bundled fallback catalog is only an offline/setup fallback. Signed-in ChatGPT OAuth providers
   use `/backend-api/codex/models` as the source of truth, including newly enabled account-specific
   models.

@@ -106,6 +106,7 @@ export interface ProfileSettings {
 export interface VoiceSettings {
   /** Omitted follows the operating-system default. */
   deviceId?: string
+  chatGptTranscription?: boolean
 }
 
 export interface AppSettings {
@@ -314,12 +315,14 @@ export function normalizeProfileSettings(settings: AppSettings): ProfileSettings
   return { githubUsername: username }
 }
 
-function normalizeVoiceSettings(settings: AppSettings): VoiceSettings | undefined {
+export function normalizeVoiceSettings(settings: AppSettings): VoiceSettings | undefined {
   const raw = settings.voice
   if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const voice: VoiceSettings = {}
   const deviceId = typeof raw.deviceId === 'string' ? raw.deviceId.trim() : ''
-  if (!deviceId || /[\u0000-\u001f]/.test(deviceId)) return undefined
-  return { deviceId }
+  if (deviceId && !/[\u0000-\u001f]/.test(deviceId)) voice.deviceId = deviceId
+  if (raw.chatGptTranscription === false) voice.chatGptTranscription = false
+  return Object.keys(voice).length > 0 ? voice : undefined
 }
 
 function normalizeUiTheme(settings: AppSettings): UiTheme | undefined {

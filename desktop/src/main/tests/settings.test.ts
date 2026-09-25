@@ -8,6 +8,7 @@ import {
   normalizeProfileSettings,
   normalizeSatelliteRouteByThread,
   normalizeShowInMenuBar,
+  normalizeVoiceSettings,
   removeRecentWorkspace
 } from '../settings'
 
@@ -134,6 +135,14 @@ describe('settings normalization', () => {
     expect(normalizeProfileSettings({ profile: { githubUsername: '-bad' } })).toBeUndefined()
     expect(normalizeProfileSettings({ profile: { githubUsername: 'has space' } })).toBeUndefined()
     expect(normalizeProfileSettings({})).toBeUndefined()
+  })
+
+  it('keeps the ChatGPT transcription opt-out without a microphone preference', () => {
+    expect(normalizeVoiceSettings({ voice: { chatGptTranscription: false } }))
+      .toEqual({ chatGptTranscription: false })
+    expect(normalizeVoiceSettings({ voice: { deviceId: ' mic-1 ', chatGptTranscription: true } }))
+      .toEqual({ deviceId: 'mic-1' })
+    expect(normalizeVoiceSettings({ voice: { deviceId: '', chatGptTranscription: true } })).toBeUndefined()
   })
 
   it('keeps a valid menu bar visibility toggle', () => {

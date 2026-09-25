@@ -257,7 +257,7 @@ describe('ConversationWelcome composer', () => {
     useComposerDraftStore.setState({ draftsByThread: {} })
     useVoiceStore.setState({
       initialized: false,
-      snapshot: { model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }, sessions: [], capacity: 2 },
+      snapshot: { model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }, chatGpt: { signedIn: false, enabled: true }, sessions: [], capacity: 2 },
       recording: null,
       finalizing: null,
       localErrors: {}
@@ -657,6 +657,7 @@ describe('ConversationWelcome composer', () => {
         initialized: true,
         snapshot: {
           model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 },
+          chatGpt: { signedIn: false, enabled: true },
           sessions: [{
             sessionId: 'welcome-session',
             threadId: 'welcome-composer:voice-welcome',
@@ -686,7 +687,7 @@ describe('ConversationWelcome composer', () => {
     act(() => {
       useVoiceStore.setState({
         initialized: true,
-        snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, sessions: [], capacity: 2 },
+        snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, chatGpt: { signedIn: false, enabled: true }, sessions: [], capacity: 2 },
         recording: null,
         finalizing: {
           threadId: 'welcome-composer:voice-finalizing',

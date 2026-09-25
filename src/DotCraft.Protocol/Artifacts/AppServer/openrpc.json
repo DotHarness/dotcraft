@@ -1003,7 +1003,7 @@
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/core/RpcEmpty.schema.json"
+            "$ref": "./schemas/core/AuthOpenAiStatusParams.schema.json"
           }
         }
       ],

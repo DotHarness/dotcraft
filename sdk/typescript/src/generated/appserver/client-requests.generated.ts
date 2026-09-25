@@ -33,7 +33,7 @@ export interface ClientRequestMethods {
   "app/view": { params: Models.AppViewParams; result: Models.AppViewResult };
   "auth/openai/login": { params: Models.AuthOpenAiLoginParams; result: Models.AuthOpenAiStatusResult };
   "auth/openai/logout": { params: Models.AuthOpenAiLogoutParams; result: Models.AuthOpenAiStatusResult };
-  "auth/openai/status": { params: Models.RpcEmpty; result: Models.AuthOpenAiStatusResult };
+  "auth/openai/status": { params: Models.AuthOpenAiStatusParams; result: Models.AuthOpenAiStatusResult };
   "auth/openai/usage": { params: Models.RpcEmpty; result: Models.AuthOpenAiUsageResult };
   "automation/create": { params: Models.AutomationCreateParams; result: Models.AutomationReadResult };
   "automation/delete": { params: Models.AutomationIdParams; result: Models.AutomationDeleteResult };

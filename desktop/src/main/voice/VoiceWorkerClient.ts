@@ -7,13 +7,14 @@ export interface VoiceTranscriptionResult {
 }
 
 export interface VoiceTranscriber {
-  transcribe(sessionId: string, wavPath: string, modelPath: string): Promise<VoiceTranscriptionResult>
+  transcribe(sessionId: string, wavPath: string): Promise<VoiceTranscriptionResult>
   cancel(sessionId: string): Promise<void>
   shutdown(): Promise<void>
 }
 
 export interface VoiceWorkerLaunch {
   modulePath: string
+  modelPath: string
 }
 
 interface WorkerResponse {
@@ -40,7 +41,7 @@ export class VoiceWorkerError extends Error {
 
 export class UtilityVoiceWorkerClient implements VoiceTranscriber {
   private child: UtilityProcess | null = null
-  private initializedModelPath: string | null = null
+  private initialized = false
   private readonly pending = new Map<string, PendingRequest>()
   private stopping = false
 
@@ -49,12 +50,8 @@ export class UtilityVoiceWorkerClient implements VoiceTranscriber {
     private readonly forkWorker: ForkVoiceWorker = defaultForkVoiceWorker
   ) {}
 
-  async transcribe(
-    sessionId: string,
-    wavPath: string,
-    modelPath: string
-  ): Promise<VoiceTranscriptionResult> {
-    await this.ensureStarted(modelPath)
+  async transcribe(sessionId: string, wavPath: string): Promise<VoiceTranscriptionResult> {
+    await this.ensureStarted()
     const result = await this.request('transcribe', { sessionId, wavPath }, sessionId)
     return {
       transcript: typeof result.transcript === 'string' ? result.transcript.trim() : '',
@@ -85,8 +82,8 @@ export class UtilityVoiceWorkerClient implements VoiceTranscriber {
     }
   }
 
-  private async ensureStarted(modelPath: string): Promise<void> {
-    if (this.child && this.initializedModelPath === modelPath) return
+  private async ensureStarted(): Promise<void> {
+    if (this.child && this.initialized) return
     if (this.child) await this.shutdown()
 
     const child = this.forkWorker(this.launch.modulePath)
@@ -99,8 +96,8 @@ export class UtilityVoiceWorkerClient implements VoiceTranscriber {
 
     try {
       await waitForSpawn(child)
-      await this.request('initialize', { protocolVersion: 1, modelPath })
-      this.initializedModelPath = modelPath
+      await this.request('initialize', { protocolVersion: 1, modelPath: this.launch.modelPath })
+      this.initialized = true
     } catch (error) {
       if (this.child === child) this.terminateChild()
       throw error
@@ -156,7 +153,7 @@ export class UtilityVoiceWorkerClient implements VoiceTranscriber {
 
   private resetChild(): void {
     this.child = null
-    this.initializedModelPath = null
+    this.initialized = false
   }
 }
 

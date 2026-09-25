@@ -9,6 +9,7 @@ import { installDesktopApiMock } from './desktopApiMock'
 
 const INSTALLED_SNAPSHOT: VoiceRuntimeSnapshot = {
   model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 },
+  chatGpt: { signedIn: false, enabled: true },
   sessions: [],
   capacity: 2
 }
@@ -99,6 +100,60 @@ describe('VoiceInputControl pointer interaction', () => {
     renderControl()
 
     expect(screen.getByRole('button', { name: 'Click to dictate or hold' })).toBeEnabled()
+  })
+})
+
+describe('VoiceInputControl transcription routes', () => {
+  const startRecording = vi.fn<() => Promise<void>>()
+
+  beforeEach(() => {
+    startRecording.mockReset().mockResolvedValue(undefined)
+    installDesktopApiMock({
+      initialLocale: 'en',
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) }
+    })
+    useVoiceStore.setState({
+      initialized: true,
+      recording: null,
+      finalizing: null,
+      microphonePermission: 'granted',
+      localErrors: {},
+      initialize: vi.fn(),
+      startRecording: startRecording as never,
+      cancelRecordingStart: vi.fn()
+    })
+  })
+
+  it.each(['missing', 'downloading'] as const)('records through ChatGPT while the model is %s', async (phase) => {
+    useVoiceStore.setState({
+      snapshot: {
+        ...INSTALLED_SNAPSHOT,
+        model: { phase, bytesDownloaded: 0, bytesTotal: 1 },
+        chatGpt: { signedIn: true, enabled: true }
+      }
+    })
+    renderControl()
+
+    await act(async () => { fireEvent.click(screen.getByRole('button')) })
+
+    expect(startRecording).toHaveBeenCalledWith('thread-1')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('opens setup instead of recording when no route can transcribe', async () => {
+    useVoiceStore.setState({
+      snapshot: {
+        ...INSTALLED_SNAPSHOT,
+        model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null },
+        chatGpt: { signedIn: true, enabled: false }
+      }
+    })
+    renderControl()
+
+    await act(async () => { fireEvent.click(screen.getByRole('button')) })
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(startRecording).not.toHaveBeenCalled()
   })
 })
 

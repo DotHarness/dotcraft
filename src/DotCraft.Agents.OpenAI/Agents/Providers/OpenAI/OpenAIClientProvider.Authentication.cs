@@ -30,6 +30,22 @@ public sealed partial class OpenAIClientProvider
         _openAIAuthService?.LogoutAsync(cancellationToken)
         ?? Task.CompletedTask;
 
+    async Task<string?> IProviderAuthentication.TryGetAccessTokenAsync(
+        bool forceRefresh,
+        CancellationToken cancellationToken)
+    {
+        if (_openAIAuthService == null)
+            return null;
+        try
+        {
+            return await _openAIAuthService.GetAccessTokenAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OpenAIAuthException)
+        {
+            return null;
+        }
+    }
+
     private static ProviderAuthorizationRequest CreateAuthorizationRequest(string value)
     {
         if (!Uri.TryCreate(value, UriKind.Absolute, out var authorizationUrl))

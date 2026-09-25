@@ -2,18 +2,18 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.3.0 |
+| **Version** | 1.4.0 |
 | **Status** | Living |
-| **Date** | 2026-08-07 |
-| **Related Specs** | [Desktop Client](../clients/desktop-client.md), [Design System](../architecture/DESIGN.md) |
+| **Date** | 2026-09-25 |
+| **Related Specs** | [Desktop Client](../clients/desktop-client.md), [Design System](../architecture/DESIGN.md), [OpenAI Subscription Auth](../architecture/openai-subscription-auth.md) |
 
-Purpose: define local speech-to-text input for the DotCraft Desktop Composer.
+Purpose: define speech-to-text input for the DotCraft Desktop Composer.
 
 ---
 
 ## 1. Scope
 
-Voice Input lets a user record speech in a DotCraft Composer, transcribe it with a DotCraft-managed local Whisper model, and append the transcript to the originating draft.
+Voice Input lets a user record speech in a DotCraft Composer, transcribe it, and append the transcript to the originating draft. A user signed in with ChatGPT transcribes through the ChatGPT subscription by default; every other user, or a user who turns that route off, transcribes with a DotCraft-managed local Whisper model.
 
 The feature includes:
 
@@ -21,22 +21,23 @@ The feature includes:
 - Click-to-toggle and fixed hold-to-dictate interaction.
 - A real signal-driven recording waveform.
 - Local transcription through an isolated TypeScript inference worker using whisper.cpp Node bindings.
+- ChatGPT subscription transcription from Electron Main, with a Settings switch that keeps all audio on the device.
 - One managed multilingual model with automatic language detection.
 - Model installation, validation, repair, cancellation, and removal.
 - Microphone selection and permission recovery in Desktop settings.
 - Background transcription and writeback after thread navigation.
-- A bounded local transcription queue and true retry after failure.
+- A bounded transcription queue and true retry after failure.
 
-The feature is owned entirely by Desktop. Audio, model state, and transcription jobs do not cross the AppServer boundary.
+The feature is owned by Desktop. Audio, model state, and transcription jobs do not cross the AppServer boundary; the ChatGPT route only reads a short-lived access token from the connected AppServer.
 
 ## 2. Principles
 
-- **Local by default.** Recorded audio is processed on the device and is never sent to AppServer or another speech service.
+- **Subscription first, local always available.** With a ChatGPT sign-in and the ChatGPT switch on, recorded audio is sent only to ChatGPT's transcription service. Otherwise it is processed on the device. Audio is never sent to AppServer or any other speech service.
 - **Composer-native.** Voice Input adds text only to a DotCraft Composer. It does not inject text into other applications.
 - **Draft-safe.** Recording, transcription, navigation, and failure must not destroy or replace existing draft content.
 - **Quiet feedback.** Composer state uses existing inline controls without redundant status copy, percentages, or success notifications.
-- **One managed path.** V1 exposes no provider, language, or model selection.
-- **Bounded local work.** One worker serializes inference, and Desktop accepts at most two unresolved voice sessions.
+- **Two managed routes.** ChatGPT transcription and the managed Whisper model are the only routes. The ChatGPT switch is the only choice exposed; there is no provider, language, or model selection.
+- **Bounded work.** One queue serializes transcription on either route, and Desktop accepts at most two unresolved voice sessions.
 - **Agent independence.** Voice Input does not change Agent execution, stop, queue, or send semantics.
 - **Design-system owned.** Voice Input reuses maintained Composer, settings, dialog, tooltip, select, progress, and action primitives rather than introducing a parallel visual language.
 - **User-facing language.** Product copy describes the action or recovery available to the user and does not expose worker, PCM, provider, model-taxonomy, or queue terminology.
@@ -46,8 +47,10 @@ The feature is owned entirely by Desktop. Audio, model state, and transcription 
 V1 does not include:
 
 - Voice chat, text-to-speech, or live conversational audio.
-- Cloud speech providers, credentials, or provider selection.
-- AppServer, SDK, CLI, Channel, or protocol support for speech-to-text.
+- Cloud speech providers other than the ChatGPT subscription, API-key speech services, or provider selection.
+- AppServer, SDK, CLI, Channel, or protocol methods for speech-to-text.
+- Streaming dictation or model-based transcript cleanup on the ChatGPT route.
+- Automatic fallback to the local model after a ChatGPT transcription failure.
 - Linux release support.
 - Custom model import, model selection, or model update controls.
 - Manual recognition-language selection.
@@ -60,7 +63,7 @@ V1 does not include:
 
 ## 4. Architecture boundary
 
-Voice Input uses four Desktop-owned layers:
+Voice Input uses five Desktop-owned layers:
 
 | Layer | Responsibility |
 |-------|----------------|
@@ -68,14 +71,16 @@ Voice Input uses four Desktop-owned layers:
 | Renderer Voice Coordinator | Owns recording and session UI state across route changes and writes completed transcripts to the originating draft. |
 | Electron Main voice service | Owns microphone permission status and recovery, model lifecycle, bounded queue admission, temporary audio, worker lifecycle, retry state, and typed preload events. |
 | TypeScript inference worker | Runs in an Electron Utility Process, loads the managed ggml model through a typed whisper.cpp binding, and performs one Whisper transcription at a time. |
+| ChatGPT transcription client | Runs in Electron Main, reads an access token from the connected AppServer for each request, and uploads the session WAV to ChatGPT (section 5A). |
 
 Electron Main is the trust boundary:
 
 - Renderer never receives model or temporary-audio filesystem paths.
 - The inference worker never accesses thread state or Desktop settings.
 - AppServer does not receive audio, transcripts, progress, or model state.
-- Speech-provider types remain behind a DotCraft-owned worker adapter and do not appear in Desktop IPC.
-- Remote AppServer mode does not change Voice Input because capture and inference stay local to Desktop.
+- Speech-provider types remain behind DotCraft-owned transcriber adapters and do not appear in Desktop IPC.
+- Renderer never receives the ChatGPT access token or account id.
+- The ChatGPT route uses the ChatGPT sign-in of the connected AppServer host. With a remote AppServer this is the remote host's sign-in. A model-service connection never exposes a token, so it always uses the local route.
 
 The Voice Coordinator lives above the thread route. Unmounting a Composer must not destroy a recording result or prevent writeback to its originating draft.
 
@@ -124,6 +129,35 @@ The TypeScript worker entry and default whisper.cpp native binding are packaged 
 
 The pinned `@fugood/whisper.node` package does not publish the declaration file referenced by its manifest. DotCraft therefore owns a narrow ambient declaration for only the private worker APIs it uses. Any binding upgrade must revalidate the published package shape, remove or update that declaration as appropriate, and repeat packaged native-module smoke tests.
 
+## 5A. ChatGPT transcription
+
+The ChatGPT route is available when all of these hold:
+
+1. The Desktop setting `voice.chatGptTranscription` is on. It defaults to on.
+2. The connected AppServer advertises `authOpenAiOAuth`.
+3. `auth/openai/status` with `includeToken: true` reports `loggedIn: true` and returns `authToken` (see [OpenAI Subscription Auth](../architecture/openai-subscription-auth.md#appserver-json-rpc)).
+
+Main refreshes availability, without keeping the token, when the AppServer connection changes, when `auth/openai/usageChanged` arrives, and when the setting changes. Main reads a fresh token for every request and never caches, persists, logs, or forwards it.
+
+Request contract:
+
+| Item | Value |
+|------|-------|
+| Endpoint | `POST https://chatgpt.com/backend-api/transcribe` |
+| Body | `multipart/form-data` with one `file` part: the session WAV (16 kHz mono PCM16), filename `dotcraft.wav`, content type `audio/wav` |
+| Language | Not sent; the service detects it |
+| Headers | `Authorization: Bearer <authToken>`, `ChatGPT-Account-Id: <accountId>`, and the same `originator` value DotCraft sends on ChatGPT Responses requests |
+| Response | JSON; only `text` is read, and other fields are ignored |
+| HTTP stack | Electron `net.fetch`. Other HTTP stacks receive a bot challenge on this endpoint. |
+
+Response handling:
+
+- HTTP 401 reads a token with `refreshToken: true` and retries once. A second 401, or a status without a token, fails with `auth-required`.
+- HTTP 429 fails with `usage-limit`.
+- A connection failure fails with `network-error`.
+- Any other non-success status or an unreadable body fails with `transcription-failed`.
+- Discarding the session, removing its origin, or exiting Desktop aborts the request.
+
 ## 6. Desktop voice boundary
 
 Preload exposes a typed `window.api.voice` namespace. This is a Desktop host API, not an AppServer or SDK contract.
@@ -156,6 +190,9 @@ type VoiceErrorCode =
   | 'worker-unavailable'
   | 'worker-crashed'
   | 'transcription-failed'
+  | 'network-error'
+  | 'auth-required'
+  | 'usage-limit'
   | 'cancelled'
 
 interface VoiceModelState {
@@ -174,8 +211,14 @@ interface VoiceSessionState {
   errorCode?: VoiceErrorCode
 }
 
+interface VoiceChatGptState {
+  signedIn: boolean
+  enabled: boolean
+}
+
 interface VoiceRuntimeSnapshot {
   model: VoiceModelState
+  chatGpt: VoiceChatGptState
   sessions: VoiceSessionState[]
   capacity: 2
 }
@@ -221,11 +264,13 @@ Boundary invariants:
 - Main validates every payload, duration, thread id, intent, and queue transition.
 - `pcm16` contains mono signed 16-bit little-endian samples at 16 kHz.
 - `submitTranscription` creates a Main-owned WAV and returns after queue admission, not after inference.
+- Main admits a session when either route is available: ChatGPT (`chatGpt.signedIn && chatGpt.enabled`) or an installed model. Otherwise it rejects with `model-missing`.
+- Main chooses the route when a session starts transcribing, including on Retry, not when it is admitted.
 - Only a completed event may contain transcript text.
 - Errors expose codes and safe English fallbacks, not raw worker exceptions.
 - Event subscriptions return an unsubscribe function and are removed with the owning window.
 - Main rejects a third unresolved session with `queue-full`, even if Renderer state is stale.
-- Microphone selection remains in the existing Desktop settings API.
+- Microphone selection and `voice.chatGptTranscription` remain in the existing Desktop settings API.
 - The operating system is the only source of truth for permission state; Desktop settings never persist an application-owned granted flag.
 - Main permits pure-audio media requests only from a DotCraft application window. Video, mixed audio/video, and unrelated WebContents requests are denied.
 - The existing sanitized clipboard-write permission for DotCraft application windows remains available.
@@ -270,7 +315,7 @@ Desktop permits at most two unresolved sessions:
 1. One session may be `transcribing`.
 2. One additional session may be `recording`, `queued`, or `retryable`.
 
-The worker executes transcription in first-in, first-out order and never runs two inferences concurrently.
+Main executes transcription on either route in first-in, first-out order and never runs two transcriptions concurrently.
 
 Additional rules:
 
@@ -289,11 +334,11 @@ Successful audio is deleted after the completion event is accepted for writeback
 
 ### 10.1 Record and insert
 
-1. Renderer admits capture only when the model, permission, device, foreground, and queue states allow recording.
+1. Renderer admits capture only when a transcription route, permission, device, foreground, and queue states allow recording.
 2. The AudioWorklet feeds the bounded PCM buffer and real waveform from the same microphone frames.
 3. Microphone toggle, shortcut release, navigation, or the five-minute limit stops with the `insert` intent; Escape aborts without submission.
 4. Stopping capture atomically moves the originating Composer into a Renderer-local finalizing state before audio finalization or IPC begins. Renderer silently discards an empty or sub-250 ms recording; otherwise Main atomically admits it, creates the temporary WAV, and exposes `queued` or `transcribing` state without an intervening idle frame.
-5. The worker processes the session in FIFO order and returns either a trimmed transcript or a structured failure.
+5. Main processes the session in FIFO order on the route chosen when it starts, and returns either a trimmed transcript or a structured failure.
 6. Success appends to the latest originating draft and never sends it. Desktop then removes the temporary audio.
 
 ### 10.2 Record and explicitly send
@@ -313,8 +358,8 @@ Successful audio is deleted after the completion event is accepted for writeback
 
 ### 10.4 Fail and retry
 
-1. A worker or transcription failure preserves the session WAV and changes only the originating microphone position to Retry.
-2. Retry keeps the original session id, origin, intent, audio, and capacity slot. It waits in FIFO order when another session is active.
+1. A worker, network, or transcription failure preserves the session WAV and changes only the originating microphone position to Retry.
+2. Retry keeps the original session id, origin, intent, audio, and capacity slot. It waits in FIFO order when another session is active, and it chooses the route again when it starts.
 3. A successful Retry follows the original insert or send workflow.
 4. Starting a new recording, explicitly discarding the session, removing the model or origin, or exiting Desktop removes the retained retry audio.
 5. Late completion from a cancelled or discarded worker is ignored.
@@ -334,13 +379,13 @@ Successful audio is deleted after the completion event is accepted for writeback
 
 | State | Composer behavior |
 |-------|-------------------|
-| Model missing | Microphone opens first-use setup. |
-| Downloading | Microphone slot shows only a compact progress ring. |
+| No route | The ChatGPT route is unavailable and the model is missing. Microphone opens first-use setup. |
+| Downloading | The model is downloading and the ChatGPT route is unavailable. Microphone slot shows only a compact progress ring. |
 | Idle | Microphone is enabled when device and queue state allow it. |
 | Recording | Composer shows elapsed time, a real waveform, and inline stop. |
 | Finalizing | Composer freezes the recorded duration and uses the same quiet disabled-square treatment as transcription while Renderer finishes audio and Main admits the session. |
 | Queued or transcribing | Composer uses a quiet disabled-square state without spinner or status text. |
-| Retryable | Microphone becomes a retry icon with `Retry voice input`; no inline error row appears. |
+| Retryable | Microphone becomes a retry icon with `Retry voice input`; no inline error row appears. `usage-limit`, `auth-required`, and `network-error` tooltips name the recovery instead. |
 | Queue full | Microphone is disabled with a tooltip explaining that another voice input is being processed. |
 | Permission denied | The next microphone action opens permission recovery. |
 | Device missing | Microphone remains available for retry; a successful device probe or selection clears the stale error. |
@@ -402,16 +447,17 @@ If the originating thread no longer exists, Desktop discards the transcript and 
 Voice is a Personal settings destination with exactly two product areas:
 
 1. **Device** — a **Microphone** selector for the system default and available explicit input devices.
-2. **Models** — speech-to-text model installation and lifecycle. v1 contains the single managed Whisper model, while the group remains provider-neutral for future models.
+2. **Models** — speech-to-text routes. A ChatGPT row with a switch for `voice.chatGptTranscription` comes first, followed by the managed Whisper model's installation and lifecycle.
 
 Settings rules:
 
+- The ChatGPT row states that recordings are sent to ChatGPT. Without a ChatGPT sign-in its switch is disabled and the row says to sign in with ChatGPT.
 - An uninstalled model row shows `Install`.
 - An installed model row shows `Remove` and no Ready badge.
 - Downloading shows detailed progress and `Cancel` in Settings only.
 - Download failure shows `Retry`; damaged validation shows `Repair`.
 - Remove uses the existing production confirmation-dialog primitive.
-- The confirmation explains that Voice Input is unavailable until downloaded again.
+- The confirmation explains that local Voice Input is unavailable until downloaded again.
 - A missing saved microphone falls back to system default and exposes a concise device notice.
 - Device selection is persisted at Desktop application scope without an AppServer restart.
 - Truncated device names expose the complete user-facing name in a tooltip on both the selected value and menu option. Chromium's trailing Windows USB VID:PID suffix is hidden from presentation only; capture continues to use the unchanged device ID.
@@ -420,7 +466,7 @@ The page does not contain an input meter, Dictation section, shortcut editor or 
 
 First use from Composer:
 
-1. The user clicks the microphone while the model is missing.
+1. The user clicks the microphone while the model is missing and the ChatGPT route is unavailable.
 2. DotCraft opens a compact `Set up voice input` dialog describing `OpenAI Whisper (MIT)` with `Not now` and `Set up`.
 3. `Set up` closes the dialog and begins model download in the background. It does not inspect or request microphone permission.
 4. Composer shows only the progress ring; Settings exposes detailed progress and recovery.
@@ -429,7 +475,7 @@ The application dialog contains no diagrams, legends, shortcut chips, model taxo
 
 Microphone authorization is just in time and independent of model installation:
 
-1. With the model installed, the first microphone action queries the operating-system permission state.
+1. With a transcription route available, the first microphone action queries the operating-system permission state.
 2. `denied` or `restricted` opens permission recovery immediately. Any other state requests system permission and then calls `getUserMedia()` in the same user action.
 3. Successful capture starts recording immediately. A denial from the native prompt returns the Composer to idle without stacking another dialog; the next microphone action opens recovery.
 4. `Open system settings` opens the operating-system microphone settings. Returning to DotCraft refreshes status but never starts recording automatically.
@@ -449,6 +495,9 @@ Microphone authorization is just in time and independent of model installation:
 | Invalid or sub-250 ms audio | Discard silently and leave the draft unchanged. |
 | Worker start or crash | Mark the session retryable, preserve its WAV, and restart only on Retry. |
 | Transcription error | Keep the draft and expose button-level Retry in the originating Composer. |
+| ChatGPT unreachable | `network-error`: keep the draft and audio; Retry after the connection returns. |
+| ChatGPT sign-in rejected | `auth-required`: keep the draft and audio; the tooltip says to sign in with ChatGPT again. Retry uses the local model when the ChatGPT route is no longer available. |
+| ChatGPT usage limit | `usage-limit`: keep the draft and audio; the tooltip says the ChatGPT usage limit was reached. |
 | Empty transcript | Treat as success, delete audio, and leave the draft unchanged. |
 | Submit failure after `send` | Keep the merged draft and surface the existing Composer failure. |
 | Originating thread removed | Discard session, result, and audio silently. |
@@ -456,7 +505,8 @@ Microphone authorization is just in time and independent of model installation:
 
 ## 15. Privacy, security, and diagnostics
 
-- The only Voice Input network transfer is the pinned model download.
+- Voice Input makes two kinds of network transfer: the pinned model download, and the session WAV upload to ChatGPT while the ChatGPT route is active. The ChatGPT service may retain uploaded audio under its own policy.
+- The ChatGPT access token stays in Electron Main for one request and is never sent to Renderer, persisted, or logged.
 - Recorded PCM/WAV and transcript text are not sent to telemetry or written to logs.
 - Logs use session ids and stable error codes; filesystem paths and raw provider exceptions remain sensitive diagnostics.
 - Temporary audio uses the DotCraft-owned global cache under `~/.craft/cache/voice` and is never placed in a workspace.
@@ -490,7 +540,8 @@ Release evidence must additionally prove:
 
 ## 17. Acceptance checklist
 
-- [ ] Voice Input operates without a cloud STT credential, AppServer, or network access after model installation.
+- [ ] Without a ChatGPT sign-in, or with the ChatGPT switch off, Voice Input operates without a cloud STT credential, AppServer, or network access after model installation.
+- [ ] With a ChatGPT sign-in and the switch on, Voice Input transcribes through ChatGPT without the local model installed, and its failures follow section 5A.
 - [ ] The fixed model downloads from its pinned revision, passes SHA-256 validation, and is loaded only by the Desktop inference worker.
 - [ ] Windows x64/arm64 and macOS x64/arm64 packages include functional worker and native assets.
 - [ ] The waveform responds to captured PCM rather than timer-only animation.
@@ -500,7 +551,7 @@ Release evidence must additionally prove:
 - [ ] Background success and failure are silent and restore correct origin state.
 - [ ] Retry uses original audio; new recording, discard, success, removal, and exit delete it at the required time.
 - [ ] Transcript append preserves the latest structured draft and uses the defined trim/space behavior.
-- [ ] Settings contain only microphone and managed-model lifecycle controls and reuse production dialogs.
+- [ ] Settings contain only microphone, ChatGPT switch, and managed-model lifecycle controls and reuse production dialogs.
 - [ ] Transcribing has no spinner; Composer downloading has no redundant text or percentage.
 - [ ] Setup, native permission, and permission-recovery flows never leave an empty or black surface.
 - [ ] New UI strings exist in `en`, `zh-Hans`, `ja`, `ko`, `es`, `fr`, and `de`.

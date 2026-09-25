@@ -24,7 +24,7 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<AuthOpenAiLogoutParams, AuthOpenAiStatusResult> AuthOpenAiLogout = new("auth/openai/logout", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
-    public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, AuthOpenAiStatusResult> AuthOpenAiStatus = new("auth/openai/status", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
+    public static readonly RpcRequest<AuthOpenAiStatusParams, AuthOpenAiStatusResult> AuthOpenAiStatus = new("auth/openai/status", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
     public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, AuthOpenAiUsageResult> AuthOpenAiUsage = new("auth/openai/usage", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 

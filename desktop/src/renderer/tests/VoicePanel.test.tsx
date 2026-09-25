@@ -95,6 +95,26 @@ describe('VoicePanel', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
   })
 
+  it('saves the ChatGPT preference from its switch', async () => {
+    getSnapshot.mockResolvedValue({ ...snapshot('missing'), chatGpt: { signedIn: true, enabled: true } })
+    renderPanel()
+    const toggle = await screen.findByRole('switch')
+    await waitFor(() => expect(toggle).toBeEnabled())
+
+    fireEvent.click(toggle)
+
+    await waitFor(() => expect(settingsSet).toHaveBeenCalledWith({ voice: { chatGptTranscription: false } }))
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('keeps the ChatGPT switch unavailable without a ChatGPT sign-in', async () => {
+    renderPanel()
+    await waitFor(() => expect(getSnapshot).toHaveBeenCalled())
+
+    expect(screen.getByRole('switch')).toBeDisabled()
+    expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false')
+  })
+
   it('requests access before opening the device menu and refreshes real labels', async () => {
     useVoiceStore.setState({
       localErrors: { 'thread-1': 'device-missing', 'thread-2': 'queue-full' }
@@ -154,6 +174,7 @@ function renderPanel(): ReturnType<typeof render> {
 function snapshot(phase: VoiceRuntimeSnapshot['model']['phase']): VoiceRuntimeSnapshot {
   return {
     model: { phase, bytesDownloaded: 0, bytesTotal: null },
+    chatGpt: { signedIn: false, enabled: true },
     sessions: [],
     capacity: 2
   }

@@ -8,6 +8,8 @@ import {
 } from 'react'
 import { Mic, RotateCcw, Square } from 'lucide-react'
 
+import type { MessageKey } from '../../../shared/locales'
+import { canTranscribeWithChatGpt, hasVoiceTranscriptionRoute, type VoiceErrorCode } from '../../../shared/voice'
 import { useT } from '../../contexts/LocaleContext'
 import { sessionForThread, useVoiceStore } from '../../voice/voiceStore'
 import { isBlockedMicrophonePermission } from '../../voice/microphoneAccess'
@@ -68,7 +70,7 @@ export function VoiceInputControl({ threadId, enableShortcut = true, compact = f
         return
       }
       if (!enableShortcut || event.code !== 'KeyD' || !event.ctrlKey || !event.shiftKey || event.repeat || !document.hasFocus()) return
-      if (snapshot.model.phase !== 'installed') return
+      if (!hasVoiceTranscriptionRoute(useVoiceStore.getState().snapshot)) return
       if (isBlockedMicrophonePermission(useVoiceStore.getState().microphonePermission)) {
         setSetupStage('recovery')
         return
@@ -105,20 +107,22 @@ export function VoiceInputControl({ threadId, enableShortcut = true, compact = f
         void useVoiceStore.getState().stopRecording('insert')
       }
     }
-  }, [abortRecording, cancelRecordingStart, enableShortcut, snapshot.model.phase, startRecording, stopRecording, threadId])
+  }, [abortRecording, cancelRecordingStart, enableShortcut, startRecording, stopRecording, threadId])
 
   const session = sessionForThread(snapshot, threadId)
   const occupied = snapshot.sessions.length + (globalRecording ? 1 : 0) + (globalFinalizing ? 1 : 0)
   const queueFull = !recording && !finalizing && !session && occupied >= snapshot.capacity
+  const routeAvailable = hasVoiceTranscriptionRoute(snapshot)
+  const downloadingWithoutRoute = snapshot.model.phase === 'downloading' && !canTranscribeWithChatGpt(snapshot)
 
   const view = useMemo(() => {
     if (recording) return { label: t('voice.control.stop'), disabled: false, kind: 'recording' as const }
     if (finalizing) return { label: t('voice.control.processing'), disabled: true, kind: 'processing' as const }
-    if (session?.phase === 'retryable') return { label: t('voice.control.retry'), disabled: false, kind: 'retry' as const }
+    if (session?.phase === 'retryable') return { label: t(retryLabelKey(session.errorCode)), disabled: false, kind: 'retry' as const }
     if (session?.phase === 'queued' || session?.phase === 'transcribing') {
       return { label: t('voice.control.processing'), disabled: true, kind: 'processing' as const }
     }
-    if (snapshot.model.phase === 'downloading') {
+    if (downloadingWithoutRoute) {
       return { label: t('settings.voice.model.downloading'), disabled: true, kind: 'downloading' as const }
     }
     if (queueFull) {
@@ -134,7 +138,7 @@ export function VoiceInputControl({ threadId, enableShortcut = true, compact = f
       return { label: t('voice.control.deviceUnavailable'), disabled: false, kind: 'mic' as const }
     }
     return { label: t('voice.control.start'), disabled: false, kind: 'mic' as const }
-  }, [finalizing, localError, microphonePermission, queueFull, recording, session?.phase, snapshot.model.phase, t])
+  }, [downloadingWithoutRoute, finalizing, localError, microphonePermission, queueFull, recording, session?.errorCode, session?.phase, t])
 
   async function activate(): Promise<void> {
     if (view.disabled) return
@@ -146,7 +150,7 @@ export function VoiceInputControl({ threadId, enableShortcut = true, compact = f
       await retry(session.sessionId)
       return
     }
-    if (snapshot.model.phase !== 'installed') {
+    if (!routeAvailable) {
       setSetupStage('setup')
       return
     }
@@ -172,7 +176,7 @@ export function VoiceInputControl({ threadId, enableShortcut = true, compact = f
       event.button !== 0
       || view.disabled
       || view.kind !== 'mic'
-      || snapshot.model.phase !== 'installed'
+      || !routeAvailable
       || isBlockedMicrophonePermission(microphonePermission)
     ) return
     event.currentTarget.setPointerCapture?.(event.pointerId)
@@ -281,6 +285,13 @@ export function VoiceInputControl({ threadId, enableShortcut = true, compact = f
 }
 
 const POINTER_HOLD_THRESHOLD_MS = 150
+
+function retryLabelKey(code: VoiceErrorCode | undefined): MessageKey {
+  if (code === 'network-error') return 'voice.control.retryNetwork'
+  if (code === 'auth-required') return 'voice.control.retrySignIn'
+  if (code === 'usage-limit') return 'voice.control.retryUsageLimit'
+  return 'voice.control.retry'
+}
 
 function VoiceWaveform({ level }: { level: number }): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null)

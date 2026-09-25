@@ -459,6 +459,19 @@ public sealed class AuthOpenAiLogoutParams : ExtensibleJsonObject
 
 }
 
+/// <summary>Executable wire contract for AuthOpenAiStatusParams.</summary>
+public sealed class AuthOpenAiStatusParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("includeToken")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> IncludeToken { get; init; }
+
+    [JsonPropertyName("refreshToken")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> RefreshToken { get; init; }
+
+}
+
 /// <summary>Executable wire contract for AuthOpenAiStatusResult.</summary>
 public sealed class AuthOpenAiStatusResult : ExtensibleJsonObject
 {
@@ -469,6 +482,10 @@ public sealed class AuthOpenAiStatusResult : ExtensibleJsonObject
     [JsonPropertyName("accountId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> AccountId { get; init; }
+
+    [JsonPropertyName("authToken")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> AuthToken { get; init; }
 
     [JsonPropertyName("email")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

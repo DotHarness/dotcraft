@@ -348,21 +348,24 @@ internal sealed class ProviderRequestHandler(
         };
     }
 
-    private Task<object?> HandleAuthOpenAiStatusAsync(AppServerTypedRequest<Protocol.RpcEmpty> request, CancellationToken ct)
+    private async Task<object?> HandleAuthOpenAiStatusAsync(AppServerTypedRequest<Contract.AuthOpenAiStatusParams> request, CancellationToken ct)
     {
-        _ = request;
-        _ = ct;
         if (appConfigMonitor?.Current is { ModelService: not null } remote)
         {
             var provider = remote.Providers.GetValueOrDefault(remote.ProviderId);
-            return Task.FromResult<object?>(BuildAuthStatusResult(
-                provider?.RemoteAuthentication ?? new ProviderAuthenticationStatus(false), remote.ProviderId));
+            return BuildAuthStatusResult(
+                provider?.RemoteAuthentication ?? new ProviderAuthenticationStatus(false), remote.ProviderId);
         }
         var auth = GetOpenAIService<IProviderAuthentication>();
         if (auth is null)
             throw AppServerErrors.InvalidRequest("ChatGPT authentication is not available in this server build.");
 
-        return Task.FromResult<object?>(BuildAuthStatusResult(auth.GetStatus(), providerId: null));
+        var p = request.Params;
+        string? authToken = null;
+        if (ValueOrDefault(p.IncludeToken) && auth.GetStatus().IsAuthenticated)
+            authToken = await auth.TryGetAccessTokenAsync(ValueOrDefault(p.RefreshToken), ct).ConfigureAwait(false);
+
+        return BuildAuthStatusResult(auth.GetStatus(), providerId: null, authToken);
     }
 
     private async Task<object?> HandleAuthOpenAiLoginAsync(AppServerTypedRequest<Contract.AuthOpenAiLoginParams> request, CancellationToken ct)
@@ -489,7 +492,10 @@ internal sealed class ProviderRequestHandler(
             : null;
     }
 
-    private static Contract.AuthOpenAiStatusResult BuildAuthStatusResult(ProviderAuthenticationStatus status, string? providerId) =>
+    private static Contract.AuthOpenAiStatusResult BuildAuthStatusResult(
+        ProviderAuthenticationStatus status,
+        string? providerId,
+        string? authToken = null) =>
         new()
         {
             LoggedIn = status.IsAuthenticated,
@@ -498,7 +504,8 @@ internal sealed class ProviderRequestHandler(
             Email = status.Email,
             LastRefresh = status.LastRefresh,
             AccessTokenExpiresAt = status.AccessTokenExpiresAt,
-            ProviderId = providerId
+            ProviderId = providerId,
+            AuthToken = authToken is null ? default : new Protocol.Optional<string>(authToken)
         };
 
     private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>

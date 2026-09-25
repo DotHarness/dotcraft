@@ -678,9 +678,16 @@ export interface AuthOpenAiLogoutParams {
   [key: string]: unknown;
 }
 
+export interface AuthOpenAiStatusParams {
+  includeToken?: boolean;
+  refreshToken?: boolean;
+  [key: string]: unknown;
+}
+
 export interface AuthOpenAiStatusResult {
   accessTokenExpiresAt?: string | null;
   accountId?: string | null;
+  authToken?: string;
   email?: string | null;
   lastRefresh?: string | null;
   loggedIn?: boolean;

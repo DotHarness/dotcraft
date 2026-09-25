@@ -683,6 +683,23 @@ describe('registerIpcHandlers', () => {
     )
   })
 
+  it('never lets the renderer request the ChatGPT access token', async () => {
+    const client = {
+      sendRequest: vi.fn().mockResolvedValue({ loggedIn: true })
+    }
+    const handlers = registerHandlersForTest('/workspace', () => client as never)
+    const params = { includeToken: true, refreshToken: true }
+
+    await handlers.get('appserver:send-request')?.({}, 'auth/openai/status', params)
+    await handlers.get('appserver:send-request-raw')?.({}, 'auth/openai/status', params)
+
+    expect(client.sendRequest).toHaveBeenCalledTimes(2)
+    for (const call of client.sendRequest.mock.calls) {
+      expect(call[1]).not.toHaveProperty('includeToken')
+      expect(call[1]).not.toHaveProperty('refreshToken')
+    }
+  })
+
   it('identifies an AppServer request rejected before connection', async () => {
     const handlers = registerHandlersForTest('/workspace', () => null)
 
