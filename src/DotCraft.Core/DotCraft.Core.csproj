@@ -7,7 +7,7 @@
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <RootNamespace>DotCraft</RootNamespace>
     <PackageId>DotCraft.Core</PackageId>
-    <Version>0.7.4</Version>
+    <Version>0.7.5</Version>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591;1572;1573;1574;1734</NoWarn>
