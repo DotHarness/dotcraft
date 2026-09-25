@@ -11,10 +11,26 @@ import { useWorkspaceProjectsStore } from '@renderer/stores/workspaceProjectsSto
 import { useUIStore } from '@renderer/stores/uiStore'
 import type { Thread, ThreadSummary } from '@renderer/types/thread'
 import { getDemoThreads, planToMarkdown, type DemoThread } from './data/demoThreads'
-import { DEMO_WORKSPACE_NAME, DEMO_WORKSPACE_PATH, demoLocale } from './mockApi'
+import {
+  DEMO_MODEL,
+  DEMO_PROVIDER_ID,
+  DEMO_REASONING,
+  DEMO_WORKSPACE_NAME,
+  DEMO_WORKSPACE_PATH,
+  demoLocale,
+  threadConfigurations
+} from './mockApi'
 
 const demoThreads = getDemoThreads(demoLocale)
 const threadsById = new Map(demoThreads.map((thread) => [thread.id, thread]))
+for (const thread of demoThreads) {
+  threadConfigurations.set(thread.id, {
+    mode: thread.mode,
+    providerId: DEMO_PROVIDER_ID,
+    model: DEMO_MODEL,
+    reasoning: { ...DEMO_REASONING }
+  })
+}
 
 function toSummary(thread: DemoThread): ThreadSummary {
   return {
@@ -34,7 +50,7 @@ function toThread(thread: DemoThread): Thread {
     workspacePath: DEMO_WORKSPACE_PATH,
     userId: 'local',
     metadata: {},
-    configuration: { mode: thread.mode, model: 'claude-fable-5' },
+    configuration: { ...threadConfigurations.get(thread.id) },
     turns: [],
     contextUsage: thread.contextUsage
   }
@@ -75,6 +91,7 @@ export function bootstrapDemo(): void {
       approvalFlow: true,
       modeSwitch: true,
       modelCatalogManagement: true,
+      workspaceConfigManagement: true,
       threadGoals: true,
       manualCompaction: true
     }

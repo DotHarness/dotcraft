@@ -15,6 +15,10 @@ export const demoLocale: AppLocale = normalizeLocale(params.get('lang') ?? 'en')
 
 export const DEMO_WORKSPACE_PATH = '/home/dev/projects/orbit'
 export const DEMO_WORKSPACE_NAME = 'orbit'
+export const DEMO_PROVIDER_ID = 'custom'
+export const DEMO_MODEL = 'Opus 5.5'
+export const DEMO_REASONING = { enabled: true, effort: 'medium', output: 'full' }
+export const threadConfigurations = new Map<string, Record<string, unknown>>()
 
 const noop = (): void => {}
 const unsubscribe = (): (() => void) => noop
@@ -27,6 +31,7 @@ const connectionStatusPayload = {
     approvalFlow: true,
     modeSwitch: true,
     modelCatalogManagement: true,
+    workspaceConfigManagement: true,
     threadGoals: true,
     manualCompaction: true
   }
@@ -58,21 +63,21 @@ const workspaceProjectsPayload = {
   ]
 }
 
+const demoReasoningCapability = {
+  supportsDisable: true,
+  supportedEfforts: [{ effort: 'low' }, { effort: 'medium' }, { effort: 'high' }],
+  defaultEffort: 'medium',
+  supportedOutputs: ['none', 'summary', 'full'],
+  defaultOutput: 'full'
+}
+
 const modelListPayload = {
   success: true,
-  models: [
-    {
-      id: 'claude-fable-5',
-      ownedBy: 'anthropic',
-      reasoning: { supportsDisable: true, efforts: ['low', 'medium', 'high'], outputs: ['none', 'summary', 'full'] }
-    },
-    {
-      id: 'claude-opus-4-8',
-      ownedBy: 'anthropic',
-      reasoning: { supportsDisable: true, efforts: ['low', 'medium', 'high'], outputs: ['none', 'summary', 'full'] }
-    },
-    { id: 'claude-haiku-4-5', ownedBy: 'anthropic' }
-  ]
+  models: [DEMO_MODEL, 'GPT 6 Sol'].map((id) => ({ id, ownedBy: DEMO_PROVIDER_ID, reasoning: demoReasoningCapability }))
+}
+
+const providerListPayload = {
+  providers: [{ id: DEMO_PROVIDER_ID, displayName: 'Custom', protocol: 'openai-responses', authMethod: 'apiKey' }]
 }
 
 const settingsPayload = {
@@ -110,8 +115,8 @@ const voiceApi = {
 } satisfies VoiceApi
 
 const workspaceCoreConfigSide = {
-  providerId: 'anthropic',
-  model: 'claude-fable-5',
+  providerId: DEMO_PROVIDER_ID,
+  model: DEMO_MODEL,
   welcomeSuggestionsEnabled: false,
   skillsSelfLearningEnabled: null,
   memoryEnabled: null,
@@ -122,10 +127,17 @@ const workspaceCoreConfigSide = {
   defaultApprovalPolicy: 'default' as const
 }
 
-function handleAppServerRequest(method: string): unknown {
+function handleAppServerRequest(method: string, params?: { threadId?: string; config?: Record<string, unknown> }): unknown {
   switch (method) {
     case 'model/list':
       return modelListPayload
+    case 'provider/list':
+      return providerListPayload
+    case 'thread/read':
+      return { thread: { id: params?.threadId, configuration: threadConfigurations.get(params?.threadId ?? '') ?? {} } }
+    case 'thread/config/update':
+      if (params?.threadId && params.config) threadConfigurations.set(params.threadId, params.config)
+      return {}
     case 'thread/list':
       return { threads: [] }
     case 'skills/list':
@@ -152,7 +164,8 @@ const explicitApi = {
     popupTopLevel: async () => {}
   },
   appServer: {
-    sendRequest: async (method: string) => handleAppServerRequest(method),
+    sendRequest: async (method: string, params?: { threadId?: string; config?: Record<string, unknown> }) =>
+      handleAppServerRequest(method, params),
     listModels: async () => modelListPayload,
     requestWorkspaceConfigSchema: async () => null,
     getConnectionStatus: async () => connectionStatusPayload,
