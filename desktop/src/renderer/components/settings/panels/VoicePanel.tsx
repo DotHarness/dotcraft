@@ -4,6 +4,7 @@ import type { VoiceErrorCode, VoiceRuntimeSnapshot } from '../../../../shared/vo
 import { useT } from '../../../contexts/LocaleContext'
 import { Button } from '../../ui/Button'
 import { useConfirmDialog } from '../../ui/ConfirmDialog'
+import { PillSwitch } from '../../ui/PillSwitch'
 import { SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { SettingsPanelShell } from '../SettingsPanelShell'
 import { SettingsSelect } from '../ui/SettingsSelect'
@@ -14,6 +15,7 @@ import { useVoiceStore } from '../../../voice/voiceStore'
 
 const EMPTY_SNAPSHOT: VoiceRuntimeSnapshot = {
   model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null },
+  chatGpt: { signedIn: false, enabled: true },
   sessions: [],
   capacity: 2
 }
@@ -40,6 +42,7 @@ export function VoicePanel(): JSX.Element {
   const [deviceMissing, setDeviceMissing] = useState(false)
   const [deviceIssue, setDeviceIssue] = useState<VoiceErrorCode | null>(null)
   const [busy, setBusy] = useState(false)
+  const [chatGptPending, setChatGptPending] = useState<boolean | null>(null)
 
   const refreshDevices = useCallback(async (preferredDeviceId = deviceId): Promise<void> => {
     if (!navigator.mediaDevices?.enumerateDevices) {
@@ -113,6 +116,16 @@ export function VoicePanel(): JSX.Element {
     clearDeviceFallback()
     clearDeviceErrors()
     await window.api.settings.set({ voice: { deviceId: next } })
+  }
+
+  async function setChatGptTranscription(enabled: boolean): Promise<void> {
+    setChatGptPending(enabled)
+    try {
+      await window.api.settings.set({ voice: { chatGptTranscription: enabled } })
+      setSnapshot((current) => ({ ...current, chatGpt: { ...current.chatGpt, enabled } }))
+    } finally {
+      setChatGptPending(null)
+    }
   }
 
   async function prepareDeviceMenu(): Promise<boolean> {
@@ -211,6 +224,20 @@ export function VoicePanel(): JSX.Element {
       <SettingsGroup
         title={t('settings.voice.models.title')}
       >
+        <SettingsRow
+          label={t('settings.voice.chatGpt.name')}
+          description={snapshot.chatGpt.signedIn
+            ? t('settings.voice.chatGpt.description')
+            : t('settings.voice.chatGpt.signedOut')}
+          control={(
+            <PillSwitch
+              checked={snapshot.chatGpt.signedIn && (chatGptPending ?? snapshot.chatGpt.enabled)}
+              disabled={!snapshot.chatGpt.signedIn}
+              aria-label={t('settings.voice.chatGpt.name')}
+              onChange={(checked) => { void setChatGptTranscription(checked) }}
+            />
+          )}
+        />
         <SettingsRow
           label={t('settings.voice.model.name')}
           description={<ModelDescription phase={model.phase} progress={progress} />}

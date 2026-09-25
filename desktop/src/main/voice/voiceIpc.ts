@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 
 import type { VoiceTranscriptionInput } from '../../shared/voice'
+import { ChatGptVoiceTranscriber, type ReadVoiceChatGptAuth } from './VoiceChatGptTranscriber'
 import { VoiceModelManager } from './VoiceModelManager'
 import { VoiceRuntimeError, VoiceRuntimeService } from './VoiceRuntimeService'
 import { UtilityVoiceWorkerClient } from './VoiceWorkerClient'
@@ -22,9 +23,16 @@ const HANDLERS = [
   'voice:discard-session'
 ] as const
 
-let servicePromise: Promise<VoiceRuntimeService> | null = null
+export interface VoiceHost {
+  readChatGptAuth: ReadVoiceChatGptAuth
+  isChatGptTranscriptionEnabled(): boolean
+}
 
-export function registerVoiceIpc(): void {
+let servicePromise: Promise<VoiceRuntimeService> | null = null
+let voiceHost: VoiceHost | null = null
+
+export function registerVoiceIpc(host: VoiceHost): void {
+  voiceHost = host
   for (const channel of HANDLERS) ipcMain.removeHandler(channel)
 
   ipcMain.handle('voice:get-microphone-permission-status', () => voiceMicrophonePermissions.getStatus())
@@ -46,6 +54,10 @@ export function registerVoiceIpc(): void {
   ))
 }
 
+export function refreshVoiceChatGptAvailability(): void {
+  void servicePromise?.then((service) => service.refreshChatGptAvailability()).catch(() => {})
+}
+
 export async function shutdownVoiceService(): Promise<void> {
   const promise = servicePromise
   if (!promise) return
@@ -56,12 +68,22 @@ export async function shutdownVoiceService(): Promise<void> {
 
 async function getService(): Promise<VoiceRuntimeService> {
   if (servicePromise) return servicePromise
+  const host = voiceHost
+  if (!host) throw new Error('Voice IPC is not registered.')
   const voiceRoot = resolveVoiceRoot()
   const modelManager = new VoiceModelManager({ voiceRoot })
   const service = new VoiceRuntimeService({
     voiceRoot,
     modelManager,
-    transcriber: new UtilityVoiceWorkerClient({ modulePath: resolveVoiceWorkerModule() })
+    localTranscriber: new UtilityVoiceWorkerClient({
+      modulePath: resolveVoiceWorkerModule(),
+      modelPath: modelManager.modelPath
+    }),
+    chatGpt: {
+      transcriber: new ChatGptVoiceTranscriber(host.readChatGptAuth),
+      isSignedIn: async () => (await host.readChatGptAuth(false)) !== null,
+      isEnabled: () => host.isChatGptTranscriptionEnabled()
+    }
   })
   service.onSnapshot((snapshot) => broadcast('voice:snapshot', snapshot))
   service.onSessionEvent((event) => broadcast('voice:session-event', event))

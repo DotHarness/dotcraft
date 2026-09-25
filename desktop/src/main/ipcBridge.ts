@@ -1116,7 +1116,7 @@ export function registerIpcHandlers(
       }
       const requestParams = withDesktopRequestIdentity(
         method,
-        params ?? {},
+        method === 'auth/openai/status' ? {} : params ?? {},
         callbacks?.getWorkspaceStatus().workspacePath
       )
       const result = await sendDesktopAppServerRequest(client, method, requestParams, timeoutMs, {

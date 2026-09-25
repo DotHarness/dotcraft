@@ -65,6 +65,7 @@ interface VoiceStoreState {
 
 const EMPTY_SNAPSHOT: VoiceRuntimeSnapshot = {
   model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null },
+  chatGpt: { signedIn: false, enabled: true },
   sessions: [],
   capacity: 2
 }

@@ -1527,6 +1527,7 @@ const api = {
       }
       voice?: {
         deviceId?: string
+        chatGptTranscription?: boolean
       }
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
       pinnedProjectIds?: string[]
@@ -1591,6 +1592,7 @@ const api = {
       }
       voice?: {
         deviceId?: string
+        chatGptTranscription?: boolean
       }
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
       pinnedProjectIds?: string[]

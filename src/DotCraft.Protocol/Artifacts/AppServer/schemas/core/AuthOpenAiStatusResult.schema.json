@@ -25,6 +25,9 @@
         }
       ]
     },
+    "authToken": {
+      "type": "string"
+    },
     "email": {
       "anyOf": [
         {

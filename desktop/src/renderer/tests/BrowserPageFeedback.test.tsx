@@ -20,6 +20,7 @@ beforeEach(() => {
     finalizing: null,
     snapshot: {
       model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null },
+      chatGpt: { signedIn: false, enabled: true },
       sessions: [],
       capacity: 2,
     },

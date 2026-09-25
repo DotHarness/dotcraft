@@ -76,7 +76,7 @@ describe('InputComposer follow-up routing', () => {
     useToastStore.setState({ toasts: [] })
     useUIStore.setState({ composerPrefill: null, composerFileAttachmentRequest: null, pendingWelcomeTurn: null })
     useVoiceStore.setState({ initialized: false, recording: null, finalizing: null,
-      snapshot: { model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }, sessions: [], capacity: 2 } })
+      snapshot: { model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }, chatGpt: { signedIn: false, enabled: true }, sessions: [], capacity: 2 } })
     useConversationStore.setState({ turnStatus: 'running', activeTurnId: 'turn-123' })
   })
 

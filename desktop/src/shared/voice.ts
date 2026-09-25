@@ -21,6 +21,9 @@ export type VoiceErrorCode =
   | 'worker-unavailable'
   | 'worker-crashed'
   | 'transcription-failed'
+  | 'network-error'
+  | 'auth-required'
+  | 'usage-limit'
   | 'cancelled'
 
 export interface VoiceModelState {
@@ -39,8 +42,14 @@ export interface VoiceSessionState {
   errorCode?: VoiceErrorCode
 }
 
+export interface VoiceChatGptState {
+  signedIn: boolean
+  enabled: boolean
+}
+
 export interface VoiceRuntimeSnapshot {
   model: VoiceModelState
+  chatGpt: VoiceChatGptState
   sessions: VoiceSessionState[]
   capacity: typeof VOICE_SESSION_CAPACITY
 }
@@ -86,4 +95,12 @@ export interface VoiceApi {
 
 export function isVoiceIntent(value: unknown): value is VoiceIntent {
   return value === 'insert' || value === 'send'
+}
+
+export function canTranscribeWithChatGpt(snapshot: VoiceRuntimeSnapshot): boolean {
+  return snapshot.chatGpt.signedIn && snapshot.chatGpt.enabled
+}
+
+export function hasVoiceTranscriptionRoute(snapshot: VoiceRuntimeSnapshot): boolean {
+  return canTranscribeWithChatGpt(snapshot) || snapshot.model.phase === 'installed'
 }

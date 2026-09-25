@@ -3,10 +3,11 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { VoiceModelState } from '../../../shared/voice'
+import type { VoiceModelPhase, VoiceModelState, VoiceSessionEvent } from '../../../shared/voice'
 import {
   VoiceRuntimeError,
   VoiceRuntimeService,
+  type VoiceChatGptRoute,
   type VoiceModelController
 } from '../VoiceRuntimeService'
 import type { VoiceTranscriber, VoiceTranscriptionResult } from '../VoiceWorkerClient'
@@ -73,12 +74,18 @@ describe('VoiceRuntimeService', () => {
     const transcriber = fakeTranscriber([pending.promise])
     const voiceRoot = await mkdtemp(join(tmpdir(), 'dotcraft-voice-test-'))
     tempRoots.push(voiceRoot)
-    const model = new FakeModel(join(voiceRoot, 'model.bin'))
+    const model = new FakeModel()
     const writeWav = vi.fn(async (path: string) => {
       await writeFile(path, 'partial')
       if (writeWav.mock.calls.length === 1) throw new Error('write-failed')
     })
-    const service = new VoiceRuntimeService({ voiceRoot, modelManager: model, transcriber, writeWav })
+    const service = new VoiceRuntimeService({
+      voiceRoot,
+      modelManager: model,
+      localTranscriber: transcriber,
+      chatGpt: signedOutChatGpt(),
+      writeWav
+    })
     await service.initialize()
 
     await expect(service.submitTranscription(input('failed'))).rejects.toThrow('write-failed')
@@ -144,9 +151,14 @@ describe('VoiceRuntimeService', () => {
   it('does not reopen admission when a later model removal is still running', async () => {
     const voiceRoot = await mkdtemp(join(tmpdir(), 'dotcraft-voice-test-'))
     tempRoots.push(voiceRoot)
-    const model = new InterleavedLifecycleModel(join(voiceRoot, 'model.bin'))
+    const model = new InterleavedLifecycleModel()
     const transcriber = fakeTranscriber([])
-    const service = new VoiceRuntimeService({ voiceRoot, modelManager: model, transcriber })
+    const service = new VoiceRuntimeService({
+      voiceRoot,
+      modelManager: model,
+      localTranscriber: transcriber,
+      chatGpt: signedOutChatGpt()
+    })
     await service.initialize()
 
     const repairing = service.repairModel()
@@ -202,6 +214,152 @@ describe('VoiceRuntimeService', () => {
   })
 })
 
+describe('VoiceRuntimeService transcription routes', () => {
+  it('admits a session through ChatGPT when no model is installed', async () => {
+    const chatGpt = fakeTranscriber([Promise.resolve({ transcript: 'from chatgpt' })])
+    const local = fakeTranscriber([])
+    const { service, events } = await createRoutedService({ modelPhase: 'missing', signedIn: true, chatGpt, local })
+
+    const { sessionId } = await service.submitTranscription(input('thread-a'))
+
+    await vi.waitFor(() => expect(events).toContainEqual(expect.objectContaining({
+      sessionId,
+      type: 'completed',
+      transcript: 'from chatgpt'
+    })))
+    expect(chatGpt.transcribe).toHaveBeenCalledWith(sessionId, expect.any(String))
+    expect(local.transcribe).not.toHaveBeenCalled()
+    await service.shutdown()
+  })
+
+  it('rejects a session without a model when ChatGPT transcription is off', async () => {
+    const { service } = await createRoutedService({ modelPhase: 'missing', signedIn: true, enabled: false })
+
+    await expect(service.submitTranscription(input('thread-a')))
+      .rejects.toMatchObject({ code: 'model-missing' } satisfies Partial<VoiceRuntimeError>)
+    await service.shutdown()
+  })
+
+  it('transcribes locally when ChatGPT transcription is off', async () => {
+    const chatGpt = fakeTranscriber([])
+    const local = fakeTranscriber([Promise.resolve({ transcript: 'on device' })])
+    const { service, events } = await createRoutedService({ signedIn: true, enabled: false, chatGpt, local })
+
+    const { sessionId } = await service.submitTranscription(input('thread-a'))
+
+    await vi.waitFor(() => expect(events).toContainEqual(expect.objectContaining({
+      sessionId,
+      type: 'completed',
+      transcript: 'on device'
+    })))
+    expect(chatGpt.transcribe).not.toHaveBeenCalled()
+    await service.shutdown()
+  })
+
+  it('chooses the route when a session starts rather than when it is admitted', async () => {
+    const first = deferred<VoiceTranscriptionResult>()
+    const chatGpt = fakeTranscriber([first.promise])
+    const local = fakeTranscriber([Promise.resolve({ transcript: 'second' })])
+    const { service, account, events } = await createRoutedService({ signedIn: true, chatGpt, local })
+
+    const a = await service.submitTranscription(input('thread-a'))
+    const b = await service.submitTranscription(input('thread-b'))
+    account.enabled = false
+    first.resolve({ transcript: 'first' })
+
+    await vi.waitFor(() => expect(service.getSnapshot().sessions).toHaveLength(0))
+    expect(chatGpt.transcribe).toHaveBeenCalledTimes(1)
+    expect(chatGpt.transcribe).toHaveBeenCalledWith(a.sessionId, expect.any(String))
+    expect(local.transcribe).toHaveBeenCalledTimes(1)
+    expect(local.transcribe).toHaveBeenCalledWith(b.sessionId, expect.any(String))
+    expect(events.filter((event) => event.type === 'completed').map((event) => event.transcript))
+      .toEqual(['first', 'second'])
+    await service.shutdown()
+  })
+
+  it('chooses the route again when a failed session is retried', async () => {
+    const failed = deferred<VoiceTranscriptionResult>()
+    const chatGpt = fakeTranscriber([failed.promise])
+    const local = fakeTranscriber([Promise.resolve({ transcript: 'recovered on device' })])
+    const { service, account, events } = await createRoutedService({ signedIn: true, chatGpt, local })
+
+    const { sessionId } = await service.submitTranscription(input('thread-a'))
+    failed.reject(new VoiceRuntimeError('network-error'))
+    await vi.waitFor(() => expect(service.getSnapshot().sessions[0]).toMatchObject({
+      phase: 'retryable',
+      errorCode: 'network-error'
+    }))
+
+    account.signedIn = false
+    await service.refreshChatGptAvailability()
+    await service.retryTranscription(sessionId)
+
+    await vi.waitFor(() => expect(events).toContainEqual(expect.objectContaining({
+      sessionId,
+      type: 'completed',
+      transcript: 'recovered on device'
+    })))
+    expect(chatGpt.transcribe).toHaveBeenCalledTimes(1)
+    expect(local.transcribe).toHaveBeenCalledWith(sessionId, expect.any(String))
+    await service.shutdown()
+  })
+
+  it('fails a queued session with model-missing when no route remains at start', async () => {
+    const first = deferred<VoiceTranscriptionResult>()
+    const chatGpt = fakeTranscriber([first.promise])
+    const local = fakeTranscriber([])
+    const { service, account } = await createRoutedService({ modelPhase: 'missing', signedIn: true, chatGpt, local })
+
+    await service.submitTranscription(input('thread-a'))
+    const b = await service.submitTranscription(input('thread-b'))
+    account.signedIn = false
+    await service.refreshChatGptAvailability()
+    first.resolve({ transcript: 'first' })
+
+    await vi.waitFor(() => expect(service.getSnapshot().sessions).toEqual([
+      expect.objectContaining({ sessionId: b.sessionId, phase: 'retryable', errorCode: 'model-missing' })
+    ]))
+    expect(chatGpt.transcribe).toHaveBeenCalledTimes(1)
+    expect(local.transcribe).not.toHaveBeenCalled()
+    await service.shutdown()
+  })
+
+  it('cancels an in-flight ChatGPT transcription on discard and ignores its late result', async () => {
+    const pending = deferred<VoiceTranscriptionResult>()
+    const chatGpt = fakeTranscriber([pending.promise])
+    const local = fakeTranscriber([])
+    const { service, events } = await createRoutedService({ signedIn: true, chatGpt, local })
+
+    const { sessionId } = await service.submitTranscription(input('thread-a'))
+    await service.discardSession(sessionId)
+    pending.resolve({ transcript: 'late' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(chatGpt.cancel).toHaveBeenCalledWith(sessionId)
+    expect(local.cancel).not.toHaveBeenCalled()
+    expect(events.some((event) => event.type === 'completed')).toBe(false)
+    await service.shutdown()
+  })
+
+  it('publishes ChatGPT availability only when it changes', async () => {
+    const { service, account } = await createRoutedService({ signedIn: false })
+    const published: unknown[] = []
+    service.onSnapshot((snapshot) => published.push(snapshot.chatGpt))
+
+    account.signedIn = true
+    await service.refreshChatGptAvailability()
+    await service.refreshChatGptAvailability()
+    account.enabled = false
+    await service.refreshChatGptAvailability()
+
+    expect(published).toEqual([
+      { signedIn: true, enabled: true },
+      { signedIn: true, enabled: false }
+    ])
+    await service.shutdown()
+  })
+})
+
 async function createService(transcriber: VoiceTranscriber): Promise<VoiceRuntimeService> {
   return (await createServiceWithRoot(transcriber)).service
 }
@@ -212,8 +370,12 @@ async function createServiceWithRoot(transcriber: VoiceTranscriber): Promise<{
 }> {
   const voiceRoot = await mkdtemp(join(tmpdir(), 'dotcraft-voice-test-'))
   tempRoots.push(voiceRoot)
-  const model = new FakeModel(join(voiceRoot, 'model.bin'))
-  const service = new VoiceRuntimeService({ voiceRoot, modelManager: model, transcriber })
+  const service = new VoiceRuntimeService({
+    voiceRoot,
+    modelManager: new FakeModel(),
+    localTranscriber: transcriber,
+    chatGpt: signedOutChatGpt()
+  })
   await service.initialize()
   return { service, voiceRoot }
 }
@@ -227,7 +389,7 @@ async function createServiceWithPendingAdmission(transcriber: VoiceTranscriber):
 }> {
   const voiceRoot = await mkdtemp(join(tmpdir(), 'dotcraft-voice-test-'))
   tempRoots.push(voiceRoot)
-  const model = new FakeModel(join(voiceRoot, 'model.bin'))
+  const model = new FakeModel()
   const writeStarted = deferred<void>()
   const releaseWrite = deferred<void>()
   let writeCount = 0
@@ -239,9 +401,54 @@ async function createServiceWithPendingAdmission(transcriber: VoiceTranscriber):
     }
     await writeFile(path, 'wav')
   }
-  const service = new VoiceRuntimeService({ voiceRoot, modelManager: model, transcriber, writeWav })
+  const service = new VoiceRuntimeService({
+    voiceRoot,
+    modelManager: model,
+    localTranscriber: transcriber,
+    chatGpt: signedOutChatGpt(),
+    writeWav
+  })
   await service.initialize()
   return { service, model, voiceRoot, writeStarted, releaseWrite }
+}
+
+async function createRoutedService(options: {
+  modelPhase?: VoiceModelPhase
+  signedIn: boolean
+  enabled?: boolean
+  chatGpt?: VoiceTranscriber
+  local?: VoiceTranscriber
+}): Promise<{
+  service: VoiceRuntimeService
+  account: { signedIn: boolean; enabled: boolean }
+  events: VoiceSessionEvent[]
+}> {
+  const voiceRoot = await mkdtemp(join(tmpdir(), 'dotcraft-voice-test-'))
+  tempRoots.push(voiceRoot)
+  const account = { signedIn: options.signedIn, enabled: options.enabled ?? true }
+  const service = new VoiceRuntimeService({
+    voiceRoot,
+    modelManager: new FakeModel(options.modelPhase),
+    localTranscriber: options.local ?? fakeTranscriber([]),
+    chatGpt: {
+      transcriber: options.chatGpt ?? fakeTranscriber([]),
+      isSignedIn: async () => account.signedIn,
+      isEnabled: () => account.enabled
+    }
+  })
+  await service.initialize()
+  await service.refreshChatGptAvailability()
+  const events: VoiceSessionEvent[] = []
+  service.onSessionEvent((event) => events.push(event))
+  return { service, account, events }
+}
+
+function signedOutChatGpt(): VoiceChatGptRoute {
+  return {
+    transcriber: fakeTranscriber([]),
+    isSignedIn: async () => false,
+    isEnabled: () => true
+  }
 }
 
 function input(threadId: string) {
@@ -254,8 +461,12 @@ function input(threadId: string) {
 }
 
 class FakeModel implements VoiceModelController {
-  private state: VoiceModelState = { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }
-  constructor(readonly modelPath: string) {}
+  private state: VoiceModelState
+  constructor(phase: VoiceModelPhase = 'installed') {
+    this.state = phase === 'installed'
+      ? { phase, bytesDownloaded: 1, bytesTotal: 1 }
+      : { phase, bytesDownloaded: 0, bytesTotal: null }
+  }
   getState(): VoiceModelState { return { ...this.state } }
   subscribe(): () => void { return () => {} }
   async initialize(): Promise<void> {}
@@ -272,7 +483,6 @@ class InterleavedLifecycleModel implements VoiceModelController {
   readonly removeStarted = deferred<void>()
   readonly releaseRemove = deferred<void>()
 
-  constructor(readonly modelPath: string) {}
   getState(): VoiceModelState { return { ...this.state } }
   subscribe(): () => void { return () => {} }
   async initialize(): Promise<void> {}

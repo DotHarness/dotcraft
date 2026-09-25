@@ -31,6 +31,7 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.AuthOpenAiAuthorizeUrlNotification))]
 [JsonSerializable(typeof(AppServer.AuthOpenAiLoginParams))]
 [JsonSerializable(typeof(AppServer.AuthOpenAiLogoutParams))]
+[JsonSerializable(typeof(AppServer.AuthOpenAiStatusParams))]
 [JsonSerializable(typeof(AppServer.AuthOpenAiStatusResult))]
 [JsonSerializable(typeof(AppServer.AuthOpenAiUsageCredits))]
 [JsonSerializable(typeof(AppServer.AuthOpenAiUsageResult))]

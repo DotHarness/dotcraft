@@ -2387,6 +2387,19 @@
       },
       "additionalProperties": true
     },
+    "AuthOpenAiStatusParams": {
+      "title": "AuthOpenAiStatusParams",
+      "type": "object",
+      "properties": {
+        "includeToken": {
+          "type": "boolean"
+        },
+        "refreshToken": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
     "AuthOpenAiStatusResult": {
       "title": "AuthOpenAiStatusResult",
       "type": "object",
@@ -2411,6 +2424,9 @@
               "type": "null"
             }
           ]
+        },
+        "authToken": {
+          "type": "string"
         },
         "email": {
           "anyOf": [

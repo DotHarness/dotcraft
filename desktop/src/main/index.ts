@@ -21,7 +21,8 @@ import { nodeReplManager, type NodeReplApprovalRequest } from './nodeReplManager
 import { computerUseManager, disposeComputerUse, rememberAlwaysAllowedApp, setComputerUseRuntimeHost } from './computerUse/runtime'
 import { readBrowserTurnNotification } from './browserTabLifecycle'
 import { getGitHubIdentity } from './githubProfile'
-import { registerVoiceIpc, shutdownVoiceService } from './voice/voiceIpc'
+import { refreshVoiceChatGptAvailability, registerVoiceIpc, shutdownVoiceService } from './voice/voiceIpc'
+import { readAppServerChatGptAuth } from './voice/VoiceChatGptTranscriber'
 import { closeAllScreenViews } from './screenView/screenViewManager'
 import { notifyOratorioContextChanged, registerOratorioIpc } from './oratorio/oratorioIpc'
 import { configureVoiceMediaPermissions } from './voice/VoiceMicrophonePermissions'
@@ -890,6 +891,7 @@ async function updateSharedSettings(partial: Partial<AppSettings>): Promise<void
   if (partial.pinnedThreadIdsByWorkspace !== undefined || partial.pinnedProjectIds !== undefined) {
     emitWorkspaceProjects()
   }
+  if (partial.voice !== undefined) refreshVoiceChatGptAvailability()
 }
 
 browserUseManager.setPolicyHost({
@@ -1984,6 +1986,7 @@ async function connectViaWebSocket(
       role: entry.role
     })
     if (foreground == null) return
+    if (foreground && method === 'auth/openai/usageChanged') refreshVoiceChatGptAvailability()
 
     if (mainWindow && !mainWindow.isDestroyed()) {
       applyWorkspaceThreadNotification(entry, method, params)
@@ -2321,6 +2324,7 @@ function createSecondaryWorkspaceConnection(
       role: entry.role
     })
     if (foreground == null) return
+    if (foreground && method === 'auth/openai/usageChanged') refreshVoiceChatGptAvailability()
 
     applyWorkspaceThreadNotification(entry, method, params)
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -3009,6 +3013,7 @@ function emitConnectionStatus(win: BrowserWindow, payload: ConnectionStatusPaylo
     broadcastConnectionStatus(win, payload)
   }
   refreshAppMenu()
+  refreshVoiceChatGptAvailability()
 }
 
 function emitWorkspaceStatus(win: BrowserWindow, payload: WorkspaceStatusPayload): void {
@@ -3122,7 +3127,10 @@ app.whenReady().then(async () => {
   installMcpAppSandboxProtocolHandler()
   registerMenuPopupIpc()
   configureVoiceMediaPermissions(session.defaultSession)
-  registerVoiceIpc()
+  registerVoiceIpc({
+    readChatGptAuth: (refresh) => readAppServerChatGptAuth(wireClient, lastConnectionStatus.capabilities, refresh),
+    isChatGptTranscriptionEnabled: () => sharedSettings.voice?.chatGptTranscription !== false
+  })
   sharedSettings = loadSettings()
   registerOratorioIpc(
     () => getProtocolWorkspacePath() || null,

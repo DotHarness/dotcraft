@@ -21,6 +21,8 @@ public interface IProviderAuthentication
         CancellationToken cancellationToken);
 
     Task LogoutAsync(CancellationToken cancellationToken);
+
+    Task<string?> TryGetAccessTokenAsync(bool forceRefresh, CancellationToken cancellationToken);
 }
 
 /// <summary>Provider-neutral interactive login options.</summary>

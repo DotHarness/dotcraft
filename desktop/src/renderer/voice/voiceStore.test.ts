@@ -19,6 +19,7 @@ import { registerComposerVoiceTarget } from './composerDraftBridge'
 
 const INSTALLED_SNAPSHOT: VoiceRuntimeSnapshot = {
   model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 },
+  chatGpt: { signedIn: false, enabled: true },
   sessions: [],
   capacity: 2
 }

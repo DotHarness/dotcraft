@@ -8,6 +8,7 @@ import {
   VOICE_MIN_DURATION_MS,
   VOICE_SESSION_CAPACITY,
   isVoiceIntent,
+  type VoiceChatGptState,
   type VoiceErrorCode,
   type VoiceRuntimeSnapshot,
   type VoiceSessionEvent,
@@ -31,12 +32,18 @@ type SessionListener = (event: VoiceSessionEvent) => void
 export interface VoiceRuntimeServiceOptions {
   voiceRoot: string
   modelManager: VoiceModelController
-  transcriber: VoiceTranscriber
+  localTranscriber: VoiceTranscriber
+  chatGpt: VoiceChatGptRoute
   writeWav?: (path: string, pcm16: Uint8Array) => Promise<void>
 }
 
+export interface VoiceChatGptRoute {
+  transcriber: VoiceTranscriber
+  isSignedIn(): Promise<boolean>
+  isEnabled(): boolean
+}
+
 export interface VoiceModelController {
-  readonly modelPath: string
   getState(): VoiceRuntimeSnapshot['model']
   subscribe(listener: (state: VoiceRuntimeSnapshot['model']) => void): () => void
   initialize(): Promise<void>
@@ -60,11 +67,14 @@ export class VoiceRuntimeService {
   private readonly sessionListeners = new Set<SessionListener>()
   private readonly pendingAdmissions = new Set<Promise<void>>()
   private readonly tempRoot: string
-  private runningSessionId: string | null = null
+  private running: { sessionId: string; transcriber: VoiceTranscriber } | null = null
   private admissionGeneration = 0
-  private admissionsBlocked = false
+  private localRouteBlocked = false
   private modelLifecycleGeneration = 0
   private shuttingDown = false
+  private chatGptSignedIn = false
+  private chatGptRefreshGeneration = 0
+  private publishedChatGpt: VoiceChatGptState | null = null
 
   constructor(private readonly options: VoiceRuntimeServiceOptions) {
     this.tempRoot = join(options.voiceRoot, 'temp')
@@ -72,6 +82,7 @@ export class VoiceRuntimeService {
   }
 
   async initialize(): Promise<void> {
+    void this.refreshChatGptAvailability()
     await rm(this.tempRoot, { recursive: true, force: true })
     await mkdir(this.tempRoot, { recursive: true })
     await this.options.modelManager.initialize()
@@ -80,8 +91,20 @@ export class VoiceRuntimeService {
   getSnapshot(): VoiceRuntimeSnapshot {
     return {
       model: this.options.modelManager.getState(),
+      chatGpt: this.chatGptState(),
       sessions: [...this.sessions.values()].map(toPublicSession),
       capacity: VOICE_SESSION_CAPACITY
+    }
+  }
+
+  async refreshChatGptAvailability(): Promise<void> {
+    const generation = ++this.chatGptRefreshGeneration
+    const signedIn = await this.options.chatGpt.isSignedIn().catch(() => false)
+    if (generation !== this.chatGptRefreshGeneration) return
+    this.chatGptSignedIn = signedIn
+    const state = this.chatGptState()
+    if (state.signedIn !== this.publishedChatGpt?.signedIn || state.enabled !== this.publishedChatGpt?.enabled) {
+      this.emitSnapshot()
     }
   }
 
@@ -101,7 +124,7 @@ export class VoiceRuntimeService {
     if (
       lifecycleGeneration === this.modelLifecycleGeneration
       && this.options.modelManager.getState().phase === 'installed'
-    ) this.admissionsBlocked = false
+    ) this.localRouteBlocked = false
   }
 
   async cancelModelInstall(): Promise<void> {
@@ -112,7 +135,7 @@ export class VoiceRuntimeService {
     this.modelLifecycleGeneration += 1
     await this.invalidatePendingAdmissions()
     await this.discardAllSessions()
-    await this.options.transcriber.shutdown()
+    await this.options.localTranscriber.shutdown()
     await this.options.modelManager.remove()
   }
 
@@ -120,21 +143,23 @@ export class VoiceRuntimeService {
     const lifecycleGeneration = ++this.modelLifecycleGeneration
     await this.invalidatePendingAdmissions()
     await this.discardAllSessions()
-    await this.options.transcriber.shutdown()
+    await this.options.localTranscriber.shutdown()
     await this.options.modelManager.repair()
     if (
       lifecycleGeneration === this.modelLifecycleGeneration
       && this.options.modelManager.getState().phase === 'installed'
-    ) this.admissionsBlocked = false
+    ) this.localRouteBlocked = false
   }
 
   async submitTranscription(input: VoiceTranscriptionInput): Promise<{ sessionId: string }> {
     this.validateInput(input)
-    const modelState = this.options.modelManager.getState()
-    if (modelState.phase !== 'installed') {
-      throw new VoiceRuntimeError(modelState.phase === 'damaged' ? 'model-damaged' : 'model-missing')
+    if (!this.isChatGptAvailable()) {
+      const modelState = this.options.modelManager.getState()
+      if (modelState.phase !== 'installed') {
+        throw new VoiceRuntimeError(modelState.phase === 'damaged' ? 'model-damaged' : 'model-missing')
+      }
+      if (this.localRouteBlocked) throw new VoiceRuntimeError('model-missing')
     }
-    if (this.admissionsBlocked) throw new VoiceRuntimeError('model-missing')
     if (this.sessions.size + this.pendingAdmissions.size >= VOICE_SESSION_CAPACITY) {
       throw new VoiceRuntimeError('queue-full')
     }
@@ -148,9 +173,7 @@ export class VoiceRuntimeService {
     try {
       await mkdir(this.tempRoot, { recursive: true })
       await (this.options.writeWav ?? writeMonoPcm16Wav)(wavPath, new Uint8Array(input.pcm16))
-      if (this.admissionsBlocked || admissionGeneration !== this.admissionGeneration) {
-        throw new VoiceRuntimeError('model-missing')
-      }
+      if (admissionGeneration !== this.admissionGeneration) throw new VoiceRuntimeError('model-missing')
       const session: SessionRecord = {
         sessionId,
         threadId: input.threadId.trim(),
@@ -193,7 +216,7 @@ export class VoiceRuntimeService {
     if (!session) return
     session.discarded = true
     this.removeFromQueue(sessionId)
-    if (this.runningSessionId === sessionId) await this.options.transcriber.cancel(sessionId)
+    if (this.running?.sessionId === sessionId) await this.running.transcriber.cancel(sessionId)
     this.sessions.delete(sessionId)
     await rm(session.wavPath, { force: true })
     this.emitSession({ ...toPublicSession(session), type: 'discarded' })
@@ -207,7 +230,8 @@ export class VoiceRuntimeService {
     try {
       await this.invalidatePendingAdmissions()
       await this.discardAllSessions()
-      await this.options.transcriber.shutdown()
+      await this.options.localTranscriber.shutdown()
+      await this.options.chatGpt.transcriber.shutdown()
       await rm(this.tempRoot, { recursive: true, force: true })
     } finally {
       this.shuttingDown = false
@@ -215,21 +239,25 @@ export class VoiceRuntimeService {
   }
 
   private async drainQueue(): Promise<void> {
-    if (this.runningSessionId || this.shuttingDown) return
-    while (this.queue.length > 0 && !this.runningSessionId && !this.shuttingDown) {
+    if (this.running || this.shuttingDown) return
+    while (this.queue.length > 0 && !this.running && !this.shuttingDown) {
       const sessionId = this.queue.shift()!
       const session = this.sessions.get(sessionId)
       if (!session || session.discarded) continue
-      this.runningSessionId = sessionId
+      const transcriber = this.chooseTranscriber()
+      if (!transcriber) {
+        session.phase = 'retryable'
+        session.errorCode = 'model-missing'
+        this.emitSession({ ...toPublicSession(session), type: 'changed' })
+        this.emitSnapshot()
+        continue
+      }
+      this.running = { sessionId, transcriber }
       session.phase = 'transcribing'
       this.emitSession({ ...toPublicSession(session), type: 'changed' })
       this.emitSnapshot()
       try {
-        const result = await this.options.transcriber.transcribe(
-          sessionId,
-          session.wavPath,
-          this.options.modelManager.modelPath
-        )
+        const result = await transcriber.transcribe(sessionId, session.wavPath)
         if (session.discarded || !this.sessions.has(sessionId)) continue
         this.sessions.delete(sessionId)
         this.emitSession({
@@ -241,13 +269,27 @@ export class VoiceRuntimeService {
       } catch (error) {
         if (session.discarded || !this.sessions.has(sessionId)) continue
         session.phase = 'retryable'
-        session.errorCode = mapWorkerError(error)
+        session.errorCode = mapTranscriptionError(error)
         this.emitSession({ ...toPublicSession(session), type: 'changed' })
       } finally {
-        if (this.runningSessionId === sessionId) this.runningSessionId = null
+        if (this.running?.sessionId === sessionId) this.running = null
         this.emitSnapshot()
       }
     }
+  }
+
+  private chooseTranscriber(): VoiceTranscriber | null {
+    if (this.isChatGptAvailable()) return this.options.chatGpt.transcriber
+    const localReady = this.options.modelManager.getState().phase === 'installed' && !this.localRouteBlocked
+    return localReady ? this.options.localTranscriber : null
+  }
+
+  private isChatGptAvailable(): boolean {
+    return this.chatGptSignedIn && this.options.chatGpt.isEnabled()
+  }
+
+  private chatGptState(): VoiceChatGptState {
+    return { signedIn: this.chatGptSignedIn, enabled: this.options.chatGpt.isEnabled() }
   }
 
   private validateInput(input: VoiceTranscriptionInput): void {
@@ -274,7 +316,7 @@ export class VoiceRuntimeService {
   }
 
   private async invalidatePendingAdmissions(): Promise<void> {
-    this.admissionsBlocked = true
+    this.localRouteBlocked = true
     this.admissionGeneration += 1
     await Promise.all([...this.pendingAdmissions])
   }
@@ -289,6 +331,7 @@ export class VoiceRuntimeService {
 
   private emitSnapshot(): void {
     const snapshot = this.getSnapshot()
+    this.publishedChatGpt = snapshot.chatGpt
     for (const listener of this.snapshotListeners) listener(snapshot)
   }
 
@@ -308,7 +351,8 @@ function toPublicSession(session: SessionRecord): VoiceSessionState {
   }
 }
 
-function mapWorkerError(error: unknown): VoiceErrorCode {
+function mapTranscriptionError(error: unknown): VoiceErrorCode {
+  if (error instanceof VoiceRuntimeError) return error.code
   if (error instanceof VoiceWorkerError) {
     if (error.code === 'worker-crashed') return 'worker-crashed'
     if (error.code === 'worker-unavailable') return 'worker-unavailable'
