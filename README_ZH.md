@@ -34,35 +34,13 @@ DotCraft 是一个基于 C#/.NET 构建的开源、自托管 **AI Agent Runtime*
 
 ## 探索 DotCraft
 
-### [Desktop](https://www.dotcraft.net/zh/features/entry-points/desktop)
+![DotCraft Desktop、DotCraft.Harness、Oratorio、DotCraft Satellite 和 @dotcraft/avatar](https://github.com/DotHarness/resources/raw/master/dotcraft/products.webp)
 
-[![你的项目，你的 Agent，同一个桌面。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-desktop.png)](https://www.dotcraft.net/zh/features/entry-points/desktop)
-
-在一个桌面应用中与 Agent 一起处理项目。
-
-### [DotCraft.Harness](https://www.dotcraft.net/zh/developing/harness/)
-
-[![把 Agent 能力嵌入你的 .NET 应用。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-harness.png)](https://www.dotcraft.net/zh/developing/harness/)
-
-将完整的 Agent 运行时嵌入你的 .NET 应用。
-
-### [Oratorio](https://www.dotcraft.net/zh/features/oratorio)
-
-[![从任务到审阅与交付。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-oratorio.png)](https://www.dotcraft.net/zh/features/oratorio)
-
-在同一看板上管理 Agent 任务，从分配到审阅。
-
-### [卫星](https://www.dotcraft.net/zh/features/agent-system/satellite)
-
-[![让你的 Agent 到另一台电脑上工作。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-satellite.png)](https://www.dotcraft.net/zh/features/agent-system/satellite)
-
-让你的 Agent 在另一台电脑获准共享的文件夹中工作。
-
-### [Avatar](https://www.dotcraft.net/zh/developing/sdks/typescript#avatar-包)
-
-[![让你的 Agent 拥有鲜明个性。](https://github.com/DotHarness/resources/raw/master/dotcraft/product-avatar.png)](./sdk/typescript/packages/avatar/README.md)
-
-用表情丰富、可自由搭配的头像，为你的 Agent 赋予鲜明个性。
+- **[Desktop](https://www.dotcraft.net/zh/features/entry-points/desktop)：** 在一个桌面应用中与 Agent 一起处理项目。
+- **[DotCraft.Harness](https://www.dotcraft.net/zh/developing/harness/)：** 将完整的 Agent 运行时嵌入你的 .NET 应用。
+- **[Oratorio](https://www.dotcraft.net/zh/features/oratorio)：** 在同一看板上管理 Agent 任务，从分配到审阅。
+- **[卫星](https://www.dotcraft.net/zh/features/agent-system/satellite)：** 让你的 Agent 在另一台电脑获准共享的文件夹中工作。
+- **[Avatar](https://www.dotcraft.net/zh/developing/sdks/typescript#avatar-包)：** 用表情丰富、可自由搭配的头像，为你的 Agent 赋予鲜明个性。
 
 ## 快速开始
 
