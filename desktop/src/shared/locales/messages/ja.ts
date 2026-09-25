@@ -765,7 +765,7 @@ export const MESSAGES_JA = {
   'setupWizard.field.model': 'モデル',
   'setupWizard.field.authMethod': '認証',
   'setupWizard.authMethod.apiKey': 'API キー',
-  'setupWizard.authMethod.chatgpt': 'ChatGPT サブスクリプション',
+  'setupWizard.authMethod.chatgpt': 'ChatGPT でサインイン',
   'setupWizard.placeholder.apiKey': 'プロバイダー API キーを入力',
   'setupWizard.placeholder.displayName': 'プロバイダー名',
   'setupWizard.placeholder.model': 'モデル ID を入力',
@@ -2491,6 +2491,7 @@ export const MESSAGES_JA = {
   'setupWizard.authMethod.apiKeyDescription': '従量課金の OpenAI API キー（sk-…）。',
   'setupWizard.authMethod.chatgptDescription':
     'ChatGPT Plus / Pro / Team / Business / Enterprise のサブスクリプションを再利用します。',
+  'setupWizard.authMethod.signIn': 'サインイン',
   'setupWizard.authMethod.signedIn': 'ログイン済み',
   'setupWizard.confirm.description': '内容を確認してからワークスペースを作成します。',
   'setupWizard.summary.importSource': '{{source}} - {{file}}',

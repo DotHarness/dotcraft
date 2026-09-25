@@ -1111,7 +1111,7 @@ function ChatGptSignInAction({ state, onSignIn }: { state: ChatGptSignInState; o
   }
   return (
     <Button variant="secondary" size="sm" loading={state === 'pending'} onClick={onSignIn}>
-      {state === 'pending' ? t('settings.llm.authMethod.signInPending') : t('settings.llm.authMethod.signIn')}
+      {t('setupWizard.authMethod.signIn')}
     </Button>
   )
 }

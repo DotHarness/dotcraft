@@ -345,8 +345,8 @@ describe('WorkspaceSetupWizard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Custom/ }))
 
-    // Pick ChatGPT subscription on the (default) Responses protocol.
-    fireEvent.click(await screen.findByRole('radio', { name: /ChatGPT subscription/ }))
+    // Pick Sign in with ChatGPT on the (default) Responses protocol.
+    fireEvent.click(await screen.findByRole('radio', { name: /Sign in with ChatGPT/ }))
 
     // Now move the custom provider off Responses; the OAuth selection must be cleared so the
     // saved payload stays consistent with the new protocol.
@@ -387,9 +387,9 @@ describe('WorkspaceSetupWizard', () => {
     renderWizard(status)
     await openConfigStep()
     fireEvent.click(screen.getByRole('button', { name: /Custom/ }))
-    fireEvent.click(await screen.findByRole('radio', { name: /ChatGPT subscription/ }))
+    fireEvent.click(await screen.findByRole('radio', { name: /Sign in with ChatGPT/ }))
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Sign in with ChatGPT' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }))
 
     await waitFor(() => expect(loginSetupChatGpt).toHaveBeenCalledWith('provider'))
     await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('gpt-5.6'))

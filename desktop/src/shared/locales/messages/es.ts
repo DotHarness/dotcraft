@@ -765,7 +765,7 @@ export const MESSAGES_ES = {
   'setupWizard.field.model': 'Modelo',
   'setupWizard.field.authMethod': 'Autenticación',
   'setupWizard.authMethod.apiKey': 'Clave API',
-  'setupWizard.authMethod.chatgpt': 'Suscripción de ChatGPT',
+  'setupWizard.authMethod.chatgpt': 'Iniciar sesión con ChatGPT',
   'setupWizard.placeholder.apiKey': 'Introduce la clave API del proveedor',
   'setupWizard.placeholder.displayName': 'Nombre del proveedor',
   'setupWizard.placeholder.model': 'Introduce el ID del modelo',
@@ -2500,6 +2500,7 @@ export const MESSAGES_ES = {
   'setupWizard.authMethod.apiKeyDescription': 'Clave de API de OpenAI de pago por uso (sk-…).',
   'setupWizard.authMethod.chatgptDescription':
     'Reutiliza tu suscripción de ChatGPT Plus / Pro / Team / Business / Enterprise.',
+  'setupWizard.authMethod.signIn': 'Iniciar sesión',
   'setupWizard.authMethod.signedIn': 'Sesión iniciada',
   'setupWizard.confirm.description': 'Compruébalo y crea el espacio de trabajo.',
   'setupWizard.summary.importSource': '{{source}} - {{file}}',

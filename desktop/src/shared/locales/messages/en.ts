@@ -1402,9 +1402,10 @@ export const MESSAGES_EN = {
   'setupWizard.field.authMethod': 'Authentication',
   'setupWizard.authMethod.apiKey': 'API key',
   'setupWizard.authMethod.apiKeyDescription': 'Pay-as-you-go OpenAI API key (sk-…).',
-  'setupWizard.authMethod.chatgpt': 'ChatGPT subscription',
+  'setupWizard.authMethod.chatgpt': 'Sign in with ChatGPT',
   'setupWizard.authMethod.chatgptDescription':
     'Reuse your ChatGPT Plus / Pro / Team / Business / Enterprise subscription.',
+  'setupWizard.authMethod.signIn': 'Sign in',
   'setupWizard.authMethod.signedIn': 'Signed in',
   'setupWizard.placeholder.apiKey': 'Enter your provider API key',
   'setupWizard.placeholder.displayName': 'Provider name',
