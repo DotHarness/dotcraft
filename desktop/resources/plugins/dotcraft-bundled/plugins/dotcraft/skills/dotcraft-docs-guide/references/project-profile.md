@@ -71,7 +71,7 @@ Each sidebar group under Features gets an `index.md` overview: a short value par
 
 ## Site style layer
 
-`docs/.vitepress/theme/custom.css` owns the site's visual decisions — whitespace-first, no separator rules anywhere, a quiet footer, an inset sidebar. Content never compensates for style in Markdown (no `---`, no spacing hacks); read the theme file for current values instead of relying on any list here.
+The site's design rules live in `specs/architecture/DESIGN.md` › Documentation site: the site is a Desktop window built from Desktop's tokens and components. `docs/.vitepress/theme/` implements them. Content never compensates for style in Markdown (no `---`, no spacing hacks); read the theme files for current values instead of relying on any list here.
 
 When changing the theme to match a reference design, F12-measure the reference and copy its computed values — never eyeball. Verify every change in a live browser against computed styles (`getComputedStyle` / `getBoundingClientRect`), not by reading CSS: the generator's component styles are scoped (`[data-v-*]`) and silently beat single-class overrides. For pixel screenshots force a device scale factor of 1; OS display scaling breaks pixel math.
 

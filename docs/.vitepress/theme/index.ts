@@ -1,49 +1,29 @@
-import DefaultTheme from 'vitepress/theme'
-import type { EnhanceAppContext } from 'vitepress'
-import './motion.css'
-import './custom.css'
-import './home-layout.css'
-import './mascot.css'
-import LiveMascot from './LiveMascot.vue'
-import { setupDemoEmbed } from './demoEmbed'
-import { setupDownloadButton } from './downloadButton'
-import { setupHomeMotion } from './homeMotion'
-import { setupLiveMascots } from './liveMascot'
+import DefaultTheme from 'vitepress/theme-without-fonts'
+import { h } from 'vue'
+import '../../../desktop/src/renderer/styles/foundations/tokens.css'
+import '../../../desktop/src/renderer/styles/foundations/themes.css'
+import './tokens.css'
+import './chrome.css'
+import './mobile-nav.css'
+import './sidebar.css'
+import './band.css'
+import './doc.css'
+import './code.css'
+import './search.css'
+import DocBand from './components/DocBand.vue'
+import DocMeta from './components/DocMeta.vue'
+import DocOutlineActions from './components/DocOutlineActions.vue'
+import { setupCodeWrap } from './codeWrap'
 
 export default {
   extends: DefaultTheme,
-  enhanceApp({ app, router }: EnhanceAppContext) {
-    // Global registration so the markdown HTML blocks can render it.
-    app.component('LiveMascot', LiveMascot)
-
-    if (typeof window === 'undefined') return
-
-    const enhance = (): void => {
-      setupDemoEmbed()
-      setupDownloadButton()
-      setupHomeMotion()
-      setupLiveMascots()
-    }
-
-    // The page component can mount after enhanceApp, so retry until the hero
-    // markup exists (both enhancers are idempotent). setTimeout, not rAF, so it
-    // still runs when the tab loads hidden — rAF is paused while not visible.
-    const initEmbed = (): void => {
-      let attempts = 0
-      const tick = (): void => {
-        enhance()
-        if (++attempts < 40 && !document.querySelector('[data-download], .dc-demo')) {
-          setTimeout(tick, 50)
-        }
-      }
-      tick()
-    }
-
-    const previous = router.onAfterRouteChange
-    router.onAfterRouteChange = (to: string) => {
-      previous?.(to)
-      initEmbed()
-    }
-    initEmbed()
+  Layout: () =>
+    h(DefaultTheme.Layout, null, {
+      'doc-top': () => h(DocBand),
+      'aside-outline-after': () => h(DocOutlineActions),
+      'doc-after': () => h(DocMeta)
+    }),
+  enhanceApp() {
+    if (typeof window !== 'undefined') setupCodeWrap()
   }
 }

@@ -1,0 +1,396 @@
+.dc-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--button-height);
+  padding: 0 var(--button-padding-x);
+  border: 1px solid transparent;
+  border-radius: var(--button-text-radius);
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+  transition:
+    background-color var(--duration-fast) ease,
+    border-color var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+}
+
+.dc-button[data-size="sm"] {
+  height: var(--button-height-sm);
+  padding: 0 10px;
+  font-size: var(--type-secondary-size);
+}
+
+.dc-button[data-size="prominent"] {
+  height: 40px;
+  padding: 0 18px;
+  font-size: var(--type-body-size);
+}
+
+.dc-button[data-variant="primary"] {
+  border-color: var(--text-primary);
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  font-weight: 600;
+}
+
+.dc-button[data-variant="primary"]:hover {
+  border-color: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary));
+  background: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary));
+}
+
+.dc-button[data-variant="secondary"] {
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+}
+
+.dc-button[data-variant="secondary"]:hover,
+.dc-button[data-variant="secondary"][aria-expanded="true"] {
+  background: color-mix(in srgb, var(--text-primary) 11%, transparent);
+}
+
+.dc-button[data-variant="ghost"] {
+  color: var(--text-secondary);
+}
+
+.dc-button[data-variant="ghost"]:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.dc-button[data-variant="outline"] {
+  border-color: var(--border-default);
+  background: var(--bg-secondary);
+}
+
+.dc-button[data-variant="outline"]:hover {
+  border-color: var(--border-active);
+  background: var(--bg-tertiary);
+}
+
+.dc-split {
+  position: relative;
+  display: inline-flex;
+}
+
+.dc-split__group {
+  display: inline-flex;
+  overflow: hidden;
+  border-radius: var(--button-text-radius);
+}
+
+.dc-split__main {
+  padding-right: 8px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.dc-split__toggle {
+  padding: 0 12px 0 6px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.dc-split__toggle svg {
+  opacity: 0.5;
+  transition: transform var(--duration-fast) ease;
+}
+
+.dc-split__toggle[aria-expanded="true"] svg {
+  opacity: 0.8;
+  transform: rotate(180deg);
+}
+
+.dc-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 80;
+  min-width: 250px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--glass-surface-strong);
+  box-shadow: var(--glass-shadow-soft);
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-2px) scale(0.985);
+  transform-origin: top right;
+  transition:
+    opacity 100ms ease-out,
+    transform 100ms ease-out,
+    visibility 0s linear 100ms;
+}
+
+.dc-menu[data-drop="up"] {
+  top: auto;
+  bottom: calc(100% + 6px);
+  transform-origin: bottom right;
+}
+
+.dc-menu[data-open] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: none;
+  transition:
+    opacity 100ms ease-out,
+    transform 100ms ease-out;
+}
+
+.dc-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+  white-space: nowrap;
+}
+
+.dc-menu__item:is(:hover, :focus-visible) {
+  outline: none;
+  background: var(--bg-tertiary);
+}
+
+.dc-menu__item > svg {
+  color: var(--text-secondary);
+}
+
+.dc-menu__item span {
+  flex: 1;
+}
+
+.dc-menu__item small {
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+}
+
+.dc-menu__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.dc-menu__rule {
+  height: 1px;
+  margin: 5px 4px;
+  background: var(--border-default);
+}
+
+.dc-seg {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: var(--button-text-radius);
+  background: var(--bg-tertiary);
+}
+
+.dc-seg button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 12px;
+  border-radius: var(--button-text-radius);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+  transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.dc-seg button:hover {
+  color: var(--text-primary);
+}
+
+.dc-seg button[aria-selected="true"] {
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-level-2);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.dc-install {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 620px;
+  min-height: 48px;
+  padding: 5px 6px 5px 5px;
+  border: 1px solid var(--composer-input-rest-border);
+  border-radius: 16px;
+  background: var(--composer-input-background);
+  box-shadow: var(--composer-input-shadow);
+}
+
+.dc-install__cmd {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--type-ui-size);
+  line-height: 20px;
+  text-align: left;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.dc-install__cmd::-webkit-scrollbar {
+  display: none;
+}
+
+.dc-icon-button.dc-icon-button--round {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+}
+
+.dc-tip.dc-tip--above {
+  top: auto;
+  right: auto;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translate(-50%, 2px);
+}
+
+.dc-icon-button:is(:hover, :focus-visible, [data-copied]) > .dc-tip.dc-tip--above {
+  transform: translate(-50%, 0);
+}
+
+.dc-composer {
+  position: relative;
+  padding: 10px 10px 8px;
+  border: 1px solid var(--composer-input-rest-border);
+  border-radius: 20px;
+  background: var(--composer-input-background);
+  box-shadow: var(--composer-input-shadow);
+  text-align: left;
+  transition: border-color var(--duration-fast) ease;
+}
+
+.dc-composer:hover {
+  border-color: var(--border-active);
+}
+
+.dc-composer__glow {
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: 22px;
+  background: var(--composer-focus-glow);
+  opacity: 0;
+  filter: blur(8px);
+  transition: opacity 240ms ease;
+}
+
+.dc-composer:is(:hover, :focus-within) .dc-composer__glow {
+  opacity: 0.22;
+}
+
+.dc-composer__input {
+  min-height: 52px;
+  padding: 6px 8px 0;
+  overflow-x: auto;
+  color: var(--text-primary);
+  font-size: var(--type-body-size);
+  line-height: 22px;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.dc-composer__input::-webkit-scrollbar {
+  display: none;
+}
+
+.dc-composer__input code {
+  font-family: var(--font-mono);
+}
+
+.dc-composer__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.dc-composer__foot .dc-seg {
+  gap: 2px;
+  padding: 0;
+  background: transparent;
+}
+
+.dc-composer__foot .dc-seg button {
+  padding: 4px 10px;
+  font-size: var(--type-ui-size);
+}
+
+.dc-composer__foot .dc-seg button[aria-selected="true"] {
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  box-shadow: none;
+}
+
+.dc-composer__foot .dc-icon-button.dc-copy {
+  margin-left: auto;
+  background: color-mix(in srgb, var(--text-primary) 7%, transparent);
+  box-shadow: var(--composer-action-shadow);
+  color: var(--text-primary);
+}
+
+.dc-composer__foot .dc-icon-button.dc-copy:hover {
+  background: color-mix(in srgb, var(--text-primary) 12%, transparent);
+}
+
+@media (max-width: 640px) {
+  .dc-actions > .dc-button,
+  .dc-actions .dc-split,
+  .dc-close__context .dc-split,
+  .dc-split__group {
+    width: 100%;
+  }
+
+  .dc-split__main {
+    flex: 1;
+  }
+
+  .dc-install {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 14px;
+  }
+
+  .dc-install .dc-seg {
+    width: 100%;
+  }
+
+  .dc-install .dc-seg button {
+    flex: 1;
+  }
+
+  .dc-install__cmd {
+    padding-left: 8px;
+    font-size: 12.5px;
+  }
+
+  .dc-install__cmd,
+  .dc-composer__input {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .dc-composer__foot {
+    flex-wrap: wrap;
+  }
+}

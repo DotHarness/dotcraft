@@ -1,0 +1,193 @@
+.vp-doc div[class*="language-"] {
+  margin: 18px 0;
+  overflow: visible;
+  border-radius: 10px;
+}
+
+:root:not(.dark) .vp-doc div[class*="language-"] {
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+}
+
+.vp-doc [class*="language-"] pre {
+  padding: 14px 0;
+}
+
+.vp-doc [class*="language-"] code {
+  padding: 0 16px;
+  font-size: 12.5px;
+  line-height: 20px;
+}
+
+.vp-doc [class*="language-"].is-wrapped :is(pre, code) {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.vp-doc [class*="language-"].is-wrapped code {
+  width: auto;
+  min-width: 0;
+}
+
+.vp-doc [class*="language-"] > span.lang,
+.vp-doc [class*="language-"]:hover > button.copy + span.lang,
+.vp-doc [class*="language-"] > button.copy:focus + span.lang {
+  top: 8px;
+  right: 64px;
+  color: var(--vp-code-lang-color);
+  font-family: var(--font-ui);
+  font-size: var(--type-hint-size);
+  font-weight: 500;
+  line-height: 24px;
+  opacity: 1;
+}
+
+.vp-doc [class*="language-"] > button.copy,
+.vp-doc [class*="language-"] > button.wrap {
+  position: absolute;
+  top: 8px;
+  z-index: 3;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity var(--duration-fast) ease, background-color var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.vp-doc [class*="language-"] > button.copy {
+  right: 8px;
+}
+
+.vp-doc [class*="language-"] > button.wrap {
+  right: 36px;
+}
+
+.vp-doc [class*="language-"]:hover > button,
+.vp-doc [class*="language-"]:focus-within > button,
+.vp-doc [class*="language-"] > button.copy.copied,
+.vp-doc [class*="language-"] > button.wrap[aria-pressed="true"] {
+  opacity: 1;
+}
+
+.vp-doc [class*="language-"] > button:hover,
+.vp-doc [class*="language-"] > button.copy.copied,
+.vp-doc [class*="language-"] > button.copy:hover.copied {
+  border-radius: 6px;
+  background: var(--vp-code-copy-code-hover-bg);
+  background-image: none;
+  color: var(--text-primary);
+}
+
+.vp-doc [class*="language-"] > button.wrap[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  color: var(--text-primary);
+}
+
+.vp-doc [class*="language-"] > button.copy::before,
+.vp-doc [class*="language-"] > button.wrap::before,
+.vp-doc [class*="language-"] > button.copy.copied::before,
+.vp-doc [class*="language-"] > button.copy:hover.copied::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  display: block;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: currentColor;
+  transform: none;
+  -webkit-mask: var(--dc-code-icon) center / 14px no-repeat;
+  mask: var(--dc-code-icon) center / 14px no-repeat;
+}
+
+.vp-doc [class*="language-"] > button.copy {
+  --dc-code-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='14' height='14' x='8' y='8' rx='2' ry='2'/%3E%3Cpath d='M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2'/%3E%3C/svg%3E");
+}
+
+.vp-doc [class*="language-"] > button.copy.copied,
+.vp-doc [class*="language-"] > button.copy:hover.copied {
+  --dc-code-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+  color: var(--success-text);
+}
+
+.vp-doc [class*="language-"] > button.wrap {
+  --dc-code-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 16-3 3 3 3'/%3E%3Cpath d='M3 12h14.5a1 1 0 0 1 0 7H13'/%3E%3Cpath d='M3 19h6'/%3E%3Cpath d='M3 5h18'/%3E%3C/svg%3E");
+}
+
+.vp-doc [class*="language-"] > button::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  padding: 6px 8px;
+  border-radius: var(--tooltip-radius);
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
+  box-shadow: var(--tooltip-shadow);
+  font-family: var(--font-ui);
+  font-size: var(--type-secondary-size);
+  font-weight: 400;
+  line-height: var(--type-secondary-line-height);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 2px);
+  transition: opacity var(--duration-fast) ease, transform var(--duration-fast) ease;
+}
+
+.vp-doc [class*="language-"] > button:hover::after,
+.vp-doc [class*="language-"] > button:focus-visible::after,
+.vp-doc [class*="language-"] > button.copy.copied::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.vp-doc [class*="language-"] > button.copy.copied::after {
+  content: attr(data-tip-done);
+}
+
+.vp-doc .vp-code-group {
+  margin: 18px 0;
+}
+
+.vp-doc .vp-code-group .tabs {
+  gap: 2px;
+  margin: 0;
+  padding: 6px 6px 0;
+  border-radius: 10px 10px 0 0;
+}
+
+.vp-doc .vp-code-group .tabs label {
+  height: 28px;
+  margin-bottom: 6px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 28px;
+  transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.vp-doc .vp-code-group .tabs input:checked + label {
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+
+.vp-doc .vp-code-group .tabs label::after {
+  display: none;
+}
+
+:root:not(.dark) .vp-doc .vp-code-group .tabs {
+  box-shadow: inset 1px 0 0 var(--border-subtle), inset -1px 0 0 var(--border-subtle), inset 0 1px 0 var(--border-subtle), inset 0 -1px 0 var(--vp-code-tab-divider);
+}
+
+:root:not(.dark) .vp-doc .vp-code-group div[class*="language-"] {
+  box-shadow: inset 1px 0 0 var(--border-subtle), inset -1px 0 0 var(--border-subtle), inset 0 -1px 0 var(--border-subtle);
+}

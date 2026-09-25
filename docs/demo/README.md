@@ -20,8 +20,8 @@ Query parameters: `?theme=dark|light` and `?lang=en|zh`.
 
 ## Homepage embed
 
-`docs/.vitepress/theme/demoEmbed.ts` mounts the built demo into the homepage
-hero (`.dc-demo` in `docs/index.md` / `docs/zh/index.md`): poster first,
-iframe fades in after page load, pointer input only after explicit activation.
+`docs/.vitepress/theme/home/DemoWindow.vue` mounts the built demo into the
+homepage hero: poster first, the iframe fades in once the demo has rendered,
+pointer input only after explicit activation.
 The Pages workflow builds this project before the VitePress site; a demo build
 failure fails the deploy.

@@ -1,0 +1,381 @@
+html {
+  scrollbar-gutter: stable;
+  overflow-x: hidden;
+}
+
+body {
+  background: var(--shell-chrome-tone);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.VPNav {
+  background-color: var(--shell-chrome-tone);
+}
+
+.VPNav .VPNavBar .wrapper,
+.VPNav .VPNavBar.has-sidebar .wrapper {
+  padding: 0 12px 0 14px;
+}
+
+.VPNav .VPNavBar .container,
+.VPNav .VPNavBar.has-sidebar .container {
+  max-width: none;
+}
+
+.VPNav .VPNavBar .container > .title,
+.VPNav .VPNavBar.has-sidebar .container > .title {
+  position: static;
+  display: flex;
+  align-items: center;
+  width: auto;
+  height: var(--vp-nav-height);
+  padding: 0;
+  background: none;
+}
+
+.VPNav .VPNavBar .divider {
+  display: none;
+}
+
+.VPNav .VPNavBarTitle .title,
+.VPNav .VPNavBarTitle.has-sidebar .title {
+  width: auto;
+  height: 32px;
+  padding: 0 8px 0 2px;
+  border-bottom: 0;
+  border-radius: var(--toolbar-control-radius);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.VPNavBarTitle .logo {
+  transform: translateY(-2px);
+}
+
+.VPNav .VPNavBar .content,
+.VPNav .VPNavBar.has-sidebar .content {
+  padding: 0;
+}
+
+.VPNav .VPNavBar .content-body {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.VPNav .VPNavBarMenu {
+  order: 0;
+  gap: 2px;
+  margin: 0 auto 0 26px;
+}
+
+.VPNav .VPNavBarMenuLink {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--toolbar-control-radius);
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+  font-weight: 500;
+  line-height: 28px;
+  transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.VPNav .VPNavBarMenuLink:hover {
+  background: var(--sidebar-control-hover);
+  color: var(--text-primary);
+}
+
+.VPNav .VPNavBarMenuLink.active {
+  background: var(--sidebar-control-active);
+  color: var(--text-primary);
+}
+
+.VPNav .VPNavBarSearch {
+  order: 1;
+  flex-grow: 0;
+  margin-left: auto;
+  padding-left: 0;
+}
+
+.VPNav .VPNavBarTranslations {
+  order: 2;
+}
+
+.VPNav .VPNavBarAppearance {
+  order: 3;
+}
+
+.VPNav .VPNavBarSocialLinks {
+  order: 4;
+}
+
+.VPNav .VPNavBarExtra {
+  order: 5;
+  margin-right: 0;
+}
+
+.VPNav .VPNavBarHamburger {
+  order: 6;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--toolbar-control-radius);
+}
+
+.VPNav .VPNavBar :is(.translations, .appearance, .social-links)::before {
+  display: none;
+}
+
+.VPNav .VPNavBar .social-links {
+  margin-right: 0;
+}
+
+@media (min-width: 960px) {
+  .VPNav .VPNavBarTranslations,
+  .VPNav .VPNavBarAppearance,
+  .VPNav .VPNavBarSocialLinks {
+    display: flex;
+    align-items: center;
+  }
+
+  .VPNav .VPNavBarExtra {
+    display: none;
+  }
+}
+
+.VPNav .VPFlyout .button {
+  height: 28px;
+  padding: 0 6px 0 8px;
+  border-radius: var(--toolbar-control-radius);
+  color: var(--text-secondary);
+  transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.VPNav .VPNavBarExtra .button {
+  padding: 0 6px;
+}
+
+.VPNav .VPFlyout .text,
+.VPNav .VPFlyout:hover .text {
+  gap: 6px;
+  color: inherit;
+  font-size: var(--type-ui-size);
+  font-weight: 400;
+  line-height: 28px;
+}
+
+.VPNav .VPFlyout:hover .button,
+.VPNav .VPFlyout .button[aria-expanded="true"] {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.VPNav .VPFlyout .option-icon {
+  font-size: 15px;
+}
+
+.VPNav .VPFlyout .text-icon {
+  order: 2;
+  margin-left: 0;
+  font-size: 14px;
+  opacity: 0.6;
+}
+
+.VPNav .VPNavBarTranslations .text::after {
+  content: "English";
+  order: 1;
+}
+
+:root:lang(zh) .VPNav .VPNavBarTranslations .text::after {
+  content: "简体中文";
+}
+
+.VPNav .VPFlyout .menu {
+  top: calc(100% + 6px);
+}
+
+.VPNav .VPMenu {
+  min-width: 200px;
+  padding: 6px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--glass-surface-strong);
+  box-shadow: var(--glass-shadow-soft);
+}
+
+.VPNav .VPMenu .group + .group,
+.VPNav .VPMenu .group + .item {
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid var(--border-default);
+}
+
+.VPNav .VPMenu .group {
+  margin: 0;
+  padding: 0;
+}
+
+.VPNav .VPMenu .item {
+  padding: 0 10px;
+}
+
+.VPNav .VPMenu .label {
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+  font-weight: 400;
+}
+
+.VPNav .VPMenuLink .link,
+.VPNav .VPNavBarTranslations .title,
+.VPNav .VPNavBarExtra .trans-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+  font-weight: 400;
+  line-height: 18px;
+}
+
+.VPNav .VPMenuLink .link:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.VPNav .VPNavBarTranslations .title::after,
+.VPNav .VPNavBarExtra .trans-title::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.VPNav .VPSwitchAppearance {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--toolbar-control-radius);
+  background: transparent;
+  transition: background-color var(--duration-fast) ease;
+}
+
+.VPNav .VPSwitchAppearance:hover {
+  background: var(--bg-tertiary);
+}
+
+.VPNav .VPSwitchAppearance .check,
+.dark .VPNav .VPSwitchAppearance .check {
+  inset: 0;
+  width: auto;
+  height: auto;
+  border-radius: inherit;
+  background: none;
+  box-shadow: none;
+  transform: none;
+}
+
+.VPNav .VPSwitchAppearance .icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+.VPNav .VPSwitchAppearance .icon [class^="vpi-"] {
+  top: 6px;
+  left: 6px;
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+}
+
+.VPNav .VPSwitchAppearance:hover .icon [class^="vpi-"] {
+  color: var(--text-primary);
+}
+
+.VPNav .VPSwitchAppearance .sun,
+.dark .VPNav .VPSwitchAppearance .moon {
+  opacity: 0;
+}
+
+.VPNav .VPSwitchAppearance .moon,
+.dark .VPNav .VPSwitchAppearance .sun {
+  opacity: 1;
+}
+
+.VPNav .VPSocialLink {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--toolbar-control-radius);
+  color: var(--text-secondary);
+  transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.VPNav .VPSocialLink:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.VPNav .VPSocialLink > svg,
+.VPNav .VPSocialLink > [class^="vpi-social-"] {
+  width: 16px;
+  height: 16px;
+}
+
+.VPNav .VPNavBarHamburger .top,
+.VPNav .VPNavBarHamburger .middle,
+.VPNav .VPNavBarHamburger .bottom {
+  background-color: var(--text-secondary);
+}
+
+@media (max-width: 639px) {
+  .VPNav .VPNavBar .wrapper {
+    padding: 0 8px 0 12px;
+  }
+
+  .VPNav .VPNavBar .content-body {
+    gap: 4px;
+  }
+}
+
+.Layout .VPContent {
+  background: var(--bg-primary);
+}
+
+.Layout .VPContent.has-sidebar {
+  border-radius: var(--dc-surface-radius) var(--dc-surface-radius) 0 0;
+  background: var(--main-surface);
+  box-shadow: inset 0 1px 0 0 var(--main-surface-top-border);
+}
+
+@media (min-width: 960px) {
+  .Layout .VPContent.has-sidebar {
+    width: auto;
+    min-height: calc(100vh - var(--vp-nav-height));
+    margin: var(--vp-nav-height) 0 0 var(--vp-sidebar-width);
+    padding: 0;
+    border-radius: var(--dc-surface-radius) 0 0 0;
+    box-shadow: var(--main-surface-frame-shadow);
+  }
+}
+
+.Layout .VPFooter {
+  padding: 16px 24px;
+  border-top-color: var(--border-subtle);
+  background-color: var(--bg-primary);
+}
+
+.Layout .VPFooter .copyright {
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+  font-weight: 400;
+}

@@ -12,8 +12,8 @@ const simpleIconsPath = resolve(here, '..', '..', 'node_modules', '@iconify-json
 const localIconDir = resolve(here, 'sidebar-icons')
 
 const STROKE_SVG_ATTRS =
-  'viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
-const SOLID_SVG_ATTRS = 'viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"'
+  'viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
+const SOLID_SVG_ATTRS = 'viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"'
 
 type IconSource =
   | { type: 'lucide'; name: string }
@@ -27,56 +27,51 @@ type SimpleIconSet = {
 
 const simpleIcons = JSON.parse(readFileSync(simpleIconsPath, 'utf-8')) as SimpleIconSet
 
-function loadLucide(name: string): string {
-  const raw = readFileSync(resolve(lucideDir, `${name}.svg`), 'utf-8')
-  // lucide-static files begin with an XML license comment and a multi-line
-  // <svg ...> opening tag, so we strip both wrappers and keep only the inner
-  // shape markup. That lets our outer wrapper own size and stroke-width.
-  const inner = raw
+export interface IconParts {
+  body: string
+  viewBox: string
+  solid: boolean
+}
+
+// lucide-static files begin with an XML license comment and a multi-line
+// <svg ...> opening tag, so we strip both wrappers and keep only the inner
+// shape markup. That lets our outer wrapper own size and stroke-width.
+function innerSvg(raw: string): string {
+  return raw
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/^\s*<svg[\s\S]*?>/i, '')
     .replace(/<\/svg>\s*$/i, '')
     .trim()
-  return `<svg ${STROKE_SVG_ATTRS}>${inner}</svg>`
 }
 
-function loadSimpleIcon(name: string): string {
+export function lucideParts(name: string): IconParts {
+  return { body: innerSvg(readFileSync(resolve(lucideDir, `${name}.svg`), 'utf-8')), viewBox: '0 0 24 24', solid: false }
+}
+
+export function simpleIconParts(name: string): IconParts {
   const icon = simpleIcons.icons[name]
   if (!icon) {
     throw new Error(`Missing Simple Icons entry: ${name}`)
   }
 
-  const width = icon.width ?? 24
-  const height = icon.height ?? 24
-  const body = icon.body.trim()
-  return `<svg ${SOLID_SVG_ATTRS.replace('viewBox="0 0 24 24"', `viewBox="0 0 ${width} ${height}"`)}>${body}</svg>`
+  return { body: icon.body.trim(), viewBox: `0 0 ${icon.width ?? 24} ${icon.height ?? 24}`, solid: true }
 }
 
-function loadLocalSvg(name: string): string {
-  const raw = readFileSync(resolve(localIconDir, `${name}.svg`), 'utf-8')
-  const inner = raw
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/^\s*<svg[\s\S]*?>/i, '')
-    .replace(/<\/svg>\s*$/i, '')
-    .trim()
-  return `<svg ${SOLID_SVG_ATTRS}>${inner}</svg>`
-}
-
-function loadLocalStrokeSvg(name: string): string {
-  const raw = readFileSync(resolve(localIconDir, `${name}.svg`), 'utf-8')
-  const inner = raw
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/^\s*<svg[\s\S]*?>/i, '')
-    .replace(/<\/svg>\s*$/i, '')
-    .trim()
-  return `<svg ${STROKE_SVG_ATTRS}>${inner}</svg>`
+function localParts(name: string, solid: boolean): IconParts {
+  return { body: innerSvg(readFileSync(resolve(localIconDir, `${name}.svg`), 'utf-8')), viewBox: '0 0 24 24', solid }
 }
 
 function loadIcon(source: IconSource): string {
-  if (source.type === 'simpleIcon') return loadSimpleIcon(source.name)
-  if (source.type === 'localSvg') return loadLocalSvg(source.name)
-  if (source.type === 'localStrokeSvg') return loadLocalStrokeSvg(source.name)
-  return loadLucide(source.name)
+  const parts =
+    source.type === 'simpleIcon'
+      ? simpleIconParts(source.name)
+      : source.type === 'localSvg'
+        ? localParts(source.name, true)
+        : source.type === 'localStrokeSvg'
+          ? localParts(source.name, false)
+          : lucideParts(source.name)
+  const attrs = (parts.solid ? SOLID_SVG_ATTRS : STROKE_SVG_ATTRS).replace('viewBox="0 0 24 24"', `viewBox="${parts.viewBox}"`)
+  return `<svg ${attrs}>${parts.body}</svg>`
 }
 
 // Map semantic keys to icon sources. Keep the keys stable so config.mts can

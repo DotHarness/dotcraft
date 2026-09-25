@@ -1,5 +1,5 @@
 ---
-version: "0.31.0"
+version: "0.32.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -1746,6 +1746,39 @@ on visibility changes; overdue timestamps read as due now.
 The design system mounts production components and deterministic stateful fixtures;
 it covers editing, save errors/conflicts, pause/resume, history, long content and
 narrow widths.
+
+### Documentation site
+
+The documentation site (`docs/.vitepress/theme/`) is a Desktop window, not a
+marketing skin. It reuses this file's tokens in both themes, the neutral-first
+posture, and the primary action rule; it keeps no palette of its own. A token
+change here is mirrored in the docs theme.
+
+- A chrome-tone band runs across the top of every page. Content pages add the
+  Desktop sidebar, with its sentence-case group labels, row grammar, and
+  collapsible groups, and set the page on the main surface.
+- A sticky top band on content pages follows the catalog top-bar rules: the
+  breadcrumb aligns with the text column, and Copy link and Edit are icon actions
+  with inverse tooltips.
+- Page text uses the conversation type rules, retuned for reading. Tables follow
+  markdown tables: frameless, with a rule under the header and hairlines between
+  rows. Inline code is the Desktop chip, links use the reference colour, and code
+  blocks use the code-block surface with copy and wrap actions. The "On this page"
+  aside uses sidebar fills.
+- Sora is the brand display face and appears only in the home page's display type:
+  the hero headline, section headings, and story titles. Body text, controls, the
+  sidebar, and content-page headings stay on the system stack. Chinese falls back
+  to the system CJK face.
+- The icon and "DotCraft" wordmark align by visual weight. The docs nav lockup (a
+  24px icon, a 16px/600 wordmark, and the icon lifted 2px) is the reference. The
+  antenna carries weight, so do not align on box centres or on the head's centre
+  alone.
+- A perched mascot stands on its surface: its measured ink bottom rests on the
+  surface's top edge over a soft contact shadow, inset from the corner radius. It
+  never overlaps a window's title bar or hovers above a surface, and its idle
+  motion stays anchored at the base.
+- The live Desktop demo renders at its real resolution. Never transform-scale its
+  frame, and hide the poster over an opaque surface once the demo is ready.
 
 ## Do's and don'ts
 

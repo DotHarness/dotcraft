@@ -1,0 +1,237 @@
+:root {
+  --dc-window-shadow:
+    0 1px 2px rgb(0 0 0 / 0.05),
+    0 24px 64px -24px color-mix(in srgb, var(--text-primary) 28%, transparent);
+  --dc-perch-shade: rgb(0 0 0 / 0.3);
+  --perch-ink-bottom: 1004;
+  --perch-ink-left: 260;
+  --perch-ink-right: 764;
+  --perch-ink-cx: 512;
+}
+
+.dark {
+  --dc-window-shadow:
+    0 0 0 1px color-mix(in srgb, var(--text-primary) 8%, transparent),
+    0 30px 80px -24px rgb(0 0 0 / 0.7);
+  --dc-perch-shade: rgb(0 0 0 / 0.6);
+}
+
+.dc-stage {
+  position: relative;
+  width: min(1280px, calc(100% - 64px));
+  margin: 76px auto 0;
+}
+
+.dc-stage__glow {
+  position: absolute;
+  inset: 6% 4% -4%;
+  border-radius: 40px;
+  background: var(--composer-focus-glow);
+  opacity: 0.16;
+  filter: blur(56px);
+  pointer-events: none;
+  animation: dc-glow 6.8s ease-in-out infinite;
+}
+
+.dark .dc-stage__glow {
+  opacity: 0.2;
+  animation-name: dc-glow-dark;
+}
+
+@keyframes dc-glow {
+  0%, 100% { opacity: 0.12; }
+  50% { opacity: 0.2; }
+}
+
+@keyframes dc-glow-dark {
+  0%, 100% { opacity: 0.16; }
+  50% { opacity: 0.26; }
+}
+
+.dc-demo {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1280 / 800;
+  border-radius: var(--dc-surface-radius);
+  background: var(--bg-primary);
+  box-shadow: var(--dc-window-shadow);
+}
+
+.dc-demo > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: left top;
+  transition: opacity 400ms ease, visibility 0s linear 400ms;
+}
+
+.dc-demo__frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 400ms ease;
+}
+
+.dc-demo[data-ready] {
+  background: var(--bg-secondary);
+}
+
+.dc-demo[data-ready] .dc-demo__frame {
+  opacity: 1;
+}
+
+.dc-demo[data-ready] > img {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.dc-demo[data-active] .dc-demo__frame {
+  pointer-events: auto;
+}
+
+.dc-demo__launch {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2;
+  box-shadow: var(--shadow-level-2);
+}
+
+.dc-mascot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  width: var(--size);
+  height: var(--size);
+  pointer-events: auto;
+}
+
+.dc-mascot__look {
+  display: none;
+  grid-area: 1 / 1;
+}
+
+.dc-mascot[data-look="idle"] > [data-pose="idle"],
+.dc-mascot[data-look="greeting"] > [data-pose="greeting"],
+.dc-mascot[data-look="done"] > [data-pose="done"] {
+  display: block;
+}
+
+.dc-perch {
+  position: absolute;
+  bottom: calc(100% - var(--size) * (1024 - var(--perch-ink-bottom)) / 1024 - 0.6px);
+  z-index: 3;
+  width: var(--size);
+  height: var(--size);
+  pointer-events: none;
+  transform: scale(var(--perch-scale, 1));
+  transform-origin: calc(var(--size) * var(--perch-ink-cx) / 1024) calc(var(--size) * var(--perch-ink-bottom) / 1024);
+}
+
+.dc-perch--hero {
+  right: 240px;
+}
+
+.dc-perch--close {
+  right: 72px;
+}
+
+.dc-perch__shadow {
+  position: absolute;
+  top: calc(var(--size) * var(--perch-ink-bottom) / 1024);
+  left: calc(var(--size) * var(--perch-ink-cx) / 1024);
+  width: calc(var(--size) * (var(--perch-ink-right) - var(--perch-ink-left)) / 1024 * 1.35);
+  height: calc(var(--size) * 0.12);
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    var(--dc-perch-shade),
+    color-mix(in srgb, var(--dc-perch-shade) 42%, transparent) 55%,
+    transparent
+  );
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.dc-perch .dca-body-motion {
+  transform-origin: calc(var(--perch-ink-cx) * 1px) calc(var(--perch-ink-bottom) * 1px);
+}
+
+.dc-perch [data-pose="greeting"] .dca-body-motion {
+  transform-origin: calc(var(--perch-ink-left) * 1px) calc(var(--perch-ink-bottom) * 1px);
+}
+
+.dc-perch .dca-robot[data-motion="on"][data-pose="idle"] .dca-body-motion {
+  animation: dc-perch-breathe 5s ease-in-out infinite;
+}
+
+.dc-perch .dca-robot[data-motion="on"][data-pose="done"] .dca-body-motion {
+  animation: dc-perch-hop 900ms cubic-bezier(0.3, 0, 0.3, 1) both;
+}
+
+.dc-perch:has(.dc-mascot[data-look="done"] .dca-robot[data-motion="on"]) .dc-perch__shadow {
+  animation: dc-perch-shadow 900ms cubic-bezier(0.3, 0, 0.3, 1) both;
+}
+
+@keyframes dc-perch-breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.006, 1.02); }
+}
+
+@keyframes dc-perch-hop {
+  0% { transform: none; }
+  16% { transform: scale(1.05, 0.92); }
+  44% { transform: translateY(-120px) scale(0.97, 1.05); }
+  68% { transform: translateY(0) scale(1.04, 0.94); }
+  84% { transform: scale(0.99, 1.01); }
+  100% { transform: none; }
+}
+
+@keyframes dc-perch-shadow {
+  0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  16% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+  44% { opacity: 0.45; transform: translate(-50%, -50%) scale(0.72); }
+  68% { opacity: 1; transform: translate(-50%, -50%) scale(1.04); }
+}
+
+@media (max-width: 860px) {
+  .dc-demo {
+    aspect-ratio: 1393 / 791;
+  }
+}
+
+@media (max-width: 640px) {
+  .dc-stage {
+    width: calc(100% - 32px);
+    margin-top: 64px;
+  }
+
+  .dc-perch {
+    --perch-scale: 0.72;
+  }
+
+  .dc-perch--hero,
+  .dc-perch--close {
+    right: 40px;
+  }
+
+  .dc-demo {
+    border-radius: 10px;
+  }
+
+  .dc-demo__launch {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-stage__glow {
+    animation: none;
+  }
+}

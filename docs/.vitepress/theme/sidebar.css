@@ -1,0 +1,156 @@
+.Layout .VPSidebar {
+  padding: 12px 4px 32px;
+  box-shadow: var(--shadow-level-3);
+  interpolate-size: allow-keywords;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.Layout .VPSidebar:hover {
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+@media (min-width: 960px) {
+  .Layout .VPSidebar {
+    top: var(--vp-nav-height);
+    padding: 6px 4px 32px;
+    width: var(--vp-sidebar-width);
+    box-shadow: none;
+  }
+
+  .VPSidebar .curtain {
+    display: none;
+  }
+}
+
+.VPSidebar .group,
+.VPSidebar .group + .group {
+  width: auto;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.VPSidebar .group + .group {
+  margin-top: 18px;
+}
+
+.VPSidebar .VPSidebarItem.level-0 {
+  padding-bottom: 0;
+}
+
+.VPSidebar .VPSidebarItem.level-0 > .item {
+  padding: 6px 16px 4px;
+}
+
+.VPSidebar .VPSidebarItem.level-0 > .item > .text,
+.VPSidebar .VPSidebarItem.level-0.has-active > .item > .text {
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  font-weight: 600;
+  line-height: var(--type-secondary-line-height);
+}
+
+.VPSidebar .indicator {
+  display: none;
+}
+
+.VPSidebar .VPSidebarItem:not(.level-0) > .item {
+  align-items: center;
+  width: auto;
+  min-height: 30px;
+  margin: 2px 4px;
+  border-radius: var(--sidebar-row-radius);
+  transition: background-color var(--duration-fast) ease;
+}
+
+.VPSidebar .VPSidebarItem:not(.level-0) > .item:hover {
+  background: var(--sidebar-control-hover);
+}
+
+.VPSidebar div.VPSidebarItem.is-active > .item {
+  background: var(--sidebar-control-active);
+}
+
+.VPSidebar .VPSidebarItem:not(.level-0) > .item > .link {
+  align-self: stretch;
+  padding: 0 10px 0 12px;
+}
+
+.VPSidebar .VPSidebarItem.level-2 > .item > .link {
+  padding-left: 26px;
+}
+
+.VPSidebar .VPSidebarItem:not(.level-0) > .item .text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  font-size: var(--type-ui-size);
+  font-weight: 400;
+  line-height: var(--type-ui-line-height);
+}
+
+.VPSidebar .VPSidebarItem.level-1 > .item .text {
+  color: var(--text-primary);
+}
+
+.VPSidebar div.VPSidebarItem.is-active > .item .text {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.dc-side-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--text-secondary);
+}
+
+.VPSidebar div.VPSidebarItem.is-active > .item .dc-side-icon {
+  color: var(--text-primary);
+}
+
+.dc-side-label {
+  min-width: 0;
+}
+
+.VPSidebar .VPSidebarItem .caret {
+  width: 24px;
+  height: 24px;
+  margin: 0 5px 0 -10px;
+  color: var(--text-dimmed);
+}
+
+.VPSidebar .caret-icon {
+  font-size: 14px;
+  transition: transform 180ms var(--ease-standard);
+}
+
+.VPSidebar .VPSidebarItem:not(.level-0) > .items {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.VPSidebar .VPSidebarItem.collapsible > .items {
+  display: block;
+  height: auto;
+  overflow: hidden;
+  transition: height 240ms var(--ease-expand), visibility 0s;
+}
+
+.VPSidebar .VPSidebarItem.collapsed > .items {
+  display: block;
+  height: 0;
+  visibility: hidden;
+  transition: height 240ms var(--ease-expand), visibility 0s linear 240ms;
+}
+
+.VPSidebar .VPSidebarItem .link:focus-visible,
+.VPSidebar .VPSidebarItem .caret:focus-visible {
+  outline-offset: -2px;
+  border-radius: var(--sidebar-row-radius);
+}

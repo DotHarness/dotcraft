@@ -1,0 +1,178 @@
+.VPNav .VPNavBar.screen-open {
+  border-bottom: 0;
+}
+
+.VPNav .VPNavScreen {
+  top: calc(var(--vp-nav-height) + var(--vp-layout-top-height, 0px));
+  padding: 0 16px;
+}
+
+.VPNav .VPNavScreen .container {
+  max-width: 420px;
+  padding: 12px 0 96px;
+}
+
+.VPNav .VPNavScreenMenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.VPNav .VPNavScreenMenuLink {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border-bottom: 0;
+  border-radius: var(--sidebar-row-radius);
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+  font-weight: 400;
+  line-height: 18px;
+}
+
+.VPNav .VPNavScreenMenuLink:hover {
+  background: var(--sidebar-control-hover);
+  color: var(--text-primary);
+}
+
+.VPNav .VPNavScreen .menu + .translations,
+.VPNav .VPNavScreen .menu + .appearance,
+.VPNav .VPNavScreen .translations + .appearance,
+.VPNav .VPNavScreen .appearance + .social-links,
+.VPNav .VPNavScreen .menu + .social-links {
+  margin-top: 18px;
+}
+
+.VPNav .VPNavScreenTranslations {
+  height: 36px;
+}
+
+.VPNav .VPNavScreenTranslations .title {
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+  font-weight: 400;
+}
+
+.VPNav .VPNavScreenTranslations .icon.lang {
+  margin-right: 0;
+}
+
+.VPNav .VPNavScreenTranslations .list {
+  padding: 2px 0 0;
+}
+
+.VPNav .VPNavScreenTranslations .link {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px 0 36px;
+  border-radius: var(--sidebar-row-radius);
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+}
+
+.VPNav .VPNavScreenTranslations .link:hover {
+  background: var(--sidebar-control-hover);
+}
+
+.VPNav .VPNavScreenAppearance {
+  padding: 4px 4px 4px 12px;
+  border-radius: var(--sidebar-row-radius);
+  background: var(--sidebar-control-hover);
+}
+
+.VPNav .VPNavScreenAppearance .text {
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+  font-weight: 400;
+}
+
+.VPNav .VPNavScreenSocialLinks {
+  justify-content: flex-start;
+  padding: 0 6px;
+}
+
+.Layout .VPLocalNav {
+  border-bottom: 0;
+}
+
+.Layout .VPLocalNav .menu {
+  gap: 8px;
+  padding: 0 16px;
+  height: 44px;
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+  font-weight: 400;
+}
+
+.Layout .VPLocalNav .menu-icon {
+  margin-right: 0;
+  font-size: 16px;
+}
+
+.Layout .VPLocalNav .VPLocalNavOutlineDropdown {
+  padding: 10px 16px;
+}
+
+.Layout .VPLocalNavOutlineDropdown button {
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+  font-weight: 400;
+}
+
+.Layout .VPLocalNavOutlineDropdown .items {
+  top: 44px;
+  right: 12px;
+  left: 12px;
+  gap: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--glass-surface-strong);
+  box-shadow: var(--glass-shadow-soft);
+}
+
+.Layout .VPLocalNavOutlineDropdown .header,
+.Layout .VPLocalNavOutlineDropdown .outline {
+  padding: 0;
+  background: none;
+}
+
+.Layout .VPLocalNavOutlineDropdown .top-link {
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.Layout .VPLocalNavOutlineDropdown .outline {
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid var(--border-default);
+}
+
+.Layout .VPLocalNavOutlineDropdown .outline-link {
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+  line-height: 18px;
+  white-space: normal;
+}
+
+.Layout .VPLocalNavOutlineDropdown :is(.top-link, .outline-link):hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+@media (min-width: 960px) {
+  .Layout .VPLocalNav {
+    display: none;
+  }
+}
