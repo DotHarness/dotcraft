@@ -271,6 +271,7 @@ function PluginManageItem({
 }): JSX.Element {
   const t = useT()
   const [active, setActive] = useState(false)
+  const developer = pluginSourceLabel(plugin)
   return (
     <div
       style={interactiveManageRow(active)}
@@ -286,8 +287,8 @@ function PluginManageItem({
           <span style={rowDesc}>{pluginSubtitle(plugin)}</span>
         </span>
       </button>
-      <span style={manageSource} title={plugin.marketplaceName ?? undefined}>
-        {plugin.marketplaceName || pluginSourceLabel(plugin)}
+      <span style={manageSource} title={developer}>
+        {developer}
       </span>
       <span style={manageActionSlot}>
         {plugin.installed ? (
