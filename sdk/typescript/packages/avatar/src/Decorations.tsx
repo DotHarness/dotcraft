@@ -46,11 +46,11 @@ const swatchViewBox: Record<ReturnType<typeof itemOf>['slot'], string> = {
   back: '20 120 984 800',
   skin: '203 368 618 506',
 }
-export function DecorationSwatch({ id, size = 112 }: { id: ItemId; size?: number }) {
+export function DecorationSwatch({ id, size = 112, label }: { id: ItemId; size?: number; label?: string }) {
   const item = itemOf(id)
   const zones: readonly Zone[] = item.zones
   const viewBox = zones.includes('screen') ? '255 404 514 436' : zones.includes('rim') ? '346 300 546 590' : swatchViewBox[item.slot]
-  return <svg width={size} height={size} viewBox={viewBox} fill="none" role="img" aria-label={`${decorationOf(id).name} specimen`}
+  return <svg width={size} height={size} viewBox={viewBox} fill="none" role="img" aria-label={label ?? `${decorationOf(id).name} specimen`}
     className="dca-swatch dca-part-robot" data-expression="neutral" data-slot={item.slot} data-effects="static">
     <SlotDecoration id={id} />
   </svg>

@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type JSX } from 'react'
 import { DecorationSwatch } from '@dotcraft/avatar/react'
-import { decorationName, itemOf, rarityMeta, type ItemId, type Rarity } from '@dotcraft/avatar'
+import { itemOf, rarityMeta, type ItemId, type Rarity } from '@dotcraft/avatar'
 import type { MessageKey } from '../../../../../shared/locales'
 import type { PetSettings } from '../../../../../shared/pet'
 import { useT } from '../../../../contexts/LocaleContext'
@@ -53,8 +53,8 @@ export function PetExchangeGroup({ settings, onWear }: PetExchangeGroupProps): J
                   ? (
                     <button key={index} type="button" role="listitem" className="pet-settings-tray-slot" data-filled="true" data-rarity={itemOf(id).rarity}
                       style={{ '--pet-rarity': rarityMeta[itemOf(id).rarity].color } as CSSProperties}
-                      aria-label={t('settings.pet.exchange.remove', { name: decorationName(id) })} onClick={() => setTray(tray.filter((_, at) => at !== index))}>
-                      <DecorationSwatch id={id} size={36} />
+                      aria-label={t('settings.pet.exchange.remove', { name: t(`pet.item.${id}.name` as MessageKey) })} onClick={() => setTray(tray.filter((_, at) => at !== index))}>
+                      <DecorationSwatch id={id} size={36} label={t(`pet.item.${id}.name` as MessageKey)} />
                     </button>
                   )
                   : <span key={index} role="listitem" className="pet-settings-tray-slot" aria-label={t('settings.pet.exchange.empty')} />

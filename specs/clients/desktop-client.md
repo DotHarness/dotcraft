@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.27.0 |
+| **Version** | 0.28.0 |
 | **Status** | Living |
 | **Date** | 2026-09-25 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -1156,7 +1156,7 @@ The default companion can be coloured and dressed with items from the [Avatar Sy
 
 - The `Pet` tab sits in the Personal group after Appearance. It holds the `Pet customization` switch, `Your pet` (the companion inside the colour ring with its bag beside it), and `Exchange`. Hovering a ring segment previews the colour on the companion and selecting keeps it; selecting the companion plays a random pose, and one-shot poses return to idle on their own. With customization off only the switch remains: `Your pet` and `Exchange` are hidden until it is turned back on.
 - Finds arrive on their own and are announced through the toast stack with the `pet-find` key, item art in the card's art slot, the rarity as the description, and one inline `Wear it` action. The main window advances the runtime gate once a minute and counts every `item/usage/delta` it receives toward the token gate; nothing about timing or odds is a setting.
-- All tab, card, and toast copy is client-owned and localized; item names are the collection's English catalog copy, which the Avatar System spec leaves to a later per-host localization.
+- All tab, card, and toast copy is client-owned and localized, including each item's name and feature line: the locale messages key them by item id (`pet.item.<id>.name`, `pet.item.<id>.feature`), the English entries follow the collection's catalog copy, and every item swatch takes the localized name as its accessible label. An item added to the collection needs both keys in every shipped locale.
 
 Visual treatment follows [Desktop DESIGN.md](../architecture/DESIGN.md#pet).
 

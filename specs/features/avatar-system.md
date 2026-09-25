@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.0 |
+| **Version** | 0.5.0 |
 | **Status** | Draft |
-| **Date** | 2026-09-23 |
+| **Date** | 2026-09-25 |
 | **Related Specs** | [Agent Profiles](agent-profiles.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Client](../clients/desktop-client.md), [TypeScript SDK](../sdk/typescript.md) |
 
 Purpose: define the shared `@dotcraft/avatar` system. It covers the equipment slots an avatar
@@ -30,7 +30,8 @@ Out of scope for this version:
 - Trading between people, limited-time availability, cloud or custom pets, and any server-side
   state. The Desktop pet in section 12 lives entirely in the settings file of one machine.
 - Per-host localization of item names. The package ships English catalog copy; hosts localize
-  when they surface it in product UI.
+  when they surface it in product UI and pass the localized name to the item swatch as its
+  accessible label, which otherwise reads the English name.
 
 ---
 

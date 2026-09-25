@@ -1,6 +1,6 @@
 import type { CSSProperties, JSX } from 'react'
 import { DecorationSwatch } from '@dotcraft/avatar/react'
-import { decorationName, decorationOf, itemOf, rarityMeta, type ItemId } from '@dotcraft/avatar'
+import { itemOf, rarityMeta, type ItemId } from '@dotcraft/avatar'
 import type { MessageKey } from '../../../../../shared/locales'
 import type { PetSettings } from '../../../../../shared/pet'
 import { useT } from '../../../../contexts/LocaleContext'
@@ -17,20 +17,22 @@ interface PetRevealProps {
 
 export function PetReveal({ id, duplicate, settings, onWear, onDismiss }: PetRevealProps): JSX.Element {
   const t = useT()
-  const item = decorationOf(id)
-  const rarity = itemOf(id).rarity
+  const item = itemOf(id)
+  const rarity = item.rarity
+  const nameOf = (entry: ItemId | 'none') => entry === 'none' ? '' : t(`pet.item.${entry}.name` as MessageKey)
+  const name = nameOf(id)
   const worn = settings.outfit[item.slot]
   const clears = wouldClear(settings, id)
   const replaced = worn !== 'none' && worn !== id
-    ? decorationName(worn)
-    : clears.length ? clears.map((slot) => decorationName(settings.outfit[slot])).join(', ') : null
+    ? nameOf(worn)
+    : clears.length ? clears.map((slot) => nameOf(settings.outfit[slot])).filter(Boolean).join(', ') : null
   return (
     <div className="pet-settings-reveal" role="status" data-rarity={rarity} style={{ '--pet-rarity': rarityMeta[rarity].color } as CSSProperties}>
-      <span className="pet-settings-reveal-art"><DecorationSwatch id={id} size={96} /></span>
+      <span className="pet-settings-reveal-art"><DecorationSwatch id={id} size={96} label={name} /></span>
       <div className="pet-settings-reveal-copy">
         <span className="pet-settings-eyebrow">{t('settings.pet.reveal.eyebrow')}{duplicate ? ` · ${t('settings.pet.reveal.duplicate')}` : ''}</span>
-        <h3>{item.name}</h3>
-        <p>{t(`settings.pet.slot.${item.slot}` as MessageKey)} · {item.feature}</p>
+        <h3>{name}</h3>
+        <p>{t(`settings.pet.slot.${item.slot}` as MessageKey)} · {t(`pet.item.${id}.feature` as MessageKey)}</p>
         <div className="pet-settings-reveal-actions">
           <span className="pet-settings-rarity-word">{t(`settings.pet.rarity.${rarity}` as MessageKey)}</span>
           <Button size="sm" variant="primary" disabled={worn === id} onClick={() => onWear(id)}>

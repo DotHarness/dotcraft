@@ -1,7 +1,7 @@
 import { useState, type CSSProperties, type JSX } from 'react'
 import { Check } from 'lucide-react'
 import { DecorationSwatch } from '@dotcraft/avatar/react'
-import { decorationName, itemOf, rarityMeta, slots, type ItemId, type Slot } from '@dotcraft/avatar'
+import { itemOf, rarityMeta, slots, type ItemId, type Slot } from '@dotcraft/avatar'
 import type { MessageKey } from '../../../../../shared/locales'
 import type { PetSettings } from '../../../../../shared/pet'
 import { useT } from '../../../../contexts/LocaleContext'
@@ -43,7 +43,7 @@ export function PetBagPanel({ settings, onToggle, onTryOn }: PetBagPanelProps): 
           {entries.map((entry) => {
             const worn = isWorn(outfit, entry.id)
             const rarity = itemOf(entry.id).rarity
-            const name = decorationName(entry.id)
+            const name = t(`pet.item.${entry.id}.name` as MessageKey)
             const rarityLabel = t(`settings.pet.rarity.${rarity}` as MessageKey)
             const label = [name, rarityLabel, entry.count > 1 ? t('settings.pet.bag.copies', { count: entry.count }) : '', worn ? t('settings.pet.bag.wearing') : '']
               .filter(Boolean).join(', ')
@@ -53,7 +53,7 @@ export function PetBagPanel({ settings, onToggle, onTryOn }: PetBagPanelProps): 
                 onMouseEnter={() => onTryOn(entry.id)} onFocus={() => onTryOn(entry.id)} onBlur={() => onTryOn(null)} onClick={() => onToggle(entry.id)}>
                 {entry.count > 1 && <span className="pet-settings-count">×{entry.count}</span>}
                 <span className="pet-settings-tile-art">
-                  <DecorationSwatch id={entry.id} size={44} />
+                  <DecorationSwatch id={entry.id} size={44} label={name} />
                   {worn && <span className="pet-settings-tile-worn"><Check size={10} strokeWidth={3} aria-hidden="true" /></span>}
                 </span>
                 <span className="pet-settings-tile-name">{name}</span>
