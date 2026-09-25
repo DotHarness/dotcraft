@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.4.0 |
+| **Version** | 1.5.0 |
 | **Status** | Living |
 | **Date** | 2026-09-25 |
 | **Related Specs** | [Desktop Client](../clients/desktop-client.md), [Design System](../architecture/DESIGN.md), [OpenAI Subscription Auth](../architecture/openai-subscription-auth.md) |
@@ -17,7 +17,7 @@ Voice Input lets a user record speech in a DotCraft Composer, transcribe it, and
 
 The feature includes:
 
-- Foreground-only recording from thread, main welcome, and Agent Builder welcome Composers.
+- Foreground-only recording from thread, main welcome, and Agent Builder welcome Composers, and from desktop pet Quick Chat on behalf of its source Composer.
 - Click-to-toggle and fixed hold-to-dictate interaction.
 - A real signal-driven recording waveform.
 - Local transcription through an isolated TypeScript inference worker using whisper.cpp Node bindings.
@@ -369,7 +369,7 @@ Successful audio is deleted after the completion event is accepted for writeback
 ### 11.1 Design-system contract
 
 - Thread, main welcome, and Agent Builder welcome Composers use the same maintained Voice Input control and state vocabulary.
-- The microphone remains the final secondary action immediately before Send. Recording, download, queue, transcription, and retry states never displace or repurpose the primary action.
+- The microphone remains the final secondary action immediately before Send. Recording, download, queue, transcription, and retry states never displace or repurpose the primary action. Desktop pet Quick Chat is the one exception ([11.5](#115-desktop-pet-quick-chat)).
 - Downloading, queued, transcribing, retryable, and capacity-full states communicate through the smallest existing inline control and tooltip that explains the next available action.
 - Settings and first-use flows reuse production dialogs and actions. Voice Input does not introduce feature-specific modal framing, legends, or status badges.
 - Design-system scenarios cover every state and workflow defined by this specification at maintained themes and viewport widths before a new visual treatment reaches production.
@@ -417,6 +417,16 @@ For an originating thread Composer, changing threads, opening Settings, or other
 - Returning to the origin restores queued, transcribing, or retry state.
 - Navigation remains available during recording, queueing, and transcription.
 - Main welcome and Agent Builder welcome are pre-thread, transient origins. Leaving either surface before transcription completes discards that result without creating a thread or showing a Toast.
+
+### 11.5 Desktop pet Quick Chat
+
+Quick Chat has one circular control and no separate microphone. It dictates through its source Composer: recording, transcription, and writeback run there under the source origin, and the transcript reaches Quick Chat through the shared draft.
+
+- With an empty draft and no turn to stop, the control is the microphone while the source origin can record: a route exists, microphone permission is not blocked, and no other origin is recording, finalizing, or filling the queue. Otherwise it stays a disabled Send. Quick Chat never opens first-use setup or permission recovery; those stay in the main window.
+- Clicking the microphone starts recording and clicking again stops with the `insert` intent. There is no hold gesture or shortcut. Escape aborts recording.
+- While recording the control is a pressed Stop. During finalizing, queued transcription, and transcription it is the quiet disabled square, and Enter does not send. A retryable session with an empty draft makes the control Retry.
+- Once a draft exists and nothing is being recorded or transcribed, the control returns to Send, or to the configured follow-up action while a turn runs.
+- Quick Chat stays open while its source is recording or transcribing.
 
 ## 12. Draft insertion and submission
 
@@ -547,6 +557,7 @@ Release evidence must additionally prove:
 - [ ] The waveform responds to captured PCM rather than timer-only animation.
 - [ ] Click, foreground hold, Escape, insert, explicit send, Agent Stop, navigation, and five-minute timeout follow this contract.
 - [ ] Thread, main welcome, and Agent Builder welcome Composers expose the microphone immediately to the left of Send.
+- [ ] Desktop pet Quick Chat dictates through its source Composer and falls back to a disabled Send as section 11.5 defines.
 - [ ] A third unresolved session is rejected while one active and one queued/retryable session remain valid.
 - [ ] Background success and failure are silent and restore correct origin state.
 - [ ] Retry uses original audio; new recording, discard, success, removal, and exit delete it at the required time.

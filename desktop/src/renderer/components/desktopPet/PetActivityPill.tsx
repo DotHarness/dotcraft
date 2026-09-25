@@ -1,7 +1,7 @@
 import { AlertTriangle, CheckCircle2, Clock, PanelTop, X } from 'lucide-react'
 import type { FocusEvent } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import type { PetSnapshot, PetStatus } from '../../../shared/desktopPet'
+import type { PetSnapshot, PetStatus, PetVoiceAction } from '../../../shared/desktopPet'
 import { PetDecisionActions } from './PetDecisionActions'
 import { PetQuickChat } from './PetQuickChat'
 import { PetStatusLine } from './PetStatusLine'
@@ -17,6 +17,7 @@ export interface PetActivityPillProps {
   onDecide: (value: string) => void
   onChange: (text: string) => void
   onSubmit: () => void
+  onVoice: (action: PetVoiceAction) => void
 }
 
 const ICON: Partial<Record<PetStatus, { glyph: JSX.Element; label: 'desktopPet.status.waiting' | 'desktopPet.status.blocked' | 'desktopPet.status.review' }>> = {
@@ -26,7 +27,7 @@ const ICON: Partial<Record<PetStatus, { glyph: JSX.Element; label: 'desktopPet.s
 }
 
 /** Title, one status line and the follow-up controls; the conversation itself stays in the main window. */
-export function PetActivityPill({ snapshot, text, onHold, onDismiss, onStop, onReturn, onDecide, onChange, onSubmit }: PetActivityPillProps): JSX.Element {
+export function PetActivityPill({ snapshot, text, onHold, onDismiss, onStop, onReturn, onDecide, onChange, onSubmit, onVoice }: PetActivityPillProps): JSX.Element {
   const t = useT()
   const status = snapshot.status
   const patch = status?.patch
@@ -52,8 +53,8 @@ export function PetActivityPill({ snapshot, text, onHold, onDismiss, onStop, onR
       ? <PetDecisionActions decision={status.decision} onDecide={onDecide} onReturn={onReturn} />
       : snapshot.canChat
         ? <div className="desktop-pet-pill-composer">
-            <PetQuickChat text={text} busy={snapshot.busy === true} status={status} followUpMode={snapshot.followUpMode}
-              onChange={onChange} onSubmit={onSubmit} onStop={onStop} />
+            <PetQuickChat text={text} busy={snapshot.busy === true} status={status} followUpMode={snapshot.followUpMode} voice={snapshot.voice}
+              onChange={onChange} onSubmit={onSubmit} onStop={onStop} onVoice={onVoice} />
           </div>
         : <div className="desktop-pet-pill-fallback">
             <button className="desktop-pet-pill-open" onClick={onReturn}><PanelTop size={14} />{t('desktopPet.return')}</button>

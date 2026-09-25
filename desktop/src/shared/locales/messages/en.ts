@@ -375,6 +375,7 @@ export const MESSAGES_EN = {
   'voice.permissionRecovery.description': 'Allow DotCraft to use the microphone in system settings, then try again.',
   'voice.permissionRecovery.action': 'Open system settings',
   'voice.control.start': 'Click to dictate or hold',
+  'voice.control.dictate': 'Dictate',
   'voice.control.stop': 'Stop dictation',
   'voice.control.processing': 'Processing voice input',
   'voice.control.retry': 'Retry voice input',

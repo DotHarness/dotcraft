@@ -372,6 +372,7 @@ export const MESSAGES_KO = {
   'voice.permissionRecovery.description': '시스템 설정에서 DotCraft의 마이크 사용을 허용한 후 다시 시도하세요.',
   'voice.permissionRecovery.action': '시스템 설정 열기',
   'voice.control.start': '클릭하여 받아쓰기 또는 길게 누르기',
+  'voice.control.dictate': '받아쓰기',
   'voice.control.stop': '받아쓰기 중지',
   'voice.control.processing': '음성 입력 처리 중',
   'voice.control.retry': '음성 입력 다시 시도',

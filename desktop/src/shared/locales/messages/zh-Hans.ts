@@ -502,6 +502,7 @@ export const MESSAGES_ZH_HANS = {
   'voice.permissionRecovery.description': '请在系统设置中允许 DotCraft 使用麦克风，然后重试。',
   'voice.permissionRecovery.action': '打开系统设置',
   'voice.control.start': '点击听写或按住快捷键',
+  'voice.control.dictate': '听写',
   'voice.control.stop': '停止听写',
   'voice.control.processing': '正在处理语音输入',
   'voice.control.retry': '重试语音输入',

@@ -27,7 +27,8 @@ export function DesktopPet(): JSX.Element | null {
   const sourceDrag = useRef<number | null>(null)
   const gaze = useRef<HTMLSpanElement>(null)
   const settled = !!snapshot && phase === 'pet'
-  const activity = usePetActivityView(settled ? snapshot.status : undefined, hold || text.trim().length > 0)
+  const dictating = snapshot?.voice === 'recording' || snapshot?.voice === 'processing'
+  const activity = usePetActivityView(settled ? snapshot.status : undefined, hold || dictating || text.trim().length > 0)
   const open = settled && activity.view !== 'hidden'
   const idle = usePetIdle({
     activity: petActivity(snapshot?.activity),
@@ -81,15 +82,17 @@ export function DesktopPet(): JSX.Element | null {
   }
   const dismissRef = useRef(dismiss)
   dismissRef.current = dismiss
+  const recording = snapshot?.voice === 'recording'
   useEffect(() => {
     const escape = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return
-      if (activity.view === 'pill') dismissRef.current()
+      if (recording) void api.command({ type: 'voice', action: 'cancel' })
+      else if (activity.view === 'pill') dismissRef.current()
       else void api.command({ type: 'return' })
     }
     window.addEventListener('keydown', escape)
     return () => window.removeEventListener('keydown', escape)
-  }, [api, activity.view])
+  }, [api, activity.view, recording])
   // A trip moves the character without any pointer event, so pass-through is re-evaluated around it.
   useEffect(() => {
     if (tripping) { void api.command({ type: 'interactive', value: false }); return }
@@ -159,6 +162,7 @@ export function DesktopPet(): JSX.Element | null {
       onDecide={value => { if (status?.decision) void api.command({ type: 'decision', id: status.decision.id, value }) }}
       onLayout={height => void api.command({ type: 'layout', height })}
       onChange={value => { setText(value); void api.command({ type: 'edit', text: value, submit: false, revision: ++revision.current }) }}
-      onSubmit={() => void api.command({ type: 'edit', text, submit: true, revision: ++revision.current })} />}
+      onSubmit={() => void api.command({ type: 'edit', text, submit: true, revision: ++revision.current })}
+      onVoice={action => void api.command({ type: 'voice', action })} />}
   </>
 }

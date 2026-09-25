@@ -1758,6 +1758,7 @@ function InputComposerCore({
                 chrome="minimal"
                 disabled={isWaitingApproval || isWaitingInput}
                 suppressSubmit={showMentionPopover || showCommandPopover || showSkillPopover || modelLoading}
+                voiceOrigin={threadId}
                 onToggleModeShortcut={isAgentBuilder ? undefined : () => {
                   void toggleMode()
                 }}

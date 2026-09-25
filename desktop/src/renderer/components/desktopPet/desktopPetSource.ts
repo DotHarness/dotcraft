@@ -2,8 +2,9 @@ import { normalizeLocale } from '../../../shared/locales'
 import { petPose, type PetCommand, type PetEvent, type PetPoint, type PetRect, type PetSnapshot } from '../../../shared/desktopPet'
 import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
 import { usePetStore } from '../../pet/petStore'
+import { useVoiceStore } from '../../voice/voiceStore'
 import { findPetEditor } from './editorBridge'
-import { decidePetApproval, stopPetTurn } from './petOwnerActions'
+import { decidePetApproval, petVoiceOf, relayPetVoice, stopPetTurn } from './petOwnerActions'
 import type { PetActivityHandle } from './usePetActivity'
 
 /** How long an orphaned companion waits for a replacement composer before flying home. */
@@ -132,12 +133,20 @@ function bind(current: Session, binding: PetSourceBinding): void {
   current.binding = binding
   binding.root.setAttribute('data-pet-owner', '')
   const offActivity = binding.activity.subscribe(publish)
+  let voice = petVoiceOf(findPetEditor(binding.root)?.voiceOrigin)
+  const offVoice = useVoiceStore.subscribe(() => {
+    const next = petVoiceOf(findPetEditor(binding.root)?.voiceOrigin)
+    if (next === voice) return
+    voice = next
+    publish()
+  })
   const observer = new MutationObserver(() => { binding.activity.refresh(); publish() })
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'lang', 'data-reduce-motion'] })
   const media = matchMedia('(prefers-reduced-motion: reduce)')
   media.addEventListener?.('change', publish)
   current.unwatch = () => {
     offActivity()
+    offVoice()
     observer.disconnect()
     media.removeEventListener?.('change', publish)
   }
@@ -165,7 +174,8 @@ function snapshotOf(binding: PetSourceBinding, editRevision: number): PetSnapsho
     reducedMotion: prefersReducedMotion(),
     canChat: binding.surface() === 'chat' && !!editor,
     busy: !editor?.enabled,
-    followUpMode: status?.status === 'running' ? useComposerPreferencesStore.getState().followUpQueueMode : 'queue'
+    followUpMode: status?.status === 'running' ? useComposerPreferencesStore.getState().followUpQueueMode : 'queue',
+    voice: petVoiceOf(editor?.voiceOrigin)
   }
 }
 
@@ -224,5 +234,8 @@ function onEvent(event: PetEvent): void {
     current.binding?.activity.markRead(event.turnId)
   } else if (event.type === 'decision') {
     if (current.binding) void decidePetApproval(event.id, event.value)
+  } else if (event.type === 'voice') {
+    const origin = current.binding && findPetEditor(current.binding.root)?.voiceOrigin
+    if (origin) void relayPetVoice(origin, event.action)
   }
 }

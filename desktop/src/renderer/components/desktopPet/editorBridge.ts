@@ -5,6 +5,7 @@ export interface PetEditor {
   setText: (text: string) => void
   submit: () => void
   enabled: boolean
+  voiceOrigin?: string
 }
 const editors = new WeakMap<HTMLElement, PetEditor>()
 
@@ -19,5 +20,5 @@ export function usePetEditorBridge(ref: RefObject<HTMLDivElement | null>, editor
     if (!element) return
     editors.set(element, editor)
     return () => { editors.delete(element) }
-  }, [ref, editor.getText, editor.setText, editor.submit, editor.enabled])
+  }, [ref, editor.getText, editor.setText, editor.submit, editor.enabled, editor.voiceOrigin])
 }

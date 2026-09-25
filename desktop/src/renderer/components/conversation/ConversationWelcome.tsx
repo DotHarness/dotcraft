@@ -1874,6 +1874,7 @@ function ConversationWelcomeCore({
                       chrome="minimal"
                       disabled={busy}
                       suppressSubmit={showMentionPopover || showCommandPopover || showSkillPopover || modelLoading}
+                      voiceOrigin={voiceThreadId}
                       onToggleModeShortcut={toggleWelcomeMode}
                       placeholder={
                         !isConnected

@@ -10,10 +10,11 @@ import { useConversationStore, type PendingApproval } from '../stores/conversati
 import type { ConversationTurn } from '../types/conversation'
 import { approvalRequestKey } from '../utils/approvalRequest'
 import { submitApprovalDecision } from '../utils/submitApprovalDecision'
+import { useVoiceStore } from '../voice/voiceStore'
 
 vi.mock('../utils/submitApprovalDecision', () => ({ submitApprovalDecision: vi.fn(async () => {}) }))
 
-interface EditorSpy { text: string; enabled: boolean; submit: ReturnType<typeof vi.fn> }
+interface EditorSpy { text: string; enabled: boolean; submit: ReturnType<typeof vi.fn>; voiceOrigin?: string }
 function editorSpy(enabled = true): EditorSpy { return { text: '', enabled, submit: vi.fn() } }
 const approval: PendingApproval = {
   bridgeId: 'b1', threadId: 't1', turnId: 'turn-1', requestId: 'r1', locallySubmittedDecision: null,
@@ -22,7 +23,7 @@ const approval: PendingApproval = {
 
 function Editor({ spy }: { spy: EditorSpy }): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
-  usePetEditorBridge(ref, { getText: () => spy.text, setText: value => { spy.text = value }, submit: spy.submit, enabled: spy.enabled })
+  usePetEditorBridge(ref, { getText: () => spy.text, setText: value => { spy.text = value }, submit: spy.submit, enabled: spy.enabled, voiceOrigin: spy.voiceOrigin })
   return <div ref={ref} className="rich-input-area" />
 }
 
@@ -40,6 +41,7 @@ function Welcome(props: HarnessProps): JSX.Element { return <Harness {...props} 
 function Thread(props: HarnessProps): JSX.Element { return <Harness {...props} /> }
 
 const initialConversation = useConversationStore.getState()
+const initialVoice = useVoiceStore.getState()
 function runningTurn(id = 'turn-1'): ConversationTurn {
   return { id, threadId: 't1', status: 'running', items: [], startedAt: '2026-01-01T00:00:00Z' }
 }
@@ -69,6 +71,7 @@ describe('desktop pet source handoff', () => {
   afterEach(() => {
     endPetSource(false)
     useConversationStore.setState(initialConversation, true)
+    useVoiceStore.setState(initialVoice, true)
     vi.unstubAllGlobals()
     window.api = originalApi
     document.documentElement.removeAttribute('data-desktop-pet-detached')
@@ -182,6 +185,26 @@ describe('desktop pet source handoff', () => {
     act(() => { vi.advanceTimersByTime(120) })
     expect(lastSnapshot()).toMatchObject({ activity: 'done', followUpMode: 'queue', status: { status: 'review', line: 'All done here', lineTone: 'success' } })
     expect(lastSnapshot().status).not.toHaveProperty('stopping')
+  })
+
+  it('publishes the source composer dictation state and relays voice actions to it', () => {
+    const startRecording = vi.fn(async () => {})
+    const stopRecording = vi.fn(async () => {})
+    useVoiceStore.setState({ snapshot: { ...initialVoice.snapshot, chatGpt: { signedIn: true, enabled: true } }, startRecording, stopRecording })
+    const view = render(<Welcome editor={{ ...editorSpy(), voiceOrigin: 'welcome-composer:p' }} />)
+    detachFrom(view)
+    expect(lastSnapshot().voice).toBe('idle')
+
+    act(() => emit({ type: 'voice', action: 'start' }))
+    expect(startRecording).toHaveBeenCalledWith('welcome-composer:p')
+
+    act(() => { useVoiceStore.setState({ recording: { threadId: 'welcome-composer:p', startedAt: 0, elapsedMs: 0, level: 0 } }) })
+    expect(lastSnapshot().voice).toBe('recording')
+    act(() => emit({ type: 'voice', action: 'stop' }))
+    expect(stopRecording).toHaveBeenCalledWith('insert')
+
+    act(() => { useVoiceStore.setState({ recording: { threadId: 'thread-2', startedAt: 0, elapsedMs: 0, level: 0 } }) })
+    expect(lastSnapshot().voice).toBeUndefined()
   })
 
   it('returns the companion when no composer takes the seat', () => {

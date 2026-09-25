@@ -372,6 +372,7 @@ export const MESSAGES_JA = {
   'voice.permissionRecovery.description': 'システム設定で DotCraft のマイク使用を許可してから、もう一度お試しください。',
   'voice.permissionRecovery.action': 'システム設定を開く',
   'voice.control.start': 'クリックして音声入力、または長押し',
+  'voice.control.dictate': '音声入力',
   'voice.control.stop': '音声入力を停止',
   'voice.control.processing': '音声入力を処理中',
   'voice.control.retry': '音声入力を再試行',

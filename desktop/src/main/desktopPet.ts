@@ -2,7 +2,7 @@ import { BrowserWindow, ipcMain, screen } from 'electron'
 import { join } from 'path'
 import { clampPet, type PetCommand, type PetEvent, type PetPoint, type PetRect, type PetSnapshot } from '../shared/desktopPet'
 import { PET_RETURN_DURATION, samplePetReturn, type PetReturnFrame } from '../shared/desktopPetMotion'
-import { validDecisionCommand, validLayout, validPoint, validRead, validRect, validSnapshot, validStop } from './desktopPetValidation'
+import { validDecisionCommand, validLayout, validPoint, validRead, validRect, validSnapshot, validStop, validVoice } from './desktopPetValidation'
 
 let active: DesktopPet | null = null
 
@@ -68,6 +68,9 @@ class DesktopPet {
           if (fromPet && this.detached && !this.returning && validDecisionCommand(command, this.snapshot)) {
             this.send(owner, { type: 'decision', id: command.id, value: command.value })
           }
+          break
+        case 'voice':
+          if (fromPet && this.detached && !this.returning && validVoice(command, this.snapshot)) this.send(owner, { type: 'voice', action: command.action })
           break
         case 'hidden': if (fromOwner && this.detached && !this.returning && !this.started) this.leave(); break
         case 'return': this.returnHome(); break

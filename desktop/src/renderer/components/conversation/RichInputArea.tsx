@@ -65,6 +65,7 @@ interface RichInputAreaProps {
    */
   chrome?: 'default' | 'minimal' | 'inline'
   suppressSubmit?: boolean
+  voiceOrigin?: string
   onToggleModeShortcut?: () => void
   onHistoryNavigate?: (direction: 'previous' | 'next') => boolean
   historyNavigationActive?: boolean
@@ -323,6 +324,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
     placeholder = PLACEHOLDER,
     chrome = 'default',
     suppressSubmit,
+    voiceOrigin,
     onToggleModeShortcut,
     onHistoryNavigate,
     historyNavigationActive = false,
@@ -762,7 +764,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
       [refCatalog, setStructuredContent]
     )
 
-    usePetEditorBridge(editorRef, { getText, setText: setContent, submit: onSubmit, enabled: !disabled && !suppressSubmit })
+    usePetEditorBridge(editorRef, { getText, setText: setContent, submit: onSubmit, enabled: !disabled && !suppressSubmit, voiceOrigin })
 
     useImperativeHandle(
       ref,

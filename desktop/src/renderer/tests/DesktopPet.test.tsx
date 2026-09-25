@@ -13,6 +13,7 @@ vi.mock('../contexts/LocaleContext', () => ({ useT: () => (key: string) => key, 
 vi.mock('../utils/theme', () => ({ applyTheme: vi.fn() }))
 vi.mock('@dotcraft/avatar/react', () => ({
   Avatar: () => <span>companion</span>,
+  AppearanceAvatar: () => <span>companion</span>,
   MascotIdleStage: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   MASCOT_SLEEP_AFTER_MS: 60000,
   useComposerAvatarBehavior: ({ semanticPose }: { semanticPose: string }) => ({

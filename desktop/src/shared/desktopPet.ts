@@ -15,6 +15,9 @@ export const PET_LINE_TONES: readonly PetLineTone[] = ['neutral', 'warning', 'da
 /** What the pill's send control does with a draft while a turn runs: mirrors the Desktop composer preference. */
 export type PetFollowUpMode = 'steer' | 'queue'
 export const PET_FOLLOW_UP_MODES: readonly PetFollowUpMode[] = ['steer', 'queue']
+export type PetVoice = 'idle' | 'recording' | 'processing' | 'retryable'
+export const PET_VOICES: readonly PetVoice[] = ['idle', 'recording', 'processing', 'retryable']
+export type PetVoiceAction = 'start' | 'stop' | 'cancel' | 'retry'
 
 export interface PetDecisionOption { value: string; label: string }
 export interface PetDecision {
@@ -66,6 +69,8 @@ export interface PetSnapshot {
   /** The source can chat but is not accepting input right now (sending, loading). */
   busy?: boolean
   followUpMode: PetFollowUpMode
+  /** Dictation in the source composer; absent while it cannot transcribe. */
+  voice?: PetVoice
   editRevision?: number
 }
 export type PetEvent =
@@ -77,6 +82,7 @@ export type PetEvent =
   | { type: 'stop'; turnId: string }
   | { type: 'read'; turnId: string }
   | { type: 'decision'; id: string; value: string }
+  | { type: 'voice'; action: PetVoiceAction }
 export type PetCommand =
   | { type: 'detach'; seat: PetRect; point: PetPoint; snapshot: PetSnapshot; pointerHeld?: boolean }
   | { type: 'source-drag'; stage: 'move' | 'end' }
@@ -85,6 +91,7 @@ export type PetCommand =
   | { type: 'stop'; turnId: string }
   | { type: 'read'; turnId: string }
   | { type: 'decision'; id: string; value: string }
+  | { type: 'voice'; action: PetVoiceAction }
   | { type: 'ready' }
   | { type: 'hidden' }
   | { type: 'return' }

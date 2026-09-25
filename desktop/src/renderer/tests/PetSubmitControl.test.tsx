@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { PetStatusInfo } from '../../shared/desktopPet'
 import { PetSubmitControl } from '../components/desktopPet/PetSubmitControl'
 
+vi.mock('../contexts/LocaleContext', () => ({ useT: () => (key: string) => key }))
 vi.mock('../components/conversation/ComposerSubmitButton', () => ({
   ComposerSubmitButton: ({ mode, disabled, tone, onClick }: { mode: string; disabled?: boolean; tone?: string; onClick: () => void }) =>
     <button aria-label={mode} disabled={disabled} data-tone={tone} onClick={onClick} />
@@ -36,5 +37,22 @@ describe('PetSubmitControl', () => {
     expect(screen.getByRole('button', { name: 'stopping' })).toBeDisabled()
     rerender(<PetSubmitControl status={{ ...running, canStop: false }} followUpMode="steer" hasDraft={false} busy={false} onSubmit={() => {}} onStop={onStop} />)
     expect(screen.getByRole('button', { name: 'send' })).toBeDisabled()
+  })
+  it('dictates into an empty draft and gives the slot back to Send once there is text', () => {
+    const onVoice = vi.fn()
+    const props = { followUpMode: 'queue' as const, busy: false, onSubmit: () => {}, onStop: () => {}, onVoice }
+    const { rerender } = render(<PetSubmitControl {...props} status={undefined} hasDraft={false} voice="idle" />)
+    fireEvent.click(screen.getByRole('button', { name: 'voice.control.dictate' }))
+    rerender(<PetSubmitControl {...props} status={undefined} hasDraft voice="idle" />)
+    expect(screen.getByRole('button', { name: 'send' })).toBeEnabled()
+    rerender(<PetSubmitControl {...props} status={running} hasDraft={false} voice="idle" />)
+    expect(screen.getByRole('button', { name: 'stop' })).toBeEnabled()
+    rerender(<PetSubmitControl {...props} status={undefined} hasDraft voice="recording" />)
+    fireEvent.click(screen.getByRole('button', { name: 'voice.control.stop' }))
+    rerender(<PetSubmitControl {...props} status={undefined} hasDraft={false} voice="processing" />)
+    expect(screen.getByRole('button', { name: 'voice.control.processing' })).toBeDisabled()
+    rerender(<PetSubmitControl {...props} status={undefined} hasDraft={false} voice="retryable" />)
+    fireEvent.click(screen.getByRole('button', { name: 'voice.control.retry' }))
+    expect(onVoice.mock.calls).toEqual([['start'], ['stop'], ['retry']])
   })
 })

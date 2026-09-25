@@ -1,6 +1,6 @@
 import {
-  PET_FOLLOW_UP_MODES, PET_LINE_TONES, PET_STATUSES, petActivity,
-  type PetDecision, type PetPoint, type PetRect, type PetSnapshot, type PetStatusInfo
+  PET_FOLLOW_UP_MODES, PET_LINE_TONES, PET_STATUSES, PET_VOICES, petActivity,
+  type PetDecision, type PetPoint, type PetRect, type PetSnapshot, type PetStatusInfo, type PetVoice, type PetVoiceAction
 } from '../shared/desktopPet'
 import { SUPPORTED_LOCALE_VALUES } from '../shared/locales/types'
 import { PET_SLOTS } from '../shared/pet'
@@ -58,6 +58,14 @@ export function validStop(command: { turnId?: unknown }, snapshot: PetSnapshot |
   return !!status?.canStop && text(command.turnId, 200) && command.turnId === status.turnId
 }
 
+const VOICE_ACTION_STATE: Record<PetVoiceAction, PetVoice> = { start: 'idle', stop: 'recording', cancel: 'recording', retry: 'retryable' }
+
+export function validVoice(command: { action?: unknown }, snapshot: PetSnapshot | null): boolean {
+  const action = command.action
+  return typeof action === 'string' && Object.hasOwn(VOICE_ACTION_STATE, action)
+    && snapshot?.canChat === true && snapshot.voice === VOICE_ACTION_STATE[action as PetVoiceAction]
+}
+
 export function validDecisionCommand(command: { id?: unknown; value?: unknown }, snapshot: PetSnapshot | null): boolean {
   const decision = snapshot?.status?.decision
   return !!decision && text(command.id, 200) && command.id === decision.id
@@ -82,6 +90,7 @@ export function validSnapshot(value: unknown): value is PetSnapshot {
     && typeof snapshot.reducedMotion === 'boolean' && typeof snapshot.canChat === 'boolean'
     && (snapshot.busy === undefined || typeof snapshot.busy === 'boolean')
     && PET_FOLLOW_UP_MODES.includes(snapshot.followUpMode)
+    && (snapshot.voice === undefined || PET_VOICES.includes(snapshot.voice))
     && (snapshot.activity === undefined || petActivity(snapshot.activity) === snapshot.activity)
     && (snapshot.status === undefined || validStatus(snapshot.status))
 }
