@@ -37,7 +37,7 @@ DotCraft is an open-source, self-hosted **AI agent runtime** built with C#/.NET.
 ![DotCraft Desktop, DotCraft.Harness, Oratorio, DotCraft Satellite and @dotcraft/avatar](https://github.com/DotHarness/resources/raw/master/dotcraft/products.webp)
 
 - **[Desktop](https://www.dotcraft.net/features/entry-points/desktop):** Work with agents on your projects in one desktop app.
-- **[DotCraft.Harness](https://www.dotcraft.net/developing/harness/):** Embed a complete agent runtime in your .NET applications.
+- **[Harness](https://www.dotcraft.net/developing/harness/):** Embed a complete agent runtime in your .NET applications.
 - **[Oratorio](https://www.dotcraft.net/features/oratorio):** Manage agent tasks from assignment to review on one board.
 - **[Satellite](https://www.dotcraft.net/features/agent-system/satellite):** Let your agents work in an approved shared folder on another computer.
 - **[Avatar](https://www.dotcraft.net/developing/sdks/typescript#avatar-package):** Give your agents personality with expressive, customizable avatars.
