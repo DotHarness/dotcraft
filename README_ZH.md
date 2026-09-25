@@ -18,17 +18,19 @@ DotCraft 是一个基于 C#/.NET 构建的开源、自托管 **AI Agent Runtime*
 
 ## 为什么选择 DotCraft？
 
-DotCraft 将你的项目转变为 **AI Agent 的可扩展运行环境**。
-
 ![同一个 Agent Runtime，三种接入方式 —— 桌面应用、AppServer + SDK、Harness 包](https://github.com/DotHarness/resources/raw/master/dotcraft/entry.png)
 
-- **完整的 Agent 能力，开箱即用：** Plan、subagents、Automations、Goals、Dreams 和 Dynamic Workflows 都已内置，不必从零搭建 Agent 基础设施。
-- **Agent 定制与远程协作：** Agent Builder 和 Agent Profiles 支持创建、复用专用 Agent，远程工具调用让 Agent 跨机器工作。
-- **项目走到哪，工作就跟到哪：** 会话、记忆、Agent、Skills 和 Plugins 随工作区保存。切换到 Desktop、CLI、编辑器或聊天机器人，依然能接着做。
-- **把完整 Agent Runtime 带进你的产品：** 将 Desktop 背后的同一套运行时嵌入 .NET 工具、服务和自动化流程，或通过 AppServer、SDK 和 App Binding 接入现有产品。
-- **让 Agent 扩展自己的运行时：** 直接让 Agent 在工作区里创建并构建 .NET 插件。插件使用与内置功能相同的扩展机制，能够添加工具、提示词、命令和生命周期逻辑。更新插件时，宿主无需停止运行。
-- **让 Desktop 适应你的工作方式：** TypeScript 和 React 插件使用原生 UI 组件扩展 Desktop 的界面与交互。
-- **部署、模型和成本都由你掌控：** 在本地或自己的服务器上运行，并选择兼容的模型服务或使用 ChatGPT 订阅。DotCraft 让可复用的提示词前缀保持逐字节稳定，提高模型服务的缓存复用率，降低重复输入成本。
+**直接运行**
+
+- **开箱即用：** Plan、subagents、Automations、Goals、Dreams 和 Dynamic Workflows 都已内置。Agent Builder 能把你的描述变成可复用的 Agent。
+- **操作你的应用：** 借助电脑操控，Agent 可以在你允许的 Windows 应用里工作。
+- **随处接着做：** Desktop、CLI、编辑器和聊天机器人共用同一个工作区。你还可以通过 SSH 连接服务器上的 DotCraft，或借助卫星让 Agent 在另一台电脑上工作。
+- **部署和成本由你掌控：** 在本地或自己的服务器上运行，选用兼容的模型服务或 ChatGPT 订阅。提示词前缀保持逐字节稳定，提高缓存复用率。
+
+**嵌入与扩展**
+
+- **装进你的产品：** 把 DotCraft Desktop 背后的运行时嵌入你的 .NET 应用，或通过 AppServer、SDK 和 App Binding 接入现有产品。
+- **用插件扩展：** .NET 插件可以添加工具、命令和生命周期逻辑。Agent 能自己编写插件，并在宿主运行时直接替换。React 插件可以改造 Desktop 的界面。
 
 ## 探索 DotCraft
 

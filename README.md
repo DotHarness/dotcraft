@@ -18,17 +18,19 @@ DotCraft is an open-source, self-hosted **AI agent runtime** built with C#/.NET.
 
 ## Why DotCraft?
 
-DotCraft turns your projects into **extensible environments for AI agents**.
-
 ![One agent runtime, three ways to make it yours — Desktop App, AppServer + SDK, Harness Package](https://github.com/DotHarness/resources/raw/master/dotcraft/entry.png)
 
-- **Complete agent capabilities, ready to use:** Plan, subagents, Automations, Goals, Dreams, and Dynamic Workflows are built in, so you do not have to assemble agent infrastructure from scratch.
-- **Agent customization and remote collaboration:** Agent Builder and Agent Profiles let you create reusable, specialized agents. Remote tool calls let them work across computers.
-- **Your work travels with the project:** Conversations, memory, agents, skills, and plugins live with the workspace. Move between Desktop, the CLI, editors, and bots, and pick up where you left off.
-- **Bring a complete agent runtime into your product:** Embed the same runtime behind DotCraft Desktop in .NET tools, services, and automations, or connect existing products through AppServer, SDKs, and App Binding.
-- **Let the agent extend its own runtime:** Ask the agent to create and build a .NET plugin in the workspace. It uses the same extension model as built-in features to add tools, prompts, commands, and lifecycle logic, and can be replaced while the host keeps running.
-- **Shape Desktop around your workflow:** TypeScript and React plugins use native UI components to extend Desktop's interface and interactions.
-- **Own your deployment, models, and costs:** Run locally or on your own server, and choose a compatible model provider or use your ChatGPT subscription. DotCraft keeps reusable prompt prefixes byte-stable to improve provider cache reuse and lower repeated-input costs.
+**Run the app**
+
+- **Ready out of the box:** Plan, subagents, Automations, Goals, Dreams, and Dynamic Workflows are built in. Agent Builder turns what you describe into a reusable agent.
+- **Works in your apps:** With Computer use, agents operate the Windows apps you allow.
+- **Pick up anywhere:** Desktop, the CLI, editors, and chat bots share one workspace. Connect to DotCraft on a server over SSH, or let agents work on another computer through Satellite.
+- **Your deployment, your costs:** Run locally or on your own server with a compatible model provider or your ChatGPT subscription. Byte-stable prompt prefixes improve provider cache reuse.
+
+**Embed and extend**
+
+- **Build it into your product:** Embed the runtime behind DotCraft Desktop in your .NET apps, or connect existing products through AppServer, SDKs, and App Binding.
+- **Extend it with plugins:** .NET plugins add tools, commands, and lifecycle logic. The agent can write one and swap it in while the host keeps running. React plugins reshape Desktop's interface.
 
 ## Explore DotCraft
 
