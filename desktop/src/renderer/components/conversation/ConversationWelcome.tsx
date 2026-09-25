@@ -1880,7 +1880,9 @@ function ConversationWelcomeCore({
                           ? t('composer.placeholder.connecting')
                           : goalComposeMode
                             ? t('goal.objective.placeholder')
-                            : t('welcomeComposer.placeholder.ask')
+                            : !selectedProfileId && welcomeMode === 'plan'
+                              ? t('composer.placeholder.plan')
+                              : t(remoteWorkspace ? 'composer.placeholder.ask' : 'welcomeComposer.placeholder.ask')
                       }
                       onSubmit={() => {
                         submitOrStopVoice()

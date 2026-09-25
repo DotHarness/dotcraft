@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.25.0 |
+| **Version** | 0.26.0 |
 | **Status** | Living |
-| **Date** | 2026-09-24 |
+| **Date** | 2026-09-25 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md), [Session Import](../features/session-import.md) |
 
@@ -511,6 +511,7 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
 - The input area accepts plain text and any supported structured attachments or references.
 - [Browser and context feedback](../features/desktop-browser-feedback.md) defines pasted-text files and structured page/response/diff references. Native `contextRef` input parts preserve references across start, queue, steer, and historical restoration; reference-only drafts count as nonempty input.
 - The client must prevent submission of an empty turn.
+- The composer placeholder is one short open invitation shared by the welcome and thread composers and Quick Chat. The welcome composer follows it with the trigger characters it accepts and falls back to the invitation alone where file mentions are unavailable. It changes only when the input means something else, in this order: connecting, waiting on an approval or an answer, composing a thread goal, then Plan mode. Below those states a surface may supply its own text.
 - If the thread is currently running, a second submission follows [Composer System Actions](#513-composer-system-actions): a non-empty draft follows the Desktop follow-up preference, and a draft submitted while blocking maintenance is running is enqueued. The path taken must be visible to the user before submission.
 - If attachments cannot be preserved in a queued or deferred path, the user must be warned before the message is sent.
 

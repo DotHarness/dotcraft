@@ -1770,7 +1770,9 @@ function InputComposerCore({
                       ? t('composer.placeholder.userInput')
                       : goalComposeMode
                         ? t('goal.objective.placeholder')
-                        : placeholder ?? t('composer.placeholder.ask')
+                        : !hasProfile && !isAgentBuilder && threadMode === 'plan'
+                          ? t('composer.placeholder.plan')
+                          : placeholder ?? t('composer.placeholder.ask')
                 }
                 onSubmit={() => {
                   submitOrStopVoice()
