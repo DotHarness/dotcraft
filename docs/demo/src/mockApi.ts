@@ -88,6 +88,7 @@ const voiceSnapshot = {
     bytesDownloaded: 0,
     bytesTotal: null
   },
+  chatGpt: { signedIn: false, enabled: false },
   sessions: [],
   capacity: VOICE_SESSION_CAPACITY
 } satisfies VoiceRuntimeSnapshot
