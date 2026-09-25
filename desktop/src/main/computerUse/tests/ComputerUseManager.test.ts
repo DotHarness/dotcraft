@@ -13,11 +13,12 @@ const NOTEPAD: ResolvedWindowApp = {
   exePath: 'C:\\Windows\\System32\\notepad.exe'
 }
 
-const TERMINAL: ResolvedWindowApp = {
+const DOTCRAFT: ResolvedWindowApp = {
   hwnd: 202,
   windowPid: 22,
-  id: 'Microsoft.WindowsTerminal_8wekyb3d8bbwe!App',
-  displayName: 'Terminal'
+  id: 'C:\\Program Files\\DotCraft\\DotCraft.exe',
+  displayName: 'DotCraft',
+  exePath: 'C:\\Program Files\\DotCraft\\DotCraft.exe'
 }
 
 class FakeDriver {
@@ -48,7 +49,7 @@ class FakeDriver {
     if (tool === 'list_windows') {
       return {
         content: [],
-        structuredContent: { windows: [{ window_id: 101, pid: 11, title: 'Untitled - Notepad' }, { window_id: 202, pid: 22, title: 'Terminal' }] }
+        structuredContent: { windows: [{ window_id: 101, pid: 11, title: 'Untitled - Notepad' }, { window_id: 202, pid: 22, title: 'DotCraft' }] }
       }
     }
     return { content: [{ type: 'text', text: 'ok' }], structuredContent: { effect: 'confirmed' } }
@@ -80,7 +81,7 @@ function setup(options: { alwaysAllowed?: AppRef[] } = {}) {
       drivers.push(driver)
       return driver as unknown as CuaDriverClient
     },
-    resolveWindowApps: async (hwnds) => [NOTEPAD, TERMINAL].filter((app) => hwnds.includes(app.hwnd)),
+    resolveWindowApps: async (hwnds) => [NOTEPAD, DOTCRAFT].filter((app) => hwnds.includes(app.hwnd)),
     settings: { getAlwaysAllowedApps: () => alwaysAllowed },
     indicator
   })
@@ -126,7 +127,7 @@ describe('ComputerUseManager', () => {
     const ctx = context()
 
     await manager.handleHostCall('click', { window: { id: 101 }, x: 10, y: 20 }, ctx)
-    await expect(manager.handleHostCall('type_text', { window: { id: 202 }, text: 'rm -rf' }, ctx))
+    await expect(manager.handleHostCall('type_text', { window: { id: 202 }, text: 'hi' }, ctx))
       .rejects.toThrow(/^app_blocked/)
 
     expect(ctx.requestApproval).not.toHaveBeenCalled()
@@ -148,7 +149,7 @@ describe('ComputerUseManager', () => {
     await manager.handleHostCall('click', { window: { id: 101 }, element_index: 0 }, ctx)
 
     expect(state).toMatchObject({
-      screenshots: [{ id: 'snap-1', width: 800, height: 600 }],
+      screenshots: [{ width: 800, height: 600 }],
       accessibility: { tree: '[0] Document' }
     })
     expect(ctx.emitImage).toHaveBeenCalledWith({ mediaType: 'image/png', dataBase64: 'cG5n' })
@@ -156,34 +157,6 @@ describe('ComputerUseManager', () => {
       tool: 'click',
       args: { pid: 11, window_id: 101, element_index: 0, snapshot_id: 'snap-1', delivery_mode: 'foreground' }
     })
-  })
-
-  it("rejects pixel actions that name a screenshot other than the window's latest", async () => {
-    const { manager, drivers, context } = setup()
-    const ctx = context()
-    const observe = async (input: Record<string, unknown> = {}) =>
-      (await manager.handleHostCall('get_window_state', { window: { id: 101 }, ...input }, ctx)) as { screenshots: Array<{ id: string }> }
-    const actions: Array<[string, Record<string, unknown>]> = [
-      ['click', { x: 10, y: 20 }],
-      ['scroll', { x: 10, y: 20, scrollY: 3 }],
-      ['drag', { from_x: 1, from_y: 2, to_x: 30, to_y: 40 }]
-    ]
-
-    const stale = (await observe()).screenshots[0].id
-    const latest = (await observe()).screenshots[0].id
-    for (const [method, input] of actions) {
-      await expect(manager.handleHostCall(method, { window: { id: 101 }, ...input, screenshotId: stale }, ctx))
-        .rejects.toThrow(/^screenshot_stale/)
-      await manager.handleHostCall(method, { window: { id: 101 }, ...input, screenshotId: latest }, ctx)
-      await manager.handleHostCall(method, { window: { id: 101 }, ...input }, ctx)
-    }
-    await observe({ include_screenshot: false, include_text: true })
-    await expect(manager.handleHostCall('click', { window: { id: 101 }, x: 10, y: 20, screenshotId: latest }, ctx))
-      .rejects.toThrow(/^screenshot_stale/)
-
-    const inputs = drivers[0].calls.filter((call) => ['click', 'scroll', 'drag'].includes(call.tool))
-    expect(inputs).toHaveLength(6)
-    expect(inputs.some((call) => 'capture_id' in call.args)).toBe(false)
   })
 
   it('rejects a concurrent request instead of queueing it', async () => {

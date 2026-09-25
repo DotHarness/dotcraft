@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.0.0 |
+| **Version** | 1.1.0 |
 | **Status** | Draft |
-| **Date** | 2026-09-24 |
+| **Date** | 2026-09-25 |
 | **Parent Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Node REPL](node-repl.md), [Desktop Client](../clients/desktop-client.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: define how DotCraft Desktop lets the agent observe and operate native desktop applications on the user's Windows computer through the thread-bound Node REPL.
@@ -68,7 +68,7 @@ The Node REPL is not an OS sandbox. The skill forbids launching the driver or na
 
 - `App`: `{ id, displayName, isRunning? }`. `id` is the application identity (Section 5).
 - `Window`: `{ id, pid, title, app: { id, displayName } }`. `id` is the native window handle. The runtime re-resolves `app` from `id` on every call and ignores values supplied by the model.
-- Screenshot: `{ id, width, height }`. `id` binds pixel coordinates to that observation.
+- Screenshot: `{ width, height }`, the pixel space of that observation.
 
 ### 4.2 Methods
 
@@ -79,15 +79,15 @@ The Node REPL is not an OS sandbox. The skill forbids launching the driver or na
 | `get_window({ id })` | One window from `list_windows()` by handle. |
 | `launch_app({ app })` | Launches an application by an `id` returned from `list_apps()` in the same turn. Requires authorization of that application. |
 | `get_window_state({ window, include_screenshot = true, include_text = false })` | Returns `{ window, screenshots: [Screenshot], accessibility: { tree } \| null }`. At least one of the two includes must be true. Screenshots are attached to the evaluation's image output automatically; the model must not re-emit them. |
-| `click({ window, element_index? , x?, y?, screenshotId?, click_count = 1, mouse_button = "left" })` | Clicks an element from the latest accessibility observation of that window, or a pixel of the referenced screenshot. |
+| `click({ window, element_index? , x?, y?, click_count = 1, mouse_button = "left" })` | Clicks an element from the latest accessibility observation of that window, or a pixel of its latest screenshot. |
 | `type_text({ window, text })` | Types literal text into the focused control. |
-| `press_key({ window, key })` | Presses a key or chord written as `+`-separated key names such as `ctrl+s`, `Return`, `Tab`, `Escape`, `F5`. Windows-logo modifiers (`super`, `win`, `meta`, `cmd`) are rejected. |
-| `scroll({ window, x, y, scrollX = 0, scrollY = 0, screenshotId? })` | Scrolls at a screenshot pixel. Positive `scrollY` scrolls down and positive `scrollX` scrolls right, in wheel notches. |
+| `press_key({ window, key })` | Presses a key or chord written as `+`-separated names such as `ctrl+s`, `Return`, `Tab`, `Escape`, `F5`. Modifiers are `ctrl`, `shift` and `alt`; key names follow the driver's vocabulary. Windows-logo keys (`super`, `win`, `meta`, `cmd`) are rejected. |
+| `scroll({ window, x, y, scrollX = 0, scrollY = 0 })` | Scrolls at a screenshot pixel. Positive `scrollY` scrolls down and positive `scrollX` scrolls right, in wheel notches. |
 | `set_value({ window, element_index, value })` | Sets the value of an element from the latest accessibility observation. |
-| `drag({ window, from_x, from_y, to_x, to_y, screenshotId? })` | Drags between screenshot pixels. |
+| `drag({ window, from_x, from_y, to_x, to_y })` | Drags between screenshot pixels. |
 | `activate_window({ window })` | Brings the window to the foreground. |
 
-Element indexes and screenshot ids are valid only for the latest observation of their window; any later observation replaces them, including one without a screenshot. Pixel coordinates are in the screenshot's own pixel space, and a pixel action that names a `screenshotId` other than the window's latest screenshot fails with `screenshot_stale` before any input is sent. Input methods use foreground delivery: the runtime activates the target window, injects input, and restores the previous foreground window and cursor where the driver can.
+Element indexes are valid only for the latest observation of their window; any later observation replaces them, including one without a screenshot. Pixel coordinates are in the pixel space of the window's latest screenshot. Input methods use foreground delivery: the runtime activates the target window, injects input, and restores the previous foreground window and cursor where the driver can.
 
 Every method that takes `window` or `app` is authorized first (Section 6). `list_apps`, `list_windows` and `get_window` are not authorization-gated.
 
@@ -100,7 +100,7 @@ Every method that takes `window` or `app` is authorized first (Section 6). `list
 | `app_blocked` | The target application is blocked (Section 6.1). |
 | `app_not_approved` | The user declined, the approval timed out, or the thread policy denied access. |
 | `app_unidentified` | The runtime could not resolve the window's application. |
-| `screenshot_stale` | A pixel action named a screenshot that is not the window's latest; observe the window again. |
+| `invalid_key` | A key or modifier name is not supported, or the chord uses a Windows-logo key. |
 | `driver_unavailable` | The driver could not start or stopped unexpectedly. |
 | `timeout` | The request exceeded its deadline; its effect is unknown and must be observed before retrying. |
 
@@ -122,15 +122,9 @@ Driver error codes such as `stale_element_token` or `ambiguous_window_target` pa
 
 ### 6.1 Blocked applications
 
-The following are never operated, listed or launched, and no approval is requested:
-
-- DotCraft's own processes and the driver.
-- Terminals, command shells and shell hosts.
-- Lock screen, sign-in and credential prompt processes.
-- Password managers.
-- Security and antivirus software.
-
-The list is owned by Desktop and matched against executable file names and package family names.
+DotCraft's own processes and the driver are never operated, listed or launched, and no approval is
+requested. Desktop matches them by its own executable path and by executable file name. Every other
+application is decided by authorization (Section 6.2).
 
 ### 6.2 Decision order
 

@@ -13,8 +13,8 @@
 
 ## Observe, act once, observe again
 
-- Take a fresh `get_window_state` before acting. Element indexes and screenshot ids belong to the observation that produced them; a newer observation of the same window replaces them.
-- Pixel coordinates are in the screenshot's own pixels. Pass the screenshot's `id` as `screenshotId` with pixel clicks, scrolls and drags.
+- Take a fresh `get_window_state` before acting. Element indexes belong to the observation that produced them; a newer observation of the same window replaces them.
+- Pixel coordinates are in the pixels of the window's latest screenshot.
 - Prefer `element_index` targets from an `include_text: true` observation when the element is listed. Use pixels for canvases and custom-drawn surfaces.
 - After each action, observe again and confirm the expected change before continuing. A call that returned without error does not prove the app did what you wanted.
 - Before typing, make sure the right field has focus. Click it and observe, then type in a separate step.
@@ -23,7 +23,7 @@
 ## When something fails
 
 - An error that starts with `timeout` means the effect is unknown. Observe the window before retrying so input is not repeated.
-- `stale_element_token`, `snapshot_id_required` or `screenshot_stale`: observe again and redo the step with the new indexes or screenshot id.
+- `stale_element_token` or `snapshot_id_required`: observe again and redo the step with the new indexes.
 - `window_target_not_found` or an invalid handle: list windows again.
 - `computer_use_busy`: another request is using the computer. Wait briefly and try once more.
 - `driver_unavailable`: retry once. If it fails again, tell the user that computer use is not working right now.

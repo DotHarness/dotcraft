@@ -76,7 +76,6 @@ function aumidFromLaunchPath(launchPath: unknown): string | undefined {
 
 export class ComputerApi {
   private readonly snapshots = new Map<number, string>()
-  private readonly screenshots = new Map<number, string>()
   private readonly catalog = new Map<string, AppRef>()
 
   constructor(private readonly host: ComputerApiHost) {}
@@ -182,9 +181,6 @@ export class ComputerApi {
     const state = result.structuredContent ?? {}
     const snapshotId = typeof state.snapshot_id === 'string' ? state.snapshot_id : undefined
     if (snapshotId) this.snapshots.set(hwnd, snapshotId)
-    const screenshotId = includeScreenshot && typeof state.screenshot_width === 'number' ? snapshotId : undefined
-    if (screenshotId) this.screenshots.set(hwnd, screenshotId)
-    else this.screenshots.delete(hwnd)
     for (const block of result.content) {
       if (block.type === 'image' && block.data) {
         await this.host.emitImage({ mediaType: block.mimeType ?? 'image/png', dataBase64: block.data })
@@ -196,8 +192,8 @@ export class ComputerApi {
       title: typeof state.window_title === 'string' ? state.window_title : '',
       app: { id: identity.id, displayName: identity.displayName }
     }
-    const screenshots = screenshotId
-      ? [{ id: screenshotId, width: state.screenshot_width, height: state.screenshot_height }]
+    const screenshots = includeScreenshot && typeof state.screenshot_width === 'number'
+      ? [{ width: state.screenshot_width, height: state.screenshot_height }]
       : []
     return {
       window,
@@ -218,14 +214,6 @@ export class ComputerApi {
     return { element_index: index, snapshot_id: snapshotId }
   }
 
-  private assertLatestScreenshot(input: Args): void {
-    if (input.screenshotId === undefined) return
-    const screenshotId = requiredString(input, 'screenshotId')
-    if (this.screenshots.get(windowHandle(input)) !== screenshotId) {
-      throw new Error('screenshot_stale: observe the window with get_window_state and use its latest screenshot id.')
-    }
-  }
-
   private async click(input: Args): Promise<void> {
     const button = input.mouse_button === undefined ? 'left' : requiredString(input, 'mouse_button')
     if (!['left', 'right', 'middle'].includes(button)) throw new Error('invalid_arguments: mouse_button must be left, right, or middle.')
@@ -235,7 +223,6 @@ export class ComputerApi {
     if (input.element_index !== undefined) {
       location = this.elementTarget(hwnd, input)
     } else {
-      this.assertLatestScreenshot(input)
       location = { x: requiredNumber(input, 'x'), y: requiredNumber(input, 'y') }
     }
     await this.act(input, 'click', { ...location, button, count })
@@ -251,7 +238,6 @@ export class ComputerApi {
     const scrollX = optionalNumber(input, 'scrollX') ?? 0
     const scrollY = optionalNumber(input, 'scrollY') ?? 0
     if (scrollX === 0 && scrollY === 0) throw new Error('invalid_arguments: scrollX or scrollY must be non-zero.')
-    this.assertLatestScreenshot(input)
     const vertical = Math.abs(scrollY) >= Math.abs(scrollX)
     const delta = vertical ? scrollY : scrollX
     const direction = vertical ? (delta > 0 ? 'down' : 'up') : (delta > 0 ? 'right' : 'left')
@@ -270,7 +256,6 @@ export class ComputerApi {
   }
 
   private async drag(input: Args): Promise<void> {
-    this.assertLatestScreenshot(input)
     await this.act(input, 'drag', {
       from_x: requiredNumber(input, 'from_x'),
       from_y: requiredNumber(input, 'from_y'),
