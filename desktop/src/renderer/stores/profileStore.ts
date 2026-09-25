@@ -1,13 +1,11 @@
 import { create } from 'zustand'
 import { addLocalDays, localDayKey, localTzOffsetMinutes } from '../utils/localDay'
 
-/** One local day of token usage, projected from a `usage/history` day (spec §27A.3). */
 export interface UsageDayWire {
   date: string
   totalTokens: number
 }
 
-/** Matches AppServer UsageHistoryResult wire DTO (spec §27A.3). */
 interface UsageHistoryWire {
   unit: string
   groupBy: string
@@ -29,10 +27,8 @@ export interface SkillUsageWire {
   name: string
   count: number
   pluginId?: string | null
-  pluginDisplayName?: string | null
 }
 
-/** Matches AppServer ProfileInsightsResult wire DTO (spec §27A.5). */
 export interface ProfileInsightsWire {
   topModel: RankedMetricWire | null
   topReasoning: RankedMetricWire | null
@@ -59,7 +55,6 @@ interface ProfileStoreState {
   loadedOnce: boolean
   error: string | null
 
-  /** Activity insights + most-used skills (spec §27A.5). Null until first fetch. */
   insights: ProfileInsightsWire | null
   insightsLoading: boolean
   insightsLoadedOnce: boolean

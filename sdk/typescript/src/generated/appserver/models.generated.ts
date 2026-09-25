@@ -3101,7 +3101,6 @@ export interface SkillInfo {
 export interface SkillUsage {
   count?: number;
   name?: string;
-  pluginDisplayName?: string | null;
   pluginId?: string | null;
   [key: string]: unknown;
 }

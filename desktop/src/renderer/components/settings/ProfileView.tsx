@@ -14,7 +14,9 @@ import { SettingsPageHeader } from './SettingsPageHeader'
 import { settingsMetaTextStyle, settingsPlaceholderStyle } from './settingsTypography'
 import { TokenActivityHeatmap, type HeatmapMode } from './profile/TokenActivityHeatmap'
 import { ActivityInsights } from './profile/ActivityInsights'
-import { MostUsedSkills } from './profile/MostUsedSkills'
+import { MostUsedPlugins } from './profile/MostUsedPlugins'
+import { ProfileInsightsSkeleton } from './profile/ProfileInsightsSkeleton'
+import insightsStyles from './profile/ProfileInsights.module.css'
 
 type TFn = (key: MessageKey | string, vars?: Record<string, string | number>) => string
 
@@ -22,10 +24,6 @@ function openGithubProfile(username: string): void {
   void window.api.shell.openExternal(`https://github.com/${encodeURIComponent(username)}`)
 }
 
-/**
- * Gated behind the `usageTelemetry` capability (spec §27A). The content column is
- * constrained to the heatmap width so the tabs and page action line up with the grid.
- */
 export function ProfileView(): JSX.Element {
   const t = useT()
   const capable = useConnectionStore((s) => s.capabilities?.usageTelemetry === true)
@@ -39,6 +37,7 @@ export function ProfileView(): JSX.Element {
   const loadIdentity = useProfileStore((s) => s.loadIdentity)
 
   const insights = useProfileStore((s) => s.insights)
+  const insightsLoading = useProfileStore((s) => s.insightsLoading)
   const insightsLoadedOnce = useProfileStore((s) => s.insightsLoadedOnce)
   const fetchInsights = useProfileStore((s) => s.fetchInsights)
 
@@ -99,11 +98,12 @@ export function ProfileView(): JSX.Element {
         </section>
 
         {capable && insightsLoadedOnce && insights && (
-          <section style={insightsGridStyle}>
+          <div className={insightsStyles.grid}>
             <ActivityInsights insights={insights} t={t} />
-            <MostUsedSkills skills={insights.skills} t={t} />
-          </section>
+            <MostUsedPlugins skills={insights.skills} t={t} />
+          </div>
         )}
+        {capable && !insightsLoadedOnce && insightsLoading && <ProfileInsightsSkeleton t={t} />}
       </div>
     </div>
   )
@@ -500,13 +500,6 @@ function formatDuration(ms: number): string {
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
-}
-
-const insightsGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: '40px',
-  alignItems: 'start'
 }
 
 const dimmedTextStyle: CSSProperties = settingsPlaceholderStyle()

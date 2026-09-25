@@ -4017,10 +4017,6 @@ public sealed class SkillUsage : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Name { get; init; }
 
-    [JsonPropertyName("pluginDisplayName")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> PluginDisplayName { get; init; }
-
     [JsonPropertyName("pluginId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> PluginId { get; init; }

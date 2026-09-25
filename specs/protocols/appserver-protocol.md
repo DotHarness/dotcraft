@@ -7994,7 +7994,7 @@ SkillView tool. Skills injected by other means (e.g. `always: true`) are not cou
   "totalThreads": 137,
   "longestTaskMs": 7830000,
   "skills": [
-    { "name": "code-review", "count": 12, "pluginId": "example-plugin", "pluginDisplayName": "Example Plugin" },
+    { "name": "code-review", "count": 12, "pluginId": "example-plugin" },
     { "name": "workspace-summary", "count": 5 }
   ]
 }
@@ -8015,7 +8015,6 @@ SkillView tool. Skills injected by other means (e.g. `always: true`) are not cou
 | `skills[].name` | string | Skill name (without the `$` prefix). |
 | `skills[].count` | long | Times this skill was referenced. |
 | `skills[].pluginId` | string? | Owning plugin id recorded when the skill was referenced; present only for plugin skills. |
-| `skills[].pluginDisplayName` | string? | Human-readable plugin name for a badge, when the plugin is still installed. |
 
 **Errors**:
 

@@ -15525,13 +15525,6 @@
           "const": null
         },
         {
-          "name": "pluginDisplayName",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "pluginId",
           "type": "string",
           "required": false,

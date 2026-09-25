@@ -200,7 +200,7 @@ public sealed class AppServerRequestHandler(
         new TurnRequestHandler(sessionService, connection, transport, ResponseWriter, _commandRegistry, services.SkillsLoader, SkillVariants, services.TraceStore, services.StreamDebugLogger, _defaultApprovalDecision, ThreadProjector, services.LoggerFactory?.CreateLogger<TurnRequestHandler>()),
         new WorktreeRequestHandler(sessionService, ResponseWriter, ThreadBinder, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ThreadProjector.ProjectAsync),
         new SubAgentRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, RuntimeConfig, (thread, wire, token) => ThreadProjector.EnrichAsync(wire, thread, token), services.SubAgentCoordinatorFactory, services.Contributions),
-        new UsageRequestHandler(services.UsageAnalytics, services.TraceStore, services.SkillsLoader, sessionService, services.HostWorkspacePath),
+        new UsageRequestHandler(services.UsageAnalytics, services.TraceStore, sessionService, services.HostWorkspacePath),
         new AutomationRequestHandler(services.AutomationsHandler),
     ];
 

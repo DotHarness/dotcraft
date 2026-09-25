@@ -1,15 +1,13 @@
-using DotCraft.Skills;
 using DotCraft.Tracing;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 
 namespace DotCraft.AppServer;
 
-/// <summary>Handles the <c>usage/*</c> and <c>profile/insights</c> wire methods (spec Section 27A).</summary>
+/// <summary>Handles the <c>usage/*</c> and <c>profile/insights</c> wire methods.</summary>
 internal sealed class UsageRequestHandler(
     UsageAnalyticsService? usageAnalytics,
     TraceStore? traceStore,
-    SkillsLoader? skillsLoader,
     ISessionService sessionService,
     string? hostWorkspacePath) : IAppServerDomainHandler
 {
@@ -209,24 +207,14 @@ internal sealed class UsageRequestHandler(
         usageAnalytics ?? throw AppServerErrors.MethodNotFound(method);
 
     /// <summary>Maps an aggregated skill bucket to wire form using the plugin id recorded at reference time.</summary>
-    private Contract.SkillUsage MapSkillUsage(SkillUsageBucket bucket)
+    private static Contract.SkillUsage MapSkillUsage(SkillUsageBucket bucket)
     {
         var pluginId = ToolUsageSource.PluginIdOf(bucket.ToolSource);
-        if (pluginId == null)
-            return new Contract.SkillUsage { Name = bucket.Name, Count = bucket.Count };
-
-        var info = skillsLoader?.ResolveSkillInfo(bucket.Name);
-        var displayName = info != null && string.Equals(info.PluginId, pluginId, StringComparison.Ordinal)
-            ? info.PluginDisplayName
-            : null;
         return new Contract.SkillUsage
         {
             Name = bucket.Name,
             Count = bucket.Count,
-            PluginId = Protocol.Optional<string?>.FromValue(pluginId),
-            PluginDisplayName = string.IsNullOrWhiteSpace(displayName)
-                ? default
-                : Protocol.Optional<string?>.FromValue(displayName)
+            PluginId = pluginId == null ? default : Protocol.Optional<string?>.FromValue(pluginId)
         };
     }
 

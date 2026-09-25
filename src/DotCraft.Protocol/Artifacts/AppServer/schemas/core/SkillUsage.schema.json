@@ -12,16 +12,6 @@
     "name": {
       "type": "string"
     },
-    "pluginDisplayName": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "pluginId": {
       "anyOf": [
         {

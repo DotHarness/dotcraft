@@ -108,8 +108,7 @@ public sealed class AppServerProfileInsightsTests
         Assert.Equal("skill-creator", skills[1].GetProperty("name").GetString());
         Assert.Equal(2, skills[1].GetProperty("count").GetInt64());
         Assert.Equal("alpha", skills[2].GetProperty("name").GetString());
-        // No skills loader wired → no plugin attribution on the wire.
-        Assert.False(skills[0].TryGetProperty("pluginDisplayName", out _));
+        Assert.False(skills[0].TryGetProperty("pluginId", out _));
     }
 
     [Fact]
