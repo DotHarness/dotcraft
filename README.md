@@ -7,7 +7,7 @@
 [![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/DotHarness/dotcraft/releases)
 [![Discussions](https://img.shields.io/badge/community-Discussions-brightgreen)](https://github.com/DotHarness/dotcraft/discussions)
 
-![DotCraft — an agent runtime you embed and extend](https://github.com/DotHarness/resources/raw/master/dotcraft/intro.png)
+![DotCraft — an agent runtime you embed and extend](https://github.com/DotHarness/resources/raw/master/dotcraft/intro.webp)
 
 [中文](./README_ZH.md) · [Documentation](https://www.dotcraft.net/) · [Quick Start](https://www.dotcraft.net/getting-started) · [Releases](https://github.com/DotHarness/dotcraft/releases) · [License](./LICENSE)
 

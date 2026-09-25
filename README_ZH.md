@@ -7,7 +7,7 @@
 [![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/DotHarness/dotcraft/releases)
 [![Discussions](https://img.shields.io/badge/community-Discussions-brightgreen)](https://github.com/DotHarness/dotcraft/discussions)
 
-![DotCraft —— 可嵌入、可扩展的 Agent Runtime](https://github.com/DotHarness/resources/raw/master/dotcraft/intro.png)
+![DotCraft —— 可嵌入、可扩展的 Agent Runtime](https://github.com/DotHarness/resources/raw/master/dotcraft/intro.webp)
 
 [English](./README.md) · [官方文档](https://www.dotcraft.net/zh/) · [快速开始](https://www.dotcraft.net/zh/getting-started) · [下载 Release](https://github.com/DotHarness/dotcraft/releases) · [License](./LICENSE)
 
