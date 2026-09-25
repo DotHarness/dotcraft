@@ -41,6 +41,7 @@ jobs:
         env:
           SDK_PROJECT: ./sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj
           HARNESS_PROJECT: ./src/DotCraft.Harness/DotCraft.Harness.csproj
+          MODEL_SERVICE_PROJECT: ./src/DotCraft.ModelService/DotCraft.ModelService.csproj
           TARGET: ${{ inputs.target }}
           CONFIRM: ${{ inputs.confirm }}
           GITHUB_REF_FULL: ${{ github.ref }}
@@ -48,7 +49,8 @@ jobs:
           $ErrorActionPreference = "Stop"
           $projects = @(
             @{ Id = "DotCraft.Sdk"; Path = $env:SDK_PROJECT },
-            @{ Id = "DotCraft.Harness"; Path = $env:HARNESS_PROJECT }
+            @{ Id = "DotCraft.Harness"; Path = $env:HARNESS_PROJECT },
+            @{ Id = "DotCraft.ModelService"; Path = $env:MODEL_SERVICE_PROJECT }
           )
           $versionsById = @{}
           foreach ($package in $projects) {
@@ -64,8 +66,10 @@ jobs:
             $versionsById[$package.Id] = $packageVersion
           }
           $version = $versionsById["DotCraft.Sdk"]
-          if ($versionsById["DotCraft.Harness"] -cne $version) {
-            throw "DotCraft.Sdk and DotCraft.Harness must use the same version."
+          foreach ($package in $projects) {
+            if ($versionsById[$package.Id] -cne $version) {
+              throw "DotCraft.Sdk, DotCraft.Harness and DotCraft.ModelService must use the same version."
+            }
           }
 
           $previewPattern = '^\d+\.\d+\.\d+-preview\.\d+$'
@@ -114,13 +118,16 @@ jobs:
           }
 
           "version=$version" >> $env:GITHUB_OUTPUT
-          Write-Host "Validated DotCraft.Sdk and DotCraft.Harness $version ($channel) for $($env:TARGET)."
+          Write-Host "Validated DotCraft.Sdk, DotCraft.Harness and DotCraft.ModelService $version ($channel) for $($env:TARGET)."
 
       - name: Restore SDK
         run: dotnet restore ./sdk/dotnet/DotCraft.Sdk.sln
 
       - name: Restore Harness
         run: dotnet restore ./tests/DotCraft.Harness.Tests/DotCraft.Harness.Tests.csproj
+
+      - name: Restore Model Service
+        run: dotnet restore ./tests/DotCraft.ModelService.Tests/DotCraft.ModelService.Tests.csproj
 
       - name: Build SDK
         shell: pwsh
@@ -156,6 +163,22 @@ jobs:
       - name: Test Harness
         run: dotnet test ./tests/DotCraft.Harness.Tests/DotCraft.Harness.Tests.csproj --configuration Release --no-build
 
+      - name: Build Model Service
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ steps.validate.outputs.version }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          dotnet build ./tests/DotCraft.ModelService.Tests/DotCraft.ModelService.Tests.csproj `
+            --configuration Release `
+            --no-restore `
+            /p:Version=$env:PACKAGE_VERSION `
+            /p:PackageVersion=$env:PACKAGE_VERSION `
+            /p:ContinuousIntegrationBuild=true
+
+      - name: Test Model Service
+        run: dotnet test ./tests/DotCraft.ModelService.Tests/DotCraft.ModelService.Tests.csproj --configuration Release --no-build
+
       - name: Pack release artifacts
         shell: pwsh
         env:
@@ -173,6 +196,13 @@ jobs:
             /p:DebugType=portable `
             /p:ContinuousIntegrationBuild=true
           dotnet pack ./src/DotCraft.Harness/DotCraft.Harness.csproj `
+            --configuration Release `
+            --no-build `
+            --output artifacts/nuget `
+            /p:Version=$env:PACKAGE_VERSION `
+            /p:PackageVersion=$env:PACKAGE_VERSION `
+            /p:ContinuousIntegrationBuild=true
+          dotnet pack ./src/DotCraft.ModelService/DotCraft.ModelService.csproj `
             --configuration Release `
             --no-build `
             --output artifacts/nuget `
@@ -198,6 +228,7 @@ jobs:
           if (!(Test-Path $harnessPackage)) {
             throw "Missing package: $harnessPackage"
           }
+          $modelServicePackage = "artifacts/nuget/DotCraft.ModelService.$env:PACKAGE_VERSION.nupkg"
 
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $package = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $nupkg))
@@ -243,7 +274,7 @@ jobs:
           }
 
           Get-ChildItem artifacts/nuget | Format-Table Name, Length
-          Get-FileHash $nupkg, $snupkg, $harnessPackage -Algorithm SHA256 | Format-Table Algorithm, Hash, Path
+          Get-FileHash $nupkg, $snupkg, $harnessPackage, $modelServicePackage -Algorithm SHA256 | Format-Table Algorithm, Hash, Path
 
       - name: Restore bundled contracts from isolated source
         shell: pwsh
@@ -350,5 +381,7 @@ jobs:
           $source = "https://api.nuget.org/v3/index.json"
           $sdkPackage = "artifacts/nuget/DotCraft.Sdk.$env:PACKAGE_VERSION.nupkg"
           $harnessPackage = "artifacts/nuget/DotCraft.Harness.$env:PACKAGE_VERSION.nupkg"
+          $modelServicePackage = "artifacts/nuget/DotCraft.ModelService.$env:PACKAGE_VERSION.nupkg"
           dotnet nuget push $sdkPackage --source $source --api-key $env:NUGET_API_KEY
           dotnet nuget push $harnessPackage --source $source --api-key $env:NUGET_API_KEY
+          dotnet nuget push $modelServicePackage --source $source --api-key $env:NUGET_API_KEY
