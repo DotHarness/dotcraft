@@ -8,7 +8,7 @@ import {
   type JSX,
   type ReactNode
 } from 'react'
-import { Bot, ListChecks, Square, X } from 'lucide-react'
+import { Bot, CircleX, ListChecks, Square } from 'lucide-react'
 import { Spinner } from '../ui/Spinner'
 import type {
   DesktopPluginComposerSurfaceContext,
@@ -370,7 +370,7 @@ export function ComposerPlanModeLabel({
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const active = hovered || focused
-  const Icon = active ? X : ListChecks
+  const Icon = active ? CircleX : ListChecks
 
   if (value !== 'plan') return null
 
@@ -389,7 +389,7 @@ export function ComposerPlanModeLabel({
           alignItems: 'center',
           gap: '6px',
           height: COMPOSER_FOOTER_CONTROL_HEIGHT,
-          padding: '0 6px',
+          padding: '0 8px',
           borderRadius: '999px',
           border: 'none',
           background: active ? composerFooterControlHoverBackground : 'transparent',
@@ -420,7 +420,7 @@ export function ComposerCustomProfileLabel({ label, onClear, title, ariaLabel }:
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const active = hovered || focused
-  const Icon = active ? X : Bot
+  const Icon = active ? CircleX : Bot
 
   return (
     <ActionTooltip label={title} placement="top">
@@ -437,7 +437,7 @@ export function ComposerCustomProfileLabel({ label, onClear, title, ariaLabel }:
           alignItems: 'center',
           gap: '6px',
           height: COMPOSER_FOOTER_CONTROL_HEIGHT,
-          padding: '0 6px',
+          padding: '0 8px',
           borderRadius: '999px',
           border: 'none',
           background: active ? composerFooterControlHoverBackground : 'transparent',

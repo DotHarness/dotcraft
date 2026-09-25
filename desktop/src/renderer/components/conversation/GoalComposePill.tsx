@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Target, X } from 'lucide-react'
+import { CircleX, Target } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import {
   COMPOSER_FOOTER_CONTROL_HEIGHT,
@@ -22,7 +22,7 @@ export function GoalComposePill({
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const active = hovered || focused
-  const Icon = active ? X : Target
+  const Icon = active ? CircleX : Target
 
   return (
     <ActionTooltip label={title} placement="top">
@@ -49,7 +49,7 @@ function goalComposePillStyle(active: boolean): CSSProperties {
     alignItems: 'center',
     gap: '6px',
     height: COMPOSER_FOOTER_CONTROL_HEIGHT,
-    padding: '0 6px',
+    padding: '0 8px',
     borderRadius: '999px',
     border: 'none',
     background: active ? composerFooterControlHoverBackground : 'transparent',

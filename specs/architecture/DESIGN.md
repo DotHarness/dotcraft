@@ -1,5 +1,5 @@
 ---
-version: "0.30.0"
+version: "0.31.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -1333,6 +1333,11 @@ own placeholder and state already say.
   `.dc-composer-icon-control`: round and frameless, the composer's hover fill, and a
   neutral fill while their menu is open or recording runs. Each takes the height of
   the controls beside it.
+- Footer mode pills (Plan, Goal, a custom agent) are frameless 24px pills with an
+  8px inset on both sides. At rest they show their mode icon; on hover or focus they
+  take the composer's hover fill and the icon becomes a circled clear mark, which
+  fills the icon box so the gap after the label reads like the gap before the mark.
+  The current-goal status pill shares the inset and the pill radius.
 - Line comments and annotations each ride one attachment pill above the input:
   pill radius, a hairline border on the elevated surface, a tertiary icon, and the
   count as a medium label. Its remove control sits inside the pill's trailing edge
