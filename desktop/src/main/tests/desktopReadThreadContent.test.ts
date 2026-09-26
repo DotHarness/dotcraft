@@ -1,7 +1,63 @@
 import { describe, expect, it } from 'vitest'
-import { historyClient, item, read } from './readThreadTestHelpers'
+import { historyClient, item, read, type RecordValue } from './readThreadTestHelpers'
 
 describe('ReadThread content projection', () => {
+  it.each([
+    { kind: 'pastedText', path: 'paste.txt', fileName: 'paste.txt', preview: 'pasted preview' },
+    { kind: 'responseAnnotation', threadId: 'source', turnId: 'turn', itemId: 'item', selectedText: 'selected response', comment: 'explain' },
+    { kind: 'diffAnnotation', path: 'example.ts', side: 'right', startLine: 1, endLine: 2, selectedText: 'selected code', comment: 'check' },
+    { kind: 'pageReference', url: 'https://example.test', title: 'Page', selectionKind: 'region', text: 'selected page', comment: 'describe' },
+    { kind: 'threadReferences', text: 'referenced thread snapshot' }
+  ])('preserves the saved materialized input for $kind', async context => {
+    const snapshot = `Saved context snapshot: ${JSON.stringify(context)}\n${'context text '.repeat(2_000)}`
+    const { client } = historyClient([{ id: 'turn-1', items: [item('user', 'userMessage', {
+      text: '',
+      nativeInputParts: [
+        { type: 'text', text: 'question' },
+        { type: 'contextRef', context: { id: 'context-1', ...context } }
+      ],
+      materializedInputParts: [
+        { type: 'text', text: 'question' },
+        { type: 'text', text: snapshot },
+        { type: 'localImage', path: 'evidence.png', mimeType: 'image/png' }
+      ]
+    })] }])
+    const { data } = await read(client, { threadId: 'thread-1', includeOutputs: false, maxOutputCharsPerItem: 0 })
+    const content = data.turns[0].items[0].content
+    expect(content.filter((part: RecordValue) => part.type === 'text').map((part: RecordValue) => part.text))
+      .toEqual(['question', snapshot])
+    expect(content.find((part: RecordValue) => part.type === 'localImage')).toMatchObject({ path: 'evidence.png' })
+  })
+
+  it('preserves native context data when no materialized snapshot exists, excluding inline media', async () => {
+    const context = {
+      id: 'context-1', kind: 'pageReference', url: 'https://example.test', title: 'Page', selectionKind: 'region',
+      text: 'selected page text', comment: 'explain',
+      image: { tempPath: 'evidence.png', fileName: 'evidence.png', mimeType: 'image/png', dataUrl: 'DATA:image/png;base64,BINARY' }
+    }
+    const { client } = historyClient([{ id: 'turn-1', items: [item('user', 'userMessage', {
+      text: '', nativeInputParts: [{ type: 'contextRef', context }]
+    })] }])
+    const { data } = await read(client)
+    expect(data.turns[0].items[0].content[0]).toEqual({
+      type: 'contextRef', context: { ...context, image: { tempPath: 'evidence.png', fileName: 'evidence.png', mimeType: 'image/png' } }
+    })
+    expect(JSON.stringify(data)).not.toContain('BINARY')
+  })
+
+  it.each(['data:', 'DATA:', 'DaTa:'])('omits inline image URLs with scheme %s from native and materialized input', async scheme => {
+    for (const materialized of [false, true]) {
+      const image = { type: 'image', url: `${scheme}image/png;base64,BINARY` }
+      const { client } = historyClient([{ id: 'turn-1', items: [item('user', 'userMessage', {
+        nativeInputParts: materialized ? [{ type: 'contextRef', context: { id: 'context-1', kind: 'threadReferences', text: 'reference' } }] : [image],
+        materializedInputParts: materialized ? [image] : []
+      })] }])
+      const { data } = await read(client)
+      expect(data.turns[0].items[0].content).toEqual([{ type: 'image' }])
+      expect(JSON.stringify(data)).not.toContain('BINARY')
+    }
+  })
+
   it.each([false, true])('preserves complete messages independently of output controls (%s)', async includeOutputs => {
     const text = '完整正文😀\n'.repeat(5_000)
     const argumentsValue = { prompt: text, nested: { flags: [true, false] } }

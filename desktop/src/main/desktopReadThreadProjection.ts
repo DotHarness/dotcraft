@@ -57,7 +57,8 @@ function projectItem(item: JsonObject, includeOutputs: boolean, maxChars: number
       copy(['text', 'deliveryMode', 'senderId', 'senderName', 'channelName', 'triggerKind', 'triggerLabel'])
       const native = Array.isArray(payload.nativeInputParts) ? payload.nativeInputParts : []
       const materialized = Array.isArray(payload.materializedInputParts) ? payload.materializedInputParts : []
-      const parts = native.length > 0 ? native : materialized
+      const hasContext = native.some(part => isRecord(part) && part.type === 'contextRef')
+      const parts = materialized.length > 0 && hasContext ? materialized : native.length > 0 ? native : materialized
       if (parts.length > 0) result.content = parts.filter(isRecord).map(projectInputPart)
       break
     }
@@ -150,11 +151,22 @@ function projectInputPart(part: JsonObject): JsonObject {
       return { ...result, ...pick(part, ['name', 'argsText', 'rawText']) }
     case 'skillRef':
       return { ...result, ...pick(part, ['name']) }
+    case 'contextRef':
+      return isRecord(part.context) ? { ...result, context: projectContext(part.context) } : result
     default:
       Object.assign(result, pick(part, ['name', 'path', 'displayPath', 'url', 'fileName', 'mimeType']))
-      if (typeof result.url === 'string' && result.url.startsWith('data:')) delete result.url
+      if (typeof result.url === 'string' && /^data:/i.test(result.url)) delete result.url
       return result
   }
+}
+
+function projectContext(context: JsonObject): JsonObject {
+  const result = pick(context, ['id', 'kind', 'path', 'fileName', 'preview', 'characterCount',
+    'threadId', 'turnId', 'itemId', 'selectedText', 'comment', 'side', 'startLine', 'endLine',
+    'url', 'title', 'selectionKind', 'text'])
+  if (typeof result.url === 'string' && /^data:/i.test(result.url)) delete result.url
+  if (isRecord(context.image)) result.image = pick(context.image, ['tempPath', 'fileName', 'mimeType'])
+  return result
 }
 
 function addToolOutputs(result: JsonObject, payload: JsonObject, maxChars: number): void {
