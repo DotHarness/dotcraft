@@ -1,4 +1,5 @@
 import type { InputPart } from '../../types/conversation'
+import { splitThreadMentions } from '../../utils/threadReferences'
 import { serializeSkillMarker } from './richInputSerialization'
 
 export type UserMessageSegment =
@@ -6,6 +7,7 @@ export type UserMessageSegment =
   | { type: 'fileRef'; relativePath: string; targetPath?: string }
   | { type: 'commandRef'; commandText: string }
   | { type: 'skillRef'; skillName: string }
+  | { type: 'threadRef'; threadId: string; title: string }
 
 interface Match {
   type: 'file' | 'command' | 'skill'
@@ -71,9 +73,15 @@ function findNextSkillRef(text: string, from: number): Match | null {
 
 /**
  * Splits user message text into plain text, @fileRef segments, slash-command
- * fallback segments, and skill marker segments.
+ * fallback segments, skill marker segments, and thread mentions.
  */
 export function parseUserMessageSegments(text: string): UserMessageSegment[] {
+  return splitThreadMentions(text).flatMap((piece): UserMessageSegment[] => piece.type === 'thread'
+    ? [{ type: 'threadRef', threadId: piece.threadId, title: piece.title }]
+    : parseMarkerSegments(piece.value))
+}
+
+function parseMarkerSegments(text: string): UserMessageSegment[] {
   const out: UserMessageSegment[] = []
   const source = text
   let cursor = 0

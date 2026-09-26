@@ -34,7 +34,8 @@
 .dc-ref-file,
 .dc-ref-command,
 .dc-ref-automation,
-.dc-ref-link {
+.dc-ref-link,
+.dc-ref-thread {
   color: var(--ref-base);
 }
 
@@ -46,6 +47,7 @@
 .dc-ref-skill,
 .dc-ref-automation,
 .dc-ref-link,
+.dc-ref-thread,
 .dc-ref-profile {
   font-weight: 600;
 }

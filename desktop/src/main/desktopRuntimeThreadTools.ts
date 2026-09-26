@@ -825,6 +825,10 @@ async function ensureDesktopThreadToolsBound(
   markDesktopThreadToolsBound(client, threadId)
 }
 
+export function hasDesktopThreadTools(threadId: string, options: DesktopAppServerRequestOptions): boolean {
+  return options.supportsDynamicToolRebind === true || boundThreadIds.has(threadId)
+}
+
 function withDesktopThreadDynamicTools(params: unknown): unknown {
   if (!isRecord(params)) return params
 

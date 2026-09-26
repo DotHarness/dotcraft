@@ -56,7 +56,7 @@ export function echoOptimisticTurn({
   sentAsGoal = false,
   onScreen = true
 }: StartTurnParams): OptimisticTurn | null {
-  const built = providedInputParts ? null : buildComposerInputParts({ text, segments, files, images, contexts })
+  const built = providedInputParts ? null : buildComposerInputParts({ text, threadId, segments, files, images, contexts })
   const inputParts = providedInputParts ?? built!.inputParts
   const visibleText = built?.visibleText ?? text
   if (inputParts.length === 0) return null

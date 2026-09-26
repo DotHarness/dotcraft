@@ -1,5 +1,3 @@
-using DotCraft.Sessions;
-
 namespace DotCraft.ContextExport;
 
 internal sealed class ContextRolloutRecord
@@ -8,25 +6,9 @@ internal sealed class ContextRolloutRecord
 
     public DateTimeOffset Timestamp { get; init; }
 
-    public ContextItemAppendedPayload? ItemAppended { get; init; }
-
-    public ContextTurnStateReplacedPayload? TurnStateReplaced { get; init; }
-
     public ContextThreadRolledBackPayload? ThreadRolledBack { get; init; }
 
     public ContextCompactedPayload? ContextCompacted { get; init; }
-}
-
-internal sealed class ContextItemAppendedPayload
-{
-    public string TurnId { get; init; } = string.Empty;
-
-    public SessionItem Item { get; init; } = new();
-}
-
-internal sealed class ContextTurnStateReplacedPayload
-{
-    public SessionTurn Turn { get; init; } = new();
 }
 
 internal sealed class ContextThreadRolledBackPayload

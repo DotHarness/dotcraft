@@ -77,6 +77,9 @@ public static partial class AppServerRpc
     public static readonly RpcRequest<ThreadListParams, ThreadListResult> ThreadList =
         new("thread/list", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "workspace", errors: CommonErrors);
 
+    public static readonly RpcRequest<ThreadSearchParams, ThreadSearchResult> ThreadSearch =
+        new("thread/search", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "workspace", errors: CommonErrors);
+
     /// <summary>turn/start request.</summary>
     public static readonly RpcRequest<TurnStartParams, TurnStartResult> TurnStart =
         new("turn/start", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "thread", errors: CommonErrors);

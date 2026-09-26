@@ -2,9 +2,11 @@ import type { ComposerContextRecord } from '../../shared/composerContext'
 import type { ComposerDraftSegment } from '../types/composerDraft'
 import type { ComposerFileAttachment, ImageAttachment, InputPart } from '../types/conversation'
 import { stringifyComposerDraftSegments } from '../components/conversation/richInputSerialization'
+import { buildThreadReferencesContext, formatThreadMention, mentionedThreadIds } from './threadReferences'
 
 interface BuildComposerInputPartsArgs {
   text: string
+  threadId?: string
   contexts?: ComposerContextRecord[]
   segments?: ComposerDraftSegment[]
   files?: ComposerFileAttachment[]
@@ -50,6 +52,8 @@ function segmentsToInputParts(segments: ComposerDraftSegment[]): InputPart[] {
         return segment.skillName.trim().length > 0
           ? [{ type: 'skillRef', name: segment.skillName.trim() } satisfies InputPart]
           : []
+      case 'thread':
+        return [{ type: 'text', text: formatThreadMention(segment.threadId, segment.title) } satisfies InputPart]
       default:
         return []
     }
@@ -58,6 +62,7 @@ function segmentsToInputParts(segments: ComposerDraftSegment[]): InputPart[] {
 
 export function buildComposerInputParts({
   text,
+  threadId,
   segments,
   files = [],
   contexts = [],
@@ -90,6 +95,10 @@ export function buildComposerInputParts({
       ? { ...context, image: { tempPath: context.image.tempPath, mimeType: context.image.mimeType, fileName: context.image.fileName } }
       : context
     inputParts.push({ type: 'contextRef', context: persisted })
+  }
+  const threadIds = mentionedThreadIds(normalizedSegments).filter((id) => id !== threadId)
+  if (threadIds.length > 0) {
+    inputParts.push({ type: 'contextRef', context: buildThreadReferencesContext(threadIds) })
   }
   inputParts.push(...segmentsToInputParts(normalizedSegments))
 

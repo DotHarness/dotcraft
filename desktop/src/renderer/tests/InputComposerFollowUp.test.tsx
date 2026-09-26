@@ -158,6 +158,29 @@ describe('InputComposer follow-up routing', () => {
     expect(sendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
   })
 
+  it('refuses chat references while the thread lacks the Desktop thread tools and keeps the draft', async () => {
+    installDesktopApiMock({
+      settings: { get: async () => ({ locale: 'en' }), set: settingsSet },
+      appServer: { sendRequest, onNotification: undefined, hasDesktopThreadTools: async () => false },
+      git: { listBranches: async () => ({ current: 'main', detachedHead: null, branches: [{ name: 'main', current: true }] }) },
+      voice: undefined
+    })
+    useConversationStore.setState({ turnStatus: 'completed', activeTurnId: null })
+    useComposerDraftStore.getState().saveDraft('thread-1', {
+      text: 'continue [@Fix login](thread://thread_a)',
+      segments: [{ type: 'text', value: 'continue ' }, { type: 'thread', threadId: 'thread_a', title: 'Fix login' }],
+      files: [],
+      images: []
+    })
+    renderComposer()
+    const textbox = screen.getByRole('textbox')
+    await waitFor(() => expect(textbox).toHaveTextContent('continue Fix login'))
+    fireEvent.keyDown(textbox, { key: 'Enter' })
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1))
+    expect(sendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
+    expect(textbox).toHaveTextContent('continue Fix login')
+  })
+
   it('queues maintenance follow-ups even when Steer is preferred', async () => {
     useConversationStore.setState({ turnStatus: 'idle', activeTurnId: null, maintenanceKind: 'compacting' })
     renderComposer()

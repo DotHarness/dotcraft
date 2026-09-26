@@ -3,3 +3,4 @@ export type ComposerDraftSegment =
   | { type: 'file'; relativePath: string }
   | { type: 'command'; command: string }
   | { type: 'skill'; skillName: string }
+  | { type: 'thread'; threadId: string; title: string }

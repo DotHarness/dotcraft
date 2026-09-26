@@ -258,6 +258,30 @@ describe('RichInputArea ref insertion caret placement', () => {
     expect((anchor?.previousSibling as HTMLElement | null)?.classList.contains(SKILL_REF_CLASS)).toBe(true)
   })
 
+  it('replaces the @ query with a thread chip and inserts dropped threads at the caret', () => {
+    const ref = createRef<RichInputAreaHandle>()
+
+    render(<RichInputArea ref={ref} onSubmit={vi.fn()} onAtQuery={vi.fn()} />)
+
+    act(() => {
+      ref.current?.setPlainText('see @fix')
+      ref.current?.setSelectionRange({ start: 8, end: 8 })
+      ref.current?.insertThreadTag('thread_a', 'Fix login')
+    })
+    act(() => {
+      ref.current?.insertThreadTagAtSelection('thread_b', 'Retry')
+    })
+
+    expect(ref.current?.getSegments()).toEqual([
+      { type: 'text', value: 'see ' },
+      { type: 'thread', threadId: 'thread_a', title: 'Fix login' },
+      { type: 'text', value: ' ' },
+      { type: 'thread', threadId: 'thread_b', title: 'Retry' },
+      { type: 'text', value: ' ' }
+    ])
+    expect(ref.current?.getText()).toBe('see [@Fix login](thread://thread_a) [@Retry](thread://thread_b) ')
+  })
+
   it('tracks visible command-trigger text and replaces only that range with a skill tag', () => {
     const ref = createRef<RichInputAreaHandle>()
     const onCommandQuery = vi.fn()

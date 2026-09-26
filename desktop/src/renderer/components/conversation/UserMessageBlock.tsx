@@ -6,6 +6,7 @@ import { Textarea } from '../ui/Input'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
+import { useUIStore } from '../../stores/uiStore'
 import { ImageLightbox } from './ImageLightbox'
 import { MessageCopyButton } from './MessageCopyButton'
 import {
@@ -365,6 +366,8 @@ export function UserMessageBlock({
                 />
               ) : seg.type === 'commandRef' ? (
                 <CommandRefChip key={`c-${idx}-${seg.commandText}`} commandText={seg.commandText} />
+              ) : seg.type === 'threadRef' ? (
+                <ThreadRefChip key={`r-${idx}-${seg.threadId}`} threadId={seg.threadId} title={seg.title} />
               ) : (
                 <SkillRefChip key={`s-${idx}-${seg.skillName}`} skillName={seg.skillName} />
               )
@@ -507,6 +510,23 @@ function CommandRefChip({ commandText }: { commandText: string }): JSX.Element {
       <span>{label}</span>
     </span>
     </ActionTooltip>
+  )
+}
+
+function ThreadRefChip({ threadId, title }: { threadId: string; title: string }): JSX.Element {
+  const setActiveMainView = useUIStore((s) => s.setActiveMainView)
+  return (
+    <button
+      type="button"
+      className="dc-ref dc-ref-thread dc-message-ref"
+      onClick={() => {
+        useThreadStore.getState().setActiveThreadId(threadId)
+        setActiveMainView('conversation')
+      }}
+      style={{ cursor: 'pointer' }}
+    >
+      @{title}
+    </button>
   )
 }
 

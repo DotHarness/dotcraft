@@ -1,7 +1,8 @@
-import { COMMAND_REF_CLASS, FILE_REF_CLASS, SKILL_REF_CLASS } from './richInputConstants'
-import { REMOVE_ICON_SVG, SKILL_ICON_SVG, TERMINAL_ICON_SVG } from './refIconSvgs'
+import { COMMAND_REF_CLASS, FILE_REF_CLASS, SKILL_REF_CLASS, THREAD_REF_CLASS, isRefElement } from './richInputConstants'
+import { CHAT_ICON_SVG, REMOVE_ICON_SVG, SKILL_ICON_SVG, TERMINAL_ICON_SVG } from './refIconSvgs'
 import { paintFileRefIcon } from './fileRefIconDom'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
+import { formatThreadMention, splitThreadMentions } from '../../utils/threadReferences'
 
 type RefType = Exclude<ComposerDraftSegment, { type: 'text' }>['type']
 type Match = { type: 'file' | 'command' | 'skill'; start: number; end: number; value: string }
@@ -34,7 +35,7 @@ function pushTextSegment(out: ComposerDraftSegment[], value: string): void {
   out.push({ type: 'text', value })
 }
 
-export function createRefSpan(kind: RefType, value: string): HTMLSpanElement {
+export function createRefSpan(kind: RefType, value: string, title = value): HTMLSpanElement {
   const span = document.createElement('span')
   const label = document.createElement('span')
   const iconSlot = document.createElement('span')
@@ -65,6 +66,12 @@ export function createRefSpan(kind: RefType, value: string): HTMLSpanElement {
     span.setAttribute('data-command', value)
     label.textContent = value.startsWith('/') ? value.slice(1) : value
     icon.innerHTML = TERMINAL_ICON_SVG
+  } else if (kind === 'thread') {
+    span.className = `${THREAD_REF_CLASS} dc-ref dc-ref-thread`
+    span.setAttribute('data-thread-id', value)
+    span.setAttribute('data-thread-title', title)
+    label.textContent = title
+    icon.innerHTML = CHAT_ICON_SVG
   } else {
     span.className = `${SKILL_REF_CLASS} dc-ref dc-ref-skill`
     span.setAttribute('data-skill', value)
@@ -100,6 +107,11 @@ export function collectComposerDraftSegments(root: HTMLElement): ComposerDraftSe
       if (skillName) out.push({ type: 'skill', skillName })
       return
     }
+    if (node.classList.contains(THREAD_REF_CLASS)) {
+      const threadId = node.getAttribute('data-thread-id') ?? ''
+      if (threadId) out.push({ type: 'thread', threadId, title: node.getAttribute('data-thread-title') ?? threadId })
+      return
+    }
     if (node.tagName === 'BR') {
       pushTextSegment(out, '\n')
       return
@@ -120,6 +132,7 @@ export function stringifyComposerDraftSegments(segments: ComposerDraftSegment[])
     if (seg.type === 'text') out += seg.value
     else if (seg.type === 'file') out += `@${seg.relativePath}`
     else if (seg.type === 'command') out += seg.command
+    else if (seg.type === 'thread') out += formatThreadMention(seg.threadId, seg.title)
     else out += serializeSkillMarker(seg.skillName)
   }
   return out
@@ -149,6 +162,11 @@ export function buildEditorFragmentFromSegments(
     }
     if (seg.type === 'command') {
       frag.appendChild(createRefSpan('command', seg.command))
+      if (addSpacers) frag.appendChild(document.createTextNode('\u00a0'))
+      continue
+    }
+    if (seg.type === 'thread') {
+      frag.appendChild(createRefSpan('thread', seg.threadId, seg.title))
       if (addSpacers) frag.appendChild(document.createTextNode('\u00a0'))
       continue
     }
@@ -350,9 +368,15 @@ export function parseComposerTextWithCatalog(
   text: string,
   catalog: ComposerRefCatalog
 ): ComposerDraftSegment[] {
-  const out: ComposerDraftSegment[] = []
   const commands = commandCatalogSet(catalog.commands)
   const skills = skillCatalogSet(catalog.skills)
+  return splitThreadMentions(text).flatMap((piece) => (
+    piece.type === 'thread' ? [piece] : parseRefsWithCatalog(piece.value, commands, skills)
+  ))
+}
+
+function parseRefsWithCatalog(text: string, commands: Set<string>, skills: Set<string>): ComposerDraftSegment[] {
+  const out: ComposerDraftSegment[] = []
   let cursor = 0
 
   while (cursor < text.length) {
@@ -402,19 +426,8 @@ export function serializeEditor(root: HTMLElement): string {
     if (el.tagName === 'STYLE' || el.tagName === 'SCRIPT') {
       return
     }
-    if (el.classList.contains(FILE_REF_CLASS)) {
-      const p = el.getAttribute('data-relative-path') ?? ''
-      if (p) out += `@${p}`
-      return
-    }
-    if (el.classList.contains(COMMAND_REF_CLASS)) {
-      const command = el.getAttribute('data-command') ?? ''
-      if (command) out += command
-      return
-    }
-    if (el.classList.contains(SKILL_REF_CLASS)) {
-      const skill = el.getAttribute('data-skill') ?? ''
-      if (skill) out += serializeSkillMarker(skill)
+    if (isRefElement(el)) {
+      out += serializeRef(el)
       return
     }
     if (el.tagName === 'BR') {
@@ -429,6 +442,20 @@ export function serializeEditor(root: HTMLElement): string {
     walk(c)
   }
   return out
+}
+
+function serializeRef(el: HTMLElement): string {
+  if (el.classList.contains(FILE_REF_CLASS)) {
+    const p = el.getAttribute('data-relative-path') ?? ''
+    return p ? `@${p}` : ''
+  }
+  if (el.classList.contains(COMMAND_REF_CLASS)) return el.getAttribute('data-command') ?? ''
+  if (el.classList.contains(THREAD_REF_CLASS)) {
+    const threadId = el.getAttribute('data-thread-id') ?? ''
+    return threadId ? formatThreadMention(threadId, el.getAttribute('data-thread-title') ?? threadId) : ''
+  }
+  const skill = el.getAttribute('data-skill') ?? ''
+  return skill ? serializeSkillMarker(skill) : ''
 }
 
 /**
@@ -475,41 +502,8 @@ export function truncateEditorDomToSerializedLength(root: HTMLElement, max: numb
     if (el.tagName === 'STYLE' || el.tagName === 'SCRIPT') {
       return true
     }
-    if (el.classList.contains(FILE_REF_CLASS)) {
-      const p = el.getAttribute('data-relative-path') ?? ''
-      const len = p ? 1 + p.length : 0
-      if (len <= remaining) {
-        remaining -= len
-        if (remaining === 0) {
-          removeTrailingAfter(el)
-          return false
-        }
-        return true
-      }
-      removeTrailingAfter(el)
-      el.remove()
-      remaining = 0
-      return false
-    }
-    if (el.classList.contains(COMMAND_REF_CLASS)) {
-      const command = el.getAttribute('data-command') ?? ''
-      const len = command.length
-      if (len <= remaining) {
-        remaining -= len
-        if (remaining === 0) {
-          removeTrailingAfter(el)
-          return false
-        }
-        return true
-      }
-      removeTrailingAfter(el)
-      el.remove()
-      remaining = 0
-      return false
-    }
-    if (el.classList.contains(SKILL_REF_CLASS)) {
-      const skill = el.getAttribute('data-skill') ?? ''
-      const len = skill ? serializeSkillMarker(skill).length : 0
+    if (isRefElement(el)) {
+      const len = serializeRef(el).length
       if (len <= remaining) {
         remaining -= len
         if (remaining === 0) {

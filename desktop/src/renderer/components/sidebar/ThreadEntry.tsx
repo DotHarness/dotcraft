@@ -13,6 +13,7 @@ import { Spinner } from '../ui/Spinner'
 import { ThreadRowLayout } from './ThreadRowLayout'
 import { Archive, ArrowRightLeft, Copy, Laptop, Link, Pencil, Pin, Trash2 } from 'lucide-react'
 import { AUTOMATION_TASK_DRAG_MIME } from '../../utils/automationDrag'
+import { THREAD_DRAG_MIME } from '../../utils/threadReferences'
 import { useAutomationsStore } from '../../stores/automationsStore'
 import { useDragDropStore } from '../../stores/dragDropStore'
 import { addToast } from '../../stores/toastStore'
@@ -305,6 +306,11 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
         containerProps={{
           onClick: handleClick,
           onContextMenu: handleContextMenu,
+          draggable: !renaming,
+          onDragStart: (e) => {
+            e.dataTransfer.setData(THREAD_DRAG_MIME, thread.id)
+            e.dataTransfer.effectAllowed = 'link'
+          },
           onDragOver: handleDragOver,
           onDragLeave: handleDragLeave,
           onDrop: (e) => void handleDrop(e)

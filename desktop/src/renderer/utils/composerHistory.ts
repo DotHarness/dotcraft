@@ -3,6 +3,7 @@ import type { ComposerDraftSegment } from '../types/composerDraft'
 import type { ComposerFileAttachment, ImageAttachment, InputPart, ConversationItem, ConversationTurn, QueuedTurnInput } from '../types/conversation'
 import { stringifyComposerDraftSegments } from '../components/conversation/richInputSerialization'
 import { projectInputParts } from './inputPresentation'
+import { splitThreadMentions } from './threadReferences'
 export interface ComposerHistoryEntry {
   clientUserMessageId?: string
   text: string
@@ -54,7 +55,10 @@ function inputPartsToComposerSegments(parts: InputPart[]): ComposerDraftSegment[
   for (const part of parts) {
     switch (part.type) {
       case 'text':
-        pushComposerTextSegment(segments, part.text)
+        for (const piece of splitThreadMentions(part.text)) {
+          if (piece.type === 'thread') segments.push(piece)
+          else pushComposerTextSegment(segments, piece.value)
+        }
         break
       case 'fileRef':
         segments.push({ type: 'file', relativePath: part.displayPath ?? part.path })

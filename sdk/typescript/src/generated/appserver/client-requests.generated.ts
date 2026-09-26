@@ -166,6 +166,7 @@ export interface ClientRequestMethods {
   "thread/rename": { params: Models.ThreadRenameParams; result: Models.RpcEmpty };
   "thread/resume": { params: Models.ThreadResumeParams; result: Models.ThreadResumeResult };
   "thread/rollback": { params: Models.ThreadRollbackParams; result: Models.ThreadRollbackResponse };
+  "thread/search": { params: Models.ThreadSearchParams; result: Models.ThreadSearchResult };
   "thread/socialBindings/request/create": { params: Models.ThreadSocialBindingRequestCreateParams; result: Models.ThreadSocialBindingRequestCreateResult };
   "thread/start": { params: Models.ThreadStartParams; result: Models.ThreadStartResult };
   "thread/subscribe": { params: Models.ThreadSubscribeParams; result: Models.RpcEmpty };

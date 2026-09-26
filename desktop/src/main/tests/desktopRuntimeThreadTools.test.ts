@@ -5,6 +5,7 @@ import {
   buildDesktopThreadAdditionalContext,
   buildDesktopThreadDynamicTools,
   handleDesktopRuntimeThreadToolCall,
+  hasDesktopThreadTools,
   resetDesktopThreadToolBindings,
   sendDesktopAppServerRequest,
   type AppServerRequestClient
@@ -67,6 +68,19 @@ describe('desktop runtime thread tools', () => {
       'thread/start',
       'turn/start'
     ])
+  })
+
+  it('reports the Desktop thread tools for started threads, or for any thread when rebind is supported', async () => {
+    const client = createClient(async (method) => {
+      if (method === 'thread/start') return { thread: { id: 'thread-started' } }
+      throw new Error(`unexpected ${method}`)
+    })
+
+    await sendDesktopAppServerRequest(client, 'thread/start', { identity: { channelName: 'dotcraft-desktop' } })
+
+    expect(hasDesktopThreadTools('thread-started', {})).toBe(true)
+    expect(hasDesktopThreadTools('thread-other', {})).toBe(false)
+    expect(hasDesktopThreadTools('thread-other', { supportsDynamicToolRebind: true })).toBe(true)
   })
 
   it('declares all Desktop thread tools as deferred', () => {

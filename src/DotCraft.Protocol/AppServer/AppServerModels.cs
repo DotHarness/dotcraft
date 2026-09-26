@@ -658,6 +658,35 @@ public sealed class ThreadListParams : ExtensibleJsonObject
     public string? Cursor { get; init; }
 }
 
+public sealed class ThreadSearchParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("searchTerm")]
+    public required string SearchTerm { get; init; }
+
+    [JsonPropertyName("limit")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Limit { get; init; }
+
+    [JsonPropertyName("cursor")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Cursor { get; init; }
+
+    /// <summary><c>createdAt</c> (default) or <c>lastActiveAt</c>.</summary>
+    [JsonPropertyName("sortKey")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SortKey { get; init; }
+
+    /// <summary><c>descending</c> (default) or <c>ascending</c>.</summary>
+    [JsonPropertyName("sortDirection")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SortDirection { get; init; }
+
+    /// <summary>When true, only archived threads are searched; otherwise only non-archived threads.</summary>
+    [JsonPropertyName("archived")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Archived { get; init; }
+}
+
 /// <summary>Parameters for reading a thread.</summary>
 public sealed class ThreadReadParams : ExtensibleJsonObject
 {
@@ -1436,6 +1465,26 @@ public sealed class ThreadListResult : ExtensibleJsonObject
     [JsonPropertyName("totalMatched")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? TotalMatched { get; init; }
+}
+
+public sealed class ThreadSearchMatch : ExtensibleJsonObject
+{
+    [JsonPropertyName("thread")]
+    public required ThreadSummary Thread { get; init; }
+
+    /// <summary>Excerpt of the first matching user or agent message.</summary>
+    [JsonPropertyName("snippet")]
+    public required string Snippet { get; init; }
+}
+
+public sealed class ThreadSearchResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("data")]
+    public required IReadOnlyList<ThreadSearchMatch> Data { get; init; }
+
+    [JsonPropertyName("nextCursor")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? NextCursor { get; init; }
 }
 
 /// <summary>Result wrapper for turn/start.</summary>

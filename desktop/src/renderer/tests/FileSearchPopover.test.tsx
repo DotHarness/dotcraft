@@ -2,10 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { FileSearchPopover } from '../components/conversation/FileSearchPopover'
+import { useThreadStore } from '../stores/threadStore'
+import type { ThreadSummary } from '../types/thread'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const searchFiles = vi.fn()
+const sendRequest = vi.fn()
 
 interface SearchFilesResult {
   files: Array<{ name: string; relativePath: string; dir: string }>
@@ -17,7 +20,8 @@ interface SearchFilesResult {
 function installApi(): void {
   installDesktopApiMock({
     settings: { get: settingsGet },
-    workspace: { searchFiles }
+    workspace: { searchFiles },
+    appServer: { sendRequest }
   })
 }
 
@@ -32,6 +36,7 @@ describe('FileSearchPopover', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en' })
+    sendRequest.mockResolvedValue({ data: [] })
     installApi()
   })
 
@@ -215,5 +220,87 @@ describe('FileSearchPopover', () => {
     await waitFor(() => {
       expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
     })
+  })
+
+  it('offers matching chats before files, skipping excluded, archived and subagent threads', async () => {
+    searchFiles.mockResolvedValue<SearchFilesResult>({
+      files: [{ name: 'login.ts', relativePath: 'src/login.ts', dir: 'src' }],
+      indexStatus: 'ready'
+    })
+    const thread = (id: string, displayName: string, extra: Partial<ThreadSummary> = {}): ThreadSummary => ({
+      id,
+      displayName,
+      status: 'active',
+      originChannel: 'dotcraft-desktop',
+      createdAt: '2026-09-26T00:00:00Z',
+      lastActiveAt: '2026-09-26T00:00:00Z',
+      ...extra
+    })
+    useThreadStore.setState({
+      threadList: [
+        thread('thread_current', 'Login current'),
+        thread('thread_fix', 'Fix login'),
+        thread('thread_old', 'Login archive', { status: 'archived' }),
+        thread('thread_child', 'Login worker', { source: { kind: 'subagent' } }),
+        thread('thread_other', 'Billing')
+      ]
+    })
+    const onSelectThread = vi.fn()
+    const onSelect = vi.fn()
+
+    renderWithLocale(
+      <FileSearchPopover
+        query="login"
+        visible
+        workspacePath="/workspace"
+        onSelect={onSelect}
+        onDismiss={() => {}}
+        threadMentions={{ excludedThreadIds: () => ['thread_current'], onSelect: onSelectThread }}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('option')).toHaveLength(2)
+    })
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    })
+    expect(onSelectThread).toHaveBeenCalledWith(expect.objectContaining({ id: 'thread_fix' }))
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
+    })
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    })
+    expect(onSelect).toHaveBeenCalledWith('src/login.ts')
+  })
+
+  it('offers no chats without thread mentions', async () => {
+    searchFiles.mockResolvedValue<SearchFilesResult>({ files: [], indexStatus: 'ready' })
+    useThreadStore.setState({
+      threadList: [{
+        id: 'thread_fix',
+        displayName: 'Fix login',
+        status: 'active',
+        originChannel: 'dotcraft-desktop',
+        createdAt: '2026-09-26T00:00:00Z',
+        lastActiveAt: '2026-09-26T00:00:00Z'
+      }]
+    })
+
+    renderWithLocale(
+      <FileSearchPopover
+        query="login"
+        visible
+        workspacePath="/workspace"
+        onSelect={() => {}}
+        onDismiss={() => {}}
+      />
+    )
+
+    await waitFor(() => {
+      expect(searchFiles).toHaveBeenCalled()
+    })
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
   })
 })

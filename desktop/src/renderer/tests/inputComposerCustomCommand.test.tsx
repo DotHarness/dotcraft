@@ -329,6 +329,7 @@ describe('InputComposer custom command expansion', () => {
     const note = new File(['notes'], 'notes.txt', { type: 'text/plain' })
     fireEvent.drop(surface, {
       dataTransfer: {
+        types: ['Files'],
         files: [note],
         items: [{
           kind: 'file',
@@ -1072,6 +1073,7 @@ describe('InputComposer custom command expansion', () => {
 
     fireEvent.drop(surface, {
       dataTransfer: {
+        types: ['Files'],
         files: [image, note],
         items: [
           {
@@ -1109,6 +1111,7 @@ describe('InputComposer custom command expansion', () => {
     const note = new File(['notes'], 'notes.txt', { type: 'text/plain' })
     fireEvent.drop(surface, {
       dataTransfer: {
+        types: ['Files'],
         files: [note],
         items: [{
           kind: 'file',
@@ -1152,6 +1155,7 @@ describe('InputComposer custom command expansion', () => {
     const note = new File(['notes'], 'notes.txt', { type: 'text/plain' })
     fireEvent.drop(surface, {
       dataTransfer: {
+        types: ['Files'],
         files: [note],
         items: [{
           kind: 'file',
@@ -1198,6 +1202,7 @@ describe('InputComposer custom command expansion', () => {
 
     fireEvent.drop(surface, {
       dataTransfer: {
+        types: ['Files'],
         files: [image, note],
         items: [
           {

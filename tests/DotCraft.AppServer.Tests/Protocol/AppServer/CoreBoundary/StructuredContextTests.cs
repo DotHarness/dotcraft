@@ -33,6 +33,22 @@ public sealed class StructuredContextTests
     }
 
     [Fact]
+    public void ThreadReferences_MaterializeToTheirTextOutsideTheDisplayText()
+    {
+        const string block = "## Referenced chats with DotCraft:\n[{\"threadId\":\"thread_a\"}]";
+        const string prompt = "[@Fix login](thread://thread_a) continue";
+        SessionInputPart[] input = [
+            new() { Type = "contextRef", Context = new() { Id = "refs", Kind = "threadReferences", Text = block } },
+            new() { Type = "text", Text = prompt }
+        ];
+
+        var result = new InputMaterializationService(new CommandRegistry(), null).Materialize(input);
+
+        Assert.Equal([block, prompt], result.MaterializedInputParts.Select(part => part.Text));
+        Assert.Equal(prompt, result.DisplayText);
+    }
+
+    [Fact]
     public async Task TurnStart_InvalidContext_ReturnsInvalidParamsWithoutSubmission()
     {
         using var harness = new AppServerTestHarness();

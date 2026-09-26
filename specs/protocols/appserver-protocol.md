@@ -963,6 +963,29 @@ Lists discoverable **origin channel** names that may appear in thread metadata. 
 - Internal-only origins that are not intended for cross-channel discovery may be omitted.
 - Results are sorted by category order (builtin → social → system → external), then by `name` (ordinal case-insensitive).
 
+### 4.3.2 `thread/search`
+
+Search the conversations of the server workspace's threads for a term.
+
+**Direction**: client → server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `searchTerm` | string | yes | Text to find. Surrounding whitespace is trimmed; an empty term returns `InvalidParams`. |
+| `limit` | number | no | Page size, default 50. Must be positive and at most 100. |
+| `cursor` | string | no | Opaque cursor returned by a previous `thread/search` call with the same other params. Invalid cursors return `InvalidParams`. |
+| `sortKey` | `createdAt` \| `lastActiveAt` | no | Result order key, default `createdAt`. |
+| `sortDirection` | `ascending` \| `descending` | no | Result order, default `descending`. |
+| `archived` | boolean | no | When `true`, only archived threads are searched; otherwise only non-archived threads. |
+
+**Result**: `{ "data": [{ "thread": ThreadSummary, "snippet": string }], "nextCursor": string | null }`
+
+The server searches its own workspace's threads as `thread/list` with `scope = "workspace"` finds them, restricted by `archived` and never including subagent or internal threads. A thread matches when a line of its rollout contains the term compared case-insensitively as a fixed string, after the term is JSON-escaped the way rollout strings are written, and a user or agent message recorded on such a line contains the term. `snippet` excerpts the first such message around the match: whitespace collapsed to single spaces, up to 48 characters before and 96 after, with `... ` or ` ...` where it is cut.
+
+Results follow `sortKey` and `sortDirection`. `thread` has the same shape as a `thread/list` entry. `nextCursor` is `null` or omitted when no further match exists.
+
 ### 4.4 `thread/read`
 
 Read the current header of a thread by ID without resuming it or loading historical Turns and Items.
@@ -8053,7 +8076,9 @@ Profile `id` references carry the canonical `name`: trim plus Unicode NFC, ordin
 
 ### Structured context input and submission identity
 
-`InputPart` supports `contextRef` with a typed `context` record (`pastedText`, `pageReference`, `responseAnnotation`, or `diffAnnotation`). Context identity, source snapshot, comment and owned image reference are persisted in native input; materialization expands the record into text/image parts once. Preview data URLs are not part of context records.
+`InputPart` supports `contextRef` with a typed `context` record (`pastedText`, `pageReference`, `responseAnnotation`, `diffAnnotation`, or `threadReferences`). Context identity, source snapshot, comment and owned image reference are persisted in native input; materialization expands the record into text/image parts once. Preview data URLs are not part of context records.
+
+`threadReferences` carries a client-rendered prompt block in `text` and materializes to exactly that text. It keeps model-only framing for threads the user mentioned out of the user message's display text, which is built from text, file, command, and skill parts only.
 
 `turn/start`, `turn/enqueue`, and `turn/steer` accept `clientUserMessageId`. Desktop supplies a fresh UUID for each submission; queue updates retain the existing ID. User-message payloads and queued inputs return that ID so live clients correlate acknowledgements without content matching. Channels without optimistic presentation may omit it.
 

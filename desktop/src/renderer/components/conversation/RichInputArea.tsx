@@ -8,12 +8,7 @@ import {
   type ForwardedRef,
   type KeyboardEvent as ReactKeyboardEvent
 } from 'react'
-import {
-  COMMAND_REF_CLASS,
-  FILE_REF_CLASS,
-  RICH_REFS_CLIPBOARD_MIME,
-  SKILL_REF_CLASS
-} from './richInputConstants'
+import { REF_SELECTOR, RICH_REFS_CLIPBOARD_MIME, isRefElement } from './richInputConstants'
 import {
   buildEditorFragmentFromSegments,
   collectComposerDraftSegments,
@@ -33,7 +28,7 @@ const MAX_TEXT_LEN = 100_000
 const PLACEHOLDER = 'Ask DotCraft anything…'
 const EMPTY_REF_CATALOG: ComposerRefCatalog = {}
 
-type RefType = 'file' | 'command' | 'skill'
+type RefType = 'file' | 'command' | 'skill' | 'thread'
 type RichInputContent = string | { text?: string; segments?: ComposerDraftSegment[] }
 type SelectionRange = { start: number; end: number }
 
@@ -50,6 +45,8 @@ export interface RichInputAreaHandle {
   insertFileTag: (relativePath: string) => void
   insertCommandTag: (commandName: string) => void
   insertSkillTag: (skillName: string) => void
+  insertThreadTag: (threadId: string, title: string) => void
+  insertThreadTagAtSelection: (threadId: string, title: string) => void
   /** Replace editor content from stored draft data. */
   setContent: (content: RichInputContent) => void
   /** Replace editor content with plain text (used for composer prefill). */
@@ -97,11 +94,7 @@ function linearizeForTriggers(root: HTMLElement): string {
     if (el.tagName === 'STYLE' || el.tagName === 'SCRIPT') {
       return
     }
-    if (el.classList.contains(FILE_REF_CLASS) || el.classList.contains(COMMAND_REF_CLASS)) {
-      out += ' '
-      return
-    }
-    if (el.classList.contains(SKILL_REF_CLASS)) {
+    if (isRefElement(el)) {
       out += ' '
       return
     }
@@ -140,12 +133,7 @@ function linearLengthOfNode(node: Node): number {
   if (node.nodeType !== Node.ELEMENT_NODE) return 0
   const el = node as HTMLElement
   if (el.tagName === 'STYLE' || el.tagName === 'SCRIPT') return 0
-  if (
-    el.classList.contains(FILE_REF_CLASS) ||
-    el.classList.contains(COMMAND_REF_CLASS) ||
-    el.classList.contains(SKILL_REF_CLASS) ||
-    el.tagName === 'BR'
-  ) {
+  if (isRefElement(el) || el.tagName === 'BR') {
     return 1
   }
 
@@ -198,12 +186,7 @@ function locateLinearBoundary(root: HTMLElement, target: number): { node: Node; 
         if (el.tagName === 'STYLE' || el.tagName === 'SCRIPT') {
           continue
         }
-        if (
-          el.classList.contains(FILE_REF_CLASS) ||
-          el.classList.contains(COMMAND_REF_CLASS) ||
-          el.classList.contains(SKILL_REF_CLASS) ||
-          el.tagName === 'BR'
-        ) {
+        if (isRefElement(el) || el.tagName === 'BR') {
           pos += 1
           if (clamped === pos) {
             return { found: { node: parent, offset: index + 1 }, nextPos: pos }
@@ -246,11 +229,7 @@ function walkToLinearOffset(
     if (el.tagName === 'STYLE' || el.tagName === 'SCRIPT') {
       return null
     }
-    if (
-      el.classList.contains(FILE_REF_CLASS) ||
-      el.classList.contains(COMMAND_REF_CLASS) ||
-      el.classList.contains(SKILL_REF_CLASS)
-    ) {
+    if (isRefElement(el)) {
       if (pos + 1 >= target) {
         return { node: el, offset: 0 }
       }
@@ -289,15 +268,6 @@ function parseSkillQuery(beforeCaret: string): { fullMatch: string; query: strin
   const m = /(?:^|[\s\n])\$([^\s$]*)$/.exec(beforeCaret)
   if (!m) return null
   return { fullMatch: m[0], query: m[1] }
-}
-
-function isInlineTagElement(node: Node | null): node is HTMLElement {
-  return (
-    node instanceof HTMLElement &&
-    (node.classList.contains(FILE_REF_CLASS) ||
-      node.classList.contains(COMMAND_REF_CLASS) ||
-      node.classList.contains(SKILL_REF_CLASS))
-  )
 }
 
 function isImeConfirmKey(
@@ -367,10 +337,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
       const el = editorRef.current
       if (!el) return
       const t = el.textContent?.replace(/\u00a0/g, ' ').trim() ?? ''
-      const hasTags =
-        el.querySelector(`.${FILE_REF_CLASS}`) !== null ||
-        el.querySelector(`.${COMMAND_REF_CLASS}`) !== null ||
-        el.querySelector(`.${SKILL_REF_CLASS}`) !== null
+      const hasTags = el.querySelector(REF_SELECTOR) !== null
       setShowPh(!t && !hasTags)
     }, [])
 
@@ -548,7 +515,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
     )
 
     const replaceLinearRangeWithRef = useCallback(
-      (kind: RefType, value: string, targetRange: SelectionRange): void => {
+      (kind: RefType, value: string, targetRange: SelectionRange, title?: string): void => {
         const el = editorRef.current
         if (!el) return
         const startLoc = walkToLinearOffset(el, targetRange.start)
@@ -562,7 +529,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
         } catch {
           return
         }
-        const span = createRefSpan(kind, value)
+        const span = createRefSpan(kind, value, title)
         const space = document.createTextNode('\u00a0')
         range.insertNode(span)
         range.setStartAfter(span)
@@ -588,10 +555,10 @@ export const RichInputArea = forwardRef(function RichInputArea(
     )
 
     const replaceQueryRangeWithRef = useCallback(
-      (kind: RefType, value: string, parsed: { fullMatch: string; query: string }, trigger: '@' | '/' | '$'): void => {
+      (kind: RefType, value: string, parsed: { fullMatch: string; query: string }, trigger: '@' | '/' | '$', title?: string): void => {
         const targetRange = queryRange(parsed, trigger)
         if (!targetRange) return
-        replaceLinearRangeWithRef(kind, value, targetRange)
+        replaceLinearRangeWithRef(kind, value, targetRange, title)
       },
       [queryRange, replaceLinearRangeWithRef]
     )
@@ -652,6 +619,29 @@ export const RichInputArea = forwardRef(function RichInputArea(
         replaceQueryRangeWithRef('file', relativePath, parsed, '@')
       },
       [replaceQueryRangeWithRef]
+    )
+
+    const insertThreadTag = useCallback(
+      (threadId: string, title: string): void => {
+        const el = editorRef.current
+        if (!el) return
+        const parsed = parseAtQuery(textBeforeCaretForTriggers(el))
+        if (!parsed) return
+        replaceQueryRangeWithRef('thread', threadId, parsed, '@', title)
+      },
+      [replaceQueryRangeWithRef]
+    )
+
+    const insertThreadTagAtSelection = useCallback(
+      (threadId: string, title: string): void => {
+        const el = editorRef.current
+        if (!el) return
+        const length = linearLengthOfNode(el)
+        const { start, end } = getSelectionRange() ?? { start: length, end: length }
+        el.focus()
+        replaceLinearRangeWithRef('thread', threadId, { start: Math.min(start, length), end: Math.min(end, length) }, title)
+      },
+      [getSelectionRange, replaceLinearRangeWithRef]
     )
 
     const insertCommandTag = useCallback(
@@ -781,6 +771,8 @@ export const RichInputArea = forwardRef(function RichInputArea(
         insertFileTag,
         insertCommandTag,
         insertSkillTag,
+        insertThreadTag,
+        insertThreadTagAtSelection,
         setContent,
         setPlainText
       }),
@@ -797,6 +789,8 @@ export const RichInputArea = forwardRef(function RichInputArea(
         insertCommandTag,
         insertFileTag,
         insertSkillTag,
+        insertThreadTag,
+        insertThreadTagAtSelection,
         setContent,
         setPlainText
       ]
@@ -956,7 +950,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
             const prev = startContainer.previousSibling
             if (prev && prev.nodeType === Node.TEXT_NODE && (prev.textContent === '\u00a0' || prev.textContent === ' ')) {
               const beforeSpace = prev.previousSibling
-              if (isInlineTagElement(beforeSpace)) {
+              if (beforeSpace && isRefElement(beforeSpace)) {
                 e.preventDefault()
                 beforeSpace.remove()
                 prev.remove()
@@ -964,7 +958,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
                 return
               }
             }
-            if (isInlineTagElement(prev)) {
+            if (prev && isRefElement(prev)) {
               e.preventDefault()
               prev.remove()
               onInput()
@@ -1152,12 +1146,14 @@ export const RichInputArea = forwardRef(function RichInputArea(
           }
           .dc-file-ref:hover .dc-ref-icon-default,
           .dc-command-ref:hover .dc-ref-icon-default,
-          .dc-skill-ref:hover .dc-ref-icon-default {
+          .dc-skill-ref:hover .dc-ref-icon-default,
+          .dc-thread-ref:hover .dc-ref-icon-default {
             opacity: 0;
           }
           .dc-file-ref:hover .dc-ref-icon-remove,
           .dc-command-ref:hover .dc-ref-icon-remove,
-          .dc-skill-ref:hover .dc-ref-icon-remove {
+          .dc-skill-ref:hover .dc-ref-icon-remove,
+          .dc-thread-ref:hover .dc-ref-icon-remove {
             opacity: 1;
             pointer-events: auto;
             cursor: pointer;
