@@ -32,16 +32,6 @@ DotCraft is an open-source, self-hosted **AI agent runtime** built with C#/.NET.
 - **Build it into your product:** Embed the runtime behind DotCraft Desktop in your .NET apps, or connect existing products through AppServer, SDKs, and App Binding.
 - **Extend it with plugins:** .NET plugins add tools, commands, and lifecycle logic. The agent can write one and swap it in while the host keeps running. React plugins reshape Desktop's interface.
 
-## Explore DotCraft
-
-![DotCraft Desktop, DotCraft.Harness, Oratorio, DotCraft Satellite and @dotcraft/avatar](https://github.com/DotHarness/resources/raw/master/dotcraft/products.webp)
-
-- **[Desktop](https://www.dotcraft.net/features/entry-points/desktop):** Work with agents on your projects in one desktop app.
-- **[Harness](https://www.dotcraft.net/developing/harness/):** Embed a complete agent runtime in your .NET applications.
-- **[Oratorio](https://www.dotcraft.net/features/oratorio):** Manage agent tasks from assignment to review on one board.
-- **[Satellite](https://www.dotcraft.net/features/agent-system/satellite):** Let your agents work in an approved shared folder on another computer.
-- **[Avatar](https://www.dotcraft.net/developing/sdks/typescript#avatar-package):** Give your agents personality with expressive, customizable avatars.
-
 ## Quick start
 
 DotCraft supports OpenAI, Anthropic model providers, or you can sign in using your ChatGPT subscription.
@@ -70,6 +60,16 @@ irm https://www.dotcraft.net/install.ps1 | iex
 
 See [Getting Started](https://www.dotcraft.net/getting-started) for the complete guide.
 
+
+## Explore DotCraft
+
+![DotCraft Desktop, DotCraft.Harness, Oratorio, DotCraft Satellite and @dotcraft/avatar](https://github.com/DotHarness/resources/raw/master/dotcraft/products.webp)
+
+- **[Desktop](https://www.dotcraft.net/features/entry-points/desktop):** Work with agents on your projects in one desktop app.
+- **[Harness](https://www.dotcraft.net/developing/harness/):** Embed a complete agent runtime in your .NET applications.
+- **[Oratorio](https://www.dotcraft.net/features/oratorio):** Manage agent tasks from assignment to review on one board.
+- **[Satellite](https://www.dotcraft.net/features/agent-system/satellite):** Let your agents work in an approved shared folder on another computer.
+- **[Avatar](https://www.dotcraft.net/developing/sdks/typescript#avatar-package):** Give your agents personality with expressive, customizable avatars.
 
 ## Contributing
 
