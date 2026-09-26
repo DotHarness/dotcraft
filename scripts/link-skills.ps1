@@ -2,7 +2,8 @@
 param(
     [string]$PluginsRepoRoot = $env:DOTCRAFT_PLUGINS_REPO,
     [string]$PluginRegistryUrl = $env:DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL,
-    [switch]$ForcePluginRegistryRefresh
+    [switch]$ForcePluginRegistryRefresh,
+    [string]$DestinationDir
 )
 
 Set-StrictMode -Version Latest
@@ -154,8 +155,8 @@ function New-PerSkillLinks {
         $destSkillPath = Join-Path $DestinationDir $skill.Name
         $sourceSkillFull = [System.IO.Path]::GetFullPath($skill.FullName)
 
-        if (Test-Path -LiteralPath $destSkillPath) {
-            $existing = Get-Item -LiteralPath $destSkillPath -Force
+        $existing = Get-Item -LiteralPath $destSkillPath -Force -ErrorAction SilentlyContinue
+        if ($null -ne $existing) {
             $existingTarget = Resolve-LinkTarget -Path $destSkillPath
 
             if ($existing.LinkType -and $existingTarget -eq $sourceSkillFull) {
@@ -212,12 +213,17 @@ if ([string]::IsNullOrWhiteSpace($PluginsRepoRoot)) {
 }
 
 $dotcraftSkillsPath = Join-Path $repoRoot "desktop\resources\plugins\dotcraft-bundled\plugins\dotcraft\skills"
+$repositorySkillsPath = Join-Path $repoRoot ".agents\skills"
 $dotHarnessSkillsPath = Join-Path $PluginsRepoRoot "plugins\dotharness\skills"
 $registrySkillSourceNames = @("DotHarness skills")
 $skillSources = @(
     @{
-        Name = "DotCraft skills"
+        Name = "DotCraft bundled skills"
         Path = $dotcraftSkillsPath
+    },
+    @{
+        Name = "DotCraft repository skills"
+        Path = $repositorySkillsPath
     },
     @{
         Name = "DotHarness skills"
@@ -257,7 +263,11 @@ $availableDestinations = @(
         Path = Join-Path $env:USERPROFILE ".codex\skills"
     }
 )
-$skillDestinations = @(Select-LinkDestinations -Destinations $availableDestinations)
+$skillDestinations = if ([string]::IsNullOrWhiteSpace($DestinationDir)) {
+    @(Select-LinkDestinations -Destinations $availableDestinations)
+} else {
+    @(@{ Name = "Custom destination"; Path = [System.IO.Path]::GetFullPath($DestinationDir) })
+}
 $legacyDotCraftSkillNames = @("dev-guide", "docs-guide", "release-draft")
 
 foreach ($skillDestination in $skillDestinations) {
@@ -272,6 +282,6 @@ foreach ($skillDestination in $skillDestinations) {
 
 Write-Host ""
 Write-Host "Done." -ForegroundColor Green
-Write-Host "Selected agents get per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
+Write-Host "Selected destinations get per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
 Write-Host "DotCraft skill edits in this repo take effect immediately in the selected agents." -ForegroundColor Green
 Write-Host "DotHarness skills come from the local override or resolved plugin registry; use -ForcePluginRegistryRefresh to refresh the registry now." -ForegroundColor Green

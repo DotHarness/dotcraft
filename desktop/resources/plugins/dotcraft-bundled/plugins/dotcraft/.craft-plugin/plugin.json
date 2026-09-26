@@ -12,8 +12,8 @@
   },
   "interface": {
     "displayName": "DotCraft",
-    "shortDescription": "Develop, diagnose, document, release, and simplify DotCraft",
-    "longDescription": "Product-specific workflows for developing and troubleshooting DotCraft, including development norms, Desktop debugging, diagnostics, context handoff, issue reporting, localized documentation, release drafting, and evidence-backed simplification.",
+    "shortDescription": "Develop, diagnose, and document DotCraft",
+    "longDescription": "Product-specific workflows for developing and troubleshooting DotCraft, including development norms, Desktop debugging, diagnostics, context handoff, issue reporting, and localized documentation.",
     "developerName": "DotHarness",
     "category": "Engineering",
     "capabilities": ["Skill", "Read"],
