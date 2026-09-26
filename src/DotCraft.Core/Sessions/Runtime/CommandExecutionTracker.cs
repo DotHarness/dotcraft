@@ -1,4 +1,4 @@
-using System.Text;
+using DotCraft.Tools.BackgroundTerminals;
 
 namespace DotCraft.Sessions;
 
@@ -6,7 +6,7 @@ internal sealed class CommandExecutionTracker
 {
     private readonly SessionItem _item;
     private readonly DateTimeOffset _startedAt;
-    private readonly StringBuilder _aggregated = new();
+    private readonly TerminalOutputBuffer _aggregated = new();
     private readonly object _sync = new();
     private readonly Action<SessionItem, object> _emitItemDelta;
     private readonly Action<SessionItem> _emitItemCompleted;
@@ -127,7 +127,7 @@ internal sealed class CommandExecutionTracker
     {
         var currentPayload = _item.AsCommandExecution;
         var effectiveOutput = string.IsNullOrEmpty(aggregatedOutput)
-            ? _aggregated.ToString().TrimEnd('\r', '\n')
+            ? _aggregated.Snapshot(0).Output
             : aggregatedOutput;
         var completedAt = DateTimeOffset.UtcNow;
         _item.Status = ItemStatus.Completed;

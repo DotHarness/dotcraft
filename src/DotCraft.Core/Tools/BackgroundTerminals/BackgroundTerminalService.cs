@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
-using System.Threading.Channels;
 using DotCraft.Configuration;
 using DotCraft.Security.ShellCommands;
 using Microsoft.Extensions.Logging;
@@ -10,147 +9,12 @@ using Microsoft.Extensions.Logging;
 namespace DotCraft.Tools.BackgroundTerminals;
 
 /// <summary>
-/// Status values for a server-managed background terminal session.
-/// </summary>
-public static class BackgroundTerminalStatus
-{
-    public const string Running = "running";
-    public const string Completed = "completed";
-    public const string Failed = "failed";
-    public const string Killed = "killed";
-    public const string TimedOut = "timedOut";
-    public const string Lost = "lost";
-}
-
-/// <summary>
-/// Request used to start a background-terminal capable command.
-/// </summary>
-public sealed record BackgroundTerminalStartRequest
-{
-    public string ThreadId { get; init; } = "workspace";
-
-    public string? TurnId { get; init; }
-
-    public string? CallId { get; init; }
-
-    public string Command { get; init; } = string.Empty;
-
-    public string WorkingDirectory { get; init; } = string.Empty;
-
-    public string Source { get; init; } = "host";
-
-    public ShellIdentity? Shell { get; init; }
-
-    public ShellStdinSession? StdinSession { get; init; }
-
-    public bool RunInBackground { get; init; }
-
-    public bool Interactive { get; init; }
-
-    public int TimeoutSeconds { get; init; } = 300;
-
-    public int YieldTimeMs { get; init; } = 1000;
-
-    public int MaxOutputChars { get; init; } = 10000;
-}
-
-/// <summary>
-/// Snapshot returned by terminal operations.
-/// </summary>
-public sealed record BackgroundTerminalSnapshot
-{
-    public string SessionId { get; init; } = string.Empty;
-
-    public string ThreadId { get; init; } = string.Empty;
-
-    public string? TurnId { get; init; }
-
-    public string? CallId { get; init; }
-
-    public string Command { get; init; } = string.Empty;
-
-    public string WorkingDirectory { get; init; } = string.Empty;
-
-    public string Source { get; init; } = "host";
-
-    public string Status { get; init; } = BackgroundTerminalStatus.Running;
-
-    public string Output { get; init; } = string.Empty;
-
-    public string OutputPath { get; init; } = string.Empty;
-
-    public int? ExitCode { get; init; }
-
-    public DateTimeOffset StartedAt { get; init; }
-
-    public DateTimeOffset? CompletedAt { get; init; }
-
-    public long WallTimeMs { get; init; }
-
-    public int OriginalOutputChars { get; init; }
-
-    public bool Truncated { get; init; }
-
-    public string? BackgroundReason { get; init; }
-}
-
-/// <summary>
-/// Notification raised when a terminal lifecycle event occurs.
-/// </summary>
-public sealed record BackgroundTerminalEvent
-{
-    public string EventType { get; init; } = string.Empty;
-
-    public required BackgroundTerminalSnapshot Terminal { get; init; }
-
-    public string? Delta { get; init; }
-}
-
-/// <summary>
-/// Service contract for server-managed background terminals.
-/// </summary>
-public interface IBackgroundTerminalService
-{
-    event Action<BackgroundTerminalEvent>? TerminalEvent;
-
-    Task<BackgroundTerminalSnapshot> StartAsync(BackgroundTerminalStartRequest request, CancellationToken ct = default);
-
-    Task<BackgroundTerminalSnapshot> ReadAsync(string sessionId, int waitMs = 0, int? maxOutputChars = null, CancellationToken ct = default);
-
-    Task<BackgroundTerminalSnapshot> WriteStdinAsync(string sessionId, string input, int yieldTimeMs = 1000, int? maxOutputChars = null, CancellationToken ct = default);
-
-    ShellStdinSession? GetStdinSession(string sessionId);
-
-    Task<IReadOnlyList<BackgroundTerminalSnapshot>> ListAsync(string? threadId = null, CancellationToken ct = default);
-
-    Task<BackgroundTerminalSnapshot> StopAsync(string sessionId, CancellationToken ct = default);
-
-    /// <summary>
-    /// Stops active terminals for a thread without deleting persisted artifacts.
-    /// </summary>
-    Task<IReadOnlyList<BackgroundTerminalSnapshot>> CleanThreadAsync(string threadId, CancellationToken ct = default);
-
-    /// <summary>
-    /// Permanently removes all terminal artifacts for a thread after stopping active terminals.
-    /// This operation is idempotent and best effort.
-    /// </summary>
-    Task<IReadOnlyList<string>> DeleteThreadArtifactsAsync(string threadId, CancellationToken ct = default);
-
-    /// <summary>
-    /// Removes completed terminal artifacts older than the configured retention period.
-    /// Running terminals are never removed.
-    /// </summary>
-    Task<int> CleanupExpiredArtifactsAsync(CancellationToken ct = default);
-}
-
-/// <summary>
 /// Pipe-based process manager for host shell commands that may outlive a single tool call.
 /// </summary>
-public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsyncDisposable
+public sealed partial class BackgroundTerminalService : IBackgroundTerminalService, IAsyncDisposable
 {
     private const string MetadataExtension = ".json";
     private const string OutputExtension = ".log";
-    private static readonly TimeSpan OutputFlushInterval = TimeSpan.FromMilliseconds(50);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true
@@ -210,15 +74,15 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         var metadataPath = Path.Combine(sessionDir, sessionId + MetadataExtension);
 
         var shell = request.Shell ?? ResolveHostDefaultShell();
-        var process = Process.Start(CreateStartInfo(request, shell))
-            ?? throw new InvalidOperationException("Failed to start process.");
-
         // Materialize the output artifact even when the command produces no bytes. This keeps
         // terminal ownership and archive/delete lifecycle observable for empty-output commands.
         Directory.CreateDirectory(sessionDir);
         using (File.Create(outputPath))
         {
         }
+
+        var process = Process.Start(CreateStartInfo(request, shell))
+            ?? throw new InvalidOperationException("Failed to start process.");
 
         var terminal = new ActiveTerminal(
             sessionId,
@@ -232,7 +96,19 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
 
         _active[sessionId] = terminal;
         _metadata[sessionId] = terminal.ToMetadata(BackgroundTerminalStatus.Running);
-        await PersistMetadataAsync(_metadata[sessionId], CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            await PersistMetadataAsync(_metadata[sessionId], CancellationToken.None).ConfigureAwait(false);
+        }
+        catch
+        {
+            try { process.Kill(entireProcessTree: true); }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+            process.Dispose();
+            _active.TryRemove(sessionId, out _);
+            _metadata.TryRemove(sessionId, out _);
+            throw;
+        }
         Raise("started", terminal.CreateSnapshot(maxOutputChars: request.MaxOutputChars), null);
 
         terminal.BeginReading();
@@ -525,7 +401,18 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
 
         try
         {
-            await terminal.DrainOutputAsync().ConfigureAwait(false);
+            Exception? outputFailure = null;
+            try
+            {
+                await terminal.DrainOutputAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                outputFailure = ex;
+                status = BackgroundTerminalStatus.Failed;
+                exitCode = null;
+                _logger?.LogWarning(ex, "Terminal output persistence failed for {SessionId}.", terminal.SessionId);
+            }
             terminal.FinishCompletion(status, exitCode);
 
             _active.TryRemove(terminal.SessionId, out _);
@@ -533,7 +420,10 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
             _metadata[terminal.SessionId] = metadata;
             await PersistMetadataAsync(metadata, CancellationToken.None).ConfigureAwait(false);
             Raise("completed", terminal.CreateSnapshot(maxOutputChars: _config.DefaultReadMaxOutputChars), null);
-            terminal.SignalCompletionPublished();
+            if (outputFailure == null)
+                terminal.SignalCompletionPublished();
+            else
+                terminal.SignalCompletionFailed(outputFailure);
         }
         catch (Exception ex)
         {
@@ -562,10 +452,8 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         int maxOutputChars,
         CancellationToken ct)
     {
-        var output = File.Exists(metadata.OutputPath)
-            ? await File.ReadAllTextAsync(metadata.OutputPath, ct).ConfigureAwait(false)
-            : string.Empty;
-        var (limited, original, truncated) = LimitOutput(output.TrimEnd('\r', '\n'), maxOutputChars);
+        var buffer = await TerminalOutputBuffer.ReadAsync(metadata.OutputPath, ct).ConfigureAwait(false);
+        var (limited, original, truncated) = buffer.Snapshot(maxOutputChars);
         return metadata.ToSnapshot(limited, original, truncated);
     }
 
@@ -750,15 +638,6 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         }
     }
 
-    internal static (string Output, int OriginalChars, bool Truncated) LimitOutput(string output, int maxOutputChars)
-    {
-        if (maxOutputChars <= 0 || output.Length <= maxOutputChars)
-            return (output.Length == 0 ? "(no output)" : output, output.Length, false);
-
-        var truncated = output[^maxOutputChars..];
-        return ($"... (truncated, {output.Length - maxOutputChars} earlier chars){Environment.NewLine}{truncated}", output.Length, true);
-    }
-
     internal string GetThreadDirectory(string threadId)
     {
         var segment = string.IsNullOrWhiteSpace(threadId)
@@ -777,277 +656,4 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
             ? "workspace"
             : ThreadArtifactPathResolver.GetCanonicalThreadSegment(value);
 
-    private sealed class ActiveTerminal
-    {
-        private readonly BackgroundTerminalService _owner;
-        private readonly object _sync = new();
-        private readonly StringBuilder _output = new();
-        private readonly Channel<string> _pendingOutput = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
-        {
-            SingleReader = true,
-            SingleWriter = false,
-            AllowSynchronousContinuations = false
-        });
-        private readonly TaskCompletionSource _stdoutCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource _stderrCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private Task? _outputPump;
-        private Task? _drainTask;
-        private bool _completionStarted;
-        private string _status = BackgroundTerminalStatus.Running;
-        private int? _exitCode;
-        private DateTimeOffset? _completedAt;
-
-        public ActiveTerminal(
-            string sessionId,
-            string metadataPath,
-            string outputPath,
-            BackgroundTerminalStartRequest request,
-            Process process,
-            DateTimeOffset startedAt,
-            ShellStdinSession stdinSession,
-            BackgroundTerminalService owner)
-        {
-            SessionId = sessionId;
-            MetadataPath = metadataPath;
-            OutputPath = outputPath;
-            Request = request;
-            Process = process;
-            StartedAt = startedAt;
-            StdinSession = stdinSession;
-            _owner = owner;
-        }
-
-        public string SessionId { get; }
-
-        public string MetadataPath { get; }
-
-        public string OutputPath { get; }
-
-        public string ThreadId => Request.ThreadId;
-
-        public BackgroundTerminalStartRequest Request { get; }
-
-        public Process Process { get; }
-
-        public DateTimeOffset StartedAt { get; }
-
-        public ShellStdinSession StdinSession { get; }
-
-        public TaskCompletionSource MetadataCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public void BeginReading()
-        {
-            _outputPump = PumpOutputAsync();
-            Process.OutputDataReceived += (_, e) =>
-            {
-                if (e.Data != null)
-                    _pendingOutput.Writer.TryWrite(e.Data + Environment.NewLine);
-                else
-                    _stdoutCompleted.TrySetResult();
-            };
-            Process.ErrorDataReceived += (_, e) =>
-            {
-                if (e.Data != null)
-                    _pendingOutput.Writer.TryWrite(e.Data + Environment.NewLine);
-                else
-                    _stderrCompleted.TrySetResult();
-            };
-            Process.EnableRaisingEvents = true;
-            Process.BeginOutputReadLine();
-            Process.BeginErrorReadLine();
-        }
-
-        public bool TryBeginCompletion()
-        {
-            lock (_sync)
-            {
-                if (_completionStarted)
-                    return false;
-
-                _completionStarted = true;
-                return true;
-            }
-        }
-
-        public void FinishCompletion(string status, int? exitCode)
-        {
-            lock (_sync)
-            {
-                _status = status;
-                _exitCode = exitCode;
-                _completedAt = DateTimeOffset.UtcNow;
-            }
-        }
-
-        public Task DrainOutputAsync()
-        {
-            lock (_sync)
-            {
-                return _drainTask ??= DrainOutputCoreAsync();
-            }
-        }
-
-        public void SignalCompletionPublished()
-        {
-            MetadataCompleted.TrySetResult();
-        }
-
-        public void SignalCompletionFailed(Exception error)
-        {
-            MetadataCompleted.TrySetException(error);
-        }
-
-        public async Task WaitForCompletionMetadataAsync(CancellationToken ct)
-        {
-            await MetadataCompleted.Task.WaitAsync(ct).ConfigureAwait(false);
-        }
-
-        public BackgroundTerminalMetadata ToMetadata(string? status = null)
-        {
-            lock (_sync)
-            {
-                return new BackgroundTerminalMetadata
-                {
-                    SessionId = SessionId,
-                    ThreadId = Request.ThreadId,
-                    TurnId = Request.TurnId,
-                    CallId = Request.CallId,
-                    Command = Request.Command,
-                    WorkingDirectory = Request.WorkingDirectory,
-                    Source = Request.Source,
-                    Status = status ?? _status,
-                    OutputPath = OutputPath,
-                    MetadataPath = MetadataPath,
-                    ExitCode = _exitCode,
-                    StartedAt = StartedAt,
-                    CompletedAt = _completedAt
-                };
-            }
-        }
-
-        public BackgroundTerminalSnapshot CreateSnapshot(
-            string? status = null,
-            int? maxOutputChars = null,
-            string? backgroundReason = null)
-        {
-            string output;
-            int? exitCode;
-            DateTimeOffset? completedAt;
-            string effectiveStatus;
-            lock (_sync)
-            {
-                output = _output.ToString().TrimEnd('\r', '\n');
-                exitCode = _exitCode;
-                completedAt = _completedAt;
-                effectiveStatus = status ?? _status;
-            }
-
-            var (limited, original, truncated) = LimitOutput(output, maxOutputChars ?? Request.MaxOutputChars);
-            return new BackgroundTerminalSnapshot
-            {
-                SessionId = SessionId,
-                ThreadId = Request.ThreadId,
-                TurnId = Request.TurnId,
-                CallId = Request.CallId,
-                Command = Request.Command,
-                WorkingDirectory = Request.WorkingDirectory,
-                Source = Request.Source,
-                Status = effectiveStatus,
-                Output = limited,
-                OutputPath = OutputPath,
-                ExitCode = effectiveStatus == BackgroundTerminalStatus.Running ? null : exitCode,
-                StartedAt = StartedAt,
-                CompletedAt = completedAt,
-                WallTimeMs = (long)Math.Max(0, ((completedAt ?? DateTimeOffset.UtcNow) - StartedAt).TotalMilliseconds),
-                OriginalOutputChars = original,
-                Truncated = truncated,
-                BackgroundReason = backgroundReason ?? (Request.RunInBackground ? "runInBackground" : null)
-            };
-        }
-
-        private async Task DrainOutputCoreAsync()
-        {
-            await Task.WhenAll(_stdoutCompleted.Task, _stderrCompleted.Task).ConfigureAwait(false);
-            _pendingOutput.Writer.TryComplete();
-            if (_outputPump != null)
-                await _outputPump.ConfigureAwait(false);
-        }
-
-        private async Task PumpOutputAsync()
-        {
-            var reader = _pendingOutput.Reader;
-            while (await reader.WaitToReadAsync().ConfigureAwait(false))
-            {
-                if (!reader.TryRead(out var first))
-                    continue;
-
-                var batch = new StringBuilder(first);
-                if (!reader.Completion.IsCompleted)
-                    await Task.Delay(OutputFlushInterval).ConfigureAwait(false);
-                while (reader.TryRead(out var next))
-                    batch.Append(next);
-
-                var text = batch.ToString();
-                BackgroundTerminalSnapshot snapshot;
-                lock (_sync)
-                {
-                    _output.Append(text);
-                    snapshot = CreateSnapshot(maxOutputChars: _owner._config.DefaultReadMaxOutputChars);
-                }
-
-                Directory.CreateDirectory(Path.GetDirectoryName(OutputPath)!);
-                await File.AppendAllTextAsync(OutputPath, text, Encoding.UTF8).ConfigureAwait(false);
-                _owner.Raise("outputDelta", snapshot, text);
-            }
-        }
-    }
-
-    private sealed record BackgroundTerminalMetadata
-    {
-        public string SessionId { get; init; } = string.Empty;
-
-        public string ThreadId { get; init; } = string.Empty;
-
-        public string? TurnId { get; init; }
-
-        public string? CallId { get; init; }
-
-        public string Command { get; init; } = string.Empty;
-
-        public string WorkingDirectory { get; init; } = string.Empty;
-
-        public string Source { get; init; } = "host";
-
-        public string Status { get; init; } = BackgroundTerminalStatus.Running;
-
-        public string OutputPath { get; init; } = string.Empty;
-
-        public string MetadataPath { get; init; } = string.Empty;
-
-        public int? ExitCode { get; init; }
-
-        public DateTimeOffset StartedAt { get; init; }
-
-        public DateTimeOffset? CompletedAt { get; init; }
-
-        public BackgroundTerminalSnapshot ToSnapshot(string output, int originalChars, bool truncated) => new()
-        {
-            SessionId = SessionId,
-            ThreadId = ThreadId,
-            TurnId = TurnId,
-            CallId = CallId,
-            Command = Command,
-            WorkingDirectory = WorkingDirectory,
-            Source = Source,
-            Status = Status,
-            Output = output,
-            OutputPath = OutputPath,
-            ExitCode = ExitCode,
-            StartedAt = StartedAt,
-            CompletedAt = CompletedAt,
-            WallTimeMs = (long)Math.Max(0, ((CompletedAt ?? DateTimeOffset.UtcNow) - StartedAt).TotalMilliseconds),
-            OriginalOutputChars = originalChars,
-            Truncated = truncated
-        };
-    }
 }

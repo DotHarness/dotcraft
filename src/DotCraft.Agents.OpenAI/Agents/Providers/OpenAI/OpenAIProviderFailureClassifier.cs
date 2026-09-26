@@ -14,9 +14,10 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
         var fallback = DefaultProviderFailureClassifier.Instance.Classify(exception);
         var result = FindClientResultException(exception);
         if (result is null)
-            return Refine(fallback, Detail(exception), retryAfterHeader: null);
+            return Refine(fallback, Detail(exception), retryDeadline: null);
 
         var response = TryGetRawResponse(result);
+        var retryDeadline = OpenAIRetryAdvicePipelinePolicy.Capture(response);
         var status = response?.Status ?? result.Status;
         var detail = $"{Detail(exception)} {TryReadBody(response)}";
         var baseline = fallback with
@@ -26,18 +27,17 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
             RequestId = TryGetHeader(response, "x-request-id")
         };
 
-        return Refine(baseline, detail, TryGetHeader(response, "retry-after"));
+        return Refine(baseline, detail, retryDeadline);
     }
 
-    private ProviderFailure Refine(ProviderFailure failure, string detail, string? retryAfterHeader)
+    private ProviderFailure Refine(ProviderFailure failure, string detail, ProviderRetryDeadline? retryDeadline)
     {
-        var kind = ResolveKind(failure, detail);
-        var serverRetryAfter = kind is ProviderFailureKind.RateLimitExceeded
-            ? ProviderFailureParsing.ParseRetryAfter(retryAfterHeader, DateTimeOffset.UtcNow)
-              ?? ProviderFailureParsing.ParseRetryAfterFromMessage(detail)
-            : null;
-
-        return failure with { Kind = kind, ServerRetryAfter = serverRetryAfter };
+        var refined = failure with { Kind = ResolveKind(failure, detail) };
+        if (refined.IsTerminal) return refined;
+        if (retryDeadline is null && refined.Kind is ProviderFailureKind.RateLimitExceeded)
+            retryDeadline = ProviderFailureParsing.ParseRetryAfterFromMessage(detail) is { } delay
+                ? ProviderRetryDeadline.FromDelay(delay) : null;
+        return refined with { ServerRetryAfter = retryDeadline?.Delay, RetryDeadline = retryDeadline };
     }
 
     private ProviderFailureKind ResolveKind(ProviderFailure failure, string detail)

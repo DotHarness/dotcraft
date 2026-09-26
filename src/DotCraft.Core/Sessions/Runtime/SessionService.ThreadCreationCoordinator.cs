@@ -110,13 +110,13 @@ public sealed partial class SessionService
             var config = options.Config != null
                 ? owner.CaptureThreadConfigurationForNewThread(options.Config)
                 : source.Configuration != null
-                    ? CloneThreadConfiguration(source.Configuration)
+                    ? ThreadConfigurationCloner.Clone(source.Configuration)
                     : owner.CaptureThreadConfigurationForNewThread(null);
             if (options.Config != null
                 && options.Config.ContextWindow == null
                 && source.Configuration?.ContextWindow != null)
             {
-                config.ContextWindow = CloneNullableContextWindowConfig(source.Configuration.ContextWindow);
+                config.ContextWindow = ThreadConfigurationCloner.CloneNullableContextWindowConfig(source.Configuration.ContextWindow);
             }
             config.MemoryScope = source.Configuration?.MemoryScope;
             config.MemoryEnabled = source.Configuration?.MemoryEnabled;

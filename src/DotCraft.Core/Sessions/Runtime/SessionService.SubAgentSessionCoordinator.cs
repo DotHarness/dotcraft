@@ -136,12 +136,12 @@ public sealed partial class SessionService
             if (!string.IsNullOrWhiteSpace(profileName))
                 thread.Metadata["subagent.profileName"] = profileName;
 
+            await owner.PersistThreadWithMaterializationAsync(thread, ct);
             var broker = owner.GetOrCreateBroker(threadId);
             broker.PublishTurnStarted(turn);
             owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnStarted, turn);
             broker.PublishItemEvent(SessionEventType.ItemStarted, turn.Id, userItem);
             broker.PublishItemEvent(SessionEventType.ItemCompleted, turn.Id, userItem);
-            await owner.PersistThreadWithMaterializationAsync(thread, ct);
             return turn;
         }
 

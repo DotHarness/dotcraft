@@ -450,7 +450,17 @@ resolved values and do not derive them from tracing state.
   ID, and a server-advised retry delay. Classification belongs to the provider integration; the
   provider-neutral layer consumes it and does not re-derive it from message text.
 - A classified failure is the sole authority on whether it may be retried and after how long. A
-  server-advised delay takes precedence over the local backoff schedule.
+  server-advised delay takes precedence over the local backoff schedule. Retry advice becomes a
+  process-local monotonic deadline when response headers are first observed, or when a provider
+  exposes rate-limit text advice at failure capture. Text advice applies only to rate-limit failures
+  and never overrides a valid response header, including a zero delay. Exception propagation,
+  notification delivery, and completed tool effects consume that same wait; they never restart it. Both transport replay and
+  tool-loop reissue wait only for the remaining duration. Valid zero or past-date advice means no
+  wait; missing or malformed advice uses local backoff. Retry eligibility, budgets, cancellation,
+  and terminal capacity/quota handling remain unchanged.
+- Retry deadlines survive classification, exception wrapping, and record copies. Public duration
+  properties remain compatible; monotonic timestamps are never serialized or sent across hosts.
+  Remote boundaries forward supported retry headers and establish a new local deadline on receipt.
 - Tool failures produce one deterministic result for their call and do not terminate unrelated
   parallel calls unless policy requires it.
 - Retry never duplicates a completed local tool effect.

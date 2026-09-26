@@ -1,9 +1,17 @@
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
 
 namespace DotCraft.Agents;
 
 public sealed partial class StreamingFunctionInvokingChatClient
 {
+    private static Task NotifyAndWaitForStreamRetryAsync(
+        ProviderFailure failure, Exception exception, int attempt, int budget, CancellationToken ct)
+    {
+        ModelStreamRetryRuntimeScope.Current?.NotifyRetry(new ModelStreamRetryNotification(attempt, budget, exception, failure));
+        return ProviderFailureCapture.WaitForRetryAsync(failure, attempt, ct);
+    }
+
     private readonly record struct StreamStep(bool HasNext, Exception? Failure);
 
     /// <summary>

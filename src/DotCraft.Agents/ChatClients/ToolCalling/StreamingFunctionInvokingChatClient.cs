@@ -267,7 +267,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
 
                 if (streamFailure is not null)
                 {
-                    classifiedStreamFailure = streamFailureClassifier.Classify(streamFailure);
+                    classifiedStreamFailure = streamFailureClassifier.ClassifyCaptured(streamFailure);
                     reissueAfterStreamFailure = !cancellationToken.IsCancellationRequested
                         && turnRetryCount < turnRetryBudget
                         && classifiedStreamFailure.GetRetryDelay(turnRetryCount + 1) is not null;
@@ -385,14 +385,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
 
                 currentMessages = reissueHistory;
                 UpdateOptionsForNextIteration(ref options, options?.ConversationId);
-                ModelStreamRetryRuntimeScope.Current?.NotifyRetry(new ModelStreamRetryNotification(
-                    turnRetryCount,
-                    turnRetryBudget,
-                    streamFailure,
-                    classifiedStreamFailure));
-                var reissueDelay = classifiedStreamFailure!.GetRetryDelay(turnRetryCount) ?? TimeSpan.Zero;
-                if (reissueDelay > TimeSpan.Zero)
-                    await Task.Delay(reissueDelay, cancellationToken);
+                await NotifyAndWaitForStreamRetryAsync(classifiedStreamFailure!, streamFailure, turnRetryCount, turnRetryBudget, cancellationToken);
                 continue;
             }
 

@@ -288,9 +288,8 @@ public sealed partial class DynamicWorkflowService
                     MaxDepth = 1,
                     MaxConcurrentSubAgents = active.State.Limits.MaxConcurrency,
                     Purpose = "dynamicWorkflow",
-                    ChildCreated = async (child, ct) =>
+                    ChildStarted = async (child, ct) =>
                     {
-                        childThreadId = child.Id;
                         await JournalAsync(active, "agent.started", new JsonObject
                         {
                             ["operationId"] = operationId,
@@ -298,6 +297,11 @@ public sealed partial class DynamicWorkflowService
                             ["phase"] = phase,
                             ["label"] = label
                         }, ct).ConfigureAwait(false);
+                    },
+                    StartupFailed = (child, ct) => CleanupWorktreeAsync(active, child, ct),
+                    ChildCreated = async (child, ct) =>
+                    {
+                        childThreadId = child.Id;
                         if (schema != null) structuredResults.Bind(child.Id, schema, active.State.Limits.MaxResultBytes);
                         if (string.Equals(isolation, "worktree", StringComparison.OrdinalIgnoreCase))
                         {

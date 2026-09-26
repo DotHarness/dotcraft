@@ -91,14 +91,34 @@ Session Core creates a SubAgent in this order:
 3. Enforce the configured depth and open-child residency limits.
 4. Resolve the child thread configuration, including the model rules in section 6 and the role policy
    rules in section 7.
-5. Create the child `SessionThread` and durable spawn edge before starting model execution.
-6. Materialize the selected parent context and inheritable runtime bindings.
-7. Emit the SubAgent start lifecycle hook and submit the initial task to the child runtime.
+5. Create the provisional child `SessionThread` and run its preparation callback.
+6. Materialize and persist the selected parent context and inheritable runtime bindings.
+7. Persist the spawn edge, emit the SubAgent start lifecycle hook, and submit the initial task to
+   the child runtime. Confirm startup only after durable input admission.
 8. Persist terminal Turn state, update progress, and deliver a `FINAL_ANSWER` communication to the
    direct parent when the child Turn finishes.
 
 The child thread exists before its first Turn starts. Clients and module-owned observers may navigate
 or correlate the child as soon as creation is persisted.
+
+### Startup admission and compensation
+
+Creation callbacks prepare a provisional child; they do not confirm a successful start. Spawn
+returns success only after context and spawn-edge persistence and acceptance of the initial input.
+Native admission is the persisted `TurnStarted` boundary; external admission is successful
+persistence of the initial synthetic Turn. A separate child-started callback observes admission.
+
+An exception or cancellation before admission rolls back the provisional child. Cleanup settles
+in-flight startup work, stops runtime resources, closes the edge, and deletes child artifacts through
+an internal parent-ownership-checked lifecycle operation. It uses an independent 30-second cleanup
+budget and preserves the original failure, attaching cleanup diagnostics if compensation fails.
+Direct public deletion of child threads remains prohibited. Once admitted, a child's failure or
+cancellation follows normal Turn lifecycle and keeps its history.
+
+Module integrations release preparation resources before child deletion. Workflow worktrees with
+local changes or commits remain recoverable and are recorded in the workflow journal; clean
+worktrees can be removed. `agent.started` is journaled only after admission. This compensation
+covers live failures and cancellation, not process-crash recovery or a distributed transaction.
 
 `SubAgent.MaxDepth` defaults to `1`. The first child of a root thread has depth `1`; recursive spawning
 requires both a higher configured limit and a role that permits Agent control.

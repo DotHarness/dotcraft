@@ -18,30 +18,24 @@ public static partial class ProviderFailureParsing
         "exceeded your current quota"
     ];
 
-    /// <summary>
-    /// Zero, negative, and already-elapsed values are dropped rather than scheduling a
-    /// meaningless wait.
-    /// </summary>
     public static TimeSpan? ParseRetryAfter(string? value, DateTimeOffset now)
     {
-        if (string.IsNullOrWhiteSpace(value))
-            return null;
-
+        if (string.IsNullOrWhiteSpace(value)) return null;
         var trimmed = value.Trim();
-        if (double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds))
-            return seconds > 0 ? TimeSpan.FromSeconds(seconds) : null;
-
-        if (DateTimeOffset.TryParse(
-                trimmed,
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal,
-                out var when))
-        {
-            var delay = when - now;
-            return delay > TimeSpan.Zero ? delay : null;
-        }
-
+        if (double.TryParse(trimmed, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var seconds))
+            return SafeDelay(seconds);
+        if (DateTimeOffset.TryParseExact(trimmed,
+                ["r", "dddd, dd-MMM-yy HH':'mm':'ss 'GMT'", "ddd MMM d HH':'mm':'ss yyyy", "ddd MMM  d HH':'mm':'ss yyyy"],
+                CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var when))
+            return when > now ? when - now : TimeSpan.Zero;
         return null;
+    }
+
+    private static TimeSpan? SafeDelay(double seconds)
+    {
+        if (!double.IsFinite(seconds) || seconds < 0) return null;
+        try { return TimeSpan.FromSeconds(seconds); }
+        catch (OverflowException) { return null; }
     }
 
     public static TimeSpan? ParseRetryAfterFromMessage(string? message)
@@ -61,10 +55,7 @@ public static partial class ProviderFailureParsing
         }
 
         var unit = match.Groups[2].Value.ToLowerInvariant();
-        var delay = unit.StartsWith("ms", StringComparison.Ordinal)
-            ? TimeSpan.FromMilliseconds(amount)
-            : TimeSpan.FromSeconds(amount);
-        return delay > TimeSpan.Zero ? delay : null;
+        return SafeDelay(unit.StartsWith("ms", StringComparison.Ordinal) ? amount / 1000 : amount);
     }
 
     /// <summary>

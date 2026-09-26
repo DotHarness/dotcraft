@@ -40,7 +40,8 @@ public sealed class ProviderFailureClassifierTests
 
         Assert.Equal(ProviderFailureKind.RateLimitExceeded, failure.Kind);
         Assert.False(failure.IsTerminal);
-        Assert.Equal(TimeSpan.FromSeconds(3.5), failure.GetRetryDelay(1));
+        Assert.Equal(TimeSpan.FromSeconds(3.5), failure.ServerRetryAfter);
+        Assert.InRange(failure.GetRetryDelay(1)!.Value, TimeSpan.Zero, TimeSpan.FromSeconds(3.5));
     }
 
     [Fact]
@@ -131,7 +132,8 @@ public sealed class ProviderFailureClassifierTests
             retryAfter: "30");
 
         Assert.Equal(ProviderFailureKind.RateLimitExceeded, failure.Kind);
-        Assert.Equal(TimeSpan.FromSeconds(30), failure.GetRetryDelay(1));
+        Assert.Equal(TimeSpan.FromSeconds(30), failure.ServerRetryAfter);
+        Assert.InRange(failure.GetRetryDelay(1)!.Value, TimeSpan.Zero, TimeSpan.FromSeconds(30));
     }
 
     [Fact]
@@ -160,7 +162,6 @@ public sealed class ProviderFailureClassifierTests
     }
 
     [Theory]
-    [InlineData("0")]
     [InlineData("-5")]
     [InlineData("not-a-delay")]
     public void RetryAfterRejectsValuesThatCannotSchedule(string value)
@@ -179,11 +180,11 @@ public sealed class ProviderFailureClassifierTests
     }
 
     [Fact]
-    public void RetryAfterDropsAnHttpDateInThePast()
+    public void RetryAfterAcceptsAnElapsedHttpDateWithoutBackoff()
     {
         var now = new DateTimeOffset(2026, 1, 1, 0, 1, 0, TimeSpan.Zero);
 
-        Assert.Null(ProviderFailureParsing.ParseRetryAfter("Thu, 01 Jan 2026 00:00:45 GMT", now));
+        Assert.Equal(TimeSpan.Zero, ProviderFailureParsing.ParseRetryAfter("Thu, 01 Jan 2026 00:00:45 GMT", now));
     }
 
     private static ProviderFailure Classify(

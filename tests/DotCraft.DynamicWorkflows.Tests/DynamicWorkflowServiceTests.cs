@@ -446,7 +446,7 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
         private static async IAsyncEnumerable<SessionEvent> CompleteInput()
         {
             await Task.CompletedTask;
-            yield break;
+            yield return new SessionEvent { EventType = SessionEventType.TurnStarted };
         }
 
         private Task<QueuedTurnInput> Enqueue(object?[]? args)
