@@ -73,6 +73,12 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 18 | Role instructions | Final role-level specialization for the thread, except for native SubAgents. |
 | 19 | Developer instructions | Instructions from the application that started the thread (`developerInstructions`), after role instructions, except for native SubAgents. On protocols with a developer role the same text travels as a developer-role thread context item ahead of the turn's user message instead (§4b), as Codex places its developer instructions, and this section is omitted. |
 
+Working style owns progress messages and the distinction between commentary and final responses;
+question routing and waiting follow the user-coordination guidance. Response style owns expression,
+information selection, formatting, and self-contained final answers. Change-reporting guidance applies
+when reporting technical changes, rather than imposing a delivery checklist on every answer. Local file
+links follow the file-references section.
+
 Every section above is derived from configuration, workspace state, or the resolved tool surface.
 No section may depend on the identity of the running thread or on an attached client connection;
 that content belongs to thread context items (§4b), which is also why section 18 excludes native
