@@ -16,7 +16,7 @@ using ThreadSource = DotCraft.Sessions.ThreadSource;
 
 namespace DotCraft.AppServer;
 
-internal sealed class ThreadRequestHandler(
+internal sealed partial class ThreadRequestHandler(
     ISessionService sessionService,
     AppServerConnection connection,
     IAppServerTransport transport,
@@ -48,6 +48,7 @@ internal sealed class ThreadRequestHandler(
         table.Map(Contract.AppServerRpc.ThreadFork, HandleThreadForkAsync);
         table.Map(Contract.AppServerRpc.ThreadResume, HandleThreadResumeAsync);
         table.Map(Contract.AppServerRpc.ThreadList, HandleThreadListAsync);
+        table.Map(Contract.AppServerRpc.ThreadSearch, HandleThreadSearchAsync);
         table.Map(Contract.AppServerRpc.ThreadRead, HandleThreadReadAsync);
         table.Map(Contract.AppServerRpc.ThreadTurnsList, HandleThreadTurnsListAsync);
         table.Map(Contract.AppServerRpc.ThreadItemsList, HandleThreadItemsListAsync);

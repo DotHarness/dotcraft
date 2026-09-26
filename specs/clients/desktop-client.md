@@ -63,6 +63,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
   - [5.12 Manage Thread Goal](#512-manage-thread-goal)
   - [5.13 Composer System Actions](#513-composer-system-actions)
   - [5.14 Desktop Runtime Thread Tools](#514-desktop-runtime-thread-tools)
+  - [5.15 Thread References](#515-thread-references)
 - [6. Secondary Flows](#6-secondary-flows)
   - [6.1 Plugins and Skills](#61-plugins-and-skills)
     - [6.1.1 Plugin creation and marketplace sources](#611-plugin-creation-and-marketplace-sources)
@@ -717,7 +718,7 @@ The slash reference surface includes Desktop-owned system actions above custom C
 
 ### 5.14 Desktop Runtime Thread Tools
 
-Desktop may expose the AppServer Protocol's Desktop Thread Management Runtime Tool Profile to agents by declaring Runtime Dynamic Tools on `thread/start` and `thread/resume`.
+Desktop may expose the AppServer Protocol's Desktop Thread Management Runtime Tool Profile to agents by declaring Runtime Dynamic Tools on `thread/start`, `worktree/createAndStart`, and `thread/resume`.
 
 Required behavior:
 
@@ -737,6 +738,17 @@ Required behavior:
 - Runtime thread-tool calls render as ordinary dynamic tool activity in the conversation. They are non-modal unless an underlying AppServer call triggers an existing approval or user-input flow.
 - If a background-created or background-updated thread changes while the user is viewing another thread, Desktop updates the sidebar/list indicators but must not force navigation.
 - Tool failures use stable error codes from the AppServer profile and a concise localized Desktop message where shown to the user.
+
+### 5.15 Thread References
+
+A user can point the model at earlier chats of the current workspace from the welcome and thread composers.
+
+- A thread is available to reference while the composer's thread has the Desktop thread tools: always for a thread not created yet, and otherwise when `dynamicToolRebind` is available or the thread was started or resumed with them on the current connection. When unavailable, the `@` menu offers no chats and the composer accepts no thread drops.
+- With an empty `@` query the menu says it searches files or chats. A non-empty query lists up to 8 chats above the file results: first the sidebar chats (not archived, not subagent threads) whose title contains the query, most recent first, then the chats whose conversation contains it, as `thread/search` returns them (up to 50, `sortKey = "lastActiveAt"`, requested once the query has been unchanged for 100 ms). Each chat is listed once, and the current thread and threads already mentioned are never offered. A row shows only the chat title.
+- While that search is pending and no chat is listed, the Chats section shows "Searching chats…". A failed search lists no content matches.
+- Choosing a chat, or dropping a sidebar chat on the composer, inserts a thread chip carrying the title and id. The chip serializes to the prompt text `[@Title](thread://<threadId>)`; sent messages render that link as an `@Title` chip that opens the thread.
+- Submission adds one `threadReferences` context ahead of the prompt, listing each mentioned thread once as `{"threadId": …}`, except the thread being sent to, under a header that tells the model to call `ReadThread` before relying on them. Sent-message rendering and history restoration ignore that context; the inline links restore the chips.
+- If the draft mentions a thread while the tools are unavailable, submission is refused with a toast and the draft is kept.
 
 ---
 

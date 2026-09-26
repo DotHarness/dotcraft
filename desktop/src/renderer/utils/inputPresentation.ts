@@ -9,7 +9,10 @@ export function projectInputParts(input: InputPart[]): {
   const imageDataUrls: string[] = []
   const parts: InputPart[] = []
   for (const part of input) {
-    if (part.type === 'contextRef') contexts.push(structuredClone(part.context))
+    if (part.type === 'contextRef') {
+      // Thread references are rebuilt from the inline mentions on the next submission.
+      if (part.context.kind !== 'threadReferences') contexts.push(structuredClone(part.context))
+    }
     else if (part.type === 'localImage') images.push({ path: part.path, fileName: part.fileName, mimeType: part.mimeType })
     else if (part.type === 'image') imageDataUrls.push(part.url)
     else parts.push(part)

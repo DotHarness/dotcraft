@@ -5,6 +5,7 @@ import {
   buildDesktopThreadAdditionalContext,
   buildDesktopThreadDynamicTools,
   handleDesktopRuntimeThreadToolCall,
+  hasDesktopThreadTools,
   resetDesktopThreadToolBindings,
   sendDesktopAppServerRequest,
   type AppServerRequestClient
@@ -67,6 +68,25 @@ describe('desktop runtime thread tools', () => {
       'thread/start',
       'turn/start'
     ])
+  })
+
+  it('reports the Desktop thread tools for started threads, or for any thread when rebind is supported', async () => {
+    const client = createClient(async (method) => {
+      if (method === 'thread/start') return { thread: { id: 'thread-started' } }
+      if (method === 'worktree/createAndStart') return { thread: { id: 'thread-worktree' }, worktree: {} }
+      throw new Error(`unexpected ${method}`)
+    })
+
+    await sendDesktopAppServerRequest(client, 'thread/start', { identity: { channelName: 'dotcraft-desktop' } })
+    await sendDesktopAppServerRequest(client, 'worktree/createAndStart', { identity: { channelName: 'dotcraft-desktop' } })
+
+    expect(vi.mocked(client.sendRequest).mock.calls[1][1]).toMatchObject({
+      dynamicTools: [expect.objectContaining({ name: 'desktop' })]
+    })
+    expect(hasDesktopThreadTools('thread-started', {})).toBe(true)
+    expect(hasDesktopThreadTools('thread-worktree', {})).toBe(true)
+    expect(hasDesktopThreadTools('thread-other', {})).toBe(false)
+    expect(hasDesktopThreadTools('thread-other', { supportsDynamicToolRebind: true })).toBe(true)
   })
 
   it('declares all Desktop thread tools as deferred', () => {

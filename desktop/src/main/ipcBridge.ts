@@ -118,7 +118,7 @@ import {
   resolveRemoteWebSocketConfig,
   type ConnectionSettingsDraft
 } from '../shared/remoteConnection'
-import { sendDesktopAppServerRequest } from './desktopRuntimeThreadTools'
+import { hasDesktopThreadTools, sendDesktopAppServerRequest } from './desktopRuntimeThreadTools'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 import type { AppServerRequestMethod } from '../shared/appServerBoundary'
 import type { AppListResult } from '@dotcraft/sdk/contracts'
@@ -1199,6 +1199,12 @@ export function registerIpcHandlers(
   handleSafe('appserver:get-connection-status', () => {
     return callbacks?.getConnectionStatus() ?? { status: 'disconnected' }
   })
+
+  handleSafe('appserver:has-desktop-thread-tools', (_event, threadId: string) => (
+    hasDesktopThreadTools(threadId, {
+      supportsDynamicToolRebind: callbacks?.getConnectionStatus().capabilities?.dynamicToolRebind === true
+    })
+  ))
 
   handleSafe('appserver:resolved-binary', (_event, request?: ResolvedBinaryRequest) => {
     const settings = callbacks?.getSettings() ?? {}
@@ -2564,6 +2570,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('appserver:workspace-config-schema')
   ipcMain.removeHandler('workspace-config:get-core')
   ipcMain.removeHandler('appserver:get-connection-status')
+  ipcMain.removeHandler('appserver:has-desktop-thread-tools')
   ipcMain.removeHandler('appserver:resolved-binary')
   ipcMain.removeHandler('appserver:pick-binary')
   ipcMain.removeHandler('appserver:restart-managed')

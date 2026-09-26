@@ -261,53 +261,8 @@ public sealed class ContextSearchService
                 continue;
 
             var snippetsByItem = new Dictionary<string, RolloutItemSnippet>(StringComparer.Ordinal);
-            var lineNumber = 0;
-            await foreach (var line in File.ReadLinesAsync(path, ct))
-            {
-                lineNumber++;
-                ContextRolloutRecord? record;
-                try
-                {
-                    using var document = JsonDocument.Parse(line);
-                    if (!document.RootElement.TryGetProperty("kind", out var kindElement))
-                        continue;
-
-                    var kind = kindElement.GetString();
-                    if (kind is not (RolloutKinds.ItemAppended or RolloutKinds.TurnStateReplaced))
-                        continue;
-
-                    record = document.RootElement.Deserialize<ContextRolloutRecord>(SessionJsonOptions.Default);
-                }
-                catch (Exception ex) when (ex is JsonException or NotSupportedException)
-                {
-                    continue;
-                }
-
-                if (record is null)
-                    continue;
-
-                if (record is { Kind: RolloutKinds.ItemAppended, ItemAppended: { } appended })
-                {
-                    AddOrReplaceRolloutItemSnippet(
-                        snippetsByItem,
-                        appended.TurnId,
-                        appended.Item,
-                        lineNumber,
-                        record.Timestamp);
-                }
-                else if (record is { Kind: RolloutKinds.TurnStateReplaced, TurnStateReplaced: { } replacement })
-                {
-                    foreach (var item in replacement.Turn.Items)
-                    {
-                        AddOrReplaceRolloutItemSnippet(
-                            snippetsByItem,
-                            replacement.Turn.Id,
-                            item,
-                            lineNumber,
-                            record.Timestamp);
-                    }
-                }
-            }
+            await foreach (var line in RolloutItemReader.ReadAsync(path, ct: ct).ConfigureAwait(false))
+                AddOrReplaceRolloutItemSnippet(snippetsByItem, line.TurnId, line.Item, line.LineNumber, line.Timestamp);
 
             foreach (var snippet in snippetsByItem.Values.OrderBy(static snippet => snippet.LineNumber))
             {

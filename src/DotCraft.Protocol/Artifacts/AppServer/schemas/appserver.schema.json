@@ -16794,6 +16794,112 @@
       },
       "additionalProperties": true
     },
+    "ThreadSearchMatch": {
+      "title": "ThreadSearchMatch",
+      "type": "object",
+      "properties": {
+        "snippet": {
+          "type": "string"
+        },
+        "thread": {
+          "$ref": "#/$defs/ThreadSummary"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "snippet",
+        "thread"
+      ]
+    },
+    "ThreadSearchParams": {
+      "title": "ThreadSearchParams",
+      "type": "object",
+      "properties": {
+        "archived": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "searchTerm": {
+          "type": "string"
+        },
+        "sortDirection": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sortKey": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "searchTerm"
+      ]
+    },
+    "ThreadSearchResult": {
+      "title": "ThreadSearchResult",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ThreadSearchMatch"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "data"
+      ]
+    },
     "ThreadSkillsPolicy": {
       "title": "ThreadSkillsPolicy",
       "type": "object",

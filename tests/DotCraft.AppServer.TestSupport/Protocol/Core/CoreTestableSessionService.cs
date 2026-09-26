@@ -687,6 +687,9 @@ internal sealed class CoreTestableSessionService : ISessionService, IThreadAgent
                 || string.Equals(s.OriginChannel, SubAgentThreadOrigin.ChannelName, StringComparison.OrdinalIgnoreCase)));
     }
 
+    public Task<string?> FindThreadContentMatchAsync(string threadId, string searchTerm, CancellationToken ct = default) =>
+        _store.FindContentMatchAsync(threadId, searchTerm, ct);
+
     public async Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default)
     {
         await _store.UpsertThreadSpawnEdgeAsync(edge, ct);

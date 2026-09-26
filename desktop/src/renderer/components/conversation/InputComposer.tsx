@@ -50,6 +50,8 @@ import { RichInputArea, type RichInputAreaHandle } from './RichInputArea'
 import { AttachmentStrip } from './AttachmentStrip'
 import { ComposerContextAttachments } from './ComposerContextAttachments'
 import { FileSearchPopover } from './FileSearchPopover'
+import { useComposerThreadReferences } from './useComposerThreadReferences'
+import { mentionedThreadIds } from '../../utils/threadReferences'
 import { CommandSearchPopover, type SlashSystemActionInfo } from './CommandSearchPopover'
 import { GoalControlPopover } from './GoalControlPopover'
 import { GoalComposePill } from './GoalComposePill'
@@ -265,12 +267,14 @@ function InputComposerCore({
   const [compactBusy, setCompactBusy] = useState(false)
   const [editingQueuedInputId, setEditingQueuedInputId] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [dragOverThread, setDragOverThread] = useState(false)
   const [editorFocused, setEditorFocused] = useState(false)
   /** Bumps on rich-input edits so `canSend` re-evaluates from ref (contentEditable has no React state). */
   const [contentRevision, setContentRevision] = useState(0)
   const [historyCursor, setHistoryCursor] = useState<number | null>(null)
   const [mascotBounce, setMascotBounce] = useState(0)
   const richRef = useRef<RichInputAreaHandle>(null)
+  const threadReferences = useComposerThreadReferences(threadId, richRef)
   const sendInFlightRef = useRef(false)
   const editingQueuedInputIdRef = useRef<string | null>(null)
   const pendingModeChangeRef = useRef<Promise<unknown> | null>(null)
@@ -1005,8 +1009,11 @@ function InputComposerCore({
     e.preventDefault()
     e.stopPropagation()
     if (remoteWorkspace) return
+    const threadDrag = threadReferences.isThreadDrag(e)
+    if (threadDrag && !threadReferences.mentions) return
+    setDragOverThread(threadDrag)
     setDragOver(true)
-  }, [remoteWorkspace])
+  }, [remoteWorkspace, threadReferences])
 
   const onDragLeave = useCallback((e: React.DragEvent): void => {
     e.preventDefault()
@@ -1029,6 +1036,10 @@ function InputComposerCore({
       e.preventDefault()
       e.stopPropagation()
       setDragOver(false)
+      if (threadReferences.isThreadDrag(e)) {
+        if (!remoteWorkspace) threadReferences.drop(e)
+        return
+      }
       if (remoteWorkspace) {
         addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
         return
@@ -1045,7 +1056,7 @@ function InputComposerCore({
         addToast(t('input.dropItemsSkipped', { count: skippedCount }), 'warning')
       }
     },
-    [attachImages, remoteWorkspace, t]
+    [attachImages, remoteWorkspace, t, threadReferences]
   )
 
   const sendMessage = useCallback(async (draftOverride?: ThreadComposerDraftInput) => {
@@ -1063,6 +1074,10 @@ function InputComposerCore({
     if (!trimmed && inputImages.length === 0 && inputFiles.length === 0 && inputContexts.length === 0) return
     if (isWaitingApproval || isWaitingInput) return
     if (modelLoading) return
+    if (mentionedThreadIds(segments).length > 0 && !threadReferences.mentions) {
+      addToast(t('composer.threadReferences.unavailable'), 'error')
+      return
+    }
     if (remoteWorkspace && (inputImages.length > 0 || inputFiles.length > 0)) {
       addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
       return
@@ -1169,6 +1184,7 @@ function InputComposerCore({
       const capturedSegments = [...segments]
       const { inputParts, visibleText, bodyText } = buildComposerInputParts({
         text: trimmed,
+        threadId,
         segments: capturedSegments,
         contexts: inputContexts,
         files: capturedFiles,
@@ -1203,6 +1219,7 @@ function InputComposerCore({
       const clientUserMessageId = submission.clientUserMessageId ?? crypto.randomUUID()
       const { inputParts, visibleText } = buildComposerInputParts({
         text: trimmed,
+        threadId,
         segments,
         contexts: inputContexts,
         files: inputFiles,
@@ -1228,6 +1245,7 @@ function InputComposerCore({
     const capturedSegments = [...segments]
     const { inputParts, visibleText } = buildComposerInputParts({
       text: trimmed,
+      threadId,
       segments: capturedSegments,
       contexts: inputContexts,
       files: capturedFiles,
@@ -1271,7 +1289,7 @@ function InputComposerCore({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer])
+  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, threadReferences])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,
@@ -1650,7 +1668,7 @@ function InputComposerCore({
       <ComposerShell
         desktopPluginSurfaceContext={desktopPluginSurfaceContext}
         dragOver={dragOver}
-        dropLabel={t('composer.dropImage')}
+        dropLabel={t(dragOverThread ? 'composer.dropThread' : 'composer.dropImage')}
         topAccessory={(
           <QueuedInputDock
             queuedInputs={visibleQueuedInputs}
@@ -1752,6 +1770,7 @@ function InputComposerCore({
                 onDismiss={() => {
                   setMentionDismissed(true)
                 }}
+                threadMentions={threadReferences.mentions}
               />
               <RichInputArea
                 ref={richRef}

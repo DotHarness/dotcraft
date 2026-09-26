@@ -550,6 +550,10 @@ const api = {
       return ipcRenderer.invoke('appserver:get-connection-status')
     },
 
+    hasDesktopThreadTools(threadId: string): Promise<boolean> {
+      return ipcRenderer.invoke('appserver:has-desktop-thread-tools', threadId)
+    },
+
     getResolvedBinary(request?: {
       binarySource?: BinarySource
       binaryPath?: string

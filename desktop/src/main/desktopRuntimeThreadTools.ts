@@ -358,7 +358,8 @@ export async function sendDesktopAppServerRequest<T = unknown>(
     }
   }
 
-  const nextParams = method === 'thread/start'
+  const startsThread = method === 'thread/start' || method === 'worktree/createAndStart'
+  const nextParams = startsThread
     ? withDesktopThreadDynamicTools(params)
     : method === 'thread/resume' && options.supportsDynamicToolRebind === true
       ? withDesktopThreadDynamicTools(params)
@@ -366,7 +367,7 @@ export async function sendDesktopAppServerRequest<T = unknown>(
 
   const result = await client.sendRequest<T>(method, nextParams, timeoutMs)
 
-  if (method === 'thread/start' || method === 'thread/resume') {
+  if (startsThread || method === 'thread/resume') {
     const threadId = extractThreadId(result)
       ?? (method === 'thread/resume' ? getStringProperty(nextParams, 'threadId') : undefined)
     if (threadId) {
@@ -823,6 +824,10 @@ async function ensureDesktopThreadToolsBound(
 
   await client.sendRequest('thread/resume', withDesktopThreadDynamicTools({ threadId }))
   markDesktopThreadToolsBound(client, threadId)
+}
+
+export function hasDesktopThreadTools(threadId: string, options: DesktopAppServerRequestOptions): boolean {
+  return options.supportsDynamicToolRebind === true || boundThreadIds.has(threadId)
 }
 
 function withDesktopThreadDynamicTools(params: unknown): unknown {

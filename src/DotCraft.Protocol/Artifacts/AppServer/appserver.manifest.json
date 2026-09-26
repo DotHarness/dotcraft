@@ -20671,6 +20671,109 @@
       "variants": []
     },
     {
+      "id": "core.ThreadSearchMatch",
+      "name": "ThreadSearchMatch",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadSearchMatch.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "snippet",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "thread",
+          "type": "core.ThreadSummary",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadSearchParams",
+      "name": "ThreadSearchParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadSearchParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "archived",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "searchTerm",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "sortDirection",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "sortKey",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadSearchResult",
+      "name": "ThreadSearchResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadSearchResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "data",
+          "type": "array<core.ThreadSearchMatch>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "nextCursor",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ThreadSkillsPolicy",
       "name": "ThreadSkillsPolicy",
       "module": "core",
@@ -29911,6 +30014,26 @@
       "scope": "thread",
       "notificationOptOut": true,
       "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "thread/search",
+      "descriptorMember": "ThreadSearch",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ThreadSearchParams",
+      "resultType": "core.ThreadSearchResult",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

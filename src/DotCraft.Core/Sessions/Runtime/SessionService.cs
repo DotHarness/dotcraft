@@ -1496,6 +1496,9 @@ public sealed partial class SessionService(
     public async Task<int> CountWorkspaceThreadsAsync(string workspacePath, CancellationToken ct = default)
         => await ThreadIndex.CountWorkspaceThreadsAsync(workspacePath, ct);
 
+    public Task<string?> FindThreadContentMatchAsync(string threadId, string searchTerm, CancellationToken ct = default)
+        => Persistence.FindThreadContentMatchAsync(threadId, searchTerm, ct);
+
     public async Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default)
         => await SubAgents.UpsertThreadSpawnEdgeAsync(edge, ct);
 

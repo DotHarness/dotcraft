@@ -50,6 +50,7 @@ import { DetailPanelToggleButton } from './DetailPanelToggleButton'
 import { CommandSearchPopover } from './CommandSearchPopover'
 import { GoalComposePill } from './GoalComposePill'
 import { FileSearchPopover } from './FileSearchPopover'
+import { useComposerThreadReferences } from './useComposerThreadReferences'
 import { AttachmentStrip } from './AttachmentStrip'
 import { ComposerContextAttachments } from './ComposerContextAttachments'
 import { ComposerCommandTrigger } from './ComposerCommandTrigger'
@@ -253,6 +254,7 @@ function ConversationWelcomeCore({
   const [images, setImages] = useState<ImageAttachment[]>([])
   const [files, setFiles] = useState<ComposerFileAttachment[]>([])
   const [dragOver, setDragOver] = useState(false)
+  const [dragOverThread, setDragOverThread] = useState(false)
   const [editorFocused, setEditorFocused] = useState(false)
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const [mascotBounce, setMascotBounce] = useState(0)
@@ -302,6 +304,7 @@ function ConversationWelcomeCore({
   const suggestionFingerprintRef = useRef<string | null>(null)
   const suggestionRequestSeqRef = useRef(0)
   const richRef = useRef<RichInputAreaHandle>(null)
+  const threadReferences = useComposerThreadReferences(null, richRef)
   const voiceRecording = useVoiceStore((state) => state.recording?.threadId === voiceThreadId)
   const voiceProcessing = useVoiceStore((state) => isVoiceProcessingForThread(
     state.snapshot,
@@ -1652,8 +1655,9 @@ function ConversationWelcomeCore({
     e.preventDefault()
     e.stopPropagation()
     if (remoteWorkspace) return
+    setDragOverThread(threadReferences.isThreadDrag(e))
     setDragOver(true)
-  }, [remoteWorkspace])
+  }, [remoteWorkspace, threadReferences])
 
   const onDragLeave = useCallback((e: React.DragEvent): void => {
     e.preventDefault()
@@ -1681,6 +1685,10 @@ function ConversationWelcomeCore({
       e.preventDefault()
       e.stopPropagation()
       setDragOver(false)
+      if (threadReferences.isThreadDrag(e)) {
+        if (!remoteWorkspace) threadReferences.drop(e)
+        return
+      }
       if (remoteWorkspace) {
         addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
         return
@@ -1697,7 +1705,7 @@ function ConversationWelcomeCore({
         addToast(t('input.dropItemsSkipped', { count: skippedCount }), 'warning')
       }
     },
-    [attachImages, remoteWorkspace, t]
+    [attachImages, remoteWorkspace, t, threadReferences]
   )
 
   function fillSuggestion(prompt: string): void {
@@ -1790,7 +1798,7 @@ function ConversationWelcomeCore({
             <ComposerShell
               desktopPluginSurfaceContext={desktopPluginSurfaceContext}
               dragOver={dragOver}
-              dropLabel={t('composer.dropImage')}
+              dropLabel={t(dragOverThread ? 'composer.dropThread' : 'composer.dropImage')}
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
               onDrop={onDrop}
@@ -1868,6 +1876,7 @@ function ConversationWelcomeCore({
                       onDismiss={() => {
                         setMentionDismissed(true)
                       }}
+                      threadMentions={threadReferences.mentions}
                     />
                     <RichInputArea
                       ref={richRef}

@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { MessagesSquare } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import { useThreadStore } from '../../stores/threadStore'
+import { searchThreadMentions, threadMentionTitle } from '../../utils/threadReferences'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
+import type { ThreadMentionSource } from './useComposerThreadReferences'
+import { useThreadContentSearch } from './useThreadContentSearch'
 import {
   MentionRowIcon,
   MentionSectionHeader,
@@ -29,6 +34,7 @@ interface FileSearchPopoverProps {
   workspacePath: string
   onSelect: (relativePath: string) => void
   onDismiss: () => void
+  threadMentions?: ThreadMentionSource
 }
 
 /**
@@ -43,9 +49,12 @@ export function FileSearchPopover({
   visible,
   workspacePath,
   onSelect,
-  onDismiss
+  onDismiss,
+  threadMentions
 }: FileSearchPopoverProps): JSX.Element | null {
   const t = useT()
+  const threadList = useThreadStore((s) => s.threadList)
+  const excludedKey = visible ? threadMentions?.excludedThreadIds().join('\0') : undefined
   const [loading, setLoading] = useState(false)
   const [files, setFiles] = useState<FileMatch[]>([])
   const [highlight, setHighlight] = useState(0)
@@ -57,6 +66,15 @@ export function FileSearchPopover({
   const lastQueryRef = useRef('')
   const containerRef = useRef<HTMLDivElement>(null)
   const keyboardNavRef = useRef(false)
+  const contentSearch = useThreadContentSearch(query, excludedKey !== undefined)
+  const threads = useMemo(
+    () => excludedKey === undefined
+      ? []
+      : searchThreadMentions(threadList, query, excludedKey.split('\0'), contentSearch.threads),
+    [contentSearch.threads, excludedKey, query, threadList]
+  )
+  const searchingChats = contentSearch.pending && threads.length === 0
+  const entryCount = threads.length + files.length
 
   const clearPoll = useCallback((): void => {
     if (pollRef.current) {
@@ -123,7 +141,7 @@ export function FileSearchPopover({
 
   useEffect(() => {
     setHighlight(0)
-  }, [files])
+  }, [files, threads])
 
   // Arrow keys only; see CommandSearchPopover for why hover must not scroll.
   useEffect(() => {
@@ -133,7 +151,7 @@ export function FileSearchPopover({
     if (active instanceof HTMLElement && typeof active.scrollIntoView === 'function') {
       active.scrollIntoView({ block: 'nearest' })
     }
-  }, [highlight, visible, files])
+  }, [highlight, visible, files, threads])
 
   useEffect(() => {
     if (!visible) return
@@ -144,12 +162,12 @@ export function FileSearchPopover({
         onDismiss()
         return
       }
-      if (files.length === 0) return
+      if (entryCount === 0) return
       if (e.key === 'ArrowDown') {
         e.preventDefault()
         e.stopPropagation()
         keyboardNavRef.current = true
-        setHighlight((h) => Math.min(files.length - 1, h + 1))
+        setHighlight((h) => Math.min(entryCount - 1, h + 1))
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
         e.stopPropagation()
@@ -158,13 +176,15 @@ export function FileSearchPopover({
       } else if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault()
         e.stopPropagation()
-        const f = files[highlight]
+        const thread = threads[highlight]
+        if (thread) threadMentions?.onSelect(thread)
+        const f = files[highlight - threads.length]
         if (f) onSelect(f.relativePath)
       }
     }
     window.addEventListener('keydown', onKey, true)
     return () => { window.removeEventListener('keydown', onKey, true) }
-  }, [visible, files, highlight, onSelect, onDismiss])
+  }, [visible, entryCount, threads, files, highlight, onSelect, onDismiss, threadMentions])
 
   if (!visible) return null
 
@@ -175,25 +195,48 @@ export function FileSearchPopover({
       role="listbox"
       maxHeight={260}
     >
-      {loading && files.length === 0 && (
+      {loading && entryCount === 0 && !searchingChats && (
         <div style={mentionEmptyStyle}>{t('fileSearch.loading')}</div>
       )}
-      {!loading && files.length === 0 && indexStatus === 'building' && (
+      {!loading && entryCount === 0 && indexStatus === 'building' && (
         <IndexingState
           label={indexedCount > 0
             ? t('fileSearch.buildingWithCount', { count: indexedCount })
             : t('fileSearch.building')}
         />
       )}
-      {!loading && files.length === 0 && indexStatus !== 'building' && query.trim() !== '' && (
+      {!loading && entryCount === 0 && indexStatus !== 'building' && query.trim() !== '' && !searchingChats && (
         <div style={mentionEmptyStyle}>{t('fileSearch.noMatch')}</div>
       )}
-      {!loading && files.length === 0 && indexStatus !== 'building' && query.trim() === '' && (
-        <div style={mentionEmptyStyle}>{t('fileSearch.hint')}</div>
+      {!loading && entryCount === 0 && indexStatus !== 'building' && query.trim() === '' && (
+        <div style={mentionEmptyStyle}>{t(threadMentions ? 'fileSearch.hintWithChats' : 'fileSearch.hint')}</div>
       )}
+      {(threads.length > 0 || searchingChats) && <MentionSectionHeader label={t('fileSearch.chatsGroup')} />}
+      {searchingChats && <div style={mentionEmptyStyle}>{t('fileSearch.chatsSearching')}</div>}
+      {threads.map((thread, i) => (
+        <button
+          key={thread.id}
+          type="button"
+          role="option"
+          data-entry-index={i}
+          aria-selected={i === highlight}
+          onMouseEnter={() => { setHighlight(i) }}
+          onClick={() => { threadMentions?.onSelect(thread) }}
+          className="dotcraft-sidebar-row-radius"
+          style={mentionRowStyle(i === highlight)}
+        >
+          <MentionRowIcon tint="var(--ref-base)">
+            <MessagesSquare size={15} strokeWidth={2} aria-hidden />
+          </MentionRowIcon>
+          <span style={{ ...mentionRowNameStyle, maxWidth: '100%', flexShrink: 1 }}>
+            {highlightMatch(threadMentionTitle(thread), query)}
+          </span>
+        </button>
+      ))}
       {files.length > 0 && <MentionSectionHeader label={t('fileSearch.filesGroup')} />}
-      {files.map((f, i) => {
+      {files.map((f, fileIndex) => {
         const dirLabel = f.dir || '.'
+        const i = threads.length + fileIndex
         return (
         <ActionTooltip key={f.relativePath} label={f.relativePath} wrapperStyle={{ display: 'block', width: '100%' }}>
         <button

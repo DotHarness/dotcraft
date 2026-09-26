@@ -164,6 +164,13 @@ public interface ISessionService
     /// <summary>Counts top-level Threads in a workspace, including archived Threads.</summary>
     Task<int> CountWorkspaceThreadsAsync(string workspacePath, CancellationToken ct = default);
 
+    /// <summary>
+    /// Returns an excerpt of the first user or agent message in a Thread's rollout that contains the term, ignoring case,
+    /// or null when none does.
+    /// </summary>
+    Task<string?> FindThreadContentMatchAsync(string threadId, string searchTerm, CancellationToken ct = default) =>
+        throw new NotSupportedException("Thread search is not supported by this session service.");
+
     Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default);
 
     Task SetThreadSpawnEdgeStatusAsync(

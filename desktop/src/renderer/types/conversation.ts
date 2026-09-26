@@ -1,4 +1,4 @@
-import type { ComposerContextRecord } from '../../shared/composerContext'
+import type { ComposerContextRecord, ThreadReferencesContext } from '../../shared/composerContext'
 import { stripSystemReminderBlocks } from '../utils/systemReminderText'
 
 export type TurnStatus = 'running' | 'completed' | 'failed' | 'cancelled'
@@ -242,7 +242,7 @@ export interface ConversationTurn {
 
 /** Supported input part types for turn/start */
 export type InputPart =
-  | { type: 'contextRef'; context: ComposerContextRecord }
+  | { type: 'contextRef'; context: ComposerContextRecord | ThreadReferencesContext }
   | { type: 'text'; text: string }
   | { type: 'commandRef'; name: string; argsText?: string; rawText?: string }
   | { type: 'skillRef'; name: string }
@@ -422,7 +422,7 @@ function mapInputPart(raw: unknown): InputPart | null {
   const type = typeof part.type === 'string' ? part.type : ''
   switch (type) {
     case 'contextRef':
-      return { type: 'contextRef', context: part.context as ComposerContextRecord }
+      return { type: 'contextRef', context: part.context as ComposerContextRecord | ThreadReferencesContext }
     case 'text': {
       const text = typeof part.text === 'string' ? part.text : ''
       return { type: 'text', text }

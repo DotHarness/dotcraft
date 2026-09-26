@@ -4165,6 +4165,28 @@ export interface ThreadRuntimeState {
   [key: string]: unknown;
 }
 
+export interface ThreadSearchMatch {
+  snippet: string;
+  thread: ThreadSummary;
+  [key: string]: unknown;
+}
+
+export interface ThreadSearchParams {
+  archived?: boolean | null;
+  cursor?: string | null;
+  limit?: number | null;
+  searchTerm: string;
+  sortDirection?: string | null;
+  sortKey?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ThreadSearchResult {
+  data: ThreadSearchMatch[];
+  nextCursor?: string | null;
+  [key: string]: unknown;
+}
+
 export interface ThreadSkillsPolicy {
   allow?: string[] | null;
   allowManage?: boolean | null;

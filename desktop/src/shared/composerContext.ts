@@ -46,6 +46,11 @@ export type PageReferenceContext = ContextBase & {
 
 export type ComposerContextRecord = PastedTextContext | ResponseAnnotationContext | DiffAnnotationContext | PageReferenceContext
 
+export type ThreadReferencesContext = ContextBase & {
+  kind: 'threadReferences'
+  text: string
+}
+
 export const PASTED_TEXT_THRESHOLD = 5_000
 export const PASTED_TEXT_RESTORE_LIMIT = 25_000
 

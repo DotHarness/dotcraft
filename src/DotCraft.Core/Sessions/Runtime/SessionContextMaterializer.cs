@@ -18,6 +18,7 @@ public static class SessionContextMaterializer
                 && context.SelectedText != null && context.Comment != null,
             "pageReference" => context.Url != null && context.Title != null && context.Text != null
                 && context.Comment != null && context.SelectionKind is "text" or "element" or "region",
+            "threadReferences" => !string.IsNullOrWhiteSpace(context.Text),
             _ => false
         };
         if (!valid || (context.Image != null && (context.Kind != "pageReference"
@@ -29,6 +30,11 @@ public static class SessionContextMaterializer
     public static IEnumerable<SessionInputPart> Materialize(SessionInputContext context)
     {
         Validate(context);
+        if (context.Kind == "threadReferences")
+        {
+            yield return new SessionInputPart { Type = "text", Text = context.Text };
+            yield break;
+        }
         var source = context.Kind switch
         {
             "pastedText" => $"Pasted text file: {Quote(context.Path)}\nPreview: {Quote(context.Preview)}",
