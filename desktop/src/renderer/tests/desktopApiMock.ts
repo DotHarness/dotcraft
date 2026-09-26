@@ -45,7 +45,6 @@ const SCREEN_VIEW_DEFAULT: ApiOverrides<Api>['screenView'] = {
   onState: () => () => undefined
 }
 
-/** Every thread composer asks whether its thread can reference other chats. */
 const HAS_DESKTOP_THREAD_TOOLS_DEFAULT: ApiOverrides<Api>['appServer'] = {
   hasDesktopThreadTools: () => Promise.resolve(true)
 }

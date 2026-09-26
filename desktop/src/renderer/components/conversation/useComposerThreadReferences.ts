@@ -16,23 +16,24 @@ export interface ComposerThreadReferences {
   drop: (event: DragEvent) => void
 }
 
-/** `threadId` is null until the composer's thread exists; `thread/start` always declares the tools. */
+/** `threadId` is null until the composer's thread exists; starting a thread always declares the tools. */
 export function useComposerThreadReferences(
   threadId: string | null,
   richRef: RefObject<RichInputAreaHandle | null>
 ): ComposerThreadReferences {
   const capabilities = useConnectionStore((s) => s.capabilities)
-  const [toolsBound, setToolsBound] = useState(false)
+  const [toolBinding, setToolBinding] = useState<{ threadId: string; bound: boolean } | null>(null)
 
   useEffect(() => {
     if (!threadId) return
     let current = true
     void window.api.appServer.hasDesktopThreadTools(threadId).then((bound) => {
-      if (current) setToolsBound(bound)
+      if (current) setToolBinding({ threadId, bound })
     })
     return () => { current = false }
   }, [capabilities, threadId])
 
+  const toolsBound = toolBinding?.threadId === threadId && toolBinding.bound
   return useMemo(() => {
     const excludedThreadIds = (): string[] => [
       ...(threadId ? [threadId] : []),

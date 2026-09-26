@@ -74,6 +74,20 @@ public sealed class AppServerThreadSearchTests : IDisposable
         Assert.False(second.TryGetProperty("nextCursor", out _));
     }
 
+    [Fact]
+    public async Task ThreadSearch_IgnoresTheCaseOfNonAsciiLetters()
+    {
+        var thread = await SeedAsync(
+            await _h.Service.CreateThreadAsync(_h.Identity, displayName: "Menu"),
+            "What is on the café menu?",
+            "Soup.");
+
+        var result = await SearchAsync(new { searchTerm = "CAFÉ" });
+
+        var match = Assert.Single(result.GetProperty("data").EnumerateArray());
+        Assert.Equal(thread.Id, match.GetProperty("thread").GetProperty("id").GetString());
+    }
+
     private async Task<SessionThread> SeedAsync(SessionThread thread, string userText, string agentText)
     {
         var now = DateTimeOffset.UtcNow;

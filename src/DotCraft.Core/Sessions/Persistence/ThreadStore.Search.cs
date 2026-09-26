@@ -14,12 +14,13 @@ public sealed partial class ThreadStore
         if (path == null)
             return null;
 
-        // Rollout strings are JSON-escaped, so raw lines are matched against the term escaped the same way.
+        // Rollout strings are JSON-escaped, so raw lines are prefiltered with the term escaped the same way. A non-ASCII
+        // character escapes differently in each case, so such a term is only matched in the decoded messages.
         var escapedTerm = JsonSerializer.Serialize(searchTerm, SessionJsonOptions.Default)[1..^1];
-        await foreach (var line in RolloutItemReader.ReadAsync(
-                           path,
-                           rawLine => rawLine.Contains(escapedTerm, StringComparison.OrdinalIgnoreCase),
-                           ct))
+        Func<string, bool>? prefilter = searchTerm.Any(static c => c > 0x7F)
+            ? null
+            : rawLine => rawLine.Contains(escapedTerm, StringComparison.OrdinalIgnoreCase);
+        await foreach (var line in RolloutItemReader.ReadAsync(path, prefilter, ct))
         {
             var text = line.Item.Type switch
             {

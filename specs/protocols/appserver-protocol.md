@@ -553,7 +553,7 @@ Rules:
 
 #### 4.1.0.1 Desktop Thread Management Runtime Tool Profile
 
-DotCraft Desktop may expose a standard thread-management profile as Runtime Dynamic Tools. This profile is client-owned: AppServer does not add native model tools for cross-thread management and does not define additional JSON-RPC methods for this profile. Desktop declares the tools through `thread/start.dynamicTools` and, when supported, rebinds them through `thread/resume.dynamicTools`; AppServer invokes them only through `item/tool/call`.
+DotCraft Desktop may expose a standard thread-management profile as Runtime Dynamic Tools. This profile is client-owned: AppServer does not add native model tools for cross-thread management and does not define additional JSON-RPC methods for this profile. Desktop declares the tools through `thread/start.dynamicTools` and `worktree/createAndStart.dynamicTools` and, when supported, rebinds them through `thread/resume.dynamicTools`; AppServer invokes them only through `item/tool/call`.
 
 Tool identity:
 
@@ -982,7 +982,7 @@ Search the conversations of the server workspace's threads for a term.
 
 **Result**: `{ "data": [{ "thread": ThreadSummary, "snippet": string }], "nextCursor": string | null }`
 
-The server searches its own workspace's threads as `thread/list` with `scope = "workspace"` finds them, restricted by `archived` and never including subagent or internal threads. A thread matches when a line of its rollout contains the term compared case-insensitively as a fixed string, after the term is JSON-escaped the way rollout strings are written, and a user or agent message recorded on such a line contains the term. `snippet` excerpts the first such message around the match: whitespace collapsed to single spaces, up to 48 characters before and 96 after, with `... ` or ` ...` where it is cut.
+The server searches its own workspace's threads as `thread/list` with `scope = "workspace"` finds them, restricted by `archived` and never including subagent or internal threads. A thread matches when a user or agent message in its rollout contains the term, compared case-insensitively as a fixed string. For a term of ASCII characters only, the server first keeps the rollout lines that contain the term JSON-escaped the way rollout strings are written. `snippet` excerpts the first such message around the match: whitespace collapsed to single spaces, up to 48 characters before and 96 after, with `... ` or ` ...` where it is cut.
 
 Results follow `sortKey` and `sortDirection`. `thread` has the same shape as a `thread/list` entry. `nextCursor` is `null` or omitted when no further match exists.
 

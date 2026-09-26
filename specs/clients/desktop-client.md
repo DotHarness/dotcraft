@@ -718,7 +718,7 @@ The slash reference surface includes Desktop-owned system actions above custom C
 
 ### 5.14 Desktop Runtime Thread Tools
 
-Desktop may expose the AppServer Protocol's Desktop Thread Management Runtime Tool Profile to agents by declaring Runtime Dynamic Tools on `thread/start` and `thread/resume`.
+Desktop may expose the AppServer Protocol's Desktop Thread Management Runtime Tool Profile to agents by declaring Runtime Dynamic Tools on `thread/start`, `worktree/createAndStart`, and `thread/resume`.
 
 Required behavior:
 
