@@ -407,14 +407,14 @@ internal sealed partial class ThreadRequestHandler(
         var p = request.Params;
         var direction = ParseHistoryDirection(p.SortDirection);
         var directionName = HistoryDirectionName(direction);
-        var ordinal = ThreadHistoryCursorCodec.Decode(
+        var cursor = ThreadHistoryCursorCodec.Decode(
             p.Cursor, p.ThreadId, "turns", null, directionName);
         ThreadHistoryPage<SessionTurn> page;
         try
         {
             page = await sessionService.ListThreadTurnsAsync(
                 p.ThreadId,
-                ordinal.HasValue ? new ThreadHistoryCursor(ordinal.Value) : null,
+                cursor,
                 NormalizePageLimit(p.Limit, ThreadTurnsDefaultPageLimit, ThreadTurnsMaxPageLimit, "limit"),
                 direction,
                 ct);
@@ -427,7 +427,10 @@ internal sealed partial class ThreadRequestHandler(
         {
             Data = page.Data.Select(turn => AppServerContractMapper.ToContract(turn.ToWire(includeItems: false))).ToArray(),
             NextCursor = page.NextCursor is { } next
-                ? ThreadHistoryCursorCodec.Encode(p.ThreadId, "turns", null, directionName, next.ExclusiveRolloutOrdinal)
+                ? ThreadHistoryCursorCodec.Encode(p.ThreadId, "turns", null, directionName, next.RolloutOrdinal)
+                : null,
+            BackwardsCursor = page.BackwardsCursor is { } anchor
+                ? ThreadHistoryCursorCodec.EncodeBackwards(p.ThreadId, "turns", anchor.RolloutOrdinal)
                 : null
         });
     }
@@ -441,7 +444,7 @@ internal sealed partial class ThreadRequestHandler(
         var scope = turnId is null ? "items" : "turn-items";
         var direction = ParseHistoryDirection(p.SortDirection);
         var directionName = HistoryDirectionName(direction);
-        var ordinal = ThreadHistoryCursorCodec.Decode(
+        var cursor = ThreadHistoryCursorCodec.Decode(
             p.Cursor, p.ThreadId, scope, turnId, directionName);
         ThreadHistoryPage<ThreadHistoryItem> page;
         try
@@ -449,7 +452,7 @@ internal sealed partial class ThreadRequestHandler(
             page = await sessionService.ListThreadItemsAsync(
                 p.ThreadId,
                 turnId,
-                ordinal.HasValue ? new ThreadHistoryCursor(ordinal.Value) : null,
+                cursor,
                 NormalizePageLimit(p.Limit, ThreadItemsDefaultPageLimit, ThreadItemsMaxPageLimit, "limit"),
                 direction,
                 ct);
@@ -468,7 +471,7 @@ internal sealed partial class ThreadRequestHandler(
                 Item = AppServerContractMapper.ToContract(entry.Item)
             }).ToArray(),
             NextCursor = page.NextCursor is { } next
-                ? ThreadHistoryCursorCodec.Encode(p.ThreadId, scope, turnId, directionName, next.ExclusiveRolloutOrdinal)
+                ? ThreadHistoryCursorCodec.Encode(p.ThreadId, scope, turnId, directionName, next.RolloutOrdinal)
                 : null
         });
     }

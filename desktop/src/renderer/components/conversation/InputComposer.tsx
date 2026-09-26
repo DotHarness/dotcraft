@@ -37,6 +37,7 @@ import { useComposerMascot } from './useComposerMascot'
 import { useComposerFileAttachmentRequest } from './useComposerFileAttachmentRequest'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { readThreadHistoryHead } from '../../utils/threadHistory'
+import { restartThreadHistory } from '../../stores/threadHistoryStore'
 import { interruptTurn } from '../../utils/interruptTurn'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import {
@@ -1533,7 +1534,7 @@ function InputComposerCore({
       if (!refreshed || useThreadStore.getState().activeThreadId !== threadId) return
 
       useThreadStore.getState().setActiveThread(refreshed)
-      useThreadStore.getState().setActiveHistoryCursors(threadId, response.turnCursor)
+      restartThreadHistory(threadId, refreshed.turns ?? [], response.turnCursor)
       useConversationStore.getState().setTurns(
         (refreshed.turns ?? []).map((turn) =>
           wireTurnToConversationTurn(turn as unknown as Record<string, unknown>)

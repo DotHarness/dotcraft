@@ -4313,6 +4313,7 @@ export interface ThreadTurnsListParams {
 }
 
 export interface ThreadTurnsListResult {
+  backwardsCursor?: string | null;
   data: SessionTurn[];
   nextCursor?: string | null;
   [key: string]: unknown;

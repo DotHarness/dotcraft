@@ -1,0 +1,128 @@
+.turn-preview-card {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  box-sizing: border-box;
+  width: min(320px, calc(100vw - 16px));
+  padding: 8px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--glass-surface-strong);
+  box-shadow: var(--glass-shadow-soft);
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+  font-weight: var(--type-ui-weight);
+  line-height: var(--type-ui-line-height);
+}
+
+.turn-preview-card__label-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: var(--type-ui-emphasis-weight);
+}
+
+.turn-preview-card__label-row > svg {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+
+.turn-preview-card__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.turn-preview-card__response {
+  display: -webkit-box;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.turn-preview-card__response:has(table) {
+  max-height: calc(var(--type-ui-line-height) * 3);
+  -webkit-line-clamp: unset;
+}
+
+.turn-preview-card__response :is(p, h1, h2, h3, h4, h5, h6, blockquote, ul, ol) {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.turn-preview-card__response ul,
+.turn-preview-card__response ol {
+  padding-left: 1.25em;
+}
+
+.turn-preview-card__response ul {
+  list-style: disc;
+}
+
+.turn-preview-card__response ol {
+  list-style: decimal;
+}
+
+.turn-preview-card__table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.turn-preview-card__table :is(th, td) {
+  overflow: hidden;
+  padding: 0 8px 0 0;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.turn-preview-card__table th {
+  font-weight: var(--type-ui-emphasis-weight);
+}
+
+.turn-preview-card__skeleton-line {
+  display: flex;
+  align-items: center;
+  height: var(--type-ui-line-height);
+}
+
+.turn-preview-card__skeleton-body {
+  margin-top: 4px;
+}
+
+.turn-preview-card__outputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 6px;
+  color: var(--text-tertiary);
+}
+
+.turn-preview-card__output {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.turn-preview-card__output > svg {
+  flex-shrink: 0;
+}
+
+.turn-preview-card__output-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.turn-preview-card__more-outputs {
+  flex-shrink: 0;
+}

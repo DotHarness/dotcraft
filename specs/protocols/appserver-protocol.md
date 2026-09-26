@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.11.0 |
+| **Version** | 0.12.0 |
 | **Status** | Living |
-| **Date** | 2026-09-24 |
+| **Date** | 2026-09-27 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md), [Desktop Client](../clients/desktop-client.md) |
 
@@ -1019,9 +1019,11 @@ Read one page of provider-neutral Turn metadata from the persisted history proje
 | `limit` | number | no | Page size, default 20 and maximum 100. |
 | `sortDirection` | `ascending` \| `descending` | no | Result order, default `descending`. |
 
-**Result**: `{ "data": Turn[], "nextCursor": string | null }`
+**Result**: `{ "data": Turn[], "nextCursor": string | null, "backwardsCursor": string | null }`
 
 Each returned Turn omits or has an empty `items` collection. Result order matches `sortDirection`.
+
+`backwardsCursor` is anchored at the first returned Turn and includes it. It is valid with either `sortDirection`, so a client can read outward in both directions from any Turn it has listed. It is `null` when the page is empty.
 
 ### 4.4.2 `thread/items/list`
 
@@ -1045,9 +1047,9 @@ Result order matches `sortDirection`. Item position is stable across updates; an
 
 ### 4.4.3 History cursor and projection rules
 
-- A history cursor is an opaque, versioned base64url JSON token containing `threadId`, scope (`turns`, thread-wide Items, or one Turn's Items), optional `turnId`, `sortDirection`, and an exclusive rollout ordinal.
-- The cursor's Thread, scope, optional Turn, and direction must match the request. A mismatch, malformed token, non-positive limit, or limit above the method maximum returns `InvalidParams`.
-- A cursor whose ordinal was removed by rollback remains valid as an exclusive ordinal boundary. The query continues from the surviving rows on the requested side and never restores removed history.
+- A history cursor is an opaque, versioned base64url JSON token containing `threadId`, scope (`turns`, thread-wide Items, or one Turn's Items), optional `turnId`, and a rollout ordinal. A `nextCursor` also carries its `sortDirection` and excludes its ordinal; a Turn-page `backwardsCursor` carries no direction and includes its ordinal.
+- The cursor's Thread, scope, and optional Turn must match the request, and so must the direction of a `nextCursor`. A mismatch, malformed token, non-positive limit, or limit above the method maximum returns `InvalidParams`.
+- A cursor whose ordinal was removed by rollback remains valid as an ordinal boundary. The query continues from the surviving rows on the requested side and never restores removed history.
 - AppServer applies the same connection-scoped presentation enrichment and filtering used by live Item projection. Those transient fields are not persisted.
 - Provider-native recovery records, including OpenAI Responses raw history, are not returned, searched, or copied into these pages.
 - Persistent fork, rollback, archive, unarchive, and worktree-fork lifecycle responses carry only Thread headers. Clients invalidate affected cursors and reload history pages.

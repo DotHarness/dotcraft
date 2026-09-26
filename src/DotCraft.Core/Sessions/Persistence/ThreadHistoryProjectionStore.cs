@@ -318,7 +318,7 @@ internal sealed class ThreadHistoryProjectionStore(
     {
         using var connection = stateDatabase.OpenConnection();
         using var command = connection.CreateCommand();
-        var comparison = direction == ThreadHistorySortDirection.Ascending ? ">" : "<";
+        var comparison = CursorComparison(cursor, direction);
         var order = direction == ThreadHistorySortDirection.Ascending ? "ASC" : "DESC";
         command.CommandText = $"""
             SELECT rollout_ordinal, turn_json FROM thread_turns
@@ -329,7 +329,7 @@ internal sealed class ThreadHistoryProjectionStore(
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
         command.Parameters.AddWithValue("$has_cursor", cursor.HasValue ? 1 : 0);
-        command.Parameters.AddWithValue("$cursor", cursor?.ExclusiveRolloutOrdinal ?? 0);
+        command.Parameters.AddWithValue("$cursor", cursor?.RolloutOrdinal ?? 0);
         command.Parameters.AddWithValue("$limit", limit + 1);
         using var reader = command.ExecuteReader();
         var rows = new List<(long Ordinal, SessionTurn Turn)>(limit + 1);
@@ -352,7 +352,7 @@ internal sealed class ThreadHistoryProjectionStore(
     {
         using var connection = stateDatabase.OpenConnection();
         using var command = connection.CreateCommand();
-        var comparison = direction == ThreadHistorySortDirection.Ascending ? ">" : "<";
+        var comparison = CursorComparison(cursor, direction);
         var order = direction == ThreadHistorySortDirection.Ascending ? "ASC" : "DESC";
         command.CommandText = $"""
             SELECT rollout_ordinal, turn_id, item_json FROM thread_items
@@ -365,7 +365,7 @@ internal sealed class ThreadHistoryProjectionStore(
         command.Parameters.AddWithValue("$thread_id", threadId);
         command.Parameters.AddWithValue("$turn_id", (object?)turnId ?? DBNull.Value);
         command.Parameters.AddWithValue("$has_cursor", cursor.HasValue ? 1 : 0);
-        command.Parameters.AddWithValue("$cursor", cursor?.ExclusiveRolloutOrdinal ?? 0);
+        command.Parameters.AddWithValue("$cursor", cursor?.RolloutOrdinal ?? 0);
         command.Parameters.AddWithValue("$limit", limit + 1);
         using var reader = command.ExecuteReader();
         var rows = new List<(long Ordinal, ThreadHistoryItem Item)>(limit + 1);
@@ -391,8 +391,15 @@ internal sealed class ThreadHistoryProjectionStore(
         ThreadHistoryCursor? next = hasMore && rows.Count > 0
             ? new ThreadHistoryCursor(ordinal(rows[^1]))
             : null;
-        return new ThreadHistoryPage<T>(data, next);
+        ThreadHistoryCursor? backwards = rows.Count > 0
+            ? new ThreadHistoryCursor(ordinal(rows[0]), Inclusive: true)
+            : null;
+        return new ThreadHistoryPage<T>(data, next, backwards);
     }
+
+    private static string CursorComparison(ThreadHistoryCursor? cursor, ThreadHistorySortDirection direction) =>
+        (direction == ThreadHistorySortDirection.Ascending ? ">" : "<")
+        + (cursor is { Inclusive: true } ? "=" : "");
 
     private static ProjectionState? LoadState(
         SqliteConnection connection,

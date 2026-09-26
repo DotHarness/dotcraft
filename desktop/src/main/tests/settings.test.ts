@@ -8,6 +8,7 @@ import {
   normalizeProfileSettings,
   normalizeSatelliteRouteByThread,
   normalizeShowInMenuBar,
+  normalizeTurnBookmarksByThread,
   normalizeVoiceSettings,
   removeRecentWorkspace
 } from '../settings'
@@ -122,6 +123,21 @@ describe('settings normalization', () => {
     expect(normalized).toEqual({
       'c:/fixtures/sample-project': ['thread-a', 'thread-b', 'thread-c']
     })
+  })
+
+  it('keeps turn bookmarks per thread and drops malformed keys, ids, and empty threads', () => {
+    expect(normalizeTurnBookmarksByThread({
+      turnBookmarksByThread: {
+        'c:/ws::thread-1': [' turn-1:user-1 ', 'turn-1:user-1', '', 7 as unknown as string, 'turn-2:user-2'],
+        'c:/ws::thread-2': [],
+        'thread-without-workspace': ['turn-3:user-3'],
+        'c:/ws::thread-4': 'turn-4:user-4' as unknown as string[]
+      }
+    })).toEqual({
+      'c:/ws::thread-1': ['turn-1:user-1', 'turn-2:user-2']
+    })
+    expect(normalizeTurnBookmarksByThread({ turnBookmarksByThread: { 'c:/ws::thread-1': [] } })).toBeUndefined()
+    expect(normalizeTurnBookmarksByThread({})).toBeUndefined()
   })
 
   it('keeps a valid trimmed github username', () => {

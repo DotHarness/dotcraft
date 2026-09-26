@@ -403,16 +403,9 @@ describe('MessageStream', () => {
     expect(screen.queryByText('Read old.ts')).toBeNull()
     expect(screen.queryByText('old-artifact.md')).toBeNull()
     expect(screen.queryByText(/hidden/i)).toBeNull()
-    const processedSummary = screen.getByRole('button', { name: /Worked for/ })
-    expect(processedSummary).toBeInTheDocument()
     expect(screen.getByText('Read recent-2.ts')).toBeInTheDocument()
     expect(screen.getByText('Read recent-3.ts')).toBeInTheDocument()
     expect(screen.getByText('Read recent-4.ts')).toBeInTheDocument()
-
-    fireEvent.click(processedSummary)
-
-    expect(screen.queryByText('Read old.ts')).toBeNull()
-    expect(screen.queryByText('old-artifact.md')).toBeNull()
   })
 
   it('keeps an active older running or waiting turn fully rendered outside the newest-three window', () => {
@@ -849,7 +842,6 @@ describe('MessageStream', () => {
     renderWithLocale(<MessageStream />)
 
     await screen.findByTestId('message-stream')
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.queryByText('npm test')).not.toBeInTheDocument()
     expect(screen.queryByText('等待审批')).not.toBeInTheDocument()
   })

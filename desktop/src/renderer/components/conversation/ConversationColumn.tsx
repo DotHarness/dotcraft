@@ -1,14 +1,15 @@
-import type { CSSProperties, JSX, ReactNode } from 'react'
+import type { CSSProperties, JSX, ReactNode, Ref } from 'react'
 
 interface ConversationColumnProps {
   children: ReactNode
   className?: string
   style?: CSSProperties
+  ref?: Ref<HTMLDivElement>
 }
 
-export function ConversationColumn({ children, className, style }: ConversationColumnProps): JSX.Element {
+export function ConversationColumn({ children, className, style, ref }: ConversationColumnProps): JSX.Element {
   return (
-    <div className={className} style={{ ...conversationColumnStyle(), ...style }}>
+    <div ref={ref} className={className} style={{ ...conversationColumnStyle(), ...style }}>
       {children}
     </div>
   )

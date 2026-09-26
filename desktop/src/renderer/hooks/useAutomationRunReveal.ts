@@ -2,19 +2,19 @@ import { useEffect, type RefObject } from 'react'
 import { useAutomationRunNavigation } from '../stores/automationRunNavigation'
 import { useThreadStore } from '../stores/threadStore'
 import { useConversationStore } from '../stores/conversationStore'
-import { readThreadTurnsPage } from '../utils/threadHistory'
-import { wireTurnToConversationTurn } from '../types/conversation'
+import { loadThreadHistoryGap, useThreadHistoryStore } from '../stores/threadHistoryStore'
 import { addToast } from '../stores/toastStore'
 import { useT } from '../contexts/LocaleContext'
 import { useAutomationsStore } from '../stores/automationsStore'
 export function useAutomationRunReveal(container: RefObject<HTMLDivElement | null>): void {
   const target = useAutomationRunNavigation(s => s.target)
   const active = useThreadStore(s => s.activeThreadId)
-  const cursors = useThreadStore(s => s.activeHistoryCursors)
+  const historyReady = useThreadHistoryStore(s => s.threadId === active && s.headLoaded)
+  const gaps = useThreadHistoryStore(s => s.gaps)
   const turns = useConversationStore(s => s.turns)
   const t = useT()
   useEffect(() => {
-    if (!target || active !== target.threadId || cursors?.threadId !== active) return
+    if (!target || active !== target.threadId || !historyReady) return
     let cancelled = false
     const found = turns.some(turn => turn.id === target.turnId)
     if (found) {
@@ -33,18 +33,13 @@ export function useAutomationRunReveal(container: RefObject<HTMLDivElement | nul
       const frame = requestAnimationFrame(reveal)
       return () => { cancelled = true; observer.disconnect(); cancelAnimationFrame(frame) }
     }
-    if (!cursors.turnCursor) {
+    const newestGap = gaps[gaps.length - 1]
+    if (!newestGap) {
       addToast(t('automation.runUnavailable'), 'error')
       useAutomationRunNavigation.setState({ target: null })
       return
     }
-    const request = (method: string, params: unknown) => window.api.appServer.sendRequest(method as Parameters<typeof window.api.appServer.sendRequest>[0], params as never)
-    void readThreadTurnsPage(request, active, cursors.turnCursor).then(page => {
-      if (cancelled) return
-      const older = page.turns.map(turn => wireTurnToConversationTurn(turn as unknown as Record<string, unknown>))
-      useConversationStore.getState().setTurns([...older, ...useConversationStore.getState().turns], { preserveExistingRealtime: true, realtimeScopeThreadId: active })
-      useThreadStore.getState().setActiveHistoryCursors(active, page.nextCursor)
-    }).catch(error => { if (!cancelled) { addToast(String(error), 'error'); useAutomationRunNavigation.setState({ target: null }) } })
+    void loadThreadHistoryGap(newestGap.id, 'older').catch(error => { if (!cancelled) { addToast(String(error), 'error'); useAutomationRunNavigation.setState({ target: null }) } })
     return () => { cancelled = true }
-  }, [target, active, cursors, turns, container, t])
+  }, [target, active, historyReady, gaps, turns, container, t])
 }

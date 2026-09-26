@@ -1537,6 +1537,8 @@ const api = {
       pinnedProjectIds?: string[]
       /** Keyed `<workspace>::<threadId>`; pruned by age and count when persisted. */
       satelliteRouteByThread?: Record<string, SatelliteThreadRoute>
+      /** Keyed `<workspace>::<threadId>`; an empty list removes the key when persisted. */
+      turnBookmarksByThread?: Record<string, string[]>
       createdSatelliteInviteIds?: CreatedSatelliteInvite[]
       screenViewDockWidth?: number
       screenViewDockPosition?: ScreenViewDockPosition
@@ -1602,6 +1604,8 @@ const api = {
       pinnedProjectIds?: string[]
       /** Keyed `<workspace>::<threadId>`; pruned by age and count when persisted. */
       satelliteRouteByThread?: Record<string, SatelliteThreadRoute>
+      /** Keyed `<workspace>::<threadId>`; an empty list removes the key when persisted. */
+      turnBookmarksByThread?: Record<string, string[]>
       createdSatelliteInviteIds?: CreatedSatelliteInvite[]
       screenViewDockWidth?: number
       screenViewDockPosition?: ScreenViewDockPosition

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { readThreadHistoryHead, readThreadTurnsPage } from '../utils/threadHistory'
+import { hydrateTurns, listThreadTurns, readThreadHistoryHead } from '../utils/threadHistory'
 
 interface ItemsListParams {
   turnId?: string
@@ -8,7 +8,7 @@ interface ItemsListParams {
 
 /** Serves Turn pages newest-first and Item pages scoped to one Turn, oldest-first. */
 function makeRequest(
-  turnPages: Record<string, { data: Array<{ id: string }>; nextCursor: string | null }>,
+  turnPages: Record<string, { data: Array<{ id: string }>; nextCursor: string | null; backwardsCursor?: string | null }>,
   itemsByTurn: Record<string, Array<{ id: string }>>,
   itemPageSize = 500
 ) {
@@ -52,35 +52,33 @@ describe('thread history paging', () => {
 
   it('pages a single turn until its item cursor is exhausted', async () => {
     const items = Array.from({ length: 7 }, (_unused, index) => ({ id: `item-${index}` }))
-    const request = makeRequest(
-      { head: { data: [{ id: 'turn-1' }], nextCursor: null } },
-      { 'turn-1': items },
-      3
-    )
+    const request = makeRequest({}, { 'turn-1': items }, 3)
 
-    const page = await readThreadTurnsPage(request, 'thread-1')
+    const [turn] = await hydrateTurns(request, 'thread-1', [{ id: 'turn-1', status: 'completed', createdAt: '' }])
 
-    expect(page.turns[0].items).toEqual(items)
-    expect(page.nextCursor).toBeNull()
+    expect(turn.items).toEqual(items)
     const itemCalls = request.mock.calls.filter(([method]) => method === 'thread/items/list')
     expect(itemCalls).toHaveLength(3)
     expect(itemCalls[0][1]).toMatchObject({ turnId: 'turn-1', cursor: null, sortDirection: 'ascending' })
     expect(itemCalls[1][1]).toMatchObject({ turnId: 'turn-1', cursor: '3' })
   })
 
-  it('follows the turn cursor for older pages', async () => {
+  it('lists turn metadata in the requested direction without reading items', async () => {
     const request = makeRequest(
-      {
-        head: { data: [{ id: 'turn-2' }], nextCursor: 'older' },
-        older: { data: [{ id: 'turn-1' }], nextCursor: null }
-      },
-      { 'turn-1': [{ id: 'item-1' }], 'turn-2': [{ id: 'item-2' }] }
+      { older: { data: [{ id: 'turn-2' }, { id: 'turn-3' }], nextCursor: 'newer', backwardsCursor: 'at-turn-2' } },
+      {}
     )
 
-    const page = await readThreadTurnsPage(request, 'thread-1', 'older')
+    const page = await listThreadTurns(request, 'thread-1', 'older', 'ascending')
 
-    expect(page.turns.map((turn) => turn.id)).toEqual(['turn-1'])
-    expect(page.nextCursor).toBeNull()
+    expect(page).toMatchObject({ nextCursor: 'newer', backwardsCursor: 'at-turn-2' })
+    expect(page.turns.map((turn) => turn.id)).toEqual(['turn-2', 'turn-3'])
+    expect(request).toHaveBeenCalledExactlyOnceWith('thread/turns/list', {
+      threadId: 'thread-1',
+      cursor: 'older',
+      limit: 5,
+      sortDirection: 'ascending'
+    })
   })
 
   it('rejects an item cursor that fails to advance', async () => {
@@ -89,6 +87,7 @@ describe('thread history paging', () => {
       return { data: [{ turnId: 'turn-1', item: { id: 'item-1' } }], nextCursor: 'stuck' }
     })
 
-    await expect(readThreadTurnsPage(request, 'thread-1')).rejects.toThrow(/unchanged cursor/)
+    await expect(hydrateTurns(request, 'thread-1', [{ id: 'turn-1', status: 'completed', createdAt: '' }]))
+      .rejects.toThrow(/unchanged cursor/)
   })
 })

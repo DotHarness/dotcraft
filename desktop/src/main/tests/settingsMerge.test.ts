@@ -93,4 +93,22 @@ describe('mergeUpdatedSettings', () => {
       'C:\\Projects\\workflow-sample': ['thread-b']
     })
   })
+
+  it('merges turn bookmarks by thread without dropping other threads', () => {
+    const current: AppSettings = {
+      turnBookmarksByThread: {
+        'c:/ws::thread-1': ['turn-1:user-1'],
+        'c:/ws::thread-2': ['turn-2:user-2']
+      }
+    }
+
+    const next = mergeUpdatedSettings(current, {
+      turnBookmarksByThread: { 'c:/ws::thread-1': [] }
+    })
+
+    expect(next.turnBookmarksByThread).toEqual({
+      'c:/ws::thread-1': [],
+      'c:/ws::thread-2': ['turn-2:user-2']
+    })
+  })
 })

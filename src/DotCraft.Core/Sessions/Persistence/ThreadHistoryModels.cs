@@ -10,17 +10,18 @@ public enum ThreadHistorySortDirection
 }
 
 /// <summary>
-/// Exclusive rollout position used by Session Core history queries.
+/// Rollout position used by Session Core history queries.
 /// Protocol adapters own the opaque wire encoding around this value.
 /// </summary>
-public readonly record struct ThreadHistoryCursor(long ExclusiveRolloutOrdinal);
+public readonly record struct ThreadHistoryCursor(long RolloutOrdinal, bool Inclusive = false);
 
 /// <summary>
 /// One bounded page from the persisted history projection.
 /// </summary>
 public sealed record ThreadHistoryPage<T>(
     IReadOnlyList<T> Data,
-    ThreadHistoryCursor? NextCursor);
+    ThreadHistoryCursor? NextCursor,
+    ThreadHistoryCursor? BackwardsCursor = null);
 
 /// <summary>
 /// A projected Item together with its owning Turn identity.
