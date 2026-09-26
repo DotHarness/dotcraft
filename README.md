@@ -22,10 +22,11 @@ DotCraft is an open-source, self-hosted **AI agent runtime** built with C#/.NET.
 
 **Run the app**
 
-- **Ready out of the box:** Plan, subagents, Automations, Goals, Dreams, and Dynamic Workflows are built in. Agent Builder turns what you describe into a reusable agent.
-- **Works in your apps:** With Computer use, agents operate the Windows apps you allow.
-- **Pick up anywhere:** Desktop, the CLI, editors, and chat bots share one workspace. Connect to DotCraft on a server over SSH, or let agents work on another computer through Satellite.
+- **Ready out of the box:** Plan, Subagents, Automations, Goals, Dreams, Dynamic Workflows, and In-app Browser are built in. Agent Builder turns what you describe into a reusable agent.
+- **Works in your apps:** With Computer Use, agents operate the Windows apps you allow.
+- **Pick up anywhere:** Desktop, the CLI, IDEs, and chat bots share one workspace. Connect to DotCraft on a server over SSH, or let agents work on another computer through Satellite.
 - **Your deployment, your costs:** Run locally or on your own server with a compatible model provider or your ChatGPT subscription. Byte-stable prompt prefixes improve provider cache reuse.
+- **Shared models for your team:** Run a model service on one machine that holds the API keys and sign-in. DotCraft on the team's other machines calls models through it, without storing keys or reaching providers directly.
 
 **Embed and extend**
 

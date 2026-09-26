@@ -22,10 +22,11 @@ DotCraft 是一个基于 C#/.NET 构建的开源、自托管 **AI Agent Runtime*
 
 **直接运行**
 
-- **开箱即用：** Plan、subagents、Automations、Goals、Dreams 和 Dynamic Workflows 都已内置。Agent Builder 能把你的描述变成可复用的 Agent。
+- **开箱即用：** Plan、Subagents、Automations、Goals、Dreams、Dynamic Workflows 和应用内浏览器都已内置。Agent Builder 能把你的描述变成可复用的 Agent。
 - **操作你的应用：** 借助电脑操控，Agent 可以在你允许的 Windows 应用里工作。
-- **随处接着做：** Desktop、CLI、编辑器和聊天机器人共用同一个工作区。你还可以通过 SSH 连接服务器上的 DotCraft，或借助卫星让 Agent 在另一台电脑上工作。
-- **部署和成本由你掌控：** 在本地或自己的服务器上运行，选用兼容的模型服务或 ChatGPT 订阅。提示词前缀保持逐字节稳定，提高缓存复用率。
+- **随处接着做：** Desktop、CLI、IDE 和聊天机器人共用同一个工作区。你还可以通过 SSH 连接服务器上的 DotCraft，或借助卫星让 Agent 在另一台电脑上工作。
+- **部署和成本由你掌控：** 在本地或自己的服务器上运行，选用兼容的模型提供商或 ChatGPT 订阅。提示词前缀保持逐字节稳定，提高缓存复用率。
+- **团队共享模型：** 在一台机器上运行模型服务，集中保存 API key 和登录。团队其他机器上的 DotCraft 都通过它调用模型，无需各自保存密钥或直连模型提供商。
 
 **嵌入与扩展**
 
