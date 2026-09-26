@@ -49,6 +49,26 @@ public sealed record ProviderFailure(
     DateTimeOffset? ResetsAt = null)
 {
     private const int InitialDelayMs = 200;
+    private TimeSpan? _serverRetryAfter = ServerRetryAfter;
+    private ProviderRetryDeadline? _retryDeadline = ServerRetryAfter is { } delay
+        ? ProviderRetryDeadline.FromDelay(delay) : null;
+
+    public TimeSpan? ServerRetryAfter
+    {
+        get => _serverRetryAfter;
+        init
+        {
+            _serverRetryAfter = value;
+            _retryDeadline = value is { } delay ? ProviderRetryDeadline.FromDelay(delay) : null;
+        }
+    }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ProviderRetryDeadline? RetryDeadline
+    {
+        get => _retryDeadline;
+        init => _retryDeadline = value;
+    }
 
     /// <summary>
     /// An unrecognized failure carrying no HTTP status did not come from the wire, so reissuing
@@ -63,7 +83,7 @@ public sealed record ProviderFailure(
         || (Kind is ProviderFailureKind.Other && HttpStatus is null);
 
     public TimeSpan? GetRetryDelay(int attemptNumber) =>
-        IsTerminal ? null : ServerRetryAfter ?? Backoff(attemptNumber);
+        IsTerminal ? null : RetryDeadline?.Remaining ?? ServerRetryAfter ?? Backoff(attemptNumber);
 
     /// <summary>
     /// Rate limiting is excluded because replaying it immediately cannot succeed; the turn layer

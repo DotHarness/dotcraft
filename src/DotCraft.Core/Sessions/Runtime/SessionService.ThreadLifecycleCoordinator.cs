@@ -110,6 +110,21 @@ public sealed partial class SessionService
             return deleteOrder;
         }
 
+        public async Task<IReadOnlyList<string>> PrepareFailedSubAgentDeletionAsync(
+            string parentThreadId, string childThreadId, CancellationToken ct)
+        {
+            var child = owner._runtimeRegistry.TryGetThread(childThreadId, out var loaded)
+                ? loaded : await owner.Persistence.LoadThreadAsync(childThreadId, ct);
+            if (child == null) return [];
+            if (!IsSubAgentThread(child)
+                || !string.Equals(GetSubAgentParentThreadId(child), parentThreadId, StringComparison.Ordinal))
+                throw new InvalidOperationException("Failed startup cleanup requires the owning parent thread.");
+            await owner.Persistence.SetThreadSpawnEdgeStatusAsync(parentThreadId, childThreadId, ThreadSpawnEdgeStatus.Closed, ct);
+            owner._runtimeRegistry.SetThread(child);
+            owner._runtimeRegistry.MarkPendingPermanentDeletion(childThreadId);
+            return [childThreadId];
+        }
+
         public async Task ExecutePermanentDeletionAsync(IReadOnlyList<string> deleteOrder, CancellationToken ct)
         {
             try

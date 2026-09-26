@@ -500,6 +500,7 @@ public sealed partial class OpenAIClientProvider :
             NetworkTimeout = TimeSpan.FromSeconds(NormalizeNetworkTimeoutSeconds(networkTimeoutSeconds)),
             RetryPolicy = new ClientRetryPolicy(0)
         };
+        options.AddPolicy(new OpenAIRetryAdvicePipelinePolicy(), PipelinePosition.BeforeTransport);
         options.AddPolicy(new DotCraftUserAgentPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new OpenAIResponsesRequestBodyCanonicalizationPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new LlmHttpCapturePipelinePolicy(), PipelinePosition.PerCall);
@@ -517,6 +518,7 @@ public sealed partial class OpenAIClientProvider :
             NetworkTimeout = TimeSpan.FromSeconds(NormalizeNetworkTimeoutSeconds(networkTimeoutSeconds)),
             RetryPolicy = new ClientRetryPolicy(0)
         };
+        options.AddPolicy(new OpenAIRetryAdvicePipelinePolicy(), PipelinePosition.BeforeTransport);
         options.AddPolicy(new DotCraftUserAgentPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new OpenAIResponsesLiteHeadersPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new OpenAIResponsesRequestCompressionPipelinePolicy(), PipelinePosition.PerCall);

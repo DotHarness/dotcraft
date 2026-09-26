@@ -60,6 +60,7 @@ internal sealed class StreamRetryingChatClient(
             var receivedAnyUpdate = false;
             var bufferedNonVisibleUpdates = new List<ChatResponseUpdate>();
             Exception? failure = null;
+            ProviderFailure? classifiedFailure = null;
 
             using var attemptCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             var enumerator = base.GetStreamingResponseAsync(messages, options, attemptCancellation.Token)
@@ -76,6 +77,7 @@ internal sealed class StreamRetryingChatClient(
                     if (result.Exception != null)
                     {
                         failure = result.Exception;
+                        classifiedFailure = Classifier.ClassifyCaptured(failure);
                         break;
                     }
 
@@ -133,6 +135,7 @@ internal sealed class StreamRetryingChatClient(
                 yield break;
             }
 
+            classifiedFailure ??= Classifier.ClassifyCaptured(failure);
             var providerServerError = failure is ProviderServerErrorException;
             var retryCount = providerServerError ? providerServerErrorRetries : transportRetries;
             var retryLimit = providerServerError
@@ -162,8 +165,8 @@ internal sealed class StreamRetryingChatClient(
                     retryCount + 1,
                     retryLimit,
                     failure,
-                    Classifier.Classify(failure)));
-                await Task.Delay(ProviderFailure.Backoff(totalRetries), cancellationToken)
+                    classifiedFailure));
+                await ProviderFailureCapture.WaitForRetryAsync(classifiedFailure, totalRetries, cancellationToken)
                     .ConfigureAwait(false);
                 continue;
             }
@@ -210,7 +213,7 @@ internal sealed class StreamRetryingChatClient(
             {
                 // Only the tool loop knows whether a delegated failure is terminal.
                 ModelStreamRetryRuntimeScope.Current?.NotifyFailureClassified?.Invoke(
-                    Classifier.Classify(surfaced));
+                    Classifier.ClassifyCaptured(surfaced));
                 if (totalRetries > 0)
                     ModelStreamRetryRuntimeScope.Current?.NotifyFinalFailure?.Invoke(surfaced);
             }
@@ -366,7 +369,7 @@ internal sealed class StreamRetryingChatClient(
 
     private bool IsTransportRetryable(Exception exception) =>
         exception is ModelStreamDisconnectedException
-        || Classifier.Classify(exception).AllowsTransportReplay;
+        || Classifier.ClassifyCaptured(exception).AllowsTransportReplay;
 
     private static string? ClassifyFailure(Exception? exception)
     {

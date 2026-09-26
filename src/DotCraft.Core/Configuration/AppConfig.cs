@@ -662,7 +662,7 @@ public sealed partial class AppConfig
         [ConfigField(Min = 0, Hint = "seconds")]
         public int IdleTimeoutSeconds { get; set; } = 1800;
 
-        [ConfigField(Min = 1, Hint = "bytes")]
+        [ConfigField(Min = 1, Hint = "Maximum live output bytes per terminal; complete output remains in the log.")]
         public long OutputMaxBytes { get; set; } = 64L * 1024 * 1024;
 
         [ConfigField(Min = 0, Hint = "days")]

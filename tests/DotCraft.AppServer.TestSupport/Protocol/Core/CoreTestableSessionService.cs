@@ -31,7 +31,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// <c>SubmitInputAsync</c> yields canned <see cref="SessionEvent"/> sequences queued
 /// per thread via <see cref="EnqueueSubmitEvents"/>.
 /// </summary>
-internal sealed class CoreTestableSessionService : ISessionService, IThreadAgentRefreshService, IThreadForkToolBindingService, INativeSubAgentForkMaterializationService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
+internal sealed partial class CoreTestableSessionService : ISessionService, IThreadAgentRefreshService, IThreadForkToolBindingService, INativeSubAgentForkMaterializationService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
 {
     private readonly ThreadStore _store;
     private readonly SubAgentCommunicationRuntime _subAgentCommunicationRuntime = new();
@@ -692,6 +692,7 @@ internal sealed class CoreTestableSessionService : ISessionService, IThreadAgent
 
     public async Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default)
     {
+        if (SpawnEdgeHandler != null) await SpawnEdgeHandler(edge, ct);
         await _store.UpsertThreadSpawnEdgeAsync(edge, ct);
         var child = await GetOrLoadAsync(edge.ChildThreadId, ct);
         _subAgentCommunicationRuntime.PublishGraph(ResolveRootThreadId(child));
@@ -925,11 +926,14 @@ internal sealed class CoreTestableSessionService : ISessionService, IThreadAgent
         LastSubmittedContent = content.ToList();
         LastSubmittedMessages = messages?.ToList();
         LastSubmitCancellationToken = ct;
+        if (SubmitEventsHandler != null) return SubmitEventsHandler(threadId, ct);
         if (SubmitInputHandler != null)
             return YieldEvents([.. SubmitInputHandler(threadId, content, messages)], ct);
         if (_submitQueue.TryGetValue(threadId, out var queue) && queue.TryDequeue(out var events))
             return YieldEvents(events, ct);
 
+        if (_cache.TryGetValue(threadId, out var child) && child.Source.SubAgent != null)
+            return YieldEvents([new SessionEvent { ThreadId = threadId, EventType = SessionEventType.TurnStarted }], ct);
         return EmptyEvents();
     }
 
@@ -940,6 +944,7 @@ internal sealed class CoreTestableSessionService : ISessionService, IThreadAgent
         string? profileName,
         CancellationToken ct = default)
     {
+        if (SyntheticStartHandler != null) await SyntheticStartHandler(threadId, ct);
         var thread = await GetOrLoadAsync(threadId, ct);
         var text = string.Concat(content.OfType<TextContent>().Select(c => c.Text));
         var triggerInfo = TurnTriggerScope.Current;

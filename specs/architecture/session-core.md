@@ -2234,6 +2234,12 @@ when cancellation occurs before session initialization or no interruption marker
 
 ## 14. Bidirectional Capabilities
 
+Background terminal output uses bounded process-read and live-notification queues. A 1 MiB UTF-8 tail
+provides previews independently of the complete disk log. Real-time output is limited to 8 KiB per
+delta, 10,000 deltas per terminal, and the configured live-byte budget. Exhaustion stops data
+notifications while logging and process execution continue. Both running and recovered previews
+remain bounded; completion follows output drain and log flush.
+
 Bidirectional capabilities are outside the session model.
 
 The Session Protocol models conversation state and turn execution. It does not model transport-specific request/response features such as IDE filesystem access, terminal control, extension calls, or API-specific REST flows. Those remain tool- or channel-level concerns. Background terminals follow the same boundary: Session Core records the observable `CommandExecution` Item for the originating tool call, while AppServer exposes live terminal snapshots and output deltas to terminal-capable clients. The model-facing shell surface stays minimal (`Exec` plus `WriteStdin`, where empty stdin polls output); terminal listing, direct reads, stopping, and cleanup are AppServer/control-plane capabilities.

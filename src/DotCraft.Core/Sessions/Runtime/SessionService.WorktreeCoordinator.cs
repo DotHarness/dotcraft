@@ -23,9 +23,9 @@ public sealed partial class SessionService
                 ct);
 
             var config = options.Config != null
-                ? CloneThreadConfiguration(options.Config)
+                ? ThreadConfigurationCloner.Clone(options.Config)
                 : source.Configuration != null
-                    ? CloneThreadConfiguration(source.Configuration)
+                    ? ThreadConfigurationCloner.Clone(source.Configuration)
                     : new ThreadConfiguration();
             config.ExecutionWorkspaceOverride = worktree.Path;
 

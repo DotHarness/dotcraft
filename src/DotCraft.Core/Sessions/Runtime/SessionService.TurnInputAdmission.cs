@@ -106,4 +106,50 @@ public sealed partial class SessionService
         }
         finally { if (!staged) queueLease.Dispose(); }
     }
+
+    private static string BuildSubAgentMailboxModelText(IReadOnlyList<SubAgentMailboxEntry> entries)
+    {
+        var messages = entries
+            .Select(entry => entry.ToCommunication().RenderForModel().Trim())
+            .Where(message => !string.IsNullOrWhiteSpace(message))
+            .ToArray();
+        if (messages.Length == 0)
+            return string.Empty;
+        return string.Join(Environment.NewLine + Environment.NewLine, messages);
+    }
+
+    private static string BuildSubAgentMailboxDisplayText(IReadOnlyList<SubAgentMailboxEntry> entries)
+    {
+        if (entries.Count == 1)
+            return $"SubAgent message from {entries[0].SenderAgentPath}";
+
+        return $"{entries.Count} SubAgent messages";
+    }
+
+    private static string StripSystemReminderBlocks(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+
+        const string startTag = "<system-reminder>";
+        const string endTag = "</system-reminder>";
+
+        var result = text;
+        var searchStart = 0;
+        while (searchStart < result.Length)
+        {
+            var start = result.IndexOf(startTag, searchStart, StringComparison.Ordinal);
+            if (start < 0)
+                break;
+
+            var end = result.IndexOf(endTag, start + startTag.Length, StringComparison.Ordinal);
+            var removeLength = end < 0
+                ? result.Length - start
+                : end + endTag.Length - start;
+            result = result.Remove(start, removeLength);
+            searchStart = start;
+        }
+
+        return result;
+    }
 }
