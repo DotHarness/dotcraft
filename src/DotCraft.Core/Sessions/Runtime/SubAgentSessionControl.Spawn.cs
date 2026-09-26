@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Hooks;
@@ -219,7 +220,20 @@ public static partial class SubAgentSessionControl
             _ = ObserveChildCompletionAsync(context.SessionService, childThread.Id, runningChild, context.LifecycleHook);
 
             if (options.ChildStarted != null)
-                await options.ChildStarted(childThread, ct);
+            {
+                try
+                {
+                    await options.ChildStarted(childThread, ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    Trace.TraceError("Subagent started observer failed for {0}: {1}", childThread.Id, ex);
+                }
+            }
 
             if (!waitForCompletion)
             {

@@ -107,6 +107,8 @@ Creation callbacks prepare a provisional child; they do not confirm a successful
 returns success only after context and spawn-edge persistence and acceptance of the initial input.
 Native admission is the persisted `TurnStarted` boundary; external admission is successful
 persistence of the initial synthetic Turn. A separate child-started callback observes admission.
+Observer failures are diagnostic and do not turn an admitted spawn into a startup failure or
+prevent returning its child handle. Caller-requested cancellation still propagates normally.
 
 An exception or cancellation before admission rolls back the provisional child. Cleanup settles
 in-flight startup work, stops runtime resources, closes the edge, and deletes child artifacts through

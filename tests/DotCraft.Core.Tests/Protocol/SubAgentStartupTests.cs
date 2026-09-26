@@ -118,6 +118,63 @@ public sealed class SubAgentStartupTests : IDisposable
         Assert.Single(await _store.LoadIndexAsync());
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task StartedObserverFailure_ReturnsAdmittedChild(bool waitForCompletion, bool observerCancelled)
+    {
+        var context = await ContextAsync();
+        string? observedChildId = null;
+        var cleanupCalled = false;
+        var result = await SubAgentSessionControl.SpawnAgentAsync(context, new()
+        {
+            AgentPrompt = "work", TaskName = "worker",
+            ChildStarted = (child, _) =>
+            {
+                observedChildId = child.Id;
+                return Task.FromException(observerCancelled
+                    ? new OperationCanceledException("observer cancelled")
+                    : new IOException("journal unavailable"));
+            },
+            StartupFailed = (_, _) => { cleanupCalled = true; return Task.CompletedTask; }
+        }, waitForCompletion, null, CancellationToken.None);
+
+        Assert.Equal(observedChildId, result.ChildThreadId);
+        Assert.Equal(waitForCompletion ? "completed" : "running", result.Status);
+        Assert.NotNull(await _store.LoadThreadAsync(result.ChildThreadId));
+        Assert.Single(await _service.ListSubAgentChildrenAsync(context.ParentThread.Id, includeClosed: true));
+        Assert.False(cleanupCalled);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StartedObserverCallerCancellation_PropagatesWithoutStartupCompensation(bool waitForCompletion)
+    {
+        var context = await ContextAsync();
+        using var cancellation = new CancellationTokenSource();
+        string? childId = null;
+        var cleanupCalled = false;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => SubAgentSessionControl.SpawnAgentAsync(context, new()
+        {
+            AgentPrompt = "work", TaskName = "worker",
+            ChildStarted = (child, ct) =>
+            {
+                childId = child.Id;
+                cancellation.Cancel();
+                ct.ThrowIfCancellationRequested();
+                return Task.CompletedTask;
+            },
+            StartupFailed = (_, _) => { cleanupCalled = true; return Task.CompletedTask; }
+        }, waitForCompletion, null, cancellation.Token));
+
+        Assert.NotNull(await _store.LoadThreadAsync(childId!));
+        Assert.False(cleanupCalled);
+    }
+
     [Fact]
     public async Task ExternalSyntheticPersistenceFailure_DoesNotStartRuntimeOrRetainChild()
     {

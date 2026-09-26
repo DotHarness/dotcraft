@@ -103,7 +103,7 @@ public sealed class BackgroundTerminalOutputTests : IAsyncLifetime
         {
             release.Set();
         }
-        await run;
+        var result = await run;
         var deltas = events.Where(e => e.EventType == "outputDelta").ToArray();
         Assert.All(deltas, e => Assert.False(string.IsNullOrEmpty(e.Delta)));
         Assert.InRange(deltas.Sum(e => e.Delta!.Length), 1, content.Length - 1);
