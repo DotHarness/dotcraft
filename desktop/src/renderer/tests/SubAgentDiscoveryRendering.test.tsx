@@ -57,7 +57,7 @@ describe('source conversation rendering and navigation', () => {
       arguments: { target: '/root/review_core', message: 'Continue' } })
     render(<LocaleProvider><ToolCallCard threadId="parent-B" turnId="turn-B" item={item} /></LocaleProvider>)
     expect(screen.queryByText('Core A')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /Updated Core B/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Core B/ }))
     expect(useThreadStore.getState().activeThreadId).toBe('child-B')
   })
 

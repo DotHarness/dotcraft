@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { SubAgentChild } from '../../stores/subAgentStore'
 import { findSubAgentChild, type SubAgentLookupSources } from '../../utils/subAgentIdentity'
@@ -6,11 +6,13 @@ import { formatSubAgentMeta, getSubAgentAccent } from '../../utils/subAgentPrese
 import { parseToolResultObject } from '../../utils/toolCallDisplay'
 import { openSubAgent } from '../../utils/subAgentNavigation'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { RobotAvatar } from '../agents/RobotAvatar'
 import { ToolDisclosure } from './ToolDisclosure'
 
 interface SubAgentToolDisplay {
   titleKey: string
   name: string
+  identified: boolean
   meta: string
   prompt: string | null
   accentColor: string
@@ -34,10 +36,24 @@ export function SubAgentToolResultCard({
   const title = (
     <span style={subAgentResultContentStyle}>
       <span>
-        <button type="button" className="dc-subagent-name"
-          onClick={(event) => { event.stopPropagation(); openSubAgent(sourceThreadId, display.child) }}>
-          {renderSubAgentTitle(locale, display.titleKey, display.name, display.accentColor)}
-        </button>
+        {display.identified && (
+          <span className="dc-subagent-marks" aria-hidden>
+            <span className="dc-subagent-mark">
+              <RobotAvatar name={display.name} size={16} />
+            </span>
+          </span>
+        )}
+        {renderSubAgentTitle(locale, display.titleKey, display.name, (name) => (
+          <button
+            type="button"
+            className="dc-subagent-name"
+            style={{ '--subagent-accent': display.accentColor } as CSSProperties}
+            onClick={(event) => { event.stopPropagation(); openSubAgent(sourceThreadId, display.child) }}
+            aria-label={translate(locale, 'subagentsPanel.openAria', { name })}
+          >
+            {name}
+          </button>
+        ))}
         {display.meta && <span style={subAgentMetaStyle}>({display.meta})</span>}
       </span>
       {display.prompt && (
@@ -95,12 +111,12 @@ function renderSubAgentTitle(
   locale: AppLocale,
   titleKey: string,
   name: string,
-  accentColor: string
+  renderName: (name: string) => ReactNode
 ): JSX.Element {
   const template = translate(locale, titleKey, { name: SUB_AGENT_NAME_TOKEN })
   const parts = template.split(SUB_AGENT_NAME_TOKEN)
   if (parts.length === 1) {
-    return <span>{translate(locale, titleKey, { name })}</span>
+    return <span>{template}</span>
   }
 
   return (
@@ -108,9 +124,7 @@ function renderSubAgentTitle(
       {parts.map((part, index) => (
         <span key={`${part}-${index}`}>
           {part}
-          {index < parts.length - 1 && (
-            <span style={{ color: accentColor, fontWeight: 600 }}>{name}</span>
-          )}
+          {index < parts.length - 1 && renderName(name)}
         </span>
       ))}
     </span>
@@ -145,7 +159,8 @@ export function getSubAgentToolDisplay(
   const message = operation === 'wait'
     ? getString(parsed, 'message') ?? getString(parsed, 'result')
     : null
-  const label = resolveSubAgentDisplayName(parsed, args, childThreadId, resolvedAgentPath, locale, matchedChild)
+  const resolvedName = resolveSubAgentDisplayName(parsed, args, childThreadId, resolvedAgentPath, matchedChild)
+  const label = resolvedName ?? translate(locale, 'toolCall.subAgent.agent')
   const prompt = operation === 'spawn'
     ? getString(args, 'message') ?? getString(args, 'agentPrompt')
     : null
@@ -160,6 +175,7 @@ export function getSubAgentToolDisplay(
   return {
     titleKey,
     name: label,
+    identified: resolvedName != null,
     meta: formatSubAgentMeta({ agentRole, profileName: profile, runtimeType }),
     prompt: prompt ? truncateSubAgentPrompt(prompt, 120) : null,
     accentColor: getSubAgentAccent(label),
@@ -192,7 +208,8 @@ export function formatSubAgentRunningLabel(
   const matchedChild = findSubAgentChild(lookup, explicitChildThreadId, agentPath, operation === 'spawn' ? 'children' : 'tree')
   const childThreadId = matchedChild?.childThreadId ?? explicitChildThreadId ?? null
   const resolvedAgentPath = matchedChild?.agentPath ?? agentPath ?? null
-  const label = resolveSubAgentDisplayName(undefined, args, childThreadId, resolvedAgentPath, locale, matchedChild)
+  const label = resolveSubAgentDisplayName(undefined, args, childThreadId, resolvedAgentPath, matchedChild)
+    ?? translate(locale, 'toolCall.subAgent.agent')
   const key = operation === 'spawn'
     ? 'toolCall.subAgent.starting'
     : operation === 'wait'
@@ -226,9 +243,8 @@ function resolveSubAgentDisplayName(
   args: Record<string, unknown> | undefined,
   childThreadId: string | null | undefined,
   agentPath: string | null | undefined,
-  locale: AppLocale,
   matchedChild: SubAgentChild | null
-): string {
+): string | null {
   const explicitDisplayName = getString(parsed, 'displayName') ?? getString(args, 'displayName')
   if (explicitDisplayName && !isThreadIdLike(explicitDisplayName, childThreadId)) return explicitDisplayName
 
@@ -245,7 +261,7 @@ function resolveSubAgentDisplayName(
     ?? getAgentPathSegment(agentPath ?? childThreadId)
   if (explicitName && !isThreadIdLike(explicitName, childThreadId)) return explicitName
 
-  return translate(locale, 'toolCall.subAgent.agent')
+  return null
 }
 
 function getAgentPathSegment(value: string | null | undefined): string | null {
