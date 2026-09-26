@@ -21,7 +21,7 @@ export default {
     h(DefaultTheme.Layout, null, {
       'doc-top': () => h(DocBand),
       'aside-outline-after': () => h(DocOutlineActions),
-      'doc-after': () => h(DocMeta)
+      'doc-footer-before': () => h(DocMeta)
     }),
   enhanceApp() {
     if (typeof window !== 'undefined') setupCodeWrap()

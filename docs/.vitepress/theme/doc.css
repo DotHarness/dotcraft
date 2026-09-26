@@ -386,57 +386,95 @@
 }
 
 .VPDoc .VPDocFooter {
-  margin-top: 56px;
+  margin-top: 48px;
 }
 
 .VPDoc .VPDocFooter .edit-info {
   display: none;
 }
 
+.dc-doc-meta {
+  margin: 0;
+  padding-bottom: 14px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 16px;
+}
+
 .VPDoc .VPDocFooter .prev-next {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding-top: 0;
+  gap: 16px;
+  padding-top: 16px;
   border-top: 0;
 }
 
 .VPDoc .VPDocFooter .pager-link {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 14px 16px;
-  border: 1px solid var(--border-default);
-  border-radius: 12px;
-  transition: background-color var(--duration-fast) ease, border-color var(--duration-fast) ease;
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
-.VPDoc .VPDocFooter .pager-link:hover {
-  border-color: var(--border-active);
-  background: var(--bg-hover);
+.VPDoc .VPDocFooter .pager-link.prev {
+  padding-left: 28px;
 }
 
 .VPDoc .VPDocFooter .pager-link.next {
-  align-items: flex-end;
+  padding-right: 28px;
   text-align: right;
 }
 
 .VPDoc .VPDocFooter .desc {
-  color: var(--text-secondary);
-  font-size: var(--type-secondary-size);
-  font-weight: 400;
-  line-height: var(--type-secondary-line-height);
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
 }
 
 .VPDoc .VPDocFooter .title {
-  color: var(--text-primary);
+  color: var(--text-secondary);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 20px;
+  transition: color var(--duration-fast) ease;
 }
 
 .VPDoc .VPDocFooter .title .dc-side-icon {
   display: none;
+}
+
+.VPDoc .VPDocFooter .pager-link.prev::before,
+.VPDoc .VPDocFooter .pager-link.next::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  width: 12px;
+  height: 12px;
+  background-color: var(--text-secondary);
+  transition: background-color var(--duration-fast) ease;
+  mask: center / 12px no-repeat;
+}
+
+.VPDoc .VPDocFooter .pager-link.prev::before {
+  left: 0;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5'/%3E%3Cpath d='m12 19-7-7 7-7'/%3E%3C/svg%3E");
+}
+
+.VPDoc .VPDocFooter .pager-link.next::after {
+  right: 0;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='m12 5 7 7-7 7'/%3E%3C/svg%3E");
+}
+
+.VPDoc .VPDocFooter .pager-link:hover .title {
+  color: var(--text-primary);
+}
+
+.VPDoc .VPDocFooter .pager-link:hover::before,
+.VPDoc .VPDocFooter .pager-link:hover::after {
+  background-color: var(--text-primary);
 }
 
 @media (max-width: 639px) {
@@ -447,17 +485,6 @@
   .VPDoc .VPDocFooter .pager:empty {
     display: none;
   }
-}
-
-.dc-doc-meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 4px 16px;
-  margin-top: 40px;
-  color: var(--text-secondary);
-  font-size: var(--type-secondary-size);
-  line-height: 20px;
 }
 
 @media (max-width: 639px) {

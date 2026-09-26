@@ -1765,6 +1765,9 @@ change here is mirrored in the docs theme.
   rows. Inline code is the Desktop chip, links use the reference colour, and code
   blocks use the code-block surface with copy and wrap actions. The "On this page"
   aside uses sidebar fills.
+- The page foot stays quiet: a small last-updated line, then Previous and Next as
+  plain text links with arrows in a side gutter. No boxed pager cards, and no
+  copyright row on content pages.
 - Sora is the brand display face and appears only in the home page's display type:
   the hero headline, section headings, and story titles. Body text, controls, the
   sidebar, and content-page headings stay on the system stack. Chinese falls back

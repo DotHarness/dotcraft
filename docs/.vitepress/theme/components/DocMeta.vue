@@ -18,8 +18,5 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="dc-doc-meta">
-    <span v-if="isoUpdated">{{ theme.lastUpdated?.text ?? strings.lastUpdated }} <time :datetime="isoUpdated">{{ updated }}</time></span>
-    <span v-if="theme.footer?.copyright" v-html="theme.footer.copyright" />
-  </div>
+  <p v-if="isoUpdated" class="dc-doc-meta">{{ theme.lastUpdated?.text ?? strings.lastUpdated }} <time :datetime="isoUpdated">{{ updated }}</time></p>
 </template>
