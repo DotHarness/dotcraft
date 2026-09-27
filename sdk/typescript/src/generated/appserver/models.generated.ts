@@ -3875,6 +3875,7 @@ export interface ThreadForkParams {
   forkPoint?: ThreadForkPoint | null;
   identity?: SessionIdentity | null;
   path?: string | null;
+  promptSuggestion?: boolean | null;
   runtimeWorkspaceRoots?: string[] | null;
   threadId?: string;
   [key: string]: unknown;
@@ -5032,6 +5033,7 @@ export interface WorkspaceConfigUpdateParams {
   dreamsInterval?: string | null;
   dreamsThreadLookbackCount?: number | null;
   memoryEnabled?: boolean | null;
+  promptSuggestionsEnabled?: boolean | null;
   providerId?: string | null;
   providerPreferences?: Record<string, ModelPreference> | null;
   skillsIncludeSharedSkills?: boolean | null;
@@ -5048,6 +5050,7 @@ export interface WorkspaceConfigUpdateResult {
   dreamsInterval?: string | null;
   dreamsThreadLookbackCount?: number | null;
   memoryEnabled?: boolean | null;
+  promptSuggestionsEnabled?: boolean | null;
   providerId?: string | null;
   providerPreferences?: Record<string, ModelPreference> | null;
   skillsIncludeSharedSkills?: boolean | null;

@@ -646,6 +646,7 @@ const api = {
         providerId: string | null
         providerPreferences: ProviderPreferences
         welcomeSuggestionsEnabled: boolean | null
+        promptSuggestionsEnabled: boolean | null
         skillsSelfLearningEnabled: boolean | null
         memoryEnabled: boolean | null
         dreamsEnabled: boolean | null
@@ -658,6 +659,7 @@ const api = {
         providerId: string | null
         providerPreferences: ProviderPreferences
         welcomeSuggestionsEnabled: boolean | null
+        promptSuggestionsEnabled: boolean | null
         skillsSelfLearningEnabled: boolean | null
         memoryEnabled: boolean | null
         dreamsEnabled: boolean | null

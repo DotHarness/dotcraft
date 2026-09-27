@@ -74,6 +74,25 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
     }
 
     [Fact]
+    public async Task WorkspaceConfigUpdate_PromptSuggestionsOnly_PersistsAndEmitsOwnRegion()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        {
+            promptSuggestionsEnabled = true
+        });
+        await harness.ExecuteRequestAsync(req);
+
+        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.PromptSuggestions);
+        using var config = JsonDocument.Parse(File.ReadAllText(Path.Combine(_workspaceCraftPath, "config.json")));
+        Assert.True(config.RootElement.GetProperty("PromptSuggestions").GetProperty("Enabled").GetBoolean());
+    }
+
+    [Fact]
     public async Task WorkspaceConfigUpdate_SkillsSelfLearningOnly_WritesConfigAndEmitsSkillsRegion()
     {
         var configPath = Path.Combine(_workspaceCraftPath, "config.json");

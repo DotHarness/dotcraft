@@ -278,6 +278,7 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
                 new
                 {
                     hasText = terminalTrace.HasText,
+                    textLength = terminalTrace.TextLength,
                     hasToolCall = terminalTrace.HasToolCall,
                     hasUsage = terminalTrace.HasUsage,
                     contentKinds = terminalTrace.ContentKinds,
@@ -531,6 +532,7 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
 
         public bool SawUpdate { get; private set; }
         public bool HasText { get; private set; }
+        public int TextLength { get; private set; }
         public bool HasToolCall { get; private set; }
         public bool HasUsage { get; private set; }
         public bool TerminalUpdateSeen { get; private set; }
@@ -566,6 +568,7 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
             {
                 case TextContent text when !string.IsNullOrEmpty(text.Text):
                     HasText = true;
+                    TextLength += text.Text.Length;
                     break;
                 case FunctionCallContent:
                     HasToolCall = true;
@@ -582,6 +585,7 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
         {
             SawUpdate = false;
             HasText = false;
+            TextLength = 0;
             HasToolCall = false;
             HasUsage = false;
             TerminalUpdateSeen = false;

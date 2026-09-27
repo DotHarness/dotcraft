@@ -40,7 +40,8 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - [5. Core Interaction Flows](#5-core-interaction-flows)
   - [5.1 Open a Workspace](#51-open-a-workspace)
   - [5.1.1 Welcome Suggestions](#511-welcome-suggestions)
-  - [5.1.2 Workspace Setup](#512-workspace-setup)
+  - [5.1.2 Conversation Prompt Suggestions](#512-conversation-prompt-suggestions)
+  - [5.1.3 Workspace Setup](#513-workspace-setup)
   - [5.2 Start a New Conversation](#52-start-a-new-conversation)
   - [5.3 Resume or Open an Existing Thread](#53-resume-or-open-an-existing-thread)
   - [5.3.1 Desktop Thread Restore Pipeline](#531-desktop-thread-restore-pipeline)
@@ -418,7 +419,16 @@ That starting point's heading names the foreground project and offers switching 
 - Choosing a suggestion prefills the input composer with the suggestion's prompt text. It must not auto-send the message or implicitly create a thread before the user confirms submission.
 - The welcome suggestion surface is advisory. It should not be treated as a durable history, a command palette, or a substitute for browsing existing threads.
 
-### 5.1.2 Workspace Setup
+### 5.1.2 Conversation Prompt Suggestions
+
+- A separate workspace setting, disabled by default and independent of memory, enables one suggested next user message after a successful Turn in any Desktop conversation with an editable composer. Generation starts only while that conversation is active, the composer is empty, and no follow-up is queued.
+- Desktop makes one hidden ephemeral fork after the completed Turn. It keeps the parent's model, instructions, tools, and provider history, and appends the suggestion request only after the inherited conversation. The fork shares the parent's provider prompt-cache routing identity while retaining its own Thread identity. It may invoke inherited tools.
+- The prompt predicts what the user would naturally type next from their recent messages and original request, matches their style in 2–12 words, and requests only the suggestion without quotes or explanation. It excludes evaluative remarks, questions, assistant-voice phrasing, unrequested ideas, and multiple sentences. It asks for silence after errors or misunderstandings, when no next step is obvious, or for unsafe, inappropriate, or sensitive topics, including legitimate security work. The client trims the plain-text response and treats empty output as no suggestion.
+- The suggestion appears as subdued text in the empty composer whether or not the editor has focus, never as a draft or automatic submission. Tab accepts it as editable text with the caret at the end; Escape dismisses it. Typing, switching conversations, starting another Turn, disabling the setting, or a 30-second deadline cancels the request and cleans up its fork.
+- Suggestion traces bind the parent Thread and Turn to the temporary Thread and Turn before recording their events. They retain outcome metadata after temporary Thread cleanup. Outcomes distinguish text, completed empty output, failure, and cancellation; empty output does not establish model intent. Provider diagnostics compare raw output types and text lengths with adapted output, while Desktop diagnostics record receipt, display, stale results, timeout, and cancellation using identifiers without message content.
+- An ephemeral suggestion Thread and its notifications never enter the visible conversation or navigation state. A result from an older request cannot replace a newer suggestion. Generation failure leaves the composer unchanged.
+
+### 5.1.3 Workspace Setup
 
 - If a selected folder has no `.craft/config.json`, Desktop may show a guided setup flow before connecting to AppServer.
 - The setup flow is local to Desktop and the `dotcraft setup` command; it must not depend on AppServer provider-management RPCs because the workspace is not connected yet.

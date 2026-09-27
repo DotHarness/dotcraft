@@ -1,4 +1,5 @@
 using DotCraft.Memory;
+using DotCraft.Dreams;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
 using DotCraft.Sessions;
@@ -94,6 +95,7 @@ public sealed class AppServerWelcomeSuggestionsTests : IDisposable
                 sessionService,
                 new SessionPersistenceService(threadStore),
                 new MemoryStore(craftPath),
+                new DreamStore(craftPath),
                 workspacePath,
                 new AppConfig(),
                 craftPath);

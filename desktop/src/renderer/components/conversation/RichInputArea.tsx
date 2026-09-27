@@ -56,6 +56,10 @@ export interface RichInputAreaHandle {
 interface RichInputAreaProps {
   disabled?: boolean
   placeholder?: string
+  suggestion?: string | null
+  suggestionHint?: string
+  onAcceptSuggestion?: () => void
+  onDismissSuggestion?: () => void
   /**
    * `minimal` strips the chrome for composer surfaces that draw their own frame;
    * `inline` also collapses the vertical footprint to fit a decision row.
@@ -292,6 +296,10 @@ export const RichInputArea = forwardRef(function RichInputArea(
   {
     disabled,
     placeholder = PLACEHOLDER,
+    suggestion,
+    suggestionHint,
+    onAcceptSuggestion,
+    onDismissSuggestion,
     chrome = 'default',
     suppressSubmit,
     voiceOrigin,
@@ -898,6 +906,18 @@ export const RichInputArea = forwardRef(function RichInputArea(
 
     const onKeyDown = useCallback(
       (e: ReactKeyboardEvent<HTMLDivElement>): void => {
+        if (suggestion && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && !compositionActiveRef.current) {
+          if (e.key === 'Tab') {
+            e.preventDefault()
+            onAcceptSuggestion?.()
+            return
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            onDismissSuggestion?.()
+            return
+          }
+        }
         if (e.key === 'Tab' && e.shiftKey) {
           if (onToggleModeShortcut) {
             e.preventDefault()
@@ -973,6 +993,9 @@ export const RichInputArea = forwardRef(function RichInputArea(
         onHistoryNavigate,
         onInput,
         onSubmit,
+        onAcceptSuggestion,
+        onDismissSuggestion,
+        suggestion,
         onToggleModeShortcut,
         readSelectionRange,
         suppressSubmit
@@ -1164,12 +1187,13 @@ export const RichInputArea = forwardRef(function RichInputArea(
           role="textbox"
           aria-multiline="true"
           aria-placeholder={placeholder}
+          aria-description={suggestion ? `${suggestion}. ${suggestionHint ?? ''}`.trim() : undefined}
           spellCheck={false}
           autoCorrect="off"
           autoCapitalize="off"
           contentEditable={!disabled}
           suppressContentEditableWarning
-          data-placeholder={placeholder}
+          data-placeholder={suggestion ?? placeholder}
           data-empty={showPh ? 'true' : 'false'}
           data-chrome={chrome}
           onInput={onInput}

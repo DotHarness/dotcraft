@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using DotCraft.Configuration;
 using DotCraft.Contributions;
+using DotCraft.Dreams;
 using DotCraft.Memory;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
@@ -28,6 +29,7 @@ public sealed class WelcomeSuggestionService(
     ISessionService sessionService,
     SessionPersistenceService persistence,
     MemoryStore memoryStore,
+    DreamStore dreamStore,
     string workspaceRoot,
     AppConfig appConfig,
     string dataPath,
@@ -35,10 +37,6 @@ public sealed class WelcomeSuggestionService(
 {
     private const int DefaultMaxItems = 4;
     private const int MaxItemsLimit = 4;
-    private const int MinSnippetLength = 15;
-    private const int MaxSnippetLength = 300;
-    private const int MaxHighlightCount = 5;
-    internal const int MemoryCharsLimit = 5_000;
     private static readonly TimeSpan SuggestTimeout = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan RefreshDebounce = TimeSpan.FromSeconds(1);
@@ -458,16 +456,17 @@ public sealed class WelcomeSuggestionService(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var memoryText = TrimToLimit(memoryStore.ReadLongTerm(), MemoryCharsLimit);
+        var memoryText = memoryStore.GetMemoryContext();
+        var dreamText = dreamStore.ReadDream();
         var fingerprint = BuildFingerprint(
             workspacePath,
             maxItems,
-            memoryStore.LongTermFilePath,
-            memoryText);
+            memoryText,
+            dreamText);
 
         return Task.FromResult(new WelcomeSuggestionEvidence(
             fingerprint,
-            !string.IsNullOrWhiteSpace(memoryText)));
+            !string.IsNullOrWhiteSpace(memoryText) || !string.IsNullOrWhiteSpace(dreamText)));
     }
 
     private bool IsWelcomeSuggestionsEnabled(string workspacePath)
@@ -476,7 +475,7 @@ public sealed class WelcomeSuggestionService(
     }
 
     private static string BuildGenerationPrompt(int maxItems) =>
-        $"Inspect workspace MEMORY.md, infer the likely next tasks, and call {WelcomeSuggestionMethods.ToolName} exactly once with exactly {maxItems} concrete suggestions. If you cannot produce {maxItems} concrete suggestions from memory evidence, do not call the tool.";
+        $"Use the memory context already in your instructions to infer likely next tasks, and call {WelcomeSuggestionMethods.ToolName} exactly once with exactly {maxItems} concrete suggestions. If it cannot support {maxItems} concrete suggestions, do not call the tool.";
 
     private static List<WelcomeSuggestion> ParseSuggestionItems(JsonObject? arguments, int maxItems)
     {
@@ -524,58 +523,6 @@ public sealed class WelcomeSuggestionService(
         return trimmed;
     }
 
-    internal static string? NormalizeSnippet(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            return null;
-
-        var collapsed = string.Join(
-            " ",
-            text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-
-        if (collapsed.Length < MinSnippetLength || collapsed.Length > MaxSnippetLength)
-            return null;
-        if (IsSlashCommand(collapsed))
-            return null;
-        if (IsAcknowledgement(collapsed))
-            return null;
-        return collapsed;
-    }
-
-    private static bool IsSlashCommand(string text)
-    {
-        if (!text.StartsWith("/", StringComparison.Ordinal))
-            return false;
-
-        return !text.Contains('\n') && text.Count(ch => ch == ' ') <= 1 && text.Length <= 48;
-    }
-
-    private static bool IsAcknowledgement(string text)
-    {
-        var normalized = text.Trim().ToLowerInvariant();
-        return normalized is "ok" or "okay" or "thanks" or "thank you" or "got it" or "continue" or "继续" or "好的" or "收到" or "明白了";
-    }
-
-    internal static string[] ExtractMemoryHighlights(string memoryText)
-    {
-        return ExtractCandidateHighlights(memoryText)
-            .Where(text => ScoreSnippetSpecificity(text) > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(ScoreSnippetSpecificity)
-            .ThenByDescending(text => text.Length)
-            .Take(MaxHighlightCount)
-            .Select(text => SanitizeSuggestionField(text, 180))
-            .ToArray();
-    }
-
-    internal static string TrimToLimit(string? text, int maxChars)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            return string.Empty;
-        var trimmed = text.Trim();
-        return trimmed.Length <= maxChars ? trimmed : trimmed[^maxChars..].TrimStart();
-    }
-
     private static bool IsSpecificSuggestion(string title, string prompt)
     {
         return HasSpecificitySignal(title) || HasSpecificitySignal(prompt);
@@ -594,38 +541,6 @@ public sealed class WelcomeSuggestionService(
             || text.Contains('`');
     }
 
-    internal static int ScoreSnippetSpecificity(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            return 0;
-
-        var score = 0;
-        score += FileExtensionPattern.Matches(text).Count * 3;
-        score += PathPattern.Matches(text).Count * 2;
-        score += BacktickPattern.Matches(text).Count * 2;
-        score += IdentifierShapePattern.Matches(text).Count * 2;
-        score += AtOrHashRefPattern.Matches(text).Count;
-        if (text.Contains('`'))
-            score += 1;
-        return score;
-    }
-
-    private static IEnumerable<string> ExtractCandidateHighlights(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            yield break;
-
-        var parts = text
-            .Split(['\r', '\n', '.', '!', '?', '。', '！', '？'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        foreach (var part in parts)
-        {
-            var normalized = NormalizeSnippet(part);
-            if (normalized != null)
-                yield return normalized;
-        }
-    }
-
     private static WelcomeSuggestionSnapshot BuildNoSuggestionsResult(string fingerprint) =>
         new()
         {
@@ -638,21 +553,18 @@ public sealed class WelcomeSuggestionService(
     private static string BuildFingerprint(
         string workspacePath,
         int maxItems,
-        string memoryPath,
-        string memoryContext)
+        string memoryContext,
+        string dreamContext)
     {
         var sb = new StringBuilder();
         sb.AppendLine(workspacePath);
         sb.AppendLine($"maxItems:{maxItems}");
-        sb.AppendLine($"memoryMtime:{GetFileTimestamp(memoryPath):O}");
         sb.AppendLine(memoryContext);
+        sb.AppendLine(dreamContext);
 
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
-
-    private static DateTimeOffset GetFileTimestamp(string path) =>
-        File.Exists(path) ? File.GetLastWriteTimeUtc(path) : DateTime.UnixEpoch;
 
     internal static bool IsInternalThread(ThreadSummary summary)
     {

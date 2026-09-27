@@ -1,20 +1,15 @@
 using System.ComponentModel;
-using System.Text.Json;
 using DotCraft.GeneratedTools.Core;
-using DotCraft.Memory;
 using Microsoft.Extensions.AI;
-using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
 
 /// <summary>
 /// Tool profile for ephemeral welcome-suggestion threads.
 /// </summary>
-public sealed class WelcomeSuggestionToolSource(
-    MemoryStore memoryStore) : AIFunctionToolSource
+public sealed class WelcomeSuggestionToolSource : AIFunctionToolSource
 {
-    private readonly WelcomeSuggestionToolMethods _methods =
-        new(memoryStore);
+    private readonly WelcomeSuggestionToolMethods _methods = new();
 
     /// <inheritdoc />
     public override string SourceId => "welcome-suggestion";
@@ -22,18 +17,8 @@ public sealed class WelcomeSuggestionToolSource(
     /// <inheritdoc />
     protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
-        yield return GeneratedToolFunctions.WelcomeSuggestionToolMethods_ReadWelcomeWorkspaceMemory(_methods);
         yield return GeneratedToolFunctions.WelcomeSuggestionToolMethods_EmitWelcomeSuggestions(_methods);
     }
-}
-
-public sealed class WelcomeWorkspaceMemoryResult
-{
-    [Description("Trimmed MEMORY.md content.")]
-    public string Memory { get; set; } = string.Empty;
-
-    [Description("Short highlights extracted from workspace memory.")]
-    public string[] MemoryHighlights { get; set; } = [];
 }
 
 public sealed class WelcomeSuggestionToolItem
@@ -48,28 +33,8 @@ public sealed class WelcomeSuggestionToolItem
     public string Reason { get; set; } = string.Empty;
 }
 
-internal sealed class WelcomeSuggestionToolMethods(MemoryStore memoryStore)
+internal sealed class WelcomeSuggestionToolMethods
 {
-    private const int MemoryCharsLimit = 5_000;
-
-    private static readonly JsonSerializerOptions JsonOptions = JsonSerializerOptions.Web;
-
-    [Tool(
-        Icon = "🧠",
-        DisplayType = typeof(WelcomeSuggestionToolDisplays),
-        DisplayMethod = nameof(WelcomeSuggestionToolDisplays.ReadWelcomeWorkspaceMemory))]
-    [Description("Read workspace MEMORY.md for welcome suggestion grounding. Returns a compact JSON string.")]
-    public Task<string> ReadWelcomeWorkspaceMemory()
-    {
-        var memoryText = WelcomeSuggestionService.TrimToLimit(memoryStore.ReadLongTerm(), MemoryCharsLimit);
-
-        return Task.FromResult(Serialize(new WelcomeWorkspaceMemoryResult
-        {
-            Memory = memoryText,
-            MemoryHighlights = WelcomeSuggestionService.ExtractMemoryHighlights(memoryText)
-        }));
-    }
-
     [Tool(
         Icon = "✨",
         DisplayType = typeof(WelcomeSuggestionToolDisplays),
@@ -82,25 +47,15 @@ internal sealed class WelcomeSuggestionToolMethods(MemoryStore memoryStore)
         _ = items;
         return "Recorded.";
     }
-
-    private static string Serialize<T>(T value) =>
-        JsonSerializer.Serialize(value, JsonOptions);
 }
 
 public static class WelcomeSuggestionMethods
 {
-    public const string ReadWelcomeWorkspaceMemoryToolName = "ReadWelcomeWorkspaceMemory";
     public const string ToolName = "EmitWelcomeSuggestions";
 }
 
 public static class WelcomeSuggestionToolDisplays
 {
-    public static string ReadWelcomeWorkspaceMemory(IDictionary<string, object?>? args)
-    {
-        _ = args;
-        return WelcomeSuggestionMethods.ReadWelcomeWorkspaceMemoryToolName;
-    }
-
     public static string EmitWelcomeSuggestions(IDictionary<string, object?>? args)
     {
         var count = "items";

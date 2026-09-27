@@ -156,6 +156,15 @@ Self-learning example:
 
 `create` triggers a `kind: skill` approval, and destructive deletes require approval too. Self-learning writes only to the current workspace's skill directory. System and personal skills are read-only, supporting files may only live under `scripts/` or `assets/`, and absolute paths or `..` traversal are rejected.
 
+## Desktop suggestions
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `WelcomeSuggestions.Enabled` | Generates welcome-screen suggestions from workspace memory and applied Dreams. Requires `Memory.Enabled` | `true` |
+| `PromptSuggestions.Enabled` | Suggests one next message in an empty conversation composer after a completed turn. Independent of workspace memory | `false` |
+
+Both settings can be changed in **Settings → Personalization**. A prompt suggestion remains editable and is sent only when the user submits it.
+
 ## Compaction
 
 | Field | Description | Default |

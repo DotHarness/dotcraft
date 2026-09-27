@@ -176,6 +176,7 @@ interface WorkspaceCoreConfig {
   providerId: string | null
   providerPreferences: ProviderPreferences
   welcomeSuggestionsEnabled: boolean | null
+  promptSuggestionsEnabled: boolean | null
   skillsSelfLearningEnabled: boolean | null
   skillsIncludeSharedSkills: boolean | null
   memoryEnabled: boolean | null
@@ -195,6 +196,7 @@ const EMPTY_WORKSPACE_CORE_CONFIG: WorkspaceCoreConfig = {
   providerId: null,
   providerPreferences: {},
   welcomeSuggestionsEnabled: null,
+  promptSuggestionsEnabled: null,
   skillsSelfLearningEnabled: null,
   skillsIncludeSharedSkills: null,
   memoryEnabled: null,
@@ -322,6 +324,10 @@ function normalizeWorkspaceCoreConfig(value: unknown): WorkspaceCoreConfig {
     welcomeSuggestionsEnabled:
       typeof source.welcomeSuggestionsEnabled === 'boolean'
         ? source.welcomeSuggestionsEnabled
+        : null,
+    promptSuggestionsEnabled:
+      typeof source.promptSuggestionsEnabled === 'boolean'
+        ? source.promptSuggestionsEnabled
         : null,
     skillsSelfLearningEnabled:
       typeof source.skillsSelfLearningEnabled === 'boolean'
@@ -650,6 +656,7 @@ export function SettingsView({
     providerId: null,
     providerPreferences: {},
     welcomeSuggestionsEnabled: null,
+    promptSuggestionsEnabled: null,
     skillsSelfLearningEnabled: null,
     skillsIncludeSharedSkills: null,
     memoryEnabled: null,
@@ -694,6 +701,8 @@ export function SettingsView({
   const [applyingSubAgentModel, setApplyingSubAgentModel] = useState(false)
   const [welcomeSuggestionsEnabled, setWelcomeSuggestionsEnabled] = useState(true)
   const [applyingWelcomeSuggestions, setApplyingWelcomeSuggestions] = useState(false)
+  const [promptSuggestionsEnabled, setPromptSuggestionsEnabled] = useState(false)
+  const [applyingPromptSuggestions, setApplyingPromptSuggestions] = useState(false)
   const [selfLearningEnabled, setSelfLearningEnabled] = useState(true)
   const [applyingSelfLearning, setApplyingSelfLearning] = useState(false)
   const [includeSharedSkills, setIncludeSharedSkills] = useState(true)
@@ -809,6 +818,9 @@ export function SettingsView({
       core.userDefaults.welcomeSuggestionsEnabled ??
       true
     setWelcomeSuggestionsEnabled(resolvedWelcomeSuggestionsEnabled)
+    setPromptSuggestionsEnabled(
+      core.workspace.promptSuggestionsEnabled ?? core.userDefaults.promptSuggestionsEnabled ?? false
+    )
     const resolvedSelfLearningEnabled =
       core.workspace.skillsSelfLearningEnabled ??
       core.userDefaults.skillsSelfLearningEnabled ??
@@ -1421,6 +1433,29 @@ export function SettingsView({
       }
     },
     [reloadWorkspaceCore, t, welcomeSuggestionsEnabled]
+  )
+
+  const handlePromptSuggestionsToggle = useCallback(
+    async (checked: boolean): Promise<void> => {
+      const previous = promptSuggestionsEnabled
+      setPromptSuggestionsEnabled(checked)
+      setApplyingPromptSuggestions(true)
+      try {
+        const result = await window.api.appServer.sendRequest('workspace/config/update', {
+          promptSuggestionsEnabled: checked
+        }) as { promptSuggestionsEnabled?: boolean | null }
+        setPromptSuggestionsEnabled(result?.promptSuggestionsEnabled ?? checked)
+        await reloadWorkspaceCore()
+      } catch (err) {
+        setPromptSuggestionsEnabled(previous)
+        addToast(t('settings.personalization.promptSuggestionsSaveFailed', {
+          error: err instanceof Error ? err.message : String(err)
+        }), 'error')
+      } finally {
+        setApplyingPromptSuggestions(false)
+      }
+    },
+    [promptSuggestionsEnabled, reloadWorkspaceCore, t]
   )
 
   const handleSelfLearningToggle = useCallback(
@@ -3165,6 +3200,20 @@ export function SettingsView({
                             }}
                           />
                         </ActionTooltip>
+                      }
+                    />
+                  )}
+                  {workspaceCoreApiAvailable && (
+                    <SettingsRow
+                      label={t('settings.personalization.promptSuggestions')}
+                      description={t('settings.personalization.promptSuggestionsHint')}
+                      control={
+                        <PillSwitch
+                          checked={promptSuggestionsEnabled}
+                          disabled={applyingPromptSuggestions}
+                          aria-label={t('settings.personalization.promptSuggestions')}
+                          onChange={(checked) => { void handlePromptSuggestionsToggle(checked) }}
+                        />
                       }
                     />
                   )}

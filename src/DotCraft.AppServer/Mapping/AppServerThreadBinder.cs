@@ -61,6 +61,9 @@ internal sealed class AppServerThreadBinder(
     public void BindThreadAssets(SessionThread thread)
         => inlineVisualizationRuntimeRegistry?.BindThread(thread, transport, connection);
 
+    public void ForkAdditionalContext(string parentThreadId, string childThreadId)
+        => wireRuntimeAdditionalContextProvider?.TryForkThreadBinding(parentThreadId, childThreadId, connection);
+
     private static readonly Dictionary<string, RuntimeAdditionalContextValue> EmptyAdditionalContext = [];
 
     public async Task BindThreadRuntimeAsync(

@@ -824,6 +824,58 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task ThreadFork_PromptSuggestionRequiresEphemeralFork()
+    {
+        var source = await _h.Service.CreateThreadAsync(_h.Identity);
+        AddCompletedTurn(source, "turn_001", "first");
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadFork, new
+        {
+            threadId = source.Id,
+            promptSuggestion = true,
+            forkPoint = new { turnId = "turn_001" }
+        });
+
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        CoreAppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+    }
+
+    [Fact]
+    public async Task ThreadFork_PromptSuggestionInheritsRuntimeAdditionalContext()
+    {
+        var contextProvider = new WireRuntimeAdditionalContextProvider();
+        using var harness = new CoreAppServerTestHarness(wireRuntimeAdditionalContextProvider: contextProvider);
+        await harness.InitializeAsync();
+        var source = await harness.Service.CreateThreadAsync(harness.Identity);
+        AddCompletedTurn(source, "turn_001", "first");
+        contextProvider.BindThread(source.Id, harness.Transport, harness.Connection,
+            new Dictionary<string, RuntimeAdditionalContextValue>
+            {
+                ["desktop.threadCoordination"] = new()
+                {
+                    Kind = RuntimeAdditionalContextKinds.Application,
+                    Value = "parent runtime context"
+                }
+            });
+
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadFork, new
+        {
+            threadId = source.Id,
+            ephemeral = true,
+            promptSuggestion = true,
+            forkPoint = new { turnId = "turn_001" }
+        });
+        await harness.ExecuteRequestAsync(msg);
+
+        var response = await harness.Transport.ReadNextSentAsync();
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
+        var forkId = response.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
+        var section = contextProvider.GetSystemPromptSection(new ThreadSystemPromptContext(forkId, harness.Identity.WorkspacePath));
+        Assert.Contains("parent runtime context", section);
+    }
+
+    [Fact]
     public async Task SubAgentChildrenList_ReturnsPathFields()
     {
         var parent = await _h.Service.CreateThreadAsync(_h.Identity);

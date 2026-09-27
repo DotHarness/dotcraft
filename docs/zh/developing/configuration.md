@@ -156,6 +156,15 @@ Skill 自学习示例：
 
 `create` 会触发 `kind: skill` 审批，破坏性删除也需要审批。自学习只写当前工作区 skill 目录。系统和个人 skills 视为只读，supporting files 只能写在 `scripts/` 或 `assets/` 下，绝对路径和 `..` 路径穿越会被拒绝。
 
+## Desktop 建议
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `WelcomeSuggestions.Enabled` | 根据工作区记忆和已应用的梦境生成欢迎页建议，依赖 `Memory.Enabled` | `true` |
+| `PromptSuggestions.Enabled` | 一次对话结束后，在空输入框中建议下一条消息，不依赖工作区记忆 | `false` |
+
+两项设置都可在 **设置 → 个性化** 中修改。输入框建议可以编辑，只有用户提交后才会发送。
+
 ## Compaction
 
 | 配置项 | 说明 | 默认值 |

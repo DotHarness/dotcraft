@@ -58,6 +58,31 @@ function getSelectionRange(root: HTMLElement): { start: number; end: number } | 
 }
 
 describe('RichInputArea selection helpers', () => {
+  it('keeps a suggested message outside the draft until Tab accepts it', () => {
+    const ref = createRef<RichInputAreaHandle>()
+    const onAcceptSuggestion = vi.fn()
+    const onDismissSuggestion = vi.fn()
+    const onSubmit = vi.fn()
+    render(
+      <RichInputArea
+        ref={ref}
+        suggestion="Add a regression test"
+        suggestionHint="Press Tab to use"
+        onAcceptSuggestion={onAcceptSuggestion}
+        onDismissSuggestion={onDismissSuggestion}
+        onSubmit={onSubmit}
+      />
+    )
+
+    const textbox = screen.getByRole('textbox')
+    expect(ref.current?.getText()).toBe('')
+    fireEvent.keyDown(textbox, { key: 'Tab' })
+    expect(onAcceptSuggestion).toHaveBeenCalledOnce()
+    expect(onSubmit).not.toHaveBeenCalled()
+    fireEvent.keyDown(textbox, { key: 'Escape' })
+    expect(onDismissSuggestion).toHaveBeenCalledOnce()
+  })
+
   it('places the caret at the end after setPlainText and setSelectionRange', () => {
     const ref = createRef<RichInputAreaHandle>()
 

@@ -58,7 +58,7 @@ public sealed partial class SessionService
         ContextPageSnapshot snapshot,
         CancellationToken ct)
     {
-        if (thread.HistoryMode != HistoryMode.Server)
+        if (thread.Ephemeral || thread.HistoryMode != HistoryMode.Server)
             return;
 
         var history = await Persistence.LoadModelHistoryAsync(thread.Id, ct);

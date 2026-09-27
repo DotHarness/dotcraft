@@ -167,7 +167,7 @@ public static class ServiceRegistration
                 WelcomeSuggestionConstants.ToolProfileName,
                 new[]
                 {
-                    new WelcomeSuggestionToolSource(sp.GetRequiredService<MemoryStore>())
+                    new WelcomeSuggestionToolSource()
                 });
             return reg;
         });
