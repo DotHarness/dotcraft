@@ -45,6 +45,9 @@ failures require a new login. Browser interaction remains the responsibility of 
 Service usage is extracted from upstream responses by provider-owned readers. Hosts receive
 normalized token counts with caller and request correlation. Usage-recording failures do not fail
 model responses. Request bodies and credentials are not included in these records.
+When an upstream response omits `Content-Type`, the usage reader selects JSON for a body whose
+first non-whitespace byte is `{` or `[`, and SSE otherwise. Explicit response types retain their
+existing parsing behavior; format detection does not alter the forwarded response.
 
 ## Deployment
 

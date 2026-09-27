@@ -49,6 +49,25 @@ public sealed class ModelServiceTransportTests
         Assert.Equal(new ProviderHttpUsage(12, 8, 4), fixture.Access.Call!.Usage);
     }
 
+    [Fact]
+    public async Task StreamWithoutContentTypeRecordsUsageAndRetainsResponse()
+    {
+        const string stream = "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":2400,\"output_tokens\":120,\"input_tokens_details\":{\"cached_tokens\":1800},\"output_tokens_details\":{\"reasoning_tokens\":64}}}}\n\n";
+        var bytes = Encoding.UTF8.GetBytes(stream);
+        await using var fixture = await Fixture.CreateAsync(_ =>
+        {
+            var content = new ByteArrayContent(bytes);
+            Assert.Null(content.Headers.ContentType);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        });
+        using var response = await fixture.ProviderClient.PostAsync("https://upstream.example/v1/responses", new StringContent("{}"));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(bytes, await response.Content.ReadAsByteArrayAsync());
+        Assert.NotNull(fixture.Access.Call);
+        Assert.True(fixture.Access.Call.Completed);
+        Assert.Equal(new ProviderHttpUsage(2400, 120, 1800, ReasoningTokens: 64), fixture.Access.Call.Usage);
+    }
+
     [Theory]
     [InlineData(401)]
     [InlineData(429)]

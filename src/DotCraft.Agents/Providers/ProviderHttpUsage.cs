@@ -16,16 +16,29 @@ public interface IProviderHttpUsageObserver
     void Complete();
 }
 
-public sealed class JsonHttpUsageObserver(
-    bool eventStream,
-    Func<ProviderHttpUsage, string, long, ProviderHttpUsage> update) : IProviderHttpUsageObserver
+public sealed class JsonHttpUsageObserver : IProviderHttpUsageObserver
 {
+    private readonly Func<ProviderHttpUsage, string, long, ProviderHttpUsage> _update;
+    private bool? _eventStream;
     private byte[] _buffer = new byte[4096];
     private int _length;
+    private int _formatProbeLength;
     private JsonReaderState _state;
     private readonly List<string> _path = [];
     private string _property = "";
     private bool _failed;
+
+    public JsonHttpUsageObserver(bool eventStream, Func<ProviderHttpUsage, string, long, ProviderHttpUsage> update)
+        : this((bool?)eventStream, update) { }
+
+    private JsonHttpUsageObserver(bool? eventStream, Func<ProviderHttpUsage, string, long, ProviderHttpUsage> update)
+    {
+        _eventStream = eventStream;
+        _update = update;
+    }
+
+    public static JsonHttpUsageObserver CreateAuto(Func<ProviderHttpUsage, string, long, ProviderHttpUsage> update) =>
+        new(null, update);
 
     public ProviderHttpUsage? Usage { get; private set; }
 
@@ -39,10 +52,7 @@ public sealed class JsonHttpUsageObserver(
         _length += bytes.Length;
         try
         {
-            if (eventStream)
-                ReadEvents(false);
-            else
-                ReadJson(_buffer.AsSpan(0, _length), false, reset: false);
+            ReadBuffered(false);
         }
         catch (JsonException)
         {
@@ -56,12 +66,28 @@ public sealed class JsonHttpUsageObserver(
             return;
         try
         {
-            if (eventStream)
-                ReadEvents(true);
-            else
-                ReadJson(_buffer.AsSpan(0, _length), true, reset: false);
+            ReadBuffered(true);
         }
         catch (JsonException) { _failed = true; }
+    }
+
+    private void ReadBuffered(bool complete)
+    {
+        if (_eventStream is null)
+        {
+            for (; _formatProbeLength < _length; _formatProbeLength++)
+            {
+                var value = _buffer[_formatProbeLength];
+                if (value is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
+                    continue;
+                _eventStream = value != (byte)'{' && value != (byte)'[';
+                break;
+            }
+        }
+        if (_eventStream is true)
+            ReadEvents(complete);
+        else if (_eventStream is false)
+            ReadJson(_buffer.AsSpan(0, _length), complete, reset: false);
     }
 
     private void ReadEvents(bool complete)
@@ -113,7 +139,7 @@ public sealed class JsonHttpUsageObserver(
                     break;
                 case JsonTokenType.Number:
                     if (IsUsagePath() && reader.TryGetInt64(out var value))
-                        Usage = update(Usage ?? new ProviderHttpUsage(), _property, value);
+                        Usage = _update(Usage ?? new ProviderHttpUsage(), _property, value);
                     break;
             }
         }
