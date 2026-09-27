@@ -1690,6 +1690,7 @@ export function App(): JSX.Element {
         switch (method as string) {
           case 'thread/started': {
             const pp = p as { thread: ThreadSummary }
+            if (pp.thread.ephemeral) break
             doAddThread(pp.thread)
             if (isSessionImportThread(pp.thread)) {
               useThreadStore.getState().markUnreadCompleted(pp.thread.id)
@@ -1705,7 +1706,7 @@ export function App(): JSX.Element {
 
           case 'thread/updated': {
             const pp = p as { thread?: Thread }
-            if (pp.thread) {
+            if (pp.thread && !pp.thread.ephemeral) {
               useThreadStore.getState().upsertThreads([pp.thread])
               if (useThreadStore.getState().activeThreadId === pp.thread.id) {
                 useThreadStore.getState().setActiveThread(pp.thread)

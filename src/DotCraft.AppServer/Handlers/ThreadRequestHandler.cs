@@ -198,6 +198,8 @@ internal sealed partial class ThreadRequestHandler(
         var msg = request.Message;
         var p = request.Params;
         RejectRemovedFields(p.ExtensionData, "excludeTurns");
+        if (ValueOrDefault(p.PromptSuggestion) == true && ValueOrDefault(p.Ephemeral) != true)
+            throw AppServerErrors.InvalidParams("'promptSuggestion' requires 'ephemeral' to be true.");
         var threadId = Require(p.ThreadId, "'threadId' is required.");
         var dynamicTools = WorktreeContractMapper.ToDynamicTools(ValueOrDefault(p.DynamicTools));
         var additionalContext = WorktreeContractMapper.ToAdditionalContext(ValueOrDefault(p.AdditionalContext));
@@ -221,9 +223,13 @@ internal sealed partial class ThreadRequestHandler(
                 Cwd = ValueOrDefault(p.Cwd),
                 RuntimeWorkspaceRoots = ValueOrDefault(p.RuntimeWorkspaceRoots),
                 DisplayName = ValueOrDefault(p.DisplayName),
-                Ephemeral = ValueOrDefault(p.Ephemeral) ?? false
+                Ephemeral = ValueOrDefault(p.Ephemeral) ?? false,
+                PromptSuggestion = ValueOrDefault(p.PromptSuggestion) ?? false
             },
             ct);
+
+        if (ValueOrDefault(p.PromptSuggestion) == true)
+            threadBinder.ForkAdditionalContext(threadId, thread.Id);
 
         await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
 

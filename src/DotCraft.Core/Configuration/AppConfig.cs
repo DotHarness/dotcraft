@@ -171,6 +171,8 @@ public sealed partial class AppConfig
     [ConfigField(Ignore = true)]
     public WelcomeSuggestionsConfig WelcomeSuggestions { get; set; } = new();
 
+    public PromptSuggestionsConfig PromptSuggestions { get; set; } = new();
+
     /// <summary>
     /// Workspace source control binding (provider selection + Perforce connection params).
     /// Never stores a password or ticket.
@@ -1056,6 +1058,13 @@ public sealed partial class AppConfig
     {
         [ConfigField(Hint = "Enable personalized welcome suggestions on the Desktop welcome screen.", Reload = ReloadBehavior.Hot, HasReload = true)]
         public bool Enabled { get; set; } = true;
+    }
+
+    [ConfigSection("PromptSuggestions", DisplayName = "Prompt Suggestions", Order = 60)]
+    public sealed class PromptSuggestionsConfig
+    {
+        [ConfigField(Hint = "Suggest the next message in an empty Desktop composer after a completed turn.", Reload = ReloadBehavior.Hot, HasReload = true)]
+        public bool Enabled { get; set; }
     }
 
     [ConfigSection("Hooks", DisplayName = "Hooks", Order = 85)]

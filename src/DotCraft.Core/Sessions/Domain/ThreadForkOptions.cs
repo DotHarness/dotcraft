@@ -40,5 +40,8 @@ public sealed record ThreadForkOptions
 
     public bool Ephemeral { get; init; }
 
+    /// <summary>Preserves the source's tool role and cache route for an ephemeral prompt-suggestion fork.</summary>
+    public bool PromptSuggestion { get; init; }
+
     public ThreadWorktreeInfo? Worktree { get; init; }
 }

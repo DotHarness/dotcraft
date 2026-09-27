@@ -44,6 +44,7 @@ public static class ConfigChangeRegions
     public const string WorkspaceProvider = "workspace.provider";
     public const string ProviderRegistry = "providers";
     public const string WelcomeSuggestions = "welcomeSuggestions";
+    public const string PromptSuggestions = "promptSuggestions";
     public const string Memory = "memory";
     public const string Skills = "skills";
     public const string Plugins = "plugins";

@@ -323,6 +323,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     sessionService,
                     Services.GetRequiredService<SessionPersistenceService>(),
                     MemoryStore,
+                    Services.GetRequiredService<DreamStore>(),
                     Paths.WorkspacePath,
                     Config,
                     Paths.Data.RootPath,

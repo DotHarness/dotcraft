@@ -1176,6 +1176,10 @@ export const MESSAGES_ZH_HANS = {
   'settings.personalization.welcomeSuggestionsHint':
     '基于工作区记忆显示建议。',
   'settings.personalization.welcomeSuggestionsSaveFailed': '保存欢迎建议设置失败：{{error}}',
+  'settings.personalization.promptSuggestions': '建议下一条消息',
+  'settings.personalization.promptSuggestionsHint': '回复结束后，在空输入框中显示可选建议。',
+  'settings.personalization.promptSuggestionsSaveFailed': '保存输入框建议设置失败：{{error}}',
+  'composer.promptSuggestionHint': '建议消息。按 Tab 使用，按 Esc 忽略。',
   'settings.personalization.selfLearning': '启用自我学习',
   'settings.personalization.selfLearningHint':
     '允许 DotCraft 从已完成的任务中学习技能，并保存到当前工作区。',

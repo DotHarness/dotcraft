@@ -125,6 +125,7 @@ export interface ThreadSummary {
   /** Workspace root used by file tools and Git for this thread. Worktree forks may differ from workspacePath. */
   effectiveWorkspacePath?: string
   forkedFromId?: string | null
+  ephemeral?: boolean
   worktree?: ThreadWorktreeInfoWire | null
   displayName: string | null
   status: ThreadStatus

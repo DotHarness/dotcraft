@@ -1051,6 +1051,10 @@ export const MESSAGES_EN = {
   'settings.personalization.welcomeSuggestionsHint':
     'Show suggestions based on workspace memory.',
   'settings.personalization.welcomeSuggestionsSaveFailed': 'Failed to save welcome suggestions setting: {{error}}',
+  'settings.personalization.promptSuggestions': 'Suggest the next message',
+  'settings.personalization.promptSuggestionsHint': 'Show an optional suggestion in the empty composer after a reply.',
+  'settings.personalization.promptSuggestionsSaveFailed': 'Failed to save prompt suggestions setting: {{error}}',
+  'composer.promptSuggestionHint': 'Suggested message. Press Tab to use it or Escape to dismiss it.',
   'settings.personalization.selfLearning': 'Enable self-learning',
   'settings.personalization.selfLearningHint':
     'Allow DotCraft to learn skills from completed tasks and save them in this workspace.',

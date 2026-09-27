@@ -79,7 +79,7 @@ A Thread captures the switch at creation and keeps it for its lifetime, like its
 Features that depend on memory stop when it is disabled and resume with their stored settings when it is enabled again:
 
 - Dreams does not start scheduled or manual runs. See [Dreams](dreams.md).
-- Welcome suggestions are not generated from memory, and clients fall back to their default suggestions.
+- Welcome suggestions are not generated from memory, and clients fall back to their default suggestions. Conversation prompt suggestions are independent of this switch.
 
 Clients show dependent settings as disabled while memory is off, with their stored values unchanged.
 
@@ -89,4 +89,4 @@ AppServer `memory/reset` deletes the contents of the current workspace's memory 
 
 ## 7. Welcome Suggestions
 
-Personalized welcome suggestions read `MEMORY.md` only. They are generated in the background after a successful Turn when the memory evidence has changed since the cached result, and are skipped when memory is disabled or `MEMORY.md` is empty.
+Personalized welcome suggestions receive an explicit snapshot of `MEMORY.md` and, when available, the active Dream Memory index as generation input alongside dedicated system instructions. The same captured content supplies the generation request and determines the cache fingerprint. They are generated in the background after a successful Turn when that context has changed since the cached result, and are skipped when memory is disabled or both sources are empty. The internal Thread submits its result through `EmitWelcomeSuggestions`.

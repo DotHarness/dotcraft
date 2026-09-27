@@ -34,6 +34,7 @@ import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { emptyComposerDraftSnapshot, mergeRestoredComposerDraft } from '../../utils/composerSubmission'
 import { expandInitCommand } from '../../utils/initCommand'
 import { useComposerMascot } from './useComposerMascot'
+import { usePromptSuggestion } from './usePromptSuggestion'
 import { useComposerFileAttachmentRequest } from './useComposerFileAttachmentRequest'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { readThreadHistoryHead } from '../../utils/threadHistory'
@@ -1553,6 +1554,14 @@ function InputComposerCore({
     const textLen = (richRef.current?.getText() ?? '').trim().length
     return (textLen > 0 || images.length > 0 || files.length > 0 || contexts.length > 0) && pastedText.pending === 0 && !isWaitingApproval && !isWaitingInput && !modelLoading
   }, [contentRevision, pastedText.pending, contexts.length, files.length, images.length, isWaitingApproval, isWaitingInput, modelLoading])
+  const composerEmpty = (richRef.current?.getText() ?? '').trim().length === 0
+    && images.length === 0 && files.length === 0 && contexts.length === 0 && pastedText.pending === 0
+  const promptSuggestion = usePromptSuggestion({
+    threadId,
+    workspacePath,
+    canSuggest: composerEmpty && !hasSubmitOverride && !isWaitingApproval && !isWaitingInput
+      && !modelLoading && !voiceRecording && !voiceProcessing
+  })
   const canSendWithVoice = voiceRecording || (canSend && !voiceProcessing)
   const submitOrStopVoice = useCallback((): void => {
     if (voiceRecording && !isBusyForInput) {
@@ -1777,6 +1786,16 @@ function InputComposerCore({
               <RichInputArea
                 ref={richRef}
                 chrome="minimal"
+                suggestion={promptSuggestion.suggestion}
+                suggestionHint={t('composer.promptSuggestionHint')}
+                onAcceptSuggestion={() => {
+                  const value = promptSuggestion.accept()
+                  if (value) {
+                    richRef.current?.setPlainText(value)
+                    richRef.current?.setSelectionRange({ start: value.length, end: value.length })
+                  }
+                }}
+                onDismissSuggestion={promptSuggestion.dismiss}
                 disabled={isWaitingApproval || isWaitingInput}
                 suppressSubmit={showMentionPopover || showCommandPopover || showSkillPopover || modelLoading}
                 voiceOrigin={threadId}
@@ -1797,13 +1816,17 @@ function InputComposerCore({
                           : placeholder ?? t('composer.placeholder.ask')
                 }
                 onSubmit={() => {
+                  promptSuggestion.dismiss()
                   submitOrStopVoice()
                 }}
                 onAtQuery={remoteWorkspace ? undefined : handleAtQuery}
                 onSlashQuery={handleSlashQuery}
                 onCommandQuery={handleCommandQuery}
                 onSkillQuery={handleSkillQuery}
-                onContentChange={handleComposerContentChange}
+                onContentChange={() => {
+                  handleComposerContentChange()
+                  promptSuggestion.dismiss()
+                }}
                 onFocusChange={setEditorFocused}
                 onPasteImage={onPasteImage}
                 onPasteText={pastedText.onPasteText}

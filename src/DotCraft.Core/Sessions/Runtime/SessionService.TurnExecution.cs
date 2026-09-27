@@ -930,7 +930,9 @@ public sealed partial class SessionService
                     .ConfigureAwait(false);
 
                 // Bind tracing and token tracking before model history reconstruction.
-                if (traceCollector != null && thread.Source.SubAgent is { } subAgentSource)
+                if (PromptSuggestionThread.IsSuggestion(thread))
+                    BindPromptSuggestionTrace(thread);
+                else if (traceCollector != null && thread.Source.SubAgent is { } subAgentSource)
                 {
                     var traceRootThreadId = string.IsNullOrWhiteSpace(subAgentSource.RootThreadId)
                         ? threadId
@@ -952,6 +954,7 @@ public sealed partial class SessionService
                 {
                     traceCollector?.BindThreadMainSession(threadId);
                 }
+                RecordPromptSuggestionOutcome(thread, turn, started: true);
                 TracingChatClient.CurrentSessionKey = threadId;
                 TracingChatClient.ResetCallState(threadId);
                 mainTraceUsageBaseline = traceCollector?.GetTokenUsageCount(threadId) ?? 0;
@@ -2319,6 +2322,7 @@ public sealed partial class SessionService
             }
             finally
             {
+                RecordPromptSuggestionOutcome(thread, turn);
                 turnModelHistory?.AbortPending();
                 approvalOverride?.Dispose();
                 gateLock?.Dispose();

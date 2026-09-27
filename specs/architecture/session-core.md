@@ -1747,6 +1747,8 @@ Current-context handoff uses the canonical shared model-history replayer. Its Ma
 
 Dashboard trace-session deletion follows the same persistence contract. Deleting one trace session removes that session's trace rows and associated dashboard usage rows; if the session is bound to a thread, deletion cascades through permanent thread deletion. Clearing all trace sessions deletes the selected trace/thread state and associated usage rows, but preserves global usage rows that have no `thread_id` or `session_key`. Bulk trace clearing may run SQLite maintenance (`wal_checkpoint(TRUNCATE)` and conditional `VACUUM`) after deletion to reclaim WAL/free-page space.
 
+Internal prompt-suggestion forks bind to their parent trace session and record parent Turn, fork Turn, and terminal outcome as diagnostic metadata. Provider completion metadata remains separate from Turn status, so a successful provider response with no visible text can be distinguished from a transport failure even when the Turn fails the existing empty-response check. Temporary fork cleanup retains diagnostic records under the existing trace retention policy.
+
 Dashboard trace event reads are paged from the durable trace store. The first page returns a bounded newest-first window of events for the selected session or all sessions; clients fetch older events with an opaque `beforeCursor` when the user scrolls upward. Maintenance envelope events are filterable as maintenance events and are counted separately from normal LLM request/response totals, while detailed collector events and token usage remain in the same trace session for correlation.
 
 The effective `AGENTS.md` context-page snapshot is persisted as an `AgentInstructions` trace event.

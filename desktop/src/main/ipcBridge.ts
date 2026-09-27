@@ -624,6 +624,7 @@ interface WorkspaceCoreConfigSnapshot {
   providerId: string | null
   providerPreferences: ProviderPreferences
   welcomeSuggestionsEnabled: boolean | null
+  promptSuggestionsEnabled: boolean | null
   skillsSelfLearningEnabled: boolean | null
   skillsIncludeSharedSkills: boolean | null
   memoryEnabled: boolean | null
@@ -707,6 +708,7 @@ function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
     providerId: null,
     providerPreferences: {},
     welcomeSuggestionsEnabled: null,
+    promptSuggestionsEnabled: null,
     skillsSelfLearningEnabled: null,
     skillsIncludeSharedSkills: null,
     memoryEnabled: null,
@@ -727,6 +729,7 @@ function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapsho
       getCaseInsensitiveRecordValue(parsed, 'ProviderPreferences')
     ),
     welcomeSuggestionsEnabled: readNestedBoolean(parsed, 'WelcomeSuggestions', 'Enabled'),
+    promptSuggestionsEnabled: readNestedBoolean(parsed, 'PromptSuggestions', 'Enabled'),
     skillsSelfLearningEnabled: readSkillsSelfLearningEnabled(parsed),
     skillsIncludeSharedSkills: readNestedBoolean(parsed, 'Skills', 'IncludeSharedSkills'),
     memoryEnabled: readNestedBoolean(parsed, 'Memory', 'Enabled'),

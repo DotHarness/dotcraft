@@ -63,4 +63,3 @@ Read the one that matches the task. They sit next to this file, in the directory
 - A failure that needs logs, rollouts, or `state.db` — `dotcraft-doctor`, in the bundled `dotcraft` plugin. If it is not installed, say so and point to Desktop > Plugins rather than guessing at a cause. An error already visible in this conversation you can simply answer.
 - Writing or installing a skill — `$skill-authoring`, `$skill-installer`. Plugins — `$plugin-creator`. Hooks — `$create-hooks`. Schedules — the `Automation` tool. Workflows — `$workflow-authoring`. Charts and interactive views — `$visualize`.
 - Building an application on the SDKs, in-process Harness, or AppServer protocol — `$dotcraft-api`.
-- Editing DotCraft's own source or documentation — `dotcraft-dev-guide`, `dotcraft-docs-guide`.

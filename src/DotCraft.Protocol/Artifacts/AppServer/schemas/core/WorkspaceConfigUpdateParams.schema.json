@@ -64,6 +64,16 @@
         }
       ]
     },
+    "promptSuggestionsEnabled": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "providerId": {
       "anyOf": [
         {

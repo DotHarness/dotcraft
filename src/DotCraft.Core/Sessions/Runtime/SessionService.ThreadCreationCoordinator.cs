@@ -105,6 +105,15 @@ public sealed partial class SessionService
             options ??= new ThreadForkOptions();
             var normalizedThreadId = NormalizeRequiredThreadId(threadId);
             var source = await LoadForkSourceThreadAsync(normalizedThreadId, options.Path, ct);
+            if (options.PromptSuggestion && (!options.Ephemeral
+                || options.ForkPoint is not { } forkPoint
+                || forkPoint.TurnId != source.Turns.LastOrDefault()?.Id
+                || !string.IsNullOrWhiteSpace(forkPoint.ItemId)
+                || !ResolveForkPosition(forkPoint.Position)
+                || source.Turns.LastOrDefault()?.Status != TurnStatus.Completed))
+            {
+                throw new ArgumentException("Prompt suggestions require an ephemeral fork after the latest completed Turn.", nameof(options));
+            }
             var identity = ResolveForkIdentity(source, options.Identity);
             var now = DateTimeOffset.UtcNow;
             var config = options.Config != null
@@ -128,6 +137,16 @@ public sealed partial class SessionService
             var forkedThreadId = SessionIdGenerator.NewThreadId();
             var activeSourceTurns = source.Turns.Where(IsActiveTurn).ToArray();
             var forkedTurns = CloneForkTurns(source, options.ForkPoint, forkedThreadId, source.Id, now);
+            var metadata = CopyForkMetadata(source, identity);
+            if (options.Ephemeral && options.PromptSuggestion)
+            {
+                metadata[ThreadVisibility.InternalMetadataKey] = PromptSuggestionThread.InternalValue;
+                metadata[PromptSuggestionThread.CacheRootKey] = string.IsNullOrWhiteSpace(source.Source.SubAgent?.RootThreadId)
+                    ? source.Id
+                    : source.Source.SubAgent.RootThreadId;
+                metadata[PromptSuggestionThread.ParentTurnKey] = options.ForkPoint!.TurnId!;
+                metadata[PromptSuggestionThread.ToolKindKey] = ToolPlanningThreadClassifier.Classify(source).ToString();
+            }
             var forked = new SessionThread
             {
                 Id = forkedThreadId,
@@ -145,15 +164,19 @@ public sealed partial class SessionService
                 ForkedFromId = source.Id,
                 Ephemeral = options.Ephemeral,
                 Worktree = options.Worktree,
-                Metadata = CopyForkMetadata(source, identity),
+                Metadata = metadata,
                 Turns = forkedTurns,
                 QueuedInputs = [],
                 ProviderHistorySchemaVersion = ProviderHistorySchema.CurrentSchemaVersion
             };
 
+            owner.BindPromptSuggestionTrace(forked);
             owner._runtimeRegistry.SetThread(forked);
             owner._runtimeRegistry.ClearPendingPermanentDeletion(forked.Id);
             var broker = owner.GetOrCreateBroker(forked.Id);
+
+            if (options.Ephemeral && options.PromptSuggestion)
+                ((IThreadForkToolBindingService)owner).TryForkThreadToolBindings(source.Id, forked.Id);
 
             using (await owner.AcquireThreadAgentLockAsync(forked.Id, ct))
             {
@@ -165,6 +188,19 @@ public sealed partial class SessionService
             var interruptions = await owner.BuildForkInterruptionsAsync(source, forked, activeSourceTurns, ct);
             var materialization = await owner.Persistence.BuildForkModelHistoryMaterializationAsync(
                 source, forked, ct, interruptions);
+            if (options.PromptSuggestion)
+            {
+                var copiedHistory = await owner.Persistence.LoadModelHistoryAsync(source, null, ct);
+                if (copiedHistory.Count > 0)
+                {
+                    materialization = materialization with
+                    {
+                        History = copiedHistory,
+                        EstimatedTokens = MessageTokenEstimator.Estimate(copiedHistory),
+                        UsageSource = "copied_model_history"
+                    };
+                }
+            }
             if (forked.Ephemeral)
                 owner._runtimeRegistry.SetThread(forked).EphemeralHistory = materialization.History;
             else

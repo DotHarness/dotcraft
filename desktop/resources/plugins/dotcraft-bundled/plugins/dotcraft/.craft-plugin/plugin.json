@@ -3,7 +3,7 @@
   "id": "dotcraft",
   "version": "0.5.0",
   "displayName": "DotCraft",
-  "description": "Development and troubleshooting workflows for DotCraft.",
+  "description": "Desktop debugging and troubleshooting workflows for DotCraft.",
   "capabilities": ["skill", "desktop"],
   "skills": "./skills/",
   "desktop": {
@@ -12,12 +12,12 @@
   },
   "interface": {
     "displayName": "DotCraft",
-    "shortDescription": "Develop, diagnose, and document DotCraft",
-    "longDescription": "Product-specific workflows for developing and troubleshooting DotCraft, including development norms, Desktop debugging, diagnostics, context handoff, issue reporting, and localized documentation.",
+    "shortDescription": "Debug and troubleshoot DotCraft",
+    "longDescription": "Product-specific workflows for Desktop debugging, diagnostics, context handoff, and issue reporting.",
     "developerName": "DotHarness",
     "category": "Engineering",
     "capabilities": ["Skill", "Read"],
-    "defaultPrompt": "Help me develop or troubleshoot DotCraft using the appropriate workflow.",
+    "defaultPrompt": "Help me debug or troubleshoot DotCraft using the appropriate workflow.",
     "composerIcon": "./assets/dotcraft.svg",
     "logo": "./assets/dotcraft.svg"
   }

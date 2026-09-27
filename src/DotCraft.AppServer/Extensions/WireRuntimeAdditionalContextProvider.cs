@@ -47,6 +47,28 @@ public sealed class WireRuntimeAdditionalContextProvider : IThreadSystemPromptCo
         return true;
     }
 
+    public bool TryForkThreadBinding(string parentThreadId, string childThreadId, AppServerConnection connection)
+    {
+        if (!_byThread.TryGetValue(parentThreadId, out var parent)
+            || parent.Connection.IsClosed
+            || !ReferenceEquals(parent.Connection, connection))
+            return false;
+
+        _byThread[childThreadId] = new RuntimeAdditionalContextBinding(
+            childThreadId,
+            parent.Transport,
+            parent.Connection,
+            parent.AdditionalContext.ToDictionary(
+                entry => entry.Key,
+                entry => new RuntimeAdditionalContextValue
+                {
+                    Kind = entry.Value.Kind,
+                    Value = entry.Value.Value
+                },
+                StringComparer.Ordinal));
+        return true;
+    }
+
     public IReadOnlyList<string> UnbindTransport(IAppServerTransport transport)
     {
         var removed = new List<string>();

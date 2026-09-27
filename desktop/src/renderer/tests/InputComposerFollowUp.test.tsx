@@ -20,6 +20,9 @@ import { useComposerDraftStore } from '../stores/composerDraftStore'
 import { useGitStore } from '../stores/gitStore'
 import { useVoiceStore } from '../voice/voiceStore'
 import { installDesktopApiMock } from './desktopApiMock'
+import { generatePromptSuggestion } from '../utils/promptSuggestion'
+
+vi.mock('../utils/promptSuggestion', () => ({ generatePromptSuggestion: vi.fn(), logPromptSuggestion: vi.fn() }))
 
 const sendRequest = vi.fn()
 const settingsSet = vi.fn()
@@ -53,6 +56,7 @@ describe('InputComposer follow-up routing', () => {
     await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('turn/steer', expect.anything()))
   })
   beforeEach(() => {
+    vi.mocked(generatePromptSuggestion).mockReset().mockResolvedValue(null)
     localStorage.clear()
     useComposerContextStore.setState({ byThread: {} })
     usePendingPasteStore.setState({ pastes: [] })
@@ -78,6 +82,43 @@ describe('InputComposer follow-up routing', () => {
     useVoiceStore.setState({ initialized: false, recording: null, finalizing: null,
       snapshot: { model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }, chatGpt: { signedIn: false, enabled: true }, sessions: [], capacity: 2 } })
     useConversationStore.setState({ turnStatus: 'running', activeTurnId: 'turn-123' })
+  })
+
+  it('offers an unfocused suggestion and accepts it with the caret at the end', async () => {
+    installDesktopApiMock({
+      settings: { get: async () => ({ locale: 'en' }), set: settingsSet },
+      workspaceConfig: { getCore: async () => ({ workspace: { promptSuggestionsEnabled: true }, userDefaults: {} }) },
+      appServer: { sendRequest, onNotification: () => () => {} },
+      git: { listBranches: async () => ({ current: 'main', detachedHead: null, branches: [] }) },
+      voice: undefined
+    })
+    vi.mocked(generatePromptSuggestion).mockResolvedValue('Continue with the plan')
+    useThreadStore.setState({ activeThreadId: 'thread-1' })
+    renderComposer()
+    const textbox = screen.getByRole('textbox')
+    fireEvent.blur(textbox)
+    await act(async () => { await Promise.resolve() })
+    act(() => useConversationStore.setState({
+      turnStatus: 'idle', activeTurnId: null,
+      turns: [{ id: 'turn-123', threadId: 'thread-1', status: 'completed', startedAt: '2026-01-01T00:00:00Z', items: [] }]
+    }))
+    await waitFor(() => expect(textbox).toHaveAccessibleDescription(expect.stringContaining('Continue with the plan')))
+    expect(textbox.textContent).toBe('')
+    act(() => textbox.focus())
+    fireEvent.keyDown(textbox, { key: 'Tab' })
+    expect(textbox.textContent).toBe('Continue with the plan')
+    const selection = window.getSelection()!
+    expect(selection.isCollapsed).toBe(true)
+    const beforeCaret = document.createRange()
+    beforeCaret.selectNodeContents(textbox)
+    beforeCaret.setEnd(selection.anchorNode!, selection.anchorOffset)
+    expect(beforeCaret.toString()).toBe('Continue with the plan')
+    act(() => {
+      selection.getRangeAt(0).insertNode(document.createTextNode(' please'))
+      fireEvent.input(textbox)
+    })
+    expect(textbox.textContent).toBe('Continue with the plan please')
+    expect(sendRequest.mock.calls.some(([method]) => method === 'turn/start')).toBe(false)
   })
 
   it.each([

@@ -5596,6 +5596,10 @@ public sealed class ThreadForkParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool?> Ephemeral { get; init; }
 
+    [JsonPropertyName("promptSuggestion")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool?> PromptSuggestion { get; init; }
+
     [JsonPropertyName("forkPoint")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ThreadForkPoint?> ForkPoint { get; init; }
@@ -7107,6 +7111,10 @@ public sealed class WorkspaceConfigUpdateParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> ProviderId { get; init; }
 
+    [JsonPropertyName("promptSuggestionsEnabled")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool?> PromptSuggestionsEnabled { get; init; }
+
     [JsonPropertyName("providerPreferences")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, ModelPreference>?> ProviderPreferences { get; init; }
@@ -7159,6 +7167,10 @@ public sealed class WorkspaceConfigUpdateResult : ExtensibleJsonObject
     [JsonPropertyName("providerId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> ProviderId { get; init; }
+
+    [JsonPropertyName("promptSuggestionsEnabled")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool?> PromptSuggestionsEnabled { get; init; }
 
     [JsonPropertyName("providerPreferences")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

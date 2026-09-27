@@ -214,7 +214,7 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         [
             AIFunctionFactory.Create(() => "ok", name: "DeferredExample", description: "Deferred example.")
         ]));
-        var welcomeMethods = new WelcomeSuggestionToolMethods(new MemoryStore(_tempRoot));
+        var welcomeMethods = new WelcomeSuggestionToolMethods();
         var builderMethods = CreateAgentBuilderMethods("schema-builder");
         var skillView = new SkillViewTool(new SkillsLoader(_tempRoot), variantModeEnabled: false, new SkillVariantTarget());
         var skillManage = CreateSkillManageTool();
@@ -244,7 +244,6 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
             Pair(GeneratedToolFunctions.AgentTools_ListAgents(agentTools), AIFunctionFactory.Create(agentTools.ListAgents)),
             Pair(GeneratedToolFunctions.AgentTools_CloseAgent(agentTools), AIFunctionFactory.Create(agentTools.CloseAgent)),
             Pair(GeneratedToolFunctions.ToolSearchTool_SearchTools(searchTool), AIFunctionFactory.Create(searchTool.SearchTools)),
-            Pair(GeneratedToolFunctions.WelcomeSuggestionToolMethods_ReadWelcomeWorkspaceMemory(welcomeMethods), AIFunctionFactory.Create(welcomeMethods.ReadWelcomeWorkspaceMemory)),
             Pair(GeneratedToolFunctions.WelcomeSuggestionToolMethods_EmitWelcomeSuggestions(welcomeMethods), AIFunctionFactory.Create(welcomeMethods.EmitWelcomeSuggestions)),
             Pair(GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentName(builderMethods), AIFunctionFactory.Create(builderMethods.SetAgentName)),
             Pair(GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentDescription(builderMethods), AIFunctionFactory.Create(builderMethods.SetAgentDescription)),

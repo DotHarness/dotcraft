@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Dreams;
 using DotCraft.Memory;
 using DotCraft.Tools;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -35,6 +36,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     private readonly ThreadStore _threadStore;
     private readonly SessionPersistenceService _persistence;
     private readonly MemoryStore _memoryStore;
+    private readonly DreamStore _dreamStore;
     private readonly TestableSessionService _sessionService;
 
     public WelcomeSuggestionServiceTests()
@@ -46,6 +48,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         _threadStore = new ThreadStore(_craftPath);
         _persistence = new SessionPersistenceService(_threadStore);
         _memoryStore = new MemoryStore(_craftPath);
+        _dreamStore = new DreamStore(_craftPath);
         _sessionService = new TestableSessionService(_threadStore);
     }
 
@@ -197,9 +200,6 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         Assert.Equal(4, result.Items.Count);
         Assert.NotEmpty(_sessionService.LastSubmittedContent);
         Assert.Null(_sessionService.LastSubmittedMessages);
-        Assert.Contains(
-            "Inspect workspace MEMORY.md, infer the likely next tasks",
-            string.Concat(_sessionService.LastSubmittedContent.OfType<TextContent>().Select(item => item.Text)));
 
         var remainingThreads = await _threadStore.LoadIndexAsync();
         Assert.Equal(initialThreadCount, remainingThreads.Count);
@@ -210,59 +210,19 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ReadWelcomeWorkspaceMemory_ExtractsHighlights()
+    public async Task ScheduleRefresh_WithOnlyDreamMemory_AttemptsGeneration()
     {
-        File.WriteAllText(_memoryStore.LongTermFilePath, """
-            The current focus is improving Desktop welcome suggestions.
-            Make the generated prompts specific to thread history and memory from ConversationWelcome.tsx.
-            Welcome suggestion output should mention concrete modules like WelcomeSuggestionService.cs or settings keys in .craft/config.json instead of generic onboarding.
-            """);
+        var store = _dreamStore.CreateOutputStore("welcome_dream", DateTimeOffset.UtcNow);
+        File.WriteAllText(store.IndexPath, "# Dream Memory\n\nContinue improving welcome suggestions.");
+        _dreamStore.SetActiveStore(store.StoreId);
+        _sessionService.SubmitInputHandler = (_, _, _) => [];
 
-        var methods = new WelcomeSuggestionToolMethods(_memoryStore);
+        await using var service = CreateService();
+        service.ScheduleRefresh(_workspacePath);
+        await WaitForAsync(() => _sessionService.LastSubmittedContent.Count > 0, timeoutMs: RefreshTimeoutMs);
 
-        var resultJson = await methods.ReadWelcomeWorkspaceMemory();
-        var result = JsonSerializer.Deserialize<WelcomeWorkspaceMemoryResult>(resultJson, JsonOptions)!;
-
-        Assert.NotEmpty(result.MemoryHighlights);
-    }
-
-    [Fact]
-    public async Task WelcomeSuggestionTools_ReturnJsonStrings()
-    {
-        File.WriteAllText(_memoryStore.LongTermFilePath, "Desktop welcome suggestions should use workspace memory.");
-
-        var methods = new WelcomeSuggestionToolMethods(_memoryStore);
-
-        var memoryJson = await methods.ReadWelcomeWorkspaceMemory();
-        var memory = JsonSerializer.Deserialize<WelcomeWorkspaceMemoryResult>(memoryJson, JsonOptions)!;
-        Assert.Contains("workspace memory", memory.Memory, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void WelcomeSuggestionTools_ExposeStringReturnSchema()
-    {
-        var methods = new WelcomeSuggestionToolMethods(_memoryStore);
-        var toolMethods = new[]
-        {
-            nameof(WelcomeSuggestionToolMethods.ReadWelcomeWorkspaceMemory)
-        };
-
-        foreach (var methodName in toolMethods)
-        {
-            var method = typeof(WelcomeSuggestionToolMethods).GetMethod(methodName)!;
-            Assert.Equal(typeof(Task<string>), method.ReturnType);
-
-            var function = methodName switch
-            {
-                nameof(WelcomeSuggestionToolMethods.ReadWelcomeWorkspaceMemory) =>
-                    AIFunctionFactory.Create(methods.ReadWelcomeWorkspaceMemory),
-                _ => throw new InvalidOperationException(methodName)
-            };
-            var rawSchema = Assert.NotNull(function.ReturnJsonSchema).GetRawText();
-            Assert.Contains("\"string\"", rawSchema, StringComparison.Ordinal);
-            Assert.DoesNotContain("threadId", rawSchema, StringComparison.Ordinal);
-            Assert.DoesNotContain("memoryHighlights", rawSchema, StringComparison.Ordinal);
-        }
+        Assert.False(File.Exists(_memoryStore.LongTermFilePath));
+        Assert.NotEmpty(_sessionService.LastSubmittedContent);
     }
 
     [Fact]
@@ -377,9 +337,9 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SuggestAsync_WithOldPersistedCacheSchema_ReturnsNone()
+    public async Task SuggestAsync_WithUnsupportedPersistedCacheSchema_ReturnsNone()
     {
-        await WritePersistedCacheAsync("old-thread-history-snapshot", schemaVersion: 1);
+        await WritePersistedCacheAsync("unsupported-snapshot", schemaVersion: 2);
 
         var service = CreateService();
         var result = await service.SuggestAsync(new WelcomeSuggestionRequest
@@ -556,6 +516,13 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         await Task.Delay(1500);
 
         Assert.Equal(1, submitCount);
+
+        var dream = _dreamStore.CreateOutputStore("welcome_change", DateTimeOffset.UtcNow);
+        File.WriteAllText(dream.IndexPath, "# Dream Memory\n\nInvestigate welcome suggestion behavior.");
+        _dreamStore.SetActiveStore(dream.StoreId);
+        var thirdService = CreateService();
+        thirdService.ScheduleRefresh(_workspacePath);
+        await WaitForAsync(() => Volatile.Read(ref submitCount) == 2, timeoutMs: RefreshTimeoutMs);
     }
 
     [Fact]
@@ -795,7 +762,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     private string GetPersistedCachePath() =>
         Path.Combine(_workspacePath, ".craft", "cache", "welcome-suggestions.json");
 
-    private async Task WritePersistedCacheAsync(string fingerprint, int schemaVersion = 2)
+    private async Task WritePersistedCacheAsync(string fingerprint, int schemaVersion = 1)
     {
         var cachePath = GetPersistedCachePath();
         Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
@@ -840,6 +807,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
             _sessionService,
             _persistence,
             _memoryStore,
+            _dreamStore,
             _workspacePath,
             new AppConfig
             {

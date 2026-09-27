@@ -1,6 +1,8 @@
+using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Memory;
+using DotCraft.Persistence;
 using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Sessions;
@@ -15,6 +17,7 @@ using SystemNoticePayload = DotCraft.Sessions.SystemNoticePayload;
 using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 using Xunit;
 using DotCraft.Tools;
+using DotCraft.Tracing;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
@@ -253,15 +256,127 @@ public sealed class SessionServiceForkTests : IDisposable
         Assert.DoesNotContain(listed, summary => summary.Id == fork.Id);
     }
 
-    private SessionService CreateService(AgentFactory agentFactory, IChatClient? chatClient = null)
+    [Theory]
+    [InlineData(null)]
+    [InlineData("after")]
+    public async Task ForkThreadAsync_PromptSuggestionSharesCacheRouteAndToolRole(string? position)
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var source = await service.CreateThreadAsync(MakeIdentity());
+        AddCompletedTurn(source, "turn_001", "first", "answer one");
+
+        var fork = await service.ForkThreadAsync(source.Id, new ThreadForkOptions
+        {
+            Ephemeral = true,
+            PromptSuggestion = true,
+            ForkPoint = position == null
+                ? new ThreadForkPoint { TurnId = "turn_001" }
+                : new ThreadForkPoint { TurnId = "turn_001", Position = position }
+        });
+
+        var parentIdentity = ThreadConversationIdentity.Create(source, source.Turns[^1], "window", ProviderRequestKind.Turn);
+        var forkIdentity = ThreadConversationIdentity.Create(fork, fork.Turns[^1], "window", ProviderRequestKind.Turn);
+        Assert.Equal(parentIdentity.RootThreadId, forkIdentity.RootThreadId);
+        Assert.NotEqual(parentIdentity.CurrentThreadId, forkIdentity.CurrentThreadId);
+        Assert.Equal(ToolPlanningThreadClassifier.Classify(source), ToolPlanningThreadClassifier.Classify(fork));
+        Assert.True(ThreadVisibility.IsInternal(fork));
+        Assert.Equal(source.Configuration?.Model, fork.Configuration?.Model);
+        Assert.Equal(source.Configuration?.ProviderId, fork.Configuration?.ProviderId);
+    }
+
+    [Theory]
+    [InlineData("before", null)]
+    [InlineData("after", "turn_001_user")]
+    public async Task ForkThreadAsync_PromptSuggestionRejectsPartialBoundaries(string position, string? itemId)
+    {
+        await using var factory = CreateAgentFactory();
+        var service = CreateService(factory);
+        var source = await service.CreateThreadAsync(MakeIdentity());
+        AddCompletedTurn(source, "turn_001", "request", "answer");
+        var created = 0;
+        service.ThreadCreatedForBroadcast += _ => created++;
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.ForkThreadAsync(source.Id, new ThreadForkOptions
+        {
+            Ephemeral = true,
+            PromptSuggestion = true,
+            ForkPoint = new ThreadForkPoint { TurnId = "turn_001", Position = position, ItemId = itemId }
+        }));
+        Assert.Equal(0, created);
+    }
+
+    [Theory]
+    [InlineData("Add a regression test")]
+    [InlineData("")]
+    public async Task ForkThreadAsync_PromptSuggestionAppendsToParentModelRequest(string suggestion)
+    {
+        var agentsPath = Path.Combine(_tempDir, "AGENTS.md");
+        File.WriteAllText(agentsPath, "Keep responses concise.");
+        var chatClient = new RecordingChatClient("Fix complete");
+        await using var agentFactory = CreateAgentFactory(chatClient, [new EchoToolSource()]);
+        var traceStore = new TraceStore(new WorkspaceStateDatabase(_tempDir), maxEventsPerSession: 5000, synchronousPersist: true);
+        var service = CreateService(agentFactory, traceCollector: new TraceCollector(traceStore));
+        var source = await service.CreateThreadAsync(MakeIdentity());
+        await DrainAsync(service.SubmitInputAsync(source.Id, [new TextContent("Fix the timeout")]));
+        var parentMessages = chatClient.LastMessages.Select(MessageText).ToArray();
+        var parentTools = chatClient.LastOptions?.Tools?.Select(tool => tool.Name).ToArray();
+        var parentModel = chatClient.LastOptions?.ModelId;
+        var parentReasoning = chatClient.LastOptions?.Reasoning;
+        var parentCacheKey = chatClient.LastPromptCacheKey;
+        Assert.NotEmpty(parentTools ?? []);
+        Assert.Equal(source.Id, parentCacheKey);
+        var lastTurn = (await service.GetThreadAsync(source.Id)).Turns[^1];
+
+        var fork = await service.ForkThreadAsync(source.Id, new ThreadForkOptions
+        {
+            Ephemeral = true,
+            PromptSuggestion = true,
+            ForkPoint = new ThreadForkPoint { TurnId = lastTurn.Id }
+        });
+        Assert.Equal([agentsPath], await service.GetInstructionSourcesAsync(fork.Id));
+        chatClient.ResponseText = suggestion;
+        await DrainAsync(service.SubmitInputAsync(fork.Id, [new TextContent("Suggest the next message")]));
+
+        Assert.Equal(parentMessages, chatClient.LastMessages.Take(parentMessages.Length).Select(MessageText));
+        Assert.Equal(parentTools, chatClient.LastOptions?.Tools?.Select(tool => tool.Name));
+        Assert.Equal(parentModel, chatClient.LastOptions?.ModelId);
+        Assert.Equal(parentReasoning?.Effort, chatClient.LastOptions?.Reasoning?.Effort);
+        Assert.Equal(parentReasoning?.Output, chatClient.LastOptions?.Reasoning?.Output);
+        Assert.Equal(parentCacheKey, chatClient.LastPromptCacheKey);
+        Assert.Contains("Suggest the next message", MessageText(chatClient.LastMessages.Last()));
+        if (suggestion.Length > 0)
+            Assert.Contains(fork.Turns[^1].Items, item => item.AsAgentMessage?.Text == suggestion);
+        var relation = traceStore.DescribeSessionRelationships([fork.Id])[fork.Id];
+        Assert.Equal(source.Id, relation.ParentSessionKey);
+        Assert.Equal(source.Id, traceStore.DescribeSessionDeletion(fork.Id).RootThreadId);
+        await service.DeleteThreadPermanentlyAsync(fork.Id);
+        var outcomes = traceStore.GetEvents(fork.Id)
+            .Where(evt => evt.Content == "Prompt suggestion outcome")
+            .Select(evt =>
+            {
+                using var document = JsonDocument.Parse(evt.MetadataJson!);
+                return document.RootElement.Clone();
+            }).ToArray();
+        Assert.Equal(2, outcomes.Length);
+        Assert.Equal("started", outcomes[0].GetProperty("outcome").GetString());
+        var outcome = outcomes[1];
+        Assert.Equal(source.Id, outcome.GetProperty("parentThreadId").GetString());
+        Assert.Equal(lastTurn.Id, outcome.GetProperty("parentTurnId").GetString());
+        Assert.Equal(fork.Turns[^1].Id, outcome.GetProperty("turnId").GetString());
+        Assert.Equal(suggestion.Length > 0 ? "text" : "failed", outcome.GetProperty("outcome").GetString());
+        Assert.Null(await _store.LoadThreadAsync(fork.Id));
+    }
+
+    private SessionService CreateService(AgentFactory agentFactory, IChatClient? chatClient = null, TraceCollector? traceCollector = null)
     {
         var defaultAgent = chatClient == null
             ? agentFactory.CreateAgentForMode(AgentMode.Agent)
             : chatClient.AsAIAgent();
-        return new SessionService(agentFactory, defaultAgent, _persistence, new SessionGate());
+        return new SessionService(agentFactory, defaultAgent, _persistence, new SessionGate(), traceCollector: traceCollector);
     }
 
-    private AgentFactory CreateAgentFactory()
+    private AgentFactory CreateAgentFactory(IChatClient? chatClient = null, IToolSource[]? toolSources = null)
     {
         var config = AppConfigTestFactory.CreateOpenAI();
         return new AgentFactory(
@@ -273,7 +388,8 @@ public sealed class SessionServiceForkTests : IDisposable
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
             chatClientRegistry: TestModelProviderRegistry.Create(),
-            toolSources: Array.Empty<IToolSource>());
+            chatClient: chatClient,
+            toolSources: toolSources ?? []);
     }
 
     private SessionIdentity MakeIdentity() =>
@@ -357,7 +473,13 @@ public sealed class SessionServiceForkTests : IDisposable
 
     private sealed class RecordingChatClient(string responseText) : IChatClient
     {
+        public string ResponseText { get; set; } = responseText;
+
         public IReadOnlyList<ChatMessage> LastMessages { get; private set; } = [];
+
+        public ChatOptions? LastOptions { get; private set; }
+
+        public string? LastPromptCacheKey { get; private set; }
 
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> chatMessages,
@@ -365,7 +487,9 @@ public sealed class SessionServiceForkTests : IDisposable
             CancellationToken cancellationToken = default)
         {
             LastMessages = chatMessages.ToList();
-            return Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, responseText)]));
+            LastOptions = options?.Clone();
+            LastPromptCacheKey = ProviderPromptCacheMetadata.ResolveKey(options);
+            return Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, ResponseText)]));
         }
 
         public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
@@ -374,7 +498,9 @@ public sealed class SessionServiceForkTests : IDisposable
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             LastMessages = chatMessages.ToList();
-            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent(responseText)]);
+            LastOptions = options?.Clone();
+            LastPromptCacheKey = ProviderPromptCacheMetadata.ResolveKey(options);
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent(ResponseText)]) { FinishReason = ChatFinishReason.Stop };
             await Task.CompletedTask;
         }
 
@@ -382,6 +508,16 @@ public sealed class SessionServiceForkTests : IDisposable
 
         public void Dispose()
         {
+        }
+    }
+
+    private sealed class EchoToolSource : AIFunctionToolSource
+    {
+        public override string SourceId => "fork-test-echo";
+
+        protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
+        {
+            yield return AIFunctionFactory.Create((string value) => value, name: "Echo", description: "Echo a value.");
         }
     }
 }

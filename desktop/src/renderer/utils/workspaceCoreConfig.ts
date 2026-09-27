@@ -12,12 +12,14 @@ export interface WorkspaceCoreConfigLike {
     providerId?: string | null
     providerPreferences?: ProviderPreferences | null
     welcomeSuggestionsEnabled?: boolean | null
+    promptSuggestionsEnabled?: boolean | null
     defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
   } | null
   userDefaults?: {
     providerId?: string | null
     providerPreferences?: ProviderPreferences | null
     welcomeSuggestionsEnabled?: boolean | null
+    promptSuggestionsEnabled?: boolean | null
     defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
   } | null
 }
@@ -106,6 +108,12 @@ export function configObjectFromWorkspaceCore(core: WorkspaceCoreConfigLike): Re
     core.workspace?.welcomeSuggestionsEnabled ?? core.userDefaults?.welcomeSuggestionsEnabled
   if (typeof welcomeSuggestionsEnabled === 'boolean') {
     config.WelcomeSuggestions = { Enabled: welcomeSuggestionsEnabled }
+  }
+
+  const promptSuggestionsEnabled =
+    core.workspace?.promptSuggestionsEnabled ?? core.userDefaults?.promptSuggestionsEnabled
+  if (typeof promptSuggestionsEnabled === 'boolean') {
+    config.PromptSuggestions = { Enabled: promptSuggestionsEnabled }
   }
 
   const defaultApprovalPolicy =

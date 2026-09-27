@@ -98,6 +98,16 @@
         }
       ]
     },
+    "promptSuggestion": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "runtimeWorkspaceRoots": {
       "anyOf": [
         {

@@ -15640,6 +15640,16 @@
             }
           ]
         },
+        "promptSuggestion": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "runtimeWorkspaceRoots": {
           "anyOf": [
             {
@@ -20564,6 +20574,16 @@
             }
           ]
         },
+        "promptSuggestionsEnabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "providerId": {
           "anyOf": [
             {
@@ -20685,6 +20705,16 @@
           ]
         },
         "memoryEnabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "promptSuggestionsEnabled": {
           "anyOf": [
             {
               "type": "boolean"

@@ -121,7 +121,7 @@ internal sealed class WorkspaceRequestHandler(
         CancellationToken ct)
     {
         const string requiredFieldMessage =
-            "At least one of 'providerId', 'providerPreferences', 'welcomeSuggestionsEnabled', " +
+            "At least one of 'providerId', 'providerPreferences', 'welcomeSuggestionsEnabled', 'promptSuggestionsEnabled', " +
             "'skillsSelfLearningEnabled', 'skillsIncludeSharedSkills', 'memoryEnabled', " +
             "'dreamsEnabled', 'dreamsInterval', " +
             "'dreamsThreadLookbackCount', 'dreamsAutoApply', 'defaultApprovalPolicy', 'toolsLspEnabled', " +
@@ -142,6 +142,10 @@ internal sealed class WorkspaceRequestHandler(
             paramsElement,
             "welcomeSuggestionsEnabled",
             out var welcomeSuggestionsEnabledEl);
+        var hasPromptSuggestionsEnabled = TryGetCaseInsensitiveProperty(
+            paramsElement,
+            "promptSuggestionsEnabled",
+            out var promptSuggestionsEnabledEl);
         var hasSkillsSelfLearningEnabled = TryGetCaseInsensitiveProperty(
             paramsElement,
             "skillsSelfLearningEnabled",
@@ -181,6 +185,7 @@ internal sealed class WorkspaceRequestHandler(
         if (!hasProviderId
             && !hasProviderPreferences
             && !hasWelcomeSuggestionsEnabled
+            && !hasPromptSuggestionsEnabled
             && !hasSkillsSelfLearningEnabled
             && !hasSkillsIncludeSharedSkills
             && !hasMemoryEnabled
@@ -201,6 +206,9 @@ internal sealed class WorkspaceRequestHandler(
             : null;
         var welcomeSuggestionsEnabled = hasWelcomeSuggestionsEnabled
             ? ParseNullableBoolean(welcomeSuggestionsEnabledEl, "welcomeSuggestionsEnabled")
+            : null;
+        var promptSuggestionsEnabled = hasPromptSuggestionsEnabled
+            ? ParseNullableBoolean(promptSuggestionsEnabledEl, "promptSuggestionsEnabled")
             : null;
         var skillsSelfLearningEnabled = hasSkillsSelfLearningEnabled
             ? ParseNullableBoolean(skillsSelfLearningEnabledEl, "skillsSelfLearningEnabled")
@@ -241,6 +249,7 @@ internal sealed class WorkspaceRequestHandler(
             hasProviderId ? providerId : null,
             hasProviderPreferences ? providerPreferences : null,
             welcomeSuggestionsEnabled,
+            promptSuggestionsEnabled,
             skillsSelfLearningEnabled,
             skillsIncludeSharedSkills,
             memoryEnabled,
@@ -253,6 +262,7 @@ internal sealed class WorkspaceRequestHandler(
             hasProviderId,
             hasProviderPreferences,
             hasWelcomeSuggestionsEnabled,
+            hasPromptSuggestionsEnabled,
             hasSkillsSelfLearningEnabled,
             hasSkillsIncludeSharedSkills,
             hasMemoryEnabled,
@@ -276,6 +286,8 @@ internal sealed class WorkspaceRequestHandler(
         }
         if (saveResult.WelcomeSuggestionsChanged)
             changedRegions.Add(ConfigChangeRegions.WelcomeSuggestions);
+        if (saveResult.PromptSuggestionsChanged)
+            changedRegions.Add(ConfigChangeRegions.PromptSuggestions);
         if (saveResult.SkillsSelfLearningChanged || saveResult.SkillsIncludeSharedSkillsChanged)
         {
             changedRegions.Add(ConfigChangeRegions.Skills);
@@ -328,6 +340,7 @@ internal sealed class WorkspaceRequestHandler(
                         static pair => ThreadConfigurationContractMapper.ToContract(pair.Value),
                         StringComparer.Ordinal)),
             WelcomeSuggestionsEnabled = saveResult.WelcomeSuggestionsEnabled,
+            PromptSuggestionsEnabled = saveResult.PromptSuggestionsEnabled,
             SkillsSelfLearningEnabled = saveResult.SkillsSelfLearningEnabled,
             SkillsIncludeSharedSkills = saveResult.SkillsIncludeSharedSkills,
             MemoryEnabled = saveResult.MemoryEnabled,
@@ -575,6 +588,7 @@ internal sealed class WorkspaceRequestHandler(
         string? providerId,
         Dictionary<string, ModelPreference>? providerPreferences,
         bool? welcomeSuggestionsEnabled,
+        bool? promptSuggestionsEnabled,
         bool? skillsSelfLearningEnabled,
         bool? skillsIncludeSharedSkills,
         bool? memoryEnabled,
@@ -587,6 +601,7 @@ internal sealed class WorkspaceRequestHandler(
         bool updateProviderId,
         bool updateProviderPreferences,
         bool updateWelcomeSuggestionsEnabled,
+        bool updatePromptSuggestionsEnabled,
         bool updateSkillsSelfLearningEnabled,
         bool updateSkillsIncludeSharedSkills,
         bool updateMemoryEnabled,
@@ -604,6 +619,8 @@ internal sealed class WorkspaceRequestHandler(
         var providerIdKey = FindCaseInsensitiveKey(root, "ProviderId");
         var welcomeSection = GetOrCreateConfigSection(root, "WelcomeSuggestions", createIfMissing: updateWelcomeSuggestionsEnabled);
         var welcomeEnabledKey = welcomeSection == null ? null : FindCaseInsensitiveKey(welcomeSection, "Enabled");
+        var promptSection = GetOrCreateConfigSection(root, "PromptSuggestions", createIfMissing: updatePromptSuggestionsEnabled);
+        var promptEnabledKey = promptSection == null ? null : FindCaseInsensitiveKey(promptSection, "Enabled");
         var skillsSection = GetOrCreateConfigSection(
             root,
             "Skills",
@@ -633,6 +650,7 @@ internal sealed class WorkspaceRequestHandler(
         var existingProviderId = NormalizeOptionalString(ReadConfigStringValue(root, providerIdKey));
         var existingProviderPreferences = ReadConfigProviderPreferences(root);
         var existingWelcomeSuggestionsEnabled = ReadConfigBooleanValue(welcomeSection, welcomeEnabledKey);
+        var existingPromptSuggestionsEnabled = ReadConfigBooleanValue(promptSection, promptEnabledKey);
         var existingSkillsSelfLearningEnabled = ReadConfigBooleanValue(selfLearningSection, selfLearningEnabledKey);
         var existingSkillsIncludeSharedSkills = ReadConfigBooleanValue(skillsSection, includeSharedSkillsKey);
         var existingMemoryEnabled = ReadConfigBooleanValue(memorySection, memoryEnabledKey);
@@ -650,6 +668,8 @@ internal sealed class WorkspaceRequestHandler(
             && !ProviderPreferencesEqual(existingProviderPreferences, normalizedProviderPreferences);
         var welcomeSuggestionsChanged = updateWelcomeSuggestionsEnabled
             && existingWelcomeSuggestionsEnabled != welcomeSuggestionsEnabled;
+        var promptSuggestionsChanged = updatePromptSuggestionsEnabled
+            && existingPromptSuggestionsEnabled != promptSuggestionsEnabled;
         var skillsSelfLearningChanged = updateSkillsSelfLearningEnabled
             && existingSkillsSelfLearningEnabled != skillsSelfLearningEnabled;
         var skillsIncludeSharedSkillsChanged = updateSkillsIncludeSharedSkills
@@ -678,6 +698,13 @@ internal sealed class WorkspaceRequestHandler(
             var sectionEnabledKey = FindCaseInsensitiveKey(section, "Enabled");
             UpsertOrRemoveConfigValue(section, sectionEnabledKey, "Enabled", welcomeSuggestionsEnabled);
             RemoveConfigSectionIfEmpty(root, "WelcomeSuggestions");
+        }
+        if (updatePromptSuggestionsEnabled)
+        {
+            var section = GetOrCreateConfigSection(root, "PromptSuggestions", createIfMissing: true)!;
+            var sectionEnabledKey = FindCaseInsensitiveKey(section, "Enabled");
+            UpsertOrRemoveConfigValue(section, sectionEnabledKey, "Enabled", promptSuggestionsEnabled);
+            RemoveConfigSectionIfEmpty(root, "PromptSuggestions");
         }
         if (updateSkillsSelfLearningEnabled || updateSkillsIncludeSharedSkills)
         {
@@ -749,6 +776,7 @@ internal sealed class WorkspaceRequestHandler(
         if (providerIdChanged
             || providerPreferencesChanged
             || welcomeSuggestionsChanged
+            || promptSuggestionsChanged
             || skillsSelfLearningChanged
             || skillsIncludeSharedSkillsChanged
             || memoryEnabledChanged
@@ -774,6 +802,9 @@ internal sealed class WorkspaceRequestHandler(
             WelcomeSuggestionsEnabled = updateWelcomeSuggestionsEnabled
                 ? welcomeSuggestionsEnabled
                 : existingWelcomeSuggestionsEnabled,
+            PromptSuggestionsEnabled = updatePromptSuggestionsEnabled
+                ? promptSuggestionsEnabled
+                : existingPromptSuggestionsEnabled,
             SkillsSelfLearningEnabled = updateSkillsSelfLearningEnabled
                 ? skillsSelfLearningEnabled
                 : existingSkillsSelfLearningEnabled,
@@ -804,6 +835,7 @@ internal sealed class WorkspaceRequestHandler(
             ProviderIdChanged = providerIdChanged,
             ProviderPreferencesChanged = providerPreferencesChanged,
             WelcomeSuggestionsChanged = welcomeSuggestionsChanged,
+            PromptSuggestionsChanged = promptSuggestionsChanged,
             SkillsSelfLearningChanged = skillsSelfLearningChanged,
             SkillsIncludeSharedSkillsChanged = skillsIncludeSharedSkillsChanged,
             MemoryEnabledChanged = memoryEnabledChanged,
@@ -1040,6 +1072,8 @@ internal sealed class WorkspaceRequestHandler(
 
         public bool? WelcomeSuggestionsEnabled { get; init; }
 
+        public bool? PromptSuggestionsEnabled { get; init; }
+
         public bool? SkillsSelfLearningEnabled { get; init; }
 
         public bool? SkillsIncludeSharedSkills { get; init; }
@@ -1063,6 +1097,8 @@ internal sealed class WorkspaceRequestHandler(
         public bool ProviderPreferencesChanged { get; init; }
 
         public bool WelcomeSuggestionsChanged { get; init; }
+
+        public bool PromptSuggestionsChanged { get; init; }
 
         public bool SkillsSelfLearningChanged { get; init; }
 

@@ -294,16 +294,19 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         IModelRuntimeDiagnostics traceCollector,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var output = new ResponsesOutputDiagnostics();
         await foreach (var update in updates.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
-            RecordProviderResponseDiagnostic(update, traceCollector);
+            output.Observe(update);
+            RecordProviderResponseDiagnostic(update, traceCollector, output);
             yield return update;
         }
     }
 
     private static void RecordProviderResponseDiagnostic(
         StreamingResponseUpdate update,
-        IModelRuntimeDiagnostics traceCollector)
+        IModelRuntimeDiagnostics traceCollector,
+        ResponsesOutputDiagnostics output)
     {
         var sessionKey = ProviderRequestContextScope.Current?.ConversationIdentity.CurrentThreadId;
         if (string.IsNullOrWhiteSpace(sessionKey))
@@ -317,7 +320,8 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
                     sessionKey,
                     "response.completed",
                     completed.Response,
-                    metadataExtractionFailed: completed.Response == null);
+                    metadataExtractionFailed: completed.Response == null,
+                    output: output.Summarize(completed.Response));
                 break;
             case StreamingResponseIncompleteUpdate incomplete:
                 RecordResponseResultDiagnostic(
@@ -325,7 +329,8 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
                     sessionKey,
                     "response.incomplete",
                     incomplete.Response,
-                    metadataExtractionFailed: incomplete.Response == null);
+                    metadataExtractionFailed: incomplete.Response == null,
+                    output: output.Summarize(incomplete.Response));
                 break;
             case StreamingResponseFailedUpdate failed:
                 RecordResponseResultDiagnostic(
@@ -333,7 +338,8 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
                     sessionKey,
                     "response.failed",
                     failed.Response,
-                    metadataExtractionFailed: failed.Response == null);
+                    metadataExtractionFailed: failed.Response == null,
+                    output: output.Summarize(failed.Response));
                 if (failed.Response?.Error != null)
                 {
                     RecordProviderError(
@@ -362,7 +368,8 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         string sessionKey,
         string eventType,
         ResponseResult? response,
-        bool metadataExtractionFailed)
+        bool metadataExtractionFailed,
+        ResponsesOutputDiagnostics.Summary? output)
     {
         var incompleteReason = response?.IncompleteStatusDetails?.Reason?.ToString();
         var status = response?.Status?.ToString();
@@ -380,7 +387,9 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
                 ["rawFinishReason"] = incompleteReason,
                 ["usagePresent"] = response?.Usage != null,
                 ["requestIndex"] = PromptCacheRequestShapeTraceScope.RequestIndex,
-                ["metadataExtractionFailed"] = metadataExtractionFailed
+                ["outputTypes"] = output?.Types,
+                ["outputTextLength"] = output?.TextLength,
+                ["metadataExtractionFailed"] = metadataExtractionFailed || (response != null && output == null)
             }));
     }
 

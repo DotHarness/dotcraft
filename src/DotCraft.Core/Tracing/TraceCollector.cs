@@ -11,7 +11,7 @@ using DotCraft.Sessions;
 
 namespace DotCraft.Tracing;
 
-public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
+public sealed partial class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
 {
     private const long PromptCacheDropTokenThreshold = 2000;
     private const double PromptCacheDropRatioThreshold = 0.05;
@@ -51,6 +51,15 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
                     Read<string>(properties, "responseId"),
                     Read<string>(properties, "modelId"));
                 break;
+            case "prompt_suggestion.outcome":
+                store.Record(new TraceEvent
+                {
+                    Type = TraceEventType.ProviderResponseDiagnostic,
+                    SessionKey = sessionKey,
+                    Content = "Prompt suggestion outcome",
+                    MetadataJson = SerializeMetadata(properties)
+                });
+                break;
             case "provider.response":
                 RecordProviderResponseDiagnostic(
                     sessionKey,
@@ -63,7 +72,9 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
                     Read<string>(properties, "rawFinishReason"),
                     Read<bool>(properties, "usagePresent"),
                     Read<int?>(properties, "requestIndex"),
-                    Read<bool>(properties, "metadataExtractionFailed"));
+                    Read<bool>(properties, "metadataExtractionFailed"),
+                    outputTypes: Read<string[]>(properties, "outputTypes"),
+                    outputTextLength: Read<int?>(properties, "outputTextLength"));
                 break;
             case "prompt_cache.points":
                 RecordPromptCachePoints(
@@ -337,45 +348,6 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
                 messagePreview,
                 contentType,
                 requestIndex
-            })
-        });
-    }
-
-    public void RecordProviderResponseDiagnostic(
-        string sessionKey,
-        string providerProtocol,
-        string eventType,
-        string? responseId,
-        string? modelId,
-        string? status,
-        string? incompleteReason,
-        string? rawFinishReason,
-        bool usagePresent,
-        int? requestIndex = null,
-        bool metadataExtractionFailed = false,
-        DateTimeOffset? timestamp = null)
-    {
-        store.Record(new TraceEvent
-        {
-            Type = TraceEventType.ProviderResponseDiagnostic,
-            SessionKey = sessionKey,
-            Timestamp = timestamp ?? DateTimeOffset.UtcNow,
-            Content = string.IsNullOrWhiteSpace(incompleteReason)
-                ? $"{providerProtocol} {eventType}"
-                : $"{providerProtocol} {eventType}: {incompleteReason}",
-            ResponseId = responseId,
-            ModelId = modelId,
-            FinishReason = rawFinishReason,
-            RequestIndex = requestIndex,
-            MetadataJson = SerializeMetadata(new
-            {
-                providerProtocol,
-                eventType,
-                status,
-                incompleteReason,
-                rawFinishReason,
-                usagePresent,
-                metadataExtractionFailed
             })
         });
     }

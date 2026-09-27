@@ -864,6 +864,7 @@ Create a new thread from a source thread's persisted history. Clients must check
 | `config` | ThreadConfiguration | no | Thread configuration overrides applied after copying the source configuration. |
 | `displayName` | string | no | Explicit display name for the forked thread. When omitted, the fork uses the source thread's visible display name, or the first retained user message when the source has no display name. |
 | `ephemeral` | boolean | no | When true, create a process-local fork omitted from default lists. Defaults to false. |
+| `promptSuggestion` | boolean | no | Marks an ephemeral fork used to predict the next user message. Requires `ephemeral = true` and a full `after` boundary at the latest completed Turn, with no non-empty `itemId`; omitted position defaults to `after`. Preserves the source's tool-planning role and provider cache routing identity while keeping a distinct thread id. Defaults to false. |
 
 **Result**: `{ "thread": Thread, "instructionSources": string[] }`
 
@@ -7106,6 +7107,7 @@ Update workspace-level config values.
 | `providerId` | string \| null | no | Workspace-selected personal provider id. `null` or empty removes the workspace `ProviderId` key; runtime then has no selected provider unless a managed runtime override supplies one. |
 | `providerPreferences` | object \| null | no | Complete provider-keyed MainAgent preferences. Each record contains `model`, `reasoning`, `speed`, and `contextWindow`; `null` or an empty object clears the map. |
 | `welcomeSuggestionsEnabled` | boolean \| null | no | Workspace-level override for personalized welcome suggestions. `true` enables, `false` disables, and `null` removes the explicit override so server defaults apply. |
+| `promptSuggestionsEnabled` | boolean \| null | no | Workspace-level override for conversation prompt suggestions. Defaults to `false` and is independent of memory and welcome suggestions. `null` removes the override. |
 | `skillsSelfLearningEnabled` | boolean \| null | no | Workspace-level override for `Skills.SelfLearning.Enabled`. `true` enables the SkillManage tool surface and skill-authoring built-in skill, `false` disables, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect on next AppServer restart (`Skills.SelfLearning.Enabled` is a `ProcessRestart` field). |
 | `skillsIncludeSharedSkills` | boolean \| null | no | Workspace-level override for `Skills.IncludeSharedSkills`, which discovers user skills from the shared `~/.agents/skills` root. `true` enables discovery, `false` disables it, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect on next AppServer restart (`Skills.IncludeSharedSkills` is a `ProcessRestart` field). |
 | `memoryEnabled` | boolean \| null | no | Workspace-level override for `Memory.Enabled`. `true` lets new threads use and maintain memory, `false` disables memory and the features that depend on it, and `null` removes the explicit override so server defaults apply (`true` by default). Existing threads keep the value they captured at creation. |
@@ -7136,6 +7138,7 @@ Update workspace-level config values.
     }
   },
   "welcomeSuggestionsEnabled": true,
+  "promptSuggestionsEnabled": false,
   "skillsSelfLearningEnabled": true,
   "skillsIncludeSharedSkills": true,
   "memoryEnabled": true,
@@ -7153,12 +7156,12 @@ Update workspace-level config values.
 - This method updates **workspace default** only, not any active thread state.
 - Clients that need immediate effect in a running thread should additionally call `thread/config/update`.
 - Server preserves unrelated configuration state.
-- At least one of `providerId`, `providerPreferences`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `skillsIncludeSharedSkills`, `memoryEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, or `toolsLspEnabled` must be provided.
+- At least one of `providerId`, `providerPreferences`, `welcomeSuggestionsEnabled`, `promptSuggestionsEnabled`, `skillsSelfLearningEnabled`, `skillsIncludeSharedSkills`, `memoryEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, or `toolsLspEnabled` must be provided.
 - `providerPreferences` replaces the complete workspace map. Each workspace record atomically overrides the personal record for the same provider; fields are never merged across scopes.
 - Provider-aware saves persist `ProviderId` and `ProviderPreferences` while preserving unrelated configuration state. Credentials and endpoints are changed through `provider/create` and `provider/update`.
 - A supplied field is stored as the workspace override for that setting. Setting a field to `null` removes the override, and a subsequent read reports the server default.
 - Each preference must contain a non-empty model and valid enum values. Unsupported reasoning selections are repaired to catalog defaults, unsupported `max` is reset to `default`, and `fast` may remain stored even when the selected model executes it as `standard`.
-- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "workspace/config/update"` and one or more regions from `workspace.provider`, `workspace.providerPreferences`, `providers`, `welcomeSuggestions`, `skills`, `memory`, `workspace.defaultApprovalPolicy`, or `lsp`.
+- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "workspace/config/update"` and one or more regions from `workspace.provider`, `workspace.providerPreferences`, `providers`, `welcomeSuggestions`, `promptSuggestions`, `skills`, `memory`, `workspace.defaultApprovalPolicy`, or `lsp`.
 
 ### 25.4 Capability Advertisement
 
