@@ -36,7 +36,7 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('CustomMenuBar', () => {
-  it('opens the existing application menu when top-level menus cannot fit', async () => {
+  it('opens the existing application menu from the pointer or keyboard when top-level menus cannot fit', async () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
       return this.classList.contains('dotcraft-custom-menu-bar') ? 480 : 0
     })
@@ -50,10 +50,30 @@ describe('CustomMenuBar', () => {
     render(<LocaleProvider loadSettings={false}><CustomMenuBar /></LocaleProvider>)
     await act(async () => {})
 
-    fireEvent.mouseDown(screen.getByRole('button', { name: '菜单' }))
+    const menu = screen.getByRole('button', { name: '菜单' })
+    fireEvent.mouseDown(menu)
+    fireEvent.keyDown(menu, { key: 'Enter' })
+    fireEvent.keyDown(menu, { key: ' ' })
+    fireEvent.keyDown(menu, { key: 'Tab' })
 
-    expect(popupAll).toHaveBeenCalledOnce()
+    expect(popupAll).toHaveBeenCalledTimes(3)
     expect(popupTopLevel).not.toHaveBeenCalled()
+  })
+
+  it('opens a top-level menu from the keyboard', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('dotcraft-custom-menu-bar') ? 1200 : 0
+    })
+    installApi('win32', false)
+    render(<LocaleProvider loadSettings={false}><CustomMenuBar /></LocaleProvider>)
+    await act(async () => {})
+
+    fireEvent.keyDown(screen.getByRole('button', { name: '文件' }), { key: 'Enter' })
+    fireEvent.keyDown(screen.getByRole('button', { name: '编辑' }), { key: 'ArrowDown' })
+    fireEvent.keyDown(screen.getByRole('button', { name: '编辑' }), { key: 'ArrowRight' })
+
+    expect(popupTopLevel.mock.calls.map(([menuId]) => menuId)).toEqual(['file', 'edit'])
+    expect(popupAll).not.toHaveBeenCalled()
   })
 
   it('keeps Linux window controls with a restore action when maximized', async () => {

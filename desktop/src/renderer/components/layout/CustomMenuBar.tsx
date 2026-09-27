@@ -167,8 +167,12 @@ export function CustomMenuBar(): JSX.Element {
             style={menuButtonStyle}
             onMouseDown={(e) => {
               e.preventDefault()
-              const r = e.currentTarget.getBoundingClientRect()
-              void window.api.menu.popupTopLevel(menuId, r.left, r.bottom)
+              popupTopLevelMenu(menuId, e.currentTarget)
+            }}
+            onKeyDown={(e) => {
+              if (!isMenuOpenKey(e.key)) return
+              e.preventDefault()
+              popupTopLevelMenu(menuId, e.currentTarget)
             }}
           >
             {t(MENU_LABEL_KEY[menuId])}
@@ -182,8 +186,12 @@ export function CustomMenuBar(): JSX.Element {
           className={css.narrowMenu}
           onMouseDown={(event) => {
             event.preventDefault()
-            const rect = event.currentTarget.getBoundingClientRect()
-            void window.api.menu.popupAll(rect.left, rect.bottom)
+            popupAllMenus(event.currentTarget)
+          }}
+          onKeyDown={(event) => {
+            if (!isMenuOpenKey(event.key)) return
+            event.preventDefault()
+            popupAllMenus(event.currentTarget)
           }}
         >
           <Menu size={15} aria-hidden="true" />
@@ -259,6 +267,20 @@ function getUpdateTooltipLabel(
 function isInteractiveTitleBarTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   return target.closest('button,a,input,textarea,select,[role="button"]') !== null
+}
+
+function isMenuOpenKey(key: string): boolean {
+  return key === 'Enter' || key === ' ' || key === 'ArrowDown'
+}
+
+function popupTopLevelMenu(menuId: TopLevelMenuId, trigger: HTMLElement): void {
+  const rect = trigger.getBoundingClientRect()
+  void window.api.menu.popupTopLevel(menuId, rect.left, rect.bottom)
+}
+
+function popupAllMenus(trigger: HTMLElement): void {
+  const rect = trigger.getBoundingClientRect()
+  void window.api.menu.popupAll(rect.left, rect.bottom)
 }
 
 function WindowControlButton({
