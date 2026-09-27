@@ -94,10 +94,14 @@ internal sealed class ModelServiceProxy(
             foreach (var header in response.Headers.Concat(response.Content.Headers))
                 if (ModelServiceProtocol.IsResponseHeader(header.Key))
                     context.Response.Headers[header.Key] = header.Value.ToArray();
-            var eventStream = response.Content.Headers.ContentType?.MediaType == "text/event-stream";
+            var mediaType = response.Content.Headers.ContentType?.MediaType;
             reader = provider.Runtime.Protocol == ModelProviderProtocols.Anthropic
-                ? AnthropicHttpUsageObserver.Create(eventStream)
-                : OpenAIHttpUsageObserver.Create(eventStream);
+                ? mediaType is null
+                    ? AnthropicHttpUsageObserver.CreateAuto()
+                    : AnthropicHttpUsageObserver.Create(mediaType == "text/event-stream")
+                : mediaType is null
+                    ? OpenAIHttpUsageObserver.CreateAuto()
+                    : OpenAIHttpUsageObserver.Create(mediaType == "text/event-stream");
             await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
             var buffer = new byte[16 * 1024];
             int count;
