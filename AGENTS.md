@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Quick reference for coding agents in this repository.
-For code, protocol, or spec changes, use the repository's [dotcraft-dev-guide](desktop/resources/plugins/dotcraft-bundled/plugins/dotcraft/skills/dotcraft-dev-guide/SKILL.md), including its spec-first workflow.
+For code, protocol, or spec changes, use the repository's [dotcraft-dev-guide](.agents/skills/dotcraft-dev-guide/SKILL.md), including its spec-first workflow.
 
 ## Project
 
@@ -12,7 +12,7 @@ It uses a modular architecture where multiple entry points (CLI, editors, bots, 
 
 - Complete the requested work and necessary verification within the authorized scope. Reuse prior decisions and authorization; ask only when missing information materially changes the outcome or an action exceeds that scope.
 - Explicit user instructions take precedence over skill guidance. If a skill causes a pause or departure from the request, link to the exact file, quote the relevant instruction, and explain how it applies.
-- For documentation and README work, use [/dotcraft-docs-guide](desktop/resources/plugins/dotcraft-bundled/plugins/dotcraft/skills/dotcraft-docs-guide/SKILL.md). User-facing pages explain purpose, usage, and outcomes; implementation details belong in developer references.
+- For documentation and README work, use [/dotcraft-docs-guide](.agents/skills/dotcraft-docs-guide/SKILL.md). User-facing pages explain purpose, usage, and outcomes; implementation details belong in developer references.
 - Finish with a concise account of the result, validation performed, and any remaining blockers.
 
 ## Commits and Pull Requests
@@ -31,7 +31,7 @@ Prerequisite: .NET 10 SDK. Desktop and TypeScript work also requires Node.js; se
 - Single test: `dotnet test <test-project.csproj> --filter "FullyQualifiedName~TestClassName.TestMethodName"`
 - Full .NET suite, when the affected scope warrants it: `dotnet test dotcraft.sln`
 
-Use the [development guide's validation entry points](desktop/resources/plugins/dotcraft-bundled/plugins/dotcraft/skills/dotcraft-dev-guide/SKILL.md#validation) for Desktop, SDK, and documentation changes. Complete the relevant checks; broaden or repeat them only for new changes, failures, or unresolved concerns.
+Use the [development guide's validation entry points](.agents/skills/dotcraft-dev-guide/SKILL.md#validation) for Desktop, SDK, and documentation changes. Complete the relevant checks; broaden or repeat them only for new changes, failures, or unresolved concerns.
 
 ## Architecture (Top-Level)
 

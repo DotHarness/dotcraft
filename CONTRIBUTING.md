@@ -12,7 +12,7 @@ Use [GitHub Issues](https://github.com/DotHarness/dotcraft/issues) for reproduci
 
 DotCraft requires the .NET 10 SDK. Some Desktop and TypeScript changes also require Node.js 20 or later; see [desktop/README.md](desktop/README.md).
 
-Follow [AGENTS.md](AGENTS.md) for repository conventions and build commands. Use the [development guide](desktop/resources/plugins/dotcraft-bundled/plugins/dotcraft/skills/dotcraft-dev-guide/SKILL.md#validation) to select checks for the affected .NET, Desktop, or SDK code, and the [documentation guide](desktop/resources/plugins/dotcraft-bundled/plugins/dotcraft/skills/dotcraft-docs-guide/SKILL.md) for documentation and README work. Both skills are included in the bundled `dotcraft` plugin.
+Follow [AGENTS.md](AGENTS.md) for repository conventions and build commands. Use the [development guide](.agents/skills/dotcraft-dev-guide/SKILL.md#validation) to select checks for the affected .NET, Desktop, or SDK code, and the [documentation guide](.agents/skills/dotcraft-docs-guide/SKILL.md) for documentation and README work. Both skills are maintained in this repository's `.agents/skills/` directory.
 
 ## Pull requests
 
