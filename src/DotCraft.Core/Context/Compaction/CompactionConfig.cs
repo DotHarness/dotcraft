@@ -25,24 +25,15 @@ public sealed class CompactionConfig
     public bool ReactiveCompactEnabled { get; set; } = true;
 
     /// <summary>
-    /// Model context window in tokens (default tuned for 256K-class models).
+    /// Runtime window after applying the client budget to the effective model's capacity.
     /// </summary>
-    [ConfigField(Min = 1000, Hint = "Model context window in tokens.")]
+    [ConfigField(Ignore = true)]
+    [System.Text.Json.Serialization.JsonIgnore]
     public int ContextWindow { get; set; } = 256_000;
 
-    /// <summary>
-    /// Upper bound applied to inferred model context-window catalog values.
-    /// Explicit <see cref="ContextWindow"/> values are preserved.
-    /// </summary>
-    [ConfigField(Min = 1000, Hint = "Maximum inferred model context window in tokens.")]
-    public int MaxContextWindow { get; set; } = 256_000;
-
-    /// <summary>
-    /// Workspace default context-window mode captured by newly created threads.
-    /// </summary>
-    [ConfigField(Hint = "Default per-thread context-window mode: Default or Max.")]
-    [System.Text.Json.Serialization.JsonIgnore]
-    public ContextWindowMode ContextWindowMode { get; set; } = ContextWindowMode.Default;
+    /// <summary>A positive value caps the catalog window; -1 uses the full catalog capacity.</summary>
+    [ConfigField(Ignore = true)]
+    public int MaxContextWindow { get; set; } = -1;
 
     /// <summary>
     /// Tokens reserved for the summary output so auto-compact triggers before
@@ -153,7 +144,6 @@ public sealed class CompactionConfig
         ReactiveCompactEnabled = ReactiveCompactEnabled,
         ContextWindow = ContextWindow,
         MaxContextWindow = MaxContextWindow,
-        ContextWindowMode = ContextWindowMode,
         SummaryReserveTokens = SummaryReserveTokens,
         SummaryMaxOutputTokens = SummaryMaxOutputTokens,
         AutoCompactBufferTokens = AutoCompactBufferTokens,

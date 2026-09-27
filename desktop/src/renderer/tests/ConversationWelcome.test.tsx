@@ -210,7 +210,6 @@ function preference(
     model,
     reasoning: { enabled: false, effort: 'medium', output: 'full' },
     speed: 'standard',
-    contextWindow: { mode: 'default' },
     ...overrides
   }
 }
@@ -753,37 +752,6 @@ describe('ConversationWelcome composer', () => {
     })
   })
 
-  it('shows the Context MAX section in the welcome model picker', async () => {
-    useModelCatalogStore.setState({
-      status: 'ready',
-      modelOptions: ['gpt-5.5'],
-      models: [
-        {
-          id: 'gpt-5.5',
-          contextWindow: {
-            catalogWindow: 1_000_000,
-            configuredWindow: 256_000,
-            supportsMax: true,
-            maxWindow: 1_000_000
-          }
-        }
-      ],
-      modelListUnsupportedEndpoint: false
-    })
-    fileReadFile.mockResolvedValue(JSON.stringify(workspacePreferenceConfig('openai', 'gpt-5.5')))
-
-    renderWelcome()
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('gpt-5.5')
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
-
-    const menu = openModelMenu('gpt-5.5')
-    expect(within(menu).getByText('MAX Mode')).toBeInTheDocument()
-    expect(within(menu).getByRole('switch', { name: 'MAX Mode' })).not.toBeDisabled()
-  })
-
   it('saves Fast as a welcome preset without creating a thread', async () => {
     useModelCatalogStore.setState({
       status: 'ready',
@@ -810,137 +778,6 @@ describe('ConversationWelcome composer', () => {
       })
     })
     expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/start', expect.anything())
-  })
-
-  it('sends explicit welcome MAX context in thread/start', async () => {
-    useModelCatalogStore.setState({
-      status: 'ready',
-      modelOptions: ['gpt-5.5'],
-      models: [
-        {
-          id: 'gpt-5.5',
-          contextWindow: {
-            catalogWindow: 1_000_000,
-            configuredWindow: 256_000,
-            supportsMax: true,
-            maxWindow: 1_000_000
-          }
-        }
-      ],
-      modelListUnsupportedEndpoint: false
-    })
-    fileReadFile.mockResolvedValue(JSON.stringify(workspacePreferenceConfig('openai', 'gpt-5.5')))
-
-    renderWelcome()
-
-    const textbox = await screen.findByRole('textbox')
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('gpt-5.5')
-    })
-    textbox.textContent = 'Use the largest context for this first thread'
-    fireEvent.input(textbox)
-    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
-    fireEvent.click(within(openModelMenu('gpt-5.5')).getByRole('switch', { name: 'MAX Mode' }))
-    expect(document.querySelector('[data-mascot-context]')).toHaveAttribute('data-mascot-context', 'max')
-    fireEvent.keyDown(window, { key: 'Escape' })
-    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
-
-    await waitFor(() => {
-      expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
-        threadId: 'thread-welcome',
-        text: 'Use the largest context for this first thread'
-      })
-    })
-    const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
-    expect(start?.[1]).toEqual(expect.objectContaining({
-      config: expect.objectContaining({ contextWindow: { mode: 'max' } })
-    }))
-  })
-
-  it('does not write welcome contextWindow when workspace MAX default is untouched', async () => {
-    useModelCatalogStore.setState({
-      status: 'ready',
-      modelOptions: ['gpt-5.5'],
-      models: [
-        {
-          id: 'gpt-5.5',
-          contextWindow: {
-            catalogWindow: 1_000_000,
-            configuredWindow: 256_000,
-            supportsMax: true,
-            maxWindow: 1_000_000
-          }
-        }
-      ],
-      modelListUnsupportedEndpoint: false
-    })
-    fileReadFile.mockResolvedValue(JSON.stringify(workspacePreferenceConfig('openai', 'gpt-5.5', {
-      contextWindow: { mode: 'max' }
-    })))
-
-    renderWelcome()
-
-    const textbox = await screen.findByRole('textbox')
-    textbox.textContent = 'Inherit the workspace context default'
-    fireEvent.input(textbox)
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('MAX')
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
-
-    await waitFor(() => {
-      expect(useUIStore.getState().pendingWelcomeTurn?.threadId).toBe('thread-welcome')
-    })
-    const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
-    expect((start?.[1] as { config?: Record<string, unknown> })?.config).not.toHaveProperty('contextWindow')
-  })
-
-  it('writes explicit default when welcome MAX inherits from workspace and the user switches it off', async () => {
-    useModelCatalogStore.setState({
-      status: 'ready',
-      modelOptions: ['gpt-5.5'],
-      models: [
-        {
-          id: 'gpt-5.5',
-          contextWindow: {
-            catalogWindow: 1_000_000,
-            configuredWindow: 256_000,
-            supportsMax: true,
-            maxWindow: 1_000_000
-          }
-        }
-      ],
-      modelListUnsupportedEndpoint: false
-    })
-    fileReadFile.mockResolvedValue(JSON.stringify(workspacePreferenceConfig('openai', 'gpt-5.5', {
-      contextWindow: { mode: 'max' }
-    })))
-
-    renderWelcome()
-
-    const textbox = await screen.findByRole('textbox')
-    textbox.textContent = 'Use default context for this first thread'
-    fireEvent.input(textbox)
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('MAX')
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
-    const maxSwitch = within(openModelMenu('gpt-5.5')).getByRole('switch', { name: 'MAX Mode' })
-    expect(maxSwitch).toHaveAttribute('aria-checked', 'true')
-    fireEvent.click(maxSwitch)
-    fireEvent.keyDown(window, { key: 'Escape' })
-    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
-
-    await waitFor(() => {
-      expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
-        threadId: 'thread-welcome',
-        text: 'Use default context for this first thread'
-      })
-    })
-    const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
-    expect(start?.[1]).toEqual(expect.objectContaining({
-      config: expect.objectContaining({ contextWindow: { mode: 'default' } })
-    }))
   })
 
   it('shows ChatGPT subscription usage in the welcome composer footer', async () => {

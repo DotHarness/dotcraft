@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { ComposerFileAttachment, ImageAttachment, InputPart, ThreadMode } from '../types/conversation'
 import type { ComposerDraftSegment } from '../types/composerDraft'
-import type { ApprovalPolicyWire, ContextWindowConfigurationWire } from '../types/thread'
+import type { ApprovalPolicyWire } from '../types/thread'
 import type { InferenceSpeedWire, ReasoningEffortWire, ReasoningOutputWire } from './modelCatalogStore'
 import { normalizeSettingsTab, type SettingsTab } from '../types/settings'
 import type { DiffMarkerMode } from '../../shared/appearance'
@@ -64,7 +64,6 @@ export type SelectedChannelKey = `module:${string}` | `external:${string}` | nul
 
 export type PluginCatalogSurface = 'plugins' | 'skills'
 
-
 export interface WelcomeDraft {
   text: string
   segments?: ComposerDraftSegment[]
@@ -81,7 +80,6 @@ export interface WelcomeDraft {
     output: ReasoningOutputWire
   }
   speed?: InferenceSpeedWire
-  contextWindow?: ContextWindowConfigurationWire
   approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
   /** Undefined uses automatic defaults; an empty array is an explicit no-app choice. */
   appIds?: string[]
@@ -343,7 +341,6 @@ function cloneWelcomeDraft(draft: WelcomeDraft): WelcomeDraft {
     images: [...draft.images],
     files: draft.files ? [...draft.files] : [],
     segments: draft.segments ? [...draft.segments] : undefined,
-    contextWindow: draft.contextWindow ? { ...draft.contextWindow } : undefined,
     appIds: draft.appIds ? [...draft.appIds] : draft.appIds
   }
 }
@@ -413,7 +410,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     }
     set({ activeMainView: 'conversation', planApprovalDismissed: {} })
   },
-
 
   setActiveSettingsTab(tab) {
     set({ activeSettingsTab: normalizeSettingsTab(tab), browserDownloadHistoryOpen: false })
@@ -947,7 +943,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       images: [...draft.images],
       files: draft.files ? [...draft.files] : [],
       segments: draft.segments ? [...draft.segments] : undefined,
-      contextWindow: draft.contextWindow ? { ...draft.contextWindow } : undefined,
       appIds: draft.appIds ? [...draft.appIds] : draft.appIds,
       selectionStart: draft.selectionStart,
       selectionEnd: draft.selectionEnd,

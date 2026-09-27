@@ -38,7 +38,6 @@ public sealed class InitHelperSetupTests : IDisposable
                     Output = ReasoningOutput.Summary
                 },
                 Speed = InferenceSpeed.Fast,
-                ContextWindow = new ModelPreferenceContextWindow { Mode = ContextWindowMode.Max }
             },
             SaveToUserConfig = true,
             ProviderMode = WorkspaceSetupProviderMode.Create,
@@ -64,7 +63,6 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.Equal("High", preference["reasoning"]!["effort"]?.GetValue<string>());
         Assert.Equal("Summary", preference["reasoning"]!["output"]?.GetValue<string>());
         Assert.Equal("Fast", preference["speed"]?.GetValue<string>());
-        Assert.Equal("Max", preference["contextWindow"]!["mode"]?.GetValue<string>());
         var globalProvider = globalNode["Providers"]!["openai"]!;
         Assert.Equal("sk-global", globalProvider["ApiKey"]?.GetValue<string>());
         Assert.Equal("https://example.com/v1", globalProvider["EndPoint"]?.GetValue<string>());

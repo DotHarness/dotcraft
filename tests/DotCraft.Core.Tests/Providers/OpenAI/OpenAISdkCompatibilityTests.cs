@@ -36,20 +36,22 @@ public sealed class OpenAISdkCompatibilityTests
         Assert.Equal(expected, request.Shape.ReasoningEffort);
     }
 
-    [Fact]
-    public void Ultra_StillUsesExtraHighOnTheWire()
+    [Theory]
+    [InlineData(ModelReasoningEffort.Max)]
+    [InlineData(ModelReasoningEffort.Ultra)]
+    public void MaxEfforts_UseMaxOnStandardAndLiteWire(ModelReasoningEffort effort)
     {
+        var options = new ChatOptions();
+        new AppConfig.ReasoningConfig { Enabled = true, Effort = effort }.ApplyTo(options);
         var request = ResponsesToolSearchMapper.CreateResponseRequest(
-            "gpt-test",
-            [new ChatMessage(ChatRole.User, "hello")],
-            new ChatOptions
-            {
-                Reasoning = new ReasoningOptions { Effort = ModelReasoningEffort.Ultra.ToProviderEffort() }
-            });
-
-        using var body = JsonDocument.Parse(ModelReaderWriter.Write(request.Options));
-        Assert.Equal("xhigh", body.RootElement.GetProperty("reasoning").GetProperty("effort").GetString());
-        Assert.Equal("xhigh", request.Shape.ReasoningEffort);
+            "gpt-test", [new ChatMessage(ChatRole.User, "hello")], options);
+        var wire = ModelReaderWriter.Write(request.Options);
+        using var body = JsonDocument.Parse(wire);
+        using var lite = JsonDocument.Parse(OpenAIResponsesLiteRequestMapper.BuildWireBody(wire, "install-1"));
+        Assert.Equal("max", body.RootElement.GetProperty("reasoning").GetProperty("effort").GetString());
+        Assert.Equal("max", lite.RootElement.GetProperty("reasoning").GetProperty("effort").GetString());
+        Assert.Equal("max", request.Shape.ReasoningEffort);
+        Assert.DoesNotContain("dotcraft.reasoningEffort", wire.ToString());
     }
 
     [Fact]
@@ -74,6 +76,7 @@ public sealed class OpenAISdkCompatibilityTests
 
         using var body = JsonDocument.Parse(ModelReaderWriter.Write(request.Options));
         Assert.Equal("max", body.RootElement.GetProperty("reasoning").GetProperty("effort").GetString());
+        Assert.Equal("max", request.Shape.ReasoningEffort);
     }
 
     [Theory]

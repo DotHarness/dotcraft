@@ -268,7 +268,7 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
     [Theory]
     [InlineData("{ model: 'invocation-model' }", "invocation-model", ModelReasoningEffort.High)]
     [InlineData("{ effort: 'low' }", "parent-model", ModelReasoningEffort.Low)]
-    [InlineData("{ effort: 'max' }", "parent-model", ModelReasoningEffort.ExtraHigh)]
+    [InlineData("{ effort: 'max' }", "parent-model", ModelReasoningEffort.Max)]
     public async Task AgentCall_PartialOverride_PreservesUnspecifiedPreferenceFields(
         string options,
         string expectedModel,
@@ -283,7 +283,6 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
         Assert.Equal(expectedEffort, child.Configuration?.Reasoning?.Effort);
         Assert.Equal(ReasoningOutput.Summary, child.Configuration?.Reasoning?.Output);
         Assert.Equal(InferenceSpeed.Fast, child.Configuration?.Speed);
-        Assert.Equal(ContextWindowMode.Default, child.Configuration?.ContextWindow?.Mode);
     }
 
     private async Task<(DynamicWorkflowRun Run, SessionThread Child, IReadOnlyList<JsonObject> Journal)> RunAgentWorkflowAsync(
@@ -310,7 +309,6 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
                     Output = ReasoningOutput.Summary
                 },
                 Speed = InferenceSpeed.Fast,
-                ContextWindow = new ThreadContextWindowConfig { Mode = ContextWindowMode.Default }
             },
             Turns = [new SessionTurn { Id = "turn_001", ThreadId = "thread_parent", Status = TurnStatus.Completed }]
         };

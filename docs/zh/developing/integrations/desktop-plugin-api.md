@@ -202,7 +202,7 @@ export const activate: DesktopPluginActivate = (host) => {
 };
 ```
 
-Core 继续管理 mascot 的位置、bubble、menu、click handling、sleep timer、Composer handoff 与 outer motion。Context 继承普通 Composer 字段，并增加 `activity`、`expression`、`light`、`size`、`submitRevision`、`reasoningEffort`、`speed`、`contextMax` 与 `reducedMotion`。直接响应这些 snapshot 即可。同一状态下连续提交、需要一次性动画时，监听 `submitRevision`。插件自定义的 occurrence 继续用 `host.events`。
+Core 继续管理 mascot 的位置、bubble、menu、click handling、sleep timer、Composer handoff 与 outer motion。Context 继承普通 Composer 字段，并增加 `activity`、`expression`、`light`、`size`、`submitRevision`、`reasoningEffort`、`speed` 与 `reducedMotion`。直接响应这些 snapshot 即可。同一状态下连续提交、需要一次性动画时，监听 `submitRevision`。插件自定义的 occurrence 继续用 `host.events`。
 
 `ui.add("composer.mascot", ...)` 会在同一 stage 上叠加 accessory 或 effect。如果插件还要控制位置与交互行为，请直接替换 `composer`。`composer.mascot` 不会改变 Error Screen mascot 或 Agent Profile avatar。
 

@@ -1,3 +1,4 @@
+using DotCraft.Configuration;
 using System.ClientModel.Primitives;
 using System.Security.Cryptography;
 using System.Text;
@@ -165,9 +166,12 @@ internal static partial class ResponsesToolSearchMapper
         _ => throw new ArgumentOutOfRangeException(nameof(effort), effort, null)
     };
 
-    private static ResponseReasoningOptions CreateReasoningOptions(ReasoningOptions? reasoning)
+    private static ResponseReasoningOptions CreateReasoningOptions(ChatOptions? chatOptions)
     {
+        var reasoning = chatOptions?.Reasoning;
         var options = new ResponseReasoningOptions();
+        if (ProviderReasoningOptions.Resolve(chatOptions) == ProviderReasoningEffort.Max)
+            options.ReasoningEffortLevel = ResponseReasoningEffortLevel.Max;
         if (reasoning?.Effort is { } effort)
         {
             options.ReasoningEffortLevel = ToResponseReasoningEffort(effort);
@@ -223,7 +227,7 @@ internal static partial class ResponsesToolSearchMapper
             maxOutputTokensRequested,
             maxOutputTokensRequested.HasValue && !maxOutputTokensRemovedByOAuthRewrite,
             maxOutputTokensRemovedByOAuthRewrite,
-            options?.Reasoning?.Effort is { } effort ? ToResponseReasoningEffort(effort).ToString() : null,
+            reasoningOptions?.ReasoningEffortLevel?.ToString(),
             DescribeToolChoiceKind(options?.ToolMode),
             tools.Count,
             responseOptions.StreamingEnabled == true);

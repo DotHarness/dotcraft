@@ -398,8 +398,7 @@ public sealed partial class SessionService
                 threadId,
                 thread?.Configuration?.ProviderId,
                 thread?.Configuration?.Model,
-                owner._appConfigMonitor?.Current ?? owner.AgentFactory.RuntimeContext.Config,
-                thread?.Configuration?.ContextWindow?.Mode ?? ContextWindowMode.Default);
+                owner._appConfigMonitor?.Current ?? owner.AgentFactory.RuntimeContext.Config);
 
         public CompactionCoordinator GetCompactionCoordinatorForThread(string threadId)
         {

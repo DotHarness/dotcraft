@@ -357,7 +357,7 @@ public static class ModelThinkingAdapterCatalog
         }
     }
 
-    private static bool TryReadReasoningEffort(JsonElement root, string propertyName, out ReasoningEffort effort)
+    private static bool TryReadReasoningEffort(JsonElement root, string propertyName, out ProviderReasoningEffort effort)
     {
         effort = default;
         return TryGetProperty(root, propertyName, out var element)
@@ -373,7 +373,7 @@ public static class ModelThinkingAdapterCatalog
                && TryParseReasoningOutput(element.GetString(), out output);
     }
 
-    internal static bool TryParseReasoningEffort(string? value, out ReasoningEffort effort)
+    internal static bool TryParseReasoningEffort(string? value, out ProviderReasoningEffort effort)
     {
         var normalized = NormalizeEnumToken(value);
         if (string.IsNullOrWhiteSpace(normalized))
@@ -602,7 +602,7 @@ public static class ModelThinkingAdapterCatalog
 
         public List<ReasoningEffortOptionData> SupportedEfforts { get; } = [];
 
-        public ReasoningEffort DefaultEffort { get; set; } = ReasoningEffort.Medium;
+        public ProviderReasoningEffort DefaultEffort { get; set; } = ProviderReasoningEffort.Medium;
 
         public List<ReasoningOutput> SupportedOutputs { get; } = [];
 
@@ -665,11 +665,11 @@ public static class ModelThinkingAdapterCatalog
     }
 
     public sealed class ReasoningEffortOptionData(
-        ReasoningEffort effort,
+        ProviderReasoningEffort effort,
         string? label = null,
         string? description = null)
     {
-        public ReasoningEffort Effort { get; } = effort;
+        public ProviderReasoningEffort Effort { get; } = effort;
 
         public string? Label { get; } = label;
 

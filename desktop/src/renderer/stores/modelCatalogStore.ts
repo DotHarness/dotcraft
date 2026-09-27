@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 export type ModelCatalogStatus = 'idle' | 'loading' | 'ready' | 'error'
-export type ReasoningEffortWire = 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'
+export type ReasoningEffortWire = 'low' | 'medium' | 'high' | 'extraHigh' | 'max' | 'ultra'
 export type ReasoningOutputWire = 'none' | 'summary' | 'full'
 export type InferenceSpeedWire = 'standard' | 'fast'
 
@@ -24,28 +24,13 @@ export interface ModelReasoningCapability {
   defaultOutput: ReasoningOutputWire
 }
 
-/**
- * Clients use `supportsMax` to decide
- * whether to offer the MAX context switch; they must not hardcode model rules.
- */
-export interface ModelContextWindowMeta {
-  /** Raw catalog window after model-catalog resolution (may be a fallback default). */
-  catalogWindow: number
-  /** Default configured compaction window after normal cap rules. */
-  configuredWindow: number
-  /** True only when the catalog window is explicit and greater than the configured window. */
-  supportsMax: boolean
-  /** Window used by MAX mode when supported; otherwise equal to `configuredWindow`. */
-  maxWindow: number
-}
-
 export interface ModelCatalogItem {
   id: string
   ownedBy?: string
   createdAt?: string
   reasoning?: ModelReasoningCapability | null
   speed?: ModelSpeedCapability | null
-  contextWindow?: ModelContextWindowMeta | null
+  contextWindow?: number | null
 }
 
 /** AppServer `model/list` error when the upstream endpoint does not support listing models. */
@@ -90,7 +75,7 @@ const initialState: ModelCatalogState = {
   errorMessage: null
 }
 
-const effortValues = new Set<ReasoningEffortWire>(['low', 'medium', 'high', 'extraHigh', 'ultra'])
+const effortValues = new Set<ReasoningEffortWire>(['low', 'medium', 'high', 'extraHigh', 'max', 'ultra'])
 const outputValues = new Set<ReasoningOutputWire>(['none', 'summary', 'full'])
 const speedValues = new Set<InferenceSpeedWire>(['standard', 'fast'])
 
@@ -156,20 +141,8 @@ function parseReasoningCapability(value: unknown): ModelReasoningCapability | nu
   }
 }
 
-function parseContextWindowMeta(value: unknown): ModelContextWindowMeta | null {
-  if (!value || typeof value !== 'object') return null
-  const typed = value as Record<string, unknown>
-  const num = (camel: unknown, pascal: unknown): number => {
-    const raw = typeof camel === 'number' ? camel : typeof pascal === 'number' ? pascal : NaN
-    return Number.isFinite(raw) ? raw : 0
-  }
-  const supportsRaw = typed.supportsMax ?? typed.SupportsMax
-  return {
-    catalogWindow: num(typed.catalogWindow, typed.CatalogWindow),
-    configuredWindow: num(typed.configuredWindow, typed.ConfiguredWindow),
-    supportsMax: supportsRaw === true,
-    maxWindow: num(typed.maxWindow, typed.MaxWindow)
-  }
+function parseContextWindow(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
 }
 
 export function parseModelCatalogItems(payload: unknown): ModelCatalogItem[] {
@@ -188,7 +161,7 @@ export function parseModelCatalogItems(payload: unknown): ModelCatalogItem[] {
       createdAt: typeof (model.createdAt ?? model.CreatedAt) === 'string' ? String(model.createdAt ?? model.CreatedAt) : undefined,
       reasoning: parseReasoningCapability(model.reasoning ?? model.Reasoning),
       speed: parseSpeedCapability(model.speed ?? model.Speed),
-      contextWindow: parseContextWindowMeta(model.contextWindow ?? model.ContextWindow)
+      contextWindow: parseContextWindow(model.contextWindow ?? model.ContextWindow)
     })
   }
   return Array.from(byId.values()).sort((a, b) => a.id.localeCompare(b.id))

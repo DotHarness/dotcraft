@@ -9,7 +9,6 @@ using Microsoft.Extensions.AI;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using SessionIdentity = DotCraft.Sessions.SessionIdentity;
-using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceContextWindow;
 using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
 using Xunit;
 using DotCraft.Tools;
@@ -263,7 +262,6 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
             Effort = ModelReasoningEffort.High,
             Output = ReasoningOutput.Full
         };
-        config.ProviderPreferences[config.ProviderId].ContextWindow.Mode = ContextWindowMode.Max;
         var monitor = new AppConfigMonitor(config);
 
         await using var agentFactory = CreateAgentFactory(config);
@@ -281,7 +279,6 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         Assert.True(existingThread.Configuration?.Reasoning?.Enabled);
         Assert.Equal(ModelReasoningEffort.High, existingThread.Configuration?.Reasoning?.Effort);
         Assert.Equal(ReasoningOutput.Full, existingThread.Configuration?.Reasoning?.Output);
-        Assert.Equal(ContextWindowMode.Max, existingThread.Configuration?.ContextWindow?.Mode);
         Assert.NotNull(svc.DebugGetRuntime(existingThread.Id)?.Agent);
 
         monitor.Current.ProviderPreferences[monitor.Current.ProviderId] = new ModelPreference
@@ -293,7 +290,6 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
             Effort = ModelReasoningEffort.Low,
                 Output = ReasoningOutput.Full
             },
-            ContextWindow = new ModelPreferenceContextWindow { Mode = ContextWindowMode.Default }
         };
         svc.InvalidateThreadAgents();
 
@@ -303,24 +299,20 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         Assert.Equal("gpt-5.5", existingAfterChange.Configuration?.Model);
         Assert.True(existingAfterChange.Configuration?.Reasoning?.Enabled);
         Assert.Equal(ModelReasoningEffort.High, existingAfterChange.Configuration?.Reasoning?.Effort);
-        Assert.Equal(ContextWindowMode.Max, existingAfterChange.Configuration?.ContextWindow?.Mode);
         Assert.Equal("gpt-5.5", persistedExisting?.Configuration?.Model);
         Assert.True(persistedExisting?.Configuration?.Reasoning?.Enabled);
         Assert.Equal(ModelReasoningEffort.High, persistedExisting?.Configuration?.Reasoning?.Effort);
-        Assert.Equal(ContextWindowMode.Max, persistedExisting?.Configuration?.ContextWindow?.Mode);
 
         var newThread = await svc.CreateThreadAsync(identity);
         Assert.Equal("model-b", newThread.Configuration?.Model);
         Assert.False(newThread.Configuration?.Reasoning?.Enabled);
         Assert.Equal(ModelReasoningEffort.Low, newThread.Configuration?.Reasoning?.Effort);
-        Assert.Equal(ContextWindowMode.Default, newThread.Configuration?.ContextWindow?.Mode);
 
         var explicitThread = await svc.CreateThreadAsync(
             identity,
             new ThreadConfiguration
             {
                 Model = "model-c",
-                ContextWindow = new ThreadContextWindowConfig { Mode = ContextWindowMode.Default },
                 Reasoning = new AppConfig.ReasoningConfig
                 {
                     Enabled = true,
@@ -332,100 +324,6 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         Assert.True(explicitThread.Configuration?.Reasoning?.Enabled);
         Assert.Equal(ModelReasoningEffort.Medium, explicitThread.Configuration?.Reasoning?.Effort);
         Assert.Equal(ReasoningOutput.Summary, explicitThread.Configuration?.Reasoning?.Output);
-        Assert.Equal(ContextWindowMode.Default, explicitThread.Configuration?.ContextWindow?.Mode);
-    }
-
-    [Fact]
-    public async Task CreateThreadAsync_RepairsWorkspaceMaxContextWindowToDefaultForUnsupportedModels()
-    {
-        var store = new ThreadStore(_tempDir);
-        var persistence = new SessionPersistenceService(store);
-        var identity = new SessionIdentity
-        {
-            ChannelName = "test",
-            UserId = "u",
-            WorkspacePath = _tempDir
-        };
-        var config = AppConfigTestFactory.CreateOpenAI(model: "model-a");
-        config.Compaction.ContextWindowMode = ContextWindowMode.Max;
-        var monitor = new AppConfigMonitor(config);
-
-        await using var agentFactory = CreateAgentFactory(config);
-        var defaultAgent = agentFactory.CreateAgentForMode(AgentMode.Agent);
-        var svc = new SessionService(
-            agentFactory,
-            defaultAgent,
-            persistence,
-            new SessionGate(),
-            appConfigMonitor: monitor);
-
-        var defaultThread = await svc.CreateThreadAsync(identity);
-        var explicitModelThread = await svc.CreateThreadAsync(
-            identity,
-            new ThreadConfiguration
-            {
-                Model = "unknown-model"
-            });
-        var persistedDefaultThread = await store.LoadThreadAsync(defaultThread.Id);
-        var persistedExplicitModelThread = await store.LoadThreadAsync(explicitModelThread.Id);
-
-        Assert.Equal("model-a", defaultThread.Configuration?.Model);
-        Assert.Equal(ContextWindowMode.Default, defaultThread.Configuration?.ContextWindow?.Mode);
-        Assert.Equal(ContextWindowMode.Default, persistedDefaultThread?.Configuration?.ContextWindow?.Mode);
-        Assert.Equal("unknown-model", explicitModelThread.Configuration?.Model);
-        Assert.Equal(ContextWindowMode.Default, explicitModelThread.Configuration?.ContextWindow?.Mode);
-        Assert.Equal(ContextWindowMode.Default, persistedExplicitModelThread?.Configuration?.ContextWindow?.Mode);
-    }
-
-    [Fact]
-    public async Task ForkThreadAsync_PreservesContextWindowUnlessRequestOverridesIt()
-    {
-        var store = new ThreadStore(_tempDir);
-        var persistence = new SessionPersistenceService(store);
-        var identity = new SessionIdentity
-        {
-            ChannelName = "test",
-            UserId = "u",
-            WorkspacePath = _tempDir
-        };
-
-        await using var agentFactory = CreateAgentFactory();
-        var defaultAgent = agentFactory.CreateAgentForMode(AgentMode.Agent);
-        var svc = new SessionService(agentFactory, defaultAgent, persistence, new SessionGate());
-
-        var source = await svc.CreateThreadAsync(
-            identity,
-            new ThreadConfiguration
-            {
-                Model = "gpt-5.5",
-                ContextWindow = new ThreadContextWindowConfig { Mode = ContextWindowMode.Max }
-            });
-
-        var inheritedFork = await svc.ForkThreadAsync(source.Id, null);
-        Assert.Equal(ContextWindowMode.Max, inheritedFork.Configuration?.ContextWindow?.Mode);
-
-        var partialOverrideFork = await svc.ForkThreadAsync(
-            source.Id,
-            new ThreadForkOptions
-            {
-                Config = new ThreadConfiguration
-                {
-                    Model = "gpt-5.5"
-                }
-            });
-        Assert.Equal(ContextWindowMode.Max, partialOverrideFork.Configuration?.ContextWindow?.Mode);
-
-        var explicitDefaultFork = await svc.ForkThreadAsync(
-            source.Id,
-            new ThreadForkOptions
-            {
-                Config = new ThreadConfiguration
-                {
-                    Model = "gpt-5.5",
-                    ContextWindow = new ThreadContextWindowConfig { Mode = ContextWindowMode.Default }
-                }
-            });
-        Assert.Equal(ContextWindowMode.Default, explicitDefaultFork.Configuration?.ContextWindow?.Mode);
     }
 
     [Fact]

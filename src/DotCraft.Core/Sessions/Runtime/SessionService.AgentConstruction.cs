@@ -9,7 +9,6 @@ using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
-using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceContextWindow;
 
 namespace DotCraft.Sessions;
 
@@ -79,10 +78,6 @@ public sealed partial class SessionService
         captured.MemoryEnabled ??= currentConfig.Memory.Enabled;
         captured.Reasoning ??= ThreadConfigurationCloner.CloneReasoningConfig(preference.Reasoning);
         captured.Speed ??= preference.Speed;
-        captured.ContextWindow ??= new ThreadContextWindowConfig
-        {
-            Mode = preference.ContextWindow.Mode
-        };
 
         var normalized = ModelPreferenceRules.Normalize(
             currentConfig,
@@ -92,18 +87,10 @@ public sealed partial class SessionService
                 Model = captured.Model,
                 Reasoning = ThreadConfigurationCloner.CloneReasoningConfig(captured.Reasoning),
                 Speed = captured.Speed.Value,
-                ContextWindow = new ModelPreferenceContextWindow
-                {
-                    Mode = captured.ContextWindow.Mode
-                }
             });
         captured.Model = normalized.Model;
         captured.Reasoning = ThreadConfigurationCloner.CloneReasoningConfig(normalized.Reasoning);
         captured.Speed = normalized.Speed;
-        captured.ContextWindow = new ThreadContextWindowConfig
-        {
-            Mode = normalized.ContextWindow.Mode
-        };
 
         return captured;
     }

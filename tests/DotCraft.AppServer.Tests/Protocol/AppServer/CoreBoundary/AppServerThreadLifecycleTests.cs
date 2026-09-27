@@ -274,22 +274,20 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
         CoreAppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
     }
 
-    [Fact]
-    public async Task ThreadStart_WithUnsupportedContextWindowMax_ReturnsInvalidParams()
+    [Theory]
+    [InlineData("max")]
+    [InlineData("ultra")]
+    public async Task ThreadStart_PreservesMaxAndUltraEfforts(string effort)
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
+        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
-            config = new
-            {
-                model = "manual-model-without-catalog-entry",
-                contextWindow = new { mode = "max" }
-            }
-        });
-        await _h.ExecuteRequestAsync(msg);
-
-        var response = await _h.Transport.ReadNextSentAsync();
-        CoreAppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+            config = new { model = "gpt-test", reasoning = new { enabled = true, effort, output = "full" } }
+        }));
+        using var response = await _h.Transport.ReadNextSentAsync();
+        Assert.False(response.RootElement.TryGetProperty("error", out _));
+        var thread = response.RootElement.GetProperty("result").GetProperty("thread");
+        Assert.Equal(effort, thread.GetProperty("configuration").GetProperty("reasoning").GetProperty("effort").GetString());
     }
 
     [Theory]
@@ -322,61 +320,6 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
         CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var config = response.RootElement.GetProperty("result").GetProperty("thread").GetProperty("configuration");
         Assert.Equal(1800, config.GetProperty("approvalTimeoutSeconds").GetInt32());
-    }
-
-    [Fact]
-    public async Task ThreadConfigUpdate_WithSupportedContextWindowMax_BroadcastsThreadUpdated()
-    {
-        _h.Service.ThreadUpdatedForBroadcast = thread =>
-        {
-            _h.Transport.WriteMessageAsync(new
-            {
-                jsonrpc = "2.0",
-                method = DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUpdated,
-                @params = new { thread = thread.ToWire() }
-            }, default).GetAwaiter().GetResult();
-        };
-
-        var start = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
-        {
-            identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
-            config = new
-            {
-                model = "gpt-5.5"
-            }
-        });
-        await _h.ExecuteRequestAsync(start);
-        var startResponse = await _h.Transport.ReadNextSentAsync();
-        _ = await _h.Transport.ReadNextSentAsync();
-        var threadId = startResponse.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
-
-        try
-        {
-            var update = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadConfigUpdate, new
-            {
-                threadId,
-                config = new
-                {
-                    mode = "agent",
-                    model = "gpt-5.5",
-                    contextWindow = new { mode = "max" }
-                }
-            });
-            await _h.ExecuteRequestAsync(update);
-
-            var sent = await _h.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-            Assert.Contains(sent, message => message.RootElement.TryGetProperty("result", out _));
-            var notification = Assert.Single(sent, message =>
-                message.RootElement.TryGetProperty("method", out var method)
-                && method.GetString() == DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUpdated);
-            var thread = notification.RootElement.GetProperty("params").GetProperty("thread");
-            Assert.Equal(threadId, thread.GetProperty("id").GetString());
-            Assert.Equal("max", thread.GetProperty("configuration").GetProperty("contextWindow").GetProperty("mode").GetString());
-        }
-        finally
-        {
-            _h.Service.ThreadUpdatedForBroadcast = null;
-        }
     }
 
     [Fact]

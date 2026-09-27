@@ -98,9 +98,8 @@ export interface DesktopPluginComposerMascotSurfaceContext
   readonly expression: "neutral" | "happy" | "operator" | "sleep";
   readonly light: "default" | "success" | "error";
   readonly submitRevision: number;
-  readonly reasoningEffort: "off" | "low" | "medium" | "high" | "extraHigh";
+  readonly reasoningEffort: "off" | "low" | "medium" | "high" | "extraHigh" | "max";
   readonly speed: "standard" | "fast";
-  readonly contextMax: boolean;
   readonly reducedMotion: boolean;
 }
 

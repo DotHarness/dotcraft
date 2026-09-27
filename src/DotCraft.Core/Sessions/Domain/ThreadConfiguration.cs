@@ -104,12 +104,6 @@ public sealed class ThreadConfiguration
     public AppConfig.ReasoningConfig? Reasoning { get; set; }
 
     /// <summary>
-    /// Per-thread context-window mode. Null means default compaction behavior.
-    /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public ThreadContextWindowConfig? ContextWindow { get; set; }
-
-    /// <summary>
     /// When set, all tools for this thread operate on this workspace path
     /// instead of the AppServer's root workspace path.
     /// The thread is still registered under the AppServer's root workspace
@@ -280,17 +274,6 @@ public sealed class SubAgentModelCatalogItem
 
     /// <summary>Gets or sets the provider model's default reasoning effort when known.</summary>
     public ModelReasoningEffort? DefaultReasoningEffort { get; set; }
-}
-
-/// <summary>
-/// Per-thread context-window selection.
-/// </summary>
-public sealed class ThreadContextWindowConfig
-{
-    /// <summary>
-    /// Context-window mode for this thread.
-    /// </summary>
-    public ContextWindowMode Mode { get; set; } = ContextWindowMode.Default;
 }
 
 /// <summary>

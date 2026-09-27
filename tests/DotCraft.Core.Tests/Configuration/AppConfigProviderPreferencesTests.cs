@@ -23,14 +23,12 @@ public sealed class AppConfigProviderPreferencesTests : IDisposable
                 "openai": {
                   "Model": "personal-model",
                   "Reasoning": { "Enabled": true, "Effort": "High", "Output": "Summary" },
-                  "Speed": "Fast",
-                  "ContextWindow": { "Mode": "Max" }
+                  "Speed": "Fast"
                 },
                 "anthropic": {
                   "Model": "claude-model",
                   "Reasoning": { "Enabled": false, "Effort": "Medium", "Output": "Full" },
-                  "Speed": "Standard",
-                  "ContextWindow": { "Mode": "Default" }
+                  "Speed": "Standard"
                 }
               }
             }
@@ -41,8 +39,7 @@ public sealed class AppConfigProviderPreferencesTests : IDisposable
                 "OPENAI": {
                   "Model": "workspace-model",
                   "Reasoning": { "Enabled": false, "Effort": "Low", "Output": "Full" },
-                  "Speed": "Standard",
-                  "ContextWindow": { "Mode": "Default" }
+                  "Speed": "Standard"
                 }
               }
             }
@@ -57,7 +54,6 @@ public sealed class AppConfigProviderPreferencesTests : IDisposable
         Assert.Equal(ModelReasoningEffort.Low, openAi.Reasoning.Effort);
         Assert.Equal(ReasoningOutput.Full, openAi.Reasoning.Output);
         Assert.Equal(InferenceSpeed.Standard, openAi.Speed);
-        Assert.Equal(ContextWindowMode.Default, openAi.ContextWindow.Mode);
         Assert.Equal("claude-model", ModelPreferenceRules.Find(config.ProviderPreferences, "ANTHROPIC")?.Model);
     }
 
@@ -81,7 +77,9 @@ public sealed class AppConfigProviderPreferencesTests : IDisposable
 
         var reasoning = Assert.IsType<AppConfig.ReasoningConfig>(config.ProviderPreferences["openai"].Reasoning);
         Assert.Equal(ModelReasoningEffort.Ultra, reasoning.Effort);
-        Assert.Equal(ReasoningEffort.ExtraHigh, reasoning.ToOptions()!.Effort);
+        var options = new ChatOptions();
+        reasoning.ApplyTo(options);
+        Assert.Equal(ProviderReasoningEffort.Max, ProviderReasoningOptions.Resolve(options));
     }
 
     public void Dispose()

@@ -1130,7 +1130,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
             configureConfig: config =>
             {
                 ConfigureAnthropicProvider(config);
-                config.CompactionContextWindowExplicit = true;
                 config.Compaction.ContextWindow = 50_000;
                 config.Compaction.SummaryReserveTokens = 5_000;
                 config.Compaction.AutoCompactBufferTokens = 1_000;
@@ -1995,7 +1994,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
 
         static void ConfigureRegressionWindow(AppConfig config)
         {
-            config.CompactionContextWindowExplicit = true;
             config.Compaction.ContextWindow = 130_000;
             config.Compaction.SummaryReserveTokens = 0;
             config.Compaction.AutoCompactBufferTokens = 20_000;
@@ -2584,7 +2582,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         var compactResult = await compactService.CompactThreadAsync(thread.Id);
         Assert.Equal("partial", compactResult.Outcome);
 
-
         var followUpChatClient = new RecordingChatClient("follow answer");
         await using var followUpFactory = CreateAgentFactory(followUpChatClient);
         var followUpService = CreateService(followUpFactory, followUpChatClient);
@@ -2776,6 +2773,15 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     {
         var config = AppConfigTestFactory.CreateOpenAI();
         configureConfig?.Invoke(config);
+        var catalogDirectory = Path.Combine(_tempDir, "catalog-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(catalogDirectory);
+        config.WorkspaceConfigPath = Path.Combine(catalogDirectory, "config.json");
+        var model = ModelProviderResolver.ResolveConfiguredModel(config);
+        File.WriteAllText(Path.Combine(catalogDirectory, "models.json"),
+            JsonSerializer.Serialize(new { models = new Dictionary<string, object>
+            {
+                [model!] = new { contextWindow = config.Compaction.ContextWindow }
+            } }));
         var memory = new MemoryStore(_tempDir);
         var skills = new SkillsLoader(_tempDir);
         return new AgentFactory(
@@ -2931,7 +2937,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
 
     private static void ConfigureSmallCompaction(AppConfig config)
     {
-        config.CompactionContextWindowExplicit = true;
         config.Compaction.ContextWindow = 10_000;
         config.Compaction.SummaryReserveTokens = 1_000;
         config.Compaction.AutoCompactBufferTokens = 500;

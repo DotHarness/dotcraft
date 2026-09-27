@@ -71,7 +71,7 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
         var handler = new CaptureHandler();
         var config = CreateConfig(
             enabled: true,
-            effort: ReasoningEffort.High,
+            effort: ModelReasoningEffort.High,
             output: ReasoningOutput.Full);
         var client = CreateClient(handler, config, model: "provider/test-xhigh-model");
 
@@ -95,7 +95,7 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
         var handler = new CaptureHandler();
         var config = CreateConfig(
             enabled: true,
-            effort: ReasoningEffort.High,
+            effort: ModelReasoningEffort.High,
             output: ReasoningOutput.Full);
         var client = CreateBetaClient(handler, config, model: "test-xhigh-model");
 
@@ -117,7 +117,7 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
         var handler = new CaptureHandler();
         var config = CreateConfig(
             enabled: true,
-            effort: ReasoningEffort.High,
+            effort: ModelReasoningEffort.High,
             output: ReasoningOutput.Full);
         var client = CreateBetaClient(handler, config, model: "claude-sonnet-4-5");
 
@@ -140,7 +140,7 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
         var handler = new CaptureHandler();
         var config = CreateConfig(
             enabled: true,
-            effort: ReasoningEffort.ExtraHigh,
+            effort: ModelReasoningEffort.ExtraHigh,
             output: ReasoningOutput.None);
         var client = CreateClient(handler, config, model: "test-xhigh-model");
 
@@ -161,7 +161,7 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
         var handler = new CaptureHandler();
         var config = CreateConfig(
             enabled: true,
-            effort: ReasoningEffort.ExtraHigh,
+            effort: ModelReasoningEffort.ExtraHigh,
             output: ReasoningOutput.Full);
         var client = CreateClient(handler, config, model: "test-max-model");
 
@@ -179,7 +179,7 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
     {
         var config = CreateConfig(
             enabled: true,
-            effort: ReasoningEffort.High,
+            effort: ModelReasoningEffort.High,
             output: ReasoningOutput.Full);
         var client = new AnthropicThinkingChatClient(
             new CaptureChatClient(),
@@ -200,7 +200,7 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
     {
         var config = CreateConfig(
             enabled: true,
-            effort: ReasoningEffort.High,
+            effort: ModelReasoningEffort.High,
             output: ReasoningOutput.Full);
         var client = new AnthropicThinkingChatClient(
             new CaptureChatClient(),
@@ -215,6 +215,27 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
 
         Assert.Same(options, prepared);
         Assert.Null(prepared!.RawRepresentationFactory);
+    }
+
+    [Theory]
+    [InlineData(false, ModelReasoningEffort.Max, "test-xhigh-model")]
+    [InlineData(true, ModelReasoningEffort.Max, "test-xhigh-model")]
+    [InlineData(false, ModelReasoningEffort.Ultra, "test-xhigh-model")]
+    [InlineData(true, ModelReasoningEffort.Ultra, "test-xhigh-model")]
+    [InlineData(false, ModelReasoningEffort.Max, "unlisted-model")]
+    public async Task Max_SerializesNativeEffortWithoutInternalMetadata(bool beta, ModelReasoningEffort effort, string model)
+    {
+        var handler = new CaptureHandler();
+        var config = CreateConfig(true, ModelReasoningEffort.High, ReasoningOutput.None);
+        config.Reasoning.Effort = effort;
+        using var client = beta ? CreateBetaClient(handler, config, model) : CreateClient(handler, config, model);
+        var options = new ChatOptions();
+        config.Reasoning.ApplyTo(options);
+        await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], options);
+        using var document = JsonDocument.Parse(handler.LastRequestJson!);
+        Assert.Equal("max", document.RootElement.GetProperty("output_config").GetProperty("effort").GetString());
+        Assert.DoesNotContain("dotcraft.reasoningEffort", handler.LastRequestJson!);
+        Assert.Equal(ProviderReasoningEffort.Max, ProviderReasoningOptions.Resolve(options));
     }
 
     private static AnthropicThinkingChatClient CreateClient(
@@ -257,7 +278,7 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
 
     private AppConfig CreateConfig(
         bool enabled,
-        ReasoningEffort effort,
+        ModelReasoningEffort effort,
         ReasoningOutput output) =>
         new()
         {
@@ -265,7 +286,7 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
             Reasoning = new AppConfig.ReasoningConfig
             {
                 Enabled = enabled,
-                Effort = effort.ToModelReasoningEffort(),
+                Effort = effort,
                 Output = output
             }
         };

@@ -70,8 +70,8 @@ internal sealed class DeepThinkingChatClient(
 
     private ChatOptions? PrepareOptions(ChatOptions? options)
     {
-        var pipeline = ProviderPipelineOptionsScope.Current;
-        var reasoning = options?.Reasoning ?? CreateReasoningOptions(pipeline);
+        options = ProviderReasoningOptions.ApplyDefaults(options, ProviderPipelineOptionsScope.Current);
+        var reasoning = options?.Reasoning;
         if (reasoning == null)
             return options;
 
@@ -92,17 +92,6 @@ internal sealed class DeepThinkingChatClient(
             return raw;
         };
         return prepared;
-    }
-
-    private static ReasoningOptions? CreateReasoningOptions(ProviderPipelineOptions? pipeline)
-    {
-        if (pipeline is not { ReasoningEnabled: true })
-            return null;
-        if (!Enum.TryParse<ReasoningEffort>(pipeline.ReasoningEffort, true, out var effort))
-            effort = ReasoningEffort.Medium;
-        if (!Enum.TryParse<ReasoningOutput>(pipeline.ReasoningOutput, true, out var output))
-            output = ReasoningOutput.Full;
-        return new ReasoningOptions { Effort = effort, Output = output };
     }
 
     private static ChatMessage PrepareMessage(ChatMessage message)

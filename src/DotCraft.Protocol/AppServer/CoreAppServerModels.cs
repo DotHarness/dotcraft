@@ -218,9 +218,6 @@ public sealed class AgentProfileListResult : ExtensibleJsonObject
 /// <summary>Executable wire contract for AgentProfileProviderPreference.</summary>
 public sealed class AgentProfileProviderPreference : ExtensibleJsonObject
 {
-    [JsonPropertyName("contextWindow")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ModelPreferenceContextWindow> ContextWindow { get; init; }
 
     [JsonPropertyName("model")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2561,7 +2558,7 @@ public sealed class ModelCatalogItem : ExtensibleJsonObject
 {
     [JsonPropertyName("contextWindow")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ModelContextWindowCapability?> ContextWindow { get; init; }
+    public Optional<int> ContextWindow { get; init; }
 
     [JsonPropertyName("createdAt")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2582,27 +2579,6 @@ public sealed class ModelCatalogItem : ExtensibleJsonObject
     [JsonPropertyName("speed")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ModelSpeedCapability?> Speed { get; init; }
-
-}
-
-/// <summary>Executable wire contract for ModelContextWindowCapability.</summary>
-public sealed class ModelContextWindowCapability : ExtensibleJsonObject
-{
-    [JsonPropertyName("catalogWindow")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int> CatalogWindow { get; init; }
-
-    [JsonPropertyName("configuredWindow")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int> ConfiguredWindow { get; init; }
-
-    [JsonPropertyName("maxWindow")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int> MaxWindow { get; init; }
-
-    [JsonPropertyName("supportsMax")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> SupportsMax { get; init; }
 
 }
 
@@ -2647,9 +2623,6 @@ public sealed class ModelListResult : ExtensibleJsonObject
 /// <summary>Executable wire contract for ModelPreference.</summary>
 public sealed class ModelPreference : ExtensibleJsonObject
 {
-    [JsonPropertyName("contextWindow")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ModelPreferenceContextWindow> ContextWindow { get; init; }
 
     [JsonPropertyName("model")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2662,15 +2635,6 @@ public sealed class ModelPreference : ExtensibleJsonObject
     [JsonPropertyName("speed")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Speed { get; init; }
-
-}
-
-/// <summary>Executable wire contract for ModelPreferenceContextWindow.</summary>
-public sealed class ModelPreferenceContextWindow : ExtensibleJsonObject
-{
-    [JsonPropertyName("mode")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Mode { get; init; }
 
 }
 
@@ -3959,7 +3923,6 @@ public sealed class ReasoningConfig : ExtensibleJsonObject
     public Optional<string> Output { get; init; }
 
 }
-
 
 /// <summary>Executable wire contract for SkillInfo.</summary>
 public sealed class SkillInfo : ExtensibleJsonObject
@@ -5449,10 +5412,6 @@ public sealed class ThreadConfiguration : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> AutomationTaskDirectory { get; init; }
 
-    [JsonPropertyName("contextWindow")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ThreadContextWindowConfig?> ContextWindow { get; init; }
-
     [JsonPropertyName("customTools")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<string>?> CustomTools { get; init; }
@@ -5548,15 +5507,6 @@ public sealed class ThreadConfiguration : ExtensibleJsonObject
     [JsonPropertyName("workspaceOverride")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> WorkspaceOverride { get; init; }
-
-}
-
-/// <summary>Executable wire contract for ThreadContextWindowConfig.</summary>
-public sealed class ThreadContextWindowConfig : ExtensibleJsonObject
-{
-    [JsonPropertyName("mode")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Mode { get; init; }
 
 }
 

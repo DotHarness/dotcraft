@@ -103,8 +103,6 @@ export function ConversationPanel({
     modelCatalog: modelControls.modelCatalog,
     reasoningValue: modelControls.reasoningValue,
     speedValue: modelControls.speedValue,
-    contextMode: modelControls.contextMode,
-    contextDegraded: modelControls.contextDegraded
   })
 
   const showReconnectionBanner = connectionStatus === 'disconnected'
@@ -345,11 +343,6 @@ export function ConversationPanel({
           onReasoningChange={modelControls.onReasoningChange}
           onSpeedChange={modelControls.onSpeedChange}
           onModelCatalogRetry={modelControls.onModelCatalogRetry}
-          contextMode={modelControls.contextMode}
-          contextSupportsMax={modelControls.contextSupportsMax}
-          contextDegraded={modelControls.contextDegraded}
-          contextConfiguredWindow={modelControls.contextConfiguredWindow}
-          onContextModeChange={modelControls.onContextModeChange}
         />
       )}
     </div>

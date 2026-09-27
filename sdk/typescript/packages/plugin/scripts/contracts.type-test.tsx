@@ -133,7 +133,6 @@ const mascotContext: DesktopPluginSurfaceContext<"composer.mascot"> = {
   submitRevision: 1,
   reasoningEffort: "high",
   speed: "fast",
-  contextMax: true,
   reducedMotion: false,
 };
 

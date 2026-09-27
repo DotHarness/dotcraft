@@ -144,14 +144,14 @@ describe('ModelPicker', () => {
     expect(screen.getByRole('dialog', { name: 'Select model' })).toBeInTheDocument()
   })
 
-  it('offers Ultra after Extra High only when the server advertises it', () => {
+  it('offers Max between Extra High and Ultra', () => {
     const onReasoningChange = vi.fn()
     const { rerender } = render(
       <LocaleProvider>
         <ModelPicker
           modelName="model-ultra"
           modelOptions={['model-ultra']}
-          modelCatalog={[catalogModel('model-ultra', true, ['high', 'extraHigh', 'ultra'], 'extraHigh')]}
+          modelCatalog={[catalogModel('model-ultra', true, ['high', 'extraHigh', 'max', 'ultra'], 'extraHigh')]}
           reasoningValue="extraHigh"
           triggerStyle={{}}
           onReasoningChange={onReasoningChange}
@@ -160,10 +160,12 @@ describe('ModelPicker', () => {
     )
 
     let slider = within(openPicker()).getByRole('slider', { name: 'Intelligence' })
-    expect(slider).toHaveAttribute('max', '3')
+    expect(slider).toHaveAttribute('max', '4')
     expect(slider).toHaveValue('2')
     fireEvent.change(slider, { target: { value: '3' } })
-    expect(onReasoningChange).toHaveBeenCalledWith('ultra')
+    expect(onReasoningChange).toHaveBeenCalledWith('max')
+    fireEvent.change(slider, { target: { value: '4' } })
+    expect(onReasoningChange).toHaveBeenLastCalledWith('ultra')
 
     rerender(
       <LocaleProvider>
@@ -201,7 +203,6 @@ describe('ModelPicker', () => {
   it('offers reset only while a setting differs from the catalog defaults and returns each one', () => {
     const onReasoningChange = vi.fn()
     const onSpeedChange = vi.fn()
-    const onContextModeChange = vi.fn()
     const { rerender } = render(
       <LocaleProvider>
         <ModelPicker
@@ -210,11 +211,8 @@ describe('ModelPicker', () => {
           modelCatalog={[catalogModel('gpt-5.5', true, ['low', 'medium', 'high'], 'medium', true)]}
           reasoningValue="high"
           speedValue="fast"
-          contextMode="default"
-          contextSupportsMax
           onReasoningChange={onReasoningChange}
           onSpeedChange={onSpeedChange}
-          onContextModeChange={onContextModeChange}
           triggerStyle={{}}
         />
       </LocaleProvider>
@@ -223,7 +221,6 @@ describe('ModelPicker', () => {
     fireEvent.click(within(openPicker()).getByRole('button', { name: 'Reset to default' }))
     expect(onReasoningChange).toHaveBeenCalledWith('medium')
     expect(onSpeedChange).toHaveBeenCalledWith('standard')
-    expect(onContextModeChange).not.toHaveBeenCalled()
 
     rerender(
       <LocaleProvider>
@@ -233,11 +230,8 @@ describe('ModelPicker', () => {
           modelCatalog={[catalogModel('gpt-5.5', true, ['low', 'medium', 'high'], 'medium', true)]}
           reasoningValue="medium"
           speedValue="standard"
-          contextMode="default"
-          contextSupportsMax
           onReasoningChange={onReasoningChange}
           onSpeedChange={onSpeedChange}
-          onContextModeChange={onContextModeChange}
           triggerStyle={{}}
         />
       </LocaleProvider>
@@ -317,98 +311,6 @@ describe('ModelPicker', () => {
     const panel = screen.getByRole('dialog', { name: '选择模型' })
     expect(within(panel).getByRole('slider', { name: '思考强度' })).toHaveAttribute('aria-valuetext', '超高')
     expect(within(panel).getByRole('button', { name: 'mimo-v2.5-pro' })).toBeInTheDocument()
-  })
-
-  it('omits MAX Mode when no context handler is provided', () => {
-    render(
-      <LocaleProvider>
-        <ModelPicker modelName="gpt-5.5" modelOptions={['gpt-5.5']} reasoningValue="off" triggerStyle={{}} />
-      </LocaleProvider>
-    )
-
-    const panel = openPicker()
-    expect(within(panel).queryByText('MAX')).not.toBeInTheDocument()
-    const menu = openMenu(panel, 'gpt-5.5')
-    expect(within(menu).queryByText('Context')).not.toBeInTheDocument()
-    expect(within(menu).queryByRole('switch', { name: 'MAX Mode' })).not.toBeInTheDocument()
-  })
-
-  it('toggles MAX on for a supported model', () => {
-    const onContextModeChange = vi.fn()
-    render(
-      <LocaleProvider>
-        <ModelPicker
-          modelName="gpt-5.5"
-          modelOptions={['gpt-5.5']}
-          reasoningValue="off"
-          triggerStyle={{}}
-          contextMode="default"
-          contextSupportsMax
-          onContextModeChange={onContextModeChange}
-        />
-      </LocaleProvider>
-    )
-
-    const menu = openMenu(openPicker(), 'gpt-5.5')
-    const maxSwitch = within(menu).getByRole('switch', { name: 'MAX Mode' })
-    expect(maxSwitch).not.toBeDisabled()
-    expect(maxSwitch).toHaveAttribute('aria-checked', 'false')
-
-    fireEvent.click(maxSwitch)
-    expect(onContextModeChange).toHaveBeenCalledWith('max')
-  })
-
-  it('disables MAX when the model does not support it', () => {
-    const onContextModeChange = vi.fn()
-    render(
-      <LocaleProvider>
-        <ModelPicker
-          modelName="my-local-model"
-          modelOptions={['my-local-model']}
-          reasoningValue="off"
-          triggerStyle={{}}
-          contextMode="default"
-          contextSupportsMax={false}
-          onContextModeChange={onContextModeChange}
-        />
-      </LocaleProvider>
-    )
-
-    const menu = openMenu(openPicker(), 'my-local-model')
-    const maxSwitch = within(menu).getByRole('switch', { name: 'MAX Mode' })
-    expect(maxSwitch).toBeDisabled()
-
-    fireEvent.click(maxSwitch)
-    expect(onContextModeChange).not.toHaveBeenCalled()
-  })
-
-  it('surfaces a degraded MAX thread beside the level and lets the switch reset it', () => {
-    const onContextModeChange = vi.fn()
-    render(
-      <LocaleProvider>
-        <ModelPicker
-          modelName="my-local-model"
-          modelOptions={['my-local-model']}
-          reasoningValue="off"
-          triggerStyle={{}}
-          contextMode="max"
-          contextSupportsMax={false}
-          contextDegraded
-          contextConfiguredWindow={128000}
-          onContextModeChange={onContextModeChange}
-        />
-      </LocaleProvider>
-    )
-
-    const panel = openPicker()
-    expect(within(panel).getByText('MAX')).toHaveClass('is-degraded')
-    const menu = openMenu(panel, 'my-local-model')
-    const maxSwitch = within(menu).getByRole('switch', { name: 'MAX Mode' })
-    expect(maxSwitch).toHaveAttribute('aria-checked', 'true')
-    expect(within(menu).getByText(/128K/)).toBeInTheDocument()
-
-    fireEvent.click(maxSwitch)
-    expect(onContextModeChange).toHaveBeenCalledWith('default')
   })
 
   it('uses Escape to leave a submenu, then the menu, before closing the picker', () => {
@@ -493,8 +395,8 @@ function openMenu(panel: HTMLElement, modelName: string): HTMLElement {
 function catalogModel(
   id: string,
   supportsDisable: boolean,
-  efforts: Array<'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'>,
-  defaultEffort: 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra',
+  efforts: Array<'low' | 'medium' | 'high' | 'extraHigh' | 'max' | 'ultra'>,
+  defaultEffort: 'low' | 'medium' | 'high' | 'extraHigh' | 'max' | 'ultra',
   supportsFast = false
 ) {
   return {

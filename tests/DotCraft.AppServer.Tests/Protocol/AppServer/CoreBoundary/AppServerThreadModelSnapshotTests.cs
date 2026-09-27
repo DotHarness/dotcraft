@@ -50,8 +50,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
                 "openai": {
                   "Model": "model-a",
                   "Reasoning": { "Enabled": false, "Effort": "Medium", "Output": "Full" },
-                  "Speed": "Fast",
-                  "ContextWindow": { "Mode": "Default" }
+                  "Speed": "Fast"
                 }
               }
             }
@@ -161,8 +160,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
                 "anthropic-main": {
                   "Model": "claude-sonnet-4-5",
                   "Reasoning": { "Enabled": false, "Effort": "Medium", "Output": "Full" },
-                  "Speed": "Standard",
-                  "ContextWindow": { "Mode": "Default" }
+                  "Speed": "Standard"
                 }
               }
             }
@@ -256,7 +254,6 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
                 model = "claude-opus-4-8",
                 reasoning = new { enabled = true, effort = "extraHigh", output = "full" },
                 speed = "standard",
-                contextWindow = new { mode = "default" }
             });
 
         var agentsDirectory = Path.Combine(_craftPath, "agents");
@@ -274,8 +271,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
                 enabled: true
                 effort: high
               speed: standard
-              contextWindow:
-                mode: default
+
             tools:
               deny: [WriteFile]
             ---
@@ -297,7 +293,6 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
                 model = "claude-opus-4-8",
                 reasoning = new { enabled = true, effort = "extraHigh", output = "full" },
                 speed = "standard",
-                contextWindow = new { mode = "default" }
             });
 
         var profileThreadRead = InMemoryTransport.BuildRequest(

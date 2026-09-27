@@ -232,7 +232,6 @@ export function ApprovalDecisionComposer({
           mascotInteraction={DECISION_MASCOT}
           mascotReasoningEffort={mascotEffectState.reasoningEffort}
           mascotSpeed={mascotEffectState.speed}
-          mascotContextMax={mascotEffectState.contextMax}
           mascotHandoff
           editor={(
             <div style={{ display: 'grid', gap: '8px' }}>

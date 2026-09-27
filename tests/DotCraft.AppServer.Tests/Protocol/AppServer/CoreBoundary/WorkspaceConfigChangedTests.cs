@@ -7,7 +7,6 @@ using DotCraft.AppServer;
 using DotCraft.Sessions;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
-using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceContextWindow;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -52,9 +51,6 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
         AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceProviderPreferences);
     }
-
-
-
 
     [Fact]
     public async Task WorkspaceConfigUpdate_WelcomeSuggestionsOnly_EmitsWelcomeSuggestionsRegion()
@@ -445,60 +441,6 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
         AssertNoConfigChanged(sent);
-    }
-
-    [Fact]
-    public async Task WorkspaceConfigUpdate_ContextWindowMax_WritesConfigUpdatesMonitorAndEmitsRegion()
-    {
-        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
-        var monitor = new AppConfigMonitor(AppConfigTestFactory.CreateOpenAI(model: "gpt-5.5"));
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath, appConfigMonitor: monitor);
-        using var bridge = AttachConfigChangedBridge(harness);
-        await harness.InitializeAsync(configChange: true);
-
-        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
-        {
-            contextWindow = new
-            {
-                mode = "max"
-            }
-        });
-        await harness.ExecuteRequestAsync(req);
-
-        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
-        AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
-        AssertNoConfigChanged(sent);
-    }
-
-    [Fact]
-    public async Task WorkspaceConfigUpdate_ContextWindowNull_RemovesLeafAndPrunesEmptySection()
-    {
-        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
-        await File.WriteAllTextAsync(
-            configPath,
-            """
-            {
-              "Compaction": {
-                "ContextWindowMode": "Max"
-              }
-            }
-            """);
-
-        var monitor = new AppConfigMonitor(AppConfigTestFactory.CreateOpenAI(model: "gpt-5.5"));
-        monitor.Current.Compaction.ContextWindowMode = ContextWindowMode.Max;
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath, appConfigMonitor: monitor);
-        using var bridge = AttachConfigChangedBridge(harness);
-        await harness.InitializeAsync(configChange: true);
-
-        var req = harness.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
-            new System.Text.Json.Nodes.JsonObject { ["contextWindow"] = null });
-        await harness.ExecuteRequestAsync(req);
-
-        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
-        AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
-        AssertNoConfigChanged(sent);
-        Assert.True(File.Exists(configPath));
     }
 
     [Fact]
@@ -897,7 +839,6 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         var resultPreferences = result.GetProperty("providerPreferences");
         Assert.Equal("gpt-x", resultPreferences.GetProperty("openai").GetProperty("model").GetString());
         Assert.Equal("fast", resultPreferences.GetProperty("openai").GetProperty("speed").GetString());
-        Assert.Equal("default", resultPreferences.GetProperty("openai").GetProperty("contextWindow").GetProperty("mode").GetString());
         Assert.Equal("claude-y", resultPreferences.GetProperty("anthropic-main").GetProperty("model").GetString());
 
         using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(configPath));
@@ -918,8 +859,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
                 "openai": {
                   "Model": "gpt-x",
                   "Reasoning": { "Enabled": false, "Effort": "Medium", "Output": "Full" },
-                  "Speed": "Standard",
-                  "ContextWindow": { "Mode": "Default" }
+                  "Speed": "Standard"
                 }
               }
             }
@@ -978,8 +918,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
     private static ModelPreference Preference(
         string model,
-        InferenceSpeed speed = InferenceSpeed.Standard,
-        ContextWindowMode contextMode = ContextWindowMode.Default) => new()
+        InferenceSpeed speed = InferenceSpeed.Standard) => new()
         {
             Model = model,
             Reasoning = new AppConfig.ReasoningConfig
@@ -989,7 +928,6 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
                 Output = Microsoft.Extensions.AI.ReasoningOutput.Full
             },
             Speed = speed,
-            ContextWindow = new ModelPreferenceContextWindow { Mode = contextMode }
         };
 
     private static IDisposable AttachConfigChangedBridge(AppServerTestHarness harness)

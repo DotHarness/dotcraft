@@ -108,7 +108,6 @@ describe('ComposerShell mascot energy and active idle', () => {
           data-submit-revision={context.submitRevision}
           data-effort={context.reasoningEffort}
           data-speed={context.speed}
-          data-context-max={String(context.contextMax)}
           data-size={context.size}
           data-thread-id={context.threadId}
         />
@@ -119,7 +118,6 @@ describe('ComposerShell mascot energy and active idle', () => {
       mascotInteraction: { expression: 'operator' },
       mascotReasoningEffort: 'high',
       mascotSpeed: 'fast',
-      mascotContextMax: true
     })
     let custom = view.getByTestId('custom-mascot')
 
@@ -130,7 +128,6 @@ describe('ComposerShell mascot energy and active idle', () => {
     expect(custom).toHaveAttribute('data-submit-revision', '0')
     expect(custom).toHaveAttribute('data-effort', 'high')
     expect(custom).toHaveAttribute('data-speed', 'fast')
-    expect(custom).toHaveAttribute('data-context-max', 'true')
     expect(custom).toHaveAttribute('data-size', '58')
     expect(custom).toHaveAttribute('data-thread-id', 'thread-1')
 

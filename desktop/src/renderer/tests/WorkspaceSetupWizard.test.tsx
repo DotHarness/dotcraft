@@ -60,7 +60,6 @@ function preference(model: string): ModelPreference {
     model,
     reasoning: { enabled: false, effort: 'medium', output: 'full' },
     speed: 'standard',
-    contextWindow: { mode: 'default' }
   }
 }
 

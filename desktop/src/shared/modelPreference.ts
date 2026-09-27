@@ -1,7 +1,6 @@
-export type ModelPreferenceReasoningEffort = 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'
+export type ModelPreferenceReasoningEffort = 'low' | 'medium' | 'high' | 'extraHigh' | 'max' | 'ultra'
 export type ModelPreferenceReasoningOutput = 'none' | 'summary' | 'full'
 export type ModelPreferenceSpeed = 'standard' | 'fast'
-export type ModelPreferenceContextMode = 'default' | 'max'
 
 export interface ModelPreference {
   model: string
@@ -11,9 +10,6 @@ export interface ModelPreference {
     output: ModelPreferenceReasoningOutput
   }
   speed: ModelPreferenceSpeed
-  contextWindow: {
-    mode: ModelPreferenceContextMode
-  }
 }
 
 export type ProviderPreferences = Record<string, ModelPreference>
@@ -28,7 +24,6 @@ export function toContractProviderPreferences(
         model: preference.model,
         reasoning: { ...preference.reasoning },
         speed: preference.speed,
-        contextWindow: { ...preference.contextWindow }
       }
     ])
   )
@@ -39,7 +34,6 @@ export function createManualModelPreference(model: string): ModelPreference {
     model: model.trim(),
     reasoning: { enabled: false, effort: 'medium', output: 'full' },
     speed: 'standard',
-    contextWindow: { mode: 'default' }
   }
 }
 
@@ -48,7 +42,6 @@ export function cloneModelPreference(preference: ModelPreference): ModelPreferen
     model: preference.model,
     reasoning: { ...preference.reasoning },
     speed: preference.speed,
-    contextWindow: { ...preference.contextWindow }
   }
 }
 
@@ -73,7 +66,7 @@ export function readModelPreference(value: unknown): ModelPreference | null {
   const effort = readEnum(
     reasoningRaw,
     'effort',
-    ['low', 'medium', 'high', 'extraHigh', 'ultra'] as const
+    ['low', 'medium', 'high', 'extraHigh', 'max', 'ultra'] as const
   ) ?? 'medium'
   const output = readEnum(
     reasoningRaw,
@@ -81,13 +74,10 @@ export function readModelPreference(value: unknown): ModelPreference | null {
     ['none', 'summary', 'full'] as const
   ) ?? 'full'
   const speed = readEnum(record, 'speed', ['standard', 'fast'] as const) ?? 'standard'
-  const contextWindow = readRecord(record, 'contextWindow')
-  const mode = readEnum(contextWindow, 'mode', ['default', 'max'] as const) ?? 'default'
   return {
     model,
     reasoning: { enabled, effort, output },
     speed,
-    contextWindow: { mode }
   }
 }
 

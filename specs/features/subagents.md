@@ -191,7 +191,7 @@ provider history.
 ## 6. Native model resolution
 
 Model resolution operates on a complete provider-scoped preference: model, reasoning configuration,
-inference speed, and context-window mode. The parent provider remains authoritative; SubAgent spawning
+inference speed. The parent provider remains authoritative; SubAgent spawning
 does not switch providers.
 
 ### 6.1 Full-history children
@@ -218,9 +218,9 @@ For `forkTurns=none` or a positive integer, Session Core applies this order:
    over `role.Model`; an explicit effort takes precedence over inherited reasoning effort.
 5. Normalize the complete preference against the final model's catalog capabilities.
 
-An invocation model changes only the model before normalization. It does not reset reasoning, speed,
-or context-window selections. An invocation effort enables reasoning at that effort while preserving
-reasoning output, model, speed, and context-window mode. Normalization repairs only selections that the
+An invocation model changes only the model before normalization. It does not reset reasoning or speed
+selections. An invocation effort enables reasoning at that effort while preserving
+reasoning output, model, and speed. Normalization repairs only selections that the
 final model does not support.
 
 The model-visible `SpawnAgent` tool accepts optional `model` and `reasoningEffort` arguments. They are

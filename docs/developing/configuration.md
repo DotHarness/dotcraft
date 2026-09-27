@@ -64,10 +64,7 @@ Workspace model selection example:
         "Effort": "High",
         "Output": "Full"
       },
-      "Speed": "Fast",
-      "ContextWindow": {
-        "Mode": "Max"
-      }
+      "Speed": "Fast"
     }
   }
 }
@@ -79,10 +76,11 @@ Workspace model selection example:
 |------------------|--------|-------------|
 | **`Model`** | Non-empty model id | Model used for new MainAgent threads |
 | **`Reasoning.Enabled`** | `true`, `false` | Enables reasoning when the model supports the choice |
-| **`Reasoning.Effort`** | `Low`, `Medium`, `High`, `ExtraHigh` | Requested reasoning effort |
+| **`Reasoning.Effort`** | `Low`, `Medium`, `High`, `ExtraHigh`, `Max`, `Ultra` | Requested reasoning effort |
 | **`Reasoning.Output`** | `None`, `Summary`, `Full` | Requested reasoning output |
 | **`Speed`** | `Standard`, `Fast` | Requested inference speed; unsupported Fast runs as Standard |
-| **`ContextWindow.Mode`** | `Default`, `Max` | Requested context-window mode; unsupported Max resets to Default |
+
+Max requests native maximum reasoning effort. Ultra uses the same Max effort and adds proactive Dynamic Workflow orchestration.
 
 Provider object fields:
 
@@ -171,8 +169,7 @@ Both settings can be changed in **Settings → Personalization**. A prompt sugge
 |-------|-------------|---------|
 | `Compaction.AutoCompactEnabled` | Enables threshold-based auto compaction | `true` |
 | `Compaction.ReactiveCompactEnabled` | Enables reactive compaction for `prompt_too_long` errors | `true` |
-| `Compaction.ContextWindow` | Model context window in tokens. When unset, DotCraft infers it from the current effective model | Model catalog value / `256000` |
-| `Compaction.MaxContextWindow` | Upper bound used for inferred model catalog context windows; explicit values are preserved | `256000` |
+| `Compaction.MaxContextWindow` | Client context budget in tokens. `-1` uses the model catalog window; a positive value caps it | `-1` |
 | `Compaction.SummaryReserveTokens` | Tokens reserved for summary output | `20000` |
 | `Compaction.SummaryMaxOutputTokens` | Maximum output tokens for a compaction summary request | `12000` |
 | `Compaction.AutoCompactBufferTokens` | Token buffer below the hard limit that triggers auto compaction | `13000` |
@@ -187,6 +184,21 @@ Both settings can be changed in **Settings → Personalization**. A prompt sugge
 | `Compaction.MicrocompactKeepRecent` | Recent tool results kept during micro-compaction | `8` |
 | `Compaction.MicrocompactGapMinutes` | Also triggers after this many minutes since last assistant message; `0` disables it | `20` |
 | `Compaction.MaxConsecutiveFailures` | Consecutive failures before circuit breaking compaction | `3` |
+
+Set the context budget in global or workspace `config.json`. For example, limit the client to 256K tokens:
+
+```json
+{
+  "Compaction": {
+    "MaxContextWindow": 256000
+  }
+}
+```
+
+Omitting the setting uses the model catalog window. Workspace settings override global settings;
+set `MaxContextWindow` to `-1` in the workspace to clear an inherited limit. The budget cannot increase
+model capacity. Summary reserves and safety buffers are deducted afterward, so this value is not
+the exact automatic-compaction trigger. Reasoning effort does not change the budget.
 
 ### Model capability catalog
 
@@ -229,17 +241,16 @@ used as its lowercase key. If a provider serves a different limit, set an overri
 workspace catalog. More-specific keys win over family prefixes, so a concrete model can safely carry
 a different window from its family.
 
-MAX is available only when a model rule matches and its catalog window is larger than the configured
-Default window. Unknown models and matches that would not increase the window do not offer MAX.
-Default mode continues to apply `Compaction.MaxContextWindow`; MAX uses the raw catalog window while
-keeping the normal summary reserve and safety buffer.
+Model context capacity comes directly from the merged catalog. Unknown models use
+`defaultContextWindow`, falling back to 256,000 tokens. Summary reserves and safety buffers
+are applied by compaction after the optional client budget.
 
 ## Reasoning and prompt caching
 
 | Field | Description | Default |
 |-------|-------------|---------|
 | `Reasoning.Enabled` | Requests provider reasoning support | `false` |
-| `Reasoning.Effort` | Reasoning depth: `None` / `Low` / `Medium` / `High` / `ExtraHigh` | `Medium` |
+| `Reasoning.Effort` | Reasoning depth: `None` / `Low` / `Medium` / `High` / `ExtraHigh` / `Max` / `Ultra` | `Medium` |
 | `Reasoning.Output` | Reasoning visibility: `None` / `Summary` / `Full` | `Full` |
 | `PromptCaching.Enabled` | Inject prompt cache markers for matching models | `true` |
 | `PromptCaching.ModelPatterns` | Case-insensitive model name fragments. Empty matches no models | `["claude"]` |

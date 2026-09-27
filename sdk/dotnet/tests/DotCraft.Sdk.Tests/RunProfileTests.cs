@@ -267,8 +267,7 @@ public sealed class RunProfileTests
             "anthropic",
             "claude-sonnet-4-5",
             new ReasoningConfig { Enabled = true, Effort = "high", Output = "full" },
-            "fast",
-            new ThreadContextWindowConfig { Mode = "max" });
+            "fast");
         await RespondAsync(transport, "thread/read", new ThreadReadResult { Thread = Thread(configuration: current) });
         using (var outbound = await transport.ReadOutboundAsync())
         {
@@ -406,6 +405,5 @@ public sealed class RunProfileTests
         Model = model,
         Reasoning = new ReasoningConfig { Enabled = true, Effort = "medium", Output = "full" },
         Speed = "standard",
-        ContextWindow = new ThreadContextWindowConfig { Mode = "default" }
     };
 }

@@ -4,7 +4,6 @@ import { load as loadYaml } from 'js-yaml'
  */
 
 import type {
-  ModelPreferenceContextMode,
   ModelPreferenceReasoningEffort,
   ModelPreferenceSpeed
 } from '../../../shared/modelPreference'
@@ -22,9 +21,6 @@ export interface AgentProviderPreference {
     effort: ModelPreferenceReasoningEffort
   }
   speed: ModelPreferenceSpeed
-  contextWindow: {
-    mode: ModelPreferenceContextMode
-  }
 }
 
 // Operational mode (Agent/Plan) is intentionally NOT a profile field: it is a per-thread
@@ -117,7 +113,6 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
     model?: string
     reasoning?: Partial<AgentProviderPreference['reasoning']>
     speed?: ModelPreferenceSpeed
-    contextWindow?: Partial<AgentProviderPreference['contextWindow']>
   } = {}
   let providerPreferenceHasRemovedOutput = false
   for (const rawLine of front.split('\n')) {
@@ -143,9 +138,7 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
         sub = 'providerReasoning'
       } else if (section === 'providerPreference' && key === 'speed') {
         providerPreference.speed = val as ModelPreferenceSpeed
-      } else if (section === 'providerPreference' && key === 'contextWindow') {
-        providerPreference.contextWindow = {}
-        sub = 'providerContextWindow'
+
       } else if (section === 'tools' && key === 'allow') {
         hasToolsAllow = true
         draft.tools.allow = parseList(val)
@@ -168,8 +161,7 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
         }
         else if (key === 'effort') providerPreference.reasoning!.effort = val as ModelPreferenceReasoningEffort
         else if (key === 'output') providerPreferenceHasRemovedOutput = true
-      } else if (sub === 'providerContextWindow' && key === 'mode') {
-        providerPreference.contextWindow!.mode = val as ModelPreferenceContextMode
+
       } else if (sub === 'mcpTools') {
         if (key === 'allow') draft.mcp.toolsAllow = parseList(val)
         else if (key === 'deny') draft.mcp.toolsDeny = parseList(val)
@@ -182,9 +174,8 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
     && providerPreference.providerId
     && providerPreference.model
     && typeof providerPreference.reasoning?.enabled === 'boolean'
-    && ['low', 'medium', 'high', 'extraHigh', 'ultra'].includes(providerPreference.reasoning.effort ?? '')
+    && ['low', 'medium', 'high', 'extraHigh', 'max', 'ultra'].includes(providerPreference.reasoning.effort ?? '')
     && ['standard', 'fast'].includes(providerPreference.speed ?? '')
-    && ['default', 'max'].includes(providerPreference.contextWindow?.mode ?? '')
   ) {
     draft.providerPreference = providerPreference as AgentProviderPreference
   }
@@ -209,8 +200,6 @@ export function toMarkdown(draft: ProfileDraft): string {
     fm.push(`    enabled: ${preference.reasoning.enabled ? 'true' : 'false'}`)
     fm.push(`    effort: ${preference.reasoning.effort}`)
     fm.push(`  speed: ${preference.speed}`)
-    fm.push('  contextWindow:')
-    fm.push(`    mode: ${preference.contextWindow.mode}`)
   }
 
   if (draft.tools.mode !== 'all' || draft.tools.agentControl !== 'full') {

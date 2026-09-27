@@ -89,7 +89,7 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
     }
 
     [Fact]
-    public async Task ModelList_ReturnsContextWindowMetadata()
+    public async Task ModelList_ReturnsFullCatalogCapacityWithClientBudget()
     {
         var monitor = new AppConfigMonitor(new AppConfig
         {
@@ -98,6 +98,7 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
             ProviderId = "openai",
             ProviderPreferences = new() { ["openai"] = new ModelPreference { Model = ModelProviderDefaults.DefaultChatGptCodexModel  } }
         });
+        monitor.Current.Compaction.MaxContextWindow = 256_000;
         monitor.Current.Providers["openai"] = new AppConfig.ModelProviderConfig
         {
             DisplayName = "OpenAI (ChatGPT)",
@@ -126,10 +127,7 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
         Assert.True(result.GetProperty("success").GetBoolean());
         var model = Assert.Single(result.GetProperty("models").EnumerateArray());
         var contextWindow = model.GetProperty("contextWindow");
-        Assert.Equal(1_050_000, contextWindow.GetProperty("catalogWindow").GetInt32());
-        Assert.Equal(256_000, contextWindow.GetProperty("configuredWindow").GetInt32());
-        Assert.True(contextWindow.GetProperty("supportsMax").GetBoolean());
-        Assert.Equal(1_050_000, contextWindow.GetProperty("maxWindow").GetInt32());
+        Assert.Equal(1_050_000, contextWindow.GetInt32());
     }
 
     public void Dispose()

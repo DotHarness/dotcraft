@@ -60,7 +60,6 @@ export function PreferenceModelPicker({
   inputAriaLabel,
   placeholder
 }: PreferenceModelPickerProps): JSX.Element {
-  const active = models.find((model) => model.id === preference.model)
 
   if (loading) {
     return (
@@ -149,14 +148,6 @@ export function PreferenceModelPicker({
           onChange(next)
         }}
         onRetry={onRetry}
-        contextMode={preference.contextWindow.mode}
-        contextSupportsMax={active?.contextWindow?.supportsMax === true}
-        contextConfiguredWindow={active?.contextWindow?.configuredWindow ?? 0}
-        onContextModeChange={(mode) => {
-          const next = cloneModelPreference(preference)
-          next.contextWindow.mode = mode
-          onChange(next)
-        }}
         allowDefaultModel={false}
         triggerVariant="field"
         triggerId={inputId}
@@ -189,7 +180,6 @@ export function normalizePreferenceForModel(
       }
     }
   }
-  if (model.contextWindow?.supportsMax !== true) next.contextWindow.mode = 'default'
   return next
 }
 
@@ -213,6 +203,5 @@ export function createCatalogDefaultPreference(
           output: reasoning?.defaultOutput ?? 'full'
         },
     speed: model?.speed?.defaultMode ?? 'standard',
-    contextWindow: { mode: 'default' }
   }
 }

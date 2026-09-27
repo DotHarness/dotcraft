@@ -1,3 +1,4 @@
+import { MainMenuRow, OptionRow, ellipsisStyle, submenuStyle, MODEL_MENU_WIDTH, PROVIDER_MENU_WIDTH, type SecondaryMenu } from './ModelPickerMenu'
 import {
   useEffect,
   useId,
@@ -10,15 +11,13 @@ import {
   type MouseEvent as ReactMouseEvent
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Bot, Check, ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Zap } from 'lucide-react'
+import { Bot, ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Zap } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useMenuAim } from '../../hooks/useMenuAim'
 import type { InferenceSpeedWire, ModelCatalogItem, ReasoningEffortWire } from '../../stores/modelCatalogStore'
-import type { ContextWindowMode } from '../../types/thread'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
-import { PillSwitch } from '../ui/PillSwitch'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
 import {
   composerFooterControlActiveBackground,
@@ -51,12 +50,6 @@ export interface ModelPickerProps {
   onRetry?: () => void
   shortcut?: ShortcutSpec
   triggerStyle: CSSProperties
-  /** MAX Mode only renders when `onContextModeChange` is provided. */
-  contextMode?: ContextWindowMode
-  contextSupportsMax?: boolean
-  contextDegraded?: boolean
-  contextConfiguredWindow?: number
-  onContextModeChange?: (mode: ContextWindowMode) => void
   allowDefaultModel?: boolean
   triggerVariant?: 'composer' | 'field'
   triggerId?: string
@@ -64,12 +57,9 @@ export interface ModelPickerProps {
 }
 
 type EffectiveReasoningValue = Exclude<ReasoningQuickValue, 'default'>
-type SecondaryMenu = 'provider' | 'model'
 type View = 'panel' | 'menu'
 
 const MAIN_MENU_WIDTH = 282
-const MODEL_MENU_WIDTH = 310
-const PROVIDER_MENU_WIDTH = 280
 const MAX_SUBMENU_HEIGHT = 320
 const VIEWPORT_PADDING = 8
 
@@ -93,19 +83,12 @@ export function ModelPicker({
   onRetry,
   shortcut,
   triggerStyle,
-  contextMode = 'default',
-  contextSupportsMax = false,
-  contextDegraded = false,
-  contextConfiguredWindow = 0,
-  onContextModeChange,
   allowDefaultModel = true,
   triggerVariant = 'composer',
   triggerId,
   triggerAriaLabel
 }: ModelPickerProps): JSX.Element {
   const t = useT()
-  const contextEnabled = typeof onContextModeChange === 'function'
-  const contextMaxActive = contextMode === 'max' || contextDegraded
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<View>('panel')
   const [triggerActive, setTriggerActive] = useState(false)
@@ -173,8 +156,7 @@ export function ModelPicker({
   const defaultSpeed = speedCapability?.defaultMode ?? 'standard'
   const effortDiffers = capability !== null && effectiveReasoning !== capability.defaultEffort
   const speedDiffers = speedVisible && speedValue !== defaultSpeed
-  const contextDiffers = contextEnabled && contextMaxActive
-  const differsFromDefaults = effortDiffers || speedDiffers || contextDiffers
+  const differsFromDefaults = effortDiffers || speedDiffers
 
   useLayoutEffect(() => {
     if (!open) {
@@ -504,15 +486,10 @@ export function ModelPicker({
   const resetDefaults = (): void => {
     if (effortDiffers && capability) onReasoningChange?.(capability.defaultEffort)
     if (speedDiffers) onSpeedChange?.(defaultSpeed)
-    if (contextDiffers) onContextModeChange?.('default')
   }
 
   const modelLabel = modelName === 'Default' ? t('composer.defaultModel') : modelName
   const reasoningDisplayLabel = reasoningValueLabel(t, effectiveReasoning)
-  const contextDisabled = loading || (!contextSupportsMax && !contextDegraded)
-  const maxTag = contextEnabled && contextMaxActive
-    ? <span className={`model-picker-max${contextDegraded ? ' is-degraded' : ''}`}>MAX</span>
-    : null
 
   return (
     <div
@@ -613,7 +590,6 @@ export function ModelPicker({
               >
                 {reasoningDisplayLabel}
               </span>
-              {maxTag && <span className={css.maxTag}>{maxTag}</span>}
             </span>
           )}
           {interactive && (
@@ -712,10 +688,9 @@ export function ModelPicker({
                   <span className="model-picker-slot" />
                 )}
                 <div className={`model-picker-title${capability ? '' : ' model-picker-title--model'}`}>
-                  {(capability || maxTag) && (
+                  {capability && (
                     <span className="model-picker-effort">
                       {capability && reasoningDisplayLabel}
-                      {maxTag}
                     </span>
                   )}
                   <button type="button" className="model-picker-model" data-panel-model aria-haspopup="menu" onClick={showMenu}>
@@ -789,39 +764,6 @@ export function ModelPicker({
                   openSecondary('model', event.currentTarget)
                 }}
               />
-              {contextEnabled && (
-                <>
-                  <div
-                    style={mainMenuRowStyle(mainHighlight === providerOffset + 2, contextDisabled, true)}
-                    onMouseEnter={(event) => handlePlainRowPointer(providerOffset + 2, event)}
-                    onMouseMove={(event) => handlePlainRowPointer(providerOffset + 2, event)}
-                  >
-                    <span style={mainLabelStyle}>{t('composer.context.label')}</span>
-                    <span style={{ ...trailingSlotStyle, transform: 'translateX(-4px)' }}>
-                      <PillSwitch
-                        checked={contextMaxActive}
-                        onChange={(checked) => onContextModeChange(checked ? 'max' : 'default')}
-                        size="sm"
-                        disabled={contextDisabled}
-                        aria-label={t('composer.context.label')}
-                      />
-                    </span>
-                  </div>
-                  {contextDegraded && (
-                    <div
-                      style={{
-                        margin: '-1px 9px 5px',
-                        color: 'var(--permission-full-access)',
-                        fontSize: '10px',
-                        lineHeight: 1.35
-                      }}
-                    >
-                      {t('composer.context.degraded', { window: formatContextWindow(contextConfiguredWindow) })}
-                    </div>
-                  )}
-                </>
-              )}
-
               {secondary && (
                 <div
                   ref={submenuRef}
@@ -867,176 +809,6 @@ export function ModelPicker({
   )
 }
 
-function MainMenuRow({
-  label,
-  value,
-  highlighted,
-  submenu,
-  onHover,
-  onClick
-}: {
-  label: string
-  value: string
-  highlighted: boolean
-  submenu: SecondaryMenu
-  onHover: (event: ReactMouseEvent<HTMLButtonElement>) => void
-  onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      aria-haspopup="listbox"
-      data-main-action
-      data-submenu={submenu}
-      onMouseEnter={onHover}
-      onMouseMove={onHover}
-      onClick={onClick}
-      style={mainMenuRowStyle(highlighted)}
-    >
-      <span style={mainLabelStyle}>{label}</span>
-      <span style={mainValueStyle}>{value}</span>
-      <span style={trailingSlotStyle} aria-hidden>
-        <ChevronRight size={15} strokeWidth={1.7} />
-      </span>
-    </button>
-  )
-}
-
-function OptionRow({
-  selected,
-  highlighted,
-  label,
-  description,
-  onHover,
-  onSelect
-}: {
-  selected: boolean
-  highlighted: boolean
-  label: string
-  description?: string
-  onHover?: () => void
-  onSelect?: () => void
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      role="option"
-      aria-selected={selected}
-      data-submenu-option
-      onMouseEnter={onHover}
-      onFocus={onHover}
-      onClick={onSelect}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '10px',
-        width: '100%',
-        minHeight: '35px',
-        padding: '7px 9px',
-        border: 'none',
-        borderRadius: '7px',
-        background: highlighted ? 'var(--bg-tertiary)' : 'transparent',
-        color: highlighted || selected ? 'var(--text-primary)' : 'var(--text-secondary)',
-        cursor: 'pointer',
-        textAlign: 'left'
-      }}
-    >
-      <span style={{ display: 'flex', minWidth: 0, flex: 1, flexDirection: 'column', gap: '2px' }}>
-        <span style={{ ...ellipsisStyle, fontSize: '12px' }}>{label}</span>
-        {description && (
-          <small style={{ color: 'var(--text-dimmed)', fontSize: '10px', lineHeight: 1.3 }}>
-            {description}
-          </small>
-        )}
-      </span>
-      <Check
-        aria-hidden
-        size={15}
-        strokeWidth={2}
-        style={{ flexShrink: 0, color: 'var(--text-primary)', opacity: selected ? 1 : 0 }}
-      />
-    </button>
-  )
-}
-
-const ellipsisStyle: CSSProperties = {
-  minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap'
-}
-
-const mainLabelStyle: CSSProperties = {
-  ...ellipsisStyle,
-  fontSize: '13px'
-}
-
-const mainValueStyle: CSSProperties = {
-  ...ellipsisStyle,
-  color: 'var(--text-secondary)',
-  textAlign: 'right',
-  fontSize: '12px'
-}
-
-const trailingSlotStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  justifySelf: 'end',
-  width: '32px',
-  height: '100%'
-}
-
-function mainMenuRowStyle(
-  highlighted: boolean,
-  disabled = false,
-  contextRow = false
-): CSSProperties {
-  return {
-    display: 'grid',
-    gridTemplateColumns: contextRow ? 'minmax(0, 1fr) 32px' : 'minmax(82px, 1fr) minmax(0, 110px) 32px',
-    alignItems: 'center',
-    gap: 0,
-    width: '100%',
-    minHeight: '40px',
-    padding: '0 4px 0 9px',
-    border: 'none',
-    borderRadius: '8px',
-    background: highlighted ? 'var(--bg-tertiary)' : 'transparent',
-    color: 'var(--text-primary)',
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.48 : 1,
-    textAlign: 'left'
-  }
-}
-
-function submenuStyle(kind: SecondaryMenu, top: number, opensLeft: boolean, maxHeight: number): CSSProperties {
-  const width = kind === 'provider' ? PROVIDER_MENU_WIDTH : MODEL_MENU_WIDTH
-  return {
-    position: 'absolute',
-    top,
-    left: opensLeft ? `calc(-${width}px + 1px)` : 'calc(100% - 1px)',
-    zIndex: 72,
-    width,
-    boxSizing: 'border-box',
-    maxHeight: `${maxHeight}px`,
-    padding: '6px',
-    overflowX: 'hidden',
-    overflowY: 'auto',
-    borderTop: 'none',
-    borderRight: opensLeft ? '1px solid var(--glass-border)' : 'none',
-    borderBottom: 'none',
-    borderLeft: opensLeft ? 'none' : '1px solid var(--glass-border)',
-    borderRadius: '10px',
-    background: 'var(--glass-surface-strong)',
-    boxShadow: 'var(--glass-shadow-soft)',
-    backdropFilter: 'var(--glass-blur)',
-    WebkitBackdropFilter: 'var(--glass-blur)'
-  }
-}
-
 function reasoningValueLabel(t: ReturnType<typeof useT>, value: EffectiveReasoningValue): string {
   switch (value) {
     case 'off': return t('composer.reasoning.off')
@@ -1044,15 +816,7 @@ function reasoningValueLabel(t: ReturnType<typeof useT>, value: EffectiveReasoni
     case 'medium': return t('composer.reasoning.medium')
     case 'high': return t('composer.reasoning.high')
     case 'extraHigh': return t('composer.reasoning.extraHigh')
+    case 'max': return t('composer.reasoning.max')
     case 'ultra': return t('composer.reasoning.ultra')
   }
-}
-
-function formatContextWindow(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return ''
-  if (n >= 1_000_000) {
-    const value = n / 1_000_000
-    return `${value % 1 === 0 ? value.toFixed(0) : value.toFixed(1)}M`
-  }
-  return `${Math.round(n / 1000)}K`
 }

@@ -182,7 +182,7 @@ internal static partial class ResponsesToolSearchMapper
             // (e.g. JsonNode.Parse in the ChatGPT metadata pipeline policy) reject.
             if (!responseOptions.IncludedProperties.Contains(IncludedResponseProperty.ReasoningEncryptedContent))
                 responseOptions.IncludedProperties.Add(IncludedResponseProperty.ReasoningEncryptedContent);
-            reasoningOptions = CreateReasoningOptions(options?.Reasoning);
+            reasoningOptions = CreateReasoningOptions(options);
             responseOptions.ReasoningOptions ??= reasoningOptions;
         }
 

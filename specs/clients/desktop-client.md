@@ -957,7 +957,7 @@ review belongs to a run, never to a definition's mutable latest-thread pointer.
 - If model catalog capability is absent or temporarily fails, the conversation workflow remains usable.
 - Welcome model catalog requests are scoped to the workspace provider. Existing-thread requests are scoped to `thread.configuration.providerId` and do not follow workspace changes.
 - If model listing returns `EndpointNotSupported` or another provider-neutral error, the client must keep manual model entry available.
-- The combined picker exposes configured Provider, model, reasoning, speed, and context-window controls with the same keyboard and ARIA menu behavior in Composer, Settings, and Setup.
+- The combined picker exposes configured Provider, model, reasoning, and speed controls with the same keyboard and ARIA menu behavior in Composer, Settings, and Setup.
 - Settings and Setup use the full-width field trigger and omit the Provider submenu because provider selection already belongs to the surrounding workflow.
 - Welcome atomically persists `providerId` and the complete provider-keyed `providerPreferences` map, then sends the selected mode/model/reasoning/speed/context snapshot and any explicit per-thread approval override in `thread/start` or `worktree/createAndStart`. An untouched approval choice is omitted so the thread retains `default` inheritance.
 - Existing threads do not expose Default. A provider or preference choice sends one full `thread/config/update`, never `workspace/config/update`, and updates local state only after success.
@@ -985,7 +985,7 @@ Required behavior:
   - personal providers can be created, edited, tested, and deleted from Settings;
   - `openai` is a normal explicit provider id and can be created, selected, edited, and deleted like other providers when it is not the active workspace selection;
   - provider credentials and endpoints are personal config, while workspace saves write `providerId` and the provider-keyed `providerPreferences` map;
-  - each preference contains model, reasoning, speed, and context-window selections; a workspace record atomically overrides the personal record for the same provider;
+  - each preference contains model, reasoning, and speed selections; a workspace record atomically overrides the personal record for the same provider;
   - MainAgent and SubAgent use the shared ModelPicker menu under `Main model` and `Subagent model`; the Workspace preferences group owns the catalog refresh action in its header;
   - SubAgent displays an inline `Inherit`/`Custom` switch. Inherit removes the provider-specific SubAgent record; Custom starts from the current MainAgent preference;
   - each provider row summarises its remembered preferences as `Main` and `Subagent` clauses naming model and reasoning effort, and marks Fast inference with a bolt before the model name;

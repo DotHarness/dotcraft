@@ -99,12 +99,6 @@ public sealed partial class AppConfig
     public CompactionConfig Compaction { get; set; } = new();
 
     /// <summary>
-    /// True when the loaded configuration explicitly set <see cref="CompactionConfig.ContextWindow"/>.
-    /// </summary>
-    [JsonIgnore]
-    internal bool CompactionContextWindowExplicit { get; set; }
-
-    /// <summary>
     /// Global config path used to locate sibling model context-window catalogs.
     /// </summary>
     [JsonIgnore]
@@ -288,14 +282,14 @@ public sealed partial class AppConfig
         if (!File.Exists(path))
         {
             var defaultConfig = new AppConfig();
-            ModelCatalog.ApplyToConfig(defaultConfig, new JsonObject(), globalConfigPath: null, workspaceConfigPath: path);
+            ModelCatalog.ApplyToConfig(defaultConfig, globalConfigPath: null, workspaceConfigPath: path);
             return defaultConfig;
         }
 
         var node = JsonNode.Parse(File.ReadAllText(path)) ?? new JsonObject();
         ExpandEnvironmentVariables(node);
         var config = node.Deserialize<AppConfig>(SerializerOptions) ?? new AppConfig();
-        ModelCatalog.ApplyToConfig(config, node, globalConfigPath: null, workspaceConfigPath: path);
+        ModelCatalog.ApplyToConfig(config, globalConfigPath: null, workspaceConfigPath: path);
         return config;
     }
 
@@ -331,7 +325,7 @@ public sealed partial class AppConfig
         ExpandEnvironmentVariables(mergedNode);
 
         var config = mergedNode.Deserialize<AppConfig>(SerializerOptions) ?? new AppConfig();
-        ModelCatalog.ApplyToConfig(config, mergedNode, globalConfigPath, workspacePath);
+        ModelCatalog.ApplyToConfig(config, globalConfigPath, workspacePath);
         return config;
     }
 
@@ -462,45 +456,6 @@ public sealed partial class AppConfig
         PropertyNameCaseInsensitive = true,
         Converters = { new JsonStringEnumConverter() }
     };
-
-    [ConfigSection("Reasoning", DisplayName = "Reasoning", Order = 10)]
-    public sealed class ReasoningConfig
-    {
-        /// <summary>
-        /// Whether to request provider reasoning support.
-        /// Unsupported providers or models may ignore this setting.
-        /// </summary>
-        [ConfigField(Hint = "Request provider reasoning/thinking support when available.")]
-        public bool Enabled { get; set; } = false;
-
-        /// <summary>
-        /// Requested reasoning effort level when reasoning is enabled.
-        /// </summary>
-        public ModelReasoningEffort Effort { get; set; } = ModelReasoningEffort.Medium;
-
-        /// <summary>
-        /// Controls how much reasoning content is exposed in responses.
-        /// The default exposes full summary.
-        /// </summary>
-        [ConfigField(Hint = "Controls whether reasoning content is exposed in responses.")]
-        public ReasoningOutput Output { get; set; } = ReasoningOutput.Full;
-
-        /// <summary>
-        /// Converts the configuration to chat reasoning options.
-        /// Returns <see langword="null"/> when reasoning is disabled.
-        /// </summary>
-        public ReasoningOptions? ToOptions()
-        {
-            if (!Enabled)
-                return null;
-
-            return new ReasoningOptions
-            {
-                Effort = Effort.ToProviderEffort(),
-                Output = Output
-            };
-        }
-    }
 
     [ConfigSection("PromptCaching", DisplayName = "Prompt Caching", Order = 11)]
     public sealed class PromptCachingConfig
@@ -705,7 +660,6 @@ public sealed partial class AppConfig
         public string SearchProvider { get; set; } = WebSearchProvider.Exa;
     }
 
-
     [ConfigSection("Tools.Lsp", DisplayName = "Tools > LSP", Order = 24)]
     public sealed class LspToolsConfig
     {
@@ -786,7 +740,6 @@ public sealed partial class AppConfig
         public ShellToolsConfig Shell { get; set; } = new();
 
         public WebToolsConfig Web { get; set; } = new();
-
 
         public LspToolsConfig Lsp { get; set; } = new();
 

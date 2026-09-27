@@ -105,6 +105,19 @@ public sealed class TracingChatClientTests
         Assert.Equal("high", evt.ReasoningEffort);
     }
 
+    [Theory]
+    [InlineData(DotCraft.Configuration.ModelReasoningEffort.Max)]
+    [InlineData(DotCraft.Configuration.ModelReasoningEffort.Ultra)]
+    public async Task StreamingResponse_RecordsMaxProviderEffort(DotCraft.Configuration.ModelReasoningEffort effort)
+    {
+        var options = new ChatOptions();
+        new DotCraft.Configuration.AppConfig.ReasoningConfig { Enabled = true, Effort = effort }.ApplyTo(options);
+        var store = await RunStreamingAsync(
+            [new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("answer")])],
+            "trace-max", options: options);
+        Assert.Equal("max", Assert.Single(EventsOfType(store, "trace-max", TraceEventType.Response)).ReasoningEffort);
+    }
+
     [Fact]
     public async Task StreamingResponse_OmitsReasoningEffort_WhenReasoningDisabled()
     {

@@ -187,13 +187,7 @@ public sealed partial class OratorioAppBindingSdkTests
                             supportedModes = new[] { "standard", "fast" },
                             defaultMode = "standard"
                         },
-                        contextWindow = new
-                        {
-                            catalogWindow = 1_000_000,
-                            configuredWindow = 256_000,
-                            supportsMax = true,
-                            maxWindow = 1_000_000
-                        }
+                        contextWindow = 1_000_000
                     }
                 }
             });

@@ -118,21 +118,6 @@ internal sealed class AppServerRuntimeConfigRefresher(
             : InferenceSpeed.Standard;
     }
 
-    public void RefreshCurrentContextWindowConfig()
-    {
-        if (appConfigMonitor == null)
-            return;
-
-        if (!string.IsNullOrWhiteSpace(workspaceCraftPath))
-        {
-            var mergedConfig = LoadMergedWorkspaceConfig(useGlobalFallback: true);
-            appConfigMonitor.Current.Compaction.ContextWindowMode = mergedConfig.Compaction.ContextWindowMode;
-            return;
-        }
-
-        appConfigMonitor.Current.Compaction.ContextWindowMode = ContextWindowMode.Default;
-    }
-
     public void RefreshCurrentSubAgentConfig()
     {
         if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))

@@ -105,7 +105,6 @@ public sealed class SessionServiceContextUsageSnapshotTests : IDisposable
         var config = AppConfigTestFactory.CreateOpenAI(model: "mimo-v2.5-pro");
         ModelCatalog.ApplyToConfig(
             config,
-            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "mimo-v2.5-pro" }""")!,
             globalConfigPath: null,
             workspaceConfigPath: null);
 
@@ -129,13 +128,15 @@ public sealed class SessionServiceContextUsageSnapshotTests : IDisposable
         Assert.Equal(167_000, snapshot.AutoCompactThreshold);
     }
 
-    [Fact]
-    public async Task TryGetContextUsageSnapshot_MaxContextWindowModeUsesCatalogWindow()
+    [Theory]
+    [InlineData(-1, 1_030_000, 1_017_000)]
+    [InlineData(256_000, 236_000, 223_000)]
+    public async Task TryGetContextUsageSnapshot_UsesClientBudget(int budget, int expectedWindow, int expectedThreshold)
     {
         var config = AppConfigTestFactory.CreateOpenAI(model: "gpt-5.5");
+        config.Compaction.MaxContextWindow = budget;
         ModelCatalog.ApplyToConfig(
             config,
-            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "gpt-5.5" }""")!,
             globalConfigPath: null,
             workspaceConfigPath: null);
 
@@ -148,27 +149,13 @@ public sealed class SessionServiceContextUsageSnapshotTests : IDisposable
             UserId = "user"
         };
 
-        await service.CreateThreadAsync(
-            identity,
-            new ThreadConfiguration { Model = "gpt-5.5" },
-            threadId: "thread-default-window");
-        await service.CreateThreadAsync(
-            identity,
-            new ThreadConfiguration
-            {
-                Model = "gpt-5.5",
-                ContextWindow = new ThreadContextWindowConfig { Mode = ContextWindowMode.Max }
-            },
-            threadId: "thread-max-window");
+        await service.CreateThreadAsync(identity,
+            new ThreadConfiguration { Model = "gpt-5.5" }, threadId: "thread-catalog-window");
 
-        var defaultSnapshot = service.TryGetContextUsageSnapshot("thread-default-window");
-        var maxSnapshot = service.TryGetContextUsageSnapshot("thread-max-window");
-
-        Assert.NotNull(defaultSnapshot);
-        Assert.NotNull(maxSnapshot);
-        Assert.Equal(236_000, defaultSnapshot!.ContextWindow);
-        Assert.Equal(1_030_000, maxSnapshot!.ContextWindow);
-        Assert.Equal(1_017_000, maxSnapshot.AutoCompactThreshold);
+        var snapshot = service.TryGetContextUsageSnapshot("thread-catalog-window");
+        Assert.NotNull(snapshot);
+        Assert.Equal(expectedWindow, snapshot.ContextWindow);
+        Assert.Equal(expectedThreshold, snapshot.AutoCompactThreshold);
     }
 
     [Fact]

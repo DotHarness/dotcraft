@@ -132,8 +132,8 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
             workspaceCatalogPath: workspacePath);
 
         Assert.NotNull(capability);
-        Assert.Equal(ReasoningEffort.High, capability.DefaultEffort);
-        Assert.Equal([ReasoningEffort.Low, ReasoningEffort.High], capability.SupportedEfforts.Select(o => o.Effort));
+        Assert.Equal(ProviderReasoningEffort.High, capability.DefaultEffort);
+        Assert.Equal([ProviderReasoningEffort.Low, ProviderReasoningEffort.High], capability.SupportedEfforts.Select(o => o.Effort));
         Assert.Equal([ReasoningOutput.Summary], capability.SupportedOutputs);
     }
 

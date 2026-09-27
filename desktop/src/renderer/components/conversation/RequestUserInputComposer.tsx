@@ -304,7 +304,6 @@ export function RequestUserInputComposer({
           petSurface="decision"
           mascotReasoningEffort={mascotEffectState.reasoningEffort}
           mascotSpeed={mascotEffectState.speed}
-          mascotContextMax={mascotEffectState.contextMax}
           mascotHandoff
           editor={(
             <div style={decisionComposerBodyStyle}>

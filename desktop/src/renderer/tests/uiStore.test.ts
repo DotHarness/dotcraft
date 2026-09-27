@@ -124,7 +124,6 @@ describe('uiStore goToNewChat', () => {
       mode: 'agent',
       providerId: 'provider-a',
       model: 'Default',
-      contextWindow: { mode: 'max' }
     }, '/workspace/a')
     useUIStore.getState().setWelcomeDraft({
       text: 'Draft B',
@@ -137,7 +136,6 @@ describe('uiStore goToNewChat', () => {
     useUIStore.getState().setWelcomeDraftWorkspace('/workspace/a')
     expect(useUIStore.getState().welcomeDraft?.text).toBe('Draft A')
     expect(useUIStore.getState().welcomeDraft?.providerId).toBe('provider-a')
-    expect(useUIStore.getState().welcomeDraft?.contextWindow).toEqual({ mode: 'max' })
 
     useUIStore.getState().setWelcomeDraftWorkspace('/workspace/b')
     expect(useUIStore.getState().welcomeDraft?.text).toBe('Draft B')

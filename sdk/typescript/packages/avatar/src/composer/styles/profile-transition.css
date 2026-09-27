@@ -1,21 +1,3 @@
-[data-mascot-context='max'] .composer-mascot-motion {
-  --mascot-max-edge: oklch(from var(--mascot-energy-accent)
-    clamp(0.28, calc(l + 0.065), 0.96) clamp(0, calc(c * 0.96), 0.3) calc(h + 4));
-  --mascot-max-shift: oklch(from var(--mascot-energy-accent)
-    clamp(0.28, calc(l + 0.1), 0.96) clamp(0, calc(c * 0.92), 0.3) calc(h + 40));
-  --mascot-max-bright: oklch(from var(--mascot-energy-accent)
-    clamp(0.28, calc(l + 0.18), 0.96) clamp(0, calc(c * 0.68), 0.3) calc(h + 18));
-  --mascot-max-edge-bold: rgb(from var(--mascot-max-edge) r g b / 1);
-  --mascot-max-edge-faint: rgb(from var(--mascot-max-edge) r g b / 0.24);
-  --mascot-max-shift-bold: rgb(from var(--mascot-max-shift) r g b / 1);
-  --mascot-max-shift-medium: rgb(from var(--mascot-max-shift) r g b / 0.88);
-  --mascot-max-shift-soft: rgb(from var(--mascot-max-shift) r g b / 0.44);
-  --mascot-max-bright-medium: rgb(from var(--mascot-max-bright) r g b / 0.88);
-  --mascot-max-blur-hair: 1.4px;
-  --mascot-max-blur-edge: 2.4px;
-  --mascot-max-blur-glow: 6.8px;
-}
-
 .composer-mascot-motion::after {
   content: '';
   position: absolute;
@@ -29,80 +11,6 @@
   pointer-events: none;
   transform: translate(-50%, -50%);
   transform-origin: center;
-}
-
-[data-mascot-context='max'] .composer-mascot-motion::after {
-  background:
-    radial-gradient(circle, var(--mascot-max-bright) 0 0.55px, transparent 1.1px) 13% 42% / 3px 3px no-repeat,
-    radial-gradient(circle, var(--mascot-max-edge) 0 0.45px, transparent 1px) 27% 74% / 3px 3px no-repeat,
-    radial-gradient(circle, var(--mascot-max-shift) 0 0.5px, transparent 1.05px) 42% 18% / 3px 3px no-repeat,
-    radial-gradient(circle, var(--mascot-max-bright) 0 0.45px, transparent 1px) 68% 80% / 3px 3px no-repeat,
-    radial-gradient(circle, var(--mascot-max-edge) 0 0.55px, transparent 1.1px) 82% 28% / 3px 3px no-repeat,
-    radial-gradient(circle, var(--mascot-max-shift) 0 0.4px, transparent 0.95px) 91% 62% / 3px 3px no-repeat;
-  filter: drop-shadow(0 0 1.6px color-mix(in srgb, var(--mascot-max-edge) 32%, transparent));
-  opacity: 0.18;
-  animation: composer-mascot-max-micrograin 6.2s ease-in-out infinite;
-}
-
-@keyframes composer-mascot-max-overdrive-edge {
-  0%, 100% {
-    filter:
-      drop-shadow(-0.6px 0 var(--mascot-max-blur-hair) var(--mascot-max-edge-bold))
-      drop-shadow(0.7px 0 var(--mascot-max-blur-edge) var(--mascot-max-shift-medium))
-      drop-shadow(0 0 var(--mascot-max-blur-glow) var(--mascot-max-edge-faint));
-  }
-  46% {
-    filter:
-      drop-shadow(0.2px -0.75px var(--mascot-max-blur-hair) var(--mascot-max-shift-bold))
-      drop-shadow(-0.2px 0.8px var(--mascot-max-blur-edge) var(--mascot-max-bright-medium))
-      drop-shadow(0 0 var(--mascot-max-blur-glow) var(--mascot-max-shift-soft));
-  }
-}
-
-@keyframes composer-mascot-max-coat-dark {
-  0%, 34%, 100% { stop-color: var(--mascot-body-dark); }
-  14% {
-    stop-color: oklch(from var(--mascot-body-dark)
-      clamp(0.28, calc(l + 0.09), 0.96) clamp(0, calc(c * 0.9), 0.3) calc(h + 14));
-  }
-}
-
-@keyframes composer-mascot-max-coat-mid {
-  0%, 24%, 68%, 100% { stop-color: var(--mascot-body-mid); }
-  44% {
-    stop-color: oklch(from var(--mascot-body-mid)
-      clamp(0.28, calc(l + 0.14), 0.96) clamp(0, calc(c * 0.76), 0.3) calc(h + 31));
-  }
-}
-
-@keyframes composer-mascot-max-coat-light {
-  0%, 50%, 94%, 100% { stop-color: var(--mascot-body-light); }
-  72% {
-    stop-color: oklch(from var(--mascot-body-light)
-      clamp(0.28, calc(l + 0.15), 0.96) clamp(0, calc(c * 0.58), 0.3) calc(h + 41));
-  }
-}
-
-@keyframes composer-mascot-max-coat-mark-dark {
-  0%, 44%, 100% { stop-color: var(--mascot-mark-dark); }
-  20% {
-    stop-color: oklch(from var(--mascot-mark-dark)
-      clamp(0.28, calc(l + 0.1), 0.96) clamp(0, calc(c * 0.82), 0.3) calc(h + 18));
-  }
-}
-
-@keyframes composer-mascot-max-coat-mark-light {
-  0%, 40%, 88%, 100% { stop-color: var(--mascot-mark-energy); }
-  64% {
-    stop-color: oklch(from var(--mascot-mark-energy)
-      clamp(0.28, calc(l + 0.15), 0.96) clamp(0, calc(c * 0.6), 0.3) calc(h + 38));
-  }
-}
-
-@keyframes composer-mascot-max-micrograin {
-  0%, 100% { opacity: 0.08; transform: translate(-51%, -49%) scale(0.98); }
-  38% { opacity: 0.28; transform: translate(-49%, -52%) scale(1.02); }
-  68% { opacity: 0.13; transform: translate(-48%, -54%) scale(1.04); }
 }
 
 [data-mascot-profile-transition='active'] .composer-mascot-character-stage {

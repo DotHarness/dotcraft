@@ -35,10 +35,11 @@ internal sealed class ModelReasoningEffortJsonConverter : JsonConverter<ModelRea
             "high" => ModelReasoningEffort.High,
             "extrahigh" or "xhigh" => ModelReasoningEffort.ExtraHigh,
             "ultra" => ModelReasoningEffort.Ultra,
+            "max" => ModelReasoningEffort.Max,
             _ => default
         };
 
-        return normalized is "none" or "low" or "medium" or "high" or "extrahigh" or "xhigh" or "ultra";
+        return normalized is "none" or "low" or "medium" or "high" or "extrahigh" or "xhigh" or "ultra" or "max";
     }
 
     private static string ToJsonValue(ModelReasoningEffort value) => value switch
@@ -49,6 +50,7 @@ internal sealed class ModelReasoningEffortJsonConverter : JsonConverter<ModelRea
         ModelReasoningEffort.High => "high",
         ModelReasoningEffort.ExtraHigh => "extraHigh",
         ModelReasoningEffort.Ultra => "ultra",
+        ModelReasoningEffort.Max => "max",
         _ => value.ToString()
     };
 

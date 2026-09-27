@@ -174,21 +174,11 @@ export interface ThreadConfigurationWire {
   Reasoning?: ReasoningConfigurationWire | null
   speed?: InferenceSpeedWire
   Speed?: InferenceSpeedWire
-  contextWindow?: ContextWindowConfigurationWire | null
-  ContextWindow?: ContextWindowConfigurationWire | null
   approvalPolicy?: ApprovalPolicyWire
   [key: string]: unknown
 }
 
-/** Per-thread context-window mode. Omitted/null means `default`. */
-export type ContextWindowMode = 'default' | 'max'
-
-export interface ContextWindowConfigurationWire {
-  mode?: ContextWindowMode
-  Mode?: ContextWindowMode
-}
-
-export type ReasoningEffortWire = 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'
+export type ReasoningEffortWire = 'low' | 'medium' | 'high' | 'extraHigh' | 'max' | 'ultra'
 export type ReasoningOutputWire = 'none' | 'summary' | 'full'
 export type InferenceSpeedWire = 'standard' | 'fast'
 

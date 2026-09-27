@@ -67,7 +67,7 @@ Use the exact model id from `ProviderPreferences` or Desktop Settings > Model pr
 
 `contextWindow` is measured in tokens and must be an integer of at least `1000`. Model keys match case-insensitively by longest prefix and by namespaced suffix. Prefer a full concrete model id over a broad family prefix so a similarly named model does not inherit the wrong window. For example, `acme-large-v2` also matches `gateway/acme-large-v2`; a longer matching key wins.
 
-The catalog value is the model's raw window, not necessarily the Default-mode window. When context is inferred, Default mode still applies `Compaction.MaxContextWindow`. If the catalog value is larger than that configured Default window, the model becomes eligible for MAX, which uses the raw catalog value. The normal compaction summary reserve and safety buffer still apply.
+The merged catalog determines each model's context capacity directly. Unknown models use the catalog default. A positive `Compaction.MaxContextWindow` in config.json caps the client budget; omitted or `-1` uses the catalog capacity. Workspace `-1` overrides an inherited global cap. Compaction applies its summary reserve and safety buffer after this budget.
 
 After editing `models.json`, keep the JSON valid and restart the AppServer or Desktop before relying on the new model metadata or starting work that needs the larger window. Do not edit DotCraft's embedded catalog to configure one installation.
 

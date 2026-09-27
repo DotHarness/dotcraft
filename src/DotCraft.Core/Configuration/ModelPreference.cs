@@ -15,16 +15,6 @@ public sealed class ModelPreference
 
     /// <summary>Requested inference-speed mode.</summary>
     public InferenceSpeed Speed { get; set; } = InferenceSpeed.Standard;
-
-    /// <summary>Requested context-window mode.</summary>
-    public ModelPreferenceContextWindow ContextWindow { get; set; } = new();
-}
-
-/// <summary>Context-window selection stored in a <see cref="ModelPreference"/>.</summary>
-public sealed class ModelPreferenceContextWindow
-{
-    /// <summary>Selected context-window mode.</summary>
-    public ContextWindowMode Mode { get; set; } = ContextWindowMode.Default;
 }
 
 /// <summary>Normalization and capability-safe operations for <see cref="ModelPreference"/>.</summary>
@@ -41,7 +31,6 @@ public static class ModelPreferenceRules
             Output = ReasoningOutput.Full
         },
         Speed = InferenceSpeed.Standard,
-        ContextWindow = new ModelPreferenceContextWindow { Mode = ContextWindowMode.Default }
     };
 
     /// <summary>Creates a capability-safe preference for a configured provider and model.</summary>
@@ -78,7 +67,6 @@ public static class ModelPreferenceRules
         var normalized = Clone(preference);
         normalized.Model = NormalizeRequiredModel(normalized.Model);
         normalized.Reasoning ??= new AppConfig.ReasoningConfig();
-        normalized.ContextWindow ??= new ModelPreferenceContextWindow();
 
         if (!TryResolveRuntime(config, providerId, normalized.Model, out var runtime))
             return normalized;
@@ -105,12 +93,6 @@ public static class ModelPreferenceRules
             }
         }
 
-        if (normalized.ContextWindow.Mode == ContextWindowMode.Max
-            && !ModelCatalog.ResolveContextWindowCapability(config, normalized.Model).SupportsMax)
-        {
-            normalized.ContextWindow.Mode = ContextWindowMode.Default;
-        }
-
         return normalized;
     }
 
@@ -128,10 +110,6 @@ public static class ModelPreferenceRules
                 Output = preference.Reasoning?.Output ?? ReasoningOutput.Full
             },
             Speed = preference.Speed,
-            ContextWindow = new ModelPreferenceContextWindow
-            {
-                Mode = preference.ContextWindow?.Mode ?? ContextWindowMode.Default
-            }
         };
     }
 
@@ -147,8 +125,7 @@ public static class ModelPreferenceRules
             && left.Reasoning?.Enabled == right.Reasoning?.Enabled
             && left.Reasoning?.Effort == right.Reasoning?.Effort
             && left.Reasoning?.Output == right.Reasoning?.Output
-            && left.Speed == right.Speed
-            && left.ContextWindow?.Mode == right.ContextWindow?.Mode;
+            && left.Speed == right.Speed;
     }
 
     /// <summary>Finds and clones a provider preference using a case-insensitive provider id.</summary>

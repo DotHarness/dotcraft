@@ -144,8 +144,7 @@ providerPreference:
     enabled: true
     effort: ultra
   speed: standard
-  contextWindow:
-    mode: default
+
 tools:
   allow: [ReadFile, FindFiles]
   agentControl: allowList
@@ -239,8 +238,7 @@ providerPreference:
     enabled: true
     effort: high
   speed: fast
-  contextWindow:
-    mode: max
+
 ---
 
 Review carefully.
@@ -254,14 +252,12 @@ Review carefully.
         Assert.True(providerPreference.Reasoning.Enabled);
         Assert.Equal(ModelReasoningEffort.High, providerPreference.Reasoning.Effort);
         Assert.Equal(InferenceSpeed.Fast, providerPreference.Speed);
-        Assert.Equal(ContextWindowMode.Max, providerPreference.ContextWindow.Mode);
 
         var config = Assert.IsType<ThreadConfiguration>(result.CompiledConfiguration);
         Assert.Null(config.ProviderId);
         Assert.Null(config.Model);
         Assert.Null(config.Reasoning);
         Assert.Null(config.Speed);
-        Assert.Null(config.ContextWindow);
     }
 
     [Fact]
@@ -286,7 +282,6 @@ Review carefully.
         Assert.Null(config.Model);
         Assert.Null(config.Reasoning);
         Assert.Null(config.Speed);
-        Assert.Null(config.ContextWindow);
     }
 
     [Fact]
@@ -307,8 +302,7 @@ providerPreference:
     enabled: true
     effort: high
   speed: fast
-  contextWindow:
-    mode: max
+
 ---
 
 Review.
@@ -329,7 +323,6 @@ Review.
         Assert.Equal("gpt-overlay", resolved.Model);
         Assert.Null(resolved.Reasoning);
         Assert.Null(resolved.Speed);
-        Assert.Null(resolved.ContextWindow);
     }
 
     [Fact]
@@ -350,8 +343,7 @@ providerPreference:
     enabled: true
     effort: high
   speed: fast
-  contextWindow:
-    mode: default
+
 ---
 
 Review.
@@ -433,8 +425,7 @@ providerPreference:
     enabled: true
     effort: high
   speed: standard
-  contextWindow:
-    mode: default
+
 ---
 
 Review.
@@ -477,8 +468,7 @@ providerPreference:
     effort: high
     output: summary
   speed: standard
-  contextWindow:
-    mode: default
+
 ---
 
 Body.

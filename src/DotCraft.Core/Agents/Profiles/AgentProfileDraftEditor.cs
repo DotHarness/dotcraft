@@ -18,7 +18,6 @@ public sealed class AgentProfileDraft
     public bool ReasoningEnabled { get; set; }
     public string ReasoningEffort { get; set; } = "medium";
     public string Speed { get; set; } = "standard";
-    public string ContextWindowMode { get; set; } = "default";
 
     public List<string> ToolsAllow { get; set; } = [];
     public List<string> ToolsDeny { get; set; } = [];
@@ -49,21 +48,18 @@ public static class AgentProfileDraftEditor
 {
     private static readonly string[] ApprovalPolicies = ["default", "prompt", "autoApprove", "deny"];
     private static readonly string[] AgentControls = ["full", "disabled", "allowList"];
-    private static readonly string[] ReasoningEfforts = ["low", "medium", "high", "extraHigh", "ultra"];
+    private static readonly string[] ReasoningEfforts = ["low", "medium", "high", "extraHigh", "max", "ultra"];
     private static readonly string[] Speeds = ["standard", "fast"];
-    private static readonly string[] ContextWindowModes = ["default", "max"];
 
     public static IReadOnlyList<string> ApprovalPolicyValues => ApprovalPolicies;
     public static IReadOnlyList<string> AgentControlValues => AgentControls;
     public static IReadOnlyList<string> ReasoningEffortValues => ReasoningEfforts;
     public static IReadOnlyList<string> SpeedValues => Speeds;
-    public static IReadOnlyList<string> ContextWindowModeValues => ContextWindowModes;
 
     public static bool IsApprovalPolicy(string value) => ApprovalPolicies.Contains(value, StringComparer.Ordinal);
     public static bool IsAgentControl(string value) => AgentControls.Contains(value, StringComparer.Ordinal);
     public static bool IsReasoningEffort(string value) => ReasoningEfforts.Contains(value, StringComparer.Ordinal);
     public static bool IsSpeed(string value) => Speeds.Contains(value, StringComparer.Ordinal);
-    public static bool IsContextWindowMode(string value) => ContextWindowModes.Contains(value, StringComparer.Ordinal);
 
     /// <summary>Reads a raw profile Markdown document into an editable draft. Missing frontmatter yields an empty draft whose body is the whole text.</summary>
     public static AgentProfileDraft Parse(string? rawContent)
@@ -122,7 +118,6 @@ public static class AgentProfileDraftEditor
                     case "providerPreference" when key == "model": draft.Model = val; break;
                     case "providerPreference" when key == "reasoning": sub = "providerReasoning"; break;
                     case "providerPreference" when key == "speed": draft.Speed = string.IsNullOrEmpty(val) ? "standard" : val; break;
-                    case "providerPreference" when key == "contextWindow": sub = "providerContextWindow"; break;
                     case "tools" when key == "allow":
                         hasToolsAllow = true;
                         draft.ToolsAllow = ParseList(val);
@@ -147,10 +142,6 @@ public static class AgentProfileDraftEditor
                 {
                     if (key == "enabled") draft.ReasoningEnabled = val == "true";
                     else if (key == "effort") draft.ReasoningEffort = string.IsNullOrEmpty(val) ? "medium" : val;
-                }
-                else if (sub == "providerContextWindow" && key == "mode")
-                {
-                    draft.ContextWindowMode = string.IsNullOrEmpty(val) ? "default" : val;
                 }
             }
             else if (indent >= 4 && sub == "mcpTools")
@@ -180,8 +171,6 @@ public static class AgentProfileDraftEditor
             fm.Add($"    enabled: {(draft.ReasoningEnabled ? "true" : "false")}");
             fm.Add($"    effort: {draft.ReasoningEffort}");
             fm.Add($"  speed: {draft.Speed}");
-            fm.Add("  contextWindow:");
-            fm.Add($"    mode: {draft.ContextWindowMode}");
         }
 
         if (draft.ToolPolicyMode != "all" || draft.AgentControl != "full")

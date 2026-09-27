@@ -248,7 +248,6 @@ public sealed class AgentProfileManagementTests : IDisposable
         Assert.Equal("gpt-pinned", config.GetProperty("model").GetString());
         Assert.False(config.GetProperty("reasoning").GetProperty("enabled").GetBoolean());
         Assert.Equal("fast", config.GetProperty("speed").GetString());
-        Assert.Equal("default", config.GetProperty("contextWindow").GetProperty("mode").GetString());
     }
 
     [Fact]
@@ -299,7 +298,6 @@ public sealed class AgentProfileManagementTests : IDisposable
         Assert.Equal("openai", providerId.GetString());
         Assert.Equal("gpt-pinned", config.GetProperty("model").GetString());
         Assert.Equal("fast", config.GetProperty("speed").GetString());
-        Assert.Equal("default", config.GetProperty("contextWindow").GetProperty("mode").GetString());
     }
 
     [Fact]
@@ -350,7 +348,6 @@ public sealed class AgentProfileManagementTests : IDisposable
         Assert.Equal("openai", providerId.GetString());
         Assert.Equal("gpt-replacement", config.GetProperty("model").GetString());
         Assert.Equal("fast", config.GetProperty("speed").GetString());
-        Assert.Equal("default", config.GetProperty("contextWindow").GetProperty("mode").GetString());
     }
 
     [Fact]
@@ -625,8 +622,7 @@ providerPreference:
     enabled: false
     effort: medium
   speed: {speed}
-  contextWindow:
-    mode: default
+
 ---
 
 Pinned body for {id}.

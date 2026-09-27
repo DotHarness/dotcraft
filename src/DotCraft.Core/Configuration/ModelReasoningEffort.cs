@@ -1,5 +1,3 @@
-using Microsoft.Extensions.AI;
-
 namespace DotCraft.Configuration;
 
 /// <summary>
@@ -12,31 +10,34 @@ public enum ModelReasoningEffort
     Medium,
     High,
     ExtraHigh,
-    Ultra
+    Ultra,
+    Max
 }
 
-/// <summary>Maps DotCraft model reasoning efforts to provider-facing MEAI values.</summary>
+/// <summary>Maps DotCraft model reasoning efforts to provider-native efforts.</summary>
 public static class ModelReasoningEffortExtensions
 {
     /// <summary>Returns the provider effort represented by this product effort.</summary>
-    public static ReasoningEffort ToProviderEffort(this ModelReasoningEffort effort) => effort switch
+    public static ProviderReasoningEffort ToProviderEffort(this ModelReasoningEffort effort) => effort switch
     {
-        ModelReasoningEffort.None => ReasoningEffort.None,
-        ModelReasoningEffort.Low => ReasoningEffort.Low,
-        ModelReasoningEffort.Medium => ReasoningEffort.Medium,
-        ModelReasoningEffort.High => ReasoningEffort.High,
-        ModelReasoningEffort.ExtraHigh or ModelReasoningEffort.Ultra => ReasoningEffort.ExtraHigh,
-        _ => ReasoningEffort.Medium
+        ModelReasoningEffort.None => ProviderReasoningEffort.None,
+        ModelReasoningEffort.Low => ProviderReasoningEffort.Low,
+        ModelReasoningEffort.Medium => ProviderReasoningEffort.Medium,
+        ModelReasoningEffort.High => ProviderReasoningEffort.High,
+        ModelReasoningEffort.ExtraHigh => ProviderReasoningEffort.ExtraHigh,
+        ModelReasoningEffort.Max or ModelReasoningEffort.Ultra => ProviderReasoningEffort.Max,
+        _ => ProviderReasoningEffort.Medium
     };
 
     /// <summary>Converts a provider effort into the equivalent ordinary DotCraft model effort.</summary>
-    public static ModelReasoningEffort ToModelReasoningEffort(this ReasoningEffort effort) => effort switch
+    public static ModelReasoningEffort ToModelReasoningEffort(this ProviderReasoningEffort effort) => effort switch
     {
-        ReasoningEffort.None => ModelReasoningEffort.None,
-        ReasoningEffort.Low => ModelReasoningEffort.Low,
-        ReasoningEffort.Medium => ModelReasoningEffort.Medium,
-        ReasoningEffort.High => ModelReasoningEffort.High,
-        ReasoningEffort.ExtraHigh => ModelReasoningEffort.ExtraHigh,
+        ProviderReasoningEffort.None => ModelReasoningEffort.None,
+        ProviderReasoningEffort.Low => ModelReasoningEffort.Low,
+        ProviderReasoningEffort.Medium => ModelReasoningEffort.Medium,
+        ProviderReasoningEffort.High => ModelReasoningEffort.High,
+        ProviderReasoningEffort.ExtraHigh => ModelReasoningEffort.ExtraHigh,
+        ProviderReasoningEffort.Max => ModelReasoningEffort.Max,
         _ => ModelReasoningEffort.Medium
     };
 }

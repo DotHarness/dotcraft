@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using DotCraft.Context.Compaction;
 
 namespace DotCraft.Configuration;
@@ -15,49 +14,28 @@ public static class ModelCatalog
 
     public static void ApplyToConfig(
         AppConfig config,
-        JsonNode mergedConfig,
         string? globalConfigPath,
         string? workspaceConfigPath)
     {
-        var hasExplicitContextWindow = HasExplicitCompactionContextWindow(mergedConfig);
-        config.CompactionContextWindowExplicit = hasExplicitContextWindow;
         config.GlobalConfigPath = globalConfigPath;
         config.WorkspaceConfigPath = workspaceConfigPath;
-
-        if (hasExplicitContextWindow)
-            return;
-
-        config.Compaction.ContextWindow = ApplyMaxContextWindow(
-            Resolve(
-                ModelProviderResolver.ResolveConfiguredModel(config),
-                CatalogPathForConfig(globalConfigPath),
-                CatalogPathForConfig(workspaceConfigPath)),
-            config.Compaction.MaxContextWindow);
+        config.Compaction.ContextWindow = ResolveCompactionConfig(
+            config, ModelProviderResolver.ResolveConfiguredModel(config)).ContextWindow;
     }
 
     public static CompactionConfig ResolveCompactionConfig(AppConfig config, string? model)
-        => ResolveCompactionConfig(config, model, config.Compaction.ContextWindowMode);
-
-    public static CompactionConfig ResolveCompactionConfig(
-        AppConfig config,
-        string? model,
-        ContextWindowMode contextWindowMode)
     {
         ArgumentNullException.ThrowIfNull(config);
-
-        var compaction = ResolveDefaultCompactionConfig(config, model);
-        if (contextWindowMode != ContextWindowMode.Max)
-            return compaction;
-
-        var resolution = ResolveDetailed(
-            model,
-            CatalogPathForConfig(config.GlobalConfigPath),
-            CatalogPathForConfig(config.WorkspaceConfigPath));
-        if (resolution.HasExplicitMatch && resolution.ContextWindow > compaction.ContextWindow)
-            compaction.ContextWindow = resolution.ContextWindow;
-
+        var compaction = config.Compaction.Clone();
+        var catalogWindow = Resolve(config, model);
+        compaction.ContextWindow = compaction.MaxContextWindow > 0
+            ? Math.Min(catalogWindow, compaction.MaxContextWindow)
+            : catalogWindow;
         return compaction;
     }
+
+    public static int Resolve(AppConfig config, string? model) => Resolve(model,
+        CatalogPathForConfig(config.GlobalConfigPath), CatalogPathForConfig(config.WorkspaceConfigPath));
 
     public static int Resolve(string? model, string? globalCatalogPath = null, string? workspaceCatalogPath = null)
         => ResolveDetailed(model, globalCatalogPath, workspaceCatalogPath).ContextWindow;
@@ -83,27 +61,6 @@ public static class ModelCatalog
                 HasExplicitMatch: true,
                 match.Pattern,
                 match.MatchKind);
-    }
-
-    public static ModelContextWindowCapability ResolveContextWindowCapability(AppConfig config, string? model)
-    {
-        ArgumentNullException.ThrowIfNull(config);
-
-        var defaultCompaction = ResolveDefaultCompactionConfig(config, model);
-        var resolution = ResolveDetailed(
-            model,
-            CatalogPathForConfig(config.GlobalConfigPath),
-            CatalogPathForConfig(config.WorkspaceConfigPath));
-        var supportsMax = resolution.HasExplicitMatch && resolution.ContextWindow > defaultCompaction.ContextWindow;
-
-        return new ModelContextWindowCapability(
-            CatalogWindow: resolution.ContextWindow,
-            ConfiguredWindow: defaultCompaction.ContextWindow,
-            SupportsMax: supportsMax,
-            MaxWindow: supportsMax ? resolution.ContextWindow : defaultCompaction.ContextWindow,
-            HasExplicitCatalogMatch: resolution.HasExplicitMatch,
-            MatchedPattern: resolution.MatchedPattern,
-            MatchKind: resolution.MatchKind);
     }
 
     public static bool SupportsFast(AppConfig config, string? protocol, string? model)
@@ -184,18 +141,6 @@ public static class ModelCatalog
         return catalog;
     }
 
-    internal static bool HasExplicitCompactionContextWindow(JsonNode node)
-    {
-        if (node is not JsonObject root)
-            return false;
-
-        var compaction = TryGetObject(root, "Compaction");
-        if (compaction is null)
-            return false;
-
-        return compaction.Any(property => IsContextWindowProperty(property.Key));
-    }
-
     private static CatalogData LoadBuiltInCatalog()
     {
         var assembly = Assembly.GetExecutingAssembly();
@@ -236,21 +181,6 @@ public static class ModelCatalog
         catch (JsonException)
         {
         }
-    }
-
-    private static CompactionConfig ResolveDefaultCompactionConfig(AppConfig config, string? model)
-    {
-        var compaction = config.Compaction.Clone();
-        if (config.CompactionContextWindowExplicit)
-            return compaction;
-
-        compaction.ContextWindow = ApplyMaxContextWindow(
-            Resolve(
-                model,
-                CatalogPathForConfig(config.GlobalConfigPath),
-                CatalogPathForConfig(config.WorkspaceConfigPath)),
-            compaction.MaxContextWindow);
-        return compaction;
     }
 
     private static CatalogMatch<int>? ResolveModelWindow(
@@ -347,14 +277,6 @@ public static class ModelCatalog
             : Path.Combine(directory, FileName);
     }
 
-    private static int ApplyMaxContextWindow(int contextWindow, int maxContextWindow)
-    {
-        if (maxContextWindow < MinContextWindow)
-            return contextWindow;
-
-        return Math.Min(contextWindow, maxContextWindow);
-    }
-
     private static bool TryReadContextWindow(JsonElement element, out int value)
     {
         value = 0;
@@ -403,27 +325,6 @@ public static class ModelCatalog
 
         value = default;
         return false;
-    }
-
-    private static JsonObject? TryGetObject(JsonObject root, string key)
-    {
-        foreach (var property in root)
-        {
-            if (string.Equals(property.Key, key, StringComparison.OrdinalIgnoreCase)
-                && property.Value is JsonObject obj)
-            {
-                return obj;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool IsContextWindowProperty(string propertyName)
-    {
-        var normalized = propertyName.Replace("_", string.Empty, StringComparison.Ordinal)
-            .Replace("-", string.Empty, StringComparison.Ordinal);
-        return string.Equals(normalized, "ContextWindow", StringComparison.OrdinalIgnoreCase);
     }
 
     internal sealed class CatalogData
@@ -499,14 +400,5 @@ public static class ModelCatalog
 public sealed record ModelContextWindowResolution(
     int ContextWindow,
     bool HasExplicitMatch,
-    string? MatchedPattern,
-    string? MatchKind);
-
-public sealed record ModelContextWindowCapability(
-    int CatalogWindow,
-    int ConfiguredWindow,
-    bool SupportsMax,
-    int MaxWindow,
-    bool HasExplicitCatalogMatch,
     string? MatchedPattern,
     string? MatchKind);

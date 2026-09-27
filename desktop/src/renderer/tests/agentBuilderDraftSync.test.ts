@@ -58,7 +58,6 @@ describe('agentBuilderDraftSync', () => {
       model: 'gpt-5.6',
       reasoning: { enabled: true, effort: 'high' as const },
       speed: 'fast' as const,
-      contextWindow: { mode: 'max' as const }
     }
     const set = applyBuilderChange(draft, {
       ok: true,

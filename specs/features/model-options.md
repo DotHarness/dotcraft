@@ -2,14 +2,14 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.3 |
+| **Version** | 0.5.0 |
 | **Status** | Living |
-| **Date** | 2026-09-15 |
+| **Date** | 2026-09-27 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [SubAgent Core](subagents.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [Dynamic Workflows](dynamic-workflows.md) |
 
 Purpose: define the provider-neutral, model-aware options that control how DotCraft runs a selected
-model. Reasoning, inference speed, and context-window mode share one capability, persistence, and
-client lifecycle while retaining independent runtime semantics.
+model. Reasoning and inference speed are persisted selections; model capacity is resolved from
+the merged model catalog for each operation.
 
 ---
 
@@ -23,7 +23,7 @@ This specification covers:
 
 - reasoning effort and reasoning-output visibility
 - Standard and Fast inference speed
-- default and MAX context-window modes
+- model-catalog context capacity
 - workspace presets, thread snapshots, model capability metadata, and Desktop behavior
 
 It does not define arbitrary numeric context sizes, transcript rendering of reasoning, or raw provider
@@ -55,8 +55,7 @@ Model entries may independently declare `contextWindow` and Fast routing selecto
 the most specific model prefix or namespaced suffix that declares the requested capability. More
 specific model keys therefore override family prefixes without changing the matching schema. Fast
 selectors constrain normalized protocols; `fast: null` explicitly disables an inherited Fast
-declaration. Invalid declarations are ignored. Legacy conservative context entries may remain as
-compatibility tombstones for models outside the synchronized set. Provider request adapters and
+declaration. Invalid declarations are ignored. Provider request adapters and
 `model/list` must resolve capabilities through the same merged catalog.
 
 Catalog freshness is server-owned. AppServer serves `model/list` from a provider-identity cache and
@@ -64,7 +63,7 @@ keeps returning the last catalog fetched with the same credentials when a refres
 may request a catalog whenever it needs one without re-querying the upstream endpoint.
 
 Desktop caches successful model catalogs by provider for the current connection and workspace.
-Reasoning, speed, context-mode, and model preference changes reuse those catalogs. Concurrent loads
+Reasoning, speed, and model preference changes reuse those catalogs. Concurrent loads
 for the same provider share a request; switching providers reuses their cached results. Manual refresh
 reloads the selected provider. Provider registry or authentication changes invalidate catalogs;
 connection and workspace changes discard them and prevent old responses from repopulating the cache.
@@ -85,10 +84,7 @@ The public provider-neutral preset is `ModelPreference`:
     "effort": "high",
     "output": "full"
   },
-  "speed": "fast",
-  "contextWindow": {
-    "mode": "max"
-  }
+  "speed": "fast"
 }
 ```
 
@@ -112,11 +108,9 @@ Creating a preference uses model-catalog capability defaults:
 - models that can disable reasoning start at Off
 - models that cannot disable reasoning use the catalog default effort and output
 - speed uses the catalog default, normally Standard
-- context uses Default
-- manual models use Off / Full / Standard / Default
+- manual models use Off / Full / Standard
 
-Changing models replaces unsupported reasoning selections with the model defaults and clears MAX when
-unsupported. Fast remains stored as a user preference, but unsupported models execute as Standard.
+Changing models replaces unsupported reasoning selections with the model defaults. Fast remains stored as a user preference, but unsupported models execute as Standard.
 
 ### 2.4 Presets and Thread Snapshots
 
@@ -124,11 +118,10 @@ Model options follow this lifecycle:
 
 1. The effective `ProviderPreferences` record supplies the preset used by the Welcome composer and
    future threads.
-2. `thread/start` captures effective provider, model, reasoning, speed, and context-window mode into
+2. `thread/start` captures effective provider, model, reasoning and speed into
    `ThreadConfiguration` unless the request supplies explicit values. A configured Provider without a
    saved preference remains usable when the request supplies an explicit model; missing model options
-   use capability-safe defaults and explicit options win. Unsupported MAX is normalized to Default
-   before capture.
+   use capability-safe defaults and explicit options win.
 3. A Welcome picker change atomically updates the complete workspace provider preference; an
    active-thread picker change updates only that thread's complete provider/model snapshot.
 4. A change affects future and queued turns; it never changes a running provider request.
@@ -144,15 +137,13 @@ complete `ModelPreference`:
 
 - an omitted `providerPreference` captures the complete effective workspace/global provider preference
   when a new thread is created;
-- a present `providerPreference` stores provider id, model, reasoning enabled/effort, speed, and
-  context-window mode;
+- a present `providerPreference` stores provider id, model, reasoning enabled/effort and speed;
 - reasoning output visibility is not authorable in a Profile; runtime materialization derives it from
   the selected model's catalog `defaultOutput`;
 - an empty or partial `providerPreference` is invalid;
-- canonical profiles never merge individual model, reasoning, speed, or context-window fields with a
+- canonical profiles never merge individual model, reasoning or speed fields with a
   workspace preference;
-- profile-backed thread creation always persists a normalized complete provider/model/reasoning/speed/
-  context-window snapshot;
+- profile-backed thread creation always persists a normalized complete provider/model/reasoning/speed snapshot;
 - explicit thread-level reasoning overlays may still set output visibility and take precedence over
   the catalog default;
 - refreshing an existing thread from a profile without `providerPreference` preserves its current
@@ -179,8 +170,9 @@ Clients recompute effective model options when:
 | `Low` | Request low reasoning effort. |
 | `Medium` | Request medium reasoning effort. |
 | `High` | Request high reasoning effort. |
-| `Extra High` | Request the highest model-supported effort. |
-| `Ultra` | Request Extra High provider reasoning and enable proactive Dynamic Workflow orchestration for substantive tasks. |
+| `Extra High` | Request xhigh reasoning effort. |
+| `Max` | Request max reasoning effort. |
+| `Ultra` | Request Max provider reasoning and enable proactive Dynamic Workflow orchestration for substantive tasks. |
 
 The provider-neutral object is:
 
@@ -193,9 +185,9 @@ The provider-neutral object is:
 ```
 
 - `enabled=false` represents Off; quick selectors must not encode Off as `effort=none`.
-- `effort` supports `low`, `medium`, `high`, `extraHigh`, and `ultra` on the wire. `ultra` is a
+- `effort` supports `low`, `medium`, `high`, `extraHigh`, `max`, and `ultra` on the wire. `ultra` is a
   DotCraft-owned thread tier; provider adapters map it to the same effective provider effort as
-  `extraHigh`.
+  `max`.
 - `output` supports `none`, `summary`, and `full`. The quick picker changes effort only.
 - Preference persistence uses `ModelPreference.reasoning`.
 - A new thread always captures the effective preference reasoning.
@@ -205,7 +197,7 @@ The provider-neutral object is:
 `model/list.reasoning` supplies `supportsDisable`, ordered `supportedEfforts`, `defaultEffort`,
 `supportedOutputs`, and `defaultOutput`. `defaultEffort` must be one of `supportedEfforts`.
 
-The server adds `ultra` to `supportedEfforts` only when the model supports `extraHigh` and the Dynamic
+The server adds `ultra` to `supportedEfforts` only when the model supports `max` and the Dynamic
 Workflow runtime is available. Clients derive availability from this metadata and do not infer it from
 the model id. `ultra` is persisted in the existing thread reasoning configuration and does not create
 an `AgentMode`.
@@ -217,15 +209,17 @@ The server derives reasoning capability and request shaping from protocol, endpo
 `model-thinking-adapters.json`. Matching supports model prefixes and namespaced suffixes.
 
 Ultra remains the DotCraft-owned persisted value. Provider validation and request construction compare
-its effective provider value as `extraHigh`; they must not overwrite the thread snapshot with
-`extraHigh`, because that would remove orchestration behavior from later turns.
+its effective provider value as `max`; they must not overwrite the thread snapshot with
+`max`, because that would remove orchestration behavior from later turns.
 
 ### 3.3 Provider Semantics
 
 For OpenAI Chat Completions and Responses:
 
 - disabled reasoning omits `ChatOptions.Reasoning` and provider-specific thinking patches
-- enabled reasoning maps effort and output through `ChatOptions.Reasoning`
+- ordinary enabled efforts and output use `ChatOptions.Reasoning`
+- Max travels through Agents-owned ChatOptions metadata and is mapped to native `max` by the provider adapter; Ultra resolves to Max before request construction
+- internal reasoning metadata is consumed before sending the native request
 - non-standard compatible models use catalog-driven deep-thinking adapters
 
 For Anthropic:
@@ -233,8 +227,7 @@ For Anthropic:
 - disabled reasoning omits `thinking` when the model supports disabling it
 - enabled reasoning uses the most-specific Anthropic thinking adapter
 - adaptive models map to `thinking.type="adaptive"`, output display, and `output_config.effort`
-- catalog mappings own provider differences such as `extraHigh` becoming `xhigh` or `max`
-- `ultra` first normalizes to `extraHigh`, then uses the same catalog mapping
+- `extraHigh` maps to `xhigh`; `max` and the effective Ultra effort map to `max`
 - models that always reason advertise `supportsDisable=false`
 
 Anthropic-compatible reasoning-history adapters may map historical assistant reasoning to supported
@@ -273,58 +266,31 @@ DotCraft does not silently retry as Standard.
 
 ## 5. Context Window
 
-### 5.1 Modes
+The effective model's merged `models.json` catalog is the sole source of context capacity.
+Built-in entries are overridden by global and then workspace catalogs using the existing model
+matching rules. Unknown models use the catalog default, falling back to 256,000 tokens.
 
-| Mode | Meaning |
-|------|---------|
-| `default` | Use explicit `Compaction.ContextWindow`, or infer the catalog window and apply `Compaction.MaxContextWindow`. |
-| `max` | Use the raw explicit model-catalog context window when it is larger than the configured window. |
+`Compaction.MaxContextWindow` sets a client-side token budget in global or workspace config.
+Its default is `-1`: omitted or `-1` uses the catalog window; a positive value limits the runtime
+window to the smaller of that value and the catalog window. Workspace values override global values,
+including an explicit `-1` that restores the catalog window. This setting is independent of reasoning.
 
-Omitted or null thread configuration is `default`. V1 does not expose arbitrary numeric per-thread
-context sizes.
+Compaction receives the resulting window as runtime data and applies summary reserves, safety buffers,
+and compaction thresholds. Model changes affect subsequent requests and maintenance work;
+running operations keep their captured configuration.
 
-### 5.2 Resolution and Validation
-
-Resolution is server-owned:
-
-1. Resolve the thread's effective provider and model.
-2. Resolve the raw context catalog entry and whether the match is explicit, prefix, suffix, or fallback.
-3. Keep an explicit `Compaction.ContextWindow`; otherwise infer it and apply `Compaction.MaxContextWindow`.
-4. Offer `max` only when the catalog produced a model-rule match and
-   `catalogWindow > configuredWindow`, then use `catalogWindow` directly. Prefix and namespaced-suffix
-   matches count as model-rule matches; the default fallback does not.
-
-MAX intentionally bypasses `Compaction.MaxContextWindow`; that cap remains the default-mode guardrail.
-This preserves the existing summary reserve and safety buffer while changing their input window. The
-server returns JSON-RPC `InvalidParams` for MAX when the model only has the default fallback or when
-the catalog window is not larger than the configured Default window. Preference normalization repairs
-unsupported MAX to Default.
-
-### 5.3 Persistence and Metadata
-
-Thread configuration and `ModelPreference` use `{ "contextWindow": { "mode": "max" } }`. New threads
-capture the normalized preference mode; unsupported MAX becomes Default.
-
-Desktop persists an explicit `{ "contextWindow": { "mode": "default" } }` when MAX is turned off,
-including in new-thread overlays and when switching to a model that does not support MAX.
-Existing threads read their captured context-window mode; omitted or null means Default and must not
-fall back to workspace preferences. Only untouched new-thread drafts inherit the workspace preference.
-Changing reasoning effort, refreshing thread state, or navigating between threads preserves this choice.
-
-`model/list.contextWindow` supplies `catalogWindow`, `configuredWindow`, `supportsMax`, and
-`maxWindow`. `supportsMax` is true only for an explicit match whose catalog window is larger.
-`ContextUsageSnapshot.contextWindow` remains the effective denominator after reserve and buffer logic.
+`model/list.contextWindow` is the resolved numeric capacity. `ContextUsageSnapshot.contextWindow`
+is the effective denominator after the client budget, reserve, and buffer rules. Model catalog
+metadata always reports raw capacity independently of this budget.
 
 ---
 
 ## 6. Desktop UX
 
 The composer Model picker supplies one shared panel implementation. The trigger names the model and
-its reasoning level, with a compact speed indicator when a Fast-capable model uses Fast and a `MAX`
-tag when the context window is maximised. The panel opens above the trigger and reads as one decision:
+its reasoning level, with a compact speed indicator when a Fast-capable model uses Fast. The panel opens above the trigger and reads as one decision:
 
-- The headline is the level the active model thinks at, with the `MAX` tag beside it when the context
-  window is maximised (warning-coloured while degraded). Beneath the headline the model name is a
+- The headline is the level the active model thinks at, with Max between Extra High and Ultra. Beneath the headline the model name is a
   button that leads one level in. A model without reasoning metadata has no level in the panel: its
   name takes the headline's place and the panel has no scale.
 - The scale under the headline is a slider with one stop per reasoning effort the active model
@@ -337,21 +303,19 @@ tag when the context window is maximised. The panel opens above the trigger and 
   active. While Fast is on, the stop dots the fill covers become particles streaming back from the
   thumb along the bar. Fast and the top of the scale arrive and leave over a short fade; no change
   of state switches abruptly. When a Fast-capable active model uses Fast, the composer mascot adds a quiet looping
-  afterimage independent of Effort and MAX. Standard and unsupported models show neither treatment;
+  afterimage independent of Effort. Standard and unsupported models show neither treatment;
   reduced-motion mode keeps only a static, low-contrast afterimage.
-- Reset is an arrow at the panel's right, shown only while the level, the speed or MAX differs from
-  the active model's catalog defaults (its default effort, its default speed mode and the Default
-  window). It returns each differing setting to that default.
+- Reset is an arrow at the panel's right, shown only while the level or speed differs from
+  the active model's catalog defaults (its default effort and speed mode). It returns each differing setting to that default.
 - One level in, reached from the model name, a menu keeps the earlier rows. Provider opens a submenu
   of configured providers; Welcome uses the workspace provider and remembered `ProviderPreferences`
   entry, and an existing thread uses its captured provider. Model opens the model submenu and
-  preserves manual fallback behavior. MAX is a switch enabled only when `supportsMax=true`; a captured
-  MAX that later becomes unsupported is shown as degraded until changed. A Back row returns to the
+  preserves manual fallback behavior. A Back row returns to the
   panel. Escape closes an open submenu, then returns from the menu to the panel, then closes the
   picker.
 
 Provider/model changes are one `thread/config/update`. If the target model invalidates reasoning,
-Desktop selects its default effort; if it does not support MAX, Desktop clears MAX. Speed preference is
+Desktop selects its default effort. Speed preference is
 preserved and unsupported Fast continues to run as Standard. Changes made in quick succession apply one
 after another, each on the configuration the previous one wrote.
 
@@ -378,8 +342,7 @@ record and disables the field; Custom clones the current MainAgent preference be
 one centered wizard screen, configures MainAgent only, and leaves SubAgent inheritance untouched.
 
 Each provider row in `Provider list` summarises its remembered preferences as two clauses, `Main` and
-`Subagent`, each naming the model and reasoning effort with `MAX` appended when the context window is
-maximised. Fast inference reads as a bolt before the model name; Standard adds nothing. A provider
+`Subagent`, each naming the model and reasoning effort. Fast inference reads as a bolt before the model name; Standard adds nothing. A provider
 without a SubAgent record shows `Inherits main model` as its `Subagent` value.
 
 ---
@@ -389,21 +352,20 @@ without a SubAgent record shows `Inherits main model` as its `Subagent` value.
 - Config-file enum values are read case-insensitively; wire DTOs use camelCase strings.
 - Invalid explicit AppServer values return protocol validation errors.
 - Provider rejection of an advertised option fails through the normal turn error contract.
-- Unknown models never receive Fast fields or MAX capability without a catalog match.
-- Existing threads without Speed use Standard; existing threads without Context Window use default.
-- Obsolete preference keys are ignored and are neither migrated nor used as fallback.
+- Unknown models never receive Fast fields without a catalog match.
+- Existing threads without Speed use Standard. All threads resolve capacity from the model catalog.
 
 ---
 
 ## 8. Acceptance Criteria
 
-- `model/list` is sufficient for clients to render Reasoning, Speed, and MAX without model hardcoding.
+- `model/list` is sufficient for clients to render Reasoning and Speed without model hardcoding.
 - Workspace presets and active-thread snapshots round-trip through AppServer.
 - Workspace-over-personal resolution replaces one provider preference atomically.
 - Native SubAgent inheritance and explicit overrides preserve the complete preference, while role-model
   and external-runtime precedence remain deterministic.
-- New threads capture effective reasoning and speed plus supported MAX, and existing threads remain stable after preset changes.
+- New threads capture effective reasoning and speed, and existing threads remain stable after preset changes.
 - Provider-specific reasoning and Fast request shapes remain server-owned.
-- MAX resolution and validation use explicit server catalog evidence.
-- Desktop exposes the three options through one model picker and respects busy state.
-- Threads without Speed or Context Window retain the documented Standard and Default runtime behavior.
+- Model capacity comes directly from the merged catalog without a mode or cap.
+- Desktop exposes model options through one model picker and respects busy state.
+- Max and Ultra send native max; ordinary xhigh remains distinct. No new support probes or model allowlists are introduced.
