@@ -106,7 +106,10 @@ public sealed partial class SessionService
             var normalizedThreadId = NormalizeRequiredThreadId(threadId);
             var source = await LoadForkSourceThreadAsync(normalizedThreadId, options.Path, ct);
             if (options.PromptSuggestion && (!options.Ephemeral
-                || options.ForkPoint?.TurnId != source.Turns.LastOrDefault()?.Id
+                || options.ForkPoint is not { } forkPoint
+                || forkPoint.TurnId != source.Turns.LastOrDefault()?.Id
+                || !string.IsNullOrWhiteSpace(forkPoint.ItemId)
+                || !ResolveForkPosition(forkPoint.Position)
                 || source.Turns.LastOrDefault()?.Status != TurnStatus.Completed))
             {
                 throw new ArgumentException("Prompt suggestions require an ephemeral fork after the latest completed Turn.", nameof(options));

@@ -42,7 +42,7 @@ public sealed class WelcomeSuggestionService(
     private static readonly TimeSpan RefreshDebounce = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan MinRefreshInterval = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan PersistedWriteTimeout = TimeSpan.FromSeconds(5);
-    private const int PersistedCacheSchemaVersion = 2;
+    private const int PersistedCacheSchemaVersion = 1;
     private static readonly Regex FileExtensionPattern = new(@"\.[A-Za-z0-9]{1,6}\b", RegexOptions.Compiled);
     private static readonly Regex PathPattern = new(@"[A-Za-z0-9_.\-]+[\\/][A-Za-z0-9_.\-]+", RegexOptions.Compiled);
     private static readonly Regex BacktickPattern = new(@"\x60[^\x60]+\x60", RegexOptions.Compiled);
@@ -391,7 +391,7 @@ public sealed class WelcomeSuggestionService(
             List<WelcomeSuggestion>? items = null;
             await foreach (var evt in sessionService.SubmitInputAsync(
                                tempThreadId,
-                               [new TextContent(BuildGenerationPrompt(maxItems))],
+                               [new TextContent(BuildGenerationPrompt(evidence, maxItems))],
                                ct: linked.Token).ConfigureAwait(false))
             {
                 if (evt.EventType != SessionEventType.ItemCompleted || evt.ItemPayload == null)
@@ -466,7 +466,8 @@ public sealed class WelcomeSuggestionService(
 
         return Task.FromResult(new WelcomeSuggestionEvidence(
             fingerprint,
-            !string.IsNullOrWhiteSpace(memoryText) || !string.IsNullOrWhiteSpace(dreamText)));
+            memoryText,
+            dreamText));
     }
 
     private bool IsWelcomeSuggestionsEnabled(string workspacePath)
@@ -474,8 +475,16 @@ public sealed class WelcomeSuggestionService(
         return appConfig.WelcomeSuggestions.Enabled && appConfig.Memory.Enabled;
     }
 
-    private static string BuildGenerationPrompt(int maxItems) =>
-        $"Use the memory context already in your instructions to infer likely next tasks, and call {WelcomeSuggestionMethods.ToolName} exactly once with exactly {maxItems} concrete suggestions. If it cannot support {maxItems} concrete suggestions, do not call the tool.";
+    private static string BuildGenerationPrompt(WelcomeSuggestionEvidence evidence, int maxItems) =>
+        $"""
+        Use the following memory snapshot to infer likely next tasks. Call {WelcomeSuggestionMethods.ToolName} exactly once with exactly {maxItems} concrete suggestions. If the evidence cannot support {maxItems} concrete suggestions, do not call the tool.
+
+        ## Saved memory from MEMORY.md
+        {evidence.MemoryContext}
+
+        ## Inferred Dream Memory
+        {evidence.DreamContext}
+        """;
 
     private static List<WelcomeSuggestion> ParseSuggestionItems(JsonObject? arguments, int maxItems)
     {
@@ -585,7 +594,12 @@ public sealed class WelcomeSuggestionService(
 
     private sealed record WelcomeSuggestionEvidence(
         string Fingerprint,
-        bool HasSufficientContext);
+        string MemoryContext,
+        string DreamContext)
+    {
+        public bool HasSufficientContext => !string.IsNullOrWhiteSpace(MemoryContext)
+            || !string.IsNullOrWhiteSpace(DreamContext);
+    }
 
     private sealed record WelcomeSuggestionCacheEntry(
         WelcomeSuggestionSnapshot Result,

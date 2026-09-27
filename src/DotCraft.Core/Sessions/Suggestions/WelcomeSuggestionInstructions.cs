@@ -8,7 +8,8 @@ public static class WelcomeSuggestionInstructions
     public const string SystemPrompt =
         """
         You generate welcome-screen quick suggestions for DotCraft Desktop.
-        The workspace's saved and inferred memory is already in your context.
+        The request supplies a snapshot of saved workspace memory and inferred Dream Memory.
+        Use both as background evidence. Current instructions and verified evidence take precedence; explicit user lessons in MEMORY.md take precedence over conflicting Dream inferences.
         Use EmitWelcomeSuggestions(items) to submit your result.
 
         Requirements:

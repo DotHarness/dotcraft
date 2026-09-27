@@ -256,8 +256,10 @@ public sealed class SessionServiceForkTests : IDisposable
         Assert.DoesNotContain(listed, summary => summary.Id == fork.Id);
     }
 
-    [Fact]
-    public async Task ForkThreadAsync_PromptSuggestionSharesCacheRouteAndToolRole()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("after")]
+    public async Task ForkThreadAsync_PromptSuggestionSharesCacheRouteAndToolRole(string? position)
     {
         await using var agentFactory = CreateAgentFactory();
         var service = CreateService(agentFactory);
@@ -268,7 +270,9 @@ public sealed class SessionServiceForkTests : IDisposable
         {
             Ephemeral = true,
             PromptSuggestion = true,
-            ForkPoint = new ThreadForkPoint { TurnId = "turn_001" }
+            ForkPoint = position == null
+                ? new ThreadForkPoint { TurnId = "turn_001" }
+                : new ThreadForkPoint { TurnId = "turn_001", Position = position }
         });
 
         var parentIdentity = ThreadConversationIdentity.Create(source, source.Turns[^1], "window", ProviderRequestKind.Turn);
@@ -279,6 +283,27 @@ public sealed class SessionServiceForkTests : IDisposable
         Assert.True(ThreadVisibility.IsInternal(fork));
         Assert.Equal(source.Configuration?.Model, fork.Configuration?.Model);
         Assert.Equal(source.Configuration?.ProviderId, fork.Configuration?.ProviderId);
+    }
+
+    [Theory]
+    [InlineData("before", null)]
+    [InlineData("after", "turn_001_user")]
+    public async Task ForkThreadAsync_PromptSuggestionRejectsPartialBoundaries(string position, string? itemId)
+    {
+        await using var factory = CreateAgentFactory();
+        var service = CreateService(factory);
+        var source = await service.CreateThreadAsync(MakeIdentity());
+        AddCompletedTurn(source, "turn_001", "request", "answer");
+        var created = 0;
+        service.ThreadCreatedForBroadcast += _ => created++;
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.ForkThreadAsync(source.Id, new ThreadForkOptions
+        {
+            Ephemeral = true,
+            PromptSuggestion = true,
+            ForkPoint = new ThreadForkPoint { TurnId = "turn_001", Position = position, ItemId = itemId }
+        }));
+        Assert.Equal(0, created);
     }
 
     [Theory]

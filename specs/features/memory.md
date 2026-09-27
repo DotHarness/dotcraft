@@ -89,4 +89,4 @@ AppServer `memory/reset` deletes the contents of the current workspace's memory 
 
 ## 7. Welcome Suggestions
 
-Personalized welcome suggestions use the memory context already supplied to their internal Thread: `MEMORY.md` and, when available, Dream Memory. They are generated in the background after a successful Turn when that context has changed since the cached result, and are skipped when memory is disabled or both sources are empty. The internal Thread uses only `EmitWelcomeSuggestions` to submit the result; it does not read memory through a separate tool.
+Personalized welcome suggestions receive an explicit snapshot of `MEMORY.md` and, when available, the active Dream Memory index as generation input alongside dedicated system instructions. The same captured content supplies the generation request and determines the cache fingerprint. They are generated in the background after a successful Turn when that context has changed since the cached result, and are skipped when memory is disabled or both sources are empty. The internal Thread submits its result through `EmitWelcomeSuggestions`.

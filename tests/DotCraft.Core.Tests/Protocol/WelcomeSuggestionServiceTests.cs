@@ -337,9 +337,9 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SuggestAsync_WithOldPersistedCacheSchema_ReturnsNone()
+    public async Task SuggestAsync_WithUnsupportedPersistedCacheSchema_ReturnsNone()
     {
-        await WritePersistedCacheAsync("old-thread-history-snapshot", schemaVersion: 1);
+        await WritePersistedCacheAsync("unsupported-snapshot", schemaVersion: 2);
 
         var service = CreateService();
         var result = await service.SuggestAsync(new WelcomeSuggestionRequest
@@ -762,7 +762,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     private string GetPersistedCachePath() =>
         Path.Combine(_workspacePath, ".craft", "cache", "welcome-suggestions.json");
 
-    private async Task WritePersistedCacheAsync(string fingerprint, int schemaVersion = 2)
+    private async Task WritePersistedCacheAsync(string fingerprint, int schemaVersion = 1)
     {
         var cachePath = GetPersistedCachePath();
         Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);

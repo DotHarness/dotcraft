@@ -864,7 +864,7 @@ Create a new thread from a source thread's persisted history. Clients must check
 | `config` | ThreadConfiguration | no | Thread configuration overrides applied after copying the source configuration. |
 | `displayName` | string | no | Explicit display name for the forked thread. When omitted, the fork uses the source thread's visible display name, or the first retained user message when the source has no display name. |
 | `ephemeral` | boolean | no | When true, create a process-local fork omitted from default lists. Defaults to false. |
-| `promptSuggestion` | boolean | no | Marks an ephemeral fork used to predict the next user message. Requires `ephemeral = true`; preserves the source's tool-planning role and provider cache routing identity while keeping a distinct thread id. Defaults to false. |
+| `promptSuggestion` | boolean | no | Marks an ephemeral fork used to predict the next user message. Requires `ephemeral = true` and a full `after` boundary at the latest completed Turn, with no non-empty `itemId`; omitted position defaults to `after`. Preserves the source's tool-planning role and provider cache routing identity while keeping a distinct thread id. Defaults to false. |
 
 **Result**: `{ "thread": Thread, "instructionSources": string[] }`
 
