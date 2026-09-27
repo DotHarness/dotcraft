@@ -316,6 +316,7 @@ export const MESSAGES_ZH_HANS = {
   'debug.cdpEnabledTooltip': 'CDP 调试已启用。',
 
   'menu.file': '文件',
+  'menu.all': '菜单',
   'menu.edit': '编辑',
   'menu.view': '视图',
   'menu.window': '窗口',

@@ -186,6 +186,7 @@ export const MESSAGES_ES = {
   'debug.cdpEnabledTooltip': 'La depuración CDP está activada.',
 
   'menu.file': 'Archivo',
+  'menu.all': 'Menú',
   'menu.edit': 'Editar',
   'menu.view': 'Ver',
   'menu.window': 'Ventana',

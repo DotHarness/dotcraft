@@ -1,0 +1,24 @@
+.compactIcon {
+  display: none;
+  flex-shrink: 0;
+}
+
+@container composer-card (max-width: 420px) {
+  .reasoningLabel,
+  .maxTag,
+  .chevron {
+    display: none;
+  }
+}
+
+@container composer-card (max-width: 300px) {
+  .compactIcon {
+    display: block;
+  }
+
+  .modelLabel,
+  .loadingLabel,
+  .speedIcon {
+    display: none;
+  }
+}

@@ -1,9 +1,43 @@
+.leadingControls,
+.trailingControls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.leadingControls {
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.leadingControls[data-compact] {
+  flex: 1;
+}
+
+.trailingControls {
+  flex: 0 0 auto;
+}
+
+.control {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+@container composer-card (max-width: 300px) {
+  .leadingControls,
+  .trailingControls {
+    gap: 4px;
+  }
+}
+
 .status {
   position: relative;
   z-index: 1;
   display: flex;
   gap: 8px;
   align-items: center;
+  container: composer-footer / inline-size;
 }
 
 .topSpacing {
@@ -23,4 +57,22 @@
   align-items: center;
   margin-left: auto;
   min-width: 0;
+}
+
+@container composer-root (max-width: 340px) {
+  .trailing {
+    display: none;
+  }
+}
+
+@container composer-root (max-width: 250px) {
+  .subscription {
+    display: none;
+  }
+}
+
+@container composer-root (max-width: 175px) {
+  .status {
+    display: none;
+  }
 }

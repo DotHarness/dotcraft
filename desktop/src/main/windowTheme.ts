@@ -6,7 +6,7 @@ import {
 } from '../shared/titleBarOverlay'
 import { DEFAULT_SEEDS } from '../shared/themeSeed'
 import { resolveAppliedTheme, resolveThemeMode } from '../shared/theme'
-import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron'
+import type { BrowserWindow, BrowserWindowConstructorOptions, TitleBarOverlayOptions } from 'electron'
 
 /**
  * `system` resolves through a caller-supplied OS preference, defaulting to light, so this
@@ -65,10 +65,6 @@ export function resolveWindowBackdropOptions(
   }
 }
 
-/**
- * Recolor everything native: the window backdrop and, off macOS, the caption bar. Both follow
- * the seeded surface, so changing the background in Appearance repaints the frame too.
- */
 export function applyNativeChromeTheme(
   win: BrowserWindow,
   theme: TitleBarOverlayTheme,
@@ -76,14 +72,14 @@ export function applyNativeChromeTheme(
   platform: NodeJS.Platform = process.platform
 ): void {
   applyWindowBackdropTheme(win, theme, platform, surface)
-  if (platform === 'darwin') return
-  const { color, symbolColor } = titleBarOverlayForSurface(surface)
-  try {
-    win.setTitleBarOverlay({ color, symbolColor, height: TITLE_BAR_OVERLAY_HEIGHT })
-  } catch (error) {
-    // A window built without an overlay simply has no caption bar to recolor.
-    if (error instanceof Error && error.message.includes('Titlebar overlay is not enabled')) return
-    throw error
+  if (platform === 'win32') win.setTitleBarOverlay(resolveWindowsTitleBarOverlay(surface))
+}
+
+export function resolveWindowsTitleBarOverlay(surface: string): TitleBarOverlayOptions {
+  return {
+    color: TRANSPARENT_WINDOW_BACKGROUND,
+    symbolColor: titleBarOverlayForSurface(surface).symbolColor,
+    height: TITLE_BAR_OVERLAY_HEIGHT
   }
 }
 

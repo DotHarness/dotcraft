@@ -1287,7 +1287,6 @@ export function registerIpcHandlers(
     win?.setTitle(title)
   })
 
-  // Windows and Linux only; macOS has no title bar overlay to recolor.
   handleSafe('window:set-title-bar-overlay-theme', (event, theme: 'dark' | 'light') => {
     if (process.platform === 'darwin') return
     const win = BrowserWindow.fromWebContents(event.sender)

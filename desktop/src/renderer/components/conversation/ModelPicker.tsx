@@ -10,7 +10,7 @@ import {
   type MouseEvent as ReactMouseEvent
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Zap } from 'lucide-react'
+import { Bot, Check, ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Zap } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useMenuAim } from '../../hooks/useMenuAim'
 import type { InferenceSpeedWire, ModelCatalogItem, ReasoningEffortWire } from '../../stores/modelCatalogStore'
@@ -27,6 +27,7 @@ import {
 } from './ComposerShell'
 import { EffortSlider } from './EffortSlider'
 import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
+import css from './ModelPicker.module.css'
 
 export type ReasoningQuickValue = 'default' | 'off' | ReasoningEffortWire
 
@@ -575,12 +576,14 @@ export function ModelPicker({
             cursor: interactive ? 'pointer' : 'default'
           }}
         >
+          <Bot className={css.compactIcon} size={14} aria-hidden />
           {loading ? (
-            <span style={ellipsisStyle}>{t('composer.modelListLoading')}</span>
+            <span className={css.loadingLabel} style={ellipsisStyle}>{t('composer.modelListLoading')}</span>
           ) : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' }}>
               {speedVisible && speedValue === 'fast' && (
                 <Zap
+                  className={css.speedIcon}
                   aria-hidden
                   size={12}
                   strokeWidth={2.4}
@@ -592,6 +595,7 @@ export function ModelPicker({
                 />
               )}
               <span
+                className={css.modelLabel}
                 style={{
                   ...ellipsisStyle,
                   color: disabled ? 'var(--composer-footer-muted)' : 'var(--composer-footer-highlight)'
@@ -600,6 +604,7 @@ export function ModelPicker({
                 {modelLabel}
               </span>
               <span
+                className={css.reasoningLabel}
                 style={{
                   flexShrink: 0,
                   color: disabled ? 'var(--composer-footer-muted)' : 'var(--composer-footer-text)',
@@ -608,11 +613,12 @@ export function ModelPicker({
               >
                 {reasoningDisplayLabel}
               </span>
-              {maxTag}
+              {maxTag && <span className={css.maxTag}>{maxTag}</span>}
             </span>
           )}
           {interactive && (
             <ChevronDown
+              className={css.chevron}
               aria-hidden
               size={13}
               strokeWidth={1.8}

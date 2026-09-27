@@ -466,6 +466,9 @@ const api = {
   menu: {
     popupTopLevel(menuId: TopLevelMenuId, x: number, y: number): Promise<void> {
       return ipcRenderer.invoke('menu:popup-top-level', { menuId, x, y })
+    },
+    popupAll(x: number, y: number): Promise<void> {
+      return ipcRenderer.invoke('menu:popup-all', { x, y })
     }
   },
 

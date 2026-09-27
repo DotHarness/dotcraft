@@ -139,7 +139,8 @@ import {
   applyWindowBackdropTheme,
   resolveInitialTheme,
   resolveThemeSurface,
-  resolveWindowBackdropOptions
+  resolveWindowBackdropOptions,
+  resolveWindowsTitleBarOverlay
 } from './windowTheme'
 import { applyNativeThemeSource } from './nativeThemeSource'
 import { resolveThemeMode } from '../shared/theme'
@@ -1482,10 +1483,11 @@ function createWindow(
   // The renderer receives the MODE (incl. `system`) and resolves it via matchMedia so it can
   // also react to OS appearance changes; native chrome below uses the resolved dark/light value.
   const initialThemeMode = resolveThemeMode(sharedSettings.theme)
+  const initialSurface = resolveThemeSurface(sharedSettings, initialTheme)
   const windowBackdrop = resolveWindowBackdropOptions(
     initialTheme,
     process.platform,
-    resolveThemeSurface(sharedSettings, initialTheme)
+    initialSurface
   )
   // Handed to preload for the first paint and to the renderer so its own first write
   // reproduces these values instead of clearing them.
@@ -1498,7 +1500,7 @@ function createWindow(
   const win = new BrowserWindow({
     width: 1400,
     height: 800,
-    minWidth: 900,
+    minWidth: process.platform === 'win32' ? 480 : 900,
     minHeight: 600,
     ...windowBackdrop,
     ...(iconPath
@@ -1511,9 +1513,14 @@ function createWindow(
       ? {
           titleBarStyle: 'hiddenInset'
         }
-      : {
-          frame: false
-        }),
+      : process.platform === 'win32'
+        ? {
+            titleBarStyle: 'hidden',
+            titleBarOverlay: resolveWindowsTitleBarOverlay(initialSurface)
+          }
+        : {
+            frame: false
+          }),
     autoHideMenuBar: !isMac,
     webPreferences: {
       webviewTag: true,
@@ -3022,6 +3029,7 @@ function emitWorkspaceStatus(win: BrowserWindow, payload: WorkspaceStatusPayload
 
 function registerMenuPopupIpc(): void {
   ipcMain.removeHandler('menu:popup-top-level')
+  ipcMain.removeHandler('menu:popup-all')
   ipcMain.removeHandler('app:whats-new-get-releases')
   ipcMain.removeHandler('app:whats-new-get-media-states')
   ipcMain.removeHandler('app:whats-new-prefetch-media')
@@ -3044,6 +3052,15 @@ function registerMenuPopupIpc(): void {
       })
     }
   )
+  ipcMain.handle('menu:popup-all', (event, payload: { x: number; y: number }) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) return
+    Menu.getApplicationMenu()?.popup({
+      window: win,
+      x: Math.round(payload.x),
+      y: Math.round(payload.y)
+    })
+  })
   ipcMain.handle('app:whats-new-get-media-states', (_event, releaseVersions: string[]) => (
     getWhatsNewMediaCache().getMediaStates(Array.isArray(releaseVersions) ? releaseVersions : [])
   ))

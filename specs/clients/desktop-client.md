@@ -234,7 +234,13 @@ Ordinary remote initialization uses a fifteen-second timeout. A temporary connec
 
 ### 3.6 Multiple Windows
 
-- Each window's title-bar maximize control reflects that window's native maximized state. Its icon and accessible label switch between Maximize and Restore when the state changes, including changes made outside the control.
+- On Windows, the main window uses native caption controls so the
+  maximize/restore control exposes the system Snap Layouts menu on supported
+  Windows versions. Its minimum width is 480px; title-bar menus remain visible
+  until the available width can no longer fit them, then collapse to one entry
+  for the existing application menu. Linux retains custom caption controls
+  whose maximize/restore icon and accessible label track the native window
+  state. macOS keeps native traffic lights.
 - Each window owns its own foreground workspace selection and may show multiple local recent workspaces.
 - Multiple windows may be open concurrently, including windows whose recent workspace lists overlap.
 - The same workspace may be connected by more than one Desktop process. AppServer multi-client semantics own protocol safety; Desktop must not rely on a process-exclusive workspace lock to prevent concurrent viewing.

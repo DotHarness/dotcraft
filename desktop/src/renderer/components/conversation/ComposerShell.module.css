@@ -1,0 +1,24 @@
+.toolbar {
+  gap: 10px;
+}
+
+.adaptiveRoot {
+  container: composer-root / inline-size;
+}
+
+.adaptiveCard {
+  container: composer-card / inline-size;
+}
+
+.adaptiveToolbar[data-hide-context='true'] :global([data-adaptive-control='context']),
+.adaptiveToolbar[data-hide-model='true'] :global([data-adaptive-control='model']),
+.adaptiveToolbar[data-hide-goal='true'] :global([data-adaptive-control='goal']),
+.adaptiveToolbar[data-hide-mode='true'] :global([data-adaptive-control='mode']) {
+  display: none;
+}
+
+@container composer-card (max-width: 300px) {
+  .adaptiveToolbar {
+    gap: 4px;
+  }
+}

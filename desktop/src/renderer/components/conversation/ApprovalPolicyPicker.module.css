@@ -1,0 +1,6 @@
+@container composer-card (max-width: 420px) {
+  .label,
+  .chevron {
+    display: none;
+  }
+}

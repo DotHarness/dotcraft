@@ -1796,6 +1796,7 @@ function ConversationWelcomeCore({
           <div style={{ width: '100%' }}>
             <DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />
             <ComposerShell
+              adaptiveToolbar
               desktopPluginSurfaceContext={desktopPluginSurfaceContext}
               dragOver={dragOver}
               dropLabel={t(dragOverThread ? 'composer.dropThread' : 'composer.dropImage')}

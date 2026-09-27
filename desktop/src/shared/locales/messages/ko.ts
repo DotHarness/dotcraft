@@ -186,6 +186,7 @@ export const MESSAGES_KO = {
   'debug.cdpEnabledTooltip': 'CDP 디버깅이 활성화되어 있습니다.',
 
   'menu.file': '파일',
+  'menu.all': '메뉴',
   'menu.edit': '편집',
   'menu.view': '보기',
   'menu.window': '창',

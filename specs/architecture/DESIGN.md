@@ -153,6 +153,16 @@ The design posture is neutral-first:
 The brand accent is intentionally conservative. It is not the default
 call-to-action color.
 
+## Window chrome
+
+On Windows, the main window uses native caption controls in a 36px title-bar
+overlay. The renderer may place navigation and menus in the remaining title-bar
+area, but must reserve the overlay's reported safe area so they never sit under
+the controls. The overlay is transparent and its symbols follow the active theme.
+When the top-level menus no longer fit, they collapse to one entry that opens the
+same native application menu. Linux retains its custom caption controls; macOS keeps
+its native traffic lights.
+
 ## Color
 
 ### Neutral roles
@@ -1327,6 +1337,13 @@ own placeholder and state already say.
 
 ## Composer
 
+- At narrow widths, the input card keeps one action row. It first reduces
+  secondary labels and model details to icons, then removes optional context,
+  model, goal, and mode controls as their measured widths require. Command,
+  permission, microphone, and send or stop actions remain accessible. The
+  context row below the card likewise stays on one line and progressively
+  removes secondary labels and status before essential project and location
+  actions, with accessible names retained for icon-only controls.
 - The primary message composer uses `--composer-input-rest-border` so the light
   theme has a subtle frame while the dark theme can remain effectively frameless,
   shows a soft brand-gradient glow that gently breathes on focus

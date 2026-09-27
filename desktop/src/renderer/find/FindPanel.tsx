@@ -27,10 +27,15 @@ export function FindPanel({ label, placeholder, query, counter, hasMatches, scop
     const measure = () => setRight(16 + (controls ? window.innerWidth - controls.getBoundingClientRect().left : 0))
     measure()
     window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
+    const observer = controls && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+    if (controls) observer?.observe(controls)
+    return () => {
+      window.removeEventListener('resize', measure)
+      observer?.disconnect()
+    }
   }, [])
   return createPortal(
-    <div className={css.overlay} style={{ right }} role="search" aria-label={label}>
+    <div className={css.overlay} style={{ right, maxWidth: `calc(100vw - ${right + 16}px)` }} role="search" aria-label={label}>
       <div className={css.field}>
         <Search size={16} aria-hidden />
         <Input ref={field} bare className={css.input} value={query} aria-label={label} placeholder={placeholder}

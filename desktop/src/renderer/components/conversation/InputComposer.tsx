@@ -1667,6 +1667,7 @@ function InputComposerCore({
         <DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />
         {visiblePendingMessage && <PendingMessageIndicator message={visiblePendingMessage} />}
       <ComposerShell
+        adaptiveToolbar
         desktopPluginSurfaceContext={desktopPluginSurfaceContext}
         dragOver={dragOver}
         dropLabel={t(dragOverThread ? 'composer.dropThread' : 'composer.dropImage')}

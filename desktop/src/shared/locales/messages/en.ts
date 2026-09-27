@@ -186,6 +186,7 @@ export const MESSAGES_EN = {
 
   // Main menu (custom labels only)
   'menu.file': 'File',
+  'menu.all': 'Menu',
   'menu.edit': 'Edit',
   'menu.view': 'View',
   'menu.window': 'Window',

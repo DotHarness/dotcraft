@@ -40,26 +40,19 @@ export function ComposerToolbarLeadingSlots({
   compact = false
 }: ComposerToolbarLeadingSlotsProps): JSX.Element {
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '10px',
-      minWidth: 0,
-      flex: compact ? 1 : undefined,
-      flexWrap: compact ? 'nowrap' : 'wrap'
-    }}>
+    <div className={styles.leadingControls} data-compact={compact || undefined}>
       <DesktopPluginSurface name="composer.toolbar.commands" context={context}>
-        {commands}
+        {commands && <div className={styles.control} data-adaptive-control="command">{commands}</div>}
       </DesktopPluginSurface>
       {voiceStatus}
       <DesktopPluginSurface name="composer.toolbar.permissions" context={context}>
-        {permissions}
+        {permissions && <div className={styles.control} data-adaptive-control="permissions">{permissions}</div>}
       </DesktopPluginSurface>
       <DesktopPluginSurface name="composer.toolbar.mode" context={context}>
-        {mode}
+        {mode && <div className={styles.control} data-adaptive-control="mode">{mode}</div>}
       </DesktopPluginSurface>
       <DesktopPluginSurface name="composer.toolbar.goal" context={context}>
-        {goal}
+        {goal && <div className={styles.control} data-adaptive-control="goal">{goal}</div>}
       </DesktopPluginSurface>
     </div>
   )
@@ -74,18 +67,18 @@ export function ComposerToolbarTrailingSlots({
   style
 }: ComposerToolbarTrailingSlotsProps): JSX.Element {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', ...style }}>
+    <div className={styles.trailingControls} style={style}>
       <DesktopPluginSurface name="composer.toolbar.context-usage" context={context}>
-        {contextUsage}
+        {contextUsage && <div className={styles.control} data-adaptive-control="context">{contextUsage}</div>}
       </DesktopPluginSurface>
       <DesktopPluginSurface name="composer.toolbar.model" context={context}>
-        {model}
+        {model && <div className={styles.control} data-adaptive-control="model">{model}</div>}
       </DesktopPluginSurface>
       <DesktopPluginSurface name="composer.toolbar.voice" context={context}>
-        {voice}
+        {voice && <div className={styles.control} data-adaptive-control="voice">{voice}</div>}
       </DesktopPluginSurface>
       <DesktopPluginSurface name="composer.toolbar.submit" context={context}>
-        {submit}
+        {submit && <div className={styles.control} data-adaptive-control="submit">{submit}</div>}
       </DesktopPluginSurface>
     </div>
   )
@@ -104,7 +97,7 @@ export function ComposerStatusContent({
           {workspace}
         </DesktopPluginSurface>
         <DesktopPluginSurface name="composer.status.subscription" context={context}>
-          {subscription}
+          {subscription && <div className={styles.subscription}>{subscription}</div>}
         </DesktopPluginSurface>
       </div>
       <div className={styles.trailing}>

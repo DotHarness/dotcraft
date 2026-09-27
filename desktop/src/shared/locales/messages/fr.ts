@@ -186,6 +186,7 @@ export const MESSAGES_FR = {
   'debug.cdpEnabledTooltip': 'Le débogage CDP est activé.',
 
   'menu.file': 'Fichier',
+  'menu.all': 'Menu',
   'menu.edit': 'Modifier',
   'menu.view': 'Affichage',
   'menu.window': 'Fenêtre',

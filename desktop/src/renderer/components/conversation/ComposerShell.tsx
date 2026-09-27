@@ -24,6 +24,8 @@ import { useDocumentThemeMode } from '../../utils/theme'
 import { useDesktopPet } from '../desktopPet/useDesktopPet'
 import type { PetSourceSurface } from '../desktopPet/desktopPetSource'
 import { usePetStore } from '../../pet/petStore'
+import { useAdaptiveComposerToolbar } from './useAdaptiveComposerToolbar'
+import css from './ComposerShell.module.css'
 
 export interface ComposerMascotBubble {
   tone?: MascotBubbleTone
@@ -66,6 +68,7 @@ interface ComposerShellProps {
   editor: ReactNode
   footerLeading: ReactNode
   footerAction: ReactNode
+  adaptiveToolbar?: boolean
   belowFooter?: ReactNode
   onDragOver: DragEventHandler<HTMLDivElement>
   onDragLeave: DragEventHandler<HTMLDivElement>
@@ -106,6 +109,7 @@ export function ComposerShell({
   editor,
   footerLeading,
   footerAction,
+  adaptiveToolbar = false,
   belowFooter,
   onDragOver,
   onDragLeave,
@@ -133,6 +137,7 @@ export function ComposerShell({
     mascotName: renderedMascotAvatar ?? ''
   })
   const [hovered, setHovered] = useState(false)
+  const { toolbarRef, hidden } = useAdaptiveComposerToolbar(adaptiveToolbar, [footerLeading, footerAction])
   const [topAccessoryHeight, setTopAccessoryHeight] = useState(0)
   const [topAccessoryPushSignal, setTopAccessoryPushSignal] = useState(0)
   const { lift: overlayLift, api: overlayLiftApi, Provider: OverlayLiftProvider } =
@@ -188,6 +193,7 @@ export function ComposerShell({
   return (
     <div
       data-composer-root
+      className={adaptiveToolbar ? css.adaptiveRoot : undefined}
       ref={petRoot}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -256,6 +262,7 @@ export function ComposerShell({
         />
         <div
           data-composer-card
+          className={adaptiveToolbar ? css.adaptiveCard : undefined}
           style={{
             position: 'relative',
             zIndex: 1,
@@ -312,11 +319,16 @@ export function ComposerShell({
 
           <DesktopPluginSurface name="composer.toolbar" context={desktopPluginSurfaceContext}>
             <div
+              ref={toolbarRef}
+              className={adaptiveToolbar ? `${css.toolbar} ${css.adaptiveToolbar}` : css.toolbar}
+              data-hide-context={hidden.context || undefined}
+              data-hide-model={hidden.model || undefined}
+              data-hide-goal={hidden.goal || undefined}
+              data-hide-mode={hidden.mode || undefined}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: '10px',
                 marginTop: '8px',
                 paddingTop: '6px'
               }}

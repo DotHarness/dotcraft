@@ -186,6 +186,7 @@ export const MESSAGES_JA = {
   'debug.cdpEnabledTooltip': 'CDP デバッグが有効です。',
 
   'menu.file': 'ファイル',
+  'menu.all': 'メニュー',
   'menu.edit': '編集',
   'menu.view': '表示',
   'menu.window': 'ウィンドウ',
