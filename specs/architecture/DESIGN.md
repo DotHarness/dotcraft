@@ -1,5 +1,5 @@
 ---
-version: "0.32.0"
+version: "0.33.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -152,6 +152,16 @@ The design posture is neutral-first:
 
 The brand accent is intentionally conservative. It is not the default
 call-to-action color.
+
+## Window chrome
+
+On Windows, the main window uses native caption controls in a 36px title-bar
+overlay. The renderer may place navigation and menus in the remaining title-bar
+area, but must reserve the overlay's reported safe area so they never sit under
+the controls. The overlay is transparent and its symbols follow the active theme.
+When the top-level menus no longer fit, they collapse to one entry that opens the
+same native application menu. Linux retains its custom caption controls; macOS keeps
+its native traffic lights.
 
 ## Color
 
@@ -549,6 +559,16 @@ Every expand/collapse toggle uses the shared `DisclosureChevron` (`14px`, stroke
 for a row or section that opens in place (points right, turns `90deg`), `reveal`
 for content that opens below the control (points down, turns `180deg`). When the
 chevron is its own target it sits in an `IconButton` with `aria-expanded`.
+
+### Rail magnification
+
+The turn navigation rail is the documented exception for a growing mark. The target
+marker extends to full length and its neighbours to 70%, 40%, and 20% of the
+difference, like a dock, so the pointer's position reads before anything is
+clicked. Markers grow with `scaleX` from their leading end over `160ms` on a
+slightly overshooting curve; the bookmark dot translates with the line end. While
+scrubbing, markers follow the pointer without a transition. Reduced motion removes
+the transition, not the state.
 
 ### Mode toggles
 
@@ -982,6 +1002,10 @@ animation; the pulse itself is the running signal.
   accent bar along the toolbar's bottom edge, pulsing on opacity. It is
   `aria-hidden`; the Reload/Stop control is the accessible state. Under reduced
   motion the bar stays as a static rule.
+- An unloaded stretch of transcript history is a gap: `144px` of blank,
+  `aria-hidden` space with no skeleton or spinner. It starts loading `800px` before
+  it reaches the viewport, so it is rarely seen, and a skeleton of turns it has not
+  read would promise a shape it cannot keep.
 
 The workspace launch transition is the one wait with no shape to match, because the
 workspace it is opening does not exist on screen yet. While it connects or prepares, the
@@ -1313,6 +1337,13 @@ own placeholder and state already say.
 
 ## Composer
 
+- At narrow widths, the input card keeps one action row. It first reduces
+  secondary labels and model details to icons, then removes optional context,
+  model, goal, and mode controls as their measured widths require. Command,
+  permission, microphone, and send or stop actions remain accessible. The
+  context row below the card likewise stays on one line and progressively
+  removes secondary labels and status before essential project and location
+  actions, with accessible names retained for icon-only controls.
 - The primary message composer uses `--composer-input-rest-border` so the light
   theme has a subtle frame while the dark theme can remain effectively frameless,
   shows a soft brand-gradient glow that gently breathes on focus
@@ -1465,6 +1496,34 @@ The app owns the inner UI; Desktop owns only the host frame around it.
 - Keep the frame compact by default; honor `ui/request-display-mode` for expand.
 - Non-Desktop clients do not render the iframe; they show the tool result's text. Do not
   design flows that require the interactive UI.
+
+### Turn navigation rail
+
+The rail ([Turn Navigation](../features/turn-navigation.md)) is a map of the thread,
+not a control strip, so at rest it is barely there.
+
+- Each entry is a `36×10px` hit row holding a `2px`-tall marker on a `26px` track.
+  The marker rests at `6px`, drawn in `--text-tertiary` at 40% opacity. It has no
+  fill, frame, or label; the row is the target.
+- Active entries lift to `--text-primary` at 60%. The target — hovered, focused,
+  or scrubbed — is `--text-primary` at full strength and full length. That
+  full-length marker is the keyboard focus indicator; a ring around a `10px` row
+  would outweigh the rail it belongs to.
+- A bookmarked marker keeps full opacity at rest and carries a `2px` round dot
+  just past the end of its line, which travels with the line as it grows.
+- The rail sits `16px` from the conversation area's leading edge, vertically
+  centred. When it scrolls, its ends fade over `2.5rem` instead of showing a
+  scrollbar.
+- The preview card is an ordinary elevated overlay: opaque, borderless, with the
+  shared overlay shadow. It is `320px` wide (capped to the viewport), `12px`
+  radius, `8px` padding, set in `--type-ui`. The label is one medium-weight
+  truncated line; the reply below it is `--text-secondary`, clamped to three lines;
+  outputs sit in a `--text-tertiary` row of small icon plus label. The bookmark
+  toggle is an inline ghost icon action at the label's trailing edge.
+- The loading state is a shape-matched skeleton — one short line for the label,
+  three for the reply — not a spinner.
+- The jump flash pulses the user bubble from `--text-primary` at 14% back to the
+  bubble's own fill over `1400ms` on the standard ease-out curve.
 
 ## Lists and pages
 

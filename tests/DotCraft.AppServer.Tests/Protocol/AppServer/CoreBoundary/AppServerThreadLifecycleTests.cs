@@ -32,7 +32,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// after thread/start (→ thread/started), thread/resume (→ thread/resumed),
 /// thread/pause and thread/archive (→ thread/statusChanged).
 /// </summary>
-public sealed class AppServerThreadLifecycleTests : IDisposable
+public sealed partial class AppServerThreadLifecycleTests : IDisposable
 {
     private readonly CoreAppServerTestHarness _h = new();
 

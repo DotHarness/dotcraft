@@ -31,6 +31,7 @@ import { Button } from '../ui/Button'
 const imageDataUrlCache = new Map<string, string>()
 
 interface UserMessageBlockProps {
+  messageId?: string
   text: string
   nativeInputParts?: InputPart[]
   imageDataUrls?: string[]
@@ -57,6 +58,7 @@ interface UserMessageBlockProps {
  * as compact file chips. Spec §10.3.2.
  */
 export function UserMessageBlock({
+  messageId,
   text,
   nativeInputParts,
   imageDataUrls: persistedImageDataUrls,
@@ -167,6 +169,7 @@ export function UserMessageBlock({
   return (
     <>
       <div
+        data-user-message-id={messageId}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onFocusCapture={() => setFocusedWithin(true)}
@@ -191,6 +194,7 @@ export function UserMessageBlock({
           <MessageOriginLine kind={triggerKind} label={triggerLabel} refId={triggerRefId} />
         )}
         <div
+          data-user-message-bubble=""
           style={{
             width: editing ? '100%' : undefined,
             backgroundColor: 'var(--user-message-bg)',

@@ -7,6 +7,7 @@ import {
   useConversationStore
 } from '../../stores/conversationStore'
 import type { PlanTodoItem, PlanTodoStatus } from '../../stores/conversationStore'
+import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import { PlanTodoStatusIcon } from '../plan/PlanTodoStatusIcon'
 import { Skeleton } from '../ui/Skeleton'
 
@@ -51,23 +52,11 @@ export function PlanTab(): JSX.Element {
             />
           )}
           {streamingDraft.overview && (
-            <p
-              style={{
-                ...planTextContainmentStyle,
-                margin: '0 0 12px',
-                fontSize: '13px',
-                color: 'var(--text-secondary)',
-                lineHeight: 1.6
-              }}
-            >
-              {streamingDraft.overview}
-            </p>
+            <PlanOverview content={streamingDraft.overview} />
           )}
           {streamingTodos.length > 0 && (
             <PlanTodoList todos={streamingTodos} />
           )}
-          {/* Trailing skeleton rows mark the todos still streaming in — no
-              spinner and no "loading" label; the skeleton pulse is the cue. */}
           <PlanDraftTodoSkeleton
             count={2}
             style={{ marginTop: streamingTodos.length > 0 ? '6px' : '0' }}
@@ -76,9 +65,6 @@ export function PlanTab(): JSX.Element {
       )
     }
 
-    // Nothing has arrived yet: the plan's shape is known, so render a full
-    // shape-matched skeleton (title bar + overview lines + todo rows) instead of
-    // a centered spinner. The pulse is the running signal.
     return <PlanDraftSkeleton label={t('plan.streamingDraftBadge')} />
   }
 
@@ -135,17 +121,7 @@ export function PlanTab(): JSX.Element {
       )}
 
       {plan.overview && (
-        <p
-          style={{
-            ...planTextContainmentStyle,
-            margin: '0 0 12px',
-            fontSize: '13px',
-            color: 'var(--text-secondary)',
-            lineHeight: 1.6
-          }}
-        >
-          {plan.overview}
-        </p>
+        <PlanOverview content={plan.overview} />
       )}
 
       {plan.todos.length > 0 && (
@@ -155,10 +131,14 @@ export function PlanTab(): JSX.Element {
   )
 }
 
-/**
- * Carries the accessible "drafting" label so screen readers hear the loading state
- * that the pulse conveys visually.
- */
+function PlanOverview({ content }: { content: string }): JSX.Element {
+  return (
+    <div style={{ marginBottom: '12px', ...planTextContainmentStyle }}>
+      <MarkdownRenderer content={content} containOverflow enableMermaid={false} />
+    </div>
+  )
+}
+
 function PlanDraftSkeleton({ label }: { label: string }): JSX.Element {
   return (
     <div role="status" aria-busy="true" aria-label={label} style={planScrollContainerStyle}>
@@ -177,14 +157,8 @@ function PlanDraftSkeleton({ label }: { label: string }): JSX.Element {
   )
 }
 
-// Widths cycle so stacked skeleton todo rows read as varied content, not a grid.
 const PLAN_SKELETON_TODO_WIDTHS = ['70%', '55%', '62%', '44%']
 
-/**
- * A stack of placeholder todo rows (status circle + text bar) used both for the
- * full draft skeleton and as the trailing "still streaming" rows in the
- * partial-content state.
- */
 function PlanDraftTodoSkeleton({
   count,
   style

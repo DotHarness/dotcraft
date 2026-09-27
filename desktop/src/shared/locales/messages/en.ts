@@ -186,6 +186,7 @@ export const MESSAGES_EN = {
 
   // Main menu (custom labels only)
   'menu.file': 'File',
+  'menu.all': 'Menu',
   'menu.edit': 'Edit',
   'menu.view': 'View',
   'menu.window': 'Window',
@@ -4146,6 +4147,18 @@ export const MESSAGES_EN = {
   'settings.import.toast.updated': '{{count}} updated',
   'settings.import.toast.failed': '{{count}} failed',
   'channel.sessionImportFrom': 'Imported from {{source}}',
+  'turnNavigation.railLabel': 'User messages',
+  'turnNavigation.jumpToMessage': 'Jump to user message {{position}}',
+  'turnNavigation.loadingPreview': 'Loading preview',
+  'turnNavigation.noContent': '(No content)',
+  'turnNavigation.previewUnavailable': 'Preview unavailable',
+  'turnNavigation.bookmark': 'Bookmark turn',
+  'turnNavigation.removeBookmark': 'Remove bookmark',
+  'turnNavigation.jumpToBookmarkedMessage': 'Jump to user message {{position}}, bookmarked turn',
+  'turnNavigation.outputFile': 'File',
+  'turnNavigation.outputImage': 'Image',
+  'turnNavigation.outputWebPreview': 'Web preview',
+  'turnNavigation.moreOutputs': '+{{count}}',
 } as const
 
 export type MessageId = keyof typeof MESSAGES_EN

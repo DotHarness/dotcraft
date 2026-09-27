@@ -7,19 +7,14 @@ import { turnWrittenFiles } from '../../stores/turnDiffs'
 import { useUIStore } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import type { FileDiff } from '../../types/toolCall'
+import { basename } from '../../utils/path'
 import { toAbsoluteWorkspacePath } from '../../utils/workspacePaths'
 import { OpenTargetButton } from './OpenTargetButton'
+import { toTurnArtifact, type TurnArtifact } from './turnArtifactFiles'
 import { Button } from '../ui/Button'
 
 interface TurnArtifactsProps {
   turnId: string
-}
-
-type ArtifactKind = 'markdown' | 'html'
-
-interface Artifact {
-  kind: ArtifactKind
-  diff: FileDiff
 }
 
 export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifactsProps): JSX.Element | null {
@@ -34,8 +29,8 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
   const setDetailPanelVisible = useUIStore((s) => s.setDetailPanelVisible)
 
   const artifacts = writtenFiles
-    .map((row) => toArtifact(row.diff))
-    .filter((item): item is Artifact => item !== null)
+    .map((row) => toTurnArtifact(row.diff))
+    .filter((item): item is TurnArtifact => item !== null)
 
   if (artifacts.length === 0) return null
 
@@ -147,29 +142,6 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
     </div>
   )
 })
-
-function toArtifact(diff: FileDiff): Artifact | null {
-  if (isInlineVisualizationPath(diff.filePath)) return null
-  const ext = extensionOf(diff.filePath)
-  if (ext === '.md' || ext === '.markdown') return { kind: 'markdown', diff }
-  if (ext === '.html' || ext === '.htm') return { kind: 'html', diff }
-  return null
-}
-
-function isInlineVisualizationPath(filePath: string): boolean {
-  const normalized = filePath.replace(/\\/g, '/').toLowerCase()
-  return /(^|\/)\.craft\/visualizations(?:\/|$)/.test(normalized)
-}
-
-function basename(filePath: string): string {
-  return filePath.split(/[\\/]/).pop() ?? filePath
-}
-
-function extensionOf(filePath: string): string {
-  const name = basename(filePath).toLowerCase()
-  const dot = name.lastIndexOf('.')
-  return dot >= 0 ? name.slice(dot) : ''
-}
 
 const artifactCardStyle: CSSProperties = {
   display: 'flex',

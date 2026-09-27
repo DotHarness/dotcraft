@@ -1429,6 +1429,10 @@ public sealed class ThreadTurnsListResult : ExtensibleJsonObject
     [JsonPropertyName("nextCursor")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? NextCursor { get; init; }
+
+    [JsonPropertyName("backwardsCursor")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BackwardsCursor { get; init; }
 }
 
 /// <summary>One Item page entry with its owning Turn id.</summary>

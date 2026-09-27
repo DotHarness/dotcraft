@@ -71,6 +71,31 @@ public sealed class ThreadHistoryProjectionTests : IDisposable
     }
 
     [Fact]
+    public async Task BackwardsCursor_IncludesFirstRowInEitherDirection()
+    {
+        var thread = CreateThread(turnCount: 4, itemsPerTurn: 1);
+        await _store.SaveThreadAsync(thread);
+
+        var newest = await _store.ListThreadTurnsAsync(
+            thread.Id, null, 2, ThreadHistorySortDirection.Descending);
+        var older = await _store.ListThreadTurnsAsync(
+            thread.Id, newest.NextCursor, 2, ThreadHistorySortDirection.Descending);
+        Assert.Equal(["turn_002", "turn_001"], older.Data.Select(turn => turn.Id));
+
+        var towardOldest = await _store.ListThreadTurnsAsync(
+            thread.Id, older.BackwardsCursor, 10, ThreadHistorySortDirection.Descending);
+        Assert.Equal(["turn_002", "turn_001"], towardOldest.Data.Select(turn => turn.Id));
+        var towardNewest = await _store.ListThreadTurnsAsync(
+            thread.Id, older.BackwardsCursor, 10, ThreadHistorySortDirection.Ascending);
+        Assert.Equal(["turn_002", "turn_003", "turn_004"], towardNewest.Data.Select(turn => turn.Id));
+
+        var pastNewest = await _store.ListThreadTurnsAsync(
+            thread.Id, newest.BackwardsCursor!.Value with { Inclusive = false }, 10, ThreadHistorySortDirection.Ascending);
+        Assert.Empty(pastNewest.Data);
+        Assert.Null(pastNewest.BackwardsCursor);
+    }
+
+    [Fact]
     public async Task MissingOrCorruptProjection_RebuildsFromCanonicalRollout()
     {
         var thread = CreateThread(turnCount: 2, itemsPerTurn: 2);

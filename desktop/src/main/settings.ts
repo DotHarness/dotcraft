@@ -170,6 +170,8 @@ export interface AppSettings {
   remoteHosts?: RemoteHost[]
   /** Last explicit satellite route per thread, keyed `<workspace>::<threadId>`. */
   satelliteRouteByThread?: Record<string, SatelliteThreadRoute>
+  /** Bookmarked turn navigation entry ids (`<turnId>:<userItemId>`), keyed `<workspace>::<threadId>`. */
+  turnBookmarksByThread?: Record<string, string[]>
   /** Invitations this Desktop minted, so an arriving machine can be announced. */
   createdSatelliteInviteIds?: CreatedSatelliteInvite[]
   screenViewDockWidth?: number
@@ -434,6 +436,20 @@ export function normalizeSatelliteRouteByThread(
   return Object.fromEntries(entries.slice(0, SATELLITE_ROUTE_MAX_ENTRIES))
 }
 
+export function normalizeTurnBookmarksByThread(settings: AppSettings): Record<string, string[]> | undefined {
+  const raw = settings.turnBookmarksByThread
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+
+  const normalized: Record<string, string[]> = {}
+  for (const [key, entryIds] of Object.entries(raw)) {
+    const trimmedKey = key.trim()
+    if (!trimmedKey.includes('::') || !Array.isArray(entryIds)) continue
+    const ids = [...new Set(entryIds.flatMap((id) => (typeof id === 'string' && id.trim() ? [id.trim()] : [])))]
+    if (ids.length > 0) normalized[trimmedKey] = ids
+  }
+  return Object.keys(normalized).length > 0 ? normalized : undefined
+}
+
 export function normalizeCreatedSatelliteInviteIds(
   settings: AppSettings,
   now: number = Date.now()
@@ -601,6 +617,7 @@ export function loadSettings(): AppSettings {
       raw.recentWorkspaces = normalizeRecentWorkspaces(raw)
       raw.remoteHosts = normalizeRemoteHostsSetting(raw)
       raw.satelliteRouteByThread = normalizeSatelliteRouteByThread(raw)
+      raw.turnBookmarksByThread = normalizeTurnBookmarksByThread(raw)
       raw.createdSatelliteInviteIds = normalizeCreatedSatelliteInviteIds(raw)
       raw.activeRemoteStack = normalizeActiveRemoteStack(raw)
       raw.pet = normalizePetSetting(raw.pet)
@@ -657,6 +674,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.recentWorkspaces = normalizeRecentWorkspaces(settings)
     settings.remoteHosts = normalizeRemoteHostsSetting(settings)
     settings.satelliteRouteByThread = normalizeSatelliteRouteByThread(settings)
+    settings.turnBookmarksByThread = normalizeTurnBookmarksByThread(settings)
     settings.createdSatelliteInviteIds = normalizeCreatedSatelliteInviteIds(settings)
     settings.pet = normalizePetSetting(settings.pet)
     settings.activeRemoteStack = normalizeActiveRemoteStack(settings)

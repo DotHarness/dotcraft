@@ -61,7 +61,7 @@ function detailTextFor(locale: AppLocale, kind: TriggerKind, label?: string): st
   )
 }
 
-function OriginIcon({ kind }: { kind: TriggerKind }): JSX.Element {
+export function OriginIcon({ kind }: { kind: TriggerKind }): JSX.Element {
   if (kind === 'goal') return <Target size={13} strokeWidth={1.8} aria-hidden />
   if (kind === 'workflow') return <Workflow size={13} strokeWidth={1.8} aria-hidden />
   if (kind === 'thread' || isSubAgentKind(kind)) {

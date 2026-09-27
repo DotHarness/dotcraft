@@ -19,6 +19,7 @@ import {
   composerFooterControlHoverBackground,
   composerModelPillStyle
 } from './ComposerShell'
+import css from './ApprovalPolicyPicker.module.css'
 
 export type VisibleApprovalPolicy = ConcreteApprovalPolicy
 
@@ -232,7 +233,7 @@ export function ApprovalPolicyPicker({
         <button
           type="button"
           data-testid="approval-policy-trigger"
-          aria-label={tooltipLabel}
+          aria-label={`${tooltipLabel}: ${label}`}
           aria-haspopup={interactive ? 'listbox' : undefined}
           aria-expanded={interactive ? open : undefined}
           aria-controls={interactive && open ? listId : undefined}
@@ -260,10 +261,10 @@ export function ApprovalPolicyPicker({
           }}
         >
           <PolicyIcon policy={value} testId={`approval-policy-icon-${value}`} />
-          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span className={css.label} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {label}
           </span>
-          {interactive && <ChevronDown rotated={open} />}
+          {interactive && <span className={css.chevron}><ChevronDown rotated={open} /></span>}
         </button>
       </ActionTooltip>
 

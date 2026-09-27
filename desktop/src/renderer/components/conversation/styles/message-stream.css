@@ -21,3 +21,9 @@
   content-visibility: auto;
   contain-intrinsic-size: auto 280px;
 }
+
+.dc-conversation-history-gap {
+  flex: none;
+  height: 144px;
+  overflow-anchor: none;
+}

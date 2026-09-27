@@ -1,7 +1,9 @@
 import { useAutomationRunReveal } from '../../hooks/useAutomationRunReveal'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useHistoryGapLoading } from '../../hooks/useHistoryGapLoading'
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
+import { restartThreadHistory, useThreadHistoryStore, type HistoryGap } from '../../stores/threadHistoryStore'
 import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
 import { useT } from '../../contexts/LocaleContext'
@@ -18,8 +20,10 @@ import type { ConversationItem, ConversationTurn } from '../../types/conversatio
 import type { ContextUsageSnapshotWire, Thread } from '../../types/thread'
 import { getSpawnedFromThreadId } from '../../utils/subAgentThreads'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
-import { readThreadHistoryHead, readThreadTurnsPage } from '../../utils/threadHistory'
+import { readThreadHistoryHead } from '../../utils/threadHistory'
+import { isVisibleUserMessage } from '../../utils/visibleUserMessage'
 import { estimateQueuedInputDockHeightPx } from './queuedInputDockLayout'
+import { TurnNavigation } from './turnNavigation/TurnNavigation'
 
 /** Module-level scroll position cache — ephemeral, not persisted to storage. */
 const scrollPositionCache = new Map<string, number>()
@@ -31,8 +35,7 @@ const SCROLL_BUTTON_DOCK_GAP_PX = 10
  *  composer (and clears the dock's top edge when a dock is present). */
 const MESSAGE_STREAM_BOTTOM_BASE_PX = 40
 const FULL_HISTORY_TURN_COUNT = 3
-/** Distance from the top within which a scroll retries the pending history page. */
-const LOAD_OLDER_TOP_THRESHOLD_PX = 80
+const NO_HISTORY_GAPS: HistoryGap[] = []
 
 const requestAppServer = (method: Parameters<typeof window.api.appServer.sendRequest>[0], params: any): Promise<any> =>
   window.api.appServer.sendRequest(method, params)
@@ -75,15 +78,6 @@ function lastUserItem(turn: ConversationTurn): ConversationItem | undefined {
   return [...turn.items].reverse().find(isVisibleUserMessage)
 }
 
-function isVisibleUserMessage(item: ConversationItem): boolean {
-  return (
-    item.type === 'userMessage' &&
-    item.deliveryMode !== 'guidance' &&
-    item.deliveryMode !== 'subagentMailbox' &&
-    item.triggerKind !== 'subagentMailbox'
-  )
-}
-
 /** Scrollable container for the turn history and live streaming content. Spec §10.3.3. */
 export function MessageStream(): JSX.Element {
   const t = useT()
@@ -99,9 +93,13 @@ export function MessageStream(): JSX.Element {
   const showThinkingContent = useUIStore((s) => s.showThinkingContent)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
   const activeThread = useThreadStore((s) => s.activeThread)
-  const historyTurnCursor = useThreadStore((s) =>
-    s.activeHistoryCursors?.threadId === s.activeThreadId ? s.activeHistoryCursors.turnCursor : null
+  const historyGaps = useThreadHistoryStore((s) => s.threadId === activeThreadId ? s.gaps : NO_HISTORY_GAPS)
+  const historyHeadLoaded = useThreadHistoryStore((s) => s.threadId === activeThreadId && s.headLoaded)
+  const gapIdBeforeTurn = useMemo(
+    () => new Map(historyGaps.map((gap) => [gap.followingTurnId, gap.id])),
+    [historyGaps]
   )
+  const threadStartLoaded = historyHeadLoaded && turns.length > 0 && !gapIdBeforeTurn.has(turns[0].id)
   const threadList = useThreadStore((s) => s.threadList)
   // Origin of a thread spawned by another thread (Desktop CreateThread). Drives the
   // "From another thread" pill on the first user message; null for normal threads.
@@ -115,6 +113,7 @@ export function MessageStream(): JSX.Element {
   const queuedInputCount = useConversationStore((s) => s.queuedInputs.length)
   const [editing, setEditing] = useState<InlineEditState | null>(null)
   const prevThreadIdRef = useRef<string | null>(null)
+  const columnRef = useRef<HTMLDivElement | null>(null)
 
   // Only the latest Turn changes during normal streaming, and ResizeObserver already
   // handles height-only changes, so do not walk the full history on every text delta.
@@ -129,6 +128,7 @@ export function MessageStream(): JSX.Element {
 
   const { scrollRef, showScrollButton, scrollToBottom } = useAutoScroll(contentLength)
   useAutomationRunReveal(scrollRef)
+  useHistoryGapLoading(scrollRef, historyGaps, turns.length)
   // The dock floats over the bottom of the scroll region, so its height is reserved
   // below the last message and the scroll-to-bottom button is lifted by the same amount.
   const dockHeightPx = estimateQueuedInputDockHeightPx(queuedInputCount)
@@ -173,7 +173,7 @@ export function MessageStream(): JSX.Element {
           )
           useConversationStore.getState().setContextUsage(refreshed.thread.contextUsage ?? null)
           useThreadStore.getState().setActiveThread(refreshed.thread as Thread)
-          useThreadStore.getState().setActiveHistoryCursors(current.threadId, refreshed.turnCursor)
+          restartThreadHistory(current.threadId, refreshed.thread.turns ?? [], refreshed.turnCursor)
         }
       }
 
@@ -225,58 +225,6 @@ export function MessageStream(): JSX.Element {
     prevThreadIdRef.current = curr
   }, [activeThreadId, scrollRef])
 
-  // History pages whole Turns, so a page can never render as a fragment of a Turn. On
-  // first paint load only enough pages to make the viewport scrollable, never more.
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el || !activeThreadId || !historyTurnCursor) return
-    let cancelled = false
-    let loading = false
-
-    const loadOlderTurns = async (): Promise<void> => {
-      if (loading) return
-      loading = true
-      const previousHeight = el.scrollHeight
-      try {
-        const page = await readThreadTurnsPage(requestAppServer, activeThreadId, historyTurnCursor)
-        if (cancelled || useThreadStore.getState().activeThreadId !== activeThreadId) return
-        const older = page.turns.map((turn) =>
-          wireTurnToConversationTurn(turn as unknown as Record<string, unknown>)
-        )
-        useConversationStore.getState().setTurns(
-          [...older, ...useConversationStore.getState().turns],
-          {
-            preserveExistingRealtime: true,
-            realtimeScopeThreadId: activeThreadId
-          }
-        )
-        useThreadStore.getState().setActiveHistoryCursors(activeThreadId, page.nextCursor)
-        // Hold the viewport on the same content now that the stream grew upwards.
-        requestAnimationFrame(() => { el.scrollTop += el.scrollHeight - previousHeight })
-      } catch (err) {
-        console.error('thread history page load failed:', err)
-      } finally {
-        loading = false
-      }
-    }
-
-    const loadOnScrollToTop = (): void => {
-      if (el.scrollTop > LOAD_OLDER_TOP_THRESHOLD_PX) return
-      void loadOlderTurns()
-    }
-    el.addEventListener('scroll', loadOnScrollToTop, { passive: true })
-
-    const fillViewportFrame = requestAnimationFrame(() => {
-      if (cancelled || el.clientHeight <= 0 || el.scrollHeight > el.clientHeight) return
-      void loadOlderTurns()
-    })
-    return () => {
-      cancelled = true
-      cancelAnimationFrame(fillViewportFrame)
-      el.removeEventListener('scroll', loadOnScrollToTop)
-    }
-  }, [activeThreadId, historyTurnCursor, scrollRef])
-
   return (
     <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
       <div
@@ -294,63 +242,68 @@ export function MessageStream(): JSX.Element {
           getContainer={() => scrollRef.current}
           contentKey={contentLength}
         />
-        <ConversationColumn className="dc-conversation-column-stack">
+        <ConversationColumn ref={columnRef} className="dc-conversation-column-stack">
           {turns.map((turn, idx) => {
             const isActiveTurn = turn.id === activeTurnId
+            const gapId = gapIdBeforeTurn.get(turn.id)
             return (
-              <div
-                key={turn.id}
-                data-turn-id={turn.id}
-                className="dc-conversation-turn-shell"
-                data-active={isActiveTurn ? 'true' : undefined}
-              >
-                <TurnBlock
-                  turn={turn}
-                  historicalToolContentMode={getHistoricalToolContentMode({
-                    turn,
-                    index: idx,
-                    totalTurns: turns.length,
-                    activeTurnId
-                  })}
-                  streamingMessage={isActiveTurn ? streamingMessage : ''}
-                  streamingMessageLastDeltaAt={isActiveTurn ? streamingMessageLastDeltaAt : null}
-                  streamingReasoning={isActiveTurn ? streamingReasoning : ''}
-                  isRunning={
-                    (turnStatus === 'running' || turnStatus === 'waitingInput' || turnStatus === 'waitingApproval') &&
-                    isActiveTurn
-                  }
-                  showIdleThinkingFallback={
-                    turnStatus === 'running' &&
-                    isActiveTurn &&
-                    !systemLabel
-                  }
-                  isActiveTurn={isActiveTurn}
-                  isLastTurn={idx === turns.length - 1}
-                  isFirstTurn={idx === 0}
-                  threadOrigin={threadOrigin}
-                  isIdle={turnStatus === 'idle'}
-                  editing={editing}
-                  onStartEdit={(item) => {
-                    setEditing({
-                      threadId: turn.threadId,
-                      turnId: turn.id,
-                      itemId: item.id,
-                      draftText: editableUserText(item),
-                      submitting: false,
-                      rollbackPending: true
-                    })
-                  }}
-                  onDraftChange={(draftText) => {
-                    setEditing((prev) => prev ? { ...prev, draftText } : prev)
-                  }}
-                  onCancelEdit={() => {
-                    setEditing(null)
-                  }}
-                  onSubmitEdit={() => {
-                    void submitInlineEdit()
-                  }}
-                />
-              </div>
+              <Fragment key={turn.id}>
+                {gapId !== undefined && (
+                  <div className="dc-conversation-history-gap" data-history-gap={gapId} aria-hidden="true" />
+                )}
+                <div
+                  data-turn-id={turn.id}
+                  className="dc-conversation-turn-shell"
+                  data-active={isActiveTurn ? 'true' : undefined}
+                >
+                  <TurnBlock
+                    turn={turn}
+                    historicalToolContentMode={getHistoricalToolContentMode({
+                      turn,
+                      index: idx,
+                      totalTurns: turns.length,
+                      activeTurnId
+                    })}
+                    streamingMessage={isActiveTurn ? streamingMessage : ''}
+                    streamingMessageLastDeltaAt={isActiveTurn ? streamingMessageLastDeltaAt : null}
+                    streamingReasoning={isActiveTurn ? streamingReasoning : ''}
+                    isRunning={
+                      (turnStatus === 'running' || turnStatus === 'waitingInput' || turnStatus === 'waitingApproval') &&
+                      isActiveTurn
+                    }
+                    showIdleThinkingFallback={
+                      turnStatus === 'running' &&
+                      isActiveTurn &&
+                      !systemLabel
+                    }
+                    isActiveTurn={isActiveTurn}
+                    isLastTurn={idx === turns.length - 1}
+                    isFirstTurn={idx === 0 && threadStartLoaded}
+                    threadOrigin={threadOrigin}
+                    isIdle={turnStatus === 'idle'}
+                    editing={editing}
+                    onStartEdit={(item) => {
+                      setEditing({
+                        threadId: turn.threadId,
+                        turnId: turn.id,
+                        itemId: item.id,
+                        draftText: editableUserText(item),
+                        submitting: false,
+                        rollbackPending: true
+                      })
+                    }}
+                    onDraftChange={(draftText) => {
+                      setEditing((prev) => prev ? { ...prev, draftText } : prev)
+                    }}
+                    onCancelEdit={() => {
+                      setEditing(null)
+                    }}
+                    onSubmitEdit={() => {
+                      void submitInlineEdit()
+                    }}
+                  />
+                </div>
+              </Fragment>
             )
           })}
 
@@ -385,6 +338,8 @@ export function MessageStream(): JSX.Element {
           <div />
         </ConversationColumn>
       </div>
+
+      <TurnNavigation scrollRef={scrollRef} columnRef={columnRef} />
 
       {showScrollButton && (
         <ScrollToBottomButton
@@ -447,6 +402,7 @@ const TurnBlock = memo(function TurnBlock({
         return (
         <UserMessageBlock
           key={item.id}
+          messageId={item.id}
           text={item.text ?? ''}
           nativeInputParts={item.nativeInputParts}
           imageDataUrls={item.imageDataUrls}

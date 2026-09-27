@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.28.0 |
+| **Version** | 0.29.0 |
 | **Status** | Living |
-| **Date** | 2026-09-25 |
+| **Date** | 2026-09-27 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md), [Session Import](../features/session-import.md) |
+| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md), [Session Import](../features/session-import.md), [Turn Navigation](../features/turn-navigation.md) |
 
 Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a protocol client for DotCraft AppServer. This document specifies user-visible flows, interaction rules, state transitions, and recovery behavior. It does not define frontend implementation details, visual design, or framework choices.
 
@@ -64,6 +64,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
   - [5.13 Composer System Actions](#513-composer-system-actions)
   - [5.14 Desktop Runtime Thread Tools](#514-desktop-runtime-thread-tools)
   - [5.15 Thread References](#515-thread-references)
+  - [5.16 Turn Navigation](#516-turn-navigation)
 - [6. Secondary Flows](#6-secondary-flows)
   - [6.1 Plugins and Skills](#61-plugins-and-skills)
     - [6.1.1 Plugin creation and marketplace sources](#611-plugin-creation-and-marketplace-sources)
@@ -233,6 +234,14 @@ Ordinary remote initialization uses a fifteen-second timeout. A temporary connec
 
 ### 3.6 Multiple Windows
 
+- On Windows, the main window uses native caption controls so the
+  maximize/restore control exposes the system Snap Layouts menu on supported
+  Windows versions. Its minimum width is 480px; title-bar menus remain visible
+  until the available width can no longer fit them, then collapse to one entry
+  for the existing application menu. Every title-bar menu entry, collapsed or
+  not, opens on pointer press or on Enter, Space, or Down Arrow. Linux retains
+  custom caption controls whose maximize/restore icon and accessible label track
+  the native window state. macOS keeps native traffic lights.
 - Each window owns its own foreground workspace selection and may show multiple local recent workspaces.
 - Multiple windows may be open concurrently, including windows whose recent workspace lists overlap.
 - The same workspace may be connected by more than one Desktop process. AppServer multi-client semantics own protocol safety; Desktop must not rely on a process-exclusive workspace lock to prevent concurrent viewing.
@@ -445,8 +454,8 @@ When the user selects a thread, Desktop opens a new restore generation for it an
 4. The active conversation must not expose replayed approval or user-input composers until subscription readiness and the header and page reads for the current restore generation have completed.
 5. Any header read, page read, subscription operation, or server-to-client interactive request result belonging to an older restore generation must be ignored for the active conversation.
 6. Subscription updates overwrite loaded entities by stable id. An Item that is not loaded is appended at the chronological head without duplicating a concurrent page result.
-7. Older history is read on demand rather than drained: advancing the history cursor must not pull the remaining pages by itself, and inserting a page preserves the visible-content scroll anchor.
-8. Every loaded Turn remains whole in the active conversation store, and unopened older pages remain server-side. Switching threads releases the prior thread's loaded page state. Live-only output buffers must be bounded independently from persisted history so a long-running command cannot grow renderer memory without limit.
+7. History is read on demand rather than drained. Loaded history is one or more segments of consecutive whole Turns; the newest segment ends at the live head. An unloaded range before the oldest segment or between two segments is a gap: it reserves space in the transcript and loads one page from its nearer side when it comes within 800px of the viewport. A jump from turn navigation ([5.16](#516-turn-navigation)) to an unloaded Turn loads a new segment of one page on each side of that Turn, read outward from its `backwardsCursor`. Segments that meet merge, and inserting a page above the viewport preserves the visible-content scroll anchor. Listing Turn metadata without Items for navigation is not a history page read.
+8. Every loaded Turn remains whole in the active conversation store, and gaps remain server-side. Switching threads releases the prior thread's loaded segments. Live-only output buffers must be bounded independently from persisted history so a long-running command cannot grow renderer memory without limit.
 9. A subscription target is the tuple of foreground workspace identity, connection epoch, and `threadId`. Desktop may start the subscription only after the target thread is present in the authoritative thread list for that foreground workspace.
 10. For the same subscription target, Desktop must serialize subscription operations. A queued or delayed `thread/unsubscribe` must not cancel a newer active `thread/subscribe` for the same target after the user has returned. Operations for different targets must not block one another, including when two workspaces contain the same `threadId`.
 11. Switching threads, switching workspaces, disconnecting, or closing the window must clear the active restore generation and prevent late async work from subscribing through a different workspace connection or restoring UI into the wrong foreground thread. An unsubscribe queued for an older workspace connection must not be sent through the new foreground connection.
@@ -481,7 +490,7 @@ Desktop receives thread truth through durable header/history queries and realtim
 - Desktop may use `thread/runtimeChanged` as a reconciliation trigger. If the server runtime says the active thread is idle while Desktop still shows running, waiting, or live awaiting-result tools, Desktop reloads the Thread header and newest Turn and Item pages.
 - An active thread with a parked approval or user-input request must keep retrying head-page reconciliation on foreground, reconnect, and metadata refresh paths. A failed read keeps the request parked and must not synthesize a response.
 - After submitting an approval or user-input response, Desktop should continue applying live notifications normally. If live completion notifications are missed, the next header and head-page reconcile must restore completed tools, final assistant output, and terminal turn state without requiring the user to switch away and back.
-- Rollback, fork, archive, and unarchive clear affected history cursors and reload the relevant Thread header and head pages. Delete clears the header and all page data. Reconnect establishes a new subscription and reloads head pages without reusing pre-disconnect cursors.
+- Rollback, fork, archive, and unarchive clear affected history cursors and segments and reload the relevant Thread header and head pages. Delete clears the header and all page data. Reconnect establishes a new subscription and reloads head pages without reusing pre-disconnect cursors.
 - Reconciliation must be scoped to the active foreground thread and workspace. Snapshot state from one thread or workspace must not preserve or overwrite realtime state from another.
 
 ### 5.3.4 Backend Verification Gate
@@ -552,7 +561,7 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
 - Outside a Git repository, Undo explains that it needs one and changes nothing. Undo works through the Git repository on this computer, so it cannot change a remote workspace's files; the attempt fails and is reported.
 - Threads recorded before per-edit diffs were persisted show no entries in Changes; their tool cards show text only.
 - Commit and changelist actions use the files still applied across the loaded turns.
-- Plan updates remain associated with the active thread and reflect the latest complete plan snapshot. While a `CreatePlan` tool call is still streaming its arguments, the dedicated plan surface renders a live draft (title, overview, and any fully-formed todo entries) so the user sees the plan taking shape in real time; the draft is replaced by the finalized snapshot once `plan/updated` is received.
+- Plan updates remain associated with the active thread and reflect the latest complete plan snapshot. While a `CreatePlan` tool call is still streaming its arguments, the dedicated plan surface renders a live draft (title, overview, and any fully-formed todo entries) so the user sees the plan taking shape in real time; the draft is replaced by the finalized snapshot once `plan/updated` is received. The overview renders Markdown in both draft and finalized snapshots, including inline code and links.
 - When the latest completed Plan-mode Turn contains a successful `CreatePlan`, Desktop replaces the normal composer with the plan-confirmation composer. Later tool calls or assistant output in the same Turn, including SubAgent cleanup, do not suppress confirmation. The confirmation remains recoverable after switching threads or restarting Desktop and is cleared when the next Turn starts.
 - Tool output remains readable in-thread and must remain distinguishable from agent conversational text.
 - Completed `RequestUserInput` tool results render as a question-to-answer list using the original question text and the user's selected option or free-form response, rather than exposing the raw response JSON.
@@ -749,6 +758,10 @@ A user can point the model at earlier chats of the current workspace from the we
 - Choosing a chat, or dropping a sidebar chat on the composer, inserts a thread chip carrying the title and id. The chip serializes to the prompt text `[@Title](thread://<threadId>)`; sent messages render that link as an `@Title` chip that opens the thread.
 - Submission adds one `threadReferences` context ahead of the prompt, listing each mentioned thread once as `{"threadId": …}`, except the thread being sent to, under a header that tells the model to call `ReadThread` before relying on them. Sent-message rendering and history restoration ignore that context; the inline links restore the chips.
 - If the draft mentions a thread while the tools are unavailable, submission is refused with a toast and the draft is kept.
+
+### 5.16 Turn Navigation
+
+A thread with at least four user messages shows a navigation rail at the leading edge of the conversation. It previews any user message on hover and jumps to it on click, including messages in history pages that are not loaded yet. The rail, its previews, bookmarks, and the `Alt+ArrowUp` / `Alt+ArrowDown` shortcuts are defined in [Turn Navigation](../features/turn-navigation.md).
 
 ---
 
@@ -1193,6 +1206,7 @@ Packaged Windows builds update themselves from GitHub Releases through `electron
   - send message
   - interrupt turn
   - navigate threads
+  - jump between user messages in a thread
   - respond to approvals
   - dismiss transient blocking overlays when safe
 - If a shortcut is unavailable on one platform, an equivalent keyboard path must still exist.

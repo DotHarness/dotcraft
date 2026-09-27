@@ -7,6 +7,7 @@ import { ConfirmDialogHost } from '../components/ui/ConfirmDialog'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
+import { applyThreadHistoryHead, beginThreadHistory, useThreadHistoryStore } from '../stores/threadHistoryStore'
 import { useUIStore } from '../stores/uiStore'
 import { useToastStore } from '../stores/toastStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
@@ -546,13 +547,9 @@ describe('InputComposer custom command expansion', () => {
         manualCompaction: true
       }
     })
-    useThreadStore.setState({
-      activeThreadId: 'thread-1',
-      activeHistoryCursors: {
-        threadId: 'thread-1',
-        turnCursor: 'old-turn-cursor'
-      }
-    })
+    useThreadStore.setState({ activeThreadId: 'thread-1' })
+    beginThreadHistory('thread-1')
+    applyThreadHistoryHead('thread-1', [{ id: 'turn_001' }], 'old-turn-cursor')
     useConversationStore.setState({
       turnStatus: 'idle',
       turns: [{
@@ -628,10 +625,9 @@ describe('InputComposer custom command expansion', () => {
         'thread/read',
         { threadId: 'thread-1' }
       )
-      expect(useThreadStore.getState().activeHistoryCursors).toEqual({
-        threadId: 'thread-1',
-        turnCursor: 'new-turn-cursor'
-      })
+      expect(useThreadHistoryStore.getState().gaps).toEqual([
+        expect.objectContaining({ followingTurnId: 'turn_001', olderCursor: 'new-turn-cursor' })
+      ])
     })
     expect(useConversationStore.getState().contextUsage?.tokens).toBe(100)
   })

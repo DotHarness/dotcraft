@@ -84,7 +84,7 @@ listItems(threadId: string, options?: ThreadItemPageOptions): Promise<ThreadItem
 
 Start 选项包含 identity 字段、显示名称、history mode、配置、运行时动态工具和额外上下文。Resume 选项只重新绑定动态工具和额外上下文。List 选项还包含 identity/workspace scope、归档过滤、文本查询、limit 和 cursor。
 
-`read()` 和 Thread handle 的 `refresh()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`listTurns()` 读取 Turn 元数据，`listItems()` 跨 Thread 或按可选 `turnId` 读取 Item。两者都接受 `cursor`、`limit` 和 `sortDirection`，并返回 `data` 与 opaque `nextCursor`。Thread handle 也提供相同的两个分页方法，但不需要 `threadId` 参数。
+`read()` 和 Thread handle 的 `refresh()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`listTurns()` 读取 Turn 元数据，`listItems()` 跨 Thread 或按可选 `turnId` 读取 Item。两者都接受 `cursor`、`limit` 和 `sortDirection`，并返回 `data` 与 opaque `nextCursor`；`listTurns()` 还会返回 `backwardsCursor`，可从本页第一个 Turn 起向任一方向继续读取。Thread handle 也提供相同的两个分页方法，但不需要 `threadId` 参数。
 
 `run()` 和 `runStreamed()` 接受文本、`InputPart[]` 或 `{ input, sender }`。Run 选项为 `sender`、`collectRawEvents`、`abortSignal` 和 `enqueueIfBusy`。Buffered 结果包含 `thread`、可选终止 `turn`、合并后的 `text`、`items`、可选 `usage`、可选 raw event 和 queued-input 结果。
 

@@ -61,5 +61,12 @@ export function mergeUpdatedSettings(current: AppSettings, partial: Partial<AppS
     }
   }
 
+  if (partial.turnBookmarksByThread !== undefined) {
+    next.turnBookmarksByThread = {
+      ...(current.turnBookmarksByThread ?? {}),
+      ...partial.turnBookmarksByThread
+    }
+  }
+
   return next
 }

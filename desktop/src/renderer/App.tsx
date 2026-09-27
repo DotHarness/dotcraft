@@ -35,6 +35,7 @@ import { usePendingRestartStore } from './stores/pendingRestartStore'
 import { isSubAgentChildClosed, useSubAgentStore } from './stores/subAgentStore'
 import { useAppBindingStore } from './stores/appBindingStore'
 import { useThreadRouteStore } from './stores/threadRouteStore'
+import { useTurnBookmarkStore } from './stores/turnBookmarkStore'
 import { bootstrapSatellites } from './stores/satellitesStore'
 import { isGitBranchProbeSettled, normalizeGitPathKey, useGitStore } from './stores/gitStore'
 import { useWorkspaceProjectsStore } from './stores/workspaceProjectsStore'
@@ -95,6 +96,7 @@ import { handleFindShortcut } from './find/findShortcut'
 import { FindOverlay } from './find/FindOverlay'
 import { conversationNeedsFullSnapshotReconcile } from './utils/threadRestoreReconcile'
 import { readThreadHistoryHead } from './utils/threadHistory'
+import { applyThreadHistoryHead, beginThreadHistory } from './stores/threadHistoryStore'
 import { interruptTurn } from './utils/interruptTurn'
 import { normalizeRemoteFileTransferProgress } from './utils/remoteToolHostDisplay'
 import {
@@ -924,6 +926,7 @@ export function App(): JSX.Element {
         resolvePinnedThreadIdsForWorkspace(settings.pinnedThreadIdsByWorkspace, projectKey)
       )
       threadStore.prunePinnedThreadIds()
+      useTurnBookmarkStore.getState().hydrate(settings.turnBookmarksByThread)
       const pendingProjectThreadOpen = useUIStore.getState().consumePendingProjectThreadOpen(
         projectKey,
         useThreadStore.getState().threadList.map((thread) => thread.id)
@@ -1723,6 +1726,7 @@ export function App(): JSX.Element {
             const pp = p as { threadId: string }
             if (pp.threadId) {
               void window.api.skillMarket?.cleanupDotCraftInstall?.({ threadId: pp.threadId }).catch(() => {})
+              useTurnBookmarkStore.getState().forgetThread(pp.threadId)
             }
             useThreadStore.getState().removeThreadTree(pp.threadId)
             break
@@ -2974,6 +2978,7 @@ export function App(): JSX.Element {
     }
 
     useConversationStore.getState().reset()
+    beginThreadHistory(curr)
     clearDeferredActiveConversation()
 
     // Unsubscribe from previous thread when genuinely switching (not StrictMode remount)
@@ -3010,7 +3015,7 @@ export function App(): JSX.Element {
             restoreGeneration !== activeThreadSnapshotReconcileGenerationRef.current
           if (!restoreWasSuperseded) {
             useThreadStore.getState().setActiveThread(res.thread)
-            useThreadStore.getState().setActiveHistoryCursors(requestedId, res.turnCursor)
+            applyThreadHistoryHead(requestedId, res.thread.turns ?? [], res.turnCursor)
             const runtime = res.thread.runtime
             useThreadStore.getState().applyRuntimeSnapshot(requestedId, runtimeSnapshotFromThread(res.thread), {
               isActive: true,
@@ -3209,8 +3214,8 @@ export function App(): JSX.Element {
             turnCursor: string | null
           }
           if (!res.thread) return false
+          applyThreadHistoryHead(requestedId, res.thread.turns ?? [], res.turnCursor)
           applyActiveThreadSnapshot(res.thread, requestedId, true)
-          useThreadStore.getState().setActiveHistoryCursors(requestedId, res.turnCursor)
           activateParkedInteractiveRequests(requestedId)
           return true
         }

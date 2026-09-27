@@ -1,0 +1,47 @@
+.prefix {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.menus {
+  display: flex;
+  align-items: center;
+  margin-left: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.menus[data-collapsed] {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.narrowMenu {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+  font-weight: var(--type-ui-weight);
+  cursor: default;
+  -webkit-app-region: no-drag;
+}
+
+.narrowMenu:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.nativeControls {
+  flex-shrink: 0;
+  align-self: stretch;
+  width: calc(100vw - env(titlebar-area-x, calc(100vw - 138px)) - env(titlebar-area-width, 0px));
+  pointer-events: none;
+}

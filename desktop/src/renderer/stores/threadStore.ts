@@ -51,7 +51,6 @@ interface ThreadStoreState {
   /** Desktop-local pinned top-level thread ids for the current workspace. */
   pinnedThreadIds: string[]
   pinnedThreadWorkspacePath: string | null
-  activeHistoryCursors: { threadId: string; turnCursor: string | null } | null
 }
 
 interface ThreadStoreActions {
@@ -66,7 +65,6 @@ interface ThreadStoreActions {
   renameThread(threadId: string, displayName: string): void
   setActiveThreadId(id: string | null): void
   setActiveThread(thread: Thread | null): void
-  setActiveHistoryCursors(threadId: string, turnCursor: string | null): void
   setSearchQuery(query: string): void
   setLoading(loading: boolean): void
   markTurnStarted(threadId: string): void
@@ -112,8 +110,7 @@ const initialState: ThreadStoreState = {
   unreadCompletedThreadIds: new Set<string>(),
   goalSnapshots: new Map<string, ThreadGoal>(),
   pinnedThreadIds: [],
-  pinnedThreadWorkspacePath: null,
-  activeHistoryCursors: null
+  pinnedThreadWorkspacePath: null
 }
 
 function filterSetToThreadList(current: Set<string>, ids: Set<string>): Set<string> {
@@ -568,7 +565,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
   setActiveThreadId(id) {
     set((state) => {
       if (!id) {
-        return { activeThreadId: id, activeHistoryCursors: null }
+        return { activeThreadId: id }
       }
 
       const pendingPlanConfirmationThreadIds = new Set(state.pendingPlanConfirmationThreadIds)
@@ -581,7 +578,6 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
       unreadCompletedThreadIds.delete(id)
       return {
         activeThreadId: id,
-        activeHistoryCursors: state.activeThreadId === id ? state.activeHistoryCursors : null,
         pendingApprovalThreadIds,
         pendingUserInputThreadIds,
         pendingPlanConfirmationThreadIds,
@@ -615,12 +611,6 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
       }
       return { activeThread, goalSnapshots }
     })
-  },
-
-  setActiveHistoryCursors(threadId, turnCursor) {
-    set((state) => state.activeThreadId === threadId
-      ? { activeHistoryCursors: { threadId, turnCursor } }
-      : {})
   },
 
   setSearchQuery(query) {

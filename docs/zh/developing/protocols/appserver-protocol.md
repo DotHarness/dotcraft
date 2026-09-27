@@ -213,7 +213,7 @@ Server 还会广播 `thread/started`。多 client 场景下，发起请求的 cl
 
 `thread/list` 接受可选的 `query`、`limit` 和 opaque `cursor` 参数。分页时 result 会包含 `nextCursor` 和 `totalMatched`。未传 `limit/cursor` 的调用保持兼容，继续返回完整列表。
 
-`thread/read` 只接受 `threadId`，不返回持久化的 Turn 或 Item。使用 `thread/turns/list` 和 `thread/items/list` 读取历史。Turn 页默认 20 条、最多 100 条，Item 页默认 100 条、最多 500 条。两者默认按 descending 排序，并按请求方向返回数据。Item 页可以带可选的 `turnId`。只能为相同 Thread、scope、可选 Turn 和方向继续传入 opaque `nextCursor`。rollback、fork、archive 或 unarchive 后，应丢弃受影响的 cursor 并重新读取所需历史页。
+`thread/read` 只接受 `threadId`，不返回持久化的 Turn 或 Item。使用 `thread/turns/list` 和 `thread/items/list` 读取历史。Turn 页默认 20 条、最多 100 条，Item 页默认 100 条、最多 500 条。两者默认按 descending 排序，并按请求方向返回数据。Item 页可以带可选的 `turnId`。只能为相同 Thread、scope、可选 Turn 和方向继续传入 opaque `nextCursor`。Turn 页还会返回锚定在本页第一个 Turn 上的 `backwardsCursor`。它包含该 Turn，并适用于任一 `sortDirection`：`descending` 读取该 Turn 及更早的 Turn，`ascending` 读取该 Turn 及更新的 Turn。页为空时它为 `null`。rollback、fork、archive 或 unarchive 后，应丢弃受影响的 cursor 并重新读取所需历史页。
 
 归档是可逆操作：它会阻止新 Turn，并停止或失效活跃后台终端，但不会取消已经在执行的主 Turn。对话历史会保留，保留下来的配套文件仍遵循各自的保留规则。恢复父线程时，只会恢复 subagent edge 仍为 open 的后代。删除会永久移除线程持久化数据和绑定的 tracing 数据。线程专属文件会同步尝试清理，单项失败后可以重试。归档和恢复会发出 `thread/statusChanged`。删除完成后会向工作区广播 `thread/deleted`。存储生命周期见[会话持久化](../architecture/session-persistence)。
 

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
-import { Copy, Download, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
+import { Download, Menu, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from 'lucide-react'
 import { Spinner } from '../ui/Spinner'
 
 import { TITLE_BAR_OVERLAY_HEIGHT } from '../../../shared/titleBarOverlay'
@@ -13,6 +13,7 @@ import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { DotCraftLogo } from '../ui/DotCraftLogo'
 import { AppUpdateDialog } from '../update/AppUpdateDialog'
 import { AppNavigationControls } from './AppNavigationControls'
+import css from './CustomMenuBar.module.css'
 
 const dragRegion: CSSProperties = { WebkitAppRegion: 'drag' }
 const noDrag: CSSProperties = { WebkitAppRegion: 'no-drag' }
@@ -26,15 +27,17 @@ const MENU_LABEL_KEY: Record<TopLevelMenuId, 'menu.file' | 'menu.edit' | 'menu.v
     help: 'menu.help'
   }
 
-/**
- * Global Windows / Linux top bar. macOS keeps native traffic lights and does
- * not render this component.
- */
 export function CustomMenuBar(): JSX.Element {
   const t = useT()
+  const isWindows = window.api.platform === 'win32'
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   const [sidebarButtonHovered, setSidebarButtonHovered] = useState(false)
+  const [collapsedMenus, setCollapsedMenus] = useState(false)
+  const barRef = useRef<HTMLDivElement>(null)
+  const prefixRef = useRef<HTMLDivElement>(null)
+  const menusRef = useRef<HTMLDivElement>(null)
+  const controlsRef = useRef<HTMLDivElement>(null)
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
   const [updateState, setUpdateState] = useState<AppUpdateState>({
     status: 'idle',
@@ -76,9 +79,26 @@ export function CustomMenuBar(): JSX.Element {
     }
   }, [])
 
+  useLayoutEffect(() => {
+    if (!isWindows) return
+    const bar = barRef.current
+    const prefix = prefixRef.current
+    const menus = menusRef.current
+    const controls = controlsRef.current
+    if (!bar || !prefix || !menus || !controls) return
+    const measure = (): void => {
+      setCollapsedMenus(prefix.offsetWidth + menus.offsetWidth + controls.offsetWidth + 12 > bar.clientWidth)
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    for (const element of [bar, prefix, menus, controls]) observer.observe(element)
+    return () => observer.disconnect()
+  }, [isWindows])
 
   return (
     <div
+      ref={barRef}
       className="dotcraft-custom-menu-bar"
       style={{
         ...dragRegion,
@@ -91,7 +111,8 @@ export function CustomMenuBar(): JSX.Element {
       }}
       onDoubleClick={handleTitleBarDoubleClick}
     >
-      <IconButton
+      <div ref={prefixRef} className={css.prefix}>
+        <IconButton
         size={28}
         label={sidebarLabel}
         tooltipLabel={sidebarLabel}
@@ -106,12 +127,12 @@ export function CustomMenuBar(): JSX.Element {
             ? <PanelLeftOpen size={16} aria-hidden="true" />
             : <PanelLeftClose size={16} aria-hidden="true" />
           : <DotCraftLogo size={20} />}
-      />
+        />
 
-      <AppNavigationControls />
+        <AppNavigationControls />
 
-      {updateButtonVisible && (
-        <IconButton
+        {updateButtonVisible && (
+          <IconButton
           size={28}
           label={updateLabel}
           tooltipLabel={updateLabel}
@@ -128,10 +149,17 @@ export function CustomMenuBar(): JSX.Element {
               )}
             </>
           )}
-        />
-      )}
+          />
+        )}
+      </div>
 
-      <div style={{ ...noDrag, display: 'flex', alignItems: 'center', marginLeft: 6 }}>
+      <div
+        ref={menusRef}
+        className={css.menus}
+        data-collapsed={isWindows && collapsedMenus || undefined}
+        aria-hidden={isWindows && collapsedMenus || undefined}
+        inert={isWindows && collapsedMenus}
+      >
         {TOP_LEVEL_MENU_IDS.map((menuId) => (
           <button
             key={menuId}
@@ -139,8 +167,12 @@ export function CustomMenuBar(): JSX.Element {
             style={menuButtonStyle}
             onMouseDown={(e) => {
               e.preventDefault()
-              const r = e.currentTarget.getBoundingClientRect()
-              void window.api.menu.popupTopLevel(menuId, r.left, r.bottom)
+              popupTopLevelMenu(menuId, e.currentTarget)
+            }}
+            onKeyDown={(e) => {
+              if (!isMenuOpenKey(e.key)) return
+              e.preventDefault()
+              popupTopLevelMenu(menuId, e.currentTarget)
             }}
           >
             {t(MENU_LABEL_KEY[menuId])}
@@ -148,37 +180,60 @@ export function CustomMenuBar(): JSX.Element {
         ))}
       </div>
 
+      {isWindows && collapsedMenus && (
+        <button
+          type="button"
+          className={css.narrowMenu}
+          onMouseDown={(event) => {
+            event.preventDefault()
+            popupAllMenus(event.currentTarget)
+          }}
+          onKeyDown={(event) => {
+            if (!isMenuOpenKey(event.key)) return
+            event.preventDefault()
+            popupAllMenus(event.currentTarget)
+          }}
+        >
+          <Menu size={15} aria-hidden="true" />
+          {t('menu.all')}
+        </button>
+      )}
+
       <div style={{ flex: 1, alignSelf: 'stretch' }} />
 
-      <div data-window-controls style={{ ...noDrag, display: 'flex', alignItems: 'stretch', height: '100%' }}>
-        <WindowControlButton
-          label="Minimize"
-          onClick={() => {
-            void window.api.window.minimize()
-          }}
-        >
-          <Minus size={15} strokeWidth={1.8} aria-hidden="true" />
-        </WindowControlButton>
-        <WindowControlButton
-          label={maximized ? 'Restore' : 'Maximize'}
-          onClick={() => {
-            void window.api.window.toggleMaximize()
-          }}
-        >
-          {maximized
-            ? <Copy size={13} strokeWidth={1.8} aria-hidden="true" />
-            : <Square size={12} strokeWidth={1.8} aria-hidden="true" />}
-        </WindowControlButton>
-        <WindowControlButton
-          label="Close"
-          danger
-          onClick={() => {
-            void window.api.window.close()
-          }}
-        >
-          <X size={15} strokeWidth={1.8} aria-hidden="true" />
-        </WindowControlButton>
-      </div>
+      {isWindows ? (
+        <div ref={controlsRef} data-window-controls className={css.nativeControls} />
+      ) : (
+        <div ref={controlsRef} data-window-controls style={{ ...noDrag, display: 'flex', alignItems: 'stretch', height: '100%' }}>
+          <WindowControlButton
+            label="Minimize"
+            onClick={() => {
+              void window.api.window.minimize()
+            }}
+          >
+            <Minus size={15} strokeWidth={1.8} aria-hidden="true" />
+          </WindowControlButton>
+          <WindowControlButton
+            label={maximized ? 'Restore' : 'Maximize'}
+            onClick={() => {
+              void window.api.window.toggleMaximize()
+            }}
+          >
+            {maximized
+              ? <RestoreWindowIcon />
+              : <Square size={12} strokeWidth={1.8} aria-hidden="true" />}
+          </WindowControlButton>
+          <WindowControlButton
+            label="Close"
+            danger
+            onClick={() => {
+              void window.api.window.close()
+            }}
+          >
+            <X size={15} strokeWidth={1.8} aria-hidden="true" />
+          </WindowControlButton>
+        </div>
+      )}
       {updateDialogOpen && (
         <AppUpdateDialog
           state={updateState}
@@ -188,6 +243,14 @@ export function CustomMenuBar(): JSX.Element {
         />
       )}
     </div>
+  )
+}
+
+function RestoreWindowIcon(): JSX.Element {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M5.5 3.5V2.5H13.5V10.5H12.5M2.5 5.5H10.5V13.5H2.5V5.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
   )
 }
 
@@ -204,6 +267,20 @@ function getUpdateTooltipLabel(
 function isInteractiveTitleBarTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   return target.closest('button,a,input,textarea,select,[role="button"]') !== null
+}
+
+function isMenuOpenKey(key: string): boolean {
+  return key === 'Enter' || key === ' ' || key === 'ArrowDown'
+}
+
+function popupTopLevelMenu(menuId: TopLevelMenuId, trigger: HTMLElement): void {
+  const rect = trigger.getBoundingClientRect()
+  void window.api.menu.popupTopLevel(menuId, rect.left, rect.bottom)
+}
+
+function popupAllMenus(trigger: HTMLElement): void {
+  const rect = trigger.getBoundingClientRect()
+  void window.api.menu.popupAll(rect.left, rect.bottom)
 }
 
 function WindowControlButton({
@@ -279,7 +356,7 @@ const updateBadgeStyle: CSSProperties = {
 const menuButtonStyle: CSSProperties = {
   ...noDrag,
   marginRight: 2,
-  padding: '2px 8px',
+  padding: '2px 6px',
   border: 'none',
   borderRadius: 4,
   background: 'transparent',

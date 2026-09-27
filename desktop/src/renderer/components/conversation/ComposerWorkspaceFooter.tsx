@@ -35,6 +35,7 @@ import {
   branchNameError,
   normalizeBranchName
 } from './ComposerWorkspaceFooterDialogs'
+import css from './ComposerWorkspaceFooter.module.css'
 
 export type ComposerWorkspaceMode = 'local' | 'worktree'
 
@@ -195,6 +196,9 @@ export function ComposerWorkspaceFooter({
   const showBranchHandoffOnly = variant === 'thread' && mode === 'worktree'
   const showProjectSelector =
     variant === 'welcome' && (projectChoices.projects.length > 0 || foregroundIsChat)
+  const projectLabelText = foregroundIsChat
+    ? t('workspaceFooter.chooseProject')
+    : selectedProject ? projectLabel(selectedProject) : workspaceSlug(workspacePath)
 
   useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent): void {
@@ -457,16 +461,13 @@ export function ComposerWorkspaceFooter({
       {showProjectSelector && (
         <div style={{ position: 'relative' }}>
           <WorkspaceFooterPill
+            aria-label={projectLabelText}
             disabled={busy}
             open={openMenu === 'project'}
             onClick={() => setOpenMenu(openMenu === 'project' ? null : 'project')}
           >
             {selectedProject ? projectIcon(selectedProject) : <Folder size={15} strokeWidth={1.8} aria-hidden />}
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {foregroundIsChat
-                ? t('workspaceFooter.chooseProject')
-                : selectedProject ? projectLabel(selectedProject) : workspaceSlug(workspacePath)}
-            </span>
+            <span className={css.compactLabel} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{projectLabelText}</span>
             <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
           </WorkspaceFooterPill>
           {openMenu === 'project' && (
@@ -497,12 +498,13 @@ export function ComposerWorkspaceFooter({
       <div style={{ position: 'relative' }}>
         <ActionTooltip label={workLocationTooltip} placement="top">
           <WorkspaceFooterPill
+            aria-label={locationLabel}
             disabled={busy || !branchControlsReady}
             open={openMenu === 'workspace'}
             onClick={() => setOpenMenu(openMenu === 'workspace' ? null : 'workspace')}
           >
             <Laptop size={15} strokeWidth={1.8} aria-hidden />
-            <span>{locationLabel}</span>
+            <span className={css.compactLabel}>{locationLabel}</span>
             <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
           </WorkspaceFooterPill>
         </ActionTooltip>
@@ -553,12 +555,13 @@ export function ComposerWorkspaceFooter({
 
       <div style={{ position: 'relative' }}>
         <WorkspaceFooterPill
+          aria-label={branchLabel}
           disabled={busy || !branchActionPath || !branchControlsReady}
           open={openMenu === 'branch'}
           onClick={() => setOpenMenu(openMenu === 'branch' ? null : 'branch')}
         >
           <GitBranch size={15} strokeWidth={1.8} aria-hidden />
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{branchLabel}</span>
+          <span className={css.compactLabel} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{branchLabel}</span>
           <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
         </WorkspaceFooterPill>
         {openMenu === 'branch' && (
@@ -620,12 +623,13 @@ export function ComposerWorkspaceFooter({
       {showPerforceFooterControls && (
         <div style={{ position: 'relative' }}>
           <WorkspaceFooterPill
+            aria-label={changelistLabel(selectedChangelist)}
             disabled={busy}
             open={openMenu === 'changelist'}
             onClick={() => setOpenMenu(openMenu === 'changelist' ? null : 'changelist')}
           >
             <ListChecks size={15} strokeWidth={1.8} aria-hidden />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span className={css.compactLabel} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {changelistLabel(selectedChangelist)}
             </span>
             <ChevronDown size={14} strokeWidth={1.8} aria-hidden />

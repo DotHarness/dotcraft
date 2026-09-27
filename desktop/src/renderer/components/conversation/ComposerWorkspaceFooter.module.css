@@ -1,0 +1,5 @@
+@container composer-footer (max-width: 475px) {
+  .compactLabel {
+    display: none;
+  }
+}

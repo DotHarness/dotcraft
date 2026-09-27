@@ -17630,6 +17630,16 @@
       "title": "ThreadTurnsListResult",
       "type": "object",
       "properties": {
+        "backwardsCursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "data": {
           "type": "array",
           "items": {

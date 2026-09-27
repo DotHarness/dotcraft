@@ -8,9 +8,15 @@ const TURN_ITEM_PAGE_LIMIT = 500
 /** How many Turns of a page hydrate their Items concurrently. */
 const TURN_HYDRATION_CONCURRENCY = 5
 
+export type TurnSortDirection = 'ascending' | 'descending'
+
 interface HistoryPage<T> {
   data?: T[]
   nextCursor?: string | null
+}
+
+interface TurnsListResult extends HistoryPage<Turn> {
+  backwardsCursor?: string | null
 }
 
 interface ThreadItemEntry {
@@ -18,10 +24,10 @@ interface ThreadItemEntry {
   item: Record<string, unknown>
 }
 
-export interface ThreadTurnsPage {
-  /** Oldest first, every Turn carrying all of its Items. */
+export interface ThreadTurnsListing {
   turns: Turn[]
   nextCursor: string | null
+  backwardsCursor: string | null
 }
 
 export interface ThreadHistoryRead {
@@ -29,7 +35,7 @@ export interface ThreadHistoryRead {
   turnCursor: string | null
 }
 
-type Request = (
+export type HistoryRequest = (
   method: keyof ClientRequestMethods,
   // Each caller forwards the correlated method/params pair directly to the
   // generated AppServer request API at this dynamic adapter boundary.
@@ -37,8 +43,8 @@ type Request = (
 ) => Promise<any>
 
 /** Reads every Item of one Turn, paging until the Turn-scoped cursor is exhausted. */
-async function readTurnItems(
-  request: Request,
+export async function readTurnItems(
+  request: HistoryRequest,
   threadId: string,
   turnId: string
 ): Promise<Array<Record<string, unknown>>> {
@@ -62,50 +68,61 @@ async function readTurnItems(
   return items
 }
 
-/**
- * Reads one page of Turns (newest first on the wire) and hydrates each Turn with all
- * of its Items. Paging by Turn keeps a page from ever cutting a Turn in half — the
- * Item cursor only ever advances inside a single Turn.
- */
-export async function readThreadTurnsPage(
-  request: Request,
+export async function listThreadTurns(
+  request: HistoryRequest,
   threadId: string,
-  cursor: string | null = null,
+  cursor: string | null,
+  sortDirection: TurnSortDirection,
   limit = HISTORY_TURN_PAGE_LIMIT
-): Promise<ThreadTurnsPage> {
+): Promise<ThreadTurnsListing> {
   const page = await request('thread/turns/list', {
     threadId,
     cursor,
     limit,
-    sortDirection: 'descending'
-  }) as HistoryPage<Turn>
+    sortDirection
+  }) as TurnsListResult
+  return {
+    turns: page.data ?? [],
+    nextCursor: page.nextCursor ?? null,
+    backwardsCursor: page.backwardsCursor ?? null
+  }
+}
 
-  const descending = page.data ?? []
-  const hydrated = new Array<Turn>(descending.length)
+/** Paging by Turn keeps a page from ever cutting a Turn in half; the Item cursor only advances inside one Turn. */
+export async function hydrateTurns(
+  request: HistoryRequest,
+  threadId: string,
+  turns: readonly Turn[]
+): Promise<Turn[]> {
+  const hydrated = new Array<Turn>(turns.length)
   const hydrateFrom = async (index: number): Promise<void> => {
-    const turn = descending[index]
+    const turn = turns[index]
     if (!turn) return
     hydrated[index] = { ...turn, items: await readTurnItems(request, threadId, turn.id) }
     await hydrateFrom(index + TURN_HYDRATION_CONCURRENCY)
   }
   await Promise.all(
     Array.from(
-      { length: Math.min(descending.length, TURN_HYDRATION_CONCURRENCY) },
+      { length: Math.min(turns.length, TURN_HYDRATION_CONCURRENCY) },
       (_unused, index) => hydrateFrom(index)
     )
   )
-
-  return { turns: hydrated.reverse(), nextCursor: page.nextCursor ?? null }
+  return hydrated
 }
 
 /** Reads the Thread header plus its newest fully hydrated Turns. */
 export async function readThreadHistoryHead(
-  request: Request,
+  request: HistoryRequest,
   threadId: string,
   turnLimit = HISTORY_TURN_PAGE_LIMIT
 ): Promise<ThreadHistoryRead> {
+  const readTurns = async (): Promise<{ turns: Turn[]; nextCursor: string | null }> => {
+    const page = await listThreadTurns(request, threadId, null, 'descending', turnLimit)
+    const turns = await hydrateTurns(request, threadId, page.turns)
+    return { turns: turns.reverse(), nextCursor: page.nextCursor }
+  }
   const [turnsPage, readResult] = await Promise.all([
-    readThreadTurnsPage(request, threadId, null, turnLimit),
+    readTurns(),
     request('thread/read', { threadId }) as Promise<{ thread: Thread }>
   ])
 
