@@ -182,7 +182,6 @@ function readInitialTheme(): ThemeMode {
   return resolveThemeMode(raw)
 }
 
-/** The dark/light theme main already resolved (incl. `system`), used for a flash-free first paint. */
 function readAppliedTheme(): 'dark' | 'light' {
   const arg = process.argv.find((value) => value.startsWith('--dotcraft-applied-theme='))
   return arg?.slice('--dotcraft-applied-theme='.length) === 'dark' ? 'dark' : 'light'
@@ -219,10 +218,8 @@ const initialWorkspaceStatus = readInitialWorkspaceStatusFromArgv(process.argv) 
 function applyInitialDocumentState(): void {
   const root = document.documentElement
   if (!root) return
-  // Use the dark/light value main already resolved (initialTheme is the preference, which may
-  // be `system`). The renderer re-applies from the preference and installs an OS listener.
+  // Main's resolved theme prevents a flash when the preference is `system`.
   root.setAttribute('data-theme', initialAppliedTheme)
-  // Without this a customized background flashes the default one until settings load.
   const seed = {
     accent: initialAppearance.accent ?? undefined,
     ...initialAppearance.themeSeeds[initialAppliedTheme]
@@ -290,13 +287,6 @@ export interface WindowVisibilityState {
   visible: boolean
   focused: boolean
 }
-
-// Exactly one ipcRenderer listener per channel, dispatched locally: one listener per
-// subscriber accumulates stale listeners across React StrictMode remounts.
-
-// Only notifications multicast; other channels stay single-slot because each has one
-// owning surface or responder. contextBridge wraps functions in a new Proxy on every
-// call, so subscribers are tracked by monotonic token rather than reference equality.
 
 const notificationDispatcher = new TokenMulticastDispatcher<KnownNotificationPayload>((error) => {
   console.error('appserver:notification subscriber failed:', error)
@@ -441,10 +431,9 @@ ipcRenderer.on(
   }
 )
 
-let maximizedChangeToken = 0
-let activeMaximizedChangeCallback: ((maximized: boolean) => void) | null = null
+const maximizedChangeDispatcher = new TokenMulticastDispatcher<boolean>()
 ipcRenderer.on('window:maximized-change', (_event: Electron.IpcRendererEvent, maximized: boolean) => {
-  activeMaximizedChangeCallback?.(maximized)
+  maximizedChangeDispatcher.dispatch(maximized)
 })
 
 let visibilityChangeToken = 0
@@ -472,7 +461,6 @@ const api = {
 
   titleBarOverlayHeight: TITLE_BAR_OVERLAY_HEIGHT,
 
-  /** Matches CustomMenuBar / ToastContainer right inset on Windows / Linux. */
   titleBarOverlayRightReserve: TITLE_BAR_OVERLAY_RIGHT_RESERVE,
 
   menu: {
@@ -610,7 +598,6 @@ const api = {
       }
     },
 
-    /** Main forwards this as the JSON-RPC response to the AppServer. */
     sendServerResponse(bridgeId: string, result: unknown): Promise<void> {
       return ipcRenderer.invoke('appserver:server-response', bridgeId, result)
     },
@@ -747,13 +734,7 @@ const api = {
     },
 
     onMaximizedChange(callback: (maximized: boolean) => void): () => void {
-      const token = ++maximizedChangeToken
-      activeMaximizedChangeCallback = callback
-      return () => {
-        if (maximizedChangeToken === token) {
-          activeMaximizedChangeCallback = null
-        }
-      }
+      return maximizedChangeDispatcher.subscribe(callback)
     },
 
     onVisibilityChanged(callback: (state: WindowVisibilityState) => void): () => void {
@@ -849,7 +830,6 @@ const api = {
   },
 
   profile: {
-    /** Fetched and cached in the main process; null when the username is invalid or unavailable. */
     getGithubIdentity(
       username: string
     ): Promise<{ login: string; name: string | null; avatarDataUrl: string | null } | null> {
@@ -993,7 +973,6 @@ const api = {
       return webUtils.getPathForFile(file)
     },
 
-    /** Main tears down the current AppServer and spawns a new one. */
     switch(newPath: string): Promise<void> {
       return ipcRenderer.invoke('workspace:switch', newPath)
     },
@@ -1075,7 +1054,6 @@ const api = {
       return ipcRenderer.invoke('workspace:check-lock', wsPath)
     },
 
-    /** Writes into the workspace's `.craft/attachments/images/`, not an OS temp dir. */
     createPastedText(params: { text: string; workspacePath?: string }): Promise<PastedTextContext> {
       return ipcRenderer.invoke('workspace:create-pasted-text', params)
     },
@@ -1674,7 +1652,6 @@ const api = {
     }
   },
 
-  /** Remote DotCraft Docker stack management over SSH (the "Servers" surface). */
   remoteServers: {
     list(): Promise<RemoteHost[]> {
       return ipcRenderer.invoke('remoteHosts:list')
@@ -1735,7 +1712,6 @@ const api = {
     }
   },
 
-  /** Satellite enrollment, plus the local Satellite runtime's own pairings. */
   satellites: {
     list(): Promise<SatelliteListResult> {
       return ipcRenderer.invoke('satellites:list')

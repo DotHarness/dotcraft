@@ -234,6 +234,7 @@ Ordinary remote initialization uses a fifteen-second timeout. A temporary connec
 
 ### 3.6 Multiple Windows
 
+- Each window's title-bar maximize control reflects that window's native maximized state. Its icon and accessible label switch between Maximize and Restore when the state changes, including changes made outside the control.
 - Each window owns its own foreground workspace selection and may show multiple local recent workspaces.
 - Multiple windows may be open concurrently, including windows whose recent workspace lists overlap.
 - The same workspace may be connected by more than one Desktop process. AppServer multi-client semantics own protocol safety; Desktop must not rely on a process-exclusive workspace lock to prevent concurrent viewing.
@@ -553,7 +554,7 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
 - Outside a Git repository, Undo explains that it needs one and changes nothing. Undo works through the Git repository on this computer, so it cannot change a remote workspace's files; the attempt fails and is reported.
 - Threads recorded before per-edit diffs were persisted show no entries in Changes; their tool cards show text only.
 - Commit and changelist actions use the files still applied across the loaded turns.
-- Plan updates remain associated with the active thread and reflect the latest complete plan snapshot. While a `CreatePlan` tool call is still streaming its arguments, the dedicated plan surface renders a live draft (title, overview, and any fully-formed todo entries) so the user sees the plan taking shape in real time; the draft is replaced by the finalized snapshot once `plan/updated` is received.
+- Plan updates remain associated with the active thread and reflect the latest complete plan snapshot. While a `CreatePlan` tool call is still streaming its arguments, the dedicated plan surface renders a live draft (title, overview, and any fully-formed todo entries) so the user sees the plan taking shape in real time; the draft is replaced by the finalized snapshot once `plan/updated` is received. The overview renders Markdown in both draft and finalized snapshots, including inline code and links.
 - When the latest completed Plan-mode Turn contains a successful `CreatePlan`, Desktop replaces the normal composer with the plan-confirmation composer. Later tool calls or assistant output in the same Turn, including SubAgent cleanup, do not suppress confirmation. The confirmation remains recoverable after switching threads or restarting Desktop and is cleared when the next Turn starts.
 - Tool output remains readable in-thread and must remain distinguishable from agent conversational text.
 - Completed `RequestUserInput` tool results render as a question-to-answer list using the original question text and the user's selected option or free-form response, rather than exposing the raw response JSON.
