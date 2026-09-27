@@ -21,7 +21,6 @@ import type { JumpMode } from './turnJump'
 import { TurnPreviewCard } from './TurnPreviewCard'
 import { useActiveEntries } from './useActiveEntries'
 import { usePreviewCardVisibility } from './usePreviewCardVisibility'
-import { RAIL_ATTRIBUTE } from './useTurnNavigationKeyboard'
 import styles from './TurnNavigationRail.module.css'
 
 const ENTRY_HEIGHT_PX = 10
@@ -321,7 +320,6 @@ export function TurnNavigationRail({
 
   return (
     <nav
-      {...{ [RAIL_ATTRIBUTE]: '' }}
       aria-label={t('turnNavigation.railLabel')}
       className={fadeIn ? `${styles.nav} ${styles.fadeIn}` : styles.nav}
       onAnimationEnd={(event) => {

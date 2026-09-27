@@ -2,8 +2,6 @@ import { useEffect, type RefObject } from 'react'
 import type { TurnNavigationEntry } from './navigationIndex'
 import { bubbleOf, isReachable, pickAdjacentEntry, userMessageElements } from './turnJump'
 
-export const RAIL_ATTRIBUTE = 'data-turn-navigation-rail'
-
 const TEXT_ENTRY_SELECTOR = [
   'input',
   'textarea',
@@ -13,20 +11,9 @@ const TEXT_ENTRY_SELECTOR = [
   '[contenteditable="plaintext-only"]'
 ].join(', ')
 
-function scrollsVertically(element: Element): boolean {
-  if (element.scrollHeight <= element.clientHeight) return false
-  const overflow = getComputedStyle(element).overflowY
-  return overflow === 'auto' || overflow === 'scroll'
-}
-
-function suppressesShortcut(target: EventTarget | null, scrollEl: HTMLElement): boolean {
-  if (!(target instanceof Element)) return false
-  if (target.closest(`${TEXT_ENTRY_SELECTOR}, dialog, [role="dialog"], [role="alertdialog"]`)) return true
-  if (target.closest(`[${RAIL_ATTRIBUTE}]`)) return false
-  for (let node: Element | null = target; node && node !== scrollEl; node = node.parentElement) {
-    if (scrollsVertically(node)) return true
-  }
-  return false
+function suppressesShortcut(target: EventTarget | null): boolean {
+  return target instanceof Element &&
+    target.closest(`${TEXT_ENTRY_SELECTOR}, dialog, [role="dialog"], [role="alertdialog"]`) !== null
 }
 
 function renderedTops(scrollEl: HTMLElement, entries: readonly TurnNavigationEntry[]): Array<{ index: number; top: number }> {
@@ -48,7 +35,7 @@ export function useTurnNavigationKeyboard(
       if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
       const scrollEl = scrollRef.current
       const entries = entriesRef.current
-      if (!scrollEl || !entries || suppressesShortcut(event.target, scrollEl)) return
+      if (!scrollEl || !entries || suppressesShortcut(event.target)) return
       const target = pickAdjacentEntry(
         entries,
         renderedTops(scrollEl, entries),

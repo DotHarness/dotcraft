@@ -244,6 +244,23 @@ describe('turn navigation rail', () => {
     expect(scrolledTo.slice(0, 2)).toEqual([userMessageOf('turn-2'), userMessageOf('turn-4')])
   })
 
+  it('moves between user messages while focus is in a scrolling region outside the transcript', async () => {
+    const stream = await renderLoadedThread(5)
+    stream.scrollTop = 400
+    const sidebar = document.createElement('nav')
+    sidebar.style.overflowY = 'auto'
+    Object.defineProperty(sidebar, 'scrollHeight', { value: 500 })
+    Object.defineProperty(sidebar, 'clientHeight', { value: 100 })
+    const row = document.createElement('button')
+    sidebar.append(row)
+    document.body.append(sidebar)
+
+    pressAlt('ArrowUp', row)
+
+    expect(scrolledTo).toEqual([userMessageOf('turn-2')])
+    sidebar.remove()
+  })
+
   it('leaves Alt+Arrow keys to a focused text input', async () => {
     const stream = await renderLoadedThread(5)
     stream.scrollTop = 400

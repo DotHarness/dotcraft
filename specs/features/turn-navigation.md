@@ -107,7 +107,7 @@ The feature is owned by Desktop. It reads the AppServer history methods, and use
 - Clicking an entry scrolls the transcript smoothly so its user bubble sits at the top of the conversation viewport, then flashes the bubble once. Reduced motion jumps without animation.
 - Clicking a placeholder first reveals its Turn (§6.4), then jumps.
 - Pressing on the rail and dragging along it scrubs: the entry under the pointer becomes the scrub target and the transcript jumps to it immediately, without smooth scrolling. Placeholders are skipped while scrubbing. Releasing the pointer ends scrubbing and does not also count as a click.
-- `Alt+ArrowUp` jumps to the previous entry above the viewport's top edge and `Alt+ArrowDown` to the next one below it, allowing 24px of tolerance. It works from anywhere in the conversation except inside another scroll container, text input, or dialog, and uses the same smooth scroll and flash. If the previous entry is a placeholder, Desktop reveals it first.
+- `Alt+ArrowUp` jumps to the previous entry above the viewport's top edge and `Alt+ArrowDown` to the next one below it, allowing 24px of tolerance. It works wherever focus is in the window except a text input or a dialog, and uses the same smooth scroll and flash. If the previous entry is a placeholder, Desktop reveals it first.
 - Each marker is a button. Tab moves focus between entries, and focusing an entry opens its preview card.
 
 ### 6.2 Preview card
