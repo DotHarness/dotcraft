@@ -92,8 +92,7 @@ var configuration = await client.Threads.UpdateModelConfigurationAsync(
     providerId: "<provider-id>",
     model: "<model-id>",
     reasoning: new ReasoningConfig { Enabled = true, Effort = "high" },
-    speed: null,
-    contextWindow: null);
+    speed: null);
 ```
 
 TypeScript 在高层接口提供模型发现，但没有这个配置 helper。使用类型化 Wire 层的应用必须更新完整 `ThreadConfiguration`，并保留不归自己所有的字段。不要跨 provider 推断模型 ID 或 reasoning 选项，只使用所连接 AppServer 返回的目录。

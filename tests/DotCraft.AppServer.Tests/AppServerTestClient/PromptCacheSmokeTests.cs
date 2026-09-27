@@ -60,7 +60,6 @@ public sealed class PromptCacheSmokeTests
         Assert.False(compaction.GetProperty("ReactiveCompactEnabled").GetBoolean());
         Assert.False(compaction.GetProperty("MicrocompactEnabled").GetBoolean());
         Assert.Equal(256000, compaction.GetProperty("ContextWindow").GetInt32());
-        Assert.Equal(256000, compaction.GetProperty("MaxContextWindow").GetInt32());
     }
 
     [Fact]

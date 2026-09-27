@@ -7,10 +7,10 @@ export const DESKTOP_THREAD_COORDINATION_CONTEXT_KEY = 'desktop.threadCoordinati
 
 const MAX_LIST_THREADS_LIMIT = 100
 const DEFAULT_LIST_THREADS_LIMIT = 20
-const REASONING_EFFORT_VALUES = new Set(['low', 'medium', 'high', 'extraHigh', 'ultra'])
+const REASONING_EFFORT_VALUES = new Set(['low', 'medium', 'high', 'extraHigh', 'max', 'ultra'])
 
 type JsonObject = Record<string, unknown>
-type ReasoningEffortValue = 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'
+type ReasoningEffortValue = 'low' | 'medium' | 'high' | 'extraHigh' | 'max' | 'ultra'
 
 export interface RuntimeAdditionalContextEntry {
   kind: 'application'
@@ -142,7 +142,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
           model: { type: 'string', description: 'Optional per-thread model override for the created thread.' },
           reasoningEffort: {
             type: 'string',
-            enum: ['low', 'medium', 'high', 'extraHigh', 'ultra'],
+            enum: ['low', 'medium', 'high', 'extraHigh', 'max', 'ultra'],
             description: 'Optional per-thread reasoning effort for the created thread.'
           }
         },
@@ -197,7 +197,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
           model: { type: 'string', description: 'Unsupported until AppServer exposes turn-scoped model override.' },
           reasoningEffort: {
             type: 'string',
-            enum: ['low', 'medium', 'high', 'extraHigh', 'ultra'],
+            enum: ['low', 'medium', 'high', 'extraHigh', 'max', 'ultra'],
             description: 'Optional persistent reasoning effort for future turns in the target thread.'
           }
         },
@@ -866,7 +866,7 @@ function optionalReasoningEffort(
   if (typeof value !== 'string' || !REASONING_EFFORT_VALUES.has(value)) {
     return {
       ok: false,
-      error: fail('InvalidArguments', `${field} must be one of low, medium, high, extraHigh, or ultra.`)
+      error: fail('InvalidArguments', `${field} must be one of low, medium, high, extraHigh, max, or ultra.`)
     }
   }
   return { ok: true, value: value as ReasoningEffortValue }

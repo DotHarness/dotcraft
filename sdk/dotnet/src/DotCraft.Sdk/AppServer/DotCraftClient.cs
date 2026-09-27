@@ -433,12 +433,11 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
         string? model,
         ReasoningConfig? reasoning,
         string? speed,
-        ThreadContextWindowConfig? contextWindow,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
         var current = await ReadModelConfigurationAsync(threadId, cancellationToken).ConfigureAwait(false);
-        var updated = CopyModelConfiguration(current, providerId, model, reasoning, speed, contextWindow);
+        var updated = CopyModelConfiguration(current, providerId, model, reasoning, speed);
         await client.Wire.ThreadConfigUpdateAsync(new ThreadConfigUpdateParams
         {
             ThreadId = threadId,
@@ -452,8 +451,7 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
         string? providerId,
         string? model,
         ReasoningConfig? reasoning,
-        string? speed,
-        ThreadContextWindowConfig? contextWindow)
+        string? speed)
     {
         var result = new ThreadConfiguration
         {
@@ -468,7 +466,6 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
             ApprovalPolicy = current.ApprovalPolicy,
             ApprovalTimeoutSeconds = current.ApprovalTimeoutSeconds,
             AutomationTaskDirectory = current.AutomationTaskDirectory,
-            ContextWindow = contextWindow,
             CustomTools = current.CustomTools,
             Cwd = current.Cwd,
             ExecutionWorkspaceOverride = current.ExecutionWorkspaceOverride,

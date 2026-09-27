@@ -10,7 +10,6 @@ using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using ConfigSchemaSection = DotCraft.Configuration.ConfigSchemaSection;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
-using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceContextWindow;
 
 namespace DotCraft.AppServer;
 
@@ -474,7 +473,6 @@ internal sealed class WorkspaceRequestHandler(
 
             preference.Model = preference.Model.Trim();
             preference.Reasoning ??= new AppConfig.ReasoningConfig();
-            preference.ContextWindow ??= new ModelPreferenceContextWindow();
             result[providerId] = preference;
         }
 
@@ -562,11 +560,7 @@ internal sealed class WorkspaceRequestHandler(
             providerId,
             preference.Model,
             preference.Reasoning);
-        AppServerRuntimeRequestValidator.ValidateContextWindowForRuntime(
-            currentConfig,
-            providerId,
-            preference.Model,
-            new ThreadContextWindowConfig { Mode = preference.ContextWindow.Mode });
+
     }
 
     private static string? NormalizeDefaultApprovalPolicy(string? rawPolicy)

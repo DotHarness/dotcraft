@@ -187,8 +187,7 @@ For a fresh native child, an explicit `model` or `effort` is an invocation-speci
 applied after the selected role's model default and before final capability normalization, as defined
 by [SubAgent Core](subagents.md#62-fresh-and-bounded-children).
 
-`effort` accepts DotCraft's provider-neutral child values and compatibility aliases. `xhigh` and
-`max` normalize to `extraHigh`. `ultra` is not inherited by workflow children because Ultra controls
+`effort` accepts DotCraft's provider-neutral child values and compatibility aliases. `xhigh` normalizes to `extraHigh`; `max` remains `max`. `ultra` is not inherited by workflow children because Ultra controls
 parent orchestration behavior rather than provider reasoning.
 
 `phase(name, detail?)` establishes `name` as the current phase after recording its progress boundary.
@@ -505,15 +504,15 @@ its model-visible tools. Plugin installation or enablement does not implicitly a
 
 `Ultra` is a DotCraft-owned reasoning tier with wire value `ultra`. It is persisted in the existing
 thread reasoning configuration and does not introduce a new `AgentMode`. Provider request adapters
-map it to the selected model's highest supported reasoning effort, currently `ExtraHigh`.
+map it to the provider-native `Max` reasoning effort.
 
-`model/list` advertises Ultra only when the model supports Extra High and the Dynamic Workflow runtime
+`model/list` advertises Ultra only when the model supports Max and the Dynamic Workflow runtime
 is available. A workflow child receives the mapped provider effort but does not inherit the parent's
 Ultra orchestration behavior.
 
 Desktop presents Ultra through the existing reasoning selector. Ultra does not define a new mascot
-effect: the composer maps it to the existing Extra High mascot state so both tiers use identical
-animation, color, glow, speed, and combined context/speed effects.
+effect: the composer maps it to Max, which reuses the Extra High energy treatment. Fast remains
+an independent visual state.
 
 `RuntimeContextBuilder` appends a short reminder to the latest user turn:
 
@@ -595,7 +594,7 @@ Workflow Detail tab. This marker does not introduce a Workflow-specific bubble t
 | Permissions | `Once`, `Session`, and `Always`; source-hash invalidation; Ultra and `autoApprove`; independent child tool approval. |
 | Discovery | Workspace override; personal definitions; plugin namespace; same-scope duplicate; canonical path escape and symlink rejection. |
 | Worktree | Clean automatic cleanup; preservation on modifications, untracked files, new commits, and cancellation. |
-| Ultra | Wire round trip; provider `ExtraHigh` mapping; thread persistence; no proactive-orchestration inheritance by a child. |
+| Ultra | Wire round trip; provider `Max` mapping; thread persistence; no proactive-orchestration inheritance by a child. |
 | Prompt cache | Ultra changes only the volatile tail; stable base/tool fingerprint; stable workflow-child prefix; requested/effective override dimensions. |
 | Desktop | Tool-card recognition; phase-to-detail navigation; child-thread navigation; Stop lifecycle; reconnect/read refresh; failed, stopped, and long-content presentation. |
 

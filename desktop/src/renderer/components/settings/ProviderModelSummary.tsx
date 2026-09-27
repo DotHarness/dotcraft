@@ -17,6 +17,7 @@ const reasoningLabelKeys: Record<ModelPreferenceReasoningEffort, MessageKey> = {
   medium: 'composer.reasoning.medium',
   high: 'composer.reasoning.high',
   extraHigh: 'composer.reasoning.extraHigh',
+  max: 'composer.reasoning.max',
   ultra: 'composer.reasoning.ultra'
 }
 
@@ -45,7 +46,6 @@ export function ProviderModelSummary({ main, subAgent, mainLabel }: ProviderMode
     [
       preference.model,
       reasoningLabel(preference),
-      preference.contextWindow.mode === 'max' ? 'MAX' : null
     ].filter(Boolean).join(' · '),
     preference.speed === 'fast'
   )

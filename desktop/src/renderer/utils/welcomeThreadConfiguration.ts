@@ -2,7 +2,6 @@ import type { ThreadMode } from '../types/conversation'
 import type { ThreadConfiguration } from '@dotcraft/sdk/contracts'
 import type {
   ApprovalPolicyWire,
-  ContextWindowConfigurationWire,
   InferenceSpeedWire,
   ReasoningConfigurationWire
 } from '../types/thread'
@@ -13,7 +12,6 @@ export interface WelcomeThreadConfigurationInput {
   model?: string
   reasoning: ReasoningConfigurationWire
   speed?: InferenceSpeedWire
-  contextWindow?: ContextWindowConfigurationWire
   approvalPolicy?: Extract<ApprovalPolicyWire, 'prompt' | 'autoApprove'>
   approvalPolicyExplicit: boolean
   agentProfileId?: string | null
@@ -42,7 +40,6 @@ export function buildWelcomeThreadConfiguration(
   }
   config.reasoning = { ...input.reasoning }
   if (input.speed) config.speed = input.speed
-  if (input.contextWindow) config.contextWindow = { ...input.contextWindow }
 
   return config
 }

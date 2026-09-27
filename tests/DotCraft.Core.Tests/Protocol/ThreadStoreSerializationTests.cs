@@ -78,6 +78,7 @@ public sealed class ThreadStoreSerializationTests
     [InlineData("xhigh", ModelReasoningEffort.ExtraHigh)]
     [InlineData("medium", ModelReasoningEffort.Medium)]
     [InlineData("ultra", ModelReasoningEffort.Ultra)]
+    [InlineData("max", ModelReasoningEffort.Max)]
     public void SessionPersistenceJsonOptions_ReadsReasoningEffortStringsAndAliases(
         string rawEffort,
         ModelReasoningEffort expected)
@@ -99,23 +100,27 @@ public sealed class ThreadStoreSerializationTests
         Assert.Equal(ReasoningOutput.Full, config.Reasoning.Output);
     }
 
-    [Fact]
-    public void SessionJsonOptions_WritesCanonicalReasoningStrings()
+    [Theory]
+    [InlineData(ModelReasoningEffort.ExtraHigh, "extraHigh")]
+    [InlineData(ModelReasoningEffort.Max, "max")]
+    [InlineData(ModelReasoningEffort.Ultra, "ultra")]
+    public void SessionJsonOptions_WritesCanonicalReasoningStrings(ModelReasoningEffort effort, string expected)
     {
         var config = new ThreadConfiguration
         {
             Reasoning = new()
             {
                 Enabled = true,
-                Effort = ModelReasoningEffort.ExtraHigh,
+                Effort = effort,
                 Output = ReasoningOutput.Summary
             }
         };
 
         var json = JsonSerializer.Serialize(config, SessionJsonOptions.Default);
 
-        Assert.Contains("\"effort\":\"extraHigh\"", json);
-        Assert.Contains("\"output\":\"summary\"", json);
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal(expected, document.RootElement.GetProperty("reasoning").GetProperty("effort").GetString());
+        Assert.Equal("summary", document.RootElement.GetProperty("reasoning").GetProperty("output").GetString());
     }
 
     private sealed class UnknownTestAiContent : AIContent

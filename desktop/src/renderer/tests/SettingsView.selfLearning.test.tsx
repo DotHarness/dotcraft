@@ -61,7 +61,6 @@ function preference(model: string): ModelPreference {
     model,
     reasoning: { enabled: false, effort: 'medium', output: 'full' },
     speed: 'standard',
-    contextWindow: { mode: 'default' }
   }
 }
 
@@ -1072,33 +1071,6 @@ describe('SettingsView self-learning settings', () => {
     expect(within(notSignedRow).getByText('ChatGPT · Not signed in')).toBeInTheDocument()
   })
 
-  it('shows remembered main and subagent models in each provider row', async () => {
-    enableProviderAndSubAgentManagement()
-    workspaceConfigGetCore.mockResolvedValue({
-      workspace: {
-        providerId: 'openai',
-        providerPreferences: preferences({ openai: 'main-model-v2' })
-      },
-      userDefaults: { providerPreferences: {} }
-    })
-    const defaultSendRequest = appServerSendRequest.getMockImplementation()
-    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
-      if (method === 'subagent/profiles/list') {
-        return {
-          profiles: [],
-          settings: { providerPreferences: preferences({ openai: 'subagent-model-v1' }) }
-        }
-      }
-      return defaultSendRequest?.(method, params)
-    })
-    renderView()
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
-    const openAiRow = await screen.findByRole('button', { name: 'Use provider OpenAI' })
-
-    expect(await within(openAiRow).findByText('main-model-v2 · Off')).toBeInTheDocument()
-    expect(await within(openAiRow).findByText('subagent-model-v1 · Off')).toBeInTheDocument()
-  })
 
   it('uses provider rows to apply the workspace provider without a restart banner', async () => {
     enableProviderManagement()

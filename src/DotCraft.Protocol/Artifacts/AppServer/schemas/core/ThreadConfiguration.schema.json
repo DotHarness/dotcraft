@@ -110,16 +110,6 @@
         }
       ]
     },
-    "contextWindow": {
-      "anyOf": [
-        {
-          "$ref": "./ThreadContextWindowConfig.schema.json"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "customTools": {
       "anyOf": [
         {

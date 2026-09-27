@@ -21,7 +21,7 @@ import {
   threadComposerDraftHasContent,
   type ThreadComposerDraftInput
 } from '../../stores/composerDraftStore'
-import type { ContextUsageSnapshotWire, ContextWindowMode, ThreadGoal } from '../../types/thread'
+import type { ContextUsageSnapshotWire, ThreadGoal } from '../../types/thread'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { wireTurnToConversationTurn } from '../../types/conversation'
 import type {
@@ -103,7 +103,6 @@ const MAX_IMAGES = 5
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const MANUAL_COMPACTION_TIMEOUT_MS = 5 * 60 * 1000
 
-
 /** AppServer maps a running turn and active maintenance alike onto this code. */
 const TURN_IN_PROGRESS_RPC_CODE = -32012
 
@@ -153,11 +152,6 @@ interface InputComposerProps {
   onReasoningChange?: (value: ReasoningQuickValue) => void
   onSpeedChange?: (value: InferenceSpeedWire) => void
   onModelCatalogRetry?: () => void
-  contextMode?: ContextWindowMode
-  contextSupportsMax?: boolean
-  contextDegraded?: boolean
-  contextConfiguredWindow?: number
-  onContextModeChange?: (mode: ContextWindowMode) => void
   /**
    * Hides the workspace/worktree footer, the approval-policy picker and the ChatGPT badge
    * for embedded composers; the core input (attach, plan, reasoning, model, send) is kept.
@@ -233,11 +227,6 @@ function InputComposerCore({
   onReasoningChange,
   onSpeedChange,
   onModelCatalogRetry,
-  contextMode,
-  contextSupportsMax,
-  contextDegraded,
-  contextConfiguredWindow,
-  onContextModeChange,
   minimalChrome = false,
   mascotName,
   variant = 'default',
@@ -1666,8 +1655,6 @@ function InputComposerCore({
     modelCatalog,
     reasoningValue,
     speedValue,
-    contextMode,
-    contextDegraded
   })
   return (
     <>
@@ -1700,7 +1687,6 @@ function InputComposerCore({
         mascotInteraction={mascotInteraction}
         mascotReasoningEffort={mascotEffectState.reasoningEffort}
         mascotSpeed={mascotEffectState.speed}
-        mascotContextMax={mascotEffectState.contextMax}
         mascotName={effectiveMascotName}
         mascotHandoff
         attachmentStrip={
@@ -1950,11 +1936,6 @@ function InputComposerCore({
                 onReasoningChange={onReasoningChange}
                 onSpeedChange={onSpeedChange}
                 onRetry={onModelCatalogRetry}
-                contextMode={contextMode}
-                contextSupportsMax={contextSupportsMax}
-                contextDegraded={contextDegraded}
-                contextConfiguredWindow={contextConfiguredWindow}
-                onContextModeChange={onContextModeChange}
                 shortcut={ACTION_SHORTCUTS.selectModel}
                 triggerStyle={composerModelPillStyle(
                   modelDisabled || modelLoading ? 'var(--composer-footer-muted)' : 'var(--composer-footer-highlight)',

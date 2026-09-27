@@ -139,7 +139,6 @@ describe('AgentBuilderView creation', () => {
                   model: 'gpt-5.5',
                   reasoning: { enabled: true, effort: 'high', output: 'full' },
                   speed: 'fast',
-                  contextWindow: { mode: 'max' }
                 }
               }
             },
@@ -273,7 +272,6 @@ describe('AgentBuilderView creation', () => {
             model: 'provider-model',
             reasoning: { enabled: false, effort: 'medium', output: 'full' },
             speed: 'standard',
-            contextWindow: { mode: 'default' }
           }
         }
       }
@@ -533,9 +531,7 @@ describe('AgentBuilderView creation', () => {
   reasoning:
     enabled: true
     effort: high
-  speed: fast
-  contextWindow:
-    mode: max`)
+  speed: fast`)
 
     fireEvent.click(customSwitch)
     await waitFor(() => {

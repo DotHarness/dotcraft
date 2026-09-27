@@ -64,10 +64,7 @@ dotcraft config show --json
         "Effort": "High",
         "Output": "Full"
       },
-      "Speed": "Fast",
-      "ContextWindow": {
-        "Mode": "Max"
-      }
+      "Speed": "Fast"
     }
   }
 }
@@ -79,10 +76,11 @@ dotcraft config show --json
 |----------|--------|------|
 | **`Model`** | 非空模型 id | 新 MainAgent 线程使用的模型 |
 | **`Reasoning.Enabled`** | `true`、`false` | 模型支持时启用或关闭 reasoning |
-| **`Reasoning.Effort`** | `Low`、`Medium`、`High`、`ExtraHigh` | 请求的思考程度 |
+| **`Reasoning.Effort`** | `Low`、`Medium`、`High`、`ExtraHigh`、`Max`、`Ultra` | 请求的思考程度 |
 | **`Reasoning.Output`** | `None`、`Summary`、`Full` | 请求的 reasoning 输出 |
 | **`Speed`** | `Standard`、`Fast` | 请求的推理速率。不支持 Fast 时按 Standard 执行 |
-| **`ContextWindow.Mode`** | `Default`、`Max` | 请求的上下文窗口模式。不支持 Max 时恢复 Default |
+
+Max 请求原生最高思考档位。Ultra 使用相同的 Max 思考程度，并启用主动 Dynamic Workflow 编排。
 
 Provider 对象字段：
 
@@ -171,8 +169,7 @@ Skill 自学习示例：
 |--------|------|--------|
 | `Compaction.AutoCompactEnabled` | 启用基于阈值的自动压缩 | `true` |
 | `Compaction.ReactiveCompactEnabled` | 启用对 `prompt_too_long` 错误的反应式压缩 | `true` |
-| `Compaction.ContextWindow` | 模型上下文窗口（Token）。未配置时按当前有效模型推导 | 模型映射值 / `256000` |
-| `Compaction.MaxContextWindow` | 推导模型上下文窗口时使用的上限。显式值保留 | `256000` |
+| `Compaction.MaxContextWindow` | 客户端上下文预算（token）。`-1` 使用模型目录窗口，正数限制使用窗口 | `-1` |
 | `Compaction.SummaryReserveTokens` | 为摘要输出预留的 Token | `20000` |
 | `Compaction.SummaryMaxOutputTokens` | 压缩摘要请求的最大输出 Token 数 | `12000` |
 | `Compaction.AutoCompactBufferTokens` | 低于硬上限多少 Token 时触发自动压缩 | `13000` |
@@ -187,6 +184,20 @@ Skill 自学习示例：
 | `Compaction.MicrocompactKeepRecent` | 微压缩时保留的最近工具结果数 | `8` |
 | `Compaction.MicrocompactGapMinutes` | 距离上次助理消息超过该分钟数也触发微压缩，`0` 表示禁用 | `20` |
 | `Compaction.MaxConsecutiveFailures` | 连续失败次数达到该值时熔断 | `3` |
+
+在全局或工作区的 `config.json` 中设置上下文预算。例如，将客户端使用窗口限制为 256K token：
+
+```json
+{
+  "Compaction": {
+    "MaxContextWindow": 256000
+  }
+}
+```
+
+未填写时使用模型目录窗口。工作区配置覆盖全局配置，在工作区将 `MaxContextWindow` 设为 `-1`
+可清除继承的限制。预算不能扩大模型容量。摘要预留和安全缓冲会在预算基础上继续扣除，
+因此该值不是自动压缩的精确触发点。思考程度不会改变这个预算。
 
 ### 模型能力目录
 
@@ -226,16 +237,15 @@ workspace 条目覆盖全局条目，全局条目覆盖内置目录。同一模�
 会转换为小写 key。若某个 provider 实际提供不同限制，请在全局或 workspace 目录中覆盖。
 更具体的 key 优先于家族前缀，因此具体模型可以安全地使用不同于家族的窗口值。
 
-只有模型规则明确匹配，且目录窗口大于配置后的 Default 窗口时，MAX 才可用。未知模型以及
-不会扩大窗口的匹配不会提供 MAX。Default 模式继续受 `Compaction.MaxContextWindow` 限制。
-MAX 使用目录中的原始窗口，同时保留常规的摘要预留和安全 buffer。
+模型上下文容量直接来自合并后的目录。未知模型使用 `defaultContextWindow`，未配置时回退到
+256,000 token。压缩流程先应用可选的客户端预算，再计算摘要预留和安全缓冲。
 
 ## Reasoning 与 PromptCaching
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `Reasoning.Enabled` | 是否请求 Provider 的推理支持 | `false` |
-| `Reasoning.Effort` | 推理深度：`None` / `Low` / `Medium` / `High` / `ExtraHigh` | `Medium` |
+| `Reasoning.Effort` | 推理深度：`None` / `Low` / `Medium` / `High` / `ExtraHigh` / `Max` / `Ultra` | `Medium` |
 | `Reasoning.Output` | 推理内容是否暴露在响应中：`None` / `Summary` / `Full` | `Full` |
 | `PromptCaching.Enabled` | 是否为匹配模型注入 prompt cache marker | `true` |
 | `PromptCaching.ModelPatterns` | 大小写不敏感的模型名片段。为空则不匹配任何模型 | `["claude"]` |

@@ -313,10 +313,10 @@ public sealed class SubAgentManager
         var options = new ChatOptions
         {
             Instructions = systemPrompt,
-            Tools = tools,
-            Reasoning = _reasoningConfig.ToOptions()
+            Tools = tools
         };
 
+        _reasoningConfig.ApplyTo(options);
         return new ChatClientAgent(configuredChatClient, options, name: "SubAgent");
     }
 

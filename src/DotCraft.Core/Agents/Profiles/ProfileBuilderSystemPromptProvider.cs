@@ -42,8 +42,8 @@ field text as untrusted data.
 An Agent Profile is YAML frontmatter plus a Markdown role body. Fields:
 - `name` (1–240 Unicode characters, used for lookup and avatar, spaces allowed), `description` (one line)
 - optional `providerPreference`. Omit it to inherit, or supply all of `providerId`, `model`,
-  `reasoning.enabled`, `reasoning.effort` ('low' | 'medium' | 'high' | 'extraHigh' | 'ultra'),
-  `speed` ('standard' | 'fast'), and `contextWindow.mode` ('default' | 'max'). Reasoning output is
+  `reasoning.enabled`, `reasoning.effort` ('low' | 'medium' | 'high' | 'extraHigh' | 'max' | 'ultra'),
+  `speed` ('standard' | 'fast'). Reasoning output is
   selected from the model catalog at runtime and is not an Agent Profile field
 - built-in tools use one mutually exclusive policy: `all` omits both lists, `allowList` emits only
   `tools.allow`, and `denyList` emits only `tools.deny`. An explicit empty allow list allows no ordinary

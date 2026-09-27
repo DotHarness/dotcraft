@@ -15,7 +15,6 @@ describe('buildWelcomeThreadConfiguration', () => {
       model: 'gpt-test',
       reasoning,
       speed: 'fast',
-      contextWindow: { mode: 'max' },
       approvalPolicy: 'autoApprove',
       approvalPolicyExplicit: false
     })
@@ -26,7 +25,6 @@ describe('buildWelcomeThreadConfiguration', () => {
       model: 'gpt-test',
       reasoning,
       speed: 'fast',
-      contextWindow: { mode: 'max' }
     })
     expect(config).not.toHaveProperty('approvalPolicy')
   })

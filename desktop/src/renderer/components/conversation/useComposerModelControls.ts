@@ -1,17 +1,15 @@
+import { buildReasoningPayload, readReasoningObject, DEFAULT_REASONING_CONFIG, type ResolvedReasoningConfig } from './modelReasoning'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConnectionStore } from '../../stores/connectionStore'
 import {
   useModelCatalogStore,
   type ModelCatalogItem,
   type InferenceSpeedWire,
-  type ReasoningEffortWire,
-  type ReasoningOutputWire
 } from '../../stores/modelCatalogStore'
 import { addToast } from '../../stores/toastStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { useConversationStore } from '../../stores/conversationStore'
 import { useProvidersStore, type ProviderSummary } from '../../stores/providersStore'
-import type { Thread, ThreadConfigurationWire, ContextWindowMode } from '../../types/thread'
+import type { Thread, ThreadConfigurationWire } from '../../types/thread'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
 import { parseJsonConfig } from '../../../shared/jsonConfig'
 import {
@@ -28,11 +26,6 @@ import {
   type ModelPreference
 } from '../../../shared/modelPreference'
 
-export interface ResolvedReasoningConfig {
-  enabled: boolean
-  effort: ReasoningEffortWire
-  output: ReasoningOutputWire
-}
 
 export interface ComposerModelControls {
   providerId: string
@@ -47,17 +40,10 @@ export interface ComposerModelControls {
   modelListUnsupportedEndpoint: boolean
   modelCatalogError: boolean
   modelCatalogErrorMessage: string | null
-  contextMode: ContextWindowMode
-  contextSupportsMax: boolean
-  /** Thread wants MAX but the effective model no longer supports it (catalog resolved). */
-  contextDegraded: boolean
-  /** Effective model's default compaction window, used for degraded copy. */
-  contextConfiguredWindow: number
   onModelChange: (model: string) => void
   onProviderChange: (providerId: string) => void
   onReasoningChange: (value: ReasoningQuickValue) => void
   onSpeedChange: (value: InferenceSpeedWire) => void
-  onContextModeChange: (mode: ContextWindowMode) => void
   onModelCatalogRetry: () => void
   threadStartConfig: ThreadConfigurationWire
 }
@@ -72,11 +58,6 @@ interface UseComposerModelControlsOptions {
   mode?: 'thread' | 'detached'
 }
 
-export const DEFAULT_REASONING_CONFIG: ResolvedReasoningConfig = {
-  enabled: false,
-  effort: 'medium',
-  output: 'full'
-}
 
 export function useComposerModelControls({
   workspacePath,
@@ -104,7 +85,6 @@ export function useComposerModelControls({
   const [modelName, setModelName] = useState<string>('Default')
   const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
   const [speedValue, setSpeedValue] = useState<InferenceSpeedWire>('standard')
-  const [contextMode, setContextMode] = useState<ContextWindowMode>('default')
   const [modelApplying, setModelApplying] = useState(false)
   // Every change reads the thread configuration before writing it back, so changes apply one after another.
   const updates = useRef(Promise.resolve())
@@ -115,7 +95,6 @@ export function useComposerModelControls({
   const [detachedReasoningTouched, setDetachedReasoningTouched] = useState(false)
   const [detachedReasoningOverride, setDetachedReasoningOverride] = useState<ResolvedReasoningConfig | null>(null)
   const [detachedSpeedTouched, setDetachedSpeedTouched] = useState(false)
-  const [detachedContextTouched, setDetachedContextTouched] = useState(false)
 
   const modelApiAvailable =
     capabilities?.modelCatalogManagement === true &&
@@ -208,16 +187,6 @@ export function useComposerModelControls({
     []
   )
 
-  const resolveEffectiveContextMode = useCallback((
-    thread: Thread | null,
-    workspaceCfg: Record<string, unknown>,
-    effectiveProviderId: string
-  ): ContextWindowMode => {
-    const threadMode = readThreadContextMode(thread?.configuration?.contextWindow ?? thread?.configuration?.ContextWindow)
-    if (!detached) return threadMode ?? 'default'
-    return threadMode ?? readWorkspacePreference(workspaceCfg, effectiveProviderId)?.contextWindow.mode ?? 'default'
-  }, [detached])
-
   const threadConfiguration = activeThread?.configuration ?? null
   // Thread snapshots arrive on a timer with new objects, so the resolve effect compares values.
   const threadConfigurationKey = useMemo(() => JSON.stringify([
@@ -225,7 +194,6 @@ export function useComposerModelControls({
     threadConfiguration?.model ?? threadConfiguration?.Model ?? null,
     readReasoningObject(threadConfiguration?.reasoning ?? threadConfiguration?.Reasoning),
     threadConfiguration?.speed ?? threadConfiguration?.Speed ?? null,
-    readThreadContextMode(threadConfiguration?.contextWindow ?? threadConfiguration?.ContextWindow)
   ]), [threadConfiguration])
 
   useEffect(() => {
@@ -251,9 +219,6 @@ export function useComposerModelControls({
         if (!detached || !detachedSpeedTouched) {
           setSpeedValue(resolveEffectiveSpeed(activeThread, workspaceCfg, effectiveProviderId))
         }
-        if (!detached || !detachedContextTouched) {
-          setContextMode(resolveEffectiveContextMode(activeThread, workspaceCfg, effectiveProviderId))
-        }
       } catch {
         if (disposed) return
         if (!detached || !detachedModelTouched) {
@@ -272,9 +237,6 @@ export function useComposerModelControls({
         if (!detached || !detachedSpeedTouched) {
           setSpeedValue(resolveEffectiveSpeed(activeThread, {}, ''))
         }
-        if (!detached || !detachedContextTouched) {
-          setContextMode(resolveEffectiveContextMode(activeThread, {}, ''))
-        }
       }
     }
 
@@ -289,13 +251,11 @@ export function useComposerModelControls({
     detachedModelTouched,
     detachedReasoningTouched,
     detachedSpeedTouched,
-    detachedContextTouched,
     readEffectiveWorkspaceConfig,
     resolveEffectiveModel,
     resolveEffectiveProvider,
     resolveEffectiveReasoning,
     resolveEffectiveSpeed,
-    resolveEffectiveContextMode,
     workspaceConfigChange,
     workspaceConfigChangeSeq
   ])
@@ -336,7 +296,6 @@ export function useComposerModelControls({
         }
         setModelName(nextModel)
         setReasoningConfig(resolveReasoningFromConfiguration(existingConfig))
-        setContextMode(resolveContextFromConfiguration(existingConfig))
         addToast(`Model switched to ${nextModel}`, 'success')
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -398,7 +357,6 @@ export function useComposerModelControls({
       setModelName(nextModel)
       setReasoningConfig(resolveReasoningFromConfiguration(existingConfig))
       setSpeedValue(readThreadSpeed(existingConfig))
-      setContextMode(resolveContextFromConfiguration(existingConfig))
       addToast(`Provider switched to ${nextProviderId}`, 'success')
     } catch (err) {
       await loadModels(false, providerId)
@@ -519,85 +477,12 @@ export function useComposerModelControls({
     [activeThread, detached, setCaseInsensitiveField, speedValue]
   )
 
-  const handleContextModeChange = useCallback(
-    async (nextMode: ContextWindowMode): Promise<void> => {
-      if (nextMode === contextMode) return
-      if (detached) {
-        setDetachedContextTouched(true)
-        setContextMode(nextMode)
-        return
-      }
-      if (!activeThread) return
-
-      setModelApplying(true)
-      const previousMode = contextMode
-      setContextMode(nextMode)
-      try {
-        const readRes = (await window.api.appServer.sendRequest('thread/read', {
-          threadId: activeThread.id,
-        })) as { thread?: { configuration?: ThreadConfigurationWire | null } }
-        const existingConfig =
-          readRes.thread?.configuration && typeof readRes.thread.configuration === 'object'
-            ? { ...(readRes.thread.configuration as Record<string, unknown>) }
-            : {}
-        setCaseInsensitiveField(existingConfig, 'contextWindow', { mode: nextMode })
-
-        await window.api.appServer.sendRequest('thread/config/update', {
-          threadId: activeThread.id,
-          config: existingConfig
-        })
-
-        const active = useThreadStore.getState().activeThread
-        if (active && active.id === activeThread.id) {
-          const mergedCfg: Record<string, unknown> = { ...(active.configuration ?? {}) }
-          setCaseInsensitiveField(mergedCfg, 'contextWindow', { mode: nextMode })
-          useThreadStore.getState().setActiveThread({
-            ...active,
-            configuration: mergedCfg as typeof active.configuration
-          })
-        }
-
-        // MAX changes the effective context window (the ring denominator), but the
-        // thread/updated broadcast does not refresh contextUsage. Re-read to update it.
-        try {
-          const refreshed = (await window.api.appServer.sendRequest('thread/read', {
-            threadId: activeThread.id,
-          })) as { thread?: { contextUsage?: unknown } }
-          const usage = refreshed.thread?.contextUsage
-          if (usage && useThreadStore.getState().activeThread?.id === activeThread.id) {
-            useConversationStore.getState().setContextUsage(usage as never)
-          }
-        } catch {
-          // Non-fatal: the ring will refresh on the next usage delta.
-        }
-
-        addToast(nextMode === 'max' ? 'MAX context on for this thread' : 'MAX context off', 'success')
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        setContextMode(previousMode)
-        addToast(
-          nextMode === 'max' ? `Couldn't enable MAX context: ${msg}` : `Failed to update MAX context: ${msg}`,
-          'error'
-        )
-      } finally {
-        setModelApplying(false)
-      }
-    },
-    [activeThread, contextMode, detached, setCaseInsensitiveField]
-  )
-
   const reasoningValue: ReasoningQuickValue =
     detached && detachedReasoningTouched && detachedReasoningOverride == null
       ? 'default'
       : reasoningConfig.enabled
         ? reasoningConfig.effort
         : 'off'
-
-  const activeCatalogItem = modelCatalog.find((item) => item.id === modelName)
-  const contextSupportsMax = activeCatalogItem?.contextWindow?.supportsMax === true
-  const contextConfiguredWindow = activeCatalogItem?.contextWindow?.configuredWindow ?? 0
-  // Only flag degraded once the catalog is resolved, so we do not false-alarm while it loads.
-  const contextDegraded = contextMode === 'max' && modelCatalogStatus === 'ready' && !contextSupportsMax
 
   const threadStartConfig = useMemo<ThreadConfigurationWire>(() => {
     if (!detached) return {}
@@ -608,14 +493,9 @@ export function useComposerModelControls({
       config.reasoning = detachedReasoningOverride
     }
     if (detachedSpeedTouched) config.speed = speedValue
-    if (detachedContextTouched) {
-      config.contextWindow = { mode: contextMode }
-    }
     return config
   }, [
-    contextMode,
     detached,
-    detachedContextTouched,
     detachedReasoningOverride,
     detachedReasoningTouched,
     detachedSpeedTouched,
@@ -640,10 +520,6 @@ export function useComposerModelControls({
       modelCatalogStatus === 'error' && modelCatalogErrorCode
         ? `${modelCatalogErrorCode}: ${modelCatalogErrorMessage ?? ''}`.trim()
         : modelCatalogErrorMessage,
-    contextMode,
-    contextSupportsMax,
-    contextDegraded,
-    contextConfiguredWindow,
     onModelChange: (model) => {
       enqueue(() => handleModelChange(model))
     },
@@ -656,66 +532,11 @@ export function useComposerModelControls({
     onSpeedChange: (speed) => {
       enqueue(() => handleSpeedChange(speed))
     },
-    onContextModeChange: (nextMode) => {
-      enqueue(() => handleContextModeChange(nextMode))
-    },
     onModelCatalogRetry: () => {
       void loadModels(true, providerId)
     },
     threadStartConfig
   }
-}
-
-function buildReasoningPayload(
-  value: ReasoningQuickValue,
-  current: ResolvedReasoningConfig
-): ResolvedReasoningConfig | null {
-  if (value === 'default') return null
-  if (value === 'off') {
-    return {
-      enabled: false,
-      effort: current.effort || 'medium',
-      output: current.output || 'full'
-    }
-  }
-  return {
-    enabled: true,
-    effort: value,
-    output: current.output || 'full'
-  }
-}
-
-function readReasoningObject(value: unknown): ResolvedReasoningConfig | null {
-  if (!value || typeof value !== 'object') return null
-  const obj = value as Record<string, unknown>
-  const enabledRaw = obj.enabled ?? obj.Enabled
-  const effort = normalizeReasoningEffort(obj.effort ?? obj.Effort)
-  const output = normalizeReasoningOutput(obj.output ?? obj.Output)
-  return {
-    enabled: typeof enabledRaw === 'boolean' ? enabledRaw : false,
-    effort: effort ?? 'medium',
-    output: output ?? 'full'
-  }
-}
-
-function normalizeReasoningEffort(value: unknown): ReasoningEffortWire | null {
-  if (typeof value !== 'string') return null
-  const normalized = value.replace(/[-_\s]/g, '').toLowerCase()
-  if (normalized === 'low') return 'low'
-  if (normalized === 'medium') return 'medium'
-  if (normalized === 'high') return 'high'
-  if (normalized === 'extrahigh') return 'extraHigh'
-  if (normalized === 'ultra') return 'ultra'
-  return null
-}
-
-function normalizeReasoningOutput(value: unknown): ReasoningOutputWire | null {
-  if (typeof value !== 'string') return null
-  const normalized = value.trim().toLowerCase()
-  if (normalized === 'none') return 'none'
-  if (normalized === 'summary') return 'summary'
-  if (normalized === 'full') return 'full'
-  return null
 }
 
 function reasoningQuickToastLabel(value: ReasoningQuickValue): string {
@@ -724,6 +545,7 @@ function reasoningQuickToastLabel(value: ReasoningQuickValue): string {
   if (value === 'medium') return 'Medium'
   if (value === 'high') return 'High'
   if (value === 'extraHigh') return 'Extra High'
+  if (value === 'max') return 'Max'
   if (value === 'ultra') return 'Ultra'
   return 'Default'
 }
@@ -743,7 +565,6 @@ function applyPreferenceToThreadConfig(
   config.model = preference.model
   config.reasoning = { ...preference.reasoning }
   config.speed = preference.speed
-  config.contextWindow = { ...preference.contextWindow }
 }
 
 function readThreadSpeed(config: Record<string, unknown>): InferenceSpeedWire {
@@ -767,24 +588,9 @@ function applyModelCompatibility(config: Record<string, unknown>, model: ModelCa
     }
   }
 
-  if (model?.contextWindow?.supportsMax !== true) {
-    const contextKey = Object.keys(config).find((key) => key.toLowerCase() === 'contextwindow')
-    config[contextKey ?? 'contextWindow'] = { mode: 'default' }
-  }
 }
 
 function resolveReasoningFromConfiguration(config: Record<string, unknown>): ResolvedReasoningConfig {
   const key = Object.keys(config).find((candidate) => candidate.toLowerCase() === 'reasoning')
   return readReasoningObject(key ? config[key] : null) ?? DEFAULT_REASONING_CONFIG
-}
-
-function resolveContextFromConfiguration(config: Record<string, unknown>): ContextWindowMode {
-  const key = Object.keys(config).find((candidate) => candidate.toLowerCase() === 'contextwindow')
-  return readThreadContextMode(key ? config[key] : null) ?? 'default'
-}
-
-function readThreadContextMode(raw: unknown): ContextWindowMode | null {
-  if (!raw || typeof raw !== 'object') return null
-  const record = raw as Record<string, unknown>
-  return (record.mode ?? record.Mode) === 'max' ? 'max' : 'default'
 }

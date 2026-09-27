@@ -42,7 +42,7 @@ export interface ComposerMascotInteraction {
   hold?: 'sign'
 }
 
-export type ComposerMascotReasoningEffort = 'off' | 'low' | 'medium' | 'high' | 'extraHigh'
+export type ComposerMascotReasoningEffort = 'off' | 'low' | 'medium' | 'high' | 'extraHigh' | 'max'
 export type ComposerMascotSpeed = 'standard' | 'fast'
 
 export const DECISION_MASCOT: ComposerMascotInteraction = { expression: 'operator', hold: 'sign' }
@@ -81,7 +81,6 @@ interface ComposerShellProps {
   mascotInteraction?: ComposerMascotInteraction
   mascotReasoningEffort?: ComposerMascotReasoningEffort
   mascotSpeed?: ComposerMascotSpeed
-  mascotContextMax?: boolean
   mascotName?: string
   mascotHandoff?: boolean
   /** How the desktop pet treats this composer; defaults to chat when it can chat, else decision. */
@@ -122,7 +121,6 @@ export function ComposerShell({
   mascotInteraction,
   mascotReasoningEffort = 'off',
   mascotSpeed = 'standard',
-  mascotContextMax = false,
   mascotName,
   mascotHandoff = false,
   petSurface
@@ -189,7 +187,6 @@ export function ComposerShell({
     }
   }, [topAccessoryVisible])
 
-
   return (
     <div
       data-composer-root
@@ -218,7 +215,6 @@ export function ComposerShell({
           renderCharacter={(character, context) => <DesktopPluginSurface name="composer.mascot" context={{ ...desktopPluginSurfaceContext, ...context }}>{character}</DesktopPluginSurface>}
           reasoningEffort={mascotReasoningEffort}
           speed={mascotSpeed}
-          contextMax={mascotContextMax}
           name={mascotName}
           appearance={petAppearance}
           onNameRendered={setRenderedMascotAvatar}

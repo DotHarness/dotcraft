@@ -5,7 +5,6 @@ using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions.Wire;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
-using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceContextWindow;
 
 namespace DotCraft.AppServer;
 
@@ -32,12 +31,6 @@ internal static class ThreadConfigurationContractMapper
         Reasoning = value.Reasoning is null
             ? default
             : Protocol.Optional<Contract.ReasoningConfig?>.FromValue(ToContract(value.Reasoning)),
-        ContextWindow = value.ContextWindow is null
-            ? default
-            : Protocol.Optional<Contract.ThreadContextWindowConfig?>.FromValue(new Contract.ThreadContextWindowConfig
-            {
-                Mode = WireString(value.ContextWindow.Mode)
-            }),
         WorkspaceOverride = OmitIfNull(value.WorkspaceOverride),
         Cwd = OmitIfNull(value.Cwd),
         RuntimeWorkspaceRoots = OmitIfNull<IReadOnlyList<string>>(value.RuntimeWorkspaceRoots),
@@ -72,17 +65,11 @@ internal static class ThreadConfigurationContractMapper
         RequireApprovalOutsideWorkspace = OmitIfNull(value.RequireApprovalOutsideWorkspace)
     };
 
-    public static Contract.ModelPreferenceContextWindow ToContract(ModelPreferenceContextWindow value) => new()
-    {
-        Mode = WireString(value.Mode)
-    };
-
     public static Contract.ModelPreference ToContract(ModelPreference value) => new()
     {
         Model = value.Model,
         Reasoning = ToContract(value.Reasoning),
         Speed = WireString(value.Speed),
-        ContextWindow = ToContract(value.ContextWindow)
     };
 
     public static ModelPreference FromContract(Contract.ModelPreference value) => new()
@@ -92,12 +79,6 @@ internal static class ThreadConfigurationContractMapper
             ? FromContract(reasoning)
             : new AppConfig.ReasoningConfig(),
         Speed = ParseEnum(ValueOrDefault(value.Speed), InferenceSpeed.Standard),
-        ContextWindow = ValueOrDefault(value.ContextWindow) is { } contextWindow
-            ? new ModelPreferenceContextWindow
-            {
-                Mode = ParseEnum(ValueOrDefault(contextWindow.Mode), ContextWindowMode.Default)
-            }
-            : new ModelPreferenceContextWindow()
     };
 
     public static Domain.ThreadConfiguration FromContract(Contract.ThreadConfiguration value) => new()
@@ -115,12 +96,6 @@ internal static class ThreadConfigurationContractMapper
         Model = ValueOrDefault(value.Model),
         Speed = ParseNullableEnum<InferenceSpeed>(ValueOrDefault(value.Speed)),
         Reasoning = ValueOrDefault(value.Reasoning) is { } reasoning ? FromContract(reasoning) : null,
-        ContextWindow = ValueOrDefault(value.ContextWindow) is { } contextWindow
-            ? new Domain.ThreadContextWindowConfig
-            {
-                Mode = ParseEnum(ValueOrDefault(contextWindow.Mode), ContextWindowMode.Default)
-            }
-            : null,
         WorkspaceOverride = ValueOrDefault(value.WorkspaceOverride),
         Cwd = ValueOrDefault(value.Cwd),
         RuntimeWorkspaceRoots = ValueOrDefault(value.RuntimeWorkspaceRoots)?.ToArray(),
@@ -207,6 +182,7 @@ internal static class ThreadConfigurationContractMapper
             "high" => ModelReasoningEffort.High,
             "extrahigh" or "xhigh" => ModelReasoningEffort.ExtraHigh,
             "ultra" => ModelReasoningEffort.Ultra,
+            "max" => ModelReasoningEffort.Max,
             _ => ModelReasoningEffort.Medium
         };
     }

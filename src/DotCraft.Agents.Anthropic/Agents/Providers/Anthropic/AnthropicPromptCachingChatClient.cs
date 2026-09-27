@@ -1,3 +1,4 @@
+using DotCraft.Configuration;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
@@ -307,7 +308,7 @@ internal sealed class AnthropicPromptCachingChatClient : DelegatingChatClient
 
         var canonical = JsonSerializer.Serialize(new
         {
-            Effort = reasoning.Effort?.ToString(),
+            Effort = ProviderReasoningOptions.Resolve(options)?.ToToken(),
             Output = reasoning.Output.ToString()
         });
         return ComputeHash(new StringBuilder(canonical));

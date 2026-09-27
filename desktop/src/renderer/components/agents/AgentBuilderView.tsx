@@ -80,7 +80,6 @@ import { DetachedAgentBuilderChat } from './DetachedAgentBuilderChat'
 import { AgentEditingCursor, FieldAnchor, type AgentEditingPhase } from './AgentEditingCursor'
 import './AgentBuilderView.css'
 
-
 interface ProfileEntry {
   id: string
   name?: string
@@ -130,7 +129,6 @@ function toAgentProviderPreference(
       effort: preference.reasoning.effort
     },
     speed: preference.speed,
-    contextWindow: { mode: preference.contextWindow.mode }
   }
 }
 
@@ -909,7 +907,6 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
         output: selectedModel?.reasoning?.defaultOutput ?? 'full'
       },
       speed: preference.speed,
-      contextWindow: { mode: preference.contextWindow.mode }
     }
   }, [draft.providerPreference, selectedModel])
   const providerSelectOptions = useMemo(() => {

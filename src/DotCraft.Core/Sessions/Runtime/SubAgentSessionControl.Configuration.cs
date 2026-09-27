@@ -1,7 +1,6 @@
 using DotCraft.Configuration;
 using DotCraft.Tools;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
-using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceContextWindow;
 
 namespace DotCraft.Sessions;
 
@@ -34,10 +33,6 @@ public static partial class SubAgentSessionControl
                 Model = child.Model ?? string.Empty,
                 Reasoning = ThreadConfigurationCloner.CloneNullableReasoningConfig(child.Reasoning) ?? new AppConfig.ReasoningConfig(),
                 Speed = child.Speed ?? InferenceSpeed.Standard,
-                ContextWindow = new ModelPreferenceContextWindow
-                {
-                    Mode = child.ContextWindow?.Mode ?? ContextWindowMode.Default
-                }
             };
             var preference = nativeSubAgentPreference == null
                 ? parentPreference
@@ -58,7 +53,6 @@ public static partial class SubAgentSessionControl
             child.Model = preference.Model;
             child.Reasoning = ThreadConfigurationCloner.CloneNullableReasoningConfig(preference.Reasoning);
             child.Speed = preference.Speed;
-            child.ContextWindow = new ThreadContextWindowConfig { Mode = preference.ContextWindow.Mode };
         }
 
         child.RoleInstructions = NormalizeOptional(role.Instructions);

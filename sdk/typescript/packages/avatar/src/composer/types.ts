@@ -8,9 +8,8 @@ export interface ComposerMascotContext {
   expression: MascotExpression
   light: MascotLight
   submitRevision: number
-  reasoningEffort: 'off' | 'low' | 'medium' | 'high' | 'extraHigh'
+  reasoningEffort: 'off' | 'low' | 'medium' | 'high' | 'extraHigh' | 'max'
   speed: 'standard' | 'fast'
-  contextMax: boolean
   reducedMotion: boolean
 }
 export interface ComposerMascotProps {
@@ -25,7 +24,6 @@ export interface ComposerMascotProps {
   interaction?: { expression?: MascotExpression; light?: MascotLight; hold?: 'sign'; bubble?: ReactNode }
   reasoningEffort?: ComposerMascotContext['reasoningEffort']
   speed?: ComposerMascotContext['speed']
-  contextMax?: boolean
   anchorOffset?: number
   anchorPushSignal?: number
   handoff?: boolean

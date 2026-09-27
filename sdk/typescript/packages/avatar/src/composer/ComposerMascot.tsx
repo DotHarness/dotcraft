@@ -8,7 +8,7 @@ import { useComposerMotion } from './useComposerMotion.js'
 import { MASCOT_SIZE, MASCOT_SCALE, MASCOT_HIDDEN_RATIO, MASCOT_RAISE, MASCOT_SLEEP_AFTER_MS, MASCOT_WAVE_DURATION_MS, MASCOT_SPARKLES } from './constants.js'
 import { useMascotActiveIdle } from './useMascotActiveIdle.js'
 import type { ComposerMascotProps, ComposerMascotContext, MascotExpression, MascotLight } from './types.js'
-export function ComposerMascot({ name, appearance, motion = 'system', theme = 'dark', focused = false, dragOver = false, bounceSignal = 0, interaction, reasoningEffort = 'off', speed = 'standard', contextMax = false, anchorOffset = 0, anchorPushSignal = 0, handoff = false, renderCharacter, renderMenu, onNameRendered }: ComposerMascotProps) {
+export function ComposerMascot({ name, appearance, motion = 'system', theme = 'dark', focused = false, dragOver = false, bounceSignal = 0, interaction, reasoningEffort = 'off', speed = 'standard', anchorOffset = 0, anchorPushSignal = 0, handoff = false, renderCharacter, renderMenu, onNameRendered }: ComposerMascotProps) {
   const reduced = !useComposerMotion(motion)
   const { avatar, profileTransition, profileTransitionRevision } = useComposerProfile(name, reduced)
   const look = appearance && !avatar ? appearance : deriveAppearance(avatar ?? '')
@@ -111,7 +111,6 @@ export function ComposerMascot({ name, appearance, motion = 'system', theme = 'd
     submitRevision: bounceSignal,
     reasoningEffort,
     speed,
-    contextMax,
     reducedMotion: reduced
   }
   useLayoutEffect(() => {
@@ -333,7 +332,6 @@ export function ComposerMascot({ name, appearance, motion = 'system', theme = 'd
       data-mascot-theme={theme}
       data-mascot-effort={reasoningEffort}
       data-mascot-speed={speed}
-      data-mascot-context={contextMax ? 'max' : 'default'}
       data-mascot-profile-transition={profileTransition ? 'active' : 'idle'}
       {...idle.attributes}
       data-mascot-anchor-offset={anchorOffset}

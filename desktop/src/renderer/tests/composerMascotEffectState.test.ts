@@ -27,40 +27,23 @@ describe('resolveComposerMascotEffectState', () => {
       modelCatalog: [MODEL],
       reasoningValue: 'default',
       speedValue: 'fast',
-      contextMode: 'default'
     })).toEqual({
       reasoningEffort: 'medium',
       speed: 'fast',
-      contextMax: false
     })
   })
 
-  it('degrades unsupported Fast and keeps degraded MAX visible', () => {
+  it('degrades unsupported Fast', () => {
     expect(resolveComposerMascotEffectState({
       modelName: 'unknown-model',
       modelCatalog: [MODEL],
       reasoningValue: 'extraHigh',
       speedValue: 'fast',
-      contextMode: 'max',
-      contextDegraded: true
     })).toEqual({
       reasoningEffort: 'extraHigh',
       speed: 'standard',
-      contextMax: true
     })
   })
 
-  it('maps Ultra to the exact Extra High mascot effect state', () => {
-    expect(resolveComposerMascotEffectState({
-      modelName: MODEL.id,
-      modelCatalog: [MODEL],
-      reasoningValue: 'ultra',
-      speedValue: 'fast',
-      contextMode: 'max'
-    })).toEqual({
-      reasoningEffort: 'extraHigh',
-      speed: 'fast',
-      contextMax: true
-    })
-  })
+
 })

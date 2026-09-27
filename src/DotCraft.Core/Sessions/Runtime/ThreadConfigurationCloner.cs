@@ -24,7 +24,6 @@ internal static class ThreadConfigurationCloner
             : SubAgentModelCatalogSnapshots.Clone(source.SubAgentModelCatalogSnapshot),
         Reasoning = CloneNullableReasoningConfig(source.Reasoning),
         Speed = source.Speed,
-        ContextWindow = CloneNullableContextWindowConfig(source.ContextWindow),
         WorkspaceOverride = source.WorkspaceOverride,
         Cwd = source.Cwd,
         RuntimeWorkspaceRoots = source.RuntimeWorkspaceRoots == null ? null : [.. source.RuntimeWorkspaceRoots],
@@ -55,14 +54,6 @@ internal static class ThreadConfigurationCloner
         Effort = source.Effort,
         Output = source.Output
     };
-
-    internal static ThreadContextWindowConfig? CloneNullableContextWindowConfig(ThreadContextWindowConfig? source) =>
-        source == null
-            ? null
-            : new ThreadContextWindowConfig
-            {
-                Mode = source.Mode
-            };
 
     private static ThreadToolPolicy? CloneToolPolicy(ThreadToolPolicy? source) =>
         source == null

@@ -10,7 +10,6 @@ describe('workspace core model resolution', () => {
     model,
     reasoning: { enabled: false, effort: 'medium' as const, output: 'full' as const },
     speed,
-    contextWindow: { mode: 'default' as const }
   })
 
   it('prefers an explicit thread model over a provider-specific workspace model', () => {

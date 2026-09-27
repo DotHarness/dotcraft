@@ -4,9 +4,6 @@
   "title": "ModelPreference",
   "type": "object",
   "properties": {
-    "contextWindow": {
-      "$ref": "./ModelPreferenceContextWindow.schema.json"
-    },
     "model": {
       "type": "string"
     },

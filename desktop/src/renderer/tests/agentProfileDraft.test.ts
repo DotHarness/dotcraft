@@ -44,9 +44,7 @@ Inherited body.
   reasoning:
     enabled: true
     effort: ultra
-  speed: fast
-  contextWindow:
-    mode: max`)
+  speed: fast`)
     expect(parseProfile(markdown).providerPreference).toEqual(draft.providerPreference)
   })
 
@@ -95,8 +93,6 @@ providerPreference:
     effort: high
     output: full
   speed: fast
-  contextWindow:
-    mode: max
 ---
 `)
 
@@ -159,7 +155,6 @@ function createDraftWithProviderPreference(): ProfileDraft {
       model: 'gpt-5.6',
       reasoning: { enabled: true, effort: 'ultra' },
       speed: 'fast',
-      contextWindow: { mode: 'max' }
     },
     tools: { mode: 'all', allow: [], deny: [], agentControl: 'full' },
     mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
@@ -168,7 +163,6 @@ function createDraftWithProviderPreference(): ProfileDraft {
     roleInstructions: ''
   }
 }
-
 
 describe('canonical profile names', () => {
   it.each(['Night Shift', '夜班助手', '报告: "本周" / #1', 'true', "Agent's notes"])(

@@ -2,18 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { readModelPreference, toContractProviderPreferences } from '../../shared/modelPreference'
 
 describe('modelPreference', () => {
-  it('round-trips Ultra through the existing provider preference shape', () => {
+  it.each(['max', 'ultra'] as const)('round-trips %s through provider preferences', (effort) => {
     const preference = readModelPreference({
       model: 'gpt-5.5',
-      reasoning: { enabled: true, effort: 'ULTRA', output: 'full' },
-      speed: 'fast',
-      contextWindow: { mode: 'max' }
+      reasoning: { enabled: true, effort: effort.toUpperCase(), output: 'full' },
+      speed: 'fast'
     })
 
-    expect(preference?.reasoning.effort).toBe('ultra')
+    expect(preference?.reasoning.effort).toBe(effort)
     expect(toContractProviderPreferences({ openai: preference! })).toEqual({
       openai: expect.objectContaining({
-        reasoning: expect.objectContaining({ effort: 'ultra' })
+        reasoning: expect.objectContaining({ effort })
       })
     })
   })

@@ -689,7 +689,6 @@ public sealed class SubAgentSessionControlTests : IDisposable
                 Output = ReasoningOutput.Summary
             },
             Speed = InferenceSpeed.Fast,
-            ContextWindow = new ThreadContextWindowConfig { Mode = ContextWindowMode.Default }
         });
 
         var result = await SubAgentSessionControl.SpawnAgentAsync(
@@ -717,7 +716,6 @@ public sealed class SubAgentSessionControlTests : IDisposable
                         Output = ReasoningOutput.Summary
                     },
                     Speed = InferenceSpeed.Fast,
-                    ContextWindow = new ModelPreferenceContextWindow { Mode = ContextWindowMode.Default }
                 },
                 InvocationModelOverride = new SubAgentInvocationModelOverride
                 {
@@ -737,7 +735,6 @@ public sealed class SubAgentSessionControlTests : IDisposable
         Assert.Equal(expectedEffort, child.Configuration?.Reasoning?.Effort);
         Assert.Equal(ReasoningOutput.Summary, child.Configuration?.Reasoning?.Output);
         Assert.Equal(InferenceSpeed.Fast, child.Configuration?.Speed);
-        Assert.Equal(ContextWindowMode.Default, child.Configuration?.ContextWindow?.Mode);
     }
 
     [Fact]

@@ -32,23 +32,6 @@
   line-height: 1.2;
 }
 
-.model-picker-max {
-  flex-shrink: 0;
-  padding: 3px 5px;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  line-height: 1;
-}
-
-.model-picker-max.is-degraded {
-  background: color-mix(in srgb, var(--permission-full-access) 16%, transparent);
-  color: var(--permission-full-access);
-}
-
 .model-picker-model {
   display: inline-flex;
   max-width: 100%;

@@ -28,7 +28,6 @@ function ReviewMascot({ context }: DesktopPluginSurfaceProps<"composer.mascot">)
       data-light={context.light}
       data-effort={context.reasoningEffort}
       data-speed={context.speed}
-      data-context-max={context.contextMax ? "true" : "false"}
       data-reduced-motion={context.reducedMotion ? "true" : "false"}
       data-size={context.size}
       role="img"

@@ -54,13 +54,20 @@ internal sealed class AnthropicThinkingChatClient(
 
     internal ChatOptions? PrepareOptions(ChatOptions? options)
     {
-        var reasoning = options?.Reasoning
-                        ?? (_useDefaultReasoning ? _defaultReasoning : null)
-                        ?? CreateScopedReasoning();
-        if (_adapter == null || reasoning == null)
+        var reasoning = options?.Reasoning ?? (_useDefaultReasoning ? _defaultReasoning : null);
+        if (reasoning == null)
+        {
+            options = ProviderReasoningOptions.ApplyDefaults(options, ProviderPipelineOptionsScope.Current);
+            reasoning = options?.Reasoning;
+        }
+        var resolvedEffort = ProviderReasoningOptions.Resolve(options);
+        var adapter = _adapter ?? (resolvedEffort == ProviderReasoningEffort.Max
+            ? new ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData { OutputConfigEffort = FromReasoningEffort }
+            : null);
+        if (adapter == null || reasoning == null)
             return options;
 
-        var prepared = options?.Clone() ?? new ChatOptions();
+        var prepared = options == null ? new ChatOptions() : ProviderReasoningOptions.WithoutMetadata(options);
         var existingFactory = prepared.RawRepresentationFactory;
         prepared.RawRepresentationFactory = client =>
         {
@@ -70,8 +77,8 @@ internal sealed class AnthropicThinkingChatClient(
                 return CreateBetaParams(
                     betaParams,
                     prepared,
-                    _adapter,
-                    reasoning);
+                    adapter,
+                    reasoning, resolvedEffort);
             }
 
             if (IsAnthropicBetaClient(client))
@@ -79,8 +86,8 @@ internal sealed class AnthropicThinkingChatClient(
                 return CreateBetaParams(
                     null,
                     prepared,
-                    _adapter,
-                    reasoning);
+                    adapter,
+                    reasoning, resolvedEffort);
             }
 
             if (raw != null && raw is not AnthropicMessageCreateParams)
@@ -89,33 +96,22 @@ internal sealed class AnthropicThinkingChatClient(
             return CreateParams(
                 raw as AnthropicMessageCreateParams,
                 prepared,
-                _adapter,
-                reasoning);
+                adapter,
+                reasoning, resolvedEffort);
         };
 
         return prepared;
-    }
-
-    private static ReasoningOptions? CreateScopedReasoning()
-    {
-        var pipeline = ProviderPipelineOptionsScope.Current;
-        if (pipeline is not { ReasoningEnabled: true })
-            return null;
-        if (!Enum.TryParse<ReasoningEffort>(pipeline.ReasoningEffort, true, out var effort))
-            effort = ReasoningEffort.Medium;
-        if (!Enum.TryParse<ReasoningOutput>(pipeline.ReasoningOutput, true, out var output))
-            output = ReasoningOutput.Full;
-        return new ReasoningOptions { Effort = effort, Output = output };
     }
 
     private AnthropicMessageCreateParams CreateParams(
         AnthropicMessageCreateParams? existing,
         ChatOptions options,
         ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData adapter,
-        ReasoningOptions reasoning)
+        ReasoningOptions reasoning,
+        ProviderReasoningEffort? effort)
     {
         var thinking = CreateThinking(adapter, reasoning);
-        var outputConfig = CreateOutputConfig(existing?.OutputConfig, adapter, reasoning);
+        var outputConfig = CreateOutputConfig(existing?.OutputConfig, adapter, reasoning, effort);
         if (existing != null)
         {
             return new AnthropicMessageCreateParams(existing)
@@ -140,10 +136,11 @@ internal sealed class AnthropicThinkingChatClient(
         AnthropicBetaMessageCreateParams? existing,
         ChatOptions options,
         ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData adapter,
-        ReasoningOptions reasoning)
+        ReasoningOptions reasoning,
+        ProviderReasoningEffort? effort)
     {
         var thinking = CreateBetaThinking(adapter, reasoning);
-        var outputConfig = CreateBetaOutputConfig(existing?.OutputConfig, adapter, reasoning);
+        var outputConfig = CreateBetaOutputConfig(existing?.OutputConfig, adapter, reasoning, effort);
         if (existing != null)
         {
             return new AnthropicBetaMessageCreateParams(existing)
@@ -189,9 +186,10 @@ internal sealed class AnthropicThinkingChatClient(
     private static OutputConfig? CreateOutputConfig(
         OutputConfig? existing,
         ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData adapter,
-        ReasoningOptions reasoning)
+        ReasoningOptions reasoning,
+        ProviderReasoningEffort? resolvedEffort)
     {
-        var effort = ResolveEffort(adapter, reasoning);
+        var effort = resolvedEffort == ProviderReasoningEffort.Max ? AnthropicEffort.Max : ResolveEffort(adapter, reasoning);
         if (!effort.HasValue)
             return null;
 
@@ -225,9 +223,10 @@ internal sealed class AnthropicThinkingChatClient(
     private static AnthropicBetaOutputConfig? CreateBetaOutputConfig(
         AnthropicBetaOutputConfig? existing,
         ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData adapter,
-        ReasoningOptions reasoning)
+        ReasoningOptions reasoning,
+        ProviderReasoningEffort? resolvedEffort)
     {
-        var effort = ResolveBetaEffort(adapter, reasoning);
+        var effort = resolvedEffort == ProviderReasoningEffort.Max ? AnthropicBetaEffort.Max : ResolveBetaEffort(adapter, reasoning);
         if (!effort.HasValue)
             return null;
 

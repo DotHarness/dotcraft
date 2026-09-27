@@ -162,7 +162,6 @@ export interface AgentProfileListResult {
 }
 
 export interface AgentProfileProviderPreference {
-  contextWindow?: ModelPreferenceContextWindow;
   model?: string;
   providerId?: string;
   reasoning?: AgentProfileReasoningPreference;
@@ -2158,20 +2157,12 @@ export interface MemoryResetResult {
 }
 
 export interface ModelCatalogItem {
-  contextWindow?: ModelContextWindowCapability | null;
+  contextWindow?: number;
   createdAt?: string;
   id?: string;
   ownedBy?: string;
   reasoning?: ModelReasoningCapability | null;
   speed?: ModelSpeedCapability | null;
-  [key: string]: unknown;
-}
-
-export interface ModelContextWindowCapability {
-  catalogWindow?: number;
-  configuredWindow?: number;
-  maxWindow?: number;
-  supportsMax?: boolean;
   [key: string]: unknown;
 }
 
@@ -2191,15 +2182,9 @@ export interface ModelListResult {
 }
 
 export interface ModelPreference {
-  contextWindow?: ModelPreferenceContextWindow;
   model?: string;
   reasoning?: ReasoningConfig;
   speed?: string;
-  [key: string]: unknown;
-}
-
-export interface ModelPreferenceContextWindow {
-  mode?: string;
   [key: string]: unknown;
 }
 
@@ -3822,7 +3807,6 @@ export interface ThreadConfiguration {
   approvalPolicy?: string;
   approvalTimeoutSeconds?: number | null;
   automationTaskDirectory?: string | null;
-  contextWindow?: ThreadContextWindowConfig | null;
   customTools?: string[] | null;
   cwd?: string | null;
   developerInstructions?: string | null;
@@ -3847,11 +3831,6 @@ export interface ThreadConfiguration {
   toolProfile?: string | null;
   useToolProfileOnly?: boolean;
   workspaceOverride?: string | null;
-  [key: string]: unknown;
-}
-
-export interface ThreadContextWindowConfig {
-  mode?: string;
   [key: string]: unknown;
 }
 

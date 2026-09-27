@@ -92,7 +92,7 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
             "mode", ["all", "allowList", "denyList"]);
         AssertEnum(
             GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentProviderPreference(builder),
-            "reasoningEffort", ["low", "medium", "high", "extraHigh", "ultra"]);
+            "reasoningEffort", ["low", "medium", "high", "extraHigh", "max", "ultra"]);
     }
 
     [Fact]

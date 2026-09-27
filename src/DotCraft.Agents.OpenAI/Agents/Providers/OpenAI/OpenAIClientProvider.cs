@@ -60,7 +60,7 @@ public sealed partial class OpenAIClientProvider :
         ArgumentNullException.ThrowIfNull(runtime);
         var client = ModelProviderProtocols.Normalize(runtime.Protocol) switch
         {
-            ModelProviderProtocols.OpenAIChatCompletions => GetOpenAIChatClient(runtime).AsIChatClient(),
+            ModelProviderProtocols.OpenAIChatCompletions => new OpenAIMaxReasoningChatClient(GetOpenAIChatClient(runtime).AsIChatClient()),
             ModelProviderProtocols.OpenAIResponses => GetOpenAIResponsesChatClient(runtime),
             _ => throw new ArgumentException(
                 $"Unsupported OpenAI provider protocol '{runtime.Protocol}'.",

@@ -58,7 +58,6 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
             ReasoningEnabled = true,
             ReasoningEffort = "high",
             Speed = "fast",
-            ContextWindowMode = "max",
             ToolPolicyMode = "denyList",
             ToolsDeny = ["DeleteFile"],
             AgentControl = "allowList",
@@ -83,7 +82,6 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         Assert.Equal(draft.ReasoningEnabled, roundTripped.ReasoningEnabled);
         Assert.Equal(draft.ReasoningEffort, roundTripped.ReasoningEffort);
         Assert.Equal(draft.Speed, roundTripped.Speed);
-        Assert.Equal(draft.ContextWindowMode, roundTripped.ContextWindowMode);
         Assert.Equal(draft.ToolPolicyMode, roundTripped.ToolPolicyMode);
         Assert.Equal(draft.ToolsDeny, roundTripped.ToolsDeny);
         Assert.Equal(draft.AgentControl, roundTripped.AgentControl);

@@ -604,9 +604,6 @@
       "title": "AgentProfileProviderPreference",
       "type": "object",
       "properties": {
-        "contextWindow": {
-          "$ref": "#/$defs/ModelPreferenceContextWindow"
-        },
         "model": {
           "type": "string"
         },
@@ -8701,14 +8698,7 @@
       "type": "object",
       "properties": {
         "contextWindow": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ModelContextWindowCapability"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": "integer"
         },
         "createdAt": {
           "type": "string",
@@ -8739,25 +8729,6 @@
               "type": "null"
             }
           ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "ModelContextWindowCapability": {
-      "title": "ModelContextWindowCapability",
-      "type": "object",
-      "properties": {
-        "catalogWindow": {
-          "type": "integer"
-        },
-        "configuredWindow": {
-          "type": "integer"
-        },
-        "maxWindow": {
-          "type": "integer"
-        },
-        "supportsMax": {
-          "type": "boolean"
         }
       },
       "additionalProperties": true
@@ -8839,9 +8810,6 @@
       "title": "ModelPreference",
       "type": "object",
       "properties": {
-        "contextWindow": {
-          "$ref": "#/$defs/ModelPreferenceContextWindow"
-        },
         "model": {
           "type": "string"
         },
@@ -8849,16 +8817,6 @@
           "$ref": "#/$defs/ReasoningConfig"
         },
         "speed": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "ModelPreferenceContextWindow": {
-      "title": "ModelPreferenceContextWindow",
-      "type": "object",
-      "properties": {
-        "mode": {
           "type": "string"
         }
       },
@@ -15259,16 +15217,6 @@
             }
           ]
         },
-        "contextWindow": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ThreadContextWindowConfig"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "customTools": {
           "anyOf": [
             {
@@ -15505,16 +15453,6 @@
               "type": "null"
             }
           ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "ThreadContextWindowConfig": {
-      "title": "ThreadContextWindowConfig",
-      "type": "object",
-      "properties": {
-        "mode": {
-          "type": "string"
         }
       },
       "additionalProperties": true

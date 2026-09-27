@@ -212,16 +212,14 @@ public sealed class AgentFactory : IAsyncDisposable
         string sessionKey,
         string? providerIdOverride = null,
         string? modelOverride = null,
-        AppConfig? configOverride = null,
-        ContextWindowMode? contextWindowModeOverride = null)
+        AppConfig? configOverride = null)
     {
         var effectiveConfig = configOverride ?? _config;
         var runtime = _chatClientRegistry.ResolveMainRuntime(effectiveConfig, providerIdOverride, modelOverride);
         var effectiveMainModel = runtime.Model;
         var compactionConfig = ModelCatalog.ResolveCompactionConfig(
             effectiveConfig,
-            effectiveMainModel,
-            contextWindowModeOverride ?? effectiveConfig.Compaction.ContextWindowMode);
+            effectiveMainModel);
         var key = CompactionPipelineKey.From(
             string.IsNullOrWhiteSpace(sessionKey) ? string.Empty : sessionKey.Trim(),
             runtime,
@@ -851,15 +849,6 @@ public sealed class AgentFactory : IAsyncDisposable
     }
 
     /// <summary>
-    /// Creates provider-specific reasoning options based on the current configuration.
-    /// Returns <see langword="null"/> when reasoning is disabled.
-    /// </summary>
-    public ReasoningOptions? CreateReasoningOptions(AppConfig.ReasoningConfig? reasoningConfig = null)
-    {
-        return (reasoningConfig ?? _runtimeContext.EffectiveReasoning).ToOptions();
-    }
-
-    /// <summary>
     /// Gets the hook runner, if configured.
     /// </summary>
     public HookRunner? HookRunner => _hookRunner;
@@ -1013,12 +1002,12 @@ public sealed class AgentFactory : IAsyncDisposable
         var chatOptions = new ChatOptions
         {
             Tools = [.. tools],
-            Reasoning = CreateReasoningOptions(reasoningConfig),
             AllowMultipleToolCalls = runtime.IsChatGptOAuth && runtime.IsOpenAIResponses
                 ? true
                 : null
         };
 
+        reasoningConfig.ApplyTo(chatOptions);
         if (!string.IsNullOrWhiteSpace(instructions))
             chatOptions.Instructions = instructions;
 

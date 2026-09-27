@@ -1,3 +1,4 @@
+import { buildReasoningPayload, readReasoningObject, DEFAULT_REASONING_CONFIG, type ResolvedReasoningConfig } from './modelReasoning'
 import type { WelcomeDraft } from '../../stores/uiStore'
 import { useComposerContextStore } from '../../stores/composerContextStore'
 import type { ComposerContextRecord } from '../../../shared/composerContext'
@@ -18,7 +19,7 @@ import type { DesktopPluginSurfaceContext } from '@dotcraft/plugin'
 import { BookText, Bot, Bug, FileText, Link2, ListChecks, Sparkles, Target } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
-import { useModelCatalogStore, type InferenceSpeedWire, type ReasoningEffortWire, type ReasoningOutputWire } from '../../stores/modelCatalogStore'
+import { useModelCatalogStore, type InferenceSpeedWire } from '../../stores/modelCatalogStore'
 import { useProvidersStore, useChatGptOAuthSummary } from '../../stores/providersStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { usePerforceChangelistStore } from '../../stores/perforceChangelistStore'
@@ -30,7 +31,7 @@ import { addToast } from '../../stores/toastStore'
 import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
 import type { ComposerFileAttachment, ImageAttachment, ThreadMode } from '../../types/conversation'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
-import type { ContextWindowConfigurationWire, ContextWindowMode, ThreadSummary } from '../../types/thread'
+import type { ThreadSummary } from '../../types/thread'
 import { parseJsonConfig } from '../../../shared/jsonConfig'
 import {
   classifyDroppedComposerFiles,
@@ -125,17 +126,7 @@ interface ConversationWelcomeCoreProps extends ConversationWelcomeProps {
   setSelectedProfileId: Dispatch<SetStateAction<string | null>>
 }
 
-interface ResolvedReasoningConfig {
-  enabled: boolean
-  effort: ReasoningEffortWire
-  output: ReasoningOutputWire
-}
 
-const DEFAULT_REASONING_CONFIG: ResolvedReasoningConfig = {
-  enabled: false,
-  effort: 'medium',
-  output: 'full'
-}
 
 interface Suggestion {
   icon: ComponentType<{ size?: number; strokeWidth?: number; style?: CSSProperties }>
@@ -182,21 +173,6 @@ function normalizeWelcomeApprovalPolicy(value: unknown): VisibleApprovalPolicy |
   if (value === 'autoApprove') return 'autoApprove'
   if (value === 'prompt') return 'prompt'
   return null
-}
-
-function normalizeContextWindowMode(value: unknown): ContextWindowMode | null {
-  if (typeof value !== 'string') return null
-  const normalized = value.trim().toLowerCase()
-  if (normalized === 'max' || normalized === 'maximum') return 'max'
-  if (normalized === 'default') return 'default'
-  return null
-}
-
-function normalizeContextWindowConfig(value: unknown): ContextWindowConfigurationWire | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-  const obj = value as Record<string, unknown>
-  const mode = normalizeContextWindowMode(obj.mode ?? obj.Mode)
-  return mode == null ? null : { mode }
 }
 
 export function ConversationWelcome({
@@ -282,8 +258,6 @@ function ConversationWelcomeCore({
   const [providerId, setProviderId] = useState<string>('')
   const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
   const [speedValue, setSpeedValue] = useState<InferenceSpeedWire>('standard')
-  const [welcomeContextMode, setWelcomeContextMode] = useState<ContextWindowMode>('default')
-  const [welcomeContextExplicit, setWelcomeContextExplicit] = useState(false)
   const [modelApplying, setModelApplying] = useState(false)
   const [welcomeSuggestionsConfigReady, setWelcomeSuggestionsConfigReady] = useState(false)
   const [welcomeSuggestionsEnabled, setWelcomeSuggestionsEnabled] = useState(true)
@@ -447,9 +421,6 @@ function ConversationWelcomeCore({
     capabilities?.modelCatalogManagement === true &&
     capabilities?.workspaceConfigManagement === true
   const modelLoading = modelApiAvailable && modelCatalogStatus === 'loading'
-  const activeCatalogItem = modelCatalog.find((item) => item.id === modelName)
-  const contextSupportsMax = activeCatalogItem?.contextWindow?.supportsMax === true
-  const contextConfiguredWindow = activeCatalogItem?.contextWindow?.configuredWindow ?? 0
   const workspaceConfigPath = useMemo(() => {
     if (!workspacePath) return ''
     const normalized = workspacePath.replace(/[\\/]+$/, '')
@@ -874,11 +845,6 @@ function ConversationWelcomeCore({
       setWelcomeApprovalPolicyDirty(true)
       setWelcomeApprovalPolicy(explicitDraftApprovalPolicy)
     }
-    const explicitDraftContextWindow = normalizeContextWindowConfig(welcomeDraft.contextWindow)
-    if (explicitDraftContextWindow) {
-      setWelcomeContextMode(explicitDraftContextWindow.mode ?? 'default')
-      setWelcomeContextExplicit(true)
-    }
     const useResolvedWorkspacePair = workspaceLlmConfigResolvedRef.current
     setProviderId(
       useResolvedWorkspacePair && workspaceProviderFromConfigRef.current != null
@@ -918,8 +884,6 @@ function ConversationWelcomeCore({
           setModelName('Default')
           setReasoningConfig(DEFAULT_REASONING_CONFIG)
           setSpeedValue('standard')
-          setWelcomeContextMode('default')
-          setWelcomeContextExplicit(false)
         }
         return
       }
@@ -962,8 +926,6 @@ function ConversationWelcomeCore({
           setModelName(resolved.model || 'Default')
           setReasoningConfig(resolved.reasoning)
           setSpeedValue(resolved.speed)
-          setWelcomeContextMode(resolved.contextWindow.mode)
-          setWelcomeContextExplicit(false)
         }
       } catch {
         if (!disposed) {
@@ -975,8 +937,6 @@ function ConversationWelcomeCore({
             setModelName('Default')
             setReasoningConfig(DEFAULT_REASONING_CONFIG)
             setSpeedValue('standard')
-            setWelcomeContextMode('default')
-            setWelcomeContextExplicit(false)
           }
         }
       }
@@ -994,10 +954,6 @@ function ConversationWelcomeCore({
     workspaceConfigChangeSeq,
     workspaceConfigPath
   ])
-
-  const buildWelcomeContextWindowConfig = useCallback((): ContextWindowConfigurationWire | undefined => {
-    return welcomeContextExplicit ? { mode: welcomeContextMode } : undefined
-  }, [welcomeContextExplicit, welcomeContextMode])
 
   const contextKey = welcomeScopeKey(draftProjectKey)
   const contexts = useComposerContextStore((state) => state.getContexts(contextKey))
@@ -1018,7 +974,6 @@ function ConversationWelcomeCore({
       || model !== 'Default'
       || welcomeApprovalPolicyDirty
       || hasCustomReasoning
-      || welcomeContextExplicit
       || welcomeAppSelectionTouched
     const fallbackCaret = text.length
 
@@ -1036,11 +991,10 @@ function ConversationWelcomeCore({
       model,
       reasoning: reasoningConfig,
       speed: speedValue,
-      contextWindow: buildWelcomeContextWindowConfig(),
       approvalPolicy: welcomeApprovalPolicyDirty ? welcomeApprovalPolicy : undefined,
       appIds: welcomeAppSelectionTouched ? [...welcomeAppIds] : undefined
     }
-  }, [buildWelcomeContextWindowConfig, files, images, modelName, providerId, reasoningConfig, speedValue, welcomeAppIds, welcomeAppSelectionTouched, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeMode])
+  }, [files, images, modelName, providerId, reasoningConfig, speedValue, welcomeAppIds, welcomeAppSelectionTouched, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
 
   const flushWelcomeDraft = useCallback((): void => {
     if (skipDraftPersistRef.current) return
@@ -1083,7 +1037,7 @@ function ConversationWelcomeCore({
     return () => {
       clearTimeout(timer)
     }
-  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, speedValue, welcomeAppIds, welcomeAppSelectionTouched, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeContextMode, welcomeMode])
+  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, speedValue, welcomeAppIds, welcomeAppSelectionTouched, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
 
   useEffect(() => {
     return () => {
@@ -1121,23 +1075,19 @@ function ConversationWelcomeCore({
       setModelApplying(true)
       const previousModel = modelName
       const previousReasoning = reasoningConfig
-      const previousContext = welcomeContextMode
       const nextPreference = normalizePreferenceForModel({
         model: nextModel,
         reasoning: { ...reasoningConfig },
         speed: speedValue,
-        contextWindow: { mode: welcomeContextMode }
       }, modelCatalog)
       setModelName(nextPreference.model)
       setReasoningConfig(nextPreference.reasoning)
-      setWelcomeContextMode(nextPreference.contextWindow.mode)
       try {
         await persistWelcomePreference(nextPreference)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         setModelName(previousModel)
         setReasoningConfig(previousReasoning)
-        setWelcomeContextMode(previousContext)
         addToast(`Failed to save model: ${msg}`, 'error')
       } finally {
         setModelApplying(false)
@@ -1149,7 +1099,6 @@ function ConversationWelcomeCore({
       persistWelcomePreference,
       reasoningConfig,
       speedValue,
-      welcomeContextMode,
       workspaceConfigPath
     ]
   )
@@ -1180,8 +1129,6 @@ function ConversationWelcomeCore({
       setModelName(nextPreference.model)
       setReasoningConfig(nextPreference.reasoning)
       setSpeedValue(nextPreference.speed)
-      setWelcomeContextMode(nextPreference.contextWindow.mode)
-      setWelcomeContextExplicit(false)
     } catch (err) {
       setProviderId(previousProvider)
       setModelName(previousModel)
@@ -1208,7 +1155,6 @@ function ConversationWelcomeCore({
           model: modelName,
           reasoning: nextPayload ?? fallback,
           speed: speedValue,
-          contextWindow: { mode: welcomeContextMode }
         })
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -1218,7 +1164,7 @@ function ConversationWelcomeCore({
         setModelApplying(false)
       }
     },
-    [modelCatalog, modelName, persistWelcomePreference, reasoningConfig, speedValue, welcomeContextMode, workspaceConfigPath]
+    [modelCatalog, modelName, persistWelcomePreference, reasoningConfig, speedValue, workspaceConfigPath]
   )
 
   const handleSpeedChange = useCallback(async (nextSpeed: InferenceSpeedWire): Promise<void> => {
@@ -1231,7 +1177,6 @@ function ConversationWelcomeCore({
         model: modelName,
         reasoning: { ...reasoningConfig },
         speed: nextSpeed,
-        contextWindow: { mode: welcomeContextMode }
       })
     } catch (err) {
       setSpeedValue(previousSpeed)
@@ -1239,33 +1184,7 @@ function ConversationWelcomeCore({
     } finally {
       setModelApplying(false)
     }
-  }, [modelName, persistWelcomePreference, reasoningConfig, speedValue, welcomeContextMode, workspaceConfigPath])
-
-  const handleContextModeChange = useCallback(async (nextMode: ContextWindowMode): Promise<void> => {
-    const previousMode = welcomeContextMode
-    setWelcomeContextExplicit(true)
-    setWelcomeContextMode(nextMode)
-    setModelApplying(true)
-    try {
-      await persistWelcomePreference({
-        model: modelName,
-        reasoning: { ...reasoningConfig },
-        speed: speedValue,
-        contextWindow: { mode: nextMode }
-      })
-    } catch (err) {
-      setWelcomeContextMode(previousMode)
-      addToast(`Failed to save context window: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    } finally {
-      setModelApplying(false)
-    }
-  }, [modelName, persistWelcomePreference, reasoningConfig, speedValue, welcomeContextMode])
-
-  useEffect(() => {
-    if (!welcomeContextExplicit || welcomeContextMode !== 'max') return
-    if (modelCatalogStatus !== 'ready' || contextSupportsMax) return
-    setWelcomeContextMode('default')
-  }, [contextSupportsMax, modelCatalogStatus, welcomeContextExplicit, welcomeContextMode])
+  }, [modelName, persistWelcomePreference, reasoningConfig, speedValue, workspaceConfigPath])
 
   const saveDataUrlAsTemp = useCallback(
     async (dataUrl: string, fileName: string, mimeType: string): Promise<void> => {
@@ -1314,7 +1233,6 @@ function ConversationWelcomeCore({
       model: modelName,
       reasoning: reasoningConfig,
       speed: speedValue,
-      contextWindow: buildWelcomeContextWindowConfig(),
       approvalPolicy: welcomeApprovalPolicy,
       approvalPolicyExplicit: welcomeApprovalPolicyDirty,
       agentProfileId: selectedProfileId
@@ -1350,7 +1268,6 @@ function ConversationWelcomeCore({
     }
     return thread
   }, [
-    buildWelcomeContextWindowConfig,
     identityPath,
     modelName,
     providerId,
@@ -1810,7 +1727,6 @@ function ConversationWelcomeCore({
                 reasoningConfig.enabled ? reasoningConfig.effort : 'off'
               )}
               mascotSpeed={mascotSpeed}
-              mascotContextMax={welcomeContextMode === 'max'}
               mascotName={resolvedProfileName}
               attachmentStrip={
                 <AttachmentStrip
@@ -2028,11 +1944,6 @@ function ConversationWelcomeCore({
                       onSpeedChange={(nextSpeed) => {
                         void handleSpeedChange(nextSpeed)
                       }}
-                      contextMode={welcomeContextMode}
-                      contextSupportsMax={contextSupportsMax}
-                      contextDegraded={false}
-                      contextConfiguredWindow={contextConfiguredWindow}
-                      onContextModeChange={handleContextModeChange}
                       onRetry={() => {
                         void loadModels(true, providerId)
                       }}
@@ -2317,58 +2228,6 @@ async function deleteUnusedWelcomeThread(threadId: string): Promise<void> {
   } catch {
     // Best effort cleanup only; preserving the user's draft matters more than surfacing this secondary failure.
   }
-}
-
-function buildReasoningPayload(
-  value: ReasoningQuickValue,
-  current: ResolvedReasoningConfig
-): ResolvedReasoningConfig | null {
-  if (value === 'default') return null
-  if (value === 'off') {
-    return {
-      enabled: false,
-      effort: current.effort || 'medium',
-      output: current.output || 'full'
-    }
-  }
-  return {
-    enabled: true,
-    effort: value,
-    output: current.output || 'full'
-  }
-}
-
-function readReasoningObject(value: unknown): ResolvedReasoningConfig | null {
-  if (!value || typeof value !== 'object') return null
-  const obj = value as Record<string, unknown>
-  const enabledRaw = obj.enabled ?? obj.Enabled
-  const effort = normalizeReasoningEffort(obj.effort ?? obj.Effort)
-  const output = normalizeReasoningOutput(obj.output ?? obj.Output)
-  return {
-    enabled: typeof enabledRaw === 'boolean' ? enabledRaw : false,
-    effort: effort ?? 'medium',
-    output: output ?? 'full'
-  }
-}
-
-function normalizeReasoningEffort(value: unknown): ReasoningEffortWire | null {
-  if (typeof value !== 'string') return null
-  const normalized = value.replace(/[-_\s]/g, '').toLowerCase()
-  if (normalized === 'low') return 'low'
-  if (normalized === 'medium') return 'medium'
-  if (normalized === 'high') return 'high'
-  if (normalized === 'extrahigh') return 'extraHigh'
-  if (normalized === 'ultra') return 'ultra'
-  return null
-}
-
-function normalizeReasoningOutput(value: unknown): ReasoningOutputWire | null {
-  if (typeof value !== 'string') return null
-  const normalized = value.trim().toLowerCase()
-  if (normalized === 'none') return 'none'
-  if (normalized === 'summary') return 'summary'
-  if (normalized === 'full') return 'full'
-  return null
 }
 
 function getCaseInsensitiveConfigValue(record: Record<string, unknown>, key: string): unknown {

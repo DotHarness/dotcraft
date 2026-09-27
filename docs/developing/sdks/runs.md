@@ -92,8 +92,7 @@ var configuration = await client.Threads.UpdateModelConfigurationAsync(
     providerId: "<provider-id>",
     model: "<model-id>",
     reasoning: new ReasoningConfig { Enabled = true, Effort = "high" },
-    speed: null,
-    contextWindow: null);
+    speed: null);
 ```
 
 TypeScript exposes model discovery at the high level but not this configuration helper. Applications using the typed Wire layer must update the complete `ThreadConfiguration` and preserve fields they do not own. Do not infer model IDs or reasoning options across providers — use the catalog returned by the connected AppServer.

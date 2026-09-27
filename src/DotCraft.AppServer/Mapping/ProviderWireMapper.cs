@@ -61,7 +61,7 @@ public static class ProviderContractMapper
                 ? DefaultReasoningEffortDescription(option.Effort)
                 : option.Description!
         }).ToList();
-        if (includeUltra && capability.SupportedEfforts.Any(static option => option.Effort == ReasoningEffort.ExtraHigh))
+        if (includeUltra && capability.SupportedEfforts.Any(static option => option.Effort == ProviderReasoningEffort.Max))
         {
             efforts.Add(new Contract.ModelReasoningEffortOption
             {
@@ -82,16 +82,6 @@ public static class ProviderContractMapper
             DefaultOutput = ReasoningOutputToken(capability.DefaultOutput)
         };
     }
-
-    internal static Contract.ModelContextWindowCapability MapContextWindowCapability(
-        ModelContextWindowCapability capability)
-        => new()
-        {
-            CatalogWindow = capability.CatalogWindow,
-            ConfiguredWindow = capability.ConfiguredWindow,
-            SupportsMax = capability.SupportsMax,
-            MaxWindow = capability.MaxWindow
-        };
 
     public static Contract.ModelSpeedCapability? MapSpeedCapability(
         AppConfig config,
@@ -121,8 +111,7 @@ public static class ProviderContractMapper
                 endpoint,
                 model.Id), includeUltra),
             Speed = MapSpeedCapability(config, protocol, model.Id),
-            ContextWindow = MapContextWindowCapability(
-                ModelCatalog.ResolveContextWindowCapability(config, model.Id))
+            ContextWindow = ModelCatalog.Resolve(config, model.Id)
         };
 
     public static string? FormatModelListErrorMessage(string? message, string? endpoint)
@@ -151,31 +140,34 @@ public static class ProviderContractMapper
         NativeDeferredToolLoading = capabilities.NativeDeferredToolLoading
     };
 
-    private static string DefaultReasoningEffortLabel(ReasoningEffort effort) => effort switch
+    private static string DefaultReasoningEffortLabel(ProviderReasoningEffort effort) => effort switch
     {
-        ReasoningEffort.Low => "Low",
-        ReasoningEffort.Medium => "Medium",
-        ReasoningEffort.High => "High",
-        ReasoningEffort.ExtraHigh => "Extra High",
+        ProviderReasoningEffort.Low => "Low",
+        ProviderReasoningEffort.Medium => "Medium",
+        ProviderReasoningEffort.High => "High",
+        ProviderReasoningEffort.ExtraHigh => "Extra High",
+        ProviderReasoningEffort.Max => "Max",
         _ => effort.ToString()
     };
 
-    private static string DefaultReasoningEffortDescription(ReasoningEffort effort) => effort switch
+    private static string DefaultReasoningEffortDescription(ProviderReasoningEffort effort) => effort switch
     {
-        ReasoningEffort.Low => "Faster, lighter reasoning.",
-        ReasoningEffort.Medium => "Balanced reasoning.",
-        ReasoningEffort.High => "Deeper reasoning.",
-        ReasoningEffort.ExtraHigh => "Maximum depth for supported models.",
+        ProviderReasoningEffort.Low => "Faster, lighter reasoning.",
+        ProviderReasoningEffort.Medium => "Balanced reasoning.",
+        ProviderReasoningEffort.High => "Deeper reasoning.",
+        ProviderReasoningEffort.ExtraHigh => "Extra high reasoning.",
+        ProviderReasoningEffort.Max => "Maximum reasoning effort.",
         _ => string.Empty
     };
 
-    private static string ReasoningEffortToken(ReasoningEffort effort) => effort switch
+    private static string ReasoningEffortToken(ProviderReasoningEffort effort) => effort switch
     {
-        ReasoningEffort.None => "none",
-        ReasoningEffort.Low => "low",
-        ReasoningEffort.Medium => "medium",
-        ReasoningEffort.High => "high",
-        ReasoningEffort.ExtraHigh => "extraHigh",
+        ProviderReasoningEffort.None => "none",
+        ProviderReasoningEffort.Low => "low",
+        ProviderReasoningEffort.Medium => "medium",
+        ProviderReasoningEffort.High => "high",
+        ProviderReasoningEffort.ExtraHigh => "extraHigh",
+        ProviderReasoningEffort.Max => "max",
         _ => effort.ToString()
     };
 

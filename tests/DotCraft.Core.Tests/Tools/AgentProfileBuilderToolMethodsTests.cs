@@ -101,8 +101,7 @@ public sealed class AgentProfileBuilderToolMethodsTests
             model: "gpt-5.6",
             reasoningEnabled: true,
             reasoningEffort: AgentReasoningEffort.Ultra,
-            speed: AgentInferenceSpeed.Fast,
-            contextWindowMode: AgentContextWindowMode.Max));
+            speed: AgentInferenceSpeed.Fast));
 
         Assert.True(result.GetProperty("ok").GetBoolean());
         Assert.Equal("providerPreference", result.GetProperty("field").GetString());
@@ -113,7 +112,6 @@ public sealed class AgentProfileBuilderToolMethodsTests
         Assert.Equal("ultra", changedPreference.GetProperty("reasoning").GetProperty("effort").GetString());
         Assert.False(changedPreference.GetProperty("reasoning").TryGetProperty("output", out _));
         Assert.Equal("fast", changedPreference.GetProperty("speed").GetString());
-        Assert.Equal("max", changedPreference.GetProperty("contextWindow").GetProperty("mode").GetString());
         var draft = AgentProfileDraftEditor.Parse(ProfileBuilderDraftStore.TryGet(threadId)!.Markdown);
         Assert.True(draft.HasProviderPreference);
         Assert.Equal("openai", draft.ProviderId);
@@ -121,7 +119,6 @@ public sealed class AgentProfileBuilderToolMethodsTests
         Assert.True(draft.ReasoningEnabled);
         Assert.Equal("ultra", draft.ReasoningEffort);
         Assert.Equal("fast", draft.Speed);
-        Assert.Equal("max", draft.ContextWindowMode);
 
         ProfileBuilderDraftStore.Remove(threadId);
     }
@@ -137,8 +134,7 @@ public sealed class AgentProfileBuilderToolMethodsTests
             model: "gpt-5.6",
             reasoningEnabled: false,
             reasoningEffort: AgentReasoningEffort.Low,
-            speed: AgentInferenceSpeed.Standard,
-            contextWindowMode: AgentContextWindowMode.Default));
+            speed: AgentInferenceSpeed.Standard));
 
         Assert.False(result.GetProperty("ok").GetBoolean());
         Assert.Equal("providerPreference", result.GetProperty("field").GetString());
@@ -156,8 +152,7 @@ public sealed class AgentProfileBuilderToolMethodsTests
             model: "gpt-5.6",
             reasoningEnabled: false,
             reasoningEffort: AgentReasoningEffort.Medium,
-            speed: AgentInferenceSpeed.Standard,
-            contextWindowMode: AgentContextWindowMode.Default);
+            speed: AgentInferenceSpeed.Standard);
 
         var result = Parse(methods.ClearAgentProviderPreference());
 

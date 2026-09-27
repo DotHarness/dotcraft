@@ -5,14 +5,7 @@
   "type": "object",
   "properties": {
     "contextWindow": {
-      "anyOf": [
-        {
-          "$ref": "./ModelContextWindowCapability.schema.json"
-        },
-        {
-          "type": "null"
-        }
-      ]
+      "type": "integer"
     },
     "createdAt": {
       "type": "string",

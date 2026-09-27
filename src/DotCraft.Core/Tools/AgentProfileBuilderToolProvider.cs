@@ -10,9 +10,8 @@ namespace DotCraft.Tools;
 
 internal enum AgentToolPolicyMode { All, AllowList, DenyList }
 internal enum AgentToolControl { Full, Disabled, AllowList }
-internal enum AgentReasoningEffort { Low, Medium, High, ExtraHigh, Ultra }
+internal enum AgentReasoningEffort { Low, Medium, High, ExtraHigh, Max, Ultra }
 internal enum AgentInferenceSpeed { Standard, Fast }
-internal enum AgentContextWindowMode { Default, Max }
 internal enum AgentApprovalPolicy { Prompt, AutoApprove }
 
 /// <summary>
@@ -233,20 +232,18 @@ internal sealed class AgentProfileBuilderToolMethods(
         [Description("Model id.")] string model,
         [Description("Whether reasoning is enabled.")] bool reasoningEnabled,
         [Description("Reasoning effort.")] AgentReasoningEffort reasoningEffort,
-        [Description("Inference speed.")] AgentInferenceSpeed speed,
-        [Description("Context-window mode.")] AgentContextWindowMode contextWindowMode)
+        [Description("Inference speed.")] AgentInferenceSpeed speed)
     {
         var providerIdValue = providerId?.Trim() ?? string.Empty;
         var modelValue = model?.Trim() ?? string.Empty;
         var effortValue = ToWireValue(reasoningEffort);
         var speedValue = ToWireValue(speed);
-        var contextWindowValue = ToWireValue(contextWindowMode);
         if (providerIdValue.Length == 0
             || modelValue.Length == 0)
         {
             return Reject(
                 "providerPreference",
-                "providerPreference requires providerId, model, reasoningEnabled, reasoningEffort, speed, and contextWindowMode.");
+                "providerPreference requires providerId, model, reasoningEnabled, reasoningEffort, and speed.");
         }
 
         return Mutate("providerPreference", draft =>
@@ -257,7 +254,6 @@ internal sealed class AgentProfileBuilderToolMethods(
             draft.ReasoningEnabled = reasoningEnabled;
             draft.ReasoningEffort = effortValue;
             draft.Speed = speedValue;
-            draft.ContextWindowMode = contextWindowValue;
             return new
             {
                 op = "set",
@@ -271,7 +267,6 @@ internal sealed class AgentProfileBuilderToolMethods(
                         effort = effortValue
                     },
                     speed = speedValue,
-                    contextWindow = new { mode = contextWindowValue }
                 }
             };
         });

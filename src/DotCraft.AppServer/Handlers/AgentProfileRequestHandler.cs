@@ -440,7 +440,6 @@ internal sealed class AgentProfileRequestHandler(
                 Effort = JsonNamingPolicy.CamelCase.ConvertName(providerPreference.Reasoning.Effort.ToString())
             },
             Speed = JsonNamingPolicy.CamelCase.ConvertName(providerPreference.Speed.ToString()),
-            ContextWindow = ThreadConfigurationContractMapper.ToContract(providerPreference.ContextWindow)
         };
     }
 
@@ -519,7 +518,6 @@ internal sealed class AgentProfileRequestHandler(
             refreshed.Model = current.Model;
             refreshed.Reasoning = current.Reasoning;
             refreshed.Speed = current.Speed;
-            refreshed.ContextWindow = current.ContextWindow;
         }
         refreshed.WorkspaceOverride = current.WorkspaceOverride;
         refreshed.Cwd = current.Cwd;
@@ -547,14 +545,6 @@ internal sealed class AgentProfileRequestHandler(
                 config.Reasoning);
         }
 
-        if (config.ContextWindow != null)
-        {
-            AppServerRuntimeRequestValidator.ValidateContextWindowForRuntime(
-                currentConfig,
-                config.ProviderId,
-                config.Model,
-                config.ContextWindow);
-        }
     }
 
     private static Contract.AgentProfileAudit ToContract(AgentProfileAuditRecord audit) => new()

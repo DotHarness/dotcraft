@@ -206,7 +206,7 @@ export const activate: DesktopPluginActivate = (host) => {
 };
 ```
 
-Core keeps the mascot's placement, bubble, menu, click handling, sleep timer, Composer handoff, and outer motion. The context inherits the normal Composer fields and adds `activity`, `expression`, `light`, `size`, `submitRevision`, `reasoningEffort`, `speed`, `contextMax`, and `reducedMotion`. React to snapshots directly; watch `submitRevision` when repeated submissions need a one-shot animation. Use `host.events` for plugin-defined occurrences.
+Core keeps the mascot's placement, bubble, menu, click handling, sleep timer, Composer handoff, and outer motion. The context inherits the normal Composer fields and adds `activity`, `expression`, `light`, `size`, `submitRevision`, `reasoningEffort`, `speed`, and `reducedMotion`. React to snapshots directly; watch `submitRevision` when repeated submissions need a one-shot animation. Use `host.events` for plugin-defined occurrences.
 
 `ui.add("composer.mascot", ...)` layers an accessory or effect over the same stage. Replace `composer` instead when the plugin also needs to own positioning or interaction behavior. `composer.mascot` does not change the Error Screen mascot or Agent Profile avatars.
 

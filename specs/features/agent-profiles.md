@@ -77,7 +77,7 @@ Supported frontmatter groups:
 
 | Field | Meaning |
 |-------|---------|
-| `providerPreference` | Optional fixed model preset for new profile-backed threads. When present it contains `providerId`, `model`, reasoning enabled/effort, speed, and context-window mode. Reasoning output visibility is selected from the model catalog at runtime rather than authored in a profile. |
+| `providerPreference` | Optional fixed model preset for new profile-backed threads. When present it contains `providerId`, `model`, reasoning enabled/effort, speed. Reasoning output visibility is selected from the model catalog at runtime rather than authored in a profile. |
 | `mode` | Other runtime defaults for new profile-backed threads. |
 | `tools` | Built-in, dynamic, deferred, and agent-control tool policy. |
 | `mcp` | MCP server and MCP tool policy. |
@@ -97,7 +97,7 @@ Validation rules:
 - Unknown fields are rejected unless explicitly marked experimental.
 - The Markdown body maps to role instructions, not a base-prompt replacement.
 - An omitted `providerPreference` captures the complete effective workspace/global provider preference when a new thread is created.
-- A present `providerPreference` requires a non-empty `providerId`, `model`, `reasoning`, `speed`, and `contextWindow`.
+- A present `providerPreference` requires a non-empty `providerId`, `model`, `reasoning` and `speed`.
 - An empty or partial `providerPreference` is invalid; omission is the only inherited form.
 - `providerPreference.reasoning` contains only `enabled` and `effort`. `output` is not a Profile field and is rejected as unknown.
 - Canonical profiles do not support partial model inheritance such as pinning a model while inheriting reasoning or overriding reasoning while inheriting the model.
@@ -116,8 +116,6 @@ providerPreference:
     enabled: true
     effort: high
   speed: fast
-  contextWindow:
-    mode: max
 ```
 
 ---
@@ -163,7 +161,7 @@ Existing profile-backed threads do not reread profile documents automatically. `
 
 Refresh model behavior is deterministic:
 
-- refreshing from a profile without `providerPreference` preserves the existing thread's complete provider/model/reasoning/speed/context-window snapshot;
+- refreshing from a profile without `providerPreference` preserves the existing thread's complete provider/model/reasoning/speed snapshot;
 - refreshing from a profile with `providerPreference` replaces that complete snapshot atomically;
 - changing workspace/global provider preferences never mutates an existing thread;
 - returning an existing thread to current workspace model defaults is a separate explicit model-reset operation, not a side effect of profile refresh.
@@ -182,7 +180,7 @@ A profile-backed thread stores:
 | `agentProfileSource` | Source selected during resolution. |
 | `agentProfileFingerprint` | Stable fingerprint for stale-thread detection. |
 | `roleInstructions` | Profile body, optionally followed by first-party runtime role text. |
-| Model snapshot | Complete provider, model, reasoning, speed, and context-window values resolved at thread creation. |
+| Model snapshot | Complete provider, model, reasoning, and speed values resolved at thread creation. |
 | Runtime defaults | Mode and prompt profile when set by the profile. |
 | Capability policies | Tool, MCP, plugin/app, skills, approval, and workspace-boundary policy. |
 
@@ -335,7 +333,7 @@ The profile-builder agent is given fine-grained, model-visible tools — each mu
 | `SetAgentToolControl(value)` | Set `tools.agentControl` (`full` / `disabled` / `allowList`). |
 | `AddAgentSkills(names[])` / `RemoveAgentSkills(names[])` | Add/remove `skills.preload`. |
 | `AddAgentMcpServers(names[])` / `RemoveAgentMcpServers(names[])` | Add/remove `mcp.servers`. |
-| `SetAgentProviderPreference(...)` | Set the fixed `providerPreference` atomically. The input contains provider, model, reasoning enabled/effort, speed, and context-window mode; it does not expose reasoning output. |
+| `SetAgentProviderPreference(...)` | Set the fixed `providerPreference` atomically. The input contains provider, model, reasoning enabled/effort, speed; it does not expose reasoning output. |
 | `ClearAgentProviderPreference()` | Remove `providerPreference` so the profile inherits model settings. |
 | `SetAgentApproval(policy)` | Set `permissions.approvalPolicy` to `prompt` or `autoApprove`. The builder does not author the unattended values or the workspace-boundary permission. |
 

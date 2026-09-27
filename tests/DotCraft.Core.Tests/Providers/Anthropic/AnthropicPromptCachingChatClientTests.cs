@@ -1,3 +1,4 @@
+using DotCraft.Configuration;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -217,6 +218,23 @@ public sealed class AnthropicPromptCachingChatClientTests : IDisposable
         Assert.Contains(prepared.PendingCachePoints, p => p.Trace.Role == ChatRole.Tool.Value && p.Trace.Latest);
         Assert.Contains(prepared.PendingCachePoints, p => p.Trace.Remembered);
         Assert.Equal(2, prepared.LlmCallIndex);
+    }
+
+    [Fact]
+    public void Prepare_MaxAndUltraShareFingerprintAndDifferFromXhigh()
+    {
+        var client = CreateClient("claude-opus-4-1");
+        var hashes = new List<string?>();
+        foreach (var effort in new[] { ModelReasoningEffort.ExtraHigh, ModelReasoningEffort.Max, ModelReasoningEffort.Ultra })
+        {
+            var options = new ChatOptions();
+            new AppConfig.ReasoningConfig { Enabled = true, Effort = effort }.ApplyTo(options);
+            var request = client.Prepare([new ChatMessage(ChatRole.User, "hello")], options);
+            hashes.Add(request.PromptCacheDiagnostic?.ReasoningHash);
+        }
+        Assert.All(hashes, hash => Assert.NotNull(hash));
+        Assert.NotEqual(hashes[0], hashes[1]);
+        Assert.Equal(hashes[1], hashes[2]);
     }
 
     [Fact]

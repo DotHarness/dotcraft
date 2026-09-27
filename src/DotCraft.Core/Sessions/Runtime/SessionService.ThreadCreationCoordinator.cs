@@ -121,12 +121,6 @@ public sealed partial class SessionService
                 : source.Configuration != null
                     ? ThreadConfigurationCloner.Clone(source.Configuration)
                     : owner.CaptureThreadConfigurationForNewThread(null);
-            if (options.Config != null
-                && options.Config.ContextWindow == null
-                && source.Configuration?.ContextWindow != null)
-            {
-                config.ContextWindow = ThreadConfigurationCloner.CloneNullableContextWindowConfig(source.Configuration.ContextWindow);
-            }
             config.MemoryScope = source.Configuration?.MemoryScope;
             config.MemoryEnabled = source.Configuration?.MemoryEnabled;
             config = ThreadWorkspaceResolver.Apply(

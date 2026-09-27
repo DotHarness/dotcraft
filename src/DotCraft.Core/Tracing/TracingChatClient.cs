@@ -1,3 +1,4 @@
+using DotCraft.Configuration;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -121,7 +122,7 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
         CancellationToken cancellationToken = default)
     {
         var sessionKey = ResolveSessionKeyForCurrentCall();
-        var reasoningEffort = options?.Reasoning?.Effort?.ToString()?.ToLowerInvariant();
+        var reasoningEffort = ProviderReasoningOptions.Resolve(options)?.ToToken();
         var messages = chatMessages as IList<ChatMessage> ?? chatMessages.ToList();
         var state = GetOrCreateState(ResolveCallStateKeyForCurrentCall(sessionKey));
 
@@ -173,7 +174,7 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var sessionKey = ResolveSessionKeyForCurrentCall();
-        var reasoningEffort = options?.Reasoning?.Effort?.ToString()?.ToLowerInvariant();
+        var reasoningEffort = ProviderReasoningOptions.Resolve(options)?.ToToken();
         var messages = chatMessages as IList<ChatMessage> ?? chatMessages.ToList();
         var state = GetOrCreateState(ResolveCallStateKeyForCurrentCall(sessionKey));
 

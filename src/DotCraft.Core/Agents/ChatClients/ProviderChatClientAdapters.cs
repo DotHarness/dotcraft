@@ -100,7 +100,7 @@ internal static class ProviderChatClientAdapters
         AppConfig.PromptCachingConfig promptCaching) =>
         new(
             runtime,
-            reasoning.Effort.ToString(),
+            reasoning.Effort.ToProviderEffort().ToString(),
             reasoning.Output.ToString(),
             reasoning.Enabled,
             speed.ToString(),

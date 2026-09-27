@@ -299,10 +299,6 @@ function ModelDetails({ preference, locale }: { preference: AgentProviderPrefere
       translate(locale, 'agentBuilder.model.speed'),
       translate(locale, preference.speed === 'fast' ? 'agentBuilder.model.speed.fast' : 'agentBuilder.model.speed.standard')
     ],
-    [
-      translate(locale, 'agentBuilder.model.contextWindow'),
-      translate(locale, preference.contextWindow.mode === 'max' ? 'agentBuilder.model.context.max' : 'agentBuilder.model.context.default')
-    ]
   ]
   return (
     <dl className="dc-profile-edit-rows">
@@ -329,7 +325,6 @@ function preferenceFromArgs(args: Args): AgentProviderPreference | null {
       effort: effort as AgentProviderPreference['reasoning']['effort']
     },
     speed: (stringOf(args?.speed) ?? 'standard') as AgentProviderPreference['speed'],
-    contextWindow: { mode: (stringOf(args?.contextWindowMode) ?? 'default') as AgentProviderPreference['contextWindow']['mode'] }
   }
 }
 

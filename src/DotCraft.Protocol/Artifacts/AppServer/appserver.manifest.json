@@ -795,13 +795,6 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "contextWindow",
-          "type": "core.ModelPreferenceContextWindow",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
           "name": "model",
           "type": "string",
           "required": false,
@@ -10649,9 +10642,9 @@
       "fields": [
         {
           "name": "contextWindow",
-          "type": "core.ModelContextWindowCapability",
+          "type": "integer",
           "required": false,
-          "nullable": true,
+          "nullable": false,
           "const": null
         },
         {
@@ -10687,45 +10680,6 @@
           "type": "core.ModelSpeedCapability",
           "required": false,
           "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ModelContextWindowCapability",
-      "name": "ModelContextWindowCapability",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ModelContextWindowCapability.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "catalogWindow",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "configuredWindow",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "maxWindow",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "supportsMax",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
           "const": null
         }
       ],
@@ -10811,13 +10765,6 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "contextWindow",
-          "type": "core.ModelPreferenceContextWindow",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
           "name": "model",
           "type": "string",
           "required": false,
@@ -10833,24 +10780,6 @@
         },
         {
           "name": "speed",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ModelPreferenceContextWindow",
-      "name": "ModelPreferenceContextWindow",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ModelPreferenceContextWindow.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "mode",
           "type": "string",
           "required": false,
           "nullable": false,
@@ -19039,13 +18968,6 @@
           "const": null
         },
         {
-          "name": "contextWindow",
-          "type": "core.ThreadContextWindowConfig",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "customTools",
           "type": "array<string>",
           "required": false,
@@ -19211,24 +19133,6 @@
           "type": "string",
           "required": false,
           "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ThreadContextWindowConfig",
-      "name": "ThreadContextWindowConfig",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ThreadContextWindowConfig.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "mode",
-          "type": "string",
-          "required": false,
-          "nullable": false,
           "const": null
         }
       ],

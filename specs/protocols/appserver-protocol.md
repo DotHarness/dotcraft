@@ -498,7 +498,7 @@ Create a new thread. The server generates a Thread ID and persists initial state
 | `displayName` | string | no | Explicit thread display name. |
 | `spawnedFromThreadId` | string | no | Id of the thread that started this thread on the user's behalf (e.g. the Desktop `CreateThread` tool invoked from another thread). The server records it as a non-subagent origin on the new thread's `ThreadSource` (`kind` stays `"user"`) and mirrors it into thread metadata as `spawnedFromThreadId`, so the new thread stays an ordinary sibling thread (it does not become a subagent and does not enter the SubAgent dock) while its first user message can link back to the source thread. Self-references are ignored. |
 
-When `config.agentProfileId` is set, AppServer resolves the Agent Profile for the normalized workspace and compiles the Markdown profile into a `ThreadConfiguration` template. `agentProfileSource` and `agentProfileFingerprint` are server-resolved provenance outputs; clients must not send either field as a `thread/start` overlay or use a source value to bypass profile precedence. A profile without `providerPreference` starts from the effective workspace/global provider preference. A profile with `providerPreference` materializes its fixed model preset into a complete preference, deriving reasoning output visibility from the selected model catalog's `defaultOutput`. AppServer then applies only the supported runtime overlays (`providerId`, `model`, `reasoning`, `speed`, `contextWindow`, `approvalTimeoutSeconds`, `developerInstructions`), normalizes the resulting model configuration as one unit, and persists a complete provider/model/reasoning/speed/context-window snapshot on the new thread. A provider or model overlay selects a new runtime model and reseeds omitted model options from that provider's effective preference when one exists, otherwise from capability-safe defaults for the explicit model, before explicit option overlays are applied. A complete explicit provider/model configuration does not require a saved workspace `providerPreference`. An explicit reasoning overlay, including output visibility, is applied after Profile materialization. `developerInstructions` carries the starting application's own instructions and is rendered as the final system prompt section after the profile's role instructions, so an application such as a channel host can state the thread's role and delivery contract without touching the profile. Capability or instruction overlays such as tools, MCP, plugins, skills, approval policy, `agentInstructions`, `overrideBasePrompt`, workspace overrides, `agentProfileSource`, and `agentProfileFingerprint` are rejected with `AgentProfileValidationFailed`. Clients should read the structured error `data.detail` and `data.params.diagnostics` fields for the rejected overlay names and stable diagnostic codes.
+When `config.agentProfileId` is set, AppServer resolves the Agent Profile for the normalized workspace and compiles the Markdown profile into a `ThreadConfiguration` template. `agentProfileSource` and `agentProfileFingerprint` are server-resolved provenance outputs; clients must not send either field as a `thread/start` overlay or use a source value to bypass profile precedence. A profile without `providerPreference` starts from the effective workspace/global provider preference. A profile with `providerPreference` materializes its fixed model preset into a complete preference, deriving reasoning output visibility from the selected model catalog's `defaultOutput`. AppServer then applies only the supported runtime overlays (`providerId`, `model`, `reasoning`, `speed`, `approvalTimeoutSeconds`, `developerInstructions`), normalizes the resulting model configuration as one unit, and persists a complete provider/model/reasoning/speed snapshot on the new thread. A provider or model overlay selects a new runtime model and reseeds omitted model options from that provider's effective preference when one exists, otherwise from capability-safe defaults for the explicit model, before explicit option overlays are applied. A complete explicit provider/model configuration does not require a saved workspace `providerPreference`. An explicit reasoning overlay, including output visibility, is applied after Profile materialization. `developerInstructions` carries the starting application's own instructions and is rendered as the final system prompt section after the profile's role instructions, so an application such as a channel host can state the thread's role and delivery contract without touching the profile. Capability or instruction overlays such as tools, MCP, plugins, skills, approval policy, `agentInstructions`, `overrideBasePrompt`, workspace overrides, `agentProfileSource`, and `agentProfileFingerprint` are rejected with `AgentProfileValidationFailed`. Clients should read the structured error `data.detail` and `data.params.diagnostics` fields for the rejected overlay names and stable diagnostic codes.
 
 #### 4.1.0 Runtime Dynamic Tools
 
@@ -605,7 +605,7 @@ Argument conventions:
 - `CreateThread.prompt` and `SendMessageToThread.prompt` are plain user prompts encoded as `InputPart` text when calling `turn/start` or `turn/enqueue`.
 - `CreateThread.displayName` is optional and maps to `thread/start.displayName` when present.
 - When `CreateThread` is invoked from within a thread (the tool call carries the originating `threadId`), Desktop sets `thread/start.spawnedFromThreadId` to that originating thread id. The created thread stays a normal sibling thread; its origin is recorded only as a non-subagent `ThreadSource`/metadata marker so the client can show a "from another thread" affordance on the new thread's first user message. This must not turn the created thread into a subagent.
-- `CreateThread.reasoningEffort` and `SendMessageToThread.reasoningEffort` are optional values in `low`, `medium`, `high`, `extraHigh`, or `ultra`. Desktop maps them to persistent thread reasoning configuration. `ultra` is a DotCraft-owned tier that maps to `extraHigh` for provider requests and enables the Dynamic Workflow prompt policy. When `SendMessageToThread` sets reasoning effort, the running turn is not changed; future and queued turns use the updated thread configuration.
+- `CreateThread.reasoningEffort` and `SendMessageToThread.reasoningEffort` are optional values in `low`, `medium`, `high`, `extraHigh`, `max`, or `ultra`. Desktop maps them to persistent thread reasoning configuration. `ultra` is a DotCraft-owned tier that maps to `max` for provider requests and enables the Dynamic Workflow prompt policy. When `SendMessageToThread` sets reasoning effort, the running turn is not changed; future and queued turns use the updated thread configuration.
 - `CreateThread.model` and `SendMessageToThread.model`, when supported by the client, map to thread configuration or a turn-scoped override only through explicit AppServer protocol support. A client that cannot apply the override must return `success = false` with `errorCode = "UnsupportedOption"` rather than silently ignoring it.
 - `ListThreads.query`, `ListThreads.limit`, `ListThreads.cursor`, and `ListThreads.includeArchived` map to `thread/list` filtering and cursor pagination. Desktop defaults `limit` to 20 and caps it at 100.
 - `ReadThread` accepts only `threadId`, optional `cursor`, `turnLimit` (default 1, range 1–10), `includeOutputs` (default false), and `maxOutputCharsPerItem` (default 2,000, range 0–20,000). Unknown fields or invalid values return `InvalidArguments`. The cursor is the previous Turn page's `nextCursor`.
@@ -689,9 +689,6 @@ Thread-management tools are dynamic client callbacks, while thread lifecycle, st
     "output": "full"
   },
   "speed": "fast",
-  "contextWindow": {
-    "mode": "max"
-  },
   "requireApprovalOutsideWorkspace": true
 }
 ```
@@ -727,9 +724,8 @@ Fields:
 | `skillsPolicy` | object | Structured skills policy with `preload`, skill name `allow`/`deny`, and `allowManage`. |
 | `approvalPolicy` | string | Thread-scoped approval mode: `default`, `prompt`, `autoApprove`, or `deny`. `default` means the thread consults the workspace default approval policy; `prompt` always uses the interactive approval flow regardless of the workspace default. |
 | `automationTaskDirectory` | string | Optional local automation task directory. |
-| `reasoning` | object | Optional per-thread reasoning configuration. When absent, the thread falls back to the current workspace defaults. Uses camelCase wire enum values such as `low`, `medium`, `high`, `extraHigh`, `ultra` and output values such as `none`, `summary`, or `full`. |
+| `reasoning` | object | Optional per-thread reasoning configuration. When absent, the thread falls back to the current workspace defaults. Uses camelCase wire enum values such as `low`, `medium`, `high`, `extraHigh`, `max`, `ultra` and output values such as `none`, `summary`, or `full`. |
 | `speed` | `"standard"` \| `"fast"` | Optional per-thread inference-speed snapshot. New threads capture the effective workspace value; a thread without the field uses `standard`. Changes affect future and queued turns, not a running request. |
-| `contextWindow` | object | Optional per-thread context-window mode. Shape: `{ "mode": "default" | "max" }`. Omitted or null means `default`. Servers reject explicit `max` when the effective model lacks an explicit catalog window larger than the configured default window. |
 | `requireApprovalOutsideWorkspace` | boolean | Optional override for the workspace file/shell outside-boundary behavior. |
 
 Approval semantics:
@@ -1073,7 +1069,7 @@ The `Thread` wire object may include `plan?: PlanSnapshot | null`. When present,
 }
 ```
 
-The same snapshot is also embedded on `thread/start` and `thread/resume` responses (and their matching `thread/started` / `thread/resumed` notifications) so clients can seed the token ring without an extra round-trip. Clients must prefer server-provided `contextUsage` over local token or ring estimates and must not independently enter compacting state from local estimates when the server snapshot is present. When `Compaction.ContextWindow` is inferred from the model catalog, `contextWindow` is computed from the thread's effective model, including `Thread.configuration.model` overrides. `ContextUsageSnapshot.contextWindow` is the effective denominator after Session Core reserve and buffer rules, not the raw catalog window advertised by `model/list`. Freshly-created threads initialize persisted context usage to `tokens = 0`; the field is omitted when no persisted context usage state exists for the thread.
+The same snapshot is also embedded on `thread/start` and `thread/resume` responses (and their matching `thread/started` / `thread/resumed` notifications) so clients can seed the token ring without an extra round-trip. Clients must prefer server-provided `contextUsage` over local token or ring estimates and must not independently enter compacting state from local estimates when the server snapshot is present. Using the merged model catalog, `contextWindow` is computed from the thread's effective model, including `Thread.configuration.model` overrides. `ContextUsageSnapshot.contextWindow` is the effective denominator after the configured client budget and Session Core reserve and buffer rules, not the raw catalog window advertised by `model/list`. Freshly-created threads initialize persisted context usage to `tokens = 0`; the field is omitted when no persisted context usage state exists for the thread.
 
 Persisted context usage is display state. A stored provider token count without a matching provider anchor for the current replacement domain, generation, and request shape must not by itself trigger automatic compaction. Neutral or provider-native replacement estimates saved after rollback, compaction, or history rebuild may drive automatic compaction because they describe the active model-visible history rather than a stale provider snapshot.
 
@@ -1237,7 +1233,7 @@ After the display name is persisted, the server **broadcasts** a `thread/renamed
 
 ### 4.14 `thread/config/update`
 
-Update per-thread agent configuration (MCP servers, extensions, context-window mode, etc.).
+Update per-thread agent configuration (MCP servers, extensions, etc.).
 
 **Direction**: client → server (request)
 
@@ -1250,7 +1246,7 @@ Update per-thread agent configuration (MCP servers, extensions, context-window m
 
 **Result**: `{}`
 
-Provider changes include a non-empty `providerId` and `model` in the same request. The server validates model-aware fields such as `reasoning` and `contextWindow` against that pair before persisting. Explicit `{ "contextWindow": { "mode": "max" } }` is accepted only when the thread's effective model has an explicit model-context catalog entry larger than the configured default window. On success, the server rebuilds the thread agent/compaction pipeline for queued and future Turns, persists the configuration, and broadcasts authoritative `thread/updated` state. A running Turn keeps the immutable configuration and tool snapshot captured at its start. Configuration replacement does not release terminal thread resources or revoke client-owned Runtime Dynamic Tool bindings.
+Provider changes include a non-empty `providerId` and `model` in the same request. The server validates model-aware fields such as `reasoning` against that pair before persisting. On success, the server rebuilds the thread agent/compaction pipeline for queued and future Turns, persists the configuration, and broadcasts authoritative `thread/updated` state. A running Turn keeps the immutable configuration and tool snapshot captured at its start. Configuration replacement does not release terminal thread resources or revoke client-owned Runtime Dynamic Tool bindings.
 
 ---
 
@@ -3988,7 +3984,6 @@ The optional `automations` capability provides one definition and run lifecycle.
 [Automations lifecycle](../features/automations-lifecycle.md) defines its methods,
 models, version checks, events, scheduling, and delivery behavior.
 
-
 ## 18. Skills Management Methods
 
 ### 18.1 Scope
@@ -5705,12 +5700,7 @@ Provider mutations emit `workspace/configChanged` with region `providers`.
     "supportedModes": ["standard", "fast"],
     "defaultMode": "standard"
   },
-  "contextWindow": {
-    "catalogWindow": 1000000,
-    "configuredWindow": 256000,
-    "supportsMax": true,
-    "maxWindow": 1000000
-  }
+  "contextWindow": 1000000
 }
 ```
 
@@ -5721,7 +5711,7 @@ Provider mutations emit `workspace/configChanged` with region `providers`.
 | `createdAt` | string (ISO 8601 UTC) | Provider-reported creation time. |
 | `reasoning` | object | Optional server-authored reasoning UI capability metadata. Clients must not hardcode model compatibility rules; use this metadata when present. |
 | `speed` | object | Optional server-authored inference-speed capability. Missing means clients must not offer Fast for this model. |
-| `contextWindow` | object | Server-authored context-window metadata for the model. Clients use this to decide whether to offer MAX. |
+| `contextWindow` | number | Raw model capacity from the merged models.json catalog, independent of `Compaction.MaxContextWindow`. |
 
 `speed` fields:
 
@@ -5735,19 +5725,10 @@ Provider mutations emit `workspace/configChanged` with region `providers`.
 | Field | Type | Description |
 |-------|------|-------------|
 | `supportsDisable` | boolean | Whether clients may show an enabled Off choice. |
-| `supportedEfforts` | object[] | Supported quick-pick efforts. Each item contains `effort` (`low`, `medium`, `high`, `extraHigh`, or `ultra`) and a display `label`. `ultra` is advertised only when the model supports `extraHigh` and the Dynamic Workflow runtime is available. |
+| `supportedEfforts` | object[] | Supported quick-pick efforts. Each item contains `effort` (`low`, `medium`, `high`, `extraHigh`, `max`, or `ultra`) and a display `label`. `ultra` is advertised only when the model supports `max` and the Dynamic Workflow runtime is available. |
 | `defaultEffort` | string | Model default effort for Default/inherited behavior. |
 | `supportedOutputs` | string[] | Supported reasoning output visibility values (`none`, `summary`, `full`). Quick pickers may leave this unchanged. |
 | `defaultOutput` | string | Model default reasoning output visibility. |
-
-`contextWindow` fields:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `catalogWindow` | number | Raw catalog context window after model catalog resolution. This may be the catalog default/fallback when no explicit model entry matches. |
-| `configuredWindow` | number | Default configured compaction window for this model after normal cap rules. |
-| `supportsMax` | boolean | True when `catalogWindow` is explicit and greater than `configuredWindow`. |
-| `maxWindow` | number | The effective window used by `max` when `supportsMax` is true; otherwise equal to `configuredWindow`. |
 
 ### 21.5 `model/list`
 
@@ -6556,7 +6537,7 @@ Validates raw Markdown without writing.
 ```
 
 `providerPreference` is omitted when the profile inherits model settings. When present it contains
-`providerId`, `model`, `reasoning`, `speed`, and `contextWindow`, matching the reduced Profile
+`providerId`, `model`, `reasoning` and `speed`, matching the reduced Profile
 frontmatter contract. `reasoning` contains only `enabled` and `effort`; Profile management APIs never
 emit or accept reasoning output visibility.
 For example:
@@ -6567,8 +6548,7 @@ For example:
     "providerId": "openai",
     "model": "gpt-5.6",
     "reasoning": { "enabled": true, "effort": "high" },
-    "speed": "fast",
-    "contextWindow": { "mode": "max" }
+    "speed": "fast"
   }
 }
 ```
@@ -6618,7 +6598,7 @@ Explicitly refreshes one profile-backed thread from the currently resolved profi
 `profileId` is optional. When omitted, the server uses the thread's persisted `configuration.agentProfileId`.
 
 Refreshing from a profile without `providerPreference` preserves the thread's complete current
-provider/model/reasoning/speed/context-window snapshot. A present `providerPreference` replaces all
+provider/model/reasoning/speed snapshot. A present `providerPreference` replaces all
 five values after reasoning output visibility is derived from the selected model's current catalog
 default. The complete replacement is validated before the thread is changed.
 
@@ -6797,8 +6777,7 @@ Returns all builtin profiles plus workspace-defined custom profiles for the curr
       "anthropic": {
         "model": "claude-sonnet-4-5",
         "reasoning": { "enabled": false, "effort": "medium", "output": "full" },
-        "speed": "standard",
-        "contextWindow": { "mode": "default" }
+        "speed": "standard"
       }
     },
     "minWaitTimeoutMs": 15000,
@@ -6827,8 +6806,7 @@ Update workspace-level SubAgent settings.
     "openai": {
       "model": "gpt-5.1",
       "reasoning": { "enabled": true, "effort": "high", "output": "full" },
-      "speed": "fast",
-      "contextWindow": { "mode": "max" }
+      "speed": "fast"
     }
   },
   "minWaitTimeoutMs": 15000,
@@ -6841,7 +6819,7 @@ Update workspace-level SubAgent settings.
 
 - clients may send `externalCliSessionResumeEnabled`, `providerPreferences`, any `*WaitTimeoutMs` field, or a combination; at least one supported field is required
 - `providerPreferences` replaces the whole workspace map; an empty map clears it
-- each record is normalized as a complete unit; an invalid model, reasoning selection, speed value, or context-window selection rejects the request without writing
+- each record is normalized as a complete unit; an invalid model, reasoning selection or speed value rejects the request without writing
 - each `*WaitTimeoutMs` value must be between `0` and `3600000`, and the resulting triple must satisfy `min <= default <= max`
 - the resume toggle affects only profiles whose effective definition has `supportsResume=true`
 - clearing or changing these settings does not delete existing saved external session ids
@@ -7105,7 +7083,7 @@ Update workspace-level config values.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `providerId` | string \| null | no | Workspace-selected personal provider id. `null` or empty removes the workspace `ProviderId` key; runtime then has no selected provider unless a managed runtime override supplies one. |
-| `providerPreferences` | object \| null | no | Complete provider-keyed MainAgent preferences. Each record contains `model`, `reasoning`, `speed`, and `contextWindow`; `null` or an empty object clears the map. |
+| `providerPreferences` | object \| null | no | Complete provider-keyed MainAgent preferences. Each record contains `model`, `reasoning` and `speed`; `null` or an empty object clears the map. |
 | `welcomeSuggestionsEnabled` | boolean \| null | no | Workspace-level override for personalized welcome suggestions. `true` enables, `false` disables, and `null` removes the explicit override so server defaults apply. |
 | `promptSuggestionsEnabled` | boolean \| null | no | Workspace-level override for conversation prompt suggestions. Defaults to `false` and is independent of memory and welcome suggestions. `null` removes the override. |
 | `skillsSelfLearningEnabled` | boolean \| null | no | Workspace-level override for `Skills.SelfLearning.Enabled`. `true` enables the SkillManage tool surface and skill-authoring built-in skill, `false` disables, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect on next AppServer restart (`Skills.SelfLearning.Enabled` is a `ProcessRestart` field). |
@@ -7131,10 +7109,7 @@ Update workspace-level config values.
         "effort": "high",
         "output": "full"
       },
-      "speed": "fast",
-      "contextWindow": {
-        "mode": "max"
-      }
+      "speed": "fast"
     }
   },
   "welcomeSuggestionsEnabled": true,

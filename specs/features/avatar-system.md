@@ -219,7 +219,7 @@ continues to own head-item responses to done, greeting, acknowledge, and blocked
 
 ### Reasoning energy on paint skins
 
-The composer mascot expresses reasoning effort, speed, and context mode through `data-mascot-*`
+The composer mascot expresses reasoning effort and speed through `data-mascot-*`
 attributes on its root. The default body reacts by animating its gradient stops and glowing with
 the palette accent. A paint skin replaces that gradient, so it owns its own reaction:
 
@@ -228,14 +228,14 @@ the palette accent. A paint skin replaces that gradient, so it owns its own reac
   and profile-transition accent follow the material (gold glows warm, lava orange, galaxy violet)
   while face marks keep the palette.
 - The paint surface carries an energy wash: a silhouette-clipped field in the material accent whose
-  opacity pulses at medium (0.16), high (0.26), extraHigh (0.38), and context max (0.30), on the
+  opacity pulses at medium (0.16), high (0.26), extraHigh/Max/Ultra (0.38), on the
   same periods as the default body animation.
 - Flowing materials speed up with effort instead of running a fixed loop: the animated stops,
   sheens, scan lines, and blinking nodes of every paint skin, and the turning group of an overlay
   skin, shorten their periods as effort rises. A paint's hottest or lightest stop stays clearly
   off-white so the body never merges with the outline.
 - A signature material, such as a thermal paint that runs cool at idle, may swap its idle loop for
-  a second, hotter keyframe set at high and extraHigh effort and at context max. Changing keyframes
+  a second, hotter keyframe set at high and extraHigh/Max/Ultra effort. Changing keyframes
   restarts the loop, so the swap shows as a cut rather than a speed-up.
 
 All of this is gated on `data-effects="live"`, so compact and standard sizes and motion-off hosts

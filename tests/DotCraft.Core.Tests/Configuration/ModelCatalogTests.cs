@@ -108,11 +108,15 @@ public sealed class ModelCatalogTests : IDisposable
         Assert.Equal(997_952, contextWindow);
     }
 
-    [Fact]
-    public void ResolveCompactionConfig_CapsInferredWindowByDefault()
+    [Theory]
+    [InlineData(null, 1_050_000)]
+    [InlineData(-1, 1_050_000)]
+    [InlineData(256_000, 256_000)]
+    [InlineData(2_000_000, 1_050_000)]
+    public void ResolveCompactionConfig_AppliesClientBudget(int? budget, int expectedWindow)
     {
-        var configPath = WriteConfig("capped-default", "{}");
-        WriteCatalog("capped-default", """
+        var configPath = WriteConfig("full-window", "{}");
+        WriteCatalog("full-window", """
             {
               "models": {
                 "large-model": { "contextWindow": 1050000 }
@@ -123,92 +127,23 @@ public sealed class ModelCatalogTests : IDisposable
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "large-model"  } },
-            Compaction =
-            {
-                MaxContextWindow = 300_000
-            }
+            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "large-model"  } }
         };
+        if (budget.HasValue)
+            config.Compaction.MaxContextWindow = budget.Value;
         ModelCatalog.ApplyToConfig(
             config,
-            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "large-model" }""")!,
             globalConfigPath: configPath,
             workspaceConfigPath: null);
 
-        Assert.Equal(300_000, config.Compaction.ContextWindow);
-        Assert.Equal(280_000, config.Compaction.EffectiveContextWindow());
+        var compaction = ModelCatalog.ResolveCompactionConfig(config, "gateway/large-model");
+        Assert.Equal(expectedWindow, compaction.ContextWindow);
+        Assert.Equal(expectedWindow, config.Compaction.ContextWindow);
+        Assert.Equal(expectedWindow - 20_000, compaction.EffectiveContextWindow());
     }
 
     [Fact]
-    public void ResolveCompactionConfig_MaxModeUsesExplicitCatalogWindow()
-    {
-        var configPath = WriteConfig("max-mode", "{}");
-        WriteCatalog("max-mode", """
-            {
-              "models": {
-                "large-model": { "contextWindow": 1050000 }
-              }
-            }
-            """);
-
-        var config = new AppConfig
-        {
-            ProviderId = "test",
-            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "large-model"  } },
-            Compaction =
-            {
-                MaxContextWindow = 300_000
-            }
-        };
-        ModelCatalog.ApplyToConfig(
-            config,
-            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "large-model" }""")!,
-            globalConfigPath: configPath,
-            workspaceConfigPath: null);
-
-        var defaultCompaction = ModelCatalog.ResolveCompactionConfig(
-            config,
-            "large-model",
-            ContextWindowMode.Default);
-        var maxCompaction = ModelCatalog.ResolveCompactionConfig(
-            config,
-            "large-model",
-            ContextWindowMode.Max);
-
-        Assert.Equal(300_000, defaultCompaction.ContextWindow);
-        Assert.Equal(1_050_000, maxCompaction.ContextWindow);
-        Assert.Equal(1_030_000, maxCompaction.EffectiveContextWindow());
-    }
-
-    [Fact]
-    public void ResolveContextWindowCapability_DoesNotEnableMaxForFallbackCatalogResolution()
-    {
-        var config = new AppConfig
-        {
-            ProviderId = "test",
-            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "unknown-model"  } }
-        };
-        ModelCatalog.ApplyToConfig(
-            config,
-            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "unknown-model" }""")!,
-            globalConfigPath: null,
-            workspaceConfigPath: null);
-
-        var capability = ModelCatalog.ResolveContextWindowCapability(config, "unknown-model");
-        var maxCompaction = ModelCatalog.ResolveCompactionConfig(
-            config,
-            "unknown-model",
-            ContextWindowMode.Max);
-
-        Assert.False(capability.SupportsMax);
-        Assert.False(capability.HasExplicitCatalogMatch);
-        Assert.Equal(capability.CatalogWindow, capability.ConfiguredWindow);
-        Assert.Equal(capability.ConfiguredWindow, capability.MaxWindow);
-        Assert.Equal(capability.ConfiguredWindow, maxCompaction.ContextWindow);
-    }
-
-    [Fact]
-    public void ResolveCompactionConfig_UsesEffectiveModel_WhenContextWindowIsInferred()
+    public void ResolveCompactionConfig_UsesEffectiveModel()
     {
         var configPath = WriteConfig("effective-model", "{}");
         WriteCatalog("effective-model", """
@@ -225,80 +160,56 @@ public sealed class ModelCatalogTests : IDisposable
             ProviderId = "test",
             ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "configured-model"  } }
         };
+        config.Compaction.MaxContextWindow = 256_000;
         ModelCatalog.ApplyToConfig(
             config,
-            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "configured-model" }""")!,
             globalConfigPath: configPath,
             workspaceConfigPath: null);
 
         var compaction = ModelCatalog.ResolveCompactionConfig(config, "provider/active-model");
 
+        Assert.Equal(256_000, config.Compaction.ContextWindow);
         Assert.Equal(200_000, compaction.ContextWindow);
         Assert.Equal(180_000, compaction.EffectiveContextWindow());
     }
 
-    [Fact]
-    public void ResolveCompactionConfig_CapsInferredModelWindow()
+    [Theory]
+    [InlineData(null, 256_000)]
+    [InlineData(-1, 1_000_000)]
+    [InlineData(128_000, 128_000)]
+    public void LoadWithGlobalFallback_AppliesWorkspaceBudget(int? workspaceBudget, int expectedWindow)
     {
-        var configPath = WriteConfig("capped-model", "{}");
-        WriteCatalog("capped-model", """
+        var globalPath = WriteConfig("global-budget", """
             {
-              "models": {
-                "large-model": { "contextWindow": 1000000 }
-              }
+              "ProviderId": "test",
+              "ProviderPreferences": { "test": { "Model": "budget-model" } },
+              "Compaction": { "MaxContextWindow": 256000 }
             }
             """);
+        WriteCatalog("global-budget", """
+            { "models": { "budget-model": { "contextWindow": 1000000 } } }
+            """);
+        var workspace = new System.Text.Json.Nodes.JsonObject();
+        if (workspaceBudget.HasValue)
+            workspace["Compaction"] = new System.Text.Json.Nodes.JsonObject { ["MaxContextWindow"] = workspaceBudget.Value };
+        var workspacePath = WriteConfig("workspace-budget", workspace.ToJsonString());
 
-        var config = new AppConfig
-        {
-            ProviderId = "test",
-            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "large-model"  } },
-            Compaction =
-            {
-                MaxContextWindow = 300_000
-            }
-        };
-        ModelCatalog.ApplyToConfig(
-            config,
-            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "large-model" }""")!,
-            globalConfigPath: configPath,
-            workspaceConfigPath: null);
+        var config = AppConfig.LoadWithGlobalFallback(workspacePath, globalPath);
 
-        var compaction = ModelCatalog.ResolveCompactionConfig(config, "gateway/vendor/large-model");
-
-        Assert.Equal(300_000, config.Compaction.ContextWindow);
-        Assert.Equal(300_000, compaction.ContextWindow);
+        Assert.Equal(expectedWindow, config.Compaction.ContextWindow);
+        Assert.Equal(expectedWindow, ModelCatalog.ResolveCompactionConfig(config, "budget-model").ContextWindow);
+        Assert.Equal(1_000_000, ModelCatalog.Resolve(config, "budget-model"));
     }
 
-    [Fact]
-    public void ResolveCompactionConfig_PreservesExplicitContextWindow()
+    [Theory]
+    [InlineData(-1, 256_000)]
+    [InlineData(128_000, 128_000)]
+    public void ResolveCompactionConfig_AppliesBudgetToUnknownModelFallback(int budget, int expectedWindow)
     {
-        var config = new AppConfig
-        {
-            ProviderId = "test",
-            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "custom-model"  } },
-            Compaction = new DotCraft.Context.Compaction.CompactionConfig
-            {
-                ContextWindow = 123_000,
-                MaxContextWindow = 100_000
-            }
-        };
-        ModelCatalog.ApplyToConfig(
-            config,
-            System.Text.Json.Nodes.JsonNode.Parse("""
-                {
-                  "Model": "custom-model",
-                  "Compaction": {
-                    "ContextWindow": 123000
-                  }
-                }
-                """)!,
-            globalConfigPath: null,
-            workspaceConfigPath: null);
+        var config = new AppConfig();
+        config.Compaction.MaxContextWindow = budget;
 
-        var compaction = ModelCatalog.ResolveCompactionConfig(config, "provider/other-model");
-
-        Assert.Equal(123_000, compaction.ContextWindow);
+        Assert.Equal(expectedWindow, ModelCatalog.ResolveCompactionConfig(config, "unknown-model").ContextWindow);
     }
 
     [Fact]
@@ -328,21 +239,7 @@ public sealed class ModelCatalogTests : IDisposable
     }
 
     [Fact]
-    public void HasExplicitCompactionContextWindow_DetectsSnakeCase()
-    {
-        var configNode = System.Text.Json.Nodes.JsonNode.Parse("""
-            {
-              "Compaction": {
-                "context_window": 123000
-              }
-            }
-            """)!;
-
-        Assert.True(ModelCatalog.HasExplicitCompactionContextWindow(configNode));
-    }
-
-    [Fact]
-    public void Load_UsesSiblingCatalogWhenContextWindowIsNotExplicit()
+    public void Load_UsesSiblingCatalog()
     {
         var configPath = WriteConfig("workspace", """
             {
@@ -351,12 +248,8 @@ public sealed class ModelCatalogTests : IDisposable
                 "test": {
                   "Model": "my-model",
                   "Reasoning": { "Enabled": false, "Effort": "Medium", "Output": "Full" },
-                  "Speed": "Standard",
-                  "ContextWindow": { "Mode": "Default" }
+                  "Speed": "Standard"
                 }
-              },
-              "Compaction": {
-                "MaxContextWindow": 400000
               }
             }
             """);
@@ -371,30 +264,6 @@ public sealed class ModelCatalogTests : IDisposable
         var config = AppConfig.Load(configPath);
 
         Assert.Equal(333_000, config.Compaction.ContextWindow);
-    }
-
-    [Fact]
-    public void Load_PreservesExplicitContextWindow()
-    {
-        var configPath = WriteConfig("workspace", """
-            {
-              "Model": "my-model",
-              "Compaction": {
-                "ContextWindow": 123000
-              }
-            }
-            """);
-        WriteCatalog("workspace", """
-            {
-              "models": {
-                "my-model": { "contextWindow": 333000 }
-              }
-            }
-            """);
-
-        var config = AppConfig.Load(configPath);
-
-        Assert.Equal(123_000, config.Compaction.ContextWindow);
     }
 
     [Fact]

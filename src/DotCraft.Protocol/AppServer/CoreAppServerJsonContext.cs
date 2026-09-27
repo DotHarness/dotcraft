@@ -134,11 +134,11 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.McpUpsertResult))]
 [JsonSerializable(typeof(AppServer.MemoryResetResult))]
 [JsonSerializable(typeof(AppServer.ModelCatalogItem))]
-[JsonSerializable(typeof(AppServer.ModelContextWindowCapability))]
+
 [JsonSerializable(typeof(AppServer.ModelListParams))]
 [JsonSerializable(typeof(AppServer.ModelListResult))]
 [JsonSerializable(typeof(AppServer.ModelPreference))]
-[JsonSerializable(typeof(AppServer.ModelPreferenceContextWindow))]
+
 [JsonSerializable(typeof(AppServer.ModelReasoningCapability))]
 [JsonSerializable(typeof(AppServer.ModelReasoningEffortOption))]
 [JsonSerializable(typeof(AppServer.ModelSpeedCapability))]
@@ -285,7 +285,7 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.ThreadCompactStartResponse))]
 [JsonSerializable(typeof(AppServer.ThreadConfigUpdateParams))]
 [JsonSerializable(typeof(AppServer.ThreadConfiguration))]
-[JsonSerializable(typeof(AppServer.ThreadContextWindowConfig))]
+
 [JsonSerializable(typeof(AppServer.ThreadDeleteParams))]
 [JsonSerializable(typeof(AppServer.ThreadForkParams))]
 [JsonSerializable(typeof(AppServer.ThreadForkPoint))]

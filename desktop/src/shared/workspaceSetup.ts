@@ -107,11 +107,11 @@ export interface WorkspaceSetupModelCatalogItem {
   reasoning?: {
     supportsDisable: boolean
     supportedEfforts: Array<{
-      effort: 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'
+      effort: 'low' | 'medium' | 'high' | 'extraHigh' | 'max' | 'ultra'
       label: string
       description: string
     }>
-    defaultEffort: 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'
+    defaultEffort: 'low' | 'medium' | 'high' | 'extraHigh' | 'max' | 'ultra'
     supportedOutputs: Array<'none' | 'summary' | 'full'>
     defaultOutput: 'none' | 'summary' | 'full'
   } | null
@@ -119,10 +119,5 @@ export interface WorkspaceSetupModelCatalogItem {
     supportedModes: Array<'standard' | 'fast'>
     defaultMode: 'standard' | 'fast'
   } | null
-  contextWindow?: {
-    catalogWindow: number
-    configuredWindow: number
-    supportsMax: boolean
-    maxWindow: number
-  } | null
+  contextWindow?: number | null
 }

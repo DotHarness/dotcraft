@@ -385,7 +385,7 @@ public sealed partial class DynamicWorkflowService
 
     private static string NormalizeEffort(string value) => value.ToLowerInvariant() switch
     {
-        "xhigh" or "max" => "ExtraHigh",
+        "xhigh" => "ExtraHigh",
         _ => value
     };
 

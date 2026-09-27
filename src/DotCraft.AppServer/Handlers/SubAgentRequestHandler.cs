@@ -88,11 +88,7 @@ internal sealed class SubAgentRequestHandler(
                     providerId,
                     preference.Model,
                     preference.Reasoning);
-                AppServerRuntimeRequestValidator.ValidateContextWindowForRuntime(
-                    currentConfig,
-                    providerId,
-                    preference.Model,
-                    new ThreadContextWindowConfig { Mode = preference.ContextWindow.Mode });
+
             }
         }
         var nextWaitAgentTimeouts = new SubAgentWaitAgentTimeoutOptions(
