@@ -2,6 +2,7 @@ import { memo, useEffect, useState, type CSSProperties, type ReactNode } from 'r
 import type { ConversationItem, ConversationTurn, PluginFunctionContentItem } from '../../types/conversation'
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
+import { extractThinkingStatus } from './thinkingStatus'
 import { ToolCallCard, type ShellRuntimeScope } from './ToolCallCard'
 import { hasAvailableMcpApp } from './McpAppView'
 import { AgentMessage } from './AgentMessage'
@@ -197,6 +198,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
               key={item.id}
               elapsedSeconds={item.elapsedSeconds}
               reasoning={showThinkingContent ? displayReasoning : undefined}
+              statusText={showThinkingContent ? undefined : extractThinkingStatus(displayReasoning)}
               streaming={isLiveStreaming}
             />
           )

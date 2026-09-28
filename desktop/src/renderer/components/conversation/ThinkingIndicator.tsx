@@ -6,6 +6,7 @@ import { ToolCollapseChevron } from './ToolDisclosure'
 interface ThinkingIndicatorProps {
   elapsedSeconds?: number
   reasoning?: string
+  statusText?: string
   /** True while the agent is still reasoning (live streaming) */
   streaming?: boolean
 }
@@ -14,6 +15,7 @@ interface ThinkingIndicatorProps {
 export function ThinkingIndicator({
   elapsedSeconds,
   reasoning,
+  statusText,
   streaming = false
 }: ThinkingIndicatorProps): JSX.Element {
   const t = useT()
@@ -21,11 +23,11 @@ export function ThinkingIndicator({
   const canExpand = !!reasoning
 
   const label = streaming
-    ? t('conversation.thinking.streaming')
+    ? statusText || t('conversation.thinking.streaming')
     : t('conversation.thinking.completed', { seconds: elapsedSeconds ?? 0 })
 
   return (
-    <div>
+    <div className="dc-thinking-indicator">
       <ActionTooltip
         label={
           canExpand
@@ -39,7 +41,7 @@ export function ThinkingIndicator({
           className="dc-thinking-row"
           data-expandable={canExpand ? 'true' : undefined}
           onClick={() => canExpand && setExpanded((v) => !v)}
-          aria-expanded={expanded}
+          aria-expanded={canExpand && expanded}
         >
           <span
             data-testid="tool-row-title-group"

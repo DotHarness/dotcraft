@@ -328,11 +328,20 @@ While a turn is actively running, the conversation view must always show visible
 
 ### 4.3 Item Events
 
+When Show thinking content is disabled, live reasoning still supplies a non-expandable
+status title. Desktop selects the last non-empty line that is not solely an HTML comment
+(including an unfinished comment opener), converts Markdown to plain text, and recursively
+unwraps a whole-line bold span. The title updates with streaming text without waiting for
+a complete heading, falling back to localized Thinking when no readable title is available.
+The full reasoning body is not mounted, and the row disappears when reasoning is no longer
+live. Enabling Show thinking content retains the existing Thinking / Thought duration
+labels and expandable body. Idle indicators without reasoning keep the generic Thinking label.
+
 | Protocol event | UX behavior |
 |---------------|-------------|
 | `item/started` | New agent work becomes visible in the current thread. |
 | `item/agentMessage/delta` | Agent text streams incrementally when streaming is enabled. |
-| `item/reasoning/delta` | Reasoning content is exposed only if the client chooses to show reasoning. |
+| `item/reasoning/delta` | Updates the live status title when thinking content is hidden; the full reasoning body is available only when the client chooses to show it. |
 | `item/toolCall/argumentsDelta` | Tool argument construction streams incrementally. For known built-in tools, the client renders a bespoke running label (e.g. "Writing <path>", "Searching \"<pattern>\"", "Drafting plan...") and, where useful, a progressive preview of the parsed argument fields. For unknown tools (including MCP and module tools), the client renders a generic "Generating parameters for <toolName>..." placeholder without surfacing the raw argument JSON. |
 | `terminal/started`, `terminal/outputDelta`, `terminal/completed` | Running shell output/status is merged by `terminal.threadId + terminal.callId` into the matching `Exec` tool card in both the conversation view and the Terminal review surface. |
 | `item/commandExecution/outputDelta` | Compatibility fallback for clients or sessions that do not receive `terminal/*`; Desktop must not double-render the same shell output when both paths are present. |

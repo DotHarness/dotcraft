@@ -1301,7 +1301,7 @@ describe('AgentResponseBlock reasoning timeline rendering', () => {
     expect(screen.getByText('final answer')).toBeInTheDocument()
   })
 
-  it('shows only a non-expandable live thinking row when thinking content is disabled', () => {
+  it('shows a non-expandable fallback when hidden live reasoning has no readable status', () => {
     useUIStore.getState().setShowThinkingContent(false)
     const turn: ConversationTurn = {
       id: 'turn-reasoning-streaming-hidden',
@@ -1325,7 +1325,7 @@ describe('AgentResponseBlock reasoning timeline rendering', () => {
           turn={turn}
           isRunning
           activeItemIdOverride="reasoning-streaming-hidden"
-          streamingReasoning="hidden live reasoning"
+          streamingReasoning="<!-- hidden live reasoning -->"
         />
       </LocaleProvider>
     )

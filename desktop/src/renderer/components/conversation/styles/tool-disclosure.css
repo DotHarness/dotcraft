@@ -6,6 +6,10 @@
   interpolate-size: allow-keywords;
 }
 
+.dc-thinking-indicator > span {
+  max-width: 100%;
+}
+
 .dc-tool-row > summary,
 .dc-tool-row-static,
 .dc-thinking-row {
