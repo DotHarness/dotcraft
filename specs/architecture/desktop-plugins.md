@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.16.0 |
+| Version | 0.7.8 |
 | Status | Living |
-| Date | 2026-09-06 |
-| Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md), [Desktop Client](../clients/desktop-client.md) |
+| Date | 2026-09-28 |
+| Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
 
@@ -27,25 +27,6 @@ Desktop Plugin code executes in the same renderer realm as DotCraft. Installatio
 Plugins may use the public SDK, the renderer DOM, browser APIs available in the realm, global CSS, and the existing preload API. Direct DOM access and selectors against DotCraft-owned markup are allowed, but only the public SDK is a compatibility contract. DotCraft may change internal elements, class names, stores, and component structure without preserving a plugin that depends on them. This distinction is about compatibility, not access control.
 
 MCP Apps remain a separate sandboxed path for untrusted interactive tool content. They are not Desktop Plugins and do not participate in this renderer runtime.
-
-## Goals
-
-- Make the renderer a self-improving runtime rather than a fixed set of approved contribution points.
-- Let plugins compose Core UI and other plugins through named surfaces.
-- Keep bundled and user-installed plugins on one trust, loading, and lifecycle path.
-- Own and withdraw each revision's effects, UI, services, events, and convenience contributions as one generation.
-- Keep pure renderer extensibility independent from .NET and AppServer protocol design.
-
-## Non-goals
-
-- Permissions, capability grants, sandboxing, or source-based trust tiers for Desktop Plugins.
-- A separate extension process, iframe host, worker host, or Extension Host.
-- File watching, hot module replacement, or partial updates inside an active revision.
-- A stable contract for DotCraft's private DOM, CSS selectors, stores, route unions, or feature components.
-- Plugin-provided Electron main-process or preload entry points.
-- Mirroring renderer-only features into .NET or AppServer, or executing remote Desktop code without a local workspace grant.
-- Giving renderer code host filesystem paths or a general plugin storage API.
-- Providing generated settings UI, secrets, revisions, or conflict resolution for plugin configuration in v1.
 
 ## Plugin settings
 
@@ -73,45 +54,14 @@ placed in `plugin-config.json`.
 
 ### Settings changes
 
-`settings.onChange(listener)` subscribes to this plugin's configuration. Every notification carries a
-complete snapshot, and the subscription is generation-owned like every other Host registration.
-Four rules decide when it fires:
+`settings.onChange(listener)` is generation-owned and delivers a complete snapshot only when
+stored configuration changes. Subscription itself and rejected writes emit nothing; callers obtain
+the initial state with `get()`. A mutation response and its AppServer notification represent one
+change and must not produce duplicate delivery. An older asynchronous read cannot replace a newer
+published snapshot. One plugin's listeners share configuration observation.
 
-- **Once per change to the stored configuration.** A write through this AppServer broadcasts
-  `workspace/configChanged` with the `plugins.config` region. That payload names no plugin and
-  carries no value, so the Host re-reads. `PluginConfigStore.Mutate` returns `Get(manifest)`, so a
-  mutate result and the post-broadcast read are byte-identical projections of one document.
-- **A repeat is not an event.** A snapshot equal to the one last delivered publishes nothing, so
-  the write's own result and the read its broadcast triggered collapse into a single delivery
-  whichever order they arrive in. This is the cross-process form of what an in-process settings
-  store gets from comparing the committed value against the previous one.
-- **Only the newest read may publish.** Reads run concurrently and can land in any order. Each
-  carries the issue number it was sent with, and a write bumps that number before publishing its own
-  result, so a read of older state that arrives last is discarded rather than becoming the value
-  listeners keep. Without this, two writes in quick succession — a settings slider is the ordinary
-  case — leave a listener holding the older of the two snapshots.
-- **Never on subscribe, and never for a rejected write.** Like `environment.onChange`, a subscriber
-  that needs the current value calls `get()` once, as every sample already does. A rejected `mutate`
-  leaves the file untouched, so there is no change to announce and the rejection alone reaches the
-  caller.
-
-The Host owns one watcher per plugin, not one per listener. A notification re-reads that plugin's
-configuration exactly once and fans the result out, so three listeners inside one plugin cost one
-read. The watcher starts with the first subscriber, reads a baseline so the first notification does
-not publish an unchanged snapshot, and stops with the last subscriber.
-
-Neither ordering makes a single write publish twice. A broadcast that arrives first issues a refresh
-the revision guard drops, and that refresh read the same document the response publishes anyway, so
-the echo check would have caught it too. A response that arrives first leaves the refresh to the
-echo check alone. Nothing here needs a request cache, a queue, or a retry.
-
-`onChange` covers writes made through this AppServer. A hand edit of `plugin-config.json` is not
-observed, because Core runs no file watcher for plugin configuration.
-
-Revisions, `expectedRevision`, and conflict errors stay out of scope: a plugin is the only writer of
-its own namespace, so optimistic concurrency would add a failure mode to every call without removing
-one. Secret redaction, path operations, and a separate per-scope event are also out of scope, and
-Core itself reads no plugin's settings, so no Core surface subscribes to the `plugins.config` region.
+Changes cover writes through the connected AppServer, not external edits of `plugin-config.json`.
+Plugin settings do not provide revisions, conflict resolution, secrets, or filesystem operations.
 
 ### Settings and appearance contract
 
@@ -129,44 +79,23 @@ Persistent window telemetry belongs in the Host-owned `app.status` rail, not in 
 
 ## Package contract
 
-A top-level DotCraft Plugin owns at most one Desktop Plugin. The Desktop Plugin shares the parent plugin id, version, enabled state, and `interface` metadata. A parent that also contains .NET may declare dependencies, but those coordinate managed generations and do not order Desktop activation.
-
-The plugin manifest declares the Desktop Plugin inline:
-
-```json
-{
-  "schemaVersion": 1,
-  "id": "acme.review",
-  "version": "1.0.0",
-  "interface": {
-    "displayName": "Review Tools",
-    "shortDescription": "Review tools and Desktop presentation."
-  },
-  "desktop": {
-    "description": "Adds review actions and result presentation to DotCraft Desktop.",
-    "entry": "./desktop/dist/index.mjs",
-    "styles": ["./desktop/dist/index.css"]
-  }
-}
-```
-
-The parent plugin `version` is required in canonical `MAJOR.MINOR.PATCH` form. `description` is optional presentation metadata that describes the Desktop contribution rather than the parent plugin as a whole. `entry` and `styles` are manifest-relative paths inside `./desktop/dist/`. Runtime chunks and assets must also remain inside that output root.
-
-The inline `desktop` field is the sole declaration of executable Desktop code. The manifest's free-form `capabilities` labels neither restrict nor expand renderer access.
+A top-level plugin owns at most one Desktop module, sharing its id, version, enabled state and
+interface metadata under [Plugin Architecture](plugin-architecture.md). Managed dependencies do
+not order Desktop activation. The inline `desktop` declaration owns executable Desktop code:
+optional `description`, `entry`, and `styles`; executable output, chunks and assets remain under
+manifest-relative `./desktop/dist/`. Free-form capability labels do not grant renderer authority.
 
 ### Bundled assets
 
-An asset imported from plugin source evaluates to the absolute URL of the emitted file. Desktop serves a plugin from `dotcraft-plugin://<id>/source/<source>/<revision>/`, an address that depends on the installed revision and cannot be known while building, so the official preset resolves the emitted path against the importing bundle's own module URL rather than baking in a static public path. Placing the repair in the build keeps the imported value usable at module scope, where an asset URL is normally needed and no Host handle is in reach, and it repairs already-published plugins on their next rebuild without adding API surface.
-
-The imported value is therefore used as it comes, and moving code between the entry bundle and a split chunk does not change it. A stylesheet keeps an ordinary relative `url()`, because a stylesheet already resolves against its own address.
-
-The official build preset rewrites React and JSX-runtime imports to a bundled proxy that resolves the Desktop-owned React runtime before plugin evaluation. The output contains no bare React import and no second React implementation.
-
-The SDK exposes Host-owned UI primitives through that runtime handle. Plugin roots inherit public theme tokens. Internal components may still be reached through ordinary renderer techniques, but they are not SDK exports and carry no compatibility guarantee.
+Imported assets resolve against the importing module's installed source and revision, including
+split chunks; CSS URLs remain stylesheet-relative. Bundles use the Desktop-owned React/JSX runtime
+and do not ship another React implementation. The Host UI kit and published theme tokens are
+supported authoring contracts; private renderer components and properties are not.
 
 ### UI kit prop names
 
-The kit's prop names are its own contract, not a mirror of the Core component behind each entry. A control that reports a chosen value — `Select`, `Combobox`, `SegmentedControl` — names its callback `onValueChange` and its accessible name `ariaLabel`. A boolean toggle — `Checkbox`, `PillSwitch` — names its callback `onChange`. Core components keep the prop names their own call sites use; the runtime adapts them where the two differ, so a Core rename never becomes a plugin break and the reverse.
+Value controls use `onValueChange` and `ariaLabel`; boolean controls use `onChange`.
+Host adapters preserve these SDK names independently of internal component prop names.
 
 ## Activation contract
 
@@ -350,30 +279,10 @@ switching.
 
 ### AppServer notifications
 
-`appServer.onNotification` subscribes to one AppServer notification method by name, and the subscription is generation-owned like every other Host registration.
-
-Desktop's preload bridge carries AppServer notifications on two channels: a raw channel and a typed channel restricted to the methods declared in the generated contracts. The raw channel sees every notification; the typed channel sees the typed subset. Each channel delivers a notification to each of its own subscribers exactly once. A plugin therefore observes every notification method, generated or not, and its subscriptions do not change what Core surfaces receive.
-
-Bridged AppServer server *requests* do not follow this rule. Each carries a bridge identity that must be answered exactly once, so a bridged request reaches one responder, never both.
+`appServer.onNotification` is generation-owned and delivers each notification once per
+subscription, including methods outside the generated typed catalog. Plugin subscriptions do not
+change delivery to built-in surfaces. Bridged server requests have one responder and one response.
 
 ## .NET and AppServer boundary
 
 Pure UI stays in the Desktop Plugin; Core does not mirror surfaces, renderer services, or renderer events into C#. Add a .NET plugin or AppServer contract only for backend execution, durable host-owned state, Agent tools or hooks, other clients, or cross-process coordination. A bundle may ship both modules, but neither is required by the other. Renderer composition does not alter Agent prompts, tools, or backend authority.
-
-## Acceptance criteria
-
-- `effect`, UI composition, services, and events are sufficient to build higher-level plugin APIs.
-- `add`, `replace`, and `wrap` follow the defined composition and disposal semantics.
-- `app`, `app.background`, `app.overlay`, `app.status`, and the documented outer, region, and control-level Composer names are stable Core surfaces.
-- Additions render in `order` and then registration order, while `replace` and `wrap` stay last-registration-wins.
-- `composer.mascot` replacements receive typed semantic state while Core retains the mascot controller and outer motion.
-- `PluginSurface` enables a plugin to expose a surface that another plugin can extend.
-- The six convenience contribution families continue to work without limiting kernel use; Composer UI uses surfaces directly.
-- `activate` may return no value, and all registrations still belong to one revision generation.
-- A disposed revision leaves no component, wrapper, replacement, service, listener, effect, stylesheet, route, or stale generation behind.
-- `appServer.onNotification` receives every AppServer notification method, generated or not, exactly once per subscription.
-- `environment.locale` and contribution-label resolution use app locales, so a `zh-CN` document language resolves a `zh-Hans` label.
-- `settings.onChange` fires after every `mutate` settles, suppresses that write's own broadcast echo, re-reads once per plugin per notification, and never delivers a re-read that a later publish has superseded.
-- `session` reports the foreground workspace, active thread, mode, and busy state with no Composer mounted, and `session.onChange` fires only when one of the four changes.
-- Development reloads whole revisions; no watcher, HMR, or partial-generation mechanism is implied.
-- Pure Desktop UI requires no parallel .NET or AppServer API.

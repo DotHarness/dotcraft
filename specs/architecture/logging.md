@@ -2,29 +2,15 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.0.0 |
+| Version | 0.7.8 |
 | Status | Living |
-| Date | 2026-08-10 |
+| Date | 2026-09-28 |
 
 ## Overview
 
 DotCraft uses `Microsoft.Extensions.Logging.ILogger` as the single operational
 diagnostics API. Host composition selects providers and destinations without
 exposing provider-specific APIs to Core services.
-
-## Goal
-
-Make failures from long-lived, headless DotCraft hosts persistently diagnosable
-while keeping protocol output, interactive terminal presentation, and opt-in
-high-volume traces separate from ordinary logs.
-
-## Scope
-
-- Process logging composition and lifetime.
-- Workspace and user-global persistent log destinations.
-- Operational diagnostics emitted by hosts, modules, and Core services.
-- Fatal exception capture and provider failure behavior.
-- Console presentation and specialized trace boundaries.
 
 ## Non-goals
 
@@ -107,21 +93,4 @@ status callback surfaces.
 - High-volume or sensitive payloads such as prompts, model output, tool output,
   tokens, and raw protocol frames are not ordinary operational log content.
 - Provider-specific extension methods are not used in business or Core code.
-- Core does not depend on terminal rendering packages after the presentation
-  boundary migration is complete.
-
-## Acceptance checklist
-
-- Workspace AppServer failures persist under the workspace `.craft/logs` root.
-- Hub failures persist under the user-global `.craft/logs` root.
-- Fatal exceptions retain stack traces and are flushed before exit.
-- AppServer and ACP stdout remain valid protocol-only streams.
-- Existing logging configuration controls enablement, level, console output,
-  directory, and retention.
-- Provider write failures do not terminate application work.
-- Operational diagnostics, CLI presentation, ACP wire logs, and session stream
-  debug records have distinct owners and destinations.
-
-## Open questions
-
-None.
+- Core does not depend on terminal rendering packages.

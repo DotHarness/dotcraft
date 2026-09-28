@@ -2,13 +2,12 @@
 
 | Field | Value |
 |---|---|
-| Version | 1.0.0 |
+| Version | 0.7.8 |
 | Status | Living |
-| Date | 2026-09-01 |
+| Date | 2026-09-28 |
 
 This specification defines the stable ownership, dependency, composition, and lifecycle rules for
-the DotCraft runtime. It describes the finished architecture rather than the repository migration
-used to reach it.
+the DotCraft runtime.
 
 ## Assembly model
 
@@ -105,7 +104,7 @@ The optional Model Service hosts credential-backed provider HTTP access without 
 workspace tools. Its reusable endpoints belong to `DotCraft.ModelService`; its HTTP client belongs
 to `DotCraft.Agents.Remote`, and the transport contract belongs to Agents. `DotCraft.App` owns the
 standalone command and file configuration. Embedded hosts provide their own authorization and
-storage. See [Remote model service](model-service.md).
+storage.
 
 The official application owns CLI, ACP, AppServer, and Hub entry-point selection. Host factories,
 process policy, web-channel pooling, shared web addresses, logging policy, and exit codes are
@@ -152,30 +151,10 @@ internal exception types as wire contracts.
 
 ## Embedded-host contract
 
-An application can embed DotCraft without referencing `DotCraft.App` or enabling AppServer:
-
-```csharp
-var builder = Host.CreateApplicationBuilder(args);
-
-builder.Services.AddDotCraftRuntime(new DotCraftRuntimeOptions
-{
-    Config = config,
-    WorkspacePath = workspacePath,
-    DataPath = ".agents",
-    UserDataPath = applicationDataPath
-});
-
-builder.Services.AddOpenAIModelProvider();
-
-using var host = builder.Build();
-await host.StartAsync();
-
-var runtime = host.Services.GetRequiredService<WorkspaceRuntime>();
-ISessionService sessions = runtime.Sessions;
-```
-
-The host explicitly selects providers and features. Session capabilities do not require AppServer.
-When AppServer is selected, direct API calls and protocol calls share the same Core instances.
+An embedding application registers Runtime, explicitly selected providers and features, and optional
+AppServer through the .NET Generic Host. It supplies workspace, data, and user-data roots and uses
+`WorkspaceRuntime` to access kernel capabilities. Session capabilities do not require AppServer.
+When AppServer is selected, direct and protocol calls share the same Core instances.
 
 ## Ownership and extraction rules
 
@@ -184,15 +163,6 @@ tests move together. Host wiring tests remain with the composition root.
 
 Do not use compatibility shims, type forwarding, module-name branches, or friend-assembly access as
 substitutes for a clear dependency boundary. Production internals are not broadened for tests.
-
-Apply a boundary change in this order:
-
-1. Map the implementation, resources, consumers, tests, and references.
-2. Define the intended owner and dependency direction.
-3. Move the responsibility, resources, and tests as one coherent change.
-4. Wire it through the composition root with the smallest required contract.
-5. Remove the old implementation and references.
-6. Validate the owner, affected consumers, dependency graph, and full solution.
 
 ## Test boundaries
 

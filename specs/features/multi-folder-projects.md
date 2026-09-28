@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 1.0.0 |
+| Version | 0.7.8 |
 | Status | Living |
-| Date | 2026-08-27 |
+| Date | 2026-09-28 |
 
 ## 1. Scope
 
@@ -131,10 +131,8 @@ The C# backend shall:
 3. accept sticky overrides on `thread/start`, `thread/resume`, `thread/fork`, and `turn/start`;
 4. rebuild the thread agent/tool snapshot for queued and future Turns when either value changes, without changing a running Turn's captured snapshot;
 5. pass the effective roots to first-party file, shell, LSP, and approval boundaries;
-6. retain `WorkspacePath` as the state and lookup key; no SQLite thread schema migration is
-   required.
+6. retain `WorkspacePath` as the state and lookup key.
 
 Workspace changes do not revoke connection-owned Runtime Dynamic Tool bindings.
 
-The Desktop Project editor, Project persistence, folder picker, and localization are explicitly
-outside this backend change.
+Desktop owns Project editing and persistence; the server consumes the resulting thread projection.

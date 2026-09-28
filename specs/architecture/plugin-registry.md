@@ -2,14 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.6.0 |
+| **Version** | 0.7.8 |
 | **Status** | Draft |
-| **Date** | 2026-09-19 |
-| **Related Specs** | [Plugin Architecture](plugin-architecture.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md) |
+| **Date** | 2026-09-28 |
 
 Purpose: define the product and process contract for DotCraft plugin marketplaces. A marketplace lets DotCraft discover installable external integration plugins without bundling every integration in the DotCraft Desktop release package, and lets users and organizations add their own plugin sources.
-
----
 
 ## 1. Overview
 
@@ -25,8 +22,6 @@ Installing a marketplace plugin copies the verified plugin directory into the wo
 
 Marketplace sources are recorded once for the user and are then available in every workspace. Plugin installation stays per workspace.
 
----
-
 ## 2. Goals
 
 - Decouple optional external integration plugins from DotCraft Desktop release packaging.
@@ -35,8 +30,6 @@ Marketplace sources are recorded once for the user and are then available in eve
 - Let users and organizations add additional marketplaces, including private mirrors and company-internal repositories, without editing configuration files by hand.
 - Preserve the existing local plugin runtime model and plugin manifest contract.
 
----
-
 ## 3. Non-goals
 
 - The marketplace is not a billing, rating, telemetry, or ranking system.
@@ -44,8 +37,6 @@ Marketplace sources are recorded once for the user and are then available in eve
 - DotCraft does not load or execute plugin code directly from a remote source.
 - The marketplace does not install native applications required by plugin integrations.
 - DotCraft does not store, prompt for, or manage source credentials. Authentication is delegated to the host version control configuration.
-
----
 
 ## 4. Marketplace Document Contract
 
@@ -88,8 +79,6 @@ Rules:
 - `policy.authentication` describes when the plugin expects authentication or app connection setup; `ON_INSTALL` is supported.
 - Runtime contribution metadata must stay in the plugin manifest and descriptor files, not in the marketplace entry.
 
----
-
 ## 5. Marketplace Source Kinds
 
 A marketplace source declares where the marketplace document and its plugin directories come from.
@@ -123,8 +112,6 @@ A local source must resolve to an existing directory containing a valid marketpl
 
 A git source may declare sparse paths so that only the marketplace document and the plugin directories a user needs are checked out. Each sparse path must be repository-relative, must not be absolute, and must not contain `..`. Sparse paths are valid only for git sources; declaring them on any other kind is rejected.
 
----
-
 ## 6. Installed Marketplace Roots
 
 Git marketplaces are materialized under a user-global installed marketplace root, one directory per marketplace name. Local marketplaces are never copied; DotCraft reads the user's directory in place. Archive marketplaces keep their existing content-addressed snapshot cache.
@@ -134,8 +121,6 @@ Rules:
 - The directory name is derived from the marketplace document `name` by a safe-name transform. A name that reduces to an empty or traversing segment is rejected.
 - The resolved directory must stay inside the installed marketplace root.
 - A fetch stages into a temporary directory inside the installed marketplace root and replaces the destination only after validation succeeds, so a failed fetch never leaves a partially updated marketplace.
-
----
 
 ## 7. Marketplace Lifecycle
 
@@ -206,23 +191,11 @@ A source diagnostic names the marketplace in a `marketplace` parameter and carri
 
 Each configured source contributes at most one diagnostic per discovery pass, however many times a pass resolves that source internally. A caller that aggregates diagnostics from more than one pass reports each distinct diagnostic once, comparing severity, code, message, plugin id, function name, and path. Repetition counts occurrences of an internal resolve, which carries no information a reader can act on.
 
----
-
 ## 8. Precedence
 
-Plugin discovery precedence is:
-
-1. Workspace-local plugins under `.craft/plugins`.
-2. Explicit roots in `Plugins.PluginRoots`.
-3. User-global plugins.
-4. Desktop-bundled built-in plugins.
-5. Marketplace plugins, in source order.
-
-Higher-priority sources win. Duplicate plugin ids from lower-priority sources are skipped with diagnostics. If an organization needs to replace an official marketplace plugin with a same-id internal plugin, it should disable the default marketplace and configure the internal marketplace explicitly.
-
-Users and organizations may disable the host-provided default marketplace with `Plugins.DisableDefaultPluginRegistry`. This supports private or internal-only deployments where only organization-managed marketplaces should be used.
-
----
+Source precedence and duplicate plugin identity follow [Plugin Architecture](plugin-architecture.md).
+Marketplaces participate in configured source order. `Plugins.DisableDefaultPluginRegistry` disables
+the host-provided default source for private or organization-only deployments.
 
 ## 9. Plugin Install Lifecycle
 
@@ -237,8 +210,6 @@ Installing a marketplace plugin must:
 - refresh plugin-contributed skills, apps, MCP/LSP servers, and Desktop module metadata through the normal plugin runtime.
 
 User-owned workspace plugins without a managed marker must not be overwritten by marketplace install or refresh behavior.
-
----
 
 ## 10. Security and Trust Boundaries
 
@@ -266,8 +237,6 @@ Runtime boundaries:
 
 Review expectations for the official marketplace: check misleading metadata, missing referenced files, unsupported contribution types, and obvious provenance problems.
 
----
-
 ## 11. Publication Workflow
 
 The intended publishing flow for the official marketplace is:
@@ -279,16 +248,3 @@ The intended publishing flow for the official marketplace is:
 5. The merged default branch becomes available through marketplace refresh.
 
 The same repository layout applies to any user-added or organization-managed marketplace.
-
----
-
-## 12. Acceptance Checklist
-
-- Optional external integration plugins can be discovered from a marketplace instead of the Desktop release package.
-- Availability-critical bundled plugins remain available without network access.
-- A user can add a marketplace from a repository URL, a shorthand, or a local directory without editing configuration files by hand.
-- An added marketplace is recorded once for the user and is available in every workspace, while plugin installation stays per workspace.
-- Marketplace entries point only to marketplace-local plugin directories.
-- Installed marketplace plugins use the normal local plugin lifecycle.
-- Plugin discovery never triggers a version control fetch.
-- Multiple marketplaces and default-marketplace disablement are supported.

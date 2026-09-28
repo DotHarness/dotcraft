@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.2.0 |
+| Version | 0.7.8 |
 | Status | Living |
-| Date | 2026-05-21 |
+| Date | 2026-09-28 |
 | Parent Spec | [Oratorio Design](./oratorio-design.md) |
 
 This document defines the product and behavior contract for GitLab as a
@@ -25,8 +25,6 @@ Reference material:
 - [GitLab Webhooks](https://docs.gitlab.com/user/project/integrations/webhooks/)
 - [GitLab Project Webhooks API](https://docs.gitlab.com/api/project_webhooks/)
 - [GitLab Group Webhooks API](https://docs.gitlab.com/api/group_webhooks/)
-
----
 
 ## 1. Product Goal and Boundaries
 
@@ -56,163 +54,11 @@ The integration must not:
 - assume GitLab.com-only project or URL behavior;
 - require OAuth browser connection setup for the baseline token flow.
 
----
-
 ## 2. Source Provider Model
 
-Source integrations are provider-backed capabilities, not isolated GitHub or
-GitLab code paths. Provider-specific behavior is adapted into shared Oratorio
-concepts so Desktop, automation, review drafts, sync jobs, and source-write
-audit can reason about multiple sources consistently.
+Provider capabilities, sync jobs, source-write audit and canonical routing keys follow [Oratorio Design](oratorio-design.md#source-provider-model).
 
-### 2.1 Provider Capabilities
-
-Each source provider exposes redacted capability status:
-
-- provider id and display name;
-- endpoint or instance identity;
-- configured state;
-- authentication state;
-- read capability;
-- write capability;
-- webhook capability;
-- configured source project count;
-- last sync time;
-- recent provider-specific failures.
-
-Provider capability discovery must be visible to Desktop and diagnostics.
-Unsupported actions fail with stable errors rather than being hidden or guessed.
-
-Provider capabilities cover:
-
-- **Read sync**: list source work, normalize it into Oratorio Tasks, preserve
-  source snapshots, and isolate per-project failures.
-- **Details hydrate**: load comments, review discussion context, diff metadata,
-  and other source context that is too expensive or noisy for board sync.
-- **Source write**: execute audited writes from Oratorio decisions, review
-  drafts, implementation delivery, and external status updates.
-- **Diff anchors**: validate structured review draft comments against the
-  provider's changed-file and line-position model.
-- **Git delivery**: push Oratorio-created implementation branches and create
-  provider-native review targets.
-- **Webhook**: verify inbound provider events and enqueue provider sync jobs.
-
-### 2.2 Source Identity and Routing
-
-Source-backed Tasks store `source` plus `externalId`.
-
-Source-neutral identity terms:
-
-- **SourceProvider**: a configured external system, such as `github` or
-  `gitlab`.
-- **SourceInstance**: a provider endpoint host, such as `github.com`,
-  `gitlab.com`, or `gitlab.company.test`.
-- **SourceProject**: a provider repository/project path within an instance.
-- **SourceProjectKey**: the canonical routing and allowlist key:
-
-```text
-<provider>:<instance>/<project-path>
-```
-
-Examples:
-
-```text
-github:github.com/acme/example
-gitlab:gitlab.com/group/subgroup/project
-gitlab:gitlab.company.test/platform/tools/oratorio
-```
-
-Existing GitHub configuration and existing GitHub Tasks may continue to use
-`owner/name`. New source-aware flows use canonical source project keys.
-Desktop must display provider, instance, and project path separately enough
-that identical GitHub and GitLab project paths are not ambiguous.
-
-GitLab user-facing configuration uses the project path with namespace:
-
-```text
-group/project
-group/subgroup/project
-```
-
-GitLab source external ids use the project-scoped `iid`, not GitLab's global
-numeric object id:
-
-```text
-source = gitlab
-externalId = issue:<instance>/<project-path>#<iid>
-externalId = mr:<instance>/<project-path>!<iid>
-```
-
-The numeric GitLab project id may be cached as provider metadata after
-resolution, but operators configure and route by project path.
-
-Workspace routing and source-aware flows use canonical source project keys.
-
-### 2.3 Sync Jobs and Scheduling
-
-Sync jobs are provider-scoped and project-scoped. A job records:
-
-- provider;
-- trigger;
-- mode;
-- status;
-- total projects;
-- completed and failed project counts;
-- imported issue count;
-- imported review target count;
-- imported source comment count;
-- skipped count;
-- stable error code and message;
-- project-level runs.
-
-Canonical counters use `issuesImported`, `reviewTargetsImported`,
-`commentsImported`, and `skipped`.
-
-Allowed sync triggers are:
-
-- `manual`;
-- `webhook`;
-- `scheduled`.
-
-Scheduled sync is disabled by default. Enabling a schedule sets the first run
-for `now + interval` and does not trigger immediate sync. Scheduled jobs run
-incremental sync only. Full repair remains a manual operator action. If a
-provider already has an active sync when its schedule is due, that active job
-covers the schedule cycle and no duplicate job is queued. If Oratorio sleeps
-through multiple intervals, it queues at most one catch-up job per provider.
-
-### 2.4 Source Writes
-
-Source writes use a source-neutral intent plus provider-specific payload model.
-Canonical write intents include:
-
-- source comment;
-- review summary;
-- inline review discussion;
-- external status;
-- local commit;
-- branch push;
-- review target creation;
-- provider approval when explicitly supported.
-
-Every source write is recorded before execution and remains retryable after
-failure. Each record includes:
-
-- provider;
-- instance;
-- project key;
-- source item number or iid;
-- head SHA when applicable;
-- request JSON;
-- response JSON;
-- external id or URL;
-- attempt count;
-- stable error code and message.
-
-Provider-neutral flows reason from canonical intent rather than provider-only
-names.
-
----
+GitLab operators configure the full namespace path, including subgroups. A canonical key is `gitlab:<instance>/<group[/subgroup]/project>`. External identities use the project-scoped `iid`: `issue:<instance>/<project-path>#<iid>` or `mr:<instance>/<project-path>!<iid>`. Numeric project ids are cached provider metadata, not routing identity.
 
 ## 3. GitLab Provider Contract
 
@@ -517,120 +363,17 @@ branch name, local commit failure, branch push failure, GitLab merge request
 creation failure, generated Task upsert conflict, and insufficient token
 permission.
 
----
-
 ## 4. Desktop Settings and Operator UX
 
-Settings uses a provider/project mental model rather than a GitHub-only
-repository mental model.
+Source-neutral clients distinguish GitLab projects and MRs from GitHub repositories and PRs. Configuration exposes the endpoint, project routes, read/write/webhook capability, per-project credential presence and observed sync failures.
 
-Required sections:
+GitLab credentials use one-shot replace, clear and unchanged semantics and are never echoed. Profiles persist while their project is configured or routed on the current instance; removing both removes the secrets on the next configuration save. Changing the endpoint host clears prior-instance profiles. Saved changes apply without a server restart.
 
-- **Sources**: provider cards for GitHub and GitLab with configuration status,
-  sync status, scheduled sync controls, read/write capability, webhook posture,
-  last sync, current progress, and latest failure.
-- **Projects**: source project routing cards with provider, instance, project
-  path, canonical key, DotCraft workspace path, workspace health, and GitLab
-  project profile fields when the route is GitLab.
-- **Credentials**: provider-specific endpoint, write toggle, local webhook
-  bypass, and redacted diagnostics.
-- **Review**: provider-aware Auto Review and Draft auto-publish allowlists.
-- **Worktree**: shared runtime policy copy that applies to GitHub, GitLab, and
-  local tasks.
-
-Provider-specific copy must use provider language:
-
-- GitHub: repository and PR;
-- GitLab: project and MR;
-- source-neutral surfaces: project and review target.
-
-Provider cards include scheduled sync controls with:
-
-- enabled switch;
-- common interval presets;
-- custom interval input;
-- next-run state;
-- latest schedule failure.
-
-The schedule switch is disabled when read capability is unavailable and
-explains that read sync must be configured first. Background schedule failures
-stay inside the corresponding provider card and must not create global toast
-noise.
-
-Project routing cards include:
-
-- provider selector;
-- instance label;
-- source project path;
-- canonical source project key;
-- DotCraft workspace path;
-- workspace health;
-- browse-folder affordance;
-- validation and restart-required state.
-
-For GitHub projects, Project routing also shows installation profiles grouped
-by GitHub instance and owner. A profile may be detected from the GitHub App or
-entered manually; repositories under the same owner share the profile.
-
-Credential UX rules:
-
-- GitLab endpoint is the only URL field shown for GitLab API configuration;
-- GitLab token, webhook secret, and signing token fields live on GitLab project
-  routing cards, not in provider-level Credentials;
-- profile secrets are submitted once and never echoed back;
-- profile token, webhook secret, and signing token fields use one-shot replace,
-  clear, and unchanged semantics;
-- a project profile, including its secrets, persists while its project is
-  configured or has a workspace route on the current GitLab instance, so a
-  routed project can leave the configured list and return without re-entering
-  its token; a project that is neither configured nor routed loses its profile
-  secrets on the next Configuration Overlay save;
-- changing the GitLab endpoint host clears old project profiles and requires
-  new profiles for the new instance;
-- write capability is separate from read capability;
-- saved configuration changes apply without an Oratorio server restart.
-
-Review and automation UX:
-
-- Auto Review allowlists list configured source projects and remain provider
-  aware.
-- Draft auto-publish allowlists explain the provider-specific publish route.
-- Auto-publish never approves, merges, or resolves Tasks.
-- Implementation delivery copy should say "Auto PR/MR" or source-neutral
-  "delivery" when both GitHub and GitLab are present.
-
----
+Auto Review uses the shared first-enable baseline and head-SHA re-review policy once read sync is available. Review and publication allowlists use canonical project keys. Provider-specific layout belongs to the consuming UI.
 
 ## 5. Diagnostics, Security, and Operations
 
-Diagnostics must include redacted GitLab status:
-
-- endpoint and derived API URL without userinfo, query, or fragment;
-- provider-level and per-project token presence, not token values;
-- read capability;
-- write capability;
-- webhook verification mode;
-- configured projects;
-- last sync time;
-- recent sync failures;
-- recent source write failures.
-
-Secrets must never be returned in plaintext through settings, diagnostics,
-audits, timeline events, sync logs, or source write logs. Configuration writes
-create durable redacted audit records. Unknown provider fields fail validation
-with stable errors.
-
-Operational documentation must cover:
-
-- GitLab token choices and recommended minimum scopes;
-- GitLab.com and self-managed endpoint setup;
-- project path and subgroup examples;
-- webhook setup and verification modes;
-- commit status merge-gate setup;
-- known limits around MR approvals and request-changes semantics;
-- troubleshooting sync, permission, and delivery failures.
-
----
+Diagnostics report the endpoint and derived API URL without userinfo/query/fragment, provider and per-project credential presence, read/write/webhook capability and recent sync/write failures. They follow the parent's redacted audit contract; unknown provider fields fail validation.
 
 ## 6. Configuration Invariants
 
@@ -640,62 +383,3 @@ Operational documentation must cover:
 - Settings writes GitLab credentials only through `ProjectProfiles[]`.
 - Changing the endpoint instance requires corresponding workspace routes and
   automation allowlists to use the new canonical project keys.
-
----
-
-## 7. Validation Expectations
-
-Validation must cover the provider contract and GitLab-specific behavior with
-provider fakes before credentialed smoke tests.
-
-Required coverage:
-
-- provider capability reporting and diagnostics redaction;
-- GitHub behavior after source-neutral extraction;
-- canonical project keys for GitHub, GitLab.com, and self-managed GitLab;
-- GitLab subgroup project path normalization;
-- GitLab project profile validation, redaction, and encrypted persistence;
-- GitLab read sync for issues, merge requests, labels, assignees, draft MRs,
-  closed issues, merged MRs, and paginated results;
-- partial provider behavior where profiled projects sync/write and missing-
-  profile projects fail with stable project-level errors;
-- details hydrate for GitLab notes and discussions;
-- webhook verification for per-project secret tokens, per-project signing
-  tokens and missing profile rejection;
-- source write audit and retry for GitLab notes, discussions, draft notes, and
-  commit statuses;
-- review draft publish, implementation delivery, and branch push selecting the
-  token for the target GitLab project only;
-- diff anchor validation for GitLab old/new line semantics, renamed files, new
-  files, and deleted files;
-- review draft publication, single-line and multi-line suggestion fences,
-  comment-only findings, and auto-publish gates;
-- implementation delivery failures for missing credentials, missing route,
-  ambiguous route, empty diff, push failure, merge request creation failure,
-  stale target branch, and insufficient token permission;
-- Desktop Settings states for GitHub-only, GitLab-only, both providers,
-  unconfigured provider, read-only configuration, scheduled sync states,
-  restart required, failed sync, schedule failure, failed write, GitLab
-  project-card profile editing, endpoint host-change profile clearing,
-  partial/missing profile status, and redacted credentials.
-
-Manual credentialed smoke tests should cover at least one GitLab.com project
-and one self-managed-compatible endpoint shape before the feature is marked
-ready.
-
----
-
-## 8. Assumptions and Defaults
-
-- GitLab baseline setup is token-based.
-- GitLab MR Approval API is deferred until explicitly modeled as a separate
-  provider capability.
-- GitLab external comments are written by the configured token identity.
-- GitLab merge-gate-compatible external signal uses commit status checks.
-- GitLab project path is the primary operator-facing identifier.
-- Numeric GitLab project id is cached metadata, not user-facing configuration.
-- Review Draft publication may create multiple GitLab discussions for one
-  Oratorio draft.
-- Auto Review for GitLab follows the same first-enable baseline and head-SHA
-  re-review policy as GitHub after read sync is available.
-- Full repair is manual only and is not scheduled.

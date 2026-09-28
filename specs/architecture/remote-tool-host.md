@@ -2,11 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.6.1 |
+| Version | 0.7.8 |
 | Status | Draft |
-| Date | 2026-09-23 |
+| Date | 2026-09-28 |
 | Parent | [Tool Architecture](tools-architecture.md) |
-| Related Specs | [Hub Architecture](hub-architecture.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](../clients/satellite.md), [Runtime Module Boundaries](runtime-module-boundaries.md), [Prompt Cache](prompt-cache.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 ## 1. Purpose
 
@@ -24,10 +23,6 @@ broker and application authentication without changing remote execution ownershi
 
 Remote Tool Host is the execution and resource owner. Remote Tool Host Client is the component in
 an Agent Host that connects to it. Hub records a paired Remote Tool Host as a **satellite peer**.
-The Windows tray client that installs, pairs, and supervises a Remote Tool Host for a
-non-technical machine owner is specified in [Satellite](../clients/satellite.md); the product name
-of that client is Satellite, while this specification keeps the technical terms.
-
 The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are normative.
 
 ## 2. Boundaries and non-goals
@@ -54,8 +49,8 @@ gRPC, NAT traversal, a cloud relay, LAN discovery, OAuth, enterprise SSO, multi-
 LocalSystem/root service. Each pairing is one principal; there are no roles or permissions beyond
 Host-local tool policy. It does not proxy MCP, Runtime Dynamic, Legacy App Binding, Session,
 Agent-control, planning, goal, or user-interaction tools. It provides no remote input, remote
-control, or recording; the read-only screen view defined in
-[Remote Screen View](../features/remote-screen-view.md) is its only non-tool session kind.
+control, or recording. A separate read-only screen data session may use the same broker transport
+without acquiring execution authority.
 
 ### 2.1 Embedded execution surface
 
@@ -317,10 +312,8 @@ references. A disconnected thread has no Remote Tool Host runtime-context sectio
 `Connect` or `Disconnect` result is authoritative for the remainder of its current Turn; the next
 Turn's runtime context reflects the new state.
 
-The control namespace remains directly loaded while it contains this small discovery and
-connection surface. A future deferred projection MUST treat the whole namespace as one stable
-capability, MUST NOT vary with registrations or connection state, and MUST fall back to direct
-exposure when provider-native tool search is unavailable.
+The control namespace remains directly loaded with a stable tool surface regardless of connection
+state.
 
 ## 7. Invocation flow and policy
 
@@ -374,7 +367,7 @@ diff for that Turn: `turn/diff/updated` carries an empty diff and clients rely o
 diffs.
 
 Host deny policy is authoritative. Owner authorization reuses `IApprovalService` through a local
-Satellite presenter, never remote MCP elicitation as a substitute. Workspace-preferred permits
+owner-consent presenter, never remote MCP elicitation as a substitute. Workspace-preferred permits
 ordinary workspace files; external files, every new command, nonempty terminal input and language
 server execution require owner approval. Full access skips owner prompts but not explicit Host
 policy. Requests bind peer, authorization revision, execution session, invocation and arguments.
@@ -410,8 +403,8 @@ its own Agent-side authentication and session admission. It does not expose the 
 API or require the Agent Host and broker to share a machine. The Hub-specific discovery and local
 state rules below describe the DotCraft application deployment.
 
-Every data connection has a kind. `tools` carries the MCP session below; `screen` carries a
-[Remote Screen View](../features/remote-screen-view.md). The Hub relays both identically.
+Every data connection has a kind. `tools` carries the MCP session below; `screen` carries an
+independent read-only media protocol. The broker relays both identically without inspecting payloads.
 
 The MCP session uses standard initialization, `tools/list`, `tools/call`, cancellation, progress,
 and content/result contracts. Catalog and execution requests require an explicit Thread identity
@@ -519,7 +512,7 @@ The invite URL is content-negotiated by the Hub, so the same link serves a perso
 browser, a client asking for the invitation's details, and the CLI. A client MUST be able to read
 the label and expiry with a single `GET` of the invite URL that neither consumes the
 invitation nor writes any state on either machine; only the control-channel handshake below
-consumes it. The variants are specified by [Hub Architecture](hub-architecture.md) §6.1.
+consumes it.
 
 `join` accepts the invite URL, connects the control channel with the invite id, and receives the
 durable pairing: a `peerId` and a 256-bit random peer credential. The Host stores the raw credential
@@ -541,9 +534,8 @@ connection; a Host that was already offline leaves the Hub's record until the Ag
 
 Host state lives under `~/.craft/remote-tool-host/`: `host.json` (identity, display name,
 workspaces, tool policies, peer records, catalog revision), `serve.lock`, `artifacts/`,
-`workspaces/<workspaceId>/`, and `audit/<date>.jsonl`. Nothing about screen views is stored. Hub
-state for satellite peers lives under
-`~/.craft/hub/satellites.json` and is specified by [Hub Architecture](hub-architecture.md).
+`workspaces/<workspaceId>/`, and `audit/<date>.jsonl`. Nothing about screen views is stored. The
+broker owns its pairing registry independently of this Host state.
 
 The v1 deployment profile assumes direct intranet reachability of the Hub's satellite listener from
 the Host machine. Peer credential possession has the permissions of the signed-in Host user and MUST
@@ -593,44 +585,12 @@ autostart, `autostart install` MUST refuse, and installing Satellite autostart M
 autostart entry. The same public runtime hosting entry point serves both the CLI verbs and the
 Satellite client so their lifecycle semantics cannot diverge.
 
-## 11. Observability and conformance
+## 11. Observability
 
 The original Tool Call and Tool Result remain authoritative. Safe invocation provenance records
 `executionTarget=remote`, `hostId`, `workspaceId`, `hostInstanceId`, `remoteInvocationId`, and remote
 latency. Credentials and authorization headers are always redacted. The Host audit records MCP
 session, workspace, tool, result code, duration, and cancellation without recording credentials.
-
-Conformance tests cover:
-
-- generated and reflection RPC eligibility, Core export, and ineligible-source rejection;
-- contract hashing, missing/mismatched catalogs, per-call revalidation, and unavailable reasons
-  that include both build versions;
-- local, same-Turn connect, remote, disconnect, and no-fallback execution;
-- one route-change event per transition from all three entries, its initiator, lease-loss route
-  retention, and the persisted `remoteRoute` notice landing on the running or latest completed Turn,
-  placed in a running Turn between the Items that preceded the change and those that followed it;
-- Native SubAgent inheritance and independent routes over a shared process lease;
-- same-client sharing, cross-client `WorkspaceBusy` with `self`/`other` owner markers, heartbeat
-  expiry, and process failure;
-- execution-session capability negotiation, resource ownership, and independent cleanup over a
-  shared lease, including continued renewal after the first session closes;
-- execution-session-scoped `tools/list` and fail-closed behavior without admission or lease metadata;
-- canonical path, symlink/reparse-point, and blacklist policy;
-- device-local approval, denial, and cancellation of calls carried across the Hub bridge;
-- `WriteStdin` bound to terminals created by an approved `Exec` in the same execution session, regardless of
-  Host policy;
-- independent background terminal and LSP cleanup at session closure and final workspace cleanup at lease release;
-- MCP text, image, audio, structured content, progress, cancellation, and errors;
-- remote text materialization under the Host state root, remote `ReadFile` access to it without
-  approval, and execution-session-scoped artifact access and cleanup;
-- invite issue, single-use consumption, expiry, join, and revoke from both sides;
-- control-channel reconnect with backoff, and offline/online transitions observed by the Hub;
-- byte-identical relay through the Hub bridge for fragmented messages;
-- `hello` capability declaration, `openSession` kinds, the Hub's refusal of an undeclared kind, and a
-  screen view counting toward `connected` without a lease and ending on pause with `sharingPaused`;
-- configuration loading, the serve lock, and the CLI/Satellite autostart exclusion;
-- a pure Host dependency graph with no model, Session, memory, or AppServer services; and
-- an in-process Hub + Host + Agent bridge execution flow and a two-process outbound end-to-end flow.
 
 When no Remote Tool Host is paired, default calls retain local execution. Routing arguments and
 control tools remain statically exposed regardless of pairing state.

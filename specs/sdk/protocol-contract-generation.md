@@ -2,11 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.0 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-08-03 |
-| **Parent Specs** | [SDK](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [TypeScript SDK](typescript.md), [.NET SDK](dotnet.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md) |
+| **Date** | 2026-09-28 |
+| **Parent Specs** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 Purpose: define the executable AppServer wire contract, typed RPC catalog, deterministic contract artifacts, and generated low-level bindings shared by the .NET and TypeScript SDKs.
 
@@ -32,45 +31,9 @@ C# wire contracts and typed RPC catalog
 
 The generated layer covers wire contracts and low-level method bindings. Transports, high-level SDK objects, run aggregation, callback orchestration, error hierarchies, and raw JSON-RPC escape hatches remain handwritten.
 
-## 2. Goals
+## 2. Scope
 
-The contract system must:
-
-- provide one executable C# definition for every stable AppServer wire DTO;
-- bind every public AppServer method to its direction, params, result, and protocol metadata;
-- bind every canonical Session item `payloadKind` to one named payload DTO;
-- derive all generated artifacts from one normalized Contract IR;
-- preserve required, optional, nullable, enum, union, and opaque JSON semantics across languages;
-- generate deterministic artifacts without starting AppServer or loading runtime services;
-- let the server and .NET SDK share the same C# contracts;
-- generate typed TypeScript low-level bindings while preserving idiomatic high-level SDKs;
-- retain raw request, notification, and unknown-message fallbacks;
-- detect contract drift and classify protocol changes locally before artifacts are committed.
-
-## 3. Scope
-
-This specification defines:
-
-- the `DotCraft.Protocol` assembly dependency boundary and its public namespaces;
-- the typed RPC descriptor and catalog model;
-- wire DTO rules and the supported cross-language type system;
-- canonical Session item payload DTOs, parsing, and unknown-kind fallback;
-- Contract IR construction and validation;
-- AppServer Manifest, JSON Schema, OpenRPC, and contract hash artifacts;
-- generated .NET and TypeScript wire bindings;
-- typed server dispatch and notification/request emission;
-- first-party AppServer contract modules;
-- compatibility, deterministic generation, local validation, and protocol diff behavior.
-
-This specification does not define:
-
-- AppServer method semantics, which remain owned by the AppServer Protocol and its related feature specs;
-- Hub HTTP contracts or Hub SDK DTO generation;
-- transport framing, connection discovery, retry, or authentication behavior;
-- high-level `DotCraft`, `Thread`, Run, App Binding workflow, or channel adapter APIs;
-- third-party dynamic extension code generation;
-- CI workflow integration or artifact publication to an external registry;
-- protocol behavior changes, migrations, or a new AppServer protocol version.
+This specification owns the executable contract boundary, cross-language type rules, RPC catalog, deterministic artifacts, and generation workflow. AppServer and its protocol modules own behavior. Hub HTTP, high-level SDK orchestration, dynamic third-party generation, and external artifact publication are outside this contract package.
 
 ## 4. Sources of truth
 
@@ -391,8 +354,6 @@ Every command accepts `--profile stable|experimental`; `stable` is the default. 
 
 Generation first compiles and validates the complete Contract IR, then renders every contract and SDK output into an isolated staging directory. Files are normalized before hashing. Installation replaces each destination through a same-directory temporary file only after the complete staged output succeeds; generation failures before installation leave checked-in artifacts unchanged. `check` performs the same construction and validation without writing repository files.
 
-These commands run locally. Generated artifacts are reviewed and committed manually. CI workflow integration requires a separate approved change.
-
 ## 11. Language binding generation
 
 ### 11.1 .NET
@@ -411,7 +372,7 @@ The .NET SDK exposes descriptor-typed `RequestAsync` / `NotifyAsync` APIs. Unkno
 
 Each Manifest method records the public `AppServerRpc` descriptor member used by generated .NET bindings. This is additive metadata in Manifest format version 1; it avoids guessing descriptor identifiers from Wire method spelling without changing Contract IR's format version.
 
-The same generator emits notification classification for the high-level Run layer. Every cataloged server notification is deserialized to its Contracts params DTO and exposed as `DotCraftRunEvent<TParams>`. Unknown methods become `DotCraftRawRunEvent`. A known method whose params do not match its DTO raises the stable `ProtocolViolationException` instead of falling back to raw JSON.
+The generator also classifies cataloged server notifications by their Contracts params DTO. Unknown methods remain distinguishable from malformed known messages.
 
 ### 11.2 TypeScript
 
@@ -496,7 +457,7 @@ Bundled first-party methods participate in the aggregate Catalog through stable 
 
 The aggregate generator includes core and bundled modules in one contract package. Module filtering may produce a subset for validation or development, but the default package represents the complete bundled AppServer surface.
 
-Third-party extensions that do not ship a contract module continue to declare string method names and accept raw JSON. Dynamic third-party contract discovery and SDK generation are future work.
+Third-party extensions that do not ship a contract module continue to declare string method names and accept raw JSON. Dynamic third-party contract discovery is outside this contract package.
 
 Hub endpoints are not AppServer modules. They do not enter the RPC Catalog, Manifest, or AppServer OpenRPC document.
 
@@ -544,31 +505,9 @@ Every descriptor and public type carries stability metadata. All current bundled
 
 Experimental filtering happens in Contract IR before any emitter runs. Emitters must not remove experimental entries by rewriting generated text.
 
-## 16. Testing and validation
+## 16. Conformance assets
 
-### 16.1 C# contracts
-
-Tests cover exact serialization, required/optional/null semantics, Session Wire field-declaration parity, all canonical item payloads, unknown payload fallback, enums, unions, opaque JSON, unknown fields, descriptor uniqueness, analyzer diagnostics, and typed dispatch.
-
-### 16.2 Artifacts
-
-Tests generate artifacts twice and compare bytes. They validate ordering, references, aggregate schemas, Manifest/OpenRPC agreement, stable names, and contract hash reproduction.
-
-### 16.3 Cross-language fixtures
-
-Shared JSON fixtures cover initialization, thread start/resume/list/read, turn start and terminal states, approval, user input, dynamic tools, lifecycle notifications, errors, empty objects, unknown fields, and extension payloads.
-
-The same fixtures are consumed by xUnit and the TypeScript test runner.
-
-The portable message fixtures under `specs/protocols/fixtures/` are durable protocol assets. Fixtures use synthetic identifiers and values. They must not contain machine-specific paths, credentials, user identities, or references to external projects.
-
-### 16.4 TypeScript
-
-Tests compile generated method maps and validate DTO round trips, discriminator narrowing, optional/null behavior, raw unknown notifications, and generated client method inference.
-
-### 16.5 Integration invariants
-
-Existing AppServer integration suites continue to verify cancellation, response ordering, notification filtering, server-initiated callbacks, raw escape hatches, and high-level SDK behavior.
+Portable JSON fixtures under `specs/protocols/fixtures/` are shared by .NET and TypeScript. They use synthetic values and exercise the wire contract rather than repository-specific environments. Generated artifacts must reproduce byte-for-byte, with resolvable schema references and matching Manifest/OpenRPC method identities.
 
 ## 17. Local artifact workflow
 
@@ -580,41 +519,3 @@ Contract changes follow this order:
 4. Run ProtocolGen `generate`.
 5. Run ProtocolGen `check` and the shared conformance tests.
 6. Review and commit the source and generated artifact changes together.
-
-CI workflows do not enforce these commands. Automated drift and compatibility gates require separate approval.
-
-## 18. Implementation state
-
-The repository implements the complete bundled AppServer contract surface across core, App Binding, Automations, ACP, Node REPL, and External Channel modules. The checked-in Manifest is the authoritative machine-readable method inventory; generated schemas, OpenRPC, and TypeScript bindings are projections of the same IR.
-
-Server dispatch uses typed descriptors for bundled methods while preserving the generic JSON-RPC envelope and raw third-party extension path. Portable fixtures remain durable conformance assets. CI enforcement, Hub OpenAPI generation, external artifact publication, and dynamic third-party contract generation remain outside this specification.
-
-## 19. Acceptance checklist
-
-- [x] Markdown specs remain the normative behavior contract.
-- [x] Server and .NET SDK share one C# wire contract assembly.
-- [x] Every public AppServer method has one typed descriptor.
-- [x] All four JSON-RPC directions are modeled.
-- [x] All emitters derive from one Contract IR.
-- [x] Manifest, Schema, OpenRPC, and contract hash are deterministic.
-- [x] TypeScript bindings provide typed method maps and raw fallbacks.
-- [x] Missing, null, enum, union, and opaque JSON semantics agree across languages.
-- [x] Session Thread, Turn, and Item DTOs explicitly declare the complete public Wire shape.
-- [x] All canonical Session item payloads share one generated cross-language catalog and unknown fallback.
-- [x] Typed server dispatch preserves existing wire behavior.
-- [x] Core and bundled first-party modules have generated coverage.
-- [x] Hub and third-party dynamic extensions remain outside this contract package.
-- [x] Local generation and diff commands work without runtime services or network access.
-- [x] Generated artifacts are manually reviewed and committed with source changes.
-- [x] CI workflow integration remains outside this specification.
-
-## 20. Open questions
-
-None. Changes to the source-of-truth model, generation path, Hub boundary, artifact policy, or stability profile policy require an amendment to this specification.
-
-## Related docs
-
-- [SDK](sdk.md)
-- [AppServer Protocol](../protocols/appserver-protocol.md)
-- [TypeScript SDK](typescript.md)
-- [.NET SDK](dotnet.md)

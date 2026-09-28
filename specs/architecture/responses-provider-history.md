@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.4.2 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-09-24 |
-| **Parent Specs** | [Session Core](session-core.md), [Prompt Cache](prompt-cache.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
+| **Date** | 2026-09-28 |
+| **Parent Specs** | [Session Core](session-core.md), [Model Runtime](model-runtime.md) |
 
 ## Overview
 
@@ -19,8 +19,7 @@ For opted-in threads, DotCraft therefore maintains a second, Responses-native hi
 source of truth for the Responses `input` array only. MEAI history remains the source of truth for
 request-local model execution, UI projection, provider-neutral recovery, and every non-Responses
 protocol. Token estimation normally uses MEAI history or a valid provider usage anchor. An active
-opaque provider-native compaction generation instead uses the provider-native estimator defined in
-[Context Compaction](context-compaction.md). Session Core owns both histories and persists them
+opaque provider-native compaction generation instead supplies its own context estimator. Session Core owns both histories and persists them
 through the rollout contracts defined in [Session Core](session-core.md).
 
 Session Core stores only the provider id, normalized protocol, and opaque JSON items through the
@@ -146,8 +145,8 @@ transition set; adding an isolated lock to one method is not sufficient.
   survives is invalid and replay continues to an earlier baseline.
 - **Compaction:** a neutral replacement maps the final compacted MEAI history once. A
   provider-native replacement installs the client-built Responses v2 replacement without changing
-  MEAI history. Both start a new provider-history generation and share the context-window
-  transition defined in [Context Compaction](context-compaction.md). A replacement produced by
+  MEAI history. Both atomically install a new provider-history generation and context-window identity.
+  A replacement produced by
   pre-turn compaction covers the newest terminal Turn, the same Turn as its neutral checkpoint, so
   rolling back the Turn that triggered it keeps the generation.
 - **Protocol change:** leaving Responses leaves the generation untouched. Returning after
@@ -221,36 +220,6 @@ Malformed provider-history payload does not block domain Turn or Item pagination
 error only when the active Responses sampling path requires that provider-native recovery state.
 Consequently the display projection cannot contain Responses item JSON, encrypted reasoning,
 provider response IDs, or any future provider-native recovery payload.
-
-## Acceptance checklist
-
-- Consecutive tool-loop and cross-turn Responses requests keep the previous request input as a
-  byte-identical prefix and append only completed provider items and new local tail items.
-- Request-local sanitization never emits `provider_history_replaced`; successful neutral or
-  provider-native compaction emits exactly one replacement for the new context window.
-- Local compaction requests use their explicit maintenance input without consuming or
-  appending the active canonical provider-history generation.
-- Coverage accounting uses the sanitizer-normalized sampling projection even when replay or fork
-  materialization reconstructs multiple MEAI tool messages for one assistant tool-call block.
-- Provider IDs, `call_id`, item ordering, replayable image-generation fields, and encrypted
-  reasoning bytes survive turn completion, cold resume, rollback, and compatible fork.
-- Provider-history records advance display-projection checkpoints without placing provider-native
-  payloads in the display projection, and malformed provider history does not block domain paging.
-- Reasoning emitted after a tool result is projected as Assistant content, while the Tool message
-  contains only the corresponding tool results.
-- Compaction and protocol return establish an explicit, diagnosable prefix boundary.
-- Legacy threads retain their existing Responses wire shape.
-- Anthropic and OpenAI Chat Completions produce the same transport shapes and persistence behavior
-  as before this capability.
-- The complete test suite passes and the ChatGPT OAuth prompt-cache smoke median does not regress
-  by more than five percentage points from its pre-change baseline.
-
-## Related specs
-
-- [Context Compaction](context-compaction.md)
-- [Session Core](session-core.md)
-- [Prompt Cache](prompt-cache.md)
-- [OpenAI Subscription Auth](openai-subscription-auth.md)
 
 ## Hosted image completion
 

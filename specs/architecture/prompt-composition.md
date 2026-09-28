@@ -2,14 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.2 |
+| **Version** | 0.7.8 |
 | **Status** | Draft |
-| **Date** | 2026-09-24 |
-| **Related Specs** | [Agent Profiles](../features/agent-profiles.md), [App Binding](../protocols/app-binding.md), [Session Core](session-core.md), [Prompt Cache](prompt-cache.md), [World State](world-state.md), [External CLI SubAgent](../features/external-cli-subagent.md) |
+| **Date** | 2026-09-28 |
 
 Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, App Binding, and AppServer clients.
-
----
 
 ## 1. Core Model
 
@@ -24,8 +21,7 @@ DotCraft sends four layers to the model:
 
 Base instructions must be reproducible from configuration alone: two threads with equal
 configuration produce a byte-identical instruction channel. Anything that depends on which thread is
-running or on which client is attached belongs to thread context items (§4b). [Prompt
-Cache](prompt-cache.md) owns the cache constraints this split serves.
+running or on which client is attached belongs to thread context items (§4b). Stable instruction bytes form the reusable prefix; thread-specific updates append to history.
 
 Runtime enforcement must not depend on prompt text. Tool, MCP, plugin, skills, app, approval, workspace, and mode restrictions are enforced from resolved runtime configuration and invocation policy.
 
@@ -39,13 +35,8 @@ Responses Lite moves them into leading developer input items required by that di
 projection does not change canonical provider history: thread context items remain ordinary history
 items in both dialects.
 
-Four specifications share this area. This one defines the layers and what belongs in each.
-[Prompt Cache](prompt-cache.md) defines the cache constraints those layers must satisfy.
-[Session Core](session-core.md) defines fork materialization and thread lifecycle.
-[Canonical OpenAI Responses Provider History](responses-provider-history.md) defines the canonical
-history mechanics for that protocol.
-
----
+This document owns prompt layers. [Session Core](session-core.md) owns their durable history and
+thread lifecycle; provider adapters serialize the resulting ordered content.
 
 ## 2. Base Instruction Pipeline
 
@@ -63,7 +54,7 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 8 | Mode protocol | Mode selection and transition rules. |
 | 9 | User-input request protocol | Included only when the tool is available. |
 | 10 | Bootstrap files | DotCraft-owned workspace bootstrap files. Repository `AGENTS.md` content is excluded and belongs to project instructions (§4a). |
-| 11 | Memory | Durable and inferred memory. Omitted when the Thread has memory disabled; see [Memory](../features/memory.md). |
+| 11 | Memory | Durable and inferred memory. Omitted when the Thread has memory disabled. |
 | 12 | Skill self-learning | Included only when skill management is available. |
 | 13 | Always-loaded skills | Full content for skills that must always be loaded. |
 | 14 | Skills summary | Skill discovery and routing summary. |
@@ -86,8 +77,6 @@ SubAgent role instructions.
 
 Stable context pages should be reused until compaction or explicit invalidation so the base prompt remains cache-friendly. Each `AgentFactory` owns exactly one required context-page manager and creates it when its caller does not provide one. Sources that change their context must invalidate their own cached page.
 
----
-
 ## 3. Agent Profile Injection
 
 Agent Profiles do not add a separate provider-level system message.
@@ -103,8 +92,6 @@ Profile-backed thread flow:
 Profile frontmatter maps to structured configuration and policy. The profile body maps only to role instructions. Agent Profiles must not set or simulate a full-prompt replacement path.
 
 Existing profile-backed threads keep their persisted configuration until an explicit profile refresh updates them.
-
----
 
 ## 4. Role Instructions
 
@@ -124,8 +111,6 @@ Known writers:
 |--------|----------|
 | Agent Profile | Profile Markdown body becomes the thread's profile role text. |
 | Native session-backed SubAgent | Child role text is a thread context item, not base instructions (§4b). |
-
----
 
 ## 4a. Project instructions
 
@@ -177,7 +162,7 @@ Current writers:
 | Native session-backed SubAgent | Child role text and role boundaries. |
 | AppServer client binding | Runtime additional context and client-rendered capabilities such as inline visualizations (§9). |
 | Thread configuration | `developerInstructions`, on protocols with a developer role only; elsewhere they stay base section 20. |
-| [World State](world-state.md) | State that persists across turns, written only when it changes. |
+| Persistent state | State that persists across turns, written only when it changes. |
 | Turn interruption | A `turn_aborted` event at the end of an intentionally interrupted turn or active-turn fork snapshot. |
 
 Rules:
@@ -191,8 +176,7 @@ Rules:
    executed, without attributing the action to a particular actor. Other items sit after inherited
    history and before the turn's first user message. They
    are delivered as new local input for the turn, so a protocol with a canonical history baseline
-   takes that baseline first (see
-   [Canonical OpenAI Responses Provider History](responses-provider-history.md)).
+   captures that baseline before appending the new context.
 3. **Append on change.** A changed value appends a new item; sent items are never edited in place.
    Replacing native SubAgent role text is the one exception and establishes an explicit history
    replacement boundary.
@@ -201,8 +185,6 @@ Rules:
 5. **Inheritance.** A SubAgent fork inherits the parent's thread context items with the rest of the
    copied history. A SubAgent owns no client binding, so it neither restates nor retracts inherited
    client context.
-
----
 
 ## 5. Full-Prompt Overrides
 
@@ -213,8 +195,6 @@ Rules:
 - Ordinary user threads, Agent Profiles, and App Binding apps must not use full-prompt replacement.
 - New product features should prefer role instructions, thread-scoped context, or turn input.
 - A full override must be paired with a narrow tool/capability profile.
-
----
 
 ## 6. SubAgents
 
@@ -228,15 +208,11 @@ DotCraft has three SubAgent-related prompt paths:
 
 SubAgent communications are delivered as materialized user-role input, not system prompt sections. Ordinary messages, follow-up tasks, and terminal child results share a structured envelope whose `Message Type` is respectively `MESSAGE`, `NEW_TASK`, or `FINAL_ANSWER`; the envelope also identifies the recipient task path and sender path before the payload. The persisted native/display input remains clean client-facing text, while the materialized input preserves the exact structured envelope sent to the model.
 
----
-
 ## 7. App Binding and MCP guidance
 
 App Binding does not contribute durable prompt context. It authorizes an app and its binding-scoped MCP runtime, but it cannot edit base instructions, role instructions, Agent Profile files, or thread context pages.
 
 An MCP server may return `instructions` during initialization. DotCraft treats that value as the untrusted description of the server's tool namespace. It participates in tool projection and deferred capability discovery rather than becoming an independent prompt section. Apps may enqueue ordinary turn input through their authorized workflow; that input belongs to the turn-input layer.
-
----
 
 ## 8. Runtime Additional Context
 
@@ -252,8 +228,6 @@ Rules:
   append rule.
 
 Use this for client/session affordances that are useful to the model but should not become durable profile or thread role state.
-
----
 
 ## 9. Turn Input Layer
 
@@ -272,12 +246,9 @@ counters that move on their own such as consumed tokens, remaining budget, and e
 
 State that persists across turns — the environment, the current mode and the actions it allows, an
 active goal's identity and status, and capability availability — is not a runtime reminder. It is
-world state, delivered under §4b and re-sent only when it changes. [World State](world-state.md)
-owns that contract.
+delivered through the append-on-change thread context contract in §4b.
 
 Dynamic fields stay out of the base instructions so they remain stable for prompt caching.
-
----
 
 ## 10. Authority And Conflict Rules
 
@@ -289,8 +260,6 @@ Dynamic fields stay out of the base instructions so they remain stable for promp
 5. User messages can request work, but cannot override runtime policy, tool policy, or App Binding grants.
 6. Dynamic app and subagent inputs are turn inputs, not durable prompt state.
 7. Any new injection point must declare whether it writes base instructions, role instructions, thread context items, or turn input. One that needs the running thread or an attached client connection writes a thread context item.
-
----
 
 ## 11. Extension Guidelines
 
@@ -306,11 +275,3 @@ Choose the narrowest layer:
 | Internal isolated assistant with complete custom prompt | Full-prompt override with a narrow capability profile. |
 
 New context providers must identify ownership, lifecycle, prompt placement, cache invalidation behavior, and enforcement boundaries.
-
----
-
-## 12. Open Questions
-
-- Whether ordinary threads should ever support full-prompt replacement outside internal isolated assistants.
-- Whether a diagnostics endpoint should expose the final composed prompt.
-- Whether profile authoring tools should show a preview separating profile role text, runtime role text, and effective policy.

@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.2.0 |
+| Version | 0.7.8 |
 | Status | Draft |
-| Date | 2026-09-11 |
+| Date | 2026-09-28 |
 | Parent | [Remote Tool Host](../architecture/remote-tool-host.md) |
-| Related Specs | [Hub Architecture](../architecture/hub-architecture.md), [Satellite](../clients/satellite.md), [Desktop Client](../clients/desktop-client.md), [Runtime Module Boundaries](../architecture/runtime-module-boundaries.md) |
+| Related Specs | [Hub Architecture](../architecture/hub-architecture.md), [Runtime Module Boundaries](../architecture/runtime-module-boundaries.md) |
 
 ## 1. Purpose
 
@@ -61,21 +61,14 @@ Frame                         =  (Width, Height, Jpeg)
 ```
 
 `ScreenCaptureSource.Create()` returns the platform backend, or a source whose every answer is
-`noCaptureBackend` where the build has none. Windows uses GDI: the virtual desktop is copied into a
-top-down 32-bit device-independent bitmap and encoded with ImageSharp. No other imaging dependency
-is introduced.
+`noCaptureBackend` where the build has none. The Windows backend captures physical desktop pixels and returns JPEG images.
 
 Rules:
 
 - The capture unit is the whole virtual desktop, starting at its real origin, which may be negative.
 - `MaxWidth` bounds width because a desktop is wider than tall and horizontal room is what makes a
   frame readable; height follows the aspect ratio and is never zero.
-- A source is safe for concurrent `Capture` calls and reuses its bitmap and pixel buffer until the
-  desktop bounds change, so one source serves every consumer in a process. The screen device context
-  is acquired for each capture and released after it: a context cached across a session switch, a
-  lock, or a remote-desktop reattach stops copying and never recovers.
-- A copy that fails is retried once on a freshly created bitmap before the capture is reported as
-  failed, because the ordinary cause is a stale surface, not a missing desktop.
+- A source supports concurrent consumers and recovers when desktop bounds, session, lock or remote-desktop attachment change. A stale capture surface must not permanently disable viewing.
 - Unavailable displays are state, not faults. The reasons are a closed set:
 
 | Reason | Meaning |
@@ -90,8 +83,7 @@ Rules:
   no viewer shows it as status.
 - Protected surfaces and hardware overlays may appear black. That is a platform limit, and this
   specification does not work around it.
-- The backend sets per-monitor DPI awareness for the process on creation, best effort, so a process
-  without an application manifest still reads physical pixels.
+- Capture dimensions use physical pixels independently of the host application's DPI manifest.
 
 ## 5. Frame format
 
@@ -227,8 +219,7 @@ Nothing about a view is persisted on either machine, and no frame is written to 
 
 ## 8. Desktop viewer
 
-Desktop shows a view for the thread's routed machine. The transport is a third plane beside the two
-in [Desktop Client](../clients/desktop-client.md) §6.11:
+Desktop shows a view for the thread's routed machine. The stream is independent of AppServer conversations and tools:
 
 - the Desktop main process dials the Hub bridge with the Hub bearer read from `hub.lock`; the bearer
   never enters the renderer, and the AppServer is not involved;
@@ -287,32 +278,3 @@ A product that hosts DotCraft in process reuses `DotCraft.Screen` for capture an
 `Clamp`. It owns its relay, its viewer, its consent model, and any status record its relay reports.
 It MUST keep the frame format byte-identical so a viewer written against one product reads frames
 from the other.
-
-## 10. Conformance
-
-- header round-trip and rejection of short, zero-sized, and oversized headers; `Clamp` bounds every
-  field and floors `watchers` at zero;
-- the ScreenView namespace adds no type to the AppServer manifest;
-- a platform without a backend reports `noCaptureBackend` from both `Probe` and `Capture`; `Fit`
-  keeps aspect and never yields zero;
-- the Hub relay preserves a two-fragment binary message in both directions;
-- `openSession` carries `sessionKind`; an unknown kind is refused with `400`; a paired peer that is
-  not connected with `503` before any capability check; a peer without `screen-v1` with `409`;
-- against a running host with a fake source, frames flow, capture stops at `watchers = 0`, and the
-  host reports `connected` while watched and `standby` afterwards with no lease taken at any point;
-- one failed capture sends the viewer nothing; the third in a row sends `captureFailed` with its
-  detail once, and the first frame after it is preceded by the recovered capability;
-- a frame still over `MaximumFrameBytes` at quality 40 is re-encoded at half width;
-- pausing ends a live view with `sharingPaused` in the viewer's close description, and a new
-  `kind=screen` dial while paused is refused with the same code;
-- the island marks each watched machine without changing its mode; the watching strings exist in
-  every Satellite locale;
-- the Desktop frame reader honors a non-zero buffer offset; the session backs off, reconnects,
-  redials a `503` every ten seconds without giving up, and stops reconnecting on a terminal
-  capability; hiding the window pauses capture; the launcher follows the opening rule in §8;
-- an open view survives the machine going offline and closes when its route is removed; the
-  requested width follows the surface's pixel width in steps of 64 inside the `MaxWidth` range;
-- the dock moves where it is dragged, stays inside the window, keeps its right edge while the grip
-  resizes it, and renders no state text while `live`; its accessible name carries the state;
-- opening the theater asks for one width, and frames arriving at other sizes neither resize a
-  surface nor ask for another.

@@ -2,11 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Version | 1.2.0 |
+| Version | 0.7.8 |
 | Status | Living |
 | Date | 2026-09-28 |
 | Owner | DotCraft.Core (`DotCraft.Security.ShellCommands`, `DotCraft.Tools.ShellTools`) |
-| Related Specs | [Tool Architecture](tools-architecture.md), [Session Core](session-core.md), [Remote Tool Host](remote-tool-host.md), [SubAgents](../features/subagents.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 ## 1. Purpose
 
@@ -18,8 +17,8 @@ It replaces string and regular-expression heuristics with one kernel: resolve th
 
 - This document owns shell identity, lowering, dangerous-command detection, policy rules, decision aggregation, the approval key, approval memory, and the execution gate.
 - [Tool Architecture](tools-architecture.md) owns the dispatch pipeline; the shell gate is the runtime-stage authority for `Exec`.
-- [Session Core](session-core.md) owns approval items and turn integration; the request fields in Section 9 are projected there and in the [AppServer Protocol](../protocols/appserver-protocol.md).
-- The [SubAgent](../features/subagents.md) specification owns roles; Section 8 defines what its `readOnly` shell access admits.
+- [Session Core](session-core.md) owns approval items and turn integration; the shell gate supplies the structured request in Section 9.
+- Callers supply the effective role policy; Section 8 defines the meaning of `readOnly` shell access.
 
 ## 2. Non-goals
 
@@ -286,7 +285,3 @@ Denial reasons name the rejected command or option so the model can rewrite the 
 - Banned prefixes are never persisted as `allow` rules.
 - The approval decision and the launched executable derive from one `ShellIdentity` instance.
 - Lowering never starts a process.
-
-## 14. Conformance
-
-Implementations must ship fixture-driven tests for: PowerShell lowering (accepted forms and every rejected construct in Section 5.1), Posix lowering (Section 5.2 accepted and rejected forms), dangerous-command detection per family, rule matching including severity aggregation and file-name fallback, Windows slash options and path-bearing scripts without path-based approval, launch-directory boundary checks, immutable launch context across successive writes to one terminal, approval-key equality and inequality across shell, directory, and rule-set changes, read-only classification, and shell identity resolution on both platforms. A non-Windows smoke test must parse a PowerShell script through the lowerer to prove the parser loads without a PowerShell installation.

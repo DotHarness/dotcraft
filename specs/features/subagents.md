@@ -2,16 +2,14 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
+| **Version** | 0.7.8 |
 | **Status** | Draft |
-| **Date** | 2026-08-12 |
+| **Date** | 2026-09-28 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Prompt Composition](../architecture/prompt-composition.md), [Prompt Cache](../architecture/prompt-cache.md), [Model Options](model-options.md), [Tool Architecture](../architecture/tools-architecture.md) |
-| **Related Specs** | [Agent Profiles](agent-profiles.md), [External CLI SubAgent](external-cli-subagent.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
+| **Related Specs** | [Agent Profiles](agent-profiles.md) |
 
 Purpose: define the shared SubAgent child-thread, runtime, context, model-resolution, policy,
 communication, and lifecycle contracts owned by Session Core.
-
----
 
 ## 1. Goals and boundaries
 
@@ -32,8 +30,6 @@ This specification covers:
 Feature-specific orchestration, module-owned task graphs, client layout, external runtime command
 lines, and public wire DTOs remain in their owning specifications.
 
----
-
 ## 2. Core concepts
 
 | Concept | Contract |
@@ -50,7 +46,7 @@ lines, and public wire DTOs remain in their owning specifications.
 
 `taskName` is the stable path identity and contains only lowercase ASCII letters, digits, or
 underscores. `agentNickname` and `Thread.DisplayName` are presentation metadata and do not change
-routing. Siblings under one parent cannot reuse a child `taskName` or path, including after closure.
+routing. `root`, `.` and `..` are reserved segments. Absolute addresses begin with `/root`; relative addresses append to the current path. Siblings under one parent cannot reuse a child `taskName` or path, including after closure.
 
 `agentRole` and `profile` are independent. A role controls DotCraft behavior; a profile selects the
 runtime. A role name is not a profile name, and neither is display metadata.
@@ -79,8 +75,6 @@ a failed initial discovery without reliable state leaves only the name and navig
 Groups prioritize failure, then running activity, and display `finished` only when every entry
 is confirmed finished. Closed records remain in history but never consume active progress
 matches or contribute to running counts.
-
----
 
 ## 3. Spawn lifecycle
 
@@ -117,10 +111,7 @@ budget and preserves the original failure, attaching cleanup diagnostics if comp
 Direct public deletion of child threads remains prohibited. Once admitted, a child's failure or
 cancellation follows normal Turn lifecycle and keeps its history.
 
-Module integrations release preparation resources before child deletion. Workflow worktrees with
-local changes or commits remain recoverable and are recorded in the workflow journal; clean
-worktrees can be removed. `agent.started` is journaled only after admission. This compensation
-covers live failures and cancellation, not process-crash recovery or a distributed transaction.
+Module integrations release preparation resources before child deletion and preserve recoverable work. Their started notification follows admission. Compensation covers live startup failure and cancellation, not process-crash recovery.
 
 `SubAgent.MaxDepth` defaults to `1`. The first child of a root thread has depth `1`; recursive spawning
 requires both a higher configured limit and a role that permits Agent control.
@@ -128,8 +119,6 @@ requires both a higher configured limit and a role that permits Agent control.
 `SubAgent.MaxConcurrentSubAgents` bounds open resident children within one root tree. Before spawning,
 Session Core may close the oldest idle child to make room. It never evicts a running child; spawning
 fails when every resident child is active.
-
----
 
 ## 4. Runtime paths
 
@@ -153,8 +142,6 @@ External runtimes do not consume native model preferences or invocation-specific
 overrides. Their model and permission semantics belong to the selected external runtime and profile.
 Running external children do not support current-Turn steering; callers must queue a later task.
 
----
-
 ## 5. Context and fork modes
 
 | `forkTurns` | Context behavior | Native model behavior | Runtime binding behavior |
@@ -169,6 +156,8 @@ traffic, then appends the child role guidance and initial task. Stable reference
 eligible direct-parent bindings are snapshotted at creation. An environment-compatible child inherits
 the parent's exact stable `AGENTS.md` snapshot from the session's single runtime context-page manager.
 Later filesystem or parent-context changes do not propagate.
+
+A full-history native child's generated base instructions and model-visible tool schema match the parent's. Role restrictions narrow invocation policy without changing that static prefix. Trust-tier gating may withhold capabilities that must never be reachable from delegated threads. Fresh and bounded children establish independent prefix generations.
 
 The model-visible `SpawnAgent` declaration carries a bounded provider model catalog snapshot. The
 snapshot is created before a thread's first provider request, persisted with its captured thread
@@ -185,8 +174,6 @@ bindings.
 
 External runtimes receive the selected parent Turns as rendered prompt context rather than native
 provider history.
-
----
 
 ## 6. Native model resolution
 
@@ -230,8 +217,6 @@ snapshot. Full-history native children reject either argument rather than silent
 Unknown models and provider-side option rejection follow the existing Model Options and Turn failure
 contracts. Core callers must not invent provider aliases or bypass the parent provider boundary.
 
----
-
 ## 7. Role, tools, and approval policy
 
 The built-in roles are `default`, `worker`, and `explorer`. Workspace configuration may replace a
@@ -249,15 +234,13 @@ A role may define:
 
 Native child tools use the normal session tool-construction path. The child inherits the parent's tool
 allow/deny boundary, then applies role restrictions. Role restrictions narrow authority and cannot
-bypass the parent's approval service, approval context, or workspace policy.
+bypass the parent's approval service, approval context, or workspace policy. Tool reachability and shell access are independent gates: omitted shell access means `full`, while `readOnly` also rejects stdin writes. The default role denies Agent control; explorer permits read-only exploration, and worker permits writes and Agent control within the depth limit.
 
 Role instructions are stored as a thread context item after inherited history and before the initial
-task. Invocation-specific task data belongs in the task input rather than stable base instructions.
+task. Changing or clearing native role instructions establishes an explicit history replacement boundary before sampling. Invocation-specific task data belongs in the task input rather than stable base instructions.
 
 External runtimes receive role instructions through their runtime prompt. Their profile translates
-DotCraft approval intent into runtime launch behavior as defined by the External CLI SubAgent spec.
-
----
+DotCraft approval intent into runtime launch behavior; the adapter owns its command-line mapping.
 
 ## 8. Communication and continuation
 
@@ -279,11 +262,15 @@ the active Turn changes before guidance is admitted.
 There is no distinct persisted SubAgent pause state. Cancelling or completing an active Turn leaves an
 open child available for a later task; closing the Agent ends that reusable relationship.
 
+Communication envelopes carry `id`, `rootThreadId`, author and recipient paths, `messageType`, payload, parent-Turn provenance and creation time. Types are `MESSAGE`, `NEW_TASK` and `FINAL_ANSWER`; older entries without type/provenance read as `MESSAGE` with no parent Turn. Rendering uses user-role materialized context, not a new public Item or user-authored conversation bubble.
+
+Delivery is serialized per root and recipient. Pending messages may enter sampling or tool boundaries while the Turn accepts mailbox input. After the final answer, late passive messages wait for the next Turn; explicit guidance steering can reopen admission. Internal goal steering is not mailbox activity. Persisted delivery status is not an exactly-once guarantee across process failure.
+
+`WaitAgent` observes only the caller's root tree. Its optional millisecond timeout uses configured default/minimum/maximum values; out-of-range values fail rather than clamp. `ListAgents` reports `/root` and open path-addressable children with the latest Turn's lifecycle state, or `idle` when no Turn exists.
+
 The terminal `FINAL_ANSWER` mailbox entry records the direct child result and Turn provenance. Passive
 messages are marked delivered only after their materialized input is persisted with a submitted,
 queued, or steered task.
-
----
 
 ## 9. Persistence, recovery, and ownership
 
@@ -305,8 +292,6 @@ Provider, role, and SubAgent default changes may invalidate cached child agents,
 model of a running provider request. Existing child threads retain their captured configuration until
 an explicit supported update or a new child is created.
 
----
-
 ## 10. Progress and observability
 
 Session Core emits SubAgent progress snapshots while child work is active. A snapshot identifies the
@@ -318,19 +303,3 @@ External usage is reported only when the runtime adapter supplies trustworthy me
 
 Lifecycle hooks observe SubAgent start and stop without replacing normal thread persistence or terminal
 communication.
-
----
-
-## 11. Acceptance criteria
-
-- Every SubAgent is a durable, path-addressable child thread with a durable parent edge.
-- Native and external runtimes preserve their distinct context, model, steering, and permission rules.
-- Full-history native children always inherit the parent's complete model preference.
-- Fresh and bounded native children apply default, role, invocation, and normalization precedence in
-  the documented order.
-- Partial invocation overrides preserve unrelated model-option fields.
-- Roles narrow tool and shell authority without bypassing parent approval policy.
-- Open children accept later tasks; closed children cannot be resumed through the same edge.
-- Parent lifecycle operations consistently own the complete descendant subtree.
-- Progress, mailbox delivery, and terminal results remain observable without becoming alternate
-  persistence authorities.

@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.0 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-09-24 |
-| **Parent Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [Dreams](dreams.md), [Prompt Composition](../architecture/prompt-composition.md), [Desktop Client](../clients/desktop-client.md) |
+| **Date** | 2026-09-28 |
+| **Parent Specs** | [Session Core](../architecture/session-core.md) |
+| **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md) |
 
 Purpose: Define DotCraft's workspace memory: the agent-maintained `MEMORY.md` store, which store a Thread uses, how memory enters the prompt, the workspace switch that enables it, and the features that depend on it.
 
@@ -23,7 +23,7 @@ In scope:
 Out of scope:
 
 - Short-term context compaction and token-pressure recovery.
-- Dreams generation and review, defined in [Dreams](dreams.md).
+- Generation and review of derived memory.
 - Per-Thread memory controls.
 - Vector retrieval, semantic indexes, or cross-workspace memory sharing.
 
@@ -78,14 +78,14 @@ A Thread captures the switch at creation and keeps it for its lifetime, like its
 
 Features that depend on memory stop when it is disabled and resume with their stored settings when it is enabled again:
 
-- Dreams does not start scheduled or manual runs. See [Dreams](dreams.md).
+- Dreams does not start scheduled or manual runs.
 - Welcome suggestions are not generated from memory, and clients fall back to their default suggestions. Conversation prompt suggestions are independent of this switch.
 
 Clients show dependent settings as disabled while memory is off, with their stored values unchanged.
 
 ## 6. Deleting Memory
 
-AppServer `memory/reset` deletes the contents of the current workspace's memory directory, including files left by earlier versions, and the Dreams-derived memory defined in [Dreams](dreams.md). It does not delete sessions, configuration, skills, plugins, plans, or automation tasks, and it does not change `Memory.Enabled`.
+AppServer `memory/reset` deletes the contents of the current workspace's memory directory, including files left by earlier versions, and all workspace-derived memory artifacts. It does not delete sessions, configuration, skills, plugins, plans, or automation tasks, and it does not change `Memory.Enabled`.
 
 ## 7. Welcome Suggestions
 

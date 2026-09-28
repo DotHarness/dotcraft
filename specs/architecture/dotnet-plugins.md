@@ -2,17 +2,14 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.17.0 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-09-19 |
-| **Related specs** | [Plugin Architecture](plugin-architecture.md), [Runtime Module Boundaries](runtime-module-boundaries.md), [Session Core](session-core.md), [Tool Architecture](tools-architecture.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
+| **Date** | 2026-09-28 |
 
 This specification defines trusted, in-process .NET plugins. The shared plugin manifest,
 discovery, installation, and content contributions remain owned by
 [Plugin Architecture](plugin-architecture.md). A bundle may contain both content and .NET
 contributions.
-
----
 
 ## 1. Scope and invariants
 
@@ -40,8 +37,6 @@ The following invariants are normative:
 6. Routing revocation is deterministic. Memory reclamation is observable but best-effort.
 7. Plugin code is fully trusted. The generation boundary is a lifecycle and type-identity
    mechanism, not a security sandbox.
-
----
 
 ## 2. Trust
 
@@ -75,8 +70,6 @@ Marketplace or publisher information is display evidence, not a verified identit
 verification, publisher attestation, and capability permissions are outside this version.
 Lower-trust extensibility should use out-of-process tools, hooks, workflows, or channel adapters.
 
----
-
 ## 3. Host ABI and assembly identity
 
 Plugins compile against `DotCraft.Core` and its public transitive contracts, including
@@ -102,8 +95,6 @@ The public host surface is a version-bound ABI, not an append-only compatibility
 Provider plugins may export typed service-contract assemblies to direct dependants. Exported
 assembly simple names must be unique within each consumer's dependency closure. The host validates
 structure and identity, not every referenced member.
-
----
 
 ## 4. Contribution registry
 
@@ -167,8 +158,6 @@ fan-out observers are normally logged and skipped, authority or fold failures ma
 operation, and tool failures use stable tool errors. There is no blanket promise that every plugin
 exception is ignored.
 
----
-
 ## 5. Plugin-facing contribution catalog
 
 The catalog reuses kernel contracts. Capability tiers are:
@@ -210,8 +199,6 @@ stream enumeration, not merely method return.
 The following are also closed plugin surfaces: root DI mutation, `IDotCraftModule`,
 `WorkspaceRuntime` composition, Session Core replacement, protocol handlers, persistence, and
 wire-model implementations. Plugins may consume public services; they do not replace these owners.
-
----
 
 ## 6. Activation API
 
@@ -257,46 +244,16 @@ Resources and background work belong to `IPluginLifetime`. Contribution instance
 those resources; they must not dispose them. Raw threads, static subscriptions, native callbacks,
 and untracked tasks can pin a generation and are plugin defects.
 
-`DataRoot` uses the canonical host-side plugin data directory: `<UserDataPath>/plugins/<id>/data`
-when `UserDataPath` is configured, otherwise `<DataPath>/plugin-data/<id>`. It is independent from
-both plugin configuration documents. A settings mutation that affects a .NET plugin follows the
+`DataRoot` uses the host-side plugin data directory defined by [Plugin Architecture](plugin-architecture.md). A settings mutation that affects a .NET plugin follows the
 normal quiesce, write, and reconcile lifecycle. Quiesce failure writes nothing. Write failure
 restores the old generation. A successful write restarts the plugin and every required dependent
 generation so each activation receives a coherent new snapshot.
 
 ### 6.1 Manifest
 
-The `dotnet` block extends the shared plugin manifest:
-
-```json
-{
-  "schemaVersion": 1,
-  "id": "acme.review-core",
-  "version": "1.2.0",
-  "capabilities": ["dotnet"],
-  "dotnet": {
-    "minHostVersion": "0.3.0",
-    "entryAssembly": "./lib/Acme.ReviewCore.Plugin.dll",
-    "entryType": "Acme.ReviewCore.Plugin",
-    "exportedApiAssemblies": ["./lib/Acme.ReviewCore.Api.dll"]
-  },
-  "dependencies": { "acme.review-base": "1.0.0" }
-}
-```
-
-Rules:
-
-- Plugin, host-floor, and dependency versions use canonical `MAJOR.MINOR.PATCH`.
-- `version` and `minHostVersion` are required for .NET plugins.
-- Paths are confined, `./`-relative bundle paths.
-- Managed assembly paths are compared using ordinal case-insensitive semantics so admission is
-  consistent across host operating systems.
-- `dependencies` is .NET-only, cannot name the plugin itself, and each value is the minimum
-  provider version within one compatibility line. When the required major version is at least 1,
-  a provider must be greater than or equal to the minimum and share its major version. A `0.x`
-  requirement additionally requires the same minor version.
-
----
+The shared [.NET manifest](plugin-architecture.md#net-manifest) defines entry identity, host floor,
+exported contract assemblies, and required plugin dependencies. Admission compares managed assembly
+paths ordinally and case-insensitively on every host OS.
 
 ## 7. Admission, activation, and teardown
 
@@ -480,8 +437,6 @@ build are available when the next Turn builds its agent. Process restart clears 
 bundle registration and execution qualification, so the project must be built again before it is
 active. Source changes take effect only after `Build`.
 
----
-
 ## 8. Tool containment
 
 Plugin tool methods use the same strongly typed authoring contract as built-ins; see
@@ -490,13 +445,6 @@ Invocation context and full execution results are optional capabilities, not req
 ordinary business methods. An `AIFunctionToolSource` can contribute generated functions through
 `IToolSource`; the Host still assigns plugin identity and lifecycle. Full result forwarding inside
 a generated function does not expand the fields admitted by the plugin result projection.
-
-Remote execution reuses this lifecycle through Runtime's provider-free execution host. The Agent
-exports accepted bundle bytes, active dependency closure, and generation settings, never running
-objects or machine trust. The Host admits those exact bytes under its own lease-scoped authorization
-and provides only tool execution services and contribution contracts. Source and remote generation
-bindings remain distinct even when their tool schemas match. Synchronization and owner approval are
-defined by [Remote Tool Host](remote-tool-host.md#13-prepared-net-plugin-execution).
 
 Plugin tools use `IToolSource`, but raw plugin registrations never enter a frozen
 `EffectiveToolSnapshot`. A host aggregate source:
@@ -511,8 +459,6 @@ Plugin tools use `IToolSource`, but raw plugin registrations never enter a froze
 
 Schema validation, authority, policy, approval, hooks, recording, and result normalization remain
 owned by [Tool Architecture](tools-architecture.md).
-
----
 
 ## 9. Protocol projection
 
@@ -531,10 +477,7 @@ AppServer projects plugin state; it does not own another plugin runtime.
   preceding revision.
 - .NET generation revocation cannot veto a mutation. Quiescing root-backed content contributions
   can fail; that failure aborts the filesystem/config mutation and restores the prior projection.
-Exact methods and wire fields are owned by
-[AppServer Protocol](../protocols/appserver-protocol.md).
-
----
+Protocol projections serialize this committed state without owning an independent runtime.
 
 ## 10. Non-goals
 

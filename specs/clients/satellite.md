@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.6.0 |
+| Version | 0.7.8 |
 | Status | Draft |
-| Date | 2026-09-11 |
+| Date | 2026-09-28 |
 | Parent spec | [Remote Tool Host](../architecture/remote-tool-host.md) |
-| Related Specs | [Hub Architecture](../architecture/hub-architecture.md), [Remote Screen View](../features/remote-screen-view.md), [Desktop Client](desktop-client.md) |
+| Related Specs | [Hub Architecture](../architecture/hub-architecture.md), [Remote Screen View](../features/remote-screen-view.md) |
 
 ## Overview
 
@@ -20,33 +20,6 @@ terms: the specification is Remote Tool Host, the CLI noun is `tool-host`, the p
 `DotCraft.Satellite`, and the executable is `dotcraft-satellite.exe`, matching `dotcraft.exe`.
 
 The key words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are normative.
-
-## Goal
-
-Let a machine owner who never uses a command line install, accept, observe, pause, and revoke
-remote tool execution on their own machine, with the same runtime, state, and security level as the
-CLI-driven Remote Tool Host.
-
-## Scope
-
-- A per-user Windows application: one process, one tray icon, no administrator rights, no Windows
-  service.
-- A consent window shown for every invitation before any credential is stored.
-- A tray icon with four states and a menu that shows who is connected and gives every paired
-  machine one submenu of the actions that name it — open its task folder, manage its access,
-  disconnect it, revoke it. Only what does not name a machine stays at the top level: pause
-  or resume sharing, paste an invitation link, and quit.
-- A floating island above the other windows for as long as the machine is paired. While the machine
-  is in use it names who is using it, shows the running operation and command, lists the connected
-  machines with a disconnect and an open-folder action each, offers one machine-wide pause, carries
-  the owner approval request, and marks the machine as watched while its screen is being viewed.
-  Otherwise it says in one line that the machine is ready, paused with resume at hand, or not
-  connected.
-- Operating-system notifications when a peer connects or disconnects, and when it starts or stops
-  viewing the screen.
-- Login autostart, single-instance behavior, and handling of the `dotcraft://satellite/join` link.
-- A per-user installer with an update channel.
-- Localization in Simplified Chinese and English, extensible to the other Desktop locales.
 
 ## Non-goals
 
@@ -75,14 +48,8 @@ root; those pairings belong to the product.
 Tool sessions follow the [execution-session lifecycle](../architecture/remote-tool-host.md#52-execution-session-ownership).
 Owner pause, disconnect, authorization changes, and revoke retain their device-level effect.
 
-Satellite is a shipped DotCraft product artifact. Its solution is separate from `dotcraft.sln`
-only because the cross-platform build runs on Linux; that exclusion is a build constraint, not a
-sample designation.
-
 Satellite requires the WebView2 Runtime, which ships with Windows 11 and with Microsoft Edge.
-Without it the consent window shows a message saying so and offers Decline only. Pages are hosted
-in WebView2's window-to-visual mode: plain windowed hosting inside a WinUI window receives no
-mouse input on Windows 11, and WinUI's own XAML control cannot render a transparent page.
+Without it the consent window shows a message saying so and offers Decline only.
 
 ## State sharing with the CLI
 
@@ -105,10 +72,6 @@ consequences in copy that is visible whether or not that card is selected. `work
 allows ordinary task-folder file operations and asks the local owner before external files, new
 commands, nonempty terminal input and language-server execution. This is approval-based, not an
 OS sandbox. Full access remains subject to Windows permissions and Host deny policy.
-
-Full access is the default because lending a whole machine is the ordinary case, and it carries
-no separate acknowledgement step. Its risk is stated by copy the owner has already read rather
-than by an extra click, so the common path is: open the window, choose Allow.
 
 Selecting the workspace card MUST open the folder picker on that transition alone, so choosing a
 folder never requires typing a path. Selecting an already-selected card MUST NOT reopen it; a
@@ -260,13 +223,10 @@ never runs two Remote Tool Host processes against the same state root.
 A second Satellite instance MUST hand any invitation it was started with to the running instance
 and exit without initializing its user interface.
 
-Satellite MUST keep and observe the Remote Tool Host run task. A control or data connection failure,
-or an unexpected completion of that task, MUST leave the tray process alive. Operational diagnostics
-MUST be written to `~/.craft/logs/dotcraft-satellite-*.log` for application startup and shutdown,
-control connection changes and retries, data-session closure, runtime task failures, and WinUI callback
-failures. These diagnostics MUST NOT contain credentials, RPC arguments, command output, or file
-contents. A tray callback failure is contained to that notification or refresh; an island callback
-failure disables the island and leaves the tray and Remote Tool Host running.
+A control/data connection failure or an unexpected runtime completion leaves the tray alive.
+Diagnostics follow [Logging](../architecture/logging.md) and exclude credentials, RPC arguments,
+command output and file contents. Tray callback failures are contained to the affected operation;
+island failures disable the island while the tray and Remote Tool Host remain available.
 
 ## Localization
 
@@ -284,37 +244,3 @@ the pairing. Uninstall MUST stop the runtime, remove
 autostart, remove the protocol handler only when Satellite owns it, remove the notification
 registration, and offer to revoke every pairing, defaulting to revoke, so no live shared secret
 outlives the application that used it.
-
-## Acceptance checklist
-
-- A fresh Windows machine without administrator rights installs Satellite, opens an invitation
-  link, and accepts it in one window; the tray shows `standby` afterwards and the island says the
-  machine is ready.
-- The engineer's Desktop shows the machine and can run a command on it; the tray shows
-  `connected` and the island names the engineer and shows the running command.
-- The island stays above other windows for the whole session, survives being dragged to another
-  position, comes back where it was left, and returns to its ready line when the last session
-  closes.
-- Pausing sharing from the tray puts the paused line and a resume action on the island; resuming
-  from the island returns the tray to `standby`.
-- The engineer's Desktop opens the screen view: the island shows the watching marker and a
-  notification names the engineer; pausing sharing ends the view on the engineer's side and a
-  second notification says viewing stopped.
-- A tool that needs permission is answered on the island; a second request waits behind the first
-  and is counted; an unanswered request denies itself after two minutes.
-- Disconnect, pause, and revoke from the tray or the island take effect immediately and are visible
-  on the engineer's side, and each cancels every request still waiting.
-- Stopping the Hub on the engineer's machine moves the tray to `offline` and the island to its
-  not-connected line; restarting it moves both back to `standby` without owner action.
-- Signing out and back in restarts Satellite in the background with no window.
-- `dotcraft tool-host status` on the machine reports the pairing Satellite created.
-- On a machine with Desktop installed, `dotcraft://workspace/open` still opens Desktop and a
-  `dotcraft://satellite/join` link still reaches Satellite.
-- Uninstall leaves no autostart entry, no protocol handler owned by Satellite, no notification
-  registration, and, when the owner accepts the default, no stored credential.
-
-## Open questions
-
-- Whether the consent window should also let the owner restrict which tool classes an inviter may
-  run, or whether Host-local tool policy through the CLI remains the only knob in v1.
-- Whether the tray should surface the daily audit summary directly or only open the audit folder.

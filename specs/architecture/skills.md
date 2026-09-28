@@ -2,10 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.1.0 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-09-15 |
-| **Related Specs** | [Session Core](session-core.md), [Prompt Composition](prompt-composition.md), [Plugin Architecture](plugin-architecture.md), [Remote Tool Host](remote-tool-host.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
+| **Date** | 2026-09-28 |
 
 Purpose: define the durable architecture for DotCraft Skills, including discovery, prompt loading,
 effective Skill resolution, self-learning adaptations, installation, client access, and remote use.
@@ -206,37 +205,18 @@ Installation preserves ordinary relative supporting files instead of rewriting t
 `skills/uninstall` removes the resolved workspace or user Skill and its stored variants. Plugin and
 built-in Skill lifecycle remains owned by their plugin or built-in deployment mechanism.
 
-## 8. AppServer and Desktop
+## 8. Management boundary
 
-[AppServer Protocol](../protocols/appserver-protocol.md) owns exact wire shapes. The Skill methods
-have these responsibilities:
+Hosts expose discovery, source reads, effective reads, enablement, restoration, and eligible removal
+through the same Skill service. A descriptor distinguishes source identity, enabled state, and whether
+an effective variant exists. Effective reads remain available when variant mode is disabled.
+Clients do not need adaptation storage internals.
 
-| Method | Responsibility |
-|--------|----------------|
-| `skills/list` | List descriptors, source metadata, enabled state, and `hasVariant`. |
-| `skills/read` | Read the source `SKILL.md` and metadata. |
-| `skills/view` | Read the effective source-or-variant instruction body. |
-| `skills/restoreOriginal` | Restore source behavior for the current runtime target. |
-| `skills/setEnabled` | Persist workspace enablement. |
-| `skills/uninstall` | Remove an eligible installed Skill and its variants. |
+## 9. Execution locality
 
-`capabilities.skillsManagement` announces the management methods. `capabilities.skillVariants`
-means variant mode is enabled for the current runtime. `skills/view` remains available as a
-source-only effective view when variant mode is disabled. Desktop uses `hasVariant` and
-`skillVariants` to show the adaptation badge and Restore Original action without exposing manifest
-details.
-
-## 9. Remote execution
-
-Connecting a [Remote Tool Host](remote-tool-host.md#12-execution-locations-and-file-transfer) does
-not move or synchronize Skill bundles, variants, or plugin packages. `SkillView`, supporting files,
-and effective resolution remain Agent-local.
-
-RPC-eligible file tools accept `target: "local"`, so the Agent can inspect a Skill's supporting
-files while its default route is remote. When remote execution needs a script, directory, or CLI
-file, the Agent copies the required content with `RemoteToolHost.Transfer` and preserves any relative
-dependencies. Copying a plugin package does not activate the plugin or install its dependencies on
-the remote Host.
+Skill discovery and effective resolution remain local to the Agent. Selecting a remote execution
+location does not synchronize or activate bundles, variants, or plugins. Supporting files needed
+elsewhere must be explicitly transferred while preserving relative dependencies.
 
 ## 10. Security and invariants
 

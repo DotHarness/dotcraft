@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Version | 1.0.0 |
+| Version | 0.7.8 |
 | Status | Living |
 | Date | 2026-08-16 |
 

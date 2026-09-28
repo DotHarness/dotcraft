@@ -2,10 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.0 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-09-24 |
-| **Related Specs** | [subagents.md](../features/subagents.md), [appserver-protocol.md](../protocols/appserver-protocol.md), [context-compaction.md](context-compaction.md), [responses-provider-history.md](responses-provider-history.md), [prompt-composition.md](prompt-composition.md), [memory.md](../features/memory.md), [multi-folder-projects.md](../features/multi-folder-projects.md), [goal.md](../features/goal.md), [external-channel-adapter.md](../protocols/external-channel-adapter.md) |
+| **Date** | 2026-09-28 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -13,30 +12,13 @@ Purpose: Define the **server-managed** session model (Thread / Turn / Item) used
 
 This specification defines the **internal domain model and execution engine** for channels whose conversation state is owned by the server and executed through `ISessionService`.
 
-For the external JSON-RPC API that projects these primitives to out-of-process clients, see the [DotCraft AppServer Protocol Specification](../protocols/appserver-protocol.md).
-
-| Document | Defines |
-|----------|---------|
-| `session-core.md` | Domain model, lifecycle rules, event semantics, persistence layout, approval semantics, and adapter contracts inside `DotCraft.Core`. |
-| `subagents.md` | Authoritative SubAgent runtime, fork, model resolution, policy, communication, and child lifecycle contract. |
-| `appserver-protocol.md` | JSON-RPC methods, notifications, transport rules, wire DTOs, error codes, and approval mechanics for out-of-process clients. |
+Transport protocols project these primitives without redefining their lifecycle or persistence.
 
 ### 1.1 In-Scope Channels
 
-The Session Protocol is the active execution model for every channel module that executes through the session service, whatever its transport.
-
-These channels create and resume server-managed threads whose canonical domain and model-visible history lives under `.craft/threads/active|archived/`, while queryable metadata lives in `.craft/state.db`. They submit turns through Session Core and consume `SessionEvent` streams through thin adapters.
-
-### 1.2 Design Intent
-
-The purpose of the Session Protocol is to unify the **server-managed** channels behind one core model:
-
-- shared Thread / Turn / Item primitives
-- shared execution path through `ISessionService`
-- shared event semantics for adapters
-- shared persistence and resume behavior where server-owned history exists
-
-This boundary is intentional. DotCraft does **not** attempt to force client-owned channels into the same persistence model when that would conflict with their native architecture.
+All channels executing through `ISessionService` share server-managed Thread/Turn/Item state,
+rollout persistence, event ordering, and approval lifecycle. Adapters translate transport,
+authentication, and presentation; they do not own another session engine.
 
 ## 2. Goals and Non-Goals
 
@@ -62,77 +44,10 @@ This boundary is intentional. DotCraft does **not** attempt to force client-owne
 
 ### 3.1 Main Components
 
-1. **Session Core** (`DotCraft.Sessions`)
-   - Owns Thread/Turn/Item lifecycle and state machines.
-   - Wraps the agent execution pipeline (`AgentFactory` + `RunStreamingAsync`).
-   - Emits a structured event stream consumed by adapters.
-   - Persists canonical domain and model-visible history to JSONL under `.craft/threads/active|archived/`; SQLite contains explicitly classified durable business state, runtime continuity state, diagnostics, and rebuildable projections.
-   - Enforces per-thread mutual exclusion.
-
-2. **Channel adapters** (per in-scope channel, in module assemblies)
-   - Translate between the channel's transport (stdio, HTTP, WebSocket, bot API) and Session Core API calls.
-   - Subscribe to Session Core events and render them in channel-specific format.
-   - Handle channel-specific concerns: authentication, message formatting, rate limiting.
-   - Implement approval routing by translating `ApprovalRequest` Items into channel UX.
-
-3. **Persistence Layer** (`DotCraft.Sessions`)
-   - Appends domain transitions and model-history records to `.craft/threads/{active|archived}/{threadId}.jsonl`.
-   - Replays JSONL to reconstruct both `SessionThread` and model-visible history.
-   - Stores queryable projections and explicitly classified non-rollout state in SQLite.
-
-4. **Event stream** (in-process, `DotCraft.Sessions`)
-   - Delivers Session Core events to the active channel adapter.
-   - Per-thread event stream: each Thread has one active consumer.
-   - Delivery is decoupled from channel rendering.
-
-### 3.2 Abstraction Layers
-
-The server-managed session protocol is organized into five layers, ordered from closest to the user to closest to the model:
-
-1. **Transport Layer** (per channel)
-   - The raw communication mechanism: stdio JSON-RPC, WebSocket, HTTPS webhook, or in-process.
-   - Each channel keeps its existing transport.
-
-2. **Adapter Layer** (per channel)
-   - Translates transport messages into Session Core calls: `CreateThread`, `ResumeThread`, `SubmitInput`, `ResolveApproval`.
-   - Translates Session Core events into transport messages: text chunks, tool call notifications, approval prompts.
-   - This is the only layer that in-scope channel modules implement; session orchestration is not duplicated per channel.
-
-3. **Session Core Layer** (`DotCraft.Core`)
-   - Manages Thread/Turn/Item state machines.
-   - Orchestrates a Turn: creates Items, invokes the agent, emits events, handles approval pauses.
-   - Calls into the Agent Execution Layer and Persistence Layer.
-   - This is the "one harness" shared by all server-managed channels.
-
-4. **Agent Execution Layer** (`DotCraft.Core`)
-   - Aggregates tools and constructs the Microsoft.Extensions.AI agent pipeline, including tool-call orchestration, tracing, and dynamic tool injection.
-   - Runs the streaming agent loop. Session Core consumes its output rather than redefining it.
-
-5. **Persistence Layer** (`DotCraft.Core`)
-   - Thread JSONL storage in `.craft/threads/active|archived/` plus metadata projections in `.craft/state.db`
-   - SQLite-backed thread discovery
-   - Rollout-backed model-history reconstruction on resume
-
-### 3.3 Layer Diagram
-
-```
-Server-managed channels
-
- terminal    editor protocol    social messaging    wire
-     │              │                  │             │
-     └──────────────┴──────────────────┴─────────────┘
-                         │
-                    Adapter Layer
-                         │
-                    Session Core
-       (Thread lifecycle, Turn orchestration, events)
-                         │
-                 Agent Execution Layer
-                         │
-                  Persistence Layer
-(`.craft/threads/**/*.jsonl`, `.craft/state.db`)
-
-```
+Session Core owns lifecycle, per-thread serialization, events, and persistence. It invokes the
+Agent execution pipeline and exposes operations to thin channel adapters. Canonical domain and
+model-visible history lives in thread JSONL; SQLite stores explicitly classified state and
+rebuildable projections.
 
 ### 3.4 Component Boundaries
 
@@ -140,12 +55,6 @@ Server-managed channels
 - Per-thread mutual exclusion is an internal detail of Session Core. Channels do not acquire session locks themselves.
 - Session Core invokes PrePrompt, Stop, PreToolUse, and PostToolUse hooks at their points in the Turn lifecycle and records trace events. Adapters do not invoke hooks or the trace collector.
 - Approval requests and responses are modeled as Items with an explicit lifecycle; Session Core routes them to the channel adapter through the approval interface.
-
-### 3.5 External Dependencies
-
-- **Microsoft.Extensions.AI**: `IChatClient`, `AITool`, `FunctionInvokingChatClient` — the agent execution pipeline.
-- **Existing DotCraft.Core**: `AppConfig`, `SkillsLoader`, `MemoryStore`, `ToolProviderCollector` — workspace infrastructure.
-- **Channel transports**: Each channel's own transport library.
 
 ### 3.6 Runtime State Ownership
 
@@ -205,9 +114,7 @@ read of existing runtime state: an out-of-band producer never admits, restores, 
 in order to have somewhere to write. An Item's creation time is the moment it is appended, so a
 Turn's Items stay ordered by creation time in array order; when the instant an event occurred must
 also be known, it belongs in the Item's payload rather than in its creation time. Threads created
-through `ImportThreadAsync` are the one exception: their Turns and Items carry the source session's
-timestamps, made monotonic, because the history existed before DotCraft wrote it
-(see [Session Import](../features/session-import.md)).
+through `ImportThreadAsync` are the one exception: their Turns and Items retain monotonic source-session timestamps.
 
 Terminal persistence is owned by one Turn committer, which atomically commits terminal Turn state,
 the model-history suffix, and any compaction checkpoint through the existing rollout contract. Live
@@ -298,7 +205,7 @@ Ownership rules:
 - `ordinaryCwd = Cwd ?? WorkspaceOverride ?? WorkspacePath`.
 - `effectiveWorkspacePath = ExecutionWorkspaceOverride ?? ordinaryCwd`.
 - `ExecutionWorkspaceOverride` changes runtime execution location only. It must not relocate rollout, memory, goals, plans, app bindings, or workspace configuration.
-- `RuntimeWorkspaceRoots` is the ordered, sticky set of additional runtime boundaries. See [Multi-Folder Local Projects](../features/multi-folder-projects.md).
+- `RuntimeWorkspaceRoots` is the ordered, sticky set of additional runtime boundaries.
 - Registered worktree roots under `.craft/worktrees` are allowed execution roots for their bound threads even though ordinary main-workspace browsing hides `.craft/worktrees/**`.
 - Worktree handoff must not mutate the source thread or the source working tree. Dirty change handoff copies uncommitted source changes into the new worktree when requested.
 
@@ -340,52 +247,18 @@ Queued-input materialization is a local-only operation. Inline `image` parts con
 
 #### 4.1.1.4 SubAgent Child Threads
 
-The [SubAgent Core specification](../features/subagents.md) is authoritative for runtime selection,
-fork modes, model fallback, role and profile precedence, communication, and child lifecycle. This
-section records how those children participate in the broader Session Core domain.
+Child agents are ordinary `SessionThread` instances with `Source.kind = "subagent"` and
+`OriginChannel = "subagent"`. Native children use the same Turn, Item, approval, persistence, and
+resume contracts. External runtimes persist synthetic Turns with input, final output or failure,
+and available usage.
 
-Profile-backed SubAgents are represented as ordinary `SessionThread` instances with `Source.kind = "subagent"` and `OriginChannel = "subagent"`. Native profiles use the same turn, item, approval, persistence, and resume path as main agent threads. External CLI profiles persist synthetic turns containing the submitted prompt, final output or error, and token metadata when available.
+Parent-child edges, stored child configuration, and pending communication are durable. Child
+control identity is independent of the mutable thread display name. Root-scoped communications
+must not leak into another root's execution or wakeups.
 
-SubAgent child threads use normal session tool construction with a role-resolved invocation policy. Their model-visible tool schema stays aligned with the parent; role restrictions are enforced when tools execute. `agentRole` is a role selector, not display metadata. The built-in `default` role denies DotCraft SubAgent control tools, `explorer` permits a read-only exploration subset including read-only shell observation, and `worker` may invoke write/shell/web tools plus Agent control when the depth policy allows it. Workspace configuration may override or add roles.
-
-A role constrains shell tools along two independent axes that both must pass. The tool allow/deny lists decide whether a shell tool is reachable by name. The role's shell access level then decides what a reachable shell tool may run: `none` rejects shell tools outright, `readOnly` admits only commands classified as non-mutating and rejects standard-input writes, and `full` adds no further restriction. Roles that omit a shell access level default to `full`, so an existing role that restricts shell through its allow-list keeps that boundary. Read-only classification is a property of the command, not of the operational mode: a `readOnly` role must be able to observe repository state through commands such as `git diff`, and the denial reason must state which command was rejected.
-
-A native full-history fork (`forkTurns=all`) materializes the parent's effective model context before the child's first sampling. It copies the parent's ordered system, developer, and user items verbatim, drops assistant, reasoning, and tool traffic, then appends the child role guidance and initial task. It also preserves the parent's stable reference-context pages and snapshots inheritable client-owned tool bindings from the direct parent. Fresh (`none`) and bounded forks rebuild context and inherit neither. A forked snapshot is not a live link: later parent changes do not reach the child.
-
-Native children carry role instructions as a thread context item on every protocol, positioned after inherited history and before the initial task, as specified in [Prompt Composition](prompt-composition.md). Updating or clearing them creates an explicit history replacement boundary before the next sampling request. External runtimes receive role instructions through their runtime prompt.
-
-Repository `AGENTS.md` content is a separate project-instruction context page. Session Core resolves
-that page before the first model turn and before returning a thread lifecycle result that exposes
-its sources. The model projection is one marked plain-user prefix item on every provider. A changed
-page replaces the prior marked item and a missing page removes it; neither operation appends a
-model-visible notice. Ordinary forks resolve the child environment independently. A native
-full-history SubAgent fork may inherit the parent's stable page when its execution environment is
-unchanged, while fresh and bounded children resolve their own page. External CLI runtimes own their
-own project-instruction discovery and must not receive a duplicate DotCraft projection.
-
-Each path-addressable SubAgent has a stable `agentPath`, such as `/root/researcher`. The root agent path is `/root`. Child path segments are `taskName` values and must contain only lowercase ASCII letters, digits, or underscores. The segment values `root`, `.`, and `..` are reserved. Relative targets append valid path segments to the current agent path; absolute targets must begin with `/root`. Sibling SubAgents under the same parent must not share a `taskName`.
-
-`agentPath` is the model-visible control identity and is immutable for the child relationship. `agentNickname` is optional display metadata provided at spawn time. `Thread.DisplayName` is initialized from `agentNickname` when present, otherwise from `taskName`; later thread rename operations may change `Thread.DisplayName` but must not change `agentPath` or `taskName`.
-
-`SubAgent.MaxDepth` bounds spawn recursion. At the default bound, the first child spawned by a root thread cannot call `SpawnAgent` again even when its role would otherwise allow Agent control. Raising `SubAgent.MaxDepth` is the advanced opt-in for recursive SubAgent orchestration. Its default value lives in the configuration schema.
-
-Session Core persists a `ThreadSpawnEdge` graph row for each parent/child relationship: `parentThreadId`, `childThreadId`, `parentTurnId`, `depth`, `agentPath`, `taskName`, `agentNickname`, `agentRole`, `profileName`, `runtimeType`, `supportsSendMessage`, `supportsFollowupTask`, `supportsClose`, `status` (`open` or `closed`), `createdAt`, and `updatedAt`.
-
-Session Core represents SubAgent communication with one internal envelope containing `id`, `rootThreadId`, `authorAgentPath`, `recipientAgentPath`, `messageType`, `payload`, `parentTurnId`, and `createdAt`. `messageType` is one of `MESSAGE`, `NEW_TASK`, or `FINAL_ANSWER`. Its model-visible rendering is `Message Type`, recipient task path, sender path, and payload. The rendering remains user-role materialized input; it does not create a new public Item type or change Desktop projection.
-
-Durable inter-agent mailbox entries preserve the envelope's message type and parent-Turn provenance alongside delivery `status` and `deliveredAt`. Schema initialization adds missing columns to existing mailbox tables; pre-existing rows receive `MESSAGE` with no parent-Turn provenance. Message types outside the three defined values are rejected. `SendMessage(target, message)` creates a pending `MESSAGE` entry and does not start a target turn. `FollowupTask(target, message, deliveryMode?)` renders a `NEW_TASK` envelope and starts a target turn when the target is idle. When the target has an active turn, `deliveryMode = "queue"` (the default) appends a FIFO queued input for the target thread, while `deliveryMode = "steer"` promotes the task into current-Turn guidance for a running native SubAgent. Running external SubAgents reject `deliveryMode = "steer"`; callers must use `"queue"`. Pending passive communications for the target are delivered as pre-task context with the submitted, queued, or steered task, then marked delivered only after that delivery is persisted successfully.
-
-When a path-addressable child turn reaches a terminal state, Session Core writes a `FINAL_ANSWER` communication to the direct parent agent path mailbox. The communication includes the child `agentPath`, terminal status, final assistant text or error text when available, and the terminal child Turn as provenance. `WaitAgent(timeoutMs?)` waits for mailbox, SubAgent graph, or explicit steer activity scoped to the current root Agent tree; activity in another root tree cannot wake it. The result remains status plus timeout state and does not return child final text. `timeoutMs` is measured in milliseconds; omitting it uses `SubAgent.DefaultWaitTimeoutMs`. When supplied, it must fall between `SubAgent.MinWaitTimeoutMs` and `SubAgent.MaxWaitTimeoutMs`; out-of-range values are rejected rather than clamped. The bounds themselves live in the configuration schema.
-
-Mailbox delivery is serialized per `(rootThreadId, targetAgentPath)`, so sampling and follow-up delivery cannot materialize the same pending entry concurrently. Pending communications may be injected at model sampling or tool boundaries while the current Turn accepts mailbox input. Once the Turn emits its final answer, late passive communications remain pending for the next Turn. Explicit `guidancePending` steering reopens current-Turn mailbox delivery; goal-internal steering does not become a WaitAgent activity source. Completion communications remain model-visible context and audit records; clients should not render them as user-authored conversation bubbles or as the child agent's visible reply in the parent thread.
-
-Open SubAgent identity, path, stored role/configuration, pending communication type, and parent-Turn provenance survive a cold workspace runtime restart. Resuming a root does not reopen closed children. Sending a follow-up to a persisted open child addresses that original child path and uses its stored configuration. Session Core does not promise exactly-once delivery across process failure and does not add mailbox claim/lease state.
-
-`ListAgents(pathPrefix?)` reports open path-addressable agents plus `/root`. Its `status` value reflects the execution lifecycle of the latest relevant turn: active turns report `running`, `waitingapproval`, or `waitinginput`; terminal turns report `completed`, `failed`, or `cancelled`; agents without turns report `idle`; closed edges report `closed`.
-
-Top-level thread discovery hides subagent threads by default. Callers that need a raw mixed list must request `includeSubAgents`; active lists still hide children whose parent is archived. Clients that render a background-agent widget should prefer the open edge list for the active parent thread, so explicitly closed child agents do not appear as active background activity.
-
-SubAgent child thread lifecycle is owned by the parent thread. Archiving or permanently deleting a parent recursively applies to all descendant child threads. Restoring a parent restores only descendants whose parent/child edge is still open; children explicitly closed through `CloseAgent` remain archived. Direct archive/delete calls against a child thread are invalid; clients should close children through the SubAgent control APIs or manage the parent thread. `CloseAgent` marks the child edge closed, cancels any active child turn still owned by the server, and archives the target child subtree.
+Default thread discovery excludes children. Parent archive and deletion cascade to descendants;
+parent restore restores only still-open child edges. Closing a child cancels its active work and
+archives its subtree. Closed children are not reopened by root resume.
 
 #### 4.1.1.5 Provider Context Windows
 
@@ -393,7 +266,7 @@ Session Core maintains an internal provider context-window record for each persi
 
 The persisted record is keyed by `thread_id` and stores `first_window_id`, `previous_window_id`, `current_window_id`, `generation`, and `updated_at`. IDs are UUID strings generated by the runtime. A record is created when the first provider request on a thread needs it. `current_window_id` remains stable across normal turns, retries, tool loops, queued inputs, and resume from disk.
 
-When a compaction succeeds and replaces neutral or provider-native model-visible history (`micro` or `partial` outcomes from auto, reactive, or manual compaction), Session Core advances the provider context window from the durable replacement boundary. A provider-native rollout replacement carries the exact next window identity and is authoritative if the derived `thread_context_windows` projection is stale. The previous `current_window_id` becomes `previous_window_id`, the committed replacement supplies a new `current_window_id`, and `generation` increments. Skipped, failed, cancelled, or diagnostic-only compaction attempts must not advance the window. See [Context Compaction](context-compaction.md#replacement-installation) for commit and recovery ordering.
+When a compaction succeeds and replaces neutral or provider-native model-visible history (`micro` or `partial` outcomes from auto, reactive, or manual compaction), Session Core advances the provider context window from the durable replacement boundary. A provider-native rollout replacement carries the exact next window identity and is authoritative if the derived `thread_context_windows` projection is stale. The previous `current_window_id` becomes `previous_window_id`, the committed replacement supplies a new `current_window_id`, and `generation` increments. Skipped, failed, cancelled, or diagnostic-only compaction attempts must not advance the window.
 
 The window record is internal routing metadata. It must not be rendered as conversation content,
 included in AppServer Thread DTOs, or used as the provider prompt-cache key. For Responses,
@@ -826,7 +699,8 @@ summary and compatibility projection; clients that consume both paths merge by
 }
 ```
 
-The `shell` block is defined by [Shell Command Safety](shell-command-safety.md) Section 9. Session-scoped shell approvals are keyed by the approval key carried in `scopeKey`, so accepting one command for the session never admits a different command.
+The shell runtime supplies the `shell` block and its approval key in `scopeKey`. Session-scoped
+approval must not authorize a command with a different key.
 
 #### ApprovalResponse
 
@@ -915,7 +789,7 @@ Persisted compaction notices therefore carry `mode = "partial"`.
 fork-specific work. They carry `sourceThreadId`, are not model-visible, and
 must not mutate the source thread.
 `remoteRoute` notices mark where a thread's eligible tools started or stopped running on a
-[Remote Tool Host](remote-tool-host.md). Session Core appends one to the running Turn when a Turn is
+the execution-location owner. Session Core appends one to the running Turn when a Turn is
 in flight and otherwise to the latest completed Turn; a thread with no Turn records nothing. A notice
 appended to a running Turn lands where the route changed within that Turn — after the Items that
 preceded the change and before the Items that follow it — so a route the model changed divides the
@@ -1219,11 +1093,9 @@ SessionEvent
 
 - **`thread/renamed` (Wire Protocol only; not a `SessionEvent`)**
   - Display name changes are applied in Session Core via `ISessionService.RenameThreadAsync`, when the first user message on a turn sets the provisional `Thread.DisplayName`, or when a generated title atomically replaces that unchanged provisional value (see turn input handling and `Thread.DisplayName` in this specification). Session Core does **not** enqueue a `SessionEvent` on the turn/event stream for rename-only updates (there is no separate thread-level event type consumed by in-process adapters the same way as `thread/created`).
-  - Hosts that multiplex **multiple Wire clients** onto the same Session Core process (e.g. DotCraft AppServer) **SHOULD** broadcast a `thread/renamed` notification on the AppServer Wire Protocol after the display name is updated, including when the change originates from another channel or from automatic titling, so clients such as DotCraft Desktop can refresh thread titles **without** relying on `turn/completed` (which may not be delivered to connections that did not subscribe to that thread). See [AppServer Protocol §4.13 `thread/rename`](../protocols/appserver-protocol.md#413-threadrename) and [§6.1 `thread/renamed`](../protocols/appserver-protocol.md#61-thread-notifications).
 
 - **`thread/deleted` (Wire Protocol only; not a `SessionEvent`)**
   - Permanent removal is performed via `ISessionService.DeleteThreadPermanentlyAsync(threadId)`. Session Core first closes the thread recorder, then deletes the canonical rollout, then removes DB-backed state and attachment references, and finally best-effort deletes workspace-managed attachment files that are no longer referenced by any remaining thread. Failure to delete the rollout leaves database state and attachment assets intact. It does **not** enqueue a `SessionEvent` on the turn/event stream (there is no active turn for deletion).
-  - Hosts that multiplex **multiple Wire clients** onto the same Session Core process (e.g. DotCraft AppServer) **SHOULD** broadcast a `thread/deleted` notification on the AppServer Wire Protocol after deletion completes, including when deletion is initiated outside Wire (e.g. DashBoard HTTP `DELETE` on `/dashboard/api/sessions/{sessionKey}`), so UIs stay consistent. See [AppServer Protocol §4.11 `thread/delete`](../protocols/appserver-protocol.md#411-threaddelete) and [§6.1 Thread Notifications](../protocols/appserver-protocol.md#61-thread-notifications).
 
 #### Turn Events
 
@@ -1341,7 +1213,7 @@ SessionEvent
     - `ContextUsageSnapshot.tokens` is server-authoritative active context-window occupancy, separate from cumulative billing usage. After each provider usage snapshot, Session Core records the latest request's provider-visible input plus the output generated by that request; this value is the post-response active context count, not the Turn's cumulative `TokenUsage`.
     - Session Core chooses sources in this order: a valid provider usage anchor plus model-visible messages appended after the anchored request; a prefix-adjusted anchor when the anchored message prefix and non-instruction request shape still match; the latest provider active-context snapshot only while it belongs to the current request boundary; persisted provider-context display fallback for UI only; and finally full model-visible history estimate.
     - Strict prompt request fingerprints are for prompt-cache and maintenance-fork safety. `PromptDriftDetected`, including drift caused by re-reading dirty memory pages, must not by itself force context usage to fall back to full-history estimation. If only base instructions changed, Session Core adjusts the anchored count by the estimated base-instructions token delta.
-    - Auto-compaction may trigger from provider context only when the provider anchor or request-boundary snapshot is still valid for the current model-visible history. After rollback, compaction, deletion, or another history replacement, Session Core must invalidate provider anchors and token trackers, save a replacement-history estimate, and allow that estimate to drive the next auto-compaction decision until a new provider usage snapshot arrives. A provider-native replacement uses its generation-scoped estimator instead of expanding the neutral transcript. Persisted provider display values without a valid anchor remain UI/diagnostic fallbacks and must not by themselves trigger auto-compaction. Automatic compaction runs before a Turn records its input, at sampling boundaries inside the Turn, and, when the turn-end threshold is configured, after the final response; phase boundaries and covered Turns are defined in [Context Compaction](context-compaction.md).
+    - Auto-compaction may trigger from provider context only when the provider anchor or request-boundary snapshot is still valid for the current model-visible history. After rollback, compaction, deletion, or another history replacement, Session Core must invalidate provider anchors and token trackers, save a replacement-history estimate, and allow that estimate to drive the next auto-compaction decision until a new provider usage snapshot arrives. A provider-native replacement uses its generation-scoped estimator instead of expanding the neutral transcript. Persisted provider display values without a valid anchor remain UI/diagnostic fallbacks and must not by themselves trigger auto-compaction. Compaction replacements record their covered Turn so rollback can retain only surviving replacements.
 
   - **Defined `kind` values**:
 
@@ -1360,7 +1232,7 @@ SessionEvent
     - System events are emitted during the Turn's post-processing phase (after agent execution completes, before `turn/completed`), except when raised reactively (see below).
     - The threshold advisory events (`compactWarning`, `compactError`) carry `percentLeft`, `tokenCount`, and `contextUsage` when available so UIs can render the same context-pressure value Session Core used for threshold evaluation.
     - `compacting` start events do not carry `contextUsage`; clients must not update context-window UI from their projected `tokenCount` / `percentLeft`. Successful `compacted` events carry `contextUsage` when available. Clients should prefer this full snapshot over `tokenCount` / `percentLeft` because it includes thresholds and source metadata needed to seed context-window UI after manual compaction timeouts or missed thread snapshots.
-    - Auto-compaction events (`compacting`, `compacted`, `compactSkipped`, `compactFailed`) are synchronous within Step 5k and always fire in the order `compacting` -> one terminal event (`compacted` / `compactSkipped` / `compactFailed`). The coordinator selects one backend according to [Context Compaction](context-compaction.md). The local backend retains the existing cache-aware micro/partial rules: count-based tool-result clearing is not part of the hot auto-threshold path, and a lightweight clearing pass may run only after a provider-aware idle gap indicates that the relevant prompt cache is cold.
+    - Auto-compaction events (`compacting`, `compacted`, `compactSkipped`, `compactFailed`) are synchronous within Step 5k and always fire in the order `compacting` -> one terminal event (`compacted` / `compactSkipped` / `compactFailed`). Each attempt has one backend and one terminal outcome.
     - Manual compaction uses `ISessionService.CompactThreadAsync(threadId)` and is exposed to AppServer clients as `thread/compact/start`. It is allowed only for Active, server-managed threads with existing history and no `Running` / `WaitingApproval` turn or active thread maintenance. It registers thread maintenance with `maintenanceKind = "compacting"`, emits the same `compacting` -> terminal `system/event` sequence through the thread event broker, and prevents new turns from starting until the terminal event. The selected backend does not run a microcompact pre-pass. A local backend first tries partial compaction and may fall back to full-history compaction. A provider-native backend replaces only its native generation and leaves neutral model history unchanged. On success, Session Core persists the replacement domain, updates context usage, invalidates request-boundary anchors, and appends a `SystemNotice` with `kind = "compacted"` and `trigger = "manual"` to the latest completed turn. On cancellation it emits `compactCancelled` and installs nothing.
     - The pipeline may also be invoked **reactively** from the Turn's error path when the model rejects a request with `prompt_too_long`, `context_length_exceeded`, or another conservatively classified context-overflow equivalent. In that case the Turn still fails, but `compacting` followed by `compacted` / `compactFailed` is emitted first so UIs know the history was repaired before the user retries.
     - `ISessionService.CancelThreadMaintenanceAsync(threadId)` interrupts active thread maintenance. AppServer exposes this as `thread/maintenance/interrupt`.
@@ -1368,29 +1240,6 @@ SessionEvent
     - The protocol is language-neutral. System events carry `messageKey`, optional `params`, and an English `fallbackText`; `message` is a compatibility alias for `fallbackText`. Clients that support UI localization translate `messageKey` locally and fall back to `fallbackText`. User text, model output, and raw tool output remain original text and are not translated by Session Core.
     - Provider stream retry events (`streamError`) are transient and must not create a persistent `SystemNotice`. Retry is not gated on whether the attempt already produced visible output. A stream that breaks after delivering updates is treated as a response that ended early: its delivered output is committed to model history, the tool calls it carries are settled, and the next attempt is built from the grown history so the model continues instead of repeating. Items and deltas already delivered to clients are never withdrawn, and no delta rollback semantics are introduced. A failure raised before any update reaches the runtime is retried by the transport layer instead, which buffers usage metadata, provider error frames, and `FunctionResultContent` echoed from request input so a discarded attempt surfaces none of them. The first attempt of a retry sequence is not surfaced, because a transport blip that recovers immediately is noise. Idle-timeout detection must surface the retry or failure promptly; cleanup of the failed provider stream is best-effort and must not indefinitely delay the retry notification or terminal failure.
   - **Adapters**: Adapters that display session maintenance status (e.g., status text for compaction) should consume `system/event` notifications. Adapters that do not need maintenance status may ignore this event type or opt out via `optOutNotificationMethods`.
-
-#### Local Summary Compaction Contract
-
-Local partial and full compaction install their synthetic handoff summary with the User role. The
-summary establishes an input boundary before the retained tail; it must not impersonate an Assistant
-response lacking provider-required reasoning. This affects new replacements only.
-
-These requirements apply to the local summary backend. The backend-neutral orchestration,
-provider-native replacement contract, and failure policy are defined in
-[Context Compaction](context-compaction.md). Context compaction is a short-term context-window
-optimization. It is not long-term memory and must not attempt to preserve every
-historical detail.
-
-- The compact summary is a handoff for the next model-visible history. It should preserve only the current task, key decisions, important files read or changed, critical errors/fixes, constraints, and concrete next steps needed to continue.
-- Summary prompts must target a bounded output budget and must not request an unbounded chronological analysis of every message.
-- Summary prompts must not require a separate `<analysis>` drafting block. An `<analysis>` block returned by a provider anyway is stripped.
-- Summary prompts must not require listing all user messages or embedding full code snippets by default. They may ask for the smallest necessary excerpt only when exact text is required to continue the task.
-- Every compaction request uses a compact-specific `MaxOutputTokens` budget defined in the configuration schema; it must not inherit the ordinary turn output budget. Snapshot compaction forks must also cap their requested output to the compact-specific budget even when preserving the cache-sensitive input prefix, so a maintenance summary cannot inherit a normal Turn's larger output allowance.
-- Cache-sharing snapshot forks and context-usage anchors should keep cache-sensitive request parameters stable when possible, but a snapshot or anchor is usable only while its captured messages remain a prefix of the current canonical model-visible history and its request-shape fingerprint still matches. Any successful history replacement (auto, reactive, or manual compaction; rollback; deletion) invalidates older snapshots and anchors. Maintenance forks should attempt the provider request first so prompt-cache-aware providers can reuse the captured prefix only when the estimated snapshot request fits the maintenance input budget. If the snapshot estimate is over budget, or if the provider rejects the snapshot request with a conservatively classified prompt-too-long / context-overflow error, the fork returns `maintenance_snapshot_too_large` and falls back to a trimmed non-cache path when one exists. An otherwise empty response containing provider error content returns a terminal maintenance-fork response with `maintenance_empty_error_response` and must also fall back to the trimmed non-cache path for compaction. Other provider, authentication, rate-limit, model, or request-shape errors must not be reclassified as context overflow.
-- If automatic pre-sampling compaction fails while the original context estimate is still over the blocking limit, Session Core must fail the Turn explicitly with a stable `agent_context_compaction_failed` error instead of continuing to the main provider request. This prevents a too-large context from producing a silent `turn_completed` after a failed maintenance fork.
-- Snapshot forks enforce summary length through the prompt and by validating the returned summary. A summary that exceeds the compact-specific hard budget is treated as `compact_summary_too_long` and must fall back to a non-cache path or report `compactFailed`.
-- Compaction model-call cancellation, provider/network timeout, and overlong summaries must be observable in trace storage with a terminal maintenance-fork response. Manual compaction maps user cancellation to `compactCancelled`; provider timeout and overlong/invalid summary map to `compactFailed` with machine-readable `message` values.
-- A successful neutral history replacement must persist a recovery checkpoint containing the replacement model-visible history and the newest covered Turn. A pre-turn replacement covers the newest surviving terminal Turn; mid-turn, turn-end, and reactive replacements cover the current Turn. A provider-native replacement instead persists `provider_history_replaced` and leaves neutral model history unchanged. Later recovery and rollback select the newest replacement in the relevant domain whose covered Turn still survives in the canonical Thread.
 
 #### Usage Events
 
@@ -1714,9 +1563,8 @@ The Agent foundation reports history appends and replacements through an optiona
 Current rollouts require `thread_opened.providerHistorySchemaVersion = 1` and may additionally
 persist a protocol-native history. For OpenAI Responses, that history is the source of the future wire
 `input` array while generic model history remains the Session-owned cross-provider
-representation. Its append, replacement, retry, rollback, fork, privacy, and compatibility
-contracts are defined in
-[Canonical OpenAI Responses Provider History](responses-provider-history.md).
+representation. Session Core persists the opaque native records without interpreting their provider
+payload or exposing it through display history.
 
 `context_compacted` is an internal model-history replacement record, not a Session Item and not a client event. Its replacement history uses the same versioned DotCraft model-history schema. During replay, the newest checkpoint whose covered turn survives establishes a new history baseline; earlier model-history records are discarded and only later surviving records are appended. Rollback that removes the covered turn invalidates that checkpoint; a checkpoint never covers a Turn later than its covered turn, so removing later Turns keeps it.
 
@@ -2057,12 +1905,11 @@ Model preference resolution is thread-aware:
 - a selected provider without a complete preference is not a valid MainAgent runtime
 - the MainAgent uses the captured thread configuration for every turn, resume, and tool-planning operation; workspace defaults never replace values on an existing thread
 - native full-history SubAgents inherit the parent thread's complete captured preference and ignore default, role, and invocation-specific overrides
-- fresh and bounded native SubAgents apply the default, role, invocation-specific override, and capability-normalization precedence defined by the [SubAgent Core specification](../features/subagents.md#6-native-model-resolution)
 - external CLI SubAgents do not consume native model preferences
 - changing provider or preference on an existing thread atomically replaces the corresponding provider/model/reasoning/speed values while preserving the rest of `ThreadConfiguration`; workspace changes affect Welcome and future threads only
 - provider and SubAgent preference changes invalidate cached agents, but an already-running turn is never switched mid-flight
 
-A server-managed thread also captures the workspace memory switch at creation and keeps it with its memory scope for the thread's lifetime; see [Memory](../features/memory.md#5-memory-switch).
+A server-managed thread captures its memory scope and workspace memory switch at creation; workspace changes do not alter that captured scope.
 
 Context capacity is resolved from the effective model's merged catalog for each operation. Global
 and workspace model catalogs override the built-in entries. A positive `Compaction.MaxContextWindow`
@@ -2080,7 +1927,6 @@ Workspace resolution is thread-aware:
 - `ExecutionWorkspaceOverride`, when present, wins for tool execution and first-party file/Git surfaces while keeping state in `WorkspacePath`; it replaces the ordinary cwd root in the effective roots and preserves additional roots.
 - Git worktree handoff uses `ExecutionWorkspaceOverride`; it must not use `WorkspaceOverride` to move state into the worktree.
 - Existing-thread worktree handoff is a metadata/configuration change on the same Thread. It must be rejected while the Thread has running or waiting turn work, and it must rebuild the effective agent/tool context before the next turn.
-- The complete multi-folder contract is specified in [Multi-Folder Local Projects](../features/multi-folder-projects.md).
 
 ### 12.3 Mode Switching
 
@@ -2131,8 +1977,6 @@ For channels that do not use extension capabilities, `Thread.Configuration.Exten
 - Configuration changes do not implicitly create turns.
 - Configuration must be persisted with the thread.
 - Channels may expose only the subset of configuration that their UX supports.
-
----
 
 ## 13. Social Channel Patterns
 
@@ -2213,8 +2057,6 @@ Session Core owns active-run cancellation:
 - Explicitly detached background terminals are not owned by the active Turn and require terminal control-plane stop or cleanup operations.
 - The adapter maps `/stop` to `CancelTurn` for the current Thread's active Turn.
 
----
-
 ### 13.5 Turn interruption history
 
 `AgentInterruptMessageEnabled` defaults to `true`.
@@ -2237,24 +2079,6 @@ when cancellation occurs before session initialization or no interruption marker
 
 ## 14. Bidirectional Capabilities
 
-Background terminal output uses bounded process-read and live-notification queues. A 1 MiB UTF-8 tail
-provides previews independently of the complete disk log. Real-time output is limited to 8 KiB per
-delta, 10,000 deltas per terminal, and the configured live-byte budget. Exhaustion stops data
-notifications while logging and process execution continue. Both running and recovered previews
-remain bounded; completion follows output drain and log flush.
-
-Empty `WriteStdin` input reads the terminal snapshot, including final output and exit code after
-completion or recovery, until retention expires. Nonempty input to an exited terminal fails.
-An exited process releases its active entry even if metadata persistence fails. Its in-memory final
-snapshot remains readable; metadata failures are diagnosed without changing the known exit code.
-Completion notifications must allow observers to read that final snapshot immediately.
-Shell commands preserve their quoting. Output uses UTF-8 replacement decoding without encoding
-detection; stream boundaries must not split characters. Logs and events use UTF-8.
-
-A returned command result is a successful tool invocation even when its exit code is nonzero.
-The exit code and CommandExecution status describe the command outcome. Launch, authorization,
-execution infrastructure, timeout and cancellation failures remain tool failures.
-
 Bidirectional capabilities are outside the session model.
 
 The Session Protocol models conversation state and turn execution. It does not model transport-specific request/response features such as IDE filesystem access, terminal control, extension calls, or API-specific REST flows. Those remain tool- or channel-level concerns. Background terminals follow the same boundary: Session Core records the observable `CommandExecution` Item for the originating tool call, while AppServer exposes live terminal snapshots and output deltas to terminal-capable clients. The model-facing shell surface stays minimal (`Exec` plus `WriteStdin`, where empty stdin polls output); terminal listing, direct reads, stopping, and cleanup are AppServer/control-plane capabilities.
@@ -2264,11 +2088,7 @@ The design rule is simple:
 - Session Core models conversation semantics.
 - Adapters and tool providers model transport capabilities.
 
----
-
 ## 15. Thread Goals
-
-See [Goal Design](../features/goal.md) for the full contract.
 
 Session Core owns persistent thread goals, their runtime accounting, and autonomous continuation. A thread has at most one current goal. Clients and adapters may expose controls, but must translate them to Session Core or AppServer goal operations instead of maintaining independent goal state.
 
@@ -2278,24 +2098,8 @@ When a user interrupts a turn that is pursuing an active goal, Session Core acco
 
 Goal objective text is user-provided data. Whenever it is injected into model-visible context, it must be escaped and marked as untrusted task context rather than higher-priority instructions.
 
----
-
 ## 16. Wire Protocol (Cross-Language SDK Support)
 
-See the [DotCraft AppServer Protocol Specification](../protocols/appserver-protocol.md) for the full definition.
-
-### 16.1 Goal
-
-Expose Session Core over a language-neutral protocol so that non-C# adapters (IDE extensions, web frontends, third-party integrations) can participate in the same server-managed thread model without linking DotCraft.Core directly.
-
-The AppServer wire protocol is specified in [appserver-protocol.md](../protocols/appserver-protocol.md). That document defines the transport, JSON-RPC message shapes, method surface, event notifications, error handling, and approval request/response mechanics that project this Session Core model to external clients.
-
-### 16.2 External Channel Adapters
-
-The wire protocol also enables out-of-process social channel adapters written in any language. By implementing a Wire Protocol client, a channel adapter gains the full session model — thread lifecycle, streaming events, bidirectional approval — without any C# binding.
-
-This is specified in the [External Channel Adapter Specification](../protocols/external-channel-adapter.md) (Draft). The key prerequisite for external channels is the WebSocket transport defined in [appserver-protocol.md §15](../protocols/appserver-protocol.md#15-websocket-transport).
-
-### 16.3 Relationship to AppServer Protocol
-
-The AppServer protocol is the server-managed entry point for persistent threads and structured events.
+Out-of-process clients use a protocol projection of `ISessionService`. The projection owns wire
+DTOs, connection capabilities, transport errors, and notification delivery; it must not introduce
+another Thread lifecycle or persist independent conversation state.

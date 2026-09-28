@@ -2,16 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.6.2 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-09-11 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Default Chat Workspace](../features/default-chat-workspace.md), [Desktop Client](../clients/desktop-client.md), [Remote Tool Host](remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](../clients/satellite.md) |
+| **Date** | 2026-09-28 |
 
 Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services without changing the AppServer Protocol or replacing DotCraft's per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts on other machines: it accepts their outbound connections and relays each session — a tool session to a local AppServer, or a screen view to a local client — as an opaque byte stream.
-
-This specification is the canonical Hub design. Earlier interim specs have been consolidated here and removed.
-
----
 
 ## 1. Motivation
 
@@ -32,8 +27,6 @@ Hub solves that by acting like a local container manager:
 - Hub does not proxy normal AppServer Protocol traffic. It does relay Remote Tool Host sessions between a local AppServer and a paired remote machine, as an opaque byte bridge that never interprets the relayed traffic (§6.1).
 - Hub helps local clients find or create the correct AppServer and then gets out of the hot path.
 
----
-
 ## 2. Design Principles
 
 1. **Preserve per-workspace AppServer ownership.** Hub must not become a multi-workspace runtime process.
@@ -44,8 +37,6 @@ Hub solves that by acting like a local container manager:
 6. **Keep standalone AppServer valid.** `dotcraft app-server` remains available for explicit remote hosting, CI, bots, and debugging.
 7. **Keep UI ownership in Desktop.** Hub is headless; tray and OS notifications belong to Desktop/Electron.
 8. **Keep product services closed and explicit.** Hub may supervise product-owned local services registered by DotCraft composition, but it is not a native-process extension point for plugins.
-
----
 
 ## 3. Architecture
 
@@ -74,8 +65,6 @@ Hub state lives under `~/.craft/hub/`. Hub itself only loads global configuratio
 
 Hub also defines the default Chat workspace path `~/.craft/workspaces/chats` as a reusable local bootstrap target. This path is still a normal workspace root; Hub does not add any chat-specific AppServer Protocol routing.
 
----
-
 ## 4. Hub Process
 
 Hub is started by `dotcraft hub` and runs as a global, per-user background process.
@@ -90,8 +79,6 @@ Core properties:
 - It reports `tray=false`; tray presence is a Desktop capability, not a Hub capability.
 
 Hub may be started explicitly by the user, or automatically by Desktop, CLI, or tray bootstrap.
-
----
 
 ## 5. Managed AppServer
 
@@ -113,8 +100,6 @@ Readiness requires:
 - Stdio `initialize` handshake succeeds.
 - WebSocket endpoint accepts an AppServer `initialize` probe.
 - Workspace `appserver.lock` is owned by the expected process.
-
----
 
 ## 6. Hub Local API
 
@@ -192,8 +177,6 @@ Hub relays every data connection to the matching `/v1/satellites/{peerId}/bridge
 
 The control channel, its frames, heartbeats, reconnect behavior, and the pairing ceremony are specified by [Remote Tool Host](remote-tool-host.md) §8 and §9.
 
----
-
 ## 7. Registry, Locks, and State
 
 ### Hub Lock
@@ -249,8 +232,6 @@ An existing lock file is recoverable only when no process holds its file handle.
 
 When Hub encounters a live lock owned by a process it does not supervise, it should probe the published `appServerWebSocket` endpoint. If the endpoint accepts an AppServer initialize handshake, `ensure` may return that endpoint as an external running AppServer without taking ownership of the process. If the endpoint is missing or unhealthy, Hub must keep the workspace protected and return `workspaceLocked`.
 
----
-
 ## 8. Lifecycle and Health
 
 Managed AppServer states:
@@ -296,8 +277,6 @@ Service entries are in-memory and scoped to the current Hub lifetime. Concurrent
 
 Hub accepts one outbound control connection per paired Remote Tool Host, tracks its online state from heartbeats, brokers data sessions of either kind on demand, and emits `satellite.joined`, `satellite.online`, `satellite.offline`, and `satellite.revoked` lifecycle events on SSE. The first `satellite.joined` event carries `{ peerId, inviteId }`, where `inviteId` names the one-time invitation consumed by that pairing; later presence events carry only `peerId`. Hub does not start, stop, supervise, or update the remote process; the remote machine owns its lifecycle. Hub shutdown closes all satellite connections; peers reconnect on their own when Hub returns.
 
----
-
 ## 9. Client Bootstrap and UX
 
 Local clients should default to Hub-managed local mode:
@@ -323,8 +302,6 @@ Clients should present failures as local runtime availability problems, such as:
 - Managed AppServer failed during startup.
 - AppServer endpoint did not become ready.
 - Managed AppServer became unhealthy or exited.
-
----
 
 ## 10. Tray and Notifications
 
@@ -362,8 +339,6 @@ For AppServer-managed turn notifications, Desktop-opening actions are allowed on
 
 Hub itself never displays OS UI.
 
----
-
 ## 11. Port and Endpoint Management
 
 Managed endpoints bind to loopback by default.
@@ -381,8 +356,6 @@ Desktop and other local clients may pass local runtime tool hints, such as a res
 
 Hub must not silently rewrite unrelated user-configured ports for native channels, webhook modules, or future integrations unless a service explicitly participates in Hub-managed runtime overrides.
 
----
-
 ## 12. Security Model
 
 Hub is a same-user local coordinator, not a security boundary against malicious processes running as the same OS user.
@@ -395,8 +368,6 @@ Security constraints:
 - Managed AppServer WebSocket endpoints use per-process tokens when available.
 - The satellite listener may bind a non-loopback address. It is disabled by default, serves no `/v1/*` route, and authenticates every connection with a one-time invite id or a per-peer bearer credential of which Hub stores only the hash. Profile v1 uses plain `ws://` and assumes a trusted intranet; invitations are single-use and expire. Screen frames relayed for a peer inherit this profile.
 - Remote or multi-user Hub scenarios beyond satellite pairing require a separate security design.
-
----
 
 ## 13. Compatibility
 
@@ -413,20 +384,3 @@ Existing AppServer modes remain valid:
 | `stdio + websocket` | Required for Hub-managed AppServers. |
 
 ACP itself remains an AppServer client bridge: it translates editor ACP stdio traffic to the existing AppServer wire protocol. It does not require AppServer Protocol changes. If local ACP mode starts its own workspace AppServer subprocess, only that bootstrap path may later choose to use Hub to avoid duplicate local AppServer ownership.
-
----
-
-## 14. Remaining Work
-
-The implemented Hub design still leaves several product and hardening areas for future work:
-
-- Optional ACP local bootstrap alignment: ACP's protocol bridge is already AppServer-based; only its default local subprocess startup would need Hub if IDE integrations should share the same managed AppServer as Desktop and CLI.
-- More complete Desktop multi-workspace management UI beyond recent local workspace secondary connections.
-- Notification preferences such as quiet hours, per-workspace mute, and frequency control.
-- Better recovery or explicit cleanup flow for live AppServers left behind after Hub restart.
-- Optional named pipe or Unix socket transport for stronger local API ergonomics.
-- Configurable Hub-managed port ranges.
-- Idle shutdown or lease-based AppServer lifetime management.
-- Manual packaged-app verification for tray behavior, OS notifications, and hidden Windows child processes.
-- A TLS profile for the satellite listener.
-- Pairing one Remote Tool Host with several Hubs at once.

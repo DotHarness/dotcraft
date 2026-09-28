@@ -1,5 +1,11 @@
 # Remote model service
 
+| Field | Value |
+|---|---|
+| Version | 0.7.8 |
+| Status | Living |
+| Date | 2026-09-28 |
+
 DotCraft runtimes select either direct model access or one remote model service. A service exposes
 multiple configured providers. The worker runs the existing provider adapters, model loop, tools,
 native history, and compaction policy. The service owns upstream credentials and network access.
@@ -56,10 +62,3 @@ Each Stack has a separate inference credential. Only the model service and its l
 the upstream credential directory. Worker containers retain their own workspace and user state.
 Remote providers are managed by the service; worker clients can select models and read status,
 but cannot mutate providers or start or revoke upstream authentication.
-
-## Validation
-
-Direct and remote paths use the same scripted upstream and must preserve model-visible requests,
-native history, compression, compaction, hosted tools, multimodal content, streaming, cancellation,
-error classification, and usage. Integration tests exercise separate worker/service state,
-concurrent refresh, restart, revoked caller access, and host-specific provider authorization.

@@ -2,17 +2,14 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.0 |
+| **Version** | 0.7.8 |
 | **Status** | Draft |
-| **Date** | 2026-09-19 |
+| **Date** | 2026-09-28 |
 | **Parent Specs** | [Prompt Composition](prompt-composition.md) |
-| **Related Specs** | [Prompt Cache](prompt-cache.md), [Session Core](session-core.md), [.NET Plugins](dotnet-plugins.md) |
 
 Purpose: define the model-visible state DotCraft re-sends only when it changes — what counts as a
 section, what a section may compare on, how a change reaches the model, how the baseline survives
 resume and compaction, and what a diagnosis of it must show.
-
----
 
 ## 1. Model
 
@@ -134,15 +131,3 @@ model was told nothing" and "the section never ran" cannot be told apart afterwa
 reports which sections were sent, which were unchanged, which were suppressed and why, and where the
 baseline came from, and it carries the text that was sent so what the model was told can be read
 back. A step that sent nothing carries no text.
-
-## 7. Conformance
-
-- A first step with no baseline renders every section; the immediately following step with unchanged
-  state renders none.
-- A section whose snapshot is unchanged renders nothing, including when values it prints but does not
-  snapshot have moved.
-- A resumed thread restores its baseline from the rollout and does not restate sections its retained
-  history still carries.
-- Compaction, rollback, and history replacement each cause the next step to restate every section.
-- A plugin-contributed section behaves identically to a built-in one and cannot fail the turn.
-- A step that sends sections records their text; a step that sends none records no text.

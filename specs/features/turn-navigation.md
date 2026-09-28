@@ -2,14 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.0.0 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-09-27 |
-| **Related Specs** | [Desktop Client](../clients/desktop-client.md), [Design System](../architecture/DESIGN.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
+| **Date** | 2026-09-28 |
+| **Related Specs** | [Design System](../architecture/DESIGN.md) |
 
 Purpose: define the conversation turn navigation rail, which lets a user see the shape of a long thread, preview any earlier user message, and jump to it.
-
----
 
 ## 1. Scope
 
@@ -46,7 +44,7 @@ The feature is owned by Desktop. It reads the AppServer history methods, and use
 
 - **Turn metadata** comes from `thread/turns/list`, which returns Turns without Items. It lists which turns exist, oldest to newest, without reading their content. Each listed Turn keeps the page's `backwardsCursor` and its offset in that page, which is enough to read outward from it later.
 - **Entry content** comes from the conversation store for loaded turns, and from Turn-scoped `thread/items/list` for a turn that has not been loaded.
-- **Revealing** an unloaded turn loads a history segment around it, separated from the rest of the loaded history by gaps ([Desktop Client §5.3.1](../clients/desktop-client.md#531-desktop-thread-restore-pipeline)).
+- **Revealing** an unloaded turn loads a history segment around it, separated from the rest of the loaded history by gaps.
 - **Bookmarks** are Desktop-local settings. They are never sent to AppServer.
 
 ## 4. Navigation index
@@ -97,8 +95,7 @@ The feature is owned by Desktop. It reads the AppServer history methods, and use
 
 ### 5.4 Scale
 
-- Markers render in groups of 64 that the browser may skip painting while off screen, so a 1000-entry rail costs about as much as the visible part.
-- Adding, removing, or replacing placeholder entries keeps the grouping of unchanged entries stable.
+Rendering cost remains bounded to the visible rail. Entry updates preserve unchanged marker identity and position.
 
 ## 6. Interactions
 
@@ -128,7 +125,7 @@ The flash is a single background pulse on the user bubble: it brightens immediat
 
 - Revealing positions a cursor on the target Turn from its listing, then loads one history page on each side of it. Those Turns become a new segment of the transcript, with gaps between it and any other segment. It does not load the history in between.
 - If the new segment meets or overlaps a loaded one, the two merge and no gap remains between them.
-- The gaps load as the user scrolls toward them ([Desktop Client §5.3.1](../clients/desktop-client.md#531-desktop-thread-restore-pipeline)), so reading on from a jump target fills in history in either direction.
+- The gaps load as the user scrolls toward them, so reading on from a jump target fills in history in either direction.
 - Revealing is started only by an explicit user action. Hovering or previewing never loads history pages.
 - If revealing fails, the transcript keeps what it had loaded and no jump happens.
 
@@ -163,30 +160,8 @@ The flash is a single background pulse on the user bubble: it brightens immediat
 
 ## 10. Constraints and compatibility
 
-- The protocol gains only the Turn-page `backwardsCursor` ([AppServer Protocol §4.4.1](../protocols/appserver-protocol.md#441-threadturnslist)). No persisted-session change.
+- Turn metadata supplies `backwardsCursor` for the targeted history reads in §6.4. Persisted sessions do not change.
 - With an AppServer that returns no `backwardsCursor`, unloaded Turns get no placeholders: the rail covers loaded history only, and appears once that reaches four entries.
-- The restore pipeline invariants in [Desktop Client §5.3.1](../clients/desktop-client.md#531-desktop-thread-restore-pipeline) hold: the Turn listing is metadata only, and history pages are loaded only for scrolling toward a gap or an explicit reveal.
+- History admission follows §6.4: the Turn listing is metadata only, and history pages are loaded only for scrolling toward a gap or an explicit reveal.
 - A thread still being created has no rail.
 - Remote workspaces behave the same as local ones.
-
-## 11. Acceptance checklist
-
-- [ ] A thread with 3 or fewer visible user messages shows no rail; 4 or more shows it when the reading column leaves at least 48px of gutter.
-- [ ] Narrowing the window, or opening the detail panel, until the gutter is below 48px hides the rail; widening shows it again.
-- [ ] Opening a long thread shows one marker per Turn for unloaded history, without loading history pages.
-- [ ] The markers for Turns in the viewport are highlighted and follow scrolling.
-- [ ] Hovering a marker magnifies it and its three neighbours on each side.
-- [ ] Hovering an unloaded marker shows the loading state, then the user message and reply; a failed read shows "Preview unavailable".
-- [ ] Clicking a loaded marker scrolls its bubble to the top and flashes it; clicking an unloaded marker loads only the pages around it, then does the same.
-- [ ] After a jump into unloaded history, scrolling up or down fills the gaps, and segments that meet merge without duplicated turns or a scroll jump.
-- [ ] Dragging along the rail jumps the transcript instantly and skips unloaded markers.
-- [ ] `Alt+ArrowUp` and `Alt+ArrowDown` move between user messages, including into unloaded history.
-- [ ] Tab reaches each marker and opens its preview card.
-- [ ] Bookmarking an entry shows a dot and full-strength marker, survives restart, and is removed when the thread is deleted.
-- [ ] A completed Turn that wrote a Markdown or HTML file, or generated an image, lists it in the card, with "+N" beyond two.
-- [ ] Reduced motion removes the fade, magnification transitions, smooth scrolling, and flash animation.
-- [ ] Every string appears in every supported locale.
-
-## 12. Open questions
-
-None.

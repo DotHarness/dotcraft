@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.1.0 |
+| Version | 0.7.8 |
 | Status | Living |
-| Date | 2026-08-09 |
+| Date | 2026-09-28 |
 | Parent Spec | [Desktop Design System](DESIGN.md) |
 
 ## Overview
@@ -12,27 +12,6 @@
 DotCraft Desktop uses plain CSS as the production styling language. The style
 system separates foundations, shared primitives, and feature-owned rules while
 preserving one deterministic global cascade for existing global selectors.
-
-## Goal
-
-Keep Desktop styling understandable, locally owned, and safe to evolve without
-changing rendered output merely because source files are reorganized.
-
-## Scope
-
-- Renderer design tokens, themes, document defaults, accessibility, and motion.
-- Shared UI primitive styles.
-- Feature-owned global styles and locally scoped CSS Modules.
-- Production and design-system style entry points.
-- Source-size and visual-equivalence expectations for style refactors.
-
-## Non-goals
-
-- Replacing plain CSS with a preprocessor or CSS-in-JS runtime.
-- Converting existing global selectors to CSS Modules as part of source moves.
-- Changing product visuals, DOM structure, interaction behavior, or animation
-  timing during an organizational refactor.
-- Introducing cascade layers without a separately reviewed cascade migration.
 
 ## Core design and architecture
 
@@ -77,8 +56,7 @@ Scrollbar geometry is global and token-driven. Foundations own the size, inset,
 radius, and the resting/hover/active thumb colors; features own only whether a
 region scrolls and whether it reserves a gutter. The reserved gutter follows
 `--scrollbar-size`, so changing the size reflows every `dc-scrollbar-stable`
-consumer by design. That is the gutter staying honest about the bar, not a
-regression to be compensated for locally.
+consumer by design.
 
 Features do not set `scrollbar-width`. Current Chromium gives that property
 precedence over the `::-webkit-scrollbar` pseudo-elements, so an element
@@ -104,7 +82,7 @@ mixing in ink. Every ramp percentage is `base% + var(--contrast-k) * slope%`,
 with each base solved so the authored value reproduces at that variant's default
 contrast.
 
-`themeDerive.ts` writes only what CSS cannot compute: the three seed colors, the
+Runtime theme derivation writes only what CSS cannot compute: the three seed colors, the
 contrast multiplier, and `--on-accent`, whose choice needs relative luminance. A
 field left at its variant default is removed rather than restated, so an
 uncustomized app resolves entirely from the stylesheet. The ink is not a separate
@@ -127,12 +105,9 @@ the status hues along with `--brand-blue-*` and `--find-match` are identities
 rather than derivations. `--bg-inverse` and `--text-on-inverse` are the opposite
 variant's tones, which one variant's seed cannot state.
 
-`shared/titleBarOverlay.ts` applies the same chrome mix to the native caption bar
-and the pre-paint window background, so the seed reaches outside the renderer.
+The native caption bar and pre-paint window background use the same chrome mix as the renderer.
 
-The subset a plugin may read is published in
-`docs/developing/integrations/desktop-plugin-api.md`. Every other custom property
-moves with Desktop's own layout work.
+Only explicitly published theme tokens are compatibility contracts; other custom properties remain internal.
 
 ## Workflow and lifecycle
 
@@ -157,20 +132,3 @@ rules into a parallel stylesheet.
 - Global focus, reduced-motion, pointer, theme, and locale behavior remain
   authoritative across every feature.
 - Source organization must not depend on renderer route load order.
-
-## Acceptance checklist
-
-- The renderer imports one global style entry.
-- Canonical tokens, themes, primitives, and feature rules have distinct owners.
-- Scroll regions inherit the shared scrollbar geometry; no feature sets
-  `scrollbar-width` except to hide a scrollbar deliberately.
-- No ordinary hand-written CSS file remains at or above the refactoring trigger.
-- Production and design-system builds succeed from the same production sources.
-- Existing automated tests pass.
-- Generated production CSS is semantically equivalent across source-only moves.
-- Representative production-mounted surfaces show no visual regression at the
-  agreed themes, locales, viewport widths, and motion settings.
-
-## Open questions
-
-None.

@@ -2,14 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.0.0 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-05-11 |
-| **Parent Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Desktop Client](../clients/desktop-client.md) |
+| **Date** | 2026-09-28 |
+| **Parent Specs** | [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: define the behavior contract for DotCraft's Chrome-backed browser automation runtime. Browser work is thread-bound, session-scoped, cancellable, recoverable, and safe to diagnose without exposing Chrome profile data.
-
----
 
 ## 1. Scope
 
@@ -28,8 +26,6 @@ This spec does not define:
 - Browser automation against cookies, passwords, local storage, Chrome history, profile databases, or other profile storage files.
 - A full browser trace viewer or new browser API surface beyond the documented compatibility subset.
 
----
-
 ## 2. Goals
 
 1. **Durable browser sessions**: Browser automation is a thread-bound session with explicit turn and evaluation metadata, stable JavaScript bindings, and deterministic cleanup semantics.
@@ -39,9 +35,9 @@ This spec does not define:
 5. **Actionable recovery**: Setup, backend, command, timeout, cancellation, debugger, and result-size failures have stable categories and user-safe recovery guidance.
 6. **Privacy preservation**: Diagnostics never include page bodies, cookies, localStorage, full URLs, profile paths, pipe paths, extension ids, or native host manifest paths.
 
----
-
 ## 3. Architecture
+
+The [Node REPL contract](node-repl.md) owns evaluation, lexical state, imports, task-process isolation and outer cancellation. Browser command failures reject only the command promise and preserve that environment.
 
 The runtime has four layers:
 
@@ -52,7 +48,7 @@ The runtime has four layers:
 
 2. **Desktop Node REPL manager**
    - Owns one persistent JavaScript context per thread while the Desktop connection remains bound.
-   - Injects `agent`, `display`, and `dotcraft`.
+   - Exposes `nodeRepl` and `dotcraft`; the browser client returns its agent for explicit lexical binding.
    - Tracks active `evaluationId`, outer timeout, cancellation, and late-result suppression.
    - Keeps REPL state across command-level Chrome errors.
 
@@ -66,7 +62,7 @@ The runtime has four layers:
    - Uses native pipe backend discovery and a framed session command protocol.
    - Implements the shared browser/tab API subset advertised by the Chrome skill.
 
----
+The host exposes `dotcraft.chromeBrowserClientPath`. Importing that module and calling `setupBrowserRuntime()` returns the agent; `agent.browsers.get("extension")` selects Chrome. Backend reconnect does not reset the task process; process replacement requires fresh bootstrap.
 
 ## 4. AppServer and Session Metadata
 
@@ -100,39 +96,9 @@ Rules:
 
 The AppServer `capabilities.browserUse` object may advertise optional browser metadata such as browser session protocol version, command cancellation support, result-size limits, timeout limits, typed finalize support, and Chrome diagnostics support. Unknown capability fields are optional and forward-compatible.
 
----
-
 ## 5. Evaluation and Error Isolation
 
-There are two timeout and cancellation levels:
-
-| Level | Owner | Effect |
-|-------|-------|--------|
-| Evaluation timeout/cancel | Desktop Node REPL manager | Cancels the active evaluation and terminates the REPL process. |
-| Browser command timeout/cancel | Browser client/backend | Fails only the current JavaScript promise and preserves thread REPL state. |
-
-Command-level errors must not clear REPL state. Examples:
-
-- `BridgeDisconnected`
-- `CommandTimeout`
-- `CommandCancelled`
-- navigation or locator timeout
-- `ResultTooLarge`
-- `DebuggerUnavailable`
-- `UnsupportedApi`
-- ordinary JavaScript rejection from a browser command
-
-Outer control errors discard the REPL process and state:
-
-- `NodeReplJs timed out after ...`
-- `NodeReplJs cancelled`
-- explicit user/client reset
-- REPL process startup failure
-- AppServer thread binding replacement or disconnection
-
-Outer timeout/cancel must first invoke the registered Chrome cancellation hook for the active `evaluationId`, then proceed with normal REPL cleanup.
-
----
+Browser command timeout or cancellation rejects only the current promise and preserves the REPL process. Outer evaluation cancellation follows the [Node REPL contract](node-repl.md): it first cancels pending Chrome commands for the active `evaluationId`, then terminates the process. Late Chrome results cannot reach a replacement evaluation.
 
 ## 6. Chrome Host Transport
 
@@ -213,8 +179,6 @@ Event envelopes use:
 }
 ```
 
----
-
 ## 7. Command Lifecycle and Cancellation
 
 Each command follows this lifecycle:
@@ -236,8 +200,6 @@ Cancellation is cooperative:
 - Already issued single CDP calls are not aggressively killed; their late results are ignored.
 
 Cancelable wait/poll commands include navigation wait, URL wait, load state wait, locator waits/actions, file chooser wait, and temporary tab content wait.
-
----
 
 ## 8. Tab Ownership and Finalize
 
@@ -281,8 +243,6 @@ Finalize returns a summary:
 }
 ```
 
----
-
 ## 9. Data Limits
 
 Browser command results must be bounded:
@@ -293,8 +253,6 @@ Browser command results must be bounded:
 - `ResultTooLarge` includes the configured limit and a coarse actual or estimated serialized size when known, but never includes the oversized content.
 - Content reads use `maxLength` where available.
 - Large pages and logs should be read with page-side filtering, smaller chunks, or bounded content reads rather than full-document evaluate results.
-
----
 
 ## 10. Setup Status and Diagnostics
 
@@ -356,8 +314,6 @@ Backend disconnected recovery text:
 
 The Chrome extension popup remains lightweight: connected state shows that the backend is ready, disconnected state directs the user to start/reconnect the backend, and `pipePath` is never rendered.
 
----
-
 ## 11. Error Categories and Recovery
 
 Stable categories:
@@ -384,25 +340,3 @@ Agent recovery:
 - `DebuggerUnavailable`: ask the user to close DevTools or another extension UI controlling the tab, then retry the specific command.
 - `ResultTooLarge`: narrow the query, use `maxLength`, or read smaller chunks; do not retry the same large result with a longer timeout.
 - `UnsupportedApi`: use the documented Chrome compatibility subset or ask before switching browser-control paths.
-
----
-
-## 12. Acceptance
-
-- Browser automation is thread-bound and survives normal command failures.
-- `browser` and `tab` remain reusable across Node REPL calls until the thread binding or runtime is intentionally reset.
-- Every Chrome command carries `sessionId`, `turnId`, `evaluationId`, and `commandId`.
-- Missing session metadata fails with `SessionMetadataMissing`.
-- Chrome backend discovery uses native pipe candidates and framed host protocol, with no fixed TCP fallback.
-- Command timeout/cancel rejects only the current JavaScript promise.
-- Outer Node REPL timeout/cancel sends Chrome cancel envelopes before resetting the REPL runtime.
-- Wait/poll commands observe cooperative cancellation.
-- Late command results do not resolve cancelled pending requests.
-- `tab.evaluate` and content reads enforce bounded results.
-- `browser.tabs.finalize({ keep: [{ tab, status }] })` is the authoritative cleanup boundary.
-- Desktop and extension setup diagnostics show safe, actionable Chrome backend status.
-- AppServer, Desktop, Chrome extension, native host, and browser-client tests cover command timeout, command failure, cancellation, result-size limits, tab finalization, setup diagnostics, and reconnect behavior.
-
-### Persistent Node REPL execution
-
-The shared [Node REPL contract](node-repl.md) owns lexical state, native imports, explicit output, task process isolation, cancellation and bootstrap. Browser clients return their agent directly and read task-scoped host capabilities inside the worker. Browser-command failures preserve that environment; outer cancellation and reset replace it while retaining delivered pages.

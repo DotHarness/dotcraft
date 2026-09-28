@@ -2,13 +2,15 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.12.0 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-09-27 |
+| **Date** | 2026-09-28 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
-| **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md), [Desktop Client](../clients/desktop-client.md) |
+| **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md) |
 
 Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session Core (`ISessionService`) and related AppServer capabilities to out-of-process clients, enabling them to create and resume threads, submit turns, stream events, participate in approval flows, and call server-level management methods through one transport-stable contract.
+
+Serialized shapes are defined by the [AppServer JSON Schema](../../src/DotCraft.Protocol/Artifacts/AppServer/schemas/appserver.schema.json), with method/type associations in the [contract manifest](../../src/DotCraft.Protocol/Artifacts/AppServer/appserver.manifest.json). This specification owns field meaning, authorization, lifecycle, ordering, and failure semantics. Examples illustrate those rules and are not a second schema.
 
 ## Table of Contents
 
@@ -24,7 +26,6 @@ Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session C
 - [10. Notification Opt-Out](#10-notification-opt-out)
 - [11. Extension Methods](#11-extension-methods)
 - [12. Versioning and Compatibility](#12-versioning-and-compatibility)
-- [13. Full Turn Example](#13-full-turn-example)
 - [15. WebSocket Transport](#15-websocket-transport)
 - [16. Automation management](#16-automation-management)
 - [18. Skills Management Methods](#18-skills-management-methods)
@@ -45,9 +46,8 @@ Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session C
 - [26. Memory Management Methods](#26-memory-management-methods)
 - [27. Dreams Management Methods](#27-dreams-management-methods)
 - [27A. Usage Telemetry Methods](#27a-usage-telemetry-methods)
+- [27B. OpenAI account methods](#27b-openai-account-methods)
 - [28. Protocol Ownership](#28-protocol-ownership)
-
----
 
 ## 1. Scope
 
@@ -77,8 +77,6 @@ The contract projects Session Core onto the wire. Features fall into three bucke
 | **Discoverable extensions** | Extension namespaces are advertised as a flat list in `serverInfo.extensions` and `capabilities.extensions` ([Section 11](#11-extension-methods)). Clients treat them as optional and must not require them for core Session behavior. |
 
 **Multi-client thread lists**: In deployments with multiple concurrent connections, server-broadcast notifications in [Section 6.1](#61-thread-notifications) include `thread/started`, `thread/deleted`, `thread/renamed`, and `thread/runtimeChanged` so clients can keep both thread lists and per-thread activity indicators (running, waiting-on-approval, waiting-on-plan-confirmation) synchronized without polling or subscribing to every thread's event stream.
-
----
 
 ## 2. Protocol Fundamentals
 
@@ -120,8 +118,6 @@ Three message kinds:
 - AppServer projects Session Core `item/delta` events to specific wire methods (`item/agentMessage/delta`, `item/reasoning/delta`, `item/toolCall/argumentsDelta`, `item/commandExecution/outputDelta`). Delta notifications that can represent multiple logical kinds carry `deltaKind`.
 - `id` fields in JSON-RPC messages may be strings or integers. The server preserves the type and value when responding.
 
----
-
 ## 3. Initialization
 
 ### 3.1 Handshake
@@ -151,69 +147,6 @@ Client                              Server
 
 **Params**:
 
-```json
-{
-  "clientInfo": {
-    "name": "dotcraft-client",
-    "title": "DotCraft Client",
-    "version": "1.0.0"
-  },
-  "capabilities": {
-    "approvalSupport": true,
-    "streamingSupport": true,
-    "configChange": true,
-    "optOutNotificationMethods": [],
-    "acpExtensions": {
-      "fsReadTextFile": true,
-      "fsWriteTextFile": true,
-      "terminalCreate": true,
-      "extensions": ["_unity"]
-    },
-    "channelAdapter": {
-      "channelName": "telegram",
-      "deliveryCapabilities": {
-        "structuredDelivery": true,
-        "media": {
-          "file": {
-            "supportsHostPath": false,
-            "supportsUrl": false,
-            "supportsBase64": true,
-            "supportsCaption": true,
-            "allowedMimeTypes": ["application/pdf"]
-          }
-        }
-      },
-      "channelTools": [
-        {
-          "name": "TelegramSendDocumentToCurrentChat",
-          "description": "Send a document to the current Telegram chat.",
-          "requiresChatContext": true,
-          "approval": {
-            "kind": "file",
-            "targetArgument": "filePath",
-            "operation": "read"
-          },
-          "display": {
-            "icon": "📎",
-            "title": "Send document to current Telegram chat"
-          },
-          "inputSchema": {
-            "type": "object",
-            "properties": {
-              "filePath": { "type": "string" },
-              "fileUrl": { "type": "string" },
-              "fileName": { "type": "string" }
-            },
-            "required": ["fileName"]
-          },
-          "deferLoading": true
-        }
-      ]
-    }
-  }
-}
-```
-
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `clientInfo.name` | string | yes | Machine-readable client identifier. |
@@ -230,11 +163,11 @@ Client                              Server
 | `capabilities.inlineVisualizations` | boolean | no | Whether this connection can host assistant inline visualization views. Default `false`. |
 | `capabilities.mcpElicitation` | boolean | no | Whether the client can answer `mcpServer/elicitation/request` form and URL requests. Default `false`; servers fail the MCP request with a client-unavailable result when no capable client owns the thread. |
 | `capabilities.optOutNotificationMethods` | string[] | no | Exact notification method names to suppress for this connection. See [Section 10](#10-notification-opt-out). |
-| `capabilities.channelAdapter` | object | no | External channel adapter metadata. When present, the connection is treated as the remote backend for one unified channel runtime. See [external-channel-adapter.md](external-channel-adapter.md). |
+| `capabilities.channelAdapter` | object | no | External channel adapter metadata. When present, the connection is treated as the remote backend for one unified channel runtime. See [channel requests](#112-unified-channel-runtime-remote-projection). |
 | `capabilities.acpExtensions` | object | no | ACP tool proxy capabilities. When present, the client can handle server-initiated `ext/acp/*` requests. See [Section 11.4](#114-acp-tool-proxy). Default omitted (no ACP support). |
 | `capabilities.nodeRepl` | object | no | Persistent Node REPL capability. When present with `browserUse` or `computerUse`, the client can handle server-initiated `ext/nodeRepl/*` requests for thread-bound local browser or desktop automation. Default omitted (no Node REPL support). |
 | `capabilities.browserUse` | object | no | Browser automation capability. When present with `nodeRepl`, the Node REPL is backed by one or more client browser backends such as Desktop embedded browser tabs or the Chrome extension backend. Default omitted (no browser automation support). |
-| `capabilities.computerUse` | object | no | Desktop application automation capability. When present with `nodeRepl`, the Node REPL exposes the client's computer use runtime defined in [Desktop Computer Use](../features/desktop-computer-use.md). Default omitted (no computer use support). |
+| `capabilities.computerUse` | object | no | Desktop application automation capability. When present with `nodeRepl`, the client accepts computer automation through its declared backend. Default omitted (no computer use support). |
 
 `capabilities.configChange` is an opt-out capability. When omitted, the server treats it as `true` and may push `workspace/configChanged` notifications. Modern clients should declare it explicitly for clarity, even when using the default behavior.
 
@@ -325,75 +258,9 @@ When `approval` is present, it is a descriptive risk declaration rather than an 
 
 ### 3.2.1 Unified Channel Model
 
-DotCraft internally models built-in channels and external adapters through the same runtime concepts:
-
-- `ChannelDeliveryCapabilities`
-- `ChannelToolDescriptor`
-- `ChannelOutboundMessage`
-- `ExtChannelToolCallContext` (unified channel execution context)
-- `ExtChannelToolCallResult` (unified channel tool result)
-
-Built-in channels do not negotiate these capabilities over `initialize`; they provide equivalent runtime objects in-process. External adapters expose the same model through `capabilities.channelAdapter`, `ext/channel/send`, and `ext/channel/toolCall`.
+Built-in channels and external adapters share the delivery and tool-call contract. External adapters negotiate capabilities through `initialize` and serve `ext/channel/send` and `ext/channel/toolCall`.
 
 **Result**:
-
-```json
-{
-  "serverInfo": {
-    "name": "dotcraft",
-    "version": "0.2.0",
-    "protocolVersion": "1",
-    "extensions": ["acp"]
-  },
-  "capabilities": {
-    "threadManagement": true,
-    "threadFork": true,
-    "threadSubscriptions": true,
-    "threadGoals": true,
-    "manualCompaction": true,
-    "threadMaintenanceInterrupt": true,
-    "dynamicToolRebind": true,
-    "runtimeAdditionalContext": true,
-    "gitWorktrees": true,
-    "appBindingVersion": 1,
-    "appThreadInputEnqueue": true,
-    "approvalFlow": true,
-    "requestUserInput": true,
-    "modeSwitch": true,
-    "configOverride": true,
-    "skillsManagement": true,
-    "pluginManagement": true,
-    "pluginConfiguration": true,
-    "pluginMarketplaces": true,
-    "hooksManagement": true,
-    "skillVariants": true,
-    "toolCatalog": true,
-    "commandManagement": true,
-    "channelStatus": true,
-    "providerManagement": true,
-    "modelCatalogManagement": true,
-    "workspaceConfigManagement": true,
-    "sourceControlManagement": true,
-    "memoryManagement": true,
-    "dreams": true,
-    "mcpManagement": true,
-    "mcpRuntime": true,
-    "mcpApps": true,
-    "inlineVisualizations": true,
-    "mcpServerOrigins": true,
-    "externalChannelManagement": true,
-    "agentProfileManagement": true,
-    "subAgentManagement": true,
-    "subAgentSessions": true,
-    "mcpStatus": true,
-    "usageTelemetry": true,
-    "remoteToolHost": true,
-    "extensions": {
-      "welcomeSuggestions": true
-    }
-  }
-}
-```
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -474,8 +341,6 @@ Section 11.7 are served.
 
 No response. Signals the client is ready to receive notifications.
 
----
-
 ## 4. Thread Methods
 
 Thread methods correspond to `ISessionService` thread lifecycle operations defined in the [Session Core Specification, Section 5.1](../architecture/session-core.md#51-thread-lifecycle).
@@ -551,32 +416,6 @@ Rules:
 - Standard provider `tools` and Responses Lite `additional_tools` are projections of the same child effective tool snapshot; the wire dialect does not change inheritance behavior.
 - If the bound connection closes, dynamic tools bound to that thread become unavailable and calls fail with a structured failed `dynamicToolCall` item until a capable client resumes the thread with replacement `dynamicTools`.
 
-#### 4.1.0.1 Desktop Thread Management Runtime Tool Profile
-
-DotCraft Desktop may expose a standard thread-management profile as Runtime Dynamic Tools. This profile is client-owned: AppServer does not add native model tools for cross-thread management and does not define additional JSON-RPC methods for this profile. Desktop declares the tools through `thread/start.dynamicTools` and `worktree/createAndStart.dynamicTools` and, when supported, rebinds them through `thread/resume.dynamicTools`; AppServer invokes them only through `item/tool/call`.
-
-Tool identity:
-
-- `namespace`: `desktop`
-- `name`: PascalCase, following DotCraft model-visible tool naming. Clients must expose `CreateThread`, not `create_thread`.
-- `deferLoading`: `true` by default for every tool in this profile. Clients may expose the tools directly only when the active model/runtime has no deferred-tool discovery path.
-- The profile must remain schema-stable across ordinary Agent/Plan mode switches. Availability, target validation, and policy constraints are enforced by the Desktop handler result rather than by adding/removing individual tools per mode.
-- When this profile is deferred, Desktop supplies concise thread-coordination guidance through `additionalContext["desktop.threadCoordination"]`. AppServer must not infer or hardcode this guidance from the Desktop tool names.
-
-Standard tools:
-
-| Tool | Backing AppServer methods | Required arguments | Summary |
-|------|---------------------------|--------------------|---------|
-| `CreateThread` | `thread/start`, then `turn/start` for the initial prompt | `prompt` | Creates a server-managed thread in the current Desktop workspace/identity and starts the initial turn. |
-| `ListThreads` | `thread/list` | none | Returns a cursor-paged list of recent thread summaries for the current Desktop workspace/identity. |
-| `ReadThread` | `thread/read`, `thread/turns/list`, `thread/items/list` | `threadId` | Reads status, queued input summaries, and a page of complete Turns without opening the thread in the Desktop UI. |
-| `SendMessageToThread` | optional `thread/read` + `thread/config/update`, then `turn/start` or `turn/enqueue` | `threadId`, `prompt` | Sends a follow-up prompt to an existing thread without changing the user's active Desktop selection. |
-| `SetThreadTitle` | `thread/rename` | `threadId`, `title` | Renames a thread. |
-| `SetThreadArchived` | `thread/archive` or `thread/unarchive` | `threadId`, `archived` | Archives or restores a thread. |
-| `SetThreadPinned` | Desktop settings only | `threadId`, `pinned` | Pins or unpins a top-level non-archived thread in the current Desktop workspace. |
-
-Pinned-thread state is Desktop-local. AppServer does not define a pinned-thread JSON-RPC method or store pinned state in Session Core.
-
 #### 4.1.0.2 Runtime Additional Context
 
 `additionalContext` lets an AppServer client attach compact thread-bound runtime context alongside client-owned capabilities such as Runtime Dynamic Tools. The server renders this context into the model-visible System prompt using DotCraft's App Context tag semantics.
@@ -585,9 +424,9 @@ Wire shape:
 
 ```json
 {
-  "desktop.threadCoordination": {
+  "app.project": {
     "kind": "application",
-    "value": "When the user asks to create, inspect, continue, pin, archive, rename, or otherwise manage DotCraft threads in the background, search for the relevant thread tool first: CreateThread, ListThreads, ReadThread, SendMessageToThread, SetThreadTitle, SetThreadArchived, SetThreadPinned."
+    "value": "The connected application is editing project alpha."
   }
 }
 ```
@@ -599,40 +438,6 @@ Rules:
 - `value` is required, model-visible text with a maximum length of 16 KiB.
 - Runtime additional context is bound to the requesting client runtime for the thread. It does not create Turns, Items, thread rollout records, or `ThreadConfiguration` updates.
 - The server renders each entry inside `<app-context>...</app-context>` in a System prompt section. Clients must not rely on a separate developer role being available.
-
-Argument conventions:
-
-- `CreateThread.prompt` and `SendMessageToThread.prompt` are plain user prompts encoded as `InputPart` text when calling `turn/start` or `turn/enqueue`.
-- `CreateThread.displayName` is optional and maps to `thread/start.displayName` when present.
-- When `CreateThread` is invoked from within a thread (the tool call carries the originating `threadId`), Desktop sets `thread/start.spawnedFromThreadId` to that originating thread id. The created thread stays a normal sibling thread; its origin is recorded only as a non-subagent `ThreadSource`/metadata marker so the client can show a "from another thread" affordance on the new thread's first user message. This must not turn the created thread into a subagent.
-- `CreateThread.reasoningEffort` and `SendMessageToThread.reasoningEffort` are optional values in `low`, `medium`, `high`, `extraHigh`, `max`, or `ultra`. Desktop maps them to persistent thread reasoning configuration. `ultra` is a DotCraft-owned tier that maps to `max` for provider requests and enables the Dynamic Workflow prompt policy. When `SendMessageToThread` sets reasoning effort, the running turn is not changed; future and queued turns use the updated thread configuration.
-- `CreateThread.model` and `SendMessageToThread.model`, when supported by the client, map to thread configuration or a turn-scoped override only through explicit AppServer protocol support. A client that cannot apply the override must return `success = false` with `errorCode = "UnsupportedOption"` rather than silently ignoring it.
-- `ListThreads.query`, `ListThreads.limit`, `ListThreads.cursor`, and `ListThreads.includeArchived` map to `thread/list` filtering and cursor pagination. Desktop defaults `limit` to 20 and caps it at 100.
-- `ReadThread` accepts only `threadId`, optional `cursor`, `turnLimit` (default 1, range 1–10), `includeOutputs` (default false), and `maxOutputCharsPerItem` (default 2,000, range 0–20,000). Unknown fields or invalid values return `InvalidArguments`. The cursor is the previous Turn page's `nextCursor`.
-- Desktop reads Turns newest first and hydrates each selected Turn through Turn-scoped `thread/items/list` requests in ascending order, using pages of 500 Items and at most five concurrent Turn hydrations. It follows Item cursors to exhaustion, including empty pages with a next cursor. Repeated or cyclic Item cursors and failed history requests fail the entire tool call rather than returning incomplete Turns as a success.
-- `ReadThread` preserves user and assistant message text and text input parts in full. It retains structured tool arguments and typed Item metadata, and projects media as references without inline binary data. There is no ReadThread-wide character budget or secondary message truncation.
-- When native user input contains `contextRef`, `ReadThread` projects the persisted materialized input snapshot when available, without concatenating the native input or rereading referenced files. Without that snapshot, it preserves the native context's text, metadata, and owned image reference. Inline media URLs are omitted with a case-insensitive `data:` scheme check.
-- `includeOutputs` controls command output, tool results, and reasoning text. When enabled, each output field is `{ text, truncated, originalChars? }`: text contains at most `maxOutputCharsPerItem` characters without an appended ellipsis, and local truncation supplies the original character count. A zero limit returns empty output text with truncation metadata. Any upstream truncation metadata remains available; an unknown upstream original length is omitted. Core's general tool-result limits and artifact handling still apply.
-- `ReadThread` summaries must include a bounded `queuedInputs` summary with stable fields (`id`, `status`, `displayText`, `createdAt`, `sender`, `triggerLabel`, and `readyAfterTurnId`) plus `queuedInputCount`.
-- `SetThreadPinned` is a Desktop-only settings mutation. Pinning a thread must reject archived threads and subagent child threads; unpinning may remove a missing id from local settings without reading the thread.
-
-Result conventions:
-
-- `contentItems` should contain a concise text summary suitable for the model.
-- `structuredContent` should reuse AppServer wire DTOs or stable summaries derived from them. Examples include `thread`, `threads`, `turn`, `queuedInput`, `started`, `queued`, and `archived`.
-- `CreateThread` returns the created `thread` and, when the initial prompt is accepted, the started `turn` or queued input state.
-- `SendMessageToThread` returns whether the prompt was started immediately or queued.
-- `ReadThread` returns `{ schemaVersion: 1, thread, page, turns }` in `structuredContent` and serializes that same object into its text content. `thread` contains metadata, runtime state, and the bounded queued input summary. `page` contains `order: "newest_first"`, the requested `limit`, `nextCursor`, and `hasMore`; these describe Turn pagination only. `turns` is newest first, with complete Items in chronological order per Turn. No page count is presented as a thread-wide Turn total. An empty thread returns an empty `turns` array and an exhausted page.
-- `ReadThread` must not resume execution or subscribe the UI to that thread; it is a read-only projection.
-
-Failure conventions:
-
-- Desktop returns `success = false` with stable `errorCode` and English `errorMessage`.
-- Standard errors are `UnsupportedTool`, `UnsupportedOption`, `InvalidArguments`, `ThreadNotFound`, `ThreadArchived`, `ThreadBusy`, `ThreadManagementUnavailable`, `TargetUnsupported`, and `AppServerRequestFailed`.
-- If the target thread is busy, `SendMessageToThread` should use `turn/enqueue` when available. If queuing is not available or rejected, the handler returns `ThreadBusy`.
-- If the Desktop transport that owns the tools is disconnected, AppServer handles the call as an unavailable dynamic tool using the Runtime Dynamic Tools failure rules above.
-
-Thread-management tools are dynamic client callbacks, while thread lifecycle, storage, turn execution, and broadcasts remain owned by the AppServer `thread/*` and `turn/*` protocol.
 
 #### 4.1.1 `ThreadConfiguration` Wire Shape
 
@@ -779,38 +584,9 @@ The server also emits a `thread/started` notification after the response.
 
 Thread objects may include `forkedFromId`, `ephemeral`, `worktree`, `cwd`, `runtimeWorkspaceRoots`, and `effectiveWorkspacePath`. `forkedFromId` is lineage metadata. `cwd`/`effectiveWorkspacePath` is the root clients should use for relative file, shell, Git, and editor surfaces; `runtimeWorkspaceRoots` is the complete set of runtime content boundaries.
 
-`thread/start`, `thread/resume`, and `thread/fork` accept optional top-level `cwd` and `runtimeWorkspaceRoots` fields. `turn/start` accepts the same fields and makes them sticky for that turn and subsequent turns. Their update and worktree semantics are defined in [Multi-Folder Local Projects](../features/multi-folder-projects.md). Each lifecycle result also contains required `instructionSources`, an ordered array of absolute logical paths used by the thread's stable `AGENTS.md` snapshot. It is `[]` when no user or project file contributes content. Thread notifications and DotCraft-specific worktree lifecycle results do not carry this field.
+`thread/start`, `thread/resume`, and `thread/fork` accept optional top-level `cwd` and `runtimeWorkspaceRoots` fields. `turn/start` accepts the same fields and makes them sticky for that turn and subsequent turns. Their update and worktree semantics are defined in [Session Core thread configuration](../architecture/session-core.md#122-thread-configuration). Each lifecycle result also contains required `instructionSources`, an ordered array of absolute logical paths used by the thread's stable `AGENTS.md` snapshot. It is `[]` when no user or project file contributes content. Thread notifications and DotCraft-specific worktree lifecycle results do not carry this field.
 
 In a shared Session Core process (typical AppServer mode), when **any** channel creates a thread (not only via `thread/start` on this connection), the server **broadcasts** the same `thread/started` notification to connected clients. For ordinary `thread/start` RPCs, the initiating client may receive the post-response notification from the request handler instead of the shared broadcast and should dedupe by thread id. Session-backed SubAgent child threads are always broadcast to the current connection as well, because their creation happens inside a parent turn/tool call and has no direct `thread/start` response.
-
-**Example**:
-
-```json
-{ "jsonrpc": "2.0", "method": "thread/start", "id": 1, "params": {
-    "identity": {
-      "channelName": "vscode",
-      "userId": "user-123",
-      "channelContext": "workspace:/home/dev/myproject",
-      "workspacePath": "/home/dev/myproject"
-    },
-    "historyMode": "server"
-} }
-
-{ "jsonrpc": "2.0", "id": 1, "result": {
-    "thread": {
-      "id": "thread_20260316_x7k2m4",
-      "status": "active",
-      "workspacePath": "/home/dev/myproject",
-      "createdAt": "2026-03-16T10:00:00Z",
-      "lastActiveAt": "2026-03-16T10:00:00Z"
-    },
-    "instructionSources": ["/home/dev/myproject/AGENTS.md"]
-} }
-
-{ "jsonrpc": "2.0", "method": "thread/started", "params": {
-    "thread": { "id": "thread_20260316_x7k2m4", "status": "active" }
-} }
-```
 
 ### 4.2 `thread/resume`
 
@@ -1054,7 +830,7 @@ Result order matches `sortDirection`. Item position is stable across updates; an
 
 The `Thread` wire object may include `plan?: PlanSnapshot | null`. When present, it is the current persisted plan for that exact thread, using the same `title`, `overview`, `content`, and `todos` shape as `plan/updated`. Clients should use this field to restore plan/todo UI after switching threads.
 
-**`contextUsage` field**: When the server has persisted context-window occupancy for the thread, the returned `Thread` carries an optional `contextUsage` snapshot for the desktop token ring. This snapshot is not billing usage and must not be derived from cumulative `Turn.tokenUsage` totals. Immediately before a provider request, Session Core persists the estimate for the normalized provider-visible history with `isEstimate = true`; a successful provider response replaces it with the latest request's provider-visible input plus that request's generated output, and a turn-end compaction replaces it with the replacement-history estimate before the Turn completes. If the request fails before returning usage, the preflight estimate remains authoritative instead of exposing the previous successful request as current occupancy. Session Core's accounting order is: valid provider anchor plus post-request appended-message estimation, prefix-adjusted anchor for base-instruction drift, latest provider active-context snapshot only while it still belongs to the current request boundary, persisted provider fallback for UI, then a replacement-domain estimate after rollback, compaction, or another history replacement. A neutral replacement is estimated from neutral model-visible history; an active provider-native replacement uses its generation-scoped estimator and must not expand the neutral transcript for this purpose. After either replacement, old anchors and token trackers are invalid until the next provider usage arrives:
+**`contextUsage` field**: The optional snapshot reports context-window occupancy, not cumulative billing usage. Accounting follows [Session Core](../architecture/session-core.md#52-turn-lifecycle); replacement estimates follow [Context Compaction](../architecture/context-compaction.md#context-usage).
 
 ```
 "contextUsage": {
@@ -1069,9 +845,7 @@ The `Thread` wire object may include `plan?: PlanSnapshot | null`. When present,
 }
 ```
 
-The same snapshot is also embedded on `thread/start` and `thread/resume` responses (and their matching `thread/started` / `thread/resumed` notifications) so clients can seed the token ring without an extra round-trip. Clients must prefer server-provided `contextUsage` over local token or ring estimates and must not independently enter compacting state from local estimates when the server snapshot is present. Using the merged model catalog, `contextWindow` is computed from the thread's effective model, including `Thread.configuration.model` overrides. `ContextUsageSnapshot.contextWindow` is the effective denominator after the configured client budget and Session Core reserve and buffer rules, not the raw catalog window advertised by `model/list`. Freshly-created threads initialize persisted context usage to `tokens = 0`; the field is omitted when no persisted context usage state exists for the thread.
-
-Persisted context usage is display state. A stored provider token count without a matching provider anchor for the current replacement domain, generation, and request shape must not by itself trigger automatic compaction. Neutral or provider-native replacement estimates saved after rollback, compaction, or history rebuild may drive automatic compaction because they describe the active model-visible history rather than a stale provider snapshot.
+The same snapshot appears on `thread/start` and `thread/resume` responses and matching notifications. Clients use it rather than independently deriving context pressure from cumulative `Turn.tokenUsage`. `contextWindow` is the effective denominator after client budget and reserve rules, not the raw model-catalog window. New threads report `tokens = 0`; a thread without persisted occupancy omits the field.
 
 ### 4.5 `thread/rollback`
 
@@ -1248,8 +1022,6 @@ Update per-thread agent configuration (MCP servers, extensions, etc.).
 
 Provider changes include a non-empty `providerId` and `model` in the same request. The server validates model-aware fields such as `reasoning` against that pair before persisting. On success, the server rebuilds the thread agent/compaction pipeline for queued and future Turns, persists the configuration, and broadcasts authoritative `thread/updated` state. A running Turn keeps the immutable configuration and tool snapshot captured at its start. Configuration replacement does not release terminal thread resources or revoke client-owned Runtime Dynamic Tool bindings.
 
----
-
 ### 4.15 Thread Goal Methods
 
 Thread goal behavior is defined by [Goal Design](../features/goal.md). AppServer projects the Session Core goal runtime through these JSON-RPC methods:
@@ -1310,7 +1082,7 @@ Manually compact the model-visible context for an idle server-managed thread.
 | `message` | string? | Optional skip/failure reason. |
 | `contextUsage` | ContextUsageSnapshot? | Updated snapshot when available. |
 
-Servers advertise this method with `capabilities.manualCompaction = true`. The method is valid only for Active, server-managed threads that have history and no `Running` / `WaitingApproval` turn or active thread maintenance. The response wire shape is stable: `outcome`, `message`, and `contextUsage` are the only result fields. The server emits `system/event` in the order `compacting` -> exactly one terminal event (`compacted`, `compactSkipped`, `compactFailed`, or `compactCancelled`). While running, the thread reports `maintenanceKind = "compacting"` through `thread/runtimeChanged`; new input must be queued instead of submitted with `turn/start`. Manual compaction does not run a microcompact pre-pass. The server selects one backend according to [Context Compaction](../architecture/context-compaction.md). A local backend first tries partial compaction and may fall back to full-history compaction. A provider-native backend replaces only the active native generation. On success the server persists the selected replacement domain, updates `contextUsage` without carrying over unrelated provider overhead, and appends a `SystemNotice` item with `kind = "compacted"` and `trigger = "manual"` to the latest completed turn.
+Servers advertise this method with `capabilities.manualCompaction = true`. The method is valid only for Active, server-managed threads that have history and no `Running` / `WaitingApproval` turn or active thread maintenance. The response wire shape is stable: `outcome`, `message`, and `contextUsage` are the only result fields. The server emits `system/event` in the order `compacting` -> exactly one terminal event (`compacted`, `compactSkipped`, `compactFailed`, or `compactCancelled`). While running, the thread reports `maintenanceKind = "compacting"` through `thread/runtimeChanged`; new input must be queued instead of submitted with `turn/start`. Backend selection and history replacement follow [Context Compaction](../architecture/context-compaction.md).
 
 Compaction cancellation, provider timeout, backend failure, and replacement validation failure must be observable in trace storage with a terminal result. User interruption maps to `outcome = "cancelled"` and `compactCancelled`. Provider timeout, missing or overlong local summaries, invalid provider-native output, and persistence failure map to `outcome = "failed"` and `compactFailed`. Failure messages use the machine-readable reasons defined by the selected backend.
 
@@ -1508,8 +1280,6 @@ Validate and atomically install a JSON snapshot from the workspace-local restric
 Restore validates the package version, model Session and provider-history schemas, original Thread ID, normalized absolute workspace path, and terminal boundary before changing durable state. It succeeds only when the target Thread does not exist. Failure leaves no visible partial Thread. The restored execution state is persisted but not resumed, and recovery emits no synthetic conversation Item or Turn. Callers use ordinary `thread/resume` after success.
 
 Both methods can return stable `error.data.code` values `ThreadRecoveryPackageInvalid`, `ThreadRecoveryPackageIncompatible`, `ThreadRecoveryWorkspaceMismatch`, and `ThreadRecoveryTargetExists` using JSON-RPC code `-32097`. A missing export source still returns `ThreadNotFound`; a busy source returns `TurnInProgress`.
-
----
 
 ## 5. Turn Methods
 
@@ -1822,14 +1592,11 @@ The result is advisory and read-only. The server derives these suggestions from 
 - `source = "dynamic"` means the server returned workspace-specific personalized suggestions.
 - `source = "none"` means the server intentionally did not return personalized suggestions for this call. Typical reasons include insufficient workspace evidence, a workspace-level preference disabling the feature, or transient generation unavailability.
 - When `source = "none"`, `items` may be an empty list. Client-owned default suggestions remain out of band and are not serialized by this method.
-- The server may inspect workspace-local memory through internal read-only mechanisms before generating suggestions, but those inspection steps are implementation-defined and not part of the wire contract.
 - Servers may cache results for a short period and return the same `fingerprint` across repeated calls while the underlying workspace evidence has not materially changed.
 - Servers SHOULD serve this method from a persisted workspace cache and SHOULD NOT trigger synchronous model generation from this request path. The persisted cache is a cross-process restart snapshot of the most recent successful dynamic result; it should not be deleted on normal client shutdown, and failed, canceled, or insufficient-context refresh attempts should leave the previous snapshot available.
 - Cache refresh should run asynchronously after a successful turn. If the current memory evidence fingerprint already matches the persisted snapshot, the server may skip regeneration.
 
 **Errors** (non-exhaustive): missing `identity.workspacePath`; unsupported capability; invalid `maxItems`; workspace not available.
-
----
 
 ## 6. Event Notifications
 
@@ -2092,7 +1859,7 @@ The canonical item payload schemas are defined in [Session Core, Section 4.2](..
 | `imageGeneration` | Hosted image generation lifecycle item. Payload uses `callId`, `status` (`"inProgress"` / `"completed"` / `"failed"`), optional `revisedPrompt`, optional base64 `result`, `mediaType`, optional `savedPath`, and optional `errorMessage`. Clients should render it independently from ordinary tool aggregation and must not treat `"inProgress"` provider status as failure. |
 | `mcpToolCall` | One MCP lifecycle item with canonical namespace/name, required `providerFlatName`, runtime `server`, `origin`, raw `sourceToolId`, definition/runtime binding identities, binding/snapshot revisions, safe provenance, original `callId`, arguments, status, duration, normalized `contentItems`, raw MCP content, `structuredContent`, sanitized `_meta`, `isError`, success, stable error fields, and optional normalized `mcpAppResourceUri`. It has no companion `toolResult`. View handles, HTML, CSP, and availability are never persisted in the item. |
 | `dynamicToolCall` | One Runtime Dynamic lifecycle item with optional canonical namespace, canonical local tool name, required `providerFlatName`, original `callId`, arguments, `inProgress`/`completed`/`failed` status, duration, `contentItems`, `structuredContent`, nullable terminal success, and stable error fields. It has no companion `toolCall`/`toolResult`. |
-| `toolResult` | Standard result paired by `callId`, preserving canonical namespace/name and required `providerFlatName`, with model-safe `result`/`contentItems`, client-only `structuredContent`, sanitized host-only `_meta`, success, and stable error fields. Provider history never includes `structuredContent` or `_meta`. Successful `WriteFile` and `EditFile` results carry `structuredContent` of kind `fileChange` with the call's file diff; its shape is defined in [Session Core, ToolResult](../architecture/session-core.md#toolresult). |
+| `toolResult` | Standard result paired by `callId`, preserving canonical namespace/name and required `providerFlatName`, with model-safe `result`/`contentItems`, client-only `structuredContent`, sanitized host-only `_meta`, success, and stable error fields. Provider history never includes `structuredContent` or `_meta`. The client-only `fileChange` shape for file operations is defined in [Session Core, ToolResult](../architecture/session-core.md#toolresult). |
 | `approvalRequest` | Approval payload uses the canonical fields plus wire enum/string serialization rules from this spec. |
 | `approvalResponse` | Response payload uses the canonical fields; decision values are serialized as wire strings. |
 | `userInputRequest` | Plan Mode question request payload. The item is paired with a server-to-client `item/tool/requestUserInput` request and puts the turn in `waitingInput`. |
@@ -2374,7 +2141,7 @@ This notification is a sideband signal — it may interleave with `item/*` and `
 
 **Emission rules**:
 
-- The server emits this notification at ~200ms intervals while SubAgents are active. The exact interval is an implementation detail and may vary.
+- Clients must not depend on a fixed progress notification interval.
 - Each notification contains the **complete set** of tracked SubAgents for the current Turn — not incremental deltas.
 - The server stops emitting once all tracked SubAgents have completed and a final snapshot with all `isCompleted = true` has been sent.
 - Clients that do not need SubAgent progress can opt out via `optOutNotificationMethods: ["subagent/progress"]` during `initialize`.
@@ -2392,34 +2159,6 @@ Emitted when a session-backed SubAgent parent/child edge is created or changes s
 Emitted each time the agent completes an LLM iteration and produces a `UsageContent` with non-zero token counts. Carries the **incremental** token consumption for that single iteration.
 
 **Params**:
-
-```json
-{
-  "threadId": "thread_...",
-  "turnId": "turn_001",
-  "inputTokens": 1200,
-  "outputTokens": 350,
-  "cachedInputTokens": 0,
-  "cacheWriteInputTokens": 0,
-  "freshInputTokens": 1200,
-  "reasoningOutputTokens": 0,
-  "llmCallDelta": 1,
-  "contextInputTokens": 14820,
-  "turnInputTokens": 1200,
-  "turnOutputTokens": 350,
-  "turnLlmCalls": 1,
-  "totalInputTokens": 14820,
-  "totalOutputTokens": 350,
-  "contextUsage": {
-    "tokens": 14820,
-    "contextWindow": 200000,
-    "autoCompactThreshold": 180000,
-    "warningThreshold": 176000,
-    "errorThreshold": 194000,
-    "percentLeft": 0.9259
-  }
-}
-```
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -2459,21 +2198,6 @@ Emitted each time the agent completes an LLM iteration and produces a `UsageCont
 Emitted when a system-level maintenance operation occurs during a Turn's post-processing phase. These operations, such as context compaction, are not part of the agent's conversational output but affect the session's internal state.
 
 **Params**:
-
-```json
-{
-  "threadId": "thread_...",
-  "turnId": "turn_001",
-  "kind": "compactWarning",
-  "messageKey": "context.limit_reached",
-  "params": {},
-  "fallbackText": "Context token limit reached, compacting conversation...",
-  "message": "Context token limit reached, compacting conversation...",
-  "percentLeft": 0.12,
-  "tokenCount": 176000,
-  "contextUsage": null
-}
-```
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -2522,35 +2246,6 @@ This notification is independent of the Turn event stream. Clients that do not n
 
 **Params**:
 
-```json
-{
-  "threadId": "thread_20260316_x7k2m4",
-  "title": "Implement user authentication",
-  "overview": "Add JWT-based auth with login and registration endpoints",
-  "content": "## Scope\n\nImplement backend auth endpoints and middleware.\n\n## Steps\n\n1. Add User model\n2. Add login/register APIs\n3. Add JWT middleware",
-  "todos": [
-    {
-      "id": "setup-models",
-      "content": "Create User model and migration",
-      "priority": "high",
-      "status": "completed"
-    },
-    {
-      "id": "auth-endpoints",
-      "content": "Implement login and register API endpoints",
-      "priority": "high",
-      "status": "in_progress"
-    },
-    {
-      "id": "jwt-middleware",
-      "content": "Add JWT validation middleware",
-      "priority": "medium",
-      "status": "pending"
-    }
-  ]
-}
-```
-
 | Field | Type | Description |
 |-------|------|-------------|
 | `threadId` | string | Thread that produced this plan snapshot. |
@@ -2587,18 +2282,6 @@ Emitted after a server-managed automation run completes. This allows connected w
 Clients can opt out via `optOutNotificationMethods: ["system/jobResult"]` during `initialize`.
 
 **Params**:
-
-```json
-{
-  "source": "automation",
-  "jobId": "9c933b01",
-  "jobName": "喝水提醒",
-  "threadId": "thread_abc123",
-  "result": "提醒：该喝水了！保持水分对健康很重要。",
-  "error": null,
-  "tokenUsage": { "inputTokens": 420, "outputTokens": 38 }
-}
-```
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -2655,8 +2338,6 @@ Broadcast summary notifications such as `thread/started`, `thread/renamed`, `thr
 
 **Best-effort delivery**: Notifications are best-effort per connection. A transport write failure must stop further writes to that client, but it must not stop the server from draining an already-started persisted turn's event stream. Passive `thread/subscribe` streams remain tied to the connection and are cancelled when that connection closes; active turn execution continues independently. When `turn/start` uses the subscription path, the server's internal active-turn drain must continue after subscription cancellation. Outstanding interactive requests are resolved only through their normal client response, explicit non-interactive fallback for unsupported/unavailable clients, transport disconnect, or a request-specific timeout such as approval timeout; `thread/unsubscribe` alone must not answer them. Reconnected or returning clients recover state through `thread/read`, fresh history head pages, `thread/list`, fresh subscriptions, and server replay of unresolved interactive requests on `thread/subscribe` or `thread/resume`.
 
----
-
 ## 7. Approval Flow
 
 When the agent encounters a sensitive operation (file write, shell command) that requires user consent, the server initiates a bidirectional approval exchange. This is a **server-to-client request** — the server sends a JSON-RPC request with an `id`, and the client must respond.
@@ -2704,7 +2385,7 @@ The turn enters `"waitingApproval"` status while the server waits for the client
 | `requestId` | string | Unique correlation ID for this approval. |
 | `approvalType` | string | `"shell"`, `"file"`, `"computerUse"`, or another resource kind contributed by a tool. |
 | `operation` | string | For shell: the command. For file: `"read"`, `"write"`, `"edit"`, `"list"`. |
-| `target` | string | For shell: working directory. For file: the file path. For computerUse: the application identity defined in [Desktop Computer Use](../features/desktop-computer-use.md). |
+| `target` | string | For shell: working directory. For file: the file path. For computerUse: the target application identity reported by the client backend. |
 | `targetLabel` | string? | Optional display label for `target`, for example an application's display name. |
 | `scopeKey` | string | Session-scoped cache key used when the client returns `acceptForSession`. |
 | `reason` | string | Human-readable explanation of why approval is needed. |
@@ -2837,8 +2518,6 @@ The turn enters `"waitingInput"` status while waiting for the response.
 
 When a client later resumes or subscribes to a thread that is still waiting for the same unresolved user-input request, the server replays `item/tool/requestUserInput` with the original `requestId` so the client can render an actionable question composer again.
 
----
-
 ## 8. Error Handling
 
 ### 8.1 JSON-RPC Error Response
@@ -2942,8 +2621,6 @@ The `turn/failed` notification includes the error in `turn.error`:
 
 If an `Error` item was created during the turn, it appears in the `items` array and is also emitted via `item/started` / `item/completed` before the `turn/failed` notification.
 
----
-
 ## 9. Backpressure
 
 ### 9.1 Server-Side Queuing
@@ -2957,8 +2634,6 @@ The server uses bounded internal queues between transport ingress, request proce
 
 - Clients should not send a `turn/start` while a turn is already in progress on the same thread. The server rejects this with error code `-32012`.
 - Clients should consume notifications promptly. If a client falls behind on reading stdout (stdio transport) or WebSocket frames, the server may buffer up to a limit and then drop the connection.
-
----
 
 ## 10. Notification Opt-Out
 
@@ -3004,8 +2679,6 @@ Clients can suppress specific notification methods per connection by listing exa
   }
 }
 ```
-
----
 
 ## 11. Extension Methods
 
@@ -3112,6 +2785,8 @@ When `delivered` is `false`, `errorCode` should use a stable string when possibl
 - `MediaResolutionFailed`
 - `AdapterDeliveryFailed`
 - `AdapterProtocolViolation`
+
+Adapters advertise `deliveryCapabilities.structuredDelivery = true` to receive delivery requests. If a media kind advertises `maxBytes`, the server rejects sources it cannot validate against that limit, including remote URLs it does not fetch for inspection.
 
 #### 11.2.2 `ext/channel/toolCall`
 
@@ -3268,7 +2943,7 @@ Version 1 callbacks return the same result envelope as `item/tool/call`: `succes
 
 The browser and computer use integrations expose agent tools through a **server -> client** Node REPL backend. The server only sends these requests to a thread-bound client that declared `capabilities.nodeRepl` together with `capabilities.browserUse` or `capabilities.computerUse` during `initialize`. A native SubAgent full-history fork snapshots the direct parent's live Node REPL transport and connection authority onto the child before its first model sampling; fresh and bounded forks do not. Evaluations use the child thread/session/turn identity, and later parent rebinding does not update the child. The binding remains ephemeral and must be established again through the normal thread resume capability flow after process recovery.
 
-Clients may back the runtime with Desktop embedded browser tabs, a Chrome extension connected through Native Messaging, or another compatible backend declared in `capabilities.browserUse.backends`. Backend-specific setup and user-consent rules are owned by the contributing plugin skill, but all backends share the same `ext/nodeRepl/*` transport. Desktop in-app browser lifecycle, transport, diagnostics, and browser-use compatibility are defined in [Desktop In-App Browser Runtime](../features/desktop-inapp-browser.md). Chrome-specific browser session lifecycle, tab ownership, timeout, diagnostics, and migration goals are defined in [Chrome Browser Runtime](../features/chrome-browser-runtime.md).
+The client selects a backend declared in `capabilities.browserUse.backends` or `capabilities.computerUse`. Backend setup and presentation are outside this transport contract.
 
 #### `ext/nodeRepl/evaluate`
 
@@ -3278,10 +2953,10 @@ Clients may back the runtime with Desktop embedded browser tabs, a Chrome extens
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `threadId` | string | yes | Thread ID whose Desktop runtime owns the persistent REPL. |
+| `threadId` | string | yes | Thread ID whose client runtime owns the persistent REPL. |
 | `turnId` | string | no | Current turn ID when the server can resolve one from tool execution scope. |
 | `evaluationId` | string | yes | Unique ID for this evaluation, used for cancellation and late-result suppression. |
-| `browserSession` | object | no | Browser session identity forwarded to embedded browser and Chrome backends. See [Desktop In-App Browser Runtime](../features/desktop-inapp-browser.md) and [Chrome Browser Runtime](../features/chrome-browser-runtime.md). |
+| `browserSession` | object | no | Browser session identity forwarded to the backend, with fields defined below. |
 | `code` | string | yes | JavaScript source to evaluate in the thread-bound persistent Node REPL. |
 | `timeoutMs` | number | no | Requested overall timeout in milliseconds. Client may clamp to its supported range. |
 
@@ -3583,8 +3258,6 @@ MCP `upsert` and `remove` use an explicit user/workspace `scope`; listing retain
 origin. User-origin entries remain editable in their own scope. `plugin/installLocal` also accepts
 scope, and remove/enable operate on the installed plugin's reported source.
 
----
-
 ## 12. Versioning and Compatibility
 
 ### 12.1 Protocol Version
@@ -3601,162 +3274,11 @@ Session tool payloads use canonical `namespace`/`toolName` plus `providerFlatNam
 
 `initialize` advertises capabilities; it does not select among alternate Runtime Dynamic wire shapes. An invalid request fails rather than silently changing shape.
 
----
-
-## 13. Full Turn Example
-
-This section shows the complete message sequence for a turn where the agent reads a file, runs a test (requiring approval), and responds.
-
-### 13.1 ACP client turn (extension proxy)
-
-When the wire client is an **ACP bridge** (IDE ↔ AppServer), the agent may need to read files through the IDE. The server sends `ext/acp/*` to the bridge; the bridge forwards to the IDE and returns the result.
-
-```
-IDE (ACP)          ACP Bridge          AppServer
-  |                    |                    |
-  | session/prompt     |                    |
-  |------------------->|                    |
-  |                    | turn/start         |
-  |                    |------------------->|
-  |                    |                    | (agent runs, needs file read)
-  |                    | ext/acp/fs/readTextFile (server request)
-  |                    |<-------------------|
-  | fs/readTextFile    |                    |
-  |<-------------------|                    |
-  | (response)         |                    |
-  |------------------->|                    |
-  |                    | (response)         |
-  |                    |------------------->|
-  |                    |                    | (agent continues)
-  |                    | item/agentMessage/delta
-  |                    |<-------------------|
-  | session/update     |                    |
-  |<-------------------|                    |
-  |                    | turn/completed     |
-  |                    |<-------------------|
-  | session/prompt response (end_turn)      |
-  |<-------------------|                    |
-```
-
-### 13.2 Standard wire turn (no ACP)
-
-```
-Client                                          Server
-  |                                               |
-  | turn/start (request, id: 10)                  |
-  |  threadId, input: "Run tests and fix"         |
-  |---------------------------------------------->|
-  |                                               |
-  | (response, id: 10)                            |
-  |  turn: { id: "turn_001", status: "running" }  |
-  |<----------------------------------------------|
-  |                                               |
-  | turn/started (notification)                   |
-  |  turn: { id: "turn_001", ... }                |
-  |<----------------------------------------------|
-  |                                               |
-  | item/started (notification)                   |
-  |  item: { type: "userMessage", text: "..." }   |
-  |<----------------------------------------------|
-  |                                               |
-  | item/completed (notification)                 |
-  |  item: { type: "userMessage", ... }           |
-  |<----------------------------------------------|
-  |                                               |
-  | item/started (notification)                   |
-  |  item: { type: "toolCall",                    |
-  |    toolName: "ReadFile", callId: "c1" }       |
-  |<----------------------------------------------|
-  |                                               |
-  | item/completed (notification)                 |
-  |  item: { type: "toolResult",                  |
-  |    callId: "c1", success: true }              |
-  |<----------------------------------------------|
-  |                                               |
-  | item/usage/delta (notification)               |
-  |  inputTokens: 1200, outputTokens: 350         |
-  |<----------------------------------------------|
-  |                                               |
-  | item/started (notification)                   |
-  |  item: { type: "approvalRequest",             |
-  |    approvalType: "shell",                     |
-  |    operation: "npm test" }                    |
-  |<----------------------------------------------|
-  |                                               |
-  | item/approval/request (request, id: 100)      |
-  |  requestId: "approval_001",                   |
-  |  approvalType: "shell",                       |
-  |  operation: "npm test"                        |
-  |<----------------------------------------------|
-  |                                               |
-  | (response, id: 100)                           |
-  |  decision: "accept"                           |
-  |---------------------------------------------->|
-  |                                               |
-  | item/approval/resolved (notification)         |
-  |  requestId: "approval_001",                   |
-  |  approved: true, decision: "accept"           |
-  |<----------------------------------------------|
-  |                                               |
-  | item/started (notification)                   |
-  |  item: { type: "toolCall",                    |
-  |    toolName: "Exec", callId: "c2" }           |
-  |<----------------------------------------------|
-  |                                               |
-  | item/completed (notification)                 |
-  |  item: { type: "toolResult",                  |
-  |    callId: "c2", success: true }              |
-  |<----------------------------------------------|
-  |                                               |
-  | item/started (notification)                   |
-  |  item: { type: "toolCall",                    |
-  |    toolName: "SpawnAgent",                    |
-  |    arguments: { message: "analyze data",      |
-  |      taskName: "analyzer",                    |
-  |      agentNickname: "Analyzer" } }             |
-  |<----------------------------------------------|
-  |                                               |
-  | subagent/progress (notification)              |
-  |  entries: [{ label: "analyzer",               |
-  |    currentTool: "ReadFile", ... }]            |
-  |<----------------------------------------------|
-  |                                               |
-  | subagent/progress (notification)  (~200ms)    |
-  |  entries: [{ label: "analyzer",               |
-  |    isCompleted: true, ... }]                  |
-  |<----------------------------------------------|
-  |                                               |
-  | item/completed (notification)                 |
-  |  item: { type: "toolResult",                  |
-  |    callId: "c3", success: true }              |
-  |<----------------------------------------------|
-  |                                               |
-  | item/started (notification)                   |
-  |  item: { type: "agentMessage" }               |
-  |<----------------------------------------------|
-  |                                               |
-  | item/agentMessage/delta (notification) x N    |
-  |  delta: "I found 2 failing tests..."          |
-  |<----------------------------------------------|
-  |                                               |
-  | item/completed (notification)                 |
-  |  item: { type: "agentMessage",                |
-  |    text: "I found 2 failing tests..." }       |
-  |<----------------------------------------------|
-  |                                               |
-  | turn/completed (notification)                 |
-  |  turn: { status: "completed",                 |
-  |    tokenUsage: { ... }, items: [...] }        |
-  |<----------------------------------------------|
-```
-
----
-
 ## 15. WebSocket Transport
 
 ### 15.1 Overview
 
-The WebSocket transport is a network-accessible alternative to the stdio transport. It is the primary transport for external channel adapters (see the [External Channel Adapter Specification](external-channel-adapter.md)) and for any client that cannot be co-located with the server process.
+The WebSocket transport is a network-accessible alternative to the stdio transport. It supports clients that cannot be co-located with the server process.
 
 Both transports use identical JSON-RPC 2.0 message shapes. The only differences are at the framing and connection-lifecycle layers described in this section.
 
@@ -3887,8 +3409,6 @@ The server sends native WebSocket ping frames every 30 seconds to detect stale c
 | Approval request on disconnect | Turn cancelled (process exit) | Turn fails with `-32020` approval timeout |
 | Diagnostic output | stderr | Not available on wire; use server logs |
 
----
-
 ## 16. Automation management
 
 The optional `automations` capability provides one definition and run lifecycle.
@@ -3995,17 +3515,6 @@ Read the full content of a skill's `SKILL.md` file.
 
 **Result**:
 
-```json
-{
-  "name": "browser",
-  "content": "---\ndescription: \"Browser automation via Playwright MCP...\"\nbins: npx\n---\n\n# Browser Automation (Playwright MCP)\n\nYou have access to browser automation tools...",
-  "metadata": {
-    "description": "Browser automation via Playwright MCP...",
-    "bins": "npx"
-  }
-}
-```
-
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | string | The skill name that was requested. |
@@ -4034,13 +3543,6 @@ Read the effective skill body after source/variant resolution.
 
 **Result**:
 
-```json
-{
-  "name": "browser",
-  "content": "# Browser Automation\n\nYou have access to browser automation tools..."
-}
-```
-
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | string | The skill name that was requested. |
@@ -4061,13 +3563,6 @@ Restore the original source skill for the current workspace target.
 | `name` | string | yes | Skill name to restore. |
 
 **Result**:
-
-```json
-{
-  "name": "browser",
-  "restored": true
-}
-```
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -4117,16 +3612,6 @@ Uninstall a user-managed source skill.
 
 **Result**:
 
-```json
-{
-  "name": "code-review",
-  "uninstalled": true,
-  "source": "user",
-  "removedSourcePath": "/home/user/.craft/skills/code-review",
-  "removedVariantCount": 1
-}
-```
-
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | string | The skill name that was requested. |
@@ -4155,8 +3640,6 @@ On success, the server clears any disabled-state record for the skill, deletes a
 ### 18.10 Capability Advertisement
 
 Clients must check `capabilities.skillsManagement` before calling any `skills/*` method. Clients should additionally check `capabilities.skillVariants` before offering variant-dependent UX such as restoring the original skill; `skills/view` remains available as a source-only effective view when that capability is absent or `false`.
-
----
 
 ## 18B. Plugin and Marketplace Management Methods
 
@@ -4386,15 +3869,6 @@ use.
 
 ##### `PluginDependencyInfo`
 
-```json
-{
-  "id": "acme.review-core",
-  "requiredVersion": "1.0.0",
-  "observedVersion": "1.0.0",
-  "availability": "active"
-}
-```
-
 | Field | Type | Presence | Description |
 |-------|------|----------|-------------|
 | `id` | string | required | Canonical provider plugin id. |
@@ -4414,27 +3888,6 @@ use.
 5. the provider's current runtime state.
 
 ##### `PluginDotnetRuntimeInfo`
-
-```json
-{
-  "state": "blocked",
-  "generationId": null,
-  "blockers": [
-    {
-      "code": "PluginUntrusted",
-      "parameters": {
-        "pluginId": "acme.review-ui",
-        "trustStatus": "untrusted",
-        "fingerprintPrefix": "9f2ac417"
-      },
-      "message": "Plugin 'acme.review-ui' has no trust grant, so it cannot be activated."
-    }
-  ],
-  "leakedGenerations": 0,
-  "restartRecommended": false,
-  "trustStatus": "untrusted"
-}
-```
 
 | Field | Type | Presence | Description |
 |-------|------|----------|-------------|
@@ -4577,41 +4030,6 @@ come exclusively from the binding-scoped Streamable HTTP MCP session.
 #### `PluginOperationResult`
 
 Every plugin mutation method returns one unified result shape:
-
-```json
-{
-  "outcome": "applied",
-  "plugin": { "id": "acme.review-core", "installed": true, "enabled": true },
-  "affectedPlugins": [
-    {
-      "id": "acme.review-ui",
-      "installed": true,
-      "enabled": true,
-      "dotnetRuntime": {
-        "state": "blocked",
-        "generationId": null,
-        "blockers": [
-          {
-            "code": "PluginDependencyUnsatisfied",
-            "parameters": {
-              "providerId": "acme.review-core",
-              "requiredVersion": "1.0.0",
-              "observedVersion": "1.0.0",
-              "reason": "disabled"
-            },
-            "message": "Required plugin 'acme.review-core' is disabled."
-          }
-        ],
-        "leakedGenerations": 0,
-        "restartRecommended": false,
-        "trustStatus": "trusted"
-      }
-    }
-  ],
-  "diagnostics": [],
-  "snapshotRevision": 13
-}
-```
 
 | Field | Type | Presence | Description |
 |-------|------|----------|-------------|
@@ -4997,8 +4415,6 @@ Marketplace errors carry structured error data with a stable `code`, a `messageK
 Clients must check `capabilities.pluginManagement` before calling a `plugin/*` method other than `plugin/config/get` and `plugin/config/mutate`, which are gated by `capabilities.pluginConfiguration`.
 Clients must check `capabilities.pluginMarketplaces` before calling any `marketplace/*` method or relying on `plugin/list.marketplaces`.
 
----
-
 ## 18A. Tool Catalog Methods
 
 ### 18A.1 Scope
@@ -5060,8 +4476,6 @@ List the built-in tools the server can expose to the model.
 ### 18A.4 Capability Advertisement
 
 Clients should check `capabilities.toolCatalog` before calling `tool/list`.
-
----
 
 ## 19. Command Management Methods
 
@@ -5191,8 +4605,6 @@ When `sessionReset` is `true` (for `/new`), clients should switch their active t
 
 Clients must check `capabilities.commandManagement` before calling `command/list` or `command/execute`.
 
----
-
 ## 19A. Background Terminal Methods
 
 ### 19A.1 Scope
@@ -5256,8 +4668,6 @@ Snapshots retain at most 1 MiB of the latest UTF-8 output, including after serve
 Clients with terminal rendering support, such as Desktop, use these notifications for live Shell tool output, including foreground `Exec` calls. When a terminal originates from an `Exec` tool call, `terminal.callId` correlates it to the `toolCall` item that should receive live output and status updates. `terminal.threadId` scopes the update to the owning thread, and `terminal.turnId` scopes it to the originating turn when available.
 
 If `terminal.backgroundReason = "runInBackground"`, the client must not keep appending later process output into the inline foreground `Exec` card. The inline card may show the returned session/status/final summary, while the background terminal UI owns ongoing process output.
-
----
 
 ## 19B. Remote Tool Host Routing Methods
 
@@ -5377,9 +4787,6 @@ The notification has one emitter: the Agent Host subscribes to the per-workspace
 
 Lease loss is pushed. When the workspace lease heartbeat fails, the Agent Host emits `leaseLost` once per thread that holds the lost lease and keeps the thread's route, so the notification carries a `route` with `status: "leaseLost"` rather than `null`; there is no automatic fallback to local execution. A client that missed the notification still learns the same state from `remoteToolHost/list` (`status: "leaseLost"`) or from the next turn's runtime context. Only an explicit `remoteToolHost/disconnect` (or the model's `RemoteToolHost.Disconnect`) clears the route.
 
-Fixture cases: `remote-tool-host-list-empty`, `remote-tool-host-connect-success`, `remote-tool-host-connect-workspace-busy`, and `remote-tool-host-route-changed-notification`.
-
----
 
 ## 20. Channel Status Methods
 
@@ -5472,8 +4879,6 @@ Returns runtime status for all configured social and external channels.
 ### 20.4 Capability Advertisement
 
 Clients must check `capabilities.channelStatus` before calling `channel/status`.
-
----
 
 ## 21. Provider And Model Catalog Methods
 
@@ -5695,8 +5100,6 @@ identity, which refreshes on the next call. `provider/test` always queries the e
 ### 21.6 Capability Advertisement
 
 Clients must check `capabilities.providerManagement` before calling provider management methods and `capabilities.modelCatalogManagement` before calling `model/list`.
-
----
 
 ## 22. MCP Management Methods
 
@@ -6002,7 +5405,7 @@ The live view owns one last-write-wins pending value; null or empty content clea
 
 **Direction:** client → server. Params are `{ "viewHandle": string, "url": string }`; result is `{ "url": string }`.
 
-The handle must be live. The server returns a normalized URL only for HTTPS, `mailto`, or explicit loopback HTTP. It rejects `file`, `data`, `javascript`, and custom schemes. Desktop opens the returned URL using its trusted shell boundary.
+The handle must be live. The server returns a normalized URL only for HTTPS, `mailto`, or explicit loopback HTTP. It rejects `file`, `data`, `javascript`, and custom schemes. The client opens only the validated URL through its trusted host boundary.
 
 #### 22.10.8 `mcpApp/view/close`
 
@@ -6018,11 +5421,7 @@ Disconnect, thread archive/delete, MCP generation replacement, binding revoke, p
 
 - message/model-context content: 16 KiB;
 - resource or raw tool result: 2 MiB;
-- active views: eight per thread, 32 per connection;
-- ordinary bridge JSON message: 256 KiB (enforced by Desktop before forwarding). The trusted
-  host-to-sandbox `ui/notifications/sandbox-resource-ready` bootstrap carries HTML under the
-  2 MiB resource limit while its remaining envelope stays within 256 KiB;
-- log entry: 8 KiB and 60 entries per view per minute (handled locally by Desktop).
+- active views: eight per thread, 32 per connection.
 
 Stable View error categories are `McpAppViewNotFound`, `McpAppViewStale`, `McpAppViewOffline`, `McpAppViewRevoked`, `McpAppUnauthorized`, `McpAppApprovalRejected`, `McpAppInputInvalid`, `McpAppTimeout`, `McpAppProtocolError`, and `McpAppResultTooLarge`.
 
@@ -7949,7 +7348,22 @@ SkillView tool. Skills injected by other means (e.g. `always: true`) are not cou
 Clients must check `capabilities.usageTelemetry` before calling `usage/summary`,
 `usage/history`, `usage/threads`, `usage/thread`, or `profile/insights`.
 
----
+## 27B. OpenAI account methods
+
+These methods project [OpenAI subscription authentication](../architecture/openai-subscription-auth.md). `authOpenAiOAuth` and `authOpenAiUsage` in the initialize result advertise the corresponding surfaces. Request and result shapes follow the contract manifest and schemas.
+
+| Method | Direction | Behavior |
+|---|---|---|
+| `auth/openai/status` | client request | Returns account metadata or `loggedIn: false`. |
+| `auth/openai/login` | client request | Waits for the interactive browser authorization flow. |
+| `auth/openai/logout` | client request | Revokes and clears local tokens and unbinds the provider. |
+| `auth/openai/usage` | client request | Returns cached usage, fetching inline when no snapshot is cached. |
+| `auth/openai/authorizeUrl` | server notification | Delivers the browser URL while login is pending. |
+| `auth/openai/usageChanged` | server notification | Announces a changed usage snapshot after polling, login, or logout. |
+
+The blocking login request allows at least 15 minutes for interactive authorization.
+
+Status accepts optional `includeToken` and `refreshToken`. The latter forces refresh before answering; otherwise proactive refresh applies. `authToken` is returned only for an explicit `includeToken: true` request when the host holds credentials locally. A model-service connection reports remote sign-in state without returning credentials. Refresh failure returns the usual sign-in state without `authToken`. Clients use a returned token only for their own ChatGPT backend requests and must not persist or log it.
 
 ## 28. Protocol Ownership
 
@@ -7958,16 +7372,7 @@ DotCraft clients and adapters. Its methods, notifications, item types,
 capability flags, transport behaviors, and extension surfaces are defined on
 their own terms in this document.
 
-The executable representation is owned by `DotCraft.Protocol`: named
-wire DTOs and the typed RPC catalog bind every bundled method to its direction,
-params, result, module, capability, errors, and specification anchor. The
-checked-in Manifest, JSON Schema, OpenRPC document, and TypeScript
-low-level bindings are deterministic projections governed by
-[AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md).
-Runtime domain projections and high-level SDK models are not independent
-wire-contract sources. Canonical C# method-name constants are generated from the
-typed catalog. Dynamic third-party extension methods remain on the explicit raw
-JSON-RPC path.
+`DotCraft.Protocol` contains the executable DTOs and typed RPC catalog for this wire contract. Generated artifacts, SDK models, and client projections are not independent protocol authorities. Dynamic third-party extension methods remain on the explicit raw JSON-RPC path.
 
 ### Agent Profile names
 
@@ -7979,6 +7384,6 @@ Profile `id` references carry the canonical `name`: trim plus Unicode NFC, ordin
 
 `threadReferences` carries a client-rendered prompt block in `text` and materializes to exactly that text. It keeps model-only framing for threads the user mentioned out of the user message's display text, which is built from text, file, command, and skill parts only.
 
-`turn/start`, `turn/enqueue`, and `turn/steer` accept `clientUserMessageId`. Desktop supplies a fresh UUID for each submission; queue updates retain the existing ID. User-message payloads and queued inputs return that ID so live clients correlate acknowledgements without content matching. Channels without optimistic presentation may omit it.
+`turn/start`, `turn/enqueue`, and `turn/steer` accept `clientUserMessageId`. Clients that use optimistic submission supply a fresh UUID for each submission; queue updates retain the existing ID. User-message payloads and queued inputs return that ID so live clients correlate acknowledgements without content matching. Channels without optimistic presentation may omit it.
 
 `provider/list` reports `managedBy: "modelService"` at the result level, including when no provider is currently available.

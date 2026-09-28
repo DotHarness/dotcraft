@@ -2,14 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.1.0 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-09-04 |
+| **Date** | 2026-09-28 |
 | **Parent Specs** | [Tools Architecture](../architecture/tools-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md) |
 
 Purpose: define how the Feishu Channel exposes official Feishu/Lark cloud capabilities through a Channel-owned companion executable.
-
----
 
 ## 1. Goals
 
@@ -98,15 +96,3 @@ Runtime downloads, automatic updates, npm launchers, Go source integration, and 
 ## 8. Protocol boundary
 
 `FeishuCli` uses the existing Channel tool declaration, Runtime Additional Context, approval, and `ext/channel/toolCall` contracts. AppServer requires no Feishu-specific service or wire extension. Other Channels and the generic Channel tool mechanism are unchanged.
-
-## 9. Acceptance checklist
-
-- Enabling the CLI causes the Feishu adapter to declare exactly one general CLI tool in addition to its conversation-context tools.
-- Every invocation uses common approval, then adapter-owned classification and direct child-process execution.
-- The CLI binary, credentials, command policy, and diagnostics remain owned by `channel-feishu`; AppServer contains no Feishu-specific runtime code.
-- Internal event-stream reconnect remains usable, connection replacement revokes stale snapshots, and application restart registers a fresh binding.
-- The packaged executable, catalog, license, and lock agree, and no runtime installation path exists.
-- With no configured user scopes, every invocation behaves exactly as the Bot-only capability did, and a user-identity request reports that the capability is disabled.
-- A user-identity invocation carries only the user access token, runs only for a `read` classification, and is refused while no account is authorized.
-- Authorization is accepted only in a direct message, replaces any earlier binding, and can be inspected and removed from that same conversation.
-- Existing Feishu messaging, CardKit, media, and current-chat delivery behavior remains intact.

@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.2.0 |
-| Status | Accepted |
-| Date | 2026-09-24 |
-| Parent Specs | [Desktop client](../clients/desktop-client.md), [In-app browser](desktop-inapp-browser.md) |
+| Version | 0.7.8 |
+| Status | Living |
+| Date | 2026-09-28 |
+| Parent Specs | [In-app browser](desktop-inapp-browser.md) |
 
 ## Purpose and scope
 
@@ -25,15 +25,9 @@ Reply body context menus use Electron native menus through a typed preload bound
 
 ## Runtime and host boundaries
 
-Electron main owns embedded pages, downloads, page selection capture, and browser controls. Renderer code uses typed preload APIs and serializable events. Pages are persistent DOM webview guests. A window-level host retains each node across task and panel switches; main owns the bound guest WebContents. Creation waits for guest readiness before navigation or automation. Menus and find use renderer portals above the live page, without hiding or recreating it. Guest pointer events dismiss application popups through the host bridge. Selecting a page region must not target another page.
+The [in-app browser runtime](desktop-inapp-browser.md) owns persistent page hosting, command identity, supported APIs, readiness, browser policy and turn-terminal tab cleanup. This feature uses those host-owned operations through typed preload APIs.
 
-The bundled browser client forwards observation and DOM-CUA operations to one host-owned implementation. Snapshots and actions use the same element identity and name/state semantics, including supported same-origin frame and open Shadow DOM content. Node identifiers are opaque. Cross-origin frames remain unsupported. Existing size limits and command-specific readiness remain in effect.
-
-`browser.documentation()` returns the selected backend's supported API documentation. `agent.documentation.get(name)` returns an applicable named topic. Existing `describeApi()` and bootstrap mismatch checks remain supported. Page-specific WebMCP availability remains dynamically discovered.
-
-`tab.markDeliverable()` and `tab.markHandoff()` mark a tab for the active turn. The latest mark wins. Completed, failed, and cancelled turns close unmarked agent-created tabs and release claimed user tabs without closing them. Marks apply only to their turn. Explicit `tabs.finalize({ keep })` performs early cleanup and writes equivalent turn marks. Evaluation completion/cancellation does not end the turn or reset the Node REPL. Old or repeated terminal notifications cannot clean up a newer turn's pages.
-
-Main retains the thread notification subscription needed by an active browser turn until its terminal event, even when the renderer changes tasks or workspaces. It then releases its ownership without removing a subscription still needed by the renderer. Background turn notifications reach browser cleanup independently of the renderer's foreground filtering.
+Electron main owns downloads, page-selection capture and browser controls. Renderer portals must remain above live pages without hiding or recreating them. Selection capture targets its source page. Browser runtime cleanup remains active while the renderer shows another task or workspace.
 
 ## Browser user workflows
 
@@ -103,19 +97,6 @@ Plain-text drafts persist locally. Unsent attachment and feedback drafts survive
 
 ## Presentation and compatibility
 
-UI follows Desktop tokens, locale catalogs, and existing component conventions. The maintained design system previews production components through its adapter boundary; simulated native operations are labelled as such. A successful design preview does not validate Electron input, view stacking, downloads, or capture coordinates. The design system previews the page-side selection layer by running the shared selection script inside a same-origin fixture frame; that preview validates hover, drag, pointer and Escape behavior, not guest capture or coordinates.
+UI follows [Desktop DESIGN](../architecture/DESIGN.md), locale catalogs and shared component conventions. The maintained design system previews production components through its adapter boundary; simulated native operations are labelled as such. A successful design preview does not validate Electron input, view stacking, downloads, or capture coordinates. The design system previews the page-side selection layer by running the shared selection script inside a same-origin fixture frame; that preview validates hover, drag, pointer and Escape behavior, not guest capture or coordinates.
 
 Existing ordinary text, file, command, skill, and image inputs remain usable. Existing explicit browser finalize calls remain supported. Persistent data is descriptive of final behavior and contains no delivery-stage terminology.
-
-## Acceptance
-
-- Real local page fixtures verify accessible names, hidden/disabled states, same-origin frame/open Shadow DOM observation, and actions against freshly returned identifiers through the bundled client.
-- Multiple evaluations in one turn preserve pages; all terminal turn states respect ownership and current marks in foreground and secondary workspaces.
-- Download progress, completion, cancellation, filename collisions, persistence, and opening a completed file work in Electron.
-- Find/zoom/context actions operate on the correct native page, including native focus and resized bounds.
-- All three page selection modes preserve origin and image coordinates through submission.
-- The page-side selection layer's hover outline, drag threshold, pointer changes, and Escape tiers are verified in a DOM fixture; capture coordinates at page zoom are verified in Electron.
-- Long pastes retain complete files beyond the previous editor limit and honour the conversion/restoration thresholds.
-- Mixed context survives start/queue/steer, failure recovery, task switching, queue editing, and historical decoding without silently losing source content.
-- Diff side/range mapping and separate user/model comments work in unified and split views and in file previews.
-- Production surfaces match the accepted design-system specimens at the same theme and width, and all supported UI locales are updated.

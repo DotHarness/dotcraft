@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.0 |
+| **Version** | 0.7.8 |
 | **Status** | Draft |
-| **Date** | 2026-09-24 |
+| **Date** | 2026-09-28 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) |
 
 Purpose: define a local, read-only CLI that turns DotCraft workspace sessions, trace metadata, and memory into handoff artifacts for external coding agents and troubleshooting workflows.
@@ -99,6 +99,8 @@ Rollout files may be read for top candidates to add short evidence snippets and 
 - Reasoning content, protected model data, arbitrary model metadata, and internal recovery records remain omitted from ordinary export and search because they are outside the displayable Session/model-visible projection, not because of value-based classification.
 - Search results favor evidence metadata and bounded previews over unbounded content while preserving the selected evidence text.
 
+Missing workspace, state DB or thread and invalid arguments produce nonzero CLI failures. Corrupt rollout records produce bounded diagnostics rather than silent evidence loss.
+
 ## 7. Doctor Skill Integration
 
 The built-in Doctor plugin should provide a skill that teaches agents to:
@@ -107,16 +109,3 @@ The built-in Doctor plugin should provide a skill that teaches agents to:
 - run `dotcraft context export` for the selected thread
 - choose `--tool-results none` when the report should exclude tool output bodies
 - cite source evidence such as DB table names, trace event ids, rollout lines, and thread ids
-
-## 8. Acceptance Checklist
-
-- Export renders a handoff Markdown document for an existing thread.
-- Export respects `--tool-results none|summary|full`.
-- Export includes `MEMORY.md`.
-- Export applies rollback records and excludes removed turns.
-- Export recognizes surviving compaction checkpoints and later tail turns.
-- Export emits tool results faithfully within the selected `none|summary|full` scope, including `RequestUserInput` answers.
-- Search returns ranked thread hits from DB evidence without a running AppServer.
-- Search JSON output is stable enough for skills and scripts.
-- Missing workspace, missing state DB, missing thread, corrupt rollout lines, and invalid arguments produce clear non-zero CLI failures or warnings.
-- Context-export and App CLI tests cover the public behavior.

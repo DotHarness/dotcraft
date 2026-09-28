@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.2 |
+| Version | 0.7.8 |
 | Status | Living |
-| Date | 2026-09-17 |
+| Date | 2026-09-28 |
 | Parent Spec | [Session Core](session-core.md) |
 
 ## 1. Overview
@@ -20,37 +20,8 @@ generic aggregation cannot represent a required protocol invariant.
 OpenAI Responses, OpenAI Chat Completions, and Anthropic continue to use MEAI-compatible clients
 while retaining protocol-native request, response, history, and cache behavior.
 
-This specification defines the finished architecture and its behavioral contract.
-
-[Remote model service](model-service.md) defines the optional HTTP transport boundary. Remote
-execution uses these same provider adapters and history contracts on the worker.
-
-## 2. Goals
-
-- Make Session Core's Thread, Turn, Item, and rollout model the only lifecycle authority.
-- Preserve MEAI's `IChatClient`, `ChatMessage`, `AIContent`, `ChatOptions`, `ChatResponseUpdate`,
-  `AITool`, and `AIFunction` abstractions wherever they faithfully express DotCraft behavior.
-- Preserve provider-native information before any known-lossy MEAI aggregation boundary.
-- Keep the tool loop structurally aligned with MEAI `FunctionInvokingChatClient`, adding only the
-  DotCraft behavior required by tools, approvals, guidance, retry, and provider history.
-- Keep provider request construction isolated by protocol.
-- Preserve existing AppServer behavior, persisted conversations, tool execution semantics, and
-  provider wire shape unless a protocol change is explicitly specified.
-- Provide stable boundaries for Responses cache-session identity optimizations.
-
-## 3. Scope
-
-The runtime covers:
-
-- MEAI model input, multimodal content, messages, options, tools, and streaming updates;
-- ordered generic conversation history and optional provider-native history;
-- provider response-item identity before lossy aggregation;
-- tool-call assembly, policy, approval, dispatch, result projection, and iteration;
-- retries, cancellation, guidance, compaction, and terminal failure;
-- usage, tracing, and final transport-shape diagnostics;
-- root, subagent, fork, rollback, resume, and context-window lifecycle integration;
-- OpenAI Responses, OpenAI Chat Completions, and Anthropic transports;
-- stability of rollout, model-history, provider-history, and AppServer contracts.
+Remote execution uses the same provider adapters and history contracts on the worker; a transport
+substitution does not move model-loop or history ownership.
 
 ## 4. Non-goals
 
@@ -129,16 +100,6 @@ infer Session lifecycle from tracing state or ambient client instances.
 MEAI is the default design and implementation reference. DotCraft does not introduce a competing
 abstraction unless an accepted test demonstrates that the MEAI contract cannot preserve required
 Session or provider behavior.
-
-The exact implementation baselines for this design are:
-
-- `Microsoft.Extensions.AI` and `Microsoft.Extensions.AI.OpenAI` 10.5.1:
-  `dotnet/extensions@2d4d2df0ba38ee9aa0ed363ddab33d7ae7880b6d`;
-- the resolved `Microsoft.Extensions.AI.Abstractions` 10.5.2:
-  `dotnet/extensions@2a86d759c251eee39274c191bd9f8e14c58f875a`.
-
-Later MEAI versions may be adopted through an explicit dependency upgrade, not silently mixed
-into an architecture refactor.
 
 ### 6.1 Conversation items
 
@@ -285,9 +246,6 @@ success, failure, and cancellation; a failure notification must not replace the 
 exception. Context instructions, messages, and tools are request-local and are never appended to
 Session-owned durable history merely because a provider supplied them.
 
-`MemoryContextProvider` is one implementation of this contract. Its generated instruction bytes,
-tool-name observation, and tracing point remain unchanged.
-
 ## 7. Turn Execution
 
 The MEAI-aligned pipeline preserves this observable transition sequence:
@@ -353,8 +311,8 @@ usage, and safe metadata without depending on runtime CLR object identity.
 
 ### 9.2 Provider-native history
 
-Protocols that require byte- or item-faithful replay use a durable provider-native history as
-defined by [Canonical OpenAI Responses Provider History](responses-provider-history.md).
+Protocols that require byte- or item-faithful replay use a durable provider-native history owned
+by that provider adapter.
 
 Provider-native history:
 
@@ -413,20 +371,6 @@ Core owns append, replacement, abort persistence, replay filtering, and Thread l
 
 A capability or optimization belonging to one transport cannot alter another transport's
 history, tool schema, retry timing, or wire request.
-
-### 10.2 Responses routing identity
-
-The completed Responses transport distinguishes the cache-session/root identity from the current
-execution Thread:
-
-| Execution kind | `session-id` | `thread-id` | default `prompt_cache_key` | `x-client-request-id` |
-|---|---|---|---|---|
-| Root thread | root Thread ID | root Thread ID | root Thread ID | root Thread ID |
-| Subagent | root Thread ID | child Thread ID | root Thread ID | child Thread ID |
-| User fork | new fork Thread ID | new fork Thread ID | new fork Thread ID | new fork Thread ID |
-
-An explicit caller cache key retains its documented precedence. Routing policies consume these
-resolved values and do not derive them from tracing state.
 
 ## 11. Lifecycle Contract
 
@@ -494,26 +438,3 @@ tool metadata, or user secrets. Diagnostic observers cannot assign identity or m
   `ModelProviderRegistry`.
 - Session lifecycle and durable history integrations use Session Core contracts rather than
   serializing runtime agent objects.
-
-## 15. Acceptance Checklist
-
-- [ ] Thread/Turn/Item and rollout are the only durable lifecycle authority.
-- [ ] Turn execution has one Session-owned lifecycle while retaining the MEAI `IChatClient`
-      pipeline and content/tool contracts.
-- [ ] Provider item and reasoning identity survive streaming, persistence, and resume.
-- [ ] MEAI content, chat-client, streaming, tool, schema, and generated-function abstractions are
-      preserved unless a documented conflict requires a narrow extension.
-- [ ] DotCraft's generated `AIFunction` source path remains supported and wire-stable.
-- [ ] Responses, Chat Completions, and Anthropic each use one MEAI-compatible provider path.
-- [ ] Core and both provider integrations form the documented diamond dependency through
-      `DotCraft.Agents`.
-- [ ] Existing AppServer events, rollouts, and old-thread lifecycle behavior remain compatible.
-- [ ] Architecture-only changes preserve sanitized request headers and complete wire JSON.
-- [ ] Tools execute at most once across retry and transport fallback.
-- [ ] Full automated tests and the required live provider smoke matrix pass.
-- [ ] Prompt-cache coverage meets both the configured absolute floor and the accepted relative
-      regression limit.
-
-## 16. Open Questions
-
-None.

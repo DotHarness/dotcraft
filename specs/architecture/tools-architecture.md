@@ -1,17 +1,11 @@
 # Tool Architecture
 
-Remote Tool Host routing adds a stable Agent-side `target` argument to RPC-eligible tools.
-The dispatcher resolves the execution location before policy, hooks and approval and carries it
-in the invocation context. Native bindings receive the original arguments and contract; see
-[Remote Tool Host §12](remote-tool-host.md#12-execution-locations-and-resource-preparation).
-
 | Field | Value |
 |---|---|
-| Version | 0.3.1 |
+| Version | 0.7.8 |
 | Status | Living |
-| Date | 2026-09-24 |
+| Date | 2026-09-28 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
-| Related | [Session Core](session-core.md), [Remote Tool Host](remote-tool-host.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md), [Desktop Client](../clients/desktop-client.md), [Plugin Architecture](plugin-architecture.md) |
 
 ## 1. Purpose
 
@@ -74,11 +68,6 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** ar
 | **Binding MCP** | An MCP server connection authorized for one App Binding and added independently to one thread. |
 
 **Runtime Dynamic Tool** is the canonical term for client-owned callbacks. App Binding tools use binding-scoped MCP sessions.
-
-Remote execution of an existing Core Native or accepted .NET plugin registration is governed by the
-[Remote Tool Host specification](remote-tool-host.md). It replaces the runtime route behind a
-stable definition and MUST NOT be represented as a Runtime Dynamic Tool, MCP source, or additional
-`ToolSourceKind`.
 
 ## 5. Architectural layers
 
@@ -162,7 +151,8 @@ All sources MUST converge on this ordered source-neutral dispatch pipeline. Plan
 11. project the terminal Session lifecycle;
 12. run `PostToolUse` or `PostToolUseFailure` hooks.
 
-For the host `Exec` tool, step 8 is performed by the runtime-stage shell execution gate defined in [Shell Command Safety](shell-command-safety.md): the gate resolves the shell, evaluates the command, raises the structured approval, and launches the same resolved executable. The common approval evaluator does not declare a separate outside-workspace approval for `Exec`.
+A runtime may own source-specific execution approval. It must use the common approval identity
+and terminal-result contract without prompting twice for the same operation.
 
 Every path after step 2 MUST terminalize the same projection, including validation, authority, policy, approval, cancellation, timeout, execution, and normalization failures. `ToolExecution` MAY separately indicate when the approved runtime actually begins. Source adapters MAY add transport-specific lifecycle behavior, but MUST NOT duplicate common approval, result audience, or error normalization rules.
 
@@ -303,12 +293,31 @@ results preserve failure content and structured data alongside the normalized su
 UTF-32 byte-order mark selects that encoding. They return an error instead of decoding bytes that are
 not valid text in that encoding and never rewrite such a file; `GrepFiles` still searches it.
 
-Result forwarding does not bypass source containment or audience normalization. In particular,
-.NET plugin results still cross the host's copy-out boundary in
-[.NET Plugins](dotnet-plugins.md#8-tool-containment); host-private fields do not gain plugin authority.
+Result forwarding preserves source containment and audience normalization; a source cannot acquire
+host-private result authority by returning an envelope.
 
 Generated declarations own reusable input/output serializer options with independent resolvers so
 schema and serialization metadata do not pin a retired plugin load context.
+
+### 7.3 Shell execution
+
+Background terminal output uses bounded process-read and live-notification queues. A 1 MiB UTF-8 tail
+provides previews independently of the complete disk log. Real-time output is limited to 8 KiB per
+delta, 10,000 deltas per terminal, and the configured live-byte budget. Exhaustion stops data
+notifications while logging and process execution continue. Both running and recovered previews
+remain bounded; completion follows output drain and log flush.
+
+Empty `WriteStdin` input reads the terminal snapshot, including final output and exit code after
+completion or recovery, until retention expires. Nonempty input to an exited terminal fails.
+An exited process releases its active entry even if metadata persistence fails. Its in-memory final
+snapshot remains readable; metadata failures are diagnosed without changing the known exit code.
+Completion notifications must allow observers to read that final snapshot immediately.
+Shell commands preserve their quoting. Output uses UTF-8 replacement decoding without encoding
+detection; stream boundaries must not split characters. Logs and events use UTF-8.
+
+A returned command result is a successful tool invocation even when its exit code is nonzero.
+The exit code and CommandExecution status describe the command outcome. Launch, authorization,
+execution infrastructure, timeout and cancellation failures remain tool failures.
 
 ## 8. Snapshot and invalidation semantics
 
@@ -324,12 +333,6 @@ The following changes invalidate the next snapshot:
 - mode or profile changes that truly alter the runtime surface.
 
 Immediate safety checks are not frozen. Revocation, disconnect, expired authority, binding removal, and execution-policy invalidation MUST block dispatch immediately, including an invocation named in an older snapshot.
-
-Remote plugin preparation uses the final thread snapshot, including deferred registrations, before
-Turn sampling or same-Turn connection publication. It never runs as a side effect of tool search or
-snapshot inspection. A call retains both source-generation authority and its prepared remote
-generation binding. Target selection precedes executor availability checks and does not bypass
-source revocation. See [Remote Tool Host](remote-tool-host.md#13-prepared-net-plugin-execution).
 
 Adapter-declared channel tools are connection-bound. Their `RuntimeBindingId`, descriptor set, lease, and executor must refer to the same initialized adapter connection. A lease check followed by invocation must not retarget the call to a newer connection. When the connection changes, the current Turn keeps its immutable snapshot but loses dispatch authority; the next Turn rebuilds against the new connection.
 
@@ -448,7 +451,7 @@ DotCraft uses the following fixed method names for the MCP runtime/control surfa
 - `mcpServer/oauthLogin/completed`;
 - `mcpServer/elicitation/request`.
 
-The `mcp/*` methods remain DotCraft's workspace configuration-management surface and MUST NOT be reused as aliases for these runtime methods. OAuth plus standard form and URL elicitation forwarding are generic MCP control-plane capabilities. Desktop MUST provide a generic interaction for those flows. MCP Apps resource rendering and AppBridge follow the presentation contract in Section 13 and the client behavior contract in the [Desktop Client specification](../clients/desktop-client.md#582-mcp-apps-interactive-tool-views).
+The `mcp/*` methods remain DotCraft's workspace configuration-management surface and MUST NOT be reused as aliases for these runtime methods. OAuth plus standard form and URL elicitation forwarding are generic MCP control-plane capabilities. Desktop MUST provide a generic interaction for those flows. MCP Apps resource rendering and AppBridge follow the presentation contract in Section 13.
 
 Thread archive/disposal MUST close thread and binding MCP sessions. Configuration changes invalidate the next snapshot. Status output MUST distinguish workspace, thread, plugin, and binding origins. A server that fails to start MUST report the server and the reason, whatever origin it came from; a thread-origin server is not exempt because its lifetime is one Thread.
 
@@ -504,7 +507,7 @@ App-initiated `tools/call` uses the common dispatcher with App audience and a se
 
 ### 13.3 Isolation
 
-A capable View host MUST isolate untrusted resources, enforce declared and host policy, and scope every bridge operation to one live handle. A View MUST NOT gain filesystem, shell, arbitrary network, cross-server tool, host-process, or unrelated client authority. Resource `domain` metadata does not choose a real origin. Safe links are limited to HTTPS, `mailto`, and explicit loopback HTTP. Exact methods, limits, and stable errors are owned by [AppServer Protocol Section 22.10](../protocols/appserver-protocol.md#2210-mcp-apps-opaque-view-methods); Desktop sandbox and recovery behavior is owned by the [Desktop Client specification](../clients/desktop-client.md#582-mcp-apps-interactive-tool-views).
+A capable View host MUST isolate untrusted resources, enforce declared and host policy, and scope every bridge operation to one live handle. A View MUST NOT gain filesystem, shell, arbitrary network, cross-server tool, host-process, or unrelated client authority. Resource `domain` metadata does not choose a real origin. Safe links are limited to HTTPS, `mailto`, and explicit loopback HTTP.
 
 ## 14. Presentation boundary
 
@@ -512,7 +515,7 @@ Presentation is optional and MUST preserve useful model/text fallback content. L
 
 ### 14.1 Trusted local renderer registry
 
-A trusted local renderer registry is independent of MCP Apps. Core renderers and installed, enabled Desktop Plugins may register renderers selected by an exact ordinal `PresentationId`. Active Desktop Plugin entries are ordered by priority and stable plugin/contribution identity, followed by the optimized Core renderer and generic fallback. Registration and teardown follow the [Desktop Plugins](desktop-plugins.md) generation lifecycle. Renderer-specific bounded options are validated by the selected renderer.
+A trusted local renderer registry is independent of MCP Apps. Core renderers and installed, enabled Desktop Plugins may register renderers selected by an exact ordinal `PresentationId`. Active Desktop Plugin entries are ordered by priority and stable plugin/contribution identity, followed by the optimized Core renderer and generic fallback. Renderer registrations are withdrawn when their owning generation ends. Renderer-specific bounded options are validated by the selected renderer.
 
 The projected `PresentationId` selects only an already active local renderer; tool names, arguments, results, MCP metadata, and other payload data cannot provide module paths or executable code. Unknown or unavailable presentation ids use the Core or generic fallback. Client rendering families, grouping, and interaction behavior belong to the applicable client specification.
 
@@ -528,95 +531,17 @@ The directive remains ordinary persisted assistant text. It introduces no Sessio
 
 Only a completed `AgentMessage` containing the directive outside fenced code may authorize a View. The file name MUST match `^[a-z0-9]+(?:-[a-z0-9]+)*\.html$`. Authoring uses ordinary file tools in `<SessionThread.WorkspacePath>/.craft/visualizations/<threadId>/`; execution and worktree overrides do not change ownership. These files are transient workspace resources with no archive, fork, migration, reload, or cross-device guarantee. Implementations MUST NOT fall back to a user-global directory. Ordinary file-tool execution, history, trace, and result semantics remain unchanged.
 
-The host issues a connection-owned opaque handle after revalidating the active connection/thread binding, completed source item, exact directive, safe file name, workspace boundary, and current file. The handle binds its source thread, Turn, Item, and file; a View cannot choose or override those identities. View follow-up starts or queues a source-marked Turn and cannot forge user or channel identity. Exact capability, method, result, and error contracts are owned by [AppServer Protocol Section 22.10A](../protocols/appserver-protocol.md#2210a-inline-visualization-views). Desktop parsing, loading, sandbox, confirmation, and fallback behavior is owned by the [Desktop Client specification](../clients/desktop-client.md#583-inline-assistant-visualizations).
+The host issues a connection-owned opaque handle after revalidating the active connection/thread binding, completed source item, exact directive, safe file name, workspace boundary, and current file. The handle binds its source thread, Turn, Item, and file; a View cannot choose or override those identities. View follow-up starts or queues a source-marked Turn and cannot forge user or channel identity.
 
 ## 15. App Binding boundary
 
-App Binding is DotCraft's control plane for binding an installed or connected application, account/conversation authority, and one thread. Tool declaration, execution, and interactive UI use MCP and MCP Apps.
+An application binding supplies independently revocable authority for its tool registrations.
+Binding identity, approved capability revision, live executor health, and model exposure remain
+separate facts. Capability expansion requires accepted authority before dispatch; revocation blocks
+existing snapshots immediately. Offline definitions may remain visible as non-executable stubs.
 
-App Binding owns:
-
-- app identity and installed/connection state;
-- one-click thread enablement;
-- connection credential handoff and rotation;
-- binding MCP endpoint/session establishment;
-- approved capability snapshot, revision, confirmation, revoke, rebind, and audit;
-- social conversation target and routing authority where applicable.
-
-App Binding does not own:
-
-- Dynamic Tool attachment;
-- executable static tool catalogs or per-tool scope pickers;
-- private iframe resource protocols;
-- model result audience semantics;
-
-### 15.1 Enablement and capability changes
-
-Enabling an already connected app is one thread-level authorization action. If the app is not connected, the handoff MAY combine connection/login/account selection and then automatically enable the requesting thread. DotCraft MUST NOT require a routine second confirmation after successful app-side connection.
-
-The first MCP initialization snapshot is approved by the original enable action. Later capability expansion requires a thread-side confirmation. Expansion includes a new tool, widened schema/visibility/risk, or widened UI CSP domain/permission. Removal, title/description changes, endpoint or token rotation, and capability narrowing are auto-accepted. Rejecting an expansion discards the candidate and moves the binding offline; the previous approved snapshot remains only as the offline registration baseline and cannot dispatch until a compatible authenticated rebind succeeds.
-
-The grant is the whole app for one thread. App Binding does not expose a per-scope tool picker.
-
-### 15.2 Transport and credentials
-
-DotCraft MCP clients use the initialize-handshake lifecycle with `2025-06-18` as the
-default compatibility baseline across stdio and Streamable HTTP transports. They MUST
-NOT probe or negotiate the `2026-07-28` discovery lifecycle unless a future explicit
-product capability enables it. A server MAY negotiate another compatible
-initialize-era revision through the standard lifecycle.
-
-External binding MCP uses Streamable HTTP only:
-
-- loopback HTTP or remote HTTPS is allowed;
-- stdio, app-supplied executables/commands, and remote plaintext HTTP are forbidden;
-- every binding has an independent bearer and MCP session;
-- the app owns its app-connection credential;
-- DotCraft persists only a salted hash/identifier, expiry, and principal for that credential;
-- the raw binding MCP bearer is memory-only.
-
-After a DotCraft restart, a binding is an offline stub until the app rebinds and rotates its token. Rebind does not require reauthorization if persisted authority remains valid. Revocation deletes the credential verifier and closes the session; a stale app connection cannot resurrect it.
-
-Offline bindings retain a non-sensitive last-known approved capability snapshot and expose schema-stable model-visible stubs for prompt-cache stability. Stub invocation fails with `AppBindingOffline` before remote dispatch. Revocation removes the registrations and dispatch authority immediately.
-
-App Binding requests contain connection and authority data only. Executable catalogs, Dynamic attachments, context blocks, private UI methods, and managed social Dynamic execution are invalid.
-
-## 16. Product-specific mappings
-
-### 16.1 Social channels
-
-App Binding retains conversation identity, bind-code lifecycle, routing authority, revoke, and audit. Social tool registrations and execution become managed native sources/runtimes. The server injects `socialTarget`/`deliveryTarget`; model arguments MUST NOT override the bound address. The runtime MAY delegate actual delivery through the external channel adapter.
-
-Origin-channel tools remain independent from a Desktop thread's optional social binding.
-
-Social binding uses a dedicated channel-principal resolve/accept/rebind flow, not ordinary app Binding MCP activation. The verified channel/account/conversation target is the authority input to the managed native runtime.
-
-### 16.2 External application integrations
-
-Ordinary external integrations MAY expose tools through standard workspace, thread, or plugin MCP without App Binding. App Binding is used only when a product needs per-thread application authorization, connection handoff, capability confirmation, revoke, or rebind; those authorized tools use an independent binding MCP session. Interactive UI uses MCP Apps. Run-specific submission callbacks use Runtime Dynamic Tools because they are ephemeral callbacks owned by the active run/client connection. When one integration supports both shared and binding MCP, binding authentication and per-binding session state MUST remain isolated from shared MCP clients.
-
-A connection-owned Channel tool MAY start a bounded companion executable when the adapter owns the executable, command policy, credentials, and child-process lifecycle. The model-facing input MUST be structured rather than a shell command, credentials MUST be scoped to the child process, common approval MUST complete before adapter dispatch, and the adapter MUST revalidate its business invariants at execution time. The companion remains part of the declaring adapter generation; it is not a host-native provider or an independently registered workspace service. Product-specific behavior requires an owning feature specification; see [Feishu CLI Capabilities](../features/feishu-cli-capabilities.md).
-
-## 17. Baseline and intentional extensions
-
-The common AppServer and MCP contracts are the baseline. Product-specific behavior MUST be expressed as an explicit extension rather than an incidental protocol divergence.
-
-| Area | Decision |
-|---|---|
-| composite `ToolName(namespace, name)` | common baseline |
-| Direct/Deferred/DirectModelOnly/Hidden exposure | common baseline |
-| registered executors separated from model-visible specs | common baseline |
-| namespaced deferred discovery and exact identity routing | common baseline |
-| Dynamic Function/Namespace tagged union | common baseline plus optional DotCraft approval metadata |
-| Dynamic callback lifetime | DotCraft extension: explicit AppServer connection ownership and rebind/clear semantics |
-| Dynamic result | DotCraft extension: structured client content, stable error codes, and explicit lifecycle/duration |
-| Dynamic content items | DotCraft extension: strict `text`/`image` items and bounded URL/base64 image payloads |
-| multiple native/plugin/MCP/Dynamic sources | DotCraft extension through the unified registry/runtime |
-| App Binding | DotCraft-specific authorization/control plane; never treated as a Runtime Dynamic Tool feature |
-| MCP Apps | standards-based extension host shared by all MCP sources |
-| Session projection | DotCraft-specific source-aware items while preserving common call identity/result semantics |
-
-Any new divergence in tool identity, exposure, deferred discovery, or Dynamic declaration semantics MUST be justified in the owning specification rather than introduced incidentally in code.
+Binding-scoped connections and credentials remain isolated from shared MCP connections. Credentials
+never enter model content, tool arguments, persisted definitions, or client-private result metadata.
 
 ## 18. Protocol consistency
 
@@ -650,21 +575,3 @@ Diagnostics SHOULD identify:
 Status and audit views MUST distinguish declaration availability, model exposure, live executor health, and authority. These states are not interchangeable.
 
 A capability that policy keeps out of the model's tool list MUST be recorded with its model-visible name, namespace, usage source, and the refusal that hid it. Such a capability produces no call, no result, and no error, so this record is the only evidence that it was withheld rather than absent.
-
-## 21. Conformance requirements
-
-The architecture requires behavior-level coverage for:
-
-- canonical identity normalization, truncation, collision, enumeration-order independence, and namespace behavior;
-- exact composite dispatch for namespace-capable providers and flat-alias dispatch for flat-only providers;
-- persisted composite/flat history replay without current-inventory lookup or alias parsing;
-- per-Turn snapshot consistency plus immediate revocation;
-- result audience isolation and non-empty model fallback;
-- resume/fork/compaction call identifier preservation;
-- Runtime Dynamic declaration replacement and disconnect behavior;
-- MCP three-state configuration and source-aware status;
-- MCP Apps visibility, approval, isolation, and one-shot model context;
-- inline visualization directive authorization, workspace isolation, transient-file semantics, and handle-scoped follow-up identity;
-- App Binding enable/rebind/revoke/capability-expansion state transitions;
-- managed social target injection;
-- cross-SDK and first-party conformance for supported wire contracts.
