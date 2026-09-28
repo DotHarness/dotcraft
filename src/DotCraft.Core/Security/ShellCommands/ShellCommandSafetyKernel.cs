@@ -1,26 +1,7 @@
-using System.Text.RegularExpressions;
-
 namespace DotCraft.Security.ShellCommands;
 
 public sealed class ShellCommandSafetyKernel
 {
-    private const string UnknownDirectoryReason =
-        "Command changes the working directory to a location that cannot be determined.";
-
-    private const string UnknownDirectoryAfterChangeReason =
-        "Command runs in a working directory that cannot be determined.";
-
-    private static readonly Regex ClimbPattern =
-        new(@"(?<![^\s""'/\\=:])\.\.(?![^\s""'/\\;&|)])", RegexOptions.Compiled);
-
-    private static readonly HashSet<string> PosixDirectoryChangeCommands =
-        new(StringComparer.Ordinal) { "cd", "pushd", "popd" };
-
-    private static readonly HashSet<string> PowerShellDirectoryChangeCommands = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "cd", "chdir", "sl", "pushd", "popd", "Set-Location", "Push-Location", "Pop-Location"
-    };
-
     private readonly ShellIdentityResolver _resolver;
 
     private readonly CommandPlatform _platform;
@@ -67,30 +48,12 @@ public sealed class ShellCommandSafetyKernel
         var lowering = LowererFor(shell.Family).Lower(request.Command);
         var commands = lowering.PlainCommands
             ?? [new[] { ShellScriptSentinels.For(shell.Family), request.Command }];
-        var scanner = new PathEvidenceScanner(request.Workspace);
         var matches = new List<ShellRuleMatch>();
         var reasons = new List<string>();
         var risk = ShellRiskLevel.None;
-        var cwd = request.WorkingDirectoryIsKnown ? request.WorkingDirectory : null;
-        var opaqueDirectoryChange = !lowering.IsPlain && ChangesDirectory(lowering.LiteralCommands, shell.Family);
-
         foreach (var command in commands)
         {
-            var change = lowering.IsPlain ? DirectoryChangeOf(command, shell.Family, cwd) : null;
-            AssessCommand(
-                command,
-                cwd,
-                change,
-                unknownTarget: change is { Destination: null } || opaqueDirectoryChange,
-                lowering,
-                shell,
-                scanner,
-                request,
-                matches,
-                reasons,
-                ref risk);
-            if (change is not null)
-                cwd = change.Destination;
+            AssessCommand(command, lowering, shell, request, matches, reasons, ref risk);
         }
 
         var overall = matches.Count == 0 ? ShellDecision.Allow : matches.Max(match => match.Decision);
@@ -110,53 +73,14 @@ public sealed class ShellCommandSafetyKernel
             Matches = matches,
             ApprovalKey = approvalKey,
             Risk = overall == ShellDecision.Allow ? ShellRiskLevel.None : risk,
-            WorkingDirectoryAfter = opaqueDirectoryChange ? null : cwd,
             Remember = BuildRememberProposal(matches, lowering)
         };
     }
 
-    private sealed record DirectoryChange(string? Target, string? Destination);
-
-    private static HashSet<string> DirectoryChangeNames(ShellFamily family) =>
-        family == ShellFamily.Posix ? PosixDirectoryChangeCommands : PowerShellDirectoryChangeCommands;
-
-    private static bool ChangesDirectory(IReadOnlyList<IReadOnlyList<string>> commands, ShellFamily family)
-    {
-        var names = DirectoryChangeNames(family);
-        return commands.Any(command => command.Count > 0 && names.Contains(command[0]));
-    }
-
-    private static DirectoryChange? DirectoryChangeOf(IReadOnlyList<string> command, ShellFamily family, string? cwd)
-    {
-        if (command.Count == 0)
-            return null;
-        if (!DirectoryChangeNames(family).Contains(command[0]))
-            return null;
-        if (command[0].Equals("popd", StringComparison.OrdinalIgnoreCase)
-            || command[0].Equals("Pop-Location", StringComparison.OrdinalIgnoreCase))
-            return new DirectoryChange(null, null);
-
-        var target = command.Skip(1).FirstOrDefault(word => !word.StartsWith('-'));
-        if (target is null || cwd is null)
-            return new DirectoryChange(target, null);
-        try
-        {
-            return new DirectoryChange(target, Path.GetFullPath(Path.Combine(cwd, target)));
-        }
-        catch
-        {
-            return new DirectoryChange(target, null);
-        }
-    }
-
     private void AssessCommand(
         IReadOnlyList<string> command,
-        string? cwd,
-        DirectoryChange? change,
-        bool unknownTarget,
         LoweredScript lowering,
         ShellIdentity shell,
-        PathEvidenceScanner scanner,
         ShellSafetyRequest request,
         List<ShellRuleMatch> matches,
         List<string> reasons,
@@ -192,47 +116,17 @@ public sealed class ShellCommandSafetyKernel
             return;
         }
 
-        var baseDirectory = cwd ?? request.WorkingDirectory;
-        var evidence = lowering.IsPlain
-            ? scanner.ScanWords(command).Concat(TraversalEvidence(command, baseDirectory)).ToList()
-            : scanner.ScanText(request.Command).Concat(TraversalEvidence([request.Command], baseDirectory)).ToList();
-        if (change is { Target: { } target, Destination: { } destination })
-            evidence.Add(new PathEvidence(target, destination, IsUnc: false));
-        var blacklisted = request.Blacklist is { } blacklist
-            ? evidence.FirstOrDefault(item => blacklist.IsBlacklisted(item.ResolvedFullPath))
-            : null;
-        if (blacklisted is not null)
-        {
-            var reason = $"Command references the blacklisted path '{blacklisted.Original}'.";
-            matches.Add(new ShellFallbackMatch(command, ShellDecision.Forbidden, reason));
-            reasons.Add(reason);
-            return;
-        }
-
-        var outsideDecision = request.RequireApprovalOutsideWorkspace ? ShellDecision.Prompt : ShellDecision.Forbidden;
-        if (cwd is null || unknownTarget)
-        {
-            var reason = cwd is null ? UnknownDirectoryAfterChangeReason : UnknownDirectoryReason;
-            risk = Max(risk, ShellRiskLevel.OutsideWorkspace);
-            matches.Add(new ShellFallbackMatch(command, outsideDecision, reason));
-            reasons.Add(reason);
-            return;
-        }
-
-        var outside = scanner.OutsideWorkspace(evidence);
-        var cwdInside = request.Workspace.Contains(cwd);
-        if (outside.Count == 0 && cwdInside)
+        if (request.Workspace.Contains(request.WorkingDirectory))
         {
             matches.Add(new ShellFallbackMatch(command, ShellDecision.Allow, "workspace"));
             return;
         }
 
         risk = Max(risk, ShellRiskLevel.OutsideWorkspace);
-        var outsideReason = cwdInside
-            ? $"Command references paths outside the workspace: {string.Join(", ", outside.Select(item => item.Original))}."
-            : "Working directory is outside the workspace boundary.";
-        matches.Add(new ShellFallbackMatch(command, outsideDecision, outsideReason));
-        reasons.Add(outsideReason);
+        var decisionOutside = request.RequireApprovalOutsideWorkspace ? ShellDecision.Prompt : ShellDecision.Forbidden;
+        const string reasonOutside = "Working directory is outside the workspace boundary.";
+        matches.Add(new ShellFallbackMatch(command, decisionOutside, reasonOutside));
+        reasons.Add(reasonOutside);
     }
 
     private ShellRememberProposal BuildRememberProposal(IReadOnlyList<ShellRuleMatch> matches, LoweredScript lowering)
@@ -262,28 +156,6 @@ public sealed class ShellCommandSafetyKernel
         }
 
         return new ShellRememberProposal(rules, exactFallback);
-    }
-
-    private static IEnumerable<PathEvidence> TraversalEvidence(IReadOnlyList<string> words, string workingDirectory)
-    {
-        foreach (var word in words)
-        {
-            if (!ClimbPattern.IsMatch(word))
-                continue;
-
-            var candidate = words.Count == 1 && word.Contains(' ') ? ".." : word;
-            string resolved;
-            try
-            {
-                resolved = Path.GetFullPath(Path.Combine(workingDirectory, candidate));
-            }
-            catch
-            {
-                resolved = Path.GetFullPath(Path.Combine(workingDirectory, ".."));
-            }
-
-            yield return new PathEvidence(word, resolved, IsUnc: false);
-        }
     }
 
     private static string RuleReason(ShellPrefixRuleMatch match)

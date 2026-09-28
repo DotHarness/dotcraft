@@ -42,4 +42,4 @@ Hooks are powerful because they run local commands, and that is where the risk s
 
 - [Automations & Goals](./automations) — for work that runs as a whole task on a schedule, rather than at one moment
 - [Plugins & Tools](./plugins-tools) — plugins that ship reusable hooks
-- [Security & Sandbox](../self-hosted/security) — guardrails for file, shell, and sandbox behavior
+- [Security](../self-hosted/security) — file access restrictions and shell command approvals

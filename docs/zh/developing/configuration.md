@@ -292,14 +292,14 @@ Deep-thinking adapter 文件：
 
 | 配置项 | 说明 | 默认值 |
 |---|---|---|
-| `Security.BlacklistedPaths` | Agent 绝不能访问的路径，子路径也会接受检查 | `[]` |
-| `Tools.File.RequireApprovalOutsideWorkspace` | 工作区外文件与 Shell 操作是否需要审批，`false` 时直接拒绝 | `true` |
+| `Security.BlacklistedPaths` | 文件工具不能访问的路径，包含子路径 | `[]` |
+| `Tools.File.RequireApprovalOutsideWorkspace` | 文件工具越界访问和 Shell 从工作区外启动是否需要审批，`false` 时直接拒绝 | `true` |
 | `Tools.File.MaxFileSize` | 最大可读取文件大小（字节） | `10485760` |
 | `Tools.File.RipgrepPath` | 可选 `rg` 路径。为空时依次尝试 `DOTCRAFT_RG_PATH`、`PATH` 和内置回退 | `""` |
 | `Tools.File.SearchTimeoutSeconds` | `GrepFiles` 内容搜索最长运行时间，超时后返回超时结果 | `30` |
 | `Tools.Shell.Timeout` | Shell 命令超时时间（秒） | `300` |
 | `Tools.Shell.MaxOutputLength` | Shell 命令最大输出长度（字符） | `10000` |
-| `Tools.Shell.Policy.Rules` | 先于工作区兜底检查的前缀规则。每条形如 `{ "prefix": ["git", "push"], "decision": "allow" \| "prompt" \| "forbidden", "justification": "..." }`。前缀匹配的规则全部生效，最严格的决策胜出 | `[]` |
+| `Tools.Shell.Policy.Rules` | 先于危险操作和启动目录检查的前缀规则。每条形如 `{ "prefix": ["git", "push"], "decision": "allow" \| "prompt" \| "forbidden", "justification": "..." }`。前缀匹配的规则全部生效，最严格的决策胜出 | `[]` |
 | `Tools.Shell.Background.Enabled` | 是否启用后台终端会话 | `true` |
 | `Tools.Shell.Background.DefaultYieldTimeMs` | 运行中命令返回后台会话快照前的默认等待时间 | `1000` |
 | `Tools.Shell.Background.MaxYieldTimeMs` | 后台会话读取或写入可接受的最长等待时间 | `30000` |

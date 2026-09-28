@@ -16,7 +16,6 @@ public sealed class ShellExecutionGate(
     ShellCommandSafetyKernel kernel,
     WorkspaceBoundary workspace,
     ShellPolicySource policy,
-    PathBlacklist? blacklist,
     bool requireApprovalOutsideWorkspace,
     IApprovalService? approvalService)
 {
@@ -30,17 +29,14 @@ public sealed class ShellExecutionGate(
         string command,
         string workingDirectory,
         string? shellSelector = null,
-        ShellIdentity? resolvedShell = null,
-        bool workingDirectoryIsKnown = true) => new()
+        ShellIdentity? resolvedShell = null) => new()
         {
             Command = command,
             ShellSelector = shellSelector,
             ResolvedShell = resolvedShell,
             WorkingDirectory = workingDirectory,
-            WorkingDirectoryIsKnown = workingDirectoryIsKnown,
             Workspace = workspace,
             Policy = policy.Current,
-            Blacklist = blacklist,
             RequireApprovalOutsideWorkspace = requireApprovalOutsideWorkspace,
             AutoApprovesPrompts = ApprovalServiceChain.AutoApproves(approvalService, ApprovalContextScope.Current)
         };
@@ -67,22 +63,18 @@ public sealed class ShellExecutionGate(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var (workingDirectory, workingDirectoryIsKnown) = session.Location;
+        var workingDirectory = session.WorkingDirectory;
         var assessment = kernel.Evaluate(Request(
             input,
             workingDirectory,
-            resolvedShell: session.Shell,
-            workingDirectoryIsKnown: workingDirectoryIsKnown));
-        var result = await DecideAsync(
+            resolvedShell: session.Shell));
+        return await DecideAsync(
             assessment,
             input,
             workingDirectory,
             StdinNotice,
             rejection: "Error: Terminal input was rejected by user.",
             cancellationToken).ConfigureAwait(false);
-        if (result.IsAllowed)
-            session.TrackWorkingDirectory(assessment.WorkingDirectoryAfter);
-        return result;
     }
 
     private async Task<ShellGateResult> DecideAsync(

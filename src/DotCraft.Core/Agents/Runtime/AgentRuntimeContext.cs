@@ -192,7 +192,7 @@ public sealed class AgentRuntimeContext
     public string? AutomationTaskDirectory { get; init; }
 
     /// <summary>
-    /// When set, overrides <see cref="Configuration.AppConfig.Tools.File.RequireApprovalOutsideWorkspace"/> for file/shell tools.
+    /// When set, overrides <see cref="Configuration.AppConfig.Tools.File.RequireApprovalOutsideWorkspace"/> for file access and shell launch directories.
     /// </summary>
     public bool? RequireApprovalOutsideWorkspace { get; init; }
 

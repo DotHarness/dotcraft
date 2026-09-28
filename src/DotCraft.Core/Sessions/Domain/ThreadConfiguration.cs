@@ -242,7 +242,7 @@ public sealed class ThreadConfiguration
     public string? AutomationTaskDirectory { get; set; }
 
     /// <summary>
-    /// When set, overrides <see cref="Configuration.AppConfig.Tools.File.RequireApprovalOutsideWorkspace"/> (and shell)
+    /// When set, overrides <see cref="Configuration.AppConfig.Tools.File.RequireApprovalOutsideWorkspace"/> (and shell launch directories)
     /// for core file/shell tools. Used by local automation: <c>false</c> = reject operations outside the thread workspace
     /// without prompting; <c>true</c> = allow outside-workspace paths when combined with auto-approve policy.
     /// </summary>

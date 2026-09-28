@@ -42,4 +42,4 @@ Hooks 的力量来自它能运行本地命令，风险也在这里。先从只�
 
 - [自动化与目标](./automations) — 需要按计划或手动跑完一整个任务，而不是挂在某个时刻上时用它
 - [插件与工具](./plugins-tools) — 可以随插件分发和复用的 hooks
-- [安全与沙箱](../self-hosted/security) — 文件、Shell 和沙箱行为的 guardrail
+- [安全](../self-hosted/security) — 文件访问限制与 Shell 命令审批

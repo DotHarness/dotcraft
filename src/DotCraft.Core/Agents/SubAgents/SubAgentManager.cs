@@ -237,7 +237,6 @@ public sealed class SubAgentManager
             requireApprovalOutsideWorkspace: _requireApprovalOutsideWorkspace,
             maxOutputLength: 10000,
             approvalService: approvalService,
-            blacklist: _blacklist,
             workspaceRoots: _workspaceRoots,
             policy: _shellPolicy
         );

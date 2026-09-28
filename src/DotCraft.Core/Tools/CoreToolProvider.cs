@@ -231,7 +231,6 @@ public sealed class CoreToolSource(
             requireOutside,
             config.Tools.Shell.MaxOutputLength,
             approvalService,
-            blacklist: pathBlacklist,
             workspaceRoots: context.WorkspaceRoots,
             policy: shellPolicy);
         tools.Add(GeneratedToolFunctions.ShellTools_Exec(shellTools));

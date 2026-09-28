@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 1.1.0 |
+| Version | 1.2.0 |
 | Status | Living |
-| Date | 2026-09-19 |
+| Date | 2026-09-28 |
 | Owner | DotCraft.Core (`DotCraft.Security.ShellCommands`, `DotCraft.Tools.ShellTools`) |
 | Related Specs | [Tool Architecture](tools-architecture.md), [Session Core](session-core.md), [Remote Tool Host](remote-tool-host.md), [SubAgents](../features/subagents.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
@@ -12,7 +12,7 @@
 
 This specification defines how DotCraft decides whether a shell command issued through the `Exec` tool runs, prompts for approval, or is rejected, how that decision is bound to the executable that will run the command, and what an approval remembers.
 
-It replaces string and regular-expression heuristics with one kernel: resolve the shell identity, lower the script into argument vectors, match policy rules, fall back to workspace and danger checks, aggregate, then approve against a structured key. The same kernel classifies read-only commands for Plan mode and read-only SubAgent roles.
+It replaces string and regular-expression heuristics with one kernel: resolve the shell identity, lower the script into argument vectors, match policy rules, fall back to danger and launch-directory checks, aggregate, then approve against a structured key. The same kernel classifies read-only commands for Plan mode and read-only SubAgent roles.
 
 ### 1.1 Ownership
 
@@ -26,7 +26,7 @@ It replaces string and regular-expression heuristics with one kernel: resolve th
 - Process isolation. The kernel reasons about command text; it does not confine what an approved process can touch.
 - Proving that an interpreter argument is harmless. `python -c`, `node -e`, and similar arguments are code; the kernel treats them as opaque words.
 - Parsing `cmd.exe` scripts. Cmd scripts are opaque and only scanned for dangerous literals.
-- Proving where a script leaves the shell. Directory tracking follows the changes it can read and assumes each one ran and succeeded. It cannot see a `cd` that failed, a branch the shell skipped, or a subshell, so a deliberately built chain can make the kernel check a later command against a directory the shell is not in. Tracking narrows accidents; it is not a boundary against crafted input.
+- Inferring filesystem access or the current directory from command text. Shell processes run with host permissions and can access paths outside the workspace; file-tool guards do not isolate shell processes.
 
 ## 3. Terminology
 
@@ -158,18 +158,12 @@ Some prefixes are too broad to remember as `allow` rules: shells and interpreter
 4. For each command, match rules. A rule match yields its decision and skips the fallback for that command.
 5. For each unmatched command, apply the fallback:
    - a dangerous match yields `Prompt`, or `Forbidden` when the thread auto-approves prompts;
-   - otherwise apply the workspace check: the working directory must lie inside a workspace root, no path evidence may resolve outside every root, and no path evidence may hit the path blacklist. A blacklist hit is `Forbidden`. Outside evidence is `Prompt` when the thread requires approval outside the workspace and `Forbidden` otherwise. A clean check is `Allow`.
+   - otherwise check the caller-supplied launch directory against the workspace roots. An outside directory yields `Prompt` when the thread requires approval outside the workspace and `Forbidden` otherwise. An inside directory yields `Allow`.
 6. The assessment decision is the maximum over all commands.
 
-Path evidence comes from `PathEvidenceScanner`: for plain commands it inspects each word; for opaque scripts it scans the script text. It recognizes absolute paths, `~`, `$HOME`, drive letters, `%VAR%`, `$env:VAR`, and UNC paths, resolves them, and only ever raises the decision. A word that climbs with `..` is resolved against the working directory; in an opaque script such a climb counts as the parent of the working directory. The device names `/dev/null`, `/dev/stdin`, `/dev/stdout`, `/dev/stderr`, `/dev/zero`, `/dev/random`, `/dev/urandom`, `/dev/tty`, `NUL`, `CON`, `PRN`, and `AUX` are not evidence.
+Command arguments and script text are not scanned for paths, parent traversal, or directory changes. Windows slash options, absolute paths, environment-variable paths, UNC paths, and script-internal directory changes do not independently trigger approval. Path blacklists apply to file tools, not shell command text.
 
-Directory changes move the working directory for the commands that follow. In a plain script the changes are `cd`, `pushd`, and `popd` (Posix) and `cd`, `chdir`, `sl`, `Set-Location`, `pushd`, `Push-Location`, `popd`, and `Pop-Location` (PowerShell). A literal target is resolved against the current directory, counts as path evidence for that command, and becomes the directory every later command is checked in. A change without a resolvable target (no argument, `-`, or a stack pop) leaves the directory unknown, so that command and every later one are treated as outside the workspace.
-
-An opaque script is treated the same way when literal extraction puts a directory-changing word in a command position. This is a heuristic over extracted literals and not a proof in either direction: a change the extraction cannot see, such as an invoked variable or `eval`, is missed, and a directory-changing word that appears only as an argument or inside a string does not count. A caller that already knows the directory is undeterminable says so on the request, and every command in that script is then evaluated as running in an undeterminable directory.
-
-The assessment reports the directory it tracked through the last command, or nothing when it ended undeterminable. That report is the same best-effort tracking the commands were checked against, with the limit Section 2 states: it assumes every change it read ran and succeeded.
-
-Workspace containment is decided by `WorkspaceBoundary`, the single implementation shared with file tools; it resolves symbolic links before comparing.
+Workspace containment of the launch directory is decided by `WorkspaceBoundary`, shared with file tools; it resolves symbolic links before comparing. This check controls where a process starts, not what it can access after launch.
 
 An `Allow` produced by an explicit `allow` rule bypasses danger detection for that command. Danger detection is part of the fallback, not a veto above rules.
 
@@ -244,15 +238,13 @@ The dispatcher's approval stage declares no approval for `Exec`; the gate owns i
 
 An admitted command can be an interpreter that keeps reading its standard input, so `ShellTools.WriteStdin` is a second way into a process the gate already started. Because this specification does not confine what an approved process may touch, that input is the only remaining place to decide, and the gate assesses it with the same kernel before it is written.
 
-A running terminal carries a stdin session: the `ShellIdentity` it was launched with, the working directory the kernel last knew it to be in, and whether that directory is still known. The assessment uses that identity rather than resolving a selector, because the process is already running and no selector can change it. After an admitted write the session takes the directory the assessment tracked; when the assessment ended undeterminable, the session's directory becomes unknown and every later write to it is evaluated as running in an undeterminable directory. A session never regains a known directory.
+A running terminal carries a stdin session containing its resolved `ShellIdentity` and immutable launch directory. Assessment uses that identity instead of resolving a selector and uses the launch directory as approval context. Neither the launch script nor subsequent input changes this context; it does not claim to describe the process's current directory.
 
-The session starts from the command that launched the terminal, not from the directory that command was launched in: a terminal opened with `cd elsewhere && bash` is running elsewhere, and seeding it with the launch directory would admit later relative input the person never approved. The launch assessment's reported directory therefore seeds the session, and a launch whose directory the assessment could not report starts unknown. A terminal a client starts has no assessment and starts from its launch directory.
-
-One terminal admits one interaction at a time. Assessment, approval and the write are serialized per terminal, and the session state is read after that turn is acquired, so a write cannot be authorized against a directory that another write has already moved the terminal out of. Terminals do not block each other.
+One terminal admits one interaction at a time. Assessment, approval and the write are serialized per terminal. Terminals do not block each other.
 
 Empty input polls for output and is not assessed. Input that is exactly the end-of-text character is an interrupt rather than a command and is not assessed. Terminal input a client sends on the person's behalf does not pass the gate; the person typing it is the authority.
 
-An approval raised for standard input carries the input as its command and the session's directory as its working directory, and states that the text is being written to a running terminal whose own directory and state may since have moved.
+An approval raised for standard input carries the input as its command and the session's launch directory as its working directory, and states that the text is being written to a running terminal whose own directory and state may since have moved.
 
 ## 11. Read-only classification
 
@@ -279,7 +271,7 @@ Denial reasons name the rejected command or option so the model can rewrite the 
 }
 ```
 
-`Tools.File.RequireApprovalOutsideWorkspace` (and its thread override) selects `Prompt` or `Forbidden` for outside-workspace evidence. `Security.BlacklistedPaths` feeds the blacklist check. The thread `ApprovalPolicy` keeps its meaning: `AutoApprove` accepts prompts except that a dangerous command is `Forbidden`.
+`Tools.File.RequireApprovalOutsideWorkspace` (and its thread override) selects `Prompt` or `Forbidden` for a launch directory outside the workspace. `Security.BlacklistedPaths` applies to file tools and does not restrict shell processes. The thread `ApprovalPolicy` keeps its meaning: `AutoApprove` accepts prompts except that a dangerous command is `Forbidden`.
 
 ## 13. Security invariants
 
@@ -287,9 +279,8 @@ Denial reasons name the rejected command or option so the model can rewrite the 
 - Opaque scripts are evaluated as a whole; inner literals can only raise the decision.
 - Plain lowering accepts a closed set of constructs; a new construct is opaque until this specification lists it.
 - Wrapper inspection is depth-bounded and reports overflow as dangerous.
-- A directory change the kernel cannot follow makes the rest of the script outside the workspace.
-- Input written to a running terminal is assessed against the shell that terminal is running, and a directory change the kernel cannot follow there makes every later write to that terminal outside the workspace.
-- A terminal's session starts where its launch assessment said the shell ends up, and unknown when that assessment reported nothing.
+- Command text never determines filesystem boundaries or the running process's current directory.
+- Standard input is assessed with the terminal's resolved shell and immutable launch directory.
 - One terminal authorizes and writes one interaction at a time.
 - Approval keys carry the shell executable, so an approval for one shell never applies to another.
 - Banned prefixes are never persisted as `allow` rules.
@@ -298,4 +289,4 @@ Denial reasons name the rejected command or option so the model can rewrite the 
 
 ## 14. Conformance
 
-Implementations must ship fixture-driven tests for: PowerShell lowering (accepted forms and every rejected construct in Section 5.1), Posix lowering (Section 5.2 accepted and rejected forms), dangerous-command detection per family, rule matching including severity aggregation and file-name fallback, directory-change tracking across chained commands and across successive writes to one terminal, a terminal seeded from a launch command that changed directory, the directory-changing word appearing only as an argument in an opaque script, approval-key equality and inequality across shell, directory, and rule-set changes, read-only classification, and shell identity resolution on both platforms. A non-Windows smoke test must parse a PowerShell script through the lowerer to prove the parser loads without a PowerShell installation.
+Implementations must ship fixture-driven tests for: PowerShell lowering (accepted forms and every rejected construct in Section 5.1), Posix lowering (Section 5.2 accepted and rejected forms), dangerous-command detection per family, rule matching including severity aggregation and file-name fallback, Windows slash options and path-bearing scripts without path-based approval, launch-directory boundary checks, immutable launch context across successive writes to one terminal, approval-key equality and inequality across shell, directory, and rule-set changes, read-only classification, and shell identity resolution on both platforms. A non-Windows smoke test must parse a PowerShell script through the lowerer to prove the parser loads without a PowerShell installation.

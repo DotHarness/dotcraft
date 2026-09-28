@@ -18,83 +18,47 @@ public sealed class ShellExecutionGateStdinTests : IDisposable
     }
 
     [Fact]
-    public async Task AuthorizeStdinAsync_CommandInsideTheWorkspace_IsAllowedWithoutAsking()
+    public async Task AuthorizeStdinAsync_PathsAndDirectoryChanges_KeepLaunchContextWithoutAsking()
     {
         var approvals = new RecordingApprovalService(approve: false);
+        var gate = Gate(approvals);
+        var session = Session();
+        string[] inputs =
+        [
+            $"cat {PosixPath(_outside)}/secret.txt\n", $"cd {PosixPath(_outside)}\n",
+            "for d in a b; do cd $d; done\n", "popd\n", "git status\n"
+        ];
 
-        var result = await Gate(approvals).AuthorizeStdinAsync(Session(), "git status\n", default);
+        foreach (var input in inputs)
+        {
+            var result = await gate.AuthorizeStdinAsync(session, input, default);
+            Assert.True(result.IsAllowed);
+            Assert.Equal(_root, session.WorkingDirectory);
+        }
 
-        Assert.True(result.IsAllowed);
         Assert.Empty(approvals.Requests);
     }
 
     [Fact]
-    public async Task AuthorizeStdinAsync_ReadOutsideTheWorkspace_AsksAndCarriesTheInputAsTheCommand()
+    public async Task AuthorizeStdinAsync_OutsideLaunchDirectory_AsksWithLaunchContext()
     {
         var approvals = new RecordingApprovalService(approve: false);
-        var input = $"cat {PosixPath(_outside)}/secret.txt\n";
+        var session = new ShellStdinSession(Session().Shell, _outside);
+        const string input = "git status\n";
 
-        var result = await Gate(approvals).AuthorizeStdinAsync(Session(), input, default);
+        var result = await Gate(approvals).AuthorizeStdinAsync(session, input, default);
 
         Assert.False(result.IsAllowed);
         var request = Assert.Single(approvals.Requests);
         Assert.Equal(input, request.Command);
+        Assert.Equal(_outside, request.WorkingDirectory);
         Assert.Contains("running terminal", request.ReasonText);
-        Assert.Contains("rejected", result.Error);
     }
 
     [Fact]
-    public async Task AuthorizeStdinAsync_ApprovedDirectoryChange_MovesTheSessionAndChecksLaterInputThere()
+    public async Task AuthorizeStdinAsync_DangerousInputWithoutApprovalService_IsDenied()
     {
-        var approvals = new RecordingApprovalService(approve: true);
-        var gate = Gate(approvals);
-        var session = Session();
-
-        await gate.AuthorizeStdinAsync(session, $"cd {PosixPath(_outside)}\n", default);
-        Assert.Equal(_outside, session.WorkingDirectory);
-
-        var result = await gate.AuthorizeStdinAsync(session, "cat secret.txt\n", default);
-
-        Assert.True(result.IsAllowed);
-        Assert.Equal(2, approvals.Requests.Count);
-        Assert.Contains("outside the workspace", approvals.Requests[1].ReasonText);
-    }
-
-    [Fact]
-    public async Task AuthorizeStdinAsync_DirectoryChangeItCannotFollow_MakesEveryLaterWriteUndeterminable()
-    {
-        var approvals = new RecordingApprovalService(approve: true);
-        var gate = Gate(approvals);
-        var session = Session();
-
-        await gate.AuthorizeStdinAsync(session, "for d in a b; do cd $d; done\n", default);
-        Assert.False(session.WorkingDirectoryIsKnown);
-
-        await gate.AuthorizeStdinAsync(session, "git status\n", default);
-
-        Assert.Equal(2, approvals.Requests.Count);
-        Assert.Contains("cannot be determined", approvals.Requests[1].ReasonText);
-    }
-
-    [Fact]
-    public async Task AuthorizeStdinAsync_SessionThatLostItsDirectory_NeverRegainsOne()
-    {
-        var approvals = new RecordingApprovalService(approve: true);
-        var gate = Gate(approvals);
-        var session = Session();
-
-        await gate.AuthorizeStdinAsync(session, "popd\n", default);
-        await gate.AuthorizeStdinAsync(session, $"cd {PosixPath(_root)}\n", default);
-
-        Assert.False(session.WorkingDirectoryIsKnown);
-    }
-
-    [Fact]
-    public async Task AuthorizeStdinAsync_WithoutAnApprovalService_DeniesInsteadOfWriting()
-    {
-        var input = $"cat {PosixPath(_outside)}/secret.txt\n";
-
-        var result = await Gate(approvals: null).AuthorizeStdinAsync(Session(), input, default);
+        var result = await Gate(approvals: null).AuthorizeStdinAsync(Session(), "rm -rf build\n", default);
 
         Assert.False(result.IsAllowed);
         Assert.Contains("no approval service", result.Error);
@@ -145,7 +109,6 @@ public sealed class ShellExecutionGateStdinTests : IDisposable
                 CommandPlatform.Posix),
             new WorkspaceBoundary([_root]),
             ShellPolicySource.Empty,
-            blacklist: null,
             requireApprovalOutsideWorkspace: true,
             approvals);
 

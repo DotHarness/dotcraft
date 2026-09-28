@@ -297,14 +297,14 @@ For Anthropic-compatible providers, `anthropicMessageContent` can declare how Do
 
 | Field | Description | Default |
 |---|---|---|
-| `Security.BlacklistedPaths` | Paths the agent must not access; subpaths are also checked | `[]` |
-| `Tools.File.RequireApprovalOutsideWorkspace` | Approve file and shell ops outside workspace; `false` blocks them | `true` |
+| `Security.BlacklistedPaths` | Paths file tools must not access; subpaths are also checked | `[]` |
+| `Tools.File.RequireApprovalOutsideWorkspace` | Approve file-tool access and shell launches outside workspace; `false` blocks them | `true` |
 | `Tools.File.MaxFileSize` | Max readable file size in bytes | `10485760` |
 | `Tools.File.RipgrepPath` | Optional `rg` path; empty tries `DOTCRAFT_RG_PATH`, `PATH`, then fallback | `""` |
 | `Tools.File.SearchTimeoutSeconds` | Max `GrepFiles` content-search time before timeout | `30` |
 | `Tools.Shell.Timeout` | Shell timeout in seconds | `300` |
 | `Tools.Shell.MaxOutputLength` | Max shell output length in characters | `10000` |
-| `Tools.Shell.Policy.Rules` | Prefix rules checked before the workspace fallback; each entry is `{ "prefix": ["git", "push"], "decision": "allow" \| "prompt" \| "forbidden", "justification": "..." }`. Every rule whose prefix matches applies and the most restrictive decision wins | `[]` |
+| `Tools.Shell.Policy.Rules` | Prefix rules checked before dangerous-operation and launch-directory checks; each entry is `{ "prefix": ["git", "push"], "decision": "allow" \| "prompt" \| "forbidden", "justification": "..." }`. Every rule whose prefix matches applies and the most restrictive decision wins | `[]` |
 | `Tools.Shell.Background.Enabled` | Enable background terminal sessions | `true` |
 | `Tools.Shell.Background.DefaultYieldTimeMs` | Default wait before a running command returns a background-session snapshot | `1000` |
 | `Tools.Shell.Background.MaxYieldTimeMs` | Maximum wait accepted for a background-session read or write | `30000` |
