@@ -222,7 +222,6 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
             new ShellCommandSafetyKernel(),
             new WorkspaceBoundary(scope.WorkspaceRoots),
             ShellPolicySource.Empty,
-            scope.PathBlacklist,
             scope.RequireApprovalOutsideWorkspace,
             scope.ApprovalService);
         var result = await gate.AuthorizeAsync(normalizedCommand, null, resolvedWorkingDirectory, CancellationToken.None)
@@ -253,7 +252,6 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
             new ShellCommandSafetyKernel(),
             new WorkspaceBoundary(roots),
             ShellPolicySource.Empty,
-            blacklist: null,
             requireApprovalOutsideWorkspace: true,
             approval);
         var assessment = gate.Assess(command, null, resolvedWorkingDirectory);

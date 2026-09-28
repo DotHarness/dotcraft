@@ -2029,7 +2029,7 @@ ThreadConfiguration
 ├── DeveloperInstructions: string?                  // Starting application's instructions, final prompt section
 ├── ApprovalPolicy: default|prompt|autoApprove|deny // Thread-scoped approval behavior
 ├── AutomationTaskDirectory: string?                // Local automation task directory
-└── RequireApprovalOutsideWorkspace: bool?          // Overrides workspace file/shell boundary behavior
+└── RequireApprovalOutsideWorkspace: bool?          // Overrides file-access and shell launch-directory boundary behavior
 ```
 
 Approval-related fields are normative:

@@ -38,10 +38,12 @@ public sealed class ShellToolsStdinProcessTests : IAsyncLifetime
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task WriteStdin_OutsideWorkspaceReadInAnInteractiveShell_RunsOnlyWhenApproved(bool approve)
+    public async Task WriteStdin_RuleProtectedReadInAnInteractiveShell_RunsOnlyWhenApproved(bool approve)
     {
         var terminals = _terminals!;
-        var tools = new ShellTools(_root, terminals, approvalService: new FixedApprovalService(approve));
+        var readCommand = OperatingSystem.IsWindows() ? "Get-Content" : "cat";
+        var policy = new ShellPolicySource([new ShellPrefixRule([readCommand], ShellDecision.Prompt)], null);
+        var tools = new ShellTools(_root, terminals, approvalService: new FixedApprovalService(approve), policy: policy);
 
         // A bare interpreter is an ordinary in-workspace command, so it starts without a prompt.
         await tools.Exec(InteractiveShellCommand(), runInBackground: true, yieldTimeMs: 3000, interactive: true);

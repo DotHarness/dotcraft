@@ -76,7 +76,6 @@ public sealed class WorkspaceExecutionToolSource(
             requireOutside,
             config.Tools.Shell.MaxOutputLength,
             approvalService,
-            pathBlacklist,
             context.WorkspaceRoots,
             ShellPolicySource.ForWorkspace(config.Tools.Shell.Policy.ToRules(), context.DataPath));
         tools.Add(GeneratedToolFunctions.ShellTools_Exec(shellTools));

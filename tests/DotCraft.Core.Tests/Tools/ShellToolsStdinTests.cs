@@ -24,27 +24,26 @@ public sealed class ShellToolsStdinTests : IDisposable
         var terminals = new StdinTerminalService(_root);
         var tools = Tools(terminals, approve: false);
 
-        var result = await tools.WriteStdin("term_1", $"cat {Path.Combine(_outside, "secret.txt")}\n");
+        var result = await tools.WriteStdin("term_1", "rm -rf build; Remove-Item build -Force\n");
 
         Assert.Contains("rejected", result);
         Assert.Empty(terminals.Writes);
     }
 
     [Fact]
-    public async Task Exec_LaunchCommandThatChangesDirectory_StartsTheTerminalWhereItEndsUp()
+    public async Task Exec_LaunchCommandThatChangesDirectory_KeepsLaunchDirectoryAsContext()
     {
         var started = await StartAndCaptureAsync($"cd {_outside} && bash");
 
-        Assert.Equal(_outside, started.StdinSession!.WorkingDirectory);
-        Assert.True(started.StdinSession.WorkingDirectoryIsKnown);
+        Assert.Equal(_root, started.StdinSession!.WorkingDirectory);
     }
 
     [Fact]
-    public async Task Exec_LaunchCommandWhoseDirectoryCannotBeReported_StartsTheTerminalUndeterminable()
+    public async Task Exec_LaunchCommandWithImplicitDirectoryChange_KeepsLaunchDirectoryAsContext()
     {
         var started = await StartAndCaptureAsync("cd; bash");
 
-        Assert.False(started.StdinSession!.WorkingDirectoryIsKnown);
+        Assert.Equal(_root, started.StdinSession!.WorkingDirectory);
     }
 
     [Theory]
@@ -52,6 +51,8 @@ public sealed class ShellToolsStdinTests : IDisposable
     [InlineData("\u0003")]
     [InlineData("\u0003\n")]
     [InlineData("y\n")]
+    [InlineData("shutdown /s /t 60\n")]
+    [InlineData("cd ..\n")]
     public async Task WriteStdin_InputThatRaisesNothing_ReachesTheProcessWithoutAPrompt(string input)
     {
         var terminals = new StdinTerminalService(_root);

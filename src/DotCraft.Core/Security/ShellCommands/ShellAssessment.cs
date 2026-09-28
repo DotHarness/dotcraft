@@ -11,13 +11,9 @@ public sealed class ShellSafetyRequest
 
     public required string WorkingDirectory { get; init; }
 
-    public bool WorkingDirectoryIsKnown { get; init; } = true;
-
     public required WorkspaceBoundary Workspace { get; init; }
 
     public ShellPolicy Policy { get; init; } = ShellPolicy.Empty;
-
-    public PathBlacklist? Blacklist { get; init; }
 
     public bool RequireApprovalOutsideWorkspace { get; init; } = true;
 
@@ -52,9 +48,6 @@ public sealed class ShellAssessment
     public ShellApprovalKey? ApprovalKey { get; init; }
 
     public ShellRiskLevel Risk { get; init; }
-
-    /// <summary>Directory tracked through the last command, or null when it ended undeterminable.</summary>
-    public string? WorkingDirectoryAfter { get; init; }
 
     public ShellRememberProposal Remember { get; init; } = ShellRememberProposal.ExactKeyOnly;
 

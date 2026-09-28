@@ -70,65 +70,6 @@ public sealed class ShellCommandSafetyKernelTests : IDisposable
     }
 
     [Fact]
-    public void Evaluate_PathOutsideTheWorkspace_PromptsAndNamesThePath()
-    {
-        var assessment = Posix().Evaluate(Request("cat /etc/passwd"));
-
-        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
-        Assert.Equal(ShellRiskLevel.OutsideWorkspace, assessment.Risk);
-        Assert.Contains("/etc/passwd", assessment.ReasonText);
-    }
-
-    [Fact]
-    public void Evaluate_PathOutsideTheWorkspaceWithoutApproval_IsForbidden()
-    {
-        var assessment = Posix().Evaluate(
-            Request("cat /etc/passwd", requireApprovalOutsideWorkspace: false));
-
-        Assert.Equal(ShellDecision.Forbidden, assessment.Decision);
-    }
-
-    [Fact]
-    public void Evaluate_RelativeWordThatClimbsOutOfTheWorkingDirectory_Prompts()
-    {
-        var assessment = Posix().Evaluate(Request("echo ../outside"));
-
-        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
-        Assert.Equal(ShellRiskLevel.OutsideWorkspace, assessment.Risk);
-        Assert.Contains("../outside", assessment.ReasonText);
-    }
-
-    [Fact]
-    public void Evaluate_RelativeWordThatStaysInsideTheWorkspace_IsAllowed()
-    {
-        var assessment = Posix().Evaluate(Request("echo sub/../file"));
-
-        Assert.Equal(ShellDecision.Allow, assessment.Decision);
-        Assert.Equal(ShellRiskLevel.None, assessment.Risk);
-    }
-
-    [Fact]
-    public void Evaluate_WorkingDirectoryOutsideTheWorkspace_Prompts()
-    {
-        var assessment = Posix().Evaluate(Request("git status", workingDirectory: _outside));
-
-        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
-        Assert.Contains("Working directory", assessment.ReasonText);
-    }
-
-    [Fact]
-    public void Evaluate_BlacklistedPath_IsForbidden()
-    {
-        var blocked = Path.Combine(_outside, "secret.txt");
-
-        var assessment = Posix().Evaluate(
-            Request($"cat '{blocked}'", blacklist: new PathBlacklist([_outside])));
-
-        Assert.Equal(ShellDecision.Forbidden, assessment.Decision);
-        Assert.Contains("blacklisted", assessment.ReasonText);
-    }
-
-    [Fact]
     public void Evaluate_PromptRule_PromptsAndProposesTheRulePrefixAsAllowed()
     {
         var policy = new ShellPolicy([new ShellPrefixRule(["git", "push"], ShellDecision.Prompt)]);
@@ -197,17 +138,6 @@ public sealed class ShellCommandSafetyKernelTests : IDisposable
         Assert.False(assessment.Lowering!.IsPlain);
         Assert.Equal(new[] { ShellScriptSentinels.Posix, Script }, assessment.ApprovalKey!.CanonicalCommand);
         Assert.Equal(ShellDecision.Allow, assessment.Decision);
-    }
-
-    [Fact]
-    public void Evaluate_OpaqueScriptTouchingAnOutsidePath_PromptsAndCanOnlyRememberTheExactKey()
-    {
-        var assessment = Posix().Evaluate(Request("for f in /etc/*; do cat $f; done"));
-
-        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
-        Assert.Equal(ShellRiskLevel.OutsideWorkspace, assessment.Risk);
-        Assert.Empty(assessment.Remember.Rules);
-        Assert.True(assessment.Remember.ExactKeyFallback);
     }
 
     [Fact]
@@ -282,102 +212,14 @@ public sealed class ShellCommandSafetyKernelTests : IDisposable
     }
 
     [Fact]
-    public void Evaluate_PlainCommandPromptedByOutsideEvidence_ProposesItsOwnWordsAsAnAllowRule()
+    public void Evaluate_PlainCommandStartedOutsideWorkspace_ProposesItsOwnWordsAsAnAllowRule()
     {
-        var remember = Posix().Evaluate(Request("cat /etc/hosts")).Remember;
+        var remember = Posix().Evaluate(Request("cat notes.txt", workingDirectory: _outside)).Remember;
 
         var rule = Assert.Single(remember.Rules);
-        Assert.Equal(new[] { "cat", "/etc/hosts" }, rule.Prefix);
+        Assert.Equal(new[] { "cat", "notes.txt" }, rule.Prefix);
         Assert.Equal(ShellDecision.Allow, rule.Decision);
         Assert.False(remember.ExactKeyFallback);
-    }
-
-    [Fact]
-    public void Evaluate_ChangingToTheParentThenReadingARelativeFile_Prompts()
-    {
-        var assessment = Posix().Evaluate(Request("cd .. && cat secret.txt"));
-
-        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
-        Assert.Equal(ShellRiskLevel.OutsideWorkspace, assessment.Risk);
-        Assert.Contains("outside the workspace", assessment.ReasonText);
-    }
-
-    [Fact]
-    public void Evaluate_ChangingIntoASubdirectory_KeepsLaterCommandsAllowed()
-    {
-        Directory.CreateDirectory(Path.Combine(_root, "sub"));
-
-        var assessment = Posix().Evaluate(Request("cd sub && npm test && cat ../file"));
-
-        Assert.Equal(ShellDecision.Allow, assessment.Decision);
-    }
-
-    [Fact]
-    public void Evaluate_ChangingToAShallowerDirectoryThenClimbing_Prompts()
-    {
-        var nested = Path.Combine(_root, "a", "b");
-        Directory.CreateDirectory(nested);
-        var root = _root.Replace('\\', '/');
-
-        var assessment = Posix().Evaluate(Request($"cd {root} && cat ../x", workingDirectory: nested));
-
-        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
-        Assert.Equal(ShellRiskLevel.OutsideWorkspace, assessment.Risk);
-    }
-
-    [Fact]
-    public void Evaluate_DirectoryChangeWithoutATarget_MakesLaterCommandsPrompt()
-    {
-        var assessment = Posix().Evaluate(Request("cd && cat x"));
-
-        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
-        Assert.Contains("cannot be determined", assessment.ReasonText);
-    }
-
-    [Fact]
-    public void Evaluate_OpaqueScriptThatChangesDirectory_Prompts()
-    {
-        var assessment = Posix().Evaluate(Request("for d in a b; do cd $d; done"));
-
-        Assert.False(assessment.Lowering!.IsPlain);
-        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
-        Assert.Contains("cannot be determined", assessment.ReasonText);
-    }
-
-    [Theory]
-    [InlineData("Select-String -Path a.txt -Pattern \"cd\" -Context 2,6 | Out-String")]
-    [InlineData("Get-Content a.txt | ForEach-Object { $_.Replace(\"CD\", \"\") }")]
-    [InlineData("Get-ChildItem | ForEach-Object { $_.Name -replace \"sl\", \"x\" }")]
-    public void Evaluate_OpaqueScriptNamingADirectoryChangeOnlyAsAnArgument_IsAllowed(string command)
-    {
-        var assessment = Windows().Evaluate(Request(command));
-
-        Assert.False(assessment.Lowering!.IsPlain);
-        Assert.Equal(ShellDecision.Allow, assessment.Decision);
-        Assert.Equal(_root, assessment.WorkingDirectoryAfter);
-    }
-
-    [Fact]
-    public void Evaluate_PlainDirectoryChange_ReportsTheDirectoryItEndedIn()
-    {
-        var nested = Path.Combine(_root, "sub");
-        Directory.CreateDirectory(nested);
-
-        var assessment = Posix().Evaluate(Request("cd sub && git status"));
-
-        Assert.Equal(ShellDecision.Allow, assessment.Decision);
-        Assert.Equal(nested, assessment.WorkingDirectoryAfter);
-    }
-
-    [Fact]
-    public void Evaluate_UndeterminableWorkingDirectory_PromptsAndStaysUndeterminable()
-    {
-        var assessment = Posix().Evaluate(Request("cat notes.txt", workingDirectoryIsKnown: false));
-
-        Assert.Equal(ShellDecision.Prompt, assessment.Decision);
-        Assert.Equal(ShellRiskLevel.OutsideWorkspace, assessment.Risk);
-        Assert.Contains("cannot be determined", assessment.ReasonText);
-        Assert.Null(assessment.WorkingDirectoryAfter);
     }
 
     [Fact]
@@ -391,13 +233,80 @@ public sealed class ShellCommandSafetyKernelTests : IDisposable
         Assert.Same(shell, assessment.Shell);
     }
 
-    [Fact]
-    public void Evaluate_PowerShellChangingToTheParentThenReadingARelativeFile_Prompts()
+    [Theory]
+    [InlineData(true, ShellDecision.Prompt)]
+    [InlineData(false, ShellDecision.Forbidden)]
+    public void Evaluate_LaunchDirectoryOutsideWorkspace_UsesBoundaryPolicy(bool requireApproval, ShellDecision expected)
     {
-        var assessment = Windows().Evaluate(Request("cd ..; Get-Content secret.txt"));
+        var assessment = Posix().Evaluate(Request("git status", workingDirectory: _outside,
+            requireApprovalOutsideWorkspace: requireApproval));
+
+        Assert.Equal(expected, assessment.Decision);
+        Assert.Equal(ShellRiskLevel.OutsideWorkspace, assessment.Risk);
+    }
+
+    [Theory]
+    [InlineData("pwsh")]
+    [InlineData("powershell")]
+    [InlineData("cmd")]
+    public void Evaluate_WindowsOptionsAndPaths_DoNotRequireApproval(string shell)
+    {
+        string[] commands =
+        [
+            "shutdown /s /t 60", "shutdown.exe /s /t 60", "ipconfig /all", "cmd /c echo probe",
+            @"type Z:\example\input.txt", @"type \\server\share\file.txt",
+            @"type %USERPROFILE%\file.txt", @"Get-Content $env:USERPROFILE\file.txt",
+            "echo ../outside", "cd ..; Get-Content secret.txt", "popd", "cd",
+            "if ($true) { Set-Location ..; Get-Content secret.txt }"
+        ];
+        foreach (var command in commands)
+        {
+            var assessment = Windows().Evaluate(Request(command, shell: shell,
+                requireApprovalOutsideWorkspace: false));
+
+            Assert.True(assessment.Decision == ShellDecision.Allow, $"{shell}: {command}: {assessment.ReasonText}");
+            Assert.Equal(ShellRiskLevel.None, assessment.Risk);
+            Assert.Empty(assessment.Reasons);
+        }
+    }
+
+    [Theory]
+    [InlineData("cat /example/input.txt")]
+    [InlineData("echo ../outside")]
+    [InlineData("cat ~/secret $HOME/secret")]
+    [InlineData("cd .. && cat secret.txt")]
+    [InlineData("cd && cat x")]
+    [InlineData("for f in /example/*; do cat $f; done")]
+    [InlineData("for d in a b; do cd $d; done")]
+    public void Evaluate_PosixPathsAndDirectoryChanges_DoNotRequireApproval(string command)
+    {
+        var assessment = Posix().Evaluate(Request(command, requireApprovalOutsideWorkspace: false));
+
+        Assert.Equal(ShellDecision.Allow, assessment.Decision);
+        Assert.Empty(assessment.Reasons);
+    }
+
+    [Theory]
+    [InlineData(ShellDecision.Prompt)]
+    [InlineData(ShellDecision.Forbidden)]
+    public void Evaluate_WindowsSlashOptions_StillHonorExplicitRules(ShellDecision decision)
+    {
+        var policy = new ShellPolicy([new ShellPrefixRule(["shutdown"], decision)]);
+
+        var assessment = Windows().Evaluate(Request("shutdown /s /t 60", policy: policy));
+
+        Assert.Equal(decision, assessment.Decision);
+        Assert.Equal(ShellRiskLevel.Rule, assessment.Risk);
+    }
+
+    [Fact]
+    public void Evaluate_OpaqueCommandStartedOutsideWorkspace_RemembersOnlyExactKey()
+    {
+        var assessment = Posix().Evaluate(Request("for f in /example/*; do cat $f; done", workingDirectory: _outside));
 
         Assert.Equal(ShellDecision.Prompt, assessment.Decision);
-        Assert.Equal(ShellRiskLevel.OutsideWorkspace, assessment.Risk);
+        Assert.Empty(assessment.Remember.Rules);
+        Assert.True(assessment.Remember.ExactKeyFallback);
     }
 
     public void Dispose()
@@ -420,20 +329,16 @@ public sealed class ShellCommandSafetyKernelTests : IDisposable
         string? shell = null,
         string? workingDirectory = null,
         ShellPolicy? policy = null,
-        PathBlacklist? blacklist = null,
         bool requireApprovalOutsideWorkspace = true,
         bool autoApprovesPrompts = false,
-        bool workingDirectoryIsKnown = true,
         ShellIdentity? resolvedShell = null) => new()
         {
             Command = command,
             ShellSelector = shell,
             ResolvedShell = resolvedShell,
             WorkingDirectory = workingDirectory ?? _root,
-            WorkingDirectoryIsKnown = workingDirectoryIsKnown,
             Workspace = _workspace,
             Policy = policy ?? ShellPolicy.Empty,
-            Blacklist = blacklist,
             RequireApprovalOutsideWorkspace = requireApprovalOutsideWorkspace,
             AutoApprovesPrompts = autoApprovesPrompts
         };

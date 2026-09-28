@@ -26,7 +26,6 @@ public sealed class ShellTools
         bool requireApprovalOutsideWorkspace = true,
         int maxOutputLength = 10000,
         IApprovalService? approvalService = null,
-        PathBlacklist? blacklist = null,
         IReadOnlyList<string>? workspaceRoots = null,
         ShellPolicySource? policy = null)
     {
@@ -41,7 +40,6 @@ public sealed class ShellTools
             new ShellCommandSafetyKernel(),
             new WorkspaceBoundary(roots),
             policy ?? ShellPolicySource.Empty,
-            blacklist,
             requireApprovalOutsideWorkspace,
             approvalService);
     }
@@ -83,7 +81,6 @@ public sealed class ShellTools
         }
 
         var stdinSession = new ShellStdinSession(gate.Shell!, cwd);
-        stdinSession.TrackWorkingDirectory(gate.Assessment.WorkingDirectoryAfter);
         return await ExecWithBackgroundTerminalServiceAsync(
             command,
             cwd,

@@ -26,7 +26,7 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
     }
 
     [Fact]
-    public async Task Exec_GuardRejectedPathTraversal_CompletesPendingCommandExecution()
+    public async Task Exec_ForbiddenRule_CompletesPendingCommandExecution()
     {
         const string callId = "call_exec_guard";
         const string command = "echo ../outside";
@@ -47,11 +47,11 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
         var tools = new ShellTools(
             _tempDir,
             new StubBackgroundTerminalService(),
-            requireApprovalOutsideWorkspace: false);
+            policy: new ShellPolicySource([new ShellPrefixRule(["echo"], ShellDecision.Forbidden)], null));
 
         var result = await tools.Exec(command);
 
-        Assert.StartsWith("Error: Command references paths outside the workspace", result, StringComparison.Ordinal);
+        Assert.StartsWith("Error: Policy forbids", result, StringComparison.Ordinal);
         Assert.Same(pending, Assert.Single(completed));
         Assert.Single(turn.Items);
         Assert.Equal(ItemStatus.Completed, pending.Status);
@@ -60,7 +60,23 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
         Assert.Equal(callId, payload.CallId);
         Assert.Equal("failed", payload.Status);
         Assert.Null(payload.ExitCode);
-        Assert.Contains("outside the workspace", payload.AggregatedOutput);
+        Assert.Contains("Policy forbids", payload.AggregatedOutput);
+    }
+
+    [Theory]
+    [InlineData("shutdown /s /t 60")]
+    [InlineData("shutdown.exe /s /t 60")]
+    [InlineData("ipconfig /all")]
+    [InlineData("cmd /c echo probe")]
+    public async Task Exec_WindowsSlashOptions_ReachOnlyTheFakeTerminalUnchanged(string command)
+    {
+        var terminals = new FakeBackgroundTerminalService("fake-output");
+        var tools = new ShellTools(_tempDir, terminals, requireApprovalOutsideWorkspace: false);
+
+        var result = await tools.Exec(command);
+
+        Assert.Contains("fake-output", result);
+        Assert.Equal(command, Assert.Single(terminals.StartRequests).Command);
     }
 
     [Fact]

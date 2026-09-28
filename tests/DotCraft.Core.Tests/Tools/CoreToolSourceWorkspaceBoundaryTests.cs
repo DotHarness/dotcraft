@@ -8,12 +8,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Tools;
 
-/// <summary>
-/// Verifies that the thread-scoped RequireApprovalOutsideWorkspace override reaches the
-/// core file/shell tool assembly. A thread that disables it must hard-reject
-/// outside-workspace operations instead of routing them through an (auto-approving)
-/// approval service.
-/// </summary>
 public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
 {
     private readonly string _tempRoot = Path.Combine(
@@ -45,7 +39,7 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
     }
 
     [Fact]
-    public async Task Thread_override_false_hard_rejects_exec_referencing_outside_paths()
+    public async Task Thread_override_false_hard_rejects_exec_launched_outside_workspace()
     {
         var registrations = await GetRegistrationsAsync(requireApprovalOutsideWorkspace: false);
         var exec = Assert.Single(registrations, item => item.Definition.Name.Name == "Exec");
@@ -54,7 +48,8 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
 
         var result = await InvokeAsync(exec, new JsonObject
         {
-            ["command"] = $"cat \"{_outsideFile}\""
+            ["command"] = "echo probe",
+            ["workingDir"] = _tempRoot
         });
 
         Assert.Contains("outside the workspace", result.Content, StringComparison.OrdinalIgnoreCase);
@@ -73,7 +68,7 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
         Assert.True(readFile.Definition.Annotations.ContainsKey("dotcraft/nativeApproval"));
 
         Assert.False(exec.Definition.PolicyHints.RequiresApproval);
-        await InvokeAsync(exec, new JsonObject { ["command"] = $"cat \"{_outsideFile}\"" });
+        await InvokeAsync(exec, new JsonObject { ["command"] = "echo probe", ["workingDir"] = _tempRoot });
 
         var request = Assert.Single(approvals.ShellRequests);
         Assert.Equal(ShellRiskLevel.OutsideWorkspace, request.Risk);

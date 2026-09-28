@@ -77,7 +77,7 @@ public sealed class ToolPlanningContext
     /// <summary>
     /// Gets the thread-scoped outside-workspace boundary override.
     /// When set, it overrides <c>AppConfig.Tools.File.RequireApprovalOutsideWorkspace</c> for
-    /// file/shell tool assembly: <see langword="true"/> routes outside-workspace operations
+    /// file access and shell launch directories: <see langword="true"/> routes outside-workspace operations
     /// through the approval service, <see langword="false"/> rejects them without prompting.
     /// </summary>
     public bool? RequireApprovalOutsideWorkspace { get; }

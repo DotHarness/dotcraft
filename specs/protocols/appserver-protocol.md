@@ -726,7 +726,7 @@ Fields:
 | `automationTaskDirectory` | string | Optional local automation task directory. |
 | `reasoning` | object | Optional per-thread reasoning configuration. When absent, the thread falls back to the current workspace defaults. Uses camelCase wire enum values such as `low`, `medium`, `high`, `extraHigh`, `max`, `ultra` and output values such as `none`, `summary`, or `full`. |
 | `speed` | `"standard"` \| `"fast"` | Optional per-thread inference-speed snapshot. New threads capture the effective workspace value; a thread without the field uses `standard`. Changes affect future and queued turns, not a running request. |
-| `requireApprovalOutsideWorkspace` | boolean | Optional override for the workspace file/shell outside-boundary behavior. |
+| `requireApprovalOutsideWorkspace` | boolean | Optional override for file-access and shell launch-directory outside-boundary behavior. |
 
 Approval semantics:
 
