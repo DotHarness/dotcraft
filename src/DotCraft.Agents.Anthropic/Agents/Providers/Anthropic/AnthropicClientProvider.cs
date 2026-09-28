@@ -184,6 +184,7 @@ public sealed class AnthropicClientProvider(IProviderHttpTransport? httpTranspor
             new AnthropicClient
             {
                 ApiKey = clientKey.IsRemote ? "remote" : clientKey.ApiKey,
+                AuthToken = null,
                 HttpClient = clientKey.IsRemote ? RemoteHttpClient(clientKey.ProviderId, clientKey.Endpoint) : SharedHttpClient,
                 BaseUrl = clientKey.Endpoint.ToString().TrimEnd('/'),
                 MaxRetries = 0,
