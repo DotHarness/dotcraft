@@ -46,7 +46,7 @@ import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { ReadonlyThreadRow } from './ReadonlyThreadRow'
 import { ProjectsSectionHeader } from './ProjectsSectionHeader'
 import { RecentsSection, type RecentsRow } from './RecentsSection'
-import { ReorderableThreadRow } from './ThreadReorder'
+import { ThreadListRow } from './ThreadListRow'
 import {
   collectPinnedProjectRows,
   orderPinnedRows,
@@ -428,23 +428,27 @@ export function ThreadList({
                       : t('projectsRail.noChats')}
                   />
                 )}
-                {projectThreads.map((thread) => (
-                  <ReorderableThreadRow
-                    key={thread.id}
-                    listId={`project:${projectKey}`}
-                    threadId={thread.id}
-                    enabled={reorderEnabled}
-                    onMove={(movedId, targetId, placement) =>
-                      setProjectOrder(projectKey, moveThreadId(projectReorderIds, movedId, targetId, placement))
-                    }
-                  >
-                    {isForeground ? (
-                      <ThreadEntryWrapper thread={thread} />
-                    ) : (
-                      <ReadonlyThreadRow thread={thread} project={project} />
-                    )}
-                  </ReorderableThreadRow>
-                ))}
+                {projectThreads.length > 0 && (
+                  <div role="list" aria-label={project.name || project.path}>
+                    {projectThreads.map((thread) => (
+                      <ThreadListRow
+                        key={thread.id}
+                        listId={`project:${projectKey}`}
+                        threadId={thread.id}
+                        reorderable={reorderEnabled}
+                        onMove={(movedId, targetId, placement) =>
+                          setProjectOrder(projectKey, moveThreadId(projectReorderIds, movedId, targetId, placement))
+                        }
+                      >
+                        {isForeground ? (
+                          <ThreadEntryWrapper thread={thread} />
+                        ) : (
+                          <ReadonlyThreadRow thread={thread} project={project} />
+                        )}
+                      </ThreadListRow>
+                    ))}
+                  </div>
+                )}
               </>
             )}
           </CollapsibleThreads>

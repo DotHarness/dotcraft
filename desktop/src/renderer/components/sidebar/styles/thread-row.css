@@ -61,18 +61,16 @@
   color: var(--text-secondary);
 }
 
-/* flow-root keeps the row's vertical margin inside the wrapper, where the
-   insertion line is drawn. */
-.dc-thread-reorder-row {
+.dc-thread-list-row {
   position: relative;
-  display: flow-root;
 }
 
-.dc-thread-reorder-row[data-dragging] {
+.dc-thread-list-row[data-dragging] {
   opacity: 0.4;
 }
 
-.dc-thread-reorder-row[data-drop-placement]::after {
+/* The row margins collapse into a 2px gap; the insertion line fills it. */
+.dc-thread-list-row[data-drop-placement]::after {
   content: "";
   position: absolute;
   left: 8px;
@@ -83,10 +81,10 @@
   pointer-events: none;
 }
 
-.dc-thread-reorder-row[data-drop-placement="before"]::after {
-  top: 0;
+.dc-thread-list-row[data-drop-placement="before"]::after {
+  top: -2px;
 }
 
-.dc-thread-reorder-row[data-drop-placement="after"]::after {
-  bottom: 0;
+.dc-thread-list-row[data-drop-placement="after"]::after {
+  bottom: -2px;
 }

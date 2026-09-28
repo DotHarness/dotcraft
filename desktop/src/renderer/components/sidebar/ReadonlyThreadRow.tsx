@@ -20,6 +20,7 @@ import { threadOriginBadge, useThreadEntryDetails } from './ThreadEntryDetails'
 import { ThreadRowLayout } from './ThreadRowLayout'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { isRemoteProject, isThreadRunning, isThreadWaiting, projectIdentity } from './projectThreads'
+import { useRememberRowSelection } from './threadRowSelection'
 
 /**
  * Pin is a Desktop-local setting keyed by workspace path, so the whole
@@ -58,6 +59,7 @@ export function ReadonlyThreadRow({
   const t = useT()
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
   const setPendingProjectThreadOpen = useUIStore((s) => s.setPendingProjectThreadOpen)
+  const rememberRowSelection = useRememberRowSelection()
   const running = isThreadRunning(thread)
   const waiting = isThreadWaiting(thread)
   const displayName = thread.displayName ?? t('sidebar.newConversation')
@@ -101,6 +103,7 @@ export function ReadonlyThreadRow({
   }
 
   async function openThread(): Promise<void> {
+    rememberRowSelection(thread.id)
     if (!isRemoteProject(project)) {
       if (project.state !== 'foreground') {
         setPendingProjectThreadOpen({

@@ -26,6 +26,7 @@ import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { threadOriginBadge, useThreadEntryDetails, workspacePathName } from './ThreadEntryDetails'
+import { useRememberRowSelection, useThreadRowSelected } from './threadRowSelection'
 import { buildWorkspaceOpenDeepLink } from '../../../shared/desktopDeepLink'
 
 interface ThreadEntryProps {
@@ -52,6 +53,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const chat = useWorkspaceProjectsStore((s) => s.chat)
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const isActive = activeThreadId === thread.id
+  const selected = useThreadRowSelected(thread.id)
+  const rememberRowSelection = useRememberRowSelection()
   const isSubAgent = isSubAgentThread(thread)
   const subAgentDepth = getSubAgentDepth(thread)
   const hasRunningTurn = runningTurnThreadIds.has(thread.id)
@@ -140,6 +143,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
 
   function handleClick(): void {
     if (renaming) return
+    rememberRowSelection(thread.id)
     setActiveThreadId(thread.id)
     setActiveMainView('conversation')
   }
@@ -280,7 +284,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
           cursor: dimmedTarget ? 'not-allowed' : 'pointer',
           backgroundColor: dropActive
             ? 'color-mix(in srgb, var(--accent) 14%, transparent)'
-            : isActive
+            : selected
               ? 'var(--sidebar-control-active)'
               : undefined,
           // dropActive = hovered valid target; alreadyBound = inset outline marking
@@ -304,6 +308,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                 : undefined
         }}
         containerProps={{
+          'aria-current': selected ? 'true' : undefined,
           onClick: handleClick,
           onContextMenu: handleContextMenu,
           draggable: !renaming,

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { installDesktopApiMock } from './desktopApiMock'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadList } from '../components/sidebar/ThreadList'
@@ -165,8 +165,8 @@ describe('ThreadList ordering', () => {
     renderList()
 
     const transfer = dataTransfer()
-    fireEvent.dragStart(screen.getByTestId('thread-reorder-recents-chat-c'), { dataTransfer: transfer })
-    const target = screen.getByTestId('thread-reorder-recents-chat-a')
+    fireEvent.dragStart(screen.getByTestId('thread-list-row-recents-chat-c'), { dataTransfer: transfer })
+    const target = screen.getByTestId('thread-list-row-recents-chat-a')
     dragOverUpperHalf(target, transfer)
     fireEvent.drop(target, { dataTransfer: transfer })
 
@@ -197,14 +197,33 @@ describe('ThreadList ordering', () => {
     renderList()
 
     const transfer = dataTransfer()
-    fireEvent.dragStart(screen.getByTestId('thread-reorder-pinned-pin-c'), { dataTransfer: transfer })
-    const target = screen.getByTestId('thread-reorder-pinned-pin-b')
+    fireEvent.dragStart(screen.getByTestId('thread-list-row-pinned-pin-c'), { dataTransfer: transfer })
+    const target = screen.getByTestId('thread-list-row-pinned-pin-b')
     dragOverUpperHalf(target, transfer)
     fireEvent.drop(target, { dataTransfer: transfer })
 
     await waitFor(() => {
       expect(settingsSet).toHaveBeenCalledWith({ pinnedThreadOrder: ['pin-c', 'pin-b'] })
     })
+  })
+
+  it('marks only the selected copy of a thread listed in both Projects and Recents as current', () => {
+    useSidebarThreadOrderStore.getState().hydrate({ recentsShowProjects: true })
+    useThreadStore.getState().setThreadList([makeThread('shared', 2)], '/workspace/a')
+    renderList()
+
+    const projectCopy = within(screen.getByTestId('thread-list-row-project:/workspace/a-shared'))
+      .getByTestId('thread-entry-shared')
+    const recentsCopy = within(screen.getByTestId('thread-list-row-recents-shared'))
+      .getByTestId('thread-entry-shared')
+
+    act(() => useThreadStore.getState().setActiveThreadId('shared'))
+    expect(projectCopy).toHaveAttribute('aria-current', 'true')
+    expect(recentsCopy).not.toHaveAttribute('aria-current')
+
+    fireEvent.click(recentsCopy)
+    expect(recentsCopy).toHaveAttribute('aria-current', 'true')
+    expect(projectCopy).not.toHaveAttribute('aria-current')
   })
 
   it('hides section options that cannot change anything', () => {
@@ -240,8 +259,8 @@ describe('ThreadList ordering', () => {
     renderList()
 
     const transfer = dataTransfer()
-    fireEvent.dragStart(screen.getByTestId('thread-reorder-project:/workspace/b-project-b'), { dataTransfer: transfer })
-    const target = screen.getByTestId('thread-reorder-recents-chat-a')
+    fireEvent.dragStart(screen.getByTestId('thread-list-row-project:/workspace/b-project-b'), { dataTransfer: transfer })
+    const target = screen.getByTestId('thread-list-row-recents-chat-a')
     dragOverUpperHalf(target, transfer)
     fireEvent.drop(target, { dataTransfer: transfer })
 

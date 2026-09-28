@@ -6,7 +6,7 @@ import type { ThreadSummary } from '../../types/thread'
 import type { ContextMenuEntry } from '../ui/ContextMenu'
 import { ReadonlyThreadRow } from './ReadonlyThreadRow'
 import { ThreadEntry } from './ThreadEntry'
-import { ReorderableThreadRow } from './ThreadReorder'
+import { ThreadListRow } from './ThreadListRow'
 import { CollapsibleThreads, SectionOptionsMenu, SidebarSectionHeader } from './SidebarSectionParts'
 import {
   filterProjectThreads,
@@ -130,6 +130,7 @@ export function PinnedProjectSection({
   reorderEnabled: boolean
   onMove: (movedId: string, targetId: string, placement: ThreadDropPlacement) => void
 }): JSX.Element {
+  const t = useT()
   return (
     <div style={{ marginBottom: '8px' }}>
       <PinnedSectionHeader
@@ -139,21 +140,25 @@ export function PinnedProjectSection({
         onSortChange={onSortChange}
       />
       <CollapsibleThreads collapsed={collapsed} marginTop={0}>
-        {rows.map(({ project, thread, interactiveForeground }) => (
-          <ReorderableThreadRow
-            key={`${projectIdentity(project)}:${thread.id}`}
-            listId="pinned"
-            threadId={thread.id}
-            enabled={reorderEnabled}
-            onMove={onMove}
-          >
-            {interactiveForeground ? (
-              <ThreadEntry thread={thread} />
-            ) : (
-              <ReadonlyThreadRow thread={thread} project={project} pinned variant="pinned" />
-            )}
-          </ReorderableThreadRow>
-        ))}
+        {rows.length > 0 && (
+          <div role="list" aria-label={t('threadGroup.pinned')}>
+            {rows.map(({ project, thread, interactiveForeground }) => (
+              <ThreadListRow
+                key={`${projectIdentity(project)}:${thread.id}`}
+                listId="pinned"
+                threadId={thread.id}
+                reorderable={reorderEnabled}
+                onMove={onMove}
+              >
+                {interactiveForeground ? (
+                  <ThreadEntry thread={thread} />
+                ) : (
+                  <ReadonlyThreadRow thread={thread} project={project} pinned variant="pinned" />
+                )}
+              </ThreadListRow>
+            ))}
+          </div>
+        )}
         {projects.map(renderProject)}
       </CollapsibleThreads>
     </div>

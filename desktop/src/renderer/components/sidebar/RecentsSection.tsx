@@ -9,7 +9,7 @@ import type { ContextMenuEntry } from '../ui/ContextMenu'
 import { IconButton } from '../ui/IconButton'
 import { ReadonlyThreadRow } from './ReadonlyThreadRow'
 import { ThreadEntry } from './ThreadEntry'
-import { ReorderableThreadRow } from './ThreadReorder'
+import { ThreadListRow } from './ThreadListRow'
 import type { ThreadDropPlacement } from './threadOrdering'
 import { projectIdentity } from './projectThreads'
 import {
@@ -128,24 +128,24 @@ export function RecentsSection({
             alignment="section"
           />
         ) : (
-          rows.map((row) => {
-            const entry = row.interactive ? (
-              <ThreadEntry thread={row.thread} />
-            ) : (
-              <ReadonlyThreadRow thread={row.thread} project={row.project} pinned={row.pinned} />
-            )
-            return (
-              <ReorderableThreadRow
+          <div role="list" aria-label={t('recentsRail.title')}>
+            {rows.map((row) => (
+              <ThreadListRow
                 key={row.key}
                 listId="recents"
                 threadId={row.thread.id}
-                enabled={reorderEnabled && !row.pinned}
+                home={row.project.kind === 'chat'}
+                reorderable={reorderEnabled && !row.pinned}
                 onMove={onMove}
               >
-                {entry}
-              </ReorderableThreadRow>
-            )
-          })
+                {row.interactive ? (
+                  <ThreadEntry thread={row.thread} />
+                ) : (
+                  <ReadonlyThreadRow thread={row.thread} project={row.project} pinned={row.pinned} />
+                )}
+              </ThreadListRow>
+            ))}
+          </div>
         )}
       </CollapsibleThreads>
     </div>
