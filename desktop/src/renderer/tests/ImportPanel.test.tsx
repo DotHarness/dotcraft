@@ -58,7 +58,7 @@ describe('ImportPanel', () => {
     vi.clearAllMocks()
     notify = null
     runFailure = null
-    settingsFixture = { syncEnabled: false, sources: ['codex'], syncIntervalMinutes: 720, workspaceOptOut: false, hasImported: false, selection: { all: false, user: [], workspace: [], sessions: true } }
+    settingsFixture = { syncEnabled: false, sources: [], syncIntervalMinutes: 720, workspaceOptOut: false, hasImported: false, selection: { all: false, user: [], workspace: [], sessions: true } }
     useToastStore.setState({ toasts: [] })
     sendRequest.mockImplementation(async (method: string, params: Record<string, unknown>) => {
       switch (method) {
@@ -115,26 +115,19 @@ describe('ImportPanel', () => {
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'))
   })
 
-  it('registers the source for sync before running the import it confirms', async () => {
-    await renderLoadedPanel()
-
-    await confirmImport('Claude Code')
-
-    const methods = sendRequest.mock.calls.map(([method]) => method)
-    expect(methods.indexOf('import/settings/set')).toBeLessThan(methods.indexOf('import/run'))
-    expect(sendRequest).toHaveBeenCalledWith('import/settings/set', { sources: ['codex', 'claude-code'] })
-    expect(sendRequest).toHaveBeenCalledWith('import/run', expect.objectContaining({ sources: ['claude-code'], selection: expect.objectContaining({ sessions: true }), items: expect.arrayContaining([expect.objectContaining({ sourceId: 'a', fingerprint: 'hash' })]) }))
-    expect(await importButton('Claude Code')).toHaveAttribute('aria-busy', 'true')
-  })
-
-  it('leaves sync settings alone when the source is already a sync source', async () => {
-    settingsFixture = { ...settingsFixture, sources: ['claude-code'] }
+  it('submits what the dialog offered and leaves source registration to the server', async () => {
     await renderLoadedPanel()
 
     await confirmImport('Claude Code')
 
     expect(requestsFor('import/settings/set')).toEqual([])
-    expect(sendRequest).toHaveBeenCalledWith('import/run', expect.objectContaining({ sources: ['claude-code'], selection: expect.objectContaining({ sessions: true }), items: expect.arrayContaining([expect.objectContaining({ sourceId: 'a', fingerprint: 'hash' })]) }))
+    expect(sendRequest).toHaveBeenCalledWith('import/run', expect.objectContaining({
+      sources: ['claude-code'],
+      selection: expect.objectContaining({ sessions: true }),
+      offered: expect.objectContaining({ sessions: true }),
+      items: expect.arrayContaining([expect.objectContaining({ sourceId: 'a', fingerprint: 'hash' })])
+    }))
+    expect(await importButton('Claude Code')).toHaveAttribute('aria-busy', 'true')
   })
 
   it('shows the running pass when another import already owns the workspace', async () => {

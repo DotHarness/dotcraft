@@ -30,9 +30,11 @@ Supported categories are `skills`, `instructions`, `commands`, `hooks`, `mcp`, `
   means the plugin cannot be imported. Remote fetches are noninteractive and never run install scripts.
 
 Claude brand variants are replaced case-insensitively at word boundaries. Cursor replaces the exact
-case-sensitive word `Cursor`; Codex replaces `Codex`. Targets use `DotCraft`. Source instruction
-filenames become `AGENTS.md`. Rewriting applies to instructions, SKILL.md, commands, and descriptions,
-not arbitrary scripts or binary files. Hook paths and plugin root variables have dedicated conversions.
+case-sensitive word `Cursor`; Codex replaces `Codex`. Targets use `DotCraft`. Brand replacement
+applies to prose only: fenced code, inline code, and path, package, or domain forms keep the source
+name. Source instruction filenames become `AGENTS.md` everywhere. Rewriting applies to instructions,
+SKILL.md, commands, and descriptions, not arbitrary scripts or binary files. Hook paths and plugin root
+variables have dedicated conversions.
 
 ## Transactions and protocol
 
@@ -56,10 +58,14 @@ runtimes refresh before subsequent capability reads and turns. Running turns are
 ## Sync and presentation
 
 `AgentImport` stores `SyncEnabled`, `Sources`, `Selection`, and `SyncInterval` (12 hours by default).
-Sync defaults off. Selection distinguishes user and workspace categories and sessions; an explicit
-all-categories choice includes future categories. No old configuration is migrated or consulted.
-Pausing retains selection. Startup catches up; an unopened workspace catches up when next started.
-Global passes coordinate through a process lock and shared last-check time.
+Sync defaults off. `Sources` starts empty; an accepted manual import adds its source, and sync does
+not run without a source. Selection distinguishes user and workspace categories and sessions; an
+explicit all-categories choice includes future categories. A manual import merges into `Selection`:
+categories and sessions the run `offered` take the run's choice, others keep their saved value, and a
+saved all-categories choice is unchanged. An omitted `offered` equals the run's selection. No old
+configuration is migrated or consulted. Pausing retains selection. Startup catches up; an unopened
+workspace catches up when next started. Global passes coordinate through a process lock and shared
+last-check time.
 
 Setup sync only fills missing destinations, never updates or deletes installed content. Deleting a
 destination permits later reimport while that category remains selected. Session append rules remain

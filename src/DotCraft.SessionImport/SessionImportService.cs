@@ -94,11 +94,13 @@ public sealed partial class SessionImportService : ISessionServiceConsumer
     public string Run(
         IReadOnlyList<string> sources,
         Contract.ImportSelection selection,
-        IReadOnlyList<Contract.ImportItemReference> items)
+        IReadOnlyList<Contract.ImportItemReference> items,
+        Contract.ImportSelection? offered = null)
     {
         if (sources.Count == 0)
             throw new ArgumentException("At least one source is required.", nameof(sources));
         ImportCategories.Validate(selection);
+        if (offered != null) ImportCategories.Validate(offered);
         var request = new PassRequest(
             SessionImportIdentity.NewImportId(),
             ManualTrigger,
@@ -109,7 +111,8 @@ public sealed partial class SessionImportService : ISessionServiceConsumer
         {
             if (_activePass is not null)
                 throw new SessionImportException(SessionImportErrorCodes.Busy, "An import is already running in this workspace.");
-            UpdateSettings(null, _settingsStore.ReadUserSettings().Sources.Union(sources).ToArray(), selection);
+            var saved = _settingsStore.ReadUserSettings();
+            UpdateSettings(null, saved.Sources.Union(sources).ToArray(), ImportCategories.Merge(saved.Selection, offered ?? selection, selection));
             _activePass = StartPassLoop(request);
         }
 
@@ -118,6 +121,7 @@ public sealed partial class SessionImportService : ISessionServiceConsumer
 
     public void RequestSyncPass()
     {
+        if (_settingsStore.ReadUserSettings().Sources.Count == 0) return;
         lock (_passLock)
         {
             if (_activePass is not null)

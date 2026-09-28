@@ -1584,6 +1584,7 @@ export interface ImportProgressNotification {
 
 export interface ImportRunParams {
   items: ImportItemReference[];
+  offered?: ImportSelection;
   selection: ImportSelection;
   sources: string[];
   [key: string]: unknown;

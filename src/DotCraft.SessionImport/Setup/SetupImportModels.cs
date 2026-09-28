@@ -26,4 +26,15 @@ public static class ImportCategories
             || selection.Workspace.Contains("plugins"))
             throw new ArgumentException("Unknown or unsupported import category selection.");
     }
+
+    public static ImportSelection Merge(ImportSelection saved, ImportSelection offered, ImportSelection chosen) => saved.All ? saved : new()
+    {
+        User = Combine(saved.User, offered.User, chosen.User),
+        Workspace = Combine(saved.Workspace, offered.Workspace, chosen.Workspace),
+        Sessions = offered.Sessions ? chosen.Sessions : saved.Sessions
+    };
+
+    private static string[] Combine(IReadOnlyList<string> saved, IReadOnlyList<string> offered, IReadOnlyList<string> chosen) =>
+        Setup.Where(category => chosen.Contains(category, StringComparer.Ordinal)
+            || saved.Contains(category, StringComparer.Ordinal) && !offered.Contains(category, StringComparer.Ordinal)).ToArray();
 }

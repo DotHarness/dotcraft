@@ -6504,6 +6504,9 @@
             "$ref": "#/$defs/ImportItemReference"
           }
         },
+        "offered": {
+          "$ref": "#/$defs/ImportSelection"
+        },
         "selection": {
           "$ref": "#/$defs/ImportSelection"
         },

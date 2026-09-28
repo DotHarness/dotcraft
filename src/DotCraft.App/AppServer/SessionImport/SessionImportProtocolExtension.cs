@@ -75,7 +75,8 @@ public sealed class SessionImportProtocolExtension(SessionImportService imports,
             ImportId = imports.Run(
                 p.Sources ?? throw new ArgumentException("sources is required."),
                 p.Selection ?? throw new ArgumentException("selection is required."),
-                p.Items ?? throw new ArgumentException("items is required."))
+                p.Items ?? throw new ArgumentException("items is required."),
+                p.Offered.IsSet ? p.Offered.Value : null)
         };
 
     private Contract.ImportSettingsResult UpdateSettings(Contract.ImportSettingsSetParams p) =>

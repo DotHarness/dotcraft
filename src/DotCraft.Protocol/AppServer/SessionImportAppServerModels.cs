@@ -49,6 +49,7 @@ public sealed class ImportRunParams : ExtensibleJsonObject
     [JsonPropertyName("sources")] public required IReadOnlyList<string> Sources { get; init; }
     [JsonPropertyName("items")] public required IReadOnlyList<ImportItemReference> Items { get; init; }
     [JsonPropertyName("selection")] public required ImportSelection Selection { get; init; }
+    [JsonPropertyName("offered")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public Optional<ImportSelection> Offered { get; init; }
 }
 
 public sealed class ImportItemReference : ExtensibleJsonObject

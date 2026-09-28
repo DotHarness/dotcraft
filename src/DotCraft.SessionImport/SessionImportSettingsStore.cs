@@ -18,7 +18,7 @@ public sealed class SessionImportSettingsStore(string userConfigPath, string wor
         var section = Section(userConfigPath);
         var sources = Value(section, "Sources") is JsonArray values
             ? values.Select(v => v!.GetValue<string>()).Where(SessionImportSources.IsKnown).Distinct().ToArray()
-            : SessionImportSources.All;
+            : [];
         return new(Value(section, "SyncEnabled")?.GetValue<bool>() == true, sources,
             Value(section, "Selection")?.Deserialize<ImportSelection>(JsonOptions) ?? new ImportSelection());
     }

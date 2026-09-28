@@ -132,16 +132,18 @@ export function ImportPanel({ workspacePath }: ImportPanelProps): JSX.Element {
     }
   }
 
-  async function handleImport(source: string, total: number, selection: ImportSelection, items: ImportItemReference[]): Promise<void> {
+  async function handleImport(
+    source: string,
+    total: number,
+    selection: ImportSelection,
+    offered: ImportSelection,
+    items: ImportItemReference[]
+  ): Promise<void> {
     const generation = workspaceGeneration.current
-    if (settings && !settings.sources.includes(source)) {
-      await saveSettings({ sources: [...settings.sources, source] })
-    }
-    if (generation !== workspaceGeneration.current) return
     const started: RunningImport = { source, completed: 0, total }
     setRunning(started)
     try {
-      await window.api.appServer.sendRequest('import/run', { sources: [source], selection, items })
+      await window.api.appServer.sendRequest('import/run', { sources: [source], selection, offered, items })
     } catch (error) {
       if (generation !== workspaceGeneration.current) return
       const busy = readAppServerErrorFields(error).data?.code === 'import_busy'
@@ -300,7 +302,7 @@ export function ImportPanel({ workspacePath }: ImportPanelProps): JSX.Element {
           items={dialogEntry?.items ?? []}
           workspaceName={workspacePath?.split(/[\\/]/).filter(Boolean).at(-1) ?? ''}
           workspacePath={workspacePath}
-          onConfirm={(selection, items) => handleImport(dialogSource, dialogCount, selection, items)}
+          onConfirm={(selection, offered, items) => handleImport(dialogSource, dialogCount, selection, offered, items)}
           onClose={() => setDialogSource(null)}
         />
       )}

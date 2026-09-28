@@ -3557,8 +3557,8 @@ conversion, scope, and sync contract is [Agent import](../features/agent-import.
 | Method | Direction | Parameters / result |
 |--------|-----------|---------------------|
 | `import/detect` | request | Optional `sources`; returns source availability, `items`, and importable counts. |
-| `import/run` | request | Required `sources`, `items` (source, sourceId, fingerprint), and `selection`; returns `importId`. |
-| `import/settings/get` | request | Returns sync state, sources, selection, interval, last sync, workspace opt-out, host name, and whether imports exist. |
+| `import/run` | request | Required `sources`, `items` (source, sourceId, fingerprint), and `selection`; optional `offered` (categories the client presented); returns `importId`. |
+| `import/settings/get` | request | Returns sync state, sources, selection, interval, last sync, workspace opt-out, and whether imports exist. |
 | `import/settings/set` | request | Optional syncEnabled, sources, selection; omitted fields retain their values. |
 | `import/history/list` | request | Returns recent `imports` and currently actionable `attention` outcomes. |
 | `import/progress` | notification | importId, source, completed, total. |

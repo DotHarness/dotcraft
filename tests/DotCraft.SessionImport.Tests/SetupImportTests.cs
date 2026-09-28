@@ -49,6 +49,17 @@ public sealed class SetupImportTests : IDisposable
     }
 
     [Fact]
+    public async Task BrandRewritesLeaveCodeAndPathsIntact()
+    {
+        const string code = "```\nclaude --version\n```";
+        Write(_roots["claude-code"], "CLAUDE.md", $"Claude Code runs `claude mcp add` and ~/.claude/hooks/check.sh from @scope/claude-code. Ask Claude.\n{code}");
+        var service = Service();
+        await Run(service, "claude-code", await Candidates(service, "claude-code"));
+        Assert.Equal($"DotCraft runs `claude mcp add` and ~/.claude/hooks/check.sh from @scope/claude-code. Ask DotCraft.\n{code}",
+            File.ReadAllText(Path.Combine(_user, "AGENTS.md")));
+    }
+
+    [Fact]
     public async Task SourceChangesAfterDetectionRequireNewSelection()
     {
         Write(_roots["cursor"], "commands/review.md", "Cursor reviews");

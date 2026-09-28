@@ -63,7 +63,7 @@ public sealed class SessionImportSettingsTests : IDisposable
     public async Task SyncRuntimeImportsOnStartAndRecordsTheSyncTime()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_userConfig)!);
-        File.WriteAllText(_userConfig, "{\"AgentImport\":{\"SyncEnabled\":true,\"Selection\":{\"sessions\":true}}}");
+        File.WriteAllText(_userConfig, "{\"AgentImport\":{\"SyncEnabled\":true,\"Sources\":[\"claude-code\"],\"Selection\":{\"sessions\":true}}}");
         _source.Put("s1", turnCount: 1, hash: "h1", _workspace, DateTimeOffset.UtcNow.AddHours(-1));
         var service = CreateService();
         var completion = new TaskCompletionSource<ImportCompletedNotification>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -77,6 +77,62 @@ public sealed class SessionImportSettingsTests : IDisposable
         Assert.Equal("sync", completed.Trigger);
         Assert.Equal("imported", Assert.Single(completed.Outcomes).Status);
         Assert.Equal(completed.StartedAt, service.GetSettings().LastSyncAt.Value, TimeSpan.FromMilliseconds(1));
+    }
+
+    [Fact]
+    public async Task SourcesStartEmptyAndSyncWaitsForAnAcceptedImport()
+    {
+        var service = CreateService();
+        Assert.Empty(service.GetSettings().Sources);
+
+        service.RequestSyncPass();
+        await RunAsync(service, new ImportSelection { Sessions = true });
+
+        Assert.Equal(new[] { SessionImportSources.ClaudeCode }, service.GetSettings().Sources);
+    }
+
+    [Fact]
+    public async Task ManualImportsMergeIntoTheSavedSyncSelection()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_userConfig)!);
+        File.WriteAllText(_userConfig, "{\"AgentImport\":{\"Selection\":{\"user\":[\"skills\",\"hooks\"],\"workspace\":[\"commands\"],\"sessions\":true}}}");
+        var service = CreateService();
+
+        await RunAsync(service, new ImportSelection { User = ["mcp"] }, new ImportSelection { User = ["hooks", "mcp"], Sessions = true });
+        var offered = service.GetSettings().Selection;
+        await RunAsync(service, new ImportSelection { Workspace = ["instructions"] });
+        var implicitOffer = service.GetSettings().Selection;
+
+        Assert.Equal(new[] { "skills", "mcp" }, offered.User);
+        Assert.Equal(new[] { "commands" }, offered.Workspace);
+        Assert.False(offered.Sessions);
+        Assert.Equal(new[] { "instructions", "commands" }, implicitOffer.Workspace);
+        Assert.Equal(new[] { "skills", "mcp" }, implicitOffer.User);
+    }
+
+    [Fact]
+    public async Task ManualImportsKeepAnAllCategoriesSyncChoice()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_userConfig)!);
+        File.WriteAllText(_userConfig, "{\"AgentImport\":{\"Selection\":{\"all\":true}}}");
+        var service = CreateService();
+
+        await RunAsync(service, new ImportSelection { Sessions = true }, new ImportSelection { User = ["skills"], Sessions = true });
+
+        Assert.True(service.GetSettings().Selection.All);
+    }
+
+    private static async Task RunAsync(SessionImportService service, ImportSelection selection, ImportSelection? offered = null)
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Complete(ImportCompletedNotification _) => completion.TrySetResult();
+        service.Completed += Complete;
+        try
+        {
+            service.Run([SessionImportSources.ClaudeCode], selection, [], offered);
+            await completion.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally { service.Completed -= Complete; }
     }
 
     private SessionImportService CreateService()

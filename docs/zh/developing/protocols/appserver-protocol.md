@@ -613,8 +613,8 @@ JSON-RPC 错误响应使用标准 `error` 字段：
 
 `extensions.agentImport` 能力启用 `import/detect`、`import/run`、`import/settings/get`、
 `import/settings/set` 和 `import/history/list`。检测返回包含作用域和指纹的候选项。
-向 `import/run` 提交所选来源、项目引用和类别选择，通过 `import/progress` 与 `import/completed`
-接收进度和完成结果。导入只补充缺失内容，来源位于 AppServer 主机。历史结果另含当前需要处理的项目列表。
+向 `import/run` 提交所选来源、项目引用和类别选择，并可附带 `offered`，说明界面展示了哪些类别。
+已保存的同步选择只会按本次结果更新这些类别。通过 `import/progress` 与 `import/completed` 接收进度和完成结果。导入只补充缺失内容，来源位于 AppServer 主机。历史结果另含当前需要处理的项目列表。
 
 MCP 的 `upsert` 和 `remove` 必须指定 `user` 或 `workspace` 作用域。`mcp/list` 返回的来源信息
 标明当前生效的作用域。编辑用户级服务器会写回用户配置。

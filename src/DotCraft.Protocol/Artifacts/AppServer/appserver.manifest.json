@@ -7914,6 +7914,13 @@
           "const": null
         },
         {
+          "name": "offered",
+          "type": "core.ImportSelection",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "selection",
           "type": "core.ImportSelection",
           "required": true,

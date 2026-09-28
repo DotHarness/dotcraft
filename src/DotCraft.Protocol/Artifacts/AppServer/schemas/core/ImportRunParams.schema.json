@@ -10,6 +10,9 @@
         "$ref": "./ImportItemReference.schema.json"
       }
     },
+    "offered": {
+      "$ref": "./ImportSelection.schema.json"
+    },
     "selection": {
       "$ref": "./ImportSelection.schema.json"
     },

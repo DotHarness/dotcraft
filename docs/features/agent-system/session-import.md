@@ -33,7 +33,7 @@ Once you continue an imported chat in DotCraft, it belongs to DotCraft. Later me
 
 ## Keep imports in sync
 
-With sync on, DotCraft checks the selected apps while the project is open. Use **Content to sync › Customize** to choose categories, or explicitly include all categories and future additions. Tools and configuration are imported only when missing; existing content is never replaced or deleted. If you delete an imported item while its category is still selected, a later sync can import it again.
+With sync on, DotCraft checks the apps you have imported from while the project is open. A later manual import only adjusts the categories it showed. Use **Content to sync › Customize** to choose categories, or explicitly include all categories and future additions. Tools and configuration are imported only when missing; existing content is never replaced or deleted. If you delete an imported item while its category is still selected, a later sync can import it again.
 
 Turn sync off from **Settings › Import** to pause. Your selections and imported content remain. **Check again** refreshes the available imports immediately.
 

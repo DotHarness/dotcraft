@@ -18,7 +18,7 @@ interface ImportItemsDialogProps {
   workspaceName: string
   workspacePath?: string
   /** Rejects with the reason to show inline; the owner closes the dialog on success. */
-  onConfirm: (selection: ImportSelection, items: ImportItemReference[]) => Promise<void>
+  onConfirm: (selection: ImportSelection, offered: ImportSelection, items: ImportItemReference[]) => Promise<void>
   onClose: () => void
 }
 
@@ -46,7 +46,8 @@ export function ImportItemsDialog({
       const references = items
         .filter(item => selected.has(importItemKey(item)))
         .map(({ source, sourceId, fingerprint }) => ({ source, sourceId, fingerprint }))
-      await onConfirm(selectionFor(items, selected), references)
+      const offered = selectionFor(items, new Set(items.filter(importable).map(importItemKey)))
+      await onConfirm(selectionFor(items, selected), offered, references)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       setBusy(false)

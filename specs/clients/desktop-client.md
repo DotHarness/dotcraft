@@ -1048,8 +1048,9 @@ Required behavior:
   location. Rows that do not expand offer an info control with item names, conversion notes, and entries
   that are already available or unsupported, never configuration secrets. Chat sessions are one row
   with a count.
-- Confirming submits the selected item identities, fingerprints, and categories to `import/run`.
-  `import/progress` updates the importing row. Completion refreshes candidates, settings, and history.
+- Confirming submits the selected item identities, fingerprints, and categories, plus the categories the
+  dialog offered, to `import/run`. The server registers the source. `import/progress` updates the
+  importing row. Completion refreshes candidates, settings, and history.
 - **Keep imports in sync** applies immediately and reads as paused while off after an import. A workspace
   opt-out disables the toggle. **Content to sync** summarizes the saved selection and becomes
   customizable after the first import. Customizing exposes category/scope selection and an explicit

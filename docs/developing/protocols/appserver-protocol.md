@@ -614,8 +614,10 @@ Recommended handling:
 
 The `extensions.agentImport` capability enables `import/detect`, `import/run`, `import/settings/get`,
 `import/settings/set`, and `import/history/list`. Detection returns scoped candidates with fingerprints.
-Submit the selected source ids, item references, and category selection to `import/run`; progress and
-completion arrive through `import/progress` and `import/completed`. Import is additive and reads sources
+Submit the selected source ids, item references, and category selection to `import/run`, plus an
+optional `offered` selection naming the categories your UI presented. The saved sync selection takes
+the new choice only for offered categories. Progress and completion arrive through `import/progress`
+and `import/completed`. Import is additive and reads sources
 on the AppServer host. History includes a separate list of currently actionable items.
 
 MCP `upsert` and `remove` require a `scope` of `user` or `workspace`. The origin returned by `mcp/list`
