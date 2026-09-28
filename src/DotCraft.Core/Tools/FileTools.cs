@@ -164,16 +164,17 @@ public sealed class FileTools(
     [Description("Write content to a file at the given path. Creates parent directories if needed. Prefer this tool for creating new files or intentional full-file rewrites. When modifying an existing file, prefer EditFile for targeted changes.")]
     [Tool(Icon = "✏️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.WriteFile))]
     [ToolRpc]
-    public async Task<string> WriteFile(
+    public async Task<ToolExecutionResult> WriteFile(
         [Description("The workspace-relative or absolute file path to write to.")] string path,
         [Description("The content to write.")] string content)
     {
+        var outcome = new FileWriteOutcome();
         try
         {
             var fullPath = ResolvePath(path);
             var validateResult = await ValidatePathAsync(fullPath, "write", path);
             if (validateResult != null)
-                return validateResult;
+                return outcome.Fail(validateResult, ToolErrorCodes.AccessDenied);
 
             using (await PathAsyncMutex.AcquireAsync(fullPath))
             {
@@ -186,68 +187,68 @@ public sealed class FileTools(
                     ? await TextFileEncoding.ReadAsync(fullPath, path)
                     : (null, Utf8NoBom, null);
                 if (error != null)
-                    return error;
+                    return outcome.Fail(error, ToolErrorCodes.InputInvalid);
                 content = RestoreLineEndings(NormalizeToLf(content), before != null && UsesCrLf(before));
 
+                outcome.BeginWrite();
                 await WriteAllTextEnsuringDirectoryAsync(fullPath, content, encoding);
-                ReportFileChange(fullPath, existedBefore ? FileChangeKind.Update : FileChangeKind.Add, before, content);
-
-                await NotifyLspFileChangedAsync(fullPath, content);
                 var lineCount = content.Split('\n').Length;
-                return $"Successfully wrote {content.Length} bytes ({lineCount} lines) to {path}";
+                var result = outcome.Complete(
+                    CreateFileChange(fullPath, existedBefore ? FileChangeKind.Update : FileChangeKind.Add, before, content),
+                    $"Successfully wrote {content.Length} bytes ({lineCount} lines) to {path}", ChangeReporter);
+                await NotifyLspFileChangedAsync(fullPath, content);
+                return result;
             }
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return $"Error: Permission denied: {path}";
         }
         catch (Exception ex)
         {
-            return $"Error writing file: {ex.Message}";
+            return outcome.Fail(ex, "Error writing file");
         }
     }
 
     [Description("Replace text in a file: provide oldText (snippet to find) and newText. Prefer a minimal unique snippet (typically 2-6 lines including nearby context) instead of large pasted blocks. For existing files, prefer targeted EditFile replacements over full-file rewrites, even when many changes are needed. Use WriteFile for new files or intentional full rewrites. When replaceAll is false (default), matching tries exact text first, then fuzzy fallbacks (line trim, indentation, collapsed whitespace, Unicode punctuation); oldText must match exactly one location unless you set replaceAll to true. Use replaceAll only when you intentionally want to replace every exact occurrence at once.")]
     [Tool(Icon = "🔄", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.EditFile))]
     [ToolRpc]
-    public async Task<string> EditFile(
+    public async Task<ToolExecutionResult> EditFile(
         [Description("The workspace-relative or absolute file path to edit.")] string path,
         [Description("The exact snippet from the file to replace. Include enough surrounding lines to be unique when replaceAll is false.")] string oldText = "",
         [Description("The replacement text.")] string newText = "",
         [Description("If true, replace all exact occurrences of oldText (no fuzzy matching). Defaults to false.")] bool replaceAll = false)
     {
+        var outcome = new FileWriteOutcome();
         try
         {
             var fullPath = ResolvePath(path);
             var validateResult = await ValidatePathAsync(fullPath, "edit", path);
             if (validateResult != null)
-                return validateResult;
+                return outcome.Fail(validateResult, ToolErrorCodes.AccessDenied);
 
             newText = UnescapeUnicodeSequences(newText);
 
             if (string.IsNullOrEmpty(oldText))
-                return "Error: oldText is required. Provide the exact snippet to find and replace.";
+                return outcome.Fail("Error: oldText is required. Provide the exact snippet to find and replace.", ToolErrorCodes.InputInvalid);
 
             oldText = UnescapeUnicodeSequences(oldText);
 
-            string result;
+            ToolExecutionResult result;
             string? writtenContent;
             using (await PathAsyncMutex.AcquireAsync(fullPath))
             {
                 if (!File.Exists(fullPath))
-                    return $"Error: File not found: {path}";
+                    return outcome.Fail($"Error: File not found: {path}", ToolErrorCodes.ExecutionFailed);
 
                 var (content, encoding, error) = await TextFileEncoding.ReadAsync(fullPath, path);
                 if (error != null)
-                    return error;
+                    return outcome.Fail(error, ToolErrorCodes.InputInvalid);
 
                 var prepared = PrepareSearchReplaceEdit(path, content!, oldText, newText, replaceAll);
                 if (prepared.WrittenContent == null)
-                    return prepared.Result;
+                    return outcome.Fail(prepared.Result, ToolErrorCodes.InputInvalid);
 
+                outcome.BeginWrite();
                 await TextFileEncoding.WriteAsync(fullPath, prepared.WrittenContent, encoding);
-                ReportFileChange(fullPath, FileChangeKind.Update, content, prepared.WrittenContent);
-                result = prepared.Result;
+                result = outcome.Complete(CreateFileChange(fullPath, FileChangeKind.Update, content, prepared.WrittenContent),
+                    prepared.Result, ChangeReporter);
                 writtenContent = prepared.WrittenContent;
             }
 
@@ -256,13 +257,9 @@ public sealed class FileTools(
 
             return result;
         }
-        catch (UnauthorizedAccessException)
-        {
-            return $"Error: Permission denied: {path}";
-        }
         catch (Exception ex)
         {
-            return $"Error editing file: {ex.Message}";
+            return outcome.Fail(ex, "Error editing file");
         }
     }
 
@@ -585,16 +582,16 @@ public sealed class FileTools(
         }
     }
 
-    private void ReportFileChange(string fullPath, FileChangeKind kind, string? before, string after)
+    internal Func<FileChangeRecord, System.Text.Json.JsonElement> ChangeReporter { get; init; } = FileChangeStructuredContent.Build;
+
+    private FileChangeRecord CreateFileChange(string fullPath, FileChangeKind kind, string? before, string after)
     {
         var relative = Path.GetRelativePath(_workspaceRoot, fullPath).Replace('\\', '/');
         var insideWorkspace = !Path.IsPathRooted(relative)
             && relative != ".."
             && !relative.StartsWith("../", StringComparison.Ordinal);
         var displayPath = insideWorkspace ? relative : fullPath.Replace('\\', '/');
-        var change = new FileChangeRecord(fullPath, displayPath, kind, before, after);
-        ToolResultAttachmentScope.Current?.SetStructuredContent(FileChangeStructuredContent.Build(change));
-        TurnDiffTrackerScope.Current?.Track(change);
+        return new FileChangeRecord(fullPath, displayPath, kind, before, after);
     }
 
     private static (string Result, string? WrittenContent) PrepareSearchReplaceEdit(

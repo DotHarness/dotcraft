@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.1.0 |
+| Version | 0.7.8 |
 | Status | Living |
-| Date | 2026-05-27 |
+| Date | 2026-09-28 |
 | Parent Spec | [Oratorio Design](./oratorio-design.md) |
 
 This document is the canonical frontend contract for the Oratorio surfaces in
@@ -16,8 +16,6 @@ conversation, approval decisions, plan inspection, diff/file/terminal/preview
 views, model selection, stop controls, and general follow-up turns belong in
 DotCraft Desktop. The Task detail Discussion may expose the narrow
 Oratorio-owned `Ask agent` flow for Agent Discussion Turns.
-
----
 
 ## 1. Scope
 
@@ -39,8 +37,6 @@ Out of scope:
 - coming-soon top-level routes such as Sources, Agents, Rules, or Integrations;
 - a full AppServer conversation or approval console inside the native Oratorio view;
 - a separately distributed Oratorio desktop application.
-
----
 
 ## 2. Information Architecture
 
@@ -78,8 +74,6 @@ mode label.
 
 If a feature does not have a real implemented contract, it is omitted rather
 than shown as coming soon.
-
----
 
 ## 2.1 DotCraft Desktop shell
 
@@ -149,14 +143,7 @@ The App Binding consent dialog must follow Oratorio modal and density language:
 
 ### 2.3 Built-in surface registration
 
-DotCraft ships an Oratorio built-in plugin descriptor that registers the board,
-settings, and plugin detail surfaces. Its entry module selects Desktop-owned
-native components; it does not ship a separately maintained extension UI.
-
-The same native board, Task Drawer, Task Detail, settings, source write audit,
-review, comment, draft, and run surfaces work in local and remote Stack modes.
-
----
+One Desktop-owned native surface supplies the board, drawer, detail and settings in both local and remote Stack modes. It does not maintain an independent extension UI.
 
 ## 3. Kanban Board
 
@@ -248,59 +235,9 @@ The Local Task create/edit form keeps task intent first, then routing metadata:
 
 ### 3.1 Card Visual Contract
 
-Card content composes a small fixed set of element classes; each class has one
-visual treatment and may not borrow another class's treatment:
+Cards use [Desktop DESIGN](../../architecture/DESIGN.md) chip, status and icon primitives. Source and kind chips share optical weight; sources without a provider glyph use the Local source icon. Header order is source then kind; source kind displays the Issue/PR/MR number, while internal ids remain in routes and detail views. The title occupies its own row, with the micro-status dot at its trailing edge.
 
-| Element | Role | Treatment |
-| --- | --- | --- |
-| Source chip | Where the task lives (Local, GitHub repo, GitLab project) | Compact pill with provider icon at the shared chip-icon size |
-| Kind chip | Work kind (PR, Issue, Local task) | Compact pill with kind icon at the same chip-icon size as the source chip |
-| Status pill | Lifecycle/check state, shown only when it adds signal beyond the column | Themed pill following the status-pill modes below |
-| Micro-status dot | Always-on per-card lifecycle indicator | Filled circle at the dot-indicator size token, colored by state |
-
-Source chip and kind chip icons must render at the same optical weight. Both
-use the `chip-icon` size token and the global lucide stroke width. Provider
-chips for sources without a real glyph (such as Local tasks) must use the
-designated Local source icon — never a degenerate one-pixel placeholder or a
-shrunken variant.
-
-Card header order, left to right: source chip, kind chip. For source-backed
-items, the kind chip shows the source Issue, PR, or MR number (for example,
-`#174`), never the internal ShortId or raw external id. Stable ShortId remains
-available in routes and drawer/detail headers, but is not shown as a board-card
-chip. The title sits on its own row beneath the chip row and never shares
-horizontal space with chips. The micro-status dot lives on the title row's right
-edge and never sits inside the chip row.
-
-Status pills follow one of three visual modes by lifecycle category:
-
-| Category | Examples | Treatment |
-| --- | --- | --- |
-| Success | `Approved`, `Passing` | Filled success-tint background, on-tint label, optional check icon |
-| Attention | `Attention`, `Failed`, `Locked` | Outlined with attention or destructive border + matching icon, neutral surface |
-| Neutral | `Discovered`, `Awaiting review`, `Pending` when not redundant | Outlined neutral border, neutral label |
-
-A single card must not mix pill modes for the same logical category — for
-example, an `Approved` filled pill next to a `Passing` outlined pill is a
-regression. Status pills that share a card use the same mode.
-
-The micro-status dot is the always-on per-card lifecycle indicator; the footer
-status pill is shown only when it adds signal beyond the card's column. Kanban
-card footers therefore hide lifecycle pills that merely restate the column —
-`Discovered` in `To do`, `Awaiting review` in `In review`, and `Approved` in
-`Done` — relying on the column, the colored dot, and the accent edge instead.
-`Running` renders as an animated spinner (no text); `Dispatching`, `Failed`, and
-the terminal `Rejected` / `Archived` keep their themed pills. The full lifecycle
-pill — including `Discovered`, `Awaiting review`, and `Approved` — remains on the
-status drawer and detail page, which are not column-grouped.
-
-Card footers also hide review/check pills that do not add card-level triage
-signal. `Not configured` is never shown on cards, and `Pending` is hidden when
-the lifecycle state is already `Dispatching` or `Running`. Full check state
-remains available in the detail page and status drawer where `oratorio/review`
-has enough context.
-
----
+Success pills use success tint; attention/failure pills use the corresponding outline; neutral states use neutral outlines. A category keeps one treatment within a card. The dot always shows lifecycle; footer pills appear only when they add information beyond the column. Running uses a spinner. Dispatching, Failed, Rejected and Archived remain explicit. Check `Not configured` is hidden on cards, and `Pending` is hidden while dispatching/running. Full lifecycle and check state remain in drawer/detail views.
 
 ## 4. Status Drawer
 
@@ -402,8 +339,6 @@ Drawer section header icons follow the same `chip-icon` size token as card
 chips. Stacking identical neutral surfaces with identical icon weight for
 sections of different types is a regression — each section type must read
 distinctly.
-
----
 
 ## 5. Task Detail Page
 
@@ -525,7 +460,7 @@ regression for the detail page.
 
 ### 5.7 Review finding resolution
 
-The review stage renders published review findings (design §5.7). Each finding
+The review stage renders published review findings under [Oratorio Design](oratorio-design.md#64-review-finding-resolution). Each finding
 shows its resolution state:
 
 - open findings render at full emphasis;
@@ -541,8 +476,6 @@ prompts for the `Fixed`/`Dismissed` kind and an optional note. These controls
 are detail-page only. The Status Drawer must not render resolve/reopen controls;
 it may only surface open-finding counts and route operators to the detail page,
 consistent with the Discussion composer rule in §4.
-
----
 
 ## 6. Settings
 
@@ -722,49 +655,6 @@ still running after the polling window reports that the first sync continues in
 the background. Remote read-only mode disables every field and the primary
 action and explains why. Enter inside a field advances a valid step.
 
----
-
 ## 7. DotCraft design system
 
-Oratorio uses the shared [DotCraft Desktop design system](../../architecture/DESIGN.md).
-It does not define a separate palette, typography scale, theme, icon library,
-surface recipe, control vocabulary, or scrollbar treatment.
-
-The following Oratorio-specific layout contracts remain:
-
-- Board mode does not reserve a product-specific rail column.
-- The Oratorio logo and product name remain visible in the board header.
-- Settings remains in the board header action group.
-- Cards and drawers use compact, scan-friendly rows.
-- Dense actions have accessible labels.
-- Text and actions remain reachable at supported Desktop widths.
-
-Lifecycle, source, and review states use DotCraft semantic tokens. The status
-pill catalogue in §3.1, drawer section catalogue in §4.1, and stepper behavior
-in §5.4 define meaning and hierarchy, not independent visual tokens.
-
----
-
-## 8. Validation
-
-A frontend change is acceptance-ready when:
-
-- it matches this document and does not revive out-of-scope embedded agent
-  surfaces;
-- `cd desktop && npm run build` passes;
-- `cd desktop && npm test` passes when tests are affected;
-- the board renders without framework overlays or console errors;
-- the board header shows logo plus `Oratorio`, and the old rail divider is not
-  present;
-- the Kanban title and filter toolbar are visually aligned;
-- opening a task shows a Status-only drawer;
-- the surface follows the shared DotCraft design system and accessibility
-  contract;
-- the Task detail page renders the stage named by the URL `:stage` segment
-  and does not always render the Decision panel;
-- the Task detail page title appears once below the breadcrumb, never
-  inside it;
-- decision actions follow the §5.5 hierarchy and the decision panel is
-  sticky to the bottom when the page overflows;
-- the drawer primary action remains reachable when content overflows;
-- detail page empty states render with the §5.6 empty-state icon.
+[Desktop DESIGN](../../architecture/DESIGN.md) owns palette, typography, themes, icons, controls, surfaces and accessibility. The card, drawer and stepper rules here define Oratorio-specific information hierarchy using those primitives. Board mode reserves no product rail; logo, product name and Settings remain in the header. Text and actions stay reachable at supported widths.

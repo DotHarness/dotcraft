@@ -33,7 +33,7 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
         _screenCapture = screenCapture is not null && HasCaptureBackend(screenCapture) ? screenCapture : null;
         _diagnostic = diagnostic;
         Leases = new WorkspaceLeaseManager(onChanged: () => Changed?.Invoke());
-        _handlers = new RemoteToolHostExecutionHost(storage, Leases, activity, approvalPresenter, () => _paused);
+        _handlers = new RemoteToolHostExecutionHost(storage, Leases, activity, approvalPresenter, () => _paused, diagnostic);
     }
 
     public event Action? Changed;

@@ -1,6 +1,12 @@
 # Agent import
 
-Status: Living. Sources: Claude Code, Codex, and Cursor on the AppServer host.
+| Field | Value |
+|---|---|
+| Version | 0.7.8 |
+| Status | Living |
+| Date | 2026-09-28 |
+
+Sources: Claude Code, Codex, and Cursor on the AppServer host.
 
 ## Ownership and scope
 
@@ -62,8 +68,7 @@ Sync defaults off. `Sources` starts empty; an accepted manual import adds its so
 not run without a source. Selection distinguishes user and workspace categories and sessions; an
 explicit all-categories choice includes future categories. A manual import merges into `Selection`:
 categories and sessions the run `offered` take the run's choice, others keep their saved value, and a
-saved all-categories choice is unchanged. An omitted `offered` equals the run's selection. No old
-configuration is migrated or consulted. Pausing retains selection. Startup catches up; an unopened
+saved all-categories choice is unchanged. An omitted `offered` equals the run's selection. Pausing retains selection. Startup catches up; an unopened
 workspace catches up when next started. Global passes coordinate through a process lock and shared
 last-check time.
 

@@ -183,6 +183,11 @@ public interface IRemoteToolHostClientFactory
 /// <summary>Stable Remote Tool Host failure codes used in common tool results.</summary>
 public static class RemoteToolErrorCodes
 {
+    public const string FileNotFound = "FileNotFound";
+    public const string FileAccessDenied = "FileAccessDenied";
+    public const string FileInUse = "FileInUse";
+    public const string TransferSourceChanged = "TransferSourceChanged";
+    public const string FileIoError = "FileIoError";
     public const string HostNotRegistered = "remote_host_not_registered";
     public const string HostOffline = "remote_host_offline";
     public const string AuthenticationFailed = "remote_authentication_failed";
@@ -219,7 +224,7 @@ public sealed class RemoteToolHostException : Exception
     public string? InvocationId { get; }
 }
 
-/// <summary>JSON metadata attached to successful remote tool results for safe observability.</summary>
+/// <summary>JSON metadata attached to remote tool results for safe observability.</summary>
 public sealed record RemoteToolInvocationProvenance(
     string ExecutionTarget,
     string HostId,

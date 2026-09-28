@@ -214,8 +214,6 @@ public sealed class AIFunctionToolRuntime(AIFunction function) : IToolRuntime
             {
                 Context = new Dictionary<object, object?> { [typeof(ToolInvocationContext)] = context }
             };
-            var attachments = new ToolResultAttachments();
-            using var attachmentScope = ToolResultAttachmentScope.Set(attachments);
             var result = await _function.InvokeAsync(functionArguments, cancellationToken)
                 .ConfigureAwait(false);
             if (result is ToolExecutionResult executionResult)
@@ -225,31 +223,18 @@ public sealed class AIFunctionToolRuntime(AIFunction function) : IToolRuntime
                 var contentItems = richContent.ToArray();
                 return ToolExecutionResult.Succeeded(
                     EnsureModelText(ToModelText(contentItems)),
-                    structuredContent: attachments.StructuredContent,
                     contentItems: contentItems);
             }
-            return ToolExecutionResult.Succeeded(
-                EnsureModelText(ToModelText(result)),
-                structuredContent: attachments.StructuredContent);
+            return ToolExecutionResult.Succeeded(EnsureModelText(ToModelText(result)));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch (ArgumentException ex)
-        {
-            return ToolExecutionResult.Failed(
-                new ToolError(ToolErrorCodes.InputInvalid, ex.Message));
-        }
-        catch (JsonException ex)
-        {
-            return ToolExecutionResult.Failed(
-                new ToolError(ToolErrorCodes.InputInvalid, ex.Message));
-        }
         catch (Exception ex)
         {
             return ToolExecutionResult.Failed(
-                new ToolError(ToolErrorCodes.ExecutionFailed, ex.Message));
+                ToolFailure.FromException(ex, $"Tool '{_function.Name}'"));
         }
     }
 

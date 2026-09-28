@@ -2,11 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.1 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-09-25 |
-| **Parent Specs** | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [OpenAI Subscription Auth](openai-subscription-auth.md), [Dynamic Workflows](../features/dynamic-workflows.md) |
-| **Related Specs** | [Prompt Composition](prompt-composition.md), [World State](world-state.md) |
+| **Date** | 2026-09-28 |
+| **Parent Specs** | [Session Core](session-core.md), [Prompt Composition](prompt-composition.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: define the per-protocol contract DotCraft must satisfy for the provider's prompt cache to hit, and the empirical hit-rate envelope each protocol is expected to deliver. This is a design document — it constrains what the runtime emits on the wire, not how it builds the request internally.
 
@@ -16,8 +15,6 @@ request: the integration composes the caching middleware inside its own client c
 native marker directly, so no provider-neutral marker representation crosses the boundary. A provider
 that forwards inference elsewhere therefore carries only the policy, and placement happens wherever
 the provider request is finalized.
-
----
 
 ## 1. Concepts
 
@@ -35,8 +32,6 @@ Two cache-routing models are in play:
 
 DotCraft must build a byte-stable prefix for the first model and place the right cache markers for the second.
 
----
-
 ## 2. Per-protocol contract
 
 ### 2.1 `openai-chat-completions`
@@ -50,8 +45,6 @@ DotCraft must build a byte-stable prefix for the first model and place the right
 DotCraft does not set any cache-control field on this protocol. This holds for every model reached
 through it, including Claude models served by an OpenAI-compatible gateway. Cache works as long as the
 message array, tools array, and system prompt are byte-identical between requests.
-
-**Empirical envelope:** ~80% aggregate hit rate on the `prompt-cache-baseline` workload.
 
 ### 2.2 `openai-responses` — API-key path
 
@@ -97,8 +90,6 @@ Invariants the runtime must uphold:
 - **Native tool search returns the same composite definitions used by direct projection**. A deferred result describes one namespace once and returns its children under their local names. Results are keyed by the full canonical `ToolName`, so equal child names in different namespaces remain independent. Historical `tool_search_output` items keep discovered schemas provider-visible, while local execution resolves against the current Turn snapshot without re-injecting those schemas after an Agent rebuild. The local search tool has canonical identity `SearchTools`; the OpenAI Responses adapter serializes it with the provider-owned `tool_search` wire shape.
 - **No volatile content in system / assistant turns**. Timestamps, randomised tool ordering, in-place mutation of caller options — all forbidden inside the cached prefix. Volatile content belongs only at the tail of the latest user turn.
 
-**Empirical envelope:** ~60% on a light baseline and ~40% on a heavy baseline. Exact numbers vary by gateway because each implements its own prefix-cache layer.
-
 ### 2.3 `openai-responses` — ChatGPT OAuth path
 
 The [OpenAI Subscription Auth specification](openai-subscription-auth.md#responses-request-contract)
@@ -114,40 +105,7 @@ OAuth sampling applies Zstandard transport encoding after the logical request bo
 compression does not change the canonical input sequence or prompt-cache generation. Provider-native
 compact requests remain uncompressed.
 
-Prompt-cache routing uses these fields on
-`chatgpt.com/backend-api/codex/responses`:
-
-| Hint | Location | Value |
-|------|----------|-------|
-| `Authorization: Bearer <access_token>` | HTTP header | OAuth access token |
-| `chatgpt-account-id` | HTTP header | ChatGPT account id, resolved from the signed-in token/account store before runtime config |
-| `originator` | HTTP header | Fixed identifier the backend recognises (see [openai-subscription-auth](openai-subscription-auth.md)) |
-| `x-codex-installation-id` | HTTP header **and** request body `client_metadata` | Per-machine UUID v4, stable across processes and accounts |
-| `session-id` | HTTP header | Root cache-session thread id |
-| `thread-id` | HTTP header | Current executing thread id |
-| `x-client-request-id` | HTTP header | Current executing thread id |
-| `session_id` | Request body `client_metadata` | Root cache-session thread id |
-| `thread_id` | Request body `client_metadata` | Current executing thread id |
-| `x-codex-window-id` | HTTP header and request body `client_metadata` | Stable internal context-window id for the active thread |
-| `x-codex-turn-metadata` | HTTP header and request body `client_metadata` | Canonical provider metadata JSON envelope for Responses routing |
-| `x-codex-turn-state` | HTTP header | Provider-returned state replayed only within the same logical turn |
-
-Each header is a stickiness signal at a different granularity:
-
-```
-chatgpt-account-id  ⊂  x-codex-installation-id  ⊂  session/thread headers
-    account                install / machine             thread / conversation
-```
-
-Finer-grained signals let the load balancer park thread-scoped traffic on the cache shard that
-already holds the prefix. Coarser signals remain available when the load balancer cannot honour a
-finer signal. Optional runtime values are omitted when their scope is unavailable.
-
-If the request carries caller-provided `client_metadata`, DotCraft preserves unrelated keys but
-treats provider-reserved keys as authoritative runtime state. A mismatched reserved value is
-overwritten to match the active OAuth/runtime context; otherwise the header/body pair could route
-the same request under split identities. The body-level `x-codex-turn-metadata` string is the
-canonical metadata envelope. Flat `client_metadata` keys expose the same routing identities.
+OAuth routing fields and authoritative header/body identity come from the authentication contract.
 
 Provider metadata and same-turn `x-codex-turn-state` are routing/runtime metadata. They are
 not model-visible prompt content and MUST NOT be considered part of DotCraft's prompt-prefix
@@ -155,16 +113,6 @@ identity. Prompt-cache diagnostics may record separate metadata fingerprints for
 changes in `turn_id`, `turn_started_at_unix_ms`, `x-codex-turn-state`, or other provider runtime
 metadata MUST NOT be classified as prompt/input/tool drift. Omitting OAuth-unsupported transport
 parameters such as `max_output_tokens` likewise MUST NOT be reported as prompt-prefix drift.
-
-Backend-specific thresholds — the public OpenAI thresholds do **not** apply here:
-
-- Single-call input below ~14 000 tokens: cache is rarely written; coverage stays at 0%.
-- 14 000 – 30 000 tokens: partial coverage, growing with prefix size and routing stickiness.
-- Above 30 000 tokens with all routing hints set: up to ~75% coverage on a single call; aggregate session coverage tops out around 50% because the LB occasionally re-routes mid-thread.
-
-**Empirical envelope:** the `prompt-cache-baseline` heavy workload targets an aggregate hit rate of
-at least 35%. Backend routing may vary between runs, so the measurement contract in §5 evaluates
-aggregate coverage and per-call evidence together.
 
 ### 2.4 `anthropic`
 
@@ -193,19 +141,13 @@ the persisted thread rollout or rewrite the tool-use/tool-result pairing.
 
 The cache write that produced a segment counts as `cache_write_input_tokens` on that call and as `cached_input_tokens` on subsequent calls; both fields surface in trace.
 
-Native deferred tool loading uses Anthropic's beta tool-reference path without changing this cache-control contract:
-
-- DotCraft sends the `anthropic-beta: advanced-tool-use-2025-11-20` request header when Anthropic native deferred loading is active.
-- Before each Anthropic sampling request, DotCraft prepends one request-local `<available-deferred-tools>` user message containing the complete deferred provider-flat name inventory in ordinal order. The message is added before prompt-cache selection, is not persisted in model history, and is regenerated after any history replacement or compaction. Activated tools remain in the inventory so activation alone does not change the cached prefix.
-- The top-level tool list contains ordinary always-loaded tools, `SearchTools`, and only deferred tools that were already discovered. Discovered deferred tools are serialized with `defer_loading: true`. Optional properties remain absent unless enabled; in particular, non-strict tools omit `strict` rather than serializing `strict: false`.
-- `SearchTools` returns Anthropic `tool_reference` content blocks. DotCraft does not reuse the OpenAI Responses `tool_search_output` wire shape on this protocol.
-- Undiscovered deferred tools are not injected as ordinary complete schemas, so discovering a new tool does not perturb the cached prefix the way simulated deferred loading does.
-
-Anthropic's tool surface is flat. DotCraft therefore emits and replays the persisted `providerFlatName` selected by the Turn snapshot. A deferred tool's top-level `name`, its `tool_reference.tool_name`, and the subsequent `tool_use.name` MUST be the same provider-flat identity. Dispatch resolves that identity through the snapshot's exact reverse index; it does not flatten, parse, or infer namespace components at the provider callback boundary.
+Deferred discovery and provider-flat identity follow [Tool Architecture](tools-architecture.md#54-exposure).
+Anthropic native discovery adds `anthropic-beta: advanced-tool-use-2025-11-20`; discovered definitions
+use `defer_loading: true` and results use `tool_reference` blocks. Optional fields stay absent unless
+enabled, including `strict` for non-strict tools. The names-only inventory enters request-local
+history before cache-point selection, while undiscovered tools do not enter the full schema prefix.
 
 The names-only inventory is part of the Anthropic message prefix rather than the stable system instructions. An unchanged inventory is byte-stable across sampling rounds. When the available deferred pool changes, cache points after the inventory form a new prefix while earlier stable system cache points remain eligible for reuse. DotCraft does not persist inventory deltas or add a compaction-specific history type.
-
-**Empirical envelope:** ~82% aggregate hit rate on the `prompt-cache-baseline` workload.
 
 ### 2.5 Trace diagnostics
 
@@ -219,11 +161,13 @@ When a full-history native SubAgent session is bound to its direct parent, traci
 |--------|---------|
 | `compatible` | The static prefix matches — protocol, model, prompt-cache key, instructions, tools, and reasoning hashes are all equal — and the child retains a non-empty ordered input prefix from the parent. |
 | `staticShared` | The static prefix matches but the full-history child retained no ordered parent input, indicating that shared history was not materialized as expected. |
-| `diverged` | A leading request component changed, so the static prefix is broken. Always a defect under §3 rule 12. |
+| `diverged` | A leading request component changed, so the static prefix is broken. A defect when the child is required to inherit that prefix. |
 
 A missing parent shape is `unavailable`.
 
-The retained input prefix is bounded by the full-history fork rules in [Session Core](session-core.md): a child inherits leading system, developer, and user items and drops the parent's assistant, reasoning, and tool traffic, so the first divergence normally lands at the parent's first assistant item. A short matched prefix is not a defect. `staticPrefixCompatible` is the primary signal; matched input length is secondary evidence. Fresh and bounded native children rebuild their context and tool snapshot, so they do not bind a parent fork anchor or emit this comparison.
+A reused history snapshot must preserve its inherited static prefix. Diagnostics distinguish
+static-prefix compatibility from the length of inherited input; a short inherited input prefix
+is not by itself a cache defect.
 
 The event records only component hashes, request/attempt indexes, item counts, the matched prefix length, whether the complete parent input remains a prefix, whether a shared input prefix was expected for this spawn, the first divergence index, and changed-field names. It never records request content or compares the complete `inputHash`.
 
@@ -232,8 +176,6 @@ This cross-session comparison is exact only for `openai-responses`, where canoni
 The request-shape event intentionally excludes OAuth/runtime metadata from the prefix hashes.
 When emitted, a metadata diagnostic hash is informational only and is not used to increment prompt
 drift counters.
-
----
 
 ## 3. Cross-cutting design rules
 
@@ -253,30 +195,12 @@ These rules apply to every protocol unless the protocol contract above explicitl
    the same complete input. Cache reads remain limited to exact prefixes present in both requests.
 7. **One canonical body per request.** Wire bodies must not contain duplicate top-level JSON keys. Downstream policies and inspectors are allowed to assume the body parses cleanly into a flat object.
 8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. Maintenance forks use that state key in `readOnlyPrefix` mode without committing new remembered breakpoints. This internal state key MUST NOT replace provider-visible cache-session or current-thread routing identity.
-9. **Tool identity shape is cache state.** Canonical namespace/name pairs, flat aliases, namespace grouping, and child ordering come from the immutable Turn snapshot. Provider adapters must not re-sanitize names, derive namespaces from runtime source names, or enumerate collision groups in discovery order. History replay uses persisted canonical tuples for namespace-capable providers and persisted flat aliases for flat-only providers.
+9. **Tool identity shape is cache state.** Provider projection and replay preserve the immutable
+   identities in [Tool Architecture](tools-architecture.md#6-identity-model); cache shaping does not
+   rename, regroup, or reorder definitions.
+
 10. **Thread-scoped context is history, not prefix.** Content that depends on the running thread or on an attached client connection MUST NOT reach the system prompt / `instructions` channel on any protocol. It travels as a thread context item, placed and carried as specified in [Prompt Composition](prompt-composition.md).
 11. **Thread context items append; they do not mutate.** Rewriting an already-sent item, or rebuilding the system prompt because a binding or capability changed, invalidates the whole cached prefix and is forbidden. Replacing native SubAgent role instructions is the one exception and establishes an explicit replacement boundary.
-12. **A full-history SubAgent's static prefix equals its parent's.** A native `forkTurns=all` child shares the root cache identity and materialized parent context, so its generated base instructions and model-visible tool schema MUST match the parent's. Role narrowing is expressed through invocation policy, never through a different system prompt or tool schema. Trust-tier entrypoint gating in [Tool Architecture](tools-architecture.md) is the sole exception: a tool withheld from a `SubAgentChild` planning context splits the child's static prefix from its parent's, so it is reserved for tools that must never be reachable from a delegated thread. Fresh and bounded native children establish independent prefix generations and may use their own model-visible tool snapshot.
-
-### 3.1 Dynamic Workflow and Ultra
-
-Dynamic Workflow prompt guidance follows the same stable-prefix rules:
-
-- `Workflow` remains in the model-visible tool set with one stable description, JSON Schema, canonical
-  identity, and ordering for the lifetime of the thread. Runtime policy may deny child-originated calls
-  without removing the tool definition.
-- Selecting the DotCraft-owned `ultra` reasoning tier does not rebuild base instructions or tools.
-  `RuntimeContextBuilder` appends the Ultra orchestration reminder to the latest user turn. Normal-tier
-  explicit opt-in guidance uses the same volatile-tail location.
-- Native workflow children retain the stable base prompt and tool schema. `NativeSubAgentGuidance`
-  contains only the stable completion protocol; prompt, result schema, operation id, label, phase, and
-  run id are supplied in the latest task input.
-- Structured children use one fixed `SubmitWorkflowResult` tool. AppServer holds the call-specific JSON
-  Schema and validates submissions outside the model-visible tool definition.
-- Child model and reasoning overrides form the normal provider cache dimensions. The journal records
-  both requested and effective values, while neither value is injected into an earlier cached turn.
-
----
 
 ## 4. Failure modes the runtime must guard against
 
@@ -292,31 +216,9 @@ Dynamic Workflow prompt guidance follows the same stable-prefix rules:
 | Provider returns an empty post-tool response | After at least one tool result has been returned to the model, a normally completed response with no assistant content, reasoning output, or tool call ends the turn successfully without retrying or emitting `agent_empty_response`. An interrupted stream or explicit provider error still fails the turn |
 | A tool identity cannot be represented by the target provider | Request serialization fails locally with stable `invalid_provider_tool_identity` diagnostics before HTTP transport; the runtime must not send a request known to violate the provider's name/length grammar |
 
----
-
 ## 5. Measurement contract
 
-Every prompt-cache-relevant change MUST be validated with AppServerTestClient's
-`prompt-cache-smoke` command, which runs the `prompt-cache-baseline` scenario with
-context compaction disabled:
-
-- Workload: a deterministic large file (~30k characters) read three times by the agent.
-- Reporting: aggregate hit rate (cached_input_tokens / input_tokens), the enforced
-  `minimumCacheHitRate`, and per-call breakdown.
-- Guardrail: any `ContextCompaction` trace event fails the baseline run because compaction
-  rewrites the provider-visible prefix and contaminates cache-hit comparisons.
-- Pass criterion: the aggregate hit rate MUST stay above the configured floor. Matrix rows MAY
-  set `minimumCacheHitRate`; otherwise AppServerTestClient uses conservative defaults below the
-  empirical envelopes in §2: `openai-chat-completions` 0.50, `openai-responses` 0.30,
-  ChatGPT OAuth Responses 0.35, and `anthropic` 0.50.
-
-Each protocol's envelope is a calibration baseline, not a contract. Provider routing instability can swing any single call by tens of percentage points; multi-run trends matter more than single numbers.
-
----
-
-## 6. Future work
-
-- Verify each routing signal in isolation against the ChatGPT backend to measure the effect of installation id, `session-id`, `thread-id`, `x-codex-window-id`, `x-codex-turn-state`, and body-level `client_metadata` identities.
-- Run opt-in A/B profiles for the alternate User-Agent profile and explicit `OpenAI-Beta` values, measuring cache coverage, 401/403 rate, first-token latency, and rate-limit headers before considering any default change.
-- Surface per-call cache coverage in the desktop dashboard so drift from the expected pattern is visible without trace-database inspection.
-- Audit cache-marker placement on the anthropic protocol: the current marks cover system prompt and snapshot prefix; additional marks on large stable always-loaded tool definitions or the first user instruction block may raise the envelope.
+Compare cache coverage using repeated identical workloads with compaction disabled. Report aggregate
+cached-input/input ratio and per-request evidence, and separate request-shape changes from routing
+variation. Provider routing can vary widely; workload thresholds are test configuration, not a
+provider guarantee or protocol contract.

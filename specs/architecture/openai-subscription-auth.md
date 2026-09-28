@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 1.2.0 |
+| Version | 0.7.8 |
 | Status | Living |
-| Date | 2026-09-25 |
+| Date | 2026-09-28 |
 
 DotCraft natively supports authenticating outgoing model requests against a user's ChatGPT
 subscription (Plus, Pro, Team, Business, Enterprise, Edu) as an alternative to the standard
@@ -51,7 +51,7 @@ port forwards to it target `localhost`, not a literal loopback address.
 The OAuth implementation accepts host-owned token storage. The official local host uses
 `auth.json`; an embedded model service may use encrypted database storage. Remote workers obtain
 only provider metadata and authentication status. The model service owns token reads and refresh
-for their requests, as specified in [Remote model service](model-service.md).
+for their requests; workers never receive those credentials.
 
 Token access is serialized within each process. A normal token read refreshes credentials when any
 of these conditions is true:
@@ -168,8 +168,7 @@ envelope for the Responses API, and flat fields expose the routing identities us
 }
 ```
 
-The augmentation is performed by `OpenAIResponsesClientMetadataPipelinePolicy` and only fires for
-URIs whose path ends in `/responses`. Other caller-provided `client_metadata` entries are
+Metadata augmentation applies only to request URIs whose path ends in `/responses`. Other caller-provided `client_metadata` entries are
 preserved, but provider-reserved keys are authoritative runtime state. Caller-provided values for
 `x-codex-installation-id`, `session_id`, `thread_id`, `turn_id`, `x-codex-window-id`, and
 `x-codex-turn-metadata` are overwritten when they differ from DotCraft's active runtime context so
@@ -313,8 +312,7 @@ identifiers, request or response bodies, prompts, and raw routing values are nev
 
 ## Responses compaction transport
 
-ChatGPT OAuth server-managed Responses threads use the Responses v2 backend defined in
-[Context Compaction](context-compaction.md). The backend sends a streaming `POST /responses`
+ChatGPT OAuth server-managed Responses compaction sends a streaming `POST /responses`
 request with a trailing `compaction_trigger`, using the configured OAuth client's endpoint and
 pipeline. Standard and Lite requests use the same dialect, body shaping, compression policy,
 client metadata, routing and turn-state rules as ordinary sampling.
@@ -369,7 +367,7 @@ ApiKey fields configured on the provider are ignored at runtime in favour of the
 model catalog is loaded from the ChatGPT backend with the same OAuth credentials:
 `GET https://chatgpt.com/backend-api/codex/models?client_version=<accepted-version>`. DotCraft
 caches the account-scoped response under `~/.craft/model-catalog-cache.json` for five minutes and
-falls back to the bundled model catalog (`src/DotCraft.Agents.OpenAI/Resources/chatgpt-codex-models.json`)
+falls back to the bundled model catalog
 when the network is unavailable. The `client_version` query carries a fixed compatible client
 version rather than DotCraft's app version, because the ChatGPT backend uses that value to decide
 which models are eligible for the client. Supporting a model that requires a newer client version
@@ -396,20 +394,6 @@ Per-provider entry in `~/.craft/config.json`:
 `AuthMethod` is either `apiKey` (default) or `chatgptOAuth`. `ChatGptAccountId` /
 `ChatGptPlanType` are read-only metadata populated by the login flow and shown in the UI; users
 should not edit them by hand.
-
-## Integration points
-
-| Component | File | Responsibility |
-|---|---|---|
-| Auth manager | `src/DotCraft.Agents.OpenAI/Auth/OpenAI/OpenAIAuthManager.cs` | Login, same-account disk reload, authority refresh, token rotation, logout, and status; thread-safe; raises `LoggedIn` / `LoggedOut` events |
-| Token store | `src/DotCraft.Agents.OpenAI/Auth/OpenAI/OpenAITokenStore.cs` | Reads/writes `auth.json` with locked-down permissions |
-| Installation id provider | `src/DotCraft.Agents.OpenAI/Auth/OpenAI/OpenAIInstallationIdProvider.cs` | Resolves and persists the `~/.craft/installation_id` UUID v4 |
-| Auth pipeline policy | `src/DotCraft.Agents.OpenAI/Agents/Providers/OpenAI/OpenAIOAuthPipelinePolicy.cs` | Sets OAuth auth headers, resolves account id from auth service before config, adds Responses sticky headers and provider turn/window headers, captures and replays same-turn `x-codex-turn-state`, applies opt-in request profiles, and runs bounded HTTP 401 recovery |
-| Responses metadata policy | `src/DotCraft.Agents.OpenAI/Agents/Providers/OpenAI/OpenAIResponsesClientMetadataPipelinePolicy.cs` | Adds/normalizes provider-compatible `client_metadata` into outgoing `/responses` request bodies on OAuth clients |
-| Provider resolver | `src/DotCraft.Core/Configuration/ModelProviderRuntime.cs` | Forces `chatgpt.com/backend-api/codex` endpoint + `openai-responses` protocol in OAuth mode |
-| Binding helper | `src/DotCraft.Core/Auth/OpenAI/OpenAIAuthBindingPersistence.cs` | Shared CLI/AppServer helper that writes `AuthMethod` / `ChatGptAccountId` into the global config |
-| Usage client | `src/DotCraft.Agents.OpenAI/Auth/OpenAI/OpenAIUsageClient.cs` | One-shot `GET wham/usage`; reuses the same headers; 401 → force-refresh + retry once |
-| Usage poller | `src/DotCraft.Agents.OpenAI/Auth/OpenAI/OpenAIUsagePoller.cs` | Singleton; 5-min cadence, 30 s manual debounce, exponential backoff to 1 h on failures; broadcasts `SnapshotChanged` |
 
 ## Usage / rate-limit telemetry
 
@@ -459,72 +443,12 @@ deployments must not share the directory: they may select different models and
 refresh tokens independently. Automated tools run in the DotCraft container,
 which also mounts this user data directory.
 
-## AppServer JSON-RPC
+## Host access boundary
 
-| Method | Direction | Purpose |
-|---|---|---|
-| `auth/openai/status` | request | Returns logged-in account metadata or `loggedIn: false`; optionally the current access token |
-| `auth/openai/login` | request | Starts a login flow; blocks until the user completes the browser step |
-| `auth/openai/logout` | request | Revokes + clears local tokens; unbinds the provider |
-| `auth/openai/usage` | request | Returns the cached usage snapshot; triggers an inline fetch when none is cached |
-| `auth/openai/authorizeUrl` | notification | Sent mid-`login` request with the browser URL (used by the desktop "Copy URL" affordance) |
-| `auth/openai/usageChanged` | notification | Broadcast every time the cached usage snapshot changes (new poll, login, logout) |
-
-`auth/openai/login` is intentionally blocking. The desktop renderer shows a "Waiting for browser
-authorization..." spinner alongside the URL while the JSON-RPC call is pending. The server-side
-timeout should be high (≥ 15 minutes) because the user may take a while to complete the flow on a
-different device.
-
-The capability flags `authOpenAiOAuth` and `authOpenAiUsage` (in the `initialize` response)
-advertise whether the auth and usage surfaces are available.
-
-`auth/openai/status` accepts optional params:
-
-| Param | Type | Meaning |
-|---|---|---|
-| `includeToken` | boolean | Add `authToken`, the current access token, to the result |
-| `refreshToken` | boolean | Force a token refresh before answering; otherwise the usual proactive refresh applies |
-
-`authToken` is returned only when `includeToken` is true and the server holds the ChatGPT
-credentials locally. A model-service connection reports its remote sign-in state but never returns
-a token. A refresh failure answers with `loggedIn` as usual and no `authToken`. Clients use the
-token only for their own ChatGPT backend requests (see
-[Voice Input](../features/voice-input.md#5a-chatgpt-transcription)) and must not persist or log it.
-
-## Desktop UX
-
-Workspace setup wizard:
-- The "OpenAI" provider template card surfaces a two-option authentication selector.
-- "Sign in with ChatGPT" hides the API-key field and allows authorization during setup.
-- Existing authenticated providers and newly authenticated drafts load the account model catalog
-  and display the model picker. Missing credentials show sign-in; catalog failures show retry.
-- Setup persists account metadata from host-owned credentials when saving an OAuth provider.
-
-Settings → Providers:
-- The OpenAI provider editor renders the same authentication selector.
-- In OAuth mode the API-key + endpoint fields are replaced by a Sign in / Sign out panel.
-- A live notification stream shows the authorization URL with a "Copy URL" button while a
-  sign-in request is pending.
-
-- Successful login creates or updates the requested provider, then opens its saved editor.
-  Editor navigation is independent of workspace activation. A valid OAuth selection must not
-  be replaced merely because it has no API key. Late login results must not change another editor.
-
-Voice input:
-- While signed in, Desktop transcribes voice input through ChatGPT unless the user turns that
-  off in Settings → Voice. [Voice Input](../features/voice-input.md) owns the behavior.
-
-Composer footer:
-- When the active provider's `AuthMethod` is `chatgptOAuth`, a compact icon-only usage control is
-  shown adjacent to the model picker on both the active conversation composer and the welcome
-  composer.
-- The control shows the OpenAI mark plus one mini progress rail for the most pressured remaining
-  headroom window. It does not show inline numbers in the composer; green / yellow / red breakpoints
-  remain 40% / 20% remaining.
-- Clicking the pill opens a popover with each available usage window as a remaining-headroom
-  progress bar + reset countdown + optional credits row + limit-reached warning. Known 5-hour and
-  weekly windows are ordered by duration semantics rather than their upstream slot; absent windows
-  are omitted.
+Hosts expose sign-in, sign-out, status, and usage through the same credential owner. A caller may
+explicitly request the current access token only from a host that stores those credentials locally.
+Remote model-service clients receive sign-in metadata but no token. Refresh failure omits the token;
+clients must never persist or log an exposed token.
 
 ## Failure handling
 

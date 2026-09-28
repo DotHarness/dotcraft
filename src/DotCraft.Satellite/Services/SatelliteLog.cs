@@ -33,7 +33,7 @@ internal sealed class SatelliteLog
                 var path = Path.Combine(_directory, $"dotcraft-satellite-{DateTime.UtcNow:yyyy-MM-dd}_000.log");
                 var line = $"{DateTimeOffset.UtcNow:O} [{level}] {SingleLine(eventName)} {SingleLine(message)}";
                 if (exception is not null)
-                    line += $" exception={SingleLine(exception.GetType().FullName)}: {SingleLine(exception.Message)}";
+                    line += $" exception={SingleLine(exception.ToString())}";
                 File.AppendAllText(path, line + Environment.NewLine, Encoding.UTF8);
             }
         }

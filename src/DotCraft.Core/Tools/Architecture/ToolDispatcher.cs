@@ -301,6 +301,7 @@ public sealed class ToolDispatcher(
         if (registration.Binding.Timeout is { } configuredTimeout)
             timeoutCts!.CancelAfter(configuredTimeout);
         var runtimeToken = timeoutCts?.Token ?? cancellationToken;
+        using var diagnostics = ToolInvocationDiagnostics.Enter(invocationContext, logger);
         try
         {
             result = await registration.Binding.Runtime
@@ -325,9 +326,7 @@ public sealed class ToolDispatcher(
         }
         catch (Exception ex)
         {
-            result = ToolExecutionResult.Failed(new ToolError(
-                ToolErrorCodes.ExecutionFailed,
-                $"Tool '{toolName}' failed: {ex.Message}"));
+            result = ToolExecutionResult.Failed(ToolFailure.FromException(ex, $"Tool '{toolName}'"));
         }
 
         if (result is null)

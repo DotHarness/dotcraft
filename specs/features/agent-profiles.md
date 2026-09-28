@@ -2,14 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.0 |
+| **Version** | 0.7.8 |
 | **Status** | Draft |
-| **Date** | 2026-08-10 |
-| **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md) |
+| **Date** | 2026-09-28 |
+| **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Session Core](../architecture/session-core.md) |
 
 Purpose: define Agent Profiles as reusable agent configuration templates. A profile gives a thread a role, default runtime preferences, and enforceable capability policy without replacing DotCraft's generated base instructions.
-
----
 
 ## 1. Scope
 
@@ -29,8 +27,6 @@ Out of scope:
 - Profile inheritance or field-by-field merging between same-id profiles.
 - SubAgent-specific profile migration beyond the prompt-composition rules.
 
----
-
 ## 2. Principles
 
 - The thread configuration snapshot is the runtime contract. Agents, tool filtering, approvals, and prompt rendering read the resolved thread configuration, not the profile document.
@@ -42,8 +38,6 @@ Out of scope:
 - Overlays are narrow. Profile-backed thread creation may override ordinary runtime model choices, but must not use request-time overlays to broaden capabilities.
 - Runtime-owned capabilities remain outside profile policy. Profiles specialize a thread without taking ownership of scheduling or runtime lifecycle.
 - Visual identity is client-derived from the profile name. It is not authored in profile frontmatter, stored by the profile service, or exposed by the AppServer profile contract.
-
----
 
 ## 3. Profile Document
 
@@ -118,8 +112,6 @@ providerPreference:
   speed: fast
 ```
 
----
-
 ## 4. Sources And Resolution
 
 Source priority, from lowest to highest:
@@ -140,8 +132,6 @@ Resolution rules:
 - Diagnostics should explain selected source, shadowed sources, restrictions, locked fields, validation errors, and stale thread fingerprints.
 
 Managed policy may constrain lower-priority profiles through explicit locks. Without such a lock, priority is whole-document shadowing.
-
----
 
 ## 5. Thread Resolution
 
@@ -167,8 +157,6 @@ Refresh model behavior is deterministic:
 - returning an existing thread to current workspace model defaults is a separate explicit model-reset operation, not a side effect of profile refresh.
 
 If the profile is missing, invalid, blocked by source restrictions, or incompatible with requested overlays, thread creation or refresh fails before changing thread state.
-
----
 
 ## 6. Effective Thread Contract
 
@@ -201,28 +189,9 @@ Policy semantics:
 - `tools.agentControl` is `full`, `disabled`, or `allowList`, and `allowList` draws its members from `tools.allowedAgentControlTools`. Both remain enforced as written; the conversational builder presents only the choice between `full` and `disabled` and preserves an authored `allowList` until that choice changes.
 - Profile policy must be enforced both when tools are shown to the model and when calls are invoked.
 
----
-
 ## 7. Prompt Composition
 
-Agent Profiles use the role-instruction layer described in [Prompt Composition](../architecture/prompt-composition.md).
-
-Rules:
-
-- The generated DotCraft base instructions remain present for ordinary profile-backed threads.
-- The profile body is appended as role instructions near the end of the base instruction pipeline.
-- App Binding context and runtime additional context remain context, not higher-priority instructions.
-- Runtime reminders such as current time, mode, goal, and wakeup context belong to the turn-input layer.
-- Full-prompt replacement is reserved for isolated internal assistants with intentionally narrow tool surfaces; profiles and App Binding must not use it.
-
-Role instruction writers:
-
-| Writer | Role-instruction behavior |
-|--------|---------------------------|
-| Agent Profile | Profile body becomes the base role text for the thread. |
-| Native session-backed SubAgent | Child role text is carried as a thread context item instead of generated base instructions, so the child's instruction channel stays identical to its parent's. |
-
----
+The profile body supplies the role-instruction layer of [Prompt Composition](../architecture/prompt-composition.md). It must not replace the generated base instructions or raise the authority of application context. Runtime and builder context use that specification's stable and turn-scoped boundaries.
 
 ## 8. Enforcement
 
@@ -242,8 +211,6 @@ Invocation enforcement is mandatory even when discovery filtering is also presen
 Runtime-managed capabilities are contributed by the runtime that owns the thread and do not participate in Agent Profile tool allow/deny policy. Profiles cannot enable, disable, or impersonate those registrations.
 
 A capability the policy keeps out of the model's tool list is recorded on the thread's trace with the tool's model-visible name, its namespace, its usage source, and the refusal that hid it. A withheld tool produces no call and no result, so the trace is the only place that decision is written down.
-
----
 
 ## 9. Management API
 
@@ -268,8 +235,6 @@ Rules:
 - List/read responses include diagnostics instead of forcing clients to parse Markdown.
 - Error codes should be stable; user-facing localization belongs to clients.
 
----
-
 ## 10. Governance And Diagnostics
 
 Governance features:
@@ -292,8 +257,6 @@ Diagnostics should support:
 
 Audit records should exist for profile writes, removals, and explicit thread refresh attempts. Audit entries use stable machine-readable codes and structured fields.
 
----
-
 ## 11. Authoring And UX Process
 
 Profile authoring tools should:
@@ -306,8 +269,6 @@ Profile authoring tools should:
 - avoid editing raw profile files for generated-agent workflows when a guided editor or generator is available.
 
 Agent-profile generation tools may propose or modify Markdown profiles, but they must still use the same validation, source, policy, and refresh rules defined here.
-
----
 
 ## 11A. Conversational Builder
 
@@ -354,20 +315,6 @@ Prompt composition for a builder thread additionally injects, through the normal
 - **Manual edits.** A client may also hand-edit the same draft through the structured editor; manual edits are debounced to `agent/profiles/builderDraft/update`, and clients flush pending draft sync before sending a builder message. Builder tools mutate the same server-side draft. While a builder turn is running, clients should present the document as agent-controlled (non-interactive) to avoid concurrent field conflicts; manual editing resumes when the turn completes.
 - **No privileged path.** Creating or saving a profile from the builder uses the same validation, source, policy, and stale-thread refresh rules as Sections 5 and 9 — the builder is not a privileged write path.
 
----
-
-## 12. Acceptance
-
-The Agent Profiles system is complete when:
-
-- profile-backed threads can be created from Markdown profiles,
-- resolved profile provenance and policy persist with the thread,
-- profile role instructions appear through the normal prompt-composition path,
-- denied capabilities are hidden and rejected at invocation,
-- profile CRUD and validation are available through the management API,
-- refresh is explicit and updates stale profile-backed threads predictably,
-- diagnostics explain invalid profiles, shadowing, stale threads, locks, and trust restrictions.
-
 ### Desktop creation
 
-New agent opens the profile editor alongside the builder conversation. The empty conversation offers creation prompts; templates remain available in the Agents gallery. An unnamed draft uses the default DotCraft avatar. Once named, the editor and conversation use the canonical name for their avatars.
+New agent opens the profile editor alongside the builder conversation. Empty conversations offer creation prompts; templates remain in the Agents gallery. Unnamed drafts use the default avatar. Naming a draft gives its editor and conversation the canonical name-derived avatar.

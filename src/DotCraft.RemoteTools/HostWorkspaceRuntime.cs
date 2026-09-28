@@ -5,6 +5,7 @@ using DotCraft.Security.ShellCommands;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Workspaces;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.RemoteTools;
 
@@ -65,12 +66,13 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
         string hostDataPath,
         string executionSessionId,
         Func<PluginExecutionWorkspace> plugins,
+        ILogger<BackgroundTerminalService> logger,
         CancellationToken cancellationToken)
     {
         var config = AppConfig.Load(globalConfigPath);
         var workspaceData = Path.Combine(hostDataPath, "workspaces", workspaceId, "sessions", executionSessionId);
         Directory.CreateDirectory(workspaceData);
-        var terminals = new ExecutionSessionTerminalService(new BackgroundTerminalService(workspaceData, config.Tools.Shell.Background));
+        var terminals = new ExecutionSessionTerminalService(new BackgroundTerminalService(workspaceData, config.Tools.Shell.Background, logger));
         LspServerManager? lsp = null;
         try
         {

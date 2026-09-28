@@ -60,8 +60,8 @@ internal static class RemoteModelSmoke
         await using var terminals = new BackgroundTerminalService("/workspace/.craft", new AppConfig.ShellBackgroundConfig());
         var shell = new ShellTools("/workspace", terminals, workspaceRoots: ["/"]);
         var output = await shell.Exec("cat /workspace/marker; if [ -e /state/credentials/auth.json ]; then echo credential-visible; else echo credential-absent; fi", shell: "/bin/bash");
-        Ensure(output.Contains("workspace-readable") && output.Contains("credential-absent") && !output.Contains("credential-visible"),
-            "Shell credential isolation failed: " + output);
+        Ensure(output.Success && output.Content!.Contains("workspace-readable") && output.Content.Contains("credential-absent") && !output.Content.Contains("credential-visible"),
+            "Shell credential isolation failed: " + output.Content);
         Console.WriteLine("Native file and Shell tools can use the workspace and cannot read the model-service credential volume.");
     }
 

@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.1.0 |
+| Version | 0.7.8 |
 | Status | Living |
-| Date | 2026-07-31 |
-| Parent Spec | [Oratorio Design](./oratorio-design.md) |
+| Date | 2026-09-28 |
+| Parent Spec | [Oratorio Design](./oratorio-design.md), [Stack deployment](stack-deployment.md) |
 
 This document defines the deployment contract for exposing the GitHub webhook
 endpoint of a server-managed Oratorio stack without exposing the rest of the
@@ -17,8 +17,6 @@ Reference material:
 - [GitHub webhook delivery validation](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries)
 - [Caddy automatic HTTPS](https://caddyserver.com/docs/automatic-https)
 - [Let's Encrypt short-lived and IP address certificates](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability.html)
-
----
 
 ## 1. Overview
 
@@ -247,22 +245,3 @@ The operator must:
   new complete file, never a partially written `.env`.
 - Disabling ingress must not stop or recreate the base Oratorio or DotCraft
   services.
-
-## 11. Acceptance Checklist
-
-- [x] Domain and public IP inputs render valid, distinct Caddy TLS policy.
-- [x] Invalid and non-public hosts are rejected.
-- [x] The generated Compose model keeps `5087` on loopback and publishes only
-      gateway ports `80` and `443` publicly.
-- [x] Only the exact GitHub webhook POST reaches Oratorio.
-- [x] GitHub request body and signature/event headers reach Oratorio unchanged.
-- [x] Secret generation, import, preservation, redaction, atomic write, and
-      Unix permissions are tested.
-- [x] Enable, dry-run, repeat enable, user-file conflict, status, and disable
-      behavior are tested.
-- [x] Existing lifecycle commands automatically include enabled ingress.
-- [x] Doctor adds redacted ingress checks only when enabled.
-- [x] Official Docker Compose and Caddy validation run in CI.
-- [x] English and Chinese server deployment and GitHub integration docs remain
-      structurally aligned.
-- [x] Backend, CLI, documentation, and formatting checks pass.

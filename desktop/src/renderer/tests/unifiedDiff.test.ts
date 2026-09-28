@@ -189,6 +189,14 @@ describe('parseFileChangeStructuredContent', () => {
     expect(parseFileChangeStructuredContent(canonical)).toEqual(canonical)
   })
 
+  it('accepts write outcomes without inventing missing diff entries', () => {
+    expect(parseFileChangeStructuredContent({ ...canonical, writeState: 'applied' })).toEqual(canonical)
+    expect(parseFileChangeStructuredContent({
+      kind: 'fileChange', changes: [], writeState: 'applied',
+      warnings: [{ code: 'file_change_report_failed', message: 'The file was written.' }]
+    })).toEqual({ kind: 'fileChange', changes: [] })
+  })
+
   it('treats null optional fields as absent', () => {
     const parsed = parseFileChangeStructuredContent({
       kind: 'fileChange',

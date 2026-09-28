@@ -2,15 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
+| **Version** | 0.7.8 |
 | **Status** | Draft |
-| **Date** | 2026-06-01 |
-| **Related Specs** | [Desktop Client](../clients/desktop-client.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../architecture/hub-architecture.md) |
-| **Reference** | [Server deployment](../../docs/features/self-hosted/server-deployment.md), [服务器部署](../../docs/zh/features/self-hosted/server-deployment.md) |
+| **Date** | 2026-09-28 |
+| **Related Specs** | [Desktop DESIGN.md](../architecture/DESIGN.md), [Hub Architecture](../architecture/hub-architecture.md) |
 
 Purpose: Define a Desktop-owned visual manager for remote DotCraft Docker stacks over SSH. Desktop manages multiple servers, and multiple DotCraft Compose stacks per server, using the system `ssh` client and a fixed allow-list of `docker compose` operations. It connects Desktop to the remote AppServer, Oratorio, and Dashboard through local SSH tunnels without changing AppServer Protocol or Hub Protocol.
-
----
 
 ## 1. Scope
 
@@ -32,19 +29,15 @@ Purpose: Define a Desktop-owned visual manager for remote DotCraft Docker stacks
 - Auto-update, scheduled update, or agent-based pull deployment. The first version supports manual one-click update only.
 - SSH password prompts or storage of private keys / passphrases. The first version is key/agent based only.
 
----
-
 ## 2. Design Principles
 
 1. **DotCraft-shaped, not Docker-generic.** Every operation assumes the `docker` Compose layout from the deployment docs: a `dotcraft` service, a mounted `./workspace`, a rendered `.env`, and a generated `workspace/.craft/appserver.token`.
 2. **SSH-first.** Use the system `ssh` executable rather than bundling an SSH library, so the feature inherits `~/.ssh/config`, `ProxyJump`, `ssh-agent`, hardware keys, and editor-style host aliases for free.
 3. **Fixed allow-list.** Remote commands are a closed set of parameterized operations. The renderer chooses an operation and a target stack; it never supplies a command string.
-4. **No protocol changes.** Reuse the existing remote AppServer connection contract from [Desktop Client §3.1.1](../clients/desktop-client.md). Tunnels make a remote endpoint look like a local `127.0.0.1` endpoint to the existing probe/connect path.
+4. **No protocol changes.** Expose the remote AppServer through the authenticated SSH tunnel. Tunnels make a remote endpoint look like a local `127.0.0.1` endpoint to the existing probe/connect path.
 5. **Tunnel-first access.** AppServer and Dashboard are reached only through local SSH tunnels. The feature does not require the remote `9100`/`8080` ports to be publicly exposed.
 6. **Redaction by construction.** The AppServer token and any secret-bearing values are redacted from logs, errors, settings views, and operation history at the boundary, not best-effort after the fact.
 7. **Neutral, calm operational UI.** The surface follows the neutral-first design posture; semantic color is reserved for state and risk.
-
----
 
 ## 3. Architecture
 
@@ -62,8 +55,6 @@ DotCraft Desktop
 - "Open in Desktop" reads the remote `workspace/.craft/appserver.token`, opens a local AppServer tunnel, then drives the existing remote-connection apply path with a `ws://127.0.0.1:<localPort>/ws` URL and the token. Desktop's connection state machine and capabilities flow are unchanged.
 - The native Oratorio surfaces use a separate authenticated tunnel to the stack's Oratorio service. The service token is read at connection time and remains in Desktop Main memory.
 - "Open Dashboard" opens a separate Dashboard tunnel and points the browser surface at `http://127.0.0.1:<localPort>/dashboard`.
-
----
 
 ## 4. Domain Model and Settings Schema
 
@@ -106,8 +97,6 @@ Normalization rules:
 - Unknown fields are dropped on read; missing optional fields fall back to documented defaults.
 - The AppServer token is **never** stored in settings. It is read live over SSH at connection time.
 
----
-
 ## 5. Main-Process API Contract
 
 Exposed to the renderer via the existing preload bridge (`window.api.*`) and handled in the main IPC layer. All methods are async and return redacted, serializable results. All operations target a saved `hostId` (+ `stackId` where applicable); none accept a command string.
@@ -141,8 +130,6 @@ Exposed to the renderer via the existing preload bridge (`window.api.*`) and han
 ### 5.3 Events
 
 The main process may push progress for long operations (update, logs streaming, tunnel lifecycle) over the existing notification channel, keyed by `hostId`/`stackId`/`operationId`, so the renderer can render live step and log state. All pushed payloads are redacted.
-
----
 
 ## 6. Compose Operations
 
@@ -185,8 +172,6 @@ Status also reports `composeOk`, `envOk`, `configOk`, `tokenPresent`, optional `
   4. **Refresh** — re-run status and report the result (`recreated` / `already up to date`).
 - The update reports whether anything actually changed, derived from the pull/up output, rather than claiming an update when images were already current.
 
----
-
 ## 7. SSH Execution and Security
 
 - The main process invokes the system `ssh` binary. Arguments (target, identity file, remote command) are passed as an argument vector — never assembled into a shell string on the local side.
@@ -196,12 +181,10 @@ Status also reports `composeOk`, `envOk`, `configOk`, `tokenPresent`, optional `
 - A bounded timeout applies to every remote operation; a hung SSH process is terminated and surfaced as a timed-out operation.
 - **Redaction** is applied centrally before any SSH stdout/stderr, error, settings snapshot, or operation-history entry is returned to the renderer or written to disk: the AppServer token value and recognized secret env values (e.g. `*_TOKEN`, `*_SECRET`, `*_KEY`, `*_AES_KEY` from `.env`) are replaced with a masked marker. Token presence is reported as a boolean, never as the value.
 
----
-
 ## 8. Tunnel and Connection Model
 
 - AppServer tunnel: a local `ssh -L <localPort>:127.0.0.1:<appServerPort> <sshTarget>` forward. The chosen local port is ephemeral and bound to `127.0.0.1` only.
-- At connect time the main process reads `workspace/.craft/appserver.token` over SSH, opens the AppServer tunnel, and drives the existing remote apply path with `ws://127.0.0.1:<localPort>/ws` + token. The existing test-and-connect probe, capabilities load, and connection state machine from [Desktop Client §3.1.1](../clients/desktop-client.md) are reused unchanged.
+- At connect time the main process reads `workspace/.craft/appserver.token` over SSH, opens the AppServer tunnel, and drives the existing remote apply path with `ws://127.0.0.1:<localPort>/ws` + token. Connection initialization and capabilities follow the AppServer contract.
 - AppServer Protocol requests that carry a workspace identity must use the AppServer-visible workspace path (`appServerWorkspacePath`, default `/workspace`) rather than the host-side `workspaceDir`. UI and deployment operations may still display and use the host-side `workspaceDir`.
 - Dashboard tunnel: a separate `-L` forward; "Open Dashboard" points the browser surface at `http://127.0.0.1:<localPort>/dashboard`.
 - Oratorio tunnel: a separate `-L` forward to `oratorioPort`. Desktop Main reads `ORATORIO_SERVICE_TOKEN` from the stack `.env`, injects it into HTTP and WebSocket requests, and exposes only typed Oratorio IPC to Renderer.
@@ -209,15 +192,13 @@ Status also reports `composeOk`, `envOk`, `configOk`, `tokenPresent`, optional `
 - Tunnels are owned by the main process and torn down on disconnect, on host/stack deletion, on workspace switch, and on app quit. A stale tunnel must never outlive its connection.
 - Remote AppServer lifecycle is **not** owned by Desktop. Consistent with remote-mode rules, Desktop must not offer remote AppServer restart; container lifecycle (start/stop/restart of the stack) is a deployment action, distinct from AppServer process restart.
 
----
-
 ## 9. Desktop Servers Surface (UX Contract)
 
 The visual contract is governed by [Desktop DESIGN.md](../architecture/DESIGN.md). This section defines the workflow contract; it does not freeze geometry.
 
 ### 9.1 Placement and Navigation
 
-- The surface is the **SSH** segment of the Connections settings page (single-column, consistent with the settings grammar), beside the Workspace, Satellites, and Share this PC segments defined in [desktop-client.md §6.7](../clients/desktop-client.md#67-settings-surface). Segments share the page and its grammar, not state.
+- The surface is the **SSH** segment of the Connections settings page (single-column, consistent with the settings grammar), beside the Workspace, Satellites, and Share this PC segments. Segments share the page and its grammar, not state.
 - Navigation is **list → detail drill-in**: a list of saved servers; selecting one opens that server's detail view; a back affordance returns to the list. No new top-level navigation is introduced.
 
 ### 9.2 Server List
@@ -269,64 +250,10 @@ Per the visual spec's "at most one primary action per decision area," each stack
 
 - "Open in Desktop" ultimately drives the same connection state used by the Connections group. When a Servers stack is the active session, the Connections group shows a read-only banner ("Connected via Servers ▸ &lt;host&gt; / &lt;stack&gt;") with a link back to Servers, instead of an editable raw URL. The raw URL/token form remains available for the manual/advanced case only. There must be one source of truth for the active connection.
 
----
-
 ## 10. First-Version Decisions
 
-These are the v1 defaults; they are intended to be revisited in design review and as the implementation matures.
-
-1. **Update detection.** v1 does not show a proactive "update available" pill. **Update** is always available in the overflow, and the result reports `recreated` vs `already up to date` after the pull. Proactive detection (registry digest compare) is deferred.
-2. **Stack discovery.** The add-server flow includes an optional two-step **Test & discover** that imports detected `docker` stacks, degrading gracefully to manual stack entry.
-3. **Connections source of truth.** The Connections group shows a read-only "Connected via Servers" banner while a Servers stack is active (§9.8).
-4. **Action density.** Only Open / Dashboard / Logs sit on the stack card face; Update and lifecycle live in the overflow until state promotes them.
-
----
-
-## 11. Test Plan
-
-### 11.1 Unit
-
-- Remote host/stack settings normalization (defaults, invalid ports, path validation, unknown-field dropping, id generation).
-- Command-builder quoting and path validation (traversal rejection, metacharacter rejection, profile/project flags).
-- Token and secret redaction from logs, errors, settings snapshots, and operation history.
-- Compose status and update output parsing (health derivation, `recreated` vs `already up to date`).
-- Tunnel URL construction and lifecycle cleanup.
-
-### 11.2 Main process
-
-- Mock SSH executor covering status, logs, start, stop, restart, update, and failure cases (unreachable, no docker, no compose, missing `.env`, timeout).
-- Update step order is enforced: backup → pull → up → status refresh.
-- The renderer cannot request an arbitrary command; only allow-listed operations execute.
-
-### 11.3 Renderer
-
-- Host/stack list, empty state, unhealthy/partial state, update confirmation, logs panel, disabled actions.
-- Multi-host / multi-stack selection and drill-in navigation.
-- "Open in Desktop" routes through the tunnel and the existing remote connection status, and the Connections group reflects the single source of truth.
-
-### 11.4 Manual validation
-
-- A local Linux VM or test server with `docker`.
-- Two independent stacks.
-- AppServer and Dashboard reachable only through the SSH tunnel.
-- Update from an older image/tag to latest, verifying volumes (`./workspace`, `.craft/`) survive.
-
----
+Updates are manual. The manager does not proactively compare registry digests or schedule updates. Stack discovery is optional and always permits manual entry.
 
 ## 12. Assumptions and Prior Art
 
-- First version supports manual one-click update only, not auto-update or scheduled updates.
-- Remote servers already have Docker Engine and Docker Compose v2 installed.
-- The SSH user can run Docker commands without interactive sudo.
-- DotCraft Docker stacks follow the current `docker` layout.
-- No AppServer Protocol or Hub Protocol changes are required.
-- Portainer/Edge Agent and Watchtower remain reference patterns, not dependencies; they are useful prior art for later agent-based management, but the first version stays SSH-first. See [Docker SSH access](https://docs.docker.com/engine/security/protect-access/), [Portainer Edge Agent](https://docs.portainer.io/admin/environments/add/docker/edge), and [Watchtower](https://containrrr.dev/watchtower/introduction/).
-
----
-
-## 13. Related Specs
-
-- [Desktop Client](../clients/desktop-client.md) — connection lifecycle, remote-mode ownership, settings surface.
-- [Desktop DESIGN.md](../architecture/DESIGN.md) — color roles, action hierarchy, control styling.
-- [AppServer Protocol](../protocols/appserver-protocol.md) — the connection contract reused over the tunnel.
-- [Hub Architecture](../architecture/hub-architecture.md) — local AppServer coordination (unchanged by this feature).
+The remote host has Docker Engine, Compose v2 and noninteractive Docker access for its SSH user. Stacks follow the official deployment layout. This feature adds no AppServer or Hub protocol method.

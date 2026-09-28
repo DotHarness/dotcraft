@@ -2,16 +2,14 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.0 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-08-01 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [TypeScript SDK Binding](typescript.md), [.NET SDK Binding](dotnet.md) |
+| **Date** | 2026-09-28 |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md) |
 
 Purpose: define the shared SDK design contract for DotCraft across languages while allowing each language binding to keep idiomatic package structure, runtime constraints, publishing rules, and environment-specific helpers.
 
 This document is the canonical cross-language SDK spec. Language binding specs refine this contract; they must not redefine shared protocol semantics.
-
----
 
 ## 1. Scope
 
@@ -37,7 +35,7 @@ This specification does not define:
 
 Every general-purpose SDK exposes the same DotCraft capabilities through the same core nouns and verbs, differing only by each language's casing and idiom. A developer fluent in one binding should read another without a translation table: `connectLocal` / `ConnectLocalAsync` / `connect_local` are the same operation; `thread.run()` / `thread.RunAsync()` / `thread.run()` are the same operation.
 
-This is the design center of the cross-language contract. Bindings stay idiomatic in *form* — async suffixes, casing, iteration primitives, error types, packaging — but the surface is *parallel in shape*: same entry points, same method names, same option keys, same event model, same capability coverage. Divergent names or object models for the same capability are parity debt, tracked in the capability matrix (§5), not an accepted outcome.
+This is the design center of the cross-language contract. Bindings stay idiomatic in *form* — async suffixes, casing, iteration primitives, error types, packaging — but the surface is *parallel in shape*: same entry points, same method names, same option keys, same event model, same capability coverage. Bindings must preserve equivalent capability coverage and object responsibilities.
 
 The canonical surface below is the spine all general-purpose bindings converge on:
 
@@ -85,7 +83,7 @@ Every general-purpose SDK must expose explicitly named raw AppServer request, no
 
 ### 2.5 Typed Wrappers Are Traceable
 
-Every typed SDK wrapper must map to one or more rows in this spec's capability matrix and to the owning protocol spec. If a language adds a typed wrapper first, this shared spec must be updated in the same change.
+Every typed SDK wrapper maps to its owning protocol contract and one of the capability profiles below.
 
 ### 2.6 Language-Specific Profiles Are Allowed
 
@@ -154,22 +152,13 @@ The Run profile is the high-level one-turn application API and is **required for
 - Normalize common thread, turn, item, plan, subagent, and system notifications.
 - Merge agent-message deltas and final snapshots without duplicating text.
 - Surface failed and cancelled turns as stable SDK errors.
-- Support enqueue-on-busy when implemented by the language binding.
+- Enqueue on busy only when explicitly requested.
+- Cancellation performs a best-effort `turn/interrupt`.
+- Disconnection terminates the active Run without replay; recovery uses persisted Thread and Turn state.
 
 ### 3.5 App Binding Profile
 
-The App Binding profile covers app-side and application-side helpers over [App Binding](../protocols/app-binding.md):
-
-- Parse or represent App Binding handoffs when the runtime participates in native-app flows.
-- Inspect connection and binding requests.
-- Complete or revoke app connections.
-- Publish app-owned loopback surfaces from authenticated app principals and resolve live surfaces from trusted AppServer clients.
-- Create, cancel, inspect, accept, refresh, revoke, and list thread bindings when a typed wrapper exists.
-- Attach runtime Dynamic Tools to accepted bindings.
-- Keep app-bound tool channels alive while the app is running.
-- Return standard App Binding tool error shapes.
-
-SDKs may expose App Binding methods as generic typed requests first, then add stable DTOs later.
+The App Binding profile exposes typed connection, principal, binding, surface, and capability-confirmation operations from [App Binding](../protocols/app-binding.md). It also provides native handoff parsing when supported by the runtime. SDK helpers preserve the protocol's principal roles and whole-app authorization boundary; they do not introduce a separate tool or consent model.
 
 ### 3.6 Channel Adapter Profile
 
@@ -225,7 +214,7 @@ Wire connection behavior is shared across bindings:
 - Wire does not recover Thread, Run, subscription, or Dynamic Tool state. Those decisions belong to the high-level client or host adapter.
 - A high-level Run that loses its Wire session terminates with a stable disconnect error. Reconnect must never replay `turn/start`; applications recover from persisted Thread and Turn state explicitly.
 
-Normal RPC calls default to thirty seconds and allow a finite override or no timeout. Ordinary local initialization defaults to no timeout. Desktop remote initialization uses fifteen seconds, and a Desktop connection probe uses ten seconds.
+Normal RPC calls default to thirty seconds and allow a finite override or no timeout. Ordinary local initialization defaults to no timeout. Host-specific initialization and probe limits belong to the host.
 
 ### 4.3 Thread And Turn
 
@@ -306,108 +295,19 @@ The shared media source semantics are:
 
 SDKs must not assume that a downstream messaging platform, gateway, or helper process can read the same filesystem path as the SDK process. Channel tool descriptions should describe the expected source argument from the agent's perspective and avoid exposing adapter-internal deployment details.
 
-## 5. Capability Matrix
+## 5. Profile coverage
 
-Status values:
+Every general-purpose binding implements Core, Hub Bootstrap, Application, Run, and App Binding profiles. Channel Adapter is required only for bindings that ship external channel adapters; hosted Node module authoring remains a TypeScript-specific profile.
 
-- **Typed**: language binding has a named high-level wrapper.
-- **Generic**: helper exists, but request/response shape is caller-provided.
-- **Raw**: available through raw request or raw notification APIs only.
-- **Callback**: SDK dispatches the server-initiated request.
-- **Profile**: supported by an optional language-specific profile.
-- **Partial**: some methods in the capability family are typed or generic, while others remain raw or unsupported.
-- **Gap**: no support beyond what the lower layer incidentally exposes.
+Typed wrappers may cover a subset of optional management methods. Explicit raw APIs provide access to the remaining protocol without changing server semantics.
 
-Parity Target applies to every general-purpose SDK (TypeScript and .NET) unless the row names a single-language profile. Cells record the current status per language.
+## 6. Language binding responsibilities
 
-| Capability | Owning Spec | TypeScript | .NET | Parity Target |
-|------------|-------------|------------|------|---------------|
-| Initialize / initialized | AppServer | Typed | Typed | Required |
-| Raw AppServer request | AppServer | Typed | Typed | Required |
-| Raw notification consumption | AppServer | Typed | Typed | Required |
-| Server request dispatch | AppServer | Typed | Typed | Required |
-| Stdio or stream JSON-RPC transport | AppServer | Typed | Typed | Required low-level |
-| WebSocket JSON-RPC transport | AppServer | Typed | Typed | Required |
-| Custom transport injection | SDK | Raw constructor | Typed high-level | Required low-level |
-| Hub lock discovery and validation | Hub | Typed | Typed | Required local |
-| Hub startup | Hub | Typed | Typed | Required local |
-| AppServer ensure | Hub | Typed | Typed | Required local |
-| Default Chat AppServer ensure | Hub | Typed | Typed | Required local |
-| AppServer lookup by workspace | Hub | Gap | Typed | Optional typed |
-| Hub status | Hub | Typed | Gap | Optional typed |
-| Hub SSE events | Hub | Typed | Gap | Optional typed |
-| Thread start | AppServer | Typed | Typed | Required |
-| Thread resume | AppServer | Typed | Typed | Required |
-| Thread read | AppServer | Typed | Typed | Required |
-| Thread subscribe | AppServer | Typed | Typed | Required |
-| Thread list | AppServer | Typed | Typed | Required application |
-| Thread unsubscribe | AppServer | Typed | Typed | Required application |
-| Thread archive/delete | AppServer | Typed | Typed | Optional typed |
-| Thread mode set | AppServer | Typed | Typed | Optional typed |
-| Turn start | AppServer | Typed | Typed | Required |
-| Turn enqueue | AppServer | Typed | Typed | Required |
-| Turn interrupt | AppServer | Typed | Typed | Required |
-| High-level run | SDK | Typed | Typed | Required Run profile |
-| Streaming run events | SDK/AppServer | Typed | Typed | Required Run profile |
-| Delta/snapshot text merge | SDK/Session | Typed | Typed | Required Run profile |
-| Approval callback | AppServer | Callback | Callback | Required when advertised |
-| User-input callback | AppServer | Callback | Callback | Required when advertised |
-| Runtime Dynamic Tool declaration | AppServer | Typed | Typed | Required |
-| Runtime Dynamic Tool callback | AppServer | Callback | Callback | Required |
-| Model list | AppServer | Typed | Typed | Optional typed |
-| App Binding handoff parse | App Binding | Typed | Typed | App Binding profile |
-| App Binding request inspect | App Binding | Raw | Typed | App Binding profile |
-| App Binding principal authenticate/refresh | App Binding | Typed | Typed | App Binding profile |
-| App Binding enable/activate/rebind | App Binding | Typed | Typed | App Binding profile |
-| App Binding capability confirmation | App Binding | Typed | Typed | App Binding profile |
-| App Binding app list/view | App Binding | Typed | Typed | Optional typed |
-| App Binding connection start/revoke/status | App Binding | Typed | Typed | Optional typed |
-| Thread app bindings list/revoke | App Binding | Typed | Typed | Required typed |
-| App Binding tool error shape | App Binding | Typed | Typed | Required App Binding profile |
-| Channel adapter base class | External Channel Adapter | Profile | Gap | TypeScript profile |
-| Channel runtime reducers/dispatchers | External Channel Adapter | Profile | Gap | TypeScript profile |
-| Media source normalization for channel tools | SDK | Profile | Gap | TypeScript profile |
-| Hosted channel module manifest | External Channel Adapter | Profile | Gap | TypeScript profile |
-| Module conformance helper | SDK | Profile | Gap | TypeScript profile |
-| SDK conformance fixtures | SDK | Typed | Typed | Required for new wrappers |
+Language bindings define package identity, runtime baseline, public exports, idiomatic types, language-specific profiles, and publishing policy. They inherit shared lifecycle, callback, security, and compatibility rules from this specification.
 
-When a status changes, update this table and the relevant language binding spec in the same change.
+## 7. Conformance
 
-## 6. Language Binding Specs
-
-Each language binding spec must document:
-
-- Package identity and versioning.
-- Runtime baseline.
-- Public entry points, exports, or namespaces.
-- Idiomatic high-level client shape.
-- Language-specific profiles and explicit gaps.
-- Validation commands.
-- Publishing policy when applicable.
-
-Current binding specs:
-
-- [TypeScript SDK Binding](typescript.md)
-- [.NET SDK Binding](dotnet.md)
-
-Both are general-purpose SDKs and must satisfy the Core, Hub Bootstrap, Application, Run, and App Binding profiles at the parity targets in §5. TypeScript additionally provides the Channel Adapter profile.
-
-## 7. Testing And Conformance
-
-Shared conformance expectations:
-
-- Initialize request shape and `initialized` notification.
-- JSON-RPC response correlation and error conversion.
-- Transport framing for each supported transport.
-- Hub lock validation and bearer authorization.
-- Thread and turn request shapes for typed wrappers.
-- Runtime Dynamic Tool declaration, dispatch, missing-handler fallback, and handler exception fallback.
-- App Binding method shape for typed or generic helpers.
-- Run profile event order, text merge, failure, cancellation, abort, and enqueue behavior.
-- Channel profile queueing, thread resolution, command routing, delivery/tool/approval dispatch, lifecycle, and conformance helpers.
-- Media source normalization for channel tools where the profile is implemented.
-
-Language binding specs own the exact commands.
+Bindings use common protocol fixtures for serialization and callback interoperability. A binding must preserve its advertised profiles, including event ordering, error metadata, missing/null/value distinctions, and unknown extension data. Artifact generation and fixture ownership follow [Protocol contracts and SDK generation](protocol-contract-generation.md).
 
 ## 8. Security
 
@@ -439,15 +339,3 @@ Non-breaking changes include:
 - Adding typed wrappers for raw-only rows.
 - Adding optional DTO fields that pass through server data.
 - Adding language-specific helpers that preserve existing wire behavior.
-
-## 10. Acceptance Contract
-
-A complete shared SDK specification state satisfies:
-
-- `specs/sdk/sdk.md` defines the shared semantic SDK contract.
-- Language binding specs live under `specs/sdk/`.
-- Cross-spec links point to the new SDK directory.
-- Capability parity is tracked in this document's matrix.
-- Language-specific SDK designs remain documented without duplicating shared protocol semantics.
-- Contracts, Wire, high-level, and host-adapter responsibilities remain distinct.
-- TypeScript and .NET expose equivalent typed and explicit raw Wire semantics and the same generic Hub capability set.

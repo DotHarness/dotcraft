@@ -47,7 +47,7 @@ public sealed class ShellTools
     [Description("Execute a shell command and return its output.")]
     [Tool(Icon = "⌨️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.Exec), MaxResultChars = 30_000)]
     [ToolRpc]
-    public async Task<string> Exec(
+    public async Task<ToolExecutionResult> Exec(
         [Description("The shell command to execute.")] string command,
         [Description("Optional working directory for the command.")] string? workingDir = null,
         [Description("Run the command in the background and return a session ID for later WriteStdin calls.")] bool runInBackground = false,
@@ -73,11 +73,17 @@ public sealed class ShellTools
             commandExecution?.Complete(string.Empty, status: "cancelled", exitCode: null);
             throw;
         }
+        catch (Exception ex)
+        {
+            var error = ToolFailure.FromException(ex, "Command authorization");
+            commandExecution?.Complete(error.Message, status: "failed", exitCode: null);
+            return ToolExecutionResult.Failed(error, error.Message);
+        }
 
         if (!gate.IsAllowed)
         {
             commandExecution?.Complete(gate.Error!, status: "failed", exitCode: null);
-            return gate.Error!;
+            return ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.AccessDenied, gate.Error!), gate.Error);
         }
 
         var stdinSession = new ShellStdinSession(gate.Shell!, cwd);
@@ -96,7 +102,7 @@ public sealed class ShellTools
     [Description("Write input to a running background terminal session, or pass an empty input string to poll for recent output.")]
     [Tool(Icon = "⌨️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.Exec), MaxResultChars = 30_000)]
     [ToolRpc]
-    public async Task<string> WriteStdin(
+    public async Task<ToolExecutionResult> WriteStdin(
         [Description("Background terminal session ID returned by Exec.")] string sessionId,
         [Description("Characters to write to stdin. Include newlines when the process expects Enter.")] string input = "",
         [Description("Milliseconds to wait after writing before returning output.")] int? yieldTimeMs = null,
@@ -111,7 +117,7 @@ public sealed class ShellTools
             {
                 var stdinGate = await _gate.AuthorizeStdinAsync(session, input, cancellationToken);
                 if (!stdinGate.IsAllowed)
-                    return stdinGate.Error!;
+                    return ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.AccessDenied, stdinGate.Error!), stdinGate.Error);
             }
 
             var snapshot = await _backgroundTerminals.WriteStdinAsync(
@@ -120,7 +126,7 @@ public sealed class ShellTools
                 yieldTimeMs ?? 1000,
                 maxOutputChars ?? _maxOutputLength,
                 cancellationToken);
-            return FormatSnapshot(snapshot);
+            return SnapshotResult(snapshot, FormatSnapshot(snapshot));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -128,7 +134,8 @@ public sealed class ShellTools
         }
         catch (Exception ex)
         {
-            return $"Error writing to background terminal: {ex.Message}";
+            var error = ToolFailure.FromException(ex, "Terminal input");
+            return ToolExecutionResult.Failed(error, error.Message);
         }
     }
 
@@ -138,7 +145,7 @@ public sealed class ShellTools
     private static bool RequiresStdinAuthorization(string input) =>
         input.Trim('\r', '\n', EndOfText).Length > 0;
 
-    private async Task<string> ExecWithBackgroundTerminalServiceAsync(
+    private async Task<ToolExecutionResult> ExecWithBackgroundTerminalServiceAsync(
         string command,
         string cwd,
         bool runInBackground,
@@ -222,7 +229,7 @@ public sealed class ShellTools
                 snapshot.OriginalOutputChars,
                 snapshot.Truncated,
                 snapshot.BackgroundReason);
-            return toolResult;
+            return SnapshotResult(snapshot, toolResult);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -231,10 +238,26 @@ public sealed class ShellTools
         }
         catch (Exception ex)
         {
-            var error = $"Error executing command: {ex.Message}";
-            commandExecution?.Complete(error, status: "failed", exitCode: null);
-            return error;
+            var error = ToolFailure.FromException(ex, "Command execution");
+            commandExecution?.Complete(error.Message, status: "failed", exitCode: null);
+            return ToolExecutionResult.Failed(error, error.Message);
         }
+    }
+
+    private static ToolExecutionResult SnapshotResult(BackgroundTerminalSnapshot snapshot, string content)
+    {
+        if (snapshot.Status is BackgroundTerminalStatus.Running or BackgroundTerminalStatus.Completed
+            || snapshot.Status == BackgroundTerminalStatus.Failed && snapshot.ExitCode.HasValue)
+            return ToolExecutionResult.Succeeded(content);
+        var code = snapshot.Status switch
+        {
+            BackgroundTerminalStatus.TimedOut => ToolErrorCodes.Timeout,
+            BackgroundTerminalStatus.Killed => ToolErrorCodes.Cancelled,
+            _ => ToolErrorCodes.ExecutionFailed
+        };
+        return ToolExecutionResult.Failed(new ToolError(code,
+            $"Terminal '{snapshot.SessionId}' finished with status '{snapshot.Status}'" +
+            (snapshot.ExitCode is { } exitCode ? $" and exit code {exitCode}." : ".")), content);
     }
 
     private static string FormatSnapshot(BackgroundTerminalSnapshot snapshot)

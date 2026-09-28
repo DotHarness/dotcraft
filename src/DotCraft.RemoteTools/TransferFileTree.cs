@@ -38,7 +38,7 @@ internal static class TransferFileTree
                 if (size > maxBytes - total) throw new IOException("Transfer exceeds the configured byte limit.");
                 total += size;
                 var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, ct).ConfigureAwait(false)).ToLowerInvariant();
-                if (stream.Length != size) throw new IOException("Source changed while computing its manifest.");
+                if (stream.Length != size) throw new TransferSourceChangedException("Source changed while computing its manifest.");
                 entries.Add(new(item.Relative, false, size, hash,
                     OperatingSystem.IsWindows() ? null : (int)File.GetUnixFileMode(item.Path) & 0x1FF));
             }

@@ -2,16 +2,13 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.7.0 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-08-29 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [.NET Plugin Architecture](dotnet-plugins.md), [Desktop Plugins](desktop-plugins.md), [Plugin Registry](plugin-registry.md), [Tool Architecture](tools-architecture.md), [Session Core](session-core.md), [Lifecycle Hooks](../features/lifecycle-hooks.md), [Dynamic Workflows](../features/dynamic-workflows.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
+| **Date** | 2026-09-28 |
 
 Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills and
 workflows, local plugin manifests, plugin-bundled MCP servers, client-facing plugin metadata, and the
 TypeScript external channel module contract.
-
----
 
 ## 1. Architecture Overview
 
@@ -27,11 +24,9 @@ The plugin contribution model is:
 4. **Desktop Plugins**: optional trusted Desktop modules that contribute views, actions, commands, and tool presentation.
 5. **Interface Metadata**: optional client-facing plugin metadata.
 6. **Dynamic Workflows**: plugin-contained JavaScript workflows registered under the plugin namespace.
-7. **.NET Plugins**: plugin-contained managed assemblies loaded in-process, whose runtime, contribution points, trust model, and lifecycle are owned by [.NET Plugin Architecture](dotnet-plugins.md).
+7. **.NET Plugins**: plugin-contained managed assemblies admitted by the host runtime.
 
-Plugin manifests do not declare model-callable native tools. Legacy manifest fields `tools`, `functions`, and `processes` are unsupported and ignored with diagnostics. External reusable services should use MCP. Thread-scoped client callback tools should use Runtime Dynamic Tools (`thread/start.dynamicTools`, `thread/resume.dynamicTools`, and `item/tool/call`) defined in [AppServer Protocol](../protocols/appserver-protocol.md).
-
----
+Plugin manifests do not declare model-callable native tools. Legacy manifest fields `tools`, `functions`, and `processes` are unsupported and ignored with diagnostics. External reusable services should use MCP. Thread-scoped client callbacks use the Runtime Dynamic Tool contract in [Tool Architecture](tools-architecture.md).
 
 ## 2. Local Plugin Manifest
 
@@ -123,11 +118,14 @@ Effective MCP merge rules:
 - `"hooks": { "hooks": { ... } }`
 - `"hooks": [{ "hooks": { ... } }]`
 
-If `hooks` is omitted, DotCraft automatically discovers `./hooks/hooks.json` under the plugin root. If that file is absent, DotCraft also checks a top-level `./hooks.json` for compatibility with imported plugin ecosystems. Explicit `hooks` declarations always take precedence and suppress default discovery. Hook paths use the same manifest-relative path rules as other plugin paths: they must start with `./`, must not escape the plugin root, and must resolve inside the plugin directory. Plugin hook files reuse the workspace `.craft/hooks.json` shape defined by [Lifecycle Hooks](../features/lifecycle-hooks.md). DotCraft executes command hooks and reports unsupported reserved handler types through plugin diagnostics.
+If `hooks` is omitted, discovery checks `./hooks/hooks.json`, then `./hooks.json` for imported
+bundle compatibility. An explicit declaration suppresses defaults. Hook paths follow the shared
+manifest rules. Only installed, enabled plugins contribute hooks; discovery never executes them.
 
-Plugin hooks are loaded only from installed and enabled plugins. They are listed by `hooks/list` with source `plugin`, and summarized in `plugin/list` / `plugin/view` as `{ key, eventName }`. Commands run from the workspace root, like config hooks. DotCraft expands `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}` in plugin hook commands and injects the same values as environment variables. Plugin data resolves to `<UserDataPath>/plugins/<pluginId>/data` when the host configures `UserDataPath`; otherwise it resolves to `<DataPath>/plugin-data/<pluginId>`. Hooks, LSP servers, and .NET activation use this same host-side directory. Plugin configuration files remain separate from this directory. The renderer never receives the directory path or a general file API; Desktop plugins that need blobs, SQLite, or caches must delegate them to a plugin backend. Compatibility aliases may be injected for imported plugin ecosystems, but DotCraft-authored plugins should use the `DOTCRAFT_*` variables.
-
-Plugin hooks are user-trusted runtime behavior. Installing or enabling a plugin does not automatically trust its hooks. First appearance and any hash-changing edit returns `trustStatus` `untrusted` or `modified` from `hooks/list`; plugin hooks run only after `hooks/trustPlugin` stores the current hash for every current hook from that plugin in user-global `Hooks.State`. `hooks/setState` remains the per-hook compatibility path for clients that need it.
+Plugin host-side data is stored at `<UserDataPath>/plugins/<pluginId>/data`, or at
+`<DataPath>/plugin-data/<pluginId>` when no user-data root is configured. Hook, LSP, and .NET
+contributions share this directory. Plugin configuration documents remain separate. The renderer
+receives no data-directory path or general file API.
 
 Example MCP plugin:
 
@@ -167,9 +165,8 @@ shared-assets policy.
 `workflows` is an optional manifest-relative path to a plugin-contained workflow directory, for example
 `"./workflows/"`. If omitted and the root `./workflows/` directory exists, DotCraft discovers it by
 default. Enabled and installed plugins contribute its top-level `*.js` definitions under the stable
-name `{pluginId}:{workflowName}`. Plugin workflows never shadow workspace or personal definitions;
-their parsing, approval, execution, and command registration follow
-[Dynamic Workflows](../features/dynamic-workflows.md).
+name `{pluginId}:{workflowName}`. Plugin workflows never shadow workspace or personal definitions.
+Disabling or removing the bundle withdraws its workflow contributions.
 
 `apps` points to a plugin-contained App Binding descriptor document, for example `"./apps.json"`. Apps contributed by installed and enabled plugins become eligible for App Binding connection and thread binding. Catalog-visible built-in plugins may expose app metadata before installation, but connection and binding are blocked until the owning plugin is installed and enabled.
 
@@ -187,7 +184,7 @@ their parsing, approval, execution, and command registration follow
 
 `description` is optional presentation metadata for clients listing the Desktop contribution. When it is absent, clients may fall back to the parent plugin description. The entry must be an ESM `.mjs` file, and every style must be `.css`. All paths are manifest-relative and confined to `./desktop/dist/`. The executable `entry` / `styles` declaration and output tree produce the revision projected through `plugin/list` and `plugin/view`; changing only `description` does not change that revision.
 
-The module exports one activation function. Activation may register renderer effects, UI surfaces, services, and events directly, and may return convenience contributions for main views, settings pages, conversation views, commands, tool renderers, and message actions. Desktop publishes and withdraws all registrations as one generation. The public Host API, lifecycle, trust boundary, and contribution contracts are defined by [Desktop Plugins](desktop-plugins.md).
+The Desktop host owns activation, runtime trust, and contribution lifecycle; manifest discovery does not execute the module.
 
 ### .NET manifest
 
@@ -219,9 +216,9 @@ The module exports one activation function. Activation may register renderer eff
 
 `dependencies` is optional, is valid only when `dotnet` is present, and defaults to an empty map. Each key is a canonical plugin id and each value is the minimum provider version within one compatibility line: stable versions must share the required major version, while `0.x` versions must also share its minor version. Self-dependencies, duplicate ids after canonicalization, and range syntax are invalid. The map declares required .NET generation lifecycle edges; it does not describe private library or NuGet dependencies. A consumer may import a CLR service only from a plugin named directly in this map.
 
-The deployment bundle must already contain the entry assembly, its adjacent `.deps.json`, all private managed dependencies, and all required native assets. Discovery, installation, and activation do not restore NuGet packages, contact package feeds, run MSBuild, execute install scripts, or compile source. The `DotNetPlugin` authoring build defined by [.NET Plugin Architecture](dotnet-plugins.md#76-agent-authoring-build) produces this bundle in the workspace.
+The deployment bundle must already contain the entry assembly, its adjacent `.deps.json`, all private managed dependencies, and all required native assets. Discovery, installation, and activation do not restore NuGet packages, contact package feeds, run MSBuild, execute install scripts, or compile source.
 
-An installed `dotnet` plugin runs with the host process's full authority and requires an explicit, fingerprint-bound trust confirmation before any of its code loads. An authoring build may qualify its exact development fingerprint for the current process without modifying durable trust. The contribution points it may contribute to, the assembly load and reclaim lifecycle, the trust model, and the runtime projection are defined by [.NET Plugin Architecture](dotnet-plugins.md); everything in this spec applies to it unchanged.
+An installed `dotnet` plugin runs with the host process's full authority and requires an explicit, fingerprint-bound trust confirmation before any of its code loads. An authoring build may qualify its exact development fingerprint for the current process without modifying durable trust.
 
 DotCraft discovers plugin roots from:
 
@@ -235,8 +232,6 @@ Explicit roots may point either to one plugin root containing `.craft-plugin/plu
 
 When multiple roots contain the same plugin id, higher-priority roots win and lower-priority duplicates are skipped with diagnostics. A workspace, explicit, or user-global plugin suppresses the bundled catalog entry with the same id.
 
----
-
 ## 3. Manifest Path Rules
 
 Manifest-relative paths must:
@@ -248,8 +243,6 @@ Manifest-relative paths must:
 
 These rules apply to `skills`, `mcpServers`, `settings`, `workflows`, `paths`, interface asset paths, and other
 manifest-relative fields. Desktop entry and style paths also remain inside `./desktop/dist/`.
-
----
 
 ## 4. Loading and Diagnostics
 
@@ -265,72 +258,12 @@ If a manifest declares `tools`, `functions`, or `processes`, DotCraft emits `Uns
 
 Discovery or loading failures for one plugin must not prevent other plugins from loading.
 
----
+## 5. Tool contributions
 
-## 5. Built-In and External Tool Sources
-
-### Browser Built-In Plugin
-
-DotCraft ships Browser as the built-in plugin `browser`. It contributes:
-
-- The `browser` skill, loaded from the plugin's `skills` directory.
-- Client-facing metadata for Desktop and plugin-management views.
-
-When Browser is installed and enabled, DotCraft may expose the server-owned `NodeReplJs` runtime tool for threads bound to an AppServer client that advertises both Node REPL and Browser support. `NodeReplJs` is not declared in the plugin manifest.
-
-### Chrome Built-In Plugin
-
-DotCraft ships Chrome automation as the built-in plugin `chrome`. It contributes:
-
-- The `chrome` skill, loaded from the plugin's `skills` directory.
-- Client-facing metadata for Desktop and plugin-management views.
-- Setup and diagnostic scripts for Chrome extension and Native Messaging host installation state.
-
-When Chrome is installed and enabled, DotCraft may expose the server-owned `NodeReplJs` runtime tool for threads bound to an AppServer client that advertises both Node REPL and Browser support. The Chrome skill selects the `chrome-extension` browser backend inside the Node runtime; `NodeReplJs` is not declared in the plugin manifest.
-
-Chrome setup detection must not inspect cookies, passwords, session stores, local storage, or browsing databases. The development extension uses a fixed manifest key for deterministic unpacked extension IDs; production distribution must replace it with the official Chrome Web Store, private, unlisted, or enterprise-managed extension ID.
-
-The long-term Chrome automation runtime contract is defined in [Chrome Browser Runtime](../features/chrome-browser-runtime.md). Plugin architecture owns contribution and installation semantics; Chrome Browser Runtime owns browser session lifecycle, tab ownership, command timeout, diagnostics, and runtime migration goals.
-
-### Computer Built-In Plugin
-
-DotCraft ships desktop application control as the built-in plugin `computer`. It contributes:
-
-- The `computer` skill and its reference documents, loaded from the plugin's `skills` directory.
-- Client-facing metadata for Desktop and plugin-management views.
-
-When Computer is installed and enabled, DotCraft may expose the server-owned `NodeReplJs` runtime tool for threads bound to an AppServer client that advertises both Node REPL and Computer Use support. Computer does not count toward `NodeReplJs` exposure for clients that advertise only Browser support, and Browser and Chrome do not count for clients that advertise only Computer Use support. The runtime, authorization and packaging contract is defined in [Desktop Computer Use](../features/desktop-computer-use.md).
-
-### External Integration Registry Plugins
-
-Optional external application integrations should be distributed through the plugin registry rather than bundled with the DotCraft Desktop package. A registry plugin may contribute:
-
-- skills loaded from the plugin's `skills` directory;
-- App Binding descriptors loaded from plugin-owned descriptor files;
-- Desktop modules and assets;
-- client-facing metadata for Desktop and plugin-management views.
-
-Installing a registry plugin does not install or launch any native application required by the integration. The plugin's App Binding descriptor declares native app requirements and handoff behavior; Desktop surfaces native app installation, connection, and thread binding as separate steps.
-
-### External Channel Tools
-
-External channel tools are runtime-declared by channel adapters during AppServer `initialize`. Static plugin manifests are not required for external-channel runtime tools. Execution continues to use the `ext/channel/toolCall` server-to-client request defined by [External Channel Adapter](../protocols/external-channel-adapter.md).
-
-External channel tool invocations are projected as standard Session Core `toolCall` and `toolResult` items with plugin/channel provenance.
-
-### Runtime Dynamic Tools
-
-Runtime Dynamic Tools are declared by AppServer clients on `thread/start.dynamicTools` or rebound by `thread/resume.dynamicTools`, then invoked through the `item/tool/call` server-to-client request. They are bound to the current declaring connection and are suitable for client-owned, thread-scoped capabilities such as an external review runner submitting a draft back to its caller.
-
-Runtime Dynamic Tools are not plugin manifest tools.
-
-### MCP Tools
-
-MCP tools are configured through workspace `McpServers`, per-thread `ThreadConfiguration.McpServers`, or plugin-bundled MCP declarations. They are discovered by the MCP runtime and injected through the MCP tool path.
-
-Plugin provenance and MCP model identity are independent. The plugin id remains available through origin provenance and the runtime connection name, while the model sees only the collision-safe composite tool identity defined by [Tool Architecture](tools-architecture.md). Equal declared server/tool names from different effective runtimes are disambiguated deterministically during batch normalization rather than by exposing the `{pluginId}:` routing prefix.
-
----
+Tool registrations obey [Tool Architecture](tools-architecture.md). Plugin provenance identifies the
+owning bundle and is independent from model-visible identity. For MCP, the runtime connection name
+retains `{pluginId}:` for routing; it is never exposed by parsing that prefix into a model namespace.
+Equal declared names are disambiguated through the shared identity normalization contract.
 
 ## 6. Built-In Plugin Lifecycle
 
@@ -348,9 +281,7 @@ Installed built-ins carry a `.builtin` marker:
 
 `plugin/remove` removes an installed workspace plugin directory under `<DataPath>/plugins/<pluginId>` when that directory is controlled by the current workspace plugin manager. It first renames the directory into `<DataPath>/tmp` on the same volume, then cleans up the moved directory on a best-effort basis. A failure before the rename leaves the installed directory intact. Managed built-ins and registry-installed plugins carry `.builtin` so DotCraft can refresh them and can distinguish them from user-owned local plugins, but workspace-local user plugins may also be removed explicitly through `plugin/remove`. Removing a plugin is distinct from disabling it: removed built-ins and registry plugins are absent from runtime discovery but remain visible in the installable catalog when their source is configured, while disabled installed plugins remain on disk and can be re-enabled.
 
-Registry catalog entries are source paths inside a registry snapshot. `plugin/install` validates the marketplace entry, validates the target plugin manifest id, then copies the registry plugin directory into `.craft/plugins/<pluginId>` with a managed marker. DotCraft never executes code directly from a registry URL; Desktop loads only the locally installed extension bundle. The public registry process for these curated source entries is defined in [Plugin Registry](plugin-registry.md).
-
----
+Registry catalog entries are source paths inside a registry snapshot. `plugin/install` validates the marketplace entry, validates the target plugin manifest id, then copies the registry plugin directory into `.craft/plugins/<pluginId>` with a managed marker. DotCraft never executes code directly from a registry URL; Desktop loads only the locally installed extension bundle.
 
 ## 7. TypeScript External Channel Modules
 
@@ -379,8 +310,6 @@ Module manifests may include an optional `interface` object for host-rendered di
 
 Localized `interface` maps use the same locale keys as other module display metadata: `en` and `zh-Hans`.
 
----
-
 ## 8. Configuration
 
 The `Plugins` config section contains:
@@ -388,7 +317,7 @@ The `Plugins` config section contains:
 - `PluginRoots`: additional local plugin roots or plugin container directories. Relative paths resolve against the workspace root.
 - `EnabledPlugins`: plugin ids explicitly enabled for the workspace.
 - `DisabledPlugins`: plugin ids explicitly disabled for the workspace. Disabled entries override enabled/default entries.
-- `PluginRegistries`: additional plugin marketplace sources. Each source declares its kind, source value, optional reference and sparse paths, and may override the marketplace path. Source kinds and the add/refresh/remove lifecycle are defined in [Plugin Registry](plugin-registry.md).
+- `PluginRegistries`: additional plugin marketplace sources. Each source declares its kind, source value, optional reference and sparse paths, and may override the marketplace path.
 - `DisableDefaultPluginRegistry`: disables the host-provided default official plugin marketplace.
 
 Marketplace sources are recorded in user-global configuration so one added source is available in every workspace. Plugin installation stays per workspace: installing a marketplace plugin copies it into that workspace's `.craft/plugins/<pluginId>`.
@@ -397,15 +326,8 @@ Installed built-in plugins and local manifest plugins are enabled by default unl
 
 Workspace-level MCP configuration continues to use `McpServers`. Plugin-bundled MCP servers are contributed by enabled plugins and merged into the effective MCP runtime configuration as read-only runtime entries. Desktop and other clients should show plugin MCP alongside workspace MCP in runtime settings, but edits and deletes apply only to workspace-origin entries.
 
----
+## 9. Consumer boundaries
 
-## 9. Protocol Boundaries
-
-- AppServer JSON-RPC methods and capability negotiation are defined in [AppServer Protocol](../protocols/appserver-protocol.md).
-- Session item payloads are defined in [Session Core](session-core.md).
-- External channel adapter handshake, delivery, and `ext/channel/*` requests are defined in [External Channel Adapter](../protocols/external-channel-adapter.md).
-- Desktop user-facing module workflows are defined in [Desktop Client](../clients/desktop-client.md).
-
-### Remote Desktop contribution delivery
-
-A package installed in a remote workspace remains one package managed by that workspace. Desktop may cache its declared Desktop output locally to present its UI, subject to a remembered client-side workspace execution grant. This cache is not a local installation and does not activate the package's other contributions locally. See [Desktop plugins](desktop-plugins.md#runtime-lifecycle).
+Protocol and client projections expose discovery and lifecycle state without creating another
+plugin manager. A remote workspace remains the installation owner; a client-side presentation cache
+is not a local plugin installation and does not activate unrelated contributions locally.

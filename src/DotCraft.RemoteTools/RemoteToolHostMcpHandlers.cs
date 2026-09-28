@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using ModelContextProtocol;
@@ -176,7 +177,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
                 : null;
             var policy = new HostDispatchPolicy(this, state, peer, invocation, approval, runtime);
             var dispatcher = new ToolDispatcher(policyEvaluator: policy, approvalEvaluator: policy,
-                resultNormalizer: new DefaultToolResultNormalizer(maxModelContentCharacters: 0));
+                resultNormalizer: new DefaultToolResultNormalizer(maxModelContentCharacters: 0), logger: _host.Logger);
             var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], invocation.SnapshotRevision ?? 0);
             var result = await dispatcher.DispatchAsync(snapshot, registration.Definition.Name, arguments,
                 new(context.ThreadId, context.TurnId, context.CallId, context.Audience, context.Origin, workspacePath),
@@ -214,8 +215,10 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
                 Audit(invocation, request.Params.Name, ex.Code, started, cancelled: false);
             return Error(ex.Code, ex.Message, ex.InvocationId ?? invocation?.InvocationId, started);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _host.Logger.LogWarning(ex, "Remote tool {ToolName} call {CallId} failed.",
+                request.Params.Name, invocation?.InvocationId);
             if (invocation is not null)
                 Audit(invocation, request.Params.Name, ToolErrorCodes.ExecutionFailed, started, cancelled: false);
             return Error(
@@ -337,6 +340,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             _storage.RootPath,
             SessionId,
             () => _host.Plugins(workspaceId, workspacePath),
+            _host.Logger,
             cancellationToken).ConfigureAwait(false);
         HostWorkspaceRuntime? retired = null;
         try
@@ -591,25 +595,23 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
                         ["result"] = result
                     };
                 }
-                catch (RemoteToolHostException ex)
+                catch (Exception ex)
                 {
+                    _host.Logger.LogWarning(ex, "Remote request {Method} ({RequestId}) for peer {PeerId} failed.",
+                        method, request.Id, PeerId);
+                    ExtensionError error;
+                    if (ex is RemoteToolHostException remote)
+                        error = new(remote.Code, string.IsNullOrWhiteSpace(remote.Message) ? $"{method} failed." : remote.Message);
+                    else if (method.StartsWith("dotcraft/remoteToolHost/files/", StringComparison.Ordinal))
+                        error = RemoteFileErrors.FromException(ex, method);
+                    else
+                        error = new(ex is OperationCanceledException ? ToolErrorCodes.Cancelled : ToolErrorCodes.ExecutionFailed,
+                            $"Remote Tool Host request '{method}' failed ({ex.GetType().Name}).");
                     return new JsonObject
                     {
                         ["success"] = false,
                         ["error"] = JsonSerializer.SerializeToNode(
-                            new ExtensionError(ex.Code, ex.Message),
-                            RemoteToolHostProtocol.JsonOptions)
-                    };
-                }
-                catch (Exception)
-                {
-                    return new JsonObject
-                    {
-                        ["success"] = false,
-                        ["error"] = JsonSerializer.SerializeToNode(
-                            new ExtensionError(
-                                ToolErrorCodes.ExecutionFailed,
-                                "Remote Tool Host request failed."),
+                            error,
                             RemoteToolHostProtocol.JsonOptions)
                     };
                 }

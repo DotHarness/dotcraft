@@ -57,7 +57,8 @@ public sealed class ShellToolsStdinProcessTests : IAsyncLifetime
         }
         else
         {
-            Assert.Contains("rejected", result);
+            Assert.False(result.Success);
+            Assert.Contains("rejected", result.Content);
             Assert.DoesNotContain(Marker, await PollAsync(tools, session.SessionId));
         }
     }
@@ -93,7 +94,9 @@ public sealed class ShellToolsStdinProcessTests : IAsyncLifetime
         var output = string.Empty;
         for (var attempt = 0; attempt < 5; attempt++)
         {
-            output = await tools.WriteStdin(sessionId, string.Empty, yieldTimeMs: 1000);
+            var result = await tools.WriteStdin(sessionId, string.Empty, yieldTimeMs: 1000);
+            Assert.True(result.Success, result.Error?.Message);
+            output = result.Content!;
             if (output.Contains(Marker, StringComparison.Ordinal))
                 break;
         }

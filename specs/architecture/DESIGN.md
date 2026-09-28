@@ -1,5 +1,5 @@
 ---
-version: "0.33.0"
+version: "0.7.8"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"

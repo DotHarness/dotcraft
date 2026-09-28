@@ -2,16 +2,14 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.5.0 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-09-27 |
-| **Parent Specs** | [Session Core](../architecture/session-core.md), [SubAgent Core](subagents.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [Dynamic Workflows](dynamic-workflows.md) |
+| **Date** | 2026-09-28 |
+| **Parent Specs** | [Session Core](../architecture/session-core.md) |
 
 Purpose: define the provider-neutral, model-aware options that control how DotCraft runs a selected
 model. Reasoning and inference speed are persisted selections; model capacity is resolved from
 the merged model catalog for each operation.
-
----
 
 ## 1. Goals and Boundaries
 
@@ -29,8 +27,6 @@ This specification covers:
 It does not define arbitrary numeric context sizes, transcript rendering of reasoning, or raw provider
 fields as client-facing configuration. AppServer wire DTO details remain authoritative in the
 AppServer Protocol.
-
----
 
 ## 2. Common Lifecycle
 
@@ -94,12 +90,9 @@ normalized when written. A workspace preference replaces the personal preference
 as one atomic record; fields within a preference are never merged across scopes. Preferences for other
 providers remain inherited.
 
-Missing native SubAgent preferences inherit the parent thread's complete MainAgent preference. For a
-fresh or bounded native child, an explicit role model takes precedence over that default and an
-authorized invocation-specific model or effort override takes precedence over the role default. The
-complete preference is then revalidated against the final model. A native full-history child ignores
-these overrides and inherits the parent's complete captured preference. External CLI SubAgents do not
-consume native preferences. The complete precedence contract is defined by [SubAgent Core](subagents.md#6-native-model-resolution).
+Missing native SubAgent preferences inherit the parent thread's complete MainAgent preference.
+Consumer-specific role and invocation precedence must normalize the resulting complete preference
+against the final model. External CLI runtimes do not consume native preferences.
 
 ### 2.3 Defaults and Normalization
 
@@ -132,22 +125,7 @@ Model options follow this lifecycle:
 
 ### 2.5 Agent Profile Model Policy
 
-Agent Profiles expose a reduced model-preset contract while runtime threads continue to capture the
-complete `ModelPreference`:
-
-- an omitted `providerPreference` captures the complete effective workspace/global provider preference
-  when a new thread is created;
-- a present `providerPreference` stores provider id, model, reasoning enabled/effort and speed;
-- reasoning output visibility is not authorable in a Profile; runtime materialization derives it from
-  the selected model's catalog `defaultOutput`;
-- an empty or partial `providerPreference` is invalid;
-- canonical profiles never merge individual model, reasoning or speed fields with a
-  workspace preference;
-- profile-backed thread creation always persists a normalized complete provider/model/reasoning/speed snapshot;
-- explicit thread-level reasoning overlays may still set output visibility and take precedence over
-  the catalog default;
-- refreshing an existing thread from a profile without `providerPreference` preserves its current
-  complete model snapshot, while a present `providerPreference` replaces the complete snapshot.
+Profile consumers materialize a complete `ModelPreference` before starting a thread. Profile authoring, inheritance and refresh policy belong to the profile owner; they cannot bypass catalog normalization or mutate a running request.
 
 ### 2.6 Reconnect and External Changes
 
@@ -156,8 +134,6 @@ Clients recompute effective model options when:
 - `thread/read` or `thread/resume` returns a configuration
 - `workspace/configChanged` reports the corresponding workspace option, model, or provider region
 - model catalog data reloads for another provider
-
----
 
 ## 3. Reasoning
 
@@ -233,8 +209,6 @@ For Anthropic:
 Anthropic-compatible reasoning-history adapters may map historical assistant reasoning to supported
 `thinking` block shapes. They are compatibility adapters, not generic unsupported-block filters.
 
----
-
 ## 4. Inference Speed
 
 ### 4.1 Model and Persistence
@@ -262,8 +236,6 @@ Catalog-matched Anthropic-protocol models use the Anthropic Fast request shape r
 Capacity, access, and rate-limit failures remain Fast through existing retries and fail normally;
 DotCraft does not silently retry as Standard.
 
----
-
 ## 5. Context Window
 
 The effective model's merged `models.json` catalog is the sole source of context capacity.
@@ -282,8 +254,6 @@ running operations keep their captured configuration.
 `model/list.contextWindow` is the resolved numeric capacity. `ContextUsageSnapshot.contextWindow`
 is the effective denominator after the client budget, reserve, and buffer rules. Model catalog
 metadata always reports raw capacity independently of this budget.
-
----
 
 ## 6. Desktop UX
 
@@ -345,8 +315,6 @@ Each provider row in `Provider list` summarises its remembered preferences as tw
 `Subagent`, each naming the model and reasoning effort. Fast inference reads as a bolt before the model name; Standard adds nothing. A provider
 without a SubAgent record shows `Inherits main model` as its `Subagent` value.
 
----
-
 ## 7. Compatibility and Errors
 
 - Config-file enum values are read case-insensitively; wire DTOs use camelCase strings.
@@ -354,18 +322,3 @@ without a SubAgent record shows `Inherits main model` as its `Subagent` value.
 - Provider rejection of an advertised option fails through the normal turn error contract.
 - Unknown models never receive Fast fields without a catalog match.
 - Existing threads without Speed use Standard. All threads resolve capacity from the model catalog.
-
----
-
-## 8. Acceptance Criteria
-
-- `model/list` is sufficient for clients to render Reasoning and Speed without model hardcoding.
-- Workspace presets and active-thread snapshots round-trip through AppServer.
-- Workspace-over-personal resolution replaces one provider preference atomically.
-- Native SubAgent inheritance and explicit overrides preserve the complete preference, while role-model
-  and external-runtime precedence remain deterministic.
-- New threads capture effective reasoning and speed, and existing threads remain stable after preset changes.
-- Provider-specific reasoning and Fast request shapes remain server-owned.
-- Model capacity comes directly from the merged catalog without a mode or cap.
-- Desktop exposes model options through one model picker and respects busy state.
-- Max and Ultra send native max; ordinary xhigh remains distinct. No new support probes or model allowlists are introduced.

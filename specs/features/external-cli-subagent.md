@@ -2,23 +2,16 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.1 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-08-12 |
+| **Date** | 2026-09-28 |
 | **Parent Specs** | [SubAgent Core](subagents.md), [Session Core](../architecture/session-core.md) |
 
 Purpose: extend the shared SubAgent Core contract for external coding CLIs while preserving DotCraft-owned approval semantics and, when enabled, allowing later turns to continue the same external CLI session without introducing a long-lived REPL process.
 
 ## 1. Context
 
-DotCraft already supports:
-
-- runtime abstraction and coordinator
-- profile-driven runtime selection
-- native + external CLI runtimes
-- approval and permission propagation across the subagent boundary
-
-This revision adds resumable external CLI sessions for supported profiles such as `codex-cli` and `cursor-cli`.
+An external SubAgent follows [SubAgent Core](subagents.md) for child identity, tasks, communication and parent ownership. This specification owns external process launch, approval-mode mapping and optional session resume.
 
 ## 2. Runtime Model
 
@@ -28,7 +21,6 @@ Current runtime types:
 
 - `native`
 - `cli-oneshot`
-- `acp` (future optional backend)
 
 ### 2.2 Core Principle
 
@@ -45,26 +37,7 @@ That means:
 
 ### 3.1 `ISubAgentRuntime`
 
-```csharp
-public interface ISubAgentRuntime
-{
-    string RuntimeType { get; }
-    Task<SubAgentSessionHandle> CreateSessionAsync(SubAgentProfile profile, SubAgentLaunchContext context, CancellationToken ct);
-    Task<SubAgentRunResult> RunAsync(SubAgentSessionHandle session, SubAgentTaskRequest request, ISubAgentEventSink sink, CancellationToken ct);
-    Task CancelAsync(SubAgentSessionHandle session, CancellationToken ct);
-    Task DisposeSessionAsync(SubAgentSessionHandle session, CancellationToken ct);
-}
-```
-
-`SubAgentLaunchContext` carries:
-
-- resolved working directory
-- mapped approval-mode launch args
-- current `IApprovalService`
-- current `ApprovalContext`
-- optional external CLI `resumeSessionId`
-
-`SubAgentRunResult` may return a `SessionId` so DotCraft can persist the external session handle for later turns.
+The runtime creates a session handle, executes a task with progress events, cancels owned process trees and disposes the handle. Launch context carries the resolved working directory, mapped approval arguments, parent approval context and optional external `resumeSessionId`. A successful result may return a session id for later tasks.
 
 ### 3.2 `SubAgentProfile`
 
@@ -107,7 +80,7 @@ Coordinator owns orchestration logic only:
 
 ### 4.1 Native Runtime
 
-Uses DotCraft internal subagent pipeline. Runs with the same `IApprovalService` and `ApprovalContext` as the main agent turn, so sensitive tool calls made from within a subagent trigger the same approval path as equivalent main-agent calls.
+Native execution follows [SubAgent Core](subagents.md#41-native-runtime); this specification adds no native runtime policy.
 
 ### 4.2 External CLI Runtime
 
@@ -172,11 +145,7 @@ DotCraft exposes three stable modes the subagent layer understands:
 
 ### 5.2 Native Subagent Propagation
 
-Native subagents inherit the parent session's approval pipeline instead of bypassing it:
-
-- `SubAgentManager` receives the parent `IApprovalService` and `ApprovalContext`
-- tool instances used inside the subagent share the same approval service chain as the parent turn
-- approval requests emitted from the subagent context are prefixed with `[subagent:<label>] `
+Native approval inheritance follows [SubAgent Core](subagents.md#7-role-tools-and-approval-policy). External CLI policy is translated at launch as defined below.
 
 ### 5.3 External CLI Permission Mapping
 
@@ -217,28 +186,3 @@ Desktop exposes one workspace-scoped switch in SubAgents settings:
 - affects only profiles with `supportsResume=true`
 
 Desktop also exposes resume-specific profile fields for custom external CLI profiles.
-
-## 7. Risk Focus
-
-### 7.1 Approval Boundary Risk
-
-Main agent and subagent must not diverge on approval behavior for equivalent operations. The native propagation design is the primary mitigation.
-
-### 7.2 External Runtime Permission Drift
-
-Profile defaults and runtime args must not allow a mode looser than the current channel approval policy.
-
-### 7.3 Session Misrouting Risk
-
-Resume must not attach the wrong previous external session. The primary mitigation is the `profile + label + workingDirectory` match rule and no-label ambiguity fallback.
-
-### 7.4 Lifecycle Reliability
-
-Subprocess cancellation must terminate child process trees to avoid orphan workers and hidden side effects.
-
-## 8. Current Status
-
-- short-lived external CLI runtime: shipped
-- approval and permission propagation: shipped
-- workspace-configured external CLI resume: shipped in this revision
-- long-lived REPL management: out of scope for this design

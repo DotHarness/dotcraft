@@ -45,10 +45,11 @@ internal sealed class FileTransferSession(string root, TransferFileManifest mani
         var path = TransferFileTree.ResolveEntry(root, entry.Path);
         TransferFileTree.RejectLinks(path);
         await using var file = TransferFileTree.OpenRead(path);
-        if (file.Length != entry.Length) throw new IOException("Transfer source changed.");
+        if (file.Length != entry.Length) throw new TransferSourceChangedException("Transfer source changed.");
         file.Position = offset;
         var bytes = new byte[(int)Math.Min(RemoteFileTransferProtocol.ChunkBytes, entry.Length - offset)];
-        await file.ReadExactlyAsync(bytes, ct).ConfigureAwait(false);
+        try { await file.ReadExactlyAsync(bytes, ct).ConfigureAwait(false); }
+        catch (EndOfStreamException) { throw new TransferSourceChangedException("Transfer source was truncated while reading."); }
         return bytes;
     }
 

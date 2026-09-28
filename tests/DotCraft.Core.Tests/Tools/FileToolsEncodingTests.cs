@@ -18,8 +18,6 @@ public sealed class FileToolsEncodingTests : IDisposable
         "dotcraft-filetools-encoding-tests",
         Guid.NewGuid().ToString("N"));
 
-    private readonly ToolResultAttachments _attachments = new();
-
     public FileToolsEncodingTests()
     {
         Directory.CreateDirectory(_workspace);
@@ -49,27 +47,29 @@ public sealed class FileToolsEncodingTests : IDisposable
     }
 
     [Fact]
-    public async Task EditFile_GbkFile_RefusesWithoutWritingOrAttaching()
+    public async Task EditFile_GbkFile_RefusesWithoutWriting()
     {
         var file = await WriteGbkFileAsync();
 
-        var result = await InvokeAsync(tools => tools.EditFile("gbk.txt", "needle", "pin"));
+        var result = await Tools().EditFile("gbk.txt", "needle", "pin");
 
-        Assert.StartsWith(GbkRefusal, result, StringComparison.Ordinal);
+        Assert.StartsWith(GbkRefusal, result.Content, StringComparison.Ordinal);
         Assert.Equal(GbkBytes, await File.ReadAllBytesAsync(file));
-        Assert.Null(_attachments.StructuredContent);
+        Assert.Equal("notApplied", result.StructuredContent!.Value.GetProperty("writeState").GetString());
+        Assert.NotNull(result.Error);
     }
 
     [Fact]
-    public async Task WriteFile_OverGbkFile_RefusesWithoutWritingOrAttaching()
+    public async Task WriteFile_OverGbkFile_RefusesWithoutWriting()
     {
         var file = await WriteGbkFileAsync();
 
-        var result = await InvokeAsync(tools => tools.WriteFile("gbk.txt", "replacement"));
+        var result = await Tools().WriteFile("gbk.txt", "replacement");
 
-        Assert.StartsWith(GbkRefusal, result, StringComparison.Ordinal);
+        Assert.StartsWith(GbkRefusal, result.Content, StringComparison.Ordinal);
         Assert.Equal(GbkBytes, await File.ReadAllBytesAsync(file));
-        Assert.Null(_attachments.StructuredContent);
+        Assert.Equal("notApplied", result.StructuredContent!.Value.GetProperty("writeState").GetString());
+        Assert.NotNull(result.Error);
     }
 
     [Theory]
@@ -96,7 +96,7 @@ public sealed class FileToolsEncodingTests : IDisposable
 
         var result = await tools.EditFile("valid.txt", "second", "2nd");
 
-        Assert.Equal("Successfully edited valid.txt at line 2 (1 -> 1 lines)", result);
+        Assert.Equal("Successfully edited valid.txt at line 2 (1 -> 1 lines)", result.Content);
         byte[] expected = [.. encoding.GetPreamble(), .. encoding.GetBytes("中文\n2nd\n")];
         Assert.Equal(expected, await File.ReadAllBytesAsync(file));
     }
@@ -107,11 +107,12 @@ public sealed class FileToolsEncodingTests : IDisposable
         var file = Path.Combine(_workspace, "notes.txt");
         await File.WriteAllTextAsync(file, "a\nb\n");
 
-        var result = await InvokeAsync(tools => tools.EditFile("notes.txt", "b", "\\uD800"));
+        var result = await Tools().EditFile("notes.txt", "b", "\\uD800");
 
-        Assert.StartsWith("Error", result, StringComparison.Ordinal);
+        Assert.StartsWith("Error", result.Content, StringComparison.Ordinal);
         Assert.Equal("a\nb\n", await File.ReadAllTextAsync(file));
-        Assert.Null(_attachments.StructuredContent);
+        Assert.Equal("unknown", result.StructuredContent!.Value.GetProperty("writeState").GetString());
+        Assert.NotNull(result.Error);
     }
 
     [Fact]
@@ -136,9 +137,4 @@ public sealed class FileToolsEncodingTests : IDisposable
         return file;
     }
 
-    private async Task<string> InvokeAsync(Func<FileTools, Task<string>> call, FileTools? tools = null)
-    {
-        using var scope = ToolResultAttachmentScope.Set(_attachments);
-        return await call(tools ?? Tools());
-    }
 }

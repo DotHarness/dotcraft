@@ -17,12 +17,12 @@ public class FileToolsLspSyncTests
             lspServerManager: manager);
 
         var writeResult = await tools.WriteFile("notes.txt", "hello");
-        Assert.StartsWith("Successfully wrote", writeResult, StringComparison.Ordinal);
+        Assert.True(writeResult.Success, writeResult.Error?.Message);
         Assert.Single(manager.ChangeCalls);
         Assert.Single(manager.SaveCalls);
 
         var editResult = await tools.EditFile("notes.txt", oldText: "hello", newText: "world");
-        Assert.StartsWith("Successfully edited", editResult, StringComparison.Ordinal);
+        Assert.True(editResult.Success, editResult.Error?.Message);
         Assert.Equal(2, manager.ChangeCalls.Count);
         Assert.Equal(2, manager.SaveCalls.Count);
         Assert.Equal("world", await File.ReadAllTextAsync(Path.Combine(workspace, "notes.txt")));

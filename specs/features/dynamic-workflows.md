@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.1 |
+| **Version** | 0.7.8 |
 | **Status** | Draft |
-| **Date** | 2026-08-12 |
-| **Parent Specs** | [Session Core](../architecture/session-core.md), [SubAgent Core](subagents.md), [Tool Architecture](../architecture/tools-architecture.md), [Prompt Cache](../architecture/prompt-cache.md), [Model Options](model-options.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
+| **Date** | 2026-09-28 |
+| **Parent Specs** | [Session Core](../architecture/session-core.md), [SubAgent Core](subagents.md), [Tool Architecture](../architecture/tools-architecture.md), [Prompt Cache](../architecture/prompt-cache.md), [Model Options](model-options.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: define the runtime, persistence, AppServer control, and Desktop presentation contracts for
 model-authored JavaScript workflows that coordinate native DotCraft child agents, continue in the
@@ -13,8 +13,6 @@ background, and notify the parent thread when execution reaches a terminal state
 
 The public script API defines DotCraft's stable orchestration contract. Runtime-specific extensions
 are specified explicitly below.
-
----
 
 ## 1. Scope and Ownership
 
@@ -32,11 +30,9 @@ All model execution and model-visible tool use occurs in Session Core child thre
 orchestration language and receives no direct filesystem, network, process, CLR, or DotCraft service
 access.
 
-This specification also defines the protocol-visible `Ultra` reasoning value and the required Desktop
+This specification defines Ultra orchestration behavior and the required Desktop
 Workflow tool card and detail presentation. AppServer remains authoritative for lifecycle and progress;
 clients own localization, formatting, selection, and navigation.
-
----
 
 ## 2. Definitions and Discovery
 
@@ -95,8 +91,6 @@ Saved workspace and personal workflows register as `/{name}`. Plugin workflows r
 the parent Agent, which converts them to structured `args` and calls the same `Workflow` tool used for
 inline or programmatic execution.
 
----
-
 ## 3. Model-Facing `Workflow` Tool
 
 `Workflow` is a stable model tool. Its description, schema, canonical identity, and relative tool
@@ -145,8 +139,6 @@ After recording this successful tool result, AppServer completes the initiating 
 Workflow continues in the background, and its terminal state resumes the parent through the
 queued-turn contract in §8. A failed launch remains a normal tool error and does not complete the
 parent Turn, so the Agent may recover or retry.
-
----
 
 ## 4. JavaScript Runtime Contract
 
@@ -207,8 +199,6 @@ or encounters an unrecoverable execution error contributes `null`.
 `pipeline()` preserves input order. Each item advances through its stages independently. If a stage
 returns `null`, later stages for that item are skipped and its final result remains `null`.
 
----
-
 ## 5. Child Agent Contract
 
 ### 5.1 Context and Policy
@@ -243,8 +233,6 @@ reference are journaled. A clean worktree is removed automatically when the chil
 worktree with modifications, untracked files, or a new commit is retained for inspection. DotCraft
 does not merge workflow worktrees automatically.
 
----
-
 ## 6. Worker and Host Protocol
 
 ### 6.1 Process Boundary
@@ -275,8 +263,6 @@ Only stdout carries protocol messages. Worker diagnostics use redirected stderr 
 Malformed JSON, unexpected sequence numbers, unknown message types, duplicate terminal messages, or a
 worker exit without a terminal message fail the attempt. AppServer validates every worker request
 before creating Session Core work.
-
----
 
 ## 7. Deterministic Replay
 
@@ -313,8 +299,6 @@ A source is eligible only while the same AppServer instance remains alive and th
 `paused`, `stopped`, `failed`, or `succeeded`. Active runs from a previous AppServer instance are
 marked `interrupted` during startup and are not resumable. Script edits, argument changes, and option
 changes are allowed; they naturally establish the first replay mismatch.
-
----
 
 ## 8. Lifecycle, Persistence, and Notification
 
@@ -465,8 +449,6 @@ needed to inspect persisted details. If the parent thread is idle, Session Core 
 automatically. If it is busy, the notification waits in the existing FIFO queue. Journaled delivery
 state prevents duplicate continuation after reconnect or reconciliation.
 
----
-
 ## 9. Limits and Cancellation
 
 The root run owns one shared concurrency semaphore. Its default capacity is:
@@ -484,8 +466,6 @@ Cancellation flows from the service to queued calls, active child turns, and the
 does not discard completed journal entries. Output sizes for final results,
 structured submissions, logs, stderr, and protocol frames are bounded independently.
 
----
-
 ## 10. Approval and Permissions
 
 Starting a workflow in normal mode uses Session approval keyed by canonical source path and source
@@ -498,21 +478,9 @@ Ultra and an explicit `autoApprove` host policy skip workflow-start approval. Th
 orchestration script. Every child Agent continues to use the normal permission and approval policy for
 its model-visible tools. Plugin installation or enablement does not implicitly approve a workflow.
 
----
-
 ## 11. Ultra and Prompt Cache
 
-`Ultra` is a DotCraft-owned reasoning tier with wire value `ultra`. It is persisted in the existing
-thread reasoning configuration and does not introduce a new `AgentMode`. Provider request adapters
-map it to the provider-native `Max` reasoning effort.
-
-`model/list` advertises Ultra only when the model supports Max and the Dynamic Workflow runtime
-is available. A workflow child receives the mapped provider effort but does not inherit the parent's
-Ultra orchestration behavior.
-
-Desktop presents Ultra through the existing reasoning selector. Ultra does not define a new mascot
-effect: the composer maps it to Max, which reuses the Extra High energy treatment. Fast remains
-an independent visual state.
+[Model Options](model-options.md#3-reasoning) owns Ultra's persisted value, availability and provider mapping. Workflow children do not inherit Ultra's proactive orchestration behavior.
 
 `RuntimeContextBuilder` appends a short reminder to the latest user turn:
 
@@ -524,8 +492,6 @@ an independent visual state.
 The reminder never changes base instructions. `Workflow` and `SubmitWorkflowResult` keep stable model
 tool descriptions, schemas, identities, and order. Child model/effort overrides use the existing
 request cache dimensions. Per-run and per-call values remain in the volatile latest task input.
-
----
 
 ## 12. Desktop Presentation
 
@@ -576,27 +542,3 @@ system and point to production sources after implementation.
 Queued parent continuations with `triggerKind = "workflow"` render the standard message-origin marker
 outside the user bubble. Its label identifies the Workflow, and its `triggerRefId` opens that run in the
 Workflow Detail tab. This marker does not introduce a Workflow-specific bubble type.
-
----
-
-## 13. Verification Requirements
-
-| Area | Required coverage |
-|------|-------------------|
-| Parser | Literal metadata; dynamic metadata rejection; `import`, `eval`, time, and random rejection; top-level `await`; non-serializable return rejection. |
-| Worker | Promise/.NET Task bridge; infinite-loop cancellation; memory and recursion limits; worker exit; malformed or out-of-sequence stdio messages. |
-| Script API | Stable `parallel` ordering; cross-item `pipeline` concurrency; `null` propagation; phase and log events; structured-output validation and retry. |
-| Replay | Full prefix hit; first incomplete call; prompt, schema, model, script, and argument changes; live execution after the first mismatch. |
-| Lifecycle | Immediate background result; busy-parent queueing; exactly-once terminal notification; pause, stop, resume; shutdown interruption and post-restart resume rejection. |
-| Projection | Declared, discovered, and unphased grouping; old-journal fallback; running and terminal child metrics; failed and replayed Agent operations. |
-| AppServer | Typed list/read/pause/stop/resume dispatch; pagination; capability advertisement; ownership hiding; stable errors; invalidation and opt-out behavior. |
-| Limits | Shared concurrency queue; 1000-Agent cap; explicit token budget. |
-| Permissions | `Once`, `Session`, and `Always`; source-hash invalidation; Ultra and `autoApprove`; independent child tool approval. |
-| Discovery | Workspace override; personal definitions; plugin namespace; same-scope duplicate; canonical path escape and symlink rejection. |
-| Worktree | Clean automatic cleanup; preservation on modifications, untracked files, new commits, and cancellation. |
-| Ultra | Wire round trip; provider `Max` mapping; thread persistence; no proactive-orchestration inheritance by a child. |
-| Prompt cache | Ultra changes only the volatile tail; stable base/tool fingerprint; stable workflow-child prefix; requested/effective override dimensions. |
-| Desktop | Tool-card recognition; phase-to-detail navigation; child-thread navigation; Stop lifecycle; reconnect/read refresh; failed, stopped, and long-content presentation. |
-
-Acceptance requires every row to have automated coverage at the narrowest appropriate parser, service,
-process-integration, Session Core integration, or protocol-contract layer.

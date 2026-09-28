@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.2.0 |
+| **Version** | 0.7.8 |
 | **Status** | Draft |
-| **Date** | 2026-09-20 |
+| **Date** | 2026-09-28 |
 | **Parent Specs** | [Session Core](session-core.md), [Model Runtime](model-runtime.md), [Canonical OpenAI Responses Provider History](responses-provider-history.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: Define the backend-neutral context compaction pipeline for DotCraft contributors. This
@@ -64,87 +64,22 @@ flowchart TD
     nativeInstall --> lifecycle
 ```
 
-The coordinator is above the existing local `CompactionPipeline`. The existing pipeline remains the
-local summary engine for micro, partial, and full-history compaction. Provider-native backends plug
-into the coordinator and return a different replacement type.
+The coordinator selects one backend; each backend returns its authoritative replacement domain.
 
 ## Internal contracts
 
-The implementation must express trigger, phase, backend, and replacement independently:
+An attempt carries its trigger (`Auto`, `Manual`, or `Reactive`), phase, immutable neutral history,
+request options, context estimate, and any provider-native capability. Trigger and phase are distinct.
 
-```csharp
-internal enum CompactionTrigger
-{
-    Auto,
-    Manual,
-    Reactive
-}
+The result identifies the backend and outcome. Successful replacement is a discriminated choice:
 
-internal enum CompactionPhase
-{
-    PreTurn,
-    MidTurn,
-    PostTurn,
-    Manual,
-    Reactive
-}
+- **Neutral:** ordered model-visible messages.
+- **Provider-native:** protocol, ordered native items, covered message count and Turn, and replacement
+  token estimate.
 
-internal sealed record CompactionExecutionRequest(
-    CompactionTrigger Trigger,
-    CompactionPhase Phase,
-    IReadOnlyList<ChatMessage> NeutralHistory,
-    ChatOptions? Options,
-    PromptRequestSnapshot? PromptSnapshot,
-    long InputTokenHint,
-    IProviderHistoryCompactionBridge? ProviderBridge);
-
-internal sealed record CompactionExecutionResult(
-    CompactionStatus Status,
-    string BackendId,
-    CompactionReplacement? Replacement);
-
-internal abstract record CompactionReplacement
-{
-    internal sealed record Neutral(
-        IReadOnlyList<ChatMessage> Messages) : CompactionReplacement;
-
-    internal sealed record ProviderNative(
-        string Protocol,
-        IReadOnlyList<JsonElement> Items,
-        int CoveredMessageCount,
-        string? CoveredThroughTurnId,
-        long EstimatedTokensAfter) : CompactionReplacement;
-}
-```
-
-Names may follow repository conventions, but the information and separation above are normative.
-The pre-sampling callback must return this discriminated result instead of treating every successful
-attempt as a replacement `IReadOnlyList<ChatMessage>`.
-
-A provider that supports native compaction exposes a capability equivalent to:
-
-```csharp
-internal interface IProviderHistoryCompactionBridge
-{
-    ValueTask<ProviderCompactionInput> CaptureCompactionInputAsync(
-        CompactionPhase phase,
-        IReadOnlyList<ChatMessage> messages,
-        ChatOptions? options,
-        CancellationToken cancellationToken);
-
-    ValueTask ReplaceNativeAsync(
-        ProviderNativeReplacement replacement,
-        CancellationToken cancellationToken);
-
-    long EstimateNativeContextTokens(
-        ProviderNativeSnapshot snapshot,
-        IReadOnlyList<ChatMessage> pendingTail,
-        ChatOptions? options);
-}
-```
-
-Capture is read-only. Previewing an uncovered `ChatMessage` tail for a compact request must not
-append that tail to live provider history or emit a rollout record.
+The provider owns read-only capture, replacement validation and installation, and native context
+estimation. Capture may preview an uncovered neutral tail but must not mutate live history or emit
+rollout records. The coordinator must not treat native replacement as neutral messages.
 
 ## Backend selection
 
@@ -213,20 +148,31 @@ The local backend wraps the existing `CompactionPipeline` behavior:
 - an active Responses adapter maps the final neutral replacement once into a new provider-history
   generation.
 
-The synthetic handoff summary is a User message, for both partial and full replacements. It is
-context supplied to the next model invocation, not a prior Assistant response with missing reasoning.
-This preserves a valid thinking-mode boundary even when the retained API-round tail starts with an
-Assistant tool call and the original user input was summarized. Tail selection and tool pairing do
-not change; existing persisted summaries are not rewritten.
-
 The summary request consumes only the snapshot or trimmed message list supplied by the local
 compaction pipeline. It may retain the active thread identity and prompt-cache routing, but it must
 not read from or append to the active Responses provider-history generation. That generation is
 used again only when Session Core projects the successful neutral replacement.
 
-The summary content and maintenance-fork requirements remain in
-[Session Core](session-core.md#local-summary-compaction-contract). Prompt-cache constraints remain
-in [Prompt Cache](prompt-cache.md).
+Prompt-cache constraints follow [Prompt Cache](prompt-cache.md).
+
+### Local Summary Compaction Contract
+
+Local partial and full compaction install their synthetic handoff summary with the User role. The
+summary establishes an input boundary before the retained tail; it must not impersonate an Assistant
+response lacking provider-required reasoning. This affects new replacements only.
+
+Context compaction is a short-term context-window optimization, not long-term memory.
+
+- The compact summary is a handoff for the next model-visible history. It should preserve only the current task, key decisions, important files read or changed, critical errors/fixes, constraints, and concrete next steps needed to continue.
+- Summary prompts must target a bounded output budget and must not request an unbounded chronological analysis of every message.
+- Summary prompts must not require a separate `<analysis>` drafting block. An `<analysis>` block returned by a provider anyway is stripped.
+- Summary prompts must not require listing all user messages or embedding full code snippets by default. They may ask for the smallest necessary excerpt only when exact text is required to continue the task.
+- Every compaction request uses a compact-specific `MaxOutputTokens` budget defined in the configuration schema; it must not inherit the ordinary turn output budget. Snapshot compaction forks must also cap their requested output to the compact-specific budget even when preserving the cache-sensitive input prefix, so a maintenance summary cannot inherit a normal Turn's larger output allowance.
+- Cache-sharing snapshot forks and context-usage anchors should keep cache-sensitive request parameters stable when possible, but a snapshot or anchor is usable only while its captured messages remain a prefix of the current canonical model-visible history and its request-shape fingerprint still matches. Any successful history replacement (auto, reactive, or manual compaction; rollback; deletion) invalidates older snapshots and anchors. Maintenance forks should attempt the provider request first so prompt-cache-aware providers can reuse the captured prefix only when the estimated snapshot request fits the maintenance input budget. If the snapshot estimate is over budget, or if the provider rejects the snapshot request with a conservatively classified prompt-too-long / context-overflow error, the fork returns `maintenance_snapshot_too_large` and falls back to a trimmed non-cache path when one exists. An otherwise empty response containing provider error content returns a terminal maintenance-fork response with `maintenance_empty_error_response` and must also fall back to the trimmed non-cache path for compaction. Other provider, authentication, rate-limit, model, or request-shape errors must not be reclassified as context overflow.
+- If automatic pre-sampling compaction fails while the original context estimate is still over the blocking limit, Session Core must fail the Turn explicitly with a stable `agent_context_compaction_failed` error instead of continuing to the main provider request. This prevents a too-large context from producing a silent `turn_completed` after a failed maintenance fork.
+- Snapshot forks enforce summary length through the prompt and by validating the returned summary. A summary that exceeds the compact-specific hard budget is treated as `compact_summary_too_long` and must fall back to a non-cache path or report `compactFailed`.
+- Compaction model-call cancellation, provider/network timeout, and overlong summaries must be observable in trace storage with a terminal maintenance-fork response. Manual compaction maps user cancellation to `compactCancelled`; provider timeout and overlong/invalid summary map to `compactFailed` with machine-readable `message` values.
+- A successful neutral history replacement must persist a recovery checkpoint containing the replacement model-visible history and the newest covered Turn. A pre-turn replacement covers the newest surviving terminal Turn; mid-turn, turn-end, and reactive replacements cover the current Turn. A provider-native replacement instead persists `provider_history_replaced` and leaves neutral model history unchanged. Later recovery and rollback select the newest replacement in the relevant domain whose covered Turn still survives in the canonical Thread.
 
 ## ChatGPT Responses compact backend
 
@@ -454,45 +400,3 @@ This design adds one public configuration field, `Compaction.PostTurnCompactThre
 - `contextUsage.source` as an extensible diagnostic string.
 
 Clients do not need to know which backend produced the replacement.
-
-## Acceptance checklist
-
-- Backend selection chooses ChatGPT remote compaction only for OAuth Responses server-history
-  threads.
-- A selected remote backend never calls the local summary backend after failure.
-- The compact request uses the ChatGPT endpoint, Responses-family OAuth headers, turn-state, and
-  the ordinary Responses request-shape mapper.
-- Compact body tests prove standard/Lite Responses shaping and a single trailing compaction trigger.
-- Raw compaction fields and retained message order survive persistence, restart, rollback, and compatible fork
-  without MEAI conversion; legacy replacement windows remain readable.
-- Pre-turn compaction runs before the Turn's context items and user input are recorded, covers
-  the newest surviving terminal Turn, and the pending user message is appended once behind the
-  checkpoint; mid-turn input preserves tool-call/result correlation.
-- Turn-end compaction runs only when `PostTurnCompactThresholdPercent` is positive and the
-  threshold is reached, commits its checkpoint with the Turn's terminal state, and never turns a
-  completed Turn into a failed one.
-- Rolling back the newest Turn after a pre-turn or turn-end compaction keeps the compacted history
-  and its context usage estimate.
-- Manual compaction works after cold resume and after protocol-return alignment.
-- Reactive compaction installs the rejected native request's compacted replacement while preserving
-  the existing failed-Turn/resend behavior.
-- Provider-native replacement leaves neutral history byte-for-byte equivalent at the model-history
-  codec boundary.
-- Switching providers uses neutral history and never exposes or translates the opaque item.
-- Provider-native usage estimation prevents immediate repeated compaction and is replaced by the
-  next real provider usage snapshot.
-- Auth, malformed-response, cancellation, and pre-commit rollout failures leave the previous
-  generation replayable.
-- The existing local compaction test suite remains unchanged in behavior.
-- API-key Responses local summary requests consume their explicit compaction input without reading
-  or appending the active provider-history generation.
-- A credential-gated integration test confirms that the v2 replacement is accepted as the
-  next ChatGPT OAuth `/responses` input.
-
-## Related specs
-
-- [Session Core](session-core.md)
-- [Canonical OpenAI Responses Provider History](responses-provider-history.md)
-- [OpenAI Subscription Auth](openai-subscription-auth.md)
-- [Prompt Cache](prompt-cache.md)
-- [AppServer Protocol](../protocols/appserver-protocol.md)

@@ -80,7 +80,7 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
         var fileTools = new FileTools(_root, requireApprovalOutsideWorkspace: false);
         var writeResult = await fileTools.WriteFile(Path.Combine(directory, "chart.html"), "<div>chart</div>");
 
-        Assert.StartsWith("Successfully wrote", writeResult, StringComparison.Ordinal);
+        Assert.True(writeResult.Success, writeResult.Error?.Message);
         Assert.True(Directory.Exists(directory));
         Assert.Equal("<div>chart</div>", await assets.ReadReferencedFragmentAsync(thread, turn, item, "chart.html"));
     }

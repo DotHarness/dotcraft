@@ -2,16 +2,14 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
+| **Version** | 0.7.8 |
 | **Status** | Draft |
-| **Date** | 2026-09-23 |
-| **Parent Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Runtime Module Boundaries](../architecture/runtime-module-boundaries.md), [Desktop Client](../clients/desktop-client.md) |
+| **Date** | 2026-09-28 |
+| **Parent Specs** | [Session Core](../architecture/session-core.md), [Runtime Module Boundaries](../architecture/runtime-module-boundaries.md) |
 | **Related Specs** | [External CLI SubAgent](external-cli-subagent.md), [Context Compaction](../architecture/context-compaction.md), [Multi-Folder Projects](multi-folder-projects.md) |
 
 Purpose: define how a workspace imports chat sessions recorded by other coding agents on the same
 machine (Claude Code, ChatGPT, Cursor) into DotCraft threads, and how those imports are kept in sync.
-
----
 
 ## 1. Scope and Ownership
 
@@ -26,8 +24,7 @@ projected through AppServer. It has four boundaries:
    progress notifications.
 4. **Desktop** renders the Settings › Import page and the import dialog for the current workspace.
 
-This document owns session conversion and persistence. [Agent import](agent-import.md) owns the
-combined setup/session protocol, configuration, selection, history, and synchronization contract.
+This document owns session conversion and persistence. The caller owns combined setup selection, protocol presentation and scheduling.
 
 ### 1.1 Per-workspace model
 
@@ -39,8 +36,6 @@ import never creates a workspace or writes `.craft/` into another folder.
 Remote-mode consequences follow from this ownership: an AppServer reads the source stores of the
 machine it runs on. Clients must not assume the sources live on the client machine.
 
----
-
 ## 2. Definitions
 
 | Term | Meaning |
@@ -51,8 +46,6 @@ machine it runs on. Clients must not assume the sources live on the client machi
 | Import turn | A DotCraft turn created from a source session. Its `originChannel` is `session-import`. |
 | Ledger | The workspace record `.craft/imports/sessions.json` mapping source sessions to threads. |
 | Sync | The periodic re-detection that imports new candidates and extends grown ones. |
-
----
 
 ## 3. Detection
 
@@ -123,8 +116,6 @@ Each candidate is reported with one state:
 
 Only `new` and `changed` candidates are importable. Counts shown by clients use importable candidates.
 Detection may omit `current` candidates that were skipped before parsing.
-
----
 
 ## 4. Conversion
 
@@ -197,8 +188,6 @@ The user-text fallback skips leading tag-wrapped blocks (such as `<system-remind
 `<ide_selection>`, or attachment blocks), unwraps a leading `<user_query>` block, takes the first
 non-empty line, and truncates to 120 characters. An empty result becomes `Imported session`.
 
----
-
 ## 5. Threads
 
 ### 5.1 Creation
@@ -253,8 +242,6 @@ session stays listed as `deferred` and nothing is written.
 Imported threads are ordinary threads. Clients may resume them and start turns; the first turn rebuilds
 model history from items and may compact first. Nothing marks an imported thread read-only.
 
----
-
 ## 6. Ledger and Sync
 
 ### 6.1 Ledger
@@ -300,15 +287,8 @@ thread, and a source file that disappears leaves the thread and its ledger recor
 
 ### 6.3 Sync and client integration
 
-The unified [Agent import](agent-import.md) contract owns sync selection, configuration, protocols,
-Desktop presentation, and history. Synchronization uses the `AgentImport` configuration section.
+The import coordinator owns sync selection, configuration, protocol presentation and history.
+Synchronization uses the `AgentImport` configuration section.
 The session ledger and imported threads retain the persistence contract defined above.
 Detection may rebuild ledger state in memory but never writes it. A completed import pass persists
 recomputed hashes and modification times.
-
-## 7. Validation
-
-Session adapter fixtures cover titles, exclusions, source formats, workspace membership, and text
-conversion. Core tests verify import idempotency, rollout persistence, source timestamps, append
-refusal after a native turn, and continuation. Agent import tests cover setup conversion, both
-scopes, conflict handling, sync selection, history, and atomic writes.

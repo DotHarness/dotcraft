@@ -195,8 +195,10 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
                 invocationId);
         }
         var content = NormalizeText(result);
-        if (result.IsError == true)
-            return Failure(code ?? ToolErrorCodes.ExecutionFailed, content, invocationId);
+        var remoteError = result.IsError == true
+            ? Failure(code ?? ToolErrorCodes.ExecutionFailed,
+                dotcraft?["diagnostic"]?.GetValue<string>() ?? content, invocationId).Error
+            : null;
 
         var latency = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;
         var provenance = new RemoteToolInvocationProvenance(
@@ -208,11 +210,13 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
             latency,
             artifact?.Path,
             artifact?.CharacterCount);
-        return ToolExecutionResult.Succeeded(
+        return new ToolExecutionResult(
+            result.IsError != true,
             content,
             result.StructuredContent,
             meta: provenance.ToJson(),
             rawSourceResult: JsonSerializer.SerializeToElement(result, RemoteToolHostProtocol.JsonOptions),
+            error: remoteError,
             contentItems: NormalizeContentItems(result));
     }
 
@@ -378,7 +382,8 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
             {
                 ["remoteInvocationId"] = JsonSerializer.SerializeToElement(invocationId)
             };
-        return ToolExecutionResult.Failed(new ToolError(code, message, parameters));
+        return ToolExecutionResult.Failed(new ToolError(code,
+            string.IsNullOrWhiteSpace(message) ? "Remote tool invocation failed." : message, parameters));
     }
 
     private static string NormalizeText(CallToolResult result)

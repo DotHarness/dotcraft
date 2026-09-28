@@ -22,6 +22,7 @@ var completed = false;
 await RemoteModelSmoke.RunAsync(Path.Combine(testRoot, "remote-consumer"));
 try
 {
+    await NativeToolsSmoke.RunAsync(Path.Combine(testRoot, "native-tools"));
     var declaration = DotCraft.GeneratedTools.Harness.Consumer.GeneratedToolDeclarations.IConsumerDeclarations_Echo_Declaration;
     Ensure(declaration.Name == "echo", "The package did not generate the declared tool.");
     Ensure(declaration.InputSchema.GetProperty("properties").GetProperty("value").GetProperty("type").GetString() == "string",

@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.5.0 |
+| **Version** | 0.7.8 |
 | **Status** | Draft |
-| **Date** | 2026-09-25 |
-| **Related Specs** | [Agent Profiles](agent-profiles.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Client](../clients/desktop-client.md), [TypeScript SDK](../sdk/typescript.md) |
+| **Date** | 2026-09-28 |
+| **Related Specs** | [Agent Profiles](agent-profiles.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
 Purpose: define the shared `@dotcraft/avatar` system. It covers the equipment slots an avatar
 exposes, the item registry with rarity and series, zone-based compatibility, the deterministic
@@ -13,8 +13,6 @@ name derivation, size-tier degradation, the boundaries for item-level visual eff
 Desktop pet built on top of it: the dressed default companion, its finds, bag, and exchange. The
 design catalog in the DotCraft design repository owns the review surfaces; this spec owns the model
 that every host renders.
-
----
 
 ## 1. Scope
 
@@ -33,15 +31,12 @@ Out of scope for this version:
   when they surface it in product UI and pass the localized name to the item swatch as its
   accessible label, which otherwise reads the English name.
 
----
-
 ## 2. Principles
 
 - Names are the only identity input for Agent Profile avatars. The same normalized name renders
   the same avatar in every host; renaming changes the avatar.
 - The model is a development-stage contract. It has one version and no compatibility layer;
-  changing the registry or the draw order changes existing name-derived avatars, and the frozen
-  fixtures in the package tests are updated with it.
+  changing the registry or the draw order changes existing name-derived avatars, and consumers must derive the current registry consistently.
 - Rarity is a metadata and sampling concept. It never grants functional behavior, and it never
   paints anything onto the avatar by itself. Rarity color appears only on catalog and settings
   chrome such as badges and frames.
@@ -56,8 +51,6 @@ Out of scope for this version:
   mascot. Gradients and filters are reserved for paint-replacing skins and for glow effects.
 - Every item must be recognizable when worn at 64px and must not fight the robot's silhouette.
   Items that fail either test are removed rather than kept for count.
-
----
 
 ## 3. Appearance Record
 
@@ -82,8 +75,6 @@ dressed the companion (section 12), in which case `ComposerMascot` receives the 
 Slot IDs are stable kebab-case strings and are serialized as-is. Slots are independent fields so a
 host can override one slot without touching the others.
 
----
-
 ## 4. Slots
 
 | Slot | Mounts | Rig layer | Notes |
@@ -95,8 +86,6 @@ host can override one slot without touching the others.
 | `skin` | Body and arm material | One material layer spans the torso and independently moving arms, under the screen and held props | Overlay skins retain the palette paint; paint skins replace it. Face marks keep the palette in both kinds. |
 
 Slot precedence for derivation and conflict resolution is `head > face > hand > back > skin`.
-
----
 
 ## 5. Item Registry
 
@@ -123,10 +112,7 @@ Rarity meaning:
 | Epic | Purple | Glow, motion, or a paint-replacing material. |
 | Legendary | Gold | The signature item of a slot; effects are expected. |
 
-Series does not influence sampling. It groups the catalog and is the hook for phase-two event
-drops.
-
----
+Series does not influence sampling. It groups the catalog and has no execution or sampling authority.
 
 ## 6. Zone Compatibility
 
@@ -149,8 +135,6 @@ and clears every other slot whose item conflicts with the new one, returning the
 design tools can explain the change. Both `canEquip` and `equip` require the item to belong to the
 named slot: `canEquip` answers `false` for a mismatch and `equip` throws, because a hand item stored
 in the head slot would render as an empty slot without any signal.
-
----
 
 ## 7. Name Derivation
 
@@ -181,8 +165,6 @@ that tier has none, the face slot stays empty instead of falling through to a fa
 The hash is FNV-1a with an avalanche finalizer. Batch sample IDs encode `[seed, round, index]` as
 a JSON tuple so a wall of 100 samples is reproducible from its seed and any cell can be replayed.
 
----
-
 ## 8. Size Tiers
 
 | Tier | Size | Renders |
@@ -194,8 +176,6 @@ a JSON tuple so a wall of 100 samples is reproducible from its seed and any cell
 The avatar exposes `data-size-tier` and `data-effects` (`off`, `static`, `live`) so styles gate
 effect animations without JavaScript. Reduced motion, `paused`, and offscreen states continue to
 pause or disable animation exactly as before; effects follow the same attributes.
-
----
 
 ## 9. Effects
 
@@ -240,8 +220,6 @@ the palette accent. A paint skin replaces that gradient, so it owns its own reac
 
 All of this is gated on `data-effects="live"`, so compact and standard sizes and motion-off hosts
 show the same static paint as before.
-
----
 
 ## 10. Paint Contract For New Items
 
@@ -295,35 +273,7 @@ show the same static paint as before.
   without per-skin shoulder corrections.
 - The screen covers most of the body, so an overlay shows only on the rim (52–56 units wide) and
   the arms. Overlay features are therefore large planes or wide bands at least 50 units across,
-  such as a half-body split, hoops, radial wedges, or a dipped lower body. Small motifs (dots,
-  checks, hearts, camo, circuit traces, stars) were tried, read as nothing once equipped, and are
-  not re-added.
-
----
-
-## 11. Acceptance Checklist
-
-- `deriveAppearance` is deterministic, normalizes names, and returns `originalAppearance` for empty
-  names.
-- Every derived appearance has no zone conflicts across its five slots.
-- Over a large sample every slot's rarity distribution follows the weights within tolerance, and
-  every item in the registry is reachable by name.
-- Every item renders as a swatch and mounted on the rig in every pose; the arm geometry never
-  changes.
-- Compact renders omit brow/rim, hand, and overlay-skin markup; faceplates remain. Detail layers and
-  effects stay in the document and are hidden through `data-compact` and `data-effects="off"`, the
-  same CSS gates every other tier uses, so no slot needs a second compact rendering path.
-- Rim items render at standard and full size, are omitted at compact size like brow items, and are
-  allowed with every brimmed hat.
-- Faceplates render all four expression layers and no native face marks.
-- Paint skins keep the palette on the face marks, keep their material on raised arms, and overlay
-  skins keep the palette body paint.
-- All skins remain continuous at both shoulders at rest, during a full wave, celebration, laptop
-  and sign poses, including pause/resume and animated material/energy phases.
-- Every new item is checked worn at 64px on a design-catalog proof sheet and passes the
-  recognizability test in section 2 before it is registered.
-- The frozen fixtures are updated once per registry change.
-- Desktop and Universe compile against the package without local artwork or model copies.
+  such as a half-body split, hoops, radial wedges, or a dipped lower body. Small motifs do not replace those planes because they are not legible at the mounted size.
 
 ---
 
@@ -331,9 +281,7 @@ show the same static paint as before.
 
 The default companion, the mascot that lives in the Desktop composer and can be detached onto the
 desktop, can be coloured and dressed with items from this collection. Agent Profile mascots keep
-their name-derived look; only the default companion is dressed. The Desktop surfaces that edit it
-are described in [Desktop Client §6.13](../clients/desktop-client.md#613-desktop-pet) and drawn
-under [Desktop DESIGN.md](../architecture/DESIGN.md#pet).
+their name-derived look; only the default companion is dressed. Desktop editing surfaces follow [Desktop DESIGN](../architecture/DESIGN.md#pet).
 
 ### 12.1 Settings Record
 
@@ -398,15 +346,3 @@ the card's art slot, and one inline action, `Wear it`, which equips the item.
   A worn copy is never a spare, legendary items cannot be traded up, and a fill action picks
   duplicates first so single finds stay in the bag when possible; the person may remove items from
   the tray before trading. When a trade spends the last copy of a worn item, the item comes off.
-
-### 12.5 Acceptance Checklist
-
-- `resolvePetSettings` returns the defaults for missing or corrupt input, clamps the palette and
-  counts, and drops unknown fields; the renderer drops unknown item ids before rendering or
-  persisting.
-- The composer mascot and the detached pet render the same appearance for the default companion and
-  keep name-derived appearances for Agent Profiles.
-- A find needs both gates, resets both counters, adds exactly one item, and survives a restart.
-- The exchange consumes exactly ten spares of one rarity, never the worn copy, and yields the next
-  rarity.
-- Turning customization off restores the original paint and pauses finds without touching the bag.

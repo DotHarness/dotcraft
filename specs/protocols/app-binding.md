@@ -2,14 +2,14 @@
 
 | Field | Value |
 |---|---|
-| Version | 2.2.0 |
+| Version | 0.7.8 |
 | Status | Living |
-| Date | 2026-07-16 |
-| Related specs | [Tools architecture](../architecture/tools-architecture.md), [AppServer protocol](appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [Session Core](../architecture/session-core.md) |
+| Date | 2026-09-28 |
+| Related specs | [Tools architecture](../architecture/tools-architecture.md), [AppServer protocol](appserver-protocol.md), [Session Core](../architecture/session-core.md) |
 
 App Binding is DotCraft's application connection and thread-authorization control plane. It does not define, attach, execute, or present tools. Ordinary application capabilities come from one binding-scoped MCP session; interactive presentation uses MCP Apps. Social-channel bindings authorize a conversation target whose operations are exposed by a managed native tool source.
 
-The canonical cross-SDK method, state, and stable-error fixture is [`fixtures/app-binding.json`](./fixtures/app-binding.json). .NET and TypeScript SDK tests MUST consume this same fixture.
+The canonical method, state, and stable-error fixture is [`fixtures/app-binding.json`](./fixtures/app-binding.json).
 
 ## 1. Boundary
 
@@ -93,7 +93,7 @@ The principal reads the request with `app/binding/request/get` and calls `app/bi
 
 The binding becomes `active` only after the approved snapshot and live runtime are atomically available.
 
-A client that needs the app for an immediately submitted operation MUST wait for `active` before issuing that operation, and MUST surface a delivery or activation failure instead of silently continuing to poll. Waiting bounds the operation, not the surface the user is on: a client MUST NOT hold the user on the surface that started the request. A Welcome submission that explicitly selected the app does not start its first Turn without that app, but it opens the created thread immediately, shows the pending activation there, and keeps the submission recoverable in that thread. Activation for several apps is independent and MAY run concurrently.
+A client that needs the app for an immediately submitted operation MUST wait for `active` before issuing that operation, and MUST surface a delivery or activation failure instead of silently continuing to poll. The pending operation must remain recoverable when activation fails. Activation for several apps is independent and MAY run concurrently.
 
 ### 4.2 Rebind
 
@@ -229,18 +229,3 @@ Security invariants:
 5. The normal `host.appSurfaces` proxy keeps App Surface resolution endpoints and bearers out of its return values; Desktop Main enforces live leases, loopback-only endpoints, origin-relative paths, redirect refusal, bounded timeouts, and response-size limits.
 6. Common tool approval remains required after whole-app enablement.
 7. UI support is optional; useful non-interactive output remains required.
-
-## 10. Acceptance
-
-- One enable action activates and approves the initial binding MCP snapshot.
-- A Desktop-managed bind handoff is delivered to the already connected app as technical activation without a second consent prompt; initial app connection still requires explicit consent.
-- A flow that needs the app waits for the binding to become active before continuing.
-- Welcome activation failure cancels the unfinished binding and returns the submission to the opened thread's composer without starting a Turn; existing-thread failure restores a disabled, retryable binding state.
-- Restart creates offline stubs and authenticated rebind rotates the bearer.
-- Capability expansion is semantic, confirmed by the thread owner, and unenforceable before acceptance; rejection leaves the binding offline until a compatible authenticated rebind.
-- App principal, binding bearer, and binding grant have independent revoke scopes.
-- Managed social tools use native registrations and server-owned targets.
-- Origin-channel execution remains independent.
-- App Surface publication is app-authenticated, loopback-only, memory-only, and expires exactly 120 seconds after the latest publish.
-- Surface resolution is trusted-client-only and returns `AppSurfaceUnavailable` for missing or expired leases.
-- Core, Desktop, .NET, and TypeScript agree on the version 1 wire contract.

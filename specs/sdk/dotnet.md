@@ -2,14 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.5.2 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-08-09 |
+| **Date** | 2026-09-28 |
 | **Related Specs** | [Unified SDK](sdk.md), [Protocol Contracts and Generation](protocol-contract-generation.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md), [Session Core](../architecture/session-core.md), [Hub Architecture](../architecture/hub-architecture.md) |
 
-Purpose: define the .NET package, its generated Wire binding, its Contracts-first public API, high-level Thread and Run behavior, raw extension boundary, and release acceptance contract.
-
----
+Purpose: define the .NET package, its generated Wire binding, its Contracts-first public API, high-level Thread and Run behavior, raw extension boundary, and error model.
 
 ## 1. Scope and principles
 
@@ -51,34 +49,9 @@ Public namespaces are:
 | `DotCraft.Sdk.AppBinding` | App Binding client, handoff parsing, and error helpers. |
 | `DotCraft.Sdk.Hub` | Local Hub discovery and AppServer lifecycle. |
 
-The bundled contract assembly identity is `DotCraft.Protocol`. It is not published as a separate package; consumers install only `DotCraft.Sdk`.
-
 ## 3. Contracts ownership
 
-The SDK must not declare a second type that is structurally synonymous with a Contracts Wire DTO. Public high-level operations directly use Contracts types, including:
-
-- `InitializeResult`, `ServerInfo`, and `ServerCapabilities`;
-- `SessionIdentity`, `ThreadStartParams`, `ThreadResumeParams`, `ThreadReadParams`, `ThreadReadResult`, `ThreadListParams`, and `ThreadListResult`;
-- `ThreadTurnsListParams`, `ThreadTurnsListResult`, `ThreadItemsListParams`, `ThreadItemsListResult`, and `ThreadItemListEntry`;
-- `SessionThread`, `SessionTurn`, `SessionItem`, and `InputPart`;
-- `TurnStartParams`, `TurnStartResult`, `TurnEnqueueParams`, `TurnEnqueueResult`, and `TurnInterruptParams`;
-- provider, model, reasoning, speed, and context-window types;
-- MCP runtime params and results;
-- App Binding params and results;
-- `ApprovalRequestParams`, `ApprovalResponseResult`, `UserInputRequestParams`, and `UserInputResponseResult`;
-- Runtime Dynamic Tool declarations, call params, content items, and results.
-
-The server follows the same rule. Core may retain domain, persistence, runtime, and internal projection models, but it must not expose or serialize a second AppServer request, result, notification, or payload DTO. Contracts DTOs are mapped explicitly to domain inputs and domain snapshots are mapped explicitly to Contracts DTOs.
-
-The following SDK-owned concepts are valid because they are not Wire DTOs:
-
-- `DotCraftClient`, `DotCraftThread`, and operation clients;
-- `RunOptions`, `DotCraftRunEvent`, and `DotCraftRunResult`;
-- Hub connection helpers;
-- transport abstractions and JSON-RPC correlation;
-- dynamic-tool authoring registry and attributes;
-- stable SDK exception types;
-- `AppBindingHandoff` and App Binding error helpers.
+Public APIs use `DotCraft.Protocol` DTOs directly, following the [contract ownership rules](protocol-contract-generation.md#4-sources-of-truth). The SDK owns high-level handles, Run models, Hub helpers, dynamic-tool authoring attributes, App Binding handoff parsing, and exceptions; these must not duplicate wire DTOs.
 
 ## 4. Wire client and generated bindings
 
@@ -142,7 +115,7 @@ Connection entry points are:
 
 Raw/custom transports default to no reconnect. Local and remote high-level connections default to reconnect, unless `AutoReconnect` overrides the default.
 
-Reconnect repeats `initialize`/`initialized` and releases queued new calls only after readiness. It does not replay in-flight requests, `turn/start`, subscriptions, or Runtime Dynamic Tool registration. An active Run terminates with `RunDisconnectedException`.
+Reconnect follows the [shared Wire lifecycle](sdk.md#42-wire-client). An active Run terminates with `RunDisconnectedException`.
 
 ## 6. Thread API
 
@@ -165,7 +138,7 @@ Task<ThreadRecoveryRestoreResult> RestoreRecoveryAsync(ThreadRecoveryRestorePara
 
 `DotCraftThread` is a high-level handle. Its `Snapshot` is `SessionThread`. Lifecycle helpers such as subscribe, unsubscribe, mode, archive, delete, enqueue, interrupt, and Runtime Dynamic Tool handler registration use generated typed bindings internally.
 
-`ExportRecoveryAsync` and `RestoreRecoveryAsync` are trusted local-continuity APIs. Export takes only a Thread ID and returns a JSON snapshot descriptor whose `packagePath` is restricted to the workspace `.craft/recovery-staging` directory, including the actual terminal Turn boundary captured. Restore accepts only that restricted local path plus the expected original Thread ID and returns that restored identity; clients use ordinary `ResumeAsync` to obtain a high-level handle. SDK clients transfer the snapshot without parsing or rewriting its Session fields, delete staging files after transfer/use, and rely on AppServer stable recovery error codes for deterministic failures.
+`ExportRecoveryAsync` and `RestoreRecoveryAsync` transfer the recovery package without parsing or rewriting its Session fields, following the [AppServer recovery contract](../protocols/appserver-protocol.md#419-thread-recovery-methods). Callers resume the restored thread to obtain a high-level handle.
 
 The model-configuration convenience API reads the latest complete `ThreadConfiguration`, copies every unrelated `Optional<T>` state and unknown extension field, replaces only provider/model/reasoning/speed/context-window fields, sends `ThreadConfigUpdateParams`, then re-reads and returns the authoritative `ThreadConfiguration`.
 
@@ -232,15 +205,7 @@ IReadOnlyList<AppServerNotification>? RawEvents;
 
 `Turn` is the typed terminal turn. It may be null only when busy-enqueue succeeds before a new turn exists.
 
-Run behavior preserves these invariants:
-
-- subscribe before `turn/start`;
-- preserve notification order;
-- merge agent-message deltas and snapshots without duplicated text;
-- enqueue only when explicitly requested after `TurnInProgress`;
-- cancellation performs a best-effort typed `turn/interrupt`;
-- disconnection fails the active Run and reconnect does not replay it;
-- failed and cancelled turns raise stable typed errors when `ThrowOnFailure` is true.
+Run orchestration follows the [shared Run profile](sdk.md#34-run-profile). Failed and cancelled turns raise stable typed errors when `ThrowOnFailure` is true.
 
 ## 10. Callbacks and Runtime Dynamic Tools
 
@@ -298,33 +263,6 @@ Required errors include:
 
 Wire JSON-RPC failures remain `JsonRpcException` with the numeric JSON-RPC code and complete raw `ErrorData`; the same response is projected into `DotCraftException.ServerError` so callers catching the base type retain actionable diagnostics.
 
-## 13. Testing and conformance
-
-The .NET acceptance suite covers:
-
-- generated binding use of the exact descriptor member;
-- typed initialize and callback round trips;
-- required identity on thread list;
-- typed Thread start/resume/read/list and Turn start/enqueue/interrupt;
-- full realistic Session Thread/Turn/Item fixtures;
-- provider/model, MCP, Dynamic Tool, and App Binding DTOs;
-- `Optional<T>` missing/null/value preservation;
-- all canonical item payload kinds, unknown fallback, and malformed known payloads;
-- typed Run event order, text reduction, busy enqueue, failure, cancellation, malformed known notification, raw unknown notification, disconnect, and reconnect boundaries;
-- raw escape hatches for unknown extensions;
-- package output containing both required assemblies.
-
-Required local validation is:
-
-```powershell
-dotnet build dotcraft.sln
-dotnet test
-dotnet test sdk/dotnet/DotCraft.Sdk.sln
-dotnet pack sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj -c Release
-```
-
-Both sample projects under `sdk/dotnet/samples` must compile against the current source API.
-
 ## 14. Security and compatibility
 
 - Raw request methods must never log credentials or bearer tokens.
@@ -332,23 +270,3 @@ Both sample projects under `sdk/dotnet/samples` must compile against the current
 - Unknown fields are preserved where Contracts types inherit `ExtensibleJsonObject`.
 - Open status, role, and kind values remain strings when future server values are valid.
 - Adding a new known notification or payload kind is additive; removing or retyping an existing one is breaking.
-- The API intentionally provides no obsolete compatibility layer for the removed duplicate Wire DTOs.
-
-## 15. Acceptance contract
-
-- [x] Contracts is the sole Wire DTO model.
-- [x] Known RPCs use generated descriptor-backed bindings.
-- [x] Thread snapshots, reads, terminal turns, senders, callbacks, providers/models, MCP, Dynamic Tools, and App Binding are typed.
-- [x] Canonical item payloads have one typed catalog and raw unknown fallback.
-- [x] Run events use the generic typed hierarchy and generated notification classification.
-- [x] Unknown notifications and requests retain explicit raw escape hatches.
-- [x] `Optional<T>` states and unknown fields survive configuration updates.
-- [x] The package includes both SDK and Contracts assemblies.
-- [x] English and Chinese SDK documentation and source samples match the API.
-
-## Related docs
-
-- [SDK overview](sdk.md)
-- [Protocol Contracts and Generation](protocol-contract-generation.md)
-- [AppServer Protocol](../protocols/appserver-protocol.md)
-- [App Binding](../protocols/app-binding.md)

@@ -1,6 +1,8 @@
 using DotCraft.Configuration;
 using DotCraft.Tools;
+using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Workspaces;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.RemoteTools;
 
@@ -13,13 +15,14 @@ internal sealed class RemoteToolHostExecutionHost : IAsyncDisposable
 
     internal RemoteToolHostExecutionHost(RemoteToolHostStorage storage, WorkspaceLeaseManager leases,
         RemoteToolHostActivityMonitor? activity = null, IRemoteToolApprovalPresenter? approvals = null,
-        Func<bool>? isPaused = null)
+        Func<bool>? isPaused = null, Action<RemoteToolHostDiagnostic>? diagnostic = null)
     {
         Storage = storage;
         Leases = leases;
         Activity = activity;
         Approvals = approvals;
         IsPaused = isPaused;
+        Logger = new RemoteToolDiagnosticLogger(diagnostic);
         leases.DrainResourcesAsync = DrainWorkspaceAsync;
     }
 
@@ -28,6 +31,7 @@ internal sealed class RemoteToolHostExecutionHost : IAsyncDisposable
     internal RemoteToolHostActivityMonitor? Activity { get; }
     internal IRemoteToolApprovalPresenter? Approvals { get; }
     internal Func<bool>? IsPaused { get; }
+    internal ILogger<BackgroundTerminalService> Logger { get; }
     internal string InstanceId { get; } = "host_" + Guid.NewGuid().ToString("N");
 
     internal RemoteToolHostMcpHandlers CreateSession(string peerId)

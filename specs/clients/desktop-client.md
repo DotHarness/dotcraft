@@ -2,120 +2,13 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.29.0 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-09-27 |
+| **Date** | 2026-09-28 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md), [Session Import](../features/session-import.md), [Turn Navigation](../features/turn-navigation.md) |
 
 Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a protocol client for DotCraft AppServer. This document specifies user-visible flows, interaction rules, state transitions, and recovery behavior. It does not define frontend implementation details, visual design, or framework choices.
-
----
-
-## Table of Contents
-
-- [1. Scope](#1-scope)
-  - [1.1 What This Spec Defines](#11-what-this-spec-defines)
-  - [1.2 What This Spec Does Not Define](#12-what-this-spec-does-not-define)
-- [2. Goals and Non-Goals](#2-goals-and-non-goals)
-  - [2.1 Goals](#21-goals)
-  - [2.2 Non-Goals](#22-non-goals)
-- [3. Connection and Session Lifecycle](#3-connection-and-session-lifecycle)
-  - [3.1 Workspace Entry](#31-workspace-entry)
-  - [3.1.1 Local and Remote AppServer Ownership](#311-local-and-remote-appserver-ownership)
-  - [3.2 Connection States](#32-connection-states)
-  - [3.3 Initial Load](#33-initial-load)
-  - [3.4 Reconnection](#34-reconnection)
-  - [3.5 Workspace Switching](#35-workspace-switching)
-  - [3.6 Multiple Windows](#36-multiple-windows)
-  - [3.7 Projects Rail, Thread Navigation, and Secondary Connections](#37-projects-rail-thread-navigation-and-secondary-connections)
-- [4. Protocol Event to UX Behavior](#4-protocol-event-to-ux-behavior)
-  - [4.1 Thread Events](#41-thread-events)
-  - [4.2 Turn Events](#42-turn-events)
-  - [4.3 Item Events](#43-item-events)
-  - [4.4 Approval Events](#44-approval-events)
-  - [4.4.1 User Input Request Events](#441-user-input-request-events)
-  - [4.5 Supplemental Events](#45-supplemental-events)
-  - [4.6 General Rules](#46-general-rules)
-- [5. Core Interaction Flows](#5-core-interaction-flows)
-  - [5.1 Open a Workspace](#51-open-a-workspace)
-  - [5.1.1 Welcome Suggestions](#511-welcome-suggestions)
-  - [5.1.2 Conversation Prompt Suggestions](#512-conversation-prompt-suggestions)
-  - [5.1.3 Workspace Setup](#513-workspace-setup)
-  - [5.2 Start a New Conversation](#52-start-a-new-conversation)
-  - [5.3 Resume or Open an Existing Thread](#53-resume-or-open-an-existing-thread)
-  - [5.3.1 Desktop Thread Restore Pipeline](#531-desktop-thread-restore-pipeline)
-  - [5.3.2 Interactive Request Restore](#532-interactive-request-restore)
-  - [5.3.3 Snapshot and Realtime Reconciliation](#533-snapshot-and-realtime-reconciliation)
-  - [5.3.4 Backend Verification Gate](#534-backend-verification-gate)
-  - [5.3.5 Open a Thread from a Workspace-owned product surface](#535-open-a-thread-from-a-workspace-owned-product-surface)
-  - [5.4 Send a Message](#54-send-a-message)
-  - [5.5 Input Rules](#55-input-rules)
-  - [5.6 Approval Handling](#56-approval-handling)
-  - [5.7 User Input Request Handling](#57-user-input-request-handling)
-  - [5.8 View Changes, Plans, and Tool Output](#58-view-changes-plans-and-tool-output)
-    - [5.8.1 Trusted Local Renderers](#581-trusted-local-renderers)
-    - [5.8.2 MCP Apps Interactive Tool Views](#582-mcp-apps-interactive-tool-views)
-    - [5.8.3 Inline Assistant Visualizations](#583-inline-assistant-visualizations)
-  - [5.9 Interrupt a Running Turn](#59-interrupt-a-running-turn)
-  - [5.10 Archive and Delete](#510-archive-and-delete)
-  - [5.11 Cross-Channel Visibility](#511-cross-channel-visibility)
-  - [5.11.1 Thread Fork And Worktree Handoff](#5111-thread-fork-and-worktree-handoff)
-  - [5.12 Manage Thread Goal](#512-manage-thread-goal)
-  - [5.13 Composer System Actions](#513-composer-system-actions)
-  - [5.14 Desktop Runtime Thread Tools](#514-desktop-runtime-thread-tools)
-  - [5.15 Thread References](#515-thread-references)
-  - [5.16 Turn Navigation](#516-turn-navigation)
-- [6. Secondary Flows](#6-secondary-flows)
-  - [6.1 Plugins and Skills](#61-plugins-and-skills)
-    - [6.1.1 Plugin creation and marketplace sources](#611-plugin-creation-and-marketplace-sources)
-    - [6.1.2 Plugin app connection and conversation binding](#612-plugin-app-connection-and-conversation-binding)
-    - [6.1.3 Desktop Plugins](#613-desktop-plugins)
-  - [6.2 Automations](#62-automations)
-  - [6.3 Automation cards](#63-automation-cards)
-  - [6.4 Automation run review](#64-automation-run-review)
-  - [6.5 Model Selection](#65-model-selection)
-  - [6.6 Archived chats](#66-archived-chats)
-  - [6.7 Settings Surface](#67-settings-surface)
-    - [6.7.1 Session Import](#671-session-import)
-    - [6.7.2 Computer Use](#672-computer-use)
-  - [6.8 Channel Modules](#68-channel-modules)
-    - [6.8.1 Discovery and Identity](#681-discovery-and-identity)
-    - [6.8.2 Configuration Workflow](#682-configuration-workflow)
-    - [6.8.3 Enable, Disable, and Runtime Expectations](#683-enable-disable-and-runtime-expectations)
-    - [6.8.4 Module Status Semantics](#684-module-status-semantics)
-    - [6.8.5 Interactive Setup and QR-like Flows](#685-interactive-setup-and-qr-like-flows)
-    - [6.8.6 Variants](#686-variants)
-    - [6.8.7 Refresh and Startup Restore](#687-refresh-and-startup-restore)
-    - [6.8.8 Diagnostics and Preconditions](#688-diagnostics-and-preconditions)
-  - [6.9 What's New](#69-whats-new)
-  - [6.10 Remote Servers](#610-remote-servers)
-  - [6.11 Satellites](#611-satellites)
-  - [6.12 Agent Builder](#612-agent-builder)
-  - [6.13 Desktop Pet](#613-desktop-pet)
-- [7. Keyboard Accessibility and Localization](#7-keyboard-accessibility-and-localization)
-  - [7.1 Keyboard Expectations](#71-keyboard-expectations)
-  - [7.2 Accessibility](#72-accessibility)
-  - [7.3 Localization](#73-localization)
-- [8. Error Handling and Recovery](#8-error-handling-and-recovery)
-  - [8.1 Connection Errors](#81-connection-errors)
-  - [8.2 Thread Errors](#82-thread-errors)
-  - [8.3 Turn Errors](#83-turn-errors)
-  - [8.4 Approval Errors](#84-approval-errors)
-  - [8.5 Input and Attachment Errors](#85-input-and-attachment-errors)
-  - [8.6 Automation Errors](#86-automation-errors)
-- [9. Non-Functional UX Requirements](#9-non-functional-ux-requirements)
-  - [9.1 Responsiveness](#91-responsiveness)
-  - [9.2 Reliability](#92-reliability)
-  - [9.3 Platform Coverage](#93-platform-coverage)
-  - [9.4 Accessibility and Readability](#94-accessibility-and-readability)
-- [10. Auxiliary Surfaces](#10-auxiliary-surfaces)
-  - [10.1 Viewer Panel](#101-viewer-panel)
-  - [10.2 Browser Automation](#102-browser-automation)
-  - [10.3 Desktop Pet](#103-desktop-pet)
-  - [10.4 Remote Screen View](#104-remote-screen-view)
-
----
 
 ## 1. Scope
 
@@ -142,8 +35,6 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - Platform-specific implementation APIs for notifications, menus, file search, or file persistence.
 - Untrusted interactive tool UI, which uses the separate MCP Apps sandbox.
 
----
-
 ## 2. Goals and Non-Goals
 
 ### 2.1 Goals
@@ -163,8 +54,6 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - Defining remote plugin UI, mobile UX, or future task-board behavior in detail.
 - Aggregating multiple remote workspaces in the background. Remote projects are foreground-only.
 
----
-
 ## 3. Connection and Session Lifecycle
 
 Desktop is a host adapter over the TypeScript SDK. Its AppServer and Hub transports are owned by the trusted host side of the application; the UI reaches them only through an authorized projection and never opens a transport itself. Desktop does not maintain a parallel JSON-RPC or Hub implementation, and it consumes the generated protocol contracts rather than restating payload shapes locally. Desktop Plugin calls use the same connection routing and remain scoped to the foreground workspace.
@@ -181,12 +70,14 @@ Desktop is a host adapter over the TypeScript SDK. Its AppServer and Hub transpo
 
 - In Local mode, Desktop connects through a Hub-managed local AppServer. Desktop may start, stop, and restart that local process, and connection-level changes may use an Apply & Restart action.
 - In Remote mode, the AppServer lifecycle belongs to the user or remote environment. Desktop must not expose remote restart as a supported action, and must not route remote connection changes through local Hub restart semantics.
-- Remote connection changes are applied with test-and-connect semantics: Desktop validates the draft `ws://` or `wss://` URL and token, completes a WebSocket `initialize` probe against that draft endpoint with a bounded timeout, then persists the settings and switches to the new connection only after the probe succeeds.
+- Remote connection changes are applied with test-and-connect semantics: Desktop validates the draft `ws://` or `wss://` URL and token, completes a WebSocket `initialize` probe against that draft endpoint with a 10-second timeout, then persists the settings and switches to the new connection only after the probe succeeds.
 - If the remote probe fails, Desktop leaves the persisted connection settings unchanged so the next launch is not trapped behind a newly saved bad endpoint.
 - When Desktop is launched with an explicit transient `--remote` endpoint, persistent connection-mode switching is unavailable. Settings must explain that the launch argument owns the current connection for that session.
 - Remote connections opened through the Servers surface (see [§6.10](#610-remote-servers) and [remote-server-management.md](../features/remote-server-management.md)) are a tunnel-fronted special case of Remote mode: Desktop connects to a `ws://127.0.0.1:<port>/ws` local tunnel endpoint and reuses this same test-and-connect path. Remote AppServer lifecycle remains owned by the remote environment; Desktop manages only the SSH tunnel and the deployment-level container lifecycle, never a remote AppServer process restart.
 - A Remote-mode session is represented as a distinct foreground project identity, separate from the local workspace that initiated the connection. Servers-managed, manual URL, and transient command-line remote sessions each keep local threads, pinned state, and welcome drafts isolated from the remote foreground project.
 - Connecting to a remote project records the previous local foreground workspace when one exists. Disconnecting the remote project or selecting a local project closes the remote client/tunnel and returns Desktop to local mode, restoring the previous local foreground when possible.
+
+Remote initialization has a 15-second default deadline. A failed connection remains recoverable without restarting Desktop.
 
 ### 3.2 Connection States
 
@@ -270,8 +161,6 @@ Ordinary remote initialization uses a fifteen-second timeout. A temporary connec
 - Hovering or focusing a thread row reveals a compact details card with the complete thread title, relative activity time, owning project name, and the current Git branch when a local Git head is available. Worktree threads use their recorded worktree branch. Chats, remote projects, and non-Git workspaces omit the branch row.
 - Hovering or focusing a project row reveals a project details card with its name, pin control, visible thread count, waiting/running counts, and full local path or remote display path. Waiting takes precedence over running for a thread so one thread is not counted in both states. Connecting projects use a content-shaped loading placeholder; unloaded cold/error projects report that details are not loaded rather than claiming zero threads.
 - Thread and project details cards attach to the sidebar edge rather than floating beside it, and mirror to the other side when the viewport would clip them. Their surface treatment is defined in [Desktop DESIGN.md](../architecture/DESIGN.md#hover-annotations).
-
----
 
 ## 4. Protocol Event to UX Behavior
 
@@ -399,8 +288,6 @@ Desktop must also tolerate the request being replayed by AppServer when the user
 - If the user is viewing another thread when an inactive thread changes, the client may indicate background activity but must not forcibly switch context.
 - When a capability is absent, the corresponding UX surface is disabled or hidden rather than failing late.
 
----
-
 ## 5. Core Interaction Flows
 
 ### 5.1 Open a Workspace
@@ -513,17 +400,6 @@ Desktop receives thread truth through durable header/history queries and realtim
 - Rollback, fork, archive, and unarchive clear affected history cursors and segments and reload the relevant Thread header and head pages. Delete clears the header and all page data. Reconnect establishes a new subscription and reloads head pages without reusing pre-disconnect cursors.
 - Reconciliation must be scoped to the active foreground thread and workspace. Snapshot state from one thread or workspace must not preserve or overwrite realtime state from another.
 
-### 5.3.4 Backend Verification Gate
-
-Before changing Desktop restore behavior for a reported restore bug, the implementer must verify whether AppServer and Session Core already contain the correct canonical state.
-
-- Treat the bug as Desktop-owned when rollout evidence or the Turn/Item page methods contain the expected completed tool results, approval responses, final agent message, and terminal turn state, but the active Desktop UI does not show them.
-- Treat the bug as AppServer or Session Core-owned when rollout evidence or the history page methods are missing those canonical items, have impossible ordering, omit the terminal turn state, or cannot read a thread that should be readable.
-- Treat replay as backend-owned when `thread/subscribe` or `thread/resume` does not replay unresolved interactive requests for a thread that is still in `waitingApproval` or `waitingInput`, or when replay creates duplicate logical requests with different `requestId` values.
-- Treat subscription ordering and UI gating as Desktop-owned when backend evidence is correct but Desktop shows an approval composer before restore hydration is complete, loses a later approval, leaks local submitted state across approvals, or keeps completed tools live.
-- A Desktop fix must cite the evidence source used for this classification: rollout file, header/history query payloads, `thread/runtimeChanged` snapshot, trace/session metadata, or an AppServer protocol log.
-- If backend evidence contradicts the expected Session Core or AppServer protocol behavior, backend repair takes priority over renderer workarounds.
-
 ### 5.3.5 Open a Thread from a Workspace-owned product surface
 
 When a native product surface such as Oratorio opens a Thread, it supplies both the real Thread id and its canonical Workspace path. If the target Workspace is not foreground, Desktop records the pending Thread selection, switches that Workspace through the existing project connection lifecycle, and selects the Thread only after the target thread list has loaded. Returning to the product surface restores its filters, selected item, drawer/detail stage, and scroll position for the lifetime of the Desktop window.
@@ -624,6 +500,10 @@ Inline dimensions remain flexible. A View's `ui/notifications/size-changed` widt
 The inner document runs in an opaque-origin sandbox with CSP, navigation, permission, and capability restrictions. It receives no Electron, Node, filesystem, shell, parent DOM, generic IPC, undeclared network, or cross-server authority. Declared camera, microphone, geolocation, and clipboard-write permissions remain denied. The View may use same-server app-visible tools and resources, logging, `ui/message`, and `ui/update-model-context` only through the handle-bound host bridge. Tool calls still pass server authority, policy, approval, hooks, timeout, and result limits.
 
 For `ui/open-link`, Desktop asks AppServer to validate and normalize the URL before invoking the trusted shell boundary. Offline, revoked, and closed status notifications tear down the View immediately and restore generic fallback. Host-frame appearance and fullscreen visual treatment follow [Desktop DESIGN](../architecture/DESIGN.md#interactive-tool-ui); exact methods, DTOs, limits, and errors remain defined by [AppServer Protocol Section 22.10](../protocols/appserver-protocol.md#2210-mcp-apps-opaque-view-methods).
+
+Desktop limits ordinary View bridge messages to 256 KiB. The trusted sandbox-resource bootstrap
+may carry HTML up to the protocol resource limit while the remaining envelope stays within 256 KiB.
+Local View logs are limited to 8 KiB per entry and 60 entries per View per minute.
 
 #### 5.8.3 Inline Assistant Visualizations
 
@@ -747,7 +627,7 @@ The slash reference surface includes Desktop-owned system actions above custom C
 
 ### 5.14 Desktop Runtime Thread Tools
 
-Desktop may expose the AppServer Protocol's Desktop Thread Management Runtime Tool Profile to agents by declaring Runtime Dynamic Tools on `thread/start`, `worktree/createAndStart`, and `thread/resume`.
+Desktop exposes its client-owned thread-management profile through Runtime Dynamic Tools on `thread/start`, `worktree/createAndStart`, and `thread/resume`.
 
 Required behavior:
 
@@ -755,18 +635,23 @@ Required behavior:
 - Desktop must not expose snake_case aliases as model-visible DotCraft tool names. Compatibility aliases, if needed for private integrations, must stay inside the Desktop tool handler and must not change the DotCraft tool surface.
 - Desktop declares these tools with `deferLoading = true` by default so they are discoverable on demand and do not expand the ordinary top-level tool list. Direct exposure is reserved for runtimes without deferred-tool discovery.
 - Desktop declares `additionalContext["desktop.threadCoordination"]` with `kind = "application"` whenever it declares the thread tools. The value is a concise App Context hint telling the agent to search for the relevant thread tool before background thread management.
+- The profile remains schema-stable across Agent/Plan switches; handlers enforce mode-specific policy without changing declarations.
 - Desktop declares these tools only when it can handle `item/tool/call` requests for them on the active AppServer transport.
 - Desktop implements lifecycle, history, and turn tools by calling ordinary AppServer methods. `SetThreadPinned` is the only Desktop-local state mutation in this profile and only updates Desktop settings.
+- `CreateThread` requires a prompt; optional display name maps to the thread title. An originating thread is recorded as a sibling-thread source, never as a subagent relationship.
 - `CreateThread` calls `thread/start` using the current workspace identity, then submits the initial prompt with `turn/start`. The created thread appears through normal `thread/started` synchronization, but Desktop does not switch the user's active conversation unless the user explicitly opens it. If `reasoningEffort` is supplied, Desktop maps it into persistent thread reasoning configuration before the first turn.
-- `ListThreads` calls `thread/list` with `query`, `limit`, `cursor`, and `includeArchived` when provided, then returns a model-facing page summary including `nextCursor` and `totalMatched`.
-- `ReadThread` calls `thread/read`, `thread/turns/list`, and `thread/items/list` without resuming the thread, subscribing the UI to it, or making it active. Its optional `turnLimit`, `turnCursor`, `itemLimit`, and `itemCursor` arguments independently bound the two pages, and its result returns both next cursors. The summary must bound history, summarize queued inputs, extract useful message/tool previews from Item payloads, and avoid raw media data or uncapped command/tool output.
+- `ListThreads` calls `thread/list` with `query`, `limit`, `cursor`, and `includeArchived` when provided, then returns a model-facing page summary including `nextCursor` and `totalMatched`. Its default limit is 20, capped at 100.
+- `ReadThread` reads the header and newest complete Turns without resuming, subscribing or selecting the thread. It accepts `threadId`, optional Turn `cursor`, `turnLimit` (default 1, range 1–10), `includeOutputs` (default false), and `maxOutputCharsPerItem` (default 2,000, range 0–20,000). Unknown or invalid arguments fail. Turn hydration follows every Item page; failed or cyclic pagination fails the call rather than claiming a partial Turn is complete.
+- Read results preserve full user/assistant text and typed Item metadata. Media is represented by references, never inline data URLs. Materialized input snapshots take precedence over native `contextRef` values without rereading files. Optional command/tool/reasoning output has per-field text and truncation metadata; a zero output limit preserves metadata with empty text. General tool-result limits still apply.
+- `ReadThread` returns the same `{ schemaVersion: 1, thread, page, turns }` in structured and text content. `page` describes newest-first Turn pagination with limit, next cursor and has-more; the thread summary includes bounded queued inputs (id, status, display text, creation time, sender, trigger and readiness dependency) plus their total count.
 - `SendMessageToThread` sends a normal turn to the target thread without stealing focus. If `reasoningEffort` is supplied, Desktop first reads and updates the target thread configuration through `thread/config/update`; the update applies to queued and future turns. If the thread is running, waiting, or under blocking maintenance, Desktop uses `turn/enqueue` when available; otherwise the tool returns a structured busy failure.
 - `SetThreadTitle` and `SetThreadArchived` map to `thread/rename`, `thread/archive`, and `thread/unarchive`. Desktop waits for the RPC result and normal broadcasts to update visible state.
 - `SetThreadPinned` reads the target thread only when pinning, rejects archived or subagent child threads, updates project-scoped pinned-thread preferences, and emits a renderer settings sync so the sidebar updates immediately. Unpinning may remove the id without a successful thread read.
 - On reconnect, Desktop re-declares the same tool specs and runtime additional context when it resumes a thread and `capabilities.dynamicToolRebind = true`. If rebind is unavailable, pending calls fail through the normal Runtime Dynamic Tools unavailable path rather than silently routing to stale handlers.
 - Runtime thread-tool calls render as ordinary dynamic tool activity in the conversation. They are non-modal unless an underlying AppServer call triggers an existing approval or user-input flow.
 - If a background-created or background-updated thread changes while the user is viewing another thread, Desktop updates the sidebar/list indicators but must not force navigation.
-- Tool failures use stable error codes from the AppServer profile and a concise localized Desktop message where shown to the user.
+- Requested model or reasoning overrides must be supported and applied through the thread/turn contract; unsupported options fail rather than being ignored. Reasoning changes affect queued and future Turns, not the active Turn.
+- Results distinguish started and queued work. Failures have an English fallback and a stable code: `UnsupportedTool`, `UnsupportedOption`, `InvalidArguments`, `ThreadNotFound`, `ThreadArchived`, `ThreadBusy`, `ThreadManagementUnavailable`, `TargetUnsupported`, or `AppServerRequestFailed`. UI messages are localized.
 
 ### 5.15 Thread References
 
@@ -782,8 +667,6 @@ A user can point the model at earlier chats of the current workspace from the we
 ### 5.16 Turn Navigation
 
 A thread with at least four user messages shows a navigation rail at the leading edge of the conversation. It previews any user message on hover and jumps to it on click, including messages in history pages that are not loaded yet. The rail, its previews, bookmarks, and the `Alt+ArrowUp` / `Alt+ArrowDown` shortcuts are defined in [Turn Navigation](../features/turn-navigation.md).
-
----
 
 ## 6. Secondary Flows
 
@@ -1077,6 +960,22 @@ Required behavior:
 - The **Always-allowed apps** group is always visible and shows an empty state when no application is allowed. Each row shows the application's icon and display name and can be removed after confirmation. Applications are added only by answering an approval with always allow.
 - On platforms without computer use, the Control group shows only Chrome and the Always-allowed apps group is hidden.
 
+#### 6.7.3 ChatGPT account controls
+
+The provider editor and setup wizard offer API-key and ChatGPT authentication. OAuth replaces
+key/endpoint fields with sign-in/out controls; pending authorization exposes a copyable URL.
+Authenticated providers load the account model catalog, while missing credentials and catalog
+failures offer sign-in and retry. Saving uses host-owned account metadata.
+
+Successful login opens the saved provider editor without activating another workspace. A valid
+OAuth provider is not rejected for lacking an API key, and a late response cannot switch another
+editor. Credential and refresh rules belong to [OpenAI subscription authentication](../architecture/openai-subscription-auth.md).
+
+The welcome and active composers show an icon-only usage control for the active OAuth provider.
+Its rail represents the most constrained remaining-headroom window; green/yellow/red thresholds
+are 40% and 20% remaining. The popover lists available windows by duration, with remaining usage,
+reset countdown, optional credits and limit warnings. Missing windows are omitted.
+
 ### 6.8 Channel Modules
 
 This section defines the user-visible workflow for TypeScript channel modules configured from Desktop. The workspace AppServer owns their runtime lifecycle. This section intentionally omits build scripts, package-pipeline internals, IPC method names, and UI component-level design.
@@ -1213,8 +1112,6 @@ The Agent Builder edits an Agent Profile as a document beside the conversation, 
 
 Visual treatment follows [Desktop DESIGN.md](../architecture/DESIGN.md).
 
----
-
 ### 6.13 Desktop Pet
 
 The default companion can be coloured and dressed with items from the [Avatar System](../features/avatar-system.md#12-desktop-pet), which owns the settings record, the appearance source, the find rule, and the bag and exchange rules. This section owns only what the Desktop surface does with them.
@@ -1234,8 +1131,6 @@ Packaged Windows builds update themselves from GitHub Releases through `electron
 - A verified download makes the update ready. The title bar shows an update control whose dialog restarts DotCraft into a silent install of the same installation. An update that is ready but not installed survives restarts without downloading again.
 - The Help menu ends with **Check for Updates…**. A manual check reports an up-to-date app or a failed check in a native message box and opens the update dialog when it finds an update. `Settings › General` shows only the app version. Background check failures stay silent.
 - Each release publishes `DotCraft-v<version>-win-<arch>-Setup.exe` with its `.blockmap` for every Windows architecture and one `latest.yml` listing all of them; the updater selects the installer whose name contains the running architecture.
-
----
 
 ## 7. Keyboard Accessibility and Localization
 
@@ -1265,8 +1160,6 @@ Packaged Windows builds update themselves from GitHub Releases through `electron
 - Server-provided identifiers, model ids, thread ids, and similar protocol values must remain stable and must not be translated as routing keys.
 - Changing display language must update client-owned UX within a short and predictable refresh path.
 - Locale-sensitive formatting such as time and date should follow the selected language or locale policy consistently.
-
----
 
 ## 8. Error Handling and Recovery
 
@@ -1309,8 +1202,6 @@ User input request delivery follows the same reliability expectation: if the dia
 - If an automation action fails due to stale state, the client refreshes server truth and reconciles the visible state.
 - If automation review data is missing, the user sees that the run exists but cannot currently be inspected.
 
----
-
 ## 9. Non-Functional UX Requirements
 
 ### 9.1 Responsiveness
@@ -1333,8 +1224,6 @@ User input request delivery follows the same reliability expectation: if the dia
 - Long-running sessions must remain understandable over time.
 - Thread history, tool output, plan progress, and automation output must remain legible in the presence of long content and repeated updates.
 
----
-
 ## 10. Auxiliary Surfaces
 
 Surfaces beyond the conversation follow the same rules as the rest of this document: protocol-driven behavior, explicit status and recovery, and a clear separation between workflow rules and visual implementation.
@@ -1347,12 +1236,13 @@ Surfaces beyond the conversation follow the same rules as the rest of this docum
 - When the first message creates the thread, the Welcome draft's panel state moves to that thread: the panel stays open with the same tabs, running terminals and browser pages keep their sessions, and unsent comment drafts follow. The next visit to Welcome starts with a closed, empty panel.
 - Chat-local file references, including absolute local paths and `file://` links, may open in the viewer panel even when the file is outside the active workspace. External local files must be served only after a user-triggered exact-file authorization; authorizing one external file must not authorize its parent directory or sibling files.
 - Existing local text files up to 10 MiB (10 × 1024 × 1024 bytes) open directly as editable documents. Desktop saves after three seconds of inactivity and immediately on the platform Save shortcut. Editing after failure schedules another attempt; the shortcut retries immediately. Tab-owned sessions retain drafts, baseline/version, save tasks, subscriptions, mode, undo history, selection and scroll position even while not mounted.
-- Markdown defaults to editable semantic preview and offers View source / View preview in the header. Each mode has a content-versioned history/selection/scroll snapshot. Mode switching waits for `saveUntilClean`, including input received during a pending save, and stays in the current mode on failure or unresolved review.
+- Markdown defaults to editable semantic preview and offers View source / View preview in the header. Each mode has a content-versioned history/selection/scroll snapshot. Mode switching waits until the current draft is fully saved, including input received during a pending save, and stays in the current mode on failure or unresolved review.
 - Files larger than 10 MiB and no larger than 20 MiB retain their corresponding view read-only with a neutral outlined notice; Markdown is not forced into source. Files larger than 20 MiB fail without loading content. The editing threshold does not prevent an explicit review decision from saving against a disk file that has grown past 10 MiB; both the disk file and output remain subject to the 20 MiB ceiling.
 - Text saves preserve the file's UTF-8 byte-order mark and line-ending convention. They may update only an existing regular file inside the active workspace or the exact external file previously authorized for the viewer; editing never creates a file or broadens external access.
 - Each save compares the opened file version with the current disk version. External synchronization and saves are serialized per tab; stale reads cannot overwrite later edits or successful saves. Disk content equal to the baseline updates metadata without interrupting a draft. Disk content equal to the draft synchronizes the baseline and clears dirty state without review. A clean source view reviews old content → new disk content; a clean Markdown semantic preview automatically accepts new disk content. Distinct local and disk changes pause autosave and review disk content → local draft.
 - Review records explicit old/new content, not fixed local/disk roles. Accept chooses new, Reject chooses old, and Edit chooses new and returns focus to editing. Every decision uses the latest reviewed disk content/version as the next save baseline; only a choice different from disk needs saving. Repeated disk changes update the review before a decision, and the write version check catches changes after it. Either version exceeding 256 KiB or 5000 lines disables diff preview, not the applicable decisions.
-- Closing waits for `saveUntilClean`, not merely one successful write. Failed saving offers Discard file changes? with Continue viewing / Discard changes. Continuing preserves the tab and draft. An unresolved review blocks closing and mode switching rather than silently choosing a version.
+- Closing waits until the current draft is fully saved, including edits made during a pending write. Failed saving offers Discard file changes? with Continue viewing / Discard changes. Continuing preserves the tab and draft. An unresolved review blocks closing and mode switching rather than silently choosing a version.
+- Asynchronous highlighting must not replace newer content or reset selection/scroll. Focused editors own Find and do not open the window-wide find overlay at the same time.
 - The viewer's Open action launches the displayed local file in the selected application, including files outside the active workspace. Launch failures show an error notification.
 - Embedded browser tabs retain their workspace-scoped persistent browser profile so cookies and other site data survive tab and Desktop restarts without crossing workspace boundaries.
 - Network requests and page JavaScript in an embedded browser tab identify as the bundled Chromium runtime on the current platform. Desktop removes Electron and DotCraft product tokens from that profile's user agent, applies the operating system's preferred languages consistently, and leaves Chromium-managed client hints unchanged. This identity policy applies only to `persist:dotcraft-viewer:*` browser profiles.

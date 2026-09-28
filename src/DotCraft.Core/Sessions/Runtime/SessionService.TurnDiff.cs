@@ -12,7 +12,9 @@ public sealed partial class SessionService
     {
         // A Remote Tool Host edit reaches the Agent Host only as that call's diff, not as exact file text.
         if (context.ExecutionLocation is { Target: "remote" }
-            && FileChangeStructuredContent.IsFileChange(result.StructuredContent))
+            && FileChangeStructuredContent.IsFileChange(result.StructuredContent)
+            && !(result.StructuredContent!.Value.TryGetProperty("writeState", out var writeState)
+                && writeState.ValueEquals("notApplied")))
             turnRuntime.DiffTracker.Invalidate();
         FlushTurnDiff(turnRuntime, channel);
     }

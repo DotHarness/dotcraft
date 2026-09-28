@@ -2,17 +2,15 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 2.1.0 |
+| **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-08-29 |
-| **Related Specs** | [Session Core](../architecture/session-core.md), [Plugin Architecture](../architecture/plugin-architecture.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
+| **Date** | 2026-09-28 |
+| **Related Specs** | [Session Core](../architecture/session-core.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: define DotCraft lifecycle hooks as a durable runtime contract. Hooks let
 user config, workspace config, and enabled plugins run trusted local commands at
 well-defined points in a thread, turn, tool call, compaction, or subagent
 lifecycle.
-
----
 
 ## 1. Sources And Trust
 
@@ -60,8 +58,6 @@ Runtime execution order is:
 Within one source, hooks run in file order, then event group order, then handler
 order. A blocking result stops later hooks for that event.
 
----
-
 ## 2. Events
 
 DotCraft recognizes these event names:
@@ -85,8 +81,6 @@ DotCraft recognizes these event names:
 `PrePrompt` is retained for existing DotCraft hooks. New plugin ecosystems should
 prefer `UserPromptSubmit` because it runs before baseline capture, tool use, and
 prompt assembly.
-
----
 
 ## 3. Hook File Shape
 
@@ -137,8 +131,6 @@ Supported command fields:
 Reserved handler types are `prompt`, `agent`, and `http`. DotCraft may list them
 with diagnostics but does not execute them until a later spec version.
 
----
-
 ## 4. Matching
 
 For tool events, `matcher` is evaluated against the DotCraft tool name and its
@@ -166,8 +158,6 @@ DotCraft must provide stable aliases for common tools:
 | Search/replace edit | `Edit`, `EditFile` |
 | Multi-edit adapters | `MultiEdit` |
 | Notebook edit adapters | `NotebookEdit` |
-
----
 
 ## 5. Hook Input
 
@@ -214,8 +204,6 @@ Stop fields:
 | `lastAssistantMessage` / `last_assistant_message` | Alias for assistant response text. |
 | `stopHookActive` / `stop_hook_active` | True for hook-origin continuation turns that must not recursively rewake. |
 
----
-
 ## 6. Hook Output
 
 Hook stdout can be plain text or JSON.
@@ -247,9 +235,7 @@ Exit code semantics:
 
 Blocking events return an error to the current action. Non-blocking events fail
 open. `asyncRewake` hooks may enqueue a new hook-origin turn instead of blocking
-the current turn.
-
----
+the current turn. Hook-origin continuations must not recursively enqueue another rewake.
 
 ## 7. Plugin Variables And Environment
 
@@ -268,8 +254,6 @@ When `UserDataPath` is configured, the plugin data directory is
 `<UserDataPath>/plugins/<id>/data`; otherwise it is `<DataPath>/plugin-data/<id>`.
 Hooks, LSP servers, and .NET activation use the same resolved directory. Plugin data paths
 must not be committed into workspace config, and hook examples must not contain real machine paths.
-
----
 
 ## 8. AppServer And Desktop Projection
 
@@ -295,18 +279,3 @@ commands.
 Hook run notifications are best-effort and transient. They include run id, hook
 key, event, thread id, turn id, status, duration, exit code, output entries, and
 whether a continuation was queued.
-
----
-
-## 9. Acceptance Checklist
-
-- Existing DotCraft config hooks continue to run.
-- Plugin hooks are discovered, listed, trusted as a plugin bundle, and executed.
-- User and workspace hooks can still be trusted and toggled individually.
-- `UserPromptSubmit` can inject additional context and block a prompt.
-- Tool hooks receive portable tool aliases and portable tool input.
-- `if` conditions match shell command patterns.
-- JSON hook output injects additional context without leaking raw JSON.
-- `Stop` hooks can request a queued follow-up turn through rewake.
-- Rewake follow-up turns do not recursively trigger infinite Stop rewake loops.
-- AppServer and Desktop expose the new metadata without command editing.

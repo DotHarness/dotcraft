@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.1.0 |
+| Version | 0.7.8 |
 | Status | Living |
-| Date | 2026-08-08 |
-| Related Specs | [Remote Server Management](../remote-server-management.md), [Webhook Ingress](./server-webhook-ingress.md) |
+| Date | 2026-09-28 |
+| Related Specs | [Oratorio Design](oratorio-design.md), [Runtime Module Boundaries](../../architecture/runtime-module-boundaries.md) |
 
 ## Overview
 
@@ -91,15 +91,3 @@ All commands accept `--dir`. Mutating commands accept `--dry-run`; dry-run perfo
   can be mistaken for a complete deployment update. Existing Compose files are
   migrated explicitly; upgrade does not rewrite locally customized Compose.
 - Disabling webhook ingress preserves the base stack, state, secrets, and certificate volumes.
-
-## Acceptance
-
-- Compose configuration contains both primary services with identical `/workspace` mounts.
-- A fresh Workspace lists every bundled plugin as uninstalled and installable, and installing one plugin copies only that plugin into `/workspace/.craft/plugins`.
-- The official marketplace is available by default, and user marketplace configuration and cache survive container replacement.
-- Headless workers start independently of Desktop.
-- In subscription mode, login survives DotCraft container recreation and a
-  missing credential fails before AppServer starts.
-- Remote Board, Settings, stream, and Thread navigation use the same persisted data as headless operation.
-- CLI dry-run is non-mutating, lifecycle commands are allow-listed, and secret output follows this specification.
-- Webhook routing exposes only the documented provider endpoint and passes signature headers unchanged.

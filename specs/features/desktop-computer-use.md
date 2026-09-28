@@ -2,14 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.1.0 |
+| **Version** | 0.7.8 |
 | **Status** | Draft |
-| **Date** | 2026-09-25 |
-| **Parent Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Node REPL](node-repl.md), [Desktop Client](../clients/desktop-client.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
+| **Date** | 2026-09-28 |
+| **Parent Specs** | [Desktop Node REPL](node-repl.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: define how DotCraft Desktop lets the agent observe and operate native desktop applications on the user's Windows computer through the thread-bound Node REPL.
-
----
 
 ## 1. Scope
 
@@ -28,8 +26,6 @@ This spec does not define:
 - Remote control of Satellite machines; Satellite excludes remote input by design.
 - Mentioning applications in the composer to pre-authorize them. That is a later extension.
 
----
-
 ## 2. Goals
 
 1. **One execution path**: the model reaches desktop applications only through `dotcraft.computer`, whose driver is owned and supervised by Desktop main.
@@ -38,11 +34,9 @@ This spec does not define:
 4. **Bounded side effects**: one native request runs at a time on the machine, each request has a deadline, and turn end, cancellation and screen lock stop further input.
 5. **Stable model surface**: the model-visible tool remains `NodeReplJs`; computer use adds a plugin skill, not a new tool schema.
 
----
-
 ## 3. Architecture
 
-```
+```text
 NodeReplJs ──ext/nodeRepl/evaluate──► Desktop main ──► thread REPL worker
                                                           └─ dotcraft.computer.* (host calls)
 Desktop main: ComputerUseManager (one per Desktop process)
@@ -57,8 +51,6 @@ Desktop main: ComputerUseManager (one per Desktop process)
 - **cua-driver** is the execution layer. It is an external MIT-licensed binary pinned to one version and shipped with the Windows Desktop package.
 
 The Node REPL is not an OS sandbox. The skill forbids launching the driver or native input tools directly; the authorization boundary described here applies to `dotcraft.computer`.
-
----
 
 ## 4. Host API
 
@@ -106,8 +98,6 @@ Every method that takes `window` or `app` is authorized first (Section 6). `list
 
 Driver error codes such as `stale_element_token` or `ambiguous_window_target` pass through unchanged.
 
----
-
 ## 5. Application Identity
 
 - A packaged application is identified by its Application User Model ID. A desktop application is identified by the absolute path of its executable.
@@ -115,8 +105,6 @@ Driver error codes such as `stale_element_token` or `ambiguous_window_target` pa
 - Display names come from the Start menu entry for packaged applications and from the executable's version information for desktop applications, falling back to the file name.
 - Identities compare case-insensitively.
 - Resolution results are cached per window handle until the turn ends. A window whose application cannot be resolved fails with `app_unidentified`.
-
----
 
 ## 6. Authorization
 
@@ -141,18 +129,14 @@ For each gated call, Desktop main:
 - **This thread**: `acceptForSession` is recorded by the AppServer session approval scope of the thread.
 - The AppServer does not persist `acceptAlways` for `approvalType = "computerUse"`.
 
----
-
 ## 7. Approval Round Trip
 
-- `ext/nodeRepl/requestApproval` is a client-to-server request tied to an in-flight evaluation. Its protocol shape is defined in [AppServer Protocol Section 11.5](../protocols/appserver-protocol.md#115-node-repl-runtime).
+- `ext/nodeRepl/requestApproval` is a client-to-server request tied to an in-flight evaluation. It carries the owning thread, turn and evaluation identities.
 - The AppServer uses the approval service of the turn that issued the evaluation. The approval request uses `approvalType = "computerUse"`, `operation = "use"`, `target = <application id>` and `targetLabel = <display name>`; `scopeKey` is derived from the application id.
 - Thread approval policy applies unchanged: `autoApprove` allows, `deny` declines, hooks may decide, and a prior `acceptForSession` for the same application in the thread allows without a new request.
 - While the approval is pending, the evaluate deadline is paused on both the AppServer and Desktop. The approval uses the thread approval timeout; timing out declines.
 - When an approval request arrives for the thread and turn that currently own computer use, Desktop brings its main window to the front and shows that thread.
 - The approval UI offers three choices: always allow, allow for this thread, and decline. They map to `acceptAlways`, `acceptForSession` and `decline`.
-
----
 
 ## 8. Runtime
 
@@ -182,15 +166,11 @@ For each gated call, Desktop main:
 - Locking the workstation stops computer use for the turn.
 - Stopping terminates the driver, hides the pill and glow, and makes later calls in the same turn fail with `computer_use_stopped`. The turn itself continues so the model can report what happened.
 
----
-
 ## 9. Presentation
 
 - Screenshots produced by `get_window_state` appear in the `NodeReplJs` tool result image output.
 - The computer use approval card asks whether DotCraft may use the named application and offers the three choices in Section 7.
 - Settings › Computer use shows the Control group (Any app, Chrome) and the Always-allowed apps group with an empty state.
-
----
 
 ## 10. Packaging
 

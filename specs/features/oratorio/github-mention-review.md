@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.1.0 |
+| Version | 0.7.8 |
 | Status | Living |
-| Date | 2026-07-31 |
+| Date | 2026-09-28 |
 | Parent Spec | [Oratorio Design](./oratorio-design.md) |
 
 This document defines the product and behavior contract for triggering an
@@ -17,8 +17,6 @@ Reference material:
 - [GitHub webhook events and payloads](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
 - [GitHub webhook security](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries)
 - [GitHub pull request reviews API](https://docs.github.com/en/rest/pulls/reviews)
-
----
 
 ## 1. Overview
 
@@ -278,29 +276,3 @@ failure reply.
   App bot identity. Review writes continue to be attributed to the App.
 - Command records are backend audit state and are not exposed through a new
   first-version API or Desktop view.
-
-## 11. Acceptance Checklist
-
-- [x] Both `@dotcraft-ai` review forms parse into one typed `review` command.
-- [x] Only the documented `@dotcraft-ai` handle parses as a command; other
-      handles do not.
-- [x] Command recognition does not depend on mention autocomplete, account
-      notification, or `dotcraft-ai` repository participation.
-- [x] Unsupported verbs and malformed Oratorio comments never create runs.
-- [x] Only signed `issue_comment.created` events on pull requests can enqueue
-      commands.
-- [x] Bots, unaffiliated actors, and unconfigured repositories cannot dispatch.
-- [x] The same GitHub comment cannot create more than one review command or
-      duplicate review run.
-- [x] Command processing synchronizes only the targeted pull request and pins
-      the current GitHub head SHA.
-- [x] The resulting run is visibly attributed to `githubMentionReview`.
-- [x] The optional focus reaches the AppServer review prompt.
-- [x] A compatible active review is reused; incompatible active work is not
-      disturbed.
-- [x] A successful safe draft publishes as a GitHub `COMMENT` review even when
-      ordinary Auto Review auto-publication is disabled.
-- [x] Existing automatic-publication safety gates still prevent unsafe or stale
-      writes.
-- [x] Manual dispatch, Auto Review, generic webhook sync, and GitLab behavior
-      continue to pass their existing tests.

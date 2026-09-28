@@ -41,4 +41,24 @@ public sealed class SatelliteFailureIsolationTests : IDisposable
         try { Directory.Delete(_directory, recursive: true); }
         catch (Exception) { }
     }
+
+    [Fact]
+    public void LogRetainsStackAndInnerExceptionOnDisk()
+    {
+        try { ThrowNestedFailure(); }
+        catch (Exception exception) { new SatelliteLog(_directory).Warning("tool.failed", "tool call", exception); }
+        var path = Assert.Single(Directory.GetFiles(_directory, "dotcraft-satellite-*.log"));
+        var log = File.ReadAllText(path);
+        Assert.Contains(nameof(ThrowNestedFailure), log, StringComparison.Ordinal);
+        Assert.Contains("inner file failure", log, StringComparison.Ordinal);
+        Assert.Contains("outer tool failure", log, StringComparison.Ordinal);
+        Assert.Single(File.ReadAllLines(path));
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static void ThrowNestedFailure()
+    {
+        try { throw new IOException("inner file failure"); }
+        catch (IOException exception) { throw new InvalidOperationException("outer tool failure", exception); }
+    }
 }

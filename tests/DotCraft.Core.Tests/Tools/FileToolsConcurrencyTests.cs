@@ -22,9 +22,7 @@ public class FileToolsConcurrencyTests
 
         var results = await Task.WhenAll(tasks);
 
-        Assert.All(results, result => Assert.False(
-            result.StartsWith("Error", StringComparison.Ordinal),
-            result));
+        Assert.All(results, result => Assert.True(result.Success, result.Error?.Message));
         var finalContent = await File.ReadAllTextAsync(filePath);
         for (var i = 0; i < 16; i++)
             Assert.Contains($"replacement-{i}", finalContent, StringComparison.Ordinal);
@@ -42,10 +40,10 @@ public class FileToolsConcurrencyTests
             toolsA.EditFile("notes.txt", "shared", "first"),
             toolsB.EditFile("notes.txt", "shared", "second"));
 
-        Assert.Single(results, result => result.StartsWith("Successfully", StringComparison.Ordinal));
-        var error = Assert.Single(results, result => result.StartsWith("Error", StringComparison.Ordinal));
-        Assert.Contains("oldText not found", error, StringComparison.Ordinal);
-        Assert.DoesNotContain("being used by another process", string.Join('\n', results), StringComparison.OrdinalIgnoreCase);
+        Assert.Single(results, result => result.Success);
+        var error = Assert.Single(results, result => !result.Success);
+        Assert.Contains("oldText not found", error.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("being used by another process", string.Join('\n', results.Select(result => result.Content)), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -57,7 +55,7 @@ public class FileToolsConcurrencyTests
 
         var results = await Task.WhenAll(inputs.Select(content => tools.WriteFile("notes.txt", content)));
 
-        Assert.All(results, result => Assert.StartsWith("Successfully wrote", result, StringComparison.Ordinal));
+        Assert.All(results, result => Assert.True(result.Success, result.Error?.Message));
         var finalContent = await File.ReadAllTextAsync(Path.Combine(workspace, "notes.txt"));
         Assert.Contains(finalContent, inputs);
     }

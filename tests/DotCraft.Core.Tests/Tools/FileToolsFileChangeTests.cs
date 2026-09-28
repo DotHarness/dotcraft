@@ -12,7 +12,7 @@ public sealed class FileToolsFileChangeTests : IDisposable
 {
     private readonly string _workspace = CreateDirectory();
     private readonly string _outside = CreateDirectory();
-    private readonly ToolResultAttachments _attachments = new();
+    private ToolExecutionResult _result = null!;
 
     public void Dispose()
     {
@@ -25,7 +25,7 @@ public sealed class FileToolsFileChangeTests : IDisposable
     {
         var result = await InvokeAsync(tools => tools.WriteFile("src/new.txt", "one\ntwo\n"));
 
-        Assert.Equal("Successfully wrote 8 bytes (3 lines) to src/new.txt", result);
+        Assert.Equal("Successfully wrote 8 bytes (3 lines) to src/new.txt", result.Content);
         var change = SingleChange();
         Assert.Equal(["path", "kind", "diff", "additions", "deletions"], change.EnumerateObject().Select(p => p.Name));
         Assert.Equal("src/new.txt", change.GetProperty("path").GetString());
@@ -41,7 +41,7 @@ public sealed class FileToolsFileChangeTests : IDisposable
 
         var result = await InvokeAsync(tools => tools.WriteFile("notes.txt", "a\nB\nc\nd\n"));
 
-        Assert.Equal("Successfully wrote 8 bytes (5 lines) to notes.txt", result);
+        Assert.Equal("Successfully wrote 8 bytes (5 lines) to notes.txt", result.Content);
         var change = SingleChange();
         Assert.Equal("update", change.GetProperty("kind").GetString());
         Assert.Contains("--- a/notes.txt\n+++ b/notes.txt\n", Diff(change), StringComparison.Ordinal);
@@ -56,7 +56,7 @@ public sealed class FileToolsFileChangeTests : IDisposable
 
         var result = await InvokeAsync(tools => tools.EditFile("notes.txt", "b", "B1\nB2"));
 
-        Assert.Equal("Successfully edited notes.txt at line 2 (1 -> 2 lines)", result);
+        Assert.Equal("Successfully edited notes.txt at line 2 (1 -> 2 lines)", result.Content);
         var change = SingleChange();
         Assert.Equal("notes.txt", change.GetProperty("path").GetString());
         Assert.Equal("update", change.GetProperty("kind").GetString());
@@ -69,7 +69,7 @@ public sealed class FileToolsFileChangeTests : IDisposable
     {
         var result = await InvokeAsync(tools => tools.WriteFile(@"src\nested\file.txt", "x\n"));
 
-        Assert.Equal(@"Successfully wrote 2 bytes (2 lines) to src\nested\file.txt", result);
+        Assert.Equal(@"Successfully wrote 2 bytes (2 lines) to src\nested\file.txt", result.Content);
         Assert.Equal("src/nested/file.txt", SingleChange().GetProperty("path").GetString());
     }
 
@@ -131,7 +131,7 @@ public sealed class FileToolsFileChangeTests : IDisposable
 
         var result = await InvokeAsync(tools => tools.EditFile("a.cs", "void M()\n{\n}", "void N()\n{\n}"));
 
-        Assert.EndsWith("fallback)", result, StringComparison.Ordinal);
+        Assert.EndsWith("fallback)", result.Content, StringComparison.Ordinal);
         var change = SingleChange();
         var written = await File.ReadAllTextAsync(file);
         Assert.Contains($"index {GitBlobOid.Compute(original)}..{GitBlobOid.Compute(written)}\n", Diff(change), StringComparison.Ordinal);
@@ -171,7 +171,7 @@ public sealed class FileToolsFileChangeTests : IDisposable
     [InlineData("notFound")]
     [InlineData("ambiguous")]
     [InlineData("blocked")]
-    public async Task ErrorResults_AttachNothing(string failure)
+    public async Task ErrorResults_AttachUnappliedOutcomeWithoutChanges(string failure)
     {
         await File.WriteAllTextAsync(Path.Combine(_workspace, "notes.txt"), "x\nx\ny\n");
 
@@ -185,19 +185,10 @@ public sealed class FileToolsFileChangeTests : IDisposable
                 new FileTools(_workspace, requireApprovalOutsideWorkspace: false)),
         };
 
-        Assert.StartsWith("Error", result, StringComparison.Ordinal);
-        Assert.Null(_attachments.StructuredContent);
-    }
-
-    [Fact]
-    public async Task WithoutScope_WritesAndEditsWithUnchangedResults()
-    {
-        var tools = new FileTools(_workspace);
-
-        Assert.Null(ToolResultAttachmentScope.Current);
-        Assert.Equal("Successfully wrote 2 bytes (2 lines) to a.txt", await tools.WriteFile("a.txt", "x\n"));
-        Assert.Equal("Successfully edited a.txt at line 1 (1 -> 1 lines)", await tools.EditFile("a.txt", "x", "y"));
-        Assert.Equal("y\n", await File.ReadAllTextAsync(Path.Combine(_workspace, "a.txt")));
+        Assert.StartsWith("Error", result.Content, StringComparison.Ordinal);
+        Assert.NotNull(_result.Error);
+        Assert.Equal("notApplied", _result.StructuredContent!.Value.GetProperty("writeState").GetString());
+        Assert.Empty(_result.StructuredContent.Value.GetProperty("changes").EnumerateArray());
     }
 
     [Fact]
@@ -238,16 +229,15 @@ public sealed class FileToolsFileChangeTests : IDisposable
         Assert.Equal("gen.txt", change.GetProperty("path").GetString());
     }
 
-    private async Task<string> InvokeAsync(Func<FileTools, Task<string>> call, FileTools? tools = null)
+    private async Task<ToolExecutionResult> InvokeAsync(Func<FileTools, Task<ToolExecutionResult>> call, FileTools? tools = null)
     {
-        using var scope = ToolResultAttachmentScope.Set(_attachments);
-        return await call(tools ?? new FileTools(_workspace));
+        return _result = await call(tools ?? new FileTools(_workspace));
     }
 
     private JsonElement SingleChange()
     {
-        Assert.True(FileChangeStructuredContent.IsFileChange(_attachments.StructuredContent));
-        return Assert.Single(_attachments.StructuredContent!.Value.GetProperty("changes").EnumerateArray());
+        Assert.True(FileChangeStructuredContent.IsFileChange(_result.StructuredContent));
+        return Assert.Single(_result.StructuredContent!.Value.GetProperty("changes").EnumerateArray());
     }
 
     private static string Diff(JsonElement change) => change.GetProperty("diff").GetString()!;
