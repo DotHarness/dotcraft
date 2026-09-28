@@ -34,6 +34,8 @@ export default defineConfig({
       '@modelcontextprotocol/sdk',
       'zod',
       'react-markdown',
+      'mdast-util-from-markdown',
+      'mdast-util-to-string',
       'remark-gfm',
       'rehype-highlight',
       'shiki',
