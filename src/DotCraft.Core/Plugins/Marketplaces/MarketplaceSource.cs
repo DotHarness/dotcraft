@@ -44,7 +44,7 @@ public sealed record MarketplaceSource(
 /// <summary>
 /// Parses and validates user-supplied marketplace sources.
 /// </summary>
-internal static class MarketplaceSourceParser
+public static class MarketplaceSourceParser
 {
     private const string GitHubShorthandPrefix = "https://github.com/";
 

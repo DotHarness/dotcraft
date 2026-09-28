@@ -245,6 +245,8 @@ public sealed class AppServerRequestHandler(
 
         try
         {
+            foreach (var refresher in services.RuntimeRefreshers)
+                await refresher.RefreshAsync(ct);
             // Extracted domain handlers register their methods in the table; protocol extensions
             // are the only fallback once built-in domains have had a chance to resolve the method.
             if (DomainMethods.TryGet(method, out var domainHandler))

@@ -5,7 +5,7 @@ export type McpStartupState = 'idle' | 'starting' | 'ready' | 'error' | 'disable
 export type McpAuthStatus = 'unsupported' | 'notLoggedIn' | 'bearerToken' | 'oAuth'
 
 export interface McpServerOriginWire {
-  kind: 'workspace' | 'plugin'
+  kind: 'workspace' | 'user' | 'plugin'
   pluginId?: string | null
   pluginDisplayName?: string | null
   declaredName?: string | null

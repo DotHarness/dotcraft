@@ -75,23 +75,14 @@ internal sealed class McpRequestHandler(
         McpContractMapper.ValidateContract(serverContract);
 
         var server = McpContractMapper.FromContract(serverContract);
-        server.Origin = McpServerOrigin.Workspace();
+        server.Origin = new McpServerOrigin { Kind = p.Scope };
 
         var existing = await mcpClientManager!.GetConfigAsync(server.Name, ct);
         if (existing?.ReadOnly == true)
             throw AppServerErrors.McpServerReadOnly(server.Name);
 
-        var workspaceServers = await configService.GetWorkspaceServersAsync(ct);
-        var existingIndex = workspaceServers.FindIndex(
-            candidate => string.Equals(candidate.Name, server.Name, StringComparison.OrdinalIgnoreCase));
-        if (existingIndex >= 0)
-            workspaceServers[existingIndex] = server;
-        else
-            workspaceServers.Add(server);
-
-        await configService.SaveWorkspaceServersAsync(workspaceServers, ct);
-        configService.SetCurrentWorkspaceServers(workspaceServers);
-        await configService.ReconnectEffectiveRuntimeAsync(workspaceServers, ct);
+        configService.UpsertScoped(p.Scope, server);
+        await configService.ReloadAsync(ct);
         threadAgentRefreshService?.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
             Protocol.AppServer.AppServerMethodNames.McpUpsert,
@@ -120,15 +111,8 @@ internal sealed class McpRequestHandler(
         if (existing.ReadOnly)
             throw AppServerErrors.McpServerReadOnly(name);
 
-        var workspaceServers = await configService.GetWorkspaceServersAsync(ct);
-        var removed = workspaceServers.RemoveAll(
-            candidate => string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase)) > 0;
-        if (!removed)
-            throw AppServerErrors.McpServerNotFound(name);
-
-        await configService.SaveWorkspaceServersAsync(workspaceServers, ct);
-        configService.SetCurrentWorkspaceServers(workspaceServers);
-        await configService.ReconnectEffectiveRuntimeAsync(workspaceServers, ct);
+        if (!configService.RemoveScoped(p.Scope, name)) throw AppServerErrors.McpServerNotFound(name);
+        await configService.ReloadAsync(ct);
         threadAgentRefreshService?.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
             Protocol.AppServer.AppServerMethodNames.McpRemove,

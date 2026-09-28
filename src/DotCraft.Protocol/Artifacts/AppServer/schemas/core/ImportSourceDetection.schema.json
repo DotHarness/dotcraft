@@ -10,10 +10,10 @@
     "importableCount": {
       "type": "integer"
     },
-    "sessions": {
+    "items": {
       "type": "array",
       "items": {
-        "$ref": "./ImportSessionCandidate.schema.json"
+        "$ref": "./ImportCandidate.schema.json"
       }
     },
     "source": {
@@ -24,7 +24,7 @@
   "required": [
     "available",
     "importableCount",
-    "sessions",
+    "items",
     "source"
   ]
 }

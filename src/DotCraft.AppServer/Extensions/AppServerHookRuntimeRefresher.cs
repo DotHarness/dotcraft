@@ -26,7 +26,8 @@ internal static class AppServerHookRuntimeRefresher
         var workspacePath = hostWorkspacePath
                             ?? Directory.GetParent(botPath)?.FullName
                             ?? throw new InvalidOperationException("The workspace path could not be resolved from DataPath.");
-        var discovery = new HooksLoader(botPath).Discover(config, workspacePath, builtInPluginSourceRoots);
+        var userHooks = config.GlobalConfigPath is { } global ? Path.Combine(Path.GetDirectoryName(global)!, "hooks.json") : null;
+        var discovery = new HooksLoader(botPath, userHooks).Discover(config, workspacePath, builtInPluginSourceRoots);
         if (hookRunner == null)
             return discovery;
 

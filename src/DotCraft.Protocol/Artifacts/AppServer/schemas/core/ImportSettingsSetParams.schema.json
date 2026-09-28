@@ -4,6 +4,9 @@
   "title": "ImportSettingsSetParams",
   "type": "object",
   "properties": {
+    "selection": {
+      "$ref": "./ImportSelection.schema.json"
+    },
     "sources": {
       "type": "array",
       "items": {

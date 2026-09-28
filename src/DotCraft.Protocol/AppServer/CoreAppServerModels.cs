@@ -1970,6 +1970,8 @@ public sealed class McpListResult : ExtensibleJsonObject
 /// <summary>Executable wire contract for McpRemoveParams.</summary>
 public sealed class McpRemoveParams : ExtensibleJsonObject
 {
+    [JsonPropertyName("scope")] public required string Scope { get; init; }
+
     [JsonPropertyName("name")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Name { get; init; }
@@ -2533,6 +2535,8 @@ public sealed class McpTestResult : ExtensibleJsonObject
 /// <summary>Executable wire contract for McpUpsertParams.</summary>
 public sealed class McpUpsertParams : ExtensibleJsonObject
 {
+    [JsonPropertyName("scope")] public required string Scope { get; init; }
+
     [JsonPropertyName("server")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<McpServerConfig> Server { get; init; }
@@ -3120,6 +3124,8 @@ public sealed class PluginWorkflowInfo : ExtensibleJsonObject
 /// <summary>Executable wire contract for PluginInstallLocalParams.</summary>
 public sealed class PluginInstallLocalParams : ExtensibleJsonObject
 {
+    [JsonPropertyName("scope")] public required string Scope { get; init; }
+
     [JsonPropertyName("path")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Path { get; init; }

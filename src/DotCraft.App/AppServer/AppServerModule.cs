@@ -41,7 +41,7 @@ public sealed partial class AppServerModule : ModuleBase, IModuleHostComposition
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IOrchestratorSnapshotProvider, AutomationsDashboardSnapshotProvider>());
         }
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, DynamicWorkflowProtocolExtension>());
-        if (context.Config.GetSection<SessionImportConfig>("SessionImport").Enabled)
+        if (context.Config.GetSection<SessionImportConfig>("AgentImport").Enabled)
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, SessionImportProtocolExtension>());
 
         // AppServer owns channel routing, external channels, automation delivery, and channel tool discovery.

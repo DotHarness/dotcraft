@@ -443,10 +443,10 @@ Check `capabilities.skillsManagement` before calling `skills/*`, `capabilities.p
 Plugin lifecycle separates installation from enablement:
 
 - `plugin/install`: installs an installable catalog plugin into the current workspace and enables it by default. Catalog entries can come from Desktop or a configured marketplace.
-- `plugin/installLocal`: copies a valid local plugin directory into the current workspace and enables it by default.
+- `plugin/installLocal`: copies a valid local plugin directory into the required `scope` (`workspace` or `user`) and enables it by default.
 - `plugin/setEnabled`: only controls whether an installed plugin enters the Agent context. It does not install or delete plugin files.
 - `plugin/setTrusted`: grants or revokes execution trust for the server-accepted id and .NET fingerprint. The client selects the plugin, not an arbitrary fingerprint.
-- `plugin/remove`: removes workspace plugin directories under `.craft/plugins/<id>/`, including DotCraft-managed built-ins and user-owned plugins installed with `plugin/installLocal`. It does not delete explicit external plugin roots or user-global plugin directories.
+- `plugin/remove`: removes workspace plugin directories under `.craft/plugins/<id>/`, including DotCraft-managed built-ins and user-owned plugins installed with `plugin/installLocal`. User-global installed plugins can also be removed from their own scope. Explicit external plugin roots are not deleted.
 
 Plugin install, remove, enablement, and trust changes broadcast `workspace/configChanged` for the affected `plugins`, `skills`, `mcp`, `lsp`, and `hooks` regions. Tools contributed by plugins use the standard `toolCall` / `toolResult` lifecycle and retain plugin provenance on those items. For the user-facing plugin model, see [Plugins & Tools](../../features/agent-system/plugins-tools).
 
@@ -609,6 +609,19 @@ Recommended handling:
 - `Invalid params`: check the method parameter shape and required fields.
 - `Server overloaded; retry later.`: use exponential backoff and jitter for WebSocket requests.
 - Turn failure: listen for error events and the final `turn/failed`; do not rely only on request responses.
+
+## Import tools and chats
+
+The `extensions.agentImport` capability enables `import/detect`, `import/run`, `import/settings/get`,
+`import/settings/set`, and `import/history/list`. Detection returns scoped candidates with fingerprints.
+Submit the selected source ids, item references, and category selection to `import/run`, plus an
+optional `offered` selection naming the categories your UI presented. The saved sync selection takes
+the new choice only for offered categories. Progress and completion arrive through `import/progress`
+and `import/completed`. Import is additive and reads sources
+on the AppServer host. History includes a separate list of currently actionable items.
+
+MCP `upsert` and `remove` require a `scope` of `user` or `workspace`. The origin returned by `mcp/list`
+identifies the effective scope. Editing a user server writes back to the user configuration.
 
 ## Client checklist
 

@@ -67,8 +67,9 @@ export interface ClientRequestMethods {
   "hooks/list": { params: Models.HooksListParams; result: Models.HooksListResult };
   "hooks/setState": { params: Models.HooksSetStateParams; result: Models.HooksSetStateResult };
   "hooks/trustPlugin": { params: Models.HooksTrustPluginParams; result: Models.HooksTrustPluginResult };
-  "import/sessions/detect": { params: Models.ImportSessionsDetectParams; result: Models.ImportSessionsDetectResult };
-  "import/sessions/run": { params: Models.ImportSessionsRunParams; result: Models.ImportSessionsRunResult };
+  "import/detect": { params: Models.ImportDetectParams; result: Models.ImportDetectResult };
+  "import/history/list": { params: Models.RpcEmpty; result: Models.ImportHistoryResult };
+  "import/run": { params: Models.ImportRunParams; result: Models.ImportRunResult };
   "import/settings/get": { params: Models.RpcEmpty; result: Models.ImportSettingsResult };
   "import/settings/set": { params: Models.ImportSettingsSetParams; result: Models.ImportSettingsResult };
   "initialize": { params: Models.InitializeParams; result: Models.InitializeResult };

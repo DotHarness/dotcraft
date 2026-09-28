@@ -108,6 +108,11 @@ public sealed class PluginDiscoveryService(
             }
 
             var enabled = config.Plugins.IsPluginEnabled(manifest.Id, defaultEnabled: true);
+            if (candidate.SourceKind == PluginDiscoverySourceKind.UserGlobal && userGlobalPluginsPath != null)
+            {
+                var userConfig = AppConfig.Load(Path.Combine(Path.GetDirectoryName(userGlobalPluginsPath)!, "config.json"));
+                enabled &= userConfig.Plugins.IsPluginEnabled(manifest.Id, defaultEnabled: true);
+            }
             if (!enabled)
             {
                 diagnostics.Add(PluginDiagnostic.Info(
@@ -117,7 +122,7 @@ public sealed class PluginDiscoveryService(
                     path: manifest.ManifestPath));
             }
 
-            var removable = candidate.SourceKind == PluginDiscoverySourceKind.Workspace
+            var removable = candidate.SourceKind is PluginDiscoverySourceKind.Workspace or PluginDiscoverySourceKind.UserGlobal
                             && IsStrictPathWithinDirectory(manifest.RootPath, candidate.SourceRoot);
             discovered.Add(new DiscoveredPlugin(
                 manifest,

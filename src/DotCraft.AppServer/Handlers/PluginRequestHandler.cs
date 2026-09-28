@@ -189,14 +189,7 @@ internal sealed partial class PluginRequestHandler(
         }
         var commitToken = EnterMutationCommit(ct);
 
-        var disabled = PluginsConfigPersistence.NormalizeDisabledPluginIds(current.Plugins.DisabledPlugins).ToList();
-        if (enabled)
-            disabled.RemoveAll(id => PluginIds.EqualsCanonical(id, pluginId));
-        else if (!disabled.Contains(pluginId, StringComparer.OrdinalIgnoreCase))
-            disabled.Add(pluginId);
-
-        PluginsConfigPersistence.WriteWorkspaceDisabledPlugins(workspaceCraftPath, disabled);
-        current.Plugins.DisabledPlugins = disabled;
+        SetScopedPluginEnabled(beforePlugin, enabled);
         current.Plugins.EnabledPlugins.RemoveAll(id => PluginIds.EqualsCanonical(id, pluginId));
 
         if (dotnetRuntime?.Snapshot.Plugins.Any(plugin =>
@@ -287,7 +280,7 @@ internal sealed partial class PluginRequestHandler(
             throw AppServerErrors.InvalidParams("'path' is required.");
         var commitToken = EnterMutationCommit(ct);
 
-        var install = new LocalPluginInstaller(Path.Combine(workspaceCraftPath, "plugins")).Install(path.Trim());
+        var install = new LocalPluginInstaller(Path.Combine(PluginDataPath(request.Params.Scope), "plugins")).Install(path.Trim());
         PluginDiagnosticsLogger.Write(install.Diagnostics, logger);
         if (install.PluginId == null)
         {
@@ -313,10 +306,8 @@ internal sealed partial class PluginRequestHandler(
         CancellationToken deliveryToken)
     {
         var current = appConfigMonitor?.Current ?? new AppConfig();
-        var disabled = PluginsConfigPersistence.NormalizeDisabledPluginIds(current.Plugins.DisabledPlugins).ToList();
-        disabled.RemoveAll(id => PluginIds.EqualsCanonical(id, pluginId));
-        PluginsConfigPersistence.WriteWorkspaceDisabledPlugins(workspaceCraftPath!, disabled);
-        current.Plugins.DisabledPlugins = disabled;
+        var installedPlugin = RefreshPluginRuntime().Plugins.First(plugin => PluginIds.EqualsCanonical(plugin.Manifest.Id, pluginId));
+        SetScopedPluginEnabled(installedPlugin, true);
         current.Plugins.EnabledPlugins.RemoveAll(id => PluginIds.EqualsCanonical(id, pluginId));
 
         var runtimeMutation = dotnetRuntime == null
@@ -364,8 +355,8 @@ internal sealed partial class PluginRequestHandler(
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' cannot be removed by DotCraft.");
 
         var pluginRoot = Path.GetFullPath(beforePlugin.Manifest.RootPath);
-        var workspacePluginsRoot = Path.GetFullPath(Path.Combine(workspaceCraftPath, "plugins"));
-        if (beforePlugin.SourceKind != PluginDiscoverySourceKind.Workspace
+        var workspacePluginsRoot = Path.GetFullPath(Path.Combine(PluginDataPath(PluginScope(beforePlugin)), "plugins"));
+        if (beforePlugin.SourceKind is not (PluginDiscoverySourceKind.Workspace or PluginDiscoverySourceKind.UserGlobal)
             || !IsStrictPathWithin(pluginRoot, workspacePluginsRoot))
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' cannot be removed by DotCraft.");
         var commitToken = EnterMutationCommit(ct);
@@ -453,10 +444,7 @@ internal sealed partial class PluginRequestHandler(
         }
 
         var current = appConfigMonitor?.Current ?? new AppConfig();
-        var disabled = PluginsConfigPersistence.NormalizeDisabledPluginIds(current.Plugins.DisabledPlugins).ToList();
-        disabled.RemoveAll(id => PluginIds.EqualsCanonical(id, pluginId));
-        PluginsConfigPersistence.WriteWorkspaceDisabledPlugins(workspaceCraftPath, disabled);
-        current.Plugins.DisabledPlugins = disabled;
+        SetScopedPluginEnabled(beforePlugin, true);
         current.Plugins.EnabledPlugins.RemoveAll(id => PluginIds.EqualsCanonical(id, pluginId));
 
         var runtimeMutation = dotnetRuntime == null

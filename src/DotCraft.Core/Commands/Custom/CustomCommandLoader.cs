@@ -32,6 +32,7 @@ public sealed partial class CustomCommandLoader
     public List<CustomCommandInfo> ListCommands()
     {
         var commands = new Dictionary<string, CustomCommandInfo>(StringComparer.OrdinalIgnoreCase);
+        LoadPluginCommands(commands);
 
         // User-level commands (lowest priority)
         if (UserCommandsPath is not null && Directory.Exists(UserCommandsPath))
@@ -167,22 +168,7 @@ public sealed partial class CustomCommandLoader
 
     private string? ResolveCommandFile(string commandName)
     {
-        // Namespace separator: "frontend:component" -> "frontend/component.md"
-        var relativePath = commandName.Replace(':', Path.DirectorySeparatorChar) + ".md";
-
-        // Workspace takes priority
-        var workspacePath = Path.Combine(WorkspaceCommandsPath, relativePath);
-        if (File.Exists(workspacePath))
-            return workspacePath;
-
-        if (UserCommandsPath is not null)
-        {
-            var userPath = Path.Combine(UserCommandsPath, relativePath);
-            if (File.Exists(userPath))
-                return userPath;
-        }
-
-        return null;
+        return ListCommands().FirstOrDefault(command => string.Equals(command.Name, commandName, StringComparison.OrdinalIgnoreCase))?.Path;
     }
 
     private void ScanDirectory(string rootDir, string source, Dictionary<string, CustomCommandInfo> commands)

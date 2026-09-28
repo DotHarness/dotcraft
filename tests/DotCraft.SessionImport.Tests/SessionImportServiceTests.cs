@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
 using DotCraft.Sessions;
-using ImportSessionsCompletedNotification = DotCraft.Protocol.AppServer.ImportSessionsCompletedNotification;
+using ImportSelection = DotCraft.Protocol.AppServer.ImportSelection;
+using ImportItemReference = DotCraft.Protocol.AppServer.ImportItemReference;
+using ImportCompletedNotification = DotCraft.Protocol.AppServer.ImportCompletedNotification;
 
 namespace DotCraft.SessionImport.Tests;
 
@@ -33,7 +35,7 @@ public sealed class SessionImportServiceTests : IDisposable
         var after = Assert.Single(await service.DetectAsync(null));
 
         Assert.Equal(1, before.ImportableCount);
-        Assert.Equal("new", Assert.Single(before.Sessions).State);
+        Assert.Equal("new", Assert.Single(before.Items).State);
         var outcome = Assert.Single(completed.Outcomes);
         Assert.Equal("imported", outcome.Status);
         Assert.Equal("manual", completed.Trigger);
@@ -54,12 +56,12 @@ public sealed class SessionImportServiceTests : IDisposable
         Assert.True(DateTimeOffset.TryParse(request.Metadata["dotcraft.import.importedAt"], out _));
         var record = ReadLedger().Find(SessionImportSources.ClaudeCode, "s1")!;
         Assert.Equal(("h1", 2, request.ThreadId), (record.ContentSha256, record.TurnCount, record.ThreadId));
-        Assert.Empty(after.Sessions);
+        Assert.Empty(after.Items);
         Assert.Equal(0, after.ImportableCount);
     }
 
     [Fact]
-    public async Task TouchedButUnchangedSessionRefreshesItsModificationTimeOnce()
+    public async Task DetectionDoesNotAdvanceTheLedgerForUnchangedContent()
     {
         _source.Put("s1", turnCount: 1, hash: "h1", _workspace, FirstWrite);
         var service = CreateService();
@@ -70,10 +72,10 @@ public sealed class SessionImportServiceTests : IDisposable
         var first = Assert.Single(await service.DetectAsync(null));
         var second = Assert.Single(await service.DetectAsync(null));
 
-        Assert.Equal("current", Assert.Single(first.Sessions).State);
-        Assert.Empty(second.Sessions);
+        Assert.Equal("current", Assert.Single(first.Items).State);
+        Assert.Equal("current", Assert.Single(second.Items).State);
         var record = ReadLedger().Find(SessionImportSources.ClaudeCode, "s1")!;
-        Assert.True(SessionImportLedger.SameInstant(touchedAt, record.SourceModifiedAt!.Value));
+        Assert.True(SessionImportLedger.SameInstant(FirstWrite, record.SourceModifiedAt!.Value));
         Assert.Equal(("h1", 1), (record.ContentSha256, record.TurnCount));
     }
 
@@ -99,7 +101,7 @@ public sealed class SessionImportServiceTests : IDisposable
         var detection = Assert.Single(await service.DetectAsync(null));
         var completed = await RunToCompletionAsync(service);
 
-        Assert.Equal("changed", Assert.Single(detection.Sessions).State);
+        Assert.Equal("changed", Assert.Single(detection.Items).State);
         Assert.Equal("appended", Assert.Single(completed.Outcomes).Status);
         var append = Assert.Single(_sessions.AppendRequests);
         Assert.Equal(ExpectedThreadId("claude-code", "s1"), append.ThreadId);
@@ -126,8 +128,8 @@ public sealed class SessionImportServiceTests : IDisposable
         var detection = Assert.Single(await service.DetectAsync(null));
         var completed = await RunToCompletionAsync(service);
 
-        Assert.All(detection.Sessions, candidate => Assert.Equal("deferred", candidate.State));
-        Assert.Equal(3, detection.Sessions.Count);
+        Assert.All(detection.Items, candidate => Assert.Equal("deferred", candidate.State));
+        Assert.Equal(3, detection.Items.Count);
         Assert.Equal(0, detection.ImportableCount);
         Assert.Empty(completed.Outcomes);
         Assert.Empty(_sessions.AppendRequests);
@@ -160,8 +162,9 @@ public sealed class SessionImportServiceTests : IDisposable
         var service = CreateService();
         var completed = WaitForCompletionAsync(service);
 
-        service.Run([SessionImportSources.ClaudeCode], null);
-        var busy = Assert.Throws<SessionImportException>(() => service.Run([SessionImportSources.ClaudeCode], null));
+        var items = await SessionItemsAsync(service);
+        service.Run([SessionImportSources.ClaudeCode], new ImportSelection { Sessions = true }, items);
+        var busy = Assert.Throws<SessionImportException>(() => service.Run([SessionImportSources.ClaudeCode], new ImportSelection { Sessions = true }, items));
         gate.SetResult();
 
         Assert.Equal(SessionImportErrorCodes.Busy, busy.Code);
@@ -169,22 +172,20 @@ public sealed class SessionImportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task UnavailableSourceIsReportedByDetectionAndRefusedByRun()
+    public async Task DetectionReportsUnavailableSources()
     {
         _source.IsAvailable = false;
         var service = CreateService();
 
         var detection = Assert.Single(await service.DetectAsync(null));
-        var refused = Assert.Throws<SessionImportException>(() => service.Run([SessionImportSources.ClaudeCode], null));
 
         Assert.False(detection.Available);
-        Assert.Empty(detection.Sessions);
-        Assert.Equal(SessionImportErrorCodes.SourceUnavailable, refused.Code);
+        Assert.Empty(detection.Items);
         await Assert.ThrowsAsync<ArgumentException>(() => service.DetectAsync(["unknown-agent"]));
     }
 
     [Fact]
-    public async Task CorruptLedgerIsRebuiltFromImportedThreadMetadata()
+    public async Task DetectionUsesThreadMetadataWithoutRepairingTheCorruptLedger()
     {
         AddImportedThread("s1", turnCount: 2);
         AddImportedThread("s2", turnCount: 1);
@@ -196,11 +197,9 @@ public sealed class SessionImportServiceTests : IDisposable
 
         var detection = Assert.Single(await service.DetectAsync(null));
 
-        Assert.Equal("current", detection.Sessions.Single(static candidate => candidate.SourceId == "s1").State);
-        Assert.Equal("changed", detection.Sessions.Single(static candidate => candidate.SourceId == "s2").State);
-        var ledger = ReadLedger();
-        Assert.Equal("h1", ledger.Find(SessionImportSources.ClaudeCode, "s1")!.ContentSha256);
-        Assert.Null(ledger.Find(SessionImportSources.ClaudeCode, "s2")!.ContentSha256);
+        Assert.Equal("current", detection.Items.Single(static candidate => candidate.SourceId == "s1").State);
+        Assert.Equal("changed", detection.Items.Single(static candidate => candidate.SourceId == "s2").State);
+        Assert.Null(new SessionImportLedger(_craft).TryRead());
     }
 
     [Fact]
@@ -255,19 +254,27 @@ public sealed class SessionImportServiceTests : IDisposable
     private SessionImportLedgerDocument ReadLedger() =>
         new SessionImportLedger(_craft).TryRead() ?? throw new InvalidOperationException("The ledger was not written.");
 
-    private static async Task<ImportSessionsCompletedNotification> RunToCompletionAsync(SessionImportService service)
+    private static async Task<ImportCompletedNotification> RunToCompletionAsync(SessionImportService service)
     {
         var completed = WaitForCompletionAsync(service);
-        var importId = service.Run([SessionImportSources.ClaudeCode], null);
+        var items = await SessionItemsAsync(service);
+        var importId = service.Run([SessionImportSources.ClaudeCode], new ImportSelection { Sessions = true }, items);
         var result = await completed;
         Assert.Equal(importId, result.ImportId);
         return result;
     }
 
-    private static Task<ImportSessionsCompletedNotification> WaitForCompletionAsync(SessionImportService service)
+    private static async Task<ImportItemReference[]> SessionItemsAsync(SessionImportService service) =>
+        (await service.DetectAsync([SessionImportSources.ClaudeCode]))
+            .SelectMany(source => source.Items)
+            .Where(item => item.State is "new" or "changed")
+            .Select(item => new ImportItemReference { Source = item.Source, SourceId = item.SourceId, Fingerprint = item.Fingerprint })
+            .ToArray();
+
+    private static Task<ImportCompletedNotification> WaitForCompletionAsync(SessionImportService service)
     {
-        var completion = new TaskCompletionSource<ImportSessionsCompletedNotification>(TaskCreationOptions.RunContinuationsAsynchronously);
-        void OnCompleted(ImportSessionsCompletedNotification notification)
+        var completion = new TaskCompletionSource<ImportCompletedNotification>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnCompleted(ImportCompletedNotification notification)
         {
             service.Completed -= OnCompleted;
             completion.TrySetResult(notification);

@@ -26,8 +26,8 @@ projected through AppServer. It has four boundaries:
    progress notifications.
 4. **Desktop** renders the Settings › Import page and the import dialog for the current workspace.
 
-Phase 1 imports chat sessions only. Instructions, settings, skills, plugins, and MCP configuration are
-out of scope.
+This document owns session conversion and persistence. [Agent import](agent-import.md) owns the
+combined setup/session protocol, configuration, selection, history, and synchronization contract.
 
 ### 1.1 Per-workspace model
 
@@ -95,7 +95,7 @@ case sensitivity. A candidate whose working directory is a subfolder is imported
 Per source, detection considers files modified within `MaxSessionAgeDays` (default 30), takes the
 newest `MaxSessionsPerSource` (default 50) by modification time, and only then applies membership and
 validation. Sessions already recorded in the ledger with an unchanged modification time are skipped
-before parsing; when the time changed but the recomputed content hash did not, detection refreshes the
+before parsing; when the time changed but the recomputed content hash did not, the next import pass refreshes the
 recorded time so the file is not parsed again on the next pass. Sessions that produce no import turn
 are not candidates.
 
@@ -298,85 +298,17 @@ For each importable candidate, in detection order:
 Failures are reported per candidate and never stop the pass. Import never overwrites or deletes a
 thread, and a source file that disappears leaves the thread and its ledger record in place.
 
-### 6.3 Sync
+### 6.3 Sync and client integration
 
-Sync is one user-level setting with per-workspace execution:
+The unified [Agent import](agent-import.md) contract owns sync selection, configuration, protocols,
+Desktop presentation, and history. Synchronization uses the `AgentImport` configuration section.
+The session ledger and imported threads retain the persistence contract defined above.
+Detection may rebuild ledger state in memory but never writes it. A completed import pass persists
+recomputed hashes and modification times.
 
-- `SessionImport.SyncEnabled` and `SessionImport.Sources` live in the user configuration
-  (`~/.craft/config.json`). A workspace configuration may set `SyncEnabled` to `false` to opt out.
-- When enabled, the workspace's AppServer runs an import pass for the configured sources once after
-  start and then every `SessionImport.SyncInterval` (default 12 hours). Passes never overlap; a pass
-  requested while one is running is queued once.
-- A workspace that is not running does not sync; it catches up when its AppServer next starts.
-- Manual detection (`import/sessions/detect`) and manual import (`import/sessions/run`) are always
-  available regardless of the sync setting.
+## 7. Validation
 
-### 6.4 Configuration
-
-```json
-{
-  "SessionImport": {
-    "Enabled": true,
-    "SyncEnabled": false,
-    "Sources": ["claude-code", "codex", "cursor"],
-    "SyncInterval": "12:00:00",
-    "MaxSessionAgeDays": 30,
-    "MaxSessionsPerSource": 50
-  }
-}
-```
-
-`Enabled` gates the module. `SyncEnabled` and `Sources` are written by `import/settings/set` into the
-user configuration file's `SessionImport` object, preserving other content.
-
----
-
-## 7. AppServer Surface
-
-Methods belong to module `session-import`, scope `workspace`, capability
-`extensions.sessionImport`, and are listed in the AppServer Protocol specification. Summary:
-
-| Method | Direction | Purpose |
-|--------|-----------|---------|
-| `import/sessions/detect` | client → server | Scan the configured sources for this workspace's candidates. |
-| `import/sessions/run` | client → server | Import the selected candidates in the background. |
-| `import/settings/get` | client → server | Read sync settings and the last sync time. |
-| `import/settings/set` | client → server | Update `syncEnabled` and `sources`. |
-| `import/sessions/progress` | server → client | Progress of a running import. |
-| `import/sessions/completed` | server → client | Terminal result of an import, including sync passes. |
-
-Capability payload: `{ "version": 1, "sources": ["claude-code", "codex", "cursor"] }`.
-
----
-
-## 8. Desktop
-
-Settings gains an **Import** page for the current workspace, placed in the personal group directly
-after General:
-
-- **Keep imports in sync** toggle bound to `import/settings/set`, with one description that does not
-  change with the toggle state.
-- **Import from other apps**: one row per detected source, with the app's icon, the importable session count, and an
-  **Import** button; a status line covering checking, no importable chats, and last sync time; and a
-  **Check again** action that re-runs detection.
-- The **Import** dialog lists what comes over as selectable items, currently the single "Chat sessions
-  (N)" row for the chosen source with its checkbox at the row's end. Confirming adds the source to
-  the sync sources through `import/settings/set` when it is missing, then runs `import/sessions/run`.
-- Progress and completion arrive through the notifications; the thread list receives imported threads
-  through the normal `thread/started` broadcast, and newly imported threads are marked unread.
-- Imported threads show the source as their origin badge. Phase 1 keeps no import log and syncs each
-  enabled source as a whole.
-
-All strings are localized in every supported Desktop locale.
-
----
-
-## 9. Validation
-
-- Adapter tests parse fixture transcripts for each source and assert the converted turns, titles,
-  exclusions, and workspace membership.
-- Session Core tests cover `ImportThreadAsync` idempotency, persisted rollout and index contents,
-  timestamp monotonicity, `AppendImportedTurnsAsync` success, and refusal after a native turn.
-- Ledger tests cover state classification (`new`, `changed`, `deferred`, `current`) and atomic writes.
-- Protocol artifacts are regenerated and checked with `DotCraft.ProtocolGen`.
-- Desktop tests cover the Import page's request flow and dialog state through mocked AppServer calls.
+Session adapter fixtures cover titles, exclusions, source formats, workspace membership, and text
+conversion. Core tests verify import idempotency, rollout persistence, source timestamps, append
+refusal after a native turn, and continuation. Agent import tests cover setup conversion, both
+scopes, conflict handling, sync selection, history, and atomic writes.

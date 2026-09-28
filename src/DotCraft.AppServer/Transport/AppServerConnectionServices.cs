@@ -37,6 +37,7 @@ namespace DotCraft.AppServer;
 /// </summary>
 public sealed record AppServerConnectionServices
 {
+    public IReadOnlyList<ISessionRuntimeRefresher> RuntimeRefreshers { get; init; } = [];
     /// <summary>Server version reported in the initialize handshake.</summary>
     public string ServerVersion { get; init; } = "0.1.0";
 

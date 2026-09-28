@@ -367,6 +367,7 @@ public sealed class AppServerHost(
                 LoggerFactory = _services.GetService<Microsoft.Extensions.Logging.ILoggerFactory>(),
                 ConfigSchema = runtime.ConfigSchema,
                 AppConfigMonitor = _services.GetRequiredService<IAppConfigMonitor>(),
+                RuntimeRefreshers = _services.GetServices<ISessionRuntimeRefresher>().ToArray(),
                 ChatClientRegistry = _services.GetRequiredService<ChatClientRegistry>(),
                 ModelProviderRegistry = _services.GetRequiredService<ModelProviderRegistry>(),
                 BackgroundTerminalService = _services.GetService<IBackgroundTerminalService>(),
@@ -1641,11 +1642,11 @@ public sealed class AppServerHost(
     private void BroadcastAutomationRunUpdated(Contract.AutomationRunUpdatedNotification parameters) =>
         BroadcastContractNotification(Contract.AppServerRpc.AutomationRunUpdated, parameters);
 
-    private void BroadcastImportProgress(Contract.ImportSessionsProgressNotification parameters) =>
-        BroadcastContractNotification(Contract.AppServerRpc.ImportSessionsProgress, parameters);
+    private void BroadcastImportProgress(Contract.ImportProgressNotification parameters) =>
+        BroadcastContractNotification(Contract.AppServerRpc.ImportProgress, parameters);
 
-    private void BroadcastImportCompleted(Contract.ImportSessionsCompletedNotification parameters) =>
-        BroadcastContractNotification(Contract.AppServerRpc.ImportSessionsCompleted, parameters);
+    private void BroadcastImportCompleted(Contract.ImportCompletedNotification parameters) =>
+        BroadcastContractNotification(Contract.AppServerRpc.ImportCompleted, parameters);
 
     private void BroadcastContractNotification<T>(DotCraft.Protocol.RpcNotification<T> descriptor, T parameters) where T : class
     {

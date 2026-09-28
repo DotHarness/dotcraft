@@ -561,6 +561,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpUpsert, new
         {
+            scope = "workspace",
             server = new
             {
                 name = "demo",
@@ -578,6 +579,10 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
     [Fact]
     public async Task McpRemove_EmitsWorkspaceConfigChanged()
     {
+        DotCraft.Mcp.McpScopeStore.Upsert(Path.Combine(_workspaceCraftPath, "config.json"), new McpServerConfig
+        {
+            Name = "demo", Enabled = false, Transport = "streamableHttp", Url = "https://example.com/mcp"
+        });
         var manager = new McpClientManager();
         await manager.UpsertAsync(new McpServerConfig
         {
@@ -593,7 +598,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpRemove, new { name = "demo" });
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpRemove, new { name = "demo", scope = "workspace" });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));

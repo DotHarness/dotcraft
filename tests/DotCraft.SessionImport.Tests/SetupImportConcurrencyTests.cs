@@ -1,0 +1,103 @@
+using System.Text.Json.Nodes;
+using DotCraft.Configuration;
+using DotCraft.Hooks;
+using DotCraft.Mcp;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using DotCraft.Protocol.AppServer;
+using DotCraft.Workspaces;
+
+namespace DotCraft.SessionImport.Tests;
+
+public sealed class SetupImportConcurrencyTests : IDisposable
+{
+    private readonly TempDirectory _temp = new();
+    public void Dispose() => _temp.Dispose();
+
+    [Fact]
+    public async Task ConcurrentDocumentEditsKeepBothServersAndUnrelatedKeys()
+    {
+        var path = _temp.Combine("config.json");
+        File.WriteAllText(path, "{\"Other\":42}");
+        await Task.WhenAll(Enumerable.Range(0, 12).Select(index => Task.Run(() =>
+            McpScopeStore.Upsert(path, new McpServerConfig { Name = "server-" + index, Command = "test", Enabled = false }))));
+        Assert.Equal(12, McpScopeStore.Read(path, "user").Count);
+        Assert.Equal(42, AtomicConfigDocument.Read(path)["Other"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public void McpScopeMutationKeepsTheOtherScopeAndRevealsGlobalAfterRemovingOverride()
+    {
+        var user = _temp.Combine("user.json");
+        var workspace = _temp.Combine("workspace.json");
+        McpScopeStore.Upsert(user, new() { Name = "shared", Command = "global", Enabled = false });
+        McpScopeStore.Upsert(workspace, new() { Name = "shared", Command = "project", Enabled = false });
+        Assert.Equal("project", Assert.Single(McpScopeStore.Effective(workspace, user)).Command);
+        Assert.True(McpScopeStore.Remove(workspace, "shared"));
+        var effective = Assert.Single(McpScopeStore.Effective(workspace, user));
+        Assert.Equal("global", effective.Command);
+        Assert.Equal("user", effective.Origin.Kind);
+        Assert.False(effective.ReadOnly);
+    }
+
+    [Fact]
+    public void GlobalSyncHasOneOwnerAcrossWorkspacesAndRespectsInterval()
+    {
+        var user = _temp.CreateDirectory("user");
+        var first = new ImportHistoryStore(user, _temp.CreateDirectory("one"));
+        var second = new ImportHistoryStore(user, _temp.CreateDirectory("two"));
+        using (var owner = first.BeginGlobalSync(TimeSpan.FromHours(12)))
+        {
+            Assert.NotNull(owner);
+            Assert.Null(second.BeginGlobalSync(TimeSpan.FromHours(12)));
+        }
+        Assert.Null(second.BeginGlobalSync(TimeSpan.FromHours(12)));
+    }
+
+    [Fact]
+    public async Task UserRevisionRefreshesBothWorkspaceRuntimesOnce()
+    {
+        var user = _temp.CreateDirectory("home", ".craft");
+        var first = _temp.CreateDirectory("first", ".craft");
+        var second = _temp.CreateDirectory("second", ".craft");
+        var userConfig = Path.Combine(user, "config.json");
+        McpScopeStore.Upsert(userConfig, new() { Name = "imported", Command = "test", Enabled = false });
+        AtomicConfigDocument.Update(Path.Combine(user, "imports", "revision.json"), root => root["revision"] = "one");
+        foreach (var data in new[] { first, second })
+        {
+            var monitor = new AppConfigMonitor(new AppConfig { GlobalConfigPath = userConfig });
+            var notifications = 0;
+            monitor.Changed += (_, _) => notifications++;
+            var runtime = new ImportedSetupRuntime(DotCraftPaths.CreateForExecutionHost(Path.GetDirectoryName(data)!, data, user), monitor);
+            await runtime.RefreshAsync(default);
+            await runtime.RefreshAsync(default);
+            Assert.Equal("user", Assert.Single(monitor.Current.McpServers).Origin.Kind);
+            Assert.Equal(1, notifications);
+        }
+    }
+
+    [Fact]
+    public void HookAttentionDisappearsAfterTrustingCurrentHash()
+    {
+        var workspace = _temp.CreateDirectory("workspace");
+        var data = _temp.CreateDirectory("workspace", ".craft");
+        var user = _temp.CreateDirectory("home", ".craft");
+        var hooksPath = Path.Combine(user, "hooks.json");
+        File.WriteAllText(hooksPath, "{\"hooks\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"echo test\"}]}]}}");
+        var history = new ImportHistoryStore(user, data);
+        history.Save(new ImportCompletedNotification
+        {
+            ImportId = "import-one", Trigger = "manual", StartedAt = DateTimeOffset.UtcNow, CompletedAt = DateTimeOffset.UtcNow,
+            Outcomes = [new ImportOutcome { Source = "claude-code", SourceId = "hooks", Category = "hooks", Scope = "user", TargetPath = hooksPath, Status = "attention" }]
+        });
+        var service = new SessionImportService(new(workspace, data, new()), new(Path.Combine(user, "config.json"), Path.Combine(data, "config.json")), []);
+        Assert.Single(service.ReadAttention(new HashSet<string>()));
+        var hooks = new HooksLoader(data, hooksPath).Discover(new AppConfig(), workspace).Hooks;
+        var hook = Assert.Single(hooks);
+        AtomicConfigDocument.Update(Path.Combine(user, "config.json"), root =>
+        {
+            var state = AtomicConfigDocument.Object(AtomicConfigDocument.Object(root, "Hooks"), "State");
+            state[hook.Key] = new JsonObject { ["TrustedHash"] = hook.CurrentHash };
+        });
+        Assert.Empty(service.ReadAttention(new HashSet<string>()));
+    }
+}

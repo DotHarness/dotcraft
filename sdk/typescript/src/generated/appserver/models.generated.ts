@@ -80,6 +80,12 @@ export interface AcpTerminalWaitForExitParams {
   [key: string]: unknown;
 }
 
+export interface AgentImportCapabilities {
+  sources: string[];
+  version: number;
+  [key: string]: unknown;
+}
+
 export interface AgentMessagePayload {
   deliveryMode?: string | null;
   text: string;
@@ -1504,49 +1510,71 @@ export interface ImageGenerationPayload {
   [key: string]: unknown;
 }
 
-export interface ImportSessionCandidate {
+export interface ImportCandidate {
+  category: string;
   cwd: string;
+  fallbackText: string;
+  fingerprint: string;
+  reason: string;
+  scope: string;
   source: string;
   sourceId: string;
   sourcePath: string;
   state: string;
+  targetPath: string;
   title: string;
   turnCount: number;
   updatedAt: string;
   [key: string]: unknown;
 }
 
-export interface ImportSessionOutcome {
-  error?: string;
-  errorCode?: string;
-  source: string;
-  sourceId: string;
-  status: string;
-  threadId?: string;
-  title?: string;
-  [key: string]: unknown;
-}
-
-export interface ImportSessionsCompletedNotification {
+export interface ImportCompletedNotification {
   completedAt: string;
   importId: string;
-  outcomes: ImportSessionOutcome[];
+  outcomes: ImportOutcome[];
   startedAt: string;
   trigger: string;
   [key: string]: unknown;
 }
 
-export interface ImportSessionsDetectParams {
+export interface ImportDetectParams {
   sources?: string[];
   [key: string]: unknown;
 }
 
-export interface ImportSessionsDetectResult {
+export interface ImportDetectResult {
   sources: ImportSourceDetection[];
   [key: string]: unknown;
 }
 
-export interface ImportSessionsProgressNotification {
+export interface ImportHistoryResult {
+  attention: ImportOutcome[];
+  imports: ImportCompletedNotification[];
+  [key: string]: unknown;
+}
+
+export interface ImportItemReference {
+  fingerprint: string;
+  source: string;
+  sourceId: string;
+  [key: string]: unknown;
+}
+
+export interface ImportOutcome {
+  category: string;
+  error?: string;
+  errorCode?: string;
+  scope: string;
+  source: string;
+  sourceId: string;
+  status: string;
+  targetPath: string;
+  threadId?: string;
+  title?: string;
+  [key: string]: unknown;
+}
+
+export interface ImportProgressNotification {
   completed: number;
   importId: string;
   source: string;
@@ -1554,19 +1582,31 @@ export interface ImportSessionsProgressNotification {
   [key: string]: unknown;
 }
 
-export interface ImportSessionsRunParams {
-  sessionIds?: string[];
+export interface ImportRunParams {
+  items: ImportItemReference[];
+  offered?: ImportSelection;
+  selection: ImportSelection;
   sources: string[];
   [key: string]: unknown;
 }
 
-export interface ImportSessionsRunResult {
+export interface ImportRunResult {
   importId: string;
   [key: string]: unknown;
 }
 
+export interface ImportSelection {
+  all: boolean;
+  sessions: boolean;
+  user: string[];
+  workspace: string[];
+  [key: string]: unknown;
+}
+
 export interface ImportSettings {
+  hasImported: boolean;
   lastSyncAt?: string;
+  selection: ImportSelection;
   sources: string[];
   syncEnabled: boolean;
   syncIntervalMinutes: number;
@@ -1580,6 +1620,7 @@ export interface ImportSettingsResult {
 }
 
 export interface ImportSettingsSetParams {
+  selection?: ImportSelection;
   sources?: string[];
   syncEnabled?: boolean;
   [key: string]: unknown;
@@ -1588,7 +1629,7 @@ export interface ImportSettingsSetParams {
 export interface ImportSourceDetection {
   available: boolean;
   importableCount: number;
-  sessions: ImportSessionCandidate[];
+  items: ImportCandidate[];
   source: string;
   [key: string]: unknown;
 }
@@ -1932,6 +1973,7 @@ export interface McpListResult {
 
 export interface McpRemoveParams {
   name?: string;
+  scope: string;
   [key: string]: unknown;
 }
 
@@ -2143,6 +2185,7 @@ export interface McpToolCallPayload {
 }
 
 export interface McpUpsertParams {
+  scope: string;
   server?: McpServerConfig;
   [key: string]: unknown;
 }
@@ -2464,6 +2507,7 @@ export interface PluginInfo {
 
 export interface PluginInstallLocalParams {
   path?: string;
+  scope: string;
   [key: string]: unknown;
 }
 
@@ -2965,8 +3009,8 @@ export interface ServerCapabilities {
 }
 
 export interface ServerCapabilityExtensions {
+  agentImport?: AgentImportCapabilities | null;
   dynamicWorkflows?: DynamicWorkflowCapabilities | null;
-  sessionImport?: SessionImportCapabilities | null;
   [key: string]: unknown;
 }
 
@@ -2983,12 +3027,6 @@ export interface SessionIdentity {
   channelName: string;
   userId: string;
   workspacePath?: string | null;
-  [key: string]: unknown;
-}
-
-export interface SessionImportCapabilities {
-  sources: string[];
-  version: number;
   [key: string]: unknown;
 }
 

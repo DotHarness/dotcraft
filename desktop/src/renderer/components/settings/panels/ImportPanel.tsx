@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type JSX, type ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
 import type {
-  ImportSessionsCompletedNotification,
+  ImportCompletedNotification,
   ImportSettings,
   ImportSettingsSetParams,
-  ImportSourceDetection
+  ImportSourceDetection,
+  ImportSelection,
+  ImportItemReference
 } from '@dotcraft/sdk/contracts'
 
 import { useLocale, useT } from '../../../contexts/LocaleContext'
@@ -17,8 +19,11 @@ import { Skeleton } from '../../ui/Skeleton'
 import { SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { SettingsPanelShell } from '../SettingsPanelShell'
 import { settingsHintStyle, settingsLabelStyle } from '../settingsTypography'
-import { ImportSessionsDialog } from './ImportSessionsDialog'
+import { ImportItemsDialog } from './ImportItemsDialog'
 import { ImportSourceIcon } from './ImportSourceIcon'
+import { ImportSyncDialog } from './ImportSyncDialog'
+import { ImportHistory } from './ImportHistory'
+import { syncSelectionSummary } from './importPresentation'
 import styles from './ImportPanel.module.css'
 
 type Translate = ReturnType<typeof useT>
@@ -50,14 +55,19 @@ export function ImportPanel({ workspacePath }: ImportPanelProps): JSX.Element {
   const [dialogSource, setDialogSource] = useState<string | null>(null)
   // Completions and workspace switches re-run detection while a slower run may still be pending.
   const detectRequest = useRef(0)
+  const workspaceGeneration = useRef(0)
+  const [customize, setCustomize] = useState(false)
+  const [historyRevision, setHistoryRevision] = useState(0)
 
   const loadSettings = useCallback(async () => {
+    const generation = workspaceGeneration.current
     try {
       const result = await window.api.appServer.sendRequest('import/settings/get', {})
+      if (generation !== workspaceGeneration.current) return
       setSettings(result.settings)
       setSettingsError(null)
     } catch (error) {
-      setSettingsError(errorMessage(error))
+      if (generation === workspaceGeneration.current) setSettingsError(errorMessage(error))
     }
   }, [])
 
@@ -65,7 +75,7 @@ export function ImportPanel({ workspacePath }: ImportPanelProps): JSX.Element {
     const request = ++detectRequest.current
     setDetecting(true)
     try {
-      const result = await window.api.appServer.sendRequest('import/sessions/detect', {}, DETECT_TIMEOUT_MS)
+      const result = await window.api.appServer.sendRequest('import/detect', {}, DETECT_TIMEOUT_MS)
       if (request !== detectRequest.current) return
       setSources(result.sources)
       setDetectError(null)
@@ -77,16 +87,24 @@ export function ImportPanel({ workspacePath }: ImportPanelProps): JSX.Element {
   }, [])
 
   useEffect(() => {
+    workspaceGeneration.current++
+    setDialogSource(null)
+    setCustomize(false)
+    setRunning(null)
+    setSources(null)
+    setSettings(null)
+    setHistoryRevision(value => value + 1)
     void loadSettings()
     void detect()
   }, [detect, loadSettings, workspacePath])
 
   useEffect(() => window.api.appServer.onNotification((payload) => {
     if (payload.foreground === false) return
-    if (payload.method === 'import/sessions/progress') {
+    if (payload.method === 'import/progress') {
       setRunning(payload.params)
-    } else if (payload.method === 'import/sessions/completed') {
+    } else if (payload.method === 'import/completed') {
       setRunning(null)
+      setHistoryRevision(value => value + 1)
       void detect()
       void loadSettings()
       announceCompletion(payload.params, t)
@@ -94,8 +112,9 @@ export function ImportPanel({ workspacePath }: ImportPanelProps): JSX.Element {
   }), [detect, loadSettings, t])
 
   async function saveSettings(params: ImportSettingsSetParams): Promise<void> {
+    const generation = workspaceGeneration.current
     const result = await window.api.appServer.sendRequest('import/settings/set', params)
-    setSettings(result.settings)
+    if (generation === workspaceGeneration.current) setSettings(result.settings)
   }
 
   async function handleSyncChange(next: boolean): Promise<void> {
@@ -113,29 +132,35 @@ export function ImportPanel({ workspacePath }: ImportPanelProps): JSX.Element {
     }
   }
 
-  async function handleImport(source: string, total: number): Promise<void> {
-    if (settings && !settings.sources.includes(source)) {
-      await saveSettings({ sources: [...settings.sources, source] })
-    }
+  async function handleImport(
+    source: string,
+    total: number,
+    selection: ImportSelection,
+    offered: ImportSelection,
+    items: ImportItemReference[]
+  ): Promise<void> {
+    const generation = workspaceGeneration.current
     const started: RunningImport = { source, completed: 0, total }
     setRunning(started)
     try {
-      await window.api.appServer.sendRequest('import/sessions/run', { sources: [source] })
+      await window.api.appServer.sendRequest('import/run', { sources: [source], selection, offered, items })
     } catch (error) {
+      if (generation !== workspaceGeneration.current) return
       const busy = readAppServerErrorFields(error).data?.code === 'import_busy'
       const next = busy ? { source: null, completed: 0, total: 0 } : null
       // Keep a notification that arrived first; overwriting its completion would leave the panel stuck importing.
       setRunning((current) => (current === started ? next : current))
       if (!busy) throw error
     }
-    setDialogSource(null)
+    if (generation === workspaceGeneration.current) setDialogSource(null)
   }
 
   const available = sources?.filter((entry) => entry.available) ?? []
   const totalImportable = available.reduce((sum, entry) => sum + entry.importableCount, 0)
   const runningElsewhere = running != null && !available.some((entry) => entry.source === running.source)
   const syncOn = settings?.syncEnabled === true && !settings.workspaceOptOut
-  const dialogCount = available.find((entry) => entry.source === dialogSource)?.importableCount ?? 0
+  const dialogEntry = available.find((entry) => entry.source === dialogSource)
+  const dialogCount = dialogEntry?.importableCount ?? 0
 
   let status: { text: string; error?: boolean } | null = null
   if (detecting) {
@@ -160,6 +185,8 @@ export function ImportPanel({ workspacePath }: ImportPanelProps): JSX.Element {
     syncDescription = <span className={styles.error}>{t('settings.import.sync.loadFailed', { error: settingsError })}</span>
   } else if (settings?.workspaceOptOut) {
     syncDescription = t('settings.import.sync.optOut')
+  } else if (settings?.hasImported && !settings.syncEnabled) {
+    syncDescription = t('settings.import.sync.paused')
   }
 
   return (
@@ -176,6 +203,15 @@ export function ImportPanel({ workspacePath }: ImportPanelProps): JSX.Element {
               aria-label={t('settings.import.sync.label')}
               onChange={(next) => void handleSyncChange(next)}
             />
+          }
+        />
+        <SettingsRow
+          label={t('settings.import.setup.syncContent')}
+          description={settings ? syncSelectionSummary(settings, locale, t) : undefined}
+          control={
+            <Button disabled={!settings?.hasImported} onClick={() => setCustomize(true)}>
+              {t('settings.import.setup.customize')}
+            </Button>
           }
         />
       </SettingsGroup>
@@ -240,7 +276,7 @@ export function ImportPanel({ workspacePath }: ImportPanelProps): JSX.Element {
                   <Button
                     aria-label={t('settings.import.source.importFrom', { source: label })}
                     loading={progress != null}
-                    disabled={entry.importableCount === 0 || running != null}
+                    disabled={entry.items.length === 0 || running != null}
                     onClick={() => setDialogSource(entry.source)}
                   >
                     {t('settings.import.source.import')}
@@ -252,12 +288,21 @@ export function ImportPanel({ workspacePath }: ImportPanelProps): JSX.Element {
         )}
       </SettingsGroup>
 
+      <ImportHistory revision={historyRevision} />
+      {customize && settings && (
+        <ImportSyncDialog
+          selection={settings.selection}
+          onSave={selection => saveSettings({ selection })}
+          onClose={() => setCustomize(false)}
+        />
+      )}
       {dialogSource && (
-        <ImportSessionsDialog
+        <ImportItemsDialog
           source={dialogSource}
-          sourceLabel={importSourceLabel(dialogSource)}
-          count={dialogCount}
-          onConfirm={() => handleImport(dialogSource, dialogCount)}
+          items={dialogEntry?.items ?? []}
+          workspaceName={workspacePath?.split(/[\\/]/).filter(Boolean).at(-1) ?? ''}
+          workspacePath={workspacePath}
+          onConfirm={(selection, offered, items) => handleImport(dialogSource, dialogCount, selection, offered, items)}
           onClose={() => setDialogSource(null)}
         />
       )}
@@ -270,9 +315,9 @@ function readyText(count: number, t: Translate): string {
   return t(count === 1 ? 'settings.import.source.ready.one' : 'settings.import.source.ready.other', { count })
 }
 
-function announceCompletion(result: ImportSessionsCompletedNotification, t: Translate): void {
+function announceCompletion(result: ImportCompletedNotification, t: Translate): void {
   const tally = (status: string): number => result.outcomes.filter((outcome) => outcome.status === status).length
-  const imported = tally('imported')
+  const imported = tally('imported') + tally('attention')
   const updated = tally('appended')
   const failed = tally('failed')
   const parts = [

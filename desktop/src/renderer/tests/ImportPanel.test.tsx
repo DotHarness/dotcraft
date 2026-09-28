@@ -20,9 +20,9 @@ const en = (key: string, vars?: Record<string, string | number>): string => tran
 function detectionFixture(): unknown {
   return {
     sources: [
-      { source: 'claude-code', available: true, importableCount: 3, sessions: [] },
-      { source: 'codex', available: true, importableCount: 0, sessions: [] },
-      { source: 'cursor', available: false, importableCount: 0, sessions: [] }
+      { source: 'claude-code', available: true, importableCount: 3, items: ['a', 'b', 'c'].map(sourceId => ({ source: 'claude-code', sourceId, category: 'sessions', scope: 'workspace', fingerprint: 'hash', sourcePath: '/source', targetPath: '/target', title: sourceId, state: 'new', reason: '', cwd: '/repo', updatedAt: '2026-09-23T07:00:00Z', turnCount: 1 })) },
+      { source: 'codex', available: true, importableCount: 0, items: [] },
+      { source: 'cursor', available: false, importableCount: 0, items: [] }
     ]
   }
 }
@@ -58,7 +58,7 @@ describe('ImportPanel', () => {
     vi.clearAllMocks()
     notify = null
     runFailure = null
-    settingsFixture = { syncEnabled: false, sources: ['codex'], syncIntervalMinutes: 720, workspaceOptOut: false }
+    settingsFixture = { syncEnabled: false, sources: [], syncIntervalMinutes: 720, workspaceOptOut: false, hasImported: false, selection: { all: false, user: [], workspace: [], sessions: true } }
     useToastStore.setState({ toasts: [] })
     sendRequest.mockImplementation(async (method: string, params: Record<string, unknown>) => {
       switch (method) {
@@ -67,9 +67,11 @@ describe('ImportPanel', () => {
         case 'import/settings/set':
           settingsFixture = { ...settingsFixture, ...params }
           return { settings: settingsFixture }
-        case 'import/sessions/detect':
+        case 'import/history/list':
+          return { imports: [], attention: [] }
+        case 'import/detect':
           return detectionFixture()
-        case 'import/sessions/run':
+        case 'import/run':
           if (runFailure) throw runFailure
           return { importId: 'imp_1' }
         default:
@@ -94,7 +96,7 @@ describe('ImportPanel', () => {
     await renderLoadedPanel()
 
     expect(requestsFor('import/settings/get')).toEqual([['import/settings/get', {}]])
-    expect(requestsFor('import/sessions/detect')).toEqual([['import/sessions/detect', {}, expect.any(Number)]])
+    expect(requestsFor('import/detect')).toEqual([['import/detect', {}, expect.any(Number)]])
     expect(await importButton('Claude Code')).toBeEnabled()
     expect(await importButton('ChatGPT')).toBeDisabled()
     expect(
@@ -113,26 +115,19 @@ describe('ImportPanel', () => {
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'))
   })
 
-  it('registers the source for sync before running the import it confirms', async () => {
-    await renderLoadedPanel()
-
-    await confirmImport('Claude Code')
-
-    const methods = sendRequest.mock.calls.map(([method]) => method)
-    expect(methods.indexOf('import/settings/set')).toBeLessThan(methods.indexOf('import/sessions/run'))
-    expect(sendRequest).toHaveBeenCalledWith('import/settings/set', { sources: ['codex', 'claude-code'] })
-    expect(sendRequest).toHaveBeenCalledWith('import/sessions/run', { sources: ['claude-code'] })
-    expect(await importButton('Claude Code')).toHaveAttribute('aria-busy', 'true')
-  })
-
-  it('leaves sync settings alone when the source is already a sync source', async () => {
-    settingsFixture = { ...settingsFixture, sources: ['claude-code'] }
+  it('submits what the dialog offered and leaves source registration to the server', async () => {
     await renderLoadedPanel()
 
     await confirmImport('Claude Code')
 
     expect(requestsFor('import/settings/set')).toEqual([])
-    expect(sendRequest).toHaveBeenCalledWith('import/sessions/run', { sources: ['claude-code'] })
+    expect(sendRequest).toHaveBeenCalledWith('import/run', expect.objectContaining({
+      sources: ['claude-code'],
+      selection: expect.objectContaining({ sessions: true }),
+      offered: expect.objectContaining({ sessions: true }),
+      items: expect.arrayContaining([expect.objectContaining({ sourceId: 'a', fingerprint: 'hash' })])
+    }))
+    expect(await importButton('Claude Code')).toHaveAttribute('aria-busy', 'true')
   })
 
   it('shows the running pass when another import already owns the workspace', async () => {
@@ -145,7 +140,7 @@ describe('ImportPanel', () => {
     expect(await importButton('ChatGPT')).toBeDisabled()
     act(() => {
       notify?.({
-        method: 'import/sessions/progress',
+        method: 'import/progress',
         foreground: true,
         params: { importId: 'imp_sync', source: 'codex', completed: 1, total: 4 }
       })
@@ -155,11 +150,11 @@ describe('ImportPanel', () => {
 
   it('re-detects, refreshes settings, and reports failures when an import completes', async () => {
     await renderLoadedPanel()
-    expect(requestsFor('import/sessions/detect')).toHaveLength(1)
+    expect(requestsFor('import/detect')).toHaveLength(1)
 
     act(() => {
       notify?.({
-        method: 'import/sessions/completed',
+        method: 'import/completed',
         foreground: true,
         params: {
           importId: 'imp_1',
@@ -174,7 +169,7 @@ describe('ImportPanel', () => {
       })
     })
 
-    await waitFor(() => expect(requestsFor('import/sessions/detect')).toHaveLength(2))
+    await waitFor(() => expect(requestsFor('import/detect')).toHaveLength(2))
     await waitFor(() => expect(requestsFor('import/settings/get')).toHaveLength(2))
     expect(useToastStore.getState().toasts.map((toast) => toast.type)).toEqual(['warning'])
   })

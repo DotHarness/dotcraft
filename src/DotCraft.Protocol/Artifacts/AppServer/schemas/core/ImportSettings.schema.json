@@ -4,9 +4,15 @@
   "title": "ImportSettings",
   "type": "object",
   "properties": {
+    "hasImported": {
+      "type": "boolean"
+    },
     "lastSyncAt": {
       "type": "string",
       "format": "date-time"
+    },
+    "selection": {
+      "$ref": "./ImportSelection.schema.json"
     },
     "sources": {
       "type": "array",
@@ -26,6 +32,8 @@
   },
   "additionalProperties": true,
   "required": [
+    "hasImported",
+    "selection",
     "sources",
     "syncEnabled",
     "syncIntervalMinutes",

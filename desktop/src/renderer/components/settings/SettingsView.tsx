@@ -1910,6 +1910,7 @@ export function SettingsView({
     setMcpTestResult(null)
     try {
       const result = (await window.api.appServer.sendRequest('mcp/test', {
+        scope: mcpServers.find(server => server.name === editingServerName)?.origin?.kind === 'user' ? 'user' : 'workspace',
         server: toContractMcpServer(payload)
       })) as McpTestResultWire
       setMcpTestResult(result)
@@ -1941,7 +1942,7 @@ export function SettingsView({
       let renameCleanupFailed = false
       if (isRename) {
         try {
-          await window.api.appServer.sendRequest('mcp/remove', { name: originalName })
+          await window.api.appServer.sendRequest('mcp/remove', { name: originalName, scope: mcpServers.find(server => server.name === originalName)?.origin?.kind === 'user' ? 'user' : 'workspace' })
         } catch (err) {
           renameCleanupFailed = true
           console.warn('Failed to remove old MCP server before rename save', err)
@@ -1949,6 +1950,7 @@ export function SettingsView({
       }
 
       await window.api.appServer.sendRequest('mcp/upsert', {
+        scope: mcpServers.find(server => server.name === editingServerName)?.origin?.kind === 'user' ? 'user' : 'workspace',
         server: toContractMcpServer(payload)
       })
       await Promise.all([reloadMcpServers(), reloadMcpStatuses()])
@@ -1969,6 +1971,7 @@ export function SettingsView({
     setTogglingServerName(server.name)
     try {
       await window.api.appServer.sendRequest('mcp/upsert', {
+        scope: server.origin?.kind === 'user' ? 'user' : 'workspace',
         server: { ...toContractMcpServer(server), enabled: nextEnabled }
       })
       await Promise.all([reloadMcpServers(), reloadMcpStatuses()])
@@ -1987,7 +1990,7 @@ export function SettingsView({
     if (!name) return
     setDeletingMcp(true)
     try {
-      await window.api.appServer.sendRequest('mcp/remove', { name })
+      await window.api.appServer.sendRequest('mcp/remove', { name, scope: mcpServers.find(server => server.name === name)?.origin?.kind === 'user' ? 'user' : 'workspace' })
       await Promise.all([reloadMcpServers(), reloadMcpStatuses()])
       setMcpSavedHint(t('settings.savedToast'))
       cancelMcpEdit()
