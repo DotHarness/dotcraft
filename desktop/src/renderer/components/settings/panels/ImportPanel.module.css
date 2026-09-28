@@ -41,16 +41,3 @@
   flex-direction: column;
   min-width: 0;
 }
-
-.historyItem {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding-block: 8px;
-}
-.historyReason {
-  display: block;
-  color: var(--text-secondary);
-  overflow-wrap: anywhere;
-}

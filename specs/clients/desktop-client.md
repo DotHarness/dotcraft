@@ -1056,8 +1056,12 @@ Required behavior:
   customizable after the first import. Customizing exposes category/scope selection and an explicit
   option to include future categories, explains that changes apply only to future syncs, and requires
   at least one category. Pausing preserves imported content and selections.
-- History links to imported content and chats. **Needs attention** reflects current hook trust and MCP
-  startup state. A sync pass that changed nothing stays silent.
+- History shows one card per pass, titled by its source apps with a result summary, and stays hidden
+  until an import exists. The latest import is expanded; older passes appear collapsed behind
+  **View more**. A card expands one category at a time into items that carry a status, a reason
+  localized from the diagnostic code, and a link to the imported content or chat.
+- **Needs attention** lists outstanding setup, such as hook trust, missing MCP environment variables,
+  or plugin review, with the reason and a direct action. A sync pass that changed nothing stays silent.
 - An `import_busy` response closes the dialog and shows the running pass until completion.
 - Imported threads arrive through `thread/started`, are marked unread, and show the source app badge.
 
