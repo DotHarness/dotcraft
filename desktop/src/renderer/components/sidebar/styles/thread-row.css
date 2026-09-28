@@ -60,3 +60,31 @@
   background: color-mix(in srgb, var(--text-primary) 10%, transparent);
   color: var(--text-secondary);
 }
+
+.dc-thread-list-row {
+  position: relative;
+}
+
+.dc-thread-list-row[data-dragging] {
+  opacity: 0.4;
+}
+
+/* The row margins collapse into a 2px gap; the insertion line fills it. */
+.dc-thread-list-row[data-drop-placement]::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.dc-thread-list-row[data-drop-placement="before"]::after {
+  top: -2px;
+}
+
+.dc-thread-list-row[data-drop-placement="after"]::after {
+  bottom: -2px;
+}

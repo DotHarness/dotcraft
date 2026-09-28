@@ -62,6 +62,7 @@ import {
 } from '../shared/titleBarOverlay'
 import type { TopLevelMenuId } from '../shared/locales/types'
 import type { PetSettings } from '../shared/pet'
+import type { SidebarThreadSortMode } from '../shared/sidebarThreadOrder'
 import type {
   BrowserUseApprovalResponseAction,
   BrowserUseApprovalRequestPayload,
@@ -1495,6 +1496,13 @@ const api = {
       projectsSectionCollapsed?: boolean
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
+      recentsThreadSort?: SidebarThreadSortMode
+      projectsThreadSort?: SidebarThreadSortMode
+      pinnedThreadSort?: SidebarThreadSortMode
+      recentsShowProjects?: boolean
+      recentsThreadOrder?: string[]
+      pinnedThreadOrder?: string[]
+      threadOrderByProject?: Record<string, string[]>
       showInMenuBar?: boolean
       lastOpenEditorId?: EditorId
       lastSeenWhatsNewVersion?: string
@@ -1562,6 +1570,14 @@ const api = {
       projectsSectionCollapsed?: boolean
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
+      recentsThreadSort?: SidebarThreadSortMode
+      projectsThreadSort?: SidebarThreadSortMode
+      pinnedThreadSort?: SidebarThreadSortMode
+      recentsShowProjects?: boolean
+      recentsThreadOrder?: string[]
+      pinnedThreadOrder?: string[]
+      /** Merged per project key; an empty list removes the key when persisted. */
+      threadOrderByProject?: Record<string, string[]>
       showInMenuBar?: boolean
       lastOpenEditorId?: EditorId
       lastSeenWhatsNewVersion?: string
