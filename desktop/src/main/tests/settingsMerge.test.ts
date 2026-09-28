@@ -94,6 +94,24 @@ describe('mergeUpdatedSettings', () => {
     })
   })
 
+  it('merges manual thread orders by project without dropping other projects', () => {
+    const current: AppSettings = {
+      threadOrderByProject: {
+        'c:/projects/a': ['thread-a', 'thread-b'],
+        'c:/projects/b': ['thread-c']
+      }
+    }
+
+    const next = mergeUpdatedSettings(current, {
+      threadOrderByProject: { 'c:/projects/a': ['thread-b', 'thread-a'] }
+    })
+
+    expect(next.threadOrderByProject).toEqual({
+      'c:/projects/a': ['thread-b', 'thread-a'],
+      'c:/projects/b': ['thread-c']
+    })
+  })
+
   it('merges turn bookmarks by thread without dropping other threads', () => {
     const current: AppSettings = {
       turnBookmarksByThread: {

@@ -26,13 +26,10 @@ function openWorkspaceMenu(): void {
   fireEvent.click(screen.getByRole('button', { name: 'Workspace options' }))
 }
 
-function openRecentSubmenu(): void {
-  const recentLabel = screen.getByText('Recent Workspaces')
-  const submenuTrigger = recentLabel.parentElement?.parentElement
-  if (!submenuTrigger) {
-    throw new Error('Recent submenu trigger not found')
-  }
-  fireEvent.mouseEnter(submenuTrigger)
+async function openRecentSubmenu(): Promise<void> {
+  const trigger = screen.getByRole('menuitem', { name: 'Recent Workspaces' })
+  await waitFor(() => expect(trigger).toBeEnabled())
+  fireEvent.mouseEnter(trigger)
 }
 
 describe('WorkspaceHeader', () => {
@@ -75,9 +72,9 @@ describe('WorkspaceHeader', () => {
       expect(workspaceGetRecent).toHaveBeenCalledOnce()
     })
 
-    openRecentSubmenu()
+    await openRecentSubmenu()
 
-    expect(await screen.findByRole('button', { name: 'Clear Recently Opened...' })).toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: 'Clear Recently Opened...' })).toBeInTheDocument()
   })
 
   it('returns to the welcome screen from the switch workspace menu item', async () => {
@@ -104,7 +101,7 @@ describe('WorkspaceHeader', () => {
     await waitFor(() => {
       expect(workspaceGetRecent).toHaveBeenCalledOnce()
     })
-    openRecentSubmenu()
+    await openRecentSubmenu()
 
     fireEvent.click(await screen.findByText('workspace-a'))
 
@@ -122,9 +119,9 @@ describe('WorkspaceHeader', () => {
     await waitFor(() => {
       expect(workspaceGetRecent).toHaveBeenCalledOnce()
     })
-    openRecentSubmenu()
+    await openRecentSubmenu()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Clear Recently Opened...' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Clear Recently Opened...' }))
 
     expect(await screen.findByRole('dialog', { name: 'Clear recently opened workspaces?' })).toBeInTheDocument()
     expect(screen.getByText('This removes all saved workspace history from the recent list.')).toBeInTheDocument()
@@ -141,10 +138,10 @@ describe('WorkspaceHeader', () => {
     await waitFor(() => {
       expect(workspaceGetRecent).toHaveBeenCalledOnce()
     })
-    openRecentSubmenu()
+    await openRecentSubmenu()
 
     expect(await screen.findByText('workspace-a')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Clear Recently Opened...' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Clear Recently Opened...' }))
     expect(await screen.findByRole('dialog', { name: 'Clear recently opened workspaces?' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
 
@@ -152,7 +149,7 @@ describe('WorkspaceHeader', () => {
       expect(workspaceClearRecent).toHaveBeenCalledOnce()
     })
     expect(screen.queryByText('workspace-a')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Clear Recently Opened...' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Clear Recently Opened...' })).not.toBeInTheDocument()
   })
 
   it('does not show the clear action when there are no recents', async () => {
@@ -164,6 +161,6 @@ describe('WorkspaceHeader', () => {
       expect(workspaceGetRecent).toHaveBeenCalledOnce()
     })
 
-    expect(screen.queryByRole('button', { name: 'Clear Recently Opened...' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Clear Recently Opened...' })).not.toBeInTheDocument()
   })
 })

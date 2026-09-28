@@ -60,3 +60,33 @@
   background: color-mix(in srgb, var(--text-primary) 10%, transparent);
   color: var(--text-secondary);
 }
+
+/* flow-root keeps the row's vertical margin inside the wrapper, where the
+   insertion line is drawn. */
+.dc-thread-reorder-row {
+  position: relative;
+  display: flow-root;
+}
+
+.dc-thread-reorder-row[data-dragging] {
+  opacity: 0.4;
+}
+
+.dc-thread-reorder-row[data-drop-placement]::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.dc-thread-reorder-row[data-drop-placement="before"]::after {
+  top: 0;
+}
+
+.dc-thread-reorder-row[data-drop-placement="after"]::after {
+  bottom: 0;
+}

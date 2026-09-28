@@ -12,14 +12,13 @@ import {
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { NewThreadButton } from '../sidebar/NewThreadButton'
 import { ThreadSearch } from '../sidebar/ThreadSearch'
+import { ThreadList, ProjectGlyph } from '../sidebar/ThreadList'
 import {
-  ThreadList,
-  ProjectGlyph,
   isColdProject,
   isProjectForeground,
   isRemoteProject,
   projectIdentity
-} from '../sidebar/ThreadList'
+} from '../sidebar/projectThreads'
 import { SidebarFooter } from '../sidebar/SidebarFooter'
 import {
   SIDEBAR_NAV_BORDER_INACTIVE,

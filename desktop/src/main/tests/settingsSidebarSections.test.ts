@@ -85,6 +85,28 @@ describe('desktop sidebar section settings', () => {
     expect(saved.chatsSectionCollapsed).toBe(true)
   })
 
+  it('saves thread ordering preferences, omitting defaults and emptied orders', async () => {
+    await useTempUserData()
+
+    saveSettings({
+      recentsThreadSort: 'manual',
+      projectsThreadSort: 'updated',
+      recentsShowProjects: false,
+      recentsThreadOrder: ['thread-b', 'thread-a', 'thread-b'],
+      threadOrderByProject: {
+        'C:\\Projects\\A': ['thread-c'],
+        'C:\\Projects\\B': []
+      }
+    })
+
+    const saved = await readSavedSettings()
+    expect(saved.recentsThreadSort).toBe('manual')
+    expect(saved).not.toHaveProperty('projectsThreadSort')
+    expect(saved).not.toHaveProperty('recentsShowProjects')
+    expect(saved.recentsThreadOrder).toEqual(['thread-b', 'thread-a'])
+    expect(saved.threadOrderByProject).toEqual({ 'c:/projects/a': ['thread-c'] })
+  })
+
   it('omits expanded default sidebar section preferences when saving', async () => {
     await useTempUserData()
 

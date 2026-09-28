@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight } from 'lucide-react'
+import { Check, ChevronRight } from 'lucide-react'
 import { useMenuAim } from '../../hooks/useMenuAim'
 import { ActionTooltip } from './ActionTooltip'
 
@@ -11,6 +11,8 @@ export interface ContextMenuItem {
   icon?: ReactNode
   /** Content aligned to the trailing edge, such as a selected-state check. */
   trailing?: ReactNode
+  selection?: 'radio' | 'checkbox'
+  checked?: boolean
   /** Native tooltip describing what the item does (shown on hover). */
   title?: string
   danger?: boolean
@@ -22,7 +24,47 @@ export interface ContextMenuSeparator {
   type: 'separator'
 }
 
-export type ContextMenuEntry = ContextMenuItem | ContextMenuSeparator
+export interface ContextMenuLabel {
+  type: 'label'
+  label: string
+}
+
+export type ContextMenuEntry = ContextMenuItem | ContextMenuSeparator | ContextMenuLabel
+
+const MENU_SEPARATOR_HEIGHT = 9
+const MENU_LABEL_HEIGHT = 26
+
+function menuItemRole(item: ContextMenuItem): 'menuitem' | 'menuitemradio' | 'menuitemcheckbox' {
+  if (item.selection === 'radio') return 'menuitemradio'
+  if (item.selection === 'checkbox') return 'menuitemcheckbox'
+  return 'menuitem'
+}
+
+function menuItemTrailing(item: ContextMenuItem): ReactNode {
+  if (item.trailing) return item.trailing
+  return item.selection && item.checked ? <Check size={14} aria-hidden /> : null
+}
+
+function MenuLabel({ label }: { label: string }): JSX.Element {
+  return (
+    <div
+      role="presentation"
+      title={label}
+      style={{
+        padding: '6px 14px 4px',
+        fontSize: 'var(--type-secondary-size)',
+        lineHeight: 'var(--type-secondary-line-height)',
+        color: 'var(--text-dimmed)',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        userSelect: 'none'
+      }}
+    >
+      {label}
+    </div>
+  )
+}
 
 export interface ContextMenuPosition {
   x: number
@@ -54,16 +96,13 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
   // that covers the parent); that meeting edge takes a hairline — the only border on
   // an ordinary overlay.
   const submenuOverlap = 1
-  const visibleItemCount = items.filter((item) => item.type !== 'separator').length
-  const separatorCount = items.length - visibleItemCount
-  const estimatedHeight =
-    visibleItemCount * menuItemHeight + separatorCount * 9 + menuPadding * 2
+  const estimatedHeight = estimateMenuHeight(items, menuItemHeight, menuPadding)
 
   const left = clampMenuLeft(position.x, menuWidth)
   const top = clampMenuTop(position.y, estimatedHeight)
   const openSubmenuItem = openSubmenuIndex == null ? null : items[openSubmenuIndex]
   const submenuItems =
-    openSubmenuItem && openSubmenuItem.type !== 'separator'
+    openSubmenuItem && isMenuItem(openSubmenuItem)
       ? openSubmenuItem.submenu ?? null
       : null
   const submenuEstimatedHeight = estimateMenuHeight(submenuItems ?? [], menuItemHeight, menuPadding)
@@ -195,11 +234,14 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
             />
           )
         }
+        if (item.type === 'label') return <MenuLabel key={i} label={item.label} />
 
         const itemActive = !item.disabled && (hoveredItemIndex === i || openSubmenuIndex === i)
+        const trailing = menuItemTrailing(item)
         const button = (
           <button
-            role="menuitem"
+            role={menuItemRole(item)}
+            aria-checked={item.selection ? item.checked === true : undefined}
             aria-haspopup={item.submenu ? 'menu' : undefined}
             aria-expanded={item.submenu ? openSubmenuIndex === i : undefined}
             disabled={item.disabled}
@@ -260,7 +302,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
               </span>
             )}
             {item.label}
-            {item.trailing ? <MenuItemTrailing>{item.trailing}</MenuItemTrailing> : null}
+            {trailing ? <MenuItemTrailing>{trailing}</MenuItemTrailing> : null}
             {item.submenu && (
               <ChevronRight
                 size={14}
@@ -302,7 +344,9 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
             WebkitBackdropFilter: 'var(--glass-blur)',
             zIndex: 10000,
             padding: `${menuPadding}px 0`,
-            overflow: 'hidden'
+            maxHeight: 'calc(100vh - 16px)',
+            overflowX: 'hidden',
+            overflowY: 'auto'
           }}
         >
           {submenuItems.map((item, i) => {
@@ -319,11 +363,14 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
                 />
               )
             }
+            if (item.type === 'label') return <MenuLabel key={i} label={item.label} />
             const submenuItemActive = !item.disabled && hoveredSubmenuItemIndex === i
-            return (
+            const trailing = menuItemTrailing(item)
+            const submenuButton = (
               <button
                 key={i}
-                role="menuitem"
+                role={menuItemRole(item)}
+                aria-checked={item.selection ? item.checked === true : undefined}
                 disabled={item.disabled}
                 onClick={() => {
                   cancelMenuAim()
@@ -375,9 +422,14 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
                   </span>
                 )}
                 {item.label}
-                {item.trailing ? <MenuItemTrailing>{item.trailing}</MenuItemTrailing> : null}
+                {trailing ? <MenuItemTrailing>{trailing}</MenuItemTrailing> : null}
               </button>
             )
+            return item.title ? (
+              <ActionTooltip key={i} label={item.title} placement="right" wrapperStyle={{ width: '100%' }}>
+                {submenuButton}
+              </ActionTooltip>
+            ) : submenuButton
           })}
         </div>
       )}
@@ -411,11 +463,21 @@ function getSubmenuAnchor(
   }
 
   const offsetTop = menuPadding + items.slice(0, index).reduce((acc, item) => (
-    acc + (item.type === 'separator' ? 9 : menuItemHeight)
+    acc + entryHeight(item, menuItemHeight)
   ), 0)
   return {
     top: menuTop + offsetTop
   }
+}
+
+function isMenuItem(entry: ContextMenuEntry): entry is ContextMenuItem {
+  return entry.type !== 'separator' && entry.type !== 'label'
+}
+
+function entryHeight(entry: ContextMenuEntry, menuItemHeight: number): number {
+  if (entry.type === 'separator') return MENU_SEPARATOR_HEIGHT
+  if (entry.type === 'label') return MENU_LABEL_HEIGHT
+  return menuItemHeight
 }
 
 function estimateMenuHeight(
@@ -423,9 +485,7 @@ function estimateMenuHeight(
   menuItemHeight: number,
   menuPadding: number
 ): number {
-  const visibleItemCount = items.filter((item) => item.type !== 'separator').length
-  const separatorCount = items.length - visibleItemCount
-  return visibleItemCount * menuItemHeight + separatorCount * 9 + menuPadding * 2
+  return items.reduce((acc, item) => acc + entryHeight(item, menuItemHeight), 0) + menuPadding * 2
 }
 
 function clampMenuTop(top: number, estimatedHeight: number): number {

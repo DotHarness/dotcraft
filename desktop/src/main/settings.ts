@@ -21,6 +21,12 @@ import {
 } from '../shared/appearance'
 import { normalizeThemeSeeds, type ThemeSeedOverrides, type ThemeVariant } from '../shared/themeSeed'
 import { normalizePetSetting, type PetSettings } from '../shared/pet'
+import {
+  normalizeManualThreadOrder,
+  normalizeSidebarThreadSortMode,
+  normalizeThreadOrderByProject,
+  type SidebarThreadOrderSettings
+} from '../shared/sidebarThreadOrder'
 import type {
   BinarySource,
   BrowserUseApprovalMode,
@@ -109,7 +115,7 @@ export interface VoiceSettings {
   chatGptTranscription?: boolean
 }
 
-export interface AppSettings {
+export interface AppSettings extends SidebarThreadOrderSettings {
   remoteDesktopPluginGrants?: string[]
   /** Desktop follow-up behavior during an active turn; omitted defaults to steer. */
   followUpQueueMode?: FollowUpQueueMode
@@ -383,6 +389,16 @@ function normalizeChatsSectionCollapsed(settings: AppSettings): boolean | undefi
   return settings.chatsSectionCollapsed === true ? true : undefined
 }
 
+function normalizeSidebarThreadOrderSettings(settings: AppSettings): void {
+  settings.recentsThreadSort = normalizeSidebarThreadSortMode(settings.recentsThreadSort, 'updated')
+  settings.projectsThreadSort = normalizeSidebarThreadSortMode(settings.projectsThreadSort, 'updated')
+  settings.pinnedThreadSort = normalizeSidebarThreadSortMode(settings.pinnedThreadSort, 'manual')
+  settings.recentsShowProjects = settings.recentsShowProjects === true ? true : undefined
+  settings.recentsThreadOrder = normalizeManualThreadOrder(settings.recentsThreadOrder)
+  settings.pinnedThreadOrder = normalizeManualThreadOrder(settings.pinnedThreadOrder)
+  settings.threadOrderByProject = normalizeThreadOrderByProject(settings.threadOrderByProject)
+}
+
 export function normalizeShowInMenuBar(settings: AppSettings): boolean | undefined {
   return typeof settings.showInMenuBar === 'boolean'
     ? settings.showInMenuBar
@@ -599,6 +615,7 @@ export function loadSettings(): AppSettings {
       raw.projectsSectionCollapsed = normalizeProjectsSectionCollapsed(raw)
       raw.pinnedSectionCollapsed = normalizePinnedSectionCollapsed(raw)
       raw.chatsSectionCollapsed = normalizeChatsSectionCollapsed(raw)
+      normalizeSidebarThreadOrderSettings(raw)
       raw.showInMenuBar = normalizeShowInMenuBar(raw)
       raw.theme = normalizeUiTheme(raw)
       raw.accent = normalizeAccentSetting(raw)
@@ -656,6 +673,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.projectsSectionCollapsed = normalizeProjectsSectionCollapsed(settings)
     settings.pinnedSectionCollapsed = normalizePinnedSectionCollapsed(settings)
     settings.chatsSectionCollapsed = normalizeChatsSectionCollapsed(settings)
+    normalizeSidebarThreadOrderSettings(settings)
     settings.showInMenuBar = normalizeShowInMenuBar(settings)
     settings.theme = normalizeUiTheme(settings)
     settings.accent = normalizeAccentSetting(settings)

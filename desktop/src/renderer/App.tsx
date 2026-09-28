@@ -14,6 +14,7 @@ import {
 } from './stores/conversationStore'
 import { useUIStore } from './stores/uiStore'
 import { useComposerPreferencesStore } from './stores/composerPreferencesStore'
+import { useSidebarThreadOrderStore } from './stores/sidebarThreadOrderStore'
 import { PET_CLOCK_MS, usePetStore } from './pet/petStore'
 import { showFindToast } from './pet/findToast'
 import { useViewerTabStore } from './stores/viewerTabStore'
@@ -1291,6 +1292,7 @@ export function App(): JSX.Element {
         useUIStore.getState().setShowThinkingContent(s.showThinkingContent === true)
         useComposerPreferencesStore.getState().hydrate(s)
         usePetStore.getState().hydrate(s)
+        useSidebarThreadOrderStore.getState().hydrate(s)
         useUIStore.setState({
           projectsSectionCollapsed: s.projectsSectionCollapsed === true,
           pinnedSectionCollapsed: s.pinnedSectionCollapsed === true,
