@@ -53,6 +53,7 @@ Manifest metadata includes:
 - `capabilities`
 - `interface`
 - `skills`
+- `commands`
 - `mcpServers`
 - `hooks`
 - `lspServers`
@@ -65,6 +66,11 @@ Manifest metadata includes:
 - `settings`
 
 Plugins must declare at least one supported contribution: a plugin-contained `skills` path, plugin-bundled MCP servers, lifecycle hooks, App Binding descriptors, LSP server descriptors, a Desktop module, Dynamic Workflows, an in-process `dotnet` contribution, or interface metadata. Each contribution may appear without the others.
+
+`commands` is a manifest-relative directory containing Markdown custom commands. Enabled plugins
+contribute commands under `<pluginId>:<relative-command-name>`. Commands are a supported contribution
+on their own. Workspace and user commands retain precedence. Removing or disabling a plugin removes
+its commands. User-global installed plugins can be disabled or removed in their own scope.
 
 `settings` is an optional manifest-relative path to a plugin settings schema, for example
 `"./settings.schema.json"`. It does not count as a runtime contribution. The schema document has a

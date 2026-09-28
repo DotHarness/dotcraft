@@ -42,12 +42,14 @@
   background: var(--bg-tertiary);
 }
 
-.dc-checkbox__input:checked + .dc-checkbox__control {
+.dc-checkbox__input:checked + .dc-checkbox__control,
+.dc-checkbox__input:indeterminate + .dc-checkbox__control {
   border-color: var(--accent);
   background: var(--accent);
 }
 
-.dc-checkbox:hover:not([data-disabled="true"]) .dc-checkbox__input:checked + .dc-checkbox__control {
+.dc-checkbox:hover:not([data-disabled="true"]) .dc-checkbox__input:checked + .dc-checkbox__control,
+.dc-checkbox:hover:not([data-disabled="true"]) .dc-checkbox__input:indeterminate + .dc-checkbox__control {
   border-color: var(--accent-hover);
   background: var(--accent-hover);
 }

@@ -145,7 +145,7 @@ public sealed class McpServerConfig
     }
 
     [JsonIgnore]
-    public bool ReadOnly => !Origin.IsWorkspace;
+    public bool ReadOnly => !Origin.IsWorkspace && Origin.Kind != "user";
 
     [JsonIgnore]
     public string NormalizedTransport =>

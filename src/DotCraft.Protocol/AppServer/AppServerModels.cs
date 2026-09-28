@@ -232,9 +232,9 @@ public sealed class ServerCapabilityExtensions : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DynamicWorkflowCapabilities? DynamicWorkflows { get; init; }
 
-    [JsonPropertyName("sessionImport")]
+    [JsonPropertyName("agentImport")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public SessionImportCapabilities? SessionImport { get; init; }
+    public AgentImportCapabilities? AgentImport { get; init; }
 }
 
 /// <summary>Capabilities advertised by AppServer.</summary>

@@ -1,6 +1,6 @@
 # Import From Other Agents
 
-If you've been working on the same project with Claude Code, ChatGPT, or Cursor, DotCraft can bring those chats into the workspace. You read them next to your DotCraft chats, continue any of them here, and let new ones keep arriving while the project is open.
+Bring your tools, project instructions, and chats from Claude Code, ChatGPT, or Cursor into DotCraft. Keep using familiar skills and commands, read earlier conversations, and continue those chats here.
 
 Only chats recorded for the open project come over. Chats from other folders stay where they are.
 
@@ -9,11 +9,17 @@ Only chats recorded for the open project come over. Chats from other folders sta
 - You're moving a project to DotCraft and don't want to lose the conversations that got it here.
 - You keep using another agent for some tasks and want one place to look back at all of them.
 
-## Import chats
+## Choose what to import
 
 1. Open **Settings › Import** in the project.
-2. Each app found on this machine shows how many chats are ready. Click **Import** next to one.
-3. Confirm. To have new and updated chats keep arriving on their own, turn on **Keep imports in sync** on the same page.
+2. Choose **Import** next to an app, then select the content to bring over.
+3. Review the destination and confirm. Existing configuration is not overwritten.
+
+**Tools & setup** applies to all DotCraft projects on the current host. **Current project configuration** applies only to the open project. When connected remotely, both the source files and destinations are on the remote host.
+
+DotCraft imports skills, instructions, commands, hooks, MCP servers, and plugins. Instructions become `AGENTS.md`; commands remain slash commands. Product names in imported instructions, skill descriptions and commands are adapted to DotCraft. Plugin contents stay with their plugin.
+
+After importing, use **Needs attention** to review hooks or finish connecting tools. Hooks remain inactive until trusted. **Import history** shows what succeeded, failed, or needs review, with links to the imported content.
 
 Imported chats appear in the chat list with a badge naming the app they came from. Open one to read it, or send a message to continue it with DotCraft.
 
@@ -27,7 +33,9 @@ Once you continue an imported chat in DotCraft, it belongs to DotCraft. Later me
 
 ## Keep imports in sync
 
-With sync on, DotCraft checks the connected apps while the project is open and imports what's new. Turn it off from **Settings › Import** to pause. Your app selections are kept, so turning it back on resumes without setup. **Check again** runs a check right away.
+With sync on, DotCraft checks the selected apps while the project is open. Use **Content to sync › Customize** to choose categories, or explicitly include all categories and future additions. Tools and configuration are imported only when missing; existing content is never replaced or deleted. If you delete an imported item while its category is still selected, a later sync can import it again.
+
+Turn sync off from **Settings › Import** to pause. Your selections and imported content remain. **Check again** refreshes the available imports immediately.
 
 ## Related docs
 

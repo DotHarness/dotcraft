@@ -271,6 +271,26 @@
       },
       "additionalProperties": true
     },
+    "AgentImportCapabilities": {
+      "title": "AgentImportCapabilities",
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "sources",
+        "version"
+      ]
+    },
     "AgentMessagePayload": {
       "title": "AgentMessagePayload",
       "type": "object",
@@ -6231,11 +6251,26 @@
         "status"
       ]
     },
-    "ImportSessionCandidate": {
-      "title": "ImportSessionCandidate",
+    "ImportCandidate": {
+      "title": "ImportCandidate",
       "type": "object",
       "properties": {
+        "category": {
+          "type": "string"
+        },
         "cwd": {
+          "type": "string"
+        },
+        "fallbackText": {
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "scope": {
           "type": "string"
         },
         "source": {
@@ -6248,6 +6283,9 @@
           "type": "string"
         },
         "state": {
+          "type": "string"
+        },
+        "targetPath": {
           "type": "string"
         },
         "title": {
@@ -6263,51 +6301,24 @@
       },
       "additionalProperties": true,
       "required": [
+        "category",
         "cwd",
+        "fallbackText",
+        "fingerprint",
+        "reason",
+        "scope",
         "source",
         "sourceId",
         "sourcePath",
         "state",
+        "targetPath",
         "title",
         "turnCount",
         "updatedAt"
       ]
     },
-    "ImportSessionOutcome": {
-      "title": "ImportSessionOutcome",
-      "type": "object",
-      "properties": {
-        "error": {
-          "type": "string"
-        },
-        "errorCode": {
-          "type": "string"
-        },
-        "source": {
-          "type": "string"
-        },
-        "sourceId": {
-          "type": "string"
-        },
-        "status": {
-          "type": "string"
-        },
-        "threadId": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true,
-      "required": [
-        "source",
-        "sourceId",
-        "status"
-      ]
-    },
-    "ImportSessionsCompletedNotification": {
-      "title": "ImportSessionsCompletedNotification",
+    "ImportCompletedNotification": {
+      "title": "ImportCompletedNotification",
       "type": "object",
       "properties": {
         "completedAt": {
@@ -6320,7 +6331,7 @@
         "outcomes": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ImportSessionOutcome"
+            "$ref": "#/$defs/ImportOutcome"
           }
         },
         "startedAt": {
@@ -6340,8 +6351,8 @@
         "trigger"
       ]
     },
-    "ImportSessionsDetectParams": {
-      "title": "ImportSessionsDetectParams",
+    "ImportDetectParams": {
+      "title": "ImportDetectParams",
       "type": "object",
       "properties": {
         "sources": {
@@ -6353,8 +6364,8 @@
       },
       "additionalProperties": true
     },
-    "ImportSessionsDetectResult": {
-      "title": "ImportSessionsDetectResult",
+    "ImportDetectResult": {
+      "title": "ImportDetectResult",
       "type": "object",
       "properties": {
         "sources": {
@@ -6369,8 +6380,97 @@
         "sources"
       ]
     },
-    "ImportSessionsProgressNotification": {
-      "title": "ImportSessionsProgressNotification",
+    "ImportHistoryResult": {
+      "title": "ImportHistoryResult",
+      "type": "object",
+      "properties": {
+        "attention": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ImportOutcome"
+          }
+        },
+        "imports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ImportCompletedNotification"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "attention",
+        "imports"
+      ]
+    },
+    "ImportItemReference": {
+      "title": "ImportItemReference",
+      "type": "object",
+      "properties": {
+        "fingerprint": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sourceId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "fingerprint",
+        "source",
+        "sourceId"
+      ]
+    },
+    "ImportOutcome": {
+      "title": "ImportOutcome",
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "errorCode": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sourceId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "targetPath": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "category",
+        "scope",
+        "source",
+        "sourceId",
+        "status",
+        "targetPath"
+      ]
+    },
+    "ImportProgressNotification": {
+      "title": "ImportProgressNotification",
       "type": "object",
       "properties": {
         "completed": {
@@ -6394,15 +6494,18 @@
         "total"
       ]
     },
-    "ImportSessionsRunParams": {
-      "title": "ImportSessionsRunParams",
+    "ImportRunParams": {
+      "title": "ImportRunParams",
       "type": "object",
       "properties": {
-        "sessionIds": {
+        "items": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/ImportItemReference"
           }
+        },
+        "selection": {
+          "$ref": "#/$defs/ImportSelection"
         },
         "sources": {
           "type": "array",
@@ -6413,11 +6516,13 @@
       },
       "additionalProperties": true,
       "required": [
+        "items",
+        "selection",
         "sources"
       ]
     },
-    "ImportSessionsRunResult": {
-      "title": "ImportSessionsRunResult",
+    "ImportRunResult": {
+      "title": "ImportRunResult",
       "type": "object",
       "properties": {
         "importId": {
@@ -6429,13 +6534,50 @@
         "importId"
       ]
     },
+    "ImportSelection": {
+      "title": "ImportSelection",
+      "type": "object",
+      "properties": {
+        "all": {
+          "type": "boolean"
+        },
+        "sessions": {
+          "type": "boolean"
+        },
+        "user": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "workspace": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "all",
+        "sessions",
+        "user",
+        "workspace"
+      ]
+    },
     "ImportSettings": {
       "title": "ImportSettings",
       "type": "object",
       "properties": {
+        "hasImported": {
+          "type": "boolean"
+        },
         "lastSyncAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "selection": {
+          "$ref": "#/$defs/ImportSelection"
         },
         "sources": {
           "type": "array",
@@ -6455,6 +6597,8 @@
       },
       "additionalProperties": true,
       "required": [
+        "hasImported",
+        "selection",
         "sources",
         "syncEnabled",
         "syncIntervalMinutes",
@@ -6478,6 +6622,9 @@
       "title": "ImportSettingsSetParams",
       "type": "object",
       "properties": {
+        "selection": {
+          "$ref": "#/$defs/ImportSelection"
+        },
         "sources": {
           "type": "array",
           "items": {
@@ -6500,10 +6647,10 @@
         "importableCount": {
           "type": "integer"
         },
-        "sessions": {
+        "items": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ImportSessionCandidate"
+            "$ref": "#/$defs/ImportCandidate"
           }
         },
         "source": {
@@ -6514,7 +6661,7 @@
       "required": [
         "available",
         "importableCount",
-        "sessions",
+        "items",
         "source"
       ]
     },
@@ -7676,9 +7823,15 @@
       "properties": {
         "name": {
           "type": "string"
+        },
+        "scope": {
+          "type": "string"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "required": [
+        "scope"
+      ]
     },
     "McpRemoveResult": {
       "title": "McpRemoveResult",
@@ -8671,11 +8824,17 @@
       "title": "McpUpsertParams",
       "type": "object",
       "properties": {
+        "scope": {
+          "type": "string"
+        },
         "server": {
           "$ref": "#/$defs/McpServerConfig"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "required": [
+        "scope"
+      ]
     },
     "McpUpsertResult": {
       "title": "McpUpsertResult",
@@ -9755,9 +9914,15 @@
       "properties": {
         "path": {
           "type": "string"
+        },
+        "scope": {
+          "type": "string"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "required": [
+        "scope"
+      ]
     },
     "PluginInstallParams": {
       "title": "PluginInstallParams",
@@ -11712,20 +11877,20 @@
       "title": "ServerCapabilityExtensions",
       "type": "object",
       "properties": {
-        "dynamicWorkflows": {
+        "agentImport": {
           "anyOf": [
             {
-              "$ref": "#/$defs/DynamicWorkflowCapabilities"
+              "$ref": "#/$defs/AgentImportCapabilities"
             },
             {
               "type": "null"
             }
           ]
         },
-        "sessionImport": {
+        "dynamicWorkflows": {
           "anyOf": [
             {
-              "$ref": "#/$defs/SessionImportCapabilities"
+              "$ref": "#/$defs/DynamicWorkflowCapabilities"
             },
             {
               "type": "null"
@@ -11804,26 +11969,6 @@
       "required": [
         "channelName",
         "userId"
-      ]
-    },
-    "SessionImportCapabilities": {
-      "title": "SessionImportCapabilities",
-      "type": "object",
-      "properties": {
-        "sources": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "version": {
-          "type": "integer"
-        }
-      },
-      "additionalProperties": true,
-      "required": [
-        "sources",
-        "version"
       ]
     },
     "SessionItem": {

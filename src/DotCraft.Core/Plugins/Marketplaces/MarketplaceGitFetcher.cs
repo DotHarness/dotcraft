@@ -22,7 +22,7 @@ public interface IMarketplaceGitFetcher
 /// Runs version control commands to materialize a repository marketplace source.
 /// Every command runs non-interactively so a source needing credentials fails instead of blocking.
 /// </summary>
-internal sealed class MarketplaceGitFetcher(ILogger? logger = null, TimeSpan? timeout = null) : IMarketplaceGitFetcher
+public sealed class MarketplaceGitFetcher(ILogger? logger = null, TimeSpan? timeout = null) : IMarketplaceGitFetcher
 {
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(120);
 

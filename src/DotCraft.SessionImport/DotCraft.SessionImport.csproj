@@ -21,4 +21,7 @@
       <_Parameter1>DotCraft.SessionImport.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Tomlyn" Version="0.19.0" />
+  </ItemGroup>
 </Project>

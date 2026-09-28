@@ -13,7 +13,7 @@ export function importSourceLabel(source: string): string {
 }
 
 export function isSessionImportAvailable(capabilities: ServerCapabilities | null | undefined): boolean {
-  return capabilities?.extensions?.sessionImport != null
+  return capabilities?.extensions?.agentImport != null
 }
 
 export function isSessionImportThread(thread: Pick<ThreadSummary, 'originChannel'>): boolean {

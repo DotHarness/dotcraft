@@ -4,20 +4,20 @@
   "title": "ServerCapabilityExtensions",
   "type": "object",
   "properties": {
-    "dynamicWorkflows": {
+    "agentImport": {
       "anyOf": [
         {
-          "$ref": "./DynamicWorkflowCapabilities.schema.json"
+          "$ref": "./AgentImportCapabilities.schema.json"
         },
         {
           "type": "null"
         }
       ]
     },
-    "sessionImport": {
+    "dynamicWorkflows": {
       "anyOf": [
         {
-          "$ref": "./SessionImportCapabilities.schema.json"
+          "$ref": "./DynamicWorkflowCapabilities.schema.json"
         },
         {
           "type": "null"

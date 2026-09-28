@@ -1,13 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ImportSessionOutcome.schema.json",
-  "title": "ImportSessionOutcome",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ImportOutcome.schema.json",
+  "title": "ImportOutcome",
   "type": "object",
   "properties": {
+    "category": {
+      "type": "string"
+    },
     "error": {
       "type": "string"
     },
     "errorCode": {
+      "type": "string"
+    },
+    "scope": {
       "type": "string"
     },
     "source": {
@@ -19,6 +25,9 @@
     "status": {
       "type": "string"
     },
+    "targetPath": {
+      "type": "string"
+    },
     "threadId": {
       "type": "string"
     },
@@ -28,8 +37,11 @@
   },
   "additionalProperties": true,
   "required": [
+    "category",
+    "scope",
     "source",
     "sourceId",
-    "status"
+    "status",
+    "targetPath"
   ]
 }

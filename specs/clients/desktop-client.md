@@ -1031,19 +1031,34 @@ Required behavior:
   - Tier A (live-apply) preserves local in-flight edits when the client receives an echo notification for the same logical change.
   - Tier C (process-restart staged edits) keeps pending edits local until the user applies or discards them.
 
-#### 6.7.1 Session Import
+#### 6.7.1 Agent import
 
-When `capabilities.extensions.sessionImport` is present, Settings shows an **Import** tab directly after General for the current workspace. Detection, conversion, and sync semantics are defined in [Session Import](../features/session-import.md).
+When `capabilities.extensions.agentImport` is present, Settings shows an **Import** tab directly after
+General for the current workspace. [Agent import](../features/agent-import.md) defines detection,
+conversion, scope, and synchronization.
 
 Required behavior:
 
-- Opening the tab loads `import/settings/get` and runs `import/sessions/detect` for every configured source; **Check again** re-runs detection.
-- **Keep imports in sync** applies immediately through `import/settings/set`. When the workspace configuration opts out, the toggle is off and disabled with an explanation.
-- The source list shows one row per available source with its importable chat count and an **Import** action, disabled when nothing is importable or while any import pass runs. A status line reports checking, no importable chats, and the last sync time.
-- **Import** opens a dialog listing the source's chat sessions as a selectable item; sync is controlled only by the **Keep imports in sync** toggle. Confirming writes `import/settings/set` first when the source is not yet a sync source, then calls `import/sessions/run` for that source and closes the dialog.
-- `import/sessions/progress` updates the importing row. `import/sessions/completed` re-runs detection, refreshes settings, and shows a toast counting imported, updated, and failed chats; a sync pass that changed nothing stays silent.
-- An `import_busy` response closes the dialog and shows the in-progress state until the running pass completes.
-- Imported threads arrive through `thread/started`, are marked unread, and carry an import origin badge naming the source app.
+- Opening the tab loads settings, candidates, and history. **Check again** refreshes detection.
+- Sources show an importable item count. Existing or unsupported entries remain inspectable, including
+  for sources without chat sessions. Import is disabled while a pass runs.
+- The dialog separates **Tools & setup** (all projects on the host), **Current project configuration**,
+  and **Chat sessions**. Groups and categories support partial selection. Collapsible group rows state
+  where content applies; category rows show an importable count and a compact source-to-destination
+  location. Rows that do not expand offer an info control with item names, conversion notes, and entries
+  that are already available or unsupported, never configuration secrets. Chat sessions are one row
+  with a count.
+- Confirming submits the selected item identities, fingerprints, and categories to `import/run`.
+  `import/progress` updates the importing row. Completion refreshes candidates, settings, and history.
+- **Keep imports in sync** applies immediately and reads as paused while off after an import. A workspace
+  opt-out disables the toggle. **Content to sync** summarizes the saved selection and becomes
+  customizable after the first import. Customizing exposes category/scope selection and an explicit
+  option to include future categories, explains that changes apply only to future syncs, and requires
+  at least one category. Pausing preserves imported content and selections.
+- History links to imported content and chats. **Needs attention** reflects current hook trust and MCP
+  startup state. A sync pass that changed nothing stays silent.
+- An `import_busy` response closes the dialog and shows the running pass until completion.
+- Imported threads arrive through `thread/started`, are marked unread, and show the source app badge.
 
 #### 6.7.2 Computer Use
 

@@ -1,0 +1,148 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--overlay-scrim);
+}
+
+.dialog {
+  box-sizing: border-box;
+  width: 560px;
+  max-width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 24px;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-level-3);
+}
+
+.options {
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+}
+
+.options + .options {
+  margin-top: 12px;
+}
+
+.group + .group {
+  border-top: 1px solid var(--border-default);
+}
+
+.nested {
+  padding-bottom: 6px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 11px 14px;
+}
+
+/* Nested rows start under the group title: the group's inline padding, icon, and gap. */
+.option[data-nested] {
+  padding-block: 6px;
+  padding-inline-start: 46px;
+}
+
+.optionIcon,
+.optionTile {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.optionIcon {
+  width: 20px;
+  height: 20px;
+}
+
+.optionTile {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+}
+
+.optionText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.optionText[data-disabled] {
+  cursor: default;
+}
+
+.optionTitle,
+.optionHint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionTitle {
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+  font-weight: var(--type-ui-emphasis-weight);
+}
+
+.optionText[data-disabled] .optionTitle {
+  color: var(--text-secondary);
+}
+
+.optionHint {
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}
+
+.optionActions {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.optionActions > :last-child {
+  margin-inline-start: 6px;
+}
+
+.note {
+  margin: 16px 0 0;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-prose-line-height);
+}
+
+.error {
+  margin: 16px 0 0;
+  color: var(--error);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-prose-line-height);
+  overflow-wrap: anywhere;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.note + .footer {
+  margin-top: 16px;
+}

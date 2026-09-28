@@ -20,16 +20,17 @@ public sealed partial class SessionImportService
         string ImportId,
         string Trigger,
         IReadOnlyList<ISessionImportSource> Sources,
-        IReadOnlySet<string>? SessionIds);
+        Contract.ImportSelection Selection,
+        IReadOnlyList<Contract.ImportItemReference>? Items);
 
     private PassRequest CreateSyncRequest()
     {
-        var sources = _userSettings.Sources
+        var settings = _settingsStore.ReadUserSettings();
+        var sources = settings.Sources
             .Select(sourceId => _sources.FirstOrDefault(source => source.SourceId == sourceId))
             .OfType<ISessionImportSource>()
-            .Where(static source => source.IsAvailable)
             .ToArray();
-        return new PassRequest(SessionImportIdentity.NewImportId(), SyncTrigger, sources, SessionIds: null);
+        return new PassRequest(SessionImportIdentity.NewImportId(), SyncTrigger, sources, settings.Selection, null);
     }
 
     private Task StartPassLoop(PassRequest request)
@@ -62,32 +63,51 @@ public sealed partial class SessionImportService
         }
     }
 
-    private async Task<Contract.ImportSessionsCompletedNotification?> ExecutePassAsync(PassRequest request, CancellationToken ct)
+    private async Task<Contract.ImportCompletedNotification?> ExecutePassAsync(PassRequest request, CancellationToken ct)
     {
         var startedAt = DateTimeOffset.UtcNow;
-        var outcomes = new List<Contract.ImportSessionOutcome>();
+        var outcomes = new List<Contract.ImportOutcome>();
         try
         {
+            using var globalSync = request.Trigger == SyncTrigger ? _history.BeginGlobalSync(SyncInterval) : null;
             var context = await CreateContextAsync(ct).ConfigureAwait(false);
             foreach (var source in request.Sources)
             {
-                var detected = await DetectSourceAsync(source, context, retainSessions: true, ct).ConfigureAwait(false);
+                var detected = source.IsAvailable && ImportCategories.Includes(request.Selection, "sessions", "workspace")
+                    ? await DetectSourceAsync(source, context, retainSessions: true, ct).ConfigureAwait(false) : [];
                 var selected = detected
                     .Where(entry => entry.Session is not null
-                        && (request.SessionIds is null || request.SessionIds.Contains(entry.File.SourceId)))
+                        && (request.Items is null || request.Items.Any(i => i.Source == source.SourceId && i.SourceId == entry.File.SourceId)))
                     .ToArray();
+                var setup = (_setup?.Scan(source.SourceId) ?? []).Where(item =>
+                    ImportCategories.Includes(request.Selection, item.Candidate.Category, item.Candidate.Scope)
+                    && (item.Candidate.Scope != "user" || request.Trigger != SyncTrigger || globalSync != null)
+                    && (request.Items == null ? item.Candidate.State == "new" : request.Items.Any(i => i.Source == source.SourceId && i.SourceId == item.Candidate.SourceId))).ToArray();
                 for (var index = 0; index < selected.Length; index++)
                 {
-                    outcomes.Add(await ImportAsync(selected[index], context, ct).ConfigureAwait(false));
-                    Progress?.Invoke(new Contract.ImportSessionsProgressNotification
+                    var expected = request.Items?.FirstOrDefault(i => i.Source == source.SourceId && i.SourceId == selected[index].File.SourceId);
+                    outcomes.Add(expected != null && expected.Fingerprint != selected[index].Candidate.Fingerprint
+                        ? SetupImportService.Outcome(selected[index].Candidate, "failed", "import_source_changed")
+                        : await ImportAsync(selected[index], context, ct).ConfigureAwait(false));
+                    Progress?.Invoke(new Contract.ImportProgressNotification
                     {
                         ImportId = request.ImportId,
                         Source = source.SourceId,
                         Completed = index + 1,
-                        Total = selected.Length
+                        Total = selected.Length + setup.Length
                     });
                 }
+                for (var index = 0; index < setup.Length; index++)
+                {
+                    var item = setup[index];
+                    var expected = request.Items?.FirstOrDefault(i => i.Source == source.SourceId && i.SourceId == item.Candidate.SourceId)?.Fingerprint ?? item.Candidate.Fingerprint;
+                    outcomes.Add(await _setup!.InstallAsync(item, expected, ct).ConfigureAwait(false));
+                    Progress?.Invoke(new Contract.ImportProgressNotification { ImportId = request.ImportId, Source = source.SourceId, Completed = selected.Length + index + 1, Total = selected.Length + setup.Length });
+                }
             }
+            if (request.Items != null)
+                foreach (var missing in request.Items.Where(i => !outcomes.Any(o => o.Source == i.Source && o.SourceId == i.SourceId)))
+                    outcomes.Add(new Contract.ImportOutcome { Source = missing.Source, SourceId = missing.SourceId, Status = "failed", ErrorCode = "import_source_changed", Error = ImportDiagnostics.Fallback("import_source_changed") });
 
             await SaveDetectionUpdatesAsync(context).ConfigureAwait(false);
             if (request.Trigger == SyncTrigger)
@@ -100,9 +120,10 @@ public sealed partial class SessionImportService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Session import pass {ImportId} stopped early", request.ImportId);
+            outcomes.Add(new Contract.ImportOutcome { Source = request.Sources.FirstOrDefault()?.SourceId ?? "", SourceId = "pass", Status = "failed", ErrorCode = "import_pass_failed", Error = ImportDiagnostics.Fallback("import_pass_failed") });
         }
 
-        return new Contract.ImportSessionsCompletedNotification
+        var result = new Contract.ImportCompletedNotification
         {
             ImportId = request.ImportId,
             Trigger = request.Trigger,
@@ -110,9 +131,16 @@ public sealed partial class SessionImportService
             CompletedAt = DateTimeOffset.UtcNow,
             Outcomes = outcomes
         };
+        try { _history.Save(result); }
+        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Import history could not be written for {ImportId}", request.ImportId);
+            outcomes.Add(new Contract.ImportOutcome { Source = "", SourceId = "history", Status = "failed", ErrorCode = "import_history_write_failed", Error = ImportDiagnostics.Fallback("import_history_write_failed") });
+        }
+        return result;
     }
 
-    private async Task<Contract.ImportSessionOutcome> ImportAsync(DetectedSession detected, DetectionContext context, CancellationToken ct)
+    private async Task<Contract.ImportOutcome> ImportAsync(DetectedSession detected, DetectionContext context, CancellationToken ct)
     {
         var session = detected.Session!;
         try
@@ -128,7 +156,7 @@ public sealed partial class SessionImportService
         }
     }
 
-    private async Task<Contract.ImportSessionOutcome> ImportNewAsync(
+    private async Task<Contract.ImportOutcome> ImportNewAsync(
         ImportedSession session,
         SessionImportCandidateFile file,
         DetectionContext context,
@@ -178,7 +206,7 @@ public sealed partial class SessionImportService
             : Outcome(session, OutcomeStatuses.Imported, thread.Id);
     }
 
-    private async Task<Contract.ImportSessionOutcome> AppendAsync(
+    private async Task<Contract.ImportOutcome> AppendAsync(
         ImportedSession session,
         SessionImportCandidateFile file,
         SessionImportLedgerRecord record,
@@ -218,19 +246,19 @@ public sealed partial class SessionImportService
         return Outcome(session, OutcomeStatuses.Appended, record.ThreadId);
     }
 
-    private static Contract.ImportSessionOutcome Outcome(
+    private static Contract.ImportOutcome Outcome(
         ImportedSession session,
         string status,
         string? threadId,
         string? errorCode = null,
         string? error = null) => new()
-    {
-        Source = session.Source,
-        SourceId = session.SourceId,
-        Status = status,
-        ThreadId = threadId is null ? default : Optional<string>.FromValue(threadId),
-        Title = Optional<string>.FromValue(session.Title),
-        ErrorCode = errorCode is null ? default : Optional<string>.FromValue(errorCode),
-        Error = error is null ? default : Optional<string>.FromValue(error)
-    };
+        {
+            Source = session.Source,
+            SourceId = session.SourceId,
+            Status = status,
+            ThreadId = threadId is null ? default : Optional<string>.FromValue(threadId),
+            Title = Optional<string>.FromValue(session.Title),
+            ErrorCode = errorCode is null ? default : Optional<string>.FromValue(errorCode),
+            Error = error is null ? default : Optional<string>.FromValue(error)
+        };
 }

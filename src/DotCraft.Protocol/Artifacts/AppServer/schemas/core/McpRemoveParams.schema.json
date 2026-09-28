@@ -6,7 +6,13 @@
   "properties": {
     "name": {
       "type": "string"
+    },
+    "scope": {
+      "type": "string"
     }
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "required": [
+    "scope"
+  ]
 }

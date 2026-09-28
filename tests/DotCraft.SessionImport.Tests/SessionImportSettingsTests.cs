@@ -25,7 +25,7 @@ public sealed class SessionImportSettingsTests : IDisposable
     public void UpdateWritesOnlyTheSyncFieldsOfTheUserConfiguration()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_userConfig)!);
-        File.WriteAllText(_userConfig, "{\"Model\":\"gpt-5\",\"sessionImport\":{\"MaxSessionsPerSource\":10,\"syncEnabled\":false}}");
+        File.WriteAllText(_userConfig, "{\"Model\":\"gpt-5\",\"agentImport\":{\"MaxSessionsPerSource\":10,\"syncEnabled\":false}}");
         var service = CreateService();
 
         var updated = service.UpdateSettings(syncEnabled: true, sources: [SessionImportSources.Codex]);
@@ -33,7 +33,7 @@ public sealed class SessionImportSettingsTests : IDisposable
 
         var root = JsonNode.Parse(File.ReadAllText(_userConfig))!.AsObject();
         Assert.Equal("gpt-5", root["Model"]!.GetValue<string>());
-        var section = root["sessionImport"]!.AsObject();
+        var section = root["agentImport"]!.AsObject();
         Assert.Equal(10, section["MaxSessionsPerSource"]!.GetValue<int>());
         Assert.True(section["syncEnabled"]!.GetValue<bool>());
         Assert.Equal(new[] { "codex" }, section["Sources"]!.AsArray().Select(static node => node!.GetValue<string>()));
@@ -48,8 +48,8 @@ public sealed class SessionImportSettingsTests : IDisposable
     public void WorkspaceConfigurationCanOptOutOfSync()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_userConfig)!);
-        File.WriteAllText(_userConfig, "{\"SessionImport\":{\"SyncEnabled\":true}}");
-        File.WriteAllText(Path.Combine(_craft, "config.json"), "{\"SessionImport\":{\"SyncEnabled\":false}}");
+        File.WriteAllText(_userConfig, "{\"AgentImport\":{\"SyncEnabled\":true,\"Selection\":{\"sessions\":true}}}");
+        File.WriteAllText(Path.Combine(_craft, "config.json"), "{\"AgentImport\":{\"SyncEnabled\":false}}");
         var service = CreateService();
 
         var settings = service.GetSettings();
@@ -63,10 +63,10 @@ public sealed class SessionImportSettingsTests : IDisposable
     public async Task SyncRuntimeImportsOnStartAndRecordsTheSyncTime()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_userConfig)!);
-        File.WriteAllText(_userConfig, "{\"SessionImport\":{\"SyncEnabled\":true}}");
+        File.WriteAllText(_userConfig, "{\"AgentImport\":{\"SyncEnabled\":true,\"Selection\":{\"sessions\":true}}}");
         _source.Put("s1", turnCount: 1, hash: "h1", _workspace, DateTimeOffset.UtcNow.AddHours(-1));
         var service = CreateService();
-        var completion = new TaskCompletionSource<ImportSessionsCompletedNotification>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = new TaskCompletionSource<ImportCompletedNotification>(TaskCreationOptions.RunContinuationsAsynchronously);
         service.Completed += notification => completion.TrySetResult(notification);
         var runtime = new SessionImportSyncRuntime(service) { StartDelay = TimeSpan.Zero };
 

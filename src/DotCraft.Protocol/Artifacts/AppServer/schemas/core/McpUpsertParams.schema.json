@@ -4,9 +4,15 @@
   "title": "McpUpsertParams",
   "type": "object",
   "properties": {
+    "scope": {
+      "type": "string"
+    },
     "server": {
       "$ref": "./McpServerConfig.schema.json"
     }
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "required": [
+    "scope"
+  ]
 }

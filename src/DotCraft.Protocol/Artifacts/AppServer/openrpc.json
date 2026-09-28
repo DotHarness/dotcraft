@@ -2514,27 +2514,27 @@
       ]
     },
     {
-      "name": "import/sessions/detect",
+      "name": "import/detect",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/core/ImportSessionsDetectParams.schema.json"
+            "$ref": "./schemas/core/ImportDetectParams.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/ImportSessionsDetectResult.schema.json"
+          "$ref": "./schemas/core/ImportDetectResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
       "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "session-import",
-      "x-dotcraft-capability": "extensions.sessionImport",
+      "x-dotcraft-module": "agent-import",
+      "x-dotcraft-capability": "extensions.agentImport",
       "x-dotcraft-scope": "workspace",
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
@@ -2544,32 +2544,64 @@
         "InvalidParams",
         "InvalidRequest",
         "MethodNotFound",
-        "import_busy",
-        "import_source_unavailable"
+        "import_busy"
       ]
     },
     {
-      "name": "import/sessions/run",
+      "name": "import/history/list",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/core/ImportSessionsRunParams.schema.json"
+            "$ref": "./schemas/core/RpcEmpty.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/ImportSessionsRunResult.schema.json"
+          "$ref": "./schemas/core/ImportHistoryResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
       "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "session-import",
-      "x-dotcraft-capability": "extensions.sessionImport",
+      "x-dotcraft-module": "agent-import",
+      "x-dotcraft-capability": "extensions.agentImport",
+      "x-dotcraft-scope": "workspace",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
+      "name": "import/run",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/ImportRunParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/ImportRunResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "agent-import",
+      "x-dotcraft-capability": "extensions.agentImport",
       "x-dotcraft-scope": "workspace",
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
@@ -2579,8 +2611,7 @@
         "InvalidParams",
         "InvalidRequest",
         "MethodNotFound",
-        "import_busy",
-        "import_source_unavailable"
+        "import_busy"
       ]
     },
     {
@@ -2603,8 +2634,8 @@
       },
       "x-dotcraft-direction": "clientToServer",
       "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "session-import",
-      "x-dotcraft-capability": "extensions.sessionImport",
+      "x-dotcraft-module": "agent-import",
+      "x-dotcraft-capability": "extensions.agentImport",
       "x-dotcraft-scope": "workspace",
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
@@ -2614,8 +2645,7 @@
         "InvalidParams",
         "InvalidRequest",
         "MethodNotFound",
-        "import_busy",
-        "import_source_unavailable"
+        "import_busy"
       ]
     },
     {
@@ -2638,8 +2668,8 @@
       },
       "x-dotcraft-direction": "clientToServer",
       "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "session-import",
-      "x-dotcraft-capability": "extensions.sessionImport",
+      "x-dotcraft-module": "agent-import",
+      "x-dotcraft-capability": "extensions.agentImport",
       "x-dotcraft-scope": "workspace",
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
@@ -2649,8 +2679,7 @@
         "InvalidParams",
         "InvalidRequest",
         "MethodNotFound",
-        "import_busy",
-        "import_source_unavailable"
+        "import_busy"
       ]
     },
     {

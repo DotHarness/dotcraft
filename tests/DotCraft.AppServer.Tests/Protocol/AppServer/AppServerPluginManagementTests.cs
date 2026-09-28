@@ -527,7 +527,7 @@ public sealed partial class AppServerPluginManagementTests
         using var harness = CreateHarness(mcpClientManager: manager);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpRemove, new { name = "review-tools:review" });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpRemove, new { name = "review-tools:review", scope = "workspace" });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();

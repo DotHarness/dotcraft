@@ -7,10 +7,10 @@ using Microsoft.Extensions.Logging;
 
 namespace DotCraft.SessionImport;
 
-[DotCraftModule("session-import", Priority = 57, Description = "Import chat sessions from other coding agents")]
+[DotCraftModule("agent-import", Priority = 57, Description = "Import setup and chat sessions from other coding agents")]
 public sealed partial class SessionImportModule : ModuleBase
 {
-    private const string SectionKey = "SessionImport";
+    private const string SectionKey = "AgentImport";
 
     public override bool IsEnabled(AppConfig config) => config.GetSection<SessionImportConfig>(SectionKey).Enabled;
 
@@ -21,27 +21,40 @@ public sealed partial class SessionImportModule : ModuleBase
             return [];
         var errors = new List<string>();
         if (section.SyncInterval <= TimeSpan.Zero)
-            errors.Add("SessionImport: SyncInterval must be positive.");
+            errors.Add("AgentImport: SyncInterval must be positive.");
         if (section.MaxSessionAgeDays < 1)
-            errors.Add("SessionImport: MaxSessionAgeDays must be at least 1.");
+            errors.Add("AgentImport: MaxSessionAgeDays must be at least 1.");
         if (section.MaxSessionsPerSource < 1)
-            errors.Add("SessionImport: MaxSessionsPerSource must be at least 1.");
+            errors.Add("AgentImport: MaxSessionsPerSource must be at least 1.");
         return errors;
     }
 
     public override void ConfigureServices(IServiceCollection services, ModuleContext context)
     {
         var section = context.Config.GetSection<SessionImportConfig>(SectionKey);
+        services.TryAddSingleton<ImportedSetupRuntime>();
+        services.AddSingleton<ISessionRuntimeRefresher>(sp => sp.GetRequiredService<ImportedSetupRuntime>());
+        services.AddSingleton<ISessionServiceConsumer>(sp => sp.GetRequiredService<ImportedSetupRuntime>());
         services.AddSingleton<ISessionImportSource>(_ => new ClaudeCodeSessionSource(
             EnvironmentRoot("CLAUDE_CONFIG_DIR") ?? HomeRoot(".claude")));
         services.AddSingleton<ISessionImportSource>(_ => new CodexSessionSource(
             EnvironmentRoot("CODEX_HOME") ?? HomeRoot(".codex")));
         services.AddSingleton<ISessionImportSource>(_ => new CursorSessionSource(HomeRoot(".cursor")));
+        services.TryAddSingleton(_ => new SetupImportService(new SetupImportPaths(
+            context.Paths.WorkspacePath, context.Paths.Data.RootPath,
+            Path.GetDirectoryName(UserConfigPath(context.Config))!,
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            new Dictionary<string, string>
+            {
+                ["claude-code"] = EnvironmentRoot("CLAUDE_CONFIG_DIR") ?? HomeRoot(".claude"),
+                ["codex"] = EnvironmentRoot("CODEX_HOME") ?? HomeRoot(".codex"),
+                ["cursor"] = HomeRoot(".cursor")
+            })));
         services.TryAddSingleton(sp => new SessionImportService(
             new SessionImportServiceOptions(context.Paths.WorkspacePath, context.Paths.Data.RootPath, section),
             new SessionImportSettingsStore(UserConfigPath(context.Config), WorkspaceConfigPath(context)),
             sp.GetServices<ISessionImportSource>(),
-            sp.GetService<ILogger<SessionImportService>>()));
+            sp.GetService<ILogger<SessionImportService>>(), sp.GetRequiredService<SetupImportService>()));
         services.AddSingleton<ISessionServiceConsumer>(sp => sp.GetRequiredService<SessionImportService>());
         services.TryAddSingleton(sp => new SessionImportSyncRuntime(sp.GetRequiredService<SessionImportService>()));
     }

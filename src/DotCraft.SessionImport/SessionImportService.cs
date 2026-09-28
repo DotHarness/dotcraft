@@ -27,12 +27,15 @@ public sealed partial class SessionImportService : ISessionServiceConsumer
     private bool _syncQueued;
     private CancellationTokenSource _passLifetime = new();
     private SessionImportUserSettings _userSettings;
+    private readonly SetupImportService? _setup;
+    private readonly ImportHistoryStore _history;
 
     public SessionImportService(
         SessionImportServiceOptions options,
         SessionImportSettingsStore settingsStore,
         IEnumerable<ISessionImportSource> sources,
-        ILogger<SessionImportService>? logger = null)
+        ILogger<SessionImportService>? logger = null,
+        SetupImportService? setup = null)
     {
         _options = options;
         _settingsStore = settingsStore;
@@ -41,11 +44,13 @@ public sealed partial class SessionImportService : ISessionServiceConsumer
         _identity = SessionImportIdentity.Create(options.WorkspacePath);
         _logger = logger ?? NullLogger<SessionImportService>.Instance;
         _userSettings = settingsStore.ReadUserSettings();
+        _setup = setup;
+        _history = new ImportHistoryStore(settingsStore.UserDataPath, settingsStore.WorkspaceDataPath);
     }
 
-    public event Action<Contract.ImportSessionsProgressNotification>? Progress;
+    public event Action<Contract.ImportProgressNotification>? Progress;
 
-    public event Action<Contract.ImportSessionsCompletedNotification>? Completed;
+    public event Action<Contract.ImportCompletedNotification>? Completed;
 
     public event Action? SyncActivated;
 
@@ -53,7 +58,9 @@ public sealed partial class SessionImportService : ISessionServiceConsumer
 
     public TimeSpan SyncInterval => _options.Config.SyncInterval;
 
-    public bool IsSyncActive => _userSettings.SyncEnabled && !_settingsStore.ReadWorkspaceOptOut();
+    public bool IsSyncActive => _settingsStore.ReadUserSettings().SyncEnabled && !_settingsStore.ReadWorkspaceOptOut();
+
+    public IReadOnlyList<Contract.ImportCompletedNotification> ReadHistory() => _history.Read();
 
     public void SetSessionService(ISessionService service) => _sessions = service;
 
@@ -61,7 +68,7 @@ public sealed partial class SessionImportService : ISessionServiceConsumer
         IReadOnlyList<string>? sources,
         CancellationToken ct = default)
     {
-        var selected = ResolveSources(sources ?? SupportedSources, requireAvailable: false);
+        var selected = ResolveSources(sources ?? SupportedSources);
         var context = await CreateContextAsync(ct).ConfigureAwait(false);
         var detections = new List<Contract.ImportSourceDetection>();
         foreach (var source in selected)
@@ -70,32 +77,39 @@ public sealed partial class SessionImportService : ISessionServiceConsumer
             var detected = available
                 ? await DetectSourceAsync(source, context, retainSessions: false, ct).ConfigureAwait(false)
                 : [];
+            var setup = _setup?.Scan(source.SourceId) ?? [];
+            var items = detected.Select(static entry => entry.Candidate).Concat(setup.Select(item => item.Candidate)).ToArray();
             detections.Add(new Contract.ImportSourceDetection
             {
                 Source = source.SourceId,
-                Available = available,
-                Sessions = detected.Select(static entry => entry.Candidate).ToArray(),
-                ImportableCount = detected.Count(static entry => IsImportable(entry.Candidate.State))
+                Available = available || setup.Count > 0,
+                Items = items,
+                ImportableCount = items.Count(static entry => IsImportable(entry.State))
             });
         }
 
-        await SaveDetectionUpdatesAsync(context).ConfigureAwait(false);
         return detections;
     }
 
-    public string Run(IReadOnlyList<string> sources, IReadOnlyList<string>? sessionIds)
+    public string Run(
+        IReadOnlyList<string> sources,
+        Contract.ImportSelection selection,
+        IReadOnlyList<Contract.ImportItemReference> items)
     {
         if (sources.Count == 0)
             throw new ArgumentException("At least one source is required.", nameof(sources));
+        ImportCategories.Validate(selection);
         var request = new PassRequest(
             SessionImportIdentity.NewImportId(),
             ManualTrigger,
-            ResolveSources(sources, requireAvailable: true),
-            sessionIds?.ToHashSet(StringComparer.OrdinalIgnoreCase));
+            ResolveSources(sources),
+            selection,
+            items);
         lock (_passLock)
         {
             if (_activePass is not null)
                 throw new SessionImportException(SessionImportErrorCodes.Busy, "An import is already running in this workspace.");
+            UpdateSettings(null, _settingsStore.ReadUserSettings().Sources.Union(sources).ToArray(), selection);
             _activePass = StartPassLoop(request);
         }
 
@@ -136,26 +150,29 @@ public sealed partial class SessionImportService : ISessionServiceConsumer
 
     public Contract.ImportSettings GetSettings()
     {
-        var settings = _userSettings;
+        var settings = _settingsStore.ReadUserSettings();
         return new Contract.ImportSettings
         {
             SyncEnabled = settings.SyncEnabled,
             Sources = settings.Sources,
+            Selection = settings.Selection,
+            HasImported = _history.Read().Count > 0,
             SyncIntervalMinutes = (int)Math.Clamp(SyncInterval.TotalMinutes, 0, int.MaxValue),
             LastSyncAt = _ledger.TryRead()?.LastSyncAt is { } lastSyncAt ? Optional<DateTimeOffset>.FromValue(lastSyncAt) : default,
             WorkspaceOptOut = _settingsStore.ReadWorkspaceOptOut()
         };
     }
 
-    public Contract.ImportSettings UpdateSettings(bool? syncEnabled, IReadOnlyList<string>? sources)
+    public Contract.ImportSettings UpdateSettings(bool? syncEnabled, IReadOnlyList<string>? sources, Contract.ImportSelection? selection = null)
     {
         var knownSources = sources is null ? null : ValidateSources(sources);
+        if (selection != null) ImportCategories.Validate(selection);
         bool activated;
         lock (_settingsLock)
         {
-            _settingsStore.WriteUserSettings(syncEnabled, knownSources);
+            _settingsStore.WriteUserSettings(syncEnabled, knownSources, selection);
             var previous = _userSettings;
-            _userSettings = new SessionImportUserSettings(syncEnabled ?? previous.SyncEnabled, knownSources ?? previous.Sources);
+            _userSettings = _settingsStore.ReadUserSettings();
             activated = !previous.SyncEnabled && _userSettings.SyncEnabled;
         }
 
@@ -167,20 +184,13 @@ public sealed partial class SessionImportService : ISessionServiceConsumer
     private ISessionService Sessions =>
         _sessions ?? throw new InvalidOperationException("The session service is not available yet.");
 
-    private IReadOnlyList<ISessionImportSource> ResolveSources(IReadOnlyList<string> sourceIds, bool requireAvailable)
+    private IReadOnlyList<ISessionImportSource> ResolveSources(IReadOnlyList<string> sourceIds)
     {
         var resolved = new List<ISessionImportSource>();
         foreach (var sourceId in ValidateSources(sourceIds))
         {
             var source = _sources.FirstOrDefault(candidate => candidate.SourceId == sourceId)
                 ?? throw new ArgumentException($"Unsupported import source: {sourceId}");
-            if (requireAvailable && !source.IsAvailable)
-            {
-                throw new SessionImportException(
-                    SessionImportErrorCodes.SourceUnavailable,
-                    $"No {sourceId} session store was found on the server machine.");
-            }
-
             resolved.Add(source);
         }
 

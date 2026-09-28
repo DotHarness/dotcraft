@@ -1,19 +1,16 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Mcp;
 using DotCraft.Plugins;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
-using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 using Microsoft.Extensions.Logging;
 
 namespace DotCraft.AppServer;
 
 /// <summary>
-/// Shared AppServer MCP configuration/runtime helper. It owns the workspace MCP persistence and
+/// Shared AppServer MCP configuration/runtime helper. It owns scoped MCP persistence and
 /// effective-runtime reconnect logic that is used by both <c>mcp/*</c> and plugin mutations.
 /// </summary>
-internal sealed class AppServerMcpConfigService(
+internal sealed partial class AppServerMcpConfigService(
     IAppConfigMonitor? appConfigMonitor,
     McpClientManager? mcpClientManager,
     string? hostWorkspacePath,
@@ -36,7 +33,7 @@ internal sealed class AppServerMcpConfigService(
 
         return (source ?? [])
             .Where(server => !server.ReadOnly)
-            .Select(CloneAsWorkspaceServer)
+            .Select(server => server.Clone())
             .ToList();
     }
 
@@ -44,49 +41,8 @@ internal sealed class AppServerMcpConfigService(
     {
         return (appConfigMonitor?.Current.McpServers ?? [])
             .Where(server => !server.ReadOnly)
-            .Select(CloneAsWorkspaceServer)
+            .Select(server => server.Clone())
             .ToList();
-    }
-
-    public void SetCurrentWorkspaceServers(IReadOnlyList<McpServerConfig> servers)
-    {
-        if (appConfigMonitor == null)
-            return;
-
-        appConfigMonitor.Current.McpServers = servers
-            .Select(CloneAsWorkspaceServer)
-            .ToList();
-    }
-
-    public async Task SaveWorkspaceServersAsync(
-        IReadOnlyList<McpServerConfig> servers,
-        CancellationToken ct)
-    {
-        _ = ct;
-        if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound("mcp/*");
-
-        var configPath = Path.Combine(workspaceCraftPath, "config.json");
-        Directory.CreateDirectory(workspaceCraftPath);
-        var root = WorkspaceConfigEditor.LoadObject(configPath);
-
-        var key = WorkspaceConfigEditor.FindCaseInsensitiveKey(root, "McpServers") ?? "McpServers";
-        var serverObject = new JsonObject();
-        foreach (var server in servers
-                     .Where(server => !server.ReadOnly && server.Origin.IsWorkspace)
-                     .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            if (string.IsNullOrWhiteSpace(server.Name))
-                continue;
-
-            var workspaceServer = CloneAsWorkspaceServer(server);
-            var serverNode = JsonSerializer.SerializeToNode(workspaceServer, AppConfig.SerializerOptions);
-            if (serverNode != null)
-                serverObject[workspaceServer.Name] = serverNode;
-        }
-
-        root[key] = serverObject;
-        WorkspaceConfigEditor.WriteObject(configPath, root);
     }
 
     public async Task ReconnectEffectiveRuntimeAsync(
@@ -100,7 +56,7 @@ internal sealed class AppServerMcpConfigService(
 
         var current = appConfigMonitor?.Current ?? new AppConfig();
         current.McpServers = workspaceServers
-            .Select(CloneAsWorkspaceServer)
+            .Select(server => server.Clone())
             .ToList();
 
         var effective = PluginMcpServerResolver.LoadEffectiveServers(
@@ -120,10 +76,4 @@ internal sealed class AppServerMcpConfigService(
             : null)
         ?? throw new InvalidOperationException("The AppServer workspace path is not configured.");
 
-    public static McpServerConfig CloneAsWorkspaceServer(McpServerConfig server)
-    {
-        var clone = server.Clone();
-        clone.Origin = McpServerOrigin.Workspace();
-        return clone;
-    }
 }

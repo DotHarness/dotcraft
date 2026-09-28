@@ -43,7 +43,7 @@ internal sealed class DotNetPluginSmokeProtocol
     public Task<PluginMutation> InstallLocalAsync(string path, string expectedId) =>
         MutateAsync(
             DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal,
-            new { path },
+            new { path, scope = "workspace" },
             expectedId);
 
     public Task<PluginMutation> SetTrustedAsync(string id, bool trusted) =>

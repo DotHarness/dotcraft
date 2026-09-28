@@ -147,7 +147,7 @@ public sealed partial class AppServerPluginManagementTests
         var source = Path.Combine(_tempRoot, "source-plugin");
         WriteSkillOnlyPlugin(source);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source, scope = "workspace" });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -174,7 +174,7 @@ public sealed partial class AppServerPluginManagementTests
         var source = Path.Combine(_tempRoot, "not-a-plugin");
         Directory.CreateDirectory(source);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source, scope = "workspace" });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -195,7 +195,7 @@ public sealed partial class AppServerPluginManagementTests
         {
             WriteSkillOnlyPlugin(source);
 
-            var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = relativeSource });
+            var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = relativeSource, scope = "workspace" });
             await harness.ExecuteRequestAsync(msg);
 
             using var response = await harness.Transport.ReadNextSentAsync();

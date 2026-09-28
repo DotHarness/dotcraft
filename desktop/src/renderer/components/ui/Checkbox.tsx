@@ -1,9 +1,10 @@
-import { Check } from 'lucide-react'
-import { useId, type CSSProperties, type JSX, type ReactNode } from 'react'
+import { Check, Minus } from 'lucide-react'
+import { useEffect, useId, useRef, type CSSProperties, type JSX, type ReactNode } from 'react'
 
 export interface CheckboxProps {
   id?: string
   checked: boolean
+  indeterminate?: boolean
   onChange: (checked: boolean) => void
   disabled?: boolean
   label?: ReactNode
@@ -14,6 +15,7 @@ export interface CheckboxProps {
 export function Checkbox({
   id,
   checked,
+  indeterminate = false,
   onChange,
   disabled = false,
   label,
@@ -21,10 +23,12 @@ export function Checkbox({
   style
 }: CheckboxProps): JSX.Element {
   const generatedId = useId()
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => { if (inputRef.current) inputRef.current.indeterminate = indeterminate }, [indeterminate])
   const inputId = id ?? generatedId
   const control = (
     <span className="dc-checkbox__control" aria-hidden="true">
-      {checked && <Check size={13} strokeWidth={2.5} />}
+      {indeterminate ? <Minus size={13} strokeWidth={2.5} /> : checked && <Check size={13} strokeWidth={2.5} />}
     </span>
   )
 
@@ -36,6 +40,7 @@ export function Checkbox({
       style={style}
     >
       <input
+        ref={inputRef}
         id={inputId}
         type="checkbox"
         checked={checked}

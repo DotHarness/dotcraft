@@ -28,7 +28,8 @@ public static class PluginMcpServerResolver
             .SelectMany(plugin => PluginMcpServerLoader.LoadPluginServers(plugin, allDiagnostics))
             .ToList();
         diagnostics = allDiagnostics;
-        return BuildEffectiveServers(config.McpServers, pluginServers);
+        return BuildEffectiveServers(DotCraft.Mcp.McpScopeStore.WithOrigins(config.McpServers,
+            paths.Data.Resolve("config.json"), config.GlobalConfigPath), pluginServers);
     }
 
     public static IReadOnlyList<McpServerConfig> LoadEffectiveServers(
@@ -38,7 +39,8 @@ public static class PluginMcpServerResolver
         out IReadOnlyList<PluginDiagnostic> diagnostics)
     {
         var allDiagnostics = new List<PluginDiagnostic>();
-        var discovery = new PluginDiscoveryService().Discover(config, workspacePath, botPath);
+        var userData = string.IsNullOrEmpty(config.GlobalConfigPath) ? null : Path.GetDirectoryName(config.GlobalConfigPath);
+        var discovery = new PluginDiscoveryService(userData == null ? null : Path.Combine(userData, "plugins"), craftHome: userData).Discover(config, workspacePath, botPath);
         allDiagnostics.AddRange(discovery.Diagnostics);
 
         var pluginServers = new List<McpServerConfig>();
@@ -46,7 +48,8 @@ public static class PluginMcpServerResolver
             pluginServers.AddRange(PluginMcpServerLoader.LoadPluginServers(plugin, allDiagnostics));
 
         diagnostics = allDiagnostics;
-        return BuildEffectiveServers(config.McpServers, pluginServers);
+        return BuildEffectiveServers(DotCraft.Mcp.McpScopeStore.WithOrigins(config.McpServers,
+            Path.Combine(botPath, "config.json"), config.GlobalConfigPath), pluginServers);
     }
 
     public static IReadOnlyList<McpServerConfig> BuildEffectiveServers(
@@ -62,7 +65,6 @@ public static class PluginMcpServerResolver
                 continue;
 
             var clone = server.Clone();
-            clone.Origin = McpServerOrigin.Workspace();
             result.Add(clone);
         }
 

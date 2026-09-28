@@ -18,7 +18,7 @@ public sealed partial class SessionImportService
 
     private sealed record DetectedSession(
         SessionImportCandidateFile File,
-        Contract.ImportSessionCandidate Candidate,
+        Contract.ImportCandidate Candidate,
         SessionImportLedgerRecord? Record,
         ImportedSession? Session);
 
@@ -79,9 +79,11 @@ public sealed partial class SessionImportService
                 continue;
 
             var state = await ClassifyAsync(file, session, record, context, ct).ConfigureAwait(false);
-            var candidate = new Contract.ImportSessionCandidate
+            var candidate = new Contract.ImportCandidate
             {
                 Source = session.Source,
+                Fingerprint = session.ContentSha256,
+                TargetPath = Path.Combine(_options.CraftDataPath, "threads"),
                 SourceId = session.SourceId,
                 SourcePath = session.SourcePath,
                 Title = session.Title,

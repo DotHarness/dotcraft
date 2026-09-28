@@ -5,7 +5,7 @@ using System.Text;
 namespace DotCraft.Plugins;
 
 /// <summary>Hashes and copies bounded plugin content trees without following filesystem links.</summary>
-internal static class PluginContentTree
+public static class PluginContentTree
 {
     private const int MaxEntries = 20_000;
     private const int MaxFiles = 10_000;
