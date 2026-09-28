@@ -497,6 +497,14 @@ A Host that declines `openSession` answers `sessionFailed` with a stable code, a
 that code to the local client as the bridge's close description; the codes a screen view may carry
 are listed in Remote Screen View §6.2.
 
+File transfer errors distinguish `FileNotFound`, `FileAccessDenied`, `FileInUse`,
+`TransferSourceChanged`, and `FileIoError`, with the operation and safe reason in the fallback.
+Host diagnostics retain the original exception and request identity. Connection, lease, cancellation
+and unknown-commit classifications take precedence over filesystem errors.
+Malformed or incompatible responses are `ProtocolMismatch`, not evidence that the Host is offline.
+A commit without a trustworthy acknowledgement remains `RemoteOutcomeUnknown` and is not retried.
+Host logs retain exception stacks and inner exceptions, not just their outer messages.
+
 ## 9. Pairing, authentication, and local state
 
 Pairing is initiated by the Agent side. `invite` asks the Hub to mint an invite: an opaque,

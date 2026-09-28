@@ -81,7 +81,7 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
         {
         }
 
-        var process = Process.Start(CreateStartInfo(request, shell))
+        var process = Process.Start(TerminalProcessStartInfo.Create(request, shell))
             ?? throw new InvalidOperationException("Failed to start process.");
 
         var terminal = new ActiveTerminal(
@@ -185,8 +185,16 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
         int? maxOutputChars = null,
         CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
+        if (string.IsNullOrEmpty(input))
+            return await ReadAsync(sessionId, NormalizeYield(yieldTimeMs), maxOutputChars, ct).ConfigureAwait(false);
         if (!_active.TryGetValue(sessionId, out var active))
+        {
+            _ = GetMetadata(sessionId);
             throw new KeyNotFoundException($"Background terminal '{sessionId}' is not running.");
+        }
+        if (active.Process.HasExited)
+            throw new InvalidOperationException($"Background terminal '{sessionId}' has exited and cannot accept input.");
 
         if (!string.IsNullOrEmpty(input))
         {
@@ -194,8 +202,7 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
             await active.Process.StandardInput.FlushAsync(ct).ConfigureAwait(false);
         }
 
-        await Task.Delay(NormalizeYield(yieldTimeMs), ct).ConfigureAwait(false);
-        return active.CreateSnapshot(maxOutputChars: maxOutputChars ?? _config.DefaultReadMaxOutputChars);
+        return await ReadAsync(sessionId, NormalizeYield(yieldTimeMs), maxOutputChars, ct).ConfigureAwait(false);
     }
 
     public ShellStdinSession? GetStdinSession(string sessionId) =>
@@ -302,36 +309,6 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
         }
     }
 
-    private static ProcessStartInfo CreateStartInfo(BackgroundTerminalStartRequest request, ShellIdentity shell)
-    {
-        var psi = new ProcessStartInfo
-        {
-            WorkingDirectory = request.WorkingDirectory,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8
-        };
-
-        psi.FileName = shell.ExecutablePath;
-        switch (shell.Family)
-        {
-            case ShellFamily.Cmd:
-                psi.Arguments = "/d /s /c \"" + request.Command.Replace("\"", "\\\"") + "\"";
-                break;
-            case ShellFamily.PowerShell:
-                var script = "$ProgressPreference = 'SilentlyContinue'\n[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\n" + request.Command;
-                var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
-                psi.Arguments = $"-NoLogo -NoProfile -NonInteractive -EncodedCommand {encoded}";
-                break;
-        }
-
-        return psi;
-    }
-
     private static ShellIdentity ResolveHostDefaultShell()
     {
         if (!ShellIdentityResolver.Host.TryResolve(null, out var identity, out var reason))
@@ -399,9 +376,9 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
         if (!completionReserved && !terminal.TryBeginCompletion())
             return;
 
+        Exception? outputFailure = null;
         try
         {
-            Exception? outputFailure = null;
             try
             {
                 await terminal.DrainOutputAsync().ConfigureAwait(false);
@@ -415,21 +392,31 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
             }
             terminal.FinishCompletion(status, exitCode);
 
-            _active.TryRemove(terminal.SessionId, out _);
             var metadata = terminal.ToMetadata(status);
             _metadata[terminal.SessionId] = metadata;
-            await PersistMetadataAsync(metadata, CancellationToken.None).ConfigureAwait(false);
-            Raise("completed", terminal.CreateSnapshot(maxOutputChars: _config.DefaultReadMaxOutputChars), null);
-            if (outputFailure == null)
-                terminal.SignalCompletionPublished();
-            else
-                terminal.SignalCompletionFailed(outputFailure);
+            try
+            {
+                await PersistMetadataAsync(metadata, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _logger?.LogWarning(ex, "Terminal metadata persistence failed for {SessionId}.", terminal.SessionId);
+            }
         }
         catch (Exception ex)
         {
             terminal.SignalCompletionFailed(ex);
             throw;
         }
+        finally
+        {
+            _active.TryRemove(terminal.SessionId, out _);
+        }
+        if (outputFailure == null)
+            terminal.SignalCompletionPublished();
+        else
+            terminal.SignalCompletionFailed(outputFailure);
+        Raise("completed", terminal.CreateSnapshot(maxOutputChars: _config.DefaultReadMaxOutputChars), null);
     }
 
     private async Task PersistMetadataAsync(BackgroundTerminalMetadata metadata, CancellationToken ct)

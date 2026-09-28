@@ -62,10 +62,10 @@ public sealed partial class RemoteExecutionSession
             RemoteToolHostProtocol.JsonOptions,
             default,
             cancellationToken).ConfigureAwait(false);
-        if (!response.Success || response.Result is null)
-            throw new RemoteToolHostException(
-                response.Error?.Code ?? RemoteToolErrorCodes.ProtocolMismatch,
-                response.Error?.Message ?? $"Remote extension '{method}' returned no result.");
+        if (response is { Success: false, Error: { } error })
+            throw new RemoteToolHostException(error.Code, error.Message);
+        if (response is not { Success: true, Result: not null })
+            throw new JsonException($"Remote extension '{method}' returned an incomplete response.");
         return response.Result;
     }
 
@@ -76,6 +76,9 @@ public sealed partial class RemoteExecutionSession
     {
         if (exception is RemoteToolHostException typed)
             return typed;
+        if (exception is JsonException)
+            return new RemoteToolHostException(RemoteToolErrorCodes.ProtocolMismatch,
+                exception.Message, invocationId, exception);
         return closeDescription switch
         {
             SatelliteWire.OfflineClose => new RemoteToolHostException(

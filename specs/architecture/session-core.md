@@ -725,13 +725,15 @@ text or JSON. Provider-specific compatibility projection may replace historical
 tool media with the textual fallback. It never serializes `structuredContent`
 or `_meta` into provider history.
 
-A successful `WriteFile` or `EditFile` call attaches its exact file change as
-`structuredContent`. The model-visible `result` is unchanged, and a call that does
-not write the file attaches nothing:
+`WriteFile` and `EditFile` attach their write outcome and available exact file change as
+`structuredContent`. The root `writeState` and optional `warnings` describe the operation
+independently of the diff.
 
 ```
 {
   "kind": "fileChange",
+  "writeState": "notApplied" | "unknown" | "applied",
+  "warnings": [{ "code": string, "message": string }],
   "changes": [
     {
       "path": string,       // Display path of the written file
@@ -745,6 +747,10 @@ not write the file attaches nothing:
 }
 ```
 
+- `writeState` is `notApplied` before writing, `unknown` if writing fails, and `applied` on
+  completion. A diff reporting failure preserves a successful write and emits a
+  `file_change_report_failed` warning in both the result text and structured payload.
+  Failed or unavailable diffs have an empty `changes` array, not invented line counts.
 - `path` is workspace-relative with `/` separators when the file is under the
   tool's workspace root, and otherwise the absolute path with `/` separators. A
   Remote Tool Host uses its own workspace root.
@@ -2236,6 +2242,18 @@ provides previews independently of the complete disk log. Real-time output is li
 delta, 10,000 deltas per terminal, and the configured live-byte budget. Exhaustion stops data
 notifications while logging and process execution continue. Both running and recovered previews
 remain bounded; completion follows output drain and log flush.
+
+Empty `WriteStdin` input reads the terminal snapshot, including final output and exit code after
+completion or recovery, until retention expires. Nonempty input to an exited terminal fails.
+An exited process releases its active entry even if metadata persistence fails. Its in-memory final
+snapshot remains readable; metadata failures are diagnosed without changing the known exit code.
+Completion notifications must allow observers to read that final snapshot immediately.
+Shell commands preserve their quoting. Output uses UTF-8 replacement decoding without encoding
+detection; stream boundaries must not split characters. Logs and events use UTF-8.
+
+A returned command result is a successful tool invocation even when its exit code is nonzero.
+The exit code and CommandExecution status describe the command outcome. Launch, authorization,
+execution infrastructure, timeout and cancellation failures remain tool failures.
 
 Bidirectional capabilities are outside the session model.
 

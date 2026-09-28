@@ -39,7 +39,7 @@ public sealed class InlineVisualizationViewLifecycleTests : IDisposable
             : throw new InvalidOperationException("The authoring directory was not bound.");
         var fileTools = new FileTools(_root, requireApprovalOutsideWorkspace: false);
         var writeResult = await fileTools.WriteFile(Path.Combine(directory, "chart.html"), "<div>chart</div>");
-        Assert.StartsWith("Successfully wrote", writeResult, StringComparison.Ordinal);
+        Assert.True(writeResult.Success, writeResult.Error?.Message);
 
         using var handler = new InlineVisualizationRequestHandler(sessions, connection, assets, runtime);
         var table = new AppServerMethodTable();

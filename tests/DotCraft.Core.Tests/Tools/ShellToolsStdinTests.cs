@@ -26,7 +26,8 @@ public sealed class ShellToolsStdinTests : IDisposable
 
         var result = await tools.WriteStdin("term_1", "rm -rf build; Remove-Item build -Force\n");
 
-        Assert.Contains("rejected", result);
+        Assert.False(result.Success);
+        Assert.Contains("rejected", result.Content);
         Assert.Empty(terminals.Writes);
     }
 

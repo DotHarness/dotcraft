@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Lsp;
 using DotCraft.RemoteTools;
@@ -94,14 +95,18 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
     private readonly CancellationTokenSource _shutdown = new();
     private readonly List<Task> _sessions = [];
     private readonly List<Stream> _streams = [];
+    private readonly Func<string, JsonNode?, JsonNode?>? _rewriteResponse;
 
     public RemoteToolHostTestServer(
         RemoteToolHostStorage storage,
         string peerId = "sat_test",
         string? reportedPeerId = null,
-        IRemoteToolApprovalPresenter? ownerApprovals = null)
+        IRemoteToolApprovalPresenter? ownerApprovals = null,
+        Action<RemoteToolHostDiagnostic>? diagnostic = null,
+        Func<string, JsonNode?, JsonNode?>? rewriteResponse = null)
     {
         _storage = storage;
+        _rewriteResponse = rewriteResponse;
         PeerId = peerId;
         ReportedPeerId = reportedPeerId ?? peerId;
         var state = storage.LoadHostState();
@@ -113,7 +118,7 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
                 AuthorizationRevision = 1
             }] });
         Leases = new WorkspaceLeaseManager();
-        _handlers = new RemoteToolHostExecutionHost(storage, Leases, approvals: ownerApprovals);
+        _handlers = new RemoteToolHostExecutionHost(storage, Leases, approvals: ownerApprovals, diagnostic: diagnostic);
         Directory = new TestDirectory(this);
     }
 
@@ -123,6 +128,12 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
     public IRemoteToolHostDirectory Directory { get; }
 
     public RemoteToolHostClient CreateClient() => new(Directory);
+
+    public void DropConnections()
+    {
+        lock (_streams)
+            foreach (var stream in _streams) stream.Dispose();
+    }
 
     /// <summary>Opens an MCP session that bypasses the client so raw protocol framing can be tested.</summary>
     public async Task<McpClient> ConnectRawAsync(CancellationToken cancellationToken = default)
@@ -174,7 +185,22 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
         try
         {
             await using var handlers = _handlers.CreateSession(ReportedPeerId);
-            await RemoteToolHostMcpSession.RunAsync(stream, handlers, _shutdown.Token);
+            if (_rewriteResponse is null)
+            {
+                await RemoteToolHostMcpSession.RunAsync(stream, handlers, _shutdown.Token);
+                return;
+            }
+            var options = RemoteToolHostServerOptions.Create(handlers);
+#pragma warning disable MCPEXP002
+            options.RequestHandlers = options.RequestHandlers!.Select(handler => new McpServerRequestHandler
+            {
+                Method = handler.Method,
+                Handler = async (request, ct) => _rewriteResponse(handler.Method, await handler.Handler(request, ct))
+            }).ToList();
+#pragma warning restore MCPEXP002
+            await using var transport = new StreamServerTransport(stream, stream, RemoteToolHostServerOptions.ServerName, loggerFactory: null);
+            await using var server = McpServer.Create(transport, options, loggerFactory: null, serviceProvider: null);
+            await server.RunAsync(_shutdown.Token);
         }
         catch (Exception)
         {

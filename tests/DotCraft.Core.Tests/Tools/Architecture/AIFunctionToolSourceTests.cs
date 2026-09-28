@@ -133,49 +133,6 @@ public sealed class AIFunctionToolSourceTests
     }
 
     [Fact]
-    public async Task Runtime_MergesInvocationScopedAttachmentIntoOrdinaryResult()
-    {
-        var function = AIFunctionFactory.Create(
-            async () =>
-            {
-                await Task.Yield();
-                ToolResultAttachmentScope.Current!.SetStructuredContent(
-                    JsonSerializer.SerializeToElement(new { kind = "fileChange" }));
-                return "Wrote it.";
-            },
-            name: "Attach");
-
-        var result = await new AIFunctionToolRuntime(function).InvokeAsync(Context("Attach"), new JsonObject());
-
-        Assert.True(result.Success);
-        Assert.Equal("Wrote it.", result.Content);
-        Assert.Equal("fileChange", result.StructuredContent?.GetProperty("kind").GetString());
-    }
-
-    [Fact]
-    public async Task Runtime_ReturnsExplicitEnvelopeWithoutMergingAttachment()
-    {
-        var envelope = ToolExecutionResult.Succeeded("Explicit.");
-        var function = AIFunctionFactory.Create(
-            () =>
-            {
-                ToolResultAttachmentScope.Current!.SetStructuredContent(
-                    JsonSerializer.SerializeToElement(new { kind = "fileChange" }));
-                return envelope;
-            },
-            new AIFunctionFactoryOptions
-            {
-                Name = "Envelope",
-                MarshalResult = (value, _, _) => new ValueTask<object?>(value)
-            });
-
-        var result = await new AIFunctionToolRuntime(function).InvokeAsync(Context("Envelope"), new JsonObject());
-
-        Assert.Same(envelope, result);
-        Assert.Null(result.StructuredContent);
-    }
-
-    [Fact]
     public async Task Source_ProjectsGeneratedResultAndStreamingMetadata()
     {
         var function = GeneratedToolFunctions.ShellTools_Exec(

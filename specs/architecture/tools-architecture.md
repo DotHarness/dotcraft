@@ -286,13 +286,18 @@ runtime envelope has no generated output schema, and a null envelope is `tool_re
 Ordinary return values retain their existing serialization behavior. An explicit business result,
 including an uncertain external outcome, MUST NOT be overwritten by the adapter.
 
-A generated tool that returns an ordinary value MAY attach client-only `structuredContent` through
-a runtime-owned, invocation-scoped attachment scope. `AIFunctionToolRuntime` establishes the scope
-for each invocation and merges the attachment only into a non-envelope result; an explicit
-`ToolExecutionResult` is never overwritten. Attaching without an active scope is a no-op.
-Attachments never alter model-visible content and follow the audience rules in
-[Section 9](#9-result-and-audience-contract). `WriteFile` and `EditFile` use this scope to attach
-their per-call file change, whose shape is defined in [Session Core](session-core.md#toolresult).
+`WriteFile`, `EditFile`, `Exec`, `WriteStdin`, and `Transfer` return `ToolExecutionResult` directly.
+Success, errors, model text and structured content belong to that result.
+Ordinary-value and rich-content tools retain their own return contracts.
+
+File mutation success reflects the disk write. Subsequent diff reporting failures produce warnings
+without changing a completed write into a failure; the [file-change payload](session-core.md#toolresult)
+records the write outcome independently of the available diff.
+An unknown write outcome invalidates the local aggregate diff; a rejected write leaves it intact.
+
+Exception conversion preserves the category, supplies a nonempty fallback, and retains the original
+exception and call identity in host diagnostics. Cancellation remains cancellation. Native and remote
+results preserve failure content and structured data alongside the normalized success flag.
 
 `ReadFile`, `WriteFile`, and `EditFile` decode an existing file as UTF-8 unless a UTF-8, UTF-16, or
 UTF-32 byte-order mark selects that encoding. They return an error instead of decoding bytes that are

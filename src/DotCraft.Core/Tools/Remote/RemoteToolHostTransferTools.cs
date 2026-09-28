@@ -8,7 +8,7 @@ internal sealed class RemoteToolHostTransferTools(IRemoteToolHostClient client, 
 {
     [GeneratedTool(Name = "Transfer")]
     [Description("Upload or download files and directories between local and connected remote workspaces; directories merge into the destination.")]
-    public async Task<string> Transfer(
+    public async Task<ToolExecutionResult> Transfer(
         [Description("Upload or download.")] string direction,
         [Description("Upload source or download destination, relative to the local workspace or absolute.")] string localPath,
         [Description("Upload destination or download source, relative to the remote workspace or absolute.")] string remotePath,
@@ -22,6 +22,8 @@ internal sealed class RemoteToolHostTransferTools(IRemoteToolHostClient client, 
             : local with { WorkspacePath = scope.WorkspacePath, ApprovalService = scope.ApprovalService };
         var result = await transfer.TransferAsync(scope.ThreadId, new(direction, localPath, remotePath, overwrite),
             workspace, cancellationToken, StreamingToolInvocationRuntimeScope.ReportProgress).ConfigureAwait(false);
-        return JsonSerializer.Serialize(result, JsonSerializerOptions.Web);
+        return new(result.Success, JsonSerializer.Serialize(result, JsonSerializerOptions.Web),
+            error: result.Success ? null : new ToolError(result.ErrorCode ?? ToolErrorCodes.ExecutionFailed,
+                string.IsNullOrWhiteSpace(result.Error) ? "File transfer failed." : result.Error));
     }
 }

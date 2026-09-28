@@ -121,7 +121,7 @@ public sealed class DreamsToolProviderTests : IDisposable
         {
             ["path"] = Path.Combine(_workspace, "should-not-write.md"),
             ["content"] = "bad"
-        });
+        }, success: false);
 
         Assert.Contains("outside workspace boundary", result, StringComparison.OrdinalIgnoreCase);
         Assert.False(File.Exists(Path.Combine(_workspace, "should-not-write.md")));
@@ -184,7 +184,8 @@ public sealed class DreamsToolProviderTests : IDisposable
     private static async Task<string> InvokeToolAsync(
         EffectiveToolSnapshot snapshot,
         string name,
-        Dictionary<string, object?>? args = null)
+        Dictionary<string, object?>? args = null,
+        bool success = true)
     {
         var json = new JsonObject();
         foreach (var (key, value) in args ?? [])
@@ -194,7 +195,7 @@ public sealed class DreamsToolProviderTests : IDisposable
             new ToolName(null, name),
             json,
             new ToolInvocationRequest("thread_dream", null, $"call_{name}", ToolInvocationAudience.Model));
-        Assert.True(result.Success, result.Error?.Message);
+        Assert.Equal(success, result.Success);
         return result.Content ?? string.Empty;
     }
 }

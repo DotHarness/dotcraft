@@ -90,6 +90,9 @@ The package id is `DotCraft.Harness` and the target framework is `net10.0`. The 
 assembly boundaries and do not become dependencies on unpublished DotCraft packages. Third-party
 managed and native assets remain ordinary NuGet dependencies.
 
+The NuGet dependency graph must cover the runtime requirements of every bundled assembly.
+Consumers must not need to add the Harness's runtime dependencies themselves.
+
 A consumer installs only `DotCraft.Harness`, supplies its configuration and paths, and uses its own
 Generic Host lifecycle. It does not require a project reference to the DotCraft repository or an
 AppServer process.

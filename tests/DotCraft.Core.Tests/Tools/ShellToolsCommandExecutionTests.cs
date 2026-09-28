@@ -51,7 +51,7 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
 
         var result = await tools.Exec(command);
 
-        Assert.StartsWith("Error: Policy forbids", result, StringComparison.Ordinal);
+        Assert.StartsWith("Error: Policy forbids", result.Content, StringComparison.Ordinal);
         Assert.Same(pending, Assert.Single(completed));
         Assert.Single(turn.Items);
         Assert.Equal(ItemStatus.Completed, pending.Status);
@@ -75,23 +75,26 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
 
         var result = await tools.Exec(command);
 
-        Assert.Contains("fake-output", result);
+        Assert.Contains("fake-output", result.Content);
         Assert.Equal(command, Assert.Single(terminals.StartRequests).Command);
     }
 
-    [Fact]
-    public async Task Exec_BackgroundTerminalService_CreatesSingleCommandExecutionItem()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(7)]
+    public async Task Exec_BackgroundTerminalService_RecordsExitSeparatelyFromToolSuccess(int exitCode)
     {
         var turn = CreateTurn();
         var completed = new List<SessionItem>();
         var context = CreateRuntimeContext(turn, completed);
-        var backgroundTerminals = new FakeBackgroundTerminalService("background-ok");
+        var backgroundTerminals = new FakeBackgroundTerminalService("background-ok", exitCode: exitCode);
         using var _ = CommandExecutionRuntimeScope.Set(context);
         var tools = new ShellTools(_tempDir, backgroundTerminals);
 
         var result = await tools.Exec("echo ok");
 
-        Assert.Contains("background-ok", result);
+        Assert.True(result.Success, result.Error?.Message);
+        Assert.Contains("background-ok", result.Content);
         Assert.Single(backgroundTerminals.StartRequests);
         var item = Assert.Single(turn.Items);
         Assert.Same(item, Assert.Single(completed));
@@ -99,8 +102,8 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
         Assert.Equal(ItemStatus.Completed, item.Status);
         var payload = Assert.IsType<CommandExecutionPayload>(item.Payload);
         Assert.Equal("echo ok", payload.Command);
-        Assert.Equal("completed", payload.Status);
-        Assert.Equal(0, payload.ExitCode);
+        Assert.Equal(exitCode == 0 ? "completed" : "failed", payload.Status);
+        Assert.Equal(exitCode, payload.ExitCode);
         Assert.Contains("background-ok", payload.AggregatedOutput);
     }
 
@@ -130,7 +133,7 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
 
         var result = await tools.Exec(command);
 
-        Assert.Contains("stream-final", result);
+        Assert.Contains("stream-final", result.Content);
         var delta = Assert.IsType<CommandExecutionOutputDelta>(Assert.Single(deltas));
         Assert.Equal("stream-live" + Environment.NewLine, delta.TextDelta);
         Assert.True(delta.MirrorsTerminalOutput);
@@ -158,7 +161,7 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
 
         var result = await tools.Exec(command);
 
-        Assert.Contains("terminal-ok", result);
+        Assert.Contains("terminal-ok", result.Content);
         var request = Assert.Single(backgroundTerminals.StartRequests);
         Assert.Equal(callId, request.CallId);
         Assert.Equal(turn.ThreadId, request.ThreadId);
@@ -252,7 +255,7 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
         };
     }
 
-    private sealed class FakeBackgroundTerminalService(string output, string? outputDelta = null) : IBackgroundTerminalService
+    private sealed class FakeBackgroundTerminalService(string output, string? outputDelta = null, int exitCode = 0) : IBackgroundTerminalService
     {
         public event Action<BackgroundTerminalEvent>? TerminalEvent;
 
@@ -297,10 +300,10 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
                 Command = request.Command,
                 WorkingDirectory = request.WorkingDirectory,
                 Source = request.Source,
-                Status = BackgroundTerminalStatus.Completed,
+                Status = exitCode == 0 ? BackgroundTerminalStatus.Completed : BackgroundTerminalStatus.Failed,
                 Output = output,
                 OutputPath = Path.Combine(request.WorkingDirectory, "term_test.log"),
-                ExitCode = 0,
+                ExitCode = exitCode,
                 StartedAt = DateTimeOffset.UtcNow,
                 CompletedAt = DateTimeOffset.UtcNow,
                 WallTimeMs = 1,

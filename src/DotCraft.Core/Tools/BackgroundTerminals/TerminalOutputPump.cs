@@ -36,10 +36,12 @@ internal sealed class TerminalOutputPump(
     public (string Output, int OriginalChars, bool Truncated) Snapshot(int maxCharacters) =>
         _buffer.Snapshot(maxCharacters);
 
-    private async Task ReadAsync(StreamReader reader)
+    private async Task ReadAsync(Stream stream)
     {
         try
         {
+            using var reader = new StreamReader(stream, Encoding.UTF8,
+                detectEncodingFromByteOrderMarks: false, leaveOpen: true);
             await foreach (var text in TerminalOutputBuffer.ReadChunksAsync(reader, _readCancellation.Token))
                 await _input.Writer.WriteAsync(text, _readCancellation.Token).ConfigureAwait(false);
         }
@@ -55,7 +57,7 @@ internal sealed class TerminalOutputPump(
     {
         try
         {
-            await Task.WhenAll(ReadAsync(process.StandardOutput), ReadAsync(process.StandardError)).ConfigureAwait(false);
+            await Task.WhenAll(ReadAsync(process.StandardOutput.BaseStream), ReadAsync(process.StandardError.BaseStream)).ConfigureAwait(false);
             _input.Writer.TryComplete();
         }
         catch (Exception ex)

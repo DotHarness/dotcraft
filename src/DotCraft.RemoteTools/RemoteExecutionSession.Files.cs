@@ -1,6 +1,9 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Security;
 using DotCraft.Tools;
+using ModelContextProtocol;
+using ModelContextProtocol.Client;
 
 namespace DotCraft.RemoteTools;
 
@@ -57,6 +60,37 @@ public sealed partial class RemoteExecutionSession
         FileTransferOpened? opened = null;
         FileTransferSession? receiver = null;
         var committingRemote = false;
+        async Task<TResult> SendTransfer<TParams, TResult>(string method, TParams input) where TResult : notnull
+        {
+            try
+            {
+                return await SendAsync<TParams, TResult>(lease.Session.Client, method, input, ct).ConfigureAwait(false);
+            }
+            catch (RemoteToolHostException) { throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception exception) when (committingRemote)
+            {
+                throw new RemoteToolHostException(
+                    RemoteToolErrorCodes.RemoteOutcomeUnknown,
+                    "Remote commit outcome is unknown; it was not retried.", inner: exception);
+            }
+            catch (JsonException exception)
+            {
+                throw new RemoteToolHostException(RemoteToolErrorCodes.ProtocolMismatch,
+                    $"Invalid response to '{method}': {exception.Message}", inner: exception);
+            }
+            catch (McpProtocolException exception)
+            {
+                throw new RemoteToolHostException(ToolErrorCodes.ExecutionFailed,
+                    $"Remote request '{method}' failed ({exception.ErrorCode}): {exception.Message}", inner: exception);
+            }
+            catch (Exception exception) when (exception is ClientTransportClosedException or IOException
+                or System.Net.Sockets.SocketException or System.Net.WebSockets.WebSocketException)
+            {
+                throw new RemoteToolHostException(RemoteToolErrorCodes.HostOffline,
+                    $"Remote connection ended during '{method}': {exception.Message}", inner: exception);
+            }
+        }
         void ValidateRoute()
         {
             RequireLease(lease.Route);
@@ -65,7 +99,7 @@ public sealed partial class RemoteExecutionSession
         async Task SendPart(string method, FileTransferPart part)
         {
             ValidateRoute();
-            _ = await SendAsync<FileTransferPart, JsonObject>(lease.Session.Client, method, part, ct).ConfigureAwait(false);
+            _ = await SendTransfer<FileTransferPart, JsonObject>(method, part).ConfigureAwait(false);
         }
         void Report(string stage, bool force = false)
         {
@@ -86,8 +120,8 @@ public sealed partial class RemoteExecutionSession
             await TransferFileTree.ValidateAsync(guard, localPath, upload ? "read" : "write", ct).ConfigureAwait(false);
             var manifest = upload ? await TransferFileTree.DescribeAsync(localPath, guard, local.MaxTransferBytes, ct).ConfigureAwait(false) : null;
             ValidateRoute();
-            opened = await SendAsync<FileTransferOpen, FileTransferOpened>(lease.Session.Client, RemoteFileTransferProtocol.Open,
-                new(lease.Route.LeaseId, lease.Route.WorkspaceId, remotePath, upload, request.Overwrite, manifest), ct).ConfigureAwait(false);
+            opened = await SendTransfer<FileTransferOpen, FileTransferOpened>(RemoteFileTransferProtocol.Open,
+                new(lease.Route.LeaseId, lease.Route.WorkspaceId, remotePath, upload, request.Overwrite, manifest)).ConfigureAwait(false);
             remotePath = opened.Path;
             manifest ??= opened.Manifest;
             totalBytes = manifest.Entries.Where(static entry => !entry.IsDirectory).Sum(static entry => entry.Length);
@@ -113,7 +147,7 @@ public sealed partial class RemoteExecutionSession
                         ? Path.GetFileName(upload ? localPath : remotePath)
                         : entry.Path;
                     await using var source = upload ? TransferFileTree.OpenRead(path) : null;
-                    if (source is not null && source.Length != entry.Length) throw new IOException("Transfer source changed.");
+                    if (source is not null && source.Length != entry.Length) throw new TransferSourceChangedException("Transfer source changed.");
                     long offset = 0;
                     do
                     {
@@ -129,8 +163,8 @@ public sealed partial class RemoteExecutionSession
                         }
                         else
                         {
-                            var chunk = await SendAsync<FileTransferPart, FileTransferChunk>(lease.Session.Client,
-                                RemoteFileTransferProtocol.Read, new(opened.TransferId, index, offset), ct).ConfigureAwait(false);
+                            var chunk = await SendTransfer<FileTransferPart, FileTransferChunk>(
+                                RemoteFileTransferProtocol.Read, new(opened.TransferId, index, offset)).ConfigureAwait(false);
                             if (chunk.Base64.Length > (RemoteFileTransferProtocol.ChunkBytes + 2) / 3 * 4)
                                 throw new IOException("Remote transfer chunk exceeds the transport limit.");
                             var block = Convert.FromBase64String(chunk.Base64);
@@ -160,11 +194,13 @@ public sealed partial class RemoteExecutionSession
         }
         catch (Exception ex)
         {
+            var failure = RemoteFileErrors.FromException(ex, "File transfer");
             var code = ex is RemoteToolHostException remote ? remote.Code
                 : committingRemote ? RemoteToolErrorCodes.RemoteOutcomeUnknown
-                : ex is OperationCanceledException ? ToolErrorCodes.Cancelled : ToolErrorCodes.ExecutionFailed;
+                : lease.Lost ? RemoteToolErrorCodes.LeaseLost
+                : failure.Code;
             return new(false, request.Direction, localPath, remotePath, completed, bytes, code,
-                committingRemote && ex is not RemoteToolHostException ? "Remote commit outcome is unknown; it was not retried." : ex.Message,
+                committingRemote && ex is not RemoteToolHostException ? "Remote commit outcome is unknown; it was not retried." : failure.Message,
                 lease.Route.HostId, hostDisplayName, totalBytes, transferredBytes, totalFiles, currentFile);
         }
         finally
