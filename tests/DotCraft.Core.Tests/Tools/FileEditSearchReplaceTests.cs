@@ -18,14 +18,14 @@ public class FileEditSearchReplaceTests
     }
 
     [Fact]
-    public void Apply_WhitespaceNormalized_CollapsesSpacesInLines()
+    public void Apply_InternalWhitespaceDifference_ReturnsErrorWithoutChangingContent()
     {
         var content = "x\na  b  c\ny\n";
         var (ok, newContent, error, kind, _, _, _) = DotCraft.Tools.FileEditSearchReplace.Apply(content, "a b c", "A B C");
-        Assert.True(ok);
-        Assert.Null(error);
-        Assert.Equal("whitespace-normalized fallback", kind);
-        Assert.Equal("x\nA B C\ny\n", newContent);
+        Assert.False(ok);
+        Assert.Contains("not found", error, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(kind);
+        Assert.Equal(content, newContent);
     }
 
     [Fact]

@@ -107,7 +107,7 @@ public sealed class FileToolsEncodingTests : IDisposable
         var file = Path.Combine(_workspace, "notes.txt");
         await File.WriteAllTextAsync(file, "a\nb\n");
 
-        var result = await Tools().EditFile("notes.txt", "b", "\\uD800");
+        var result = await Tools().EditFile("notes.txt", "b", new string((char)0xD800, 1));
 
         Assert.StartsWith("Error", result.Content, StringComparison.Ordinal);
         Assert.Equal("a\nb\n", await File.ReadAllTextAsync(file));

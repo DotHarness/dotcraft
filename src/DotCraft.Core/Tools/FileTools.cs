@@ -69,7 +69,7 @@ public sealed class FileTools(
     private readonly RipgrepFileSearcher _ripgrep = new(ripgrepPath);
     private readonly TimeSpan _searchTimeout = NormalizeSearchTimeout(searchTimeout);
 
-    [Description("Read the contents of a file or list the contents of a directory. If the path is a directory, lists its entries. Supports 1-indexed offset and limit for paginated reading of text files; limit without offset starts at line 1. Text output is line-numbered and indicates whether more lines remain. Large text files require offset/limit or GrepFiles. Image files (.png, .jpg, .jpeg, .gif, .webp, .bmp) are returned as vision input for the model (full file only; offset/limit do not apply). PDF and other binary files are rejected instead of read as text.")]
+    [Description("Read a text file with line numbers, view an image (.png, .jpg, .jpeg, .gif, .webp, .bmp), or list a directory. Use offset/limit or GrepFiles for large text files. Read images without offset/limit. PDF and other binary formats are not supported.")]
     [Tool(Icon = "📄", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.ReadFile), MaxResultChars = 0)]
     [ToolRpc]
     public async Task<IList<AIContent>> ReadFile(
@@ -161,7 +161,7 @@ public sealed class FileTools(
         return value > TimeSpan.Zero ? value : TimeSpan.FromSeconds(30);
     }
 
-    [Description("Write content to a file at the given path. Creates parent directories if needed. Prefer this tool for creating new files or intentional full-file rewrites. When modifying an existing file, prefer EditFile for targeted changes.")]
+    [Description("Create or overwrite a file, creating parent directories as needed. Use EditFile for targeted changes to existing files.")]
     [Tool(Icon = "✏️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.WriteFile))]
     [ToolRpc]
     public async Task<ToolExecutionResult> WriteFile(
@@ -206,14 +206,14 @@ public sealed class FileTools(
         }
     }
 
-    [Description("Replace text in a file: provide oldText (snippet to find) and newText. Prefer a minimal unique snippet (typically 2-6 lines including nearby context) instead of large pasted blocks. For existing files, prefer targeted EditFile replacements over full-file rewrites, even when many changes are needed. Use WriteFile for new files or intentional full rewrites. When replaceAll is false (default), matching tries exact text first, then fuzzy fallbacks (line trim, indentation, collapsed whitespace, Unicode punctuation); oldText must match exactly one location unless you set replaceAll to true. Use replaceAll only when you intentionally want to replace every exact occurrence at once.")]
+    [Description("Replace a text snippet in an existing file. Copy oldText from the file, using a small snippet with enough context to identify the intended location. Use WriteFile for new files or full rewrites.")]
     [Tool(Icon = "🔄", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.EditFile))]
     [ToolRpc]
     public async Task<ToolExecutionResult> EditFile(
         [Description("The workspace-relative or absolute file path to edit.")] string path,
-        [Description("The exact snippet from the file to replace. Include enough surrounding lines to be unique when replaceAll is false.")] string oldText = "",
-        [Description("The replacement text.")] string newText = "",
-        [Description("If true, replace all exact occurrences of oldText (no fuzzy matching). Defaults to false.")] bool replaceAll = false)
+        [Description("The text to replace. Must identify one location unless replaceAll is true.")] string oldText = "",
+        [Description("The replacement text, including the intended indentation. Use an empty string to delete the matched text.")] string newText = "",
+        [Description("Replace every exact occurrence of oldText. Defaults to false.")] bool replaceAll = false)
     {
         var outcome = new FileWriteOutcome();
         try
@@ -223,12 +223,8 @@ public sealed class FileTools(
             if (validateResult != null)
                 return outcome.Fail(validateResult, ToolErrorCodes.AccessDenied);
 
-            newText = UnescapeUnicodeSequences(newText);
-
             if (string.IsNullOrEmpty(oldText))
                 return outcome.Fail("Error: oldText is required. Provide the exact snippet to find and replace.", ToolErrorCodes.InputInvalid);
-
-            oldText = UnescapeUnicodeSequences(oldText);
 
             ToolExecutionResult result;
             string? writtenContent;
@@ -263,7 +259,7 @@ public sealed class FileTools(
         }
     }
 
-    [Description("Search file contents using a regular expression pattern. Returns matching lines with file paths and line numbers. Skips binary files and .git/node_modules directories. For open-ended searches requiring multiple rounds or broad codebase exploration, use SpawnAgent instead.")]
+    [Description("Search file contents using a regular expression. Returns matching lines with file paths and line numbers. Skips binary files and .git/node_modules directories.")]
     [Tool(Icon = "🔍", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.GrepFiles), MaxResultChars = 20_000)]
     [ToolRpc]
     public async Task<string> GrepFiles(
@@ -396,7 +392,7 @@ public sealed class FileTools(
         }
     }
 
-    [Description("Find files by name pattern. Searches recursively, skipping .git and node_modules directories. Use semicolons to separate multiple patterns (e.g. \"*.cs;*.json\"). When you need to explore an unfamiliar codebase structure with multiple rounds of discovery, consider using SpawnAgent instead.")]
+    [Description("Find files by name pattern. Searches recursively, skipping .git and node_modules directories.")]
     [Tool(Icon = "📂", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.FindFiles))]
     [ToolRpc]
     public async Task<string> FindFiles(
@@ -551,17 +547,6 @@ public sealed class FileTools(
 
     private string ResolvePath(string path)
         => _fileAccessGuard.ResolvePath(path);
-
-    private static readonly Regex UnicodeEscapeRegex = new(@"\\u([0-9a-fA-F]{4})", RegexOptions.Compiled);
-
-    private static string UnescapeUnicodeSequences(string input)
-    {
-        if (!input.Contains("\\u"))
-            return input;
-
-        return UnicodeEscapeRegex.Replace(input, match =>
-            ((char)Convert.ToInt32(match.Groups[1].Value, 16)).ToString());
-    }
 
     private async Task<string?> ValidatePathAsync(string fullPath, string operation, string originalPath)
         => await _fileAccessGuard.ValidatePathAsync(fullPath, operation, originalPath);
