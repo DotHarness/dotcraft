@@ -45,7 +45,7 @@ export function usePromptSuggestion({ threadId, workspacePath, canSuggest }: Pro
         if (!disposed) {
           setEnabled(core?.workspace.promptSuggestionsEnabled
             ?? core?.userDefaults.promptSuggestionsEnabled
-            ?? false)
+            ?? true)
         }
       } catch {
         if (!disposed) setEnabled(false)

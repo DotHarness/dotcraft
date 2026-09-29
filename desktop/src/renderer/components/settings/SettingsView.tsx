@@ -701,7 +701,7 @@ export function SettingsView({
   const [applyingSubAgentModel, setApplyingSubAgentModel] = useState(false)
   const [welcomeSuggestionsEnabled, setWelcomeSuggestionsEnabled] = useState(true)
   const [applyingWelcomeSuggestions, setApplyingWelcomeSuggestions] = useState(false)
-  const [promptSuggestionsEnabled, setPromptSuggestionsEnabled] = useState(false)
+  const [promptSuggestionsEnabled, setPromptSuggestionsEnabled] = useState(true)
   const [applyingPromptSuggestions, setApplyingPromptSuggestions] = useState(false)
   const [selfLearningEnabled, setSelfLearningEnabled] = useState(true)
   const [applyingSelfLearning, setApplyingSelfLearning] = useState(false)
@@ -819,7 +819,7 @@ export function SettingsView({
       true
     setWelcomeSuggestionsEnabled(resolvedWelcomeSuggestionsEnabled)
     setPromptSuggestionsEnabled(
-      core.workspace.promptSuggestionsEnabled ?? core.userDefaults.promptSuggestionsEnabled ?? false
+      core.workspace.promptSuggestionsEnabled ?? core.userDefaults.promptSuggestionsEnabled ?? true
     )
     const resolvedSelfLearningEnabled =
       core.workspace.skillsSelfLearningEnabled ??

@@ -1017,7 +1017,7 @@ public sealed partial class AppConfig
     public sealed class PromptSuggestionsConfig
     {
         [ConfigField(Hint = "Suggest the next message in an empty Desktop composer after a completed turn.", Reload = ReloadBehavior.Hot, HasReload = true)]
-        public bool Enabled { get; set; }
+        public bool Enabled { get; set; } = true;
     }
 
     [ConfigSection("Hooks", DisplayName = "Hooks", Order = 85)]

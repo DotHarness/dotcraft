@@ -159,7 +159,7 @@ Skill 自学习示例：
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `WelcomeSuggestions.Enabled` | 根据工作区记忆和已应用的梦境生成欢迎页建议，依赖 `Memory.Enabled` | `true` |
-| `PromptSuggestions.Enabled` | 一次对话结束后，在空输入框中建议下一条消息，不依赖工作区记忆 | `false` |
+| `PromptSuggestions.Enabled` | 一次对话结束后，在空输入框中建议下一条消息，不依赖工作区记忆 | `true` |
 
 两项设置都可在 **设置 → 个性化** 中修改。输入框建议可以编辑，只有用户提交后才会发送。
 
