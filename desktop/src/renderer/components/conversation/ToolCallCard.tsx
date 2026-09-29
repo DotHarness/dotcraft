@@ -16,6 +16,7 @@ import {
 } from '../../utils/webToolDisplay'
 import { FileResultHeader, InlineDiffView } from './InlineDiffView'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { RunningShimmer } from '../ui/RunningShimmer'
 import {
   formatCollapsedToolLabel,
   formatExpandedInvocation,
@@ -479,15 +480,10 @@ export const ToolCallCard = memo(function ToolCallCard({
         label={runningResolvedPath ?? runningFilePath}
         wrapperStyle={{ minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
       >
-        <span
-          className="tool-running-gradient-text"
-          style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-        >
-          {runningDisplayLabel}
-        </span>
+        <RunningShimmer className="dc-tool-row-running-label">{runningDisplayLabel}</RunningShimmer>
       </ActionTooltip>
     ) : (
-      <span className="tool-running-gradient-text">{runningDisplayLabel}</span>
+      <RunningShimmer className="dc-tool-row-running-label">{runningDisplayLabel}</RunningShimmer>
     )
     const runningAccessory = (
       <>

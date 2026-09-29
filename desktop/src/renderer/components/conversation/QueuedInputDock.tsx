@@ -23,6 +23,7 @@ import type { QueuedTurnInput } from '../../types/conversation'
 import { isOptimisticQueuedInput } from '../../stores/optimisticMessages'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
+import { RunningShimmer } from '../ui/RunningShimmer'
 import { projectInputParts } from '../../utils/inputPresentation'
 
 const EMPTY_QUEUED_INPUTS: QueuedTurnInput[] = []
@@ -233,12 +234,9 @@ function QueuedInputDockRow({
           aria-pressed={isGuidancePending}
           aria-label={isGuidancePending ? t('composer.queueGuidancePending') : t('composer.queueGuide')}
         >
-          <span
-            className={isGuidancePending ? 'tool-running-gradient-text' : undefined}
-            style={queueGuideLabelStyle}
-          >
+          <RunningShimmer active={isGuidancePending} style={queueGuideLabelStyle}>
             {isGuidancePending ? t('composer.queueGuidancePending') : t('composer.queueGuide')}
-          </span>
+          </RunningShimmer>
         </Button>
       </ActionTooltip>
       <IconButton

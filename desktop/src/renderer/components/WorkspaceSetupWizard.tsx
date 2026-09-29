@@ -20,6 +20,7 @@ import { ProviderModelSummary } from './settings/ProviderModelSummary'
 import { ActionTooltip } from './ui/ActionTooltip'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
+import { RunningShimmer } from './ui/RunningShimmer'
 import { BootstrapImportSourceIcon } from './setup/BootstrapImportSourceIcon'
 import { centeredLaunchLogoRect, elementToLaunchLogoRect, type LaunchLogoRect } from './WorkspaceLaunchTransition'
 import {
@@ -411,8 +412,9 @@ export function WorkspaceSetupWizard({
               className="setup-wizard-logo-image"
             />
           </div>
-          <div
-            className="tool-running-gradient-text setup-wizard-kicker"
+          <RunningShimmer
+            as="div"
+            className="setup-wizard-kicker"
             style={{
               fontSize: '12px',
               fontWeight: 600,
@@ -423,7 +425,7 @@ export function WorkspaceSetupWizard({
             }}
           >
             {t('setupWizard.title')}
-          </div>
+          </RunningShimmer>
           <nav
             className="setup-stepper-row"
             aria-label={t('setupWizard.title')}

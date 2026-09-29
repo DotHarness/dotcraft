@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { RunningShimmer } from '../ui/RunningShimmer'
 import { ToolCollapseChevron } from './ToolDisclosure'
 
 interface ThinkingIndicatorProps {
@@ -54,12 +55,12 @@ export function ThinkingIndicator({
               maxWidth: '100%'
             }}
           >
-            <span
-              className={streaming ? 'tool-running-gradient-text' : undefined}
+            <RunningShimmer
+              active={streaming}
               style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
             >
               {label}
-            </span>
+            </RunningShimmer>
             {canExpand && (
               <ToolCollapseChevron expanded={expanded} visible={expanded} />
             )}

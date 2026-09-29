@@ -11,6 +11,7 @@ import {
   type RemoteFileTransferDisplay,
   type RemoteToolHostNames
 } from '../../utils/remoteToolHostDisplay'
+import { RunningShimmer } from '../ui/RunningShimmer'
 import styles from './RemoteToolHostRow.module.css'
 
 interface RemoteToolHostRowInput {
@@ -78,9 +79,9 @@ export function useRemoteToolHostRow({
     title: (
       <span className={styles.title} data-testid="remote-tool-host-row-title">
         <SatelliteDish size={13} strokeWidth={1.8} aria-hidden className={styles.glyph} />
-        <span className={running ? `${styles.label} tool-running-gradient-text` : styles.label}>
+        <RunningShimmer active={running} className={styles.label}>
           {label}
-        </span>
+        </RunningShimmer>
       </span>
     )
   }

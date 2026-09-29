@@ -1741,7 +1741,7 @@ describe('AgentResponseBlock image generation', () => {
 
     expect(screen.getByRole('status', { name: 'Generating image' })).toHaveAttribute('aria-busy', 'true')
     expect(screen.getByText('Generating image')).toBeInTheDocument()
-    expect(container.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
+    expect(container.querySelector('[data-running-shimmer]')).toBeInTheDocument()
     expect(screen.getByTestId('image-generation-skeleton')).toBeInTheDocument()
     expect(screen.queryByTestId('tool-output-image-gallery')).toBeNull()
   })
@@ -1770,7 +1770,7 @@ describe('AgentResponseBlock image generation', () => {
       `data:image/png;base64,${TEST_IMAGE_BASE64}`
     )
     expect(screen.queryByTestId('image-generation-skeleton')).toBeNull()
-    expect(container.querySelector('.tool-running-gradient-text')).toBeNull()
+    expect(container.querySelector('[data-running-shimmer]')).toBeNull()
   })
 })
 

@@ -10,6 +10,7 @@ import { Button } from '../ui/Button'
 import { CopyButton } from '../ui/CopyButton'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { IconButton } from '../ui/IconButton'
+import { RunningShimmer } from '../ui/RunningShimmer'
 import { PlanTodoStatusIcon } from '../plan/PlanTodoStatusIcon'
 
 interface CreatePlanCardProps {
@@ -115,12 +116,8 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
             lineHeight: 1.2
           }}
         >
-          {/* The icon stays outside the shimmer span: the running gradient paints
-              through background-clip: text, which an SVG stroke does not follow. */}
           <Lightbulb size={14} strokeWidth={1.8} aria-hidden style={{ flexShrink: 0 }} />
-          <span className={isRunning ? 'tool-running-gradient-text' : undefined}>
-            {badgeLabel}
-          </span>
+          <RunningShimmer active={isRunning}>{badgeLabel}</RunningShimmer>
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           {copyButton}

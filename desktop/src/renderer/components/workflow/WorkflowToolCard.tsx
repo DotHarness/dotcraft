@@ -5,6 +5,7 @@ import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { runWithoutAppNavigationRecording } from '../../stores/appNavigationStore'
 import { selectWorkflowRunEntry, useWorkflowRunStore } from '../../stores/workflowRunStore'
 import { Button } from '../ui/Button'
+import { RunningShimmer } from '../ui/RunningShimmer'
 import { WorkflowStatusGlyph, useWorkflowElapsed, workflowTone } from './workflowPresentation'
 
 interface WorkflowToolCardProps {
@@ -57,9 +58,9 @@ export function WorkflowToolCard({ threadId, runId, createdAt }: WorkflowToolCar
                 onClick={openDetails}
               >
                 <span className="dc-workflow-tool-card__phase-title">{phase.name}</span>
-                <span className={phase.status === 'running' ? 'dc-workflow-tool-card__detail tool-running-gradient-text' : 'dc-workflow-tool-card__detail'}>
+                <RunningShimmer active={phase.status === 'running'} className="dc-workflow-tool-card__detail">
                   {phase.detail ?? ''}
-                </span>
+                </RunningShimmer>
               </button>
             </div>
           ))}

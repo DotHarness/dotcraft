@@ -42,7 +42,7 @@ describe('ToolCallCard subagent result rendering', () => {
 
     const { container } = renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" turnRunning />)
 
-    expect(container.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
+    expect(container.querySelector('[data-running-shimmer]')).toBeInTheDocument()
   })
 
   it('folds WaitAgent message behind an expandable result body', () => {
@@ -89,7 +89,7 @@ describe('ToolCallCard subagent result rendering', () => {
 
     renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
-    expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
+    expect(document.querySelector('[data-running-shimmer]')).toBeInTheDocument()
     expect(document.querySelector('.dc-spinner')).toBeNull()
   })
 
@@ -108,7 +108,7 @@ describe('ToolCallCard subagent result rendering', () => {
 
     renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" turnRunning />)
 
-    expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
+    expect(document.querySelector('[data-running-shimmer]')).toBeInTheDocument()
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
   })
 
@@ -127,7 +127,7 @@ describe('ToolCallCard subagent result rendering', () => {
 
     const { container } = renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
-    expect(container.querySelector('.tool-running-gradient-text')).toBeNull()
+    expect(container.querySelector('[data-running-shimmer]')).toBeNull()
   })
 
   it('renders WaitAgent timeout as a wait timeout rather than a subagent failure', () => {

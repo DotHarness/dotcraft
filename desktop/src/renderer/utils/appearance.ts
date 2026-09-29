@@ -99,6 +99,11 @@ export function applyReduceMotion(mode: ReduceMotionMode): void {
   document.documentElement.setAttribute('data-reduce-motion', mode)
 }
 
+export function prefersReducedMotion(): boolean {
+  const configured = document.documentElement.dataset.reduceMotion
+  return configured === 'on' || (configured !== 'off' && matchMedia('(prefers-reduced-motion: reduce)').matches)
+}
+
 /**
  * Reflect the pointer-cursor preference as `data-pointer-cursors` (`true`/`false`). An explicit
  * value (not removal) lets the off state authoritatively force the native arrow over the

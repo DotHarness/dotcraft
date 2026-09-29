@@ -10,6 +10,7 @@ import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { RunningShimmer } from '../ui/RunningShimmer'
 import { formatSubAgentMeta, getSubAgentAccent } from '../../utils/subAgentPresentation'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { formatRelativeTime } from '../../utils/relativeTime'
@@ -168,9 +169,9 @@ function SubagentRow({ child, elapsedNowMs }: { child: SubAgentChild; elapsedNow
           {timeLabel && <span className={styles.time}>{timeLabel}</span>}
         </span>
         <ActionTooltip label={preview} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
-          <span className={`${styles.preview}${running ? ' tool-running-gradient-text' : ''}`}>
+          <RunningShimmer active={running} className={styles.preview}>
             {preview}
-          </span>
+          </RunningShimmer>
         </ActionTooltip>
       </span>
     </button>

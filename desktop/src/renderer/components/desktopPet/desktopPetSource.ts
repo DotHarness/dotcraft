@@ -2,6 +2,7 @@ import { normalizeLocale } from '../../../shared/locales'
 import { petPose, type PetCommand, type PetEvent, type PetPoint, type PetRect, type PetSnapshot } from '../../../shared/desktopPet'
 import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
 import { usePetStore } from '../../pet/petStore'
+import { prefersReducedMotion } from '../../utils/appearance'
 import { useVoiceStore } from '../../voice/voiceStore'
 import { findPetEditor } from './editorBridge'
 import { decidePetApproval, petVoiceOf, relayPetVoice, stopPetTurn } from './petOwnerActions'
@@ -55,11 +56,6 @@ export function petSourceOwner(): PetSourceBinding | null {
 
 export function petSourceDetached(): boolean {
   return session?.detached === true
-}
-
-export function prefersReducedMotion(): boolean {
-  const configured = document.documentElement.dataset.reduceMotion
-  return configured === 'on' || (configured !== 'off' && matchMedia('(prefers-reduced-motion: reduce)').matches)
 }
 
 export function petSourceCommand(command: PetCommand): void {

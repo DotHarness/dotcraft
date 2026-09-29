@@ -68,13 +68,6 @@
     animation: none !important;
   }
 
-  .tool-running-gradient-text {
-    background-image: none;
-    color: var(--text-primary);
-    -webkit-text-fill-color: var(--text-primary);
-    animation: none;
-  }
-
   .setup-interstitial--opening .setup-interstitial-content,
   .setup-wizard-logo-anchor,
   .setup-stepper-row,
@@ -87,24 +80,6 @@
   .workspace-launch-transition__logo,
   .workspace-setup-logo-handoff__logo {
     animation: none !important;
-  }
-
-  .setup-wizard-kicker.tool-running-gradient-text {
-    background-image: linear-gradient(
-      115deg,
-      var(--shimmer-base) 0%,
-      var(--shimmer-base) calc(50% - 22px),
-      var(--shimmer-peak) 50%,
-      var(--shimmer-base) calc(50% + 22px),
-      var(--shimmer-base) 100%
-    );
-    background-size: 240px 100%;
-    background-position: 0 50%;
-    background-clip: text;
-    -webkit-background-clip: text;
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-    animation: tool-running-gradient 3s linear infinite;
   }
 
   .welcome-screen--opening .welcome-language-switcher,

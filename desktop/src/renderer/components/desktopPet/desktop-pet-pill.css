@@ -32,9 +32,6 @@
   display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
   white-space: normal; overflow-wrap: anywhere; mask-image: none; color: var(--error);
 }
-.desktop-pet-pill[data-motion='off'] .tool-running-gradient-text {
-  animation: none; background-image: none; color: var(--text-secondary); -webkit-text-fill-color: currentColor;
-}
 .desktop-pet-pill-patch { display: flex; gap: 8px; font-size: var(--type-secondary-size); color: var(--text-dimmed); font-variant-numeric: tabular-nums; }
 .desktop-pet-pill-patch-add { color: var(--success); }
 .desktop-pet-pill-patch-del { color: var(--error); }

@@ -94,6 +94,14 @@
   white-space: nowrap;
 }
 
+.dc-tool-row-running-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dc-tool-row-accessory {
   display: inline-flex;
   flex-shrink: 0;
@@ -233,6 +241,10 @@
   outline-offset: 2px;
   border-radius: 4px;
   color: var(--text-primary);
+}
+
+.dc-subagent-chips-status {
+  display: inline-block;
 }
 
 .dc-subagent-chips-more {

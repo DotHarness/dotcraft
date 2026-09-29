@@ -520,7 +520,7 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
-    expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
+    expect(document.querySelector('[data-running-shimmer]')).toBeInTheDocument()
     fireEvent.click(screen.getByTestId('tool-row'))
     expect(screen.getByTestId('inline-diff-view')).toBeInTheDocument()
   })
@@ -574,7 +574,7 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
-    expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
+    expect(document.querySelector('[data-running-shimmer]')).toBeInTheDocument()
 
     vi.useRealTimers()
   })
@@ -597,7 +597,7 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" turnRunning />)
 
-    expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
+    expect(document.querySelector('[data-running-shimmer]')).toBeInTheDocument()
 
     vi.useRealTimers()
   })
@@ -618,7 +618,7 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
-    expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
+    expect(document.querySelector('[data-running-shimmer]')).toBeInTheDocument()
     expect(screen.getByTestId('tool-row')).toHaveTextContent('Running: echo hello')
   })
 
@@ -716,7 +716,7 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
 
-    expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
+    expect(document.querySelector('[data-running-shimmer]')).toBeInTheDocument()
 
     vi.useRealTimers()
   })
@@ -814,7 +814,7 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard threadId="thread-1" item={runningItem} turnId="turn-1" />)
 
-    expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
+    expect(document.querySelector('[data-running-shimmer]')).toBeInTheDocument()
 
     act(() => {
       vi.advanceTimersByTime(450)

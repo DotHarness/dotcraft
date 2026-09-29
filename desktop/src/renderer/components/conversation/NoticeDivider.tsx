@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { RunningShimmer } from '../ui/RunningShimmer'
 import styles from './NoticeDivider.module.css'
 
 interface NoticeDividerProps {
@@ -14,7 +15,7 @@ export function NoticeDivider({ ariaLabel, icon, title, detail, active = false }
     <span className={styles.line} aria-hidden />
     <span className={styles.label}>
       <span className={styles.icon} aria-hidden>{icon}</span>
-      <span className={active ? 'tool-running-gradient-text' : undefined}>{title}</span>
+      <RunningShimmer active={active}>{title}</RunningShimmer>
       {detail && <span className={styles.detail}>· {detail}</span>}
     </span>
     <span className={styles.line} aria-hidden />

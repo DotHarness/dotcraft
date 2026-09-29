@@ -50,12 +50,6 @@
   animation: setup-wizard-enter 360ms ease-out 60ms both;
 }
 
-.setup-wizard-kicker.tool-running-gradient-text {
-  animation:
-    setup-wizard-enter 360ms ease-out 60ms both,
-    tool-running-gradient 3s linear infinite;
-}
-
 .setup-stepper-row {
   width: 100%;
   padding: 0 10px;

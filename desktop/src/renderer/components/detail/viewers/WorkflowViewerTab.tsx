@@ -8,6 +8,7 @@ import { useViewerTabStore } from '../../../stores/viewerTabStore'
 import { selectWorkflowRunEntry, useWorkflowRunStore } from '../../../stores/workflowRunStore'
 import { Button } from '../../ui/Button'
 import { IconButton } from '../../ui/IconButton'
+import { RunningShimmer } from '../../ui/RunningShimmer'
 import { ToolCollapseChevron } from '../../conversation/ToolDisclosure'
 import { WorkflowStatusGlyph, formatWorkflowElapsed, formatWorkflowPhaseMetrics, formatWorkflowTokens, workflowTone } from '../../workflow/workflowPresentation'
 import type { WorkflowViewerTab as WorkflowViewerTabDescriptor } from '../../../../shared/viewer/types'
@@ -42,9 +43,9 @@ function WorkflowPhaseSection({
         <span className="dc-workflow-runtime-phase__marker"><WorkflowStatusGlyph status={phase.status} /></span>
         <span className="dc-workflow-runtime-phase__summary">
           <span className="dc-workflow-runtime-phase__label">{phase.name}</span>
-          <span className={phase.status === 'running' ? 'dc-workflow-runtime-phase__detail tool-running-gradient-text' : 'dc-workflow-runtime-phase__detail'}>
+          <RunningShimmer active={phase.status === 'running'} className="dc-workflow-runtime-phase__detail">
             {phase.detail ?? ''}
-          </span>
+          </RunningShimmer>
           <ToolCollapseChevron expanded={expanded} visible={hovered || expanded} />
         </span>
         {!expanded && metrics && <span className="dc-workflow-runtime-phase__metrics">{metrics}</span>}

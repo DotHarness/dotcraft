@@ -1,0 +1,54 @@
+/* Zero specificity so a caller's own positioning wins. */
+:where(.root) {
+  position: relative;
+}
+
+.root {
+  -webkit-text-fill-color: var(--shimmer-base);
+}
+
+.sweep {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: inherit;
+  pointer-events: none;
+  user-select: none;
+  transform: translateX(-50%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 20% 30%, transparent 50% 100%);
+}
+
+.highlight {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: inherit;
+  -webkit-text-fill-color: var(--shimmer-peak);
+  transform: translateX(50%);
+}
+
+.root[data-sweep] :is(.sweep, .highlight) {
+  animation-duration: 1s;
+  animation-timing-function: steps(48, end);
+}
+
+.root[data-sweep] .sweep {
+  animation-name: sweep;
+}
+
+.root[data-sweep] .highlight {
+  animation-name: counter-sweep;
+}
+
+@keyframes sweep {
+  to {
+    transform: translateX(125%);
+  }
+}
+
+@keyframes counter-sweep {
+  to {
+    transform: translateX(-125%);
+  }
+}

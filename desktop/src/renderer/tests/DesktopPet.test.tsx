@@ -125,11 +125,11 @@ describe('desktop pet activity pill', () => {
     expect(pill.querySelector('.desktop-pet-pill-title')).toHaveTextContent('Fix the build')
     const line = pill.querySelector<HTMLElement>('.desktop-pet-pill-line')!
     expect(line).toHaveTextContent('Running npm test')
-    expect(line).toHaveClass('tool-running-gradient-text')
+    expect(line).toHaveAttribute('data-running-shimmer')
     expect(line).not.toHaveAttribute('data-wrap')
     settle({ status: { ...running, status: 'failed', line: 'spawn ENOENT', lineTone: 'danger', canStop: false } })
     expect(container.querySelector('.desktop-pet-pill-line')).toHaveAttribute('data-wrap', 'true')
-    expect(container.querySelector('.desktop-pet-pill-line')).not.toHaveClass('tool-running-gradient-text')
+    expect(container.querySelector('.desktop-pet-pill-line')).not.toHaveAttribute('data-running-shimmer')
   })
   it('stops the turn through the composer control and treats closing a Ready pill as having looked', () => {
     const { container } = render(<DesktopPet />)

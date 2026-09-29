@@ -6,6 +6,7 @@ import { findSubAgentChild, type SubAgentScope } from '../../utils/subAgentIdent
 import { openSubAgent } from '../../utils/subAgentNavigation'
 import type { ConversationItem } from '../../types/conversation'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { RunningShimmer } from '../ui/RunningShimmer'
 import { getSubAgentAccent } from '../../utils/subAgentPresentation'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
@@ -90,12 +91,9 @@ export function SubAgentChips({
         </>
       )}
       {' '}
-      <span
-        className={!anyFailed && anyRunning ? 'tool-running-gradient-text' : undefined}
-        aria-live="polite"
-      >
+      <RunningShimmer active={!anyFailed && anyRunning} className="dc-subagent-chips-status" aria-live="polite">
         {statusLabel(t, { anyFailed, allDone, anyRunning })}
-      </span>
+      </RunningShimmer>
     </div>
   )
 }

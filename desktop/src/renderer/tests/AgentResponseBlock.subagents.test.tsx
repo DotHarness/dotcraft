@@ -258,7 +258,7 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       </LocaleProvider>
     )
 
-    expect(container.querySelector('.tool-running-gradient-text')).toBeNull()
+    expect(container.querySelector('[data-running-shimmer]')).toBeNull()
     expect(container.textContent).not.toContain('Waiting for')
   })
 
@@ -289,7 +289,7 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       </LocaleProvider>
     )
 
-    expect(container.querySelector('.tool-running-gradient-text')).toBeNull()
+    expect(container.querySelector('[data-running-shimmer]')).toBeNull()
     expect(container.textContent).not.toContain('Wait')
   })
 

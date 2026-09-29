@@ -4,6 +4,7 @@ import type { ConversationItem } from '../../types/conversation'
 import { useLocale } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
 import { ErrorBlock } from './ErrorBlock'
+import { RunningShimmer } from '../ui/RunningShimmer'
 import { Skeleton } from '../ui/Skeleton'
 
 export function ImageGenerationStatus({ item }: { item: ConversationItem }): JSX.Element {
@@ -45,12 +46,9 @@ export function ImageGenerationStatus({ item }: { item: ConversationItem }): JSX
           style={imageGenerationRowStyle}
         >
           <ImageIcon size={15} strokeWidth={1.8} aria-hidden="true" style={imageGenerationIconStyle} />
-          <span
-            className={isInProgress ? 'tool-running-gradient-text' : undefined}
-            style={imageGenerationLabelStyle}
-          >
+          <RunningShimmer active={isInProgress} style={imageGenerationLabelStyle}>
             {label}
-          </span>
+          </RunningShimmer>
         </div>
         {isInProgress && (
           <div data-testid="image-generation-skeleton" style={imageGenerationSkeletonFrameStyle}>

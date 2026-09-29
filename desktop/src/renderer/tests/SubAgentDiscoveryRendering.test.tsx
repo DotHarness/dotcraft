@@ -131,7 +131,7 @@ describe('discovery-dependent activity', () => {
     await waitFor(() => expect(store().discoveryByParent.get('parent-B')?.status).toBe('error'))
     expect(screen.queryByText('started working')).toBeNull()
     expect(screen.queryByText('finished')).toBeNull()
-    expect(container.querySelector('.tool-running-gradient-text')).toBeNull()
+    expect(container.querySelector('[data-running-shimmer]')).toBeNull()
     expect(screen.getByRole('button', { name: /Core/ })).toBeEnabled()
   })
 
@@ -174,7 +174,7 @@ describe('discovery-dependent activity', () => {
     })])
     expect(screen.queryByText('finished')).toBeNull()
     expect(screen.queryByText('started working')).toBeNull()
-    expect(container.querySelector('.tool-running-gradient-text')).toBeNull()
+    expect(container.querySelector('[data-running-shimmer]')).toBeNull()
     expect(screen.getByRole('button', { name: /Missing/ })).toBeEnabled()
   })
 

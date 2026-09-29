@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { AvatarPose } from '@dotcraft/avatar'
-import { prefersReducedMotion } from '../../../desktopPet/desktopPetSource'
+import { prefersReducedMotion } from '../../../../utils/appearance'
 
 const SUSTAINED: AvatarPose[] = ['thinking', 'working', 'waiting', 'blocked']
 const ONE_SHOT: AvatarPose[] = ['greeting', 'acknowledge', 'done']

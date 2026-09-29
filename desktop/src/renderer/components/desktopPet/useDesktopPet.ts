@@ -3,9 +3,10 @@ import type { PetRect } from '../../../shared/desktopPet'
 import { inPetDetachZone } from '../../../shared/desktopPet'
 import { useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import {
-  adoptPetSource, petSourceCommand, petSourceDetached, petSourceOwner, petSourceSeat, prefersReducedMotion,
+  adoptPetSource, petSourceCommand, petSourceDetached, petSourceOwner, petSourceSeat,
   releasePetSource, startPetSource, type PetSourceBinding, type PetSourceSurface
 } from './desktopPetSource'
+import { prefersReducedMotion } from '../../utils/appearance'
 import { usePetActivity } from './usePetActivity'
 
 export interface DesktopPetSourceOptions {

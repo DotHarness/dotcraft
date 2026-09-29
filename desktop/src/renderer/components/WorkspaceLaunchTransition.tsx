@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { useT } from '../contexts/LocaleContext'
 import { DotCraftFullLogo } from './ui/DotCraftLogo'
+import { RunningShimmer } from './ui/RunningShimmer'
 
 export interface LaunchLogoRect {
   left: number
@@ -116,11 +117,11 @@ export function WorkspaceLaunchTransition({
         <DotCraftFullLogo size={LAUNCH_LOGO_BASE_SIZE} className="workspace-launch-transition__logo" />
       )}
       {(phase === 'connecting' || phase === 'preparing') && (
-        <div className="workspace-launch-transition__status tool-running-gradient-text">
+        <RunningShimmer as="div" className="workspace-launch-transition__status">
           {phase === 'preparing'
             ? t('workspaceLaunch.preparing')
             : t('workspaceLaunch.connecting')}
-        </div>
+        </RunningShimmer>
       )}
     </div>
   )

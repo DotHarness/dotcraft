@@ -36,14 +36,15 @@ export function PetActivityPill({ snapshot, text, onHold, onDismiss, onStop, onR
   const blur = (event: FocusEvent<HTMLDivElement>): void => {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onHold(false)
   }
-  return <div className="desktop-pet-pill" data-motion={snapshot.reducedMotion ? 'off' : 'on'} data-status={status?.status ?? 'none'}
+  return <div className="desktop-pet-pill" data-status={status?.status ?? 'none'}
     onMouseEnter={() => onHold(true)} onMouseLeave={() => onHold(false)} onFocus={() => onHold(true)} onBlur={blur}>
     {status && <div className="desktop-pet-pill-head">
       {icon && <span className="desktop-pet-pill-icon" role="img" data-tone={status.lineTone} aria-label={t(icon.label)} title={t(icon.label)}>{icon.glyph}</span>}
       <span className="desktop-pet-pill-title" title={status.title}>{status.title}</span>
       <button className="desktop-pet-pill-action" aria-label={t('desktopPet.activity.dismiss')} onClick={onDismiss}><X size={12} /></button>
     </div>}
-    {status?.line && <PetStatusLine line={status.line} tone={status.lineTone} running={status.status === 'running'} />}
+    {status?.line && <PetStatusLine line={status.line} tone={status.lineTone} running={status.status === 'running'}
+      reducedMotion={snapshot.reducedMotion} />}
     {patch && <div className="desktop-pet-pill-patch">
       <span className="desktop-pet-pill-patch-add">+{patch.additions}</span>
       <span className="desktop-pet-pill-patch-del">-{patch.deletions}</span>
