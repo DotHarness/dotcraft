@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using DotCraft.Sessions;
 
 namespace DotCraft.RemoteTools;
 
@@ -11,12 +12,14 @@ internal static class RemoteToolHostProtocol
 {
     public const string ProfileVersion = "1";
     public const string ExecutionSessionsCapability = "execution-sessions-v1";
+    public const string ExecutionTurnsCapability = "execution-turns-v1";
     public const string McpProtocolVersion = "2025-06-18";
     public const int MaxTransportResultChars = 100_000;
     public const string WorkspacesList = "dotcraft/remoteToolHost/workspaces/list";
     public const string WorkspacesAcquire = "dotcraft/remoteToolHost/workspaces/acquire";
     public const string WorkspacesRelease = "dotcraft/remoteToolHost/workspaces/release";
     public const string ExecutionThreadRelease = "dotcraft/remoteToolHost/executionThreads/release";
+    public const string ExecutionThreadTurn = "dotcraft/remoteToolHost/executionThreads/turn";
     public const string WorkspacesHeartbeat = "dotcraft/remoteToolHost/workspaces/heartbeat";
 
     public static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -31,6 +34,11 @@ internal static class RemoteToolHostProtocol
         ReadInformationalVersion(Assembly.GetEntryAssembly())
         ?? ReadInformationalVersion(typeof(RemoteToolHostProtocol).Assembly)
         ?? "unknown";
+
+    public static string Wire(TurnStatus status) => JsonNamingPolicy.CamelCase.ConvertName(status.ToString());
+
+    public static TurnStatus? ParseTurnStatus(string? value) =>
+        Enum.GetValues<TurnStatus>().Where(status => Wire(status) == value).Cast<TurnStatus?>().FirstOrDefault();
 
     public static string ComputeCatalogDigest(IReadOnlyList<RemoteToolContractSummary> contracts)
     {
@@ -134,6 +142,7 @@ internal sealed record WorkspaceLeaseRequest(
     string LeaseId,
     string WorkspaceId);
 internal sealed record WorkspaceHeartbeatResponse(DateTimeOffset ExpiresAt);
+internal sealed record ExecutionTurnReport(string LeaseId, string WorkspaceId, string ThreadId, string TurnId, string Status);
 internal sealed record ExtensionError(string Code, string Message);
 internal sealed record ExtensionResponse<T>(bool Success, T? Result, ExtensionError? Error);
 

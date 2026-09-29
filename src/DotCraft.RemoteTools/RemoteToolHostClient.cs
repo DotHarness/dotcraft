@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
+using DotCraft.Sessions;
 using DotCraft.Tools;
 
 namespace DotCraft.RemoteTools;
@@ -12,6 +13,7 @@ internal sealed partial class RemoteToolHostClient : IRemoteToolHostClient, IRem
     private readonly object _stateGate = new();
     private readonly Dictionary<string, ThreadRoute> _routes = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (EffectiveToolSnapshot Snapshot, string Mode)> _snapshots = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (string TurnId, TurnStatus Status)> _activeTurns = new(StringComparer.Ordinal);
     private readonly Dictionary<RemoteExecutionSession, int> _references = [];
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _routeGates = new(StringComparer.Ordinal);
     private readonly RemoteOperationScope _operations = new();
@@ -61,6 +63,18 @@ internal sealed partial class RemoteToolHostClient : IRemoteToolHostClient, IRem
         catch (Exception exception) when (exception is not OperationCanceledException) { }
     }
 
+    public void ReportTurn(string threadId, string turnId, TurnStatus status)
+    {
+        lock (_stateGate)
+        {
+            if (status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
+                _activeTurns[threadId] = (turnId, status);
+            else
+                _activeTurns.Remove(threadId);
+            if (_routes.TryGetValue(threadId, out var route)) route.Session.ReportTurn(threadId, turnId, status);
+        }
+    }
+
     public async ValueTask<RemoteToolConnectResult> ConnectAsync(string threadId, string hostId, string workspaceId,
         CancellationToken cancellationToken = default, RemoteToolRouteInitiator initiator = RemoteToolRouteInitiator.Client)
     {
@@ -97,6 +111,7 @@ internal sealed partial class RemoteToolHostClient : IRemoteToolHostClient, IRem
                 _workspaceDisplayNames[new(hostId, workspaceId)] = candidate.EnvironmentInfo.WorkspacePath;
                 _routes[threadId] = new(candidate, connection.Endpoint);
                 _references[candidate] = 1;
+                if (_activeTurns.TryGetValue(threadId, out var turn)) candidate.ReportTurn(threadId, turn.TurnId, turn.Status);
             }
             candidate = null;
             if (previous is not null) await ReleaseAsync(threadId, previous).ConfigureAwait(false);
@@ -243,7 +258,7 @@ internal sealed partial class RemoteToolHostClient : IRemoteToolHostClient, IRem
         await Task.Yield();
         await _operations.DisposeAsync().ConfigureAwait(false);
         KeyValuePair<string, ThreadRoute>[] routes;
-        lock (_stateGate) { routes = _routes.ToArray(); _routes.Clear(); _snapshots.Clear(); }
+        lock (_stateGate) { routes = _routes.ToArray(); _routes.Clear(); _snapshots.Clear(); _activeTurns.Clear(); }
         await Task.WhenAll(routes.Select(pair => ReleaseAsync(pair.Key, pair.Value))).ConfigureAwait(false);
         await _execution.DisposeAsync().ConfigureAwait(false);
         foreach (var gate in _routeGates.Values) gate.Dispose();

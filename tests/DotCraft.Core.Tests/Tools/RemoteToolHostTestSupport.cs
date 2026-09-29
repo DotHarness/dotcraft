@@ -118,13 +118,14 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
                 AuthorizationRevision = 1
             }] });
         Leases = new WorkspaceLeaseManager();
-        _handlers = new RemoteToolHostExecutionHost(storage, Leases, approvals: ownerApprovals, diagnostic: diagnostic);
+        _handlers = new RemoteToolHostExecutionHost(storage, Leases, Activity, ownerApprovals, diagnostic: diagnostic);
         Directory = new TestDirectory(this);
     }
 
     public string PeerId { get; }
     public string ReportedPeerId { get; }
     public WorkspaceLeaseManager Leases { get; }
+    public RemoteToolHostActivityMonitor Activity { get; } = new();
     public IRemoteToolHostDirectory Directory { get; }
 
     public RemoteToolHostClient CreateClient() => new(Directory);

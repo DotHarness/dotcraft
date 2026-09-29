@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.RemoteTools;
+using DotCraft.Sessions;
 using DotCraft.Tests.Runtime.Plugins;
 using DotCraft.Tools;
 using Xunit;
@@ -114,6 +115,51 @@ public sealed class RemoteExecutionSessionTests
         Assert.True(client.TryGetRoute("b", out _));
         await client.DisconnectAsync("b");
         Assert.False(fixture.Server.Leases.HasActiveLease);
+    }
+
+    [Fact]
+    public async Task TurnReports_ReachTheHostInOrder_FromBeforeTheRoute_AndLeaveWithTheThread()
+    {
+        await using var fixture = await RemoteExecutionFixture.CreateAsync();
+        await using var client = fixture.Server.CreateClient();
+        client.UpdateRemoteToolSnapshot("root", new EffectiveToolSnapshotBuilder().Build(fixture.Tools, 1), "agent");
+        client.ReportTurn("root", "turn", TurnStatus.Running);
+        var route = (await client.ConnectAsync("root", fixture.Server.PeerId, "repo")).Route;
+        var write = fixture.Tool("WriteFile");
+        Assert.True((await client.InvokeAsync(route, write.Definition, RemoteToolContractHasher.Compute(write.Definition),
+            fixture.Context(write, "root"), new() { ["path"] = "turn.txt", ["content"] = "x" })).Success);
+        client.ReportTurn("root", "turn", TurnStatus.WaitingApproval);
+        client.ReportTurn("root", "turn", TurnStatus.Running);
+        client.ReportTurn("root", "turn", TurnStatus.Completed);
+        await fixture.WaitAsync(() => fixture.Server.Activity.Turns is [{ Status: TurnStatus.Completed, ToolCalls: 1 }],
+            TimeSpan.FromSeconds(10));
+
+        await client.DisconnectAsync("root");
+        Assert.Empty(fixture.Server.Activity.Turns);
+    }
+
+    [Fact]
+    public async Task A_report_arriving_after_its_Thread_was_released_is_refused()
+    {
+        await using var fixture = await RemoteExecutionFixture.CreateAsync();
+        await using var session = await fixture.OpenAsync("session");
+        await session.ReleaseThreadAsync("released");
+        session.ReportTurn("released", "turn-released", TurnStatus.Completed);
+        session.ReportTurn("kept", "turn-kept", TurnStatus.Running);
+        await fixture.WaitAsync(() => fixture.Server.Activity.Turns.Any(turn => turn.TurnId == "turn-kept"), TimeSpan.FromSeconds(10));
+        Assert.DoesNotContain(fixture.Server.Activity.Turns, turn => turn.TurnId == "turn-released");
+    }
+
+    [Fact]
+    public void A_call_that_reaches_the_Host_before_its_Turn_report_still_counts()
+    {
+        var monitor = new RemoteToolHostActivityMonitor();
+        monitor.CountCall("session", "thread", "turn");
+        monitor.ReportTurn("session", "peer", "thread", "turn", TurnStatus.Running);
+        Assert.Equal(1, Assert.Single(monitor.Turns).ToolCalls);
+
+        monitor.ReportTurn("session", "peer", "thread", "next", TurnStatus.Running);
+        Assert.Equal(0, Assert.Single(monitor.Turns).ToolCalls);
     }
 
     private static bool IsRunning(int pid)

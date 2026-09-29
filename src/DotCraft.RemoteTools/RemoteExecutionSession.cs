@@ -58,7 +58,8 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
                 acquired.WorkspacePath, transport, ownerId, session.OnLeaseLost)
             {
                 HostName = info.Hostname, OperatingSystem = info.Os, UserName = info.Username,
-                BuildVersion = info.BuildVersion, SupportsPlugins = info.Capabilities!.Contains(RemotePluginProtocol.Capability)
+                BuildVersion = info.BuildVersion, SupportsPlugins = info.Capabilities!.Contains(RemotePluginProtocol.Capability),
+                SupportsTurns = info.Capabilities.Contains(RemoteToolHostProtocol.ExecutionTurnsCapability)
             };
             session.HostDisplayName = info.DisplayName;
             session._lease.StartHeartbeat();
@@ -88,6 +89,7 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
                 _snapshots.Remove(threadId);
                 _preparedSnapshots.Remove(threadId);
                 _preparationFailures.Remove(threadId);
+                _turns.Remove(threadId);
             }
         }
         finally { _routeGate.Release(); }

@@ -239,6 +239,27 @@ the session, and cleanup does not roll back completed file writes or transfers.
 
 Lease renewal, cancellation, and session closure remain independent of another session's operations.
 
+### 5.3 Turn reports
+
+An Agent Host tells the Host where each routed Thread's Turn stands, so the machine lending its
+workspace can show that an Agent is still working between tool calls, is waiting on a person, or has
+finished. A report names the session's lease, the Thread, the Turn id, and one status: `running`,
+`waitingApproval`, `waitingInput`, `completed`, `failed`, or `cancelled`.
+
+The client reports every status change of a routed Thread's Turn, native descendants sharing the
+session included, in the order they occur, and drops a report identical to the Thread's previous
+one. It remembers each Thread's active Turn whether or not the Thread is routed, and a newly
+published route reports that Turn first, so a route connected mid-Turn starts from where the Turn
+stands; a finished Turn is never replayed. Reporting never waits on the network and never fails the
+Turn; a lost report leaves the Host behind until the next one.
+
+The Host keeps the latest Turn of each session-scoped Thread together with the number of tool calls
+that Turn has run there, a call counting when its invocation names that Turn, even if it arrives
+before the Turn's report. Releasing the Thread or closing its session removes it, and a released
+Thread's later reports are refused. The Host exposes these Turns as runtime-only state beside the current
+tool activity; nothing is persisted and Agent-side Thread ids stay inside the session scope. A report
+grants nothing: policy, approvals, and leases ignore it.
+
 ## 6. Model control surface
 
 When DotCraft's Remote Tool Host product integration is enabled, its Agent Host exposes four
@@ -417,6 +438,7 @@ dotcraft/remoteToolHost/workspaces/acquire
 dotcraft/remoteToolHost/workspaces/release
 dotcraft/remoteToolHost/workspaces/heartbeat
 dotcraft/remoteToolHost/executionThreads/release
+dotcraft/remoteToolHost/executionThreads/turn
 ```
 
 The list result includes `hostId`, `hostInstanceId`, `catalogRevision`, `buildVersion`,
@@ -424,12 +446,14 @@ The list result includes `hostId`, `hostInstanceId`, `catalogRevision`, `buildVe
 Acquire accepts `workspaceId` and returns `leaseId`, expiry, and environment summary. Release
 accepts the connection's `leaseId`. Heartbeat renews that lease using its process owner identity.
 Execution Thread release cancels and drains the named Thread before releasing its resources; clearing
-a plugin snapshot alone does not release native background work. Unknown fields follow MCP extension
-behavior; missing required profile fields fail closed.
+a plugin snapshot alone does not release native background work. Execution Thread turn records one
+Turn report (§5.3) and returns an empty result. Unknown fields follow MCP extension behavior; missing
+required profile fields fail closed.
 
 The client requires the Host's explicit `execution-sessions-v1` capability before acquiring a lease.
 Successful pairing alone does not establish this capability. Lease acquisition and release follow
-the session lifecycle in §5.2.
+the session lifecycle in §5.2. The client sends Turn reports only to a Host that lists
+`execution-turns-v1`; with an older Host the session works unchanged and the Host shows no Turns.
 
 ### 8.1 Control channel
 

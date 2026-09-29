@@ -95,6 +95,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
             await transfer.Session.DisposeAsync().ConfigureAwait(false);
         _transfers.Clear();
         foreach (var thread in _threads.Values) await thread.DisposeAsync().ConfigureAwait(false);
+        _activity?.ForgetSession(SessionId);
         if (_runtime is { } runtime)
         {
             foreach (var thread in _threads.Keys)

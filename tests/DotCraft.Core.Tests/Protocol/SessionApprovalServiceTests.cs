@@ -407,6 +407,17 @@ public sealed class SessionApprovalServiceTests
     }
 
     [Fact]
+    public async Task RequestApproval_Timeout_EmitsApprovalResolvedRuntimeSignal()
+    {
+        var (svc, _, turn, signals) = MakeApprovalServiceWithSignals(TimeSpan.FromMilliseconds(100));
+
+        await svc.RequestFileApprovalAsync("write", "/file.txt").WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal([SessionThreadRuntimeSignal.ApprovalRequested, SessionThreadRuntimeSignal.ApprovalResolved], signals);
+        Assert.Equal(TurnStatus.Running, turn.Status);
+    }
+
+    [Fact]
     public async Task RequestApproval_Timeout_AddErrorItemToTurn()
     {
         var (svc, channel, turn) = MakeApprovalService(TimeSpan.FromMilliseconds(100));
