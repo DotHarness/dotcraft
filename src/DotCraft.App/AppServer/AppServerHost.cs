@@ -1554,14 +1554,9 @@ public sealed class AppServerHost(
 
         var parameters = new Contract.ThreadDeletedNotification { ThreadId = threadId };
 
-        var skipTransport = AppServerRequestContext.CurrentTransport;
-
         foreach (var (transport, connection) in _activeTransports)
         {
             if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadDeleted))
-                continue;
-
-            if (skipTransport != null && ReferenceEquals(transport, skipTransport))
                 continue;
 
             _ = Task.Run(async () =>

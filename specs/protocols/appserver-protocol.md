@@ -969,7 +969,7 @@ Permanently delete a thread, its associated session data, and all tracing sessio
 
 **Result**: `{}`
 
-After the thread is permanently removed, the server **broadcasts** a `thread/deleted` notification to **all** connected clients (see Section 6.1). For recursive SubAgent deletion, a notification is emitted for each removed thread. Deletion is only considered successful after the persisted thread record and all bound tracing data have been removed. Clients that initiated `thread/delete` on this connection may remove the thread from local state when the RPC returns; receiving `thread/deleted` afterward is idempotent.
+After the thread is permanently removed, the server **broadcasts** a `thread/deleted` notification to **all** connected clients, including the connection that initiated `thread/delete`, subject to notification opt-out (see Section 6.1). For recursive SubAgent deletion, a notification is emitted for each removed thread. Deletion is only considered successful after the persisted thread record and all bound tracing data have been removed. Clients may remove the thread from local state when the RPC returns. The notification may arrive before or after the RPC response; both cleanup paths must be idempotent.
 
 ### 4.12 `thread/mode/set`
 
@@ -1634,7 +1634,7 @@ Duplicate or idempotent deliveries for the same `threadId` and `displayName` are
 
 #### `thread/deleted`
 
-Emitted when a thread is **permanently** deleted. The server **broadcasts** this notification to **all** connected clients after deletion completes, regardless of which protocol entry point or host integration triggered the removal.
+Emitted when a thread is **permanently** deleted. The server **broadcasts** this notification to **all** connected clients after deletion completes, including the initiating connection, regardless of which protocol entry point or host integration triggered the removal. Notification opt-out still applies. Delivery does not require a thread subscription and may precede or follow the deletion RPC response.
 
 **Params**: `{ "threadId": "<id>" }`
 
