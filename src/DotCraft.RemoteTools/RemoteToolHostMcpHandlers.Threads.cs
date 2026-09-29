@@ -37,7 +37,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
         return new JsonObject();
     }
 
-    private ValueTask<JsonNode?> ReportTurn(JsonRpcRequest request, string peerId)
+    private ValueTask<JsonNode?> ReportTurn(JsonRpcRequest request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<ExecutionTurnReport>(request);
         ValidateLease(input.LeaseId, input.WorkspaceId);
@@ -45,7 +45,9 @@ internal sealed partial class RemoteToolHostMcpHandlers
         var status = RemoteToolHostProtocol.ParseTurnStatus(input.Status);
         if (status is null || string.IsNullOrWhiteSpace(input.TurnId))
             throw new RemoteToolHostException(ToolErrorCodes.InputInvalid, "A Turn report needs a Turn id and a known status.");
-        _activity?.ReportTurn(SessionId, peerId, ScopedThread(input.ThreadId), input.TurnId, status.Value);
+        var threadId = ScopedThread(input.ThreadId);
+        using var call = EnterThread(threadId, ct);
+        _activity?.ReportTurn(SessionId, peerId, threadId, input.TurnId, status.Value);
         return ValueTask.FromResult<JsonNode?>(new JsonObject());
     }
 }

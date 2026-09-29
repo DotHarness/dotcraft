@@ -254,8 +254,9 @@ stands; a finished Turn is never replayed. Reporting never waits on the network 
 Turn; a lost report leaves the Host behind until the next one.
 
 The Host keeps the latest Turn of each session-scoped Thread together with the number of tool calls
-that Turn has run there, a call counting when its invocation names that Turn. Releasing the Thread or
-closing its session removes it. The Host exposes these Turns as runtime-only state beside the current
+that Turn has run there, a call counting when its invocation names that Turn, even if it arrives
+before the Turn's report. Releasing the Thread or closing its session removes it, and a released
+Thread's later reports are refused. The Host exposes these Turns as runtime-only state beside the current
 tool activity; nothing is persisted and Agent-side Thread ids stay inside the session scope. A report
 grants nothing: policy, approvals, and leases ignore it.
 

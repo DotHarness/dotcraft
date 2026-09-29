@@ -125,9 +125,6 @@ public sealed class RemoteExecutionSessionTests
         client.UpdateRemoteToolSnapshot("root", new EffectiveToolSnapshotBuilder().Build(fixture.Tools, 1), "agent");
         client.ReportTurn("root", "turn", TurnStatus.Running);
         var route = (await client.ConnectAsync("root", fixture.Server.PeerId, "repo")).Route;
-        await fixture.WaitAsync(() => fixture.Server.Activity.Turns is [{ Status: TurnStatus.Running, ToolCalls: 0 }],
-            TimeSpan.FromSeconds(10));
-
         var write = fixture.Tool("WriteFile");
         Assert.True((await client.InvokeAsync(route, write.Definition, RemoteToolContractHasher.Compute(write.Definition),
             fixture.Context(write, "root"), new() { ["path"] = "turn.txt", ["content"] = "x" })).Success);
@@ -139,6 +136,30 @@ public sealed class RemoteExecutionSessionTests
 
         await client.DisconnectAsync("root");
         Assert.Empty(fixture.Server.Activity.Turns);
+    }
+
+    [Fact]
+    public async Task A_report_arriving_after_its_Thread_was_released_is_refused()
+    {
+        await using var fixture = await RemoteExecutionFixture.CreateAsync();
+        await using var session = await fixture.OpenAsync("session");
+        await session.ReleaseThreadAsync("released");
+        session.ReportTurn("released", "turn-released", TurnStatus.Completed);
+        session.ReportTurn("kept", "turn-kept", TurnStatus.Running);
+        await fixture.WaitAsync(() => fixture.Server.Activity.Turns.Any(turn => turn.TurnId == "turn-kept"), TimeSpan.FromSeconds(10));
+        Assert.DoesNotContain(fixture.Server.Activity.Turns, turn => turn.TurnId == "turn-released");
+    }
+
+    [Fact]
+    public void A_call_that_reaches_the_Host_before_its_Turn_report_still_counts()
+    {
+        var monitor = new RemoteToolHostActivityMonitor();
+        monitor.CountCall("session", "thread", "turn");
+        monitor.ReportTurn("session", "peer", "thread", "turn", TurnStatus.Running);
+        Assert.Equal(1, Assert.Single(monitor.Turns).ToolCalls);
+
+        monitor.ReportTurn("session", "peer", "thread", "next", TurnStatus.Running);
+        Assert.Equal(0, Assert.Single(monitor.Turns).ToolCalls);
     }
 
     private static bool IsRunning(int pid)

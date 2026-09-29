@@ -96,6 +96,8 @@ internal sealed class RemoteToolHostActivityMonitor
 {
     private readonly object _gate = new();
     private readonly Dictionary<string, (string SessionId, RemoteToolTurn Turn)> _turns = new(StringComparer.Ordinal);
+    // Counted apart from the reports, because a call can reach the Host before its Turn's report does.
+    private readonly Dictionary<string, (string SessionId, string TurnId, int Count)> _calls = new(StringComparer.Ordinal);
 
     public RemoteToolActivity? Current { get; private set; }
 
@@ -116,31 +118,36 @@ internal sealed class RemoteToolHostActivityMonitor
     {
         lock (_gate)
         {
-            var calls = _turns.TryGetValue(threadId, out var known) && known.Turn.TurnId == turnId ? known.Turn.ToolCalls : 0;
+            var calls = _calls.TryGetValue(threadId, out var counted) && counted.TurnId == turnId ? counted.Count : 0;
             _turns[threadId] = (sessionId, new(peerId, threadId, turnId, status, calls, DateTimeOffset.UtcNow));
         }
         TurnsChanged?.Invoke();
     }
 
-    public void CountCall(string threadId, string? turnId)
+    public void CountCall(string sessionId, string threadId, string? turnId)
     {
+        if (turnId is null) return;
         lock (_gate)
         {
+            var count = _calls.TryGetValue(threadId, out var counted) && counted.TurnId == turnId ? counted.Count + 1 : 1;
+            _calls[threadId] = (sessionId, turnId, count);
             if (!_turns.TryGetValue(threadId, out var known) || known.Turn.TurnId != turnId) return;
-            _turns[threadId] = known with { Turn = known.Turn with { ToolCalls = known.Turn.ToolCalls + 1 } };
+            _turns[threadId] = known with { Turn = known.Turn with { ToolCalls = count } };
         }
         TurnsChanged?.Invoke();
     }
 
-    public void ForgetThread(string threadId) => Forget(pair => pair.Key == threadId);
+    public void ForgetThread(string threadId) => Forget((key, _) => key == threadId);
 
-    public void ForgetSession(string sessionId) => Forget(pair => pair.Value.SessionId == sessionId);
+    public void ForgetSession(string sessionId) => Forget((_, owner) => owner == sessionId);
 
-    private void Forget(Func<KeyValuePair<string, (string SessionId, RemoteToolTurn Turn)>, bool> match)
+    private void Forget(Func<string, string, bool> match)
     {
         lock (_gate)
         {
-            var gone = _turns.Where(match).Select(pair => pair.Key).ToArray();
+            foreach (var threadId in _calls.Where(pair => match(pair.Key, pair.Value.SessionId)).Select(pair => pair.Key).ToArray())
+                _calls.Remove(threadId);
+            var gone = _turns.Where(pair => match(pair.Key, pair.Value.SessionId)).Select(pair => pair.Key).ToArray();
             if (gone.Length == 0) return;
             foreach (var threadId in gone) _turns.Remove(threadId);
         }

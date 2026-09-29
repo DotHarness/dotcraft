@@ -223,6 +223,7 @@ internal sealed class SessionApprovalService : IApprovalService
                 _turn.Status = _pending.IsEmpty ? TurnStatus.Running : TurnStatus.WaitingApproval;
                 _channel.EmitItemStarted(errorItem);
                 _channel.EmitItemCompleted(errorItem);
+                _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.ApprovalResolved, _turn);
                 pending.Completion.TrySetResult(SessionApprovalDecision.Reject);
             }
         });
