@@ -297,6 +297,8 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
         public ValueTask PrepareTurnAsync(string threadId, EffectiveToolSnapshot snapshot, string mode,
             CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
 
+        public void ReportTurn(string threadId, string turnId, TurnStatus status) { }
+
         public ValueTask<RemoteToolHostCatalog> ListAsync(
             string threadId,
             CancellationToken cancellationToken = default) =>

@@ -301,6 +301,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     {
                         // Enqueued first: the contribution point must not depend on a host observer returning.
                         runtimeSignalDispatcher.Publish(threadId, signal);
+                        if (turn is not null)
+                            remoteToolHostClient?.ReportTurn(threadId, turn.Id, turn.Status);
                         ThreadRuntimeSignal?.Invoke(threadId, signal, turn);
                         foreach (var observer in runtimeSignalObservers)
                             observer.OnThreadRuntimeSignal(Paths.Data.RootPath, threadId, signal);

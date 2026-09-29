@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.RemoteTools;
+using DotCraft.Sessions;
 using DotCraft.Tests.Runtime.Plugins;
 using DotCraft.Tools;
 using Xunit;
@@ -114,6 +115,30 @@ public sealed class RemoteExecutionSessionTests
         Assert.True(client.TryGetRoute("b", out _));
         await client.DisconnectAsync("b");
         Assert.False(fixture.Server.Leases.HasActiveLease);
+    }
+
+    [Fact]
+    public async Task TurnReports_ReachTheHostInOrder_FromBeforeTheRoute_AndLeaveWithTheThread()
+    {
+        await using var fixture = await RemoteExecutionFixture.CreateAsync();
+        await using var client = fixture.Server.CreateClient();
+        client.UpdateRemoteToolSnapshot("root", new EffectiveToolSnapshotBuilder().Build(fixture.Tools, 1), "agent");
+        client.ReportTurn("root", "turn", TurnStatus.Running);
+        var route = (await client.ConnectAsync("root", fixture.Server.PeerId, "repo")).Route;
+        await fixture.WaitAsync(() => fixture.Server.Activity.Turns is [{ Status: TurnStatus.Running, ToolCalls: 0 }],
+            TimeSpan.FromSeconds(10));
+
+        var write = fixture.Tool("WriteFile");
+        Assert.True((await client.InvokeAsync(route, write.Definition, RemoteToolContractHasher.Compute(write.Definition),
+            fixture.Context(write, "root"), new() { ["path"] = "turn.txt", ["content"] = "x" })).Success);
+        client.ReportTurn("root", "turn", TurnStatus.WaitingApproval);
+        client.ReportTurn("root", "turn", TurnStatus.Running);
+        client.ReportTurn("root", "turn", TurnStatus.Completed);
+        await fixture.WaitAsync(() => fixture.Server.Activity.Turns is [{ Status: TurnStatus.Completed, ToolCalls: 1 }],
+            TimeSpan.FromSeconds(10));
+
+        await client.DisconnectAsync("root");
+        Assert.Empty(fixture.Server.Activity.Turns);
     }
 
     private static bool IsRunning(int pid)

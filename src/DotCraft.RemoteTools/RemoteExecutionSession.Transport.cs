@@ -129,6 +129,7 @@ public sealed partial class RemoteExecutionSession
         public string UserName { get; set; } = "unknown";
         public string BuildVersion { get; set; } = "unknown";
         public bool SupportsPlugins { get; set; }
+        public bool SupportsTurns { get; set; }
 
         public void StartHeartbeat() => _heartbeatTask = RunHeartbeatAsync();
         public void StopHeartbeat() => _heartbeatCts.Cancel();

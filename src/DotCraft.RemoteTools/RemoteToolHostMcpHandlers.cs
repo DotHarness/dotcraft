@@ -40,6 +40,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
         Raw(RemotePluginProtocol.Activate, (request, ct) => ActivatePluginsAsync(request, peerId, ct)),
         Raw(RemotePluginProtocol.Abort, (request, ct) => AbortPluginsAsync(request, peerId, ct)),
         Raw(RemoteToolHostProtocol.ExecutionThreadRelease, (request, ct) => ReleaseExecutionThreadAsync(request, peerId, ct)),
+        Raw(RemoteToolHostProtocol.ExecutionThreadTurn, (request, _) => ReportTurn(request, peerId)),
         Raw(RemotePluginProtocol.ReleaseThread, (request, ct) => ReleasePluginThreadAsync(request, peerId, ct)),
         Raw(RemoteFileTransferProtocol.Open, (request, ct) => OpenFileTransferAsync(request, peerId, ct)),
         Raw(RemoteFileTransferProtocol.Read, (request, ct) => FileTransferPartAsync(request, peerId, RemoteFileTransferProtocol.Read, ct)),
@@ -153,6 +154,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
 
             var toolName = registration.Definition.Name.ToString();
             using var activity = _activity?.Begin(peerId, toolName, ReadCommandPreview(request.Params.Arguments));
+            _activity?.CountCall(invocation.ThreadId, invocation.TurnId);
             RequireBoundTerminal(toolName, request.Params.Arguments, invocation);
             var approval = new HostInvocationApprovalService.Invocation(
                 peer, invocation.InvocationId, workspacePath, _approvalPresenter, cancellationToken);
@@ -270,7 +272,8 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             contracts,
             state.Workspaces.Where(pair => pair.Key == peer.WorkspaceId).OrderBy(pair => pair.Key, StringComparer.Ordinal)
                 .Select(pair => ToCatalogEntry(pair.Key, pair.Value, parameters.ClientInstanceId))
-                .ToArray(), ["files-v1", RemotePluginProtocol.Capability, RemoteToolHostProtocol.ExecutionSessionsCapability]);
+                .ToArray(), ["files-v1", RemotePluginProtocol.Capability, RemoteToolHostProtocol.ExecutionSessionsCapability,
+                    RemoteToolHostProtocol.ExecutionTurnsCapability]);
         return JsonSerializer.SerializeToNode(response, RemoteToolHostProtocol.JsonOptions);
     }
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
 
@@ -131,6 +132,12 @@ public interface IRemoteToolHostClient
     /// <summary>Prepares the captured snapshot before the next Turn samples on an existing route.</summary>
     ValueTask PrepareTurnAsync(string threadId, EffectiveToolSnapshot snapshot, string mode,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Records where one thread's Turn stands, for the Host its route reaches now or later.
+    /// Never waits on the network.
+    /// </summary>
+    void ReportTurn(string threadId, string turnId, TurnStatus status);
 
     /// <summary>Lists registered Hosts and refreshes their safe workspace catalogs.</summary>
     ValueTask<RemoteToolHostCatalog> ListAsync(

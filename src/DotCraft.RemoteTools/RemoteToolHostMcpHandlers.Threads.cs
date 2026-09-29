@@ -21,6 +21,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
         RemoteOperationScope operations;
         lock (_gate) operations = _threads[threadId];
         await operations.DisposeAsync().ConfigureAwait(false);
+        _activity?.ForgetThread(threadId);
         foreach (var pending in _pluginPreparations.Where(pair => pair.Value.Input.ThreadId == threadId).ToArray())
             if (_pluginPreparations.TryRemove(pending.Key, out var preparation))
                 await CleanupPreparationAsync(preparation).ConfigureAwait(false);
@@ -34,5 +35,17 @@ internal sealed partial class RemoteToolHostMcpHandlers
             await runtime.Terminals.DeleteThreadArtifactsAsync(threadId, ct).ConfigureAwait(false);
         }
         return new JsonObject();
+    }
+
+    private ValueTask<JsonNode?> ReportTurn(JsonRpcRequest request, string peerId)
+    {
+        var input = Deserialize<ExecutionTurnReport>(request);
+        ValidateLease(input.LeaseId, input.WorkspaceId);
+        RequirePeer(RequireState(), peerId, input.WorkspaceId);
+        var status = RemoteToolHostProtocol.ParseTurnStatus(input.Status);
+        if (status is null || string.IsNullOrWhiteSpace(input.TurnId))
+            throw new RemoteToolHostException(ToolErrorCodes.InputInvalid, "A Turn report needs a Turn id and a known status.");
+        _activity?.ReportTurn(SessionId, peerId, ScopedThread(input.ThreadId), input.TurnId, status.Value);
+        return ValueTask.FromResult<JsonNode?>(new JsonObject());
     }
 }

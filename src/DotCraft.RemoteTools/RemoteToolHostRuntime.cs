@@ -40,6 +40,7 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
             ActivityChanged?.Invoke(this, activity);
             Refresh();
         };
+        _activity.TurnsChanged += () => TurnsChanged?.Invoke(this, EventArgs.Empty);
         _peers = ReadPeers();
     }
 
@@ -76,6 +77,9 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
     /// <summary>The tool call currently running for a paired machine, if any.</summary>
     public RemoteToolActivity? CurrentActivity => _activity.Current;
 
+    /// <summary>The latest Turn of each Thread routed here, for as long as its execution session holds it.</summary>
+    public IReadOnlyList<RemoteToolTurn> Turns => _activity.Turns;
+
     public event EventHandler<RemoteToolHostStatus>? StatusChanged;
 
     /// <summary>Raised when a pairing's control connection is established.</summary>
@@ -89,6 +93,9 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
     public event EventHandler<RemoteToolPeer>? ScreenViewStopped;
 
     public event EventHandler<RemoteToolActivity?>? ActivityChanged;
+
+    /// <summary>Raised whenever <see cref="Turns"/> changes; read it for the current list.</summary>
+    public event EventHandler? TurnsChanged;
 
     internal event Action<RemoteToolHostDiagnostic>? Diagnostic;
 
