@@ -293,6 +293,17 @@ results preserve failure content and structured data alongside the normalized su
 UTF-32 byte-order mark selects that encoding. They return an error instead of decoding bytes that are
 not valid text in that encoding and never rewrite such a file; `GrepFiles` still searches it.
 
+`EditFile` treats `oldText` and `newText` as already JSON-decoded strings and does not reinterpret
+literal escape sequences. It first counts non-overlapping exact substring matches, then matches whole-line sequences ignoring
+trailing whitespace, leading and trailing whitespace, and finally common Unicode punctuation
+and space differences, in that order. A stage with no candidates advances to the next stage;
+a stage with multiple candidates rejects the edit without writing. A unique match is replaced
+at its recorded source range. Comparison normalization never becomes replacement content.
+`replaceAll` uses exact substring matches only. Existing line-ending and encoding policies still
+apply; editing does not automatically format or reindent replacement text.
+Whole-line matching includes the trailing empty segment when a snippet ends in LF, so that segment
+must match an empty or whitespace-only line (or the file's final empty segment).
+
 Result forwarding preserves source containment and audience normalization; a source cannot acquire
 host-private result authority by returning an envelope.
 
