@@ -86,6 +86,7 @@ describe('workspace thread cache notifications', () => {
     const cache = [
       thread('parent'),
       subAgent('child', 'parent'),
+      subAgent('grandchild', 'child'),
       thread('other')
     ]
 
@@ -96,6 +97,13 @@ describe('workspace thread cache notifications', () => {
     expect(result.changed).toBe(true)
     expect(result.refreshThreadList).toBe(false)
     expect(ids(result.threads)).toEqual(['other'])
+
+    for (const threadId of ['grandchild', 'child', 'parent']) {
+      const repeated = applyWorkspaceThreadNotificationToCache(result.threads, 'thread/deleted', { threadId })
+      expect(repeated.threads).toBe(result.threads)
+      expect(repeated.changed).toBe(false)
+      expect(repeated.refreshThreadList).toBe(false)
+    }
   })
 
   it('requests a refresh when a previously archived thread is restored but missing from cache', () => {
