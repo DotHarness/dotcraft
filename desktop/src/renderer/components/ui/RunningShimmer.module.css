@@ -4,7 +4,9 @@
 }
 
 .root {
-  -webkit-text-fill-color: var(--shimmer-base);
+  background-color: var(--shimmer-base);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .sweep {
@@ -15,8 +17,10 @@
   text-overflow: inherit;
   pointer-events: none;
   user-select: none;
-  transform: translateX(-50%);
-  mask-image: linear-gradient(90deg, transparent 0%, #000 20% 30%, transparent 50% 100%);
+  transform: translateX(calc(-1 * var(--sweep-band, 0px)));
+  mask-image: linear-gradient(90deg, transparent, #000, transparent);
+  mask-repeat: no-repeat;
+  mask-size: var(--sweep-band, 0px) 100%;
 }
 
 .highlight {
@@ -24,13 +28,14 @@
   width: 100%;
   overflow: hidden;
   text-overflow: inherit;
-  -webkit-text-fill-color: var(--shimmer-peak);
-  transform: translateX(50%);
+  background-color: var(--shimmer-peak);
+  background-clip: text;
+  transform: translateX(var(--sweep-band, 0px));
 }
 
 .root[data-sweep] :is(.sweep, .highlight) {
-  animation-duration: 1s;
-  animation-timing-function: steps(48, end);
+  animation-duration: var(--sweep-duration);
+  animation-timing-function: steps(var(--sweep-steps), end);
 }
 
 .root[data-sweep] .sweep {
@@ -43,12 +48,12 @@
 
 @keyframes sweep {
   to {
-    transform: translateX(125%);
+    transform: translateX(100%);
   }
 }
 
 @keyframes counter-sweep {
   to {
-    transform: translateX(-125%);
+    transform: translateX(-100%);
   }
 }

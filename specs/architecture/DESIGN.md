@@ -993,10 +993,11 @@ animation; the pulse itself is the running signal.
   caret — do not add a second spinner beside it. Remove the redundant indicator,
   along with any elapsed-time counter that rides with it.
 - A shimmering label dims to `--shimmer-base` and, every four seconds, carries one
-  `--shimmer-peak` highlight across its text in a one-second pass, beginning
-  shortly after it appears. The band is sized to the label, so a long label never
-  carries more than one highlight. Under reduced motion the label stays dimmed and
-  still.
+  highlight across its text that reaches `--shimmer-peak` only at its centre,
+  beginning shortly after it appears.
+  The band is half the label's width up to 80px and crosses at a steady 450px per
+  second, taking at least one second, so a long label never carries a second, wider,
+  or faster highlight. Under reduced motion the label stays dimmed and still.
 - Mark loading regions `aria-busy`; give content-free skeletons `role="status"`
   with an `aria-label` so the loading state is announced. Skeleton blocks
   themselves stay `aria-hidden`.

@@ -2,9 +2,12 @@ import { useEffect, useRef, type HTMLAttributes, type ReactNode } from 'react'
 import { prefersReducedMotion } from '../../utils/appearance'
 import styles from './RunningShimmer.module.css'
 
+const MAX_BAND_PX = 80
+const SPEED_PX_PER_SECOND = 450
+const MIN_SWEEP_DURATION_MS = 1_000
+const STEPS_PER_SECOND = 48
 const FIRST_SWEEP_DELAY_MS = 600
 const SWEEP_INTERVAL_MS = 4_000
-const SWEEP_DURATION_MS = 1_000
 
 interface RunningShimmerProps extends HTMLAttributes<HTMLElement> {
   as?: 'span' | 'div'
@@ -33,8 +36,14 @@ export function RunningShimmer({
     let end: number | undefined
     const sweep = (): void => {
       if (prefersReducedMotion()) return
+      const width = root.offsetWidth
+      const band = Math.min(MAX_BAND_PX, width / 2)
+      const duration = Math.max(MIN_SWEEP_DURATION_MS, ((width + band) / SPEED_PX_PER_SECOND) * 1_000)
+      root.style.setProperty('--sweep-band', `${band}px`)
+      root.style.setProperty('--sweep-duration', `${Math.round(duration)}ms`)
+      root.style.setProperty('--sweep-steps', String(Math.round((duration / 1_000) * STEPS_PER_SECOND)))
       root.setAttribute('data-sweep', '')
-      end = window.setTimeout(() => root.removeAttribute('data-sweep'), SWEEP_DURATION_MS)
+      end = window.setTimeout(() => root.removeAttribute('data-sweep'), duration)
     }
     const start = window.setTimeout(() => {
       sweep()
