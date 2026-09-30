@@ -1,69 +1,51 @@
 {
   "models": [
     {
-      "slug": "gpt-6-astra",
+      "slug": "gpt-6.1-sol",
       "visibility": "list",
       "priority": 1,
       "use_responses_lite": true
     },
     {
-      "slug": "gpt-6-sol",
+      "slug": "gpt-6-astra",
       "visibility": "list",
       "priority": 2,
       "use_responses_lite": true
     },
     {
-      "slug": "gpt-6-luna",
+      "slug": "gpt-6-sol",
       "visibility": "list",
       "priority": 3,
       "use_responses_lite": true
     },
     {
-      "slug": "gpt-5.6-sol",
+      "slug": "gpt-6-luna",
       "visibility": "list",
       "priority": 4,
       "use_responses_lite": true
     },
     {
-      "slug": "gpt-5.6-terra",
+      "slug": "gpt-5.6-sol",
       "visibility": "list",
-      "priority": 7,
+      "priority": 5,
       "use_responses_lite": true
     },
     {
-      "slug": "gpt-5.6-luna",
+      "slug": "gpt-5.6-terra",
       "visibility": "list",
       "priority": 8,
       "use_responses_lite": true
     },
     {
+      "slug": "gpt-5.6-luna",
+      "visibility": "list",
+      "priority": 9,
+      "use_responses_lite": true
+    },
+    {
       "slug": "gpt-5.5",
       "visibility": "list",
-      "priority": 12,
-      "use_responses_lite": false
-    },
-    {
-      "slug": "gpt-5.4",
-      "visibility": "list",
-      "priority": 16,
-      "use_responses_lite": false
-    },
-    {
-      "slug": "gpt-5.4-mini",
-      "visibility": "list",
-      "priority": 23,
-      "use_responses_lite": false
-    },
-    {
-      "slug": "gpt-5.3-codex",
-      "visibility": "list",
-      "priority": 24,
-      "use_responses_lite": false
-    },
-    {
-      "slug": "gpt-5.2",
-      "visibility": "list",
-      "priority": 29,
+      "priority": 13,
       "use_responses_lite": false
     }
   ]

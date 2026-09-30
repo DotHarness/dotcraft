@@ -582,6 +582,14 @@
         ]
       }
     },
+    "gpt-6.1-sol": {
+      "contextWindow": 1050000,
+      "fast": {
+        "protocols": [
+          "openai-responses"
+        ]
+      }
+    },
     "gpt-6-astra": {
       "contextWindow": 1050000,
       "fast": {
