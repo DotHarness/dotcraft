@@ -15,6 +15,7 @@ import { sessionForThread, useVoiceStore } from '../../voice/voiceStore'
 import { isBlockedMicrophonePermission } from '../../voice/microphoneAccess'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { VoiceSetupDialog, type VoiceSetupStage } from './VoiceSetupDialog'
+import styles from './VoiceInputControl.module.css'
 
 interface VoiceInputControlProps {
   threadId: string
@@ -244,35 +245,37 @@ export function VoiceInputControl({ threadId, enableShortcut = true, compact = f
 
   return (
     <>
-      {elapsedMs != null && <time style={timerStyle}>{formatElapsed(elapsedMs)}</time>}
-      <ActionTooltip label={view.label} shortcut={enableShortcut && view.kind === 'mic' ? ['Ctrl', 'Shift', 'D'] : undefined} placement="top">
-        <button
-          type="button"
-          aria-label={view.label}
-          aria-pressed={recording ? true : undefined}
-          disabled={view.disabled}
-          onPointerDown={onPointerDown}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerCancel}
-          onClick={() => {
-            if (suppressPointerClick.current) {
-              suppressPointerClick.current = false
-              return
-            }
-            void activate()
-          }}
-          className="dc-composer-icon-control"
-          style={controlStyle(compact)}
-        >
-          {view.kind === 'recording' || view.kind === 'processing'
-            ? <Square size={11} fill="currentColor" strokeWidth={0} aria-hidden style={{ display: 'block' }} />
-            : view.kind === 'retry'
-              ? <RotateCcw size={16} aria-hidden />
-              : view.kind === 'downloading'
-                ? <DownloadRing progress={progress} />
-                : <Mic size={16} aria-hidden />}
-        </button>
-      </ActionTooltip>
+      <span className={styles.group}>
+        {elapsedMs != null && <time className={styles.timer}>{formatElapsed(elapsedMs)}</time>}
+        <ActionTooltip label={view.label} shortcut={enableShortcut && view.kind === 'mic' ? ['Ctrl', 'Shift', 'D'] : undefined} placement="top">
+          <button
+            type="button"
+            aria-label={view.label}
+            aria-pressed={recording ? true : undefined}
+            disabled={view.disabled}
+            onPointerDown={onPointerDown}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerCancel}
+            onClick={() => {
+              if (suppressPointerClick.current) {
+                suppressPointerClick.current = false
+                return
+              }
+              void activate()
+            }}
+            className={`dc-composer-icon-control ${styles.control}`}
+            data-compact={compact || undefined}
+          >
+            {view.kind === 'recording' || view.kind === 'processing'
+              ? <Square size={11} fill="currentColor" strokeWidth={0} aria-hidden className={styles.square} />
+              : view.kind === 'retry'
+                ? <RotateCcw size={16} aria-hidden />
+                : view.kind === 'downloading'
+                  ? <DownloadRing progress={progress} />
+                  : <Mic size={16} aria-hidden />}
+          </button>
+        </ActionTooltip>
+      </span>
       {setupStage && (
         <VoiceSetupDialog
           stage={setupStage}
@@ -415,13 +418,6 @@ function formatElapsed(elapsedMs: number): string {
   return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`
 }
 
-function controlStyle(compact: boolean): CSSProperties {
-  return {
-    width: compact ? 28 : 32,
-    height: compact ? 28 : 32
-  }
-}
-
 const waveformStatusStyle: CSSProperties = {
   display: 'inline-flex',
   flex: 1,
@@ -437,12 +433,4 @@ const waveformStyle: CSSProperties = {
   minWidth: 80,
   height: 22,
   color: 'var(--composer-footer-text)'
-}
-
-const timerStyle: CSSProperties = {
-  minWidth: 32,
-  color: 'var(--composer-footer-text)',
-  fontSize: 'var(--type-ui-size)',
-  fontVariantNumeric: 'tabular-nums',
-  textAlign: 'right'
 }

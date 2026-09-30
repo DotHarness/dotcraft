@@ -281,6 +281,8 @@ Successful audio is deleted after the completion event is accepted for writeback
 
 The DotCraft mascot may reflect recording only through an approved design-system state.
 
+Elapsed or frozen duration and the voice control keep an owned 8px gap independent of toolbar spacing, following the [Composer design rules](../architecture/DESIGN.md#composer).
+
 Recording, Renderer-local finalizing, queued, and transcribing voice sessions use the originating Composer's compact internal footer. The leading side keeps the command/attachment `+` action while approval, mode, goal, model, reasoning, and context-usage controls are hidden. During recording, the live signal consumes the remaining internal width and the footer retains elapsed time, inline Stop, and the independent primary Send action. Stopping capture must atomically replace recording with finalizing before any asynchronous audio work begins, so the normal footer is never rendered between recording and Main session admission. During finalizing, queued transcription, and transcription, the live signal is removed while the frozen recorded duration, quiet disabled-square voice control, and disabled Send action remain visible. Model downloading and every other non-processing state retain the normal Composer controls; completion, cancellation, sub-250 ms discard, and retryable failure restore them. The compact state applies only to the Composer that owns the voice session. Controls below the Composer, including workspace, location, branch, and usage context, remain visible throughout.
 
 ### 11.3 Input controls

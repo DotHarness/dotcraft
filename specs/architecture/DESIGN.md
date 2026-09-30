@@ -1370,6 +1370,12 @@ own placeholder and state already say.
   `.dc-composer-icon-control`: round and frameless, the composer's hover fill, and a
   neutral fill while their menu is open or recording runs. Each takes the height of
   the controls beside it.
+- Voice duration and its microphone/stop button own a nonshrinking, vertically
+  centered inline-flex group with an 8px internal gap. The duration keeps a 32px
+  minimum width, tabular numerals, right alignment, and no wrapping. This spacing
+  remains independent of toolbar gaps at narrow widths and during finalizing or
+  transcription. The waveform takes the remaining width; the primary action stays
+  outside the voice group. Standard and compact voice buttons remain 32px and 28px.
 - Footer mode pills (Plan, Goal, a custom agent) are frameless 24px pills with an
   8px inset on both sides. At rest they show their mode icon; on hover or focus they
   take the composer's hover fill and the icon becomes a circled clear mark, which

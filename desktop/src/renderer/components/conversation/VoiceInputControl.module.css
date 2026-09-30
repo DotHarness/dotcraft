@@ -1,0 +1,30 @@
+.group {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.timer {
+  flex: 0 0 auto;
+  min-width: 32px;
+  color: var(--composer-footer-text);
+  font-size: var(--type-ui-size);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.control {
+  width: 32px;
+  height: 32px;
+}
+
+.control[data-compact] {
+  width: 28px;
+  height: 28px;
+}
+
+.square {
+  display: block;
+}
