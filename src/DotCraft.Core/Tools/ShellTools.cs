@@ -282,6 +282,8 @@ public sealed class ShellTools
     private static string FormatForegroundSnapshot(BackgroundTerminalSnapshot snapshot)
     {
         var output = string.IsNullOrWhiteSpace(snapshot.Output) ? "(no output)" : snapshot.Output;
+        if (snapshot.Truncated)
+            output += Environment.NewLine + $"Full output: {snapshot.OutputPath}";
         if (snapshot.Status == BackgroundTerminalStatus.TimedOut)
             return output + Environment.NewLine + "Error: Command timed out.";
         if (snapshot.ExitCode is { } exitCode and not 0)

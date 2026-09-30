@@ -264,8 +264,8 @@ public sealed class FileTools(
     [ToolRpc]
     public async Task<string> GrepFiles(
         [Description("The regular expression pattern to search for.")] string pattern,
-        [Description("The directory to search in. Defaults to workspace root.")] string path = "",
-        [Description("File name pattern to include (e.g. \"*.cs\", \"*.json\"). Searches all text files if not specified.")] string include = "",
+        [Description("The file or directory to search. Defaults to workspace root.")] string path = "",
+        [Description("File name pattern for directory searches (e.g. \"*.cs\", \"*.json\"). An explicit file path searches that file.")] string include = "",
         [Description("Maximum number of matching lines to return. Defaults to 100, up to 2000.")] int limit = 0,
         CancellationToken cancellationToken = default)
     {
@@ -277,8 +277,10 @@ public sealed class FileTools(
             if (validateResult != null)
                 return validateResult;
 
-            if (!Directory.Exists(searchPath))
-                return $"Error: Directory not found: {path}";
+            var isFile = File.Exists(searchPath);
+            if (!isFile && !Directory.Exists(searchPath))
+                return $"Error: Path not found: {path}";
+            var searchRoot = isFile ? Path.GetDirectoryName(searchPath)! : searchPath;
 
             var maxMatches = limit > 0 ? Math.Min(limit, MaxGrepMatches) : DefaultGrepMatches;
             var ripgrepResult = managedSearchOnly ? null : await _ripgrep.SearchAsync(new RipgrepSearchRequest(
@@ -313,7 +315,8 @@ public sealed class FileTools(
 
             try
             {
-                foreach (var filePath in EnumerateSearchableFiles(searchPath, includePattern, fallbackCancellationToken))
+                var files = isFile ? [searchPath] : EnumerateSearchableFiles(searchPath, includePattern, fallbackCancellationToken);
+                foreach (var filePath in files)
                 {
                     fallbackCancellationToken.ThrowIfCancellationRequested();
                     if (totalMatches >= maxMatches)
@@ -366,7 +369,7 @@ public sealed class FileTools(
             var currentFile = "";
             foreach (var match in matches)
             {
-                var relativePath = Path.GetRelativePath(searchPath, match.FilePath);
+                var relativePath = Path.GetRelativePath(searchRoot, match.FilePath);
                 if (currentFile != relativePath)
                 {
                     if (currentFile != "")
