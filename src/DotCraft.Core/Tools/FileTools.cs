@@ -34,8 +34,6 @@ public sealed class FileTools(
 
     private const int MaxFindResults = 200;
 
-    private const int MaxGrepFileSize = 5 * 1024 * 1024;
-
     private const int MaxLineLength = TextFileReadLimiter.MaxLineLength;
 
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
@@ -264,8 +262,8 @@ public sealed class FileTools(
     [ToolRpc]
     public async Task<string> GrepFiles(
         [Description("The regular expression pattern to search for.")] string pattern,
-        [Description("The directory to search in. Defaults to workspace root.")] string path = "",
-        [Description("File name pattern to include (e.g. \"*.cs\", \"*.json\"). Searches all text files if not specified.")] string include = "",
+        [Description("The file or directory to search. Defaults to workspace root.")] string path = "",
+        [Description("File name pattern for directory searches (e.g. \"*.cs\", \"*.json\"). An explicit file path searches that file.")] string include = "",
         [Description("Maximum number of matching lines to return. Defaults to 100, up to 2000.")] int limit = 0,
         CancellationToken cancellationToken = default)
     {
@@ -277,8 +275,10 @@ public sealed class FileTools(
             if (validateResult != null)
                 return validateResult;
 
-            if (!Directory.Exists(searchPath))
-                return $"Error: Directory not found: {path}";
+            var isFile = File.Exists(searchPath);
+            if (!isFile && !Directory.Exists(searchPath))
+                return $"Error: Path not found: {path}";
+            var searchRoot = isFile ? Path.GetDirectoryName(searchPath)! : searchPath;
 
             var maxMatches = limit > 0 ? Math.Min(limit, MaxGrepMatches) : DefaultGrepMatches;
             var ripgrepResult = managedSearchOnly ? null : await _ripgrep.SearchAsync(new RipgrepSearchRequest(
@@ -287,7 +287,6 @@ public sealed class FileTools(
                 string.IsNullOrEmpty(include) ? null : include,
                 maxMatches,
                 MaxLineLength,
-                MaxGrepFileSize,
                 _searchTimeout),
                 cancellationToken);
             if (ripgrepResult != null)
@@ -313,7 +312,8 @@ public sealed class FileTools(
 
             try
             {
-                foreach (var filePath in EnumerateSearchableFiles(searchPath, includePattern, fallbackCancellationToken))
+                var files = isFile ? [searchPath] : EnumerateSearchableFiles(searchPath, includePattern, fallbackCancellationToken);
+                foreach (var filePath in files)
                 {
                     fallbackCancellationToken.ThrowIfCancellationRequested();
                     if (totalMatches >= maxMatches)
@@ -321,22 +321,19 @@ public sealed class FileTools(
 
                     try
                     {
-                        var fileInfo = new FileInfo(filePath);
-                        if (fileInfo.Length > MaxGrepFileSize || fileInfo.Length == 0)
-                            continue;
-
                         if (IsBinaryFile(filePath))
                             continue;
 
                         // Lenient on purpose, like ripgrep: a legacy-encoded file still yields its ASCII matches.
-                        var lines = await File.ReadAllLinesAsync(filePath, fallbackCancellationToken);
-                        for (var i = 0; i < lines.Length; i++)
+                        var lineNumber = 0;
+                        await foreach (var line in File.ReadLinesAsync(filePath, fallbackCancellationToken))
                         {
                             fallbackCancellationToken.ThrowIfCancellationRequested();
-                            if (regex.IsMatch(lines[i]))
+                            lineNumber++;
+                            if (regex.IsMatch(line))
                             {
                                 totalMatches++;
-                                matches.Add((filePath, i + 1, lines[i]));
+                                matches.Add((filePath, lineNumber, line));
                                 if (totalMatches >= maxMatches)
                                     break;
                             }
@@ -366,7 +363,7 @@ public sealed class FileTools(
             var currentFile = "";
             foreach (var match in matches)
             {
-                var relativePath = Path.GetRelativePath(searchPath, match.FilePath);
+                var relativePath = Path.GetRelativePath(searchRoot, match.FilePath);
                 if (currentFile != relativePath)
                 {
                     if (currentFile != "")

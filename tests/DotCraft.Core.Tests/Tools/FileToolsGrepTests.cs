@@ -84,6 +84,62 @@ public sealed class FileToolsGrepTests : IDisposable
         Assert.StartsWith("Error: Invalid regex pattern:", result, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GrepFiles_SingleFileSearchKeepsLineNumbersAndDoesNotSearchSiblings(bool absolutePath)
+    {
+        var target = Path.Combine(_workspace, "target notes.txt");
+        await File.WriteAllTextAsync(target, "first\nneedle in target\nneedle again");
+        await File.WriteAllTextAsync(Path.Combine(_workspace, "sibling.txt"), "needle in sibling");
+        var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false, managedSearchOnly: true);
+
+        var result = await tools.GrepFiles("needle", absolutePath ? target : Path.GetFileName(target), include: "*.cs", limit: 1);
+
+        Assert.Contains("target notes.txt:", result, StringComparison.Ordinal);
+        Assert.Contains("Line 2: needle in target", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("sibling", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("needle again", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GrepFiles_SingleFileReachesRipgrepWithItsParentAsWorkingDirectory()
+    {
+        var target = Path.Combine(_workspace, "target notes.txt");
+        await File.WriteAllTextAsync(target, "needle from managed search");
+        var matchingRg = CreateMatchingCommand("file-rg", 1, "target notes.txt", recordArguments: true);
+        var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false, ripgrepPath: matchingRg);
+
+        var result = await tools.GrepFiles("needle", target);
+
+        Assert.Contains("target notes.txt:", result, StringComparison.Ordinal);
+        Assert.Contains("Line 1: needle 1", result, StringComparison.Ordinal);
+        var invocation = await File.ReadAllTextAsync(Path.Combine(_workspace, "invocation.txt"));
+        Assert.Contains(target, invocation, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GrepFiles_ManagedSearchFindsMatchesBeyondFiveMiB(bool fileTarget)
+    {
+        var target = Path.Combine(_workspace, "large.txt");
+        await using (var writer = new StreamWriter(target))
+        {
+            var filler = new string('x', 4095);
+            for (var i = 0; i < 1536; i++)
+                await writer.WriteLineAsync(filler);
+            await writer.WriteAsync("needle at end\nneedle again");
+        }
+        var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false, managedSearchOnly: true);
+
+        var result = await tools.GrepFiles("needle", fileTarget ? target : _workspace, limit: 1);
+
+        Assert.Contains("large.txt:", result, StringComparison.Ordinal);
+        Assert.Contains("Line 1537: needle at end", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("needle again", result, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task GrepFiles_RipgrepTimeoutDoesNotFallBackToManagedSearch()
     {
@@ -159,7 +215,6 @@ public sealed class FileToolsGrepTests : IDisposable
                 null,
                 100,
                 2000,
-                5 * 1024 * 1024,
                 TimeSpan.FromSeconds(30)),
                 cts.Token));
     }
@@ -188,7 +243,7 @@ public sealed class FileToolsGrepTests : IDisposable
         return unixPath;
     }
 
-    private string CreateMatchingCommand(string fileName, int matchCount)
+    private string CreateMatchingCommand(string fileName, int matchCount, string matchPath = "from-ripgrep.txt", bool recordArguments = false)
     {
         var events = Enumerable.Range(1, matchCount)
             .Select(i => JsonSerializer.Serialize(new
@@ -196,7 +251,7 @@ public sealed class FileToolsGrepTests : IDisposable
                 type = "match",
                 data = new
                 {
-                    path = new { text = "from-ripgrep.txt" },
+                    path = new { text = matchPath },
                     lines = new { text = $"needle {i}" },
                     line_number = i
                 }
@@ -206,14 +261,14 @@ public sealed class FileToolsGrepTests : IDisposable
         if (OperatingSystem.IsWindows())
         {
             var path = Path.Combine(_workspace, $"{fileName}.cmd");
-            File.WriteAllText(path, "@echo off\r\n" + string.Concat(events.Select(e => $"echo {e}\r\n")));
+            File.WriteAllText(path, "@echo off\r\n" + (recordArguments ? "echo %* > invocation.txt\r\n" : "") + string.Concat(events.Select(e => $"echo {e}\r\n")));
             return path;
         }
 
         var unixPath = Path.Combine(_workspace, fileName);
         File.WriteAllText(
             unixPath,
-            "#!/usr/bin/env sh\n" + string.Concat(events.Select(e => $"printf '%s\\n' '{e}'\n")));
+            "#!/usr/bin/env sh\n" + (recordArguments ? "printf '%s\\n' \"$@\" > invocation.txt\n" : "") + string.Concat(events.Select(e => $"printf '%s\\n' '{e}'\n")));
         File.SetUnixFileMode(
             unixPath,
             UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);

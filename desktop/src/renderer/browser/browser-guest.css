@@ -21,3 +21,13 @@
   opacity: 0.01;
   pointer-events: none;
 }
+
+.dc-browser-guest[data-presentation='capturing'] {
+  z-index: 2147483647;
+  opacity: 0.001;
+  contain: layout paint size style;
+  transform: translate3d(0, 0, 0) scale(var(--dc-browser-capture-scale, 1));
+  transform-origin: top left;
+  will-change: transform;
+  pointer-events: none;
+}

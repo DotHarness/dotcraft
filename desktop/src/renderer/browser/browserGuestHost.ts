@@ -36,12 +36,17 @@ export function startBrowserGuestHost(api: BrowserHostApi, parent: HTMLElement =
       container.append(page)
       root.append(container)
     }
-    const { x, y, width, height } = host.bounds
+    const { x, y } = host.bounds
+    const { width, height } = host.captureSurfaceSize ?? host.bounds
+    const presented = host.visible && !host.captureSurfaceSize
+    guest.container.style.setProperty('--dc-browser-capture-scale', String(host.captureSurfaceSize
+      ? Math.min(1, window.innerWidth / width, window.innerHeight / height)
+      : 1))
     Object.assign(guest.container.style, {
-      left: `${host.visible ? x : 0}px`, top: `${host.visible ? y : 0}px`,
+      left: `${presented ? x : 0}px`, top: `${presented ? y : 0}px`,
       width: `${width}px`, height: `${height}px`
     })
-    guest.container.dataset.presentation = host.visible ? 'visible' : host.automation ? 'background' : 'parked'
+    guest.container.dataset.presentation = host.captureSurfaceSize ? 'capturing' : host.visible ? 'visible' : host.automation ? 'background' : 'parked'
   }
 
   const unsubscribe = api.onEvent(event => {

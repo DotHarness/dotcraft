@@ -6,14 +6,17 @@ vi.mock('electron', () => ({ webContents: { fromId: mocks.fromId }, session: { f
 import { BrowserGuestRegistry } from '../browserGuestRegistry'
 
 function fixture() {
-  const owner = Object.assign(new EventEmitter(), { isDestroyed: () => false, send: vi.fn() })
+  const owner = Object.assign(new EventEmitter(), {
+    isDestroyed: () => false, send: vi.fn(),
+    getBackgroundThrottling: () => true, setBackgroundThrottling: vi.fn()
+  })
   const win = Object.assign(new EventEmitter(), {
     id: 1,
     isDestroyed: () => false,
     webContents: owner
   }) as unknown as Electron.BrowserWindow
   const page = Object.assign(new EventEmitter(), {
-    hostWebContents: owner, session: mocks.partition, isDestroyed: () => false, close: vi.fn()
+    setBackgroundThrottling: vi.fn(), hostWebContents: owner, session: mocks.partition, isDestroyed: () => false, close: vi.fn()
   })
   mocks.fromId.mockReturnValue(page)
   return { registry: new BrowserGuestRegistry(), win, owner, page }
@@ -88,4 +91,49 @@ it('does not bind another window’s guest', async () => {
   expect(() => registry.bind(win, 'tab', 7)).toThrow('does not belong')
   registry.clear(win)
   await rejected
+})
+
+it('keeps stored bounds and visibility while capturing and restores background throttling', async () => {
+  const { registry, win, page } = fixture()
+  const ready = registry.request(win, 'tab', 'persist:workspace')
+  registry.bind(win, 'tab', 7)
+  await ready
+  expect(page.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
+  const before = registry.list(win)[0]
+  registry.setCaptureSurface(win, 'tab', { width: 900, height: 2400 })
+  expect(registry.list(win)[0]).toMatchObject({ ...before, captureSurfaceSize: { width: 900, height: 2400 } })
+  expect(page.setBackgroundThrottling).toHaveBeenLastCalledWith(false)
+  registry.update(win, 'tab', { visible: true })
+  registry.setCaptureSurface(win, 'tab', null)
+  expect(registry.list(win)[0]).toMatchObject({ bounds: before.bounds, visible: true })
+  expect(page.setBackgroundThrottling).toHaveBeenLastCalledWith(false)
+  registry.update(win, 'tab', { visible: false, automation: true })
+  expect(page.setBackgroundThrottling).toHaveBeenLastCalledWith(false)
+  registry.update(win, 'tab', { automation: false })
+  expect(page.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
+  registry.clear(win)
+})
+
+it.each([true, false])('restores owner throttling %s only after the last capture ends', async previous => {
+  const { registry, win, page, owner } = fixture()
+  owner.getBackgroundThrottling = () => previous
+  const a = registry.request(win, 'a', 'persist:workspace')
+  registry.bind(win, 'a', 7)
+  const other = Object.assign(new EventEmitter(), {
+    hostWebContents: owner, session: page.session, isDestroyed: () => false,
+    close: vi.fn(), setBackgroundThrottling: vi.fn()
+  })
+  mocks.fromId.mockReturnValue(other)
+  const b = registry.request(win, 'b', 'persist:workspace')
+  registry.bind(win, 'b', 8)
+  await Promise.all([a, b])
+  registry.setCaptureSurface(win, 'a', { width: 800, height: 1800 })
+  registry.setCaptureSurface(win, 'b', { width: 800, height: 2400 })
+  expect(owner.setBackgroundThrottling).toHaveBeenCalledOnce()
+  expect(owner.setBackgroundThrottling).toHaveBeenLastCalledWith(false)
+  registry.setCaptureSurface(win, 'a', null)
+  expect(owner.setBackgroundThrottling).toHaveBeenCalledOnce()
+  registry.remove(win, 'b')
+  expect(owner.setBackgroundThrottling).toHaveBeenLastCalledWith(previous)
+  registry.clear(win)
 })

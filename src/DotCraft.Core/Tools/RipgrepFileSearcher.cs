@@ -10,7 +10,6 @@ internal sealed record RipgrepSearchRequest(
     string? IncludePattern,
     int MaxMatches,
     int MaxLineLength,
-    int MaxFileSizeBytes,
     TimeSpan Timeout);
 
 internal sealed class RipgrepFileSearcher(string? configuredPath)
@@ -28,10 +27,11 @@ internal sealed class RipgrepFileSearcher(string? configuredPath)
         if (string.IsNullOrWhiteSpace(_rgPath))
             return null;
 
+        var searchRoot = File.Exists(request.SearchPath) ? Path.GetDirectoryName(request.SearchPath)! : request.SearchPath;
         var psi = new ProcessStartInfo
         {
             FileName = _rgPath,
-            WorkingDirectory = request.SearchPath,
+            WorkingDirectory = searchRoot,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -67,7 +67,7 @@ internal sealed class RipgrepFileSearcher(string? configuredPath)
                     return;
                 }
 
-                if (!TryParseMatch(e.Data, request.SearchPath, request.MaxLineLength, out var match))
+                if (!TryParseMatch(e.Data, searchRoot, request.MaxLineLength, out var match))
                     return;
 
                 lock (matchesLock)
@@ -102,7 +102,7 @@ internal sealed class RipgrepFileSearcher(string? configuredPath)
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeoutCts.IsCancellationRequested)
             {
                 await KillProcessTreeAsync(process).ConfigureAwait(false);
-                return FormatTimedOutResult(request.SearchPath, matches, matchesLock, NormalizeTimeout(request.Timeout));
+                return FormatTimedOutResult(searchRoot, matches, matchesLock, NormalizeTimeout(request.Timeout));
             }
             catch (OperationCanceledException)
             {
@@ -127,7 +127,7 @@ internal sealed class RipgrepFileSearcher(string? configuredPath)
             }
 
             if (snapshot.Count > 0)
-                return FormatMatches(request.SearchPath, snapshot, truncated);
+                return FormatMatches(searchRoot, snapshot, truncated);
 
             return process.ExitCode switch
             {
@@ -165,8 +165,6 @@ internal sealed class RipgrepFileSearcher(string? configuredPath)
         psi.ArgumentList.Add("--no-messages");
         psi.ArgumentList.Add("--no-require-git");
         psi.ArgumentList.Add("--pcre2");
-        psi.ArgumentList.Add("--max-filesize");
-        psi.ArgumentList.Add(request.MaxFileSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         foreach (var include in SplitPatterns(request.IncludePattern))
         {
@@ -190,7 +188,7 @@ internal sealed class RipgrepFileSearcher(string? configuredPath)
 
         psi.ArgumentList.Add("--");
         psi.ArgumentList.Add(request.Pattern);
-        psi.ArgumentList.Add(".");
+        psi.ArgumentList.Add(request.SearchPath);
     }
 
     private static IEnumerable<string> SplitPatterns(string? includePattern)

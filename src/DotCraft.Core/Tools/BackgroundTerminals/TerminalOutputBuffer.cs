@@ -5,9 +5,12 @@ namespace DotCraft.Tools.BackgroundTerminals;
 internal sealed class TerminalOutputBuffer
 {
     internal const int CapacityBytes = 1024 * 1024;
-    private readonly LinkedList<string> _chunks = new();
+    private readonly StringBuilder _head = new();
+    private readonly LinkedList<string> _tailChunks = new();
     private readonly object _sync = new();
-    private int _bytes;
+    private int _headBytes;
+    private bool _headComplete;
+    private int _tailBytes;
     private long _characters;
     private long _trailingLineEndings;
 
@@ -15,23 +18,38 @@ internal sealed class TerminalOutputBuffer
     {
         lock (_sync)
         {
+            if (!_headComplete)
+            {
+                var headCharacters = 0;
+                foreach (var rune in text.EnumerateRunes())
+                {
+                    if (_headBytes + rune.Utf8SequenceLength > CapacityBytes / 2)
+                    {
+                        _headComplete = true;
+                        break;
+                    }
+                    _headBytes += rune.Utf8SequenceLength;
+                    headCharacters += rune.Utf16SequenceLength;
+                }
+                _head.Append(text.AsSpan(0, headCharacters));
+            }
             foreach (var chunk in SplitFrames(text, 8192))
             {
-                _chunks.AddLast(chunk);
-                _bytes += Encoding.UTF8.GetByteCount(chunk);
-                while (_bytes > CapacityBytes)
+                _tailChunks.AddLast(chunk);
+                _tailBytes += Encoding.UTF8.GetByteCount(chunk);
+                while (_tailBytes > CapacityBytes / 2)
                 {
-                    var head = _chunks.First!.Value;
-                    _chunks.RemoveFirst();
+                    var firstChunk = _tailChunks.First!.Value;
+                    _tailChunks.RemoveFirst();
                     var removeChars = 0;
-                    foreach (var rune in head.EnumerateRunes())
+                    foreach (var rune in firstChunk.EnumerateRunes())
                     {
-                        _bytes -= rune.Utf8SequenceLength;
+                        _tailBytes -= rune.Utf8SequenceLength;
                         removeChars += rune.Utf16SequenceLength;
-                        if (_bytes <= CapacityBytes) break;
+                        if (_tailBytes <= CapacityBytes / 2) break;
                     }
-                    if (removeChars < head.Length)
-                        _chunks.AddFirst(head[removeChars..]);
+                    if (removeChars < firstChunk.Length)
+                        _tailChunks.AddFirst(firstChunk[removeChars..]);
                 }
             }
             _characters += text.Length;
@@ -44,20 +62,30 @@ internal sealed class TerminalOutputBuffer
     {
         lock (_sync)
         {
-            var output = string.Concat(_chunks).TrimEnd('\r', '\n');
             var total = _characters - _trailingLineEndings;
             var limit = maxCharacters > 0 ? Math.Min(maxCharacters, CapacityBytes) : CapacityBytes;
-            var start = Math.Max(0, output.Length - limit);
-            if (start > 0 && char.IsLowSurrogate(output[start]) && char.IsHighSurrogate(output[start - 1]))
-                start++;
-            output = output[start..];
-            var omitted = total - output.Length;
+            var head = _head.ToString();
+            head = head[..(int)Math.Min(head.Length, total)];
+            var tail = string.Concat(_tailChunks).TrimEnd('\r', '\n');
+            var overlap = head.Length + tail.Length - total;
+            if (total <= limit && overlap >= 0)
+            {
+                var complete = head + tail[(int)overlap..];
+                return (complete.Length == 0 ? "(no output)" : complete, (int)total, false);
+            }
+            var headLength = Math.Min(head.Length, (limit + 1) / 2);
+            if (headLength > 0 && headLength < head.Length && char.IsHighSurrogate(head[headLength - 1]))
+                headLength--;
+            var tailStart = Math.Max(0, tail.Length - (limit - headLength));
+            if (tailStart < tail.Length && char.IsLowSurrogate(tail[tailStart]))
+                tailStart++;
+            head = head[..headLength];
+            tail = tail[tailStart..];
+            var omitted = total - head.Length - tail.Length;
             return (
-                omitted > 0
-                    ? $"... (truncated, {omitted} earlier chars){Environment.NewLine}{output}"
-                    : output.Length == 0 ? "(no output)" : output,
+                $"{head}{Environment.NewLine}... (truncated, {omitted} middle chars){Environment.NewLine}{tail}",
                 (int)Math.Min(total, int.MaxValue),
-                omitted > 0);
+                true);
         }
     }
 

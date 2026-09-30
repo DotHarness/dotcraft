@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text;
 using DotCraft.Configuration;
+using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using Xunit;
 
@@ -27,7 +28,7 @@ public sealed class BackgroundTerminalOutputTests : IAsyncLifetime
     [Fact]
     public async Task LargeUnterminatedUnicodeOutput_HasBoundedFramesAndPreviewAndCompleteLogAfterRestart()
     {
-        var content = string.Concat(Enumerable.Repeat("abc中文😀", 230_000)) + "final-tail";
+        var content = "initial-head" + string.Concat(Enumerable.Repeat("abc中文😀", 230_000)) + "final-tail";
         var events = new ConcurrentQueue<BackgroundTerminalEvent>();
         _service = CreateService();
         _service.TerminalEvent += events.Enqueue;
@@ -38,6 +39,7 @@ public sealed class BackgroundTerminalOutputTests : IAsyncLifetime
         Assert.Equal(content, await File.ReadAllTextAsync(result.OutputPath));
         Assert.Equal(content.Length, result.OriginalOutputChars);
         Assert.True(result.Truncated);
+        Assert.StartsWith("initial-head", result.Output);
         Assert.EndsWith("final-tail", result.Output);
         Assert.InRange(Encoding.UTF8.GetByteCount(result.Output), 1, 1024 * 1024 + 100);
         Assert.DoesNotContain("\uFFFD", result.Output);
@@ -126,6 +128,25 @@ public sealed class BackgroundTerminalOutputTests : IAsyncLifetime
         Assert.True(result.Truncated);
         Assert.EndsWith("tail", result.Output);
         Assert.True(result.Output.Length <= 1024 * 1024 + 100);
+    }
+
+    [Fact]
+    public async Task ForegroundExec_TruncatedOutputKeepsBothEndsAndPointsToCompleteLog()
+    {
+        _service = CreateService();
+        var content = "initial-head" + new string('x', 20_000) + "final-tail";
+        var request = await RequestAsync(content);
+        var tools = new ShellTools(_directory, _service, requireApprovalOutsideWorkspace: false);
+
+        var result = await tools.Exec(request.Command, maxOutputChars: 1000);
+
+        Assert.True(result.Success);
+        Assert.StartsWith("initial-head", result.Content);
+        Assert.Contains("middle chars", result.Content);
+        Assert.Contains("final-tail", result.Content);
+        var terminal = Assert.Single(await _service.ListAsync());
+        Assert.Contains(terminal.OutputPath, result.Content);
+        Assert.Equal(content, await File.ReadAllTextAsync(terminal.OutputPath));
     }
 
     [Fact]

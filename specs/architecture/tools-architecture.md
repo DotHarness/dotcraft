@@ -293,6 +293,12 @@ results preserve failure content and structured data alongside the normalized su
 UTF-32 byte-order mark selects that encoding. They return an error instead of decoding bytes that are
 not valid text in that encoding and never rewrite such a file; `GrepFiles` still searches it.
 
+`GrepFiles` accepts a file or directory path. A file target searches only that file and reports its
+name and matching line numbers; directory targets recurse. Include patterns filter directory scans.
+Neither search backend skips files based on size. Both preserve path authorization, binary-file
+filtering, cancellation, the search timeout, and the match limit. The managed backend scans lines
+incrementally rather than loading the entire file. Missing targets are reported as missing paths.
+
 `EditFile` treats `oldText` and `newText` as already JSON-decoded strings and does not reinterpret
 literal escape sequences. It first counts non-overlapping exact substring matches, then matches whole-line sequences ignoring
 trailing whitespace, leading and trailing whitespace, and finally common Unicode punctuation
@@ -312,9 +318,12 @@ schema and serialization metadata do not pin a retired plugin load context.
 
 ### 7.3 Shell execution
 
-Background terminal output uses bounded process-read and live-notification queues. A 1 MiB UTF-8 tail
-provides previews independently of the complete disk log. Real-time output is limited to 8 KiB per
-delta, 10,000 deltas per terminal, and the configured live-byte budget. Exhaustion stops data
+Background terminal output uses bounded process-read and live-notification queues. A 1 MiB UTF-8
+buffer retains the beginning and end independently of the complete disk log. Truncated previews
+split the requested character budget between those excerpts, mark the omitted middle, and preserve
+character boundaries. Foreground command results include the complete log path when truncated.
+Real-time output is limited to 8 KiB per delta, 10,000 deltas per terminal, and the configured
+live-byte budget. Exhaustion stops data
 notifications while logging and process execution continue. Both running and recovered previews
 remain bounded; completion follows output drain and log flush.
 
