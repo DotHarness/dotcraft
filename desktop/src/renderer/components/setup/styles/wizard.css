@@ -24,6 +24,10 @@
   animation: setup-content-dim 420ms ease-out both;
 }
 
+.setup-wizard-shell {
+  overflow-x: hidden;
+}
+
 .setup-wizard-logo-anchor {
   display: grid;
   place-items: center;
@@ -47,6 +51,7 @@
 }
 
 .setup-wizard-kicker {
+  overflow: clip;
   animation: setup-wizard-enter 360ms ease-out 60ms both;
 }
 

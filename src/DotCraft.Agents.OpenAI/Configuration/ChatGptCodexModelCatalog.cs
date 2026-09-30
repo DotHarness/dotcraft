@@ -10,7 +10,7 @@ internal static class ChatGptCodexModelCatalog
 {
     private const string BuiltInResourceName = "DotCraft.Resources.chatgpt-codex-models.json";
     private const string CacheFileName = "model-catalog-cache.json";
-    private const string ClientVersion = "0.155.0";
+    private const string ClientVersion = "0.159.0";
     private const int CacheVersion = 3;
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
     private static readonly JsonSerializerOptions CacheJsonOptions = new(JsonSerializerDefaults.Web)
