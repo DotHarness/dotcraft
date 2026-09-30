@@ -3275,6 +3275,7 @@ export const MESSAGES_EN = {
   'viewer.closeExplorer': 'Hide explorer',
   'viewer.explorerTitle': 'Explorer',
   'viewer.explorerFilter': 'Filter files…',
+  'viewer.explorerChooseRoot': 'Choose file tree root',
   'viewer.explorerEmpty': 'Empty folder',
   'viewer.explorerNoMatch': 'No matching files',
   'viewer.explorerLoadFailed': "Couldn't load folder",

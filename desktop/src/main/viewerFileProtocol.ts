@@ -1,7 +1,8 @@
 /**
  * Security contract for the `dotcraft-viewer://` scheme:
  *  - A workspace must be selected; when cleared, all requests return 403.
- *  - Workspace files are served by workspace boundary; external files require
+ *  - Files inside the workspace or any attached Project folder are served by that
+ *    boundary; external files require
  *    an explicit per-file authorization from a renderer action.
  *  - The requested path must resolve to a regular file.
  *  - Path traversal through malformed URL payloads is rejected by path decoding.
@@ -18,6 +19,7 @@ export const VIEWER_SCHEME = 'dotcraft-viewer'
 const VIEWER_HOST = 'workspace'
 
 let currentWorkspaceRoot = ''
+let secondaryRootsResolver: (workspaceRoot: string) => readonly string[] = () => []
 let defaultProtocolHandlerInstalled = false
 const installedSessionProtocols = new WeakSet<object>()
 const authorizedExternalFiles = new Set<string>()
@@ -66,7 +68,7 @@ export async function handleViewerFileRequest(request: Request): Promise<Respons
       return new Response(null, { status: 403 })
     }
 
-    const insideWorkspace = await isPathInsideWorkspace(absPath, root)
+    const insideWorkspace = await isPathInsideViewerRoots(absPath, root)
     const resolvedExternalPath = insideWorkspace ? null : await resolveAuthorizedExternalFile(absPath)
     if (!insideWorkspace && !resolvedExternalPath) {
       return new Response(null, { status: 403 })
@@ -92,6 +94,34 @@ export function setViewerWorkspaceRoot(workspaceRoot: string): void {
 
 export function getViewerWorkspaceRoot(): string {
   return currentWorkspaceRoot
+}
+
+export function setViewerSecondaryRootsResolver(
+  resolver: (workspaceRoot: string) => readonly string[]
+): void {
+  secondaryRootsResolver = resolver
+}
+
+export function viewerRootsFor(workspaceRoot: string): string[] {
+  if (!workspaceRoot) return []
+  const roots: string[] = []
+  const seen = new Set<string>()
+  for (const candidate of [workspaceRoot, ...secondaryRootsResolver(workspaceRoot)]) {
+    if (!candidate) continue
+    const resolved = path.resolve(candidate)
+    const key = process.platform === 'win32' ? resolved.toLowerCase() : resolved
+    if (seen.has(key)) continue
+    seen.add(key)
+    roots.push(resolved)
+  }
+  return roots
+}
+
+export async function isPathInsideViewerRoots(targetPath: string, workspaceRoot: string): Promise<boolean> {
+  for (const root of viewerRootsFor(workspaceRoot)) {
+    if (await isPathInsideWorkspace(targetPath, root)) return true
+  }
+  return false
 }
 
 export async function isPathInsideWorkspace(targetPath: string, workspaceRoot: string): Promise<boolean> {
@@ -139,7 +169,7 @@ export async function resolveViewerFileForAccess(
   if (!path.isAbsolute(absolutePath)) {
     throw new Error('Viewer access requires an absolute file path')
   }
-  if (await isPathInsideWorkspace(absolutePath, workspaceRoot)) {
+  if (await isPathInsideViewerRoots(absolutePath, workspaceRoot)) {
     return fs.realpath(path.resolve(absolutePath))
   }
   const authorized = await resolveAuthorizedExternalFile(absolutePath)

@@ -3750,6 +3750,7 @@ export const MESSAGES_JA = {
   'viewer.closeExplorer': 'エクスプローラーを非表示にする',
   'viewer.explorerTitle': 'エクスプローラー',
   'viewer.explorerFilter': 'ファイルをフィルタリング…',
+  'viewer.explorerChooseRoot': 'ファイルツリーのルートを選択',
   'viewer.explorerEmpty': '空のフォルダー',
   'viewer.explorerNoMatch': '一致するファイルがありません',
   'viewer.explorerLoadFailed': 'フォルダーを読み込めませんでした',

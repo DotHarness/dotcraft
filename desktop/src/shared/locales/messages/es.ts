@@ -3762,6 +3762,7 @@ export const MESSAGES_ES = {
   'viewer.closeExplorer': 'Ocultar explorador',
   'viewer.explorerTitle': 'Explorador',
   'viewer.explorerFilter': 'Filtrar archivos…',
+  'viewer.explorerChooseRoot': 'Elegir la raíz del árbol de archivos',
   'viewer.explorerEmpty': 'carpeta vacia',
   'viewer.explorerNoMatch': 'No hay archivos coincidentes',
   'viewer.explorerLoadFailed': 'No se pudo cargar la carpeta',

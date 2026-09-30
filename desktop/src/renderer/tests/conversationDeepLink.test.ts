@@ -4,6 +4,7 @@ import { openConversationLink } from '../utils/conversationDeepLink'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
 import { useToastStore } from '../stores/toastStore'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const classifyMock = vi.fn()
@@ -144,6 +145,38 @@ describe('openConversationLink', () => {
       relativePath: 'D:/reference/outside.png',
       contentClass: 'image'
     })
+  })
+
+  it('shows files in attached Project folders relative to their own folder', async () => {
+    useWorkspaceProjectsStore.setState({
+      projects: [{
+        kind: 'local',
+        path: 'C:/repo',
+        name: 'repo',
+        state: 'foreground',
+        running: true,
+        loaded: true,
+        threadCount: 0,
+        threads: [],
+        pinned: false,
+        secondaryFolders: ['D:/design']
+      }]
+    })
+    try {
+      const ok = await openConversationLink({
+        target: 'D:/design/tokens/colors.md',
+        workspacePath: 'C:/repo',
+        threadId: 'thread-1',
+        t
+      })
+      expect(ok).toBe(true)
+      expect(useViewerTabStore.getState().getThreadState('thread-1').tabs[0]).toMatchObject({
+        absolutePath: 'D:/design/tokens/colors.md',
+        relativePath: 'tokens/colors.md'
+      })
+    } finally {
+      useWorkspaceProjectsStore.setState({ projects: [] })
+    }
   })
 
   it('hands off external links without opening panel', async () => {

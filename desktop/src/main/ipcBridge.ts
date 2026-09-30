@@ -58,7 +58,12 @@ import {
   listViewerFiles,
   listDirectory
 } from './viewerIpc'
-import { authorizeViewerFile, buildViewerUrl, resolveViewerFileForAccess } from './viewerFileProtocol'
+import {
+  authorizeViewerFile,
+  buildViewerUrl,
+  resolveViewerFileForAccess,
+  viewerRootsFor
+} from './viewerFileProtocol'
 import { viewerTextWatchManager } from './viewerTextWatch'
 import type { WriteTextParams } from '../shared/viewer/types'
 import { clearDesktopPluginModuleRoutes } from './pluginFileProtocol'
@@ -256,6 +261,22 @@ function assertPathWithinWorkspace(
     )
   }
   return resolved
+}
+
+function assertPathWithinViewerRoots(
+  absPath: string,
+  workspacePath: string,
+  locale: AppLocale
+): { resolved: string; root: string } {
+  const resolved = path.resolve(absPath)
+  let match: string | null = null
+  for (const root of viewerRootsFor(workspacePath)) {
+    if (isSameOrInsidePath(resolved, root) && (!match || root.length > match.length)) match = root
+  }
+  if (!match) {
+    throw new Error(translate(locale, 'ipc.pathOutsideWorkspace', { path: absPath }))
+  }
+  return { resolved, root: match }
 }
 
 function assertGitWorkspacePath(
@@ -1789,8 +1810,8 @@ export function registerIpcHandlers(
       const target = params.dirPath && params.dirPath.trim()
         ? params.dirPath
         : workspacePath
-      const resolved = assertPathWithinWorkspace(target, workspacePath, mainLocale(callbacks))
-      return listDirectory(resolved, workspacePath)
+      const { resolved, root } = assertPathWithinViewerRoots(target, workspacePath, mainLocale(callbacks))
+      return listDirectory(resolved, root)
     }
   )
 
@@ -1862,7 +1883,7 @@ export function registerIpcHandlers(
       if (!workspacePath) {
         throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
       }
-      const resolved = assertPathWithinWorkspace(params.absolutePath, workspacePath, mainLocale(callbacks))
+      const { resolved } = assertPathWithinViewerRoots(params.absolutePath, workspacePath, mainLocale(callbacks))
       return { url: buildViewerUrl(resolved) }
     }
   )

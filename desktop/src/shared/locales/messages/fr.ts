@@ -3764,6 +3764,7 @@ export const MESSAGES_FR = {
   'viewer.closeExplorer': 'Masquer l\'explorateur',
   'viewer.explorerTitle': 'Explorateur',
   'viewer.explorerFilter': 'Filtrer les fichiers…',
+  'viewer.explorerChooseRoot': 'Choisir la racine de l’arborescence',
   'viewer.explorerEmpty': 'Dossier vide',
   'viewer.explorerNoMatch': 'Aucun fichier correspondant',
   'viewer.explorerLoadFailed': 'Impossible de charger le dossier',

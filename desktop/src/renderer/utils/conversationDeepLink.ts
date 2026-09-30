@@ -3,6 +3,7 @@ import type { FileNavigationHint } from '../../shared/viewer/types'
 import { useUIStore } from '../stores/uiStore'
 import { addToast } from '../stores/toastStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
+import { containingRoot, relativeToRoot, viewerRootsFor } from './viewerRoots'
 
 type Translator = (key: string) => string
 
@@ -19,20 +20,9 @@ function normalizePath(value: string): string {
   return value.replace(/\\/g, '/')
 }
 
-function stripTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, '')
-}
-
 export function deriveRelativePathForViewer(absolutePath: string, workspacePath: string): string {
-  const normalizedAbsolute = normalizePath(absolutePath)
-  const normalizedWorkspace = stripTrailingSlash(normalizePath(workspacePath))
-  if (!normalizedWorkspace) return normalizedAbsolute
-  const lowerAbs = normalizedAbsolute.toLowerCase()
-  const lowerWorkspace = normalizedWorkspace.toLowerCase()
-  if (lowerAbs === lowerWorkspace) return normalizedAbsolute.split('/').pop() ?? normalizedAbsolute
-  const prefix = `${lowerWorkspace}/`
-  if (!lowerAbs.startsWith(prefix)) return normalizedAbsolute
-  return normalizedAbsolute.slice(normalizedWorkspace.length + 1)
+  const root = containingRoot(absolutePath, viewerRootsFor(workspacePath))
+  return root ? relativeToRoot(absolutePath, root) : normalizePath(absolutePath)
 }
 
 function rejectReasonToMessageKey(reason: LinkRejectReason): string {

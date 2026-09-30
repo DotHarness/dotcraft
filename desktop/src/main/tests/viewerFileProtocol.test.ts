@@ -32,8 +32,11 @@ import {
   handleViewerFileRequest,
   installViewerProtocolHandlerForSession,
   isPathInsideWorkspace,
+  isPathInsideViewerRoots,
   resolveViewerFileForAccess,
+  setViewerSecondaryRootsResolver,
   setViewerWorkspaceRoot,
+  viewerRootsFor,
   viewerUrlToPath
 } from '../viewerFileProtocol'
 
@@ -227,6 +230,28 @@ describe('handleViewerFileRequest external authorization', () => {
 })
 
 describe('resolveViewerFileForAccess', () => {
+  it('treats files in attached Project folders as inside the workspace', async () => {
+    const root = createTempDir()
+    const secondary = createTempDir()
+    const unrelated = createTempDir()
+    const inSecondary = join(secondary, 'shared.png')
+    const outside = join(unrelated, 'other.png')
+    writeFileSync(inSecondary, 'shared')
+    writeFileSync(outside, 'other')
+    setViewerSecondaryRootsResolver((primary) => (primary === root ? [secondary] : []))
+    try {
+      setViewerWorkspaceRoot(root)
+      expect(viewerRootsFor(root)).toHaveLength(2)
+      await expect(isPathInsideViewerRoots(inSecondary, root)).resolves.toBe(true)
+      await expect(resolveViewerFileForAccess(inSecondary, root)).resolves.toBe(realpathSync.native(inSecondary))
+      await expect(resolveViewerFileForAccess(outside, root)).rejects.toThrow('denied')
+      expect((await handleViewerFileRequest(new Request(buildViewerUrl(inSecondary)))).status).toBe(200)
+      expect((await handleViewerFileRequest(new Request(buildViewerUrl(outside)))).status).toBe(403)
+    } finally {
+      setViewerSecondaryRootsResolver(() => [])
+    }
+  })
+
   it('allows workspace files and only explicitly authorized external files', async () => {
     const root = createTempDir()
     const inside = join(root, 'inside.txt')

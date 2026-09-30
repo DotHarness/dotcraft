@@ -32,15 +32,32 @@ export type ConversationLinkResolution =
 const SAFE_EXTERNAL_SCHEMES = new Set(['mailto:', 'tel:'])
 
 const WINDOWS_ABSOLUTE_PATH_RE = /^[A-Za-z]:[\\/].+/
+const LEADING_SLASH_DRIVE_RE = /^\/[A-Za-z]:[\\/]/
+const UNC_PATH_RE = /^(?:\\\\|\/\/)[^\\/]+[\\/]/
 const SCHEME_RE = /^[A-Za-z][A-Za-z0-9+.-]*:/
 const LINE_HINT_RE = /^(.*?):(\d+)(?::(\d+))?$/
+const LINE_FRAGMENT_RE = /^L(\d+)(?:C(\d+))?(?:-L?\d+(?:C\d+)?)?$/
 
 function normalizeSlashes(value: string): string {
   return value.replace(/\\/g, '/')
 }
 
+/** Markdown renderers percent-encode hrefs; local paths are decoded back, URLs are left alone. */
+function decodeLocalPathTarget(target: string): string {
+  const isUrl = SCHEME_RE.test(target) && !/^[A-Za-z]:/.test(target)
+  if (isUrl || !target.includes('%')) return target
+  try {
+    return decodeURIComponent(target)
+  } catch {
+    return target
+  }
+}
+
 function simplifyPathSegments(value: string): string {
   const normalized = normalizeSlashes(value)
+  if (normalized.startsWith('//')) {
+    return `//${simplifyPathSegments(normalized.slice(2)).replace(/^\/+/, '')}`
+  }
   const driveMatch = normalized.match(/^[A-Za-z]:/)
   const prefix = driveMatch ? `${driveMatch[0]}/` : normalized.startsWith('/') ? '/' : ''
   const withoutPrefix = driveMatch
@@ -92,6 +109,13 @@ function splitDecorations(rawTarget: string): {
     column = lineMatch[3] ? Number(lineMatch[3]) : undefined
   }
 
+  const lineFragment = fragment?.match(LINE_FRAGMENT_RE)
+  if (lineFragment && line === undefined) {
+    line = Number(lineFragment[1])
+    column = lineFragment[2] ? Number(lineFragment[2]) : undefined
+    fragment = undefined
+  }
+
   const hint: LinkNavigationHint = {}
   if (line !== undefined) hint.line = line
   if (column !== undefined) hint.column = column
@@ -129,7 +153,17 @@ function hasScheme(target: string): boolean {
 
 function isRelativePathTarget(target: string): boolean {
   if (target.startsWith('./') || target.startsWith('../')) return true
-  return !hasScheme(target) && !target.startsWith('/') && !WINDOWS_ABSOLUTE_PATH_RE.test(target)
+  return !hasScheme(target) &&
+    !target.startsWith('/') &&
+    !target.startsWith('\\') &&
+    !WINDOWS_ABSOLUTE_PATH_RE.test(target)
+}
+
+function isAbsoluteLocalPathTarget(target: string): boolean {
+  return WINDOWS_ABSOLUTE_PATH_RE.test(target) ||
+    UNC_PATH_RE.test(target) ||
+    target.startsWith('/') ||
+    target.startsWith('\\')
 }
 
 export function normalizeBrowserUrl(url: string): string {
@@ -160,8 +194,10 @@ export function resolveConversationLink(params: {
     return { kind: 'reject', reason: 'empty' }
   }
 
-  if (isRelativePathTarget(trimmed)) {
-    const { pathLikeTarget, hint } = splitDecorations(trimmed)
+  const local = decodeLocalPathTarget(trimmed)
+
+  if (isRelativePathTarget(local)) {
+    const { pathLikeTarget, hint } = splitDecorations(local)
     const baseDir = params.sourceContextDir?.trim() || params.workspacePath
     return {
       kind: 'file',
@@ -170,11 +206,14 @@ export function resolveConversationLink(params: {
     }
   }
 
-  if (WINDOWS_ABSOLUTE_PATH_RE.test(trimmed) || trimmed.startsWith('/')) {
-    const { pathLikeTarget, hint } = splitDecorations(trimmed)
+  if (isAbsoluteLocalPathTarget(local)) {
+    const { pathLikeTarget, hint } = splitDecorations(local)
+    const withoutDriveSlash = LEADING_SLASH_DRIVE_RE.test(pathLikeTarget)
+      ? pathLikeTarget.slice(1)
+      : pathLikeTarget
     return {
       kind: 'file',
-      absolutePath: simplifyPathSegments(pathLikeTarget),
+      absolutePath: simplifyPathSegments(withoutDriveSlash),
       ...(hint ? { hint } : {})
     }
   }

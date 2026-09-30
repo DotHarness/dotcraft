@@ -3172,6 +3172,7 @@ export const MESSAGES_ZH_HANS = {
   'viewer.closeExplorer': '隐藏资源浏览器',
   'viewer.explorerTitle': '资源浏览器',
   'viewer.explorerFilter': '筛选文件…',
+  'viewer.explorerChooseRoot': '选择文件树根目录',
   'viewer.explorerEmpty': '空文件夹',
   'viewer.explorerNoMatch': '没有匹配的文件',
   'viewer.explorerLoadFailed': '加载文件夹失败',

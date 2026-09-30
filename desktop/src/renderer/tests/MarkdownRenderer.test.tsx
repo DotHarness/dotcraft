@@ -469,6 +469,15 @@ describe('MarkdownRenderer', () => {
     }
   })
 
+  it('opens encoded workspace-external paths with spaces and backslashes', async () => {
+    renderWithLocale('[notes](<D:\\my docs\\notes.md>)')
+    fireEvent.click(screen.getByRole('link', { name: /notes/i }))
+
+    await waitFor(() => {
+      expect(authorizeFile).toHaveBeenCalledWith({ absolutePath: 'D:/my docs/notes.md' })
+    })
+  })
+
   it('shortens raw browser links into readable labels', () => {
     renderWithLocale('[https://docs.example.com/start](https://docs.example.com/start)')
     const link = screen.getByRole('link', { name: /docs\.example\.com\/start/i })

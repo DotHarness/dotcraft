@@ -4,6 +4,7 @@ import { attachDesktopPet, restoreDesktopPet } from './desktopPet'
 import {
   registerViewerScheme,
   installViewerProtocolHandler,
+  setViewerSecondaryRootsResolver,
   setViewerWorkspaceRoot
 } from './viewerFileProtocol'
 import {
@@ -3238,6 +3239,11 @@ app.whenReady().then(async () => {
   if (!initialActiveStack) {
     ensureWorkspaceActivation(workspacePath ?? '')
   }
+  setViewerSecondaryRootsResolver((root) =>
+    (sharedSettings.recentWorkspaces ?? [])
+      .find((recent) => sameWorkspaceProjectKey(recent.path, root))
+      ?.secondaryFolders ?? []
+  )
   setViewerWorkspaceRoot(workspacePath ?? '')
 
   registerDesktopIpcHandlers(workspacePath ?? '', () => wireClient)
