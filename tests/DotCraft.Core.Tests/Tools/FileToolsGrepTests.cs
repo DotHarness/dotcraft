@@ -118,6 +118,28 @@ public sealed class FileToolsGrepTests : IDisposable
         Assert.Contains(target, invocation, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GrepFiles_ManagedSearchFindsMatchesBeyondFiveMiB(bool fileTarget)
+    {
+        var target = Path.Combine(_workspace, "large.txt");
+        await using (var writer = new StreamWriter(target))
+        {
+            var filler = new string('x', 4095);
+            for (var i = 0; i < 1536; i++)
+                await writer.WriteLineAsync(filler);
+            await writer.WriteAsync("needle at end\nneedle again");
+        }
+        var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false, managedSearchOnly: true);
+
+        var result = await tools.GrepFiles("needle", fileTarget ? target : _workspace, limit: 1);
+
+        Assert.Contains("large.txt:", result, StringComparison.Ordinal);
+        Assert.Contains("Line 1537: needle at end", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("needle again", result, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task GrepFiles_RipgrepTimeoutDoesNotFallBackToManagedSearch()
     {
@@ -193,7 +215,6 @@ public sealed class FileToolsGrepTests : IDisposable
                 null,
                 100,
                 2000,
-                5 * 1024 * 1024,
                 TimeSpan.FromSeconds(30)),
                 cts.Token));
     }

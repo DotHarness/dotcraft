@@ -295,8 +295,9 @@ not valid text in that encoding and never rewrite such a file; `GrepFiles` still
 
 `GrepFiles` accepts a file or directory path. A file target searches only that file and reports its
 name and matching line numbers; directory targets recurse. Include patterns filter directory scans.
-Both search backends preserve path authorization, binary-file and size limits, cancellation, and
-the match limit. Missing targets are reported as missing paths.
+Neither search backend skips files based on size. Both preserve path authorization, binary-file
+filtering, cancellation, the search timeout, and the match limit. The managed backend scans lines
+incrementally rather than loading the entire file. Missing targets are reported as missing paths.
 
 `EditFile` treats `oldText` and `newText` as already JSON-decoded strings and does not reinterpret
 literal escape sequences. It first counts non-overlapping exact substring matches, then matches whole-line sequences ignoring

@@ -34,8 +34,6 @@ public sealed class FileTools(
 
     private const int MaxFindResults = 200;
 
-    private const int MaxGrepFileSize = 5 * 1024 * 1024;
-
     private const int MaxLineLength = TextFileReadLimiter.MaxLineLength;
 
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
@@ -289,7 +287,6 @@ public sealed class FileTools(
                 string.IsNullOrEmpty(include) ? null : include,
                 maxMatches,
                 MaxLineLength,
-                MaxGrepFileSize,
                 _searchTimeout),
                 cancellationToken);
             if (ripgrepResult != null)
@@ -324,22 +321,19 @@ public sealed class FileTools(
 
                     try
                     {
-                        var fileInfo = new FileInfo(filePath);
-                        if (fileInfo.Length > MaxGrepFileSize || fileInfo.Length == 0)
-                            continue;
-
                         if (IsBinaryFile(filePath))
                             continue;
 
                         // Lenient on purpose, like ripgrep: a legacy-encoded file still yields its ASCII matches.
-                        var lines = await File.ReadAllLinesAsync(filePath, fallbackCancellationToken);
-                        for (var i = 0; i < lines.Length; i++)
+                        var lineNumber = 0;
+                        await foreach (var line in File.ReadLinesAsync(filePath, fallbackCancellationToken))
                         {
                             fallbackCancellationToken.ThrowIfCancellationRequested();
-                            if (regex.IsMatch(lines[i]))
+                            lineNumber++;
+                            if (regex.IsMatch(line))
                             {
                                 totalMatches++;
-                                matches.Add((filePath, i + 1, lines[i]));
+                                matches.Add((filePath, lineNumber, line));
                                 if (totalMatches >= maxMatches)
                                     break;
                             }

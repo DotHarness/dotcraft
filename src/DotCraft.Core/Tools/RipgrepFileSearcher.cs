@@ -10,7 +10,6 @@ internal sealed record RipgrepSearchRequest(
     string? IncludePattern,
     int MaxMatches,
     int MaxLineLength,
-    int MaxFileSizeBytes,
     TimeSpan Timeout);
 
 internal sealed class RipgrepFileSearcher(string? configuredPath)
@@ -166,8 +165,6 @@ internal sealed class RipgrepFileSearcher(string? configuredPath)
         psi.ArgumentList.Add("--no-messages");
         psi.ArgumentList.Add("--no-require-git");
         psi.ArgumentList.Add("--pcre2");
-        psi.ArgumentList.Add("--max-filesize");
-        psi.ArgumentList.Add(request.MaxFileSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         foreach (var include in SplitPatterns(request.IncludePattern))
         {
