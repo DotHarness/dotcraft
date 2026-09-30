@@ -194,23 +194,22 @@ export function resolveConversationLink(params: {
     return { kind: 'reject', reason: 'empty' }
   }
 
-  const local = decodeLocalPathTarget(trimmed)
+  const { pathLikeTarget, hint } = splitDecorations(trimmed)
+  const local = decodeLocalPathTarget(pathLikeTarget)
 
   if (isRelativePathTarget(local)) {
-    const { pathLikeTarget, hint } = splitDecorations(local)
     const baseDir = params.sourceContextDir?.trim() || params.workspacePath
     return {
       kind: 'file',
-      absolutePath: joinBaseAndRelative(baseDir, pathLikeTarget),
+      absolutePath: joinBaseAndRelative(baseDir, local),
       ...(hint ? { hint } : {})
     }
   }
 
   if (isAbsoluteLocalPathTarget(local)) {
-    const { pathLikeTarget, hint } = splitDecorations(local)
-    const withoutDriveSlash = LEADING_SLASH_DRIVE_RE.test(pathLikeTarget)
-      ? pathLikeTarget.slice(1)
-      : pathLikeTarget
+    const withoutDriveSlash = LEADING_SLASH_DRIVE_RE.test(local)
+      ? local.slice(1)
+      : local
     return {
       kind: 'file',
       absolutePath: simplifyPathSegments(withoutDriveSlash),
@@ -218,7 +217,6 @@ export function resolveConversationLink(params: {
     }
   }
   if (trimmed.toLowerCase().startsWith('file://')) {
-    const { pathLikeTarget, hint } = splitDecorations(trimmed)
     const localPath = resolveFileUrlToPath(pathLikeTarget)
     if (!localPath) {
       return { kind: 'reject', reason: 'malformed' }
