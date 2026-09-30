@@ -39,6 +39,7 @@ it('delivers multiple live pages, releases client handles and reclaims them with
     webContents: { isDestroyed: () => false, send }
   }) as unknown as Electron.BrowserWindow
   manager = new BrowserUseManager({
+    setCaptureSurface: () => {},
     createAutomationTab: (_owner: unknown, params: { tabId: string }) => { pages.set(params.tabId, createPage()) },
     getTabWebContents: (_owner: unknown, id: string) => pages.get(id) ?? null,
     listAutomationTargetTabs: () => [...pages.keys()].map(snapshot),

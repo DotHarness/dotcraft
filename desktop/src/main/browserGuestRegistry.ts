@@ -13,6 +13,7 @@ interface GuestEntry {
 
 export class BrowserGuestRegistry {
   private windows = new Map<number, Map<string, GuestEntry>>()
+  private captureThrottling = new Map<number, boolean>()
 
   attachWindow(win: BrowserWindow): void {
     win.webContents.on('will-attach-webview', (_event, preferences) => {
@@ -51,6 +52,7 @@ export class BrowserGuestRegistry {
       return
     }
     entry.page = page
+    this.syncActivity(entry)
     clearTimeout(entry.timer)
     page.on('before-mouse-event', (_event, mouse) => {
       if (mouse.type === 'mouseDown') this.emit(win, { type: 'pointer-down', tabId })
@@ -67,7 +69,33 @@ export class BrowserGuestRegistry {
     const entry = this.windows.get(win.id)?.get(tabId)
     if (!entry) return
     entry.descriptor = { ...entry.descriptor, ...changes }
+    this.syncActivity(entry)
+    this.syncCaptureThrottling(win)
     this.emit(win, { type: 'update', host: entry.descriptor })
+  }
+
+  setCaptureSurface(win: BrowserWindow, tabId: string, size: { width: number; height: number } | null): void {
+    this.update(win, tabId, { captureSurfaceSize: size ?? undefined })
+  }
+
+  private syncActivity(entry: GuestEntry): void {
+    const { visible, automation, captureSurfaceSize } = entry.descriptor
+    if (entry.page && !entry.page.isDestroyed()) {
+      entry.page.setBackgroundThrottling(!(visible || automation || captureSurfaceSize))
+    }
+  }
+
+  private syncCaptureThrottling(win: BrowserWindow): void {
+    const capturing = [...this.windows.get(win.id)?.values() ?? []].some(entry => entry.descriptor.captureSurfaceSize)
+    if (win.webContents.isDestroyed()) {
+      this.captureThrottling.delete(win.id)
+    } else if (capturing && !this.captureThrottling.has(win.id)) {
+      this.captureThrottling.set(win.id, win.webContents.getBackgroundThrottling())
+      win.webContents.setBackgroundThrottling(false)
+    } else if (!capturing && this.captureThrottling.has(win.id)) {
+      win.webContents.setBackgroundThrottling(this.captureThrottling.get(win.id)!)
+      this.captureThrottling.delete(win.id)
+    }
   }
 
   remove(win: BrowserWindow, tabId: string, message = 'Browser page closed.'): void {
@@ -75,6 +103,7 @@ export class BrowserGuestRegistry {
     const entry = entries?.get(tabId)
     if (!entry) return
     entries!.delete(tabId)
+    this.syncCaptureThrottling(win)
     clearTimeout(entry.timer)
     entry.reject(new Error(message))
     this.emit(win, { type: 'remove', tabId })

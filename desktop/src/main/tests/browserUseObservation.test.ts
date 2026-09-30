@@ -49,6 +49,7 @@ describe('bundled browser client with a real page', () => {
     })
     owner = Object.assign(new EventEmitter(), { id: 100, isDestroyed: () => false, getTitle: () => 'Test', webContents: { isDestroyed: () => false, send: () => {} } }) as unknown as Electron.BrowserWindow
     manager = new BrowserUseManager({
+      setCaptureSurface: () => {},
       createAutomationTab: (_win: unknown, params: { tabId: string }) => { currentId = params.tabId },
       getTabWebContents: () => contents as unknown as Electron.WebContents,
       loadAutomationUrl: async () => {}, destroyTab: () => {},

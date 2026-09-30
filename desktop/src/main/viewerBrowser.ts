@@ -656,12 +656,17 @@ export class ViewerBrowserManager {
     await shell.openExternal(current)
   }
 
+  setCaptureSurface(win: BrowserWindow, tabId: string, size: { width: number; height: number } | null): void {
+    this.hosts.setCaptureSurface(win, tabId, size)
+  }
+
   setAutomationState(win: BrowserWindow, params: BrowserAutomationStateParams): void {
     const tab = this.getTab(win, params.tabId)
     if (!tab) return
     tab.automationEnabled = true
     const wasActive = tab.automationActive === true
     tab.automationActive = params.active
+    this.hosts.update(win, tab.tabId, { automation: params.active })
     if (params.sessionName !== undefined) {
       tab.automationSessionName = params.sessionName
     }

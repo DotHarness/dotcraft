@@ -9,6 +9,7 @@ const electronMock = vi.hoisted(() => {
     on: vi.fn(),
     once: vi.fn(),
     isDestroyed: vi.fn(() => false),
+    setBackgroundThrottling: vi.fn(),
     close: vi.fn(),
     getURL: vi.fn(() => currentUrl),
     getUserAgent: vi.fn(() => 'Mozilla/5.0 Chrome/148.0.7778.97 Safari/537.36'),

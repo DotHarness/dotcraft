@@ -3,6 +3,7 @@ export interface BrowserHostDescriptor {
   partition: string
   visible: boolean
   automation: boolean
+  captureSurfaceSize?: { width: number; height: number }
   bounds: { x: number; y: number; width: number; height: number }
 }
 

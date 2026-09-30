@@ -12,6 +12,7 @@ import {
   type BrowserUseBackendRequestHandler
 } from './browserUseBackendServer'
 import { viewerBrowserManager } from './viewerBrowser'
+import { BrowserScreenshot, type BrowserScreenshotContext } from './browserScreenshot'
 import { BrowserTabLifecycle, readBrowserTurnNotification } from './browserTabLifecycle'
 import { browserObservationSource } from './browserUseObservation'
 import type { AppSettings } from './settings'
@@ -252,6 +253,7 @@ export interface BrowserUseImageResult {
 }
 
 interface BrowserUseViewerHost {
+  setCaptureSurface(win: BrowserWindow, tabId: string, size: { width: number; height: number } | null): void
   createAutomationTab(win: BrowserWindow, params: {
     tabId: string
     threadId?: string
@@ -549,6 +551,7 @@ function isChromiumErrorPageUrl(url: string): boolean {
 }
 
 export class BrowserUseManager implements BrowserUseBackendRequestHandler {
+  private readonly screenshots = new BrowserScreenshot()
   private readonly runtimes = new Map<string, BrowserUseThreadRuntime>()
   private readonly runtimesBySessionId = new Map<string, BrowserUseThreadRuntime>()
   private readonly pendingApprovals = new Map<string, {
@@ -1272,7 +1275,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
           this.closeTab(tab)
           return {}
         }
-        return await this.cdpCommand(tab, method, commandParams, sessionId)
+        return await this.cdpCommand(tab, method, commandParams, sessionId, signal)
       } catch (error) {
         if (this.isCdpNodeStaleError(method, commandParams, error)) {
           throw BrowserUseBackendError.nodeStale(
@@ -1402,7 +1405,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       case 'tab_dev_logs':
         return this.backendTabDevLogs(runtime, params)
       case 'tab_screenshot':
-        return await this.backendTabScreenshot(runtime, params)
+        return await this.backendTabScreenshot(runtime, params, signal)
       case 'tab_clipboard_read_text':
         return await this.backendClipboardReadText(runtime, params)
       case 'tab_clipboard_write_text':
@@ -1562,14 +1565,15 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
 
   private async backendTabScreenshot(
     runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>
+    params: Record<string, unknown>,
+    signal?: AbortSignal
   ): Promise<Record<string, unknown>> {
     const tab = this.backendTabForCommand(runtime, params)
     const clip = this.backendScreenshotClip(params)
     const image = await this.screenshot(tab, {
       fullPage: params.fullPage === true,
       ...(clip ? { clip } : {})
-    })
+    }, signal)
     return { data: image.dataBase64 }
   }
 
@@ -2224,7 +2228,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
         fromSurface: true,
         captureBeyondViewport: true,
         clip
-      }), signal)
+      }, undefined, signal), signal)
   }
 
   private async evaluateCdpExpression<T = unknown>(
@@ -2724,6 +2728,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     if (!tab.debuggerDetachHandler && typeof debuggerApi.on === 'function') {
       tab.debuggerDetachHandler = (...args: unknown[]) => {
         tab.cdpAttached = false
+        this.screenshots.reset(wc)
         tab.targetSessions.clear()
         this.emitCdpEvent(tab, 'Inspector.detached', {
           reason: this.stringFromDebuggerArgs(args) ?? 'detached'
@@ -2743,6 +2748,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   private detachDebugger(tab: BrowserUseTabRuntime): void {
     try {
       const wc = this.webContentsFor(tab.owner, tab.id)
+      this.screenshots.reset(wc)
       const debuggerApi = wc.debugger as Electron.Debugger & {
         off?(event: 'message' | 'detach', listener: (...args: unknown[]) => void): void
       }
@@ -2782,6 +2788,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       const targetId = typeof params.targetId === 'string' ? params.targetId : undefined
       if (targetId) tab.targetSessions.delete(targetId)
     }
+    if (this.screenshots.consumesEvent(this.webContentsFor(tab.owner, tab.id), method, params, sessionId)) return
     this.emitCdpEvent(tab, method, params, sessionId)
   }
 
@@ -2796,15 +2803,21 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     tab: BrowserUseTabRuntime,
     method: string,
     params?: Record<string, unknown>,
-    sessionId?: string
+    sessionId?: string,
+    signal?: AbortSignal
   ): Promise<T> {
     await this.ensureDebuggerAttached(tab)
-    const debuggerApi = this.webContentsFor(tab.owner, tab.id).debugger as Electron.Debugger & {
-      sendCommand(method: string, params?: Record<string, unknown>, sessionId?: string): Promise<unknown>
+    const wc = this.webContentsFor(tab.owner, tab.id)
+    const send = async () => await (sessionId
+      ? wc.debugger.sendCommand(method, params, sessionId)
+      : wc.debugger.sendCommand(method, params)) as T
+    if (!sessionId && method === 'Page.captureScreenshot') {
+      return await this.screenshots.captureCdp(this.screenshotContext(tab, signal), params ?? {}) as T
     }
-    return await (sessionId
-      ? debuggerApi.sendCommand(method, params, sessionId)
-      : debuggerApi.sendCommand(method, params)) as T
+    if (!sessionId && (method === 'Page.startScreencast' || method === 'Page.stopScreencast')) {
+      return await this.screenshots.rawScreencast(this.screenshotContext(tab, signal), method, send)
+    }
+    return await send()
   }
 
   private operationUrl(tab: BrowserUseTabRuntime): string {
@@ -4525,52 +4538,30 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     })
   }
 
+  private screenshotContext(tab: BrowserUseTabRuntime, signal?: AbortSignal): BrowserScreenshotContext {
+    const runtime = this.getRuntimeForTab(tab)
+    const page = this.webContentsFor(tab.owner, tab.id)
+    return {
+      tabId: tab.id, page,
+      viewport: { width: runtime.viewportWidth, height: runtime.viewportHeight },
+      timeoutMs: this.operationTimeoutMs(),
+      signal: signal ?? runtime.activeAbortSignal,
+      send: (method, params) => page.debugger.sendCommand(method, params),
+      setSurface: size => this.viewerHost.setCaptureSurface(tab.owner, tab.id, size),
+      diagnostic: message => runtime.logs.push(`${message} tab=${tab.id}`)
+    }
+  }
+
   private async screenshot(
     tab: BrowserUseTabRuntime,
-    options?: { fullPage?: boolean; clip?: Electron.Rectangle }
+    options?: { fullPage?: boolean; clip?: Electron.Rectangle },
+    signal?: AbortSignal
   ): Promise<BrowserUseImageResult> {
     this.markAutomation(tab, 'screenshot')
-    const dataBase64 = await this.withBrowserOperation(
-      tab,
-      'screenshot',
-      async () => {
-        const runtime = this.getRuntimeForTab(tab)
-        const metrics = await this.cdpCommand<{
-          cssContentSize?: { x?: number; y?: number; width?: number; height?: number }
-          cssVisualViewport?: { pageX?: number; pageY?: number; clientWidth?: number; clientHeight?: number }
-          contentSize?: { x?: number; y?: number; width?: number; height?: number }
-        }>(tab, 'Page.getLayoutMetrics')
-        const sourceClip = options?.clip
-          ?? (options?.fullPage
-            ? metrics.cssContentSize ?? metrics.contentSize
-            : metrics.cssVisualViewport == null
-              ? { x: 0, y: 0, width: runtime.viewportWidth, height: runtime.viewportHeight }
-              : {
-                  x: metrics.cssVisualViewport.pageX,
-                  y: metrics.cssVisualViewport.pageY,
-                  width: metrics.cssVisualViewport.clientWidth,
-                  height: metrics.cssVisualViewport.clientHeight
-                })
-        const clip = {
-          x: Math.max(0, Number(sourceClip?.x) || 0),
-          y: Math.max(0, Number(sourceClip?.y) || 0),
-          width: Math.max(1, Number(sourceClip?.width) || runtime.viewportWidth),
-          height: Math.max(1, Number(sourceClip?.height) || runtime.viewportHeight),
-          scale: 1
-        }
-        const result = await this.cdpCommand<{ data?: string }>(tab, 'Page.captureScreenshot', {
-          format: 'png',
-          fromSurface: true,
-          captureBeyondViewport: options?.fullPage === true || options?.clip != null,
-          clip
-        })
-        if (!result.data) throw new Error(`Page.captureScreenshot returned no data for tab ${tab.id}.`)
-        return result.data
-      })
-    return {
-      mediaType: 'image/png',
-      dataBase64
-    }
+    await this.ensureDebuggerAttached(tab)
+    const dataBase64 = await this.withBrowserOperation(tab, 'screenshot', () =>
+      this.screenshots.screenshot(this.screenshotContext(tab, signal), options))
+    return { mediaType: 'image/png', dataBase64 }
   }
 
   private async domSnapshot(tab: BrowserUseTabRuntime): Promise<string> {

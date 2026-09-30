@@ -43,9 +43,11 @@ function createFakeWebContents() {
     on: emitter.on.bind(emitter),
     once: emitter.once.bind(emitter),
     off: emitter.off.bind(emitter),
+    removeListener: emitter.removeListener.bind(emitter),
     emit: emitter.emit.bind(emitter),
     isDestroyed: vi.fn(() => false),
     getURL: vi.fn(() => url),
+    getBackgroundThrottling: vi.fn(() => false),
     getTitle: vi.fn(() => 'Test Page'),
     isLoading: vi.fn(() => false),
     loadURL: vi.fn(async (nextUrl: string) => {
@@ -211,6 +213,10 @@ function createFakeWebContents() {
           debuggerEmitter.emit('message', {}, 'Page.loadEventFired', { timestamp: Date.now() / 1000 })
           return { frameId: 'main' }
         }
+        if (method === 'Page.startScreencast') {
+          debuggerEmitter.emit('message', {}, 'Page.screencastVisibilityChanged', { visible: false })
+          return {}
+        }
         if (method === 'Page.captureScreenshot') {
           return { data: 'AQID' }
         }
@@ -226,6 +232,7 @@ function createFakeWebContents() {
 
 function createFakeHost(webContents = createFakeWebContents()) {
   return {
+    setCaptureSurface: vi.fn(),
     createAutomationTab: vi.fn(),
     getTabWebContents: vi.fn(() => webContents),
     getAutomationTargetTab: vi.fn((): { tabId: string; currentUrl: string; title: string; loading: boolean } | null => null),
@@ -870,7 +877,7 @@ describe('BrowserUseManager IAB backend', () => {
         return { result: { value } }
       }
       if (method === 'Page.getLayoutMetrics') {
-        return { contentSize: { x: 0, y: 0, width: 1280, height: 2400 } }
+        return { cssContentSize: { x: 0, y: 0, width: 1280, height: 2400 }, cssVisualViewport: { pageX: 0, pageY: 0, clientWidth: 1280, clientHeight: 2400 } }
       }
       if (method === 'Page.captureScreenshot') {
         return { data: 'CQgH' }
