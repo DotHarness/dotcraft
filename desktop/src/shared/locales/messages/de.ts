@@ -3764,6 +3764,7 @@ export const MESSAGES_DE = {
   'viewer.closeExplorer': 'Explorer ausblenden',
   'viewer.explorerTitle': 'Entdecker',
   'viewer.explorerFilter': 'Dateien filtern…',
+  'viewer.explorerChooseRoot': 'Stammordner der Dateiansicht wählen',
   'viewer.explorerEmpty': 'Leerer Ordner',
   'viewer.explorerNoMatch': 'Keine passenden Dateien',
   'viewer.explorerLoadFailed': 'Ordner konnte nicht geladen werden',

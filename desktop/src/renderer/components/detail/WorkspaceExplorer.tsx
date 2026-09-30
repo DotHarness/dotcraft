@@ -3,14 +3,7 @@
  * deliberately not gitignore-filtered so build and cache dirs stay browsable. The
  * filter box only searches the tree already loaded.
  */
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties
-} from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Search } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { Input } from '../ui/Input'
@@ -18,6 +11,7 @@ import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { addToast } from '../../stores/toastStore'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
 import { Skeleton } from '../ui/Skeleton'
@@ -25,19 +19,44 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { ReferencePathContextMenu } from '../conversation/ReferencePathContextMenu'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import type { DirEntryWire } from '../../../shared/viewer/types'
+import { containingRoot, viewerRootsFor } from '../../utils/viewerRoots'
+import { ExplorerRootPicker } from './ExplorerRootPicker'
 
-const norm = (p: string): string => p.replace(/\\/g, '/')
+const norm = (p: string): string => p.replace(/\\/g, '/').replace(/\/+$/, '')
 
 export function WorkspaceExplorer(): JSX.Element {
   const t = useT()
   const workspacePath = useConversationStore((s) => s.workspacePath)
+  const projects = useWorkspaceProjectsStore((s) => s.projects)
   const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
+  const activeFilePath = useViewerTabStore((s) => {
+    if (!s.currentThreadId) return null
+    const state = s.getThreadState(s.currentThreadId)
+    const active = state.tabs.find((tab) => tab.id === state.activeTabId)
+    return active?.kind === 'file' ? active.absolutePath : null
+  })
   const openFile = useViewerTabStore((s) => s.openFile)
   const setActiveViewerTab = useUIStore((s) => s.setActiveViewerTab)
   const explorerRevealPath = useUIStore((s) => s.explorerRevealPath)
   const consumeExplorerReveal = useUIStore((s) => s.consumeExplorerReveal)
 
-  const rootKey = workspacePath ? norm(workspacePath).replace(/\/+$/, '') : ''
+  const roots = useMemo(() => viewerRootsFor(workspacePath), [workspacePath, projects])
+  const [selectedRoot, setSelectedRoot] = useState<string | null>(null)
+  const root = selectedRoot && roots.includes(selectedRoot)
+    ? selectedRoot
+    : (activeFilePath ? containingRoot(activeFilePath, roots) : null) ?? roots[0] ?? ''
+  const rootKey = root ? norm(root) : ''
+
+  const followedFileRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!activeFilePath || followedFileRef.current === activeFilePath) return
+    followedFileRef.current = activeFilePath
+    if (root && containingRoot(activeFilePath, [root])) return
+    const next = containingRoot(activeFilePath, roots)
+    if (next) setSelectedRoot(next)
+  }, [activeFilePath, roots, root])
+
+  useEffect(() => { setSelectedRoot(null) }, [workspacePath])
 
   const [childrenCache, setChildrenCache] = useState<Map<string, DirEntryWire[]>>(new Map())
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -77,17 +96,28 @@ export function WorkspaceExplorer(): JSX.Element {
     setChildrenCache(new Map())
     setExpanded(new Set())
     setErrored(new Set())
+    setFilter('')
     loadingRef.current = new Set()
     if (rootKey) void loadDir(rootKey)
   }, [rootKey, loadDir])
 
-  // Expand ancestors and scroll to a folder requested via a breadcrumb click.
   useEffect(() => {
     if (!explorerRevealPath || !rootKey) return
-    const targetFwd = norm(explorerRevealPath).replace(/\/+$/, '')
+    const targetRoot = containingRoot(explorerRevealPath, roots)
+    if (!targetRoot) {
+      consumeExplorerReveal()
+      return
+    }
+    if (norm(targetRoot) !== rootKey) {
+      setSelectedRoot(targetRoot)
+      return
+    }
     consumeExplorerReveal()
-    if (!targetFwd.startsWith(rootKey)) return
-    const parts = targetFwd.slice(rootKey.length).split('/').filter(Boolean)
+    const target = norm(explorerRevealPath)
+    const parts = target.length > rootKey.length
+      ? target.slice(rootKey.length + 1).split('/').filter(Boolean)
+      : []
+    const targetKey = parts.length === 0 ? rootKey : `${rootKey}/${parts.join('/')}`
     let cancelled = false
     void (async () => {
       const toExpand: string[] = []
@@ -98,10 +128,10 @@ export function WorkspaceExplorer(): JSX.Element {
         if (cancelled) return
       }
       setExpanded((prev) => new Set([...prev, ...toExpand]))
-      setScrollTargetKey(targetFwd)
+      setScrollTargetKey(targetKey)
     })()
     return () => { cancelled = true }
-  }, [explorerRevealPath, rootKey, loadDir, consumeExplorerReveal])
+  }, [explorerRevealPath, rootKey, roots, loadDir, consumeExplorerReveal])
 
   // Scroll the revealed row into view once it has rendered.
   useEffect(() => {
@@ -209,6 +239,9 @@ export function WorkspaceExplorer(): JSX.Element {
 
   return (
     <div style={panelStyle}>
+      {roots.length > 1 && root && (
+        <ExplorerRootPicker roots={roots} selectedRoot={root} onSelect={setSelectedRoot} />
+      )}
       <div style={toolbarStyle}>
         <div style={searchWrapStyle}>
           <Search size={13} aria-hidden style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />

@@ -114,7 +114,8 @@ nearest `.git` root through that cwd, so a worktree reads the files from its own
 
 Secondary folders are runtime content roots. First-party file, search, shell working-directory,
 LSP, and approval-boundary code must treat a path inside any runtime root
-as inside the workspace. Relative paths continue to resolve against `cwd`.
+as inside the workspace. Relative paths continue to resolve against `cwd`. The Desktop viewer
+and Files tree likewise treat every Project folder as inside the workspace.
 
 Changing `cwd` later does not relocate persisted project state, but it does replace the stable
 project-instruction context page for the next Turn. Entering or leaving a worktree has the same

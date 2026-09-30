@@ -3751,6 +3751,7 @@ export const MESSAGES_KO = {
   'viewer.closeExplorer': '탐색기 숨기기',
   'viewer.explorerTitle': '탐험가',
   'viewer.explorerFilter': '파일 필터링…',
+  'viewer.explorerChooseRoot': '파일 트리 루트 선택',
   'viewer.explorerEmpty': '빈 폴더',
   'viewer.explorerNoMatch': '일치하는 파일이 없습니다.',
   'viewer.explorerLoadFailed': '폴더를 로드할 수 없습니다.',

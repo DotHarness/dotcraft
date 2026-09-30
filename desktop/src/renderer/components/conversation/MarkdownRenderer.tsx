@@ -406,8 +406,10 @@ function markdownUrlTransform(url: string, key: string): string | null | undefin
 
 function isLocalFileLinkTarget(value: string): boolean {
   return value.toLowerCase().startsWith('file://') ||
-    /^[A-Za-z]:[\\/]/.test(value) ||
-    value.startsWith('/')
+    /^[A-Za-z]:(?:[\\/]|%5C)/i.test(value) ||
+    value.startsWith('/') ||
+    value.startsWith('\\') ||
+    /^%5C/i.test(value)
 }
 
 function resolveExternalMarkdownUrl(href: string): string | null {

@@ -94,6 +94,81 @@ describe('resolveConversationLink', () => {
       reason: 'unsupported-scheme'
     })
   })
+
+  it('decodes percent-encoded local paths produced by markdown', () => {
+    expect(resolveConversationLink({
+      target: 'E:/%E6%96%87%E6%A1%A3/a%20b.md',
+      workspacePath
+    })).toEqual({ kind: 'file', absolutePath: 'E:/文档/a b.md' })
+    expect(resolveConversationLink({
+      target: 'docs/my%20notes.md',
+      workspacePath
+    })).toEqual({ kind: 'file', absolutePath: 'C:/repo/docs/my notes.md' })
+  })
+
+  it('resolves encoded backslash paths instead of treating the drive as a scheme', () => {
+    expect(resolveConversationLink({
+      target: 'D:%5Cref%5Cx.md:12',
+      workspacePath
+    })).toEqual({ kind: 'file', absolutePath: 'D:/ref/x.md', hint: { line: 12 } })
+  })
+
+  it.each([
+    ['docs/a%23b.md', 'C:/repo/docs/a#b.md'],
+    ['docs/a%3Fb.md', 'C:/repo/docs/a?b.md'],
+    ['D:/docs/a%23b.md', 'D:/docs/a#b.md'],
+    ['/docs/a%3Fb.md', '/docs/a?b.md'],
+    ['D:%5Cdocs%5Ca%23b.md', 'D:/docs/a#b.md'],
+    ['%5C%5Cserver%5Cshare%5Ca%23b.md', '//server/share/a#b.md'],
+    ['file:///C:/repo/docs/a%23b.md', 'C:/repo/docs/a#b.md'],
+    ['file:///C:/repo/docs/a%3Fb.md', 'C:/repo/docs/a?b.md'],
+    ['docs/a%3A12', 'C:/repo/docs/a:12'],
+    ['docs/a%2523b.md', 'C:/repo/docs/a%23b.md']
+  ])('keeps encoded filename characters in %s', (target, absolutePath) => {
+    expect(resolveConversationLink({ target, workspacePath })).toEqual({ kind: 'file', absolutePath })
+  })
+
+  it.each(['docs/a%23b.md', 'C:%5Crepo%5Cdocs%5Ca%23b.md', 'file:///C:/repo/docs/a%23b.md'])(
+    'parses raw decorations before decoding %s', (target) => {
+      expect(resolveConversationLink({ target: `${target}?mode=%3Fpreview#L12C3`, workspacePath })).toEqual({
+        kind: 'file',
+        absolutePath: 'C:/repo/docs/a#b.md',
+        hint: { query: 'mode=%3Fpreview', line: 12, column: 3 }
+      })
+    }
+  )
+
+  it('strips the leading slash from drive paths', () => {
+    expect(resolveConversationLink({
+      target: '/D:/notes/a.md',
+      workspacePath
+    })).toEqual({ kind: 'file', absolutePath: 'D:/notes/a.md' })
+  })
+
+  it('keeps UNC paths absolute', () => {
+    expect(resolveConversationLink({
+      target: '\\\\server\\share\\a.md',
+      workspacePath
+    })).toEqual({ kind: 'file', absolutePath: '//server/share/a.md' })
+  })
+
+  it('reads #L line fragments as line and column hints', () => {
+    expect(resolveConversationLink({
+      target: 'D:/notes/a.md#L12C3',
+      workspacePath
+    })).toEqual({ kind: 'file', absolutePath: 'D:/notes/a.md', hint: { line: 12, column: 3 } })
+    expect(resolveConversationLink({
+      target: './a.md#L4-L9',
+      workspacePath
+    })).toEqual({ kind: 'file', absolutePath: 'C:/repo/a.md', hint: { line: 4 } })
+  })
+
+  it('does not decode http URLs', () => {
+    expect(resolveConversationLink({
+      target: 'https://example.com/a%20b',
+      workspacePath
+    })).toEqual({ kind: 'browser', url: 'https://example.com/a%20b' })
+  })
 })
 
 describe('normalizeBrowserUrl', () => {
