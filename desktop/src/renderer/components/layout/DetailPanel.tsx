@@ -24,8 +24,13 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS, formatShortcutParts, type ShortcutSpec } from '../ui/shortcutKeys'
 import { performAddTabAction } from '../../utils/detailTabActions'
 import { IconButton } from '../ui/IconButton'
-import { useConfirmDialog } from '../ui/ConfirmDialog'
-import { useFileEditorStore } from '../../stores/fileEditorStore'
+import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
+import {
+  currentDetailTabOrder,
+  detailTabMenuState,
+  useDetailPanelTabClose,
+  type DetailTabRef
+} from './useDetailPanelTabClose'
 
 interface DetailPanelProps {
   workspacePath?: string
@@ -52,21 +57,17 @@ export function DetailPanel({
   remoteWorkspace = false
 }: DetailPanelProps): JSX.Element {
   const t = useT()
-  const confirm = useConfirmDialog()
   const locale = useLocale()
   const {
     activeDetailTab,
     openSystemTabs,
     setActiveDetailTab,
-    closeSystemTab,
     setActiveViewerTab,
-    closeViewerTab,
     toggleDetailPanel
   } = useUIStore()
 
   const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
   const viewerTabs = useViewerTabStore((s) => s.getThreadState(s.currentThreadId ?? '').tabs)
-  const closeViewerTabInStore = useViewerTabStore((s) => s.closeTab)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
 
   const fileCount = useConversationStore((s) => turnPatchTotals(latestTurnDiff(s.turnDiffs, s.turns)?.files ?? []).files)
@@ -78,7 +79,6 @@ export function DetailPanel({
 
   const addButtonRef = useRef<HTMLButtonElement>(null)
   const [addTabMenu, setAddTabMenu] = useState<AddTabPopupPayload | null>(null)
-  const closingTabs = useRef(new Set<string>())
 
   const systemTabsAvailable = activeThreadId != null
   const systemTabs = systemTabsAvailable ? openSystemTabs : []
@@ -87,63 +87,17 @@ export function DetailPanel({
   const activeViewerId = activeDetailTab.kind === 'viewer' ? activeDetailTab.id : null
   const isLauncher = activeDetailTab.kind === 'launcher' || (activeDetailTab.kind === 'system' && !systemTabsAvailable)
 
-  const handleCloseViewerTab = (tabId: string): void => {
-    if (closingTabs.current.has(tabId)) return
-    closingTabs.current.add(tabId)
-    void closeViewerTabSafely(tabId).finally(() => closingTabs.current.delete(tabId))
-  }
+  const { closeTab, closeOtherTabs, closeTabsToRight } = useDetailPanelTabClose()
+  const [tabMenu, setTabMenu] = useState<{ ref: DetailTabRef; position: ContextMenuPosition } | null>(null)
 
-  const closeViewerTabSafely = async (tabId: string): Promise<void> => {
-    if (!currentThreadId) return
-    const closing = viewerTabs.find((t) => t.id === tabId)
-    if (closing?.kind === 'file' && closing.contentClass === 'text') {
-      const saved = await useFileEditorStore.getState().save(tabId)
-      if (!saved) {
-        if (useFileEditorStore.getState().sessions.get(tabId)?.review) return
-        const discard = await confirm({
-          title: t('viewer.discardChangesTitle'),
-          message: t('viewer.discardChangesMessage'),
-          cancelLabel: t('viewer.continueViewing'),
-          confirmLabel: t('viewer.discardChanges'),
-          danger: true
-        })
-        if (!discard) return
-      }
-      useFileEditorStore.getState().discard(tabId)
-    }
-    if (closing?.kind === 'browser') {
-      void window.api.workspace.viewer.browser.destroy({ tabId: closing.id })
-    } else if (closing?.kind === 'terminal') {
-      void window.api.workspace.viewer.terminal.dispose({ tabId: closing.id })
-    }
-    const latestTabs = useViewerTabStore.getState().getThreadState(currentThreadId).tabs
-    closeViewerTabInStore(currentThreadId, tabId)
-    if (useViewerTabStore.getState().currentThreadId !== currentThreadId) return
-    const remaining = latestTabs.filter((t) => t.id !== tabId)
-    const latestActive = useUIStore.getState().activeDetailTab
-    const wasActive = latestActive.kind === 'viewer' && latestActive.id === tabId
-
-    if (wasActive) {
-      if (remaining.length > 0) {
-        const idx = latestTabs.findIndex((t) => t.id === tabId)
-        const newActive = idx > 0
-          ? remaining[idx - 1]
-          : remaining[0]
-        if (newActive) {
-          setActiveViewerTab(newActive.id)
-        } else {
-          closeViewerTab()
-        }
-      } else {
-        closeViewerTab()
-      }
-    }
-  }
-
-  const handleCloseSystemTab = (id: SystemDetailTab): void => {
-    // If this was the active tab and no other system tab remains, fall back to
-    // the first viewer tab (else the launcher) — the store resolves the choice.
-    closeSystemTab(id, viewerTabs[0]?.id ?? null)
+  const tabMenuItems = (ref: DetailTabRef): ContextMenuEntry[] => {
+    const { canCloseOthers, canCloseRight } = detailTabMenuState(currentDetailTabOrder(), ref)
+    const icon = <X size={14} aria-hidden />
+    return [
+      { label: t('detailPanel.tabMenu.close'), icon, onClick: () => { void closeTab(ref) } },
+      { label: t('detailPanel.tabMenu.closeOthers'), icon, disabled: !canCloseOthers, onClick: () => { void closeOtherTabs(ref) } },
+      { label: t('detailPanel.tabMenu.closeRight'), icon, disabled: !canCloseRight, onClick: () => { void closeTabsToRight(ref) } }
+    ]
   }
 
   const handleAddTabAction = (action: AddTabMenuAction | null): void => {
@@ -278,7 +232,8 @@ export function DetailPanel({
               badge={meta.badge}
               closeLabel={`${t('viewer.close')} ${meta.label}`}
               onActivate={() => setActiveDetailTab(id)}
-              onClose={() => handleCloseSystemTab(id)}
+              onClose={() => { void closeTab({ kind: 'system', id }) }}
+              onContextMenu={(position) => setTabMenu({ ref: { kind: 'system', id }, position })}
             />
           )
         })}
@@ -306,7 +261,8 @@ export function DetailPanel({
               label={tab.label}
               closeLabel={`${t('viewer.close')} ${tab.label}`}
               onActivate={() => setActiveViewerTab(tab.id)}
-              onClose={() => handleCloseViewerTab(tab.id)}
+              onClose={() => { void closeTab({ kind: 'viewer', id: tab.id }) }}
+              onContextMenu={(position) => setTabMenu({ ref: { kind: 'viewer', id: tab.id }, position })}
               maxWidth={160}
             />
           )
@@ -333,6 +289,14 @@ export function DetailPanel({
             handleAddTabAction(action)
           }}
         />
+
+        {tabMenu && (
+          <ContextMenu
+            items={tabMenuItems(tabMenu.ref)}
+            position={tabMenu.position}
+            onClose={() => setTabMenu(null)}
+          />
+        )}
 
         <div style={{ flex: 1 }} />
 
@@ -393,6 +357,7 @@ function DetailPanelTab({
   closeLabel,
   onActivate,
   onClose,
+  onContextMenu,
   className,
   style,
   maxWidth
@@ -405,6 +370,7 @@ function DetailPanelTab({
   closeLabel: string
   onActivate: () => void
   onClose: () => void
+  onContextMenu: (position: ContextMenuPosition) => void
   className?: string
   style?: CSSProperties
   maxWidth?: number
@@ -418,6 +384,10 @@ function DetailPanelTab({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={onActivate}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onContextMenu({ x: e.clientX, y: e.clientY })
+      }}
       onAuxClick={(e) => {
         if (e.button === 1) {
           e.preventDefault()
