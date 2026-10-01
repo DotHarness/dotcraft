@@ -434,6 +434,7 @@ export const MESSAGES_JA = {
   'settings.voice.microphone.input': 'マイク',
   'settings.voice.microphone.hint': '音声入力に使用します。',
   'settings.voice.microphone.systemDefault': 'システム既定',
+  'settings.voice.microphone.selected': '選択したマイク',
   'settings.voice.microphone.unnamed': 'マイク {{index}}',
   'settings.voice.microphone.missing': '保存したマイクを利用できないため、システム既定を使用します。',
   'settings.voice.microphone.fallback': '保存したマイクを利用できないため、システム既定に切り替えました。',

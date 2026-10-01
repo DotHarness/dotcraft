@@ -564,6 +564,7 @@ export const MESSAGES_ZH_HANS = {
   'settings.voice.microphone.input': '麦克风',
   'settings.voice.microphone.hint': '用于语音输入。',
   'settings.voice.microphone.systemDefault': '系统默认',
+  'settings.voice.microphone.selected': '已选麦克风',
   'settings.voice.microphone.unnamed': '麦克风 {{index}}',
   'settings.voice.microphone.missing': '已保存的麦克风不可用，DotCraft 将使用系统默认设备。',
   'settings.voice.microphone.fallback': '已保存的麦克风不可用，DotCraft 已切换到系统默认设备。',

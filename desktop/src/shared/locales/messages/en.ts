@@ -437,6 +437,7 @@ export const MESSAGES_EN = {
   'settings.voice.microphone.input': 'Microphone',
   'settings.voice.microphone.hint': 'Used for voice input.',
   'settings.voice.microphone.systemDefault': 'System default',
+  'settings.voice.microphone.selected': 'Selected microphone',
   'settings.voice.microphone.unnamed': 'Microphone {{index}}',
   'settings.voice.microphone.missing': 'The saved microphone is unavailable. DotCraft will use the system default.',
   'settings.voice.microphone.fallback': 'The saved microphone was unavailable, so DotCraft switched to the system default.',

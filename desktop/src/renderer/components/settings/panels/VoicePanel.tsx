@@ -13,18 +13,6 @@ import { isBlockedMicrophonePermission, probeMicrophoneAccess } from '../../../v
 import { formatMicrophoneLabel } from '../../../voice/microphoneLabels'
 import { useVoiceStore } from '../../../voice/voiceStore'
 
-const EMPTY_SNAPSHOT: VoiceRuntimeSnapshot = {
-  model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null },
-  chatGpt: { signedIn: false, enabled: true },
-  sessions: [],
-  capacity: 2
-}
-
-interface AudioInputOption {
-  deviceId: string
-  label: string
-}
-
 export function VoicePanel(): JSX.Element {
   const t = useT()
   const confirm = useConfirmDialog()
@@ -36,9 +24,13 @@ export function VoicePanel(): JSX.Element {
   const markDeviceFallback = useVoiceStore((state) => state.markDeviceFallback)
   const clearDeviceFallback = useVoiceStore((state) => state.clearDeviceFallback)
   const clearDeviceErrors = useVoiceStore((state) => state.clearDeviceErrors)
-  const [snapshot, setSnapshot] = useState<VoiceRuntimeSnapshot>(EMPTY_SNAPSHOT)
-  const [devices, setDevices] = useState<AudioInputOption[]>([])
-  const [deviceId, setDeviceId] = useState('')
+  const snapshot = useVoiceStore((state) => state.snapshot)
+  const snapshotLoaded = useVoiceStore((state) => state.snapshotLoaded)
+  const setChatGptEnabled = useVoiceStore((state) => state.setChatGptEnabled)
+  const devices = useVoiceStore((state) => state.microphones)
+  const setDevices = useVoiceStore((state) => state.setMicrophones)
+  const deviceId = useVoiceStore((state) => state.preferredDeviceId)
+  const setDeviceId = useVoiceStore((state) => state.setPreferredDeviceId)
   const [deviceMissing, setDeviceMissing] = useState(false)
   const [deviceIssue, setDeviceIssue] = useState<VoiceErrorCode | null>(null)
   const [busy, setBusy] = useState(false)
@@ -67,24 +59,9 @@ export function VoicePanel(): JSX.Element {
       await window.api.settings.set({ voice: { deviceId: '' } }).catch(() => {})
       markDeviceFallback()
     }
-  }, [clearDeviceErrors, deviceId, markDeviceFallback, t])
+  }, [clearDeviceErrors, deviceId, markDeviceFallback, setDeviceId, setDevices, t])
 
-  useEffect(() => {
-    initializeVoice()
-    let disposed = false
-    void Promise.all([window.api.voice.getSnapshot(), window.api.settings.get()])
-      .then(([nextSnapshot, settings]) => {
-        if (disposed) return
-        setSnapshot(nextSnapshot)
-        setDeviceId(settings.voice?.deviceId ?? '')
-      })
-      .catch(() => {})
-    const unsubscribe = window.api.voice.onSnapshot((next) => setSnapshot(next))
-    return () => {
-      disposed = true
-      unsubscribe()
-    }
-  }, [initializeVoice])
+  useEffect(() => initializeVoice(), [initializeVoice])
 
   useEffect(() => {
     const media = navigator.mediaDevices
@@ -106,8 +83,10 @@ export function VoicePanel(): JSX.Element {
       value: '',
       label: t('settings.voice.microphone.systemDefault')
     },
-    ...devices.map((device) => ({ value: device.deviceId, label: device.label }))
-  ], [devices, t])
+    ...(devices.length === 0 && deviceId !== ''
+      ? [{ value: deviceId, label: t('settings.voice.microphone.selected') }]
+      : devices.map((device) => ({ value: device.deviceId, label: device.label })))
+  ], [deviceId, devices, t])
 
   async function setPreferredDevice(next: string): Promise<void> {
     setDeviceId(next)
@@ -122,7 +101,7 @@ export function VoicePanel(): JSX.Element {
     setChatGptPending(enabled)
     try {
       await window.api.settings.set({ voice: { chatGptTranscription: enabled } })
-      setSnapshot((current) => ({ ...current, chatGpt: { ...current.chatGpt, enabled } }))
+      setChatGptEnabled(enabled)
     } finally {
       setChatGptPending(null)
     }
@@ -229,7 +208,7 @@ export function VoicePanel(): JSX.Element {
           description={snapshot.chatGpt.signedIn
             ? t('settings.voice.chatGpt.description')
             : t('settings.voice.chatGpt.signedOut')}
-          control={(
+          control={snapshotLoaded && (
             <PillSwitch
               checked={snapshot.chatGpt.signedIn && (chatGptPending ?? snapshot.chatGpt.enabled)}
               disabled={!snapshot.chatGpt.signedIn}
@@ -241,7 +220,7 @@ export function VoicePanel(): JSX.Element {
         <SettingsRow
           label={t('settings.voice.model.name')}
           description={<ModelDescription phase={model.phase} progress={progress} />}
-          control={(
+          control={snapshotLoaded && (
             <ModelAction
               phase={model.phase}
               busy={busy}

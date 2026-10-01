@@ -434,6 +434,7 @@ export const MESSAGES_FR = {
   'settings.voice.microphone.input': 'Microphone',
   'settings.voice.microphone.hint': 'Utilisé pour la saisie vocale.',
   'settings.voice.microphone.systemDefault': 'Réglage système',
+  'settings.voice.microphone.selected': 'Micro sélectionné',
   'settings.voice.microphone.unnamed': 'Microphone {{index}}',
   'settings.voice.microphone.missing': 'Le microphone enregistré est indisponible. Le réglage système sera utilisé.',
   'settings.voice.microphone.fallback': 'Le microphone enregistré était indisponible. DotCraft utilise maintenant le réglage système.',

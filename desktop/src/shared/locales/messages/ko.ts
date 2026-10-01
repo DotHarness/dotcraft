@@ -434,6 +434,7 @@ export const MESSAGES_KO = {
   'settings.voice.microphone.input': '마이크',
   'settings.voice.microphone.hint': '음성 입력에 사용됩니다.',
   'settings.voice.microphone.systemDefault': '시스템 기본값',
+  'settings.voice.microphone.selected': '선택한 마이크',
   'settings.voice.microphone.unnamed': '마이크 {{index}}',
   'settings.voice.microphone.missing': '저장된 마이크를 사용할 수 없어 시스템 기본값을 사용합니다.',
   'settings.voice.microphone.fallback': '저장된 마이크를 사용할 수 없어 시스템 기본값으로 전환했습니다.',

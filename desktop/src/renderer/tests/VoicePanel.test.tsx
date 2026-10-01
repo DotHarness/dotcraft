@@ -30,6 +30,9 @@ beforeEach(() => {
   getUserMedia.mockResolvedValue({ getTracks: () => [{ stop: vi.fn() }] })
   useVoiceStore.setState({
     initialized: false,
+    snapshotLoaded: false,
+    preferredDeviceId: '',
+    microphones: [],
     finalizing: null,
     microphonePermission: 'unknown',
     deviceFallback: false,
@@ -135,8 +138,7 @@ describe('VoicePanel', () => {
   })
 
   it('restores the saved microphone after the Voice panel remounts', async () => {
-    settingsGet.mockResolvedValue({ locale: 'en', voice: { deviceId: 'mic-1' } })
-    useVoiceStore.setState({ initialized: true, microphonePermission: 'granted' })
+    useVoiceStore.setState({ initialized: true, microphonePermission: 'granted', preferredDeviceId: 'mic-1' })
 
     const first = renderPanel()
     await waitFor(() => {

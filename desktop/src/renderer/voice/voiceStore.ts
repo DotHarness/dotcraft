@@ -38,15 +38,26 @@ interface VoiceFinalizingState {
   sessionId?: string
 }
 
+export interface VoiceMicrophoneOption {
+  deviceId: string
+  label: string
+}
+
 interface VoiceStoreState {
   initialized: boolean
   snapshot: VoiceRuntimeSnapshot
+  snapshotLoaded: boolean
+  preferredDeviceId: string
+  microphones: VoiceMicrophoneOption[]
   recording: RecordingState | null
   finalizing: VoiceFinalizingState | null
   microphonePermission: VoiceMicrophonePermissionStatus
   deviceFallback: boolean
   localErrors: Record<string, VoiceErrorCode | undefined>
   initialize(): void
+  setPreferredDeviceId(deviceId: string): void
+  setMicrophones(microphones: VoiceMicrophoneOption[]): void
+  setChatGptEnabled(enabled: boolean): void
   refreshMicrophonePermission(): Promise<VoiceMicrophonePermissionStatus>
   setMicrophonePermission(status: VoiceMicrophonePermissionStatus): void
   openMicrophoneSettings(): Promise<void>
@@ -80,6 +91,9 @@ const originVersions = new Map<string, number>()
 export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
   initialized: false,
   snapshot: EMPTY_SNAPSHOT,
+  snapshotLoaded: false,
+  preferredDeviceId: '',
+  microphones: [],
   recording: null,
   finalizing: null,
   microphonePermission: 'unknown',
@@ -91,6 +105,9 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
     if (!window.api?.voice) return
     set({ initialized: true })
     void window.api.voice.getSnapshot().then((snapshot) => applySnapshot(set, snapshot)).catch(() => {})
+    void window.api.settings.get()
+      .then((settings) => set({ preferredDeviceId: settings.voice?.deviceId ?? '' }))
+      .catch(() => {})
     void get().refreshMicrophonePermission()
     if (typeof window.api.voice.onSnapshot === 'function') {
       window.api.voice.onSnapshot((snapshot) => applySnapshot(set, snapshot))
@@ -131,6 +148,18 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
       focusListenerAttached = true
       window.addEventListener('focus', () => { void useVoiceStore.getState().refreshMicrophonePermission() })
     }
+  },
+
+  setPreferredDeviceId(deviceId) {
+    set({ preferredDeviceId: deviceId })
+  },
+
+  setMicrophones(microphones) {
+    set({ microphones })
+  },
+
+  setChatGptEnabled(enabled) {
+    set((state) => ({ snapshot: { ...state.snapshot, chatGpt: { ...state.snapshot.chatGpt, enabled } } }))
   },
 
   async refreshMicrophonePermission() {
@@ -187,7 +216,7 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
         const recording = get().recording
         if (recording?.threadId === threadId) set({ recording: { ...recording, level } })
       }, () => {
-        set({ deviceFallback: true })
+        set({ deviceFallback: true, preferredDeviceId: '' })
         void window.api.settings.set({ voice: { deviceId: '' } })
       })
       if (!isCurrentStartup(startup)) {
@@ -383,6 +412,7 @@ function applySnapshot(
     ))
     return {
       snapshot,
+      snapshotLoaded: true,
       finalizing: admitted ? null : state.finalizing
     }
   })

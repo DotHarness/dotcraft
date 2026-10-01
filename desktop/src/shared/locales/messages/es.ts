@@ -434,6 +434,7 @@ export const MESSAGES_ES = {
   'settings.voice.microphone.input': 'Micrófono',
   'settings.voice.microphone.hint': 'Se usa para la entrada de voz.',
   'settings.voice.microphone.systemDefault': 'Predeterminado del sistema',
+  'settings.voice.microphone.selected': 'Micrófono seleccionado',
   'settings.voice.microphone.unnamed': 'Micrófono {{index}}',
   'settings.voice.microphone.missing': 'El micrófono guardado no está disponible. Se usará el predeterminado.',
   'settings.voice.microphone.fallback': 'El micrófono guardado no estaba disponible, así que DotCraft cambió al predeterminado.',
