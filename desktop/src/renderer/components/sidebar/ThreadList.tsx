@@ -850,25 +850,25 @@ function ProjectHeader({
     }
   }, [menuOpen, project])
 
-  async function openProject(): Promise<void> {
-    if (active) return
+  async function openProject(): Promise<boolean> {
+    if (active) return true
     if (sshRef) {
-      if (!canOpenSshProject(sshMachine)) return
+      if (!canOpenSshProject(sshMachine)) return false
       try {
         await useSshMachinesStore.getState().openProject(sshRef.machineId, sshRef.projectId)
+        return true
       } catch (error) {
         addToast(error instanceof Error ? error.message : String(error), 'error')
+        return false
       }
-      return
     }
-    if (isRemoteProject(project)) return
+    if (isRemoteProject(project)) return false
     await window.api.workspace.switch(project.path)
+    return true
   }
 
   async function newChat(): Promise<void> {
-    if (!active && (sshRef || !isRemoteProject(project))) {
-      await openProject()
-    }
+    if (!active && (sshRef || !isRemoteProject(project)) && !(await openProject())) return
     useUIStore.getState().goToNewChat({ workspacePath: projectKey })
     setActiveMainView('conversation')
   }
