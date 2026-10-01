@@ -14,7 +14,7 @@
 .pet-settings-dial-label[data-preview='true'] { color: var(--text-secondary); }
 
 .pet-settings-bag { --pet-tile: calc(74px + var(--type-hint-line-height)); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.pet-settings-bag-scroll { box-sizing: content-box; height: calc(2 * var(--pet-tile) + 8px); overflow-y: auto; margin: -2px; padding: 2px; }
+.pet-settings-bag-scroll { box-sizing: content-box; height: calc(2 * var(--pet-tile) + 8px); overflow-y: auto; margin: -2px; padding: 2px 5px 2px 2px; }
 .pet-settings-filters { display: flex; flex-wrap: wrap; gap: 4px; }
 .pet-settings-tiles { display: grid; grid-template-columns: repeat(var(--pet-columns), minmax(0, 1fr)); grid-auto-rows: var(--pet-tile); gap: 8px; }
 .pet-settings-slot { border: 1px dashed var(--border-default); border-radius: 8px; }

@@ -38,7 +38,7 @@ export function PetBagPanel({ settings, onToggle, onTryOn }: PetBagPanelProps): 
           </Button>
         ))}
       </div>
-      <div className="pet-settings-bag-scroll">
+      <div className="pet-settings-bag-scroll dc-scrollbar-stable">
         <div className="pet-settings-tiles" style={{ '--pet-columns': COLUMNS } as CSSProperties} onMouseLeave={() => onTryOn(null)}>
           {entries.map((entry) => {
             const worn = isWorn(outfit, entry.id)

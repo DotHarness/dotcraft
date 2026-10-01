@@ -1,5 +1,5 @@
 ---
-version: "0.7.8"
+version: "0.7.9"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -1739,7 +1739,9 @@ neutral posture above while letting the collection's own colour show.
   and a check bubble on the art. The bag is a fixed grid of five columns showing two
   rows: owned items fill it from the first slot and the remaining slots stay visible as
   dashed `--border-default` outlines like the tray's, so an empty or filtered bag never
-  collapses and never moves the dial; longer collections scroll. The empty and filtered
+  collapses and never moves the dial; longer collections scroll. The scroll region
+  reserves its scrollbar gutter, so a filter never resizes the tiles, and the thumb
+  sits one tile gap from the last column. The empty and filtered
   hints sit beside the `Bag` eyebrow in `--type-hint`.
 - The exchange tray is ten 44px slots: empty slots are dashed
   `--border-default` outlines; a filled slot drops the outline and shows the item

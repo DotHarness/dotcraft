@@ -35,7 +35,7 @@ slot's rarity with shared weights, so legendary items are rare but reachable. Us
 [catalog](./src/decorationCatalog.ts) for display names, rarity chrome colors, and series labels.
 
 Effects belong to items: paint skins such as `chrome` and `holographic` replace the body paint,
-glow items pulse, and orbit moons circle. Effects animate only at 44px and above with motion
+glow items pulse, and koi circle the body. Effects animate only at 44px and above with motion
 enabled; smaller avatars render their static frame, and avatars at 20px and below drop face, hand,
 overlay-skin, and effect layers entirely. The model is specified in
 [specs/features/avatar-system.md](../../../../specs/features/avatar-system.md).

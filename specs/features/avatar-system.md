@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.7.10 |
 | **Status** | Draft |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-01 |
 | **Related Specs** | [Agent Profiles](agent-profiles.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
 Purpose: define the shared `@dotcraft/avatar` system. It covers the equipment slots an avatar
@@ -82,7 +82,7 @@ host can override one slot without touching the others.
 | `head` | Head top | Replaces the antenna and its status light | Existing hats and novelty objects live here. |
 | `face` | Brow band, a faceplate over the screen, or a rim site | Brow and rim items sit in front of the body behind the face marks; a faceplate replaces the face marks | Brow and rim items never paint on the white screen. Rim items sit on the blue rim outside the screen at one of two mount sites (section 6), combine with every hat, and are exclusive with brow items and faceplates because they share the face slot. A faceplate carries its own expression layers and stays visible at compact size because it defines the head silhouette. |
 | `hand` | Screen-left hand | Inside the left arm group | Shares the arm pivot; stows for laptop and question-sign work props. |
-| `back` | Behind the body | First layer inside the rig, plus an optional front layer drawn over the face and under the work props | Wings, capes, packs, rings, orbits, and auras. An orbit around the body, with or without a visible ring, renders its far half behind and its near half in front; bodies on the orbit exist in both layers and the shared phase animation shows the matching copy. Flat rings such as the halo stay behind. A creature that holds on to the robot draws its gripping claws, and anything it carries in front of the body such as a cloud, in the front layer. |
+| `back` | Behind the body | First layer inside the rig, plus an optional front layer drawn over the face and under the work props | Wings, capes, packs, rings, orbits, and auras. An orbit around the body renders its far half behind and its near half in front; bodies on the orbit exist in both layers and the shared phase animation shows the matching copy. A body changes layer only where it is fully clear of the robot silhouette. Flat rings such as the halo stay behind. A creature that holds on to the robot draws its gripping claws, and anything it carries in front of the body such as a cloud, in the front layer. |
 | `skin` | Body and arm material | One material layer spans the torso and independently moving arms, under the screen and held props | Overlay skins retain the palette paint; paint skins replace it. Face marks keep the palette in both kinds. |
 
 Slot precedence for derivation and conflict resolution is `head > face > hand > back > skin`.
@@ -109,8 +109,8 @@ Rarity meaning:
 | Common | Slate | Everyday objects; the bulk of every slot. |
 | Uncommon | Green | A twist on an everyday object. |
 | Rare | Blue | Distinct silhouettes or a small animated detail. |
-| Epic | Purple | Glow, motion, or a paint-replacing material. |
-| Legendary | Gold | The signature item of a slot; effects are expected. |
+| Epic | Purple | Glow, motion, or a paint-replacing material. An epic accessory moves visibly when effects are live; a glow pulse alone is not enough. |
+| Legendary | Gold | The signature item of a slot. Besides its ambient motion it performs a signature beat (section 9). |
 
 Series does not influence sampling. It groups the catalog and has no execution or sampling authority.
 
@@ -191,11 +191,28 @@ reduced-motion, and motion-off rules:
 - Static SVG filters (`feGaussianBlur`) for glow halos. Filters are never animated. A glow inside a
   moving group is a radial gradient instead, because a filter under an animated transform is
   recomputed on every frame.
+- CSS motion paths (`offset-path` with automatic rotation) for a body that travels a closed path
+  and turns with it.
 - Opacity phase loops that swap the behind-body and in-front copies of an orbiting body at the
   half-orbit boundary.
 
 No WebGL, canvas, SMIL, or per-frame JavaScript. The decoration event clock (lift, bounce, rock)
 continues to own head-item responses to done, greeting, acknowledge, and blocked.
+
+### Signature beats
+
+A legendary accessory performs a signature beat on top of its ambient loop: a short event of one to
+two seconds, such as an eruption, a lightning strike, or a launch, that repeats on a fixed cycle.
+An epic accessory may carry a smaller periodic moment, such as a glint or a flash.
+
+- Each slot has its own cycle so a fully legendary avatar seldom fires two beats together: head 9 s,
+  face 11 s, hand 8 s, back 10 s.
+- A beat is one long keyframe loop whose first and last frames are the resting pose. Parts that
+  exist only during the beat, such as lava bombs, bolts, or sparks, are hidden in their base style,
+  so standard and compact sizes show the item at rest.
+- A legendary held item may tint the face marks in its own color for the peak of its beat by
+  animating the mark gradient stops, so the robot's eyes flash with the charge. Faceplates keep
+  their own light, and the composer's reasoning energy keeps priority over the tint.
 
 ### Reasoning energy on paint skins
 
@@ -240,7 +257,7 @@ show the same static paint as before.
   goggles qualify; abstract bands and small strips do not read and are not added.
 - Rim items mount at one of the two `rim` sites.
   - Chin site: x 400–624, y 784–846. Items may overhang the white outline below the rim. The
-    orbit ring's front belt and the working-pose laptop draw in front of the site, so a chin item
+    koi orbit's front pass and the working-pose laptop draw in front of the site, so a chin item
     passes under them the way held props stow for the laptop.
   - Temple site: x 746–850, y 362–468, clear of the brow band, the widest hat brim, and the sign
     pole. Temple items stow in the hold-sign pose, where the sign and its arm cross the site; in

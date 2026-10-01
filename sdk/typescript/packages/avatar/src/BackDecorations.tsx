@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, type CSSProperties, type ReactNode } from 'react'
 import type { BackId } from './items.js'
 import { Detail, Glow, Silhouette as S, useClipId } from './DecorationShapes.js'
 import { CloudDragon, CloudDragonFront } from './CloudDragon.js'
@@ -32,6 +32,17 @@ const dragonWing = {
   outer: 'M272 500C160 380 60 300 20 340c0 60 60 100 100 130-60 30-100 90-80 150 60 10 130-20 190-70-40 60-40 120 0 150 60-20 100-90 110-160Z',
   inner: 'M262 530C170 430 90 370 60 396c4 44 50 76 84 100-50 24-84 74-70 122 50 4 110-24 160-66-30 48-30 96 0 122 44-18 78-76 86-134Z',
 }
+const dragonEmbers = [
+  [24, 346, -20, -200, 18], [110, 410, 30, -230, 13], [190, 440, -10, -180, 15],
+  [46, 612, -40, -170, 16], [120, 560, 20, -210, 12], [232, 690, -30, -190, 14],
+]
+function DragonEmbers() {
+  return <g className="dca-fx" transform="rotate(-6 272 560)">
+    {dragonEmbers.map(([x, y, dx, dy, r], i) => <g key={i} className="dca-fx-wing-ember" style={{ '--dca-dx': `${dx}px`, '--dca-dy': `${dy}px`, animationDelay: `${(i % 3) * .14}s` } as CSSProperties}>
+      <circle cx={x} cy={y} r={r + 9} fill="#fff" /><circle cx={x} cy={y} r={r} fill="#ff7a2a" /><circle cx={x} cy={y} r={r * .5} fill="#ffd36b" />
+    </g>)}
+  </g>
+}
 
 function SunRays() {
   const rays = Array.from({ length: 12 }, (_, index) => {
@@ -61,41 +72,36 @@ function SolarPanel() {
 }
 
 const bladePath = 'M-40-22H720L780 0 720 22H-40Z'
+const bladeGlow = 'M-40-30H724L796 0 724 30H-40Z'
 function Sword({ blade, glow, guard, children }: { blade: string; glow: string; guard: string; children?: ReactNode }) {
   const clip = useClipId()
   return <>
     <defs><clipPath id={clip}><path d={bladePath} /></clipPath></defs>
-    <Glow blur={16} className="dca-fx-pulse"><path d="M-40-30H724L796 0 724 30H-40Z" fill={glow} opacity=".85" /></Glow>
-    <circle cx="-166" r="22" fill={guard} stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
-    <rect x="-160" y="-16" width="108" height="32" rx="12" fill="#2b2f3a" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
-    <S d={bladePath} fill={blade} stroke={16} />
-    {children}
-    <g clipPath={`url(#${clip})`}><g transform="translate(689 0) scale(.3 1)"><g className="dca-fx dca-fx-sheen" fill="#fff"><path d="M3-30h67l-73 60h-67Z" opacity=".85" /></g></g></g>
-    <rect x="-64" y="-62" width="24" height="124" rx="10" fill={guard} stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+    <g className="dca-fx-sword-sheathed"><Glow blur={16} className="dca-fx-pulse"><path d={bladeGlow} fill={glow} opacity=".85" /></Glow></g>
+    <g className="dca-fx dca-fx-sword-drawn" transform="translate(-100 0)"><Glow blur={16}><path d={bladeGlow} fill={glow} /></Glow></g>
+    <g className="dca-fx-sword-draw">
+      <circle cx="-166" r="22" fill={guard} stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+      <rect x="-160" y="-16" width="108" height="32" rx="12" fill="#2b2f3a" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+      <S d={bladePath} fill={blade} stroke={16} />
+      {children}
+      <g clipPath={`url(#${clip})`}><g transform="translate(689 0) scale(.3 1)"><g className="dca-fx dca-fx-sheen" fill="#fff"><path d="M3-30h67l-73 60h-67Z" opacity=".85" /></g></g></g>
+      <rect x="-64" y="-62" width="24" height="124" rx="10" fill={guard} stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+    </g>
     <rect x="-14" y="-36" width="30" height="72" rx="10" fill="#8b95a5" stroke="#fff" strokeWidth="12" paintOrder="stroke fill" />
   </>
+}
+const slashTrail = { outer: 'M-620 0Q0-360 620 0Q0-120-620 0Z', core: 'M-500-18Q0-286 500-18Q0-150-500-18Z' }
+function Slash({ fill, core, delay }: { fill: string; core: string; delay?: string }) {
+  return <g transform="translate(512 600) rotate(34)"><g className="dca-fx dca-fx-sword-slash" style={{ transformOrigin: '-620px 0px', animationDelay: delay }}>
+    <path d={slashTrail.outer} fill={fill} stroke="#fff" strokeWidth="16" strokeLinejoin="round" paintOrder="stroke fill" />
+    <path d={slashTrail.core} fill={core} />
+  </g></g>
 }
 const leftShoulder = 'translate(265 392) rotate(43)'
 
 const guitarBody = 'M-86 0C-86-48-48-86 0-86 42-86 66-62 90-54 110-46 124-64 160-64 196-64 224-36 224 0 224 36 196 64 160 64 124 64 110 46 90 54 66 62 42 86 0 86-48 86-86 48-86 0Z'
 
 const orbit = { transform: 'translate(512 760) rotate(-12)', rx: 450, ry: 104 }
-const orbitBodies: { key: string; delay?: string; art: ReactNode }[] = [
-  { key: 'a', art: <><ellipse rx="64" ry="18" fill="none" stroke="#fff" strokeWidth="22" transform="rotate(-18)" /><ellipse rx="64" ry="18" fill="none" stroke="#ffe08a" strokeWidth="9" transform="rotate(-18)" /><circle r="44" fill="#fff" /><circle r="34" fill="#f6b500" /><path d="M-64 0a64 18 0 0 0 128 0" fill="none" stroke="#ffe08a" strokeWidth="9" transform="rotate(-18)" /></> },
-  { key: 'b', delay: '-2.67s', art: <><circle r="34" fill="#fff" /><circle r="25" fill="#c9d2ff" /></> },
-  { key: 'c', delay: '-5.33s', art: <><circle r="26" fill="#fff" /><circle r="17" fill="#ff9ad9" /></> },
-]
-function OrbitBodies({ side }: { side: 'front' | 'back' }) {
-  return <>{orbitBodies.map(body => <g key={body.key} className={`dca-fx dca-fx-orbit dca-fx-orbit-${side} dca-fx-orbit-${body.key}`} style={body.delay ? { animationDelay: body.delay } : undefined}>{body.art}</g>)}</>
-}
-function OrbitArc({ side }: { side: 'front' | 'back' }) {
-  const sweep = side === 'back' ? 1 : 0
-  const outer = `M${-orbit.rx} 0A${orbit.rx} ${orbit.ry} 0 0 ${sweep} ${orbit.rx} 0`
-  return <>
-    <path d={outer} fill="none" stroke="#fff" strokeWidth="46" />
-    <path d={outer} fill="none" stroke="#b9c4ff" strokeWidth="30" />
-  </>
-}
 
 const koiOrbit = `${orbit.transform} scale(.88)`
 const koi = <>
@@ -104,8 +110,53 @@ const koi = <>
   <ellipse cx="-10" cy="-22" rx="48" ry="24" transform="rotate(8 -10 -22)" fill="#fff4ef" />
 </>
 function KoiBodies({ side }: { side: 'front' | 'back' }) {
-  const art = side === 'front' ? koi : <g transform="scale(-1 1)">{koi}</g>
-  return <>{['a', 'c'].map(key => <g key={key} className={`dca-fx-orbit dca-fx-orbit-${side} dca-fx-orbit-${key}`} style={key === 'c' ? { animationDelay: '-4s' } : undefined}>{art}</g>)}</>
+  return <>{[['a', '-2.8s'], ['b', '-7.467s']].map(([key, delay]) => <g key={key} className={`dca-fx-orbit-${side} dca-fx-koi-${key}`} style={{ animationDelay: delay }}>
+    <g><g transform="scale(-1 1)">{koi}</g></g>
+  </g>)}</>
+}
+
+const finRack = { x: 330, y: 480 }
+const finCrown = { x: 512, y: 400, rx: 470, ry: 360 }
+const funnels = [{ dock: -140, length: 346, crown: -168 }, { dock: -126, length: 372, crown: -140 }, { dock: -112, length: 392, crown: -112 }]
+const rad = Math.PI / 180
+function finFlight({ dock, length, crown }: typeof funnels[number], index: number) {
+  const tx = finCrown.x + finCrown.rx * Math.cos(crown * rad), ty = finCrown.y + finCrown.ry * Math.sin(crown * rad)
+  const heading = Math.atan2(ty - finCrown.y, tx - finCrown.x)
+  const dx = tx - length * Math.cos(heading) - finRack.x, dy = ty - length * Math.sin(heading) - finRack.y
+  const c = Math.cos(dock * rad), s = Math.sin(dock * rad)
+  return { '--dca-dx': `${n0(dx * c + dy * s)}px`, '--dca-dy': `${n0(dy * c - dx * s)}px`, '--dca-turn': `${n0(heading / rad - dock)}deg`, '--dca-delay': `${(-index * .08).toFixed(2)}s` } as CSSProperties
+}
+function finPlate(l: number) {
+  const top = (x: number) => n0(-28 - 24 * x / l), bottom = (x: number) => n0(28 + 18 * x / (l - 56))
+  return {
+    outline: `M0-28L${l}-52L${l - 56} 46L0 28Z`,
+    bevel: `M0-28L${l - 36} ${top(l - 36)}L${l - 66} 0H0Z`,
+    cap: `M${l - 36} ${top(l - 36)}L${l}-52L${l - 56} 46L${l - 92} ${bottom(l - 92)}Z`,
+  }
+}
+function FinFunnels() {
+  const glow = `dca-glow-${useId().replace(/:/g, '')}`
+  const fin = (spec: typeof funnels[number], index: number) => {
+    const l = spec.length, plate = finPlate(l)
+    return <g key={index} transform={`translate(${finRack.x} ${finRack.y}) rotate(${spec.dock})`}>
+      <g className="dca-fx-fin" style={finFlight(spec, index)}>
+        <g className="dca-fx-fin-bob" style={{ animationDelay: `${-index * 1.1}s` }}>
+          <g transform={`translate(${l - 26} -3)`}>
+            <g className="dca-fx dca-fx-fin-beam"><path d="M0-13H112a13 13 0 0 1 0 26H0a13 13 0 0 1 0-26Z" fill="#4de3ff" stroke="#fff" strokeWidth="12" strokeLinejoin="round" paintOrder="stroke fill" /><path d="M6 0H112" stroke="#fff" strokeWidth="8" strokeLinecap="round" /></g>
+          </g>
+          <S d={plate.outline} fill="#c9d2ff" />
+          <path d={plate.bevel} fill="#8b95a5" />
+          <path d={plate.cap} fill="#4de3ff" />
+          <circle className="dca-fx dca-fx-pulse" cx={l - 40} cy="-3" r="54" fill={`url(#${glow})`} />
+          <circle className="dca-fx dca-fx-fin-flash" cx={l - 26} cy="-3" r="84" fill={`url(#${glow})`} />
+        </g>
+      </g>
+    </g>
+  }
+  return <>
+    <defs><radialGradient id={glow}><stop offset="0" stopColor="#4de3ff" stopOpacity=".85" /><stop offset=".5" stopColor="#4de3ff" stopOpacity=".35" /><stop offset="1" stopColor="#4de3ff" stopOpacity="0" /></radialGradient></defs>
+    {mirrored(<>{funnels.map(fin)}</>)}
+  </>
 }
 
 // The tail spirals inward so its tip ends behind the antenna light or the hat crown.
@@ -121,6 +172,10 @@ function cometTail(width: number) {
 }
 
 const halo = { cx: 512, cy: 229, r: 168 }
+function haloArc(from: number, to: number) {
+  const at = (deg: number) => `${n0(halo.cx + halo.r * Math.cos(deg * Math.PI / 180))} ${n0(halo.cy + halo.r * Math.sin(deg * Math.PI / 180))}`
+  return `M${at(from)}A${halo.r} ${halo.r} 0 0 1 ${at(to)}`
+}
 
 function Floatie({ side }: { side: 'front' | 'back' }) {
   const arc = (dy: number) => `M${-orbit.rx} ${dy}A${orbit.rx} ${orbit.ry} 0 0 ${side === 'back' ? 1 : 0} ${orbit.rx} ${dy}`
@@ -139,10 +194,27 @@ function TeslaCoil() {
     <rect x="180" y="226" width="64" height="190" rx="14" fill="#c9d2ff" stroke="#fff" strokeWidth="18" paintOrder="stroke fill" />
     <path d="M180 270h64M180 306h64M180 342h64M180 378h64" stroke="#8b95a5" strokeWidth="12" />
     <ellipse cx="212" cy="212" rx="84" ry="36" fill="#8b95a5" stroke="#fff" strokeWidth="18" paintOrder="stroke fill" />
-    <ellipse cx="212" cy="204" rx="46" ry="13" fill="#5b6577" />
+    <ellipse className="dca-fx-tesla-top" cx="212" cy="204" rx="46" ry="13" fill="#5b6577" />
   </>
 }
-const teslaArc = 'M212 186L246 142L296 160L330 104L384 124L420 76L470 96L512 58L556 92L604 72L642 122L694 104L728 156L776 138L812 186'
+const teslaArcs = [
+  'M212 186L246 142L296 160L330 104L384 124L420 76L470 96L512 58L556 92L604 72L642 122L694 104L728 156L776 138L812 186',
+  'M212 186L234 128L290 138L312 82L378 94L408 44L468 66L520 32L566 68L624 46L652 98L714 86L738 136L794 132L812 186',
+  'M212 186L268 166L286 116L352 138L376 90L444 110L476 68L532 96L576 64L620 98L672 84L690 134L752 122L772 168L812 186',
+]
+const teslaBolt = 'M212 186L252 116L302 146L338 64L404 98L440 22L502 58L534 6L590 54L626 26L680 100L718 76L770 138L812 186'
+const teslaArcTimes = [['.6s', '0s'], ['.75s', '-.25s'], ['.9s', '-.6s']]
+function Bolt({ d, width }: { d: string; width: number }) {
+  return <><path d={d} stroke="#fff" strokeWidth={width + 14} /><path d={d} stroke="#4de3ff" strokeWidth={width} /><path d={d} stroke="#fff" strokeWidth={width * .3} /></>
+}
+function TeslaSparks() {
+  return <g className="dca-fx">
+    <path className="dca-fx-tesla-spark" d="M212 108l16 56 56 22-56 22-16 56-16-56-56-22 56-22Z" fill="#a8f3ff" stroke="#fff" strokeWidth="12" strokeLinejoin="round" paintOrder="stroke fill" />
+    {[[-110, -70], [-130, 20], [-40, -120]].map(([dx, dy], i) => <g key={i} className="dca-fx-tesla-bit" style={{ '--dca-dx': `${dx}px`, '--dca-dy': `${dy}px` } as CSSProperties}>
+      <circle cx="212" cy="186" r="24" fill="#fff" /><circle cx="212" cy="186" r="14" fill="#4de3ff" />
+    </g>)}
+  </g>
+}
 
 const dragonTail = 'M313 773 275 795 241 809 211 815 184 815 161 810 140 799 121 782 106 759 94 729 88 693 88 651 94 605 58 595 44 645 38 694 40 739 49 782 66 820 92 854 125 880 165 898 211 905 260 903 313 890 367 867Z'
 
@@ -225,9 +297,13 @@ export function BackDecoration({ id }: { id: BackId }) {
       <Glow blur={22} className="dca-fx-pulse">{mirrored(<path d={angelWing.outer} fill="#fff7dc" opacity=".6" />)}</Glow>
       <Wings {...angelWing} fill="#fff" lining="#dfe4ff" outline="#b9c4ff" flap="dca-fx-flap-slow" />
     </>
-    case 'dragon-wings': return <Wings {...dragonWing} fill="#b23a48" lining="#7f2634">
-      <g className="dca-fx dca-fx-pulse" fill="#ffb347"><circle cx="30" cy="350" r="14" /><circle cx="48" cy="618" r="12" /><circle cx="236" cy="704" r="12" /></g>
-    </Wings>
+    case 'dragon-wings': return mirrored(<>
+      <Wing outer={dragonWing.outer} fill="#b23a48" flap="dca-fx-dragon-flap">
+        <path className="dca-fx-wing-ignite" d={dragonWing.inner} fill="#7f2634" />
+        <g className="dca-fx-wing-hot" fill="#ffb347"><g className="dca-fx dca-fx-pulse"><circle cx="30" cy="350" r="14" /><circle cx="48" cy="618" r="12" /><circle cx="236" cy="704" r="12" /></g></g>
+      </Wing>
+      <DragonEmbers />
+    </>)
     case 'crescent-moon': return <>
       <path d="M330 130a190 190 0 1 0 176 254a150 150 0 0 1-176-254Z" fill="#f6d365" stroke="#fff" strokeWidth="18" strokeLinejoin="round" paintOrder="stroke fill" />
       <path className="dca-fx dca-fx-sparkle-solo" d="M720 150l12 30 30 12-30 12-12 30-12-30-30-12 30-12Z" fill="#fff3c4" stroke="#fff" strokeWidth="10" strokeLinejoin="round" paintOrder="stroke fill" />
@@ -284,6 +360,8 @@ export function BackDecoration({ id }: { id: BackId }) {
       <path d="M826 334C840 384 834 424 800 460" stroke="#3c4658" strokeWidth="22" strokeLinecap="round" />
     </>
     case 'twin-blades': return <>
+      <Slash fill="#9fb2ff" core="#eef1ff" />
+      <g transform="matrix(-1 0 0 1 1024 0)"><Slash fill="#7fe8d8" core="#eafffa" delay=".14s" /></g>
       <g transform={leftShoulder}><Sword blade="#1f2330" glow="#9fb2ff" guard="#3c4658"><path d="M-28-13H718L772-3" stroke="#dfe6f5" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" /></Sword></g>
       <g transform="matrix(-1 0 0 1 1024 0)"><g transform={leftShoulder}><Sword blade="#8fdccf" glow="#7fe8d8" guard="#a7b1c0"><path d="M-28 0H728" stroke="#e6fbf6" strokeWidth="10" strokeLinecap="round" /></Sword></g></g>
     </>
@@ -299,12 +377,15 @@ export function BackDecoration({ id }: { id: BackId }) {
       <Glow blur={24} className="dca-fx-pulse"><circle cx={halo.cx} cy={halo.cy} r={halo.r} fill="none" stroke="#ffe08a" strokeWidth="74" opacity=".65" /></Glow>
       <circle cx={halo.cx} cy={halo.cy} r={halo.r} fill="none" stroke="#fff" strokeWidth="54" />
       <circle cx={halo.cx} cy={halo.cy} r={halo.r} fill="none" stroke="#f6b500" strokeWidth="34" />
+      <Glow blur={28} className="dca-fx-halo-flare"><circle cx={halo.cx} cy={halo.cy} r={halo.r} fill="none" stroke="#fff3c4" strokeWidth="92" /></Glow>
+      <circle className="dca-fx dca-fx-halo-flare" cx={halo.cx} cy={halo.cy} r={halo.r} fill="none" stroke="#ffe48a" strokeWidth="34" />
+      <g className="dca-fx dca-fx-halo-glint" style={{ transformOrigin: `${halo.cx}px ${halo.cy}px` }} strokeLinecap="round">
+        <path d={haloArc(-214, -126)} stroke="#ffe08a" strokeWidth="24" />
+        <path d={haloArc(-160, -126)} stroke="#fff3c4" strokeWidth="28" />
+        <path d={haloArc(-140, -124)} stroke="#fff" strokeWidth="30" />
+      </g>
     </>
-    case 'orbit-ring': return <g transform={orbit.transform}>
-      <Glow blur={22} className="dca-fx-pulse"><ellipse rx={orbit.rx} ry={orbit.ry} fill="none" stroke="#b9c4ff" strokeWidth="60" opacity=".55" /></Glow>
-      <OrbitArc side="back" />
-      <OrbitBodies side="back" />
-    </g>
+    case 'fin-funnels': return <FinFunnels />
     case 'koi-orbit': return <g transform={koiOrbit}><KoiBodies side="back" /></g>
     case 'peeking-cat': return <g transform="translate(786 376) rotate(24) scale(1.1)">
       <S d="M-100 14C-100-46-58-84 0-84S100-46 100 14 60 96 0 96-100 74-100 14ZM-92-24-86-138-22-76ZM92-24 86-138 22-76Z" fill="#ed985f" />
@@ -350,13 +431,17 @@ export function BackDecoration({ id }: { id: BackId }) {
       </g>
     </>
     case 'tesla-coils': return <>
+      <Glow blur={16} className="dca-fx-tesla-glow">{mirrored(<ellipse cx="212" cy="200" rx="74" ry="34" fill="#4de3ff" />)}</Glow>
       {mirrored(<TeslaCoil />)}
-      <Glow blur={14} className="dca-fx-node"><path d={teslaArc} stroke="#4de3ff" strokeWidth="44" strokeLinejoin="round" /></Glow>
-      <g className="dca-fx-node" strokeLinejoin="round" strokeLinecap="round">
-        <path d={teslaArc} stroke="#fff" strokeWidth="34" />
-        <path d={teslaArc} stroke="#4de3ff" strokeWidth="20" />
-        <path d={teslaArc} stroke="#fff" strokeWidth="6" />
+      <g className="dca-fx-tesla-crackle" strokeLinejoin="round" strokeLinecap="round">
+        <Glow blur={14} className="dca-fx-node"><path d={teslaArcs.join('')} stroke="#4de3ff" strokeWidth="44" /></Glow>
+        {teslaArcs.map((d, i) => <g key={d} className={i ? 'dca-fx dca-fx-tesla-arc dca-fx-tesla-arc-alt' : 'dca-fx-tesla-arc'} style={{ animationDuration: teslaArcTimes[i][0], animationDelay: teslaArcTimes[i][1] }}><Bolt d={d} width={20} /></g>)}
       </g>
+      <g className="dca-fx dca-fx-tesla-discharge" strokeLinejoin="round" strokeLinecap="round">
+        <Glow blur={18}><path d={teslaBolt} stroke="#7fefff" strokeWidth="76" />{mirrored(<circle cx="212" cy="190" r="70" fill="#7fefff" />)}</Glow>
+        <Bolt d={teslaBolt} width={36} />
+      </g>
+      {mirrored(<TeslaSparks />)}
     </>
     case 'great-wave': return <Water masses={[curl, swell]} />
     case 'cloud-dragon': return <CloudDragon />
@@ -366,14 +451,10 @@ export function BackDecoration({ id }: { id: BackId }) {
 
 export function BackFrontDecoration({ id }: { id: BackId }) {
   switch (id) {
-    case 'orbit-ring': return <g data-back-front={id} transform={orbit.transform}>
-      <OrbitArc side="front" />
-      <OrbitBodies side="front" />
-    </g>
     case 'koi-orbit': return <g data-back-front={id} transform={koiOrbit}><KoiBodies side="front" /></g>
     case 'donut-floatie': return <g data-back-front={id}><Floatie side="front" /></g>
     case 'cloud-dragon': return <g data-back-front={id}><CloudDragonFront /></g>
     default: return null
   }
 }
-export function hasFrontPart(id: BackId): boolean { return id === 'orbit-ring' || id === 'koi-orbit' || id === 'donut-floatie' || id === 'cloud-dragon' }
+export function hasFrontPart(id: BackId): boolean { return id === 'koi-orbit' || id === 'donut-floatie' || id === 'cloud-dragon' }

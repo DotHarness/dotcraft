@@ -130,10 +130,14 @@ export function FaceDecoration({ id }: { id: FaceId }) {
       <path d="M404 792q108 36 216 0" stroke="#fff" strokeWidth="24" strokeLinecap="round" fill="none" />
       <path d="M404 792q108 36 216 0" stroke="#3c4658" strokeWidth="10" strokeLinecap="round" fill="none" />
       <Glow blur={14} className="dca-fx-pulse"><path d={crystal} fill="#5eead4" stroke="#5eead4" strokeWidth="18" opacity=".9" /></Glow>
-      <S d={crystal} fill="#5eead4" stroke={12} />
-      <path d="M512 814c12 14 26 28 26 40a26 26 0 0 1-26 26Z" fill="#2cc5b0" />
+      <g className="dca-fx-pendant" style={{ transformOrigin: '512px 812px' }}>
+        <S d={crystal} fill="#5eead4" stroke={12} />
+        <path d="M512 814c12 14 26 28 26 40a26 26 0 0 1-26 26Z" fill="#2cc5b0" />
+        <Detail><path d="M500 842q-7 10-3 22" stroke="#ccfbf1" strokeWidth="7" strokeLinecap="round" fill="none" /></Detail>
+        <path className="dca-fx dca-fx-facet-flash" d={crystal} fill="#f0fdfa" style={{ animationDuration: '11s', animationDelay: '3s' }} />
+        <path className="dca-fx dca-fx-star-pop" d="M536 794Q542 828 566 834Q542 840 536 874Q530 840 506 834Q530 828 536 794Z" fill="#f0fdfa" stroke="#fff" strokeWidth="8" strokeLinejoin="round" paintOrder="stroke fill" style={{ animationDuration: '11s', animationDelay: '3.05s' }} />
+      </g>
       <circle cx="512" cy="812" r="8" fill="#efc65c" stroke="#fff" strokeWidth="8" paintOrder="stroke fill" />
-      <Detail><path d="M500 842q-7 10-3 22" stroke="#ccfbf1" strokeWidth="7" strokeLinecap="round" fill="none" /></Detail>
     </>
     default: return null
   }

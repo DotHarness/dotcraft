@@ -88,11 +88,9 @@ test('orbiting items split into a behind-body half and an in-front half; flat it
     return html
   }
   split('donut-floatie')
-  for (const back of ['orbit-ring', 'koi-orbit']) {
-    const orbit = split(back)
-    const bodies = (orbit.match(/dca-fx-orbit-front/g) ?? []).length
-    assert.ok(bodies > 0 && bodies === (orbit.match(/dca-fx-orbit-back/g) ?? []).length)
-  }
+  const orbit = split('koi-orbit')
+  const bodies = (orbit.match(/dca-fx-orbit-front/g) ?? []).length
+  assert.ok(bodies > 0 && bodies === (orbit.match(/dca-fx-orbit-back/g) ?? []).length)
   for (const back of ['halo', 'cape']) assert.ok(!render({ appearance: { ...originalAppearance, back }, size: 64 }).includes('data-back-front='))
 })
 

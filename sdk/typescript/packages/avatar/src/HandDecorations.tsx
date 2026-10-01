@@ -1,5 +1,7 @@
+import { useId } from 'react'
 import type { HandId } from './items.js'
 import { Glow, Plane, useClipId } from './DecorationShapes.js'
+import { lock, tube, type Pt } from './spine.js'
 
 const mark = 'var(--dca-held-mark, #3161f7)'
 const accent = 'var(--dca-held-accent, #f6b500)'
@@ -71,18 +73,7 @@ export function HandDecoration({ id }: { id: HandId }) {
       <rect x="777" y="712" width="46" height="18" rx="6" fill="#8b95a5" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />
       <rect x="783" y="726" width="34" height="90" rx="12" fill="#2a3140" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
     </g>}
-    {id === 'thunder-hammer' && <g transform="translate(233 640) rotate(-12) scale(.86) translate(-800 -700)">
-      <Glow blur={16} className="dca-fx-pulse"><rect x="708" y="456" width="184" height="120" rx="28" fill="#4de3ff" opacity=".55" /></Glow>
-      <rect x="787" y="556" width="26" height="186" rx="12" fill="#3c4658" stroke="#fff" strokeWidth="16" paintOrder="stroke fill" />
-      <rect x="778" y="734" width="44" height="28" rx="10" fill="#8b95a5" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
-      <rect x="715" y="466" width="170" height="100" rx="20" fill="#aab4c3" stroke="#fff" strokeWidth="18" paintOrder="stroke fill" />
-      <path d="M735 466h14v100h-14q-20 0-20-20v-60q0-20 20-20ZM865 466h-14v100h14q20 0 20-20v-60q0-20-20-20Z" fill="#737e90" />
-      <rect x="777" y="466" width="46" height="100" fill={mark} />
-      {['M740 458l-24-26 26-8-18-40', 'M860 458l18-28-26-6 26-36', 'M712 510l-22 2 12 14-14 10'].map((d, index) =>
-        <g key={d} className="dca-fx dca-fx-node" fill="none" strokeLinejoin="miter" style={index ? { animationDelay: `${index * .6}s` } : undefined}>
-          <path d={d} stroke="#4de3ff" strokeWidth="20" /><path d={d} stroke="#f2feff" strokeWidth="8" />
-        </g>)}
-    </g>}
+    {id === 'thunder-hammer' && <ThunderHammer />}
     {id === 'paintbrush' && <g transform="translate(233 640) rotate(-25) translate(-800 -720)">
       <rect x="788" y="660" width="24" height="180" rx="12" fill="#e0ad84" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
       <rect x="780" y="626" width="40" height="40" rx="6" fill="#8b95a5" stroke="#fff" strokeWidth="12" paintOrder="stroke fill" />
@@ -288,18 +279,78 @@ export function HandDecoration({ id }: { id: HandId }) {
   </g>
 }
 
+function burst(cx: number, cy: number, r: number, inner: number, points: number, turn = 0) {
+  return `M${Array.from({ length: points * 2 }, (_, i) => {
+    const a = ((i * 180) / points + turn) * Math.PI / 180, d = i % 2 ? inner : r
+    return `${Math.round(cx + d * Math.sin(a))} ${Math.round(cy - d * Math.cos(a))}`
+  }).join('L')}Z`
+}
+function Halo({ color, shapes }: { color: string; shapes: [number, number, number, number][] }) {
+  const id = `dca-glow-${useId().replace(/:/g, '')}`
+  return <>
+    <defs><radialGradient id={id}><stop offset=".35" stopColor={color} stopOpacity=".8" /><stop offset=".7" stopColor={color} stopOpacity=".35" /><stop offset="1" stopColor={color} stopOpacity="0" /></radialGradient></defs>
+    <g className="dca-fx dca-fx-pulse" fill={`url(#${id})`}>{shapes.map(([cx, cy, rx, ry]) => <ellipse key={`${cx}-${cy}`} cx={cx} cy={cy} rx={rx} ry={ry} />)}</g>
+  </>
+}
+
+const hammerArcs = ['M740 458l-24-26 26-8-18-40', 'M860 458l18-28-26-6 26-36', 'M712 510l-22 2 12 14-14 10']
+const hammerBolt = 'M836 128H884L850 236H878L836 350H860L800 456L812 374H786L818 262H790Z'
+const hammerSparks = ([[-112, 128, 20], [-72, 138, 24], [-34, 120, 18], [4, 142, 22], [44, 124, 18], [80, 116, 16]] as const)
+  .map(([a, d, r]) => burst(800 + d * Math.sin(a * Math.PI / 180), 456 - d * Math.cos(a * Math.PI / 180), r, r * .36, 4))
+function ThunderHammer() {
+  return <g transform="translate(233 640) rotate(-12) scale(.86) translate(-800 -700)">
+    <g className="dca-fx-hammer-lift" style={{ transformOrigin: '800px 700px' }}>
+      <g className="dca-fx-hammer-twirl" style={{ transformOrigin: '800px 516px' }}>
+        <g className="dca-fx-hammer-charge" style={{ transformOrigin: '800px 516px' }}><Halo color="#4de3ff" shapes={[[800, 516, 132, 96]]} /></g>
+      </g>
+      <rect x="787" y="556" width="26" height="186" rx="12" fill="#3c4658" stroke="#fff" strokeWidth="16" paintOrder="stroke fill" />
+      <rect x="778" y="734" width="44" height="28" rx="10" fill="#8b95a5" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+      <g className="dca-fx-hammer-twirl" style={{ transformOrigin: '800px 516px' }}>
+        <rect x="715" y="466" width="170" height="100" rx="20" fill="#aab4c3" stroke="#fff" strokeWidth="18" paintOrder="stroke fill" />
+        <path d="M735 466h14v100h-14q-20 0-20-20v-60q0-20 20-20ZM865 466h-14v100h14q20 0 20-20v-60q0-20-20-20Z" fill="#737e90" />
+        <rect x="777" y="466" width="46" height="100" fill={mark} />
+        {hammerArcs.map((d, index) =>
+          <g key={d} className="dca-fx dca-fx-node" fill="none" strokeLinejoin="miter" style={index ? { animationDelay: `${index * .6}s` } : undefined}>
+            <path d={d} stroke="#4de3ff" strokeWidth="20" /><path d={d} stroke="#f2feff" strokeWidth="8" />
+          </g>)}
+      </g>
+      <path className="dca-fx dca-fx-hammer-bolt" d={hammerBolt} fill="#4de3ff" stroke="#fff" strokeWidth="14" strokeLinejoin="round" paintOrder="stroke fill" style={{ transformOrigin: '860px 128px' }} />
+      <g className="dca-fx dca-fx-hammer-flash" style={{ transformOrigin: '800px 456px' }}>
+        <path d={burst(800, 456, 86, 38, 8, 22.5)} fill="#4de3ff" stroke="#fff" strokeWidth="14" strokeLinejoin="round" paintOrder="stroke fill" />
+        <path d={burst(800, 456, 46, 22, 8, 22.5)} fill="#e6fbff" />
+      </g>
+      <g className="dca-fx dca-fx-hammer-sparks" fill="#4de3ff" stroke="#fff" strokeWidth="10" strokeLinejoin="round" paintOrder="stroke fill" style={{ transformOrigin: '800px 456px' }}>
+        {hammerSparks.map(d => <path key={d} d={d} />)}
+      </g>
+    </g>
+  </g>
+}
+
+const keySparks = ([[-112, 118, 18], [-66, 130, 22], [-24, 120, 18], [16, 112, 16]] as const)
+  .map(([a, d, r]) => burst(755 + d * Math.sin(a * Math.PI / 180), 465 - d * Math.cos(a * Math.PI / 180), r, r * .36, 4))
 function MasterKey() {
   const clip = useClipId()
   const shape = 'M728 422H818V712H782V508H728V486H746V470H728V452H750V436H728Z'
   const bow = 'M800 718a54 54 0 1 1 0 108 54 54 0 1 1 0-108Zm0 34a20 20 0 1 0 0 40 20 20 0 1 0 0-40Z'
   return <g transform="translate(233 640) rotate(-12) scale(.9) translate(-800 -760)">
     <defs><clipPath id={clip}><path d={shape} /><path d={bow} /></clipPath></defs>
-    <Glow blur={16} className="dca-fx-pulse"><path d="M772 410h56v326h-56ZM716 412h70v108h-70Z" fill="#ffd970" opacity=".8" /></Glow>
-    <path d={shape} fill="#efc65c" stroke="#fff" strokeWidth="16" strokeLinejoin="round" paintOrder="stroke fill" />
-    <path d={bow} fill="#efc65c" fillRule="evenodd" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
-    <path d="M812 432v270" stroke="#c99139" strokeWidth="7" />
-    <rect x="774" y="700" width="52" height="26" rx="8" fill="#c99139" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />
-    <g clipPath={`url(#${clip})`}><g transform="translate(800 740) rotate(-90) scale(.45 1)"><g className="dca-fx dca-fx-sheen" fill="#fff3c4"><path d="M3-80h67l-73 160h-67Z" opacity=".9" /></g></g></g>
+    <g className="dca-fx-key-push" style={{ transformOrigin: '800px 760px' }}>
+      <g className="dca-fx-key-turn" style={{ transformOrigin: '800px 760px' }}>
+        <Halo color="#ffd970" shapes={[[800, 566, 54, 196], [752, 466, 66, 78]]} />
+        <g className="dca-fx dca-fx-key-burst" style={{ transformOrigin: '755px 465px' }}>
+          <path d={burst(755, 465, 100, 42, 8)} fill="#ffd970" stroke="#fff" strokeWidth="14" strokeLinejoin="round" paintOrder="stroke fill" />
+          <path d={burst(755, 465, 56, 26, 8)} fill="#fff3c4" />
+        </g>
+        <path d={shape} fill="#efc65c" stroke="#fff" strokeWidth="16" strokeLinejoin="round" paintOrder="stroke fill" />
+        <path d={bow} fill="#efc65c" fillRule="evenodd" stroke="#fff" strokeWidth="14" paintOrder="stroke fill" />
+        <path d="M812 432v270" stroke="#c99139" strokeWidth="7" />
+        <rect x="774" y="700" width="52" height="26" rx="8" fill="#c99139" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />
+        <g clipPath={`url(#${clip})`}><g transform="translate(800 740) rotate(-90) scale(.45 1)"><g className="dca-fx dca-fx-sheen" fill="#fff3c4"><path d="M3-80h67l-73 160h-67Z" opacity=".9" /></g></g></g>
+        <g className="dca-fx dca-fx-key-sparks" fill="#f6b500" stroke="#fff" strokeWidth="10" strokeLinejoin="round" paintOrder="stroke fill" style={{ transformOrigin: '755px 465px' }}>
+          {keySparks.map(d => <path key={d} d={d} />)}
+        </g>
+      </g>
+    </g>
   </g>
 }
 
@@ -311,24 +362,41 @@ const petDragonBody = [
   'M806 532c34 0 48 34 46 64-2 34-24 54-50 54s-40-20-38-54c2-30 14-64 42-64Z',
   'M826 512c0-22-16-38-38-38-18 0-32 8-40 20-10 4-18 10-18 20 0 10 10 16 24 16 14 10 30 14 46 12 16-4 26-14 26-30Z',
 ]
+const jetSpine: Pt[] = [[0, 0], [-36, -4], [-74, -8], [-110, -6]]
+const dragonJet = [tube(jetSpine, t => 12 + 34 * Math.sin(Math.PI * t * .62)), lock(-86, -18, 204, 42, 22, .5), lock(-90, 9, 162, 36, 18, -.5)]
+const dragonJetCore = tube(jetSpine, t => 4 + 16 * Math.sin(Math.PI * t * .62), 0, .76)
+const dragonEmbers = ([[-36, -14, 10], [-58, 8, 12], [-78, -22, 9], [-96, 4, 11], [-110, -26, 8]] as const).map(([x, y, r]) => burst(x, y, r, r * .62, 4))
 function PetDragon() {
   return <g transform="translate(233 640) translate(-800 -640)">
-    {[{ at: 'translate(790 552)', d: dragonWing }, { at: 'translate(814 552) scale(-1 1)', d: dragonFarWing }].map(wing =>
-      <g key={wing.at} transform={wing.at}><g className="dca-fx-flap-slow" style={{ transformOrigin: '0px 0px' }}>
-        <path d={wing.d} fill="#2f7a4f" stroke="#fff" strokeWidth="12" strokeLinejoin="round" paintOrder="stroke fill" />
-      </g></g>)}
-    <path d="M812 486 840 446 826 490ZM796 482 806 438 786 482Z" fill="#e0ad84" stroke="#fff" strokeWidth="8" strokeLinejoin="round" paintOrder="stroke fill" />
-    <Plane d={petDragonBody} fill="#4fae6a" contour={14} />
-    <path d="M812 700l-26 6 18 18Z" fill="#2f7a4f" stroke="#fff" strokeWidth="8" strokeLinejoin="round" paintOrder="stroke fill" />
-    <ellipse cx="786" cy="600" rx="16" ry="34" fill="#f6e3a1" />
-    <path d="M788 644v14M812 646v14" stroke="#fff" strokeWidth="22" />
-    <path d="M788 644v14M812 646v14" stroke="#2f7a4f" strokeWidth="10" />
-    <circle cx="794" cy="502" r="7" fill="#202124" />
-    <g transform="translate(728 518) rotate(-80)">
-      <Glow blur={10} className="dca-fx-pulse"><ellipse cy="-30" rx="18" ry="32" fill="#ffb347" opacity=".75" /></Glow>
-      <g className="dca-fx dca-fx-flame" style={{ transformOrigin: '0px 0px' }}>
-        <path d="M0 0C-16-6-22-24-14-40c2 10 8 14 14 14-4-14 2-28 12-36-4 16 6 26 6 40S10 0 0 0Z" fill="#ffb347" stroke="#fff" strokeWidth="8" paintOrder="stroke fill" />
-        <path d="M1-8c-8-4-10-14-6-20 2 4 6 6 8 6 0-8 2-14 6-18 0 10 4 16 4 22s-4 12-12 10Z" fill="#ffe08a" />
+    <g className="dca-fx-dragon-body" style={{ transformOrigin: '800px 660px' }}>
+      {[{ at: 'translate(790 552)', d: dragonWing }, { at: 'translate(814 552) scale(-1 1)', d: dragonFarWing }].map(wing =>
+        <g key={wing.at} transform={wing.at}><g className="dca-fx-flap-slow" style={{ transformOrigin: '0px 0px' }}>
+          <path d={wing.d} fill="#2f7a4f" stroke="#fff" strokeWidth="12" strokeLinejoin="round" paintOrder="stroke fill" />
+        </g></g>)}
+      <path d="M812 486 840 446 826 490ZM796 482 806 438 786 482Z" fill="#e0ad84" stroke="#fff" strokeWidth="8" strokeLinejoin="round" paintOrder="stroke fill" />
+      <Plane d={petDragonBody} fill="#4fae6a" contour={14} />
+      <path d="M812 700l-26 6 18 18Z" fill="#2f7a4f" stroke="#fff" strokeWidth="8" strokeLinejoin="round" paintOrder="stroke fill" />
+      <ellipse cx="786" cy="600" rx="16" ry="34" fill="#f6e3a1" />
+      <path d="M788 644v14M812 646v14" stroke="#fff" strokeWidth="22" />
+      <path d="M788 644v14M812 646v14" stroke="#2f7a4f" strokeWidth="10" />
+      <circle cx="794" cy="502" r="7" fill="#202124" />
+      <g transform="translate(728 518) rotate(-80)">
+        <Halo color="#ffb347" shapes={[[0, -30, 26, 42]]} />
+        <g className="dca-fx dca-fx-flame" style={{ transformOrigin: '0px 0px' }}>
+          <path d="M0 0C-16-6-22-24-14-40c2 10 8 14 14 14-4-14 2-28 12-36-4 16 6 26 6 40S10 0 0 0Z" fill="#ffb347" stroke="#fff" strokeWidth="8" paintOrder="stroke fill" />
+          <path d="M1-8c-8-4-10-14-6-20 2 4 6 6 8 6 0-8 2-14 6-18 0 10 4 16 4 22s-4 12-12 10Z" fill="#ffe08a" />
+        </g>
+      </g>
+      <g transform="translate(726 516) rotate(26)">
+        <g className="dca-fx dca-fx-dragon-jet" style={{ transformOrigin: '0px 0px' }}>
+          <g className="dca-fx-flame" style={{ transformOrigin: '0px 0px' }}>
+            <Plane d={dragonJet} fill="#ffb347" contour={10} />
+            <path d={dragonJetCore} fill="#ffe08a" />
+          </g>
+        </g>
+        <g className="dca-fx dca-fx-dragon-embers" fill="#ffb347" stroke="#fff" strokeWidth="8" strokeLinejoin="round" paintOrder="stroke fill">
+          {dragonEmbers.map(d => <path key={d} d={d} />)}
+        </g>
       </g>
     </g>
   </g>

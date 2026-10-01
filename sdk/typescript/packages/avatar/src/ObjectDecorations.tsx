@@ -1,61 +1,103 @@
+import type { CSSProperties } from 'react'
 import type { HeadId } from './items.js'
 import { Detail, Glow, Silhouette as S, useClipId } from './DecorationShapes.js'
 
+const sparkle = 'M0-26C4-9 9-4 26 0C9 4 4 9 0 26C-4 9-9 4-26 0C-9-4-4-9 0-26Z'
+const ringFront = 'M337 335A175 40 0 0 0 687 335'
+const planetBand = `M230 278q23-12 46 0${'t46 0'.repeat(8)}v40q-23-12-46 0${'t-46 0'.repeat(8)}Z`
+const planetSpots = 'M310 238a20 11 0 1 1 40 0a20 11 0 1 1-40 0ZM494 238a20 11 0 1 1 40 0a20 11 0 1 1-40 0ZM220 340a18 10 0 1 1 36 0a18 10 0 1 1-36 0ZM404 340a18 10 0 1 1 36 0a18 10 0 1 1-36 0ZM588 340a18 10 0 1 1 36 0a18 10 0 1 1-36 0Z'
 function RingedPlanet() {
   const clip = useClipId()
   return <>
     <defs><clipPath id={clip}><circle cx="512" cy="300" r="92" /></clipPath></defs>
     <Glow blur={22} className="dca-fx-pulse"><circle cx="512" cy="312" r="150" fill="#f1e3c8" opacity=".5" /></Glow>
+    <Glow blur={28} className="dca-fx-planet-flare"><circle cx="512" cy="312" r="168" fill="#ffe39a" /></Glow>
     <g transform="rotate(-16 512 335)">
       <ellipse cx="512" cy="335" rx="175" ry="40" stroke="#fff" strokeWidth="40" fill="none" />
       <ellipse cx="512" cy="335" rx="175" ry="40" stroke="#f1e3c8" strokeWidth="22" fill="none" />
+      <path className="dca-fx dca-fx-planet-sweep" d={`${ringFront}A175 40 0 0 0 337 335`} pathLength={100} stroke="#ffcf11" strokeWidth="22" strokeLinecap="round" strokeDasharray="14 86" fill="none" />
     </g>
     <S d="M512 208a92 92 0 1 1 0 184a92 92 0 1 1 0-184Z" fill="#d9b07a" />
     <g clipPath={`url(#${clip})`}>
-      <path d="M410 272c70 24 140 24 210 0v40c-70 24-140 24-210 0Z" fill="#b8875a" />
+      <g className="dca-fx-planet-turn" fill="#b8875a"><path d={planetBand} /><Detail><path d={planetSpots} /></Detail></g>
     </g>
     <g transform="rotate(-16 512 335)">
-      <path d="M337 335A175 40 0 0 0 687 335" stroke="#fff" strokeWidth="40" fill="none" />
-      <path d="M337 335A175 40 0 0 0 687 335" stroke="#f1e3c8" strokeWidth="22" fill="none" />
+      <path d={ringFront} stroke="#fff" strokeWidth="40" fill="none" />
+      <path d={ringFront} stroke="#f1e3c8" strokeWidth="22" fill="none" />
+      <path className="dca-fx dca-fx-planet-sweep" d={ringFront} pathLength={50} stroke="#ffcf11" strokeWidth="22" strokeLinecap="round" strokeDasharray="14 86" fill="none" />
+      <g className="dca-fx dca-fx-planet-spark"><path d={sparkle} transform="translate(337 335)" fill="#ffcf11" stroke="#fff" strokeWidth="12" strokeLinejoin="round" paintOrder="stroke fill" /></g>
     </g>
   </>
 }
 
+const ufoLights: [number, number][] = [[380, 309], [432, 321], [512, 326], [592, 321], [644, 309]]
+const abducted: [x: number, y: number, dx: number, delay: number][] = [[470, 428, 34, 0], [554, 432, -34, .14], [512, 440, 0, .28]]
 function Ufo() {
+  const beam = useClipId()
   return <g className="dca-fx-hover" style={{ transformOrigin: '512px 300px' }}>
-    <Glow blur={16} className="dca-fx-pulse"><path d="M452 336 402 404h220l-50-68Z" fill="#c7f6ff" opacity=".6" /></Glow>
-    <path d="M452 336 402 404h220l-50-68Z" fill="#c7f6ff" opacity=".4" />
-    <S d="M432 296c0-50 36-86 80-86s80 36 80 86Z" fill="#a2c5d1" />
-    <S d="M342 304c0-26 76-46 170-46s170 20 170 46-76 46-170 46-170-20-170-46Z" fill="#8b95a5" />
-    <g fill="#f6b500"><circle className="dca-fx dca-fx-node" cx="420" cy="312" r="11" /><circle className="dca-fx dca-fx-node" cx="512" cy="322" r="11" style={{ animationDelay: '.6s' }} /><circle className="dca-fx dca-fx-node" cx="604" cy="312" r="11" style={{ animationDelay: '1.2s' }} /></g>
+    <g className="dca-fx-ufo-dip" style={{ transformOrigin: '512px 300px' }}>
+      <defs><linearGradient id={beam} x1="0" y1="336" x2="0" y2="404" gradientUnits="userSpaceOnUse"><stop offset="0" stopColor="#b8f1ff" stopOpacity=".95" /><stop offset="1" stopColor="#c7f6ff" stopOpacity=".45" /></linearGradient></defs>
+      <g className="dca-fx-ufo-beam" style={{ transformOrigin: '512px 336px' }}>
+        <path className="dca-fx-pulse" d="M452 336 402 404h220l-50-68Z" fill={`url(#${beam})`} />
+        <path className="dca-fx dca-fx-ufo-core" d="M482 336 458 404h108l-24-68Z" fill="#f4feff" />
+      </g>
+      <g className="dca-fx" fill="#ffcf11" stroke="#fff" strokeWidth="10" strokeLinejoin="round" paintOrder="stroke fill">
+        {abducted.map(([x, y, dx, delay]) => <g key={x} transform={`translate(${x} ${y})`}>
+          <path className="dca-fx-ufo-abduct" d={sparkle} style={{ '--dca-dx': `${dx}px`, animationDelay: `${delay}s` } as CSSProperties} />
+        </g>)}
+      </g>
+      <S d="M432 296c0-50 36-86 80-86s80 36 80 86Z" fill="#a2c5d1" />
+      <S d="M342 304c0-26 76-46 170-46s170 20 170 46-76 46-170 46-170-20-170-46Z" fill="#8b95a5" />
+      <g fill="#f6b500">{ufoLights.map(([x, y], i) => <circle key={x} className="dca-fx dca-fx-ufo-chase" cx={x} cy={y} r="12" style={{ animationDelay: `${(i * .3 - 1.5).toFixed(1)}s` }} />)}</g>
+    </g>
   </g>
 }
 
+const lavaBombs: [dx: number, up: number, down: number, delay: number][] = [[-214, -156, 80, 0], [-152, -96, 82, .14], [166, -118, 82, .07], [214, -164, 78, .2]]
 function MiniVolcano() {
   return <>
     <Glow blur={20} className="dca-fx-pulse"><ellipse cx="512" cy="244" rx="90" ry="48" fill="#ff8a3d" opacity=".75" /></Glow>
+    <Glow blur={30} className="dca-fx-volcano-flash"><ellipse cx="512" cy="232" rx="130" ry="80" fill="#ffd166" /></Glow>
     <g fill="#a59c99" stroke="#fff" strokeWidth="10" paintOrder="stroke fill">
+      <path className="dca-fx dca-fx-volcano-ash" d="M462 206a30 30 0 1 1 60 0a30 30 0 1 1-60 0ZM486 184a40 40 0 1 1 80 0a40 40 0 1 1-80 0ZM530 210a30 30 0 1 1 60 0a30 30 0 1 1-60 0ZM434 214a24 24 0 1 1 48 0a24 24 0 1 1-48 0Z" style={{ transformOrigin: '512px 200px' }} />
       <path className="dca-fx dca-fx-steam" d="M476 228a16 16 0 1 1 32 0a16 16 0 1 1-32 0ZM492 218a22 22 0 1 1 44 0a22 22 0 1 1-44 0ZM521 230a15 15 0 1 1 30 0a15 15 0 1 1-30 0Z" />
       <path className="dca-fx dca-fx-steam" d="M506 178a14 14 0 1 1 28 0a14 14 0 1 1-28 0ZM522 170a15 15 0 1 1 30 0a15 15 0 1 1-30 0Z" style={{ animationDelay: '-.9s' }} />
       <circle className="dca-fx dca-fx-steam" cx="514" cy="134" r="11" style={{ animationDelay: '-1.7s' }} />
     </g>
-    <S d="M372 400C416 396 448 340 460 262q2-16 16-16h72q14 0 16 16c12 78 44 134 88 138Z" fill="#564545" />
-    <path d="M532 246h16q14 0 16 16c12 78 44 134 88 138h-76c-18-44-32-100-44-154Z" fill="#3f3232" />
-    <path d="M460 262q2-16 16-16h72q14 0 16 16l4 28c0 26-16 26-16 0q-10-8-20-2c0 16-14 16-14 0q-12-8-24 0c0 22-16 22-16 0l-20-2Z" fill="#e8451f" />
-    <ellipse cx="512" cy="256" rx="42" ry="9" fill="#ffb347" />
+    <g className="dca-fx" stroke="#fff" strokeWidth="14" paintOrder="stroke fill">
+      {lavaBombs.map(([dx, up, down, delay]) => <g key={dx} className="dca-fx-volcano-bomb" style={{ '--dca-dx': `${dx}px`, '--dca-up': `${up}px`, '--dca-down': `${down}px`, animationDelay: `${delay}s` } as CSSProperties}>
+        <g className="dca-fx-volcano-arc"><circle cx="512" cy="304" r="26" fill="#ff8a3d" /><circle cx="504" cy="296" r="10" fill="#ffd166" stroke="none" /></g>
+      </g>)}
+    </g>
+    <g className="dca-fx-volcano-quake" style={{ transformOrigin: '512px 400px' }}>
+      <S d="M372 400C416 396 448 340 460 262q2-16 16-16h72q14 0 16 16c12 78 44 134 88 138Z" fill="#564545" />
+      <path d="M532 246h16q14 0 16 16c12 78 44 134 88 138h-76c-18-44-32-100-44-154Z" fill="#3f3232" />
+      <path className="dca-fx dca-fx-volcano-tongue" d="M470 282c-2 30-10 56-22 78a12 12 0 0 0 20 12c14-26 22-56 24-90Z" fill="#ffb347" style={{ transformOrigin: '481px 282px' }} />
+      <path className="dca-fx-volcano-lava" d="M460 262q2-16 16-16h72q14 0 16 16l4 28c0 26-16 26-16 0q-10-8-20-2c0 16-14 16-14 0q-12-8-24 0c0 22-16 22-16 0l-20-2Z" fill="#e8451f" />
+      <ellipse className="dca-fx-volcano-crater" cx="512" cy="256" rx="42" ry="9" fill="#ffb347" />
+    </g>
   </>
 }
 
 const talons = 'M512 360v36M548 358v38M518 399h-28q-8 0-8 8M554 399h-28q-8 0-8 8'
+const embers: [dx: number, dy: number, delay: number][] = [[-164, -70, 0], [-70, -136, .05], [40, -150, .02], [130, -110, .07], [170, -20, .04]]
 function PhoenixPerch() {
   return <>
     <Glow blur={24} className="dca-fx-pulse"><ellipse cx="596" cy="252" rx="132" ry="104" fill="#ffb347" opacity=".45" /></Glow>
-    <g className="dca-fx-flame" style={{ transformOrigin: '596px 330px' }}>
-      <S d="M590 356C640 364 700 330 724 282Q706 300 682 290Q722 248 716 196Q696 222 668 236Q684 184 654 142C644 190 596 236 570 300Z" fill="#ffb02e" />
-      <path d="M600 340C640 344 684 320 700 290Q684 296 668 292Q694 256 690 222Q672 244 654 252Q664 212 646 180C636 216 608 250 590 300Z" fill="#ffe27a" />
+    <Glow blur={30} className="dca-fx-phoenix-flare"><ellipse cx="572" cy="260" rx="190" ry="150" fill="#ffcf4a" /></Glow>
+    <g className="dca-fx-phoenix-regrow" style={{ transformOrigin: '590px 350px' }}>
+      <g className="dca-fx-flame" style={{ transformOrigin: '596px 330px' }}>
+        <S d="M590 356C640 364 700 330 724 282Q706 300 682 290Q722 248 716 196Q696 222 668 236Q684 184 654 142C644 190 596 236 570 300Z" fill="#ffb02e" />
+        <path d="M600 340C640 344 684 320 700 290Q684 296 668 292Q694 256 690 222Q672 244 654 252Q664 212 646 180C636 216 608 250 590 300Z" fill="#ffe27a" />
+      </g>
     </g>
-    <g className="dca-fx-flame" style={{ transformOrigin: '466px 226px', animationDelay: '-.21s' }}>
-      <S d="M444 230C436 206 446 182 466 168Q468 190 480 196Q496 176 522 174Q506 190 504 200Q518 196 532 204C516 222 500 232 488 236Z" fill="#ffb02e" />
+    <g className="dca-fx-phoenix-regrow" style={{ transformOrigin: '470px 234px' }}>
+      <g className="dca-fx-flame" style={{ transformOrigin: '466px 226px', animationDelay: '-.21s' }}>
+        <S d="M444 230C436 206 446 182 466 168Q468 190 480 196Q496 176 522 174Q506 190 504 200Q518 196 532 204C516 222 500 232 488 236Z" fill="#ffb02e" />
+      </g>
+    </g>
+    <g className="dca-fx" fill="#ee6a2c" stroke="#fff" strokeWidth="10" paintOrder="stroke fill">
+      {embers.map(([dx, dy, delay]) => <circle key={dx} className="dca-fx-phoenix-ember" cx="560" cy="290" r="17" style={{ '--dca-dx': `${dx}px`, '--dca-dy': `${dy}px`, animationDelay: `${delay}s` } as CSSProperties} />)}
     </g>
     <g fill="none" strokeLinecap="round" strokeLinejoin="round">
       <path d={talons} stroke="#fff" strokeWidth="25" /><path d={talons} stroke="#6b4a36" strokeWidth="11" />
@@ -64,6 +106,10 @@ function PhoenixPerch() {
     <path d="M488 306c30-22 92-22 136 12l-28 6 18 18-30 2 10 16c-40 4-84-4-106-54Z" fill="#c2412a" />
     <path d="M430 248 396 262 432 274Z" fill="#ffcf4a" stroke="#fff" strokeWidth="10" strokeLinejoin="round" paintOrder="stroke fill" />
     <circle cx="452" cy="252" r="7" fill="#3b2418" />
+    <g className="dca-fx dca-fx-phoenix-pyre" style={{ transformOrigin: '566px 408px' }}>
+      <S d="M452 408C400 400 368 350 384 300Q394 262 440 168Q468 226 498 232Q508 178 548 128Q566 196 596 206Q614 162 650 136Q660 200 690 222Q708 206 730 184Q754 270 740 330C730 384 692 408 640 408Z" fill="#ffb02e" />
+      <path d="M470 398C432 390 414 352 426 314Q436 284 460 236Q482 274 508 280Q518 230 550 190Q564 250 592 258Q608 220 638 196Q648 256 672 270Q692 262 708 246Q722 300 712 340C704 380 676 398 640 398Z" fill="#ffe27a" />
+    </g>
   </>
 }
 
@@ -156,9 +202,38 @@ function RainCloud() {
     </g>
     <g className="dca-fx-hover">
       <defs><clipPath id={clip}><path d={cloud} /></clipPath></defs>
+      <path className="dca-fx dca-fx-zap" d="M556 282 512 346h28l-13 34 47-60h-28Z" fill="#ffcf11" stroke="#fff" strokeWidth="12" strokeLinejoin="round" paintOrder="stroke fill" style={{ transformOrigin: '552px 288px', animationDelay: '2.8s' }} />
       <S d={cloud} fill="#dfe5ee" />
       <path d={cloud} transform="translate(10 16)" fill="#9aa6b8" clipPath={`url(#${clip})`} />
+      <path className="dca-fx dca-fx-strike" d={cloud} fill="#fff" fillOpacity=".75" style={{ animationDelay: '2.8s' }} />
     </g>
+  </>
+}
+
+const bolt = 'M548 160 438 320h70l-32 84 116-150h-70Z'
+const boltSparks: [string, string][] = [['M470 398 446 382 434 406 408 394 396 426', '2.4s'], ['M484 400 508 384 520 408 546 396 558 428', '2.5s']]
+function Lightning() {
+  return <>
+    <Glow blur={20} className="dca-fx-pulse"><path d={bolt} fill="#fff3c4" opacity=".8" /></Glow>
+    <g className="dca-fx dca-fx-strike" style={{ animationDelay: '2.4s' }}><Glow blur={28}><path d={bolt} fill="#fffbe6" stroke="#fffbe6" strokeWidth="36" strokeLinejoin="round" /></Glow></g>
+    {boltSparks.map(([d, delay]) => <g key={delay} className="dca-fx dca-fx-zap" fill="none" strokeLinecap="round" strokeLinejoin="round" style={{ transformOrigin: '477px 400px', animationDelay: delay }}>
+      <path d={d} stroke="#fff" strokeWidth="28" /><path d={d} stroke="#ffcf11" strokeWidth="12" />
+    </g>)}
+    <g className="dca-fx-jolt" style={{ transformOrigin: '476px 404px', animationDelay: '2.4s' }}>
+      <S d={bolt} fill="#ffcf11" />
+      <path className="dca-fx dca-fx-strike" d={bolt} fill="#fffbe6" style={{ animationDelay: '2.4s' }} />
+    </g>
+  </>
+}
+
+const facetGlint = (d: string, delay: string) => <path className="dca-fx dca-fx-facet-flash" d={d} fill="#fff" style={{ animationDelay: delay }} />
+function CrystalCluster() {
+  return <>
+    <Glow blur={20} className="dca-fx-pulse"><path d="M512 200 560 320 512 404 464 320Z" fill="#c4b5fd" opacity=".8" /></Glow>
+    <S d="M440 270 474 340 446 404 412 340Z" fill="#a78bfa">{facetGlint('M440 270 474 340 446 404Z', '3s')}</S>
+    <S d="M584 270 618 340 590 404 556 340Z" fill="#a78bfa">{facetGlint('M584 270 618 340 590 404Z', '3.5s')}</S>
+    <S d="M512 200 560 320 512 404 464 320Z" fill="#8b5cf6"><path d="M512 200 536 320 512 404Z" fill="#c4b5fd" />{facetGlint('M512 200 560 320 512 404Z', '3.25s')}</S>
+    <path className="dca-fx dca-fx-shard" d="M552 254 574 290 552 326 530 290Z" fill="#c4b5fd" stroke="#fff" strokeWidth="10" strokeLinejoin="round" paintOrder="stroke fill" style={{ animationDelay: '3.7s' }} />
   </>
 }
 
@@ -181,6 +256,10 @@ function ManekiNeko() {
     <path d="M470 232q14-16 28 0M526 232q14-16 28 0" stroke="#6e4a2e" strokeWidth="10" strokeLinecap="round" fill="none" />
     <path d="M504 254h16l-8 9Z" fill="#e8654f" />
     <g clipPath={`url(#${clip})`}><g transform="translate(520 0) scale(.3 1)"><g className="dca-fx dca-fx-sheen" fill="#fff"><path d="M70 100h110L30 420H-80Z" opacity=".5" /></g></g></g>
+    <path className="dca-fx dca-fx-star-pop" d="M528 96Q535 133 562 140Q535 147 528 184Q521 147 494 140Q521 133 528 96Z" fill="#fffbe6" stroke="#fff" strokeWidth="10" strokeLinejoin="round" paintOrder="stroke fill" style={{ animationDelay: '3.6s' }} />
+    <g transform="translate(500 150)"><g className="dca-fx dca-fx-coin-toss" style={{ animationDelay: '3.6s' }}><g className="dca-fx-coin-flip" style={{ animationDelay: '3.6s' }}>
+      <circle r="30" fill="#f6b500" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" /><circle r="16" fill="#ffd970" />
+    </g></g></g>
   </>
 }
 
@@ -212,15 +291,8 @@ export function ObjectDecoration({ id }: { id: HeadId }) {
       </g>
       <g fill="#fff"><circle cx="372" cy="392" r="9" /><circle cx="442" cy="376" r="9" /><circle cx="512" cy="370" r="10" /><circle cx="582" cy="376" r="9" /><circle cx="652" cy="392" r="9" /></g>
     </>
-    case 'lightning': return <>
-      <Glow blur={20} className="dca-fx-pulse"><path d="M548 160 438 320h70l-32 84 116-150h-70Z" fill="#fff3c4" opacity=".8" /></Glow>
-      <S d="M548 160 438 320h70l-32 84 116-150h-70Z" fill="#ffcf11" />
-    </>
-    case 'crystal-cluster': return <>
-      <Glow blur={20} className="dca-fx-pulse"><path d="M512 200 560 320 512 404 464 320Z" fill="#c4b5fd" opacity=".8" /></Glow>
-      <S d="M440 270 474 340 446 404 412 340Z" fill="#a78bfa" /><S d="M584 270 618 340 590 404 556 340Z" fill="#a78bfa" />
-      <S d="M512 200 560 320 512 404 464 320Z" fill="#8b5cf6" /><path d="M512 200 536 320 512 404Z" fill="#c4b5fd" />
-    </>
+    case 'lightning': return <Lightning />
+    case 'crystal-cluster': return <CrystalCluster />
     case 'ufo': return <Ufo />
     case 'mini-volcano': return <MiniVolcano />
     case 'phoenix-perch': return <PhoenixPerch />

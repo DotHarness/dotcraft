@@ -1,5 +1,23 @@
 import type { HeadId } from './items.js'
-import { Detail, Silhouette as S } from './DecorationShapes.js'
+import { Detail, Silhouette as S, useClipId } from './DecorationShapes.js'
+
+const crownBody = 'M363 282c-7-20 9-31 24-18l56 54 51-86c8-15 27-15 36 0l51 86 56-54c15-13 31-2 24 18l-24 117H387Z'
+const sapphire = 'm512 305 26 30-26 30-26-30Z'
+function Crown() {
+  const clip = useClipId()
+  return <>
+    <defs><clipPath id={clip}><path d={crownBody} /></clipPath></defs>
+    <S d={crownBody} fill="#efc65c" />
+    <path d="M387 365h250v34H387Z" fill="#c99139" />
+    <g clipPath={`url(#${clip})`}><path className="dca-fx dca-fx-sweep" d="M210 220h56l-80 190h-56Z" fill="#fff" opacity=".6" style={{ animationDelay: '1.5s' }} /></g>
+    <Detail>
+      <path d={sapphire} fill="#73b8cc" /><path d="m512 305 0 60-26-30Z" fill="#a3d8df" />
+      <path className="dca-fx dca-fx-facet-flash" d={sapphire} fill="#effcff" style={{ animationDelay: '1.95s' }} />
+      <circle cx="410" cy="342" r="8" fill="#fff1af" /><circle cx="614" cy="342" r="8" fill="#fff1af" />
+    </Detail>
+    <path className="dca-fx dca-fx-star-pop" d="M528 266Q535 311 566 318Q535 325 528 370Q521 325 490 318Q521 311 528 266Z" fill="#fffbe6" stroke="#fff" strokeWidth="10" strokeLinejoin="round" paintOrder="stroke fill" style={{ animationDelay: '2s' }} />
+  </>
+}
 
 export function HatDecoration({ id }: { id: HeadId }) {
   switch (id) {
@@ -48,11 +66,7 @@ export function HatDecoration({ id }: { id: HeadId }) {
       <circle cx="513" cy="171" r="28" fill="#f5d07b" />
       <Detail><path d="m526 212 75 132" stroke="#f6c4ce" strokeWidth="11" strokeLinecap="round" /></Detail>
     </>
-    case 'crown': return <>
-      <S d="M363 282c-7-20 9-31 24-18l56 54 51-86c8-15 27-15 36 0l51 86 56-54c15-13 31-2 24 18l-24 117H387Z" fill="#efc65c" />
-      <path d="M387 365h250v34H387Z" fill="#c99139" />
-      <Detail><path d="m512 305 26 30-26 30-26-30Z" fill="#73b8cc" /><path d="m512 305 0 60-26-30Z" fill="#a3d8df" /><circle cx="410" cy="342" r="8" fill="#fff1af" /><circle cx="614" cy="342" r="8" fill="#fff1af" /></Detail>
-    </>
+    case 'crown': return <Crown />
     case 'hard-hat': return <>
       <S d="M358 361c0-94 42-154 133-163v-11c0-15 42-15 42 0v11c91 9 133 69 133 163h22c23 0 23 39 0 39H336c-23 0-23-39 0-39Z" fill="#f5bd48" />
       <path d="M533 198c91 9 133 69 133 163h-48c0-86-24-135-85-163Z" fill="#d68d32" /><path d="M494 192h36v169h-36Z" fill="#ffdc79" />

@@ -98,9 +98,9 @@ export function MascotRig({
         </linearGradient>}
         <RigMaterialClip id={materialClip} />
         <linearGradient className="dca-paint-mark" id={blueMark} x1="380" y1="696" x2="492" y2="557" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor={mark0} />
-          <stop offset=".55" stopColor={mark1} />
-          <stop offset="1" stopColor={mark2} />
+          <stop offset="0" stopColor={mark0} style={{ '--dca-stop': mark0 } as CSSProperties} />
+          <stop offset=".55" stopColor={mark1} style={{ '--dca-stop': mark1 } as CSSProperties} />
+          <stop offset="1" stopColor={mark2} style={{ '--dca-stop': mark2 } as CSSProperties} />
         </linearGradient>
         <linearGradient id={yellow} x1="481" y1="174" x2="617" y2="713" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="#ffcf11" />

@@ -81,7 +81,7 @@ export const items = [
   back('dragon-tail', 'rare', 'fantasy'), back('drone-buddy', 'rare', 'tech'), back('shade-tree', 'rare', 'nature'),
   back('halo', 'epic', 'fantasy'), back('angel-wings', 'epic', 'fantasy'), back('sun-rays', 'epic', 'nature'), back('koi-orbit', 'epic', 'critters'),
   back('tesla-coils', 'epic', 'tech'),
-  back('orbit-ring', 'legendary', 'tech'), back('dragon-wings', 'legendary', 'fantasy'), back('twin-blades', 'legendary', 'fantasy'),
+  back('fin-funnels', 'legendary', 'tech'), back('dragon-wings', 'legendary', 'fantasy'), back('twin-blades', 'legendary', 'fantasy'),
   back('great-wave', 'legendary', 'nature'), back('cloud-dragon', 'legendary', 'critters'),
 
   skin('stripes', 'common', 'everyday'), skin('split', 'common', 'everyday'), skin('hoops', 'common', 'everyday'),
