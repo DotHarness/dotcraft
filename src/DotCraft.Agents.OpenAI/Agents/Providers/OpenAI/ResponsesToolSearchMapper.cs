@@ -15,7 +15,6 @@ internal static partial class ResponsesToolSearchMapper
 {
     internal const string FunctionCallNamespaceMetadataKey = "openai.responses.function_call.namespace";
     internal const string PromptCacheKeyAdditionalProperty = "prompt_cache_key";
-    internal const string HostedImageGenerationEnabledAdditionalProperty = "dotcraft.openai.responses.image_generation.enabled";
 
     private const int PromptCacheRequestShapeSchemaVersion = 2;
     private const string OpenAIResponsesProtocolName = "openai-responses";
@@ -110,13 +109,6 @@ internal static partial class ResponsesToolSearchMapper
         PatchOpenAIResponsesRawRepresentationFactory(options, promptCacheKey.Trim());
     }
 
-    internal static void EnableHostedImageGeneration(ChatOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        options.AdditionalProperties ??= new AdditionalPropertiesDictionary();
-        options.AdditionalProperties[HostedImageGenerationEnabledAdditionalProperty] = true;
-    }
-
     public static CreateResponseOptions CreateResponseOptions(
         string model,
         IEnumerable<ChatMessage> chatMessages,
@@ -159,7 +151,6 @@ internal static partial class ResponsesToolSearchMapper
                 canonicalInput,
                 canonicalItemIdentity ?? OpenAIResponsesItemIdentityDiagnostics.FromInput(canonicalInput));
         var input = inputResult.Input;
-        InsertImageGenerationSavedPathHints(input, messages);
         var tools = BuildTools(options);
 
         if (tools.Count > 0 && options?.AllowMultipleToolCalls is { } allowMultiple)
@@ -462,19 +453,6 @@ internal static partial class ResponsesToolSearchMapper
                                 ReadJsonString(reasoningItem, "id"));
                             input.Add(reasoningItem);
                         }
-                        break;
-
-                    case HostedImageGenerationContent imageGeneration:
-                        FlushMessage();
-                        var imageItem = CreateImageGenerationCallItem(imageGeneration);
-                        OpenAIResponsesItemIdentity.Assign(
-                            imageGeneration,
-                            imageItem,
-                            "ig",
-                            itemOrdinalOffset + input.Count,
-                            identity,
-                            imageGeneration.Id);
-                        input.Add(imageItem);
                         break;
 
                     case FunctionCallContent call:

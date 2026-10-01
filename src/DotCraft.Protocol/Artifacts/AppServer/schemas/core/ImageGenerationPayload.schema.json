@@ -27,6 +27,26 @@
         }
       ]
     },
+    "generationId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "imagegenRequestId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "mediaType": {
       "type": "string"
     },

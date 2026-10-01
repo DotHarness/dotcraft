@@ -200,36 +200,6 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
-    public void TryCreateHostedImageGenerationContent_GeneratingStatus_ReturnsFalse()
-    {
-        var item = CreateHostedImageGenerationCallItem(
-            "ig_generating",
-            "generating",
-            "A red square",
-            resultBase64: null);
-
-        Assert.False(ResponsesToolSearchMapper.TryCreateHostedImageGenerationContent(item, out _));
-    }
-
-    [Fact]
-    public void TryCreateHostedImageGenerationContent_CompletedStatus_ReturnsHostedContent()
-    {
-        var imageBytes = CreateImageBytes("image/png");
-        var item = CreateHostedImageGenerationCallItem(
-            "ig_123",
-            "completed",
-            "A red square",
-            Convert.ToBase64String(imageBytes));
-
-        Assert.True(ResponsesToolSearchMapper.TryCreateHostedImageGenerationContent(item, out var content));
-        Assert.True(content.Succeeded);
-        Assert.Equal("ig_123", content.Id);
-        Assert.Equal("A red square", content.RevisedPrompt);
-        Assert.Equal("image/png", content.MediaType);
-        Assert.Equal(imageBytes, content.ImageBytes);
-    }
-
-    [Fact]
     public void CreateResponseOptions_DegradesUnsupportedContentWithVisiblePlaceholder()
     {
         using var document = JsonDocument.Parse(CreateRequestJson(
@@ -429,33 +399,6 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
-    public void CreateResponseOptions_EmitsHostedImageGenerationToolWhenEnabled()
-    {
-        var dynamicTool = CreateRuntimeDynamicTool("image_gen", "imagegen");
-        var options = new ChatOptions
-        {
-            Tools = [dynamicTool]
-        };
-        ResponsesToolSearchMapper.EnableHostedImageGeneration(options);
-
-        using var document = JsonDocument.Parse(CreateRequestJson(
-            "gpt-test",
-            [new ChatMessage(ChatRole.User, "make an image")],
-            options));
-
-        var tools = document.RootElement.GetProperty("tools").EnumerateArray().ToArray();
-        Assert.Equal(2, tools.Length);
-        var hostedTool = Assert.Single(tools, tool => tool.GetProperty("type").GetString() == "image_generation");
-        Assert.Equal("image_generation", hostedTool.GetProperty("type").GetString());
-        Assert.Equal("png", hostedTool.GetProperty("output_format").GetString());
-        Assert.False(hostedTool.TryGetProperty("name", out _));
-        Assert.Contains(
-            tools,
-            tool => tool.GetProperty("type").GetString() == "namespace"
-                    && tool.GetProperty("name").GetString() == "image_gen");
-    }
-
-    [Fact]
     public void CreateResponseOptions_RejectsInvalidProviderIdentityLocally()
     {
         var invalidTool = new TestFunction("read", "Read.", "code-host-apps:code-host-apps");
@@ -466,80 +409,6 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
             new ChatOptions { Tools = [invalidTool] }));
 
         Assert.StartsWith("invalid_provider_tool_identity:", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void CreateResponseOptions_ReplaysHostedImageGenerationCallInput()
-    {
-        var imageBytes = CreateImageBytes("image/png");
-
-        using var document = JsonDocument.Parse(CreateRequestJson(
-            "gpt-test",
-            [
-                new ChatMessage(ChatRole.Assistant, [
-                    new HostedImageGenerationContent
-                    {
-                        Id = "ig_123",
-                        Status = "completed",
-                        RevisedPrompt = "A red square",
-                        ImageBytes = imageBytes
-                    }
-                ])
-            ],
-            new ChatOptions()));
-
-        var item = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
-        Assert.Equal("image_generation_call", item.GetProperty("type").GetString());
-        Assert.Equal("ig_123", item.GetProperty("id").GetString());
-        Assert.Equal("completed", item.GetProperty("status").GetString());
-        Assert.Equal("A red square", item.GetProperty("revised_prompt").GetString());
-        Assert.Equal(Convert.ToBase64String(imageBytes), item.GetProperty("result").GetString());
-    }
-
-    [Fact]
-    public void CreateResponseOptions_ReplacesUnprefixedHostedImageItemId()
-    {
-        var request = ResponsesToolSearchMapper.CreateResponseRequest(
-            "gpt-test",
-            [
-                new ChatMessage(ChatRole.Assistant, [
-                    new HostedImageGenerationContent
-                    {
-                        Id = "invalidid",
-                        Status = "completed",
-                        ImageBytes = CreateImageBytes("image/png")
-                    }
-                ])
-            ],
-            new ChatOptions());
-        using var document = JsonDocument.Parse(SerializeOptions(request.Options));
-
-        var item = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
-        Assert.StartsWith("ig_", item.GetProperty("id").GetString(), StringComparison.Ordinal);
-        Assert.NotEqual("invalidid", item.GetProperty("id").GetString());
-        Assert.Equal(1, request.Shape.InputItemIdInvalidSourceCount);
-        Assert.Equal(1, request.Shape.InputItemIdGeneratedCount);
-        Assert.Equal(0, request.Shape.InputItemIdMissingCount);
-    }
-
-    [Fact]
-    public void CreateResponseOptions_GeneratesPrefixedHostedImageItemId()
-    {
-        using var document = JsonDocument.Parse(CreateRequestJson(
-            "gpt-test",
-            [
-                new ChatMessage(ChatRole.Assistant, [
-                    new HostedImageGenerationContent
-                    {
-                        Status = "completed",
-                        ImageBytes = CreateImageBytes("image/png")
-                    }
-                ])
-            ],
-            new ChatOptions()));
-
-        var item = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
-        Assert.StartsWith("ig_", item.GetProperty("id").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -2317,27 +2186,6 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
         ModelReaderWriter.Read<StreamingResponseUpdate>(
             BinaryData.FromString(json),
             ModelReaderWriterOptions.Json)!;
-
-    private static ResponseItem CreateHostedImageGenerationCallItem(
-        string itemId,
-        string status,
-        string revisedPrompt,
-        string? resultBase64)
-    {
-        var payload = new Dictionary<string, object?>
-        {
-            ["type"] = "image_generation_call",
-            ["id"] = itemId,
-            ["status"] = status,
-            ["revised_prompt"] = revisedPrompt
-        };
-        if (resultBase64 != null)
-            payload["result"] = resultBase64;
-
-        return ModelReaderWriter.Read<ResponseItem>(
-            BinaryData.FromString(JsonSerializer.Serialize(payload, JsonOptions)),
-            ModelReaderWriterOptions.Json)!;
-    }
 
     private static ResponseItem CreateUnknownToolSearchCallItem(string callId, object arguments)
     {

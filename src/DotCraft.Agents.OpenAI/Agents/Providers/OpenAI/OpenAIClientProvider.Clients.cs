@@ -3,7 +3,6 @@ using System.ClientModel.Primitives;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
 using OpenAI;
-using OpenAI.Images;
 using OpenAI.Responses;
 
 #pragma warning disable OPENAI001
@@ -161,12 +160,6 @@ public sealed partial class OpenAIClientProvider
         ResponsesClient Client,
         string InstallationId);
 
-    private readonly record struct OpenAIImageClientKey(OpenAIClientKey Client, string Model)
-    {
-        public static OpenAIImageClientKey From(EffectiveModelRuntime runtime, string imageModel) =>
-            new(OpenAIClientKey.From(runtime), NormalizeRequiredModel(imageModel));
-    }
-
     private static int NormalizeNetworkTimeoutSeconds(int seconds) => Math.Max(1, seconds);
 
     private HttpClient RemoteHttpClient(string providerId, Uri endpoint) =>
@@ -181,22 +174,9 @@ public sealed partial class OpenAIClientProvider
         var trimmed = value?.Trim();
         return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
     }
-
-    private static byte[] ExtractImageBytes(GeneratedImage image)
-    {
-        if (image.ImageBytes == null)
-            throw new InvalidOperationException("OpenAI image response did not include image bytes.");
-
-        return image.ImageBytes.ToArray();
-    }
 }
 
 internal sealed record ChatGptCodexModelsHttpResponse(
     int StatusCode,
     string Content,
     string? ETag);
-
-internal sealed record OpenAIImageEditInput(
-    byte[] Bytes,
-    string FileName,
-    string MediaType);

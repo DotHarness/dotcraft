@@ -7,7 +7,8 @@ import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
-import { ImageLightbox } from './ImageLightbox'
+import { loadLocalImageDataUrl, type GalleryImage } from './imagePreview/galleryImages'
+import { useImagePreview } from './imagePreview/useImagePreview'
 import { MessageCopyButton } from './MessageCopyButton'
 import {
   MessageOriginLine,
@@ -27,8 +28,6 @@ import { ReferencePathContextMenu } from './ReferencePathContextMenu'
 import { FileRefChip } from './FileRefChip'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { Button } from '../ui/Button'
-
-const imageDataUrlCache = new Map<string, string>()
 
 interface UserMessageBlockProps {
   messageId?: string
@@ -84,10 +83,10 @@ export function UserMessageBlock({
   const imageDataUrls = projected?.imageDataUrls ?? persistedImageDataUrls
   const t = useT()
   const editAreaRef = useRef<HTMLTextAreaElement | null>(null)
-  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
+  const imagePreview = useImagePreview()
   const [hovered, setHovered] = useState(false)
   const [focusedWithin, setFocusedWithin] = useState(false)
-  const [hydratedImages, setHydratedImages] = useState<Array<{ url: string; absolutePath?: string }>>(
+  const [hydratedImages, setHydratedImages] = useState<Array<{ url: string; absolutePath?: string; fileName?: string }>>(
     (imageDataUrls ?? []).map((url) => ({ url }))
   )
   const [failedImages, setFailedImages] = useState<UserMessageImageRef[]>([])
@@ -95,6 +94,13 @@ export function UserMessageBlock({
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
   const hasImages = hydratedImages.length > 0
+  const galleryImages = useMemo<GalleryImage[]>(() => hydratedImages.map((image) => ({
+    key: image.absolutePath ?? image.url,
+    src: image.url,
+    localPath: image.absolutePath,
+    title: image.fileName,
+    revealPath: image.absolutePath
+  })), [hydratedImages])
   const displayText = stripSystemReminderBlocks(text)
   const segments = nativeInputParts != null && nativeInputParts.length > 0
     ? segmentsFromNativeInputParts(projected!.parts)
@@ -121,7 +127,7 @@ export function UserMessageBlock({
     let cancelled = false
 
     const hydrateImages = async (): Promise<void> => {
-      const loaded: Array<{ url: string; absolutePath?: string }> = (imageDataUrls ?? []).map(url => ({ url }))
+      const loaded: Array<{ url: string; absolutePath?: string; fileName?: string }> = (imageDataUrls ?? []).map(url => ({ url }))
       if (!Array.isArray(images) || images.length === 0) {
         if (cancelled) return
         setHydratedImages(loaded)
@@ -137,20 +143,8 @@ export function UserMessageBlock({
 
       const failed: UserMessageImageRef[] = []
       for (const image of images) {
-        const cached = imageDataUrlCache.get(image.path)
-        if (cached) {
-          loaded.push({ url: cached, absolutePath: image.path })
-          continue
-        }
         try {
-          const result = await window.api.workspace.readImageAsDataUrl({ path: image.path })
-          const dataUrl = result.dataUrl
-          if (dataUrl) {
-            imageDataUrlCache.set(image.path, dataUrl)
-            loaded.push({ url: dataUrl, absolutePath: image.path })
-          } else {
-            failed.push(image)
-          }
+          loaded.push({ url: await loadLocalImageDataUrl(image.path), absolutePath: image.path, fileName: image.fileName })
         } catch {
           failed.push(image)
         }
@@ -286,7 +280,8 @@ export function UserMessageBlock({
               <button
                 key={`${idx}-${imageItem.url.slice(0, 32)}`}
                 type="button"
-                onClick={() => setLightboxSrc(imageItem.url)}
+                onClick={() => imagePreview.open(galleryImages[idx], galleryImages)}
+                onContextMenu={(event) => imagePreview.openMenu(event, galleryImages[idx], galleryImages)}
                 style={{
                   padding: 0,
                   border: 'none',
@@ -296,7 +291,7 @@ export function UserMessageBlock({
                   overflow: 'hidden',
                   lineHeight: 0
                 }}
-                aria-label={`View attached image ${idx + 1}`}
+                aria-label={t('conversation.viewAttachedImageAria', { index: idx + 1 })}
               >
                 <img
                   src={imageItem.url}
@@ -443,9 +438,7 @@ export function UserMessageBlock({
           </div>
         )}
       </div>
-      {lightboxSrc != null && (
-        <ImageLightbox src={lightboxSrc} onClose={() => { setLightboxSrc(null) }} />
-      )}
+      {imagePreview.overlay}
     </>
   )
 }

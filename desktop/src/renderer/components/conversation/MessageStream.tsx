@@ -1,4 +1,5 @@
 import { useAutomationRunReveal } from '../../hooks/useAutomationRunReveal'
+import { collectConversationImages, ConversationImagesContext, type GalleryImage } from './imagePreview/galleryImages'
 import { useHistoryGapLoading } from '../../hooks/useHistoryGapLoading'
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -79,8 +80,20 @@ function lastUserItem(turn: ConversationTurn): ConversationItem | undefined {
   return [...turn.items].reverse().find(isVisibleUserMessage)
 }
 
-/** Scrollable container for the turn history and live streaming content. Spec §10.3.3. */
+function getStoreConversationImages(): GalleryImage[] {
+  const state = useConversationStore.getState()
+  return collectConversationImages(state.turns, { localFiles: !state.remoteWorkspaceActive })
+}
+
 export function MessageStream(): JSX.Element {
+  return (
+    <ConversationImagesContext.Provider value={getStoreConversationImages}>
+      <MessageStreamContent />
+    </ConversationImagesContext.Provider>
+  )
+}
+
+function MessageStreamContent(): JSX.Element {
   const t = useT()
   const turns = useConversationStore((s) => s.turns)
   const turnStatus = useConversationStore((s) => s.turnStatus)

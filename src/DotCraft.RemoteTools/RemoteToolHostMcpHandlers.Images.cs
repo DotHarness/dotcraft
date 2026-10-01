@@ -57,6 +57,38 @@ internal sealed partial class RemoteToolHostMcpHandlers
         return JsonSerializer.SerializeToNode(new RemoteImageWriteResponse(path), RemoteToolHostProtocol.JsonOptions);
     }
 
+    private async ValueTask<JsonNode?> ReadImageAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
+    {
+        var input = Deserialize<RemoteImageReadRequest>(request);
+        using var call = EnterCall(input.LeaseId, input.WorkspaceId);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, call.Token);
+        ct = linked.Token;
+        var root = ValidateLease(input.LeaseId, input.WorkspaceId);
+        var state = RequireState();
+        var peer = RequirePeer(state, peerId, input.WorkspaceId);
+        var config = HostWorkspaceRuntime.LoadWorkspaceConfig(_storage.GlobalConfigPath, root);
+        var arguments = new Dictionary<string, JsonElement> { ["path"] = JsonSerializer.SerializeToElement(input.Path) };
+        var approval = new HostInvocationApprovalService.Invocation(peer, input.CallId, root, _approvalPresenter, ct);
+        using var scope = HostInvocationApprovalService.Begin(approval);
+        await AuthorizeAsync("ReadFile", arguments, state, approval, root, ct).ConfigureAwait(false);
+        if (RequirePeer(RequireState(), peerId, input.WorkspaceId).AuthorizationRevision != peer.AuthorizationRevision)
+            throw new RemoteToolHostException(RemoteToolErrorCodes.RemotePolicyDenied, "Authorization changed.");
+        var path = new FileAccessGuard(root).ResolvePath(input.Path);
+        byte[] bytes;
+        try
+        {
+            if (new FileInfo(path).Length > config.Tools.File.MaxFileSize)
+                throw new RemoteToolHostException(RemoteToolErrorCodes.RemotePolicyDenied, "Referenced image exceeds the file size limit.");
+            bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            var error = RemoteFileErrors.FromException(ex, "Referenced image read");
+            throw new RemoteToolHostException(error.Code, error.Message);
+        }
+        return JsonSerializer.SerializeToNode(new RemoteImageReadResponse(Convert.ToBase64String(bytes)), RemoteToolHostProtocol.JsonOptions);
+    }
+
     private static string ImageSegment(string value)
     {
         if (string.IsNullOrWhiteSpace(value) || value.Length > 200

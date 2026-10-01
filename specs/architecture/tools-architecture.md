@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7.8 |
+| Version | 0.7.10 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-02 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 
 ## 1. Purpose
@@ -160,7 +160,7 @@ Host-owned tools that start external work MUST pass the invocation cancellation 
 
 MCP input schemas are preserved as declared and follow the MCP JSON Schema contract. The Host MUST NOT apply the restricted Plugin/Runtime Dynamic schema validator to MCP arguments or reject valid composition and reference keywords before dispatch. Server-reported protocol and tool-execution input errors remain normal terminal MCP results. Oversized model-visible text is projected as a bounded preview without changing a successful source result into a failure. Raw MCP content, structured content, and metadata use an independent bounded persistence projection.
 
-Provider-hosted capabilities such as provider-native image generation are not local tools and MUST NOT be represented by `IToolRuntime` or dispatched through the local tool pipeline. Snapshot planning records them in a separate provider-capability plan, and the provider adapter projects their declarations and specialized Session items. Their result still obeys the audience and persistence rules applicable to their specialized item type.
+Image generation is the Core Native tool `image_gen.imagegen`, dispatched through the common pipeline like any other local tool. Planning publishes it only when `Tools.ImageGeneration.Enabled` is on and the effective provider uses an OpenAI protocol, has `SupportsImageGeneration`, and has usable credentials: ChatGPT OAuth, model-service routing, or a non-empty API key. `SupportsImageGeneration` defaults to on for ChatGPT OAuth and for API-key providers on the official OpenAI endpoint, and to off for other endpoints. The model-visible arguments are `prompt`, optional `transparent_background`, and at most one of `referenced_image_paths` or `num_last_images_to_include`, each limited by `Tools.ImageGeneration.MaxReferenceImages`; unknown arguments are rejected. The runtime sends one JSON request to the provider's base endpoint: `images/generations`, or `images/edits` with the reference images as data URLs. Every request carries the image Turn id header and the `originator` header; the backend image request id from the response headers and the image's `generation_id` are kept on the `ImageGeneration` item, and the request id is kept on failures too. Paths are read through the file access guard; on a remote route they are read through `dotcraft/remoteToolHost/images/read`, which applies the Host's `ReadFile` authorization. Recent images are taken newest-first from user input, tool output images, and earlier generated images, then sent in conversation order. A successful result saves the PNG under the thread's generated-images directory, or through the captured remote route, and returns the image plus a saved-path hint of at most 1024 bytes as model content; the hint is omitted when saving fails. Request and API failures, including usage limits, are returned to the model as error text. Plan mode does not restrict the tool.
 
 ### 5.6 Presentation
 
@@ -383,6 +383,7 @@ The common runtime does not require a single Session item type. Each registratio
 | Core or Plugin Native | standard `ToolCall` followed by `ToolResult` |
 | MCP | `McpToolCall`, preserving raw MCP result and metadata under audience rules |
 | Runtime Dynamic | one `DynamicToolCall` lifecycle item; no companion `ToolResult` |
+| Core Native image generation | one `ImageGeneration` lifecycle item; no companion `ToolCall` or `ToolResult` |
 
 Plugin invocations use the standard `ToolCall` and `ToolResult` items. Plugin provenance (`pluginId`, `functionId`, namespace) MUST remain available on that projection.
 

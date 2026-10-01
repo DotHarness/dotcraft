@@ -97,7 +97,7 @@ Provider 对象字段：
 | `MaxOutputTokens` | 单个 Provider 的默认最大输出 token 数，请求自己没有指定时使用该值 | 空 |
 | `StreamMaxRetries` | 单个 Provider 的流式响应断线重连次数，设为 `0` 可关闭 stream retry | `5` |
 | `StreamIdleTimeoutMs` | 单个 Provider 的流式响应空闲超时时间，单位毫秒 | `300000` |
-| `SupportsHostedImageGeneration` | 是否为该提供商启用 hosted image generation。省略时，ChatGPT OAuth 和官方 OpenAI Responses API-key endpoint 默认按 `true` 处理。OpenAI-compatible 自定义 Responses endpoint 默认按 `false` 处理。 | 提供商默认值 |
+| `SupportsImageGeneration` | 该提供商是否支持 OpenAI Images API。省略时，ChatGPT OAuth 和使用官方 OpenAI endpoint 的 API-key 提供商默认按 `true` 处理，其他 endpoint 默认按 `false` 处理。 | 提供商默认值 |
 
 Sign in with ChatGPT 示例：
 
@@ -318,15 +318,15 @@ Deep-thinking adapter 文件：
 | `Tools.ResultLimits.SpillPreviewLines` | 结果落盘时，预览中保留的首尾行数 | `40` |
 | `Tools.Lsp.Enabled` | 是否启用内置 LSP 工具 | `false` |
 | `Tools.Lsp.MaxFileSize` | LSP 打开或同步文件时允许的最大文件大小 | `10485760` |
-| `Tools.ImageGeneration.Enabled` | 允许支持的 OpenAI Responses 提供商在对话中生成图片 | `true` |
-| `Tools.ImageGeneration.Model` | 预留给图片客户端集成。对话生图使用当前 Responses 模型 | `gpt-image-2` |
-| `Tools.ImageGeneration.MaxReferenceImages` | 预留给支持参考图的图片客户端集成 | `5` |
+| `Tools.ImageGeneration.Enabled` | 允许智能体通过支持的 OpenAI 提供商生成和编辑图片 | `true` |
+| `Tools.ImageGeneration.Model` | 生成和编辑图片使用的图片模型 | `gpt-image-2` |
+| `Tools.ImageGeneration.MaxReferenceImages` | 单次编辑最多使用的参考图数量，取值 `1` 到 `5` | `5` |
 
 生成的图片默认保存在 Agent 数据目录的 `generated_images/<threadId>/<callId>.png`。连接远程电脑后，文件改为保存在远端工作区的 `.craft/generated_images/<threadId>/<callId>.png`。如果保存失败，对话仍会显示已生成的图片，并提示文件保存失败。
 
-使用支持的 OpenAI Responses 提供商时，你可以在普通对话里直接让 DotCraft 生成图片。DotCraft 会请求 PNG 输出，并在支持富内容的客户端中以内联图片展示。
+使用支持的提供商时，你可以在普通对话里直接让 DotCraft 生成图片，或编辑附件、本地文件和之前生成的图片。DotCraft 会调用 OpenAI Images API，保存 PNG 文件，并在支持富内容的客户端中以内联图片展示。
 
-hosted `image_generation` tool 由两个开关共同决定，两者都为真才会注入：全局的 `Tools.ImageGeneration.Enabled`，以及提供商自己的 `SupportsHostedImageGeneration`。省略提供商字段时，ChatGPT OAuth 和官方 OpenAI Responses API-key endpoint 视为开启，OpenAI-compatible 自定义 Responses endpoint 视为关闭。自定义 endpoint 只有确认支持 hosted tool 时再开启。
+`image_gen.imagegen` 工具由两个开关共同决定，两者都为真才会提供：全局的 `Tools.ImageGeneration.Enabled`，以及提供商自己的 `SupportsImageGeneration`。提供商还必须使用 OpenAI 协议。省略提供商字段时，ChatGPT OAuth 和官方 OpenAI API-key endpoint 视为开启，其他 endpoint 视为关闭。只有确认其他 endpoint 支持 `images/generations` 和 `images/edits` 时再开启。
 
 个人本地 hardening 示例：
 

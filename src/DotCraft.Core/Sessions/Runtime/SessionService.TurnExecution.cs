@@ -1157,8 +1157,6 @@ public sealed partial class SessionService
                     : null;
 
                 // Step 5g: Run agent
-                var imageLifecycle = new ImageGenerationLifecycle(DataPath, Logger, agentFactory.RemoteToolHostClient, threadId,
-                    turn, eventChannel, NextItemSeq);
                 int? currentUsageRequestIndex = null;
                 ChatFinishReason? lastFinishReason = null;
                 var usageAccumulator = new TokenUsageRequestAccumulator();
@@ -1580,30 +1578,6 @@ public sealed partial class SessionService
                                     break;
                                 }
 
-                                case ImageGenerationToolCallContent imageGenerationCall:
-                                {
-                                    FinalizeStreamingReasoning();
-                                    FinalizeStreamingAgentMessage();
-                                    imageLifecycle.Start(imageGenerationCall);
-                                    break;
-                                }
-
-                                case ImageGenerationToolResultContent imageGenerationResult:
-                                {
-                                    FinalizeStreamingReasoning();
-                                    FinalizeStreamingAgentMessage();
-                                    await imageLifecycle.CompleteAsync(imageGenerationResult, cts.Token).ConfigureAwait(false);
-                                    break;
-                                }
-
-                                case HostedImageGenerationContent hostedImage:
-                                {
-                                    FinalizeStreamingReasoning();
-                                    FinalizeStreamingAgentMessage();
-                                    await imageLifecycle.CompleteAsync(hostedImage, cts.Token).ConfigureAwait(false);
-                                    break;
-                                }
-
                                 case FunctionCallContent fc:
                                 {
                                     FinalizeStreamingReasoning();
@@ -1879,7 +1853,6 @@ public sealed partial class SessionService
                 }
                 finally
                 {
-                    imageLifecycle.FinalizePending();
                     // Stop SubAgent progress aggregator before cleaning up AsyncLocal context
                     if (progressAggregator != null)
                         await progressAggregator.DisposeAsync();

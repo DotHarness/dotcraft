@@ -1043,74 +1043,7 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task LoadOrCreateSessionAsync_ReplaysHostedImageGenerationAsAssistantContent()
-    {
-        var thread = CreateThread();
-        AddTurnWithMessages(thread, "hello", "before image", TurnStatus.Completed);
-        var turn = thread.Turns[0];
-        var imageBytes = "png-bytes"u8.ToArray();
-        turn.Items.Add(new SessionItem
-        {
-            Id = SessionIdGenerator.NewItemId(3),
-            TurnId = turn.Id,
-            Type = ItemType.ToolCall,
-            Status = ItemStatus.Completed,
-            CreatedAt = DateTimeOffset.UtcNow,
-            CompletedAt = DateTimeOffset.UtcNow,
-            Payload = new ToolCallPayload
-            {
-                ToolName = HostedImageGenerationContent.ToolName,
-                ProviderFlatName = HostedImageGenerationContent.ToolName,
-                CallId = "ig_123",
-                Arguments = new JsonObject()
-            }
-        });
-        turn.Items.Add(new SessionItem
-        {
-            Id = SessionIdGenerator.NewItemId(4),
-            TurnId = turn.Id,
-            Type = ItemType.ToolResult,
-            Status = ItemStatus.Completed,
-            CreatedAt = DateTimeOffset.UtcNow,
-            CompletedAt = DateTimeOffset.UtcNow,
-            Payload = new ToolResultPayload
-            {
-                CallId = "ig_123",
-                Result = "A red square",
-                Success = true,
-                ContentItems =
-                [
-                    new DotCraft.Plugins.PluginFunctionContentItem
-                    {
-                        Type = "image",
-                        MediaType = "image/png",
-                        DataBase64 = Convert.ToBase64String(imageBytes)
-                    }
-                ]
-            }
-        });
-        await _store.SaveThreadAsync(thread);
-
-        var agent = CreateAgent();
-        var session = await _store.LoadOrCreateSessionAsync(agent, thread.Id);
-
-        Assert.True(session.TryGetInMemoryChatHistory(
-            out var chatHistory,
-            jsonSerializerOptions: SessionPersistenceJsonOptions.Default));
-        Assert.DoesNotContain(
-            chatHistory.SelectMany(message => message.Contents),
-            content => content is FunctionCallContent { Name: "image_generation" } or FunctionResultContent { CallId: "ig_123" });
-        var imageContent = chatHistory
-            .SelectMany(message => message.Contents)
-            .OfType<HostedImageGenerationContent>()
-            .Single();
-        Assert.Equal("ig_123", imageContent.Id);
-        Assert.Equal("A red square", imageContent.RevisedPrompt);
-        Assert.Equal(imageBytes, imageContent.ImageBytes);
-    }
-
-    [Fact]
-    public async Task LoadOrCreateSessionAsync_ReplaysImageGenerationItemAsAssistantContent()
+    public async Task LoadOrCreateSessionAsync_ReplaysImageGenerationItemAsImagegenToolCall()
     {
         var thread = CreateThread();
         AddTurnWithMessages(thread, "hello", "before image", TurnStatus.Completed);
@@ -1143,17 +1076,18 @@ public sealed class ThreadStoreTests : IDisposable
         Assert.True(session.TryGetInMemoryChatHistory(
             out var chatHistory,
             jsonSerializerOptions: SessionPersistenceJsonOptions.Default));
-        Assert.DoesNotContain(
-            chatHistory.SelectMany(message => message.Contents),
-            content => content is FunctionCallContent { Name: "image_generation" } or FunctionResultContent { CallId: "ig_new" });
-        var imageContent = chatHistory
-            .SelectMany(message => message.Contents)
-            .OfType<HostedImageGenerationContent>()
-            .Single();
-        Assert.Equal("ig_new", imageContent.Id);
-        Assert.Equal("A blue square", imageContent.RevisedPrompt);
-        Assert.Equal(imageBytes, imageContent.ImageBytes);
-        Assert.Equal("/workspace/.craft/generated_images/thread/ig_new.png", imageContent.SavedPath);
+        var contents = chatHistory.SelectMany(message => message.Contents).ToList();
+        var call = contents.OfType<FunctionCallContent>().Single(content => content.CallId == "ig_new");
+        Assert.Equal("imagegen", call.Name);
+        Assert.Equal("image_gen", call.AdditionalProperties!["namespace"]);
+        Assert.Equal("A blue square", call.Arguments!["prompt"]?.ToString());
+        var result = contents.OfType<FunctionResultContent>().Single(content => content.CallId == "ig_new");
+        var output = Assert.IsAssignableFrom<IEnumerable<AIContent>>(result.Result).ToList();
+        Assert.Equal(imageBytes, Assert.IsType<DataContent>(output[0]).Data.ToArray());
+        Assert.Contains(
+            "/workspace/.craft/generated_images/thread/ig_new.png",
+            Assert.IsType<TextContent>(output[1]).Text,
+            StringComparison.Ordinal);
     }
 
     [Fact]

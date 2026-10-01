@@ -98,29 +98,28 @@ public sealed record ProviderCreditStatus(
 /// <summary>Generates or edits images through an optional provider capability.</summary>
 public interface IProviderImageGeneration
 {
-    Task<byte[]> GenerateAsync(
+    Task<ProviderImageResult> GenerateImageAsync(
         EffectiveModelRuntime runtime,
-        string model,
-        string prompt,
-        CancellationToken cancellationToken);
-
-    Task<byte[]> EditAsync(
-        EffectiveModelRuntime runtime,
-        string model,
-        string prompt,
-        IReadOnlyList<ProviderImageReference> images,
+        ProviderImageRequest request,
         CancellationToken cancellationToken);
 }
 
-/// <summary>An encoded reference image supplied to a provider.</summary>
-public sealed record ProviderImageReference(byte[] Data, string MediaType, string FileName);
+public sealed record ProviderImageRequest(
+    string Model,
+    string Prompt,
+    bool TransparentBackground,
+    IReadOnlyList<string> ReferenceImageUrls,
+    string TurnId);
 
-/// <summary>Configures provider-hosted tools and classifies returned hosted calls.</summary>
-public interface IProviderHostedToolAdapter
+public sealed record ProviderImageResult(
+    byte[] Image,
+    string? ImagegenRequestId = null,
+    string? GenerationId = null);
+
+public sealed class ProviderImageException(string message, string? imagegenRequestId, Exception? innerException = null)
+    : Exception(message, innerException)
 {
-    void Configure(ChatOptions options, IReadOnlySet<string> enabledCapabilities);
-
-    bool TryGetFunctionNamespace(FunctionCallContent call, out string? toolNamespace);
+    public string? ImagegenRequestId { get; } = imagegenRequestId;
 }
 
 /// <summary>Executes provider-native history compaction for one configured model runtime.</summary>

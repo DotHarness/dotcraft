@@ -10,7 +10,7 @@ public sealed record RemoteModelProvider(
     string Protocol,
     string Endpoint,
     string AuthMethod,
-    bool SupportsHostedImageGeneration,
+    bool SupportsImageGeneration,
     ProviderAuthenticationStatus Authentication,
     int? MaxOutputTokens = null,
     int NetworkTimeoutSeconds = 300,

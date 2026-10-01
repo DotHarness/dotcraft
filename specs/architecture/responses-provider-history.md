@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.7.8 |
+| **Version** | 0.7.10 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-02 |
 | **Parent Specs** | [Session Core](session-core.md), [Model Runtime](model-runtime.md) |
 
 ## Overview
@@ -59,10 +59,7 @@ The thread rollout supports:
 Every record carries schema version, thread id, protocol, generation id, and context-window id.
 Append entries additionally carry turn id, source, optional attempt id, a stable ledger entry id,
 and the provider-visible item object. Provider-output entries are captured from completed raw
-Responses output items before tool-search normalization and MEAI conversion. An
-`image_generation_call` is first projected to its replayable input representation containing only
-`type`, `status`, optional `id`, optional `revised_prompt`, and optional `result`; output-only
-generation controls and SDK metadata are not canonical history.
+Responses output items before tool-search normalization and MEAI conversion.
 
 Local items are appended before transport. Provider-output items are appended as soon as the raw
 `response.output_item.done` event is consumed, so completed output survives a later cancellation or
@@ -122,9 +119,7 @@ when the request has no tools.
 Before transport, request-local normalization supplies a deterministic `aborted` output for a
 client function/tool-search call that has no output and removes orphan client outputs. Synthetic
 items are not persisted; their IDs are derived from the source call item ID so repeated sampling
-has the same byte shape. Request construction also applies the replayable
-`image_generation_call` projection idempotently so version-1 histories written before that
-projection remain usable without rewriting their rollout records.
+has the same byte shape.
 
 ## Lifecycle
 
@@ -220,21 +215,6 @@ Malformed provider-history payload does not block domain Turn or Item pagination
 error only when the active Responses sampling path requires that provider-native recovery state.
 Consequently the display projection cannot contain Responses item JSON, encrypted reasoning,
 provider response IDs, or any future provider-native recovery payload.
-
-## Hosted image completion
-
-The Responses adapter owns image lifecycle normalization before SDK streaming conversion.
-Partial images and data-free completion notifications are not final results. Completed output
-items (including final response output) produce one hosted image result per call id, with the
-full image bytes preserved in model history and Session projection. A terminated Turn must
-not retain an in-progress image item. Missing results become explicit terminal failures.
-The per-Turn image lifecycle owns one call map containing each projected item and its captured
-artifact destination. Both provider-native and SDK result content use the same completion path.
-When the artifact is saved, the hosted image content carries its saved path into model history.
-Request construction then inserts a developer message right after the matching
-`image_generation_call` naming the saved path, asking the model to copy rather than move the file,
-and noting the image is already displayed. The hint is omitted when it exceeds 1024 bytes. Like
-other synthetic items it is not persisted, and its ID derives from the image call ID.
 
 ## Maintenance isolation
 

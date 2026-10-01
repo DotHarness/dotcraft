@@ -79,7 +79,6 @@ public sealed class AppServerToolCatalogTests
         Assert.Contains("GrepFiles", names);
         Assert.DoesNotContain("WriteFile", names);
         Assert.DoesNotContain("EditFile", names);
-        Assert.DoesNotContain("imagegen", names);
     }
 
     [Fact]

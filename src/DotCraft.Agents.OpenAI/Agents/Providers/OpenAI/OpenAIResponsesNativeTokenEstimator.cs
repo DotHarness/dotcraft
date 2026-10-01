@@ -88,8 +88,6 @@ internal static class OpenAIResponsesNativeTokenEstimator
                     var type = TryGetString(element, "type");
                     if (type is "input_image" or "output_image")
                         ApplyDataUrlMediaAdjustment(element, "image_url", "image/", ImageTokenCost, ref bytes);
-                    else if (type is "image_generation_call")
-                        ApplyEmbeddedPayloadAdjustment(element, "result", ImageTokenCost, ref bytes);
                     else if (type is "input_audio" or "audio")
                         ApplyAudioAdjustment(element, ref bytes);
 
@@ -166,19 +164,6 @@ internal static class OpenAIResponsesNativeTokenEstimator
         if (TryGetBase64DataUrlPayload(value, expectedMimePrefix, out var payload))
             bytes = SaturatingSubtract(bytes, Encoding.UTF8.GetByteCount(payload));
 
-        bytes = SaturatingAdd(bytes, tokenCost * 4L);
-    }
-
-    private static void ApplyEmbeddedPayloadAdjustment(
-        JsonElement element,
-        string propertyName,
-        int tokenCost,
-        ref long bytes)
-    {
-        if (TryGetString(element, propertyName) is not { Length: > 0 } payload)
-            return;
-
-        bytes = SaturatingSubtract(bytes, Encoding.UTF8.GetByteCount(payload));
         bytes = SaturatingAdd(bytes, tokenCost * 4L);
     }
 

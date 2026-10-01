@@ -48,6 +48,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
         Raw(RemoteFileTransferProtocol.Commit, (request, ct) => FileTransferPartAsync(request, peerId, RemoteFileTransferProtocol.Commit, ct)),
         Raw(RemoteFileTransferProtocol.Close, (request, ct) => FileTransferPartAsync(request, peerId, RemoteFileTransferProtocol.Close, ct)),
         Raw(RemoteImageWriteRequest.Method, (request, ct) => WriteImageAsync(request, peerId, ct)),
+        Raw(RemoteImageReadRequest.Method, (request, ct) => ReadImageAsync(request, peerId, ct)),
         Raw(
             RemoteToolHostProtocol.WorkspacesList,
             (request, ct) => HandleWorkspaceListAsync(request, peerId, ct)),

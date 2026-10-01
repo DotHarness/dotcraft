@@ -7659,6 +7659,20 @@
           "const": null
         },
         {
+          "name": "generationId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "imagegenRequestId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "mediaType",
           "type": "string",
           "required": true,
@@ -13576,7 +13590,7 @@
           "const": null
         },
         {
-          "name": "supportsHostedImageGeneration",
+          "name": "supportsImageGeneration",
           "type": "boolean",
           "required": false,
           "nullable": true,
@@ -13742,7 +13756,7 @@
           "const": null
         },
         {
-          "name": "supportsHostedImageGeneration",
+          "name": "supportsImageGeneration",
           "type": "boolean",
           "required": false,
           "nullable": false,
@@ -14003,7 +14017,7 @@
           "const": null
         },
         {
-          "name": "supportsHostedImageGeneration",
+          "name": "supportsImageGeneration",
           "type": "boolean",
           "required": false,
           "nullable": true,

@@ -396,17 +396,13 @@ describe('AgentResponseBlock tool transcript rendering', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview tool output image 1' }))
     expect(screen.getByRole('dialog', { name: 'Image preview' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Zoom out' })).toBeInTheDocument()
-    expect(screen.getByText('100%')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
-    expect(screen.getByText('125%')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }))
-    expect(screen.getByText('100%')).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Image preview' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview tool output image 1' }))
-    fireEvent.click(screen.getByRole('dialog', { name: 'Image preview' }))
+    const dialog = screen.getByRole('dialog', { name: 'Image preview' })
+    fireEvent.pointerDown(dialog, { button: 0, isPrimary: true })
+    fireEvent.click(dialog)
     expect(screen.queryByRole('dialog', { name: 'Image preview' })).not.toBeInTheDocument()
   })
 
@@ -523,12 +519,7 @@ describe('AgentResponseBlock tool transcript rendering', () => {
     expect(screen.getByRole('dialog', { name: 'Image preview' })).toBeInTheDocument()
   })
 
-  it('shows the tool output image context menu and selects all', () => {
-    const execCommand = vi.fn()
-    Object.defineProperty(document, 'execCommand', {
-      configurable: true,
-      value: execCommand
-    })
+  it('opens the image preview from the image context menu', () => {
     const turn: ConversationTurn = {
       id: 'turn-node-repl-context-menu',
       threadId: 'thread-1',
@@ -563,12 +554,8 @@ describe('AgentResponseBlock tool transcript rendering', () => {
       clientY: 24
     })
 
-    expect(screen.getByRole('menuitem', { name: 'Select All' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Copy Image' })).toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: 'Copy message' })).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Select All' }))
-    expect(execCommand).toHaveBeenCalledWith('selectAll')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Open image' }))
+    expect(screen.getByRole('dialog', { name: 'Image preview' })).toBeInTheDocument()
   })
 
   it('copies tool output images with ClipboardItem when supported', async () => {
@@ -622,61 +609,13 @@ describe('AgentResponseBlock tool transcript rendering', () => {
       clientX: 12,
       clientY: 24
     })
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy Image' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy image' }))
 
     await waitFor(() => expect(write).toHaveBeenCalledTimes(1))
     expect(writeText).not.toHaveBeenCalled()
     const clipboardItem = write.mock.calls[0][0][0] as { items: Record<string, Blob> }
     expect(clipboardItem.items['image/png']).toBeInstanceOf(Blob)
     expect(clipboardItem.items['image/png'].type).toBe('image/png')
-  })
-
-  it('falls back to copying the tool output image data URL as text', async () => {
-    const writeText = vi.fn(async () => undefined)
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText }
-    })
-    Object.defineProperty(globalThis, 'ClipboardItem', {
-      configurable: true,
-      value: undefined
-    })
-    const turn: ConversationTurn = {
-      id: 'turn-node-repl-copy-image-fallback',
-      threadId: 'thread-1',
-      status: 'completed',
-      startedAt: '2026-04-18T10:06:50.000Z',
-      items: [
-        {
-          id: 'node-repl-copy-image-fallback-1',
-          type: 'toolCall',
-          status: 'completed',
-          toolCallId: 'node-repl-copy-image-fallback-call-1',
-          toolName: 'NodeReplJs',
-          arguments: { code: 'emit image' },
-          result: 'screenshot emitted',
-          success: true,
-          contentItems: [
-            { type: 'image', mediaType: 'image/png', dataBase64: 'AQID' }
-          ],
-          createdAt: '2026-04-18T10:06:51.000Z'
-        }
-      ]
-    }
-
-    render(
-      <LocaleProvider>
-        <AgentResponseBlock turn={turn} />
-      </LocaleProvider>
-    )
-
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'Preview tool output image 1' }), {
-      clientX: 12,
-      clientY: 24
-    })
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy Image' }))
-
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith('data:image/png;base64,AQID'))
   })
 
   it('renders grouped tool images once after the group row', () => {

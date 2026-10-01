@@ -1343,129 +1343,59 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitInputAsync_HostedImageGeneration_PersistsAsImageGenerationItem()
+    public async Task SubmitInputAsync_ImagegenToolCall_ProjectsSingleImageGenerationItem()
     {
-        var imageBytes = "png-bytes"u8.ToArray();
-        IChatClient chatClient = new FakeChatClient([
-            new ChatResponseUpdate(ChatRole.Assistant, [
-                new HostedImageGenerationContent
-                {
-                    Id = "ig_123",
-                    RevisedPrompt = "A red square",
-                    ImageBytes = imageBytes
-                }
-            ])
-        ]);
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var svc = CreateService(agentFactory, chatClient);
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
+        var imageBytes = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+        var imageProvider = new FakeImageGenerationProvider(imageBytes);
+        var imageConfig = AppConfigTestFactory.CreateOpenAI();
+        imageConfig.Providers["openai"].SupportsImageGeneration = true;
+        var chatClient = new CoordinationToolCallChatClient(
+            "image_gen__imagegen",
+            new Dictionary<string, object?> { ["prompt"] = "A red square" });
+        var recorder = new ToolInvocationRecorderRouter();
+        var dispatcher = new ToolDispatcher(recorder: recorder);
+        await using var agentFactory = CreateAgentFactory(
+            chatClient,
+            [new ImageGenerationToolSource(
+                imageConfig,
+                new ChatClientRegistry(imageProvider),
+                new AutoApproveApprovalService())],
+            toolDispatcher: dispatcher);
+        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
+        recorder.Bind(service);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
 
-        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+        var events = await CollectAsync(service.SubmitInputAsync(thread.Id, [new TextContent("draw")]));
 
-        var loaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
-        var turn = Assert.Single(loaded!.Turns);
-        var resultItem = Assert.Single(turn.Items, item => item.Type == ItemType.ImageGeneration);
-        var payload = Assert.IsType<ImageGenerationPayload>(resultItem.Payload);
+        var turn = Assert.Single((await service.GetThreadAsync(thread.Id)).Turns);
+        Assert.True(turn.Status == TurnStatus.Completed, turn.Error);
+        Assert.DoesNotContain(turn.Items, item => item.Type is ItemType.ToolCall or ItemType.ToolResult);
+        var item = Assert.Single(turn.Items, item => item.Type == ItemType.ImageGeneration);
+        var payload = Assert.IsType<ImageGenerationPayload>(item.Payload);
         Assert.Equal("completed", payload.Status);
-        Assert.Equal("ig_123", payload.CallId);
+        Assert.Equal("coordination-call", payload.CallId);
         Assert.Equal("A red square", payload.RevisedPrompt);
-        Assert.Equal("image/png", payload.MediaType);
         Assert.Equal(Convert.ToBase64String(imageBytes), payload.Result);
-
-        var savedPath = Path.Combine(_tempDir, "generated_images", thread.Id, "ig_123.png");
-        Assert.Equal(savedPath, payload.SavedPath);
-        Assert.True(File.Exists(savedPath));
-        Assert.Equal(imageBytes, await File.ReadAllBytesAsync(savedPath));
-        Assert.DoesNotContain(turn.Items, item => item.Type is ItemType.ToolCall or ItemType.ToolResult);
-
-        var completedEvent = Assert.Single(
-            events,
-            e => e.EventType == SessionEventType.ItemCompleted
-                && e.ItemPayload?.Type == ItemType.ImageGeneration);
-        var eventPayload = Assert.IsType<ImageGenerationPayload>(completedEvent.ItemPayload!.Payload);
-        Assert.Equal(Convert.ToBase64String(imageBytes), eventPayload.Result);
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_SdkImageGenerationCallAndResult_PersistsSingleCompletedItem()
-    {
-        var imageBytes = "sdk-png"u8.ToArray();
-        IChatClient chatClient = new FakeChatClient([
-            new ChatResponseUpdate(ChatRole.Assistant, [
-                new ImageGenerationToolCallContent("ig_sdk")
-            ]),
-            new ChatResponseUpdate(ChatRole.Assistant, [
-                new ImageGenerationToolResultContent("ig_sdk")
-                {
-                    Outputs = [new DataContent(imageBytes, "image/png")]
-                }
-            ])
-        ]);
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var svc = CreateService(agentFactory, chatClient);
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
-
-        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-
-        var loaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
-        var turn = Assert.Single(loaded!.Turns);
-        var item = Assert.Single(turn.Items, item => item.Type == ItemType.ImageGeneration);
-        var payload = Assert.IsType<ImageGenerationPayload>(item.Payload);
-        Assert.Equal("completed", payload.Status);
-        Assert.Equal("ig_sdk", payload.CallId);
-        Assert.Equal("image/png", payload.MediaType);
-        Assert.Equal(Convert.ToBase64String(imageBytes), payload.Result);
-        Assert.Equal(
-            Path.Combine(_tempDir, "generated_images", thread.Id, "ig_sdk.png"),
-            payload.SavedPath);
-        Assert.True(File.Exists(payload.SavedPath));
-
+        Assert.Equal("saved", payload.SaveStatus);
+        Assert.Equal(imageBytes, await File.ReadAllBytesAsync(payload.SavedPath!));
         var started = Assert.Single(events, e =>
-            e.EventType == SessionEventType.ItemStarted &&
-            e.ItemPayload?.Type == ItemType.ImageGeneration);
+            e.EventType == SessionEventType.ItemStarted && e.ItemPayload?.Type == ItemType.ImageGeneration);
         var completed = Assert.Single(events, e =>
-            e.EventType == SessionEventType.ItemCompleted &&
-            e.ItemPayload?.Type == ItemType.ImageGeneration);
+            e.EventType == SessionEventType.ItemCompleted && e.ItemPayload?.Type == ItemType.ImageGeneration);
         Assert.Equal(started.ItemId, completed.ItemId);
-        Assert.DoesNotContain(turn.Items, item => item.Type is ItemType.ToolCall or ItemType.ToolResult);
-        Assert.DoesNotContain(turn.Items, item =>
-            item.Payload is ToolResultPayload toolResult &&
-            toolResult.Result.Contains("Image generation generating.", StringComparison.OrdinalIgnoreCase));
-    }
 
-    [Fact]
-    public async Task SubmitInputAsync_SdkImageGenerationResultBeforeCall_CreatesCompletedItem()
-    {
-        var imageBytes = "sdk-result-first"u8.ToArray();
-        IChatClient chatClient = new FakeChatClient([
-            new ChatResponseUpdate(ChatRole.Assistant, [
-                new ImageGenerationToolResultContent("ig_result_first")
-                {
-                    Outputs = [new DataContent(imageBytes, "image/png")]
-                }
-            ])
-        ]);
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var svc = CreateService(agentFactory, chatClient);
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
-
-        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-
-        var loaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
-        var turn = Assert.Single(loaded!.Turns);
-        var item = Assert.Single(turn.Items, item => item.Type == ItemType.ImageGeneration);
-        var payload = Assert.IsType<ImageGenerationPayload>(item.Payload);
-        Assert.Equal("completed", payload.Status);
-        Assert.Equal("ig_result_first", payload.CallId);
-        Assert.Equal(Convert.ToBase64String(imageBytes), payload.Result);
-
-        var started = Assert.Single(events, e =>
-            e.EventType == SessionEventType.ItemStarted &&
-            e.ItemPayload?.Type == ItemType.ImageGeneration);
-        var completed = Assert.Single(events, e =>
-            e.EventType == SessionEventType.ItemCompleted &&
-            e.ItemPayload?.Type == ItemType.ImageGeneration);
-        Assert.Equal(started.ItemId, completed.ItemId);
+        var followUp = chatClient.FollowUpMessages.SelectMany(message => message.Contents).ToList();
+        var toolOutput = followUp.OfType<FunctionResultContent>().Single(result => result.CallId == "coordination-call");
+        Assert.Contains(
+            payload.SavedPath!,
+            ImageContentSanitizingChatClient.DescribeResult(toolOutput.Result),
+            StringComparison.Ordinal);
+        ImageContentSanitizingChatClient.TryGetResultContentItems(toolOutput.Result, out var outputItems);
+        Assert.Contains(
+            followUp.Concat(outputItems),
+            content => content is DataContent data && data.Data.ToArray().SequenceEqual(imageBytes));
     }
 
     [Fact]
@@ -3461,6 +3391,20 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         public void Dispose()
         {
         }
+    }
+
+    private sealed class FakeImageGenerationProvider(byte[] image) : IModelProvider, IProviderImageGeneration
+    {
+        public IReadOnlyCollection<string> Protocols { get; } =
+            [ModelProviderProtocols.OpenAIChatCompletions, ModelProviderProtocols.OpenAIResponses];
+
+        public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => throw new NotSupportedException();
+
+        public Task<ProviderImageResult> GenerateImageAsync(
+            EffectiveModelRuntime runtime,
+            ProviderImageRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new ProviderImageResult(image));
     }
 
     private sealed class ThrowingChatClient(Exception exception) : IChatClient

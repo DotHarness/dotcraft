@@ -97,7 +97,7 @@ Provider object fields:
 | `MaxOutputTokens` | Per-provider default maximum output tokens, applied when a request does not set its own | Empty |
 | `StreamMaxRetries` | Per-provider streaming reconnection attempts for dropped or idle provider streams; `0` disables stream retry | `5` |
 | `StreamIdleTimeoutMs` | Per-provider idle timeout for streaming responses, in milliseconds | `300000` |
-| `SupportsHostedImageGeneration` | Enables hosted image generation for this provider. When omitted, ChatGPT OAuth and the official OpenAI Responses API-key endpoint default to `true`; custom OpenAI-compatible Responses endpoints default to `false`. | Provider default |
+| `SupportsImageGeneration` | Whether this provider serves the OpenAI Images API. When omitted, ChatGPT OAuth and API-key providers on the official OpenAI endpoint default to `true`; other endpoints default to `false`. | Provider default |
 
 Sign in with ChatGPT example:
 
@@ -323,15 +323,15 @@ For Anthropic-compatible providers, `anthropicMessageContent` can declare how Do
 | `Tools.ResultLimits.SpillPreviewLines` | Head and tail lines kept in the preview when a result spills to disk | `40` |
 | `Tools.Lsp.Enabled` | Enables built-in LSP tools | `false` |
 | `Tools.Lsp.MaxFileSize` | Max LSP file size | `10485760` |
-| `Tools.ImageGeneration.Enabled` | Allows supported OpenAI Responses providers to generate images in conversation | `true` |
-| `Tools.ImageGeneration.Model` | Reserved for image-client integrations; conversation image generation uses the active Responses model | `gpt-image-2` |
-| `Tools.ImageGeneration.MaxReferenceImages` | Reserved for image-client integrations that accept reference images | `5` |
+| `Tools.ImageGeneration.Enabled` | Lets the agent generate and edit images with supported OpenAI providers | `true` |
+| `Tools.ImageGeneration.Model` | Image model used for generation and edits | `gpt-image-2` |
+| `Tools.ImageGeneration.MaxReferenceImages` | Maximum reference images one edit can use, from `1` to `5` | `5` |
 
 Generated images are saved under the Agent data directory at `generated_images/<threadId>/<callId>.png`. When connected to a remote computer, files are saved to the remote workspace’s `.craft/generated_images/<threadId>/<callId>.png` instead. If saving fails, the conversation still displays the generated image and reports the storage failure.
 
-With a supported OpenAI Responses provider, ask DotCraft to generate an image in a normal conversation. DotCraft requests PNG output and shows the image inline in clients that render rich content.
+With a supported provider, ask DotCraft to generate an image, or to edit an attached, local, or previously generated one, in a normal conversation. DotCraft calls the OpenAI Images API, saves the PNG, and shows the image inline in clients that render rich content.
 
-Two switches gate the hosted `image_generation` tool, and both must be true: the global `Tools.ImageGeneration.Enabled`, and the provider's own `SupportsHostedImageGeneration`. Omitting the provider field leaves ChatGPT OAuth and the official OpenAI Responses API-key endpoint enabled, and custom OpenAI-compatible Responses endpoints disabled. Enable a custom endpoint only once you know it supports the hosted tool.
+Two switches gate the `image_gen.imagegen` tool, and both must be true: the global `Tools.ImageGeneration.Enabled`, and the provider's own `SupportsImageGeneration`. The provider must also use an OpenAI protocol. Omitting the provider field leaves ChatGPT OAuth and the official OpenAI API-key endpoint enabled, and other endpoints disabled. Enable another endpoint only once you know it serves `images/generations` and `images/edits`.
 
 Personal local hardening example:
 

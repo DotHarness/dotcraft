@@ -254,7 +254,7 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
         using var document = JsonDocument.Parse(raw);
         if (document.RootElement.ValueKind != JsonValueKind.Object)
             return;
-        var normalizedItem = ResponsesToolSearchMapper.NormalizeProviderHistoryItem(document.RootElement);
+        var providerItem = document.RootElement.Clone();
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -265,14 +265,14 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
                 attemptId,
                 outputIndex,
                 sequenceNumber,
-                normalizedItem.GetRawText());
+                providerItem.GetRawText());
             if (_entries.Any(entry => string.Equals(entry.Entry.EntryId, entryId, StringComparison.Ordinal)))
                 return;
 
             var entry = new ProviderHistoryEntry
             {
                 EntryId = entryId,
-                Item = normalizedItem
+                Item = providerItem
             };
             await PersistAppendAsync(
                     [entry],
@@ -524,9 +524,7 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
         var input = new JsonArray();
         foreach (var entry in _entries)
         {
-            var normalizedItem =
-                ResponsesToolSearchMapper.NormalizeProviderHistoryItem(entry.Entry.Item);
-            input.Add(JsonNode.Parse(normalizedItem.GetRawText()));
+            input.Add(JsonNode.Parse(entry.Entry.Item.GetRawText()));
         }
         NormalizeCallOutputs(input);
         return input;

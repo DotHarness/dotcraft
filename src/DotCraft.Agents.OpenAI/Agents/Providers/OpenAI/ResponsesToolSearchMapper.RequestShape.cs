@@ -39,12 +39,8 @@ internal static partial class ResponsesToolSearchMapper
         var namespaceToolArrays = new Dictionary<string, JsonArray>(StringComparer.Ordinal);
         var namespaceToolObjects = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
         var namespaceDescriptions = new Dictionary<string, List<string?>>(StringComparer.Ordinal);
-        var hostedImageGenerationEnabled = IsHostedImageGenerationEnabled(options);
         foreach (var tool in options?.Tools ?? [])
         {
-            if (hostedImageGenerationEnabled && IsReservedImageGenerationFunction(tool))
-                continue;
-
             if (string.Equals(tool.Name, IDeferredToolSearchMarker.CanonicalName, StringComparison.Ordinal))
             {
                 tools.Add(new JsonObject
@@ -86,15 +82,6 @@ internal static partial class ResponsesToolSearchMapper
                 namespaceName,
                 descriptions,
                 out _);
-        }
-
-        if (hostedImageGenerationEnabled)
-        {
-            tools.Add(new JsonObject
-            {
-                ["type"] = HostedImageGenerationContent.ToolName,
-                ["output_format"] = "png"
-            });
         }
 
         return tools;

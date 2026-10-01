@@ -78,9 +78,9 @@ internal sealed class ProviderRequestHandler(
         var provider = new JsonObject();
         providers[id] = provider;
         var createAuthMethod = ModelProviderAuthMethods.Normalize(ValueOrDefault(p.AuthMethod));
-        var supportsHostedImageGeneration = TryGetCaseInsensitiveProperty(paramsElement, "supportsHostedImageGeneration", out var supportsHostedImageGenerationEl)
-            ? ParseBoolean(supportsHostedImageGenerationEl, "supportsHostedImageGeneration")
-            : ModelProviderResolver.ResolveHostedImageGenerationSupport(new AppConfig.ModelProviderConfig
+        var supportsImageGeneration = TryGetCaseInsensitiveProperty(paramsElement, "supportsImageGeneration", out var supportsImageGenerationEl)
+            ? ParseBoolean(supportsImageGenerationEl, "supportsImageGeneration")
+            : ModelProviderResolver.ResolveImageGenerationSupport(new AppConfig.ModelProviderConfig
             {
                 Protocol = protocol,
                 EndPoint = ValueOrDefault(p.EndPoint) ?? string.Empty,
@@ -94,7 +94,7 @@ internal sealed class ProviderRequestHandler(
         WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "MaxOutputTokens", NormalizeMaxOutputTokens(ValueOrDefault(p.MaxOutputTokens)));
         WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "StreamMaxRetries", NormalizeStreamMaxRetries(ValueOrDefault(p.StreamMaxRetries)));
         WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "StreamIdleTimeoutMs", NormalizeStreamIdleTimeoutMs(ValueOrDefault(p.StreamIdleTimeoutMs)));
-        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "SupportsHostedImageGeneration", supportsHostedImageGeneration);
+        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "SupportsImageGeneration", supportsImageGeneration);
         WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "AuthMethod",
             createAuthMethod == ModelProviderAuthMethods.ApiKey ? null : createAuthMethod);
         WorkspaceConfigEditor.WriteObject(configPath, root);
@@ -180,9 +180,9 @@ internal sealed class ProviderRequestHandler(
         if (TryGetCaseInsensitiveProperty(msg.Params.Value, "streamIdleTimeoutMs", out _))
             WorkspaceConfigEditor.UpsertOrRemoveValue(provider, WorkspaceConfigEditor.FindCaseInsensitiveKey(provider, "StreamIdleTimeoutMs"), "StreamIdleTimeoutMs",
                 NormalizeStreamIdleTimeoutMs(streamIdleTimeoutMs));
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "supportsHostedImageGeneration", out var supportsHostedImageGenerationEl))
-            WorkspaceConfigEditor.UpsertOrRemoveValue(provider, WorkspaceConfigEditor.FindCaseInsensitiveKey(provider, "SupportsHostedImageGeneration"), "SupportsHostedImageGeneration",
-                ParseBoolean(supportsHostedImageGenerationEl, "supportsHostedImageGeneration"));
+        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "supportsImageGeneration", out var supportsImageGenerationEl))
+            WorkspaceConfigEditor.UpsertOrRemoveValue(provider, WorkspaceConfigEditor.FindCaseInsensitiveKey(provider, "SupportsImageGeneration"), "SupportsImageGeneration",
+                ParseBoolean(supportsImageGenerationEl, "supportsImageGeneration"));
         if (TryGetCaseInsensitiveProperty(msg.Params.Value, "authMethod", out var authMethodEl))
         {
             var updatedAuthMethod = ModelProviderAuthMethods.Normalize(ParseNullableString(authMethodEl, "authMethod"));

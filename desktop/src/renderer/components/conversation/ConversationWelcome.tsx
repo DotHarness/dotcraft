@@ -48,6 +48,7 @@ import { startPendingWelcomeTurn } from '../../utils/startPendingWelcomeTurn'
 import { welcomeScopeKey } from '../../utils/detailPanelScope'
 import { handOffWelcomePanel } from '../../utils/welcomePanelHandoff'
 import { useComposerFileAttachmentRequest } from './useComposerFileAttachmentRequest'
+import { useComposerImageAttachmentRequest } from './useComposerImageAttachmentRequest'
 import { DetailPanelToggleButton } from './DetailPanelToggleButton'
 import { CommandSearchPopover } from './CommandSearchPopover'
 import { GoalComposePill } from './GoalComposePill'
@@ -1589,6 +1590,11 @@ function ConversationWelcomeCore({
 
   useComposerFileAttachmentRequest(remoteWorkspace, (attachment) => {
     setFiles((prev) => mergeComposerFileAttachments(prev, [attachment]))
+    setTimeout(() => richRef.current?.focus(), 0)
+  })
+
+  useComposerImageAttachmentRequest((image) => {
+    void saveDataUrlAsTemp(image.dataUrl, image.fileName, image.mimeType)
     setTimeout(() => richRef.current?.focus(), 0)
   })
 

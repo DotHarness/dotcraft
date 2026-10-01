@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.7.10 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-02 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md) |
 
@@ -1856,7 +1856,7 @@ The canonical item payload schemas are defined in [Session Core, Section 4.2](..
 | `toolCall` | Native, plugin, and managed channel calls use the standard payload. It includes optional canonical `namespace`, canonical local `toolName`, required `providerFlatName`, `arguments`, and `callId`; payloads may additionally carry `definitionId`, `sourceKind`, safe `sourceToolId`, and plugin `pluginId`/`functionId` provenance. When argument construction is streamed, clients receive `item/toolCall/argumentsDelta` between `item/started` and `item/completed`. |
 | `commandExecution` | Command execution payload uses camelCase fields such as `command`, `workingDirectory`, `source`, `status`, `aggregatedOutput`, `exitCode`, `durationMs`, and `callId`. |
 | `toolExecution` | Runtime lifecycle enhancement for a normal tool invocation. Payload uses `callId`, `toolName`, `status`, `success`, `durationMs`, `resultPreview`, and `errorMessage`. It is emitted only when the client advertises `capabilities.toolExecutionLifecycle = true`. |
-| `imageGeneration` | Hosted image generation lifecycle item. Payload uses `callId`, `status` (`"inProgress"` / `"completed"` / `"failed"`), optional `revisedPrompt`, optional base64 `result`, `mediaType`, optional `savedPath`, and optional `errorMessage`. Clients should render it independently from ordinary tool aggregation and must not treat `"inProgress"` provider status as failure. |
+| `imageGeneration` | Lifecycle item of the `image_gen.imagegen` tool, with no companion `toolCall`/`toolResult`. Payload uses `callId`, `status` (`"inProgress"` / `"completed"` / `"failed"`), optional `revisedPrompt`, optional base64 `result`, `mediaType`, optional `savedPath`, optional `errorMessage`, and optional `imagegenRequestId` and `generationId` (the backend image request id, also kept on failure, and the generated image's id). Clients should render it independently from ordinary tool aggregation and must not treat `"inProgress"` status as failure. |
 | `mcpToolCall` | One MCP lifecycle item with canonical namespace/name, required `providerFlatName`, runtime `server`, `origin`, raw `sourceToolId`, definition/runtime binding identities, binding/snapshot revisions, safe provenance, original `callId`, arguments, status, duration, normalized `contentItems`, raw MCP content, `structuredContent`, sanitized `_meta`, `isError`, success, stable error fields, and optional normalized `mcpAppResourceUri`. It has no companion `toolResult`. View handles, HTML, CSP, and availability are never persisted in the item. |
 | `dynamicToolCall` | One Runtime Dynamic lifecycle item with optional canonical namespace, canonical local tool name, required `providerFlatName`, original `callId`, arguments, `inProgress`/`completed`/`failed` status, duration, `contentItems`, `structuredContent`, nullable terminal success, and stable error fields. It has no companion `toolCall`/`toolResult`. |
 | `toolResult` | Standard result paired by `callId`, preserving canonical namespace/name and required `providerFlatName`, with model-safe `result`/`contentItems`, client-only `structuredContent`, sanitized host-only `_meta`, success, and stable error fields. Provider history never includes `structuredContent` or `_meta`. The client-only `fileChange` shape for file operations is defined in [Session Core, ToolResult](../architecture/session-core.md#toolresult). |
@@ -4907,7 +4907,7 @@ Clients must check `capabilities.providerManagement` before calling any `provide
   "networkTimeoutSeconds": 600,
   "streamMaxRetries": 5,
   "streamIdleTimeoutMs": 300000,
-  "supportsHostedImageGeneration": false,
+  "supportsImageGeneration": false,
   "capabilities": {
     "streamingChat": true,
     "toolCalling": true,
@@ -4929,7 +4929,7 @@ Clients must check `capabilities.providerManagement` before calling any `provide
 | `networkTimeoutSeconds` | integer? | Provider-specific timeout override. |
 | `streamMaxRetries` | integer? | Provider-specific maximum stream reconnection attempts. Defaults to `5`; valid range is `0`-`100`. |
 | `streamIdleTimeoutMs` | integer? | Provider-specific idle timeout for streaming responses. Defaults to `300000` milliseconds. |
-| `supportsHostedImageGeneration` | boolean | Whether this provider supports OpenAI Responses hosted image generation. The global `Tools.ImageGeneration.Enabled` switch must also be on before DotCraft injects the hosted tool. |
+| `supportsImageGeneration` | boolean | Whether this provider serves the OpenAI Images API. The global `Tools.ImageGeneration.Enabled` switch must also be on before DotCraft exposes the `image_gen.imagegen` tool. |
 | `capabilities` | object | Provider-neutral capability flags such as streaming, tool calling, model listing, token usage, prompt-cache shaping, extended thinking, tool-choice controls, raw metadata passthrough, Responses API support, and native deferred tool loading. |
 
 Additional capability flags include:
@@ -4955,9 +4955,9 @@ Additional capability flags include:
 | `networkTimeoutSeconds` | integer? | no | Timeout override; must be greater than zero. |
 | `streamMaxRetries` | integer? | no | Stream reconnection retry budget; `0` disables stream retry and values above `100` are rejected. |
 | `streamIdleTimeoutMs` | integer? | no | Per-stream idle timeout in milliseconds; must be greater than zero. |
-| `supportsHostedImageGeneration` | boolean | no | Whether this provider supports hosted image generation. When omitted on create, ChatGPT OAuth and the official OpenAI Responses API-key endpoint default to `true`; custom OpenAI-compatible Responses endpoints default to `false`. |
+| `supportsImageGeneration` | boolean | no | Whether this provider serves the OpenAI Images API. When omitted on create, ChatGPT OAuth and API-key providers on the official OpenAI endpoint default to `true`; other endpoints default to `false`. |
 
-`provider/update` accepts `id` plus any mutable provider fields from `provider/create`. Omitted fields are unchanged. Passing `supportsHostedImageGeneration: null` is invalid; pass `true` or `false` to change the setting. `provider/delete` accepts `{ "id": "..." }` and removes a provider only when the active workspace selection would not be broken.
+`provider/update` accepts `id` plus any mutable provider fields from `provider/create`. Omitted fields are unchanged. Passing `supportsImageGeneration: null` is invalid; pass `true` or `false` to change the setting. `provider/delete` accepts `{ "id": "..." }` and removes a provider only when the active workspace selection would not be broken.
 
 `provider/test` performs a low-cost provider-neutral probe by attempting model listing. It never performs a hidden chat-completion request. Params may reference a persisted provider:
 

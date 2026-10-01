@@ -54,8 +54,7 @@ public sealed partial class AppConfig
         [ConfigField(Min = 1, Hint = "Streaming idle timeout in milliseconds.")]
         public int? StreamIdleTimeoutMs { get; set; }
 
-        /// <summary>Defaults to enabled for official OpenAI Responses providers and ChatGPT OAuth.</summary>
-        public bool? SupportsHostedImageGeneration { get; set; }
+        public bool? SupportsImageGeneration { get; set; }
 
         public ModelProviderConfig Clone() => new()
         {
@@ -72,7 +71,7 @@ public sealed partial class AppConfig
             MaxOutputTokens = MaxOutputTokens,
             StreamMaxRetries = StreamMaxRetries,
             StreamIdleTimeoutMs = StreamIdleTimeoutMs,
-            SupportsHostedImageGeneration = SupportsHostedImageGeneration
+            SupportsImageGeneration = SupportsImageGeneration
         };
     }
 

@@ -119,34 +119,6 @@ internal sealed class ModelHistoryCodec
                 Result = EncodeFunctionResult(value.Result),
                 AdditionalProperties = SerializeAdditionalProperties(value.AdditionalProperties)
             }),
-            HostedImageGenerationContent value => CreateContent(
-                "hosted_image_generation",
-                new PersistedHostedImageGenerationContent
-                {
-                    Id = value.Id,
-                    Status = value.Status,
-                    RevisedPrompt = value.RevisedPrompt,
-                    ImageBase64 = value.ImageBytes is null ? null : Convert.ToBase64String(value.ImageBytes),
-                    MediaType = value.MediaType,
-                    ErrorMessage = value.ErrorMessage,
-                    SavedPath = value.SavedPath,
-                    AdditionalProperties = SerializeAdditionalProperties(value.AdditionalProperties)
-                }),
-            ImageGenerationToolCallContent value => CreateContent(
-                "image_generation_tool_call",
-                new PersistedImageGenerationToolCallContent
-                {
-                    CallId = value.CallId,
-                    AdditionalProperties = SerializeAdditionalProperties(value.AdditionalProperties)
-                }),
-            ImageGenerationToolResultContent value => CreateContent(
-                "image_generation_tool_result",
-                new PersistedImageGenerationToolResultContent
-                {
-                    CallId = value.CallId,
-                    Outputs = value.Outputs?.Select(EncodeContent).ToList(),
-                    AdditionalProperties = SerializeAdditionalProperties(value.AdditionalProperties)
-                }),
             ErrorContent value => CreateContent("error", new PersistedErrorContent
             {
                 Message = value.Message,
@@ -226,9 +198,6 @@ internal sealed class ModelHistoryCodec
             "data" => DecodeData(content),
             "function_call" => DecodeFunctionCall(content),
             "function_result" => DecodeFunctionResult(content),
-            "hosted_image_generation" => DecodeHostedImageGeneration(content),
-            "image_generation_tool_call" => DecodeImageGenerationToolCall(content),
-            "image_generation_tool_result" => DecodeImageGenerationToolResult(content),
             "error" => DecodeError(content),
             "uri" => DecodeUri(content),
             "usage" => DecodeUsage(content),
@@ -291,55 +260,6 @@ internal sealed class ModelHistoryCodec
         var payload = DeserializePayload<PersistedFunctionResultContent>(content);
         return ApplyAdditionalProperties(
             new FunctionResultContent(payload.CallId, DecodeFunctionResult(payload.Result)),
-            payload.AdditionalProperties);
-    }
-
-    private static AIContent DecodeHostedImageGeneration(ModelHistoryContent content)
-    {
-        var payload = DeserializePayload<PersistedHostedImageGenerationContent>(content);
-        byte[]? imageBytes = null;
-        if (payload.ImageBase64 is not null)
-        {
-            try
-            {
-                imageBytes = Convert.FromBase64String(payload.ImageBase64);
-            }
-            catch (FormatException ex)
-            {
-                throw new JsonException("Model history hosted image content has invalid base64 data.", ex);
-            }
-        }
-
-        return ApplyAdditionalProperties(
-            new HostedImageGenerationContent
-            {
-                Id = payload.Id,
-                Status = payload.Status,
-                RevisedPrompt = payload.RevisedPrompt,
-                ImageBytes = imageBytes,
-                MediaType = payload.MediaType,
-                ErrorMessage = payload.ErrorMessage,
-                SavedPath = payload.SavedPath
-            },
-            payload.AdditionalProperties);
-    }
-
-    private static AIContent DecodeImageGenerationToolCall(ModelHistoryContent content)
-    {
-        var payload = DeserializePayload<PersistedImageGenerationToolCallContent>(content);
-        return ApplyAdditionalProperties(
-            new ImageGenerationToolCallContent(payload.CallId),
-            payload.AdditionalProperties);
-    }
-
-    private static AIContent DecodeImageGenerationToolResult(ModelHistoryContent content)
-    {
-        var payload = DeserializePayload<PersistedImageGenerationToolResultContent>(content);
-        return ApplyAdditionalProperties(
-            new ImageGenerationToolResultContent(payload.CallId)
-            {
-                Outputs = payload.Outputs?.Select(DecodeContent).ToList()
-            },
             payload.AdditionalProperties);
     }
 
@@ -639,35 +559,6 @@ internal sealed class PersistedFunctionResult
     public required JsonElement? Json { get; init; }
 
     public required List<ModelHistoryContent>? Contents { get; init; }
-}
-
-internal sealed class PersistedHostedImageGenerationContent : PersistedModelContentPayload
-{
-    public required string Id { get; init; }
-
-    public required string Status { get; init; }
-
-    public required string? RevisedPrompt { get; init; }
-
-    public required string? ImageBase64 { get; init; }
-
-    public required string MediaType { get; init; }
-
-    public required string? ErrorMessage { get; init; }
-
-    public string? SavedPath { get; init; }
-}
-
-internal sealed class PersistedImageGenerationToolCallContent : PersistedModelContentPayload
-{
-    public required string CallId { get; init; }
-}
-
-internal sealed class PersistedImageGenerationToolResultContent : PersistedModelContentPayload
-{
-    public required string CallId { get; init; }
-
-    public required List<ModelHistoryContent>? Outputs { get; init; }
 }
 
 internal sealed class PersistedErrorContent : PersistedModelContentPayload

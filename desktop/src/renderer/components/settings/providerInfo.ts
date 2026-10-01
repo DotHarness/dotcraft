@@ -22,7 +22,7 @@ export interface ProviderInfoWire {
   hasApiKey: boolean
   endPoint: string
   networkTimeoutSeconds?: number | null
-  supportsHostedImageGeneration?: boolean
+  supportsImageGeneration?: boolean
   capabilities?: ProviderCapabilitiesWire
   authMethod?: 'apiKey' | 'chatgptOAuth'
   chatGptAccountId?: string | null
@@ -52,7 +52,7 @@ export function normalizeProviderList(value: unknown): ProviderInfoWire[] {
           typeof raw.networkTimeoutSeconds === 'number' && Number.isFinite(raw.networkTimeoutSeconds)
             ? raw.networkTimeoutSeconds
             : null,
-        supportsHostedImageGeneration: raw.supportsHostedImageGeneration === true,
+        supportsImageGeneration: raw.supportsImageGeneration === true,
         capabilities: raw.capabilities,
         authMethod: rawAuthMethod === 'chatgptoauth' ? 'chatgptOAuth' : 'apiKey',
         chatGptAccountId: typeof raw.chatGptAccountId === 'string' && raw.chatGptAccountId.trim() !== ''

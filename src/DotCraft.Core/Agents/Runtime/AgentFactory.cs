@@ -630,9 +630,6 @@ public sealed class AgentFactory : IAsyncDisposable
             pipelineContext,
             _logger);
         var chatOptions = CreateChatOptions(tools, ctx.EffectiveReasoning, runtime, instructions);
-        if (ProviderHostedCapabilityPlanner.Build(ctx).ImageGenerationEnabled)
-            _chatClientRegistry.GetProviderService<IProviderHostedToolAdapter>(runtime)?
-                .Configure(chatOptions, new HashSet<string>(StringComparer.Ordinal) { "image_generation" });
 
         AgentPromptInputs? promptInputs = null;
         Func<AIContextProvider>? createBuiltInProvider = null;

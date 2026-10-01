@@ -67,34 +67,6 @@
       }
     },
     {
-      "kind": "hosted_image_generation",
-      "payload": {
-        "id": "image_1",
-        "status": "completed",
-        "revisedPrompt": "synthetic prompt",
-        "imageBase64": "BAUG",
-        "mediaType": "image/png",
-        "errorMessage": null,
-        "savedPath": "/workspace/.craft/generated_images/thread/image_1.png",
-        "additionalProperties": null
-      }
-    },
-    {
-      "kind": "image_generation_tool_call",
-      "payload": { "callId": "image_call", "additionalProperties": null }
-    },
-    {
-      "kind": "image_generation_tool_result",
-      "payload": {
-        "callId": "image_call",
-        "outputs": [
-          { "kind": "text", "payload": { "text": "generated", "additionalProperties": null } },
-          { "kind": "uri", "payload": { "uri": "https://example.invalid/image.png", "mediaType": "image/png", "additionalProperties": null } }
-        ],
-        "additionalProperties": null
-      }
-    },
-    {
       "kind": "error",
       "payload": { "message": "recoverable", "errorCode": "sample_error", "details": "synthetic details", "additionalProperties": null }
     },

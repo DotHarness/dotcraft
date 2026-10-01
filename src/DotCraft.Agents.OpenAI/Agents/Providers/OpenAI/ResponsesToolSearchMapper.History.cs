@@ -1,5 +1,4 @@
 using System.ClientModel.Primitives;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -13,111 +12,6 @@ namespace DotCraft.Agents;
 
 internal static partial class ResponsesToolSearchMapper
 {
-    private const int MaxImageGenerationSavedPathHintBytes = 1024;
-
-    internal static JsonElement NormalizeProviderHistoryItem(JsonElement item)
-    {
-        if (item.ValueKind != JsonValueKind.Object
-            || !item.TryGetProperty("type", out var type)
-            || type.ValueKind != JsonValueKind.String
-            || !string.Equals(
-                type.GetString(),
-                HostedImageGenerationContent.ToolName + "_call",
-                StringComparison.Ordinal))
-        {
-            return item.Clone();
-        }
-
-        var projected = CreateImageGenerationCallItem(
-            ReadJsonString(item, "status"),
-            ReadJsonString(item, "id"),
-            ReadJsonString(item, "revised_prompt"),
-            ReadJsonString(item, "result"));
-        return JsonSerializer.SerializeToElement(projected, JsonOptions);
-    }
-
-    private static JsonObject CreateImageGenerationCallItem(HostedImageGenerationContent content) =>
-        CreateImageGenerationCallItem(
-            content.Status,
-            content.Id,
-            content.RevisedPrompt,
-            content.ImageBytes is { Length: > 0 }
-                ? Convert.ToBase64String(content.ImageBytes)
-                : null);
-
-    private static JsonObject CreateImageGenerationCallItem(
-        string? status,
-        string? id,
-        string? revisedPrompt,
-        string? result)
-    {
-        var item = new JsonObject
-        {
-            ["type"] = HostedImageGenerationContent.ToolName + "_call",
-            ["status"] = string.IsNullOrWhiteSpace(status) ? "completed" : status
-        };
-
-        if (!string.IsNullOrWhiteSpace(id))
-            item["id"] = id;
-        if (!string.IsNullOrWhiteSpace(revisedPrompt))
-            item["revised_prompt"] = revisedPrompt;
-        if (!string.IsNullOrWhiteSpace(result))
-            item["result"] = result;
-        return item;
-    }
-
-    private static void InsertImageGenerationSavedPathHints(
-        JsonArray input,
-        IReadOnlyList<ChatMessage> messages)
-    {
-        Dictionary<string, string>? hints = null;
-        foreach (var image in messages.SelectMany(static message => message.Contents)
-                     .OfType<HostedImageGenerationContent>())
-        {
-            if (!string.IsNullOrWhiteSpace(image.Id)
-                && CreateImageGenerationSavedPathHint(image.SavedPath) is { } hint)
-            {
-                (hints ??= new Dictionary<string, string>(StringComparer.Ordinal))[image.Id] = hint;
-            }
-        }
-
-        if (hints == null)
-            return;
-
-        for (var i = input.Count - 1; i >= 0; i--)
-        {
-            if (input[i] is not JsonObject item
-                || !string.Equals(
-                    ReadJsonString(item, "type"),
-                    HostedImageGenerationContent.ToolName + "_call",
-                    StringComparison.Ordinal)
-                || ReadJsonString(item, "id") is not { } id
-                || !hints.TryGetValue(id, out var hint))
-            {
-                continue;
-            }
-
-            var hintItem = CreateMessageItem(new ChatRole("developer"), hint);
-            var hash = SHA256.HashData(Encoding.UTF8.GetBytes("msg\n" + id));
-            hintItem["id"] = "msg_" + Convert.ToHexString(hash).ToLowerInvariant()[..32];
-            input.Insert(i + 1, hintItem);
-        }
-    }
-
-    private static string? CreateImageGenerationSavedPathHint(string? savedPath)
-    {
-        if (string.IsNullOrWhiteSpace(savedPath))
-            return null;
-
-        var separator = savedPath.LastIndexOfAny(['/', '\\']);
-        var directory = separator > 0 ? savedPath[..separator] : savedPath;
-        var hint =
-            $"Generated images are saved to {directory} as {savedPath} by default.\n" +
-            "If you need to use a generated image at another path, copy it and leave the original in place unless the user explicitly asks you to delete it.\n" +
-            "The generated image is already displayed to the user. There is no need to render it in the final response as a Markdown image or file link.";
-        return Encoding.UTF8.GetByteCount(hint) <= MaxImageGenerationSavedPathHintBytes ? hint : null;
-    }
-
     private static JsonObject CreateFunctionCallOutputItem(FunctionResultContent result) =>
         new()
         {
@@ -297,19 +191,6 @@ internal static partial class ResponsesToolSearchMapper
 
     private static bool IsToolSearchOutput(object? result) =>
         ExtractToolSearchTools(result).Count > 0;
-
-    private static bool IsHostedImageGenerationEnabled(ChatOptions? options) =>
-        TryReadBool(options?.AdditionalProperties, HostedImageGenerationEnabledAdditionalProperty, out var enabled) &&
-        enabled;
-
-    private static bool IsReservedImageGenerationFunction(AITool tool)
-    {
-        if (!string.Equals(tool.Name, OpenAIHostedToolNames.ImageGenerationFunction, StringComparison.Ordinal))
-            return false;
-
-        return ToolNamespaceMetadataResolver.TryGet(tool, out var toolNamespace) &&
-               string.Equals(toolNamespace, OpenAIHostedToolNames.ImageGenerationNamespace, StringComparison.Ordinal);
-    }
 
     private static string SerializeArguments(object? arguments)
     {

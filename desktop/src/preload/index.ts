@@ -840,6 +840,10 @@ const api = {
 
     showItemInFolder(path: string): Promise<void> {
       return ipcRenderer.invoke('shell:show-item-in-folder', path)
+    },
+
+    saveImageAs(request: { data: Uint8Array; suggestedName: string }): Promise<{ saved: boolean }> {
+      return ipcRenderer.invoke('shell:save-image-as', request)
     }
   },
 

@@ -3667,9 +3667,9 @@ public sealed class ProviderCreateParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> StreamMaxRetries { get; init; }
 
-    [JsonPropertyName("supportsHostedImageGeneration")]
+    [JsonPropertyName("supportsImageGeneration")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> SupportsHostedImageGeneration { get; init; }
+    public Optional<bool?> SupportsImageGeneration { get; init; }
 
 }
 
@@ -3750,9 +3750,9 @@ public sealed partial class ProviderInfo : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> StreamMaxRetries { get; init; }
 
-    [JsonPropertyName("supportsHostedImageGeneration")]
+    [JsonPropertyName("supportsImageGeneration")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> SupportsHostedImageGeneration { get; init; }
+    public Optional<bool> SupportsImageGeneration { get; init; }
 
 }
 
@@ -3888,9 +3888,9 @@ public sealed class ProviderUpdateParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> StreamMaxRetries { get; init; }
 
-    [JsonPropertyName("supportsHostedImageGeneration")]
+    [JsonPropertyName("supportsImageGeneration")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> SupportsHostedImageGeneration { get; init; }
+    public Optional<bool?> SupportsImageGeneration { get; init; }
 
 }
 

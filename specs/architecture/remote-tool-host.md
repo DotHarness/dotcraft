@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7.8 |
+| Version | 0.7.10 |
 | Status | Draft |
-| Date | 2026-09-28 |
+| Date | 2026-10-02 |
 | Parent | [Tool Architecture](tools-architecture.md) |
 
 ## 1. Purpose
@@ -730,7 +730,8 @@ files may remain on disk.
 
 ## Generated image artifacts
 
-Hosted generation remains Agent-owned. The image's route is captured at generation start.
+Image generation remains Agent-owned. The image's route is captured when the `image_gen.imagegen`
+call starts.
 The Agent persists image content in Session history and, when routed remotely, writes the
 artifact through `dotcraft/remoteToolHost/images/write` to the captured workspace's
 `.craft/generated_images/<threadId>/<callId>.png`. The Host computes this path, validates the
@@ -740,3 +741,8 @@ A lost or changed route must not redirect output or fall back to local file stor
 write is not automatically retried after transmission. Generation success and storage failure
 are distinct: the image remains displayable while storage status reports the error. Saved
 locations include host/workspace provenance. Local generation retains the Agent data root.
+
+When the image tool runs on a remote route, `referenced_image_paths` are read through
+`dotcraft/remoteToolHost/images/read`. The Host validates the execution session, lease and peer,
+applies the same `ReadFile` authorization and path policy as a mirrored `ReadFile` call, enforces
+the configured file size limit, and returns the file bytes.

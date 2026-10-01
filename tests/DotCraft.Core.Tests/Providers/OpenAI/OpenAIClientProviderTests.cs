@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Agents;
 using DotCraft.Configuration;
@@ -100,7 +101,6 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
         var runtime = OAuthRuntime($"{endpoint}/backend-api/codex", "acct-token");
 
         Assert.NotNull(provider.GetOpenAIChatClient(runtime));
-        Assert.NotNull(provider.GetOpenAIImageClient(runtime, "gpt-image-test"));
         var models = await provider.GetOpenAIClient(runtime).GetOpenAIModelClient().GetModelsAsync();
 
         Assert.Single(models.Value);
@@ -144,61 +144,124 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
     }
 
     [Fact]
-    public void GetOpenAIImageClient_CacheKeyIncludesImageModel()
-    {
-        var provider = new OpenAIClientProvider();
-        var runtime = Runtime(ModelProviderProtocols.OpenAI);
-
-        var first = provider.GetOpenAIImageClient(runtime, "gpt-image-2");
-        var same = provider.GetOpenAIImageClient(runtime, "gpt-image-2");
-        var differentModel = provider.GetOpenAIImageClient(runtime, "gpt-image-2-mini");
-
-        Assert.Same(first, same);
-        Assert.NotSame(first, differentModel);
-    }
-
-    [Fact]
-    public async Task GenerateOpenAIImageEditAsync_SendsMultipartWithProviderHeaders()
+    public async Task GenerateImageAsync_ApiKeyPostsJsonGenerationToConfiguredEndpoint()
     {
         var expectedBytes = new byte[] { 4, 5, 6, 7 };
         await using var server = RecordingHttpServer.Start(JsonResponse(
-            $$"""
-            {
-              "created": 1778544000,
-              "data": [
-                { "b64_json": "{{Convert.ToBase64String(expectedBytes)}}" }
-              ]
-            }
-            """));
-        var provider = new OpenAIClientProvider();
+            $$"""{"created":1778544000,"data":[{"b64_json":"{{Convert.ToBase64String(expectedBytes)}}","generation_id":"gen_1"}]}""",
+            headers: new Dictionary<string, string> { [OpenAIAuthConstants.ImagegenRequestIdHeader] = "req_1" }));
+        IProviderImageGeneration provider = new OpenAIClientProvider();
         var runtime = Runtime(
             ModelProviderProtocols.OpenAI,
             networkTimeoutSeconds: 5,
             endpoint: $"{server.Endpoint}/v1");
 
-        var result = await provider.GenerateOpenAIImageEditAsync(
+        var result = await provider.GenerateImageAsync(
             runtime,
-            "gpt-image-2",
-            "edit both references",
-            [
-                new OpenAIImageEditInput([1, 2, 3], "first.png", "image/png"),
-                new OpenAIImageEditInput([8, 9, 10], "second.webp", "image/webp")
-            ],
+            new ProviderImageRequest("gpt-image-2", "a lighthouse", TransparentBackground: false, [], "turn_1"),
             CancellationToken.None);
 
-        Assert.Equal(expectedBytes, result);
+        Assert.Equal(expectedBytes, result.Image);
+        Assert.Equal("req_1", result.ImagegenRequestId);
+        Assert.Equal("gen_1", result.GenerationId);
         var request = Assert.Single(server.Requests);
         Assert.Equal("POST", request.Method);
-        Assert.Equal("/v1/images/edits", request.Path);
+        Assert.Equal("/v1/images/generations", request.Path);
         Assert.Equal("Bearer sk-test", request.Headers["Authorization"]);
-        Assert.Contains("DotCraft/", request.Headers["User-Agent"], StringComparison.Ordinal);
-        Assert.Contains("name=model", request.Body, StringComparison.Ordinal);
-        Assert.Contains("gpt-image-2", request.Body, StringComparison.Ordinal);
-        Assert.Contains("name=prompt", request.Body, StringComparison.Ordinal);
-        Assert.Contains("edit both references", request.Body, StringComparison.Ordinal);
-        Assert.Contains("filename=first.png", request.Body, StringComparison.Ordinal);
-        Assert.Contains("filename=second.webp", request.Body, StringComparison.Ordinal);
+        Assert.Equal("turn_1", request.Headers[OpenAIAuthConstants.ImageTurnIdHeader]);
+        Assert.Equal(OpenAIAuthConstants.Originator, request.Headers[OpenAIAuthConstants.OriginatorHeader]);
+        Assert.True(JsonNode.DeepEquals(
+            JsonNode.Parse("""
+                {"prompt":"a lighthouse","background":"opaque","model":"gpt-image-2","quality":"auto","size":"auto"}
+                """),
+            JsonNode.Parse(request.Body)));
     }
+
+    [Fact]
+    public async Task GenerateImageAsync_ReferencesPostJsonEditWithImageUrls()
+    {
+        await using var server = RecordingHttpServer.Start(ImageResponse([1]));
+        IProviderImageGeneration provider = new OpenAIClientProvider();
+        var runtime = Runtime(
+            ModelProviderProtocols.OpenAI,
+            networkTimeoutSeconds: 5,
+            endpoint: $"{server.Endpoint}/v1");
+
+        await provider.GenerateImageAsync(
+            runtime,
+            new ProviderImageRequest(
+                "gpt-image-2",
+                "cut out the cat",
+                TransparentBackground: true,
+                ["data:image/png;base64,AAA=", "data:image/webp;base64,BBB="],
+                "turn_1"),
+            CancellationToken.None);
+
+        var request = Assert.Single(server.Requests);
+        Assert.Equal("/v1/images/edits", request.Path);
+        Assert.True(JsonNode.DeepEquals(
+            JsonNode.Parse("""
+                {
+                  "images": [
+                    {"image_url":"data:image/png;base64,AAA="},
+                    {"image_url":"data:image/webp;base64,BBB="}
+                  ],
+                  "prompt":"cut out the cat",
+                  "background":"transparent",
+                  "model":"gpt-image-2",
+                  "quality":"auto",
+                  "size":"auto"
+                }
+                """),
+            JsonNode.Parse(request.Body)));
+    }
+
+    [Fact]
+    public async Task GenerateImageAsync_ChatGptOAuthUsesBackendBaseAndAccountHeaders()
+    {
+        await using var server = RecordingHttpServer.Start(ImageResponse([1]));
+        IProviderImageGeneration provider = new OpenAIClientProvider(
+            new FakeOpenAIAuthService("acct-token"),
+            chatGptHttpMessageHandler: null);
+
+        await provider.GenerateImageAsync(
+            OAuthRuntime($"{server.Endpoint}/backend-api/agent", "acct-token"),
+            new ProviderImageRequest("gpt-image-2", "a lighthouse", TransparentBackground: false, [], "turn_1"),
+            CancellationToken.None);
+
+        var request = Assert.Single(server.Requests);
+        Assert.Equal("/backend-api/agent/images/generations", request.Path);
+        Assert.Equal("Bearer access-token", request.Headers["Authorization"]);
+        Assert.Equal("acct-token", request.Headers[OpenAIAuthConstants.AccountIdHeader]);
+        Assert.Equal(OpenAIAuthConstants.Originator, request.Headers[OpenAIAuthConstants.OriginatorHeader]);
+    }
+
+    [Fact]
+    public async Task GenerateImageAsync_ApiErrorSurfacesStatusAndBody()
+    {
+        await using var server = RecordingHttpServer.Start(new RecordingHttpServer.ResponseSpec(
+            HttpStatusCode.TooManyRequests,
+            "application/json",
+            """{"error":{"message":"image usage limit reached"}}""",
+            new Dictionary<string, string> { [OpenAIAuthConstants.ImagegenRequestIdHeader] = "req_failed" }));
+        IProviderImageGeneration provider = new OpenAIClientProvider();
+        var runtime = Runtime(
+            ModelProviderProtocols.OpenAI,
+            networkTimeoutSeconds: 5,
+            endpoint: $"{server.Endpoint}/v1");
+
+        var error = await Assert.ThrowsAsync<ProviderImageException>(() => provider.GenerateImageAsync(
+            runtime,
+            new ProviderImageRequest("gpt-image-2", "a lighthouse", TransparentBackground: false, [], "turn_1"),
+            CancellationToken.None));
+
+        Assert.Contains("429", error.Message, StringComparison.Ordinal);
+        Assert.Contains("image usage limit reached", error.Message, StringComparison.Ordinal);
+        Assert.Equal("req_failed", error.ImagegenRequestId);
+    }
+
+    private static RecordingHttpServer.ResponseSpec ImageResponse(byte[] bytes) =>
+        JsonResponse($$"""{"created":1778544000,"data":[{"b64_json":"{{Convert.ToBase64String(bytes)}}"}]}""");
 
     [Fact]
     public void GetOpenAIClient_RejectsNonOpenAIProtocol()

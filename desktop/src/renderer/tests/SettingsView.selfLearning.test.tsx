@@ -43,7 +43,7 @@ const providerListResult = {
       hasApiKey: true,
       endPoint: '',
       networkTimeoutSeconds: null,
-      supportsHostedImageGeneration: true,
+      supportsImageGeneration: true,
     },
     {
       id: 'anthropic-main',
@@ -928,7 +928,7 @@ describe('SettingsView self-learning settings', () => {
     })
   })
 
-  it('sends hosted image generation support when creating a Responses provider', async () => {
+  it('sends image generation support when creating a Responses provider', async () => {
     enableProviderManagement()
     renderView()
 
@@ -947,19 +947,19 @@ describe('SettingsView self-learning settings', () => {
       expect(appServerSendRequest).toHaveBeenCalledWith('provider/create', expect.objectContaining({
         id: 'responses-main',
         protocol: 'openai-responses',
-        supportsHostedImageGeneration: true
+        supportsImageGeneration: true
       }), 20_000)
     })
   })
 
-  it('sends hosted image generation off when updating a Responses provider', async () => {
+  it('sends image generation off when updating a Responses provider', async () => {
     enableProviderManagement()
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
       if (method === 'provider/list') {
         return {
           providers: providerListResult.providers.map((provider) => provider.id === 'openai-responses'
-            ? { ...provider, supportsHostedImageGeneration: false }
+            ? { ...provider, supportsImageGeneration: false }
             : provider)
         }
       }
@@ -980,7 +980,7 @@ describe('SettingsView self-learning settings', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('provider/update', expect.objectContaining({
         id: 'openai-responses',
-        supportsHostedImageGeneration: false
+        supportsImageGeneration: false
       }), 20_000)
     })
   })

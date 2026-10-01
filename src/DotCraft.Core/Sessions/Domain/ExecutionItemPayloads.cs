@@ -97,12 +97,12 @@ public sealed record ToolExecutionProgressPayload
 }
 
 /// <summary>
-/// Payload for hosted image generation lifecycle items.
+/// Payload for image generation lifecycle items.
 /// </summary>
 public sealed record ImageGenerationPayload
 {
     /// <summary>
-    /// Provider image generation call id.
+    /// Image generation tool call id.
     /// </summary>
     public string CallId { get; init; } = string.Empty;
 
@@ -131,6 +131,10 @@ public sealed record ImageGenerationPayload
     public string? ErrorCode { get; init; }
 
     public string? ErrorMessage { get; init; }
+
+    public string? ImagegenRequestId { get; init; }
+
+    public string? GenerationId { get; init; }
 }
 
 /// <summary>

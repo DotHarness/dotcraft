@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.7.10 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-02 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -323,7 +323,7 @@ Fields:
   - `ReasoningContent` — Agent's internal reasoning/thinking (if exposed by the model).
   - `CommandExecution` — Server-observed shell execution projection for `Exec`-style tools. Payload includes command metadata and aggregated output for persistence, history summaries, and non-terminal-capable fallback rendering.
   - `ToolExecution` — Server-observed runtime lifecycle for a normal tool invocation. Payload includes call id, tool name, status, duration, and optional preview/error text.
-  - `ImageGeneration` — Hosted image generation lifecycle. Payload includes provider call id, in-progress/completed/failed status, revised prompt, generated image bytes when available, saved path, and error text.
+  - `ImageGeneration` — Lifecycle of the `image_gen.imagegen` tool. Payload includes call id, in-progress/completed/failed status, prompt, generated image bytes when available, saved path, backend request and generation ids, and error text.
   - `ToolCall` — Agent invokes a native or plugin tool, including managed channel tools. Payload includes canonical namespace/name, arguments, call id, definition identity, and safe provenance.
   - `McpToolCall` — MCP invocation lifecycle item preserving raw MCP result fields under audience rules plus separately normalized model content.
   - `DynamicToolCall` — Runtime Dynamic callback lifecycle item with canonical namespace/name, separate call/item ids, status, duration, normalized content, structured content, and stable failure data.
@@ -477,17 +477,17 @@ always carries the authoritative argument object.
 
 ```
 {
-  "callId": string,        // Provider image generation call id
+  "callId": string,        // Tool call id
   "status": string,        // "inProgress", "completed", or "failed"
-  "revisedPrompt": string, // Optional provider-revised prompt
+  "revisedPrompt": string, // Optional prompt sent to the image model
   "result": string,        // Base64 image bytes when completed with inline image data
   "mediaType": string,     // Image media type; defaults to "image/png"
   "savedPath": string,     // Optional local path under .craft/generated_images/{threadId}/{callId}.png
-  "errorMessage": string   // Optional human-readable failure or unsupported-result message
+  "errorMessage": string   // Optional human-readable failure message
 }
 ```
 
-`ImageGeneration` represents hosted image generation as a first-class Session item. It is a provider-hosted capability, not a local tool and not an `IToolRuntime` invocation. Snapshot planning records it in a separate provider-capability plan; the provider adapter creates and completes this item from provider call/result content. If the result arrives before the call, Session Core creates and immediately completes a single `ImageGeneration` item. Completed inline image bytes are persisted under `.craft/generated_images/{threadId}/{callId}.png`; the payload also carries base64 bytes for wire clients.
+`ImageGeneration` is the specialized projection of the `image_gen.imagegen` tool defined in [Tool Architecture](tools-architecture.md). It starts when the dispatcher records the call and completes once from the tool result; it has no companion `ToolCall` or `ToolResult`. Completed image bytes are saved under `.craft/generated_images/{threadId}/{callId}.png`, or in the captured remote workspace; the payload also carries base64 bytes for wire clients. The payload also records the backend image request id and the image's generation id when the provider returns them; a failed request keeps the request id. When model history is rebuilt from items, each terminal `ImageGeneration` item replays as an `image_gen.imagegen` call whose result is the image and saved-path hint, or the failure text.
 
 #### McpToolCall
 
@@ -991,7 +991,7 @@ resume, or read operations.
 - `Started` → `Completed` (for non-streaming items)
     - Items like `ToolResult`, `ApprovalRequest`, `ApprovalResponse`, `UserInputRequest`, `UserInputResponse`, `Error` are created with their full payload and immediately completed.
     - `ToolCall` is usually completed directly, but hosts may expose an intermediate streaming preview of argument construction before the final completed payload is persisted.
-    - `ImageGeneration` starts when hosted image generation begins and completes with inline image data or a visible failure/unsupported-result payload.
+    - `ImageGeneration` starts when the `image_gen.imagegen` call is recorded and completes with inline image data or a visible failure payload.
     - `McpToolCall` and `DynamicToolCall` start with `status = "inProgress"` and nullable/absent `success`, then complete once with a terminal completed/failed payload.
 
 **Invariants**:
@@ -1015,7 +1015,7 @@ A typical Turn produces Items in this order:
 ```
 1. UserMessage (input)
 2. [ReasoningContent] (if model exposes thinking)
-3. [ToolCall → ToolResult | ImageGeneration | McpToolCall | DynamicToolCall]* (zero or more tool/hosted invocations)
+3. [ToolCall → ToolResult | ImageGeneration | McpToolCall | DynamicToolCall]* (zero or more tool invocations)
    3a. [ApprovalRequest → ApprovalResponse] (within a tool call, if approval needed)
    3b. [UserInputRequest → UserInputResponse] (if the agent needs a structured user decision before continuing)
 4. AgentMessage (final response, streamed)
@@ -1527,9 +1527,6 @@ Every model-history content value has the shape `{ kind, payload }`. Model-histo
 | `data` | `base64Data`, `mediaType`, `name` |
 | `function_call` | `callId`, `name`, `arguments`, `informationalOnly`, `namespace`, `providerFlatName` |
 | `function_result` | `callId`, versioned result union |
-| `hosted_image_generation` | `id`, `status`, `revisedPrompt`, `imageBase64`, `mediaType`, `errorMessage`, optional `savedPath` |
-| `image_generation_tool_call` | `callId` |
-| `image_generation_tool_result` | `callId`, ordered `outputs` |
 | `error` | `message`, `errorCode`, `details` |
 | `uri` | `uri`, `mediaType` |
 | `usage` | standard token counts and `additionalCounts` |
@@ -1537,7 +1534,7 @@ Every model-history content value has the shape `{ kind, payload }`. Model-histo
 
 Writes and reads accept version 1 only. Unknown schema versions are rejected through the bounded replay contract; rollout records are not migrated or rewritten.
 
-Function results use a versioned union. A `json` result stores any JSON-compatible scalar, object, array, or null. A `contents` result recursively stores an ordered list from the parent message's DotCraft-owned content union. Image-generation outputs use the same recursive union. Binary data and hosted image bytes are stored once as base64; derived data URIs are not duplicated.
+Function results use a versioned union. A `json` result stores any JSON-compatible scalar, object, array, or null. A `contents` result recursively stores an ordered list from the parent message's DotCraft-owned content union. Binary data is stored once as base64; derived data URIs are not duplicated.
 
 Function-call namespace and provider-flat-name values are persisted as strong fields even when the same values also occur in `AdditionalProperties`. On decode, the strong fields restore the standard runtime metadata keys. A conflict between a strong field and its extension value makes that content invalid; the model-history replayer rejects the containing record and applies its normal whole-Turn fallback rather than choosing one value silently.
 

@@ -34,7 +34,7 @@ public static class ProviderContractMapper
             MaxOutputTokens = provider.MaxOutputTokens,
             StreamMaxRetries = provider.StreamMaxRetries,
             StreamIdleTimeoutMs = provider.StreamIdleTimeoutMs,
-            SupportsHostedImageGeneration = ModelProviderResolver.ResolveHostedImageGenerationSupport(provider),
+            SupportsImageGeneration = ModelProviderResolver.ResolveImageGenerationSupport(provider),
             AuthMethod = authMethod,
             ChatGptAccountId = authMethod == ModelProviderAuthMethods.ChatGptOAuth && !string.IsNullOrWhiteSpace(provider.ChatGptAccountId)
                 ? provider.ChatGptAccountId.Trim()

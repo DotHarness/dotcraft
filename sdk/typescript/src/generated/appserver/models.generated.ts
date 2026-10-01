@@ -1540,6 +1540,8 @@ export interface ImageGenerationPayload {
   callId: string;
   errorCode?: string | null;
   errorMessage?: string | null;
+  generationId?: string | null;
+  imagegenRequestId?: string | null;
   mediaType: string;
   result?: string | null;
   revisedPrompt?: string | null;
@@ -2741,7 +2743,7 @@ export interface ProviderCreateParams {
   protocol?: string;
   streamIdleTimeoutMs?: number | null;
   streamMaxRetries?: number | null;
-  supportsHostedImageGeneration?: boolean | null;
+  supportsImageGeneration?: boolean | null;
   [key: string]: unknown;
 }
 
@@ -2772,7 +2774,7 @@ export interface ProviderInfo {
   protocol?: string;
   streamIdleTimeoutMs?: number | null;
   streamMaxRetries?: number | null;
-  supportsHostedImageGeneration?: boolean;
+  supportsImageGeneration?: boolean;
   [key: string]: unknown;
 }
 
@@ -2824,7 +2826,7 @@ export interface ProviderUpdateParams {
   protocol?: string | null;
   streamIdleTimeoutMs?: number | null;
   streamMaxRetries?: number | null;
-  supportsHostedImageGeneration?: boolean | null;
+  supportsImageGeneration?: boolean | null;
   [key: string]: unknown;
 }
 
