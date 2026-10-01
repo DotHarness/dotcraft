@@ -1148,7 +1148,7 @@ class CuaApi {
     await dragPath(this.tab, asArray(options.path).map((point) => pointOf(point, 'tab.cua.drag')), modifierMask(options.keys))
   }
   async type(options = {}) { await pasteText(this.tab, typeof options === 'string' ? options : String(options.text ?? '')) }
-  async keypress(options = {}) { await pressKeys(this.tab, keysOf(options)) }
+  async keypress(options = {}) { await pressKeys(this.tab, keysOf(options, 'cua.keypress')) }
   async scroll(options = {}) {
     const point = pointOf(options, 'tab.cua.scroll')
     const distance = scrollDistance(options, false)
@@ -1186,8 +1186,9 @@ class DomCuaApi {
     await pasteText(this.tab, typeof options === 'string' ? options : String(options.text ?? ''))
   }
   async keypress(options = {}) {
+    const keys = keysOf(options, 'dom_cua.keypress')
     if (asObject(options).node_id) await this.click(options)
-    await pressKeys(this.tab, keysOf(options))
+    await pressKeys(this.tab, keys)
   }
   async scroll(options = {}) {
     const point = asObject(options).node_id ? await this.pointFor(options) : await viewportCenter(this.tab)

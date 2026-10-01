@@ -337,3 +337,11 @@ it.each(['metrics', 'surface-wait', 'capture'])('identifies a rejected %s comman
   if (stage !== 'capture') expect(f.commands()).not.toContain('Page.captureScreenshot')
   expect(f.getSurface()).toBeNull()
 })
+
+it('keeps the current layout size when a crop is smaller than the viewport', async () => {
+  const f = fixture()
+  const surfaces: Array<{ width: number; height: number } | null> = []
+  f.setSurface.mockImplementation(size => { surfaces.push(size) })
+  await f.capture.screenshot(f.context, { clip: { x: 0, y: 0, width: 100, height: 100 } })
+  expect(surfaces[0]).toEqual({ width: 800, height: 600 })
+})

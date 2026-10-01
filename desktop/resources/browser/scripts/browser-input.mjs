@@ -32,8 +32,9 @@ export function mouseButton(value) {
   return button
 }
 
-export function keysOf(options) {
-  return asArray(options?.keys)
+export function keysOf(options, method) {
+  if (!Array.isArray(options?.keys) || options.keys.length === 0) throw new Error(`${method} requires a non-empty keys array`)
+  return options.keys
 }
 
 function mouse(tab, params) {

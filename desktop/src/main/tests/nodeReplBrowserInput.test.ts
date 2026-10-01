@@ -195,6 +195,20 @@ ${body}` })
     ])
   })
 
+  it('rejects keypress calls without a keys array before touching the page', async () => {
+    const browserManager = createFakeBrowserManager()
+    const payload = await run(browserManager, `
+      JSON.stringify({
+        cua: await messageOf(() => tab.cua.keypress("Enter")),
+        dom: await messageOf(() => tab.dom_cua.keypress({ node_id: "42", keys: [] }))
+      })
+    `)
+
+    expect(payload.cua).toContain('cua.keypress requires a non-empty keys array')
+    expect(payload.dom).toContain('dom_cua.keypress requires a non-empty keys array')
+    expect(browserManager.inputSequence).toEqual([])
+  })
+
   it('releases pressed keys when a later key fails and rejects unknown keys', async () => {
     const browserManager = createFakeBrowserManager({
       onInput: ({ commandParams }) => {

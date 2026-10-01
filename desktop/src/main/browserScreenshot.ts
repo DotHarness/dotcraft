@@ -200,7 +200,10 @@ export class BrowserScreenshot {
     const { context } = operation
     const size = params.captureBeyondViewport === true ? clipSize(params.clip) : undefined
     if (size) {
-      const surface = { width: Math.ceil(size.width), height: Math.ceil(size.height) }
+      const surface = {
+        width: Math.max(context.layoutSize.width, Math.ceil(size.width)),
+        height: Math.max(context.layoutSize.height, Math.ceil(size.height))
+      }
       operation.setSurface(surface)
       await this.settle(operation, surface)
     } else if (!context.visible) {
