@@ -1,6 +1,4 @@
 import {
-  buildSshTestCommand,
-  parseSshTestOutput,
   buildDiscoverStacksCommand,
   parseDiscoverStacksOutput,
   buildStatusCommand,
@@ -14,26 +12,26 @@ import {
   buildUpCommand,
   buildReadTokenCommand,
   buildReadOratorioTokenCommand,
-  buildReadCoreConfigCommand,
   buildTunnelWsUrl,
   buildDashboardUrl,
+  effectiveWorkspaceDir,
   updateChangedFromOutput,
-  redactSecrets,
   DEFAULT_LOG_TAIL,
-  type RemoteHost,
   type RemoteStack,
   type RemoteStackStatus,
-  type SshTestResult,
   type OperationResult,
   type RemoteStackAction,
   type DiscoveredStack
-} from '../../shared/remoteServers'
+} from '../../shared/dockerDeployments'
+import { buildReadConfigFilesCommand, parseConfigFilesOutput } from '../../shared/sshMachineRemote'
+import { machineSshTarget, type SshMachine } from '../../shared/sshMachines'
+import { firstLine, redactSecrets, remoteChildPath } from '../../shared/sshShell'
 import { runSshCommand, type SshRunner } from './sshExecutor'
-import { TunnelManager } from './tunnelManager'
+import { TunnelManager, type Tunnels } from './tunnelManager'
 
-export interface RemoteServersManagerDeps {
+export interface DockerDeploymentsManagerDeps {
   runner?: SshRunner
-  tunnels?: TunnelManager
+  tunnels?: Tunnels
   now?: () => number
 }
 
@@ -70,13 +68,6 @@ export interface RemoteCoreConfigResult {
   userDefaultsRaw: string
 }
 
-function firstLine(text: string): string {
-  return (text || '')
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean)[0] ?? ''
-}
-
 function errorStatus(stackId: string, error: string): RemoteStackStatus {
   return {
     stackId,
@@ -93,40 +84,23 @@ function errorStatus(stackId: string, error: string): RemoteStackStatus {
   }
 }
 
-/**
- * High-level remote operations for the Servers surface. Every method runs a
- * fixed, allow-listed command built from validated parameters and redacts
- * secrets before returning. There is no method that runs an arbitrary command.
- */
-export class RemoteServersManager {
+function stackSlot(stackId: string, kind: 'appserver' | 'oratorio' | 'dashboard'): string {
+  return `stack:${stackId}:${kind}`
+}
+
+export class DockerDeploymentsManager {
   private readonly runner: SshRunner
-  private readonly tunnels: TunnelManager
+  private readonly tunnels: Tunnels
   private readonly now: () => number
 
-  constructor(deps: RemoteServersManagerDeps = {}) {
+  constructor(deps: DockerDeploymentsManagerDeps = {}) {
     this.runner = deps.runner ?? runSshCommand
     this.tunnels = deps.tunnels ?? new TunnelManager()
     this.now = deps.now ?? (() => Date.now())
   }
 
-  async testHost(host: RemoteHost): Promise<SshTestResult> {
-    const start = this.now()
-    const res = await this.runner(host, buildSshTestCommand(), { timeoutMs: 15_000, connectTimeoutSec: 8 })
-    if (res.timedOut) {
-      return { reachable: false, errorCode: 'timeout', message: 'Connection timed out.' }
-    }
-    if (!/SSH_OK/.test(res.stdout)) {
-      return {
-        reachable: false,
-        errorCode: 'unreachable',
-        message: redactSecrets(firstLine(res.stderr) || 'SSH connection failed.')
-      }
-    }
-    return parseSshTestOutput(res.stdout, this.now() - start)
-  }
-
-  async discoverStacks(host: RemoteHost): Promise<DiscoveredStack[]> {
-    const res = await this.runner(host, buildDiscoverStacksCommand(), { timeoutMs: 20_000, connectTimeoutSec: 8 })
+  async discoverStacks(machine: SshMachine): Promise<DiscoveredStack[]> {
+    const res = await this.runner(machineSshTarget(machine), buildDiscoverStacksCommand(), { timeoutMs: 20_000, connectTimeoutSec: 8 })
     if (res.timedOut) throw new Error('Stack discovery timed out.')
     if (!/DISCOVER_BEGIN/.test(res.stdout)) {
       throw new Error(redactSecrets(firstLine(res.stderr) || 'Stack discovery failed.'))
@@ -134,8 +108,8 @@ export class RemoteServersManager {
     return parseDiscoverStacksOutput(res.stdout)
   }
 
-  async status(host: RemoteHost, stack: RemoteStack): Promise<RemoteStackStatus> {
-    const res = await this.runner(host, buildStatusCommand(stack), { timeoutMs: 25_000 })
+  async status(machine: SshMachine, stack: RemoteStack): Promise<RemoteStackStatus> {
+    const res = await this.runner(machineSshTarget(machine), buildStatusCommand(stack), { timeoutMs: 25_000 })
     if (res.timedOut) return errorStatus(stack.id, 'Status check timed out.')
     if (!/STATUS_BEGIN/.test(res.stdout)) {
       return errorStatus(stack.id, redactSecrets(firstLine(res.stderr) || 'Status check failed.'))
@@ -146,19 +120,19 @@ export class RemoteServersManager {
   }
 
   async logs(
-    host: RemoteHost,
+    machine: SshMachine,
     stack: RemoteStack,
     service?: string,
     tail: number = DEFAULT_LOG_TAIL,
     knownSecrets: string[] = []
   ): Promise<LogsResult> {
-    const res = await this.runner(host, buildLogsCommand(stack, service, tail), { timeoutMs: 20_000 })
+    const res = await this.runner(machineSshTarget(machine), buildLogsCommand(stack, service, tail), { timeoutMs: 20_000 })
     const raw = res.stdout || res.stderr || ''
     return { text: redactSecrets(raw, knownSecrets), service, tail }
   }
 
-  async action(host: RemoteHost, stack: RemoteStack, action: RemoteStackAction): Promise<OperationResult> {
-    if (action === 'update') return this.update(host, stack)
+  async action(machine: SshMachine, stack: RemoteStack, action: RemoteStackAction): Promise<OperationResult> {
+    if (action === 'update') return this.update(machine, stack)
 
     const command =
       action === 'start'
@@ -167,36 +141,36 @@ export class RemoteServersManager {
           ? buildStopCommand(stack)
           : buildRestartCommand(stack)
 
-    const res = await this.runner(host, command, { timeoutMs: 60_000 })
+    const res = await this.runner(machineSshTarget(machine), command, { timeoutMs: 60_000 })
     const ok = !res.timedOut && res.code === 0
     const result: OperationResult = {
       ok,
       action,
       message: ok ? undefined : redactSecrets(firstLine(res.stderr) || `${action} failed.`)
     }
-    if (ok) result.status = await this.status(host, stack)
+    if (ok) result.status = await this.status(machine, stack)
     return result
   }
 
   /** Ordered update: backup → pull → up → status refresh. */
-  private async update(host: RemoteHost, stack: RemoteStack): Promise<OperationResult> {
-    const backup = await this.runner(host, buildBackupCommand(stack), { timeoutMs: 30_000 })
+  private async update(machine: SshMachine, stack: RemoteStack): Promise<OperationResult> {
+    const backup = await this.runner(machineSshTarget(machine), buildBackupCommand(stack), { timeoutMs: 30_000 })
     if (backup.timedOut || backup.code !== 0) {
       return { ok: false, action: 'update', message: redactSecrets(firstLine(backup.stderr) || 'Backup step failed.') }
     }
 
-    const pull = await this.runner(host, buildPullCommand(stack), { timeoutMs: 300_000 })
+    const pull = await this.runner(machineSshTarget(machine), buildPullCommand(stack), { timeoutMs: 300_000 })
     if (pull.timedOut || pull.code !== 0) {
       return { ok: false, action: 'update', message: redactSecrets(firstLine(pull.stderr) || 'Pull step failed.') }
     }
 
-    const up = await this.runner(host, buildUpCommand(stack), { timeoutMs: 180_000 })
+    const up = await this.runner(machineSshTarget(machine), buildUpCommand(stack), { timeoutMs: 180_000 })
     if (up.timedOut || up.code !== 0) {
       return { ok: false, action: 'update', message: redactSecrets(firstLine(up.stderr) || 'Recreate step failed.') }
     }
 
     const changed = updateChangedFromOutput(`${pull.stdout}\n${pull.stderr}`, `${up.stdout}\n${up.stderr}`)
-    const status = await this.status(host, stack)
+    const status = await this.status(machine, stack)
     return {
       ok: true,
       action: 'update',
@@ -207,8 +181,8 @@ export class RemoteServersManager {
   }
 
   /** Read the remote AppServer token (used only at connect time; never persisted). */
-  async readToken(host: RemoteHost, stack: RemoteStack): Promise<string> {
-    const res = await this.runner(host, buildReadTokenCommand(stack), { timeoutMs: 30_000, connectTimeoutSec: 8 })
+  async readToken(machine: SshMachine, stack: RemoteStack): Promise<string> {
+    const res = await this.runner(machineSshTarget(machine), buildReadTokenCommand(stack), { timeoutMs: 30_000, connectTimeoutSec: 8 })
     if (res.timedOut) {
       throw new Error('Remote AppServer token read timed out.')
     }
@@ -224,8 +198,8 @@ export class RemoteServersManager {
     return token
   }
 
-  private async readOratorioToken(host: RemoteHost, stack: RemoteStack): Promise<string> {
-    const res = await this.runner(host, buildReadOratorioTokenCommand(stack), { timeoutMs: 30_000, connectTimeoutSec: 8 })
+  private async readOratorioToken(machine: SshMachine, stack: RemoteStack): Promise<string> {
+    const res = await this.runner(machineSshTarget(machine), buildReadOratorioTokenCommand(stack), { timeoutMs: 30_000, connectTimeoutSec: 8 })
     if (res.timedOut) throw new Error('Remote Oratorio token read timed out.')
     if (res.code !== 0 || !res.stdout.trim()) {
       throw new Error(redactSecrets(firstLine(res.stderr) || 'Remote Oratorio service token was not found for this stack.'))
@@ -233,65 +207,47 @@ export class RemoteServersManager {
     return res.stdout.trim()
   }
 
-  async readCoreConfig(host: RemoteHost, stack: RemoteStack): Promise<RemoteCoreConfigResult> {
-    const res = await this.runner(host, buildReadCoreConfigCommand(stack), { timeoutMs: 20_000, connectTimeoutSec: 8 })
-    if (res.timedOut) {
-      throw new Error('Remote workspace config read timed out.')
-    }
-    if (res.code !== 0 || !/CONFIG_BEGIN/.test(res.stdout)) {
-      throw new Error(redactSecrets(firstLine(res.stderr) || 'Remote workspace config read failed.'))
-    }
-
-    const fields: Record<string, string> = {}
-    for (const line of res.stdout.split('\n')) {
-      const idx = line.indexOf('=')
-      if (idx <= 0) continue
-      const key = line.slice(0, idx).trim()
-      const value = line.slice(idx + 1).trim()
-      if (key === 'workspace' || key === 'userDefaults') {
-        fields[key] = value ? Buffer.from(value, 'base64').toString('utf8') : ''
-      }
-    }
-
-    return {
-      workspaceRaw: fields.workspace ?? '',
-      userDefaultsRaw: fields.userDefaults ?? ''
-    }
+  async readCoreConfig(machine: SshMachine, stack: RemoteStack): Promise<RemoteCoreConfigResult> {
+    const configPath = remoteChildPath(effectiveWorkspaceDir(stack), '.craft/config.json')
+    const res = await this.runner(machineSshTarget(machine), buildReadConfigFilesCommand(configPath), {
+      timeoutMs: 20_000,
+      connectTimeoutSec: 8
+    })
+    if (res.timedOut) throw new Error('Remote workspace config read timed out.')
+    const parsed = res.code === 0 ? parseConfigFilesOutput(res.stdout) : null
+    if (!parsed) throw new Error(redactSecrets(firstLine(res.stderr) || 'Remote workspace config read failed.'))
+    return parsed
   }
 
   async openAppServerTunnel(
-    host: RemoteHost,
+    machine: SshMachine,
     stack: RemoteStack,
     options: { forceNew?: boolean } = {}
   ): Promise<AppServerTunnelResult> {
     if (options.forceNew) {
-      this.tunnels.closeOne(host.id, stack.id, 'appserver')
+      this.tunnels.closeOne(machine.id, stackSlot(stack.id, 'appserver'))
     }
-    const token = await this.readToken(host, stack)
-    const info = await this.tunnels.open(host, stack.id, stack.appServerPort, 'appserver')
+    const token = await this.readToken(machine, stack)
+    const info = await this.tunnels.open(machineSshTarget(machine), machine.id, stackSlot(stack.id, 'appserver'), stack.appServerPort)
     return { localPort: info.localPort, wsUrl: buildTunnelWsUrl(info.localPort, token), token, tokenPresent: true }
   }
 
-  async openDashboardTunnel(host: RemoteHost, stack: RemoteStack): Promise<DashboardTunnelResult> {
-    const info = await this.tunnels.open(host, stack.id, stack.dashboardPort, 'dashboard')
+  async openDashboardTunnel(machine: SshMachine, stack: RemoteStack): Promise<DashboardTunnelResult> {
+    const info = await this.tunnels.open(machineSshTarget(machine), machine.id, stackSlot(stack.id, 'dashboard'), stack.dashboardPort)
     return { localPort: info.localPort, url: buildDashboardUrl(info.localPort) }
   }
 
-  async openOratorioTunnel(host: RemoteHost, stack: RemoteStack): Promise<OratorioTunnelResult> {
-    const token = await this.readOratorioToken(host, stack)
-    const info = await this.tunnels.open(host, stack.id, stack.oratorioPort, 'oratorio')
+  async openOratorioTunnel(machine: SshMachine, stack: RemoteStack): Promise<OratorioTunnelResult> {
+    const token = await this.readOratorioToken(machine, stack)
+    const info = await this.tunnels.open(machineSshTarget(machine), machine.id, stackSlot(stack.id, 'oratorio'), stack.oratorioPort)
     return { localPort: info.localPort, endpoint: `http://127.0.0.1:${info.localPort}`, token }
   }
 
-  closeStackTunnels(hostId: string, stackId: string): void {
-    this.tunnels.closeForStack(hostId, stackId)
+  closeStackTunnels(machineId: string, stackId: string): void {
+    this.tunnels.closeMatching(machineId, `stack:${stackId}:`)
   }
 
-  closeHostTunnels(hostId: string): void {
-    this.tunnels.closeForHost(hostId)
-  }
-
-  closeAllTunnels(): void {
-    this.tunnels.closeAll()
+  closeMachineTunnels(machineId: string): void {
+    this.tunnels.closeMatching(machineId, 'stack:')
   }
 }

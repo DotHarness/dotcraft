@@ -25,7 +25,7 @@ const SHARED: SharePcStatus = {
 const workspace: WorkspaceSegmentProps = {
   connectionMode: 'local',
   onConnectionModeChange: vi.fn(),
-  activeRemoteStackConnection: false,
+  sshManagedConnection: false,
   manualRemoteConnection: false,
   remoteUrl: '',
   onRemoteUrlChange: vi.fn(),

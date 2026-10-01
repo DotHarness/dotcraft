@@ -3,7 +3,7 @@ import { join, basename, normalize } from 'path'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { normalizeLocale, type AppLocale } from '../shared/locales'
 import { isValidAppVersion } from '../shared/whatsNew'
-import { normalizeRemoteHosts, type RemoteHost } from '../shared/remoteServers'
+import { normalizeSshMachines, type SshMachine } from '../shared/sshMachines'
 import type { CreatedSatelliteInvite, SatelliteThreadRoute } from '../shared/satellites'
 export type { CreatedSatelliteInvite, SatelliteThreadRoute } from '../shared/satellites'
 import {
@@ -86,6 +86,11 @@ export interface ActiveRemoteStackSettings {
   stackId: string
 }
 
+export interface ActiveRemoteProjectSettings {
+  machineId: string
+  projectId: string
+}
+
 export interface BrowserUseSettings {
   approvalMode?: BrowserUseApprovalMode
   blockedDomains?: string[]
@@ -131,6 +136,7 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   remote?: RemoteConnectionSettings
   /** Persisted Servers-surface connection target; tunnels are rebuilt from this on startup. */
   activeRemoteStack?: ActiveRemoteStackSettings
+  activeRemoteProject?: ActiveRemoteProjectSettings
   /** UI theme preference; omitted or invalid values are treated as light by the renderer. `system` follows the OS. */
   theme?: UiTheme
   /** Custom accent color (`#rrggbb`); omitted uses the per-theme token default. */
@@ -173,7 +179,7 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   pinnedThreadIdsByWorkspace?: Record<string, string[]>
   /** Desktop-local pinned project identities (normalized local paths or remote ids). */
   pinnedProjectIds?: string[]
-  remoteHosts?: RemoteHost[]
+  remoteHosts?: SshMachine[]
   /** Last explicit satellite route per thread, keyed `<workspace>::<threadId>`. */
   satelliteRouteByThread?: Record<string, SatelliteThreadRoute>
   /** Bookmarked turn navigation entry ids (`<turnId>:<userItemId>`), keyed `<workspace>::<threadId>`. */
@@ -411,8 +417,8 @@ function normalizeLastSeenWhatsNewVersion(settings: AppSettings): string | undef
   return raw.trim()
 }
 
-export function normalizeRemoteHostsSetting(settings: AppSettings): RemoteHost[] | undefined {
-  const hosts = normalizeRemoteHosts(settings.remoteHosts)
+export function normalizeRemoteHostsSetting(settings: AppSettings): SshMachine[] | undefined {
+  const hosts = normalizeSshMachines(settings.remoteHosts)
   return hosts.length > 0 ? hosts : undefined
 }
 
@@ -498,6 +504,16 @@ function normalizeActiveRemoteStack(settings: AppSettings): ActiveRemoteStackSet
   const hostId = typeof raw.hostId === 'string' ? raw.hostId.trim() : ''
   const stackId = typeof raw.stackId === 'string' ? raw.stackId.trim() : ''
   return hostId && stackId ? { hostId, stackId } : undefined
+}
+
+function normalizeActiveRemoteProject(settings: AppSettings): ActiveRemoteProjectSettings | undefined {
+  const raw = settings.activeRemoteProject
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined
+  }
+  const machineId = typeof raw.machineId === 'string' ? raw.machineId.trim() : ''
+  const projectId = typeof raw.projectId === 'string' ? raw.projectId.trim() : ''
+  return machineId && projectId ? { machineId, projectId } : undefined
 }
 
 function normalizePinnedSectionCollapsed(settings: AppSettings): boolean | undefined {
@@ -637,6 +653,7 @@ export function loadSettings(): AppSettings {
       raw.turnBookmarksByThread = normalizeTurnBookmarksByThread(raw)
       raw.createdSatelliteInviteIds = normalizeCreatedSatelliteInviteIds(raw)
       raw.activeRemoteStack = normalizeActiveRemoteStack(raw)
+      raw.activeRemoteProject = normalizeActiveRemoteProject(raw)
       raw.pet = normalizePetSetting(raw.pet)
       if (raw.locale !== undefined) {
         raw.locale = normalizeLocale(raw.locale)
@@ -696,6 +713,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.createdSatelliteInviteIds = normalizeCreatedSatelliteInviteIds(settings)
     settings.pet = normalizePetSetting(settings.pet)
     settings.activeRemoteStack = normalizeActiveRemoteStack(settings)
+    settings.activeRemoteProject = normalizeActiveRemoteProject(settings)
     writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf8')
   } catch {
     // Non-fatal

@@ -7,7 +7,7 @@ import { useT } from '../../../../contexts/LocaleContext'
 import { lastSeenLabel, satelliteState, type Satellite } from '../../../../../shared/satellites'
 import { SegmentSetupState } from '../connections/SegmentSetupState'
 import { SATELLITE_STATE_KEY, SatelliteStatusText } from './satellitesStatus'
-import * as s from '../servers/serversStyles'
+import * as s from '../connections/connectionsStyles'
 
 interface SatelliteListProps {
   satellites: Satellite[]
@@ -26,7 +26,7 @@ export function SatelliteList({ satellites, loading, onOpen, onInvite }: Satelli
           <div
             key={index}
             className="dc-satellite-row dc-satellite-row--skeleton"
-            style={{ ...s.serverRow, borderTop: index === 0 ? 'none' : '1px solid var(--border-default)' }}
+            style={{ ...s.listRow, borderTop: index === 0 ? 'none' : '1px solid var(--border-default)' }}
           >
             <SkeletonRow media={34} mediaRadius={8} lines={['46%', '30%']} style={{ flex: 1 }} />
           </div>
@@ -71,10 +71,10 @@ export function SatelliteList({ satellites, loading, onOpen, onInvite }: Satelli
             key={satellite.peerId}
             type="button"
             className="dc-satellite-row"
-            style={{ ...s.serverRow, borderTop: index === 0 ? 'none' : '1px solid var(--border-default)' }}
+            style={{ ...s.listRow, borderTop: index === 0 ? 'none' : '1px solid var(--border-default)' }}
             onClick={() => onOpen(satellite.peerId)}
           >
-            <span style={s.serverRowIcon} aria-hidden>
+            <span style={s.listRowIcon} aria-hidden>
               <Monitor size={17} />
             </span>
             <span className="dc-satellite-row__text">

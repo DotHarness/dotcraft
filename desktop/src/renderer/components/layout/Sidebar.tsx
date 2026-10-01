@@ -5,6 +5,8 @@ import { useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
+import { useSshMachinesStore } from '../../stores/sshMachinesStore'
+import { addToast } from '../../stores/toastStore'
 import {
   resolveDesktopPluginLabel,
   useDesktopPluginRegistry
@@ -20,6 +22,7 @@ import {
   projectIdentity
 } from '../sidebar/projectThreads'
 import { SidebarFooter } from '../sidebar/SidebarFooter'
+import { sshProjectRef } from '../sidebar/sshRemoteProject'
 import {
   SIDEBAR_NAV_BORDER_INACTIVE,
   SIDEBAR_NAV_ICON_SLOT,
@@ -231,7 +234,15 @@ function CollapsedSidebar(): JSX.Element {
   ): Promise<void> {
     // Promote a background local project to foreground; remote projects are
     // foreground-only and never switched. Then surface the conversation view.
-    if (!isForeground && !isRemoteProject(project)) {
+    const sshRef = sshProjectRef(project)
+    if (!isForeground && sshRef) {
+      try {
+        await useSshMachinesStore.getState().openProject(sshRef.machineId, sshRef.projectId)
+      } catch (err) {
+        addToast(err instanceof Error ? err.message : String(err), 'error')
+        return
+      }
+    } else if (!isForeground && !isRemoteProject(project)) {
       try {
         await window.api.workspace.switch(project.path)
       } catch (err) {

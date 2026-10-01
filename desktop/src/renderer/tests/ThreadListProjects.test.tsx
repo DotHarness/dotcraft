@@ -824,6 +824,50 @@ describe('ThreadList project-first layout', () => {
     expect(remoteThread.compareDocumentPosition(localProject) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it('opens a saved SSH remote project through its machine', async () => {
+    const openProject = vi.fn().mockResolvedValue({ ok: true })
+    Object.assign(window.api, {
+      sshMachines: {
+        list: vi.fn().mockResolvedValue({ machines: [] }),
+        onChanged: vi.fn().mockReturnValue(() => undefined),
+        openProject
+      }
+    })
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          projectId: 'remote:ssh:m1:p1',
+          kind: 'remote',
+          path: '/home/dev/src/app',
+          identityWorkspacePath: '/home/dev/src/app',
+          name: 'app',
+          state: 'cold',
+          running: false,
+          loaded: false,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: [],
+          remote: {
+            source: 'ssh',
+            displayPath: '/home/dev/src/app',
+            hostId: 'm1',
+            serverName: 'build-box',
+            remoteProjectId: 'p1'
+          }
+        }
+      ]
+    })
+
+    renderList()
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'app' }))
+
+    await waitFor(() => expect(openProject).toHaveBeenCalledWith('m1', 'p1'))
+    expect(workspaceSwitch).not.toHaveBeenCalled()
+  })
+
   it('remote project menu hides local filesystem actions and can disconnect the remote project', async () => {
     useThreadStore.getState().setThreadList([
       makeThread('remote-thread', 'Remote thread')

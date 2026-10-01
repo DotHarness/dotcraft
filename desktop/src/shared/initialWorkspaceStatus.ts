@@ -32,7 +32,7 @@ export interface InitialWorkspaceStatusPayload {
 }
 
 export interface InitialRemoteWorkspaceStatusPayload {
-  source?: 'servers' | 'manual' | 'cli'
+  source?: 'servers' | 'ssh' | 'manual' | 'cli'
   projectId?: string
   displayName?: string
   endpoint?: string
@@ -44,6 +44,7 @@ export interface InitialRemoteWorkspaceStatusPayload {
   appServerWorkspacePath?: string
   composeDir?: string
   projectName?: string
+  remoteProjectId?: string
 }
 
 export interface InitialWorkspaceBootstrapImportSource {
@@ -125,7 +126,7 @@ function normalizeRemoteWorkspaceStatus(value: unknown): InitialRemoteWorkspaceS
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
 
   const raw = value as Record<string, unknown>
-  const source = raw.source === 'manual' || raw.source === 'cli' || raw.source === 'servers'
+  const source = raw.source === 'manual' || raw.source === 'cli' || raw.source === 'servers' || raw.source === 'ssh'
     ? raw.source
     : undefined
   const projectId = typeof raw.projectId === 'string' ? raw.projectId.trim() : ''
@@ -139,8 +140,11 @@ function normalizeRemoteWorkspaceStatus(value: unknown): InitialRemoteWorkspaceS
   const appServerWorkspacePath =
     typeof raw.appServerWorkspacePath === 'string' ? raw.appServerWorkspacePath.trim() : ''
   const composeDir = typeof raw.composeDir === 'string' ? raw.composeDir.trim() : ''
+  const remoteProjectId = typeof raw.remoteProjectId === 'string' ? raw.remoteProjectId.trim() : ''
   if (source === 'manual' || source === 'cli') {
     if (!projectId || !displayName || !endpoint) return null
+  } else if (source === 'ssh') {
+    if (!projectId || !displayName || !hostId || !remoteProjectId || !appServerWorkspacePath) return null
   } else if (!hostId || !stackId || !serverName || !stackName || !workspaceDir || !composeDir) {
     return null
   }
@@ -158,6 +162,7 @@ function normalizeRemoteWorkspaceStatus(value: unknown): InitialRemoteWorkspaceS
     ...(workspaceDir ? { workspaceDir } : {}),
     ...(appServerWorkspacePath ? { appServerWorkspacePath } : {}),
     ...(composeDir ? { composeDir } : {}),
+    ...(remoteProjectId ? { remoteProjectId } : {}),
     ...(projectName ? { projectName } : {})
   }
 }

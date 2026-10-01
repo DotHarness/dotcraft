@@ -4,36 +4,26 @@ import {
   DEFAULT_DASHBOARD_PORT,
   DEFAULT_ORATORIO_PORT,
   MAX_LOG_TAIL,
-  REDACTION_MASK,
-  normalizeRemoteHosts,
-  isValidSshTarget,
-  isValidRemotePath,
-  isValidIdentityFile,
+  normalizeRemoteStacks,
   isValidServiceName,
   isValidComposeProjectName,
-  shellSingleQuote,
-  quoteRemotePath,
   effectiveAppServerWorkspacePath,
   effectiveWorkspaceDir,
-  buildSshArgs,
   composePrefix,
   buildDiscoverStacksCommand,
   buildLogsCommand,
-  buildReadCoreConfigCommand,
   buildReadOratorioTokenCommand,
   buildStatusCommand,
   buildUpCommand,
   parseStatusOutput,
-  parseSshTestOutput,
   parseDiscoverStacksOutput,
   updateChangedFromOutput,
   buildTunnelWsUrl,
   buildDashboardUrl,
-  redactSecrets,
   type RemoteStack
-} from '../remoteServers'
+} from '../dockerDeployments'
 
-function counterIds(): (prefix: 'h' | 's') => string {
+function counterIds(): (prefix: string) => string {
   let n = 0
   return (prefix) => `${prefix}_${++n}`
 }
@@ -48,29 +38,7 @@ const stack: RemoteStack = {
 }
 
 describe('validation', () => {
-  it('accepts valid ssh targets and rejects option/whitespace injection', () => {
-    expect(isValidSshTarget('user@cloud')).toBe(true)
-    expect(isValidSshTarget('cloud')).toBe(true)
-    expect(isValidSshTarget('deploy@staging.internal')).toBe(true)
-    expect(isValidSshTarget('-oProxyCommand=evil')).toBe(false)
-    expect(isValidSshTarget('user@host extra')).toBe(false)
-    expect(isValidSshTarget('')).toBe(false)
-    expect(isValidSshTarget(42 as unknown)).toBe(false)
-  })
-
-  it('accepts absolute and home-relative paths, rejects traversal/relative', () => {
-    expect(isValidRemotePath('/srv/sample')).toBe(true)
-    expect(isValidRemotePath('~')).toBe(true)
-    expect(isValidRemotePath('~/sample-stack/deploy')).toBe(true)
-    expect(isValidRemotePath('relative/path')).toBe(false)
-    expect(isValidRemotePath('~/a/../../etc')).toBe(false)
-    expect(isValidRemotePath('/srv/has space')).toBe(false)
-    expect(isValidRemotePath('')).toBe(false)
-  })
-
-  it('validates identity files and service names', () => {
-    expect(isValidIdentityFile('~/.ssh/id_ed25519')).toBe(true)
-    expect(isValidIdentityFile('-i')).toBe(false)
+  it('validates service names', () => {
     expect(isValidServiceName('oratorio')).toBe(true)
     expect(isValidServiceName('app server')).toBe(false)
   })
@@ -83,18 +51,7 @@ describe('validation', () => {
   })
 })
 
-describe('shell quoting', () => {
-  it('single-quotes literals and escapes embedded quotes', () => {
-    expect(shellSingleQuote('plain')).toBe("'plain'")
-    expect(shellSingleQuote("a'b")).toBe("'a'\\''b'")
-  })
-
-  it('quotes remote paths, leaving ~/ for shell expansion', () => {
-    expect(quoteRemotePath('/srv/sample')).toBe("'/srv/sample'")
-    expect(quoteRemotePath('~')).toBe('~')
-    expect(quoteRemotePath('~/sample-stack/deploy')).toBe("~/'sample-stack/deploy'")
-  })
-
+describe('workspace paths', () => {
   it('derives the workspace dir from composeDir by default', () => {
     expect(effectiveWorkspaceDir(stack)).toBe('~/sample-stack/docker/workspace')
     expect(effectiveWorkspaceDir({ ...stack, workspaceDir: '/data/ws' })).toBe('/data/ws')
@@ -106,69 +63,29 @@ describe('shell quoting', () => {
   })
 })
 
-describe('normalizeRemoteHosts', () => {
-  it('drops invalid hosts/stacks, defaults ports, fills missing ids, dedups', () => {
-    const hosts = normalizeRemoteHosts(
+describe('normalizeRemoteStacks', () => {
+  it('drops invalid stacks, defaults ports, fills missing ids, dedups', () => {
+    const stacks = normalizeRemoteStacks(
       [
-        {
-          name: 'Cloud',
-          sshTarget: 'user@cloud',
-          stacks: [
-            { name: 'prod', composeDir: '~/sample-stack/docker' },
-            { name: 'bad', composeDir: 'relative' }, // dropped: invalid path
-            { id: 's_x', name: 'secondary', composeDir: '/srv/secondary', appServerPort: 70000 }
-          ]
-        },
-        { name: 'NoTarget', sshTarget: '-bad' }, // dropped: invalid target
+        { name: 'prod', composeDir: '~/sample-stack/docker' },
+        { name: 'bad', composeDir: 'relative' },
+        { id: 's_x', name: 'secondary', composeDir: '/srv/secondary', appServerPort: 70000 },
+        { id: 's_x', name: 'duplicate', composeDir: '/srv/dup' },
         'garbage'
       ],
       counterIds()
     )
 
-    expect(hosts).toHaveLength(1)
-    const host = hosts[0]
-    expect(host.id).toBe('h_1')
-    expect(host.sshTarget).toBe('user@cloud')
-    expect(host.stacks).toHaveLength(2)
-
-    const prod = host.stacks[0]
-    expect(prod.id).toBe('s_2') // generated
-    expect(prod.appServerPort).toBe(DEFAULT_APP_SERVER_PORT)
-    expect(prod.oratorioPort).toBe(DEFAULT_ORATORIO_PORT)
-    expect(prod.dashboardPort).toBe(DEFAULT_DASHBOARD_PORT)
-
-    const secondary = host.stacks[1]
-    expect(secondary.id).toBe('s_x') // preserved
-    expect(secondary.appServerPort).toBe(DEFAULT_APP_SERVER_PORT) // 70000 invalid → default
+    expect(stacks.map((s) => s.id)).toEqual(['s_1', 's_x'])
+    expect(stacks[0].appServerPort).toBe(DEFAULT_APP_SERVER_PORT)
+    expect(stacks[0].oratorioPort).toBe(DEFAULT_ORATORIO_PORT)
+    expect(stacks[0].dashboardPort).toBe(DEFAULT_DASHBOARD_PORT)
+    expect(stacks[1].appServerPort).toBe(DEFAULT_APP_SERVER_PORT)
   })
 
   it('returns [] for non-array input', () => {
-    expect(normalizeRemoteHosts(undefined)).toEqual([])
-    expect(normalizeRemoteHosts({})).toEqual([])
-  })
-})
-
-describe('ssh argv', () => {
-  it('uses BatchMode, bounded timeout, and -- before the target', () => {
-    const args = buildSshArgs({ id: 'h', name: 'C', sshTarget: 'user@cloud', stacks: [] }, 'echo hi')
-    expect(args).toContain('BatchMode=yes')
-    expect(args.join(' ')).toContain('ConnectTimeout=')
-    expect(args).not.toContain('-i')
-    expect(args).not.toContain('IdentitiesOnly=yes')
-    const dd = args.indexOf('--')
-    expect(dd).toBeGreaterThan(-1)
-    expect(args[dd + 1]).toBe('user@cloud') // target can never be read as an option
-    expect(args[dd + 2]).toBe('echo hi')
-  })
-
-  it('adds -i with IdentitiesOnly when an identity file is set', () => {
-    const args = buildSshArgs(
-      { id: 'h', name: 'C', sshTarget: 'cloud', identityFile: '~/.ssh/id_ed25519', stacks: [] },
-      'true'
-    )
-    expect(args).toContain('-i')
-    expect(args).toContain('~/.ssh/id_ed25519')
-    expect(args).toContain('IdentitiesOnly=yes')
+    expect(normalizeRemoteStacks(undefined, counterIds())).toEqual([])
+    expect(normalizeRemoteStacks({}, counterIds())).toEqual([])
   })
 })
 
@@ -193,14 +110,6 @@ describe('compose command builders', () => {
     expect(cmd).toContain('.craft/appserver.lock')
     expect(cmd).toContain('ps -a --format json')
     expect(cmd).toContain("~/'sample-stack/docker'")
-  })
-
-  it('core config read command only reads stack workspace and user config paths', () => {
-    const cmd = buildReadCoreConfigCommand({ ...stack, workspaceDir: '/srv/sample/workspace' })
-    expect(cmd).toContain('CONFIG_BEGIN')
-    expect(cmd).toContain("'/srv/sample/workspace/.craft/config.json'")
-    expect(cmd).toContain("~/'.craft/config.json'")
-    expect(cmd).toContain('base64')
   })
 
   it('reads only the Oratorio token from the stack environment', () => {
@@ -293,21 +202,7 @@ describe('parseStatusOutput', () => {
   })
 })
 
-describe('ssh test + update parsing', () => {
-  it('parses a reachable test with docker/compose detected', () => {
-    const r = parseSshTestOutput('SSH_OK\ndocker=ok\ncompose=ok', 38)
-    expect(r.reachable).toBe(true)
-    expect(r.dockerOk).toBe(true)
-    expect(r.composeOk).toBe(true)
-    expect(r.latencyMs).toBe(38)
-  })
-
-  it('parses an unreachable test', () => {
-    const r = parseSshTestOutput('ssh: connect to host cloud port 22: Connection timed out')
-    expect(r.reachable).toBe(false)
-    expect(r.errorCode).toBe('unreachable')
-  })
-
+describe('update parsing', () => {
   it('detects changed vs up-to-date updates', () => {
     expect(updateChangedFromOutput('Pulling dotcraft ... downloaded newer image', 'Recreating dotcraft')).toBe(true)
     expect(updateChangedFromOutput('dotcraft Pulled', 'Container dotcraft Running')).toBe(false)
@@ -375,25 +270,5 @@ describe('tunnel urls', () => {
     expect(buildTunnelWsUrl(51823)).toBe('ws://127.0.0.1:51823/ws')
     expect(buildTunnelWsUrl(51823, 'abc')).toBe('ws://127.0.0.1:51823/ws?token=abc')
     expect(buildDashboardUrl(52001)).toBe('http://127.0.0.1:52001/dashboard')
-  })
-})
-
-describe('redactSecrets', () => {
-  it('masks explicit secrets, secret-like assignments, and token query params', () => {
-    expect(redactSecrets('the token is fixture-explicit-value here', ['fixture-explicit-value'])).toBe(
-      `the token is ${REDACTION_MASK} here`
-    )
-    expect(redactSecrets('APPSERVER_TOKEN=fixture-appserver-token')).toBe(`APPSERVER_TOKEN=${REDACTION_MASK}`)
-    expect(redactSecrets('FEISHU_APP_SECRET: fixture-secret')).toBe(`FEISHU_APP_SECRET: ${REDACTION_MASK}`)
-    expect(redactSecrets('ws://127.0.0.1:9100/ws?token=fixture-query-token')).toBe(
-      `ws://127.0.0.1:9100/ws?token=${REDACTION_MASK}`
-    )
-  })
-
-  it('leaves ordinary text and short values untouched', () => {
-    expect(redactSecrets('Linked to this Desktop · Dashboard ready')).toBe(
-      'Linked to this Desktop · Dashboard ready'
-    )
-    expect(redactSecrets('docker=ok\ncompose=ok')).toBe('docker=ok\ncompose=ok')
   })
 })

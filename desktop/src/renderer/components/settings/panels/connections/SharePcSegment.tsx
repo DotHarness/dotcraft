@@ -7,7 +7,7 @@ import { useLocale, useT } from '../../../../contexts/LocaleContext'
 import type { SharePcStatus } from '../../../../../shared/satellites'
 import { formatDay } from '../satellites/satellitesFormat'
 import { SegmentSetupState } from './SegmentSetupState'
-import * as s from '../servers/serversStyles'
+import * as s from './connectionsStyles'
 
 interface SharePcSegmentProps {
   status: SharePcStatus | null
@@ -54,12 +54,12 @@ export function SharePcSegment({ status, onRefresh }: SharePcSegmentProps): JSX.
               <div
                 key={peer.peerId}
                 style={{
-                  ...s.serverRow,
+                  ...s.listRow,
                   cursor: 'default',
                   borderTop: index === 0 ? 'none' : '1px solid var(--border-default)'
                 }}
               >
-                <span style={s.serverRowIcon} aria-hidden>
+                <span style={s.listRowIcon} aria-hidden>
                   <MonitorSmartphone size={17} />
                 </span>
                 <span className="dc-share-row__text">
@@ -71,7 +71,7 @@ export function SharePcSegment({ status, onRefresh }: SharePcSegmentProps): JSX.
           })}
           <div
             style={{
-              ...s.serverRow,
+              ...s.listRow,
               cursor: 'default',
               padding: '11px 14px',
               borderTop: '1px solid var(--border-default)'

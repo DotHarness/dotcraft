@@ -1,6 +1,6 @@
 import type { JSX, ReactNode } from 'react'
 
-import { emptyBox } from '../servers/serversStyles'
+import { emptyBox } from './connectionsStyles'
 
 /** First-run state for a Connections segment whose backing capability is not set up yet. */
 export function SegmentSetupState({

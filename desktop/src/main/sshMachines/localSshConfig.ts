@@ -1,12 +1,37 @@
 import { readdir, readFile, stat } from 'fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'path'
 import { homedir } from 'os'
-import type {
-  LocalSshConfigInfo,
-  LocalSshHostAlias,
-  LocalSshIdentity,
-  LocalSshIdentitySource
-} from '../../shared/remoteServers'
+import {
+  buildSshResolveArgs,
+  formatResolvedHost,
+  isValidSshAlias,
+  parseSshResolveOutput,
+  type LocalSshIdentity,
+  type SshHostDiscovery,
+  type SshMachine
+} from '../../shared/sshMachines'
+import { firstLine, redactSecrets } from '../../shared/sshShell'
+import { runSshProcess, type SshRunOptions, type SshRunResult } from './sshExecutor'
+
+type LocalSshIdentitySource = LocalSshIdentity['source']
+
+export interface LocalSshHostAlias {
+  alias: string
+  hostName?: string
+  user?: string
+  port?: string
+  identityFiles: string[]
+}
+
+export interface LocalSshConfigInfo {
+  sshDir: string
+  configPath: string
+  configExists: boolean
+  agentAvailable: boolean
+  aliases: LocalSshHostAlias[]
+  identities: LocalSshIdentity[]
+  error?: string
+}
 
 const DEFAULT_IDENTITY_NAMES = [
   'id_ed25519',
@@ -251,5 +276,39 @@ export async function inspectLocalSshConfig(homeDir: string = homedir()): Promis
     aliases,
     identities,
     ...(error ? { error } : {})
+  }
+}
+
+export type SshProcessRunner = (args: string[], opts?: SshRunOptions) => Promise<SshRunResult>
+
+export async function discoverSshHosts(
+  machines: SshMachine[],
+  options: { homeDir?: string; run?: SshProcessRunner } = {}
+): Promise<SshHostDiscovery> {
+  const info = await inspectLocalSshConfig(options.homeDir ?? homedir())
+  const run = options.run ?? runSshProcess
+  const added = new Set(machines.filter((m) => m.source === 'sshConfig').map((m) => m.alias))
+  const hosts = await Promise.all(
+    info.aliases
+      .filter((entry) => isValidSshAlias(entry.alias))
+      .map(async (entry) => {
+        const res = await run(buildSshResolveArgs(entry.alias), { timeoutMs: 5_000 })
+        const resolved = res.code === 0 ? formatResolvedHost(parseSshResolveOutput(res.stdout)) : undefined
+        return {
+          alias: entry.alias,
+          added: added.has(entry.alias),
+          ...(resolved ? { resolvedHost: resolved } : {}),
+          ...(res.code !== 0 ? { error: redactSecrets(firstLine(res.stderr)) || 'ssh -G failed' } : {})
+        }
+      })
+  )
+  return {
+    sshDir: info.sshDir,
+    configPath: info.configPath,
+    configExists: info.configExists,
+    agentAvailable: info.agentAvailable,
+    hosts,
+    identities: info.identities,
+    ...(info.error ? { error: info.error } : {})
   }
 }

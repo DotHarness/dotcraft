@@ -4,7 +4,7 @@ import { SettingsPageHeader } from '../../SettingsPageHeader'
 import { SegmentedControl } from '../../ui/SegmentedControl'
 import { useT } from '../../../../contexts/LocaleContext'
 import type { MessageKey } from '../../../../../shared/locales'
-import { ServersPanel } from '../servers/ServersPanel'
+import { SshMachinesSegment } from '../ssh/SshMachinesSegment'
 import { SatellitesSegment } from './SatellitesSegment'
 import { SharePcSegment } from './SharePcSegment'
 import { useSharePcStatus } from './useSharePcStatus'
@@ -39,7 +39,7 @@ export function ConnectionsPanel({ workspace }: ConnectionsPanelProps): JSX.Elem
 
   // A second-level page takes the whole surface, so the segmented control yields to it.
   const active = segments.some(({ value }) => value === segment) ? segment : 'workspace'
-  const fullPage = subPageOpen && (active === 'ssh' || active === 'satellites')
+  const fullPage = subPageOpen && active === 'satellites'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -60,10 +60,10 @@ export function ConnectionsPanel({ workspace }: ConnectionsPanelProps): JSX.Elem
         </>
       )}
 
-      {active === 'workspace' && <WorkspaceSegment {...workspace} />}
+      {active === 'workspace' && <WorkspaceSegment {...workspace} onShowSsh={() => setSegment('ssh')} />}
       {active === 'satellites' && <SatellitesSegment onSubPageChange={setSubPageOpen} />}
       {active === 'share' && <SharePcSegment status={share.status} onRefresh={share.reload} />}
-      {active === 'ssh' && <ServersPanel embedded onSubPageChange={setSubPageOpen} />}
+      {active === 'ssh' && <SshMachinesSegment />}
     </div>
   )
 }

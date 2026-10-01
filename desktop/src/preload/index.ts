@@ -17,15 +17,23 @@ import {
   type ThemeVariant
 } from '../shared/themeSeed'
 import type {
-  RemoteHost,
   RemoteStack,
   RemoteStackStatus,
   RemoteStackAction,
-  SshTestResult,
   OperationResult,
-  LocalSshConfigInfo,
   DiscoveredStack
-} from '../shared/remoteServers'
+} from '../shared/dockerDeployments'
+import type {
+  RemoteFolderListing,
+  RemoteProject,
+  SshHostDiscovery,
+  SshMachine,
+  SshMachineAddEntry,
+  SshMachineEditPatch,
+  SshMachineStatus,
+  SshMachinesPayload,
+  SshMachineValidation
+} from '../shared/sshMachines'
 import { unwrapAppServerResult } from '../shared/appServerError'
 export type {
   AppServerErrorData,
@@ -1481,6 +1489,10 @@ const api = {
         hostId: string
         stackId: string
       }
+      activeRemoteProject?: {
+        machineId: string
+        projectId: string
+      }
       modulesDirectory?: string
       activeModuleVariants?: Record<string, string>
       theme?: 'system' | 'dark' | 'light'
@@ -1554,6 +1566,10 @@ const api = {
       activeRemoteStack?: {
         hostId: string
         stackId: string
+      }
+      activeRemoteProject?: {
+        machineId: string
+        projectId: string
       }
       modulesDirectory?: string
       activeModuleVariants?: Record<string, string>
@@ -1674,63 +1690,94 @@ const api = {
     }
   },
 
-  remoteServers: {
-    list(): Promise<RemoteHost[]> {
-      return ipcRenderer.invoke('remoteHosts:list')
+  sshMachines: {
+    list(): Promise<SshMachinesPayload> {
+      return ipcRenderer.invoke('sshMachines:list')
     },
-    sshConfig(): Promise<LocalSshConfigInfo> {
-      return ipcRenderer.invoke('remoteHosts:ssh-config')
+    discoverHosts(): Promise<SshHostDiscovery> {
+      return ipcRenderer.invoke('sshMachines:discover-hosts')
     },
-    create(input: {
-      name: string
-      sshTarget: string
-      identityFile?: string
-      stacks?: RemoteStack[]
-    }): Promise<RemoteHost> {
-      return ipcRenderer.invoke('remoteHosts:create', input)
+    add(
+      entries: SshMachineAddEntry[]
+    ): Promise<{ ok: true; value: SshMachine[] } | { ok: false; errors: SshMachineValidation }> {
+      return ipcRenderer.invoke('sshMachines:add', { entries })
     },
-    update(id: string, patch: Partial<Omit<RemoteHost, 'id'>>): Promise<RemoteHost> {
-      return ipcRenderer.invoke('remoteHosts:update', { id, patch })
+    edit(
+      id: string,
+      patch: SshMachineEditPatch
+    ): Promise<{ ok: true; value: SshMachine } | { ok: false; errors: SshMachineValidation }> {
+      return ipcRenderer.invoke('sshMachines:edit', { id, patch })
     },
     delete(id: string): Promise<{ ok: boolean }> {
-      return ipcRenderer.invoke('remoteHosts:delete', { id })
+      return ipcRenderer.invoke('sshMachines:delete', { id })
     },
-    test(input: {
-      id?: string
-      draft?: { name?: string; sshTarget?: string; identityFile?: string }
-    }): Promise<SshTestResult> {
-      return ipcRenderer.invoke('remoteHosts:test', input)
+    setAutoConnect(id: string, autoConnect: boolean): Promise<{ ok: boolean }> {
+      return ipcRenderer.invoke('sshMachines:set-auto-connect', { id, autoConnect })
     },
-    listStacks(hostId: string): Promise<RemoteStack[]> {
-      return ipcRenderer.invoke('remoteStacks:list', { hostId })
+    reconnect(id: string): Promise<SshMachineStatus> {
+      return ipcRenderer.invoke('sshMachines:reconnect', { id })
     },
-    discoverStacks(hostId: string): Promise<DiscoveredStack[]> {
-      return ipcRenderer.invoke('remoteStacks:discover', { hostId })
+    installDotCraft(id: string): Promise<SshMachineStatus> {
+      return ipcRenderer.invoke('sshMachines:install', { id })
     },
-    status(hostId: string, stackId: string): Promise<RemoteStackStatus> {
-      return ipcRenderer.invoke('remoteStacks:status', { hostId, stackId })
+    updateDotCraft(id: string): Promise<SshMachineStatus> {
+      return ipcRenderer.invoke('sshMachines:update-dotcraft', { id })
     },
-    logs(
-      hostId: string,
-      stackId: string,
-      options?: { service?: string; tail?: number }
-    ): Promise<{ text: string; service?: string; tail: number }> {
-      return ipcRenderer.invoke('remoteStacks:logs', { hostId, stackId, ...options })
+    recheckModel(id: string): Promise<SshMachineStatus> {
+      return ipcRenderer.invoke('sshMachines:recheck-model', { id })
     },
-    action(hostId: string, stackId: string, action: RemoteStackAction): Promise<OperationResult> {
-      return ipcRenderer.invoke('remoteStacks:action', { hostId, stackId, action })
+    listFolders(id: string, path?: string): Promise<RemoteFolderListing> {
+      return ipcRenderer.invoke('sshMachines:list-folders', { id, path })
     },
-    openInDesktop(
-      hostId: string,
-      stackId: string
-    ): Promise<{ ok: boolean; hostId: string; stackId: string; localPort: number }> {
-      return ipcRenderer.invoke('remoteStacks:open-app-server-tunnel', { hostId, stackId })
+    addProject(id: string, path: string): Promise<RemoteProject> {
+      return ipcRenderer.invoke('sshMachines:add-project', { id, path })
     },
-    openDashboard(hostId: string, stackId: string): Promise<{ ok: boolean; localPort: number }> {
-      return ipcRenderer.invoke('remoteStacks:open-dashboard-tunnel', { hostId, stackId })
+    removeProject(id: string, projectId: string): Promise<{ ok: boolean }> {
+      return ipcRenderer.invoke('sshMachines:remove-project', { id, projectId })
     },
-    disconnect(hostId: string, stackId: string): Promise<{ ok: boolean }> {
-      return ipcRenderer.invoke('remoteStacks:disconnect', { hostId, stackId })
+    openProject(id: string, projectId: string): Promise<{ ok: boolean }> {
+      return ipcRenderer.invoke('sshMachines:open-project', { id, projectId })
+    },
+    onChanged(callback: (payload: SshMachinesPayload) => void): UnsubscribeFn {
+      const wrapped = (_event: Electron.IpcRendererEvent, payload: SshMachinesPayload): void => callback(payload)
+      ipcRenderer.on('sshMachines:changed', wrapped)
+      return () => ipcRenderer.removeListener('sshMachines:changed', wrapped)
+    },
+    docker: {
+      discover(id: string): Promise<DiscoveredStack[]> {
+        return ipcRenderer.invoke('sshMachines:docker-discover', { id })
+      },
+      save(id: string, stack: Partial<RemoteStack> & Pick<RemoteStack, 'name' | 'composeDir'>): Promise<RemoteStack> {
+        return ipcRenderer.invoke('sshMachines:docker-save', { id, stack })
+      },
+      remove(id: string, stackId: string): Promise<{ ok: boolean }> {
+        return ipcRenderer.invoke('sshMachines:docker-remove', { id, stackId })
+      },
+      status(id: string, stackId: string): Promise<RemoteStackStatus> {
+        return ipcRenderer.invoke('sshMachines:docker-status', { id, stackId })
+      },
+      logs(
+        id: string,
+        stackId: string,
+        options?: { service?: string; tail?: number }
+      ): Promise<{ text: string; service?: string; tail: number }> {
+        return ipcRenderer.invoke('sshMachines:docker-logs', { id, stackId, ...options })
+      },
+      action(id: string, stackId: string, action: RemoteStackAction): Promise<OperationResult> {
+        return ipcRenderer.invoke('sshMachines:docker-action', { id, stackId, action })
+      },
+      open(
+        id: string,
+        stackId: string
+      ): Promise<{ ok: boolean; machineId: string; stackId: string; localPort: number }> {
+        return ipcRenderer.invoke('sshMachines:docker-open', { id, stackId })
+      },
+      openDashboard(id: string, stackId: string): Promise<{ ok: boolean; localPort: number }> {
+        return ipcRenderer.invoke('sshMachines:docker-dashboard', { id, stackId })
+      },
+      disconnect(id: string, stackId: string): Promise<{ ok: boolean }> {
+        return ipcRenderer.invoke('sshMachines:docker-disconnect', { id, stackId })
+      }
     }
   },
 

@@ -1,259 +1,225 @@
-# DotCraft Remote Server Management Specification
+# DotCraft Remote Machines over SSH Specification
 
 | Field | Value |
 |-------|-------|
 | **Version** | 0.7.8 |
 | **Status** | Draft |
-| **Date** | 2026-09-28 |
-| **Related Specs** | [Desktop DESIGN.md](../architecture/DESIGN.md), [Hub Architecture](../architecture/hub-architecture.md) |
+| **Date** | 2026-10-01 |
+| **Related Specs** | [Desktop Client](../clients/desktop-client.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Hub Architecture](../architecture/hub-architecture.md), [Default Chat Workspace](default-chat-workspace.md) |
 
-Purpose: Define a Desktop-owned visual manager for remote DotCraft Docker stacks over SSH. Desktop manages multiple servers, and multiple DotCraft Compose stacks per server, using the system `ssh` client and a fixed allow-list of `docker compose` operations. It connects Desktop to the remote AppServer, Oratorio, and Dashboard through local SSH tunnels without changing AppServer Protocol or Hub Protocol.
+Purpose: Define how DotCraft Desktop uses machines reached over SSH. One SSH connection is one machine. Desktop installs and updates DotCraft on the machine, runs that machine's Hub, and opens folders on it as remote projects through the existing remote AppServer connection, using only the system `ssh` client. Docker deployments of DotCraft found on a machine remain manageable as a subordinate part of that machine. No AppServer Protocol or Hub Protocol method is added.
 
 ## 1. Scope
 
 ### 1.1 What This Spec Defines
 
-- A new Desktop **Servers** surface for managing remote DotCraft deployments.
-- The settings schema for saved servers (hosts) and their stacks.
-- The Desktop main-process API contract for remote host and stack management.
-- The SSH execution and command-building model, including allow-listing and secret redaction.
-- The DotCraft-specific Compose operations: status, logs, start/stop/restart, and one-click update.
-- The tunnel-first connection model that bridges a remote stack into the existing Desktop remote AppServer and Oratorio flows.
-- The UX workflow contract for the Servers surface (the visual contract is governed by [Desktop DESIGN.md](../architecture/DESIGN.md)).
+- The machine model, its settings schema, and what happens to earlier saved servers.
+- Connecting a machine: probing, installing or updating DotCraft, starting the remote Hub, and forwarding to it.
+- Machine statuses and the action each offers.
+- Remote projects: choosing a folder on a machine, persisting it, and opening it as the foreground project.
+- How Desktop decides that a machine has a usable model.
+- Docker deployments of DotCraft on a machine.
+- SSH execution, forwarding, and secret handling.
+- The UX workflow of the SSH segment of Connections settings; the visual contract belongs to [Desktop DESIGN.md](../architecture/DESIGN.md).
 
 ### 1.2 What This Spec Does Not Define
 
-- A generic Docker UI or machine-operations panel. This feature only manages deployments that follow the DotCraft `docker` layout.
-- Arbitrary remote shell execution. The renderer can never submit free-form commands; only fixed, parameterized operations run remotely.
-- Changes to AppServer Protocol or Hub Protocol. Remote stacks are reached through the existing `ws://` remote-connection path.
-- Auto-update, scheduled update, or agent-based pull deployment. The first version supports manual one-click update only.
-- SSH password prompts or storage of private keys / passphrases. The first version is key/agent based only.
+- Windows machines and Linux on ARM. They are detected and reported as not supported yet (§5.2).
+- Password or passphrase prompts, or storage of private keys. Authentication is the SSH agent, default keys, `~/.ssh/config`, or an identity file path.
+- Uninstalling DotCraft or stopping work on a machine. Desktop never removes anything from a machine.
+- Arbitrary remote shell execution. The renderer selects fixed operations and supplies validated data only.
+- Background secondary connections to remote projects. A remote project is connected only while it is the foreground project.
+- A generic Docker UI.
 
 ## 2. Design Principles
 
-1. **DotCraft-shaped, not Docker-generic.** Every operation assumes the `docker` Compose layout from the deployment docs: a `dotcraft` service, a mounted `./workspace`, a rendered `.env`, and a generated `workspace/.craft/appserver.token`.
-2. **SSH-first.** Use the system `ssh` executable rather than bundling an SSH library, so the feature inherits `~/.ssh/config`, `ProxyJump`, `ssh-agent`, hardware keys, and editor-style host aliases for free.
-3. **Fixed allow-list.** Remote commands are a closed set of parameterized operations. The renderer chooses an operation and a target stack; it never supplies a command string.
-4. **No protocol changes.** Expose the remote AppServer through the authenticated SSH tunnel. Tunnels make a remote endpoint look like a local `127.0.0.1` endpoint to the existing probe/connect path.
-5. **Tunnel-first access.** AppServer and Dashboard are reached only through local SSH tunnels. The feature does not require the remote `9100`/`8080` ports to be publicly exposed.
-6. **Redaction by construction.** The AppServer token and any secret-bearing values are redacted from logs, errors, settings views, and operation history at the boundary, not best-effort after the fact.
-7. **Neutral, calm operational UI.** The surface follows the neutral-first design posture; semantic color is reserved for state and risk.
+1. **One connection, one machine.** A machine is the unit the user turns on, settles, and deletes. Projects and Docker deployments belong to a machine.
+2. **The machine runs its own DotCraft.** A remote project is served by the machine's own Hub and AppServer, so work continues when Desktop disconnects.
+3. **System `ssh` only.** Desktop inherits `~/.ssh/config`, `ProxyJump`, agents, and hardware keys from the user's SSH client and bundles no SSH library.
+4. **Loopback on both ends.** Every remote service binds loopback on the machine and is reached through an SSH local forward that binds loopback on this PC.
+5. **Nothing secret is stored.** Hub and AppServer tokens are read live over SSH and held in Desktop main-process memory for the session only.
+6. **Reuse the remote project path.** A remote project opens through the same remote AppServer connection, identity, and capability rules as any other remote workspace.
 
 ## 3. Architecture
 
 ```text
-DotCraft Desktop
-  -> system ssh / ssh config / ssh-agent
-  -> remote docker directory
-  -> docker compose status/logs/pull/up/restart
-  -> local SSH tunnels for AppServer, Oratorio, and Dashboard
-  -> existing Desktop remote AppServer connection flow
+DotCraft Desktop (main process)
+  -> system ssh: probe, install/update, start Hub, read hub.lock, list folders
+  -> ssh -N -L 127.0.0.1:<a> -> machine 127.0.0.1:<hub port>
+       -> Hub Local API: /v1/status, /v1/appservers/ensure, /v1/events
+  -> ssh -N -L 127.0.0.1:<b> -> machine 127.0.0.1:<appserver port>
+       -> remote AppServer WebSocket (foreground remote project)
+
+Machine
+  ~/.craft/bin/dotcraft            installed by install.sh
+  dotcraft hub                     detached, loopback, one per user
+    -> dotcraft app-server         one per remote project path
 ```
 
-- All remote work is performed by the Desktop **main process**, never the renderer. The renderer issues high-level requests over IPC and renders returned state.
-- The main process spawns the system `ssh` binary for command execution and for tunnel (`-L` local port-forward) lifecycle.
-- "Open in Desktop" reads the remote `workspace/.craft/appserver.token`, opens a local AppServer tunnel, then drives the existing remote-connection apply path with a `ws://127.0.0.1:<localPort>/ws` URL and the token. Desktop's connection state machine and capabilities flow are unchanged.
-- The native Oratorio surfaces use a separate authenticated tunnel to the stack's Oratorio service. The service token is read at connection time and remains in Desktop Main memory.
-- "Open Dashboard" opens a separate Dashboard tunnel and points the browser surface at `http://127.0.0.1:<localPort>/dashboard`.
+All SSH work runs in the Desktop main process. The renderer receives token-free, redacted state over IPC. The remote Hub contract, including the remote client mode, is defined in [Hub Architecture §9.1](../architecture/hub-architecture.md#91-remote-hub-over-ssh).
 
-## 4. Domain Model and Settings Schema
+## 4. Domain Model and Settings
 
-Two levels: a **Host** is an SSH target; a **Stack** is one DotCraft Compose deployment on that host. One host has many stacks.
-
-Saved servers live in Desktop client settings (not workspace config), because they describe this machine's view of remote deployments.
+Machines are client settings stored in `AppSettings.remoteHosts`, because they describe this PC's view of other machines.
 
 ```jsonc
-// AppSettings.remoteHosts: RemoteHost[]
+// AppSettings.remoteHosts: Machine[]
 {
-  "id": "h_01J...",            // stable client-generated id
-  "name": "Example Remote",    // display name
-  "sshTarget": "user@cloud",   // user@host, host, or ~/.ssh/config alias
-  "identityFile": "~/.ssh/id_ed25519", // optional; key/agent only
-  "stacks": [
-    {
-      "id": "s_01J...",
-      "name": "prod",
-      "composeDir": "~/dotcraft/docker", // dir containing compose file + .env
-      "workspaceDir": "~/dotcraft/docker/workspace", // optional; defaults to <composeDir>/workspace
-      "appServerWorkspacePath": "/workspace", // optional; path seen by AppServer inside the stack
-      "composeProjectName": "dotcraft", // optional technical identifier; docker compose -p
-      "appServerPort": 9100,        // remote AppServer port inside the stack
-      "oratorioPort": 5087,         // remote Oratorio API port
-      "dashboardPort": 8080,        // remote Dashboard port
-    }
-  ]
+  "id": "m_01J...",
+  "name": "build-box",
+  "source": "sshConfig",             // "sshConfig" | "manual"
+  "alias": "build-box",              // sshConfig only
+  "hostname": "dev@10.0.0.12",       // manual only: host or user@host
+  "port": 2222,                      // manual only, optional, 1-65535
+  "identityFile": "~/.ssh/id_lab",   // manual only, optional; absent = SSH agent/default
+  "autoConnect": true,
+  "projects": [
+    { "id": "p_01J...", "path": "/home/dev/src/dotcraft", "label": "dotcraft" }
+  ],
+  "stacks": []                       // Docker deployment records, §8
 }
 ```
 
-Normalization rules:
+- `id` values are generated by the main process.
+- `name` is required and unique among machines, compared case-insensitively. A machine added from SSH config defaults its name to the alias.
+- An `sshConfig` machine stores only its alias. Its user, hostname, port, identity, and jump hosts are resolved by `ssh -G <alias>` on every refresh and are never copied into settings. A machine whose alias no longer resolves reports Connection failed.
+- A `manual` machine's `hostname` is `host` or `user@host` and must not contain whitespace or shell metacharacters. `identityFile` is a local path validated as a path, never as command text.
+- `autoConnect` is the row switch: the machine is connected at Desktop startup and kept connected while it is on.
+- `projects[].path` is an absolute POSIX path on the machine. `(machine id, path)` is unique. `label` defaults to the folder's base name.
+- Unknown fields are dropped on read. No token is ever stored.
+- Existing entries that carry `sshTarget` are read as manual machines with `hostname` set to that target and their `identityFile` and `stacks` kept, `autoConnect` off, and no projects; a target that was an SSH config alias keeps working because `ssh` resolves it.
 
-- `id` values are generated by the main process; renderer-supplied ids on create are ignored.
-- `sshTarget` is trimmed; empty target is invalid. A target containing whitespace or shell metacharacters that are not valid in an alias / `user@host` is rejected.
-- `composeDir`, `workspaceDir`, and `appServerWorkspacePath` are validated as absolute or `~`-relative POSIX paths. `..` traversal that escapes the configured directory is rejected at the command-building layer.
-- `workspaceDir` is the host-side mounted data directory used for token reads, status checks, and deployment management. `appServerWorkspacePath` is the workspace path as seen by the remote AppServer when evaluating AppServer Protocol identities; Docker Compose stacks default it to `/workspace`.
-- `name` is the user-defined display name shown by Desktop. `composeProjectName` is a separate optional Docker Compose identifier used only for `docker compose -p`; when omitted, Compose derives the project from the deployment directory and its own configuration.
-- `composeProjectName` accepts Docker Compose project identifiers only: lowercase letters, digits, hyphens, and underscores, beginning with a letter or digit.
-- `appServerPort` / `oratorioPort` / `dashboardPort` default to `9100` / `5087` / `8080` and must be valid TCP ports.
-- Unknown fields are dropped on read; missing optional fields fall back to documented defaults.
-- The AppServer token is **never** stored in settings. It is read live over SSH at connection time.
+## 5. Machine Lifecycle
 
-## 5. Main-Process API Contract
+### 5.1 Connect
 
-Exposed to the renderer via the existing preload bridge (`window.api.*`) and handled in the main IPC layer. All methods are async and return redacted, serializable results. All operations target a saved `hostId` (+ `stackId` where applicable); none accept a command string.
+Turning the switch on, Reconnect, Desktop startup with `autoConnect`, or opening one of the machine's projects connects the machine. Opening a project does not change the switch. Connecting runs these steps and stops at the first status other than Connected:
 
-### 5.1 Host management
+1. **Probe.** One SSH round trip reports `uname -s`, `uname -m`, the OS name and version (`/etc/os-release` on Linux, `sw_vers` on macOS), the output of `~/.craft/bin/dotcraft --version`, and whether `docker` is present. Desktop always uses the absolute binary path, because the installer does not edit `PATH`.
+2. **Support check.** Unsupported systems stop here (§5.2).
+3. **Version check.** A missing binary reports DotCraft not installed. A version older than the minimum this Desktop supports reports Update required. The minimum is this Desktop's own release version; a newer remote version is accepted.
+4. **Hub.** Desktop reads `~/.craft/hub/hub.lock`. When it is absent, or the Hub it names does not answer, Desktop starts the Hub (§5.4) and reads the lock again.
+5. **Forward.** Desktop opens an SSH local forward to the Hub port from the lock's `apiBaseUrl` and waits for `GET /v1/status` through it.
+6. **Model check.** Desktop checks for a usable model (§7).
 
-| Method | Input | Result |
-|--------|-------|--------|
-| `remoteHosts.list` | — | `RemoteHost[]` (token-free) |
-| `remoteHosts.create` | `{ name, sshTarget, identityFile? }` | created `RemoteHost` |
-| `remoteHosts.update` | `{ id, patch }` | updated `RemoteHost` |
-| `remoteHosts.delete` | `{ id }` | `{ ok }` (also tears down any tunnels for its stacks) |
-| `remoteHosts.test` | `{ id }` or draft | `SshTestResult { reachable, latencyMs?, dockerOk?, composeOk?, errorCode?, message }` |
+While the switch is on, a dropped forward or SSH failure returns the machine to Connecting… and Desktop retries with backoff; when the retry budget is spent it reports Connection failed.
 
-`remoteHosts.test` validates SSH reachability and, on success, probes for `docker` and `docker compose`. It may optionally return **discovered stacks** (candidate `docker` directories) to support the add-server discovery step (§9.5).
+### 5.2 Statuses
 
-### 5.2 Stack management
+Each machine has exactly one status. The row shows it as `Label · message`; hue appears only in the status dot.
 
-| Method | Input | Result |
-|--------|-------|--------|
-| `remoteStacks.list` | `{ hostId }` | `Stack[]` |
-| `remoteStacks.status` | `{ hostId, stackId }` | `StackStatus` (see §6.1) |
-| `remoteStacks.logs` | `{ hostId, stackId, service?, tail? }` | bounded, redacted log text + cursor |
-| `remoteStacks.action` | `{ hostId, stackId, action }` where `action ∈ { start, stop, restart, update }` | `OperationResult` |
-| `remoteStacks.openAppServerTunnel` | `{ hostId, stackId }` | `{ localUrl, localPort, token }` (token used immediately by the connect path; never persisted) |
-| `remoteStacks.openOratorioTunnel` | `{ hostId, stackId }` | `{ localUrl, localPort, token }` (Main-process use only; never returned to Renderer) |
-| `remoteStacks.openDashboardTunnel` | `{ hostId, stackId }` | `{ localUrl, localPort }` |
+| Status | Message | Inline action |
+|--------|---------|---------------|
+| Not connected | none | none |
+| Connecting… | none | none |
+| Connected | `DotCraft <version> · <OS name and version>`, plus the project count when there are projects | none |
+| DotCraft not installed | none | Install |
+| Installing DotCraft… | none | none |
+| Update required | the installed version | Update |
+| Set up a model | none | Set up |
+| Connection failed | the first line of `ssh` stderr, or a short reason for a non-SSH failure | Reconnect |
+| Not supported yet | see below | none; the switch is disabled |
 
-`update` is the only compound operation and always follows the ordered flow in §6.3. Stack add/edit/remove are persisted through `remoteHosts.update` (a stack is a member of its host record).
+Support is decided from the probe:
 
-### 5.3 Events
+- **Windows**: `uname -s` reports `Windows_NT`, `MINGW*`, `MSYS*`, or `CYGWIN*`, or `uname` fails with output that identifies a Windows command shell or PowerShell. Message: "Windows machines aren't supported yet. Connect a Linux or macOS machine."
+- **Linux on ARM**: `uname -s` is `Linux` and `uname -m` is `aarch64`, `arm64`, or `arm*`. Message: "Linux on ARM isn't supported yet."
+- Any other system the installer does not support is also Not supported yet, with a message naming the reported system.
+- Supported systems are Linux x64 and macOS x64 or arm64.
 
-The main process may push progress for long operations (update, logs streaming, tunnel lifecycle) over the existing notification channel, keyed by `hostId`/`stackId`/`operationId`, so the renderer can render live step and log state. All pushed payloads are redacted.
+A machine that is Not supported yet keeps its switch off and is never connected automatically.
 
-## 6. Compose Operations
+### 5.3 Install and Update
 
-All operations run in the stack's `composeDir` and use the stack's `composeProjectName` when set. Output is bounded and redacted before it leaves the main process. The display `name` is never passed to Docker Compose.
+- Install and Update run the `install.sh` that ships with this Desktop, streamed to `bash -s` over SSH, with `DOTCRAFT_VERSION` set to this Desktop's release tag. Development builds without a published release install `latest`. The installer writes to `~/.craft/bin`.
+- The probe also reports `bash`, `curl`, and `tar`. When one is missing, Install and Update fail before any download with Connection failed naming the missing tool.
+- Update stops the machine's running Hub through `POST /v1/shutdown` before replacing the binary, which stops that machine's AppServers and their running turns. Update therefore asks for confirmation first.
+- After a successful install or update, Desktop continues the connect flow from step 4.
 
-### 6.1 Status
+### 5.4 Remote Hub
 
-`remoteStacks.status` verifies, in one bounded SSH round-trip where possible:
+- Desktop starts `~/.craft/bin/dotcraft hub` detached from the SSH session (`setsid` when available, otherwise `nohup`), with stdin from `/dev/null` and output appended to `~/.craft/hub/hub.out`.
+- The Hub self-hosts on the machine: a random loopback port, its own bearer token, and the lock `~/.craft/hub/hub.lock` carrying `{ pid, apiBaseUrl, token, startedAt, version, binaryPath }`. A second start while a Hub holds the lock exits without effect, so concurrent starts from several clients are safe.
+- Desktop waits a bounded time for a readable lock with a Hub that answers `/v1/status`. On timeout it reports Connection failed with the last line of `hub.out`.
+- Turning the switch off closes this machine's forwards and connections only. The remote Hub, its AppServers, and their running turns keep running.
 
-- `docker` and `docker compose` are available;
-- the `composeDir`, the compose file, and `.env` exist;
-- `workspace/.craft/config.json` exists and `workspace/.craft/appserver.token` is present (presence only — never the value);
-- `workspace/.craft/appserver.lock` is read when present to extract the DotCraft AppServer runtime version only;
-- container/service state from `docker compose ps`;
-- current image tag and digest from the running containers / image labels.
+### 5.5 Delete
 
-`StackStatus` summarizes into a coherent health state:
+Delete asks for confirmation, closes the machine's forwards and connections, and removes the machine, its remote projects, and its Docker deployment records from this PC. It does not uninstall DotCraft, stop the Hub, or change any file on the machine.
 
-| Health | Meaning |
-|--------|---------|
-| `running` | All expected services up. |
-| `partial` | Some but not all expected services up (e.g. `1/2`). |
-| `stopped` | No services running, no crash. |
-| `unhealthy` | A service is restarting / exited non-zero / failing healthcheck. |
-| `unknown` | Status could not be determined (SSH or Docker error). |
+## 6. Remote Projects
 
-Status also reports `composeOk`, `envOk`, `configOk`, `tokenPresent`, optional `appVersion`, `imageTag`, `imageDigestShort`, and a list of services with per-service state. `appVersion` is the only value intended for user-facing version display. Mutable image tags such as `latest` are diagnostics and must not be presented as the running DotCraft version.
+### 6.1 Add
 
-### 6.2 Logs
+- "Add remote project" chooses a connected machine and browses its folders, starting at the remote home directory with a breadcrumb back to home. Listings contain directories only and exclude hidden directories.
+- "Use this folder" adds the folder as a remote project. A folder already saved for that machine cannot be added again.
+- When the folder has no `.craft/` directory, Desktop creates it over SSH so the Hub accepts it as a workspace. Model selection then comes from the machine's personal configuration (§7).
+- Browsing and folder creation are fixed operations taking a validated absolute path; `~` is resolved on the machine before a path is stored.
 
-`remoteStacks.logs` streams bounded `docker compose logs --tail <N> --no-color` for the stack or a single service. Output is redacted (token and known secret patterns) before render. The renderer requests a `tail` size and an optional `service` filter; it does not follow logs indefinitely without a bound.
+### 6.2 Open
 
-### 6.3 Lifecycle and Update
+- Remote projects appear in the sidebar Projects section like local projects, with remote identity and remote treatment, including when their machine is not connected.
+- Opening a remote project connects its machine if needed (§5.1), calls `POST /v1/appservers/ensure` on the remote Hub with the project's absolute path, takes `endpoints.appServerWebSocket` (`ws://127.0.0.1:<port>/ws?token=...`), forwards that port, and connects to the forwarded endpoint through the remote-mode test-and-connect path. The project then follows the remote workspace rules of the Desktop client: foreground only, remote identity, no local filesystem actions, and no remote AppServer restart.
+- Remote AppServer ports can change when the remote AppServer restarts. Desktop follows `appserver.running` and `port.allocated` events for the project path on the remote Hub's `/v1/events` stream, or calls `ensure` again on reconnect, and replaces the forward before reconnecting.
+- Making another project foreground closes the remote AppServer connection and its forward; the machine's Hub forward stays open while the machine is connected.
+- Removing a remote project forgets it on this PC only.
 
-- `start` / `stop` / `restart` use Compose service/stack lifecycle commands for the stack (respecting profile).
-- `update` runs a fixed ordered flow and reports each step:
-  1. **Backup** — create a small timestamped copy of `.env` and `workspace/.craft/` metadata (config + channel json + token presence marker), under a backup directory beside the stack. Backups never include rendered secrets in plaintext logs.
-  2. **Pull** — `docker compose pull` to fetch updated service images.
-  3. **Up** — `docker compose up -d --remove-orphans` to recreate changed containers. Per Docker's documented behavior, `pull` fetches images and `up -d` recreates only changed containers while preserving mounted volumes (so `./workspace` and `.craft/` survive). See [compose pull](https://docs.docker.com/reference/cli/docker/compose/pull/) and [compose up](https://docs.docker.com/reference/cli/docker/compose/up/).
-  4. **Refresh** — re-run status and report the result (`recreated` / `already up to date`).
-- The update reports whether anything actually changed, derived from the pull/up output, rather than claiming an update when images were already current.
+## 7. Model Readiness
 
-## 7. SSH Execution and Security
+- A machine has a usable model when its effective provider selection resolves to a provider listed by `provider/list` whose credential is available: an API key, a signed-in subscription, or an authenticated service-managed provider.
+- Desktop evaluates this through an AppServer on the machine: the foreground remote project's AppServer when one belongs to the machine, otherwise the AppServer for the machine's default Chat workspace `~/.craft/workspaces/chats`, which Desktop initializes over SSH and ensures through the remote Hub. That management connection is not shown in the sidebar, carries no threads, and closes once readiness is known.
+- When no usable model exists the machine reports Set up a model. Set up opens the model provider settings connected to that machine's AppServer. Providers are personal configuration on the machine, so a provider set up once serves every remote project there. Desktop rechecks readiness when that surface closes.
 
-- The main process invokes the system `ssh` binary. Arguments (target, identity file, remote command) are passed as an argument vector — never assembled into a shell string on the local side.
-- The remote command is built from the fixed operation template plus validated, individually-quoted parameters (paths, ports, service names, tail counts). Renderer input is treated as data, never as command syntax.
-- Path parameters are validated (absolute or `~`-relative POSIX, no escaping traversal) before quoting.
-- First version is **key/agent only**: no interactive password prompt, no passphrase capture, no private key storage. `BatchMode`-style non-interactive behavior is used so a missing key fails fast instead of hanging on a prompt.
-- A bounded timeout applies to every remote operation; a hung SSH process is terminated and surfaced as a timed-out operation.
-- **Redaction** is applied centrally before any SSH stdout/stderr, error, settings snapshot, or operation-history entry is returned to the renderer or written to disk: the AppServer token value and recognized secret env values (e.g. `*_TOKEN`, `*_SECRET`, `*_KEY`, `*_AES_KEY` from `.env`) are replaced with a masked marker. Token presence is reported as a boolean, never as the value.
+## 8. Docker Deployments
 
-## 8. Tunnel and Connection Model
+Docker deployments of DotCraft on a machine are the former stack management, unchanged in behaviour and subordinate to the machine.
 
-- AppServer tunnel: a local `ssh -L <localPort>:127.0.0.1:<appServerPort> <sshTarget>` forward. The chosen local port is ephemeral and bound to `127.0.0.1` only.
-- At connect time the main process reads `workspace/.craft/appserver.token` over SSH, opens the AppServer tunnel, and drives the existing remote apply path with `ws://127.0.0.1:<localPort>/ws` + token. Connection initialization and capabilities follow the AppServer contract.
-- AppServer Protocol requests that carry a workspace identity must use the AppServer-visible workspace path (`appServerWorkspacePath`, default `/workspace`) rather than the host-side `workspaceDir`. UI and deployment operations may still display and use the host-side `workspaceDir`.
-- Dashboard tunnel: a separate `-L` forward; "Open Dashboard" points the browser surface at `http://127.0.0.1:<localPort>/dashboard`.
-- Oratorio tunnel: a separate `-L` forward to `oratorioPort`. Desktop Main reads `ORATORIO_SERVICE_TOKEN` from the stack `.env`, injects it into HTTP and WebSocket requests, and exposes only typed Oratorio IPC to Renderer.
-- Switching local/remote service context closes the old Oratorio stream before opening the next one. Events from a prior context are ignored.
-- Tunnels are owned by the main process and torn down on disconnect, on host/stack deletion, on workspace switch, and on app quit. A stale tunnel must never outlive its connection.
-- Remote AppServer lifecycle is **not** owned by Desktop. Consistent with remote-mode rules, Desktop must not offer remote AppServer restart; container lifecycle (start/stop/restart of the stack) is a deployment action, distinct from AppServer process restart.
+- When the probe finds `docker`, Desktop discovers Compose-managed DotCraft containers from their labels. The "DotCraft in Docker" section appears in the machine settings only when at least one deployment is found or recorded.
+- Each deployment shows status, DotCraft version, and port, with Open, Logs, Start/Stop, Restart, Update, and Dashboard.
+- Deployment records live in the machine's `stacks` with their existing fields: `id`, `name`, `composeDir`, optional `workspaceDir` (default `<composeDir>/workspace`), optional `appServerWorkspacePath` (default `/workspace`), optional `composeProjectName`, and `appServerPort` / `oratorioPort` / `dashboardPort` (default `9100` / `5087` / `8080`).
+- **Status** checks Docker and Compose availability, the compose file, `.env`, `workspace/.craft/config.json`, token presence (never its value), service state from `docker compose ps`, and the DotCraft version from `workspace/.craft/appserver.lock`. Health is `running`, `partial`, `stopped`, `unhealthy`, or `unknown`. Only the DotCraft version is presented as a version; mutable image tags such as `latest` are not.
+- **Logs** are a bounded `docker compose logs --tail <N> --no-color`, optionally for one service, redacted before display.
+- **Start / Stop / Restart** are Compose lifecycle commands for the deployment. Stop asks for confirmation.
+- **Update** backs up `.env` and `workspace/.craft/` metadata beside the deployment, runs `docker compose pull` then `docker compose up -d --remove-orphans`, refreshes status, and reports whether anything changed.
+- **Open** reads `workspace/.craft/appserver.token` over SSH, forwards `appServerPort`, and connects through the remote-mode test-and-connect path. AppServer Protocol workspace identities use `appServerWorkspacePath`, not the host-side `workspaceDir`.
+- **Dashboard** forwards `dashboardPort` and opens `http://127.0.0.1:<localPort>/dashboard` in the browser surface.
+- Oratorio surfaces use a separate forward to `oratorioPort`; Desktop Main reads `ORATORIO_SERVICE_TOKEN` from the deployment's `.env`, injects it into requests, and exposes only typed Oratorio IPC to the renderer.
+- `composeProjectName` is used only for `docker compose -p`; the display `name` is never passed to Docker.
 
-## 9. Desktop Servers Surface (UX Contract)
+## 9. SSH Execution and Security
 
-The visual contract is governed by [Desktop DESIGN.md](../architecture/DESIGN.md). This section defines the workflow contract; it does not freeze geometry.
+- Every remote operation spawns the system `ssh` with an argument vector, `BatchMode=yes`, a connect timeout, and `StrictHostKeyChecking=accept-new`. Host key policy is the user's SSH policy plus accept-new; Desktop does not weaken it.
+- A `manual` machine adds `-p <port>` when set and `-i <identityFile>` with `IdentitiesOnly=yes` when set. An `sshConfig` machine passes only its alias.
+- Remote commands are POSIX `sh` built from a fixed allow-list of templates with individually quoted, validated parameters. The installer is the one script run under `bash`.
+- Every remote operation has a wall-clock timeout; a hung `ssh` is killed and reported as Connection failed.
+- Forwards use `ssh -N -L 127.0.0.1:<local>:127.0.0.1:<remote>` with `ExitOnForwardFailure=yes`. Nothing is exposed on a non-loopback interface of either this PC or the machine. Desktop never enables the remote Hub's satellite listener.
+- The remote Hub bearer, AppServer tokens, and Docker deployment secrets stay in Desktop main-process memory for the session. They are never persisted, never sent to the renderer, and are redacted from logs, errors, and operation history: token values and `.env` values for keys matching `*_TOKEN`, `*_SECRET`, `*_KEY`, and `*_AES_KEY` become a masked marker.
+- All forwards close on switch off, Delete, foreground change away from their project, and app quit. A forward never outlives its connection.
 
-### 9.1 Placement and Navigation
+## 10. SSH Segment (UX Contract)
 
-- The surface is the **SSH** segment of the Connections settings page (single-column, consistent with the settings grammar), beside the Workspace, Satellites, and Share this PC segments. Segments share the page and its grammar, not state.
-- Navigation is **list → detail drill-in**: a list of saved servers; selecting one opens that server's detail view; a back affordance returns to the list. No new top-level navigation is introduced.
+### 10.1 List
 
-### 9.2 Server List
+- The SSH segment of Connections settings lists machines, one row each: a switch meaning "keep this machine connected", the name, the status line (§5.2) with its dot, the optional inline action, and a `⋯` menu.
+- The `⋯` menu holds Add remote project… (connected machines only), Settings, Reconnect, and Delete. Delete confirms with copy stating that DotCraft stops connecting to the machine while projects and DotCraft stay on it.
+- The segment has one primary action, Add SSH connection, and an empty state that says what the segment is for.
 
-- Each server row shows: name, `sshTarget` summary, stack count, and an **SSH-reachability** status dot reflecting the last test (`not tested` / `reachable` / `unreachable` / `checking`).
-- A small **"Active here"** tag marks a server when Desktop's current session is connected to one of its stacks. Host reachability and active-session state are distinct signals and must not be conflated.
-- The list has at most one primary action: **Add server**.
-- Empty state explains the feature in one line (manage remote DotCraft Docker stacks over SSH; uses system ssh and `~/.ssh/config`) with an Add action and a prerequisites link.
+### 10.2 Add SSH Connection
 
-### 9.3 Server Detail
+- The dialog first lists concrete `Host` aliases from `~/.ssh/config`, each with its resolved host, for multi-select. Aliases already added are marked Added and cannot be selected again. When none are found, the dialog says so and offers manual entry.
+- Manual entry collects display name, hostname (`host` or `user@host`), optional port ("Uses 22 when empty", 1–65535), and authentication: SSH agent/default, or an identity file path. Invalid fields show inline errors and block saving.
+- Added machines start connecting at once with the switch on.
 
-- Header: back affordance, server name, a **Test SSH** action, and an overflow for Edit/Remove. A read-only SSH summary (target, compose directory, auth note) sits below.
-- When SSH is unreachable, the stacks region is replaced by a redacted error banner with a retry (Test SSH) and a troubleshooting link; stack actions are disabled.
-- Stacks section lists one card per stack with an **Add stack** action.
-- A **Recent operations** area shows timestamped, redacted entries (action, target, result) for that host.
+### 10.3 Machine Settings
 
-### 9.4 Stack Card and Action Hierarchy
+- A dialog shows Alias (SSH config machines), Host, Port, Identity, System (OS · architecture), and DotCraft version, with Edit for the manual fields and the display name.
+- "Projects on this machine" lists the machine's remote projects with Open and remove, plus Add remote project. An empty list says that adding a folder on the machine starts work there.
+- "DotCraft in Docker" follows §8 and appears only when deployments exist.
 
-Per the visual spec's "at most one primary action per decision area," each stack card tiers its actions:
+### 10.4 Add Remote Project
 
-| Tier | Actions | Treatment |
-|------|---------|-----------|
-| Primary | **Open in Desktop** → **Disconnect** when this stack is the active session | neutral inverted button |
-| Secondary | **Dashboard**, **Logs** (toggle) | neutral bordered |
-| Overflow `⋯` | **Update**, **Restart**, **Stop / Start**, **Edit stack**, **Remove** | menu; lifecycle and destructive actions live here |
+- The dialog picks a connected machine (machines that are not connected are listed disabled with a hint to connect them), shows a loading state while listing, and browses folders per §6.1. Folders already saved as projects on that machine are marked and cannot be used again.
 
-- The card shows stack health (§6.1) as a status dot, the real DotCraft AppServer version when available, and port info; when a tunnel is active it also shows the bound local port. If only a mutable Docker tag such as `latest` is known, the version slot is omitted.
-- Stack lifecycle operation state is distinct from the Desktop connection state. While Start/Stop/Restart/Update is running, the card status and metadata name that operation (for example, "Updating..."), but **Open in Desktop** remains a connection action and only shows connection progress while the Desktop connection itself is opening.
-- **Update available is informational, not risk** — it is shown as a neutral/info pill, never a warning color. When surfaced, **Update** is promoted from the overflow to an inline affordance on the card.
-- Destructive actions (Stop, Remove) use explicit copy and require confirmation, with neutral chrome and an `--error` affordance.
+### 10.5 One Source of Truth
 
-### 9.5 Add / Edit Server
-
-- Add/Edit server uses the same Settings drill-in pattern as MCP server configuration: selecting **Add server** or **Edit server** replaces the list/detail content with a second-level settings page and a Back affordance. It must not open a nested modal.
-- The page collects: name, SSH target (with helper text noting system ssh / `~/.ssh/config` / ProxyJump / ssh-agent support), and an optional identity file override (key/agent only, no password). Leaving the identity override empty is the recommended path and must reuse the user's normal SSH configuration, agent, and default keys.
-- The page should inspect the local SSH setup where possible and surface concrete `~/.ssh/config` `Host` aliases plus existing local key candidates. Choosing an alias should set the SSH target without forcing an identity override, so the system SSH client remains responsible for HostName/User/Port/IdentityFile/ProxyJump resolution.
-- On a successful **Test**, the flow may present **discovered stacks** for one-click import. If discovery is unavailable or declined, the user creates the host and adds stacks manually from the detail view. Discovery is an enhancement; manual add is always available.
-
-### 9.6 Add / Edit Stack
-
-- A modal collects: display name, compose directory, optional workspace directory (defaulting to `<composeDir>/workspace`), optional Compose project name override, AppServer port (default `9100`), and Dashboard port (default `8080`). The Compose project field is technical, is populated by discovery when possible, and is never presented as the stack's display name.
-- The AppServer token is never entered. The UI shows token presence as "present / missing" only.
-
-### 9.7 Logs Presentation
-
-- Logs appear as an **inline expandable panel** under the stack card: a fixed-height, scrollable, monospace region with a service switcher, bounded by `--tail N --no-color`, redacted before render, with auto-scroll that pauses on manual scroll.
-
-### 9.8 Single Source of Truth With Connections Settings
-
-- "Open in Desktop" ultimately drives the same connection state used by the Connections group. When a Servers stack is the active session, the Connections group shows a read-only banner ("Connected via Servers ▸ &lt;host&gt; / &lt;stack&gt;") with a link back to Servers, instead of an editable raw URL. The raw URL/token form remains available for the manual/advanced case only. There must be one source of truth for the active connection.
-
-## 10. First-Version Decisions
-
-Updates are manual. The manager does not proactively compare registry digests or schedule updates. Stack discovery is optional and always permits manual entry.
-
-## 12. Assumptions and Prior Art
-
-The remote host has Docker Engine, Compose v2 and noninteractive Docker access for its SSH user. Stacks follow the official deployment layout. This feature adds no AppServer or Hub protocol method.
+While a remote project or Docker deployment from this segment is the active session, the Workspace segment shows a read-only "Connected via SSH ▸ &lt;machine&gt; / &lt;project&gt;" banner linking here instead of an editable URL. The manual URL and token form remains for remote endpoints outside this segment.

@@ -1,7 +1,7 @@
 import { spawn } from 'child_process'
 import net from 'net'
 import { homedir } from 'os'
-import { buildSshArgs, type RemoteHost } from '../../shared/remoteServers'
+import { buildSshArgs, type SshTarget } from '../../shared/sshMachines'
 
 export interface SshRunResult {
   code: number | null
@@ -17,11 +17,12 @@ export interface SshRunOptions {
   timeoutMs?: number
   /** Override the ssh executable (defaults to `ssh` on PATH). */
   sshPath?: string
+  input?: string
 }
 
 /** Injectable runner so the manager can be unit-tested without a real ssh. */
 export type SshRunner = (
-  host: RemoteHost,
+  target: SshTarget,
   remoteCommand: string,
   opts?: SshRunOptions
 ) => Promise<SshRunResult>
@@ -45,9 +46,11 @@ export function buildSshSpawnEnv(baseEnv: NodeJS.ProcessEnv = process.env): Node
  * remote command is built by the caller from validated parameters; arguments are
  * passed as an argv vector (never assembled into a local shell string).
  */
-export const runSshCommand: SshRunner = (host, remoteCommand, opts = {}) =>
-  new Promise((resolve) => {
-    const args = buildSshArgs(host, remoteCommand, { connectTimeoutSec: opts.connectTimeoutSec })
+export const runSshCommand: SshRunner = (target, remoteCommand, opts = {}) =>
+  runSshProcess(buildSshArgs(target, remoteCommand, { connectTimeoutSec: opts.connectTimeoutSec }), opts)
+
+export function runSshProcess(args: string[], opts: SshRunOptions = {}): Promise<SshRunResult> {
+  return new Promise((resolve) => {
     const child = spawn(opts.sshPath ?? 'ssh', args, { windowsHide: true, env: buildSshSpawnEnv() })
 
     let stdout = ''
@@ -79,7 +82,10 @@ export const runSshCommand: SshRunner = (host, remoteCommand, opts = {}) =>
       finish(null)
     })
     child.on('close', (code) => finish(code))
+    child.stdin?.on('error', () => {})
+    child.stdin?.end(opts.input ?? '')
   })
+}
 
 /** Allocate an unused loopback TCP port for a local tunnel. */
 export function getFreeLocalPort(): Promise<number> {

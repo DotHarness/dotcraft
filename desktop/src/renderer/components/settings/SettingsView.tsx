@@ -230,11 +230,6 @@ interface ProviderTestResultWire {
   errorMessage?: string
 }
 
-interface ActiveRemoteStackRef {
-  hostId: string
-  stackId: string
-}
-
 // Must match the literals written by OpenAIAuthBindingPersistence.BindProviderToOAuth
 // so re-binding from the form lines up with the backend's upsert key and displayName.
 const OPENAI_CHATGPT_DEFAULT_ID = 'openai'
@@ -625,7 +620,7 @@ export function SettingsView({
   const [wsPort, setWsPort] = useState(String(DEFAULT_WS_PORT))
   const [remoteUrl, setRemoteUrl] = useState('')
   const [remoteToken, setRemoteToken] = useState('')
-  const [activeRemoteStack, setActiveRemoteStack] = useState<ActiveRemoteStackRef | null>(null)
+  const [sshManagedSession, setSshManagedSession] = useState(false)
   const [locale, setLocale] = useState<AppLocale>(normalizeLocale(undefined))
   const [taskCompletionNotificationMode, setTaskCompletionNotificationMode] =
     useState<TaskCompletionNotificationMode>('whenUnfocused')
@@ -777,8 +772,8 @@ export function SettingsView({
   const workspaceProviderMissingMessage = selectedProviderMissing
     ? t('settings.llm.workspaceProviderMissing', { providerId: selectedProviderId })
     : ''
-  const activeRemoteStackConnection = connectionMode === 'remote' && activeRemoteStack != null
-  const manualRemoteConnection = connectionMode === 'remote' && !activeRemoteStackConnection
+  const sshManagedConnection = connectionMode === 'remote' && sshManagedSession
+  const manualRemoteConnection = connectionMode === 'remote' && !sshManagedConnection
   const localConnectionSettingsEnabled = connectionMode !== 'remote'
   const connectionDirty =
     baselineConnection != null &&
@@ -1689,10 +1684,9 @@ export function SettingsView({
         setWsPort(String(s.webSocket?.port ?? DEFAULT_WS_PORT))
         setRemoteUrl(s.remote?.url ?? '')
         setRemoteToken(s.remote?.token ?? '')
-        setActiveRemoteStack(
-          s.activeRemoteStack?.hostId && s.activeRemoteStack.stackId
-            ? { hostId: s.activeRemoteStack.hostId, stackId: s.activeRemoteStack.stackId }
-            : null
+        setSshManagedSession(
+          Boolean(s.activeRemoteStack?.hostId && s.activeRemoteStack.stackId) ||
+            Boolean(s.activeRemoteProject?.machineId && s.activeRemoteProject.projectId)
         )
         setLocale(normalizeLocale(s.locale))
         setTaskCompletionNotificationMode(
@@ -2229,7 +2223,7 @@ export function SettingsView({
       remoteToken
     })
     if (connectionMode !== 'remote') {
-      setActiveRemoteStack(null)
+      setSshManagedSession(false)
     }
   }
 
@@ -3312,7 +3306,7 @@ export function SettingsView({
                 workspace={{
                   connectionMode,
                   onConnectionModeChange: setConnectionMode,
-                  activeRemoteStackConnection,
+                  sshManagedConnection,
                   manualRemoteConnection,
                   remoteUrl,
                   onRemoteUrlChange: setRemoteUrl,

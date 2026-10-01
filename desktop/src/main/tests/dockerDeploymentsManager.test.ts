@@ -1,10 +1,19 @@
 import { describe, it, expect, vi } from 'vitest'
-import { RemoteServersManager } from '../remoteServers/remoteServersManager'
-import type { SshRunner, SshRunResult } from '../remoteServers/sshExecutor'
-import type { RemoteHost, RemoteStack } from '../../shared/remoteServers'
-import type { TunnelManager } from '../remoteServers/tunnelManager'
+import { DockerDeploymentsManager } from '../sshMachines/dockerDeploymentsManager'
+import type { SshRunner, SshRunResult } from '../sshMachines/sshExecutor'
+import type { RemoteStack } from '../../shared/dockerDeployments'
+import type { SshMachine } from '../../shared/sshMachines'
+import type { TunnelManager } from '../sshMachines/tunnelManager'
 
-const host: RemoteHost = { id: 'h1', name: 'Cloud', sshTarget: 'user@cloud', stacks: [] }
+const host: SshMachine = {
+  id: 'h1',
+  name: 'Cloud',
+  source: 'manual',
+  hostname: 'user@cloud',
+  autoConnect: false,
+  projects: [],
+  stacks: []
+}
 const stack: RemoteStack = {
   id: 's1',
   name: 'prod',
@@ -86,10 +95,10 @@ function route(cmd: string): SshRunResult {
   return ok('')
 }
 
-describe('RemoteServersManager', () => {
+describe('DockerDeploymentsManager', () => {
   it('parses status and stamps checkedAt from the injected clock', async () => {
     const { runner } = makeRunner(route)
-    const mgr = new RemoteServersManager({ runner, now: () => 12345 })
+    const mgr = new DockerDeploymentsManager({ runner, now: () => 12345 })
     const status = await mgr.status(host, stack)
     expect(status.health).toBe('running')
     expect(status.tokenPresent).toBe(true)
@@ -100,7 +109,7 @@ describe('RemoteServersManager', () => {
     const { runner } = makeRunner(() =>
       ok('APPSERVER_TOKEN=fixture-appserver-token\nthe explicit value is fixture-redaction-value here')
     )
-    const mgr = new RemoteServersManager({ runner })
+    const mgr = new DockerDeploymentsManager({ runner })
     const result = await mgr.logs(host, stack, undefined, 200, ['fixture-redaction-value'])
     expect(result.text).toContain('[redacted]')
     expect(result.text).not.toContain('fixture-appserver-token')
@@ -109,7 +118,7 @@ describe('RemoteServersManager', () => {
 
   it('restart runs the lifecycle command then refreshes status', async () => {
     const { runner, calls } = makeRunner(route)
-    const mgr = new RemoteServersManager({ runner })
+    const mgr = new DockerDeploymentsManager({ runner })
     const result = await mgr.action(host, stack, 'restart')
     expect(result.ok).toBe(true)
     expect(result.status?.health).toBe('running')
@@ -119,7 +128,7 @@ describe('RemoteServersManager', () => {
 
   it('reports a redacted failure and skips status when an action fails', async () => {
     const { runner, calls } = makeRunner(() => fail('docker compose stop: APPSERVER_TOKEN=fixture-failure-token failed'))
-    const mgr = new RemoteServersManager({ runner })
+    const mgr = new DockerDeploymentsManager({ runner })
     const result = await mgr.action(host, stack, 'stop')
     expect(result.ok).toBe(false)
     expect(result.status).toBeUndefined()
@@ -130,7 +139,7 @@ describe('RemoteServersManager', () => {
 
   it('update runs backup → pull → up → status in order and reports changed', async () => {
     const { runner, calls } = makeRunner(route)
-    const mgr = new RemoteServersManager({ runner })
+    const mgr = new DockerDeploymentsManager({ runner })
     const result = await mgr.action(host, stack, 'update')
     expect(result.ok).toBe(true)
     expect(result.changed).toBe(true)
@@ -148,30 +157,16 @@ describe('RemoteServersManager', () => {
       if (cmd.includes(' pull')) return fail('pull failed: network')
       return ok('')
     })
-    const mgr = new RemoteServersManager({ runner })
+    const mgr = new DockerDeploymentsManager({ runner })
     const result = await mgr.action(host, stack, 'update')
     expect(result.ok).toBe(false)
     expect(result.message).toContain('pull')
     expect(calls).toHaveLength(2) // backup + pull only
   })
 
-  it('testHost reports reachable with docker/compose detected, and unreachable on error', async () => {
-    const reachable = makeRunner(route)
-    const mgrA = new RemoteServersManager({ runner: reachable.runner, now: () => 0 })
-    const okRes = await mgrA.testHost(host)
-    expect(okRes.reachable).toBe(true)
-    expect(okRes.dockerOk).toBe(true)
-
-    const down = makeRunner(() => fail('ssh: connect to host cloud port 22: Connection timed out'))
-    const mgrB = new RemoteServersManager({ runner: down.runner })
-    const badRes = await mgrB.testHost(host)
-    expect(badRes.reachable).toBe(false)
-    expect(badRes.errorCode).toBe('unreachable')
-  })
-
   it('discovers remote DotCraft compose stacks', async () => {
     const { runner, calls } = makeRunner(route)
-    const mgr = new RemoteServersManager({ runner })
+    const mgr = new DockerDeploymentsManager({ runner })
     const stacks = await mgr.discoverStacks(host)
     expect(stacks).toHaveLength(1)
     expect(stacks[0]).toMatchObject({
@@ -188,14 +183,14 @@ describe('RemoteServersManager', () => {
 
   it('reads the remote token (trimmed) for connect', async () => {
     const { runner, opts } = makeRunner(route)
-    const mgr = new RemoteServersManager({ runner })
+    const mgr = new DockerDeploymentsManager({ runner })
     expect(await mgr.readToken(host, stack)).toBe('fixture-appserver-token')
     expect(opts[0]).toMatchObject({ timeoutMs: 30_000, connectTimeoutSec: 8 })
   })
 
   it('reads remote workspace core config snapshots without exposing arbitrary commands', async () => {
     const { runner, calls, opts } = makeRunner(route)
-    const mgr = new RemoteServersManager({ runner })
+    const mgr = new DockerDeploymentsManager({ runner })
 
     const result = await mgr.readCoreConfig(host, stack)
 
@@ -212,7 +207,7 @@ describe('RemoteServersManager', () => {
         ? fail('cat failed: APPSERVER_TOKEN=fixture-secret-token')
         : route(cmd)
     )
-    const mgr = new RemoteServersManager({ runner })
+    const mgr = new DockerDeploymentsManager({ runner })
 
     await expect(mgr.readToken(host, stack)).rejects.toThrow('[redacted]')
     try {
@@ -224,7 +219,7 @@ describe('RemoteServersManager', () => {
 
   it('fails token reads when the remote token file is missing or empty', async () => {
     const { runner } = makeRunner((cmd) => cmd.startsWith('cat ') ? ok('\n') : route(cmd))
-    const mgr = new RemoteServersManager({ runner })
+    const mgr = new DockerDeploymentsManager({ runner })
 
     await expect(mgr.readToken(host, stack)).rejects.toThrow('Remote AppServer token was not found')
   })
@@ -235,7 +230,7 @@ describe('RemoteServersManager', () => {
       closeOne: vi.fn(),
       open: vi.fn()
     } as unknown as TunnelManager
-    const mgr = new RemoteServersManager({ runner, tunnels })
+    const mgr = new DockerDeploymentsManager({ runner, tunnels })
 
     await expect(mgr.openAppServerTunnel(host, stack)).rejects.toThrow('cat: token missing')
     expect(tunnels.open).not.toHaveBeenCalled()
@@ -247,12 +242,12 @@ describe('RemoteServersManager', () => {
       closeOne: vi.fn(),
       open: vi.fn().mockResolvedValue({ localPort: 49123, localUrl: '127.0.0.1:49123' })
     } as unknown as TunnelManager
-    const mgr = new RemoteServersManager({ runner, tunnels })
+    const mgr = new DockerDeploymentsManager({ runner, tunnels })
 
     const result = await mgr.openAppServerTunnel(host, stack, { forceNew: true })
 
-    expect(tunnels.closeOne).toHaveBeenCalledWith(host.id, stack.id, 'appserver')
-    expect(tunnels.open).toHaveBeenCalledWith(host, stack.id, stack.appServerPort, 'appserver')
+    expect(tunnels.closeOne).toHaveBeenCalledWith(host.id, `stack:${stack.id}:appserver`)
+    expect(tunnels.open).toHaveBeenCalledWith({ destination: 'user@cloud' }, host.id, `stack:${stack.id}:appserver`, stack.appServerPort)
     expect(result.localPort).toBe(49123)
     expect(result.tokenPresent).toBe(true)
     expect(result.wsUrl).toContain('127.0.0.1:49123')
@@ -264,12 +259,12 @@ describe('RemoteServersManager', () => {
     const tunnels = {
       open: vi.fn().mockResolvedValue({ localPort: 49124, localUrl: '127.0.0.1:49124' })
     } as unknown as TunnelManager
-    const mgr = new RemoteServersManager({ runner, tunnels })
+    const mgr = new DockerDeploymentsManager({ runner, tunnels })
 
     const result = await mgr.openOratorioTunnel(host, stack)
 
     expect(calls[0]).toContain('ORATORIO_SERVICE_TOKEN')
-    expect(tunnels.open).toHaveBeenCalledWith(host, stack.id, stack.oratorioPort, 'oratorio')
+    expect(tunnels.open).toHaveBeenCalledWith({ destination: 'user@cloud' }, host.id, `stack:${stack.id}:oratorio`, stack.oratorioPort)
     expect(result).toEqual({
       localPort: 49124,
       endpoint: 'http://127.0.0.1:49124',

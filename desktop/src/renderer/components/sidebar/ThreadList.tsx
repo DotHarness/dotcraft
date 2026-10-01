@@ -44,6 +44,9 @@ import { useAddProjectFlow } from '../projects/AddProject'
 import { SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { ReadonlyThreadRow } from './ReadonlyThreadRow'
+import { canOpenSshProject, sshProjectRef, useSshProjectMachine } from './sshRemoteProject'
+import { useSshMachinesStore } from '../../stores/sshMachinesStore'
+import { machineStatusView } from '../settings/panels/ssh/sshMachinePresentation'
 import { ProjectsSectionHeader } from './ProjectsSectionHeader'
 import { RecentsSection, type RecentsRow } from './RecentsSection'
 import { ThreadListRow } from './ThreadListRow'
@@ -646,7 +649,7 @@ export function ProjectGlyph({
   active: boolean
 }): JSX.Element {
   const ProjectIcon = isRemoteProject(project)
-    ? (project.remote?.source === 'servers' ? Server : Cloud)
+    ? (project.remote?.source === 'servers' || project.remote?.source === 'ssh' ? Server : Cloud)
     : (collapsed ? Folder : FolderOpen)
   return (
     <span style={projectIconSlotStyle}>
@@ -709,8 +712,11 @@ function ProjectHeader({
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
   const label = project.name || project.path
   const detailLabel = project.remote?.displayPath || project.remote?.endpoint || project.identityWorkspacePath || project.path
-  const errorLabel = project.errorMessage || t('projectsRail.error')
-  const showErrorIndicator = project.state === 'error'
+  const sshRef = sshProjectRef(project)
+  const sshMachine = useSshProjectMachine(sshRef)
+  const sshUnreachable = cold && sshMachine?.status.kind === 'failed'
+  const errorLabel = (sshUnreachable ? sshMachine?.status.message : project.errorMessage) || t('projectsRail.error')
+  const showErrorIndicator = project.state === 'error' || sshUnreachable
   const actionColumnWidth = showErrorIndicator ? '86px' : '60px'
   const waitingCount = detailThreads.filter(isThreadWaiting).length
   const runningCount = detailThreads.filter((thread) => !isThreadWaiting(thread) && isThreadRunning(thread)).length
@@ -767,10 +773,18 @@ function ProjectHeader({
       )}
       <div className="sidebar-entry-details-divider" />
       {isRemoteProject(project) ? (
-        <div className="sidebar-entry-details-row">
-          <Folder size={14} strokeWidth={1.8} aria-hidden />
-          <span title={detailLabel}>{detailLabel}</span>
-        </div>
+        <>
+          <div className="sidebar-entry-details-row">
+            <Folder size={14} strokeWidth={1.8} aria-hidden />
+            <span title={detailLabel}>{detailLabel}</span>
+          </div>
+          {sshMachine && (
+            <div className="sidebar-entry-details-row">
+              <Server size={14} strokeWidth={1.8} aria-hidden />
+              <span>{`${sshMachine.name} · ${machineStatusView(t, sshMachine).label}`}</span>
+            </div>
+          )}
+        </>
       ) : (
         <>
           {detailFolders.map((folder) => (
@@ -838,13 +852,22 @@ function ProjectHeader({
 
   async function openProject(): Promise<void> {
     if (active) return
+    if (sshRef) {
+      if (!canOpenSshProject(sshMachine)) return
+      try {
+        await useSshMachinesStore.getState().openProject(sshRef.machineId, sshRef.projectId)
+      } catch (error) {
+        addToast(error instanceof Error ? error.message : String(error), 'error')
+      }
+      return
+    }
     if (isRemoteProject(project)) return
     await window.api.workspace.switch(project.path)
   }
 
   async function newChat(): Promise<void> {
-    if (!active && !isRemoteProject(project)) {
-      await window.api.workspace.switch(project.path)
+    if (!active && (sshRef || !isRemoteProject(project))) {
+      await openProject()
     }
     useUIStore.getState().goToNewChat({ workspacePath: projectKey })
     setActiveMainView('conversation')
@@ -857,15 +880,21 @@ function ProjectHeader({
 
   async function removeProject(): Promise<void> {
     if (active) return
-    if (isRemoteProject(project)) return
+    if (isRemoteProject(project) && !sshRef) return
     const confirmed = await confirm({
       title: t('projectsRail.removeProjectTitle', { project: label }),
-      message: t('projectsRail.removeProjectMessage'),
+      message: sshRef
+        ? t('projectsRail.removeRemoteProjectMessage', { machine: sshMachine?.name ?? project.remote?.serverName ?? '' })
+        : t('projectsRail.removeProjectMessage'),
       confirmLabel: t('projectsRail.removeProjectConfirm'),
       cancelLabel: t('common.cancel'),
       danger: true
     })
     if (!confirmed) return
+    if (sshRef) {
+      await useSshMachinesStore.getState().removeProject(sshRef.machineId, sshRef.projectId)
+      return
+    }
     await window.api.workspace.removeRecent(project.path)
   }
 
@@ -1042,8 +1071,8 @@ function ProjectHeader({
           }}
           onClick={(event) => event.stopPropagation()}
         >
-          {!isRemoteProject(project) && (
-            <ProjectMenuItem icon={<ExternalLink size={14} aria-hidden />} label={t('projectsRail.openProject')} onClick={() => { setMenuOpen(false); void openProject() }} />
+          {(!isRemoteProject(project) || (sshRef && cold)) && (
+            <ProjectMenuItem icon={<ExternalLink size={14} aria-hidden />} label={t('projectsRail.openProject')} disabled={!canOpenSshProject(sshMachine)} onClick={() => { setMenuOpen(false); void openProject() }} />
           )}
           <ProjectMenuItem
             icon={<Pin size={14} fill={project.pinned ? 'currentColor' : 'none'} aria-hidden />}
@@ -1063,7 +1092,7 @@ function ProjectHeader({
           {!isRemoteProject(project) && project.running && (
             <ProjectMenuItem icon={<Square size={14} aria-hidden />} label={t('projectsRail.stopWorkspace')} onClick={() => { setMenuOpen(false); void stopWorkspace() }} />
           )}
-          {isRemoteProject(project) ? (
+          {isRemoteProject(project) && !(sshRef && cold) ? (
             <ProjectMenuItem
               icon={<LogOut size={14} aria-hidden />}
               label={t('projectsRail.disconnectRemote')}
