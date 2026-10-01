@@ -234,7 +234,7 @@ describe('ThreadHeader', () => {
       })
     })
 
-    const prepareButton = await screen.findByRole('button', { name: 'Prepare Perforce changelist' })
+    const prepareButton = await openHeaderMenuItem('Checkout')
     expect(prepareButton).not.toBeDisabled()
     fireEvent.click(prepareButton)
     expect(screen.getByRole('dialog', { name: 'Prepare changelist' })).toBeInTheDocument()
@@ -293,7 +293,7 @@ describe('ThreadHeader', () => {
 
     renderHeader(true, workspacePath)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Prepare Perforce changelist' }))
+    fireEvent.click(await openHeaderMenuItem('Checkout'))
     fireEvent.click(screen.getByRole('button', { name: 'Checkout' }))
 
     await waitFor(() => {
@@ -353,7 +353,7 @@ describe('ThreadHeader', () => {
 
     renderHeader(true, workspacePath)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Prepare Perforce changelist' }))
+    fireEvent.click(await openHeaderMenuItem('Checkout'))
     const targetSelect = screen.getByRole('combobox', { name: 'Target' })
     fireEvent.click(targetSelect)
     fireEvent.click(screen.getByRole('option', { name: 'New Changelist' }))
@@ -406,7 +406,7 @@ describe('ThreadHeader', () => {
 
     renderHeader(true, workspacePath)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Prepare Perforce changelist' }))
+    fireEvent.click(await openHeaderMenuItem('Checkout'))
     fireEvent.click(screen.getByRole('button', { name: 'Checkout' }))
 
     await waitFor(() => {
@@ -453,7 +453,7 @@ describe('ThreadHeader', () => {
 
     renderHeader(true, workspacePath)
 
-    const prepareButton = await screen.findByRole('button', { name: 'Prepare Perforce changelist' })
+    const prepareButton = await openHeaderMenuItem('Checkout')
     expect(prepareButton).toBeDisabled()
     fireEvent.click(prepareButton)
 
@@ -506,7 +506,7 @@ describe('ThreadHeader', () => {
 
     renderHeader(true, workspacePath)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Prepare Perforce changelist' }))
+    fireEvent.click(await openHeaderMenuItem('Checkout'))
     fireEvent.change(screen.getByPlaceholderText('Leave blank to auto-generate changelist description'), {
       target: { value: 'Prepare task CL' }
     })
@@ -526,3 +526,8 @@ describe('ThreadHeader', () => {
     })
   })
 })
+
+async function openHeaderMenuItem(name: string): Promise<HTMLElement> {
+  fireEvent.click(await screen.findByRole('button', { name: 'More chat actions' }))
+  return screen.getByRole('menuitem', { name })
+}

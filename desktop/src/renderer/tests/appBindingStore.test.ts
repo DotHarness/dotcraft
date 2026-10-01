@@ -87,7 +87,7 @@ describe('appBindingStore', () => {
     ])
   })
 
-  it('refreshes and revokes thread bindings through AppServer RPCs', async () => {
+  it('normalizes listed thread bindings', async () => {
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/list') {
         return {
@@ -106,7 +106,7 @@ describe('appBindingStore', () => {
       return {}
     })
 
-    await useAppBindingStore.getState().refreshThreadBindings('thread-1', 'bind-1')
+    await useAppBindingStore.getState().fetchThreadBindings('thread-1')
     expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/list', {
       threadId: 'thread-1',
       includeRevoked: false
@@ -114,16 +114,6 @@ describe('appBindingStore', () => {
     expect(useAppBindingStore.getState().bindingsByThread['thread-1']?.[0]?.approvedTools).toEqual([])
     expect(useAppBindingStore.getState().bindingsByThread['thread-1']?.[0]?.pendingChanges).toEqual([])
 
-    await useAppBindingStore.getState().revokeThreadBinding('thread-1', 'bind-1', 'done')
-    expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/revoke', {
-      threadId: 'thread-1',
-      bindingId: 'bind-1',
-      reason: 'done'
-    })
-    expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/list', {
-      threadId: 'thread-1',
-      includeRevoked: true
-    })
   })
 
   it('routes App Binding notifications to the relevant refresh calls', () => {

@@ -1,20 +1,40 @@
-import type { CSSProperties } from 'react'
-import { MessageSquarePlus } from 'lucide-react'
-import { useT } from '../../contexts/LocaleContext'
+import { useMemo, type CSSProperties } from 'react'
+import type { InputPart } from '../../types/conversation'
+import { createOptimisticUserMessage } from '../../utils/inputPresentation'
 import { ConversationColumn } from './ConversationColumn'
-import { NoticeDivider } from './NoticeDivider'
+import { MESSAGE_STREAM_BOTTOM_BASE_PX } from './MessageStream'
 import { UserMessageBlock } from './UserMessageBlock'
 
-/** The message area while the thread is being created: the submitted message, already on screen. */
-export function ThreadCreatingContent({ text }: { text: string }): JSX.Element {
-  const t = useT()
-  const label = t('conversation.creatingThread')
+export function ThreadCreatingContent({
+  text,
+  inputParts,
+  sentAsGoal = false
+}: {
+  text: string
+  inputParts: InputPart[]
+  sentAsGoal?: boolean
+}): JSX.Element {
+  const message = useMemo(
+    () => createOptimisticUserMessage(inputParts, text, 'pending', sentAsGoal),
+    [inputParts, sentAsGoal, text]
+  )
   return (
     <div style={frameStyle}>
-      <div className="dc-conversation-message-stream">
+      <div className="dc-conversation-message-stream" style={{ paddingBottom: MESSAGE_STREAM_BOTTOM_BASE_PX }}>
         <ConversationColumn className="dc-conversation-column-stack">
-          <UserMessageBlock text={text} />
-          <NoticeDivider ariaLabel={label} title={label} icon={<MessageSquarePlus size={14} aria-hidden />} active />
+          <div className="dc-conversation-turn-shell">
+            <div style={turnStyle}>
+              <UserMessageBlock
+                messageId={message.id}
+                text={message.text ?? ''}
+                nativeInputParts={message.nativeInputParts}
+                imageDataUrls={message.imageDataUrls}
+                images={message.images}
+                createdAt={message.createdAt}
+                sentAsGoal={sentAsGoal}
+              />
+            </div>
+          </div>
         </ConversationColumn>
       </div>
     </div>
@@ -22,3 +42,4 @@ export function ThreadCreatingContent({ text }: { text: string }): JSX.Element {
 }
 
 const frameStyle: CSSProperties = { position: 'relative', flex: 1, overflow: 'hidden' }
+const turnStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 'var(--conversation-block-gap)' }

@@ -3,7 +3,6 @@ import {
   useAppBindingStore,
   type AppHandoff
 } from '../stores/appBindingStore'
-import { addToast } from '../stores/toastStore'
 
 type TranslateFn = (key: string, vars?: Record<string, string | number>) => string
 
@@ -60,7 +59,6 @@ async function activateOne({
   try {
     request = await useAppBindingStore.getState().createBindingRequest({ threadId, appId, source: 'welcome' })
     if (request.handoff?.uri) await openAppHandoff(request.handoff)
-    if (request.state !== 'active') addToast(translate('appBinding.bindingStarted'), 'info')
     await useAppBindingStore.getState().waitForThreadBinding(
       { threadId, appId, bindingRequestId: request.bindingRequestId },
       { signal }

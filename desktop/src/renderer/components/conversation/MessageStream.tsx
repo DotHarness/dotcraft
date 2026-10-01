@@ -33,7 +33,7 @@ const SCROLL_BUTTON_BASE_BOTTOM_PX = 10
 const SCROLL_BUTTON_DOCK_GAP_PX = 10
 /** Resting gap reserved below the last message so it never sits flush against the
  *  composer (and clears the dock's top edge when a dock is present). */
-const MESSAGE_STREAM_BOTTOM_BASE_PX = 40
+export const MESSAGE_STREAM_BOTTOM_BASE_PX = 40
 const FULL_HISTORY_TURN_COUNT = 3
 const NO_HISTORY_GAPS: HistoryGap[] = []
 

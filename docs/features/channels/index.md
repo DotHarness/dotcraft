@@ -34,14 +34,6 @@ Desktop hosts the channel process for you — nothing else to deploy. Which cred
 
 For the model underneath, see [Unified Session Core](../../developing/architecture/session-core).
 
-## Continue a Desktop conversation in chat
-
-![DotCraft channel handoff](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channel-handoff.gif)
-
-From a Desktop conversation's **Apps** menu, bind that conversation to a connected channel. DotCraft shows a `/bind 123456` command. Send it in the target chat to continue the same conversation there.
-
-The binding applies only to that chat. Other chats keep their own channel conversations.
-
 ## Before you open a bot to a group
 
 Before putting a bot in a group or public chat:

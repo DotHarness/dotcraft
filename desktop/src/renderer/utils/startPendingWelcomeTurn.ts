@@ -5,7 +5,7 @@ import { showThreadRouteFailureToast, useThreadRouteStore } from '../stores/thre
 import { useThreadStore } from '../stores/threadStore'
 import { addToast } from '../stores/toastStore'
 import { activateThreadAppBindings } from './threadAppBindings'
-import { acceptWelcomeInput, restoreRejectedWelcomeInput } from './welcomeSubmissionRecovery'
+import { restoreRejectedWelcomeInput } from './welcomeSubmissionRecovery'
 import { echoOptimisticTurn, submitOptimisticTurn, type OptimisticTurn } from './startTurn'
 
 type TranslateFn = (key: string, vars?: Record<string, string | number>) => string
@@ -55,7 +55,6 @@ export async function startPendingWelcomeTurn({
       sentAsGoal: pending.sentAsGoal,
       throwOnStartError: true
     })
-    acceptWelcomeInput(threadId, echo.inputParts)
   } catch {
     void restoreRejectedWelcomeInput(threadId, echo.inputParts)
       .catch((restoreError) => console.error('Unable to restore Welcome input:', restoreError))
@@ -78,29 +77,21 @@ async function activateStagedApps({
   // Activation can outlive the user's stay, so conversation state moves only while this thread is on screen.
   const onScreen = (): boolean => useThreadStore.getState().activeThreadId === threadId
   const abandon = async (): Promise<void> => {
-    if (onScreen()) {
-      useConversationStore.getState().setSystemLabel(null)
-      useConversationStore.getState().removeOptimisticTurn(echo.optimisticTurnId)
-    }
+    if (onScreen()) useConversationStore.getState().removeOptimisticTurn(echo.optimisticTurnId)
     await restoreRejectedWelcomeInput(threadId, echo.inputParts)
       .catch((restoreError) => console.error('Unable to restore Welcome input:', restoreError))
   }
 
-  if (onScreen()) useConversationStore.getState().setSystemLabel('systemStatus.connectingApps')
   try {
     await activateThreadAppBindings({ threadId, appIds, translate, signal })
   } catch (err) {
-    await abandon()
     if (!(err instanceof AppBindingWaitAbortedError)) {
-      console.error('Welcome app binding activation failed:', err)
-      addToast(err instanceof Error ? err.message : String(err), 'error')
+      addToast(err instanceof Error ? err.message : String(err), 'warning')
     }
-    return false
   }
   if (signal?.aborted) {
     await abandon()
     return false
   }
-  if (onScreen()) useConversationStore.getState().setSystemLabel(null)
   return true
 }

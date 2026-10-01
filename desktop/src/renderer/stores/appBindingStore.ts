@@ -5,13 +5,6 @@ export type AppBindingState = 'connecting' | 'syncing' | 'active' | 'offline' | 
 export type AppNativeStatus = 'installed' | 'missing' | 'unknown'
 export type AppListSurface = 'pluginDetail' | 'welcome' | 'threadBinding' | 'sdk/default'
 export type AppBindingKind = 'app' | 'socialChannel' | 'managedApp' | string
-export type SocialBindingTargetSelection = 'confirmInChannel' | 'currentConversation' | string
-
-export interface SocialBindingIntent {
-  channelName: string
-  targetSelection?: SocialBindingTargetSelection
-  displayHint?: string | null
-}
 
 export interface SocialChannelBoundBy {
   platformUserId: string
@@ -85,7 +78,6 @@ export interface AppInfo {
 export interface AppHandoff {
   mode: string
   uri?: string | null
-  bindCode?: string | null
   instructions?: string | null
 }
 
@@ -103,7 +95,7 @@ export interface AppBindingRequestCreateResult {
   appId: string
   state: AppBindingState | string
   tokenExpiresAt: string
-  handoff: AppHandoff
+  handoff?: AppHandoff
 }
 
 export interface ThreadAppBinding {
@@ -134,8 +126,6 @@ interface AppBindingStore {
   appsLoading: boolean
   appsError: string | null
   bindingsByThread: Record<string, ThreadAppBinding[]>
-  bindingsLoadingByThread: Record<string, boolean>
-  bindingsErrorByThread: Record<string, string | null>
 
   fetchApps(threadId?: string | null, forceRefresh?: boolean, surface?: AppListSurface): Promise<void>
   startConnection(appId: string, handoffMode?: string | null): Promise<AppConnectionStartResult>
@@ -144,15 +134,10 @@ interface AppBindingStore {
     threadId: string
     appId: string
     reason?: string
-    source: 'pluginDetail' | 'threadMenu' | 'welcome' | 'agentSuggestion' | 'sdk'
-    bindingKind?: AppBindingKind
-    socialIntent?: SocialBindingIntent
+    source: 'pluginDetail' | 'welcome' | 'agentSuggestion' | 'sdk'
   }): Promise<AppBindingRequestCreateResult>
   fetchThreadBindings(threadId: string, includeRevoked?: boolean): Promise<void>
-  refreshThreadBindings(threadId: string, bindingId?: string): Promise<void>
   cancelBindingRequest(threadId: string, bindingRequestId: string, reason?: string, bindingId?: string): Promise<void>
-  revokeThreadBinding(threadId: string, bindingId: string, reason?: string): Promise<void>
-  confirmCapabilities(threadId: string, bindingId: string, candidateRevision: number, decision: 'accept' | 'reject'): Promise<void>
   waitForConnection(appId: string, options?: AppBindingWaitOptions): Promise<AppInfo>
   waitForThreadBinding(params: {
     threadId: string
@@ -196,9 +181,7 @@ const initialState = {
   appsSurface: 'sdk/default' as AppListSurface,
   appsLoading: false,
   appsError: null as string | null,
-  bindingsByThread: {} as Record<string, ThreadAppBinding[]>,
-  bindingsLoadingByThread: {} as Record<string, boolean>,
-  bindingsErrorByThread: {} as Record<string, string | null>
+  bindingsByThread: {} as Record<string, ThreadAppBinding[]>
 }
 
 export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
@@ -241,11 +224,9 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
 
   async createBindingRequest(params) {
     const result = await window.api.appServer.sendRequest(
-      params.bindingKind === 'socialChannel' ? 'thread/socialBindings/request/create' : 'thread/appBindings/enable',
-      params.bindingKind === 'socialChannel'
-        ? { threadId: params.threadId, channelName: params.socialIntent?.channelName }
-        : { threadId: params.threadId, appId: params.appId }
-    ) as { bindingRequestId: string; bindingId: string; state?: string; expiresAt: string; code?: string; handoff?: AppHandoff }
+      'thread/appBindings/enable',
+      { threadId: params.threadId, appId: params.appId }
+    ) as { bindingRequestId: string; bindingId: string; state?: string; expiresAt: string; handoff?: AppHandoff }
     return {
       bindingRequestId: result.bindingRequestId,
       bindingId: result.bindingId,
@@ -253,38 +234,22 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
       appId: params.appId,
       state: result.state ?? 'connecting',
       tokenExpiresAt: result.expiresAt,
-      handoff: result.handoff ?? { mode: 'bindCode', bindCode: result.code }
+      handoff: result.handoff
     }
   },
 
   async fetchThreadBindings(threadId, includeRevoked = false) {
+    const result = await window.api.appServer.sendRequest('thread/appBindings/list', {
+      threadId,
+      includeRevoked
+    }).catch(() => null) as { bindings?: ThreadAppBinding[] } | null
+    if (!result) return
     set((state) => ({
-      bindingsLoadingByThread: { ...state.bindingsLoadingByThread, [threadId]: true },
-      bindingsErrorByThread: { ...state.bindingsErrorByThread, [threadId]: null }
+      bindingsByThread: {
+        ...state.bindingsByThread,
+        [threadId]: (result.bindings ?? []).map(normalizeThreadBinding)
+      }
     }))
-    try {
-      const result = await window.api.appServer.sendRequest('thread/appBindings/list', {
-        threadId,
-        includeRevoked
-      }) as { bindings?: ThreadAppBinding[] }
-      set((state) => ({
-        bindingsByThread: {
-          ...state.bindingsByThread,
-          [threadId]: (result.bindings ?? []).map(normalizeThreadBinding)
-        },
-        bindingsLoadingByThread: { ...state.bindingsLoadingByThread, [threadId]: false }
-      }))
-    } catch (err) {
-      set((state) => ({
-        bindingsLoadingByThread: { ...state.bindingsLoadingByThread, [threadId]: false },
-        bindingsErrorByThread: { ...state.bindingsErrorByThread, [threadId]: errorMessage(err) }
-      }))
-    }
-  },
-
-  async refreshThreadBindings(threadId, _bindingId) {
-    await get().fetchThreadBindings(threadId)
-    if (get().appsThreadId === threadId) await get().fetchApps(threadId, false, get().appsSurface)
   },
 
   async cancelBindingRequest(threadId, bindingRequestId, reason, bindingId) {
@@ -299,23 +264,6 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
     }
     await get().fetchThreadBindings(threadId)
     if (get().appsThreadId === threadId) await get().fetchApps(threadId, false, get().appsSurface)
-  },
-
-  async revokeThreadBinding(threadId, bindingId, reason) {
-    await window.api.appServer.sendRequest('thread/appBindings/revoke', {
-      threadId,
-      bindingId,
-      reason
-    })
-    await get().fetchThreadBindings(threadId, true)
-    if (get().appsThreadId === threadId) await get().fetchApps(threadId, false, get().appsSurface)
-  },
-
-  async confirmCapabilities(threadId, bindingId, candidateRevision, decision) {
-    await window.api.appServer.sendRequest('thread/appBindings/confirmCapabilities', {
-      threadId, bindingId, candidateRevision, decision
-    })
-    await get().fetchThreadBindings(threadId)
   },
 
   async waitForConnection(appId, options = {}) {

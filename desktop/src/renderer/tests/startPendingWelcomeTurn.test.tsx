@@ -93,19 +93,16 @@ describe('startPendingWelcomeTurn', () => {
     expect(useConversationStore.getState().systemLabel).toBeNull()
   })
 
-  it('returns the submission to the thread composer when a staged app fails to activate', async () => {
+  it('starts the turn without the app when a staged app fails to activate', async () => {
     mockAppServer([FAILED_BINDING])
 
     await startPendingWelcomeTurn(pending(['com.example.workflow']))
 
     const methods = sendRequest.mock.calls.map(([method]) => method)
     expect(methods).toContain('thread/appBindings/revoke')
-    expect(methods).not.toContain('turn/start')
-    expect(methods).not.toContain('thread/delete')
-    expect(useConversationStore.getState().turns).toEqual([])
-    expect(useConversationStore.getState().systemLabel).toBeNull()
-    expect(useComposerDraftStore.getState().getDraft('thread-1')?.text).toBe('List my board items')
-    expect(useToastStore.getState().toasts.filter((toast) => toast.type === 'error')).toHaveLength(1)
+    expect(methods).toContain('turn/start')
+    expect(useConversationStore.getState().turns.map((turn) => turn.id)).toEqual(['turn-server'])
+    expect(useToastStore.getState().toasts.map((toast) => toast.type)).toEqual(['warning'])
   })
 
   it('abandons the wait without starting a turn when the user leaves the thread', async () => {
@@ -113,7 +110,7 @@ describe('startPendingWelcomeTurn', () => {
     const controller = new AbortController()
 
     const started = startPendingWelcomeTurn({ ...pending(['com.example.workflow']), signal: controller.signal })
-    await vi.waitFor(() => expect(useConversationStore.getState().systemLabel).toBe('systemStatus.connectingApps'))
+    await vi.waitFor(() => expect(sendRequest.mock.calls.map(([method]) => method)).toContain('thread/appBindings/enable'))
     useThreadStore.setState({ activeThreadId: 'thread-2' })
     controller.abort()
     await started

@@ -34,14 +34,6 @@
 
 底层模型见[统一会话核心](../../developing/architecture/session-core)。
 
-## 把 Desktop 对话接到聊天里
-
-![DotCraft 社交渠道接续](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channel-handoff.gif)
-
-在 Desktop 对话的**应用**菜单里，可以把当前这条对话绑定到已连接的渠道。DotCraft 会给出一条 `/bind 123456` 命令，在目标聊天里发送它，就能在那边接着聊同一条对话。
-
-绑定只对那个聊天生效，其他聊天照旧各聊各的。
-
 ## 开放到群聊之前
 
 把 Bot 放进群聊或公开聊天之前：

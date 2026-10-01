@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Archive, ArrowRightLeft, GitFork, Laptop, Pencil, Pin } from 'lucide-react'
+import { Archive, ArrowRightLeft, FolderOpen, GitFork, Laptop, Pencil, Pin } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { writtenFileSummaries } from '../../stores/turnDiffs'
@@ -11,18 +11,23 @@ import { CommitDialog, toRelativePath } from '../detail/CommitDialog'
 import { PerforcePrepareDialog } from '../detail/PerforcePrepareDialog'
 import { CommitIcon } from '../ui/AppIcons'
 import { usePerforceChangelistStore, type PerforceChangelistEntry } from '../../stores/perforceChangelistStore'
-import { OpenWorkspaceButton } from './OpenWorkspaceButton'
 import { DetailPanelToggleButton } from './DetailPanelToggleButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { ThreadAppBindingsButton } from './ThreadAppBindingsButton'
 import { ScreenViewHeaderSlot } from './screenView/ScreenViewHeaderSlot'
-import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
-import { IconButton } from '../ui/IconButton'
+import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
 import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { Input } from '../ui/Input'
 import { isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
 import { archiveThreadWithUndo } from '../../utils/threadArchive'
+import {
+  EDITOR_ICON_SIZE,
+  listEditorsCached,
+  placeExplorerFirst,
+  renderEditorIcon,
+  type EditorId,
+  type EditorInfo
+} from '../../utils/editorTargets'
 
 interface ThreadHeaderProps {
   threadName: string
@@ -45,6 +50,8 @@ export function ThreadHeader({
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(threadName)
   const renameInputRef = useRef<HTMLInputElement>(null)
+  const [editors, setEditors] = useState<EditorInfo[]>([])
+  const [lastOpenEditorId, setLastOpenEditorId] = useState<EditorId | undefined>(undefined)
   const hasWrittenFiles = useConversationStore((s) => writtenFileSummaries(s.turnDiffs).length > 0)
   const activeThread = useThreadStore((s) => s.activeThread)
   const pinnedThreadIds = useThreadStore((s) => s.pinnedThreadIds)
@@ -95,6 +102,16 @@ export function ThreadHeader({
   const worktreeBranch = activeThread?.worktree?.branchName?.trim()
 
   useEffect(() => {
+    if (remoteWorkspace) return
+    window.api.settings.get()
+      .then((settings) => setLastOpenEditorId(settings.lastOpenEditorId))
+      .catch(() => {})
+    void listEditorsCached()
+      .then((entries) => setEditors(placeExplorerFirst(entries)))
+      .catch(() => {})
+  }, [remoteWorkspace])
+
+  useEffect(() => {
     if (!renaming) setRenameValue(threadName)
   }, [threadName, renaming])
 
@@ -139,6 +156,16 @@ export function ThreadHeader({
   async function archiveThread(): Promise<void> {
     setMenuPosition(null)
     await archiveThreadWithUndo({ threadId, t })
+  }
+
+  async function openWorkspaceIn(id: EditorId): Promise<void> {
+    setLastOpenEditorId(id)
+    void window.api.settings.set({ lastOpenEditorId: id }).catch(() => {})
+    try {
+      await window.api.shell.launchLocalPathInEditor(id, workspacePath)
+    } catch {
+      addToast(t('conversation.reference.openFailed'), 'warning')
+    }
   }
 
   function forkThread(mode: 'local' | 'worktree'): void {
@@ -274,6 +301,94 @@ export function ThreadHeader({
     }
   }
 
+  const commitDisabledReason = isPerforceWorkspace
+    ? (!canPreparePerforce
+        ? t('threadHeader.prepareChangelistUnavailableTitle')
+        : !hasWrittenFiles
+          ? t('threadHeader.noPrepareChangelistTitle')
+          : undefined)
+    : remoteWorkspace
+      ? t('threadHeader.remoteLocalGitUnavailable')
+      : !hasWrittenFiles
+        ? t('threadHeader.noCommitTitle')
+        : undefined
+  const resolvedEditorId = editors.some((entry) => entry.id === lastOpenEditorId) ? lastOpenEditorId : 'explorer'
+
+  const menuItems: ContextMenuEntry[] = [
+    ...(!remoteWorkspace && editors.length > 0
+      ? [{
+          label: t('threadHeader.open'),
+          icon: <FolderOpen size={14} aria-hidden />,
+          onClick: () => {},
+          submenu: editors.map((entry) => ({
+            label: t(entry.labelKey),
+            icon: renderEditorIcon(entry, EDITOR_ICON_SIZE),
+            selection: 'radio' as const,
+            checked: entry.id === resolvedEditorId,
+            onClick: () => {
+              setMenuPosition(null)
+              void openWorkspaceIn(entry.id)
+            }
+          }))
+        }]
+      : []),
+    {
+      label: isPerforceWorkspace ? t('threadHeader.prepareChangelist') : t('threadHeader.commit'),
+      icon: <CommitIcon size={14} />,
+      title: commitDisabledReason,
+      disabled: commitDisabledReason != null,
+      onClick: () => {
+        setMenuPosition(null)
+        if (isPerforceWorkspace) setPrepareOpen(true)
+        else setCommitOpen(true)
+      }
+    },
+    { type: 'separator' },
+    ...(!activeThreadIsSubAgent
+      ? [{
+          label: pinned ? t('threadEntry.unpin') : t('threadEntry.pin'),
+          icon: <Pin size={14} aria-hidden />,
+          onClick: () => togglePinnedThread(threadId)
+        }]
+      : []),
+    {
+      label: t('threadEntry.rename'),
+      icon: <Pencil size={14} aria-hidden />,
+      onClick: startRename
+    },
+    ...(!activeThreadIsSubAgent
+      ? [{
+          label: t('threadEntry.archive'),
+          icon: <Archive size={14} aria-hidden />,
+          onClick: () => { void archiveThread() }
+        }]
+      : []),
+    ...(!activeThreadIsSubAgent && canFork
+      ? [
+          { type: 'separator' as const },
+          {
+            label: t('fork.menu'),
+            icon: <GitFork size={14} aria-hidden />,
+            onClick: () => {},
+            submenu: [
+              {
+                label: t('fork.intoLocal'),
+                icon: <Laptop size={14} aria-hidden />,
+                onClick: () => forkThread('local')
+              },
+              ...(canForkIntoWorktree
+                ? [{
+                    label: t('fork.intoWorktree'),
+                    icon: <ArrowRightLeft size={14} aria-hidden />,
+                    onClick: () => forkThread('worktree')
+                  }]
+                : [])
+            ]
+          }
+        ]
+      : [])
+  ]
+
   return (
     <>
       <div
@@ -383,51 +498,19 @@ export function ThreadHeader({
                 </span>
               </h1>
             </ActionTooltip>
-
-            <MoreActionsButton
-                size={28}
-                label={t('threadHeader.moreActions')}
-                open={menuPosition != null}
-                onClick={(event) => {
-                  const rect = event.currentTarget.getBoundingClientRect()
-                  setMenuPosition({ x: rect.left, y: rect.bottom + 4 })
-                }}
-              />
           </div>
         )}
 
-        {!remoteWorkspace && <OpenWorkspaceButton workspacePath={workspacePath} />}
-
-        <ThreadAppBindingsButton threadId={threadId} />
-
         <ScreenViewHeaderSlot threadId={threadId} />
 
-        <IconButton
+        <MoreActionsButton
           size={28}
-          label={isPerforceWorkspace ? t('threadHeader.prepareChangelistTitle') : t('threadHeader.commitTitle')}
-          tooltipLabel={isPerforceWorkspace ? t('threadHeader.prepareChangelistTitle') : t('threadHeader.commitTitle')}
-          disabledReason={
-            isPerforceWorkspace
-              ? (!canPreparePerforce
-                  ? t('threadHeader.prepareChangelistUnavailableTitle')
-                  : !hasWrittenFiles
-                    ? t('threadHeader.noPrepareChangelistTitle')
-                    : undefined)
-              : remoteWorkspace
-                ? t('threadHeader.remoteLocalGitUnavailable')
-                : !hasWrittenFiles
-                  ? t('threadHeader.noCommitTitle')
-                  : undefined
-          }
-          tooltipPlacement="bottom"
-          onClick={() => {
-            if (isPerforceWorkspace) {
-              if (canPreparePerforce) setPrepareOpen(true)
-            }
-            else setCommitOpen(true)
+          label={t('threadHeader.moreActions')}
+          open={menuPosition != null}
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect()
+            setMenuPosition({ x: rect.right - 200, y: rect.bottom + 4 })
           }}
-          disabled={isPerforceWorkspace ? !canPreparePerforce || !hasWrittenFiles : remoteWorkspace || !hasWrittenFiles}
-          icon={<CommitIcon size={16} />}
         />
 
         <DetailPanelToggleButton />
@@ -457,59 +540,7 @@ export function ThreadHeader({
         <ContextMenu
           position={menuPosition}
           onClose={() => setMenuPosition(null)}
-          items={[
-            ...(!activeThreadIsSubAgent
-              ? [
-                  {
-                    label: pinned ? t('threadEntry.unpin') : t('threadEntry.pin'),
-                    icon: <Pin size={14} aria-hidden />,
-                    onClick: () => togglePinnedThread(threadId)
-                  }
-                ]
-              : []),
-            {
-              label: t('threadEntry.rename'),
-              icon: <Pencil size={14} aria-hidden />,
-              onClick: startRename
-            },
-            ...(!activeThreadIsSubAgent
-              ? [
-                  {
-                    label: t('threadEntry.archive'),
-                    icon: <Archive size={14} aria-hidden />,
-                    onClick: () => {
-                      void archiveThread()
-                    }
-                  }
-                ]
-              : []),
-            ...(!activeThreadIsSubAgent && canFork
-              ? [
-                  { type: 'separator' as const },
-                  {
-                    label: t('fork.menu'),
-                    icon: <GitFork size={14} aria-hidden />,
-                    onClick: () => {},
-                    submenu: [
-                      {
-                        label: t('fork.intoLocal'),
-                        icon: <Laptop size={14} aria-hidden />,
-                        onClick: () => forkThread('local')
-                      },
-                      ...(canForkIntoWorktree
-                        ? [
-                            {
-                              label: t('fork.intoWorktree'),
-                              icon: <ArrowRightLeft size={14} aria-hidden />,
-                              onClick: () => forkThread('worktree')
-                            }
-                          ]
-                        : [])
-                    ]
-                  }
-                ]
-              : [])
-          ]}
+          items={menuItems}
         />
       )}
     </>

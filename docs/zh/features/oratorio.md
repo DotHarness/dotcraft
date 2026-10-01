@@ -30,11 +30,9 @@ Oratorio 默认不向代码托管平台写入任何内容，需要你显式启�
 
    ![在插件详情中连接 Oratorio](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/app-connection-light.png)
 
-2. 打开目标会话，选择 **Apps**，然后启用 Oratorio。
+2. 新建一个会话，从第一条消息起就能用上 Oratorio。
 
-   ![在会话的 Apps 选择器中启用 Oratorio](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/thread-app-light.png)
-
-在 **Apps** 中关闭 Oratorio 只影响当前这个会话。插件详情中的 **Disconnect** 会撤销整个工作区的连接，以及相关的会话绑定。完整的连接与授权流程见[应用连接](./agent-system/connected-apps)。
+插件详情中的 **Disconnect** 会把 Oratorio 从这个工作区的所有会话中移除。完整的连接与授权流程见[应用连接](./agent-system/connected-apps)。
 
 ## 本地运行与远程部署
 

@@ -83,7 +83,7 @@ Desktop Main resolves surfaces for the trusted renderer and applies the path, or
 
 ### 4.1 One-click enable
 
-`thread/appBindings/enable` is the one and only DotCraft user-authorization action for enabling the whole app in one thread. The trusted client's initiating interaction, such as selecting the app in the Welcome composer or enabling its Thread toggle, is the authorization decision. DotCraft MUST NOT request a second confirmation for the same initial grant.
+`thread/appBindings/enable` is the one and only DotCraft user-authorization action for enabling the whole app in one thread. The trusted client's initiating interaction is the authorization decision: an explicit per-thread selection, or a client policy the user chose, such as Desktop binding every new conversation to the apps connected in its workspace. DotCraft MUST NOT request a second confirmation for the same initial grant.
 
 Enable creates a request in `connecting`. If an authenticated principal connection is currently reachable, DotCraft notifies it through `app/binding/requested`. A durable principal credential without a live authenticated connection does not count as reachable. When no live principal receives the notification, the result includes a request-specific activation handoff.
 
@@ -93,7 +93,7 @@ The principal reads the request with `app/binding/request/get` and calls `app/bi
 
 The binding becomes `active` only after the approved snapshot and live runtime are atomically available.
 
-A client that needs the app for an immediately submitted operation MUST wait for `active` before issuing that operation, and MUST surface a delivery or activation failure instead of silently continuing to poll. The pending operation must remain recoverable when activation fails. Activation for several apps is independent and MAY run concurrently.
+A client that needs the app for an immediately submitted operation MUST wait for `active` before issuing that operation, and MUST surface a delivery or activation failure instead of silently continuing to poll. The pending operation must remain recoverable when activation fails, either restored to the user or continued without that app. Activation for several apps is independent and MAY run concurrently.
 
 ### 4.2 Rebind
 

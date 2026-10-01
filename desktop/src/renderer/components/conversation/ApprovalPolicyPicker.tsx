@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSPrope
 import { Check, Hand, OctagonAlert } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
+import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
 import type { ApprovalPolicyWire, ThreadConfigurationWire } from '../../types/thread'
 import {
@@ -75,9 +76,15 @@ export function ApprovalPolicyPicker({
   const popupRef = useRef<HTMLDivElement>(null)
   const listId = useId()
 
+  const pendingApprovalPolicy = useUIStore((s) => (
+    threadId && s.pendingThreadCreation?.requestId === threadId
+      ? s.pendingThreadCreation.configuration.approvalPolicy
+      : undefined
+  ))
+  const threadApprovalPolicy = activeThread?.configuration?.approvalPolicy ?? pendingApprovalPolicy
   const value = useMemo(
-    () => controlledValue ?? resolveVisibleApprovalPolicy(activeThread?.configuration?.approvalPolicy, workspaceDefault),
-    [activeThread?.configuration?.approvalPolicy, controlledValue, workspaceDefault]
+    () => controlledValue ?? resolveVisibleApprovalPolicy(threadApprovalPolicy, workspaceDefault),
+    [threadApprovalPolicy, controlledValue, workspaceDefault]
   )
   const selectedIndex = Math.max(0, OPTIONS.findIndex((option) => option === value))
   const interactive = !disabled && !saving

@@ -16,7 +16,7 @@ import {
   type SetStateAction
 } from 'react'
 import type { DesktopPluginSurfaceContext } from '@dotcraft/plugin'
-import { BookText, Bot, Bug, FileText, Link2, ListChecks, Sparkles, Target } from 'lucide-react'
+import { BookText, Bot, Bug, FileText, ListChecks, Sparkles, Target } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useModelCatalogStore, type InferenceSpeedWire } from '../../stores/modelCatalogStore'
@@ -26,12 +26,12 @@ import { usePerforceChangelistStore } from '../../stores/perforceChangelistStore
 import { useUIStore } from '../../stores/uiStore'
 import { useComposerDraftStore, type ThreadComposerDraftInput } from '../../stores/composerDraftStore'
 import { useSkillsStore } from '../../stores/skillsStore'
-import { useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
+import { useAppBindingStore } from '../../stores/appBindingStore'
 import { addToast } from '../../stores/toastStore'
 import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
 import type { ComposerFileAttachment, ImageAttachment, ThreadMode } from '../../types/conversation'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
-import type { ThreadSummary } from '../../types/thread'
+import type { ThreadConfigurationWire, ThreadSummary } from '../../types/thread'
 import { parseJsonConfig } from '../../../shared/jsonConfig'
 import {
   classifyDroppedComposerFiles,
@@ -41,6 +41,7 @@ import {
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { runtimeWorkspaceRootsFor } from '../../utils/workspaceRuntimeRoots'
 import { buildWelcomeThreadConfiguration } from '../../utils/welcomeThreadConfiguration'
+import { getFallbackThreadName } from '../../utils/threadFallbackName'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import { expandInitCommand } from '../../utils/initCommand'
 import { startPendingWelcomeTurn } from '../../utils/startPendingWelcomeTurn'
@@ -56,7 +57,6 @@ import { AttachmentStrip } from './AttachmentStrip'
 import { ComposerContextAttachments } from './ComposerContextAttachments'
 import { ComposerCommandTrigger } from './ComposerCommandTrigger'
 import { SparkIcon } from '../ui/AppIcons'
-import { IdentityMark } from '../ui/IdentityMark'
 import { RichInputArea, type RichInputAreaHandle } from './RichInputArea'
 import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
 import { ChatGptUsageBadge } from './ChatGptUsageBadge'
@@ -75,7 +75,6 @@ import { ProfilePickerPopover } from './ProfilePickerPopover'
 import { useResolvedProfileName } from '../../stores/agentProfileNameStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { Skeleton } from '../ui/Skeleton'
-import { PillSwitch } from '../ui/PillSwitch'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { VoiceInputControl, VoiceInputStatus } from './VoiceInputControl'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
@@ -87,7 +86,6 @@ import {
 import { registerComposerVoiceTarget } from '../../voice/composerDraftBridge'
 import { isVoiceProcessingForThread, shouldUseCompactVoiceFooter, useVoiceStore } from '../../voice/voiceStore'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
-import { AppBindingPickerRow, AppBindingsPicker, isAppReadyForBindingPicker } from './AppBindingsPicker'
 import {
   configObjectFromWorkspaceCore,
   resolveConcreteApprovalPolicyFromConfig,
@@ -315,11 +313,7 @@ function ConversationWelcomeCore({
   const clearWelcomeDraft = useUIStore((s) => s.clearWelcomeDraft)
   const setWelcomeDraftWorkspace = useUIStore((s) => s.setWelcomeDraftWorkspace)
   const appBindingApps = useAppBindingStore((s) => s.apps)
-  const appBindingAppsLoading = useAppBindingStore((s) => s.appsSurface === 'welcome' && s.appsLoading)
-  const appBindingAppsError = useAppBindingStore((s) => s.appsSurface === 'welcome' ? s.appsError : null)
   const fetchAppBindings = useAppBindingStore((s) => s.fetchApps)
-  const [welcomeAppIds, setWelcomeAppIds] = useState<string[]>([])
-  const [welcomeAppSelectionTouched, setWelcomeAppSelectionTouched] = useState(false)
 
   const isConnected = connectionStatus === 'connected'
   const openingWorkspace = connectionStatus === 'connecting'
@@ -438,41 +432,16 @@ function ConversationWelcomeCore({
     void reloadProviders()
   }, [capabilities?.providerManagement, isConnected, reloadProviders])
 
-  const welcomeApps = useMemo(
+  const welcomeAppIds = useMemo(
     () => appBindingApps
-      .filter(isAppReadyForBindingPicker)
-      .sort((a, b) => a.displayName.localeCompare(b.displayName)),
+      .filter((app) => app.installed
+        && app.enabled
+        && app.connectionState === 'connected'
+        && app.requiresExternalConnection !== false
+        && app.managed !== true)
+      .map((app) => app.appId),
     [appBindingApps]
   )
-
-  useEffect(() => {
-    setWelcomeAppIds((current) => {
-      const appsById = new Map(welcomeApps.map((app) => [app.appId, app]))
-      const next = welcomeAppSelectionTouched
-        ? current.filter((appId) => {
-            const app = appsById.get(appId)
-            return app != null
-          })
-        : welcomeApps
-            .filter((app) => app.connectionState === 'connected'
-              && app.requiresExternalConnection !== false
-              && app.managed !== true)
-            .map((app) => app.appId)
-      return sameStringArray(current, next) ? current : next
-    })
-  }, [welcomeAppSelectionTouched, welcomeApps])
-
-  const toggleWelcomeApp = useCallback((appId: string, selected: boolean): void => {
-    setWelcomeAppSelectionTouched(true)
-    setWelcomeAppIds((current) => {
-      if (selected) return current.includes(appId) ? current : [...current, appId]
-      return current.filter((candidate) => candidate !== appId)
-    })
-  }, [])
-
-  const retryWelcomeApps = useCallback(async (): Promise<void> => {
-    await fetchAppBindings(null, true, 'welcome')
-  }, [fetchAppBindings])
 
   const readWorkspaceConfig = useCallback(async (): Promise<Record<string, unknown>> => {
     if (remoteWorkspace) {
@@ -858,10 +827,6 @@ function ConversationWelcomeCore({
     )
     setReasoningConfig(readReasoningObject(welcomeDraft.reasoning) ?? DEFAULT_REASONING_CONFIG)
     if (welcomeDraft.speed != null) setSpeedValue(welcomeDraft.speed === 'fast' ? 'fast' : 'standard')
-    if (Array.isArray(welcomeDraft.appIds)) {
-      setWelcomeAppIds([...welcomeDraft.appIds])
-      setWelcomeAppSelectionTouched(true)
-    }
     setContentRevision((n) => n + 1)
     draftHydratedRef.current = true
   }, [canUseCommandPicker, customCommandStatus, skillCatalogReady])
@@ -974,7 +939,6 @@ function ConversationWelcomeCore({
       || model !== 'Default'
       || welcomeApprovalPolicyDirty
       || hasCustomReasoning
-      || welcomeAppSelectionTouched
     const fallbackCaret = text.length
 
     if (!hasText && !hasImages && !hasFiles && !hasCustomSettings) return null
@@ -992,9 +956,8 @@ function ConversationWelcomeCore({
       reasoning: reasoningConfig,
       speed: speedValue,
       approvalPolicy: welcomeApprovalPolicyDirty ? welcomeApprovalPolicy : undefined,
-      appIds: welcomeAppSelectionTouched ? [...welcomeAppIds] : undefined
     }
-  }, [files, images, modelName, providerId, reasoningConfig, speedValue, welcomeAppIds, welcomeAppSelectionTouched, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
+  }, [files, images, modelName, providerId, reasoningConfig, speedValue, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
 
   const flushWelcomeDraft = useCallback((): void => {
     if (skipDraftPersistRef.current) return
@@ -1037,7 +1000,7 @@ function ConversationWelcomeCore({
     return () => {
       clearTimeout(timer)
     }
-  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, speedValue, welcomeAppIds, welcomeAppSelectionTouched, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
+  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, speedValue, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
 
   useEffect(() => {
     return () => {
@@ -1220,6 +1183,17 @@ function ConversationWelcomeCore({
     addToast(t('goal.toast.unsupported'), 'warning')
   }, [t])
 
+  const welcomeThreadConfiguration = useMemo(() => buildWelcomeThreadConfiguration({
+    mode: selectedProfileId ? 'agent' : welcomeMode,
+    providerId,
+    model: modelName,
+    reasoning: reasoningConfig,
+    speed: speedValue,
+    approvalPolicy: welcomeApprovalPolicy,
+    approvalPolicyExplicit: welcomeApprovalPolicyDirty,
+    agentProfileId: selectedProfileId
+  }), [modelName, providerId, reasoningConfig, selectedProfileId, speedValue, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
+
   const startWelcomeThread = useCallback(async (): Promise<ThreadSummary> => {
     const identity = {
       channelName: 'dotcraft-desktop',
@@ -1227,16 +1201,7 @@ function ConversationWelcomeCore({
       channelContext: `workspace:${identityPath}`,
       workspacePath: identityPath
     }
-    const config = buildWelcomeThreadConfiguration({
-      mode: selectedProfileId ? 'agent' : welcomeMode,
-      providerId,
-      model: modelName,
-      reasoning: reasoningConfig,
-      speed: speedValue,
-      approvalPolicy: welcomeApprovalPolicy,
-      approvalPolicyExplicit: welcomeApprovalPolicyDirty,
-      agentProfileId: selectedProfileId
-    })
+    const config = welcomeThreadConfiguration
 
     // Omitted for single-folder / remote workspaces, and deliberately for worktrees:
     // worktree/createAndStart does not accept runtime roots, so the first turn
@@ -1269,16 +1234,9 @@ function ConversationWelcomeCore({
     return thread
   }, [
     identityPath,
-    modelName,
-    providerId,
-    reasoningConfig,
-    selectedProfileId,
-    speedValue,
-    welcomeApprovalPolicy,
-    welcomeApprovalPolicyDirty,
     welcomeBaseRef,
     welcomeChangelist,
-    welcomeMode,
+    welcomeThreadConfiguration,
     welcomeWorkspaceMode,
     welcomeWorktreeBranchName
   ])
@@ -1296,6 +1254,17 @@ function ConversationWelcomeCore({
       void startPendingWelcomeTurn({ threadId, pending, workspacePath: identityPath, translate: t })
     }
   }, [contextKey, identityPath, setActiveThreadId, t])
+
+  const welcomeThreadName = useCallback((visibleText: string, imagesCount: number, filesCount: number): string => (
+    getFallbackThreadName({
+      visibleText,
+      imagesCount,
+      filesCount,
+      fallbackThreadName: t('toast.imageMessage'),
+      fileFallbackThreadName: t('toast.fileReferenceMessage'),
+      attachmentFallbackThreadName: t('toast.attachmentMessage')
+    })
+  ), [t])
 
   const createGoalBackedThread = useCallback(async (objective: string): Promise<boolean> => {
     if (!canUseThreadGoals) {
@@ -1317,7 +1286,18 @@ function ConversationWelcomeCore({
     const submittedContexts = useComposerContextStore.getState().getContexts(contextKey)
     const requestId = crypto.randomUUID()
 
-    useUIStore.getState().setPendingThreadCreation({ requestId, createdAt: Date.now(), workspacePath: identityPath, text: trimmedObjective })
+    const preview = buildComposerInputParts({ text: trimmedObjective })
+    const threadName = welcomeThreadName(preview.visibleText, 0, 0)
+    useUIStore.getState().setPendingThreadCreation({
+      requestId,
+      createdAt: Date.now(),
+      workspacePath: identityPath,
+      text: trimmedObjective,
+      inputParts: preview.inputParts,
+      sentAsGoal: true,
+      threadName,
+      configuration: welcomeThreadConfiguration as ThreadConfigurationWire
+    })
     useUIStore.getState().setActiveMainView('conversation')
     clearWelcomeComposer()
 
@@ -1332,9 +1312,9 @@ function ConversationWelcomeCore({
         objective: trimmedObjective
       })
       const goal = extractGoal(goalResult)
-      const { inputParts } = buildComposerInputParts({ text: trimmedObjective })
+      const { inputParts } = preview
 
-      addThread(goal ? { ...thread, goal } : thread)
+      addThread({ ...thread, displayName: thread.displayName || threadName, ...(goal ? { goal } : {}) })
       if (goal) {
         useThreadStore.getState().setThreadGoal(goal)
       }
@@ -1367,6 +1347,8 @@ function ConversationWelcomeCore({
     showGoalUnavailable,
     startWelcomeThread,
     welcomeAppIds,
+    welcomeThreadConfiguration,
+    welcomeThreadName,
     t
   ])
 
@@ -1445,7 +1427,23 @@ function ConversationWelcomeCore({
     const submittedDraft = buildWelcomeDraftSnapshot()
     const requestId = crypto.randomUUID()
 
-    useUIStore.getState().setPendingThreadCreation({ requestId, createdAt: Date.now(), workspacePath: identityPath, text: trimmed })
+    const preview = buildComposerInputParts({
+      text: trimmed,
+      segments: capturedSegments,
+      contexts: inputContexts,
+      files: capturedFiles,
+      images: capturedImages
+    })
+    const threadName = welcomeThreadName(preview.visibleText, capturedImages.length, capturedFiles.length)
+    useUIStore.getState().setPendingThreadCreation({
+      requestId,
+      createdAt: Date.now(),
+      workspacePath: identityPath,
+      text: preview.visibleText,
+      inputParts: preview.inputParts,
+      threadName,
+      configuration: welcomeThreadConfiguration as ThreadConfigurationWire
+    })
     useUIStore.getState().setActiveMainView('conversation')
     clearWelcomeComposer()
 
@@ -1455,14 +1453,9 @@ function ConversationWelcomeCore({
       createdThreadId = thread.id
       useUIStore.getState().resolvePendingThreadCreation(requestId, thread.id)
       const turnText = isInitCommand ? await expandInitCommand(thread.id) : trimmed
-      const { inputParts } = buildComposerInputParts({
-        text: turnText,
-        segments: isInitCommand ? [] : capturedSegments,
-        contexts: inputContexts,
-        files: capturedFiles,
-        images: capturedImages
-      })
-      useComposerContextStore.getState().setContexts(thread.id, inputContexts)
+      const { inputParts } = isInitCommand
+        ? buildComposerInputParts({ text: turnText, contexts: inputContexts, files: capturedFiles, images: capturedImages })
+        : preview
       useUIStore.getState().setPendingWelcomeTurn({
         threadId: thread.id,
         text: turnText,
@@ -1471,7 +1464,7 @@ function ConversationWelcomeCore({
         files: capturedFiles.length > 0 ? capturedFiles : undefined,
         ...(welcomeAppIds.length > 0 ? { appIds: [...welcomeAppIds] } : {})
       })
-      addThread(thread)
+      addThread({ ...thread, displayName: thread.displayName || threadName })
       openOrDetachCreatedThread(thread.id)
     } catch (err) {
       console.error('Failed to start thread from welcome composer:', err)
@@ -1490,6 +1483,8 @@ function ConversationWelcomeCore({
     openOrDetachCreatedThread,
     startWelcomeThread,
     welcomeAppIds,
+    welcomeThreadConfiguration,
+    welcomeThreadName,
     modelLoading,
     clearWelcomeDraft,
     draftProjectKey,
@@ -1671,16 +1666,6 @@ function ConversationWelcomeCore({
       }}
     >
       <div style={welcomeHeaderActionsSlot}>
-        {canUseAppBinding && isConnected && (
-          <WelcomeAppBindingsButton
-            apps={welcomeApps}
-            selectedAppIds={welcomeAppIds}
-            loading={appBindingAppsLoading}
-            error={appBindingAppsError}
-            onRetry={retryWelcomeApps}
-            onToggleApp={toggleWelcomeApp}
-          />
-        )}
         <DetailPanelToggleButton />
       </div>
       <div
@@ -2137,68 +2122,6 @@ function WelcomeSuggestionSkeletonList(): JSX.Element {
   )
 }
 
-function WelcomeAppBindingsButton({
-  apps,
-  selectedAppIds,
-  loading,
-  error,
-  onRetry,
-  onToggleApp,
-}: {
-  apps: AppInfo[]
-  selectedAppIds: string[]
-  loading: boolean
-  error: string | null
-  onRetry: () => Promise<void>
-  onToggleApp: (appId: string, selected: boolean) => void
-}): JSX.Element {
-  const t = useT()
-  const [open, setOpen] = useState(false)
-
-  return (
-    <AppBindingsPicker
-      open={open}
-      onOpenChange={setOpen}
-      loading={loading}
-      error={error}
-      empty={apps.length === 0}
-      emptyLabel={t('appBinding.welcomeEmpty')}
-      onRetry={() => { void onRetry() }}
-    >
-      {apps.map((app) => {
-        const selected = selectedAppIds.includes(app.appId)
-        return (
-          <AppBindingPickerRow
-            key={app.appId}
-            icon={<AppLogo app={app} />}
-            title={app.displayName}
-            action={(
-              <PillSwitch
-                checked={selected}
-                onChange={(checked) => onToggleApp(app.appId, checked)}
-                size="sm"
-                aria-label={t('appBinding.welcomeUseApp', { name: app.displayName })}
-              />
-            )}
-          />
-        )
-      })}
-    </AppBindingsPicker>
-  )
-}
-
-function AppLogo({ app }: { app: AppInfo }): JSX.Element {
-  return (
-    <IdentityMark
-      role="list"
-      size={30}
-      src={app.icon}
-      fallback={<Link2 size={15} />}
-      framed={!app.icon}
-    />
-  )
-}
-
 const welcomeHeaderActionsSlot: CSSProperties = {
   position: 'absolute',
   top: 0,
@@ -2215,11 +2138,6 @@ function parseWelcomeSystemSlashCommand(text: string): { kind: 'agent' | 'plan' 
   if (trimmed === '/plan') return { kind: 'plan' }
   if (trimmed === '/agent') return { kind: 'agent' }
   return null
-}
-
-function sameStringArray(left: string[], right: string[]): boolean {
-  if (left.length !== right.length) return false
-  return left.every((value, index) => value === right[index])
 }
 
 async function deleteUnusedWelcomeThread(threadId: string): Promise<void> {

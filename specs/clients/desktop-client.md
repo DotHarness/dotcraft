@@ -764,31 +764,15 @@ user workflows even though both are backed by App Binding version 2:
   status menu. The connected menu contains Reconnect and Disconnect. Disconnect
   confirms before revoking the app principal because that operation also
   revokes the app's thread bindings.
-- Welcome and conversation-header Apps pickers list only installed, enabled
-  apps that are ready for binding. Apps requiring an external connection must
-  be connected; managed apps that require no external connection are ready
-  immediately. Installation, connection, reconnect, and setup remain exclusive
-  to plugin detail.
-- Both pickers use a switch without a connection-status badge. Before a thread
-  exists, the switch only stages the selection in the welcome draft; it never
-  creates an empty thread or invokes connection or revoke methods. The staged
-  list, including an explicitly empty selection, is restored with the workspace
-  welcome draft. The first message creates the thread and opens it right away;
-  Desktop then enables and awaits each staged binding inside that thread and
-  starts the Turn once they are active. A staged binding that fails leaves the
-  thread open with the submission restored to its composer.
-- In an existing conversation, switching on starts the existing binding
-  request. Switching off directly cancels a pending request or revokes the
-  current thread binding without changing workspace-level connection. Failed
-  operations leave the server-controlled switch state unchanged and surface an
-  error.
-- Capability expansion remains an explicit Review action in the conversation
-  picker alongside the switch. Accept and Reject call the existing
-  capability-confirmation method; the decision is never hidden inside an
-  overflow menu.
-- App and binding notifications drive ordinary status refresh. Per-row manual
-  refresh commands are absent; a Retry action is shown only after a load or
-  recovery failure.
+- Connecting an app is the user's decision to use it in the workspace. Every
+  conversation started from Welcome binds each installed, enabled, connected app
+  that requires an external connection; there is no per-conversation Apps picker
+  in Welcome or the thread header, and an existing conversation's bindings do
+  not change.
+- The first message creates the thread and opens it right away. Desktop enables
+  and awaits those bindings inside the thread without a status of its own, then
+  starts the Turn. A binding that fails is reported as a warning and the Turn
+  starts without that app.
 - Plugin detail keeps Try in chat as the direct primary action. Manage and
   Uninstall are grouped under its overflow menu. Manage opens the installed-plugin
   management surface with a clearable query prefilled for the current plugin;

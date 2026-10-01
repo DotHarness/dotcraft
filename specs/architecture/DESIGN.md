@@ -702,9 +702,9 @@ model but only `outline` and `outlineGhost` paint it, so switching a button betw
 fills and frames never shifts height or alignment. A visible frame is reserved for
 special or important framed actions:
 
-- `outline` for matched open-target controls in the thread header and file viewer,
-  which keep the same frame even when one omits its text label for compactness, and
-  for the non-accepting choices of a card or review decision.
+- `outline` for open-target controls in the file viewer, which keep the same frame
+  even when they omit the text label for compactness, and for the non-accepting
+  choices of a card or review decision.
 - `outlineGhost` for a framed action inside a card that already carries its own
   surface: the open, preview, and review actions of a transcript card, on the
   `toolbar` size. Undo beside them stays `ghost` at the same size.
@@ -829,8 +829,7 @@ Use the shared `SplitButton` rather than composing a button pair, chevron, and
 positioned menu per feature, so segment geometry, keyboard navigation,
 outside-click dismissal, and focus restoration stay identical everywhere. A
 compound trigger takes the height of whichever control band it sits in, so the row
-still reads as one band. Compact thread-header Apps triggers remain frameless and
-omit connection counts.
+still reads as one band.
 
 ### Status menu buttons
 
@@ -1047,6 +1046,13 @@ palettes share one overlay language:
 The thread sidebar and thread-header overflow menus are the reference treatment
 for ordinary Desktop menus: neutral overlay surface, quiet elevation, no outer
 frame, and borderless rows.
+
+The thread header's trailing edge carries only the chat-actions overflow and the
+viewer-panel toggle, plus a remote screen launcher when the thread runs on a
+remote host. The overflow opens with the workspace actions (an Open submenu of
+editors, with the last-used one checked, and Commit or Checkout, disabled with its
+reason when there is nothing to commit), then the conversation actions (Pin,
+Rename, Archive), then Fork.
 
 Ordinary text-only field selects may expand toward the left when opened so the
 longest option can be read without a tooltip. The trigger finishes its width
