@@ -7,6 +7,7 @@ namespace DotCraft.AppBinding;
 public sealed class AppBindingService
 {
     private static readonly TimeSpan SurfaceLeaseLifetime = TimeSpan.FromMinutes(2);
+    private const int MaxChannelCodeFailures = 10;
     private readonly ConcurrentDictionary<string, AppBindingStateStore> _stores =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, AppSurfaceLease>> _surfaces =
@@ -626,15 +627,15 @@ public sealed class AppBindingService
     public AppBindingRequestSnapshot GetChannelRequest(string workspaceCraftPath, string code, string channelName)
     {
         Require(code, "code");
-        var state = Store(workspaceCraftPath).Snapshot();
-        var hash = AppBindingSecrets.HashRequestToken(code);
-        var request = state.BindingRequests.FirstOrDefault(candidate => candidate.ExpiresAt > DateTimeOffset.UtcNow
-            && !candidate.Consumed && candidate.RequestTokenHash == hash);
-        if (request == null) throw AppBindingErrors.InvalidInput("Channel binding code is invalid or expired.");
-        var expected = AppIdForChannel(channelName);
-        if (!string.Equals(request.AppId, expected, StringComparison.Ordinal))
-            throw AppBindingErrors.Unauthorized("The channel binding request belongs to another channel.");
-        return ToWire(request);
+        var appId = AppIdForChannel(channelName);
+        var now = DateTimeOffset.UtcNow;
+        var request = Store(workspaceCraftPath).Update(state =>
+        {
+            var match = FindLiveChannelRequest(state, appId, code, now);
+            if (match == null) RecordChannelCodeFailure(state, appId, now);
+            return match == null ? null : ToWire(match);
+        });
+        return request ?? throw InvalidChannelCode();
     }
 
     public AppBindingSnapshot AcceptChannel(
@@ -642,15 +643,16 @@ public sealed class AppBindingService
     {
         ValidateChannelTarget(channelName, parameters.Target);
         var now = DateTimeOffset.UtcNow;
-        var hash = AppBindingSecrets.HashRequestToken(parameters.Code);
-        return Store(workspaceCraftPath).Update(state =>
+        var appId = AppIdForChannel(channelName);
+        var accepted = Store(workspaceCraftPath).Update(state =>
         {
-            var request = state.BindingRequests.FirstOrDefault(candidate => !candidate.Consumed
-                && candidate.ExpiresAt > now && candidate.RequestTokenHash == hash)
-                ?? throw AppBindingErrors.InvalidInput("Channel binding code is invalid or expired.");
+            var request = FindLiveChannelRequest(state, appId, parameters.Code, now);
+            if (request == null)
+            {
+                RecordChannelCodeFailure(state, appId, now);
+                return null;
+            }
             var binding = RequireLiveBinding(state, request.BindingId);
-            if (!string.Equals(binding.AppId, AppIdForChannel(channelName), StringComparison.Ordinal))
-                throw AppBindingErrors.Unauthorized("The binding request belongs to another channel.");
             EnsureUniqueChannelTarget(state, binding.BindingId, parameters.Target);
             request.Consumed = true; request.State = AppBindingStates.Active;
             binding.PrincipalId = $"channel:{channelName.ToLowerInvariant()}";
@@ -663,7 +665,42 @@ public sealed class AppBindingService
                 binding.BindingId, binding.AuthorityRevision, binding.ApprovedCapabilityRevision);
             return ToWire(binding);
         });
+        return accepted ?? throw InvalidChannelCode();
     }
+
+    private static AppBindingRequestRecord? FindLiveChannelRequest(
+        AppBindingStateDocument state, string appId, string code, DateTimeOffset now)
+    {
+        var hash = AppBindingSecrets.HashRequestToken(code);
+        return state.BindingRequests.FirstOrDefault(candidate => !candidate.Consumed
+            && candidate.ExpiresAt > now
+            && candidate.RequestTokenHash == hash
+            && string.Equals(candidate.AppId, appId, StringComparison.Ordinal));
+    }
+
+    private static void RecordChannelCodeFailure(AppBindingStateDocument state, string appId, DateTimeOffset now)
+    {
+        state.ChannelCodeFailures.RemoveAll(failure => failure.At <= now - AppBindingContract.HandoffLifetime);
+        state.ChannelCodeFailures.Add(new ChannelCodeFailureRecord { AppId = appId, At = now });
+        if (state.ChannelCodeFailures.Count(failure => failure.AppId == appId) < MaxChannelCodeFailures)
+            return;
+        foreach (var request in state.BindingRequests.Where(request => !request.Consumed
+                     && request.ExpiresAt > now
+                     && string.Equals(request.AppId, appId, StringComparison.Ordinal)))
+        {
+            request.Consumed = true;
+            request.State = AppBindingStates.Cancelled;
+            var binding = state.Bindings.FirstOrDefault(candidate => candidate.BindingId == request.BindingId);
+            if (binding is not { State: AppBindingStates.Connecting }) continue;
+            binding.State = AppBindingStates.Cancelled;
+            binding.UpdatedAt = now;
+            Audit(state, "channel.codeCancelled", "system", appId, binding.ThreadId, binding.BindingId,
+                binding.AuthorityRevision);
+        }
+    }
+
+    private static AppBindingException InvalidChannelCode() =>
+        AppBindingErrors.InvalidInput("Channel binding code is invalid or expired.");
 
     public AppBindingSnapshot RebindChannel(
         string workspaceCraftPath, string channelName, ChannelBindingRebindCommand parameters)

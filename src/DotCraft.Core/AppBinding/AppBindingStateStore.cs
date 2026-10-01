@@ -116,7 +116,14 @@ internal sealed class AppBindingStateDocument
     public List<AppConnectionRequestRecord> ConnectionRequests { get; set; } = [];
     public List<AppBindingRequestRecord> BindingRequests { get; set; } = [];
     public List<AppBindingRecord> Bindings { get; set; } = [];
+    public List<ChannelCodeFailureRecord> ChannelCodeFailures { get; set; } = [];
     public List<AppBindingAuditRecord> Audit { get; set; } = [];
+}
+
+internal sealed class ChannelCodeFailureRecord
+{
+    public string AppId { get; set; } = string.Empty;
+    public DateTimeOffset At { get; set; }
 }
 
 internal sealed class AppPrincipalRecord

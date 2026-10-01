@@ -159,10 +159,25 @@ public sealed class AppBindingServiceTests : IDisposable
         var request = control.CreateChannelRequest(CraftPath, "thread-1", "qq", "user");
 
         var get = Assert.Throws<AppBindingException>(() => control.GetChannelRequest(CraftPath, request.Code, "telegram"));
-        Assert.Equal(AppBindingError.Unauthorized, get.Error);
+        Assert.Equal(AppBindingError.InvalidInput, get.Error);
         var accept = Assert.Throws<AppBindingException>(() => control.AcceptChannel(CraftPath, "telegram",
             new ChannelBindingAcceptCommand { Code = request.Code, Target = ChannelTarget("telegram", "chat-1") }));
-        Assert.Equal(AppBindingError.Unauthorized, accept.Error);
+        Assert.Equal(AppBindingError.InvalidInput, accept.Error);
+    }
+
+    [Fact]
+    public void RepeatedWrongChannelCodes_CancelThePendingCode()
+    {
+        var control = new AppBindingService();
+        var request = control.CreateChannelRequest(CraftPath, "thread-1", "qq", "user");
+        var wrong = request.Code == "100000" ? "100001" : "100000";
+
+        for (var attempt = 0; attempt < 10; attempt++)
+            Assert.Throws<AppBindingException>(() => control.GetChannelRequest(CraftPath, wrong, "qq"));
+
+        Assert.Throws<AppBindingException>(() => control.AcceptChannel(CraftPath, "qq",
+            new ChannelBindingAcceptCommand { Code = request.Code, Target = ChannelTarget("qq", "chat-1") }));
+        Assert.NotNull(control.CreateChannelRequest(CraftPath, "thread-1", "qq", "user").Code);
     }
 
     private static ChannelTarget ChannelTarget(string channel, string conversationId) => new()
