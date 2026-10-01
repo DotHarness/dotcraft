@@ -90,7 +90,9 @@ test("WeComMediaTools uploads file tool paths as bytes", async () => {
 test("WeComMediaTools sends images inline within the WeCom size limit", async () => {
   const tempDir = mkdtempSync(join(tmpdir(), "dotcraft-wecom-image-"));
   const filePath = join(tempDir, "chart.png");
-  writeFileSync(filePath, "png bytes", "utf-8");
+  const pngBytes = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("png")]);
+  const jpegBytes = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from("jpeg")]);
+  writeFileSync(filePath, pngBytes);
   const pushedImages: Buffer[] = [];
   const pusher = {
     getChatId: () => "chat:chat-1",
@@ -104,12 +106,12 @@ test("WeComMediaTools sends images inline within the WeCom size limit", async ()
   const structured = await tools.sendStructuredMessage(pusher as never, {
     kind: "image",
     fileName: "ig_1.png",
-    source: { kind: "dataBase64", dataBase64: Buffer.from("generated").toString("base64") },
+    source: { kind: "dataBase64", dataBase64: jpegBytes.toString("base64") },
   });
 
   assert.equal(toolResult.success, true);
   assert.equal(structured.delivered, true);
-  assert.deepEqual(pushedImages.map((bytes) => bytes.toString("utf-8")), ["png bytes", "generated"]);
+  assert.deepEqual(pushedImages, [pngBytes, jpegBytes]);
   await assert.rejects(
     () => tools.sendStructuredMessage(pusher as never, {
       kind: "image",
@@ -117,6 +119,34 @@ test("WeComMediaTools sends images inline within the WeCom size limit", async ()
     }),
     /2097152|too large|exceeds/i,
   );
+});
+
+test("WeComMediaTools sends images WeCom cannot render inline as files", async () => {
+  const uploads: Array<{ fileName: string; type: string }> = [];
+  let pushedFile = "";
+  const pusher = {
+    getChatId: () => "chat:chat-1",
+    pushImage: async () => {
+      throw new Error("unsupported image format must not be pushed inline");
+    },
+    uploadMedia: async (_bytes: Buffer, fileName: string, type: string) => {
+      uploads.push({ fileName, type });
+      return "media-webp";
+    },
+    pushFile: async (mediaId: string) => {
+      pushedFile = mediaId;
+    },
+  };
+
+  const result = await new WeComMediaTools().sendStructuredMessage(pusher as never, {
+    kind: "image",
+    fileName: "ig_1.webp",
+    source: { kind: "dataBase64", dataBase64: Buffer.from("RIFF0000WEBP").toString("base64") },
+  });
+
+  assert.equal(result.delivered, true);
+  assert.deepEqual(uploads, [{ fileName: "ig_1.webp", type: "file" }]);
+  assert.equal(pushedFile, "media-webp");
 });
 
 test("WeComAdapter uses chat thread identity and real sender context", async () => {

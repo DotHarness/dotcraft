@@ -53,3 +53,19 @@ test("FeishuMediaDelivery image tool sends a local image with its caption card",
   assert.equal((result.structuredContent as Record<string, unknown>).imageKey, "ik");
   assert.deepEqual(router.calls.map((call) => call.method), ["image", "card"]);
 });
+
+test("FeishuMediaDelivery image tool reports the image as sent when only its caption card fails", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "dotcraft-feishu-image-"));
+  const imagePath = join(tempDir, "chart.png");
+  writeFileSync(imagePath, "png bytes", "utf-8");
+  const router = new FakeMediaRouter();
+  router.sendCard = async () => {
+    throw new Error("card rejected");
+  };
+  const delivery = new FeishuMediaDelivery(router as never);
+
+  const result = await delivery.executeToolCall(FEISHU_SEND_IMAGE_TOOL, "dm:ou_1", { imagePath, caption: "Q3" });
+
+  assert.equal(result.success, true);
+  assert.deepEqual(router.calls.map((call) => call.method), ["image"]);
+});

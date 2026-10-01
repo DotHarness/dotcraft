@@ -181,6 +181,10 @@ export class WeComMediaTools {
       maxBytes: WE_COM_IMAGE_MAX_BYTES,
       errorFactory: weComMediaError,
     });
+    if (!isJpegOrPng(prepared.bytes)) {
+      await pusher.pushFile(await pusher.uploadMedia(prepared.bytes, prepared.fileName, "file"));
+      return;
+    }
     await pusher.pushImage(prepared.bytes);
   }
 
@@ -200,6 +204,12 @@ export class WeComMediaTools {
     if (mediaKind === "voice") await pusher.pushVoice(mediaId);
     else await pusher.pushFile(mediaId);
   }
+}
+
+function isJpegOrPng(bytes: Buffer): boolean {
+  const isPng = bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const isJpeg = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  return isPng || isJpeg;
 }
 
 function requiredText(value: unknown, field: string): string {

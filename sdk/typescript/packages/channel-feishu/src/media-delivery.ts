@@ -158,7 +158,12 @@ export class FeishuMediaDelivery {
       }, "tool");
       return {
         success: true,
-        contentItems: [{ type: "text", text: `Sent ${sent.fileName} to the current chat.` }],
+        contentItems: [{
+          type: "text",
+          text: sent.captionDelivered
+            ? `Sent ${sent.fileName} to the current chat.`
+            : `Sent ${sent.fileName} to the current chat, but its caption could not be sent.`,
+        }],
         structuredContent: {
           delivered: true,
           fileName: sent.fileName,
@@ -185,7 +190,7 @@ export class FeishuMediaDelivery {
       caption: string;
     },
     source: DeliverySource,
-  ): Promise<{ fileName: string; messageId: string; mediaKey: string }> {
+  ): Promise<{ fileName: string; messageId: string; mediaKey: string; captionDelivered: boolean }> {
     const prepared = await prepareMediaBytes(payload.source, {
       fileName: payload.fileName,
       mediaType: payload.mediaType,
@@ -211,8 +216,8 @@ export class FeishuMediaDelivery {
       sent = { messageId: result.messageId, mediaKey: result.fileKey };
     }
 
-    await this.sendCaptionCard(target, payload.caption, prepared.fileName, source);
-    return { fileName: prepared.fileName, ...sent };
+    const captionDelivered = await this.sendCaptionCard(target, payload.caption, prepared.fileName, source);
+    return { fileName: prepared.fileName, ...sent, captionDelivered };
   }
 
   private async sendCaptionCard(
@@ -220,15 +225,26 @@ export class FeishuMediaDelivery {
     caption: string,
     fileName: string,
     source: DeliverySource,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const normalized = caption.trim();
-    if (!normalized) return;
-    await this.router.sendCard(target, buildFileCaptionCard(normalized, fileName));
+    if (!normalized) return true;
+    try {
+      await this.router.sendCard(target, buildFileCaptionCard(normalized, fileName));
+    } catch (error) {
+      logError("outbound.send.file.caption_card_failed", {
+        source,
+        target: shortId(target),
+        fileName,
+        message: errorMessage(error),
+      });
+      return false;
+    }
     logInfo("outbound.send.file.caption_card_sent", {
       source,
       target: shortId(target),
       fileName,
       captionChars: normalized.length,
     });
+    return true;
   }
 }
