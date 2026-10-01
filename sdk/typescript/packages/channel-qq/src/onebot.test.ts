@@ -7,7 +7,6 @@ import {
   getPlainText,
   isActionOk,
   normalizeMessageSegments,
-  parseQQApprovalDecision,
 } from "./index.js";
 
 test("OneBot helpers extract text, at, and image fields", () => {
@@ -26,10 +25,4 @@ test("isActionOk accepts OneBot ok status and retcode zero", () => {
   assert.equal(isActionOk({ status: "ok" }), true);
   assert.equal(isActionOk({ retcode: 0 }), true);
   assert.equal(isActionOk({ status: "failed", retcode: 1400 }), false);
-});
-
-test("QQ approval parser handles common text decisions", () => {
-  assert.equal(parseQQApprovalDecision("yes"), "accept");
-  assert.equal(parseQQApprovalDecision("yes all"), "acceptForSession");
-  assert.equal(parseQQApprovalDecision("no"), "decline");
 });

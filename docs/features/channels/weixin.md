@@ -45,7 +45,8 @@ No public callback URL is required for the Desktop-managed Weixin channel.
 - If the session expires, Desktop shows a new QR code.
 - Replies are plain text because Weixin does not render Markdown.
 - File and image delivery are available through channel delivery tools.
-- Approval replies accept plain chat keywords such as `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`. Replying `同意全部` or `approve all` allows the same kind of action for the rest of the session.
+- Approval replies accept plain chat keywords such as `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`. A leading `/` also works, so `/yes` and `/no` are accepted. Replying `同意全部` or `approve all` allows the same kind of action for the rest of the session.
+- While an approval waits for you, the bot answers your other messages in that chat with a reminder instead of passing them on. If you don't answer in time, the action is cancelled and the chat tells you.
 
 ## Related docs
 

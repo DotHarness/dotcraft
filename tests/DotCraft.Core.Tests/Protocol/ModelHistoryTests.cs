@@ -108,6 +108,7 @@ public sealed class ModelHistoryTests : IDisposable
             content => Assert.Equal("text/plain", Assert.IsType<DataContent>(content).MediaType));
         var hostedImage = Assert.IsType<HostedImageGenerationContent>(restored.Contents[6]);
         Assert.Equal(new byte[] { 4, 5, 6 }, hostedImage.ImageBytes);
+        Assert.Equal("/workspace/.craft/generated_images/thread/image_1.png", hostedImage.SavedPath);
         var imageResult = Assert.IsType<ImageGenerationToolResultContent>(restored.Contents[8]);
         Assert.Equal("https://example.invalid/image.png", Assert.IsType<UriContent>(imageResult.Outputs![1]).Uri.ToString());
         var usage = Assert.IsType<UsageContent>(restored.Contents[11]);
@@ -565,7 +566,8 @@ public sealed class ModelHistoryTests : IDisposable
                 Status = "completed",
                 RevisedPrompt = "synthetic prompt",
                 ImageBytes = new byte[] { 4, 5, 6 },
-                MediaType = "image/png"
+                MediaType = "image/png",
+                SavedPath = "/workspace/.craft/generated_images/thread/image_1.png"
             },
             new ImageGenerationToolCallContent("image_call"),
             new ImageGenerationToolResultContent("image_call")

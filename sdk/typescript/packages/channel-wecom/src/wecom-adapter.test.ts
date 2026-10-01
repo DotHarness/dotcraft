@@ -4,10 +4,15 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { parseWeComApprovalDecision } from "./approval.js";
+import {
+  APPROVAL_REPLY_PENDING_NOTICE,
+  APPROVAL_REPLY_TIMEOUT_NOTICE,
+  type ApprovalReplyTracker,
+} from "@dotcraft/channel";
+
 import { WeComPermissionService } from "./permission.js";
 import { WeComAdapter } from "./wecom-adapter.js";
-import { WE_COM_SEND_FILE_TOOL, WeComMediaTools } from "./wecom-media-tools.js";
+import { WE_COM_SEND_FILE_TOOL, WE_COM_SEND_IMAGE_TOOL, WeComMediaTools } from "./wecom-media-tools.js";
 import { parseWeComMessage, parseWeComParameters, WeComChatType } from "./wecom-types.js";
 
 test("WeComPermissionService classifies admins, whitelisted users, chats, and unauthorized users", () => {
@@ -21,13 +26,6 @@ test("WeComPermissionService classifies admins, whitelisted users, chats, and un
   assert.equal(permissions.getUserRole("user"), "whitelisted");
   assert.equal(permissions.getUserRole("someone", "chat"), "whitelisted");
   assert.equal(permissions.getUserRole("someone", "other"), "unauthorized");
-});
-
-test("parseWeComApprovalDecision accepts Chinese and English keywords", () => {
-  assert.equal(parseWeComApprovalDecision("同意"), "accept");
-  assert.equal(parseWeComApprovalDecision("yes all"), "acceptForSession");
-  assert.equal(parseWeComApprovalDecision("拒绝"), "decline");
-  assert.equal(parseWeComApprovalDecision("hello"), null);
 });
 
 test("parseWeComParameters strips leading mention in group chats", () => {
@@ -87,6 +85,68 @@ test("WeComMediaTools uploads file tool paths as bytes", async () => {
   assert.equal(uploads[0]?.type, "file");
   assert.equal(uploads[0]?.bytes.toString("utf-8"), "hello wecom");
   assert.equal(pushedFile, "media-1");
+});
+
+test("WeComMediaTools sends images inline within the WeCom size limit", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "dotcraft-wecom-image-"));
+  const filePath = join(tempDir, "chart.png");
+  const pngBytes = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("png")]);
+  const jpegBytes = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from("jpeg")]);
+  writeFileSync(filePath, pngBytes);
+  const pushedImages: Buffer[] = [];
+  const pusher = {
+    getChatId: () => "chat:chat-1",
+    pushImage: async (bytes: Buffer) => {
+      pushedImages.push(bytes);
+    },
+  };
+  const tools = new WeComMediaTools();
+
+  const toolResult = await tools.executeToolCall(pusher as never, WE_COM_SEND_IMAGE_TOOL, { filePath });
+  const structured = await tools.sendStructuredMessage(pusher as never, {
+    kind: "image",
+    fileName: "ig_1.png",
+    source: { kind: "dataBase64", dataBase64: jpegBytes.toString("base64") },
+  });
+
+  assert.equal(toolResult.success, true);
+  assert.equal(structured.delivered, true);
+  assert.deepEqual(pushedImages, [pngBytes, jpegBytes]);
+  await assert.rejects(
+    () => tools.sendStructuredMessage(pusher as never, {
+      kind: "image",
+      source: { kind: "dataBase64", dataBase64: Buffer.alloc(2 * 1024 * 1024 + 1).toString("base64") },
+    }),
+    /2097152|too large|exceeds/i,
+  );
+});
+
+test("WeComMediaTools sends images WeCom cannot render inline as files", async () => {
+  const uploads: Array<{ fileName: string; type: string }> = [];
+  let pushedFile = "";
+  const pusher = {
+    getChatId: () => "chat:chat-1",
+    pushImage: async () => {
+      throw new Error("unsupported image format must not be pushed inline");
+    },
+    uploadMedia: async (_bytes: Buffer, fileName: string, type: string) => {
+      uploads.push({ fileName, type });
+      return "media-webp";
+    },
+    pushFile: async (mediaId: string) => {
+      pushedFile = mediaId;
+    },
+  };
+
+  const result = await new WeComMediaTools().sendStructuredMessage(pusher as never, {
+    kind: "image",
+    fileName: "ig_1.webp",
+    source: { kind: "dataBase64", dataBase64: Buffer.from("RIFF0000WEBP").toString("base64") },
+  });
+
+  assert.equal(result.delivered, true);
+  assert.deepEqual(uploads, [{ fileName: "ig_1.webp", type: "file" }]);
+  assert.equal(pushedFile, "media-webp");
 });
 
 test("WeComAdapter uses chat thread identity and real sender context", async () => {
@@ -265,64 +325,88 @@ test("WeComAdapter accepts channel bind codes before forwarding to the agent", a
   ]);
 });
 
+type WeComApprovalTestAdapter = {
+  approvalTimeoutMs: number;
+  threadContextMap: Map<string, string>;
+  lastSenderByContext: Map<string, string>;
+  approvalReplies: ApprovalReplyTracker;
+  createPusher: (target: string) => { pushText: (content: string) => Promise<void> };
+  handleMessage: (opts: Record<string, unknown>) => Promise<void>;
+  handleTextMessage: (
+    parameters: string[],
+    from: { userId: string; name: string; alias: string },
+    pusher: { getChatId: () => string; pushText: (content: string) => Promise<void> },
+  ) => Promise<void>;
+  onApprovalRequest: (request: Record<string, unknown>) => Promise<string>;
+};
+
+function createWeComApprovalTestAdapter(): {
+  adapter: WeComApprovalTestAdapter;
+  pushed: Array<{ target: string; content: string }>;
+  forwarded: Record<string, unknown>[];
+} {
+  const adapter = new WeComAdapter() as unknown as WeComApprovalTestAdapter;
+  const pushed: Array<{ target: string; content: string }> = [];
+  const forwarded: Record<string, unknown>[] = [];
+  adapter.createPusher = (target) => ({
+    pushText: async (content) => {
+      pushed.push({ target, content });
+    },
+  });
+  adapter.handleMessage = async (opts) => {
+    forwarded.push(opts);
+  };
+  return { adapter, pushed, forwarded };
+}
+
+function chatPusher(chatId: string): { getChatId: () => string; pushText: (content: string) => Promise<void> } {
+  return { getChatId: () => chatId, pushText: async () => undefined };
+}
+
 test("WeComAdapter resolves approvals only for the matching sender and chat", async () => {
-  type PendingApproval = {
-    channelContext: string;
-    userId: string;
-    resolve: (decision: string) => void;
-    timer: ReturnType<typeof setTimeout>;
-  };
-  const adapter = new WeComAdapter() as unknown as {
-    pendingApprovals: Map<string, PendingApproval>;
-    handleTextMessage: (
-      parameters: string[],
-      from: { userId: string; name: string; alias: string },
-      pusher: { getChatId: () => string; pushText: (content: string) => Promise<void> },
-    ) => Promise<void>;
-    runInboundMessage: () => Promise<void>;
-  };
-  const resolved: string[] = [];
-  const timers: ReturnType<typeof setTimeout>[] = [];
-  const addPending = (requestId: string, userId: string, channelContext: string) => {
-    const timer = setTimeout(() => undefined, 10_000);
-    timers.push(timer);
-    adapter.pendingApprovals.set(requestId, {
-      channelContext,
-      userId,
-      timer,
-      resolve: (decision) => {
-        clearTimeout(timer);
-        resolved.push(`${requestId}:${decision}`);
-      },
-    });
-  };
-  adapter.runInboundMessage = async () => undefined;
+  const { adapter } = createWeComApprovalTestAdapter();
+  const first = adapter.approvalReplies.wait("req-1", { channelContext: "chat:chat-1", userId: "u1" }, 10_000);
+  const second = adapter.approvalReplies.wait("req-2", { channelContext: "chat:chat-2", userId: "u2" }, 10_000);
 
-  try {
-    addPending("req-1", "u1", "chat:chat-1");
-    addPending("req-2", "u2", "chat:chat-2");
+  await adapter.handleTextMessage(["yes"], { userId: "u1", name: "User One", alias: "" }, chatPusher("chat-2"));
+  await adapter.handleTextMessage(["/yes", "all"], { userId: "u2", name: "User Two", alias: "" }, chatPusher("chat-2"));
+  assert.equal(await second, "acceptForSession");
 
-    await adapter.handleTextMessage(
-      ["yes"],
-      { userId: "u1", name: "User One", alias: "" },
-      { getChatId: () => "chat-2", pushText: async () => undefined },
-    );
+  adapter.approvalReplies.resolveAll("cancel");
+  assert.equal(await first, "cancel");
+});
 
-    assert.deepEqual(resolved, []);
-    assert.equal(adapter.pendingApprovals.size, 2);
+test("WeComAdapter holds other messages from the approver while an approval is pending", async () => {
+  const { adapter, pushed, forwarded } = createWeComApprovalTestAdapter();
+  const decision = adapter.approvalReplies.wait("req-1", { channelContext: "chat:chat-1", userId: "u1" }, 10_000);
 
-    await adapter.handleTextMessage(
-      ["yes"],
-      { userId: "u2", name: "User Two", alias: "" },
-      { getChatId: () => "chat-2", pushText: async () => undefined },
-    );
+  await adapter.handleTextMessage(["/new"], { userId: "u1", name: "User One", alias: "" }, chatPusher("chat-1"));
+  await adapter.handleTextMessage(["hello"], { userId: "u2", name: "User Two", alias: "" }, chatPusher("chat-1"));
 
-    assert.deepEqual(resolved, ["req-2:accept"]);
-    assert.equal(adapter.pendingApprovals.has("req-1"), true);
-    assert.equal(adapter.pendingApprovals.has("req-2"), false);
-  } finally {
-    for (const timer of timers) clearTimeout(timer);
-  }
+  assert.deepEqual(pushed, [{ target: "chat:chat-1", content: APPROVAL_REPLY_PENDING_NOTICE }]);
+  assert.deepEqual(forwarded.map((opts) => opts.text), ["hello"]);
+
+  await adapter.handleTextMessage(["拒绝"], { userId: "u1", name: "User One", alias: "" }, chatPusher("chat-1"));
+  assert.equal(await decision, "decline");
+});
+
+test("WeComAdapter tells the approver when an approval times out", async () => {
+  const { adapter, pushed } = createWeComApprovalTestAdapter();
+  adapter.approvalTimeoutMs = 5;
+  adapter.threadContextMap.set("thread-1", "chat:chat-1");
+  adapter.lastSenderByContext.set("chat:chat-1", "u1");
+
+  const decision = await adapter.onApprovalRequest({
+    threadId: "thread-1",
+    requestId: "req-1",
+    approvalType: "shell",
+    operation: "rm -rf build",
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(decision, "cancel");
+  assert.equal(pushed.length, 2);
+  assert.equal(pushed[1]?.content, APPROVAL_REPLY_TIMEOUT_NOTICE);
 });
 
 test("WeComAdapter consumes pending user-input replies before forwarding to agent", async () => {

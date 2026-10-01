@@ -29,6 +29,7 @@ export type {
   CommandRouteForTurnResult,
   CommandRouterOptions,
   DeliveryDispatcherOptions,
+  GeneratedImage,
   LoadJsonConfigResult,
   ModuleConfigLoadResult,
   ModuleConfigLoaderOptions,

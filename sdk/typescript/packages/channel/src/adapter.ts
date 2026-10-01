@@ -46,6 +46,8 @@ import {
 
   type ChannelAdapterMessageOptions,
 
+  type GeneratedImage,
+
   type ThreadResolveEvent,
 
   type TurnItemActivity,
@@ -239,6 +241,41 @@ export abstract class ChannelAdapter {
     _channelContext: string,
   ): Promise<boolean | void> {
     // Default no-op; adapters can override for progressive delivery.
+  }
+
+  protected async onGeneratedImage(
+    threadId: string,
+    turnId: string,
+    image: GeneratedImage,
+    channelContext: string,
+  ): Promise<void> {
+    if (!channelContext) return;
+    const kind = this.supportsInlineImageDelivery(image) ? "image" : "file";
+    const fileName = `${image.callId || image.itemId || "generated-image"}${imageFileExtension(image.mediaType)}`;
+    const message = {
+      kind,
+      fileName,
+      mediaType: image.mediaType,
+      source: { kind: "dataBase64", dataBase64: image.dataBase64, fileName, mediaType: image.mediaType },
+    };
+    try {
+      const result = await this.onSend(channelContext, message, { origin: "imageGeneration", threadId, turnId });
+      if (!result.delivered) {
+        console.error(
+          `[${this.channelName}] generated image delivery failed: ${String(result.errorCode ?? "")} ${String(result.errorMessage ?? "")}`.trim(),
+        );
+      }
+    } catch (error) {
+      console.error(`[${this.channelName}] generated image delivery failed:`, error);
+    }
+  }
+
+  private supportsInlineImageDelivery(image: GeneratedImage): boolean {
+    const media = (this.getDeliveryCapabilities()?.media ?? {}) as Record<string, unknown>;
+    const capability = media.image as Record<string, unknown> | undefined;
+    if (!capability || capability.supportsBase64 === false) return false;
+    const maxBytes = typeof capability.maxBytes === "number" ? capability.maxBytes : undefined;
+    return maxBytes === undefined || base64ByteLength(image.dataBase64) <= maxBytes;
   }
 
   /** Observes item lifecycle (text, reasoning, tool) so adapters can show a live status. */
@@ -673,6 +710,7 @@ export abstract class ChannelAdapter {
         onReplyProgress: (...args) => this.onReplyProgress(...args),
         onSegmentCompleted: (...args) => this.onSegmentCompleted(...args),
         onTurnCompleted: (...args) => this.onTurnCompleted(...args),
+        onGeneratedImage: (...args) => this.onGeneratedImage(...args),
         onTurnFailed: (...args) => this.onTurnFailed(...args),
         onTurnCancelled: (...args) => this.onTurnCancelled(...args),
       },
@@ -696,4 +734,24 @@ export abstract class ChannelAdapter {
   async newThread(userId: string, channelContext = ""): Promise<void> {
     await this.resetIdentityThreads(userId, channelContext);
   }
+}
+
+function imageFileExtension(mediaType: string): string {
+  switch (mediaType.toLowerCase()) {
+    case "image/jpeg":
+    case "image/jpg":
+      return ".jpg";
+    case "image/webp":
+      return ".webp";
+    case "image/gif":
+      return ".gif";
+    default:
+      return ".png";
+  }
+}
+
+function base64ByteLength(dataBase64: string): number {
+  const compact = dataBase64.replace(/\s+/g, "");
+  const padding = compact.endsWith("==") ? 2 : compact.endsWith("=") ? 1 : 0;
+  return Math.floor((compact.length * 3) / 4) - padding;
 }

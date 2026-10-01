@@ -7,8 +7,6 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import QRCode from "qrcode";
 import {
-  DECISION_ACCEPT,
-  DECISION_ACCEPT_FOR_SESSION,
   DECISION_CANCEL,
   DECISION_DECLINE,
   type ChannelTarget,
@@ -20,6 +18,7 @@ import {
   type Transport,
 } from "@dotcraft/channel/runtime";
 import {
+  ApprovalReplyTracker,
   ConfigValidationError,
   ModuleChannelAdapter,
   buildUserInputPrompt,
@@ -49,29 +48,6 @@ import {
   WeixinMediaError,
   WeixinMediaTools,
 } from "./weixin-media-tools.js";
-
-/** Match QQ/WeCom keyword-style approval (plain text). */
-function parseApprovalDecision(text: string): string | null {
-  const t = text.trim().toLowerCase();
-  const raw = text.trim();
-
-  if (
-    ["同意全部", "允许全部"].some((x) => raw.includes(x)) ||
-    ["yes all", "approve all", "y all"].includes(t)
-  ) {
-    return DECISION_ACCEPT_FOR_SESSION;
-  }
-  if (
-    ["同意", "允许", "yes", "y", "approve"].includes(t) ||
-    ["同意", "允许"].some((x) => raw === x)
-  ) {
-    return DECISION_ACCEPT;
-  }
-  if (["拒绝", "不同意", "no", "n", "reject", "deny"].includes(t) || raw === "拒绝") {
-    return DECISION_DECLINE;
-  }
-  return null;
-}
 
 /** Telegram-style /new: start a fresh thread (strict match, case-insensitive). */
 function isNewCommand(text: string): boolean {
@@ -139,11 +115,11 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
   private authFlowInProgress = false;
   private readonly mediaTools = new WeixinMediaTools();
 
-  /** userId -> waiter for active approval */
-  private readonly approvalWaiters = new Map<
-    string,
-    { resolve: (v: string) => void; timer: ReturnType<typeof setTimeout> }
-  >();
+  private readonly approvalReplies = new ApprovalReplyTracker({
+    notify: async ({ userId }, text) => {
+      await this.sendWeixinText(userId, text);
+    },
+  });
   private readonly userInputWaiters = new Map<
     string,
     { request: Record<string, unknown>; promptTitle?: string; resolve: (response: UserInputResponse) => void }
@@ -222,6 +198,7 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
     this.monitorAbortController?.abort();
     this.monitorAbortController = undefined;
     this.authFlowInProgress = false;
+    this.approvalReplies.resolveAll(DECISION_CANCEL);
     this.resolveAllPendingUserInputs(emptyUserInputResponse());
 
     if (this.dotcraftStarted) {
@@ -442,27 +419,6 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
-  /**
-   * If message is an approval reply, consume it and return true (do not forward to agent).
-   */
-  tryHandleApprovalReply(fromUserId: string, text: string): boolean {
-    const pending = this.approvalWaiters.get(fromUserId);
-    if (!pending) return false;
-    const decision = parseApprovalDecision(text);
-    if (!decision) return false;
-    clearTimeout(pending.timer);
-    pending.resolve(decision);
-    return true;
-  }
-
-  /** Resolve pending approval with cancel (e.g. user sent /new while a prompt was open). */
-  private cancelPendingApprovalIfAny(userId: string): void {
-    const pending = this.approvalWaiters.get(userId);
-    if (!pending) return;
-    clearTimeout(pending.timer);
-    pending.resolve(DECISION_CANCEL);
-  }
-
   private cancelPendingUserInputIfAny(userId: string): void {
     const pending = this.userInputWaiters.get(userId);
     if (!pending) return;
@@ -657,20 +613,11 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
 
     await this.sendWeixinText(userId, prompt);
 
-    return new Promise<string>((resolve) => {
-      const timer = setTimeout(() => {
-        this.approvalWaiters.delete(userId);
-        resolve(DECISION_CANCEL);
-      }, this.approvalTimeoutMs);
-      this.approvalWaiters.set(userId, {
-        resolve: (v: string) => {
-          clearTimeout(timer);
-          this.approvalWaiters.delete(userId);
-          resolve(v);
-        },
-        timer,
-      });
-    });
+    return await this.approvalReplies.wait(
+      String(request.requestId ?? "") || randomUUID(),
+      { channelContext: userId, userId },
+      this.approvalTimeoutMs,
+    );
   }
 
   protected override async onUserInputRequest(request: Record<string, unknown>): Promise<UserInputResponse> {
@@ -783,16 +730,18 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
         .join("")
         .trim() ?? "";
 
+    const approver = { channelContext: from, userId: from };
     if (isNewCommand(text)) {
-      this.cancelPendingApprovalIfAny(from);
+      this.approvalReplies.cancel(approver);
       this.cancelPendingUserInputIfAny(from);
       await this.newThread(from, from);
       await this.sendWeixinText(from, "已开启新对话，请直接输入消息。");
       return;
     }
 
-    if (this.tryHandleApprovalReply(from, text)) return;
+    if (this.approvalReplies.tryResolve(approver, text)) return;
     if (await this.tryHandleUserInputReply(from, text)) return;
+    if (await this.approvalReplies.remindIfPending(approver)) return;
 
     const name = from;
     // Fire-and-forget so the monitor loop can continue polling for approval replies

@@ -1183,3 +1183,86 @@ test("command /new sessionReset payload updates identity thread mapping", async 
 
   assert.equal(map.get("u:c"), "thread-new");
 });
+
+class ImageDeliveryAdapter extends RecordingAdapter {
+  readonly sent: Array<{ target: string; message: Record<string, unknown>; metadata: Record<string, unknown> }> = [];
+  capabilities: Record<string, unknown> | null = null;
+  sendResult: Record<string, unknown> | Error = { delivered: true };
+
+  protected override getDeliveryCapabilities(): Record<string, unknown> | null {
+    return this.capabilities;
+  }
+
+  protected override async onSend(
+    target: string,
+    message: Record<string, unknown>,
+    metadata: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    this.sent.push({ target, message, metadata });
+    if (this.sendResult instanceof Error) throw this.sendResult;
+    return this.sendResult;
+  }
+
+  async deliverImage(dataBase64: string, mediaType = "image/png"): Promise<void> {
+    await this.onGeneratedImage(
+      "thread-1",
+      "turn-1",
+      { itemId: "item-1", callId: "ig_1", mediaType, dataBase64 },
+      "chat-1",
+    );
+  }
+}
+
+test("generated images use image delivery when the channel supports base64 images", async () => {
+  const adapter = new ImageDeliveryAdapter();
+  adapter.capabilities = { structuredDelivery: true, media: { image: { supportsBase64: true }, file: {} } };
+
+  await adapter.deliverImage("aGVsbG8=", "image/jpeg");
+
+  assert.equal(adapter.sent.length, 1);
+  assert.equal(adapter.sent[0]?.target, "chat-1");
+  assert.deepEqual(adapter.sent[0]?.message, {
+    kind: "image",
+    fileName: "ig_1.jpg",
+    mediaType: "image/jpeg",
+    source: { kind: "dataBase64", dataBase64: "aGVsbG8=", fileName: "ig_1.jpg", mediaType: "image/jpeg" },
+  });
+});
+
+test("generated images fall back to file delivery without image support or above the image size limit", async () => {
+  const adapter = new ImageDeliveryAdapter();
+  adapter.capabilities = { structuredDelivery: true, media: { file: { supportsBase64: true } } };
+  await adapter.deliverImage("aGVsbG8=");
+
+  adapter.capabilities = { structuredDelivery: true, media: { image: { supportsBase64: true, maxBytes: 4 }, file: {} } };
+  await adapter.deliverImage("aGVsbG8=");
+
+  adapter.capabilities = { structuredDelivery: true, media: { image: { supportsBase64: true, maxBytes: 5 }, file: {} } };
+  await adapter.deliverImage("aGVsbG8=");
+
+  assert.deepEqual(adapter.sent.map((entry) => [entry.message.kind, entry.message.fileName]), [
+    ["file", "ig_1.png"],
+    ["file", "ig_1.png"],
+    ["image", "ig_1.png"],
+  ]);
+});
+
+test("generated image delivery failures are logged without throwing", async () => {
+  const adapter = new ImageDeliveryAdapter();
+  const errors: unknown[][] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => {
+    errors.push(args);
+  };
+  try {
+    adapter.sendResult = { delivered: false, errorCode: "UnsupportedDeliveryKind", errorMessage: "nope" };
+    await adapter.deliverImage("aGVsbG8=");
+    adapter.sendResult = new Error("network down");
+    await adapter.deliverImage("aGVsbG8=");
+  } finally {
+    console.error = originalError;
+  }
+
+  assert.equal(adapter.sent.length, 2);
+  assert.equal(errors.length, 2);
+});

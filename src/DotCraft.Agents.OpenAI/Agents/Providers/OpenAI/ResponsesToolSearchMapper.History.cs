@@ -1,4 +1,5 @@
 using System.ClientModel.Primitives;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -12,6 +13,8 @@ namespace DotCraft.Agents;
 
 internal static partial class ResponsesToolSearchMapper
 {
+    private const int MaxImageGenerationSavedPathHintBytes = 1024;
+
     internal static JsonElement NormalizeProviderHistoryItem(JsonElement item)
     {
         if (item.ValueKind != JsonValueKind.Object
@@ -61,6 +64,58 @@ internal static partial class ResponsesToolSearchMapper
         if (!string.IsNullOrWhiteSpace(result))
             item["result"] = result;
         return item;
+    }
+
+    private static void InsertImageGenerationSavedPathHints(
+        JsonArray input,
+        IReadOnlyList<ChatMessage> messages)
+    {
+        Dictionary<string, string>? hints = null;
+        foreach (var image in messages.SelectMany(static message => message.Contents)
+                     .OfType<HostedImageGenerationContent>())
+        {
+            if (!string.IsNullOrWhiteSpace(image.Id)
+                && CreateImageGenerationSavedPathHint(image.SavedPath) is { } hint)
+            {
+                (hints ??= new Dictionary<string, string>(StringComparer.Ordinal))[image.Id] = hint;
+            }
+        }
+
+        if (hints == null)
+            return;
+
+        for (var i = input.Count - 1; i >= 0; i--)
+        {
+            if (input[i] is not JsonObject item
+                || !string.Equals(
+                    ReadJsonString(item, "type"),
+                    HostedImageGenerationContent.ToolName + "_call",
+                    StringComparison.Ordinal)
+                || ReadJsonString(item, "id") is not { } id
+                || !hints.TryGetValue(id, out var hint))
+            {
+                continue;
+            }
+
+            var hintItem = CreateMessageItem(new ChatRole("developer"), hint);
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes("msg\n" + id));
+            hintItem["id"] = "msg_" + Convert.ToHexString(hash).ToLowerInvariant()[..32];
+            input.Insert(i + 1, hintItem);
+        }
+    }
+
+    private static string? CreateImageGenerationSavedPathHint(string? savedPath)
+    {
+        if (string.IsNullOrWhiteSpace(savedPath))
+            return null;
+
+        var separator = savedPath.LastIndexOfAny(['/', '\\']);
+        var directory = separator > 0 ? savedPath[..separator] : savedPath;
+        var hint =
+            $"Generated images are saved to {directory} as {savedPath} by default.\n" +
+            "If you need to use a generated image at another path, copy it and leave the original in place unless the user explicitly asks you to delete it.\n" +
+            "The generated image is already displayed to the user. There is no need to render it in the final response as a Markdown image or file link.";
+        return Encoding.UTF8.GetByteCount(hint) <= MaxImageGenerationSavedPathHintBytes ? hint : null;
     }
 
     private static JsonObject CreateFunctionCallOutputItem(FunctionResultContent result) =>

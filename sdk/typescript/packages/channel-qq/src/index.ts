@@ -1,4 +1,3 @@
-export { parseQQApprovalDecision } from "./approval.js";
 export { configDescriptors, configGroups } from "./config-descriptors.js";
 export { manifest } from "./manifest.js";
 export { createModule } from "./module.js";
@@ -20,8 +19,10 @@ export type { QQConfig } from "./qq-config.js";
 export {
   QQMediaError,
   QQMediaTools,
+  QQ_SEND_GROUP_IMAGE_TOOL,
   QQ_SEND_GROUP_VIDEO_TOOL,
   QQ_SEND_GROUP_VOICE_TOOL,
+  QQ_SEND_PRIVATE_IMAGE_TOOL,
   QQ_SEND_PRIVATE_VIDEO_TOOL,
   QQ_SEND_PRIVATE_VOICE_TOOL,
   QQ_UPLOAD_GROUP_FILE_TOOL,

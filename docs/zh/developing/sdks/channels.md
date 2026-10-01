@@ -55,6 +55,7 @@ class MyChannel extends ChannelAdapter {
 | `onSend` | 可选。需要结构化投递时覆盖它，并用 `getDeliveryCapabilities` 声明与实现一致的能力。默认实现接受文本，其他类型返回 `UnsupportedDeliveryKind`。 |
 | `getChannelTools` + `onToolCall` | 可选。只声明 call hook 已实现的工具。默认 call hook 返回 `UnsupportedTool`。 |
 | `onReplyProgress` | 可选的观察 hook，在 turn 运行期间接收有序的 AgentMessage 文本。它不会把文本标记为已投递。平台更新自行合并限流，投递回退仍由 `onSegmentCompleted` 或 `onTurnCompleted` 负责。 |
+| `onGeneratedImage` | 可选。默认实现会在生成图片之前的回复文本发出后，通过 `onSend` 发送每张已完成的生成图片：`getDeliveryCapabilities` 声明了 `maxBytes` 内的 base64 图片能力时按 `image` 发送，否则按 `file` 发送。发送失败只记录日志，turn 继续进行。 |
 | `onTurnCompleted`、`onTurnFailed`、`onTurnCancelled`、`onSegmentCompleted` | 按需覆盖，用于平台格式化、渐进投递以及失败或取消通知。 |
 
 适配器还通过 `onUserInputRequest` 处理用户输入请求，默认返回空答案集。heartbeat 响应由基类自行注册，平台子类不需要实现。

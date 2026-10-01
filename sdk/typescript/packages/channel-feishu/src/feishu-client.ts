@@ -479,6 +479,16 @@ export class FeishuClient {
     return { ...result, fileKey };
   }
 
+  async replyImage(
+    messageId: string,
+    image: { data: Buffer },
+    replyInThread: boolean,
+  ): Promise<FeishuSendResult & { imageKey: string }> {
+    const imageKey = await this.uploadImage(image.data);
+    const result = await this.replyWithContent(messageId, "image", JSON.stringify({ image_key: imageKey }), replyInThread);
+    return { ...result, imageKey };
+  }
+
   private async replyWithContent(
     messageId: string,
     msgType: string,
@@ -716,6 +726,21 @@ export class FeishuClient {
       messageId: String(responseData.message_id ?? ""),
       chatId: String(responseData.chat_id ?? ""),
       fileKey,
+    };
+  }
+
+  async sendImage(target: string, image: { data: Buffer }): Promise<FeishuSendResult & { imageKey: string }> {
+    const imageKey = await this.uploadImage(image.data);
+    const { receiveId, receiveIdType } = this.resolveTarget(target);
+    const response = await this.sendMessage(receiveId, receiveIdType, "image", {
+      image_key: imageKey,
+    });
+    const responseData = (response.data as Record<string, unknown> | undefined) ?? {};
+
+    return {
+      messageId: String(responseData.message_id ?? ""),
+      chatId: String(responseData.chat_id ?? ""),
+      imageKey,
     };
   }
 

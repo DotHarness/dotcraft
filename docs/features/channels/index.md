@@ -29,6 +29,7 @@ Desktop hosts the channel process for you — nothing else to deploy. Which cred
 
 - Messages you send to the bot continue one conversation, and replies go back to the same chat.
 - Approvals and follow-up questions appear in the chat where the platform supports them.
+- Images DotCraft generates are sent to the chat, as a picture where the platform can show one and as a file otherwise.
 - `/new` starts a fresh conversation in channels that support slash commands.
 - Open the same workspace in Desktop to read the history or keep the conversation going there.
 

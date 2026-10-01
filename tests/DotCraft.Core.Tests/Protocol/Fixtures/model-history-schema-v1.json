@@ -75,6 +75,7 @@
         "imageBase64": "BAUG",
         "mediaType": "image/png",
         "errorMessage": null,
+        "savedPath": "/workspace/.craft/generated_images/thread/image_1.png",
         "additionalProperties": null
       }
     },

@@ -7,8 +7,10 @@ import { join } from "node:path";
 import {
   QQMediaError,
   QQMediaTools,
+  QQ_SEND_GROUP_IMAGE_TOOL,
   QQ_SEND_GROUP_VIDEO_TOOL,
   QQ_SEND_GROUP_VOICE_TOOL,
+  QQ_SEND_PRIVATE_IMAGE_TOOL,
   QQ_SEND_PRIVATE_VIDEO_TOOL,
   QQ_SEND_PRIVATE_VOICE_TOOL,
   QQ_UPLOAD_GROUP_FILE_TOOL,
@@ -31,9 +33,11 @@ function sentMessageFile(server: FakeOneBot): string {
   return String(data.file);
 }
 
-test("QQMediaTools voice and video tools declare filePath approval metadata", () => {
+test("QQMediaTools voice, video, and image tools declare filePath approval metadata", () => {
   const tools = new QQMediaTools().getChannelTools();
   const expectedTools = [
+    [QQ_SEND_GROUP_IMAGE_TOOL, "groupId"],
+    [QQ_SEND_PRIVATE_IMAGE_TOOL, "userId"],
     [QQ_SEND_GROUP_VOICE_TOOL, "groupId"],
     [QQ_SEND_PRIVATE_VOICE_TOOL, "userId"],
     [QQ_SEND_GROUP_VIDEO_TOOL, "groupId"],
@@ -170,4 +174,31 @@ test("QQMediaTools structured file delivery passes URL sources through", async (
   const params = server.actions[0].params as Record<string, unknown>;
   assert.equal(params.file, "https://example.test/report.pdf");
   assert.equal(params.name, "report.pdf");
+});
+
+test("QQMediaTools sends images as OneBot image segments", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "dotcraft-qq-image-"));
+  const filePath = join(tempDir, "chart.png");
+  writeFileSync(filePath, "png bytes", "utf-8");
+
+  const toolServer = new FakeOneBot();
+  const toolResult = await new QQMediaTools().executeToolCall(toolServer as never, QQ_SEND_GROUP_IMAGE_TOOL, {
+    groupId: 123,
+    filePath,
+  });
+  assert.equal(toolResult.success, true);
+  assert.equal(toolServer.actions[0].action, "send_group_msg");
+  const toolMessage = (toolServer.actions[0].params as { message: Array<Record<string, unknown>> }).message;
+  assert.equal(toolMessage[0].type, "image");
+  assert.equal(sentMessageFile(toolServer), `base64://${Buffer.from("png bytes").toString("base64")}`);
+
+  const structuredServer = new FakeOneBot();
+  const delivered = await new QQMediaTools().sendStructuredMessage(structuredServer as never, "user:456", {
+    kind: "image",
+    fileName: "ig_1.png",
+    source: { kind: "dataBase64", dataBase64: Buffer.from("generated").toString("base64") },
+  });
+  assert.equal(delivered.delivered, true);
+  assert.equal(structuredServer.actions[0].action, "send_private_msg");
+  assert.equal(sentMessageFile(structuredServer), `base64://${Buffer.from("generated").toString("base64")}`);
 });

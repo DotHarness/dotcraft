@@ -159,6 +159,7 @@ internal static partial class ResponsesToolSearchMapper
                 canonicalInput,
                 canonicalItemIdentity ?? OpenAIResponsesItemIdentityDiagnostics.FromInput(canonicalInput));
         var input = inputResult.Input;
+        InsertImageGenerationSavedPathHints(input, messages);
         var tools = BuildTools(options);
 
         if (tools.Count > 0 && options?.AllowMultipleToolCalls is { } allowMultiple)

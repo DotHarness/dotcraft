@@ -147,9 +147,23 @@ export class WeComPusher {
       headers: { "Content-Type": "application/json; charset=utf-8" },
       body: json,
     });
+    const body = await response.text();
     if (!response.ok) {
-      throw new Error(`Push message failed: HTTP ${response.status} ${await response.text()}`);
+      throw new Error(`Push message failed: HTTP ${response.status} ${body}`);
     }
+    const errcode = Number(parseJsonObject(body).errcode ?? 0);
+    if (errcode !== 0) {
+      throw new Error(`Push message failed: errcode ${errcode} ${body}`);
+    }
+  }
+}
+
+function parseJsonObject(body: string): Record<string, unknown> {
+  try {
+    const value = JSON.parse(body) as unknown;
+    return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  } catch {
+    return {};
   }
 }
 

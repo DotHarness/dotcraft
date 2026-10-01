@@ -9,7 +9,6 @@ import {
   configureTextMergeDebug,
   type ThreadResolveEvent,
 } from "@dotcraft/channel/runtime";
-import { mediaSourceFromToolPath, prepareMediaBytes } from "@dotcraft/channel/media";
 import {
   ConfigValidationError,
   emptyUserInputResponse,
@@ -32,7 +31,6 @@ import {
   buildApprovalCard,
   buildApprovalResolvedCard,
   buildApprovalTimeoutCard,
-  buildFileCaptionCard,
   buildNewConversationCard,
   buildTranscriptCard,
   buildUserAuthCard,
@@ -59,6 +57,7 @@ import {
   type FeishuDeviceAuthorization,
 } from "./feishu-user-identity.js";
 import { FeishuLoadingIcon } from "./loading-icon.js";
+import { FeishuMediaDelivery } from "./media-delivery.js";
 import { FeishuOutboundRouter } from "./outbound-router.js";
 import { TurnCardController } from "./turn-card-controller.js";
 import {
@@ -120,6 +119,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   private loadingIcon: FeishuLoadingIcon | undefined;
   private statusTimings: { textStallMs?: number; statusSettleMs?: number } | undefined;
   private readonly router = new FeishuOutboundRouter(() => this.getFeishuClient());
+  private readonly media = new FeishuMediaDelivery(this.router);
   private readonly threadContextMap = new Map<string, string>();
   private readonly turnCards = new TurnCardController({
     client: () => this.getFeishuClient(),
@@ -308,46 +308,11 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   }
 
   protected getDeliveryCapabilities(): Record<string, unknown> | null {
-    return {
-      structuredDelivery: true,
-      media: {
-        file: {
-          maxBytes: 30 * 1024 * 1024,
-          supportsHostPath: false,
-          supportsUrl: false,
-          supportsBase64: true,
-          supportsCaption: true,
-        },
-      },
-    };
+    return this.media.getDeliveryCapabilities();
   }
 
   protected override getChannelTools(): ChannelToolDescriptor[] | null {
-    const tools: ChannelToolDescriptor[] = [
-      {
-        name: "FeishuSendFileToCurrentChat",
-        description: "Send a real file attachment to the current Feishu chat.",
-        requiresChatContext: true,
-        approval: {
-          kind: "file",
-          targetArgument: "filePath",
-          operation: "read",
-        },
-        display: {
-          icon: "\u{1F4CE}",
-          title: "Send file to current Feishu chat",
-        },
-        inputSchema: {
-          type: "object",
-          properties: {
-            filePath: { type: "string" },
-            fileName: { type: "string" },
-            caption: { type: "string" },
-          },
-          required: ["filePath"],
-        },
-      },
-    ];
+    const tools: ChannelToolDescriptor[] = this.media.getChannelTools();
     tools.push(...getFeishuCliToolDescriptors(this.loadedConfig?.feishu.cli?.enabled === true));
     if (this.userIdentity?.isConfigured() === true) {
       tools.push({
@@ -381,19 +346,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       return await super.onSend(target, message, metadata);
     }
 
-    if (kind === "file") {
-      const result = await this.deliverFileMessage(target, message, {
-        source: "structured",
-        metadata,
-      });
-      return result;
-    }
-
-    return {
-      delivered: false,
-      errorCode: "UnsupportedDeliveryKind",
-      errorMessage: `Feishu example does not implement structured '${kind}' delivery yet.`,
-    };
+    return await this.media.send(target, message);
   }
 
   protected override async onToolCall(
@@ -415,7 +368,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     if (tool === "FeishuAuthorizeUser") {
       return await this.authorizeUserFromTool(String(context.senderId ?? ""));
     }
-    if (tool !== "FeishuSendFileToCurrentChat") {
+    if (!this.media.handlesTool(tool)) {
       return {
         success: false,
         errorCode: "UnsupportedTool",
@@ -431,56 +384,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       };
     }
 
-    const filePath = String(args.filePath ?? "");
-    const fileName = String(args.fileName ?? "");
-    const caption = String(args.caption ?? "");
-    if (!filePath) {
-      return {
-        success: false,
-        errorCode: "MissingFilePath",
-        errorMessage: "Feishu file sending requires a filePath.",
-      };
-    }
-
-    try {
-      const prepared = await prepareMediaBytes(
-        mediaSourceFromToolPath(filePath, { fieldName: "filePath" }),
-        {
-          fileName: fileName || undefined,
-          maxBytes: 30 * 1024 * 1024,
-        },
-      );
-      const effectiveFileName = prepared.fileName;
-      const sendResult = await this.router.sendFile(target, {
-        fileName: effectiveFileName,
-        data: prepared.bytes,
-        mediaType: prepared.mediaType,
-      });
-      if (caption) {
-        await this.sendCaptionCard(target, caption, {
-          target,
-          fileName: effectiveFileName,
-          source: "tool",
-        });
-      }
-
-      return {
-        success: true,
-        contentItems: [{ type: "text", text: `Sent ${effectiveFileName} to the current chat.` }],
-        structuredContent: {
-          delivered: true,
-          fileName: effectiveFileName,
-          remoteMessageId: sendResult.messageId,
-          fileKey: sendResult.fileKey,
-        },
-      };
-    } catch (error) {
-      return {
-        success: false,
-        errorCode: "AdapterToolCallFailed",
-        errorMessage: errorMessage(error),
-      };
-    }
+    return await this.media.executeToolCall(tool, target, args);
   }
 
   async onApprovalRequest(request: Record<string, unknown>): Promise<string> {
@@ -675,23 +579,6 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     if (isFinal) {
       this.turnCards.clear(threadId, turnId);
     }
-  }
-
-  private async sendCaptionCard(
-    channelTarget: string,
-    caption: string,
-    logContext: { target: string; fileName: string; source: "tool" | "structured" },
-  ): Promise<void> {
-    const normalized = caption.trim();
-    if (!normalized) return;
-    const card = buildFileCaptionCard(normalized, logContext.fileName);
-    await this.router.sendCard(channelTarget, card);
-    logInfo("outbound.send.file.caption_card_sent", {
-      source: logContext.source,
-      target: shortId(logContext.target),
-      fileName: logContext.fileName,
-      captionChars: normalized.length,
-    });
   }
 
   protected override async onSegmentCompleted(
@@ -1156,54 +1043,6 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     const archivedIds = await this.resetIdentityThreads(userId, channelContext);
     this.onThreadsArchived(identityKey, archivedIds);
   }
-
-  private async deliverFileMessage(
-    target: string,
-    message: Record<string, unknown>,
-    context: {
-      source: "structured" | "tool";
-      metadata: Record<string, unknown>;
-    },
-  ): Promise<Record<string, unknown>> {
-    const caption = String(message.caption ?? "");
-    const fileName = String(message.fileName ?? "attachment");
-
-    try {
-      const file = await resolveOutboundFilePayload(message, fileName);
-      logInfo("outbound.send.file", {
-        source: context.source,
-        target: shortId(target),
-        fileName: file.fileName,
-        bytes: file.data.length,
-      });
-      const sendResult = await this.router.sendFile(target, file);
-      if (caption) {
-        await this.sendCaptionCard(target, caption, {
-          target,
-          fileName: file.fileName,
-          source: context.source,
-        });
-      }
-
-      return {
-        delivered: true,
-        remoteMessageId: sendResult.messageId,
-        remoteMediaId: sendResult.fileKey,
-      };
-    } catch (error) {
-      logError("outbound.send.file.failed", {
-        source: context.source,
-        target: shortId(target),
-        fileName,
-        message: errorMessage(error),
-      });
-      return {
-        delivered: false,
-        errorCode: "AdapterDeliveryFailed",
-        errorMessage: errorMessage(error),
-      };
-    }
-  }
 }
 
 function parseFeishuChannelTarget(channelContext: string): {
@@ -1247,27 +1086,4 @@ function parseActionValue(value: Record<string, unknown> | string | undefined): 
   } catch {
     return null;
   }
-}
-
-async function resolveOutboundFilePayload(
-  message: Record<string, unknown>,
-  fallbackFileName: string,
-): Promise<{
-  fileName: string;
-  data: Buffer;
-  mediaType?: string;
-}> {
-  const source = (message.source as Record<string, unknown> | undefined) ?? {};
-  const fileName = String(message.fileName ?? fallbackFileName).trim() || "attachment";
-  const mediaType = String(message.mediaType ?? "").trim() || undefined;
-  const prepared = await prepareMediaBytes(source, {
-    fileName,
-    mediaType,
-    maxBytes: 30 * 1024 * 1024,
-  });
-  return {
-    fileName: prepared.fileName,
-    data: prepared.bytes,
-    mediaType: prepared.mediaType,
-  };
 }

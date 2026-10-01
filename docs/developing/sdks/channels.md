@@ -55,6 +55,7 @@ class MyChannel extends ChannelAdapter {
 | `onSend` | Optional. Override for structured delivery, and declare matching capabilities from `getDeliveryCapabilities`. The default accepts text and rejects other kinds with `UnsupportedDeliveryKind`. |
 | `getChannelTools` + `onToolCall` | Optional. Advertise only tools the call hook implements; the default call hook returns `UnsupportedTool`. |
 | `onReplyProgress` | Optional observer for ordered AgentMessage text while a turn is running. It does not mark text as delivered; coalesce platform updates and use `onSegmentCompleted` or `onTurnCompleted` for delivery fallback. |
+| `onGeneratedImage` | Optional. The default sends each completed generated image through `onSend` after the reply text before it: as `image` when `getDeliveryCapabilities` declares base64 images within `maxBytes`, otherwise as `file`. Failures are logged and the turn continues. |
 | `onTurnCompleted`, `onTurnFailed`, `onTurnCancelled`, `onSegmentCompleted` | Override for platform formatting, progressive delivery, and failed/cancelled notifications. |
 
 The adapter also handles user-input requests through `onUserInputRequest`; its default returns an empty answer set. The base adapter registers heartbeat replies itself, so a platform subclass never implements them.

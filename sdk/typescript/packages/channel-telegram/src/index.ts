@@ -4,6 +4,7 @@ export { manifest } from "./manifest.js";
 export { createModule } from "./module.js";
 export {
   DOCUMENT_TOOL_NAME,
+  PHOTO_TOOL_NAME,
   TelegramMediaError,
   TelegramMediaTools,
   VOICE_TOOL_NAME,

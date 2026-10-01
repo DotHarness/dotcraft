@@ -653,6 +653,13 @@ export interface TurnItemActivity {
   itemId: string;
 }
 
+export interface GeneratedImage {
+  itemId: string;
+  callId: string;
+  mediaType: string;
+  dataBase64: string;
+}
+
 export function activityKindForItemType(itemType: string): TurnItemActivity["kind"] | null {
   switch (itemType) {
     case "agentMessage":
@@ -698,8 +705,29 @@ export interface TurnStreamReducerHandlers {
     channelContext: string,
     segmentsWereDelivered: boolean,
   ): Promise<void>;
+  onGeneratedImage?(
+    threadId: string,
+    turnId: string,
+    image: GeneratedImage,
+    channelContext: string,
+  ): Promise<void>;
   onTurnFailed(threadId: string, turnId: string, error: string): Promise<void>;
   onTurnCancelled(threadId: string, turnId: string): Promise<void>;
+}
+
+function generatedImageFromItem(item: Record<string, unknown>): GeneratedImage | null {
+  const payload = (item.payload as Record<string, unknown>) ?? {};
+  const dataBase64 = typeof payload.result === "string" ? payload.result.trim() : "";
+  if (payload.status !== "completed" || !dataBase64) return null;
+  const mediaType = typeof payload.mediaType === "string" && payload.mediaType.trim()
+    ? payload.mediaType.trim()
+    : "image/png";
+  return {
+    itemId: String(item.id ?? ""),
+    callId: String(payload.callId ?? ""),
+    mediaType,
+    dataBase64,
+  };
 }
 
 export class TurnStreamReducer {
@@ -839,6 +867,39 @@ export class TurnStreamReducer {
       }
     };
 
+    const flushPendingSegment = async (): Promise<{ segmentItemId: string | null; segmentText: string }> => {
+      const segmentItemId = activeAgentItemId ?? lastDeltaAgentItemId;
+      let segmentText = "";
+      if (segmentItemId) {
+        const merged = perItemDelta.get(segmentItemId) ?? "";
+        segmentText = getUnsentFromMerged(segmentItemId, merged);
+      } else if (orphanDeltaTail) {
+        segmentText = orphanDeltaTail;
+      }
+      if (segmentText.trim()) {
+        await deliverSegment(
+          segmentText,
+          false,
+          [{ itemId: segmentItemId, text: segmentText }],
+          segmentItemId == null,
+        );
+      }
+      return { segmentItemId, segmentText };
+    };
+    const deliverGeneratedImage = async (item: Record<string, unknown>): Promise<void> => {
+      const image = generatedImageFromItem(item);
+      if (!image || !handlers.onGeneratedImage) return;
+      await flushPendingSegment();
+      try {
+        await handlers.onGeneratedImage(threadId, turnId, image, channelContext);
+      } catch (error) {
+        this.log("generated_image.threw", () => ({
+          itemId: shortWireId(image.itemId),
+          error: error instanceof Error ? error.message : String(error),
+        }));
+      }
+    };
+
     for await (const event of eventStream) {
       this.log("event", () => ({
         method: event.method,
@@ -880,22 +941,7 @@ export class TurnStreamReducer {
           pushOrder(itemId);
         }
         if (this.segmentBoundaryPolicy.shouldFlushOnItemStarted(itemType)) {
-          const segmentItemId = activeAgentItemId ?? lastDeltaAgentItemId;
-          let segmentText = "";
-          if (segmentItemId) {
-            const merged = perItemDelta.get(segmentItemId) ?? "";
-            segmentText = getUnsentFromMerged(segmentItemId, merged);
-          } else if (orphanDeltaTail) {
-            segmentText = orphanDeltaTail;
-          }
-          if (segmentText.trim()) {
-            await deliverSegment(
-              segmentText,
-              false,
-              [{ itemId: segmentItemId, text: segmentText }],
-              segmentItemId == null,
-            );
-          }
+          const { segmentItemId, segmentText } = await flushPendingSegment();
           this.log("event.item/started.flush_segment", () => ({
             itemType,
             itemId: itemId ? shortWireId(itemId) : "",
@@ -919,6 +965,10 @@ export class TurnStreamReducer {
         const item = (params.item as Record<string, unknown>) ?? {};
         const itemType = String(item.type ?? "");
         await notifyActivity(itemType, "completed", String(item.id ?? ""));
+        if (itemType === "imageGeneration") {
+          await deliverGeneratedImage(item);
+          continue;
+        }
         if (itemType !== "agentMessage") {
           this.log("event.item/completed.skipped", () => ({
             itemType,

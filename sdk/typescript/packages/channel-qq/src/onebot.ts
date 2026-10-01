@@ -68,6 +68,10 @@ export function videoSegment(file: string): OneBotMessageSegment {
   return { type: "video", data: { file } };
 }
 
+export function imageSegment(file: string): OneBotMessageSegment {
+  return { type: "image", data: { file } };
+}
+
 export function getPlainText(message: OneBotMessageSegment[] | string): string {
   if (typeof message === "string") return message;
   return message

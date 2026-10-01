@@ -6,6 +6,7 @@ export { WeComBizMsgCrypt } from "./wecom-crypto.js";
 export { WeComPermissionService, type WeComUserRole } from "./permission.js";
 export {
   WE_COM_SEND_FILE_TOOL,
+  WE_COM_SEND_IMAGE_TOOL,
   WE_COM_SEND_VOICE_TOOL,
   WeComMediaError,
   WeComMediaTools,

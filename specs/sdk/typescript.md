@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.7.10 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-02 |
 | **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: Define the TypeScript binding, package contract, Node.js runtime requirements, channel runtime, and compatibility strategy for `@dotcraft/sdk`.
@@ -715,7 +715,7 @@ Entry points:
 
 `ModuleChannelAdapter` extends it with workspace context, module config loading, state and temp path resolution, lifecycle status reporting, and hosted module startup through Desktop/AppServer module management.
 
-The Channel package owns thread resolution and caching, per-identity inbound serialization, slash command routing through `command/execute`, turn stream reduction and text merging, segment boundary policy, `ext/channel/send` and `ext/channel/toolCall` dispatch, approval and user-input dispatch, media source normalization, module config loading and validation, and module lifecycle state (`stopped`, `starting`, `ready`, `configMissing`, `configInvalid`, `authRequired`, `authExpired`). First-party channel packages must use these rather than duplicating equivalent logic.
+The Channel package owns thread resolution and caching, per-identity inbound serialization, slash command routing through `command/execute`, turn stream reduction and text merging, segment boundary policy, generated image delivery, `ext/channel/send` and `ext/channel/toolCall` dispatch, approval and user-input dispatch, plain-text approval reply parsing and pending-approval tracking, media source normalization, module config loading and validation, and module lifecycle state (`stopped`, `starting`, `ready`, `configMissing`, `configInvalid`, `authRequired`, `authExpired`). First-party channel packages must use these rather than duplicating equivalent logic.
 
 ### 16.3 Channel Adapter Hooks
 
@@ -731,12 +731,15 @@ onSend(target: string, message: Record<string, unknown>, metadata: Record<string
 onToolCall(request: Record<string, unknown>): Promise<Record<string, unknown>>;
 onSegmentCompleted(threadId: string, turnId: string, segmentText: string, isFinal: boolean, channelContext: string): Promise<boolean | void>;
 onTurnCompleted(threadId: string, turnId: string, replyText: string, channelContext: string, segmentsWereDelivered: boolean): Promise<void>;
+onGeneratedImage(threadId: string, turnId: string, image: GeneratedImage, channelContext: string): Promise<void>;
 onTurnFailed(threadId: string, turnId: string, error: string): Promise<void>;
 onTurnCancelled(threadId: string, turnId: string): Promise<void>;
 onThreadContextBound(threadId: string, channelContext: string): void;
 onThreadsArchived(identityKey: string, archivedThreadIds: string[]): void;
 getRuntimeAdditionalContext(): Record<string, RuntimeAdditionalContextEntry> | undefined;
 ```
+
+The default `onGeneratedImage` sends the image through `onSend` as `kind: "image"` with a `dataBase64` source when the adapter's `deliveryCapabilities.media.image` accepts base64 within its `maxBytes`, and as `kind: "file"` otherwise.
 
 Override `getRuntimeAdditionalContext` to bind compact adapter-owned application context through `thread/start.additionalContext`. The Channel runtime keeps the binding for active Thread reuse and restores it with one `thread/resume` after the AppServer connection is replaced.
 

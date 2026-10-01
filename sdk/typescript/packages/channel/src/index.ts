@@ -59,6 +59,13 @@ export {
   resolveModuleTempPath,
 } from "./channelRuntime.js";
 export {
+  APPROVAL_REPLY_PENDING_NOTICE,
+  APPROVAL_REPLY_TIMEOUT_NOTICE,
+  ApprovalReplyTracker,
+  parseApprovalReplyDecision,
+} from "./approvalReplies.js";
+export type { ApprovalReplyRecipient, ApprovalReplyTrackerOptions } from "./approvalReplies.js";
+export {
   buildUserInputPrompt,
   canUseNativeSingleChoiceUserInput,
   emptyUserInputResponse,
@@ -77,4 +84,4 @@ export type {
   UserInputQuestionRequest,
   UserInputResponse,
 } from "./userInput.js";
-export type { TurnItemActivity } from "./channelRuntime.js";
+export type { GeneratedImage, TurnItemActivity } from "./channelRuntime.js";

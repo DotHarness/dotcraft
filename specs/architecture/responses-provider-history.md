@@ -230,6 +230,11 @@ full image bytes preserved in model history and Session projection. A terminated
 not retain an in-progress image item. Missing results become explicit terminal failures.
 The per-Turn image lifecycle owns one call map containing each projected item and its captured
 artifact destination. Both provider-native and SDK result content use the same completion path.
+When the artifact is saved, the hosted image content carries its saved path into model history.
+Request construction then inserts a developer message right after the matching
+`image_generation_call` naming the saved path, asking the model to copy rather than move the file,
+and noting the image is already displayed. The hint is omitted when it exceeds 1024 bytes. Like
+other synthetic items it is not persisted, and its ID derives from the image call ID.
 
 ## Maintenance isolation
 
