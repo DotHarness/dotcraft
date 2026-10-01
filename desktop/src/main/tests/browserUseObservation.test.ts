@@ -32,6 +32,10 @@ describe('bundled browser client with a real page', () => {
       <div aria-disabled="true"><button>Disabled aria</button></div>
       <label for="name">Account name</label><input id="name">
       <span id="label">Accessible title</span><button aria-labelledby="label">Other text</button>
+      <input id="text"><textarea id="area"></textarea><div id="ce" contenteditable="true"></div>
+      <input id="email" type="email"><label for="agree">Agree to terms</label><input id="agree" type="checkbox">
+      <div id="scroller" style="height:100px;width:200px;overflow:auto"><div style="height:2000px">tall</div></div>
+      <div id="pad" style="width:300px;height:100px" onmousedown="this.dataset.log=(this.dataset.log||'')+'down'+event.buttons+';'" onmousemove="this.dataset.log=(this.dataset.log||'')+'move'+event.buttons+';'" onmouseup="this.dataset.log=(this.dataset.log||'')+'up;'">pad</div>
       <div id="shadow"></div><iframe id="frame" srcdoc="<label for='inner'>Frame name</label><input id='inner'><button onclick=&quot;this.textContent='Frame clicked'&quot;>Frame action</button>"></iframe>
       <script>document.querySelector('#shadow').attachShadow({mode:'open'}).innerHTML='<label for="s">Shadow name</label><input id="s"><button>Shadow action</button>'</script>`)
     await page.frameLocator('#frame').getByRole('button').waitFor()
@@ -55,11 +59,7 @@ describe('bundled browser client with a real page', () => {
       loadAutomationUrl: async () => {}, destroyTab: () => {},
       snapshotState: () => ({ tabId: currentId, currentUrl: page.url(), title: 'Semantic fixture', loading: false }),
       setAutomationState: () => {},
-      clickMouse: async (_win: unknown, params: any) => page.mouse.click(params.x, params.y),
-      doubleClickMouse: async (_win: unknown, params: any) => page.mouse.dblclick(params.x, params.y),
-      moveMouse: async (_win: unknown, params: any) => page.mouse.move(params.x, params.y),
-      typeText: async (_win: unknown, params: any) => page.keyboard.insertText(params.text),
-      keypress: () => {}, scrollMouse: () => {}, dragMouse: async () => {}
+      moveMouse: async (_win: unknown, params: any) => page.mouse.move(params.x, params.y)
     } as any)
     repl = new NodeReplManager(manager, workerFixture.fork)
   }, 30000)
@@ -126,8 +126,8 @@ describe('bundled browser client with a real page', () => {
     `)
     expect(result.documentation).toContain('markDeliverable')
     expect(result.documentation).toContain('agent.documentation.get("viewport")')
-    expect(result.tabsTopic).toContain('active turn')
-    expect(result.webmcpTopic).toContain('Navigation can change availability')
+    expect(result.tabsTopic).toContain('markHandoff')
+    expect(result.webmcpTopic).toContain('listTools')
     expect(result.capabilities.map((item: any) => item.id)).not.toContain('webmcp')
     expect(result.unknown).toContain('Available topics:')
     expect(result.documentation).not.toContain('browserAuth.request')
@@ -146,6 +146,98 @@ describe('bundled browser client with a real page', () => {
     expect(result.stale).toContain('NodeStale')
     expect(result.hidden).toBe(false)
     expect(result.disabled).toBe(false)
+  })
+
+  it('drives real input for typing, shortcuts, checking, dragging, and wheel scrolling', async () => {
+    const scroller = (await page.locator('#scroller').boundingBox())!
+    const pad = (await page.locator('#pad').boundingBox())!
+    await evaluate(`
+      await tab.playwright.locator('#text').type('Hello');
+      await tab.playwright.locator('#text').press('End');
+      await tab.playwright.locator('#text').type(' World');
+      await tab.playwright.locator('#email').fill('a@b.co');
+      await tab.playwright.locator('#ce').fill('rich');
+      await tab.playwright.locator('#area').fill('replaced');
+      await tab.playwright.getByLabel('Agree to terms').check();
+      await tab.playwright.locator('#text').press('ControlOrMeta+a');
+      await tab.playwright.locator('#text').press('Control+x');
+      await tab.playwright.locator('#area').press('Control+a');
+      await tab.playwright.locator('#area').press('Control+v');
+      await tab.playwright.locator('#text').type('ab');
+      await tab.cua.keypress({ keys: ['Shift', 'c'] });
+      await tab.cua.scroll({ x: ${scroller.x + 20}, y: ${scroller.y + 20}, scrollY: 300 });
+      await tab.cua.drag({ path: [{ x: ${pad.x + 10}, y: ${pad.y + 10} }, { x: ${pad.x + 40}, y: ${pad.y + 20} }] });
+      true;
+    `)
+
+    expect(await page.locator('#text').inputValue()).toBe('abC')
+    expect(await page.locator('#email').inputValue()).toBe('a@b.co')
+    expect(await page.locator('#ce').innerText()).toBe('rich')
+    expect(await page.locator('#area').inputValue()).toBe('Hello World')
+    expect(await page.locator('#agree').isChecked()).toBe(true)
+    expect(await evaluate('JSON.stringify(await tab.clipboard.readText())')).toBe('Hello World')
+    await expect.poll(() => page.locator('#scroller').evaluate((element: any) => element.scrollTop)).toBe(300)
+    expect(await page.locator('#pad').getAttribute('data-log')).toMatch(/down1;(move0;)?move1;up;$/)
+  })
+
+  it('copies and cuts nothing from credential-like fields and scrubs their values from copied markup', async () => {
+    const select = (id: string) => page.evaluate((target) => {
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      const range = document.createRange()
+      range.selectNodeContents(document.getElementById(target)!)
+      const selection = getSelection()!
+      selection.removeAllRanges()
+      selection.addRange(range)
+    }, id)
+    const copiedMarkup = () => evaluate(`
+      await tab.cua.keypress({ keys: ['Control', 'c'] });
+      JSON.stringify((await tab.clipboard.read())[0].entries.find((entry) => entry.mimeType === 'text/html').text);
+    `) as Promise<string>
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML('beforeend', `<div id="vault">
+        <input id="pw" type="password" value="hunter2"><input id="otp" name="one-time-code" value="123456">
+        <input id="plain" value="visible">
+        <span id="rich">Note <input id="mail" type="email" value="a@b.co"><input id="seed" value="kept"><input type="hidden" name="csrf" value="tok"></span>
+        <span id="owned">Owned</span></div>`)
+    })
+    try {
+      const texts = await evaluate(`
+        await tab.clipboard.writeText('sentinel');
+        const fieldTexts = {};
+        for (const id of ['pw', 'otp']) {
+          const field = tab.playwright.locator('#' + id);
+          await field.press('ControlOrMeta+a');
+          await field.press('Control+c');
+          await field.press('Control+x');
+          fieldTexts[id] = await tab.clipboard.readText();
+        }
+        const plain = tab.playwright.locator('#plain');
+        await plain.press('ControlOrMeta+a');
+        await plain.press('Control+c');
+        fieldTexts.plain = await tab.clipboard.readText();
+        ({ ...fieldTexts });
+      `)
+      expect(texts).toEqual({ pw: 'sentinel', otp: 'sentinel', plain: 'visible' })
+      expect(await page.locator('#pw').inputValue()).toBe('hunter2')
+      expect(await page.locator('#otp').inputValue()).toBe('123456')
+
+      await select('rich')
+      const selected = await copiedMarkup()
+      expect(selected).toContain('value="kept"')
+      expect(selected).not.toContain('a@b.co')
+      expect(selected).not.toContain('tok')
+
+      await select('owned')
+      await page.evaluate(() => document.addEventListener('copy', (event) => {
+        event.preventDefault()
+        event.clipboardData!.setData('text/html', '<input name="password" value="s3cret"><input name="city" value="Oslo">')
+      }, { once: true }))
+      const owned = await copiedMarkup()
+      expect(owned).toContain('value="Oslo"')
+      expect(owned).not.toContain('s3cret')
+    } finally {
+      await page.evaluate(() => document.getElementById('vault')!.remove())
+    }
   })
 
   it('preserves cells within a turn and applies client marks only to their turn', async () => {

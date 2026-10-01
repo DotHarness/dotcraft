@@ -15,14 +15,10 @@ const electronMock = vi.hoisted(() => {
     getUserAgent: vi.fn(() => 'Mozilla/5.0 Chrome/148.0.7778.97 Safari/537.36'),
     getTitle: vi.fn(() => 'DotCraft Browser'),
     isLoading: vi.fn(() => false),
-    focus: vi.fn(),
     loadURL,
     reload: vi.fn(),
     stop: vi.fn(),
     setWindowOpenHandler: vi.fn(),
-    sendInputEvent: vi.fn(),
-    insertText: vi.fn(),
-    executeJavaScript: vi.fn(async () => undefined),
     navigationHistory: {
       canGoBack: vi.fn(() => false),
       canGoForward: vi.fn(() => false),
@@ -54,12 +50,8 @@ const electronMock = vi.hoisted(() => {
       webContents.close.mockClear()
       webContents.reload.mockClear()
       webContents.stop.mockClear()
-      webContents.focus.mockClear()
       webContents.getUserAgent.mockClear()
       webContents.setWindowOpenHandler.mockClear()
-      webContents.sendInputEvent.mockClear()
-      webContents.insertText.mockClear()
-      webContents.executeJavaScript.mockClear()
       webContents.navigationHistory.canGoBack.mockClear()
       webContents.navigationHistory.canGoForward.mockClear()
       webContents.navigationHistory.goBack.mockClear()
@@ -390,17 +382,13 @@ describe('ViewerBrowserManager tab creation', () => {
 
 describe('ViewerBrowserManager automation input', () => {
   function createAutomationHarness() {
-    const events: unknown[] = []
     const webContents = {
-      isDestroyed: vi.fn(() => false),
-      focus: vi.fn(),
-      sendInputEvent: vi.fn((event: unknown) => events.push(event)),
-      insertText: vi.fn(),
-      executeJavaScript: vi.fn(async () => undefined)
+      isDestroyed: vi.fn(() => false)
     }
     const win = {
       id: 1,
       isDestroyed: () => false,
+      isFocused: () => true,
       webContents: {
         isDestroyed: () => false,
         send: vi.fn()
@@ -426,134 +414,19 @@ describe('ViewerBrowserManager automation input', () => {
         visible: true,
         boundsInitialized: true,
         currentUrl: 'http://localhost:3000/',
-        title: 'Test',
-        automationEnabled: true
+        title: 'Test'
       }]])
     })
-    return { manager, win, webContents, events }
+    return { manager, win }
   }
 
-  it('initializes the virtual cursor at the automation tab center', async () => {
-    const manager = new ViewerBrowserManager()
-    const win = {
-      id: 1,
-      isDestroyed: () => false,
-      webContents: {
-        isDestroyed: () => false,
-        send: vi.fn()
-      },
-      contentView: {
-        addChildView: vi.fn(),
-        removeChildView: vi.fn()
-      }
-    } as unknown as Electron.BrowserWindow & { webContents: { send: ReturnType<typeof vi.fn> } }
-
-    vi.spyOn(manager.hosts, 'request').mockResolvedValue(electronMock.webContents as unknown as Electron.WebContents)
-    vi.spyOn(manager.hosts, 'list').mockReturnValue([{ tabId: 'tab-center' } as never])
-    await manager.createAutomationTab(win, {
-      tabId: 'tab-center',
-      workspacePath: '/workspace/test-root',
-      width: 1280,
-      height: 900
-    })
-
-    expect(win.webContents.send).toHaveBeenCalledWith(
-      'viewer:browser:event',
-      expect.objectContaining({
-        tabId: 'tab-center',
-        type: 'virtual-cursor',
-        x: 640,
-        y: 450
-      })
-    )
-  })
-
-  it('recenters the virtual cursor on real bounds until the agent moves it', async () => {
+  it('moves the overlay cursor', async () => {
     const { manager, win } = createAutomationHarness()
-    const update = vi.spyOn(manager.hosts, 'update')
+    const move = vi.spyOn(manager.hosts.cursors, 'move').mockResolvedValue()
 
-    manager.setBounds(win, { tabId: 'tab-1', x: 20, y: 30, width: 800, height: 600 })
+    await manager.moveMouse(win, { tabId: 'tab-1', x: 10.4, y: 20, waitForArrival: false })
 
-    expect(update).toHaveBeenCalledWith(win, 'tab-1', { bounds: { x: 20, y: 30, width: 800, height: 600 }, visible: true })
-    expect(win.webContents.send).toHaveBeenCalledWith(
-      'viewer:browser:event',
-      expect.objectContaining({
-        tabId: 'tab-1',
-        type: 'virtual-cursor',
-        x: 400,
-        y: 300
-      })
-    )
-
-    win.webContents.send.mockClear()
-    await manager.moveMouse(win, { tabId: 'tab-1', x: 10, y: 20 })
-    win.webContents.send.mockClear()
-
-    manager.setBounds(win, { tabId: 'tab-1', x: 20, y: 30, width: 1000, height: 700 })
-
-    expect(win.webContents.send).not.toHaveBeenCalledWith(
-      'viewer:browser:event',
-      expect.objectContaining({
-        tabId: 'tab-1',
-        type: 'virtual-cursor',
-        x: 500,
-        y: 350
-      })
-    )
-  })
-
-  it('clickMouse sends move, down, and up input events', async () => {
-    const { manager, win, webContents, events } = createAutomationHarness()
-
-    await manager.clickMouse(win, { tabId: 'tab-1', x: 10, y: 20 })
-
-    expect(webContents.executeJavaScript).toHaveBeenCalled()
-    const scripts = (webContents.executeJavaScript.mock.calls as unknown[][]).map((call) => String(call[0]))
-    expect(scripts.join('\n')).toContain("width: '28px'")
-    expect(scripts.join('\n')).toContain("width: '40px'")
-    const mouseMoves = events.filter((event) => (event as { type?: string }).type === 'mouseMove')
-    expect(mouseMoves.length).toBeGreaterThan(1)
-    expect(mouseMoves.at(-1)).toMatchObject({ type: 'mouseMove', x: 10, y: 20 })
-    expect(events.at(-2)).toMatchObject({ type: 'mouseDown', x: 10, y: 20, button: 'left' })
-    expect(events.at(-1)).toMatchObject({ type: 'mouseUp', x: 10, y: 20, button: 'left' })
-  })
-
-  it('does not block native click input when the visual overlay hangs', async () => {
-    const { manager, win, webContents, events } = createAutomationHarness()
-    webContents.executeJavaScript.mockImplementation(() => new Promise(() => {}))
-
-    await expect(manager.clickMouse(win, { tabId: 'tab-1', x: 10, y: 20 })).resolves.toBeUndefined()
-
-    expect(webContents.focus).toHaveBeenCalled()
-    const mouseMoves = events.filter((event) => (event as { type?: string }).type === 'mouseMove')
-    expect(mouseMoves.length).toBeGreaterThan(1)
-    expect(mouseMoves.at(-1)).toMatchObject({ type: 'mouseMove', x: 10, y: 20 })
-    expect(events.at(-2)).toMatchObject({ type: 'mouseDown', x: 10, y: 20, button: 'left' })
-    expect(events.at(-1)).toMatchObject({ type: 'mouseUp', x: 10, y: 20, button: 'left' })
-  })
-
-  it('scrollMouse sends wheel input through the tab webContents', async () => {
-    const { manager, win, events } = createAutomationHarness()
-
-    await manager.scrollMouse(win, { tabId: 'tab-1', x: 5, y: 6, scrollX: 0, scrollY: 120 })
-
-    expect(events.at(-1)).toMatchObject({
-      type: 'mouseWheel',
-      x: 5,
-      y: 6,
-      deltaY: 120
-    })
-  })
-
-  it('keypress sends keyDown and keyUp with modifiers', () => {
-    const { manager, win, events } = createAutomationHarness()
-
-    manager.keypress(win, { tabId: 'tab-1', keys: ['Control', 'A'] })
-
-    expect(events).toMatchObject([
-      { type: 'keyDown', keyCode: 'A', modifiers: ['control'] },
-      { type: 'keyUp', keyCode: 'A', modifiers: ['control'] }
-    ])
+    expect(move).toHaveBeenCalledWith(win, 'tab-1', { x: 10.4, y: 20 }, { waitForArrival: false })
   })
 
   it('returns the active browser tab for the requested thread as automation target', () => {

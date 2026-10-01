@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventEmitter } from 'events'
-import { readFile } from 'fs/promises'
 
 vi.mock('electron', () => ({
   app: { getAppPath: () => process.cwd() },
@@ -60,20 +59,7 @@ function createFakeWebContents() {
       if (script.includes('document.body ? document.body.innerText')) {
         return 'Save\nTest Link'
       }
-      if (script.includes('document.elementFromPoint')) {
-        return [{
-          nodeId: null,
-          tagName: 'button',
-          role: 'button',
-          visibleText: 'Save',
-          ariaName: 'Save',
-          testId: null,
-          selector: { primary: 'button', candidates: ['button'] },
-          boundingBox: { x: 10, y: 20, width: 100, height: 40 },
-          preview: '<button> Save'
-        }]
-      }
-      if (script.includes('__dotcraftPlaywrightInjected &&')) return false
+      if (script.includes('__dotcraftBrowserUseSnapshot &&')) return false
       if (script.includes('module.exports.InjectedScript')) return true
       if (isReadinessProbe(script)) {
         return {
@@ -110,23 +96,6 @@ function createFakeWebContents() {
               }]
         }
       }
-      if (script.includes('__dotcraftBrowserUseResolveSelector')) {
-        return [{
-          index: 0,
-          tagName: 'a',
-          tag: 'a',
-          role: 'link',
-          name: 'Test Link',
-          text: 'Test Link',
-          href: '/test',
-          selector: 'a[href="/test"]',
-          visible: true,
-          enabled: true,
-          visibleText: 'Test Link',
-          ariaName: 'Test Link',
-          boundingBox: { x: 10, y: 20, width: 100, height: 40 }
-        }]
-      }
       return 'ok'
     }),
     capturePage: vi.fn(async () => ({ toPNG: () => Buffer.from([1, 2, 3]) })),
@@ -147,57 +116,7 @@ function createFakeWebContents() {
       }),
       sendCommand: vi.fn(async (method: string, params?: Record<string, unknown>) => {
         if (method === 'Runtime.evaluate') {
-          const expression = String(params?.expression ?? '')
-          if (
-            expression.includes('__dotcraftBrowserUsePageAssets') ||
-            expression.includes('__dotcraftBrowserUseResolveSelector') ||
-            expression.includes('__dotcraftBrowserUseSnapshot') ||
-            expression.includes('__dotcraftPlaywrightInjected &&') ||
-            expression.includes('module.exports.InjectedScript') ||
-            isReadinessProbe(expression)
-          ) {
-            return { result: { value: await api.executeJavaScript(expression) } }
-          }
-          if (expression.includes('document.title')) {
-            return { result: { value: 'Test Page' } }
-          }
-          if (
-            expression.includes('document.documentElement ? document.documentElement.outerHTML') ||
-            expression.includes('document.body ? document.body.innerText')
-          ) {
-            const value = await api.executeJavaScript(expression)
-            return { result: { value } }
-          }
-          if (expression.includes('location.href')) {
-            return {
-              result: {
-                value: {
-                  href: url,
-                  readyState: 'complete'
-                }
-              }
-            }
-          }
-          if (expression.includes('incrementalAriaSnapshot')) {
-            return { result: { value: '- button "Save"' } }
-          }
-          if (expression.includes('fn(arg)') && expression.includes('=> value + 1') && expression.includes(', 41')) {
-            return { result: { value: 42 } }
-          }
-          if (expression.includes('const element = document.elementFromPoint')) {
-            return { result: { value: await api.executeJavaScript(expression) } }
-          }
-          if (expression.includes('querySelectorAll') || expression.includes('internal:') || expression.includes('InjectedScript')) {
-            return { result: { value: 1 } }
-          }
-          const value = await api.executeJavaScript(expression)
-          return { result: { value } }
-        }
-        if (method === 'Page.getFrameTree') {
-          return { frameTree: { frame: { id: 'main-frame', url } } }
-        }
-        if (method === 'Page.createIsolatedWorld') {
-          return { executionContextId: 7 }
+          return { result: { value: await api.executeJavaScript(String(params?.expression ?? '')) } }
         }
         if (method === 'Page.getLayoutMetrics') {
           return {
@@ -231,6 +150,7 @@ function createFakeWebContents() {
 }
 
 function createFakeHost(webContents = createFakeWebContents()) {
+  const viewports = new Map<string, { width: number; height: number }>()
   return {
     setCaptureSurface: vi.fn(),
     createAutomationTab: vi.fn(),
@@ -247,15 +167,14 @@ function createFakeHost(webContents = createFakeWebContents()) {
       loading: webContents.isLoading()
     })),
     setAutomationState: vi.fn(),
-    setBounds: vi.fn(),
+    setViewport: vi.fn((_win: Electron.BrowserWindow, params: { tabId: string; viewport?: { width: number; height: number } }) => {
+      if (params.viewport) viewports.set(params.tabId, params.viewport)
+      else viewports.delete(params.tabId)
+    }),
+    getLayoutSize: vi.fn((_win: Electron.BrowserWindow, tabId: string) => viewports.get(tabId) ?? { width: 1280, height: 720 }),
+    isVisible: vi.fn((_win: Electron.BrowserWindow, _tabId: string) => false),
     setVisible: vi.fn(),
-    moveMouse: vi.fn(),
-    clickMouse: vi.fn(),
-    doubleClickMouse: vi.fn(),
-    dragMouse: vi.fn(),
-    scrollMouse: vi.fn(),
-    typeText: vi.fn(),
-    keypress: vi.fn()
+    moveMouse: vi.fn()
   }
 }
 
@@ -274,30 +193,31 @@ function createFakeOwner() {
   } as unknown as Electron.BrowserWindow & { webContents: { send: ReturnType<typeof vi.fn> } }
 }
 
-async function runBrowserUse(
+async function openSession(
   manager: BrowserUseManager,
   owner: Electron.BrowserWindow,
-  params: { threadId: string; workspacePath?: string; code: string }
+  threadId: string,
+  workspacePath?: string
 ) {
   activeManagers.add(manager)
-  const runtime = await manager.prepareNodeRepl(owner as BrowserWindow, params)
-  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
-  try {
-    const value = await new AsyncFunction('agent', 'display', params.code)(runtime.agent, runtime.display)
-    const collected = runtime.collect()
-    return {
-      resultText: value == null ? '' : typeof value === 'string' ? value : JSON.stringify(value, null, 2),
-      images: collected.images,
-      logs: collected.logs
-    }
-  } catch (error) {
-    const collected = runtime.collect()
-    return {
-      error: error instanceof Error ? error.message : String(error),
-      images: collected.images,
-      logs: collected.logs
-    }
-  }
+  const runtime = await manager.prepareNodeRepl(owner as BrowserWindow, {
+    threadId,
+    workspacePath,
+    evaluationId: 'eval-1',
+    browserSession: { sessionId: threadId, turnId: 'turn-1' }
+  })
+  const session = { session_id: threadId, turn_id: 'turn-1' }
+  const call = (method: string, params: Record<string, unknown> = {}) =>
+    manager.handleBrowserUseBackendRequest(method, { ...session, ...params })
+  const command = (type: string, params: Record<string, unknown> = {}) =>
+    call('executeUnhandledCommand', { type, ...params }) as Promise<Record<string, unknown>>
+  const createTab = async (url?: string, params: Record<string, unknown> = {}) =>
+    await call('createTab', { ...(url ? { url } : {}), ...params }) as { id: number; url: string }
+  const navigate = (tab: { id: number }, url: string) =>
+    call('executeCdp', { target: { tabId: tab.id }, method: 'Page.navigate', commandParams: { url } })
+  const domSnapshot = async (tab: { id: number }, params: Record<string, unknown> = {}) =>
+    String((await command('playwright_dom_snapshot', { tab_id: tab.id, ...params })).dom_snapshot)
+  return { call, command, createTab, navigate, domSnapshot, collect: runtime.collect }
 }
 
 describe('normalizeBrowserUseUrl', () => {
@@ -365,25 +285,16 @@ describe('BrowserUseManager IAB backend', () => {
     const host = createFakeHost()
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { call, createTab } = await openSession(manager, owner, 'thread-1', '/workspace/test-root')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      workspacePath: '/workspace/test-root',
-      code: `
-        await agent.browser.nameSession("mario-test");
-        const tab = await agent.browser.tabs.new("localhost:3000");
-        return await tab.url();
-      `
-    })
+    await call('nameSession', { name: 'mario-test' })
+    const tab = await createTab('localhost:3000')
 
-    expect(result.error).toBeUndefined()
-    expect(result.resultText).toBe('http://localhost:3000/')
+    expect(tab.url).toBe('http://localhost:3000/')
     expect(host.createAutomationTab).toHaveBeenCalledWith(owner, expect.objectContaining({
       tabId: expect.stringMatching(/^browser-thread-1-/),
       workspacePath: '/workspace/test-root',
-      allowFileScheme: true,
-      width: 1280,
-      height: 720
+      allowFileScheme: true
     }))
     const createdTabId = host.createAutomationTab.mock.calls[0]?.[1]?.tabId
     expect(host.setVisible).toHaveBeenCalledWith(owner, expect.objectContaining({
@@ -403,22 +314,17 @@ describe('BrowserUseManager IAB backend', () => {
     const host = createFakeHost()
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { command, createTab } = await openSession(manager, owner, 'thread-1')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      code: `
-        await agent.browser.capabilities.get("visibility").set(true);
-        await agent.browser.tabs.new("localhost:3000");
-      `
-    })
+    await command('browser_visibility_set', { visible: true })
+    await createTab('localhost:3000')
 
-    expect(result.error).toBeUndefined()
     expect(owner.webContents.send).toHaveBeenCalledWith('viewer:browser:open', expect.objectContaining({
       focusMode: 'first-open'
     }))
   })
 
-  it('creates a stable blank selected tab before taking the first DOM snapshot', async () => {
+  it('creates a stable blank tab before taking the first DOM snapshot', async () => {
     const wc = createFakeWebContents()
     ;(wc.executeJavaScript as ReturnType<typeof vi.fn>).mockImplementation(async (script: string) => {
       if (isReadinessProbe(script)) {
@@ -444,18 +350,11 @@ describe('BrowserUseManager IAB backend', () => {
     const host = createFakeHost(wc)
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { createTab, domSnapshot } = await openSession(manager, owner, 'thread-blank', '/workspace/test-root')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-blank',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.tabs.selected();
-        return await tab.domSnapshot();
-      `
-    })
+    const tab = await createTab()
 
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText!)).toMatchObject({
+    expect(JSON.parse(await domSnapshot(tab))).toMatchObject({
       title: 'Test Page',
       url: 'about:blank'
     })
@@ -496,17 +395,10 @@ describe('BrowserUseManager IAB backend', () => {
     const host = createFakeHost(wc)
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { createTab, domSnapshot } = await openSession(manager, owner, 'thread-empty-ready-snapshot')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-empty-ready-snapshot',
-      code: `
-        const tab = await agent.browser.tabs.new("localhost:3000/empty");
-        return await tab.domSnapshot();
-      `
-    })
+    const snapshotText = await domSnapshot(await createTab('localhost:3000/empty'))
 
-    expect(result.error).toBeUndefined()
-    const snapshotText = result.resultText!
     expect(snapshotText).toContain('"elements": []')
     expect(snapshotText.indexOf('"title"')).toBeLessThan(snapshotText.indexOf('"url"'))
     expect(snapshotText.indexOf('"url"')).toBeLessThan(snapshotText.indexOf('"bodyText"'))
@@ -529,20 +421,14 @@ describe('BrowserUseManager IAB backend', () => {
     const host = createFakeHost(wc)
     const manager = new BrowserUseManager(host, { operationMs: 25 })
     const owner = createFakeOwner()
+    const { createTab, domSnapshot } = await openSession(manager, owner, 'thread-timeout', '/workspace/test-root')
+    const tab = await createTab(undefined, { timeoutMs: 5_000 })
 
-    const pending = runBrowserUse(manager, owner, {
-      threadId: 'thread-timeout',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.tabs.selected();
-        return await tab.domSnapshot();
-      `
-    })
-    const result = await pending
+    const error = await domSnapshot(tab, { timeoutMs: 5_000 }).catch((reason: Error) => reason)
 
-    expect(result.error).toContain("Browser operation 'domSnapshot.ready' timed out")
-    expect(result.error).toContain('browser-thread-timeout-')
-    expect(result.error).toContain('about:blank')
+    expect((error as Error).message).toContain("Browser operation 'domSnapshot.ready' timed out")
+    expect((error as Error).message).toContain('browser-thread-timeout-')
+    expect((error as Error).message).toContain('about:blank')
     releaseScript?.()
     await scriptPromise
   }, 15_000)
@@ -551,18 +437,11 @@ describe('BrowserUseManager IAB backend', () => {
     const host = createFakeHost()
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { createTab } = await openSession(manager, owner, 'thread-1', '/workspace/test-root')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.tabs.new("127.0.0.1:5173");
-        return await tab.url();
-      `
-    })
+    const tab = await createTab('127.0.0.1:5173')
 
-    expect(result.error).toBeUndefined()
-    expect(result.resultText).toBe('http://127.0.0.1:5173/')
+    expect(tab.url).toBe('http://127.0.0.1:5173/')
     expect(host.loadAutomationUrl).toHaveBeenCalledWith(owner, {
       tabId: expect.stringMatching(/^browser-thread-1-/),
       url: 'http://127.0.0.1:5173/'
@@ -595,19 +474,12 @@ describe('BrowserUseManager IAB backend', () => {
     const host = createFakeHost(wc)
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { command, createTab, domSnapshot } = await openSession(manager, owner, 'thread-vitepress', '/workspace/test-root')
+    const tab = await createTab('http://127.0.0.1:5173/')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-vitepress',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.goto("http://127.0.0.1:5173/");
-        await tab.waitForLoadState("load");
-        return await tab.domSnapshot();
-      `
-    })
+    await command('playwright_wait_for_load_state', { tab_id: tab.id, state: 'load' })
 
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText!)).toMatchObject({
+    expect(JSON.parse(await domSnapshot(tab))).toMatchObject({
       title: 'DotCraft',
       bodyText: expect.stringContaining('Search')
     })
@@ -617,19 +489,12 @@ describe('BrowserUseManager IAB backend', () => {
     const host = createFakeHost()
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { call, command, createTab } = await openSession(manager, owner, 'thread-networkidle', '/workspace/test-root')
+    const tab = await createTab('http://127.0.0.1:5173/')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-networkidle',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.goto("http://127.0.0.1:5173/");
-        await tab.waitForLoadState("networkidle", 1000);
-        return await tab.url();
-      `
-    })
+    await command('playwright_wait_for_load_state', { tab_id: tab.id, state: 'networkidle', timeout_ms: 2_000 })
 
-    expect(result.error).toBeUndefined()
-    expect(result.resultText).toBe('http://127.0.0.1:5173/')
+    expect(await call('getTabs')).toMatchObject([{ url: 'http://127.0.0.1:5173/' }])
   })
 
   it('treats already-ready DOMContentLoaded documents as loaded without requestAnimationFrame', async () => {
@@ -654,77 +519,26 @@ describe('BrowserUseManager IAB backend', () => {
     const host = createFakeHost(wc)
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { command, createTab } = await openSession(manager, owner, 'thread-domcontentloaded-ready', '/workspace/test-root')
+    const tab = await createTab('http://127.0.0.1:5173/background')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-domcontentloaded-ready',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.goto("http://127.0.0.1:5173/background");
-        await tab.playwright.waitForLoadState("domcontentloaded", 1000);
-        return await tab.url();
-      `
-    })
+    await command('playwright_wait_for_load_state', { tab_id: tab.id, state: 'domcontentloaded', timeout_ms: 1_000 })
 
-    expect(result.error).toBeUndefined()
-    expect(result.resultText).toBe('http://127.0.0.1:5173/background')
     expect((wc.executeJavaScript as ReturnType<typeof vi.fn>).mock.calls.some(([script]) => String(script).includes('requestAnimationFrame'))).toBe(false)
   })
 
-  it('waitForURL observes SPA in-page navigation', async () => {
-    const wc = createFakeWebContents()
-    const host = createFakeHost(wc)
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    ;(globalThis as Record<string, unknown>).__simulateSpaNavigation = () => {
-      wc.setUrl('http://127.0.0.1:5173/desktop_guide')
-      ;(wc as unknown as EventEmitter).emit('did-navigate-in-page')
-    }
-    const pending = runBrowserUse(manager, owner, {
-      threadId: 'thread-spa-url',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.goto("http://127.0.0.1:5173/");
-        setTimeout(() => {
-          globalThis.__simulateSpaNavigation?.();
-        }, 20);
-        await tab.playwright.waitForURL(/desktop_guide/, { timeoutMs: 1000 });
-        return await tab.url();
-      `
-    })
-
-    const result = await pending
-    delete (globalThis as Record<string, unknown>).__simulateSpaNavigation
-
-    expect(result.error).toBeUndefined()
-    expect(result.resultText).toBe('http://127.0.0.1:5173/desktop_guide')
-  })
-
-  it('waitForLoadState rejects main-frame navigation failures', async () => {
+  it('rejects wait for load state on main-frame navigation failures', async () => {
     const wc = createFakeWebContents()
     let loading = false
     ;(wc.isLoading as ReturnType<typeof vi.fn>).mockImplementation(() => loading)
     const host = createFakeHost(wc)
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { command, createTab } = await openSession(manager, owner, 'thread-failed-load', '/workspace/test-root')
+    const tab = await createTab('http://127.0.0.1:5173/missing')
 
-    ;(globalThis as Record<string, unknown>).__setBrowserLoading = (value: boolean) => {
-      loading = value
-    }
-    const pending = runBrowserUse(manager, owner, {
-      threadId: 'thread-failed-load',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.goto("http://127.0.0.1:5173/missing");
-        globalThis.__setBrowserLoading?.(true);
-        try {
-          await tab.playwright.waitForLoadState({ state: "load", timeoutMs: 1000 });
-          return "resolved";
-        } catch (error) {
-          return error instanceof Error ? error.message : String(error);
-        }
-      `
-    })
+    loading = true
+    const pending = command('playwright_wait_for_load_state', { tab_id: tab.id, state: 'load', timeout_ms: 1_000 })
     await new Promise((resolve) => setTimeout(resolve, 25))
     loading = false
     ;(wc as unknown as EventEmitter).emit(
@@ -736,11 +550,7 @@ describe('BrowserUseManager IAB backend', () => {
       true
     )
 
-    const result = await pending
-    delete (globalThis as Record<string, unknown>).__setBrowserLoading
-
-    expect(result.error).toBeUndefined()
-    expect(result.resultText).toContain('NavigationFailed: ERR_NAME_NOT_RESOLVED')
+    await expect(pending).rejects.toThrow('NavigationFailed: ERR_NAME_NOT_RESOLVED')
   })
 
   it('does not report a failed initial navigation URL as the loaded tab URL', async () => {
@@ -751,34 +561,13 @@ describe('BrowserUseManager IAB backend', () => {
     })
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { call, createTab } = await openSession(manager, owner, 'thread-failed-initial-url', '/workspace/test-root')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-failed-initial-url',
-      workspacePath: '/workspace/test-root',
-      code: `
-        let message = "";
-        try {
-          await agent.browser.tabs.new("127.0.0.1:5173/missing");
-        } catch (error) {
-          message = error instanceof Error ? error.message : String(error);
-        }
-        return { message, tabs: await agent.browser.tabs.list() };
-      `
-    })
+    await expect(createTab('127.0.0.1:5173/missing')).rejects.toThrow('NavigationFailed: ERR_CONNECTION_CLOSED')
 
-    expect(result.error).toBeUndefined()
-    const payload = JSON.parse(result.resultText ?? '{}')
-    expect(payload.message).toContain('NavigationFailed: ERR_CONNECTION_CLOSED')
-    expect(payload.tabs[0]).toMatchObject({
-      url: 'about:blank',
-      navigationFailure: {
-        errorDescription: 'ERR_CONNECTION_CLOSED',
-        validatedURL: 'http://127.0.0.1:5173/missing',
-        finalURL: 'about:blank',
-        isMainFrame: true
-      }
-    })
-    expect(payload.tabs[0].url).not.toBe('http://127.0.0.1:5173/missing')
+    const tabs = await call('getTabs') as Array<Record<string, unknown>>
+    expect(tabs).toHaveLength(1)
+    expect(tabs[0]!.url).toBe('about:blank')
   })
 
   it('returns a readable timeout when screenshot capture hangs', async () => {
@@ -797,18 +586,13 @@ describe('BrowserUseManager IAB backend', () => {
     const host = createFakeHost(wc)
     const manager = new BrowserUseManager(host, { operationMs: 25 })
     const owner = createFakeOwner()
+    const { command, createTab } = await openSession(manager, owner, 'thread-shot-timeout', '/workspace/test-root')
+    const tab = await createTab('http://127.0.0.1:5173/', { timeoutMs: 5_000 })
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-shot-timeout',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.goto("http://127.0.0.1:5173/");
-        return await tab.screenshot();
-      `
-    })
+    const error = await command('tab_screenshot', { tab_id: tab.id, timeoutMs: 5_000 }).catch((reason: Error) => reason)
 
-    expect(result.error).toContain("Browser operation 'screenshot' timed out")
-    expect(result.error).toContain('http://127.0.0.1:5173/')
+    expect((error as Error).message).toContain("Browser operation 'screenshot' timed out")
+    expect((error as Error).message).toContain('http://127.0.0.1:5173/')
     releaseCapture?.()
   })
 
@@ -817,24 +601,15 @@ describe('BrowserUseManager IAB backend', () => {
     const host = createFakeHost(wc)
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { command, createTab } = await openSession(manager, owner, 'thread-viewport-shot', '/workspace/test-root')
+    const tab = await createTab('http://127.0.0.1:5173/')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-viewport-shot',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.goto("http://127.0.0.1:5173/");
-        return await tab.screenshot();
-      `
-    })
+    expect(await command('tab_screenshot', { tab_id: tab.id })).toEqual({ data: 'AQID' })
 
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
-      mediaType: 'image/png',
-      dataBase64: 'AQID'
-    })
     expect(wc.capturePage).not.toHaveBeenCalled()
-    expect(wc.debugger.sendCommand).toHaveBeenCalledWith('Page.captureScreenshot', expect.objectContaining({
-      captureBeyondViewport: false,
+    expect(wc.debugger.sendCommand).toHaveBeenCalledWith('Page.captureScreenshot', {
+      format: 'jpeg',
+      quality: 80,
       clip: {
         x: 0,
         y: 0,
@@ -842,7 +617,39 @@ describe('BrowserUseManager IAB backend', () => {
         height: 720,
         scale: 1
       }
-    }))
+    })
+  })
+
+  it('captures a visible tab in place and a hidden tab on a surface at its layout size', async () => {
+    const host = createFakeHost()
+    const manager = new BrowserUseManager(host)
+    const owner = createFakeOwner()
+    const capture = async (threadId: string) => {
+      const { command, createTab } = await openSession(manager, owner, threadId, '/workspace/test-root')
+      const tab = await createTab('http://127.0.0.1:5173/')
+      await command('tab_screenshot', { tab_id: tab.id })
+    }
+
+    host.isVisible.mockReturnValue(true)
+    await capture('thread-visible-shot')
+    expect(host.setCaptureSurface).not.toHaveBeenCalled()
+
+    host.isVisible.mockReturnValue(false)
+    await capture('thread-hidden-shot')
+    expect(host.setCaptureSurface.mock.calls.map(call => call[2])).toEqual([{ width: 1280, height: 720 }, null])
+  })
+
+  it('sizes the screenshot capture surface from the tab explicit viewport', async () => {
+    const host = createFakeHost()
+    const manager = new BrowserUseManager(host)
+    const owner = createFakeOwner()
+    const { command, createTab } = await openSession(manager, owner, 'thread-viewport-surface', '/workspace/test-root')
+    const tab = await createTab('http://127.0.0.1:5173/')
+
+    await command('browser_viewport_set', { width: 800, height: 600 })
+    await command('tab_screenshot', { tab_id: tab.id })
+
+    expect(host.setCaptureSurface).toHaveBeenCalledWith(owner, expect.any(String), { width: 800, height: 600 })
   })
 
   it('rejects empty CDP screenshot data', async () => {
@@ -856,17 +663,10 @@ describe('BrowserUseManager IAB backend', () => {
     const host = createFakeHost(wc)
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { command, createTab } = await openSession(manager, owner, 'thread-empty-shot', '/workspace/test-root')
+    const tab = await createTab('http://127.0.0.1:5173/')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-empty-shot',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.goto("http://127.0.0.1:5173/");
-        return await tab.screenshot();
-      `
-    })
-
-    expect(result.error).toContain('Page.captureScreenshot returned no data')
+    await expect(command('tab_screenshot', { tab_id: tab.id })).rejects.toThrow('Page.captureScreenshot returned no data')
   })
 
   it('captures full-page screenshots with the CDP page dimensions', async () => {
@@ -887,30 +687,44 @@ describe('BrowserUseManager IAB backend', () => {
     const host = createFakeHost(wc)
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { command, createTab } = await openSession(manager, owner, 'thread-full-page-shot', '/workspace/test-root')
+    const tab = await createTab('http://127.0.0.1:5173/')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-full-page-shot',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.goto("http://127.0.0.1:5173/");
-        return await tab.screenshot({ fullPage: true });
-      `
-    })
+    expect(await command('tab_screenshot', { tab_id: tab.id, fullPage: true })).toEqual({ data: 'CQgH' })
 
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
-      mediaType: 'image/png',
-      dataBase64: 'CQgH'
-    })
     expect(wc.capturePage).not.toHaveBeenCalled()
-    expect(wc.debugger.sendCommand).toHaveBeenCalledWith('Page.captureScreenshot', expect.objectContaining({
+    expect(wc.debugger.sendCommand).toHaveBeenCalledWith('Page.captureScreenshot', {
+      format: 'jpeg',
+      quality: 80,
       captureBeyondViewport: true,
-      clip: expect.objectContaining({
-        width: 1280,
-        height: 2400,
-        scale: 1
+      clip: { x: 0, y: 0, width: 1280, height: 2400, scale: 1 }
+    })
+    expect(host.setCaptureSurface.mock.calls.map(call => call[2])).toEqual([{ width: 1280, height: 2400 }, null])
+  })
+
+  it('captures a cropped screenshot as a CSS-pixel JPEG clip', async () => {
+    const wc = createFakeWebContents()
+    const defaultSendCommand = (wc.debugger.sendCommand as ReturnType<typeof vi.fn>).getMockImplementation()
+    ;(wc.debugger.sendCommand as ReturnType<typeof vi.fn>).mockImplementation(
+      async (method: string, params?: Record<string, unknown>) => {
+        if (method === 'Runtime.evaluate' && params?.expression === 'window.devicePixelRatio') return { result: { value: 2 } }
+        return await defaultSendCommand?.(method, params)
       })
-    }))
+    const manager = new BrowserUseManager(createFakeHost(wc))
+    const owner = createFakeOwner()
+    const { command, createTab } = await openSession(manager, owner, 'thread-crop-shot')
+    const tab = await createTab('localhost:3000')
+
+    expect(await command('tab_screenshot', {
+      tab_id: tab.id, cropX: 10, cropY: 20, cropWidth: 100, cropHeight: 40
+    })).toEqual({ data: 'AQID' })
+
+    expect(wc.debugger.sendCommand).toHaveBeenCalledWith('Page.captureScreenshot', {
+      format: 'jpeg',
+      quality: 80,
+      captureBeyondViewport: true,
+      clip: { x: 10, y: 20, width: 100, height: 40, scale: 0.5 }
+    })
   })
 
   it('includes browser operation diagnostics when page JavaScript times out', async () => {
@@ -919,34 +733,23 @@ describe('BrowserUseManager IAB backend', () => {
     const host = createFakeHost(wc)
     const manager = new BrowserUseManager(host, { operationMs: 25 })
     const owner = createFakeOwner()
+    const { collect, createTab, domSnapshot } = await openSession(manager, owner, 'thread-diag-timeout', '/workspace/test-root')
+    const tab = await createTab(undefined, { timeoutMs: 5_000 })
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-diag-timeout',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.tabs.selected();
-        return await tab.domSnapshot();
-      `
-    })
+    await expect(domSnapshot(tab, { timeoutMs: 5_000 })).rejects.toThrow("Browser operation 'domSnapshot.ready' timed out")
 
-    expect(result.error).toContain("Browser operation 'domSnapshot.ready' timed out")
-    expect(result.logs.join('\n')).toContain('Recent browser operations')
-    expect(result.logs.join('\n')).toContain('domSnapshot.ready')
+    expect(collect().logs.join('\n')).toContain('Recent browser operations')
+    expect(collect().logs.join('\n')).toContain('domSnapshot.ready')
   })
 
   it('does not force focus for background tabs in the same thread', async () => {
     const host = createFakeHost()
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { createTab } = await openSession(manager, owner, 'thread-1')
 
-    await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      code: 'await agent.browser.tabs.new("localhost:3000");'
-    })
-    await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      code: 'await agent.browser.tabs.new("localhost:3001");'
-    })
+    await createTab('localhost:3000')
+    await createTab('localhost:3001')
 
     expect(owner.webContents.send).toHaveBeenNthCalledWith(1, 'viewer:browser:open', expect.objectContaining({
       focusMode: 'none'
@@ -956,7 +759,7 @@ describe('BrowserUseManager IAB backend', () => {
     }))
   })
 
-  it('adopts the current thread browser tab for default Node REPL navigation', async () => {
+  it('reset leaves claimed user browser tabs open but clears automation state', async () => {
     const host = createFakeHost()
     host.getAutomationTargetTab.mockReturnValue({
       tabId: 'user-browser-tab',
@@ -966,114 +769,17 @@ describe('BrowserUseManager IAB backend', () => {
     })
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { call } = await openSession(manager, owner, 'thread-1', '/workspace/test-root')
+    const [listed] = await call('getUserTabs') as Array<{ id: number }>
+    await call('claimUserTab', { tabId: listed!.id })
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      workspacePath: '/workspace/test-root',
-      code: 'const tab = await agent.browser.goto("localhost:5173"); return await tab.url();'
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(host.createAutomationTab).not.toHaveBeenCalled()
-    expect(host.loadAutomationUrl).toHaveBeenCalledWith(owner, {
-      tabId: 'user-browser-tab',
-      url: 'http://localhost:5173/'
-    })
-    expect(host.setAutomationState).toHaveBeenCalledWith(owner, expect.objectContaining({
-      tabId: 'user-browser-tab',
-      active: true,
-      action: 'navigate'
-    }))
-  })
-
-  it('reuses an adopted selected tab across Node REPL calls', async () => {
-    const host = createFakeHost()
-    host.getAutomationTargetTab.mockReturnValue({
-      tabId: 'user-browser-tab',
-      currentUrl: 'about:blank',
-      title: 'User tab',
-      loading: false
-    })
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      workspacePath: '/workspace/test-root',
-      code: 'await agent.browser.tabs.selected();'
-    })
-    await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      workspacePath: '/workspace/test-root',
-      code: 'const tab = await agent.browser.tabs.selected(); await tab.goto("localhost:5174");'
-    })
-
-    expect(host.createAutomationTab).not.toHaveBeenCalled()
-    expect(host.loadAutomationUrl).toHaveBeenCalledWith(owner, {
-      tabId: 'user-browser-tab',
-      url: 'http://localhost:5174/'
-    })
-  })
-
-  it('keeps an existing selected runtime tab over a later automation target', async () => {
-    const host = createFakeHost()
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      workspacePath: '/workspace/test-root',
-      code: 'await agent.browser.tabs.new("localhost:3000");'
-    })
-    host.loadAutomationUrl.mockClear()
-    host.getAutomationTargetTab.mockReturnValue({
-      tabId: 'user-browser-tab',
-      currentUrl: 'about:blank',
-      title: 'User tab',
-      loading: false
-    })
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      workspacePath: '/workspace/test-root',
-      code: 'const tab = await agent.browser.goto("localhost:5174"); return tab.id;'
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(result.resultText).toMatch(/^browser-thread-1-/)
-    expect(host.getAutomationTargetTab).not.toHaveBeenCalled()
-    expect(host.loadAutomationUrl).toHaveBeenCalledWith(owner, {
-      tabId: expect.stringMatching(/^browser-thread-1-/),
-      url: 'http://localhost:5174/'
-    })
-    expect(host.loadAutomationUrl).not.toHaveBeenCalledWith(owner, {
-      tabId: 'user-browser-tab',
-      url: 'http://localhost:5174/'
-    })
-  })
-
-  it('reset leaves adopted user browser tabs open but clears automation state', async () => {
-    const host = createFakeHost()
-    host.getAutomationTargetTab.mockReturnValue({
-      tabId: 'user-browser-tab',
-      currentUrl: 'about:blank',
-      title: 'User tab',
-      loading: false
-    })
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      workspacePath: '/workspace/test-root',
-      code: 'await agent.browser.goto("localhost:5173");'
-    })
     expect(manager.reset('thread-1')).toEqual({ ok: true })
 
     expect(host.destroyTab).not.toHaveBeenCalled()
     expect(host.setAutomationState).toHaveBeenCalledWith(owner, expect.objectContaining({
       tabId: 'user-browser-tab',
-      active: false
+      active: false,
+      release: true
     }))
   })
 
@@ -1081,11 +787,8 @@ describe('BrowserUseManager IAB backend', () => {
     const host = createFakeHost()
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
-
-    await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      code: 'await agent.browser.tabs.new("localhost:3000");'
-    })
+    const { createTab } = await openSession(manager, owner, 'thread-1')
+    await createTab('localhost:3000')
 
     expect(manager.reset('thread-1')).toEqual({ ok: true })
     expect(host.destroyTab).toHaveBeenCalledWith(owner, expect.stringMatching(/^browser-thread-1-/))
@@ -1103,15 +806,11 @@ describe('BrowserUseManager IAB backend', () => {
       getSettings: () => ({ browserUse: { approvalMode: 'neverAsk' } }),
       updateSettings: vi.fn()
     })
+    const { createTab } = await openSession(manager, owner, 'thread-1', '/workspace/test-root')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      workspacePath: '/workspace/test-root',
-      code: 'const tab = await agent.browser.tabs.new("https://example.com"); return await tab.url();'
-    })
+    const tab = await createTab('https://example.com')
 
-    expect(result.error).toBeUndefined()
-    expect(result.resultText).toBe('https://example.com/')
+    expect(tab.url).toBe('https://example.com/')
     expect(host.loadAutomationUrl).toHaveBeenCalledWith(owner, expect.objectContaining({
       url: 'https://example.com/'
     }))
@@ -1125,14 +824,10 @@ describe('BrowserUseManager IAB backend', () => {
       getSettings: () => ({ browserUse: { blockedDomains: ['example.com'] } }),
       updateSettings: vi.fn()
     })
+    const { createTab } = await openSession(manager, owner, 'thread-1', '/workspace/test-root')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      workspacePath: '/workspace/test-root',
-      code: 'await agent.browser.tabs.new("https://example.com");'
-    })
+    await expect(createTab('https://example.com')).rejects.toThrow('Blocked browser domain: example.com')
 
-    expect(result.error).toContain('Blocked browser domain: example.com')
     expect(host.loadAutomationUrl).not.toHaveBeenCalled()
   })
 
@@ -1147,12 +842,9 @@ describe('BrowserUseManager IAB backend', () => {
         Object.assign(settings, partial)
       })
     })
+    const { createTab } = await openSession(manager, owner, 'thread-1', '/workspace/test-root')
 
-    const pending = runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      workspacePath: '/workspace/test-root',
-      code: 'const tab = await agent.browser.tabs.new("https://example.com"); return await tab.url();'
-    })
+    const pending = createTab('https://example.com')
 
     await vi.waitFor(() => {
       expect(owner.webContents.send).toHaveBeenCalledWith('viewer:browser:approval-request', expect.objectContaining({
@@ -1162,8 +854,7 @@ describe('BrowserUseManager IAB backend', () => {
     const payload = (owner.webContents.send as ReturnType<typeof vi.fn>).mock.calls[0][1] as { requestId: string }
     expect(manager.handleApprovalResponse({ requestId: payload.requestId, action: 'allowDomain' })).toBe(true)
 
-    const result = await pending
-    expect(result.error).toBeUndefined()
+    await pending
     expect(settings.browserUse.allowedDomains).toEqual(['example.com'])
     expect(host.loadAutomationUrl).toHaveBeenCalledWith(owner, expect.objectContaining({
       url: 'https://example.com/'
@@ -1179,12 +870,9 @@ describe('BrowserUseManager IAB backend', () => {
       getSettings: () => ({ browserUse: { approvalMode: 'alwaysAsk', allowedDomains: [] } }),
       updateSettings
     })
+    const { createTab } = await openSession(manager, owner, 'thread-1', '/workspace/test-root')
 
-    const pending = runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      workspacePath: '/workspace/test-root',
-      code: 'const tab = await agent.browser.tabs.new("https://example.com"); return await tab.url();'
-    })
+    const pending = createTab('https://example.com')
 
     await vi.waitFor(() => {
       expect(owner.webContents.send).toHaveBeenCalledWith('viewer:browser:approval-request', expect.objectContaining({
@@ -1194,9 +882,7 @@ describe('BrowserUseManager IAB backend', () => {
     const payload = (owner.webContents.send as ReturnType<typeof vi.fn>).mock.calls[0][1] as { requestId: string }
     expect(manager.handleApprovalResponse({ requestId: payload.requestId, action: 'allowOnce' })).toBe(true)
 
-    const result = await pending
-    expect(result.error).toBeUndefined()
-    expect(result.resultText).toBe('https://example.com/')
+    expect((await pending).url).toBe('https://example.com/')
     expect(updateSettings).not.toHaveBeenCalled()
     const approvalRequests = (owner.webContents.send as ReturnType<typeof vi.fn>).mock.calls.filter(
       ([channel]) => channel === 'viewer:browser:approval-request'
@@ -1215,1209 +901,103 @@ describe('BrowserUseManager IAB backend', () => {
       getSettings: () => ({ browserUse: { approvalMode: 'alwaysAsk', allowedDomains: [] } }),
       updateSettings: vi.fn()
     })
+    const { call, createTab, navigate } = await openSession(manager, owner, 'thread-1', '/workspace/test-root')
+    const approvalRequests = () => (owner.webContents.send as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([channel]) => channel === 'viewer:browser:approval-request'
+    )
+    const approve = async (count: number, domain: string) => {
+      await vi.waitFor(() => expect(approvalRequests()).toHaveLength(count))
+      const payload = approvalRequests().find(([, request]) => request.domain === domain)?.[1] as { requestId: string } | undefined
+      expect(payload).toBeDefined()
+      expect(manager.handleApprovalResponse({ requestId: payload!.requestId, action: 'allowOnce' })).toBe(true)
+    }
 
-    const pending = runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.tabs.new("https://example.com");
-        await tab.navigate("https://another.example");
-        return await tab.url();
-      `
-    })
+    const created = createTab('https://example.com')
+    await approve(1, 'example.com')
+    const tab = await created
 
-    await vi.waitFor(() => {
-      expect(owner.webContents.send).toHaveBeenCalledWith('viewer:browser:approval-request', expect.objectContaining({
-        domain: 'example.com'
-      }))
-    })
-    const firstPayload = (owner.webContents.send as ReturnType<typeof vi.fn>).mock.calls[0][1] as { requestId: string }
-    expect(manager.handleApprovalResponse({ requestId: firstPayload.requestId, action: 'allowOnce' })).toBe(true)
+    const navigation = navigate(tab, 'https://another.example')
+    await approve(2, 'another.example')
+    await navigation
 
-    await vi.waitFor(() => {
-      expect((owner.webContents.send as ReturnType<typeof vi.fn>).mock.calls.filter(
-        ([channel]) => channel === 'viewer:browser:approval-request'
-      )).toHaveLength(2)
-    })
-    const secondPayload = (owner.webContents.send as ReturnType<typeof vi.fn>).mock.calls.find(
-      ([channel, payload]) => channel === 'viewer:browser:approval-request' && payload.domain === 'another.example'
-    )?.[1] as { requestId: string } | undefined
-    expect(secondPayload).toBeDefined()
-    expect(manager.handleApprovalResponse({ requestId: secondPayload!.requestId, action: 'allowOnce' })).toBe(true)
-
-    const result = await pending
-    expect(result.error).toBeUndefined()
-    expect(result.resultText).toBe('https://another.example/')
+    expect(await call('getTabs')).toMatchObject([{ url: 'https://another.example/' }])
   })
 
-  it('routes CUA click through the viewer host input layer', async () => {
-    const host = createFakeHost()
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      code: `
-        const tab = await agent.browser.tabs.new("localhost:3000");
-        await tab.cua.click({ x: 40, y: 50 });
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(host.clickMouse).toHaveBeenCalledWith(owner, expect.objectContaining({
-      x: 40,
-      y: 50
-    }))
-    expect(host.setAutomationState).toHaveBeenCalledWith(owner, expect.objectContaining({
-      active: true,
-      action: 'click'
-    }))
-  })
-
-  it('exposes agent.browsers, browser capabilities, user tabs, and finalize', async () => {
+  it('applies viewport and visibility to controlled tabs and finalizes only tabs it created', async () => {
     const selectedTab = { tabId: 'existing-tab', currentUrl: 'http://127.0.0.1:3000/', title: 'Existing', loading: false }
     const host = createFakeHost()
     host.getAutomationTargetTab.mockReturnValue(selectedTab)
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { call, command, createTab } = await openSession(manager, owner, 'thread-1')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      code: `
-        const browsers = await agent.browsers.list();
-        const browser = await agent.browsers.get("iab");
-        const selected = await browser.tabs.selected();
-        const created = await browser.tabs.new("localhost:3000");
-        const viewport = await browser.capabilities.get("viewport");
-        await viewport.set({ width: 800, height: 600 });
-        const visibility = await browser.capabilities.get("visibility");
-        await visibility.set(false);
-        const visible = await visibility.get();
-        const openTabs = await browser.user.openTabs();
-        const finalized = await browser.tabs.finalize({ keep: [] });
-        return JSON.stringify({
-          browserCount: browsers.length,
-          selectedId: selected.id,
-          createdId: created.id,
-          visible,
-          openTabCount: openTabs.length,
-          finalized
-        });
-      `
-    })
+    const [existing] = await call('getUserTabs') as Array<{ id: number }>
+    const created = await createTab('localhost:3000')
+    await command('browser_viewport_set', { width: 800, height: 600 })
+    await command('browser_visibility_set', { visible: false })
+    const visibility = await command('browser_visibility_get')
+    const openTabs = await call('getUserTabs') as Array<{ id: number }>
+    const finalized = await call('finalizeTabs', { keep: [] })
 
-    expect(result.error).toBeUndefined()
-    const payload = JSON.parse(result.resultText ?? '{}')
-    expect(payload.browserCount).toBe(1)
-    expect(payload.selectedId).toBe('existing-tab')
-    expect(payload.createdId).toMatch(/^browser-thread-1-/)
-    expect(payload.visible).toBe(false)
-    expect(payload.openTabCount).toBe(2)
-    expect(payload.finalized.closed).toEqual([payload.createdId])
-    expect(host.destroyTab).toHaveBeenCalledWith(owner, payload.createdId)
+    const createdViewerId = host.createAutomationTab.mock.calls[0]![1].tabId
+    expect(visibility).toEqual({ visible: false })
+    expect(openTabs.map((tab) => tab.id).sort()).toEqual([existing!.id, created.id].sort())
+    expect(finalized).toEqual({ ok: true, kept: [], closed: [created.id], released: [existing!.id] })
+    expect(host.destroyTab).toHaveBeenCalledWith(owner, createdViewerId)
     expect(host.destroyTab).not.toHaveBeenCalledWith(owner, 'existing-tab')
     expect(owner.webContents.send).toHaveBeenCalledWith('viewer:browser:close', {
       threadId: 'thread-1',
-      tabId: payload.createdId
+      tabId: createdViewerId
     })
-    expect(host.setBounds).toHaveBeenCalledWith(owner, expect.objectContaining({
-      tabId: 'existing-tab',
-      width: 800,
-      height: 600
-    }))
+    expect(host.setViewport.mock.calls).toEqual([
+      [owner, { tabId: createdViewerId, viewport: { width: 800, height: 600 } }]
+    ])
     expect(host.setVisible).toHaveBeenCalledWith(owner, expect.objectContaining({
       tabId: 'existing-tab',
       visible: false
     }))
   })
 
-  it('routes browser-use compatible backend command aliases through the Desktop runtime', async () => {
-    const wc = createFakeWebContents()
-    const defaultExecuteJavaScript = (wc.executeJavaScript as ReturnType<typeof vi.fn>).getMockImplementation()
-    const defaultSendCommand = (wc.debugger.sendCommand as ReturnType<typeof vi.fn>).getMockImplementation()
-    ;(wc.executeJavaScript as ReturnType<typeof vi.fn>).mockImplementation(async (script: string) => {
-      if (script.includes('__dotcraftBrowserUsePageAssets')) {
-        return {
-          pageUrl: 'http://localhost:3000/',
-          assets: [{
-            kind: 'stylesheet',
-            name: 'site.css',
-            sources: [{ kind: 'attribute', nodeId: 1, property: 'href' }],
-            url: 'data:text/css;base64,Ym9keXtjb2xvcjpyZWR9'
-          }],
-          inlineSvgs: []
-        }
-      }
-      if (script.includes('__dotcraftWebMcpAvailabilityProbe')) return true
-      if (script.includes('navigator.modelContext') && script.includes('modelContext.executeTool(tool')) {
-        return { ok: true, topic: 'backend' }
-      }
-      if (script.includes('navigator.modelContext') && script.includes('modelContext.getTools')) {
-        return [{
-          name: 'summarize',
-          title: 'Summarize',
-          description: 'Summarize the current page.',
-          inputSchema: { type: 'object', properties: { topic: { type: 'string' } } },
-          annotations: { readOnlyHint: true },
-          origin: 'http://localhost:3000',
-          pageUrl: 'http://localhost:3000/'
-        }]
-      }
-      if (script.includes('operation, arg') && script.includes('getAttribute')) return '/test'
-      if (script.includes('operation, arg') && script.includes('isEnabled')) return true
-      if (script.includes('operation, arg') && script.includes('textContent')) return 'Test Link'
-      return defaultExecuteJavaScript?.(script)
-    })
-    ;(wc.debugger.sendCommand as ReturnType<typeof vi.fn>).mockImplementation(async (method: string, params?: Record<string, unknown>) => {
-      const expression = String(params?.expression ?? '')
-      if (method === 'Runtime.evaluate' && expression.includes('operation, arg') && expression.includes('getAttribute')) {
-        return { result: { value: '/test' } }
-      }
-      return defaultSendCommand?.(method, params)
-    })
-    const host = createFakeHost(wc)
+  it('round-trips structured clipboard items through the virtual clipboard', async () => {
+    const host = createFakeHost()
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
-    const base = { session_id: 'session-alias', turn_id: 'turn-alias' }
+    const { command, createTab } = await openSession(manager, owner, 'thread-rich-clipboard')
+    const tab = await createTab('localhost:3000')
 
-    await manager.prepareNodeRepl(owner, {
-      threadId: 'thread-backend-alias',
-      browserSession: {
-        sessionId: base.session_id,
-        turnId: base.turn_id
-      }
-    })
-    const created = await manager.handleBrowserUseBackendRequest('createTab', {
-      ...base,
-      url: 'localhost:3000'
-    }) as Record<string, unknown>
-    const tabId = Number(created.id)
-    const exec = async (type: string, extra: Record<string, unknown> = {}) =>
-      await manager.handleBrowserUseBackendRequest('executeUnhandledCommand', {
-        ...base,
-        browser_id: 'iab',
-        tab_id: tabId,
-        type,
-        ...extra
-      }) as Record<string, unknown>
-
-    const openTabs = await exec('browser_user_open_tabs')
-    const claimed = await exec('browser_user_claim_tab')
-    const screenshot = await exec('tab_screenshot')
-    const evaluated = await exec('playwright_evaluate', { script: 'document.body ? document.body.innerText : ""' })
-    const evaluatedWithArg = await exec('playwright_evaluate', { script: '(value) => value + 1', arg: 41, timeout_ms: 1000 })
-    await expect(exec('playwright_evaluate', { script: 'window.scrollTo(0, 10)' })).rejects.toThrow('ReadonlyEvaluateViolation')
-    await expect(exec('playwright_evaluate', { script: 'document.body.appendChild(document.createElement("div"))' })).rejects.toThrow('ReadonlyEvaluateViolation')
-    const domSnapshot = await exec('playwright_dom_snapshot')
-    await exec('playwright_wait_for_timeout', { timeout_ms: 0 })
-    await exec('playwright_wait_for_load_state', { state: 'load', timeout_ms: 1000 })
-    const waitUrl = await exec('playwright_wait_for_url', { url: 'http://localhost:3000/', timeout_ms: 1000 })
-    const locatorCount = await exec('playwright_locator_count', { selector: 'button' })
-    const locatorTexts = await exec('playwright_locator_all_text_contents', { selector: 'button' })
-    const locatorAttribute = await exec('playwright_locator_get_attribute', { selector: 'button', name: 'href' })
-    const locatorReadAll = await exec('playwright_locator_read_all', { selector: 'button' })
-    await exec('playwright_locator_click', { selector: 'button' })
-    await exec('playwright_locator_dblclick', { selector: 'button' })
-    await exec('playwright_locator_fill', { selector: 'button', value: 'Ada', replace: true })
-    await exec('playwright_locator_press', { selector: 'button', value: 'Enter' })
-    await exec('playwright_locator_wait_for', { selector: 'button', state: 'visible', timeout_ms: 1000 })
-    await exec('playwright_locator_select_option', { selector: 'select', selections: [{ value: 'a' }] })
-    await exec('playwright_locator_set_checked', { selector: 'input[type=checkbox]', checked: true })
-    await exec('cua_move', { x: 12, y: 18 })
-    await exec('cua_click', { x: 12, y: 18 })
-    await exec('cua_double_click', { x: 12, y: 18 })
-    await exec('cua_drag', { path: [{ x: 12, y: 18 }, { x: 30, y: 40 }] })
-    await exec('cua_keypress', { keys: ['Enter'] })
-    await expect(exec('cua_scroll', { x: 12, y: 18 })).rejects.toThrow('Scroll requires a non-zero distance')
-    await exec('cua_scroll', { x: 12, y: 18, scroll_x: 0, scroll_y: 80 })
-    await exec('cua_type', { text: 'hello' })
-    const visibleDom = await exec('dom_cua_get_visible_dom') as unknown as Array<Record<string, unknown>>
-    await exec('dom_cua_click', { node_id: visibleDom[0].node_id })
-    await exec('dom_cua_double_click', { node_id: visibleDom[0].node_id })
-    await exec('dom_cua_keypress', { keys: ['Enter'] })
-    await exec('dom_cua_scroll', { y: 120 })
-    await exec('dom_cua_scroll', { node_id: visibleDom[0].node_id, y: 120 })
-    await exec('dom_cua_scroll', { node_id: visibleDom[0].node_id, scroll_x: 0, scroll_y: 40 })
-    await exec('dom_cua_type', { text: 'typed' })
-    await exec('tab_clipboard_write', {
+    await command('tab_clipboard_write', {
+      tab_id: tab.id,
       items: [{ entries: [{ mime_type: 'text/plain', text: 'rich text' }], presentation_style: 'inline' }]
     })
-    const clipboardItems = await exec('tab_clipboard_read')
-    const assets = await exec('tab_page_assets_list')
-    const bundle = await exec('tab_page_assets_bundle', { inventoryId: assets.id, kinds: ['stylesheet'] })
-    const tools = await exec('webmcp_list_tools')
-    const toolResult = await exec('webmcp_invoke_tool', { tool_name: 'summarize', input: { topic: 'backend' } })
 
-    expect((openTabs.tabs as Array<Record<string, unknown>>)[0].id).toBe(String(tabId))
-    expect(claimed.id).toBe(String(tabId))
-    expect(screenshot.data).toBe('AQID')
-    expect(evaluated.value).toContain('Save')
-    expect(evaluatedWithArg.value).toBe(42)
-    expect(String(domSnapshot.dom_snapshot)).toContain('Test Link')
-    expect(waitUrl.url).toBe('http://localhost:3000/')
-    expect(locatorCount.count).toBe(1)
-    expect(locatorTexts.values).toEqual(['Test Link'])
-    expect(locatorAttribute.value).toBe('/test')
-    expect((locatorReadAll.values as Array<Record<string, unknown>>)[0]).toMatchObject({
-      inner_text: 'Test Link',
-      text_content: 'Test Link'
+    expect(await command('tab_clipboard_read', { tab_id: tab.id })).toEqual({
+      items: [{ entries: [{ mime_type: 'text/plain', text: 'rich text' }], presentation_style: 'inline' }]
     })
-    expect(host.moveMouse).toHaveBeenCalledWith(owner, expect.objectContaining({ x: 12, y: 18 }))
-    expect(host.clickMouse).toHaveBeenCalled()
-    expect(host.doubleClickMouse).toHaveBeenCalled()
-    expect(host.dragMouse).toHaveBeenCalled()
-    expect(wc.debugger.sendCommand).toHaveBeenCalledWith('Input.synthesizeScrollGesture', expect.objectContaining({
-      gestureSourceType: 'mouse',
-      preventFling: true,
-      speed: 8000
-    }))
-    expect(wc.debugger.sendCommand).toHaveBeenCalledWith('Input.synthesizeScrollGesture', expect.objectContaining({
-      x: 12,
-      y: 18,
-      yDistance: -80
-    }))
-    expect(wc.debugger.sendCommand).toHaveBeenCalledWith('Input.synthesizeScrollGesture', expect.objectContaining({
-      x: 640,
-      y: 360,
-      yDistance: -120
-    }))
-    expect(wc.debugger.sendCommand).toHaveBeenCalledWith('Input.synthesizeScrollGesture', expect.objectContaining({
-      x: 60,
-      y: 40,
-      yDistance: -120
-    }))
-    expect(host.typeText).toHaveBeenCalled()
-    expect(host.keypress).toHaveBeenCalled()
-    expect((clipboardItems.items as Array<Record<string, unknown>>)[0]).toMatchObject({
-      presentation_style: 'inline'
-    })
-    expect((bundle.summary as Record<string, unknown>).downloadedCount).toBe(1)
-    expect((tools.tools as Array<Record<string, unknown>>)[0]).toMatchObject({
-      name: 'summarize',
-      input_schema: { type: 'object', properties: { topic: { type: 'string' } } }
-    })
-    expect(toolResult.result).toEqual({ ok: true, topic: 'backend' })
-
-    for (const type of ['browser_user_history', 'playwright_wait_for_download', 'playwright_wait_for_file_chooser', 'tab_content_export_gsuite']) {
-      await expect(exec(type)).rejects.toThrow('UnsupportedApi:')
-    }
+    await expect(command('tab_clipboard_write', { tab_id: tab.id, items: [{ entries: [] }] }))
+      .rejects.toThrow('clipboard_write items require at least one entry')
   })
 
-  it('lists and bundles page assets from the current rendered page state', async () => {
-    const wc = createFakeWebContents()
-    ;(wc.executeJavaScript as ReturnType<typeof vi.fn>).mockImplementation(async (script: string) => {
-      if (isReadinessProbe(script)) {
-        return {
-          url: 'http://127.0.0.1:5173/',
-          title: 'Asset Page',
-          readyState: 'complete',
-          bodyTextLength: 10,
-          interactiveCount: 1,
-          appRootTextLength: 10
-        }
-      }
-      if (script.includes('__dotcraftBrowserUsePageAssets')) {
-        return {
-          pageUrl: 'http://127.0.0.1:5173/',
-          assets: [
-            {
-              kind: 'stylesheet',
-              name: 'site.css',
-              sources: [{ kind: 'attribute', nodeId: 1, property: 'href' }],
-              url: 'data:text/css;base64,Ym9keXtjb2xvcjpyZWR9'
-            },
-            {
-              kind: 'script',
-              name: 'app.js',
-              sources: [{ kind: 'resource', property: 'script' }],
-              url: 'http://127.0.0.1:5173/app.js'
-            }
-          ],
-          inlineSvgs: [{ id: 'inline-svg-1', markup: '<svg aria-label="Logo"></svg>', name: 'Logo' }]
-        }
-      }
-      return 'ok'
-    })
-    const host = createFakeHost(wc)
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-assets',
-      code: `
-        const tab = await agent.browser.tabs.new("localhost:3000");
-        const pageAssets = await tab.capabilities.get("pageAssets");
-        const inventory = await pageAssets.list();
-        const bundle = await pageAssets.bundle({ inventoryId: inventory.id, kinds: ["stylesheet"] });
-        return JSON.stringify({ inventory, bundle });
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    const payload = JSON.parse(result.resultText ?? '{}')
-    expect(payload.inventory.summary).toMatchObject({
-      inlineSvgCount: 1,
-      totalCount: 2
-    })
-    expect(payload.inventory.summary.byKind.stylesheet).toBe(1)
-    expect(payload.inventory.assets[0].id).toMatch(/^stylesheet-/)
-    expect(payload.bundle.summary).toMatchObject({
-      requestedCount: 1,
-      downloadedCount: 1,
-      failedCount: 0
-    })
-    expect(payload.bundle.assets[0]).toMatchObject({
-      contentType: 'text/css',
-      kind: 'stylesheet',
-      name: expect.stringContaining('site.css')
-    })
-    const manifest = JSON.parse(await readFile(payload.bundle.manifestPath, 'utf8'))
-    expect(manifest.summary.downloadedCount).toBe(1)
-  })
-
-  it('omits WebMCP from tab capabilities on pages without page tools', async () => {
+  it('rejects unsupported unhandled commands with UnsupportedApi', async () => {
     const host = createFakeHost()
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { command, createTab } = await openSession(manager, owner, 'thread-unsupported')
+    const tab = await createTab('localhost:3000')
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-webmcp-unavailable',
-      code: `
-        const tab = await agent.browser.tabs.new("localhost:3000");
-        const capabilities = await tab.capabilities.list();
-        let getError = "";
-        try {
-          await tab.capabilities.get("webmcp");
-        } catch (error) {
-          getError = error instanceof Error ? error.message : String(error);
-        }
-        return JSON.stringify({
-          ids: capabilities.map((capability) => capability.id),
-          getError
-        });
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
-      ids: ['pageAssets'],
-      getError: 'Capability is not available: webmcp'
-    })
+    await expect(command('tab_content_export', { tab_id: tab.id })).rejects.toThrow('UnsupportedApi: tab_content_export')
+    await expect(command('tab_unknown', { tab_id: tab.id })).rejects.toThrow('UnsupportedApi: executeUnhandledCommand(tab_unknown)')
   })
 
-  it('returns a stable unavailable error for direct backend WebMCP commands on ordinary pages', async () => {
-    const host = createFakeHost()
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-    const session = { session_id: 'session-webmcp-unavailable', turn_id: 'turn-webmcp-unavailable' }
-
-    await manager.prepareNodeRepl(owner, {
-      threadId: 'thread-webmcp-unavailable-backend',
-      browserSession: {
-        sessionId: session.session_id,
-        turnId: session.turn_id
-      }
-    })
-    const created = await manager.handleBrowserUseBackendRequest('createTab', {
-      ...session,
-      url: 'localhost:3000'
-    }) as Record<string, unknown>
-    const execute = async (type: string, extra: Record<string, unknown> = {}) =>
-      await manager.handleBrowserUseBackendRequest('executeUnhandledCommand', {
-        ...session,
-        browser_id: 'iab',
-        tab_id: Number(created.id),
-        type,
-        ...extra
-      })
-
-    await expect(execute('webmcp_list_tools')).rejects.toThrow('Capability is not available: webmcp')
-    await expect(execute('webmcp_invoke_tool', { tool_name: 'summarize', input: { topic: 'iab' } }))
-      .rejects.toThrow('Capability is not available: webmcp')
-  })
-
-  it('lists and invokes page-defined WebMCP tools through the tab capability', async () => {
-    const wc = createFakeWebContents()
-    ;(wc.executeJavaScript as ReturnType<typeof vi.fn>).mockImplementation(async (script: string) => {
-      if (isReadinessProbe(script)) {
-        return {
-          url: 'http://127.0.0.1:5173/',
-          title: 'WebMCP Page',
-          readyState: 'complete',
-          bodyTextLength: 12,
-          interactiveCount: 1,
-          appRootTextLength: 12
-        }
-      }
-      if (script.includes('__dotcraftWebMcpAvailabilityProbe')) return true
-      if (script.includes('navigator.modelContext') && script.includes('modelContext.executeTool(tool')) {
-        return { ok: true, echo: { topic: 'iab' } }
-      }
-      if (script.includes('navigator.modelContext') && script.includes('modelContext.getTools')) {
-        return [{
-          name: 'summarize',
-          title: 'Summarize',
-          description: 'Summarize the current page.',
-          inputSchema: { type: 'object', properties: { topic: { type: 'string' } } },
-          annotations: { readOnlyHint: true },
-          origin: 'http://127.0.0.1:5173',
-          pageUrl: 'http://127.0.0.1:5173/'
-        }]
-      }
-      return 'ok'
-    })
-    const host = createFakeHost(wc)
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-webmcp',
-      code: `
-        const tab = await agent.browser.tabs.new("localhost:3000");
-        const capabilities = await tab.capabilities.list();
-        const webmcp = await tab.capabilities.get("webmcp");
-        const tools = await webmcp.listTools();
-        const direct = await webmcp.invokeTool({ toolName: "summarize", input: { topic: "iab" }, timeoutMs: 1000 });
-        const viaTool = await tools[0].invoke({ topic: "iab" }, { timeoutMs: 1000 });
-        return JSON.stringify({
-          capabilityIds: capabilities.map((capability) => capability.id),
-          name: tools[0].name,
-          inputType: tools[0].inputSchema.type,
-          readOnlyHint: tools[0].annotations.readOnlyHint,
-          direct,
-          viaTool
-        });
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
-      capabilityIds: ['pageAssets', 'webmcp'],
-      name: 'summarize',
-      inputType: 'object',
-      readOnlyHint: true,
-      direct: { ok: true, echo: { topic: 'iab' } },
-      viaTool: { ok: true, echo: { topic: 'iab' } }
-    })
-  })
-
-  it('refreshes WebMCP tab capability availability after navigation', async () => {
-    const wc = createFakeWebContents()
-    const defaultExecuteJavaScript = (wc.executeJavaScript as ReturnType<typeof vi.fn>).getMockImplementation()
-    const hasWebMcp = () => !String(wc.getURL()).includes('/plain')
-    ;(wc.executeJavaScript as ReturnType<typeof vi.fn>).mockImplementation(async (script: string) => {
-      if (isReadinessProbe(script)) {
-        return {
-          url: wc.getURL(),
-          title: 'WebMCP Availability Page',
-          readyState: 'complete',
-          bodyTextLength: 12,
-          interactiveCount: 1,
-          appRootTextLength: 12
-        }
-      }
-      if (script.includes('__dotcraftWebMcpAvailabilityProbe')) return hasWebMcp()
-      if (script.includes('navigator.modelContext') && script.includes('modelContext.getTools') && hasWebMcp()) {
-        return [{
-          name: 'summarize',
-          title: 'Summarize',
-          description: 'Summarize the current page.',
-          inputSchema: { type: 'object' }
-        }]
-      }
-      return defaultExecuteJavaScript?.(script)
-    })
-    const host = createFakeHost(wc)
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-webmcp-navigation',
-      code: `
-        const tab = await agent.browser.tabs.new("localhost:3000");
-        const before = await tab.capabilities.list();
-        await tab.goto("http://localhost:3000/plain");
-        const after = await tab.capabilities.list();
-        let getAfterError = "";
-        try {
-          await tab.capabilities.get("webmcp");
-        } catch (error) {
-          getAfterError = error instanceof Error ? error.message : String(error);
-        }
-        return JSON.stringify({
-          before: before.map((capability) => capability.id),
-          after: after.map((capability) => capability.id),
-          getAfterError
-        });
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
-      before: ['pageAssets', 'webmcp'],
-      after: ['pageAssets'],
-      getAfterError: 'Capability is not available: webmcp'
-    })
-  })
-
-  it('keeps agent.browser as a compatibility alias', async () => {
-    const host = createFakeHost()
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      code: `
-        const browser = await agent.browsers.get("iab");
-        return JSON.stringify({
-          sameTabs: browser.tabs.describeApi().join(",") === agent.browser.tabs.describeApi().join(","),
-          browserApi: agent.browser.describeApi().includes('tabs.finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })')
-        });
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText ?? '{}')).toEqual({ sameTabs: true, browserApi: true })
-  })
-
-  it('requires typed finalize keep entries', async () => {
-    const host = createFakeHost()
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const legacy = await runBrowserUse(manager, owner, {
-      threadId: 'thread-typed-finalize',
-      code: `
-        const tab = await agent.browser.tabs.new("localhost:3000");
-        await agent.browser.tabs.finalize({ keep: [tab] });
-      `
-    })
-    const typed = await runBrowserUse(manager, owner, {
-      threadId: 'thread-typed-finalize',
-      code: `
-        const tab = await agent.browser.tabs.selected();
-        return await agent.browser.tabs.finalize({ keep: [{ tab, status: "deliverable" }] });
-      `
-    })
-
-    expect(legacy.error).toContain('{ tab, status: "deliverable"|"handoff" }')
-    expect(typed.error).toBeUndefined()
-    expect(JSON.parse(typed.resultText ?? '{}')).toMatchObject({
-      ok: true,
-      kept: [expect.stringMatching(/^browser-thread-typed-finalize-/)]
-    })
-  })
-
-  it('resolves locator clicks strictly and sends coordinate input', async () => {
-    const wc = createFakeWebContents()
-    ;(wc.executeJavaScript as ReturnType<typeof vi.fn>).mockImplementation(async (script: string) => {
-      if (script.includes('__dotcraftBrowserUseResolveSelector')) {
-        return [{
-          index: 0,
-          tagName: 'button',
-          role: 'button',
-          name: 'Save',
-          text: 'Save',
-          selector: 'button',
-          visible: true,
-          enabled: true,
-          visibleText: 'Save',
-          ariaName: 'Save',
-          boundingBox: { x: 10, y: 20, width: 100, height: 40 }
-        }]
-      }
-      return 'ok'
-    })
-    const host = createFakeHost(wc)
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      code: `
-        const tab = await agent.browser.tabs.new("localhost:3000");
-        await tab.playwright.getByRole("button", { name: "Save" }).click();
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(host.clickMouse).toHaveBeenCalledWith(owner, expect.objectContaining({
-      x: 60,
-      y: 40
-    }))
-  })
-
-  it('supports locator all, nth, scoped builders, allTextContents, check, setChecked, uncheck, and selectOption', async () => {
-    const wc = createFakeWebContents()
-    ;(wc.executeJavaScript as ReturnType<typeof vi.fn>).mockImplementation(async (script: string) => {
-      if (script.includes('__dotcraftPlaywrightInjected &&')) return false
-      if (script.includes('module.exports.InjectedScript')) return true
-      if (isReadinessProbe(script)) {
-        return {
-          url: 'http://127.0.0.1:5173/',
-          title: 'DotCraft',
-          readyState: 'complete',
-          bodyTextLength: 30,
-          interactiveCount: 2,
-          appRootTextLength: 30
-        }
-      }
-      if (script.includes('__dotcraftBrowserUseResolveSelector')) {
-        return [{
-          index: 0,
-          tagName: 'button',
-          role: 'button',
-          name: 'First',
-          text: 'First',
-          selector: 'button',
-          visible: true,
-          enabled: true,
-          visibleText: 'First',
-          ariaName: 'First',
-          boundingBox: { x: 10, y: 20, width: 100, height: 40 }
-        }, {
-          index: 1,
-          tagName: 'button',
-          role: 'button',
-          name: 'Second',
-          text: 'Second',
-          selector: 'button',
-          visible: true,
-          enabled: true,
-          visibleText: 'Second',
-          ariaName: 'Second',
-          boundingBox: { x: 210, y: 20, width: 100, height: 40 }
-        }]
-      }
-      return true
-    })
-    const host = createFakeHost(wc)
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      code: `
-        const tab = await agent.browser.tabs.new("localhost:3000");
-        const locator = tab.playwright.locator("button");
-        const texts = await locator.allTextContents();
-        const allLocators = await locator.all();
-        const firstText = await allLocators[0].innerText();
-        const scopedApi = typeof locator.getByLabel("First").count;
-        await locator.nth(1).click({ timeoutMs: 1000 });
-        await locator.first().check();
-        await locator.first().setChecked(false);
-        await locator.first().uncheck();
-        await locator.first().selectOption("value-a");
-        return JSON.stringify({ texts, allCount: allLocators.length, firstText, scopedApi });
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
-      texts: ['First', 'Second'],
-      allCount: 2,
-      firstText: 'First',
-      scopedApi: 'function'
-    })
-    expect(host.clickMouse).toHaveBeenCalledWith(owner, expect.objectContaining({
-      x: 260,
-      y: 40
-    }))
-  })
-
-  it('supports same-origin frameLocator through the Desktop Playwright compatibility API', async () => {
-    const resolveScripts: string[] = []
-    const wc = createFakeWebContents()
-    ;(wc.executeJavaScript as ReturnType<typeof vi.fn>).mockImplementation(async (script: string) => {
-      if (script.includes('__dotcraftPlaywrightInjected &&')) return false
-      if (script.includes('module.exports.InjectedScript')) return true
-      if (isReadinessProbe(script)) {
-        return {
-          url: 'http://127.0.0.1:5173/',
-          title: 'Frame Page',
-          readyState: 'complete',
-          bodyTextLength: 30,
-          interactiveCount: 1,
-          appRootTextLength: 30
-        }
-      }
-      if (script.includes('__dotcraftBrowserUseResolveSelector')) {
-        resolveScripts.push(script)
-        return [{
-          index: 0,
-          tagName: 'button',
-          role: 'button',
-          name: 'Save',
-          text: 'Save',
-          selector: 'button.save',
-          visible: true,
-          enabled: true,
-          visibleText: 'Save',
-          ariaName: 'Save',
-          boundingBox: { x: 20, y: 30, width: 100, height: 40 }
-        }]
-      }
-      return true
-    })
-    const host = createFakeHost(wc)
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-frame-locator',
-      code: `
-        const tab = await agent.browser.tabs.new("localhost:3000");
-        const frame = tab.playwright.frameLocator('iframe[name="preview"]');
-        const count = await frame.getByRole("button", { name: "Save" }).count();
-        await frame.locator("button.save").click();
-        return JSON.stringify({
-          count,
-          nestedApi: typeof frame.frameLocator("iframe").getByText("Nested").count,
-          hasFrameLocator: frame.describeApi().includes("frameLocator(selector)")
-        });
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
-      count: 1,
-      nestedApi: 'function',
-      hasFrameLocator: true
-    })
-    expect(resolveScripts.some((script) => script.includes('enter-frame'))).toBe(true)
-    expect(resolveScripts.some((script) => script.includes('internal:role'))).toBe(true)
-    expect(host.clickMouse).toHaveBeenCalledWith(owner, expect.objectContaining({
-      x: 70,
-      y: 50
-    }))
-  })
-
-  it('supports DOM-CUA snapshots and node actions', async () => {
+  it('reports a destroyed page as PageClosed', async () => {
     const wc = createFakeWebContents()
     const host = createFakeHost(wc)
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
+    const { command, createTab } = await openSession(manager, owner, 'thread-page-closed')
+    const tab = await createTab('localhost:3000')
+    ;(wc.isDestroyed as ReturnType<typeof vi.fn>).mockReturnValue(true)
 
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      code: `
-        const tab = await agent.browser.tabs.new("localhost:3000");
-        const nodes = await tab.dom_cua.get_visible_dom();
-        await tab.dom_cua.click({ node_id: nodes[0].node_id });
-        await tab.dom_cua.type({ node_id: nodes[0].node_id, text: "hello" });
-        await tab.dom_cua.keypress({ key: "Enter" });
-        await tab.dom_cua.scroll({ y: 120 });
-        await tab.dom_cua.scroll({ node_id: nodes[0].node_id, y: 120 });
-        return JSON.stringify(nodes[0]);
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    const node = JSON.parse(result.resultText ?? '{}')
-    expect(node.node_id).toBe('e1')
-    expect(node.role).toBe('link')
-    expect(host.clickMouse).toHaveBeenCalled()
-    expect(host.typeText).toHaveBeenCalledWith(owner, expect.objectContaining({
-      text: 'hello'
-    }))
-    expect(host.keypress).toHaveBeenCalledWith(owner, expect.objectContaining({
-      keys: ['Enter']
-    }))
-    expect(wc.debugger.sendCommand).toHaveBeenCalledWith('Input.synthesizeScrollGesture', expect.objectContaining({
-      x: 640,
-      y: 360,
-      yDistance: -120,
-      gestureSourceType: 'mouse',
-      preventFling: true,
-      speed: 8000
-    }))
-    expect(wc.debugger.sendCommand).toHaveBeenCalledWith('Input.synthesizeScrollGesture', expect.objectContaining({
-      x: 60,
-      y: 40,
-      yDistance: -120,
-      gestureSourceType: 'mouse',
-      preventFling: true,
-      speed: 8000
-    }))
-  })
-
-  it('invalidates DOM-CUA node ids after navigation and tab close', async () => {
-    const host = createFakeHost()
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-dom-cua-stale',
-      code: `
-        const messageOf = async (action) => {
-          try {
-            await action();
-            return "resolved";
-          } catch (error) {
-            return error instanceof Error ? error.message : String(error);
-          }
-        };
-        const first = await agent.browser.tabs.new("localhost:3000");
-        const firstNodes = await first.dom_cua.get_visible_dom();
-        await first.goto("localhost:3001");
-        const afterNavigation = await messageOf(() => first.dom_cua.click({ node_id: firstNodes[0].node_id }));
-        const second = await agent.browser.tabs.new("localhost:3000");
-        const secondNodes = await second.dom_cua.get_visible_dom();
-        await second.close();
-        const afterClose = await messageOf(() => second.dom_cua.click({ node_id: secondNodes[0].node_id }));
-        const afterCloseTitle = await messageOf(() => second.title());
-        return JSON.stringify({ afterNavigation, afterClose, afterCloseTitle });
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    const payload = JSON.parse(result.resultText ?? '{}')
-    expect(payload.afterNavigation).toContain('NodeStale: Browser node is no longer available')
-    expect(payload.afterClose).toContain('PageClosed: Browser page is closed')
-    expect(payload.afterCloseTitle).toContain('PageClosed: Browser page is closed')
-    expect(host.clickMouse).not.toHaveBeenCalled()
-  })
-
-  it('exposes unsupported APIs with clear errors', async () => {
-    const host = createFakeHost()
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      code: `
-        const tab = await agent.browser.tabs.new("localhost:3000");
-        const messages = [];
-        for (const action of [
-          () => tab.playwright.waitForEvent("download"),
-          () => tab.playwright.waitForEvent("filechooser"),
-          () => tab.cua.download_media(),
-          () => tab.dom_cua.download_media()
-        ]) {
-          try { await action(); } catch (error) { messages.push(error.message); }
-        }
-        return JSON.stringify(messages);
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    const messages = JSON.parse(result.resultText ?? '[]') as string[]
-    expect(messages).toHaveLength(4)
-    expect(messages.every((message) => message.includes('does not support'))).toBe(true)
-  })
-
-  it('reports strict failures for locator state-changing helpers', async () => {
-    const wc = createFakeWebContents()
-    ;(wc.executeJavaScript as ReturnType<typeof vi.fn>).mockImplementation(async (script: string) => {
-      if (script.includes('__dotcraftPlaywrightInjected &&')) return false
-      if (script.includes('module.exports.InjectedScript')) return true
-      if (isReadinessProbe(script)) {
-        return {
-          url: 'http://127.0.0.1:5173/',
-          title: 'DotCraft',
-          readyState: 'complete',
-          bodyTextLength: 30,
-          interactiveCount: 2,
-          appRootTextLength: 30
-        }
-      }
-      if (script.includes('__dotcraftBrowserUseResolveSelector')) {
-        return [{
-          index: 0,
-          tagName: 'input',
-          role: 'checkbox',
-          name: 'A',
-          text: 'A',
-          selector: 'input[type="checkbox"]',
-          visible: true,
-          enabled: true,
-          visibleText: 'A',
-          ariaName: 'A',
-          boundingBox: { x: 10, y: 20, width: 20, height: 20 }
-        }, {
-          index: 1,
-          tagName: 'input',
-          role: 'checkbox',
-          name: 'B',
-          text: 'B',
-          selector: 'input[type="checkbox"]',
-          visible: true,
-          enabled: true,
-          visibleText: 'B',
-          ariaName: 'B',
-          boundingBox: { x: 40, y: 20, width: 20, height: 20 }
-        }]
-      }
-      return true
-    })
-    const host = createFakeHost(wc)
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      code: `
-        const tab = await agent.browser.tabs.new("localhost:3000");
-        await tab.playwright.locator('input[type="checkbox"]').check();
-      `
-    })
-
-    expect(result.error).toContain('Strict mode violation')
-  })
-
-  it('aligns getByRole link matching with DOM snapshot output', async () => {
-    const wc = createFakeWebContents()
-    ;(wc.executeJavaScript as ReturnType<typeof vi.fn>).mockImplementation(async (script: string) => {
-      if (isReadinessProbe(script)) {
-        return {
-          url: 'http://127.0.0.1:5173/',
-          title: 'DotCraft',
-          readyState: 'complete',
-          bodyTextLength: 46,
-          interactiveCount: 1,
-          appRootTextLength: 46
-        }
-      }
-      if (script.includes('__dotcraftBrowserUseSnapshot')) {
-        return {
-          title: 'DotCraft',
-          url: 'http://127.0.0.1:5173/',
-          bodyText: 'DotCraft',
-          elements: [{
-            tag: 'a',
-            role: 'link',
-            name: 'Desktop',
-            text: 'Desktop',
-            href: '/desktop_guide',
-            selector: 'a[href="/desktop_guide"]',
-            visible: true,
-            enabled: true,
-            boundingBox: { x: 10, y: 20, width: 100, height: 40 }
-          }]
-        }
-      }
-      if (script.includes('__dotcraftBrowserUseResolveSelector')) {
-        return [{
-          index: 0,
-          tagName: 'a',
-          role: 'link',
-          name: 'Desktop',
-          text: 'Desktop',
-          href: '/desktop_guide',
-          selector: 'a[href="/desktop_guide"]',
-          visible: true,
-          enabled: true,
-          visibleText: 'Desktop',
-          ariaName: 'Desktop',
-          boundingBox: { x: 10, y: 20, width: 100, height: 40 }
-        }]
-      }
-      return 'ok'
-    })
-    const host = createFakeHost(wc)
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-role-align',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.goto("http://127.0.0.1:5173/");
-        const snapshot = JSON.parse(await tab.domSnapshot());
-        const count = await tab.playwright.getByRole("link", { name: "Desktop", exact: true }).count();
-        return { count, element: snapshot.elements[0] };
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText!)).toMatchObject({
-      count: 1,
-      element: {
-        ref: 'e1',
-        role: 'link',
-        name: 'Desktop',
-        selector: 'a[href="/desktop_guide"]'
-      }
-    })
-  })
-
-  it('lets agents click current snapshot refs without guessing selectors', async () => {
-    const wc = createFakeWebContents()
-    ;(wc.executeJavaScript as ReturnType<typeof vi.fn>).mockImplementation(async (script: string) => {
-      if (isReadinessProbe(script)) {
-        return {
-          url: 'http://127.0.0.1:5173/',
-          title: 'DotCraft',
-          readyState: 'complete',
-          bodyTextLength: 46,
-          interactiveCount: 1,
-          appRootTextLength: 46
-        }
-      }
-      if (script.includes('__dotcraftBrowserUseSnapshot')) {
-        return {
-          title: 'DotCraft',
-          url: 'http://127.0.0.1:5173/',
-          bodyText: 'DotCraft',
-          elements: [{
-            tagName: 'a',
-            role: 'link',
-            name: 'Desktop',
-            text: 'Desktop',
-            href: '/desktop_guide',
-            selector: 'a[href="/desktop_guide"]',
-            visible: true,
-            enabled: true,
-            visibleText: 'Desktop',
-            ariaName: 'Desktop',
-            boundingBox: { x: 10, y: 20, width: 100, height: 40 }
-          }]
-        }
-      }
-      if (script.includes('__dotcraftBrowserUseResolveSelector')) {
-        return [{
-          index: 0,
-          tagName: 'a',
-          role: 'link',
-          name: 'Desktop',
-          text: 'Desktop',
-          href: '/desktop_guide',
-          selector: 'a[href="/desktop_guide"]',
-          visible: true,
-          enabled: true,
-          visibleText: 'Desktop',
-          ariaName: 'Desktop',
-          boundingBox: { x: 10, y: 20, width: 100, height: 40 }
-        }]
-      }
-      return 'ok'
-    })
-    const host = createFakeHost(wc)
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-ref-click',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.goto("http://127.0.0.1:5173/");
-        const snapshot = JSON.parse(await tab.domSnapshot());
-        await tab.playwright.clickRef(snapshot.elements[0].ref);
-        return snapshot.accessibilitySnapshot;
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(result.resultText).toContain('link "Desktop" [ref=e1]')
-    expect(host.clickMouse).toHaveBeenCalledWith(owner, expect.objectContaining({
-      x: 60,
-      y: 40
-    }))
-  })
-
-  it('fills snapshot refs that do not have generated selectors', async () => {
-    const wc = createFakeWebContents()
-    ;(wc.executeJavaScript as ReturnType<typeof vi.fn>).mockImplementation(async (script: string) => {
-      if (isReadinessProbe(script)) {
-        return {
-          url: 'http://127.0.0.1:5173/',
-          title: 'DotCraft',
-          readyState: 'complete',
-          bodyTextLength: 46,
-          interactiveCount: 1,
-          appRootTextLength: 46
-        }
-      }
-      if (script.includes('__dotcraftPlaywrightInjected &&')) return false
-      if (script.includes('module.exports.InjectedScript')) return true
-      if (script.includes('__dotcraftBrowserUseSnapshot')) {
-        return {
-          title: 'DotCraft',
-          url: 'http://127.0.0.1:5173/',
-          bodyText: 'Search',
-          elements: [{
-            tagName: 'input',
-            role: 'textbox',
-            name: 'Search',
-            text: '',
-            testId: 'search-input',
-            selector: '',
-            visible: true,
-            enabled: true,
-            visibleText: '',
-            ariaName: 'Search',
-            boundingBox: { x: 10, y: 20, width: 200, height: 32 }
-          }]
-        }
-      }
-      return true
-    })
-    const host = createFakeHost(wc)
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-ref-fill-empty-selector',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.goto("http://127.0.0.1:5173/");
-        const snapshot = JSON.parse(await tab.domSnapshot());
-        await tab.playwright.fillRef(snapshot.elements[0].ref, "query");
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(host.clickMouse).toHaveBeenCalledWith(owner, expect.objectContaining({
-      x: 110,
-      y: 36
-    }))
-  })
-
-  it('reports stale or unknown snapshot refs clearly', async () => {
-    const host = createFakeHost()
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-ref-missing',
-      workspacePath: '/workspace/test-root',
-      code: `
-        const tab = await agent.browser.goto("http://127.0.0.1:5173/");
-        await tab.playwright.clickRef("e404");
-      `
-    })
-
-    expect(result.error).toContain("Unknown browser snapshot ref 'e404'")
-    expect(result.error).toContain('Take a fresh domSnapshot()')
-    expect(host.clickMouse).not.toHaveBeenCalled()
-  })
-
-  it('reports strict locator violations instead of guessing', async () => {
-    const wc = createFakeWebContents()
-    ;(wc.executeJavaScript as ReturnType<typeof vi.fn>).mockImplementation(async (script: string) => {
-      if (script.includes('__dotcraftBrowserUseResolveSelector')) {
-        return [
-          { index: 0, tagName: 'button', role: 'button', name: 'Save', text: 'Save', selector: 'button', visible: true, enabled: true, visibleText: 'Save', ariaName: 'Save', boundingBox: { x: 0, y: 0, width: 10, height: 10 } },
-          { index: 1, tagName: 'button', role: 'button', name: 'Save', text: 'Save', selector: 'button', visible: true, enabled: true, visibleText: 'Save', ariaName: 'Save', boundingBox: { x: 20, y: 0, width: 10, height: 10 } }
-        ]
-      }
-      return 'ok'
-    })
-    const host = createFakeHost(wc)
-    const manager = new BrowserUseManager(host)
-    const owner = createFakeOwner()
-
-    const result = await runBrowserUse(manager, owner, {
-      threadId: 'thread-1',
-      code: `
-        const tab = await agent.browser.tabs.new("localhost:3000");
-        await tab.playwright.getByText("Save").click();
-      `
-    })
-
-    expect(result.error).toContain('Strict mode violation')
-    expect(host.clickMouse).not.toHaveBeenCalled()
+    await expect(command('tab_screenshot', { tab_id: tab.id })).rejects.toThrow('PageClosed: Browser page is closed')
   })
 
   it('creates, lists, names, and finalizes tabs through the IAB backend', async () => {
@@ -2435,14 +1015,6 @@ describe('BrowserUseManager IAB backend', () => {
     const created = await manager.handleBrowserUseBackendRequest('createTab', session) as Record<string, unknown>
     const tabId = Number(created.id)
     const tabs = await manager.handleBrowserUseBackendRequest('getTabs', session) as Array<Record<string, unknown>>
-    const selectedCommand = await manager.handleBrowserUseBackendRequest('executeUnhandledCommand', {
-      ...session,
-      type: 'selected_tab'
-    }) as Record<string, unknown>
-    const listCommand = await manager.handleBrowserUseBackendRequest('executeUnhandledCommand', {
-      ...session,
-      type: 'list_tabs'
-    }) as { tabs: Array<Record<string, unknown>> }
     const name = await manager.handleBrowserUseBackendRequest('nameSession', { ...session, name: 'backend docs' })
     await expect(manager.handleBrowserUseBackendRequest('finalizeTabs', {
       ...session,
@@ -2459,8 +1031,6 @@ describe('BrowserUseManager IAB backend', () => {
     expect(created.id).toBe(tabId)
     expect(tabs).toHaveLength(1)
     expect(tabs[0].id).toBe(tabId)
-    expect(selectedCommand.id).toBe(String(tabId))
-    expect(listCommand.tabs[0].id).toBe(String(tabId))
     expect(name).toEqual({ ok: true, name: 'backend docs' })
     expect(finalized).toMatchObject({ ok: true, kept: [tabId], closed: [], released: [] })
   })
@@ -2551,14 +1121,7 @@ describe('BrowserUseManager IAB backend', () => {
     })).resolves.toEqual({})
 
     expect(host.setVisible).toHaveBeenCalledWith(owner, expect.objectContaining({ visible: false }))
-    expect(host.setBounds).toHaveBeenCalledWith(owner, expect.objectContaining({
-      width: 900,
-      height: 640
-    }))
-    expect(host.setBounds).toHaveBeenCalledWith(owner, expect.objectContaining({
-      width: 1280,
-      height: 720
-    }))
+    expect(host.setViewport.mock.calls.map(([, params]) => params.viewport)).toEqual([{ width: 900, height: 640 }, undefined])
   })
 
   it('returns normalized dev logs through the IAB backend fallback', async () => {
@@ -2761,6 +1324,69 @@ describe('BrowserUseManager IAB backend', () => {
       key: 'Enter',
       code: 'Enter'
     })
+  })
+
+  it('enables focus emulation before each Input command and rejects other Input methods', async () => {
+    const wc = createFakeWebContents()
+    const host = createFakeHost(wc)
+    const manager = new BrowserUseManager(host)
+    activeManagers.add(manager)
+    const owner = createFakeOwner()
+    await manager.prepareNodeRepl(owner, {
+      threadId: 'thread-input',
+      evaluationId: 'eval-1',
+      browserSession: { sessionId: 'session-input', turnId: 'eval-1' }
+    })
+    const session = { session_id: 'session-input', turn_id: 'eval-1' }
+    const created = await manager.handleBrowserUseBackendRequest('createTab', session) as Record<string, unknown>
+    const execute = (method: string, commandParams: Record<string, unknown>) =>
+      manager.handleBrowserUseBackendRequest('executeCdp', { ...session, target: { tabId: created.id }, method, commandParams })
+
+    await execute('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 2 })
+    await execute('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a' })
+    await execute('Input.insertText', { text: 'a' })
+    await expect(execute('Input.synthesizeScrollGesture', { x: 1, y: 2, yDistance: -10 }))
+      .rejects.toThrow('UnsupportedApi: Input.synthesizeScrollGesture')
+    await expect(execute('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [] }))
+      .rejects.toThrow('UnsupportedApi: Input.dispatchTouchEvent')
+
+    const sent = (wc.debugger.sendCommand as ReturnType<typeof vi.fn>).mock.calls.map(([method, params]) => [method, params])
+    expect(sent).toEqual([
+      ['Emulation.setFocusEmulationEnabled', { enabled: true }],
+      ['Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 2 }],
+      ['Emulation.setFocusEmulationEnabled', { enabled: true }],
+      ['Input.dispatchKeyEvent', { type: 'keyDown', key: 'a' }],
+      ['Emulation.setFocusEmulationEnabled', { enabled: true }],
+      ['Input.insertText', { text: 'a' }]
+    ])
+  })
+
+  it('marks the tab automation-active for any CDP command', async () => {
+    const wc = createFakeWebContents()
+    const host = createFakeHost(wc)
+    const manager = new BrowserUseManager(host)
+    activeManagers.add(manager)
+    const owner = createFakeOwner()
+    await manager.prepareNodeRepl(owner, {
+      threadId: 'thread-cdp-active',
+      evaluationId: 'eval-1',
+      browserSession: { sessionId: 'session-cdp-active', turnId: 'eval-1' }
+    })
+    const session = { session_id: 'session-cdp-active', turn_id: 'eval-1' }
+    const created = await manager.handleBrowserUseBackendRequest('createTab', session) as Record<string, unknown>
+    host.setAutomationState.mockClear()
+
+    await manager.handleBrowserUseBackendRequest('executeCdp', {
+      ...session,
+      target: { tabId: created.id },
+      method: 'Runtime.evaluate',
+      commandParams: { expression: '1 + 1' }
+    })
+
+    expect(host.setAutomationState).toHaveBeenCalledWith(owner, expect.objectContaining({
+      tabId: host.createAutomationTab.mock.calls[0]![1].tabId,
+      active: true
+    }))
   })
 
   it('maps stale CDP DOM node errors to NodeStale', async () => {
@@ -3086,5 +1712,47 @@ describe('BrowserUseManager IAB backend', () => {
       y: 84,
       waitForArrival: true
     })
+  })
+
+  it('activates the viewer cursor on move and deactivates it when a turn or evaluation ends', async () => {
+    const host = createFakeHost()
+    const manager = new BrowserUseManager(host)
+    activeManagers.add(manager)
+    const owner = createFakeOwner()
+    await manager.prepareNodeRepl(owner, {
+      threadId: 'thread-cleanup',
+      evaluationId: 'eval-1',
+      browserSession: { sessionId: 'session-cleanup', turnId: 'turn-1' }
+    })
+    const session = { session_id: 'session-cleanup', turn_id: 'turn-1' }
+    const handoff = await manager.handleBrowserUseBackendRequest('createTab', session) as Record<string, unknown>
+    const deliverable = await manager.handleBrowserUseBackendRequest('createTab', session) as Record<string, unknown>
+    const viewerId = (index: number) => host.createAutomationTab.mock.calls[index]![1].tabId as string
+    await manager.handleBrowserUseBackendRequest('moveMouse', { ...session, tabId: handoff.id, x: 1, y: 2 })
+    expect(host.setAutomationState).toHaveBeenCalledWith(owner, expect.objectContaining({
+      tabId: viewerId(0),
+      active: true,
+      action: 'move'
+    }))
+    await manager.handleBrowserUseBackendRequest('executeUnhandledCommand', {
+      ...session, type: 'tab_mark', tabId: handoff.id, status: 'handoff'
+    })
+    await manager.handleBrowserUseBackendRequest('executeUnhandledCommand', {
+      ...session, type: 'tab_mark', tabId: deliverable.id, status: 'deliverable'
+    })
+
+    host.setAutomationState.mockClear()
+    manager.handleTurnNotification('turn/completed', { threadId: 'thread-cleanup', turn: { id: 'turn-1' } })
+    const finished = host.setAutomationState.mock.calls.map(([, params]) => params)
+    expect(finished.find(params => params.tabId === viewerId(0))).toMatchObject({ active: false })
+    expect(finished.find(params => params.tabId === viewerId(0))!.release).toBeUndefined()
+    expect(finished.find(params => params.tabId === viewerId(1))).toMatchObject({ active: false, release: true })
+
+    host.setAutomationState.mockClear()
+    manager.abortEvaluation('thread-cleanup')
+    expect(host.setAutomationState).toHaveBeenCalledWith(owner, expect.objectContaining({
+      tabId: viewerId(0),
+      active: false
+    }))
   })
 })

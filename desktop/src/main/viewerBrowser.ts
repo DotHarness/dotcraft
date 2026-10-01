@@ -15,10 +15,6 @@ const VIEWER_SCHEME = 'dotcraft-viewer:'
 const ALLOWED_SCHEMES = new Set(['http:', 'https:', VIEWER_SCHEME])
 const EXTERNAL_HANDOFF_SCHEMES = new Set(['mailto:', 'tel:'])
 const DEFAULT_START_TITLE = 'DotCraft Browser'
-const VIRTUAL_MOUSE_SCRIPT_TIMEOUT_MS = 750
-const VIRTUAL_MOUSE_MOVE_DURATION_MS = 160
-const VIRTUAL_MOUSE_MIN_PATH_STEPS = 5
-const VIRTUAL_MOUSE_MAX_PATH_STEPS = 16
 
 interface BrowserTabRuntime {
   tabId: string
@@ -32,14 +28,8 @@ interface BrowserTabRuntime {
   title: string
   faviconDataUrl?: string
   allowFileScheme?: boolean
-  automationEnabled?: boolean
   automationSessionName?: string
   automationActive?: boolean
-  virtualMouseX?: number
-  virtualMouseY?: number
-  virtualMouseMoved?: boolean
-  viewportWidth?: number
-  viewportHeight?: number
   authPopups: Set<BrowserWindow>
 }
 
@@ -59,45 +49,17 @@ export interface BrowserSnapshot {
   loading: boolean
 }
 
-export type BrowserAutomationMouseButton = 'left' | 'right' | 'middle'
-
-export interface BrowserAutomationPoint {
+export interface BrowserAutomationMoveParams {
   tabId: string
   x: number
   y: number
-}
-
-export interface BrowserAutomationMoveParams extends BrowserAutomationPoint {
   waitForArrival?: boolean
-}
-
-export interface BrowserAutomationClickParams extends BrowserAutomationPoint {
-  button?: BrowserAutomationMouseButton
-}
-
-export interface BrowserAutomationDragParams {
-  tabId: string
-  path: Array<{ x: number; y: number }>
-}
-
-export interface BrowserAutomationScrollParams extends BrowserAutomationPoint {
-  scrollX: number
-  scrollY: number
-}
-
-export interface BrowserAutomationKeypressParams {
-  tabId: string
-  keys: string[]
-}
-
-export interface BrowserAutomationTypeParams {
-  tabId: string
-  text: string
 }
 
 export interface BrowserAutomationStateParams {
   tabId: string
   active: boolean
+  release?: boolean
   sessionName?: string
   action?: string
 }
@@ -146,131 +108,6 @@ function requestsControlledPopup(details: Electron.HandlerDetails): boolean {
     && !['_blank', '_self', '_parent', '_top'].includes(frameName)
   return details.disposition === 'new-window' || details.features.trim() !== '' || isNamedBrowsingContext
 }
-
-function clampViewportCoordinate(value: number): number {
-  if (!Number.isFinite(value)) return 0
-  return Math.max(0, Math.round(value))
-}
-
-function mouseButton(button?: BrowserAutomationMouseButton): BrowserAutomationMouseButton {
-  return button === 'right' || button === 'middle' ? button : 'left'
-}
-
-function viewportCenter(tab: BrowserTabRuntime): { x: number; y: number } {
-  return {
-    x: Math.max(0, Math.round((tab.viewportWidth ?? 1280) / 2)),
-    y: Math.max(0, Math.round((tab.viewportHeight ?? 720) / 2))
-  }
-}
-
-function easeInOutCubic(value: number): number {
-  return value < 0.5
-    ? 4 * value * value * value
-    : 1 - Math.pow(-2 * value + 2, 3) / 2
-}
-
-function mouseMovePath(
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-  animated: boolean
-): Array<{ x: number; y: number }> {
-  const distance = Math.hypot(to.x - from.x, to.y - from.y)
-  if (!animated || distance < 2) return [to]
-
-  const steps = Math.min(
-    VIRTUAL_MOUSE_MAX_PATH_STEPS,
-    Math.max(VIRTUAL_MOUSE_MIN_PATH_STEPS, Math.ceil(distance / 80))
-  )
-  const points: Array<{ x: number; y: number }> = []
-  for (let step = 1; step <= steps; step++) {
-    const progress = easeInOutCubic(step / steps)
-    const point = {
-      x: Math.round(from.x + (to.x - from.x) * progress),
-      y: Math.round(from.y + (to.y - from.y) * progress)
-    }
-    const previous = points.at(-1)
-    if (!previous || previous.x !== point.x || previous.y !== point.y) {
-      points.push(point)
-    }
-  }
-  const last = points.at(-1)
-  if (!last || last.x !== to.x || last.y !== to.y) {
-    points.push(to)
-  }
-  return points
-}
-
-function normalizeKeyboardKey(key: string): string {
-  if (key === 'ControlOrMeta') return process.platform === 'darwin' ? 'Meta' : 'Control'
-  return key
-}
-
-function electronModifiers(keys: string[]): Array<'shift' | 'control' | 'alt' | 'meta'> {
-  const modifiers = new Set<'shift' | 'control' | 'alt' | 'meta'>()
-  for (const raw of keys.map(normalizeKeyboardKey)) {
-    const key = raw.toLowerCase()
-    if (key === 'shift') modifiers.add('shift')
-    if (key === 'control' || key === 'ctrl') modifiers.add('control')
-    if (key === 'alt' || key === 'option') modifiers.add('alt')
-    if (key === 'meta' || key === 'cmd' || key === 'command') modifiers.add('meta')
-  }
-  return [...modifiers]
-}
-
-const VIRTUAL_MOUSE_BOOTSTRAP = `
-(() => {
-  const id = '__dotcraft_virtual_mouse';
-  let cursor = document.getElementById(id);
-  if (!cursor) {
-    cursor = document.createElement('div');
-    cursor.id = id;
-    cursor.setAttribute('aria-hidden', 'true');
-    Object.assign(cursor.style, {
-      position: 'fixed',
-      left: '0px',
-      top: '0px',
-      width: '28px',
-      height: '28px',
-      pointerEvents: 'none',
-      zIndex: '2147483647',
-      transform: 'translate3d(var(--dotcraft-cursor-x, 0px), var(--dotcraft-cursor-y, 0px), 0)',
-      transition: 'transform var(--dotcraft-cursor-duration, 120ms) cubic-bezier(.2,.8,.2,1)',
-      filter: 'drop-shadow(0 3px 7px rgba(0,0,0,.42))'
-    });
-    cursor.innerHTML = '<svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4.7 3.9 21.8 14l-8.2 1.7L9.5 23.3 4.7 3.9Z" fill="#2f8af5" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg>';
-    document.documentElement.appendChild(cursor);
-  }
-  window.__dotcraftVirtualMouseMove = (x, y, duration) => new Promise((resolve) => {
-    cursor.style.setProperty('--dotcraft-cursor-duration', Math.max(0, duration || 0) + 'ms');
-    cursor.style.setProperty('--dotcraft-cursor-x', Math.max(0, x) + 'px');
-    cursor.style.setProperty('--dotcraft-cursor-y', Math.max(0, y) + 'px');
-    window.setTimeout(resolve, Math.max(0, duration || 0) + 20);
-  });
-  window.__dotcraftVirtualMouseClick = (x, y) => {
-    const ripple = document.createElement('div');
-    Object.assign(ripple.style, {
-      position: 'fixed',
-      left: Math.max(0, x - 20) + 'px',
-      top: Math.max(0, y - 20) + 'px',
-      width: '40px',
-      height: '40px',
-      borderRadius: '999px',
-      pointerEvents: 'none',
-      zIndex: '2147483646',
-      border: '2px solid rgba(47,138,245,.7)',
-      opacity: '0.8',
-      transform: 'scale(.35)',
-      transition: 'transform 220ms ease, opacity 220ms ease'
-    });
-    document.documentElement.appendChild(ripple);
-    requestAnimationFrame(() => {
-      ripple.style.transform = 'scale(1.35)';
-      ripple.style.opacity = '0';
-    });
-    window.setTimeout(() => ripple.remove(), 260);
-  };
-})();
-`
 
 export type BrowserNavigationDecision = 'allow' | 'external-handoff' | 'blocked'
 
@@ -378,7 +215,7 @@ export class ViewerBrowserManager {
     initialUrl?: string
     allowFileScheme?: boolean
     skipStartPageLoad?: boolean
-    viewport?: { width: number; height: number }
+    automation?: boolean
   }): Promise<BrowserSnapshot> {
     const runtime = this.ensureWindowRuntime(win)
     const existing = runtime.tabs.get(params.tabId)
@@ -391,7 +228,7 @@ export class ViewerBrowserManager {
     const partitionSession = session.fromPartition(partition)
     this.configurePartitionSession(partition, partitionSession)
 
-    const page = await this.hosts.request(win, params.tabId, partition, params.viewport)
+    const page = await this.hosts.request(win, params.tabId, partition, params.automation)
     if (page.isDestroyed() || !this.hosts.list(win).some(host => host.tabId === params.tabId)) throw new Error('Browser page closed.')
     const attached = runtime.tabs.get(params.tabId)
     if (attached) return this.snapshotFromRuntime(attached)
@@ -406,8 +243,6 @@ export class ViewerBrowserManager {
       currentUrl: START_URL,
       title: DEFAULT_START_TITLE,
       allowFileScheme: params.allowFileScheme === true,
-      viewportWidth: 1280,
-      viewportHeight: 720,
       authPopups: new Set()
     }
     runtime.tabs.set(params.tabId, tabRuntime)
@@ -471,31 +306,17 @@ export class ViewerBrowserManager {
     threadId?: string
     workspacePath: string
     initialUrl?: string
-    width?: number
-    height?: number
     allowFileScheme?: boolean
   }): Promise<BrowserSnapshot> {
-    const snapshot = await this.createTab(win, {
+    return await this.createTab(win, {
       tabId: params.tabId,
       threadId: params.threadId,
       workspacePath: params.workspacePath,
       initialUrl: params.initialUrl,
       allowFileScheme: params.allowFileScheme,
       skipStartPageLoad: true,
-      viewport: { width: Math.max(1, Math.round(params.width ?? 1280)), height: Math.max(1, Math.round(params.height ?? 720)) }
+      automation: true
     })
-    const tab = this.getTab(win, params.tabId)
-    if (tab) {
-      tab.automationEnabled = true
-      const width = Math.max(1, Math.round(params.width ?? 1280))
-      const height = Math.max(1, Math.round(params.height ?? 720))
-      tab.viewportWidth = width
-      tab.viewportHeight = height
-      this.centerVirtualMouse(tab)
-      this.hosts.update(win, tab.tabId, { automation: true, bounds: { x: 0, y: 0, width, height } })
-      this.emitVirtualCursor(win, tab, tab.virtualMouseX!, tab.virtualMouseY!)
-    }
-    return snapshot
   }
 
   getTabWebContents(win: BrowserWindow, tabId: string): Electron.WebContents | null {
@@ -607,15 +428,23 @@ export class ViewerBrowserManager {
     if (!tab) return
     const { x, y, width, height } = params
     if (![x, y, width, height].every(Number.isFinite) || width <= 1 || height <= 1) return
-    tab.viewportWidth = width
-    tab.viewportHeight = height
     tab.boundsInitialized = true
     this.hosts.update(win, tab.tabId, { bounds: { x, y, width, height }, visible: tab.desiredVisible })
-    if (tab.automationEnabled && !tab.virtualMouseMoved) {
-      this.centerVirtualMouse(tab)
-      this.emitVirtualCursor(win, tab, tab.virtualMouseX!, tab.virtualMouseY!)
-      if (tab.automationActive) void this.injectVirtualMouse(tab)
-    }
+  }
+
+  setViewport(win: BrowserWindow, params: { tabId: string; viewport: { width: number; height: number } | undefined }): void {
+    const tab = this.getTab(win, params.tabId)
+    if (tab) this.hosts.update(win, tab.tabId, { viewport: params.viewport })
+  }
+
+  getLayoutSize(win: BrowserWindow, tabId: string): { width: number; height: number } {
+    const size = this.hosts.layoutSize(win, tabId)
+    if (!size) throw new Error(`Browser tab is no longer available: ${tabId}`)
+    return size
+  }
+
+  isVisible(win: BrowserWindow, tabId: string): boolean {
+    return this.hosts.isVisible(win, tabId)
   }
 
   setVisible(win: BrowserWindow, params: { tabId: string; visible: boolean }): void {
@@ -663,10 +492,12 @@ export class ViewerBrowserManager {
   setAutomationState(win: BrowserWindow, params: BrowserAutomationStateParams): void {
     const tab = this.getTab(win, params.tabId)
     if (!tab) return
-    tab.automationEnabled = true
     const wasActive = tab.automationActive === true
     tab.automationActive = params.active
     this.hosts.update(win, tab.tabId, { automation: params.active })
+    if (params.active) this.hosts.cursors.activate(win, tab.tabId)
+    else if (params.release) this.hosts.cursors.release(win, tab.tabId)
+    else this.hosts.cursors.deactivate(win, tab.tabId)
     if (params.sessionName !== undefined) {
       tab.automationSessionName = params.sessionName
     }
@@ -678,95 +509,11 @@ export class ViewerBrowserManager {
       sessionName: tab.automationSessionName,
       action: params.action
     })
-    if (params.active) {
-      if (!tab.virtualMouseMoved) {
-        this.centerVirtualMouse(tab)
-        this.emitVirtualCursor(win, tab, tab.virtualMouseX!, tab.virtualMouseY!)
-      }
-      void this.injectVirtualMouse(tab)
-    }
   }
 
   async moveMouse(win: BrowserWindow, params: BrowserAutomationMoveParams): Promise<void> {
     const tab = this.requireTab(win, params.tabId)
-    const x = clampViewportCoordinate(params.x)
-    const y = clampViewportCoordinate(params.y)
-    await this.animateMouseTo(win, tab, x, y, {
-      waitForArrival: params.waitForArrival !== false
-    })
-  }
-
-  async clickMouse(win: BrowserWindow, params: BrowserAutomationClickParams): Promise<void> {
-    const tab = this.requireTab(win, params.tabId)
-    const x = clampViewportCoordinate(params.x)
-    const y = clampViewportCoordinate(params.y)
-    const button = mouseButton(params.button)
-    this.focusTabWebContents(tab)
-    await this.animateMouseTo(win, tab, x, y)
-    tab.page.sendInputEvent({ type: 'mouseDown', x, y, button, clickCount: 1 } as Electron.MouseInputEvent)
-    tab.page.sendInputEvent({ type: 'mouseUp', x, y, button, clickCount: 1 } as Electron.MouseInputEvent)
-    void this.showVirtualClick(tab, x, y)
-  }
-
-  async doubleClickMouse(win: BrowserWindow, params: BrowserAutomationClickParams): Promise<void> {
-    const tab = this.requireTab(win, params.tabId)
-    const x = clampViewportCoordinate(params.x)
-    const y = clampViewportCoordinate(params.y)
-    const button = mouseButton(params.button)
-    this.focusTabWebContents(tab)
-    await this.animateMouseTo(win, tab, x, y)
-    tab.page.sendInputEvent({ type: 'mouseDown', x, y, button, clickCount: 1 } as Electron.MouseInputEvent)
-    tab.page.sendInputEvent({ type: 'mouseUp', x, y, button, clickCount: 1 } as Electron.MouseInputEvent)
-    tab.page.sendInputEvent({ type: 'mouseDown', x, y, button, clickCount: 2 } as Electron.MouseInputEvent)
-    tab.page.sendInputEvent({ type: 'mouseUp', x, y, button, clickCount: 2 } as Electron.MouseInputEvent)
-    void this.showVirtualClick(tab, x, y)
-  }
-
-  async dragMouse(win: BrowserWindow, params: BrowserAutomationDragParams): Promise<void> {
-    const tab = this.requireTab(win, params.tabId)
-    if (params.path.length < 2) throw new Error('Browser drag requires at least two path points.')
-    const points = params.path.map((point) => ({
-      x: clampViewportCoordinate(point.x),
-      y: clampViewportCoordinate(point.y)
-    }))
-    const first = points[0]!
-    this.focusTabWebContents(tab)
-    await this.animateMouseTo(win, tab, first.x, first.y)
-    tab.page.sendInputEvent({ type: 'mouseDown', x: first.x, y: first.y, button: 'left', clickCount: 1 } as Electron.MouseInputEvent)
-    for (const point of points.slice(1)) {
-      await this.animateMouseTo(win, tab, point.x, point.y, { button: 'left' })
-    }
-    const last = points[points.length - 1]!
-    tab.page.sendInputEvent({ type: 'mouseUp', x: last.x, y: last.y, button: 'left', clickCount: 1 } as Electron.MouseInputEvent)
-  }
-
-  async scrollMouse(win: BrowserWindow, params: BrowserAutomationScrollParams): Promise<void> {
-    const tab = this.requireTab(win, params.tabId)
-    const x = clampViewportCoordinate(params.x)
-    const y = clampViewportCoordinate(params.y)
-    await this.animateMouseTo(win, tab, x, y)
-    tab.page.sendInputEvent({
-      type: 'mouseWheel',
-      x,
-      y,
-      deltaX: Math.round(params.scrollX || 0),
-      deltaY: Math.round(params.scrollY || 0)
-    } as Electron.MouseWheelInputEvent)
-  }
-
-  async typeText(win: BrowserWindow, params: BrowserAutomationTypeParams): Promise<void> {
-    const tab = this.requireTab(win, params.tabId)
-    tab.page.insertText(String(params.text ?? ''))
-  }
-
-  keypress(win: BrowserWindow, params: BrowserAutomationKeypressParams): void {
-    const tab = this.requireTab(win, params.tabId)
-    const normalized = params.keys.map(normalizeKeyboardKey).filter(Boolean)
-    if (normalized.length === 0) return
-    const keyCode = normalized[normalized.length - 1]!
-    const modifiers = electronModifiers(normalized.slice(0, -1))
-    tab.page.sendInputEvent({ type: 'keyDown', keyCode, modifiers } as Electron.KeyboardInputEvent)
-    tab.page.sendInputEvent({ type: 'keyUp', keyCode, modifiers } as Electron.KeyboardInputEvent)
+    await this.hosts.cursors.move(win, tab.tabId, { x: params.x, y: params.y }, { waitForArrival: params.waitForArrival })
   }
 
   snapshotState(win: BrowserWindow, tabId: string): BrowserSnapshot | null {
@@ -829,166 +576,7 @@ export class ViewerBrowserManager {
     if (!tab || tab.page.isDestroyed()) {
       throw new Error(`Browser tab is no longer available: ${tabId}`)
     }
-    tab.automationEnabled = true
     return tab
-  }
-
-  private centerVirtualMouse(tab: BrowserTabRuntime): void {
-    const center = viewportCenter(tab)
-    tab.virtualMouseX = center.x
-    tab.virtualMouseY = center.y
-  }
-
-  private ensureVirtualMousePoint(tab: BrowserTabRuntime): { x: number; y: number } {
-    if (tab.virtualMouseX === undefined || tab.virtualMouseY === undefined) {
-      this.centerVirtualMouse(tab)
-    }
-    return {
-      x: tab.virtualMouseX ?? 0,
-      y: tab.virtualMouseY ?? 0
-    }
-  }
-
-  private async animationDelay(timeoutMs: number): Promise<void> {
-    if (timeoutMs <= 0) return
-    await new Promise((resolve) => setTimeout(resolve, timeoutMs))
-  }
-
-  private async animateMouseTo(
-    win: BrowserWindow,
-    tab: BrowserTabRuntime,
-    x: number,
-    y: number,
-    options: { button?: BrowserAutomationMouseButton; waitForArrival?: boolean } = {}
-  ): Promise<void> {
-    const waitForArrival = options.waitForArrival !== false
-    const start = this.ensureVirtualMousePoint(tab)
-    const path = mouseMovePath(start, { x, y }, waitForArrival)
-    const stepDelay = waitForArrival && path.length > 1
-      ? Math.max(1, Math.floor(VIRTUAL_MOUSE_MOVE_DURATION_MS / (path.length - 1)))
-      : 0
-
-    tab.virtualMouseMoved = true
-    void this.moveVirtualMouse(tab, x, y, waitForArrival)
-
-    let previous = start
-    for (let idx = 0; idx < path.length; idx++) {
-      const point = path[idx]!
-      tab.virtualMouseX = point.x
-      tab.virtualMouseY = point.y
-      tab.page.sendInputEvent({
-        type: 'mouseMove',
-        x: point.x,
-        y: point.y,
-        ...(options.button ? { button: options.button } : {}),
-        movementX: point.x - previous.x,
-        movementY: point.y - previous.y
-      } as Electron.MouseInputEvent)
-      this.emitVirtualCursor(win, tab, point.x, point.y)
-      previous = point
-      if (stepDelay > 0 && idx < path.length - 1) {
-        await this.animationDelay(stepDelay)
-      }
-    }
-  }
-
-  private focusTabWebContents(tab: BrowserTabRuntime): void {
-    try {
-      ;(tab.page as Electron.WebContents & { focus?: () => void }).focus?.()
-    } catch {
-      // Best effort focus before native input.
-    }
-  }
-
-  private executeOverlayScript(tab: BrowserTabRuntime, script: string): Promise<unknown> {
-    const execution = tab.page.executeJavaScript(script, true)
-    execution.catch(() => {})
-    return new Promise((resolve, reject) => {
-      let settled = false
-      const timeout = setTimeout(() => {
-        if (settled) return
-        settled = true
-        reject(new Error(`Virtual mouse overlay script timed out after ${VIRTUAL_MOUSE_SCRIPT_TIMEOUT_MS}ms.`))
-      }, VIRTUAL_MOUSE_SCRIPT_TIMEOUT_MS)
-      execution.then(
-        (value) => {
-          if (settled) return
-          settled = true
-          clearTimeout(timeout)
-          resolve(value)
-        },
-        (error) => {
-          if (settled) return
-          settled = true
-          clearTimeout(timeout)
-          reject(error)
-        }
-      )
-    })
-  }
-
-  private async injectVirtualMouse(tab: BrowserTabRuntime, position?: { x: number; y: number }): Promise<void> {
-    if (!tab.automationEnabled || tab.page.isDestroyed()) return
-    try {
-      if (!tab.virtualMouseMoved && (tab.virtualMouseX === undefined || tab.virtualMouseY === undefined)) {
-        this.centerVirtualMouse(tab)
-      }
-      await this.executeOverlayScript(tab, VIRTUAL_MOUSE_BOOTSTRAP)
-      const x = position?.x ?? tab.virtualMouseX
-      const y = position?.y ?? tab.virtualMouseY
-      if (x !== undefined && y !== undefined) {
-        await this.executeOverlayScript(
-          tab,
-          `window.__dotcraftVirtualMouseMove?.(${x}, ${y}, 0)`,
-        )
-      }
-    } catch {
-      // Some pages cannot accept the overlay. Browser input should still work.
-    }
-  }
-
-  private async moveVirtualMouse(
-    tab: BrowserTabRuntime,
-    x: number,
-    y: number,
-    waitForArrival: boolean
-  ): Promise<void> {
-    try {
-      const start = this.ensureVirtualMousePoint(tab)
-      const duration = waitForArrival ? VIRTUAL_MOUSE_MOVE_DURATION_MS : 0
-      const script = `window.__dotcraftVirtualMouseMove?.(${x}, ${y}, ${duration})`
-      const move = async () => {
-        await this.injectVirtualMouse(tab, start)
-        tab.virtualMouseX = x
-        tab.virtualMouseY = y
-        await this.executeOverlayScript(tab, script)
-      }
-      if (waitForArrival) await move()
-      else void move().catch(() => {})
-    } catch {
-      // Best effort visual cursor.
-    }
-  }
-
-  private async showVirtualClick(tab: BrowserTabRuntime, x: number, y: number): Promise<void> {
-    try {
-      await this.injectVirtualMouse(tab)
-      await this.executeOverlayScript(tab, `window.__dotcraftVirtualMouseClick?.(${x}, ${y})`)
-    } catch {
-      // Best effort click ripple.
-    }
-  }
-
-  private emitVirtualCursor(win: BrowserWindow, tab: BrowserTabRuntime, x: number, y: number): void {
-    emitBrowserEvent(win, {
-      tabId: tab.tabId,
-      threadId: tab.threadId,
-      type: 'virtual-cursor',
-      x,
-      y,
-      automationActive: tab.automationActive ?? true,
-      sessionName: tab.automationSessionName
-    })
   }
 
   private emitHistoryFlags(win: BrowserWindow, tab: BrowserTabRuntime): void {
@@ -1013,13 +601,6 @@ export class ViewerBrowserManager {
       tab.currentUrl = wc.getURL() || tab.currentUrl
       emitBrowserEvent(win, { tabId: tab.tabId, threadId: tab.threadId, type: 'did-stop-loading', url: tab.currentUrl })
       this.emitHistoryFlags(win, tab)
-      if (tab.automationEnabled) {
-        if (!tab.virtualMouseMoved) {
-          this.centerVirtualMouse(tab)
-          this.emitVirtualCursor(win, tab, tab.virtualMouseX!, tab.virtualMouseY!)
-        }
-        void this.injectVirtualMouse(tab)
-      }
     })
     wc.on('did-navigate', (_event, url) => {
       tab.currentUrl = url

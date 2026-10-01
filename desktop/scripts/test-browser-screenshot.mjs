@@ -36,7 +36,9 @@ import { createServer } from 'node:http'
 import { join } from 'node:path'
 import { BrowserScreenshot } from ${JSON.stringify(screenshotModule)}
 import { BrowserGuestRegistry } from ${JSON.stringify(guestModule)}
+process.on('uncaughtException', error => { console.error(error); app.exit(1) })
 void (async () => {
+app.commandLine.appendSwitch('force-device-scale-factor', process.env.SCREENSHOT_DEVICE_SCALE || '1')
 app.setPath('userData', join(${JSON.stringify(directory)}, 'profile'))
 app.on('window-all-closed', () => {})
 const server = createServer((_request, response) => {
@@ -49,7 +51,7 @@ const captures = new BrowserScreenshot()
 const viewport = { width: 800, height: 600 }
 const dimensions = async page => await page.executeJavaScript('({width:innerWidth,height:innerHeight})')
 const image = data => {
-  assert.ok(data.startsWith('iVBOR'), 'Screenshot must remain PNG')
+  assert.ok(data.startsWith('/9j/'), 'Screenshot must be JPEG')
   const value = nativeImage.createFromBuffer(Buffer.from(data, 'base64'))
   assert.ok(!value.isEmpty(), 'Screenshot is empty')
   return value
@@ -60,6 +62,14 @@ const color = (value, y) => {
   const offset = (y * size.width + Math.floor(size.width / 2)) * 4
   return [...bytes.subarray(offset, offset + 3)]
 }
+const layout = async page => {
+  for (let i = 0; i < 200; i++) {
+    const size = await dimensions(page)
+    if (size.width === viewport.width && size.height === viewport.height) return
+    await new Promise(resolve => setTimeout(resolve, 16))
+  }
+}
+const near = (actual, expected) => assert.ok(actual.every((channel, index) => Math.abs(channel - expected[index]) <= 40), 'Expected ' + expected + ' but got ' + actual)
 try {
   await app.whenReady()
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
@@ -68,27 +78,35 @@ try {
   ipcMain.handle('test:list', () => hosts.list(owner))
   ipcMain.handle('test:bind', (_event, params) => hosts.bind(owner, params.tabId, params.webContentsId))
   ipcMain.handle('test:failed', (_event, params) => { throw new Error(params.message) })
-  const ready = hosts.request(owner, 'tab', 'screenshot-validation', viewport)
+  const ready = hosts.request(owner, 'tab', 'screenshot-validation')
   await owner.loadFile(join(${JSON.stringify(directory)}, 'owner.html'))
   const page = await ready
   await page.loadURL('http://127.0.0.1:' + server.address().port)
   page.debugger.attach('1.3')
-  const context = {
-    tabId:'tab',page,viewport,timeoutMs:10000,
+  hosts.update(owner, 'tab', { bounds: { x: 0, y: 0, ...viewport } })
+  await layout(page)
+  assert.deepEqual(await dimensions(page), viewport)
+  const surfaces = []
+  const context = () => ({
+    tabId:'tab',page,layoutSize:hosts.layoutSize(owner,'tab'),visible:hosts.isVisible(owner,'tab'),timeoutMs:10000,
     send:(method,params)=>page.debugger.sendCommand(method,params),
-    setSurface:size=>hosts.setCaptureSurface(owner,'tab',size),
+    setSurface:size=>{ surfaces.push(size); hosts.setCaptureSurface(owner,'tab',size) },
     diagnostic:message=>console.log(message)
-  }
-  const screenshot = options => captures.screenshot(context, options)
+  })
+  const screenshot = options => captures.screenshot(context(), options)
+  const ratio = await page.executeJavaScript('window.devicePixelRatio')
+  console.log('device pixel ratio ' + ratio)
   owner.showInactive()
   const focusedElement = await owner.webContents.executeJavaScript('document.activeElement.id')
   for (const scenario of ['hidden', 'visible-unfocused', 'owner-hidden']) {
     hosts.update(owner, 'tab', { visible: scenario === 'visible-unfocused' })
     if (scenario === 'owner-hidden') owner.hide()
+    surfaces.length = 0
     const value = image(await screenshot())
+    assert.deepEqual(surfaces, scenario === 'visible-unfocused' ? [] : [viewport, null])
     assert.equal(owner.isFocused(), false)
     assert.deepEqual(value.getSize(), viewport)
-    assert.deepEqual(color(value, 100), [0, 0, 255])
+    near(color(value, 100), [0, 0, 255])
     assert.equal(hosts.list(owner)[0].captureSurfaceSize, undefined)
     assert.deepEqual(await dimensions(page), viewport)
     assert.equal(await owner.webContents.executeJavaScript('document.activeElement.id'), focusedElement)
@@ -96,16 +114,15 @@ try {
   }
   const full = image(await screenshot({fullPage:true}))
   assert.deepEqual(full.getSize(), {width:800,height:1800})
-  assert.deepEqual(color(full, 100), [0, 0, 255])
-  assert.deepEqual(color(full, 1700), [255, 0, 0])
+  near(color(full, 100), [0, 0, 255])
+  near(color(full, 1700), [255, 0, 0])
   const crop = image(await screenshot({clip:{x:0,y:1200,width:800,height:600}}))
   assert.deepEqual(crop.getSize(), viewport)
-  assert.deepEqual(color(crop, 100), [255, 0, 0])
-  const raw = image((await captures.captureCdp(context,{format:'png',captureBeyondViewport:true,clip:{x:0,y:0,width:800,height:1800,scale:1}})).data)
+  near(color(crop, 100), [255, 0, 0])
+  const raw = image((await captures.captureCdp(context(),{format:'jpeg',quality:80,captureBeyondViewport:true,clip:{x:0,y:0,width:800,height:1800,scale:1/ratio}})).data)
   assert.deepEqual(raw.getSize(), {width:800,height:1800})
-  assert.deepEqual(color(raw, 1700), [255, 0, 0])
-  // Host updates cross IPC; wait for restored native guest dimensions before asserting.
-  for (let i=0;i<100;i++) { if ((await dimensions(page)).height===600) break; await new Promise(resolve=>setTimeout(resolve,16)) }
+  near(color(raw, 1700), [255, 0, 0])
+  await layout(page)
   assert.deepEqual(await dimensions(page), viewport)
   assert.deepEqual(hosts.list(owner)[0].bounds, {x:0,y:0,...viewport})
   assert.equal(hosts.list(owner)[0].visible, false)

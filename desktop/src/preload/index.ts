@@ -1169,6 +1169,7 @@ const api = {
           list: () => ipcRenderer.invoke('viewer:browser:host-list'),
           bind: (params) => ipcRenderer.invoke('viewer:browser:host-bind', params),
           failed: (params) => ipcRenderer.invoke('viewer:browser:host-failed', params),
+          cursorArrived: (params) => ipcRenderer.invoke('viewer:browser:host-cursor-arrived', params),
           onEvent(callback) {
             const listener = (_event: Electron.IpcRendererEvent, payload: BrowserHostEvent) => callback(payload)
             ipcRenderer.on('viewer:browser:host-event', listener)

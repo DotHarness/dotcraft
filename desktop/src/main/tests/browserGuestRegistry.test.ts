@@ -13,6 +13,9 @@ function fixture() {
   const win = Object.assign(new EventEmitter(), {
     id: 1,
     isDestroyed: () => false,
+    isFocused: () => true,
+    isVisible: () => true,
+    isMinimized: vi.fn(() => false),
     webContents: owner
   }) as unknown as Electron.BrowserWindow
   const page = Object.assign(new EventEmitter(), {
@@ -26,9 +29,9 @@ afterEach(() => vi.useRealTimers())
 
 it('registers one guest, keeps it through presentation changes and forwards page clicks', async () => {
   const { registry, win, page, owner } = fixture()
-  const ready = registry.request(win, 'tab', 'persist:workspace', { width: 900, height: 600 })
+  const ready = registry.request(win, 'tab', 'persist:workspace', true)
   expect(registry.request(win, 'tab', 'persist:workspace')).toBe(ready)
-  expect(registry.list(win)[0]).toMatchObject({ automation: true, visible: false, bounds: { width: 900, height: 600 } })
+  expect(registry.list(win)[0]).toMatchObject({ automation: true, visible: false, bounds: { width: 1280, height: 720 } })
   registry.bind(win, 'tab', 7)
   await expect(ready).resolves.toBe(page)
   registry.update(win, 'tab', { visible: true })
@@ -136,4 +139,69 @@ it.each([true, false])('restores owner throttling %s only after the last capture
   registry.remove(win, 'b')
   expect(owner.setBackgroundThrottling).toHaveBeenLastCalledWith(previous)
   registry.clear(win)
+})
+
+it('removes guests when the window closes without touching its destroyed web contents', async () => {
+  const { registry, win, owner, page } = fixture()
+  let destroyed = false
+  Object.defineProperties(win, {
+    isDestroyed: { value: () => destroyed },
+    webContents: { get: () => { if (destroyed) throw new TypeError('Object has been destroyed'); return owner } }
+  })
+  registry.attachWindow(win)
+  const ready = registry.request(win, 'tab', 'persist:workspace')
+  registry.bind(win, 'tab', 7)
+  await ready
+  registry.setCaptureSurface(win, 'tab', { width: 800, height: 1800 })
+  destroyed = true
+  expect(() => win.emit('closed')).not.toThrow()
+  expect(registry.list(win)).toEqual([])
+  expect(page.close).toHaveBeenCalledOnce()
+})
+
+it('lays a tab out at its explicit viewport, else at its last bounds, else at the default size', async () => {
+  const { registry, win } = fixture()
+  const closed = expect(registry.request(win, 'tab', 'persist:workspace', true)).rejects.toThrow('closed')
+  expect(registry.layoutSize(win, 'tab')).toEqual({ width: 1280, height: 720 })
+  registry.update(win, 'tab', { visible: true, bounds: { x: 4, y: 8, width: 700, height: 500 } })
+  registry.update(win, 'tab', { visible: false })
+  expect(registry.layoutSize(win, 'tab')).toMatchObject({ width: 700, height: 500 })
+  registry.update(win, 'tab', { viewport: { width: 390, height: 844 } })
+  expect(registry.layoutSize(win, 'tab')).toEqual({ width: 390, height: 844 })
+  registry.update(win, 'tab', { viewport: undefined })
+  expect(registry.layoutSize(win, 'tab')).toMatchObject({ width: 700, height: 500 })
+  registry.remove(win, 'tab')
+  await closed
+  expect(registry.layoutSize(win, 'tab')).toBeUndefined()
+})
+
+it('reports whether a tab is presented', async () => {
+  const { registry, win } = fixture()
+  const closed = expect(registry.request(win, 'tab', 'persist:workspace')).rejects.toThrow('closed')
+  expect(registry.isVisible(win, 'tab')).toBe(false)
+  registry.update(win, 'tab', { visible: true })
+  expect(registry.isVisible(win, 'tab')).toBe(true)
+  vi.mocked(win.isMinimized).mockReturnValue(true)
+  expect(registry.isVisible(win, 'tab')).toBe(false)
+  vi.mocked(win.isMinimized).mockReturnValue(false)
+  registry.update(win, 'tab', { visible: false })
+  expect(registry.isVisible(win, 'tab')).toBe(false)
+  registry.update(win, 'tab', { visible: true })
+  registry.remove(win, 'tab')
+  await closed
+  expect(registry.isVisible(win, 'tab')).toBe(false)
+})
+
+it('publishes cursor moves in the host descriptor', async () => {
+  const { registry, win, owner } = fixture()
+  const ready = registry.request(win, 'tab', 'persist:workspace')
+  registry.bind(win, 'tab', 7)
+  await ready
+  registry.update(win, 'tab', { visible: true })
+  registry.cursors.activate(win, 'tab')
+  await registry.cursors.move(win, 'tab', { x: 1, y: 2 }, { waitForArrival: false })
+  expect(owner.send).toHaveBeenLastCalledWith('viewer:browser:host-event', {
+    type: 'update',
+    host: expect.objectContaining({ cursor: expect.objectContaining({ visible: true, x: 1, y: 2, animate: true }) })
+  })
 })

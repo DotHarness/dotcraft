@@ -2,91 +2,152 @@ import { EventEmitter } from 'node:events'
 import { afterEach, expect, it, vi } from 'vitest'
 import { BrowserScreenshot, type BrowserScreenshotContext } from '../browserScreenshot'
 
-function fixture() {
+function fixture(options: { ratio?: unknown; visible?: boolean } = {}) {
   const capture = new BrowserScreenshot()
   const debuggerApi = new EventEmitter()
   const page = Object.assign(new EventEmitter(), {
     debugger: debuggerApi, isDestroyed: () => false, getURL: () => 'http://localhost/fixture', getBackgroundThrottling: () => false
   }) as unknown as Electron.WebContents
   let surface: { width: number; height: number } | null = null
-  const viewport = { width: 800, height: 600 }
   const setSurface = vi.fn((size: typeof surface) => { surface = size })
   const diagnostics: string[] = []
-  const commands: string[] = []
+  const calls: Array<{ method: string; params?: Record<string, unknown> }> = []
   const context: BrowserScreenshotContext = {
-    tabId: 'tab', page, viewport, timeoutMs: 10_000, setSurface,
+    tabId: 'tab', page, layoutSize: { width: 800, height: 600 }, visible: options.visible ?? true,
+    timeoutMs: 10_000, setSurface,
     diagnostic: message => diagnostics.push(message),
-    send: async method => {
-      commands.push(method)
+    send: async (method, params) => {
+      calls.push({ method, params })
       if (method === 'Page.getLayoutMetrics') return {
         cssContentSize: { x: 0, y: 0, width: 800, height: 2400 },
-        cssVisualViewport: { pageX: 0, pageY: 0, clientWidth: surface?.width ?? 800, clientHeight: surface?.height ?? 600 }
+        cssVisualViewport: {
+          pageX: 10, pageY: 20,
+          clientWidth: surface?.width ?? context.layoutSize.width, clientHeight: surface?.height ?? context.layoutSize.height
+        }
       }
-      if (method === 'Page.captureScreenshot') return { data: 'capture-png' }
+      if (method === 'Runtime.evaluate') return { result: { value: 'ratio' in options ? options.ratio : 2 } }
+      if (method === 'Page.captureScreenshot') return { data: 'capture-jpeg' }
       if (method === 'Page.startScreencast') debuggerApi.emit('message', {}, 'Page.screencastVisibilityChanged', { visible: false })
       return {}
     }
   }
-  return { capture, context, page, debuggerApi, setSurface, diagnostics, commands, getSurface: () => surface }
+  return {
+    capture, context, page, debuggerApi, setSurface, diagnostics, calls, getSurface: () => surface,
+    commands: () => calls.map(call => call.method),
+    paramsOf: (method: string) => calls.filter(call => call.method === method).map(call => call.params)
+  }
+}
+
+type Fixture = ReturnType<typeof fixture>
+
+function emitFrames(f: Fixture, frames: Array<{ sessionId: number; data: string; age: number }>) {
+  const original = f.context.send
+  f.context.send = async (method, params) => {
+    if (method === 'Page.startScreencast') {
+      for (const frame of frames) {
+        f.debuggerApi.emit('message', {}, 'Page.screencastFrame', {
+          sessionId: frame.sessionId, data: frame.data, metadata: { timestamp: Date.now() / 1000 - frame.age }
+        })
+      }
+      f.calls.push({ method, params })
+      return {}
+    }
+    return await original(method, params)
+  }
 }
 
 afterEach(() => vi.useRealTimers())
 
-it('returns a new frame, acknowledges stale frames, and cleans up without leaking internal events', async () => {
+it('captures a visible tab in place from a fresh frame, acknowledging stale frames', async () => {
   const f = fixture()
-  const original = f.context.send
   const acknowledgements: number[] = []
   const forwarded: string[] = []
   f.debuggerApi.on('message', (_event, method, params) => {
     if (!f.capture.consumesEvent(f.page, method, params)) forwarded.push(method)
   })
+  emitFrames(f, [{ sessionId: 1, data: 'old', age: 10 }, { sessionId: 2, data: 'new-jpeg', age: 0 }])
+  const send = f.context.send
   f.context.send = async (method, params) => {
-    if (method === 'Page.startScreencast') {
-      f.debuggerApi.emit('message', {}, 'Page.screencastFrame', { sessionId: 1, data: 'old', metadata: { timestamp: Date.now() / 1000 - 10 } })
-      f.debuggerApi.emit('message', {}, 'Page.screencastFrame', { sessionId: 2, data: 'new-png', metadata: { timestamp: Date.now() / 1000 } })
-      return {}
-    }
     if (method === 'Page.screencastFrameAck') acknowledgements.push(Number(params?.sessionId))
-    return await original(method, params)
+    return await send(method, params)
   }
-  expect(await f.capture.screenshot(f.context)).toBe('new-png')
+  expect(await f.capture.screenshot(f.context)).toBe('new-jpeg')
+  expect(f.paramsOf('Page.startScreencast')).toEqual([
+    { format: 'jpeg', quality: 80, everyNthFrame: 1, maxWidth: 800, maxHeight: 600 }
+  ])
   expect(acknowledgements).toEqual([1, 2])
   expect(forwarded).toEqual([])
-  expect(f.commands).toContain('Page.stopScreencast')
-  expect(f.commands).not.toContain('Page.captureScreenshot')
-  expect(f.getSurface()).toBeNull()
+  expect(f.commands()).toContain('Page.stopScreencast')
+  expect(f.commands()).not.toContain('Page.captureScreenshot')
+  expect(f.setSurface).not.toHaveBeenCalled()
   expect(f.page.listenerCount('destroyed')).toBe(0)
   expect(f.debuggerApi.listenerCount('message')).toBe(1)
 })
 
-it('falls back after the bounded screencast wait and stops the stream', async () => {
+it('falls back to a CSS-pixel JPEG capture of the visual viewport after the bounded frame wait', async () => {
   vi.useFakeTimers()
   const f = fixture()
   const original = f.context.send
   f.context.send = async (method, params) => method === 'Page.startScreencast' ? {} : await original(method, params)
   const result = f.capture.screenshot(f.context)
   await vi.advanceTimersByTimeAsync(2_000)
-  expect(await result).toBe('capture-png')
-  expect(f.commands).toContain('Page.stopScreencast')
-  expect(f.commands).toContain('Page.captureScreenshot')
-  expect(f.getSurface()).toBeNull()
+  expect(await result).toBe('capture-jpeg')
+  expect(f.commands()).toContain('Page.stopScreencast')
+  expect(f.paramsOf('Runtime.evaluate')).toEqual([{ expression: 'window.devicePixelRatio', returnByValue: true }])
+  expect(f.paramsOf('Page.captureScreenshot')).toEqual([
+    { format: 'jpeg', quality: 80, clip: { x: 10, y: 20, width: 800, height: 600, scale: 0.5 } }
+  ])
+  expect(f.setSurface).not.toHaveBeenCalled()
+})
+
+it('presents a hidden tab at its current layout size for the whole capture and releases it', async () => {
+  const f = fixture({ visible: false })
+  f.context.layoutSize = { width: 390, height: 844 }
+  const surfaceAt: Record<string, unknown> = {}
+  const original = f.context.send
+  f.context.send = async (method, params) => {
+    surfaceAt[method] = f.getSurface()
+    return await original(method, params)
+  }
+  expect(await f.capture.screenshot(f.context)).toBe('capture-jpeg')
+  expect(surfaceAt['Page.getLayoutMetrics']).toEqual({ width: 390, height: 844 })
+  expect(surfaceAt['Page.startScreencast']).toEqual({ width: 390, height: 844 })
+  expect(surfaceAt['Page.captureScreenshot']).toEqual({ width: 390, height: 844 })
+  expect(f.setSurface.mock.calls).toEqual([[{ width: 390, height: 844 }], [null]])
+})
+
+it('skips the frame stream when the device ratio is below one', async () => {
+  const f = fixture({ ratio: 0.5 })
+  expect(await f.capture.screenshot(f.context)).toBe('capture-jpeg')
+  expect(f.commands()).not.toContain('Page.startScreencast')
+  expect(f.paramsOf('Page.captureScreenshot')).toEqual([
+    { format: 'jpeg', quality: 80, clip: { x: 10, y: 20, width: 800, height: 600, scale: 2 } }
+  ])
+})
+
+it.each([['unavailable', undefined], ['not a number', 'ratio']])('captures at scale one when the device ratio is %s', async (_name, ratio) => {
+  const f = fixture({ ratio })
+  expect(await f.capture.screenshot(f.context)).toBe('capture-jpeg')
+  expect(f.paramsOf('Page.captureScreenshot')).toEqual([
+    { format: 'jpeg', quality: 80, clip: { x: 10, y: 20, width: 800, height: 600, scale: 1 } }
+  ])
 })
 
 it('leaves a raw screencast running while taking a screenshot', async () => {
   const f = fixture()
   await f.capture.rawScreencast(f.context, 'Page.startScreencast', async () => ({}))
-  expect(await f.capture.screenshot(f.context)).toBe('capture-png')
-  expect(f.commands).not.toContain('Page.startScreencast')
-  expect(f.commands).not.toContain('Page.stopScreencast')
+  expect(await f.capture.screenshot(f.context)).toBe('capture-jpeg')
+  expect(f.commands()).not.toContain('Page.startScreencast')
+  expect(f.commands()).not.toContain('Page.stopScreencast')
   expect(f.capture.consumesEvent(f.page, 'Page.screencastFrame', { sessionId: 8 })).toBe(false)
   await f.capture.rawScreencast(f.context, 'Page.stopScreencast', async () => ({}))
   await f.capture.screenshot(f.context)
-  expect(f.commands).toContain('Page.startScreencast')
+  expect(f.commands()).toContain('Page.startScreencast')
 })
 
 it.each(['metrics', 'capture'])('reports the %s timeout, releases the surface, and ignores late results', async stage => {
   vi.useFakeTimers()
-  const f = fixture()
+  const f = fixture({ visible: false })
   const original = f.context.send
   let complete!: (result: unknown) => void
   f.context.send = async (method, params) => {
@@ -98,19 +159,20 @@ it.each(['metrics', 'capture'])('reports the %s timeout, releases the surface, a
   const result = expect(f.capture.screenshot(f.context)).rejects.toMatchObject({ data: { stage } })
   await vi.advanceTimersByTimeAsync(5_000)
   await result
+  expect(f.setSurface).toHaveBeenCalledWith({ width: 800, height: 600 })
   expect(f.getSurface()).toBeNull()
   expect(f.debuggerApi.listenerCount('message')).toBe(0)
-  const count = f.commands.length
+  const count = f.calls.length
   complete({ data: 'late' })
   await vi.advanceTimersByTimeAsync(1)
   expect(f.getSurface()).toBeNull()
-  expect(f.commands).toHaveLength(count)
+  expect(f.calls).toHaveLength(count)
   f.context.send = original
-  expect(await f.capture.screenshot(f.context)).toBe('capture-png')
+  expect(await f.capture.screenshot(f.context)).toBe('capture-jpeg')
 })
 
-it.each(['cancel', 'close', 'detach'])('cleans up an active screencast after %s', async reason => {
-  const f = fixture()
+it.each(['cancel', 'close', 'detach'])('cleans up an active screencast and surface after %s', async reason => {
+  const f = fixture({ visible: false })
   const abort = new AbortController()
   f.context.signal = abort.signal
   const original = f.context.send
@@ -122,27 +184,46 @@ it.each(['cancel', 'close', 'detach'])('cleans up an active screencast after %s'
   }
   const result = expect(f.capture.screenshot(f.context)).rejects.toThrow(reason === 'cancel' ? 'cancelled' : 'PageClosed')
   await ready
+  expect(f.getSurface()).toEqual({ width: 800, height: 600 })
   if (reason === 'cancel') abort.abort()
   else if (reason === 'close') f.page.emit('destroyed')
   else f.debuggerApi.emit('detach', {}, 'closed')
   await result
-  expect(f.commands).toContain('Page.stopScreencast')
+  expect(f.commands()).toContain('Page.stopScreencast')
   expect(f.getSurface()).toBeNull()
   expect(f.page.listenerCount('destroyed')).toBe(0)
   expect(f.debuggerApi.listenerCount('message')).toBe(0)
   expect(f.debuggerApi.listenerCount('detach')).toBe(0)
 })
 
-it.each(['full-page', 'clip', 'cdp'])('uses and restores a temporary surface for %s captures', async kind => {
+const beyond = { format: 'jpeg', quality: 80, captureBeyondViewport: true }
+
+it.each(['full-page', 'clip', 'cdp'])('captures %s on a surface sized to the clip and releases it', async kind => {
   const f = fixture()
-  const params = { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width: 800, height: 2400, scale: 1 } }
-  if (kind === 'cdp') expect(await f.capture.captureCdp(f.context, params)).toEqual({ data: 'capture-png' })
-  else expect(await f.capture.screenshot(f.context, kind === 'clip' ? { clip: params.clip } : { fullPage: true })).toBe('capture-png')
-  expect(f.setSurface).toHaveBeenCalledWith({ width: 800, height: 2400 })
-  expect(f.context.viewport).toEqual({ width: 800, height: 600 })
-  expect(f.getSurface()).toBeNull()
-  expect(f.commands).not.toContain('Page.startScreencast')
-  expect(f.diagnostics.join('\n')).not.toContain('capture-png')
+  const clip = { x: 0, y: 0, width: 800, height: 2400, scale: 1 }
+  if (kind === 'cdp') expect(await f.capture.captureCdp(f.context, { ...beyond, clip })).toEqual({ data: 'capture-jpeg' })
+  else expect(await f.capture.screenshot(f.context, kind === 'clip' ? { clip } : { fullPage: true })).toBe('capture-jpeg')
+  expect(f.setSurface.mock.calls).toEqual([[{ width: 800, height: 2400 }], [null]])
+  expect(f.paramsOf('Page.captureScreenshot')).toEqual([
+    { ...beyond, clip: kind === 'cdp' ? clip : { ...clip, scale: 0.5 } }
+  ])
+  expect(f.commands()).not.toContain('Page.startScreencast')
+  expect(f.diagnostics.join('\n')).not.toContain('capture-jpeg')
+})
+
+it.each([
+  ['a visible tab without a clip', true, { format: 'png' }, null],
+  ['a hidden tab without a clip', false, { format: 'png' }, { width: 800, height: 600 }],
+  ['a visible tab with a clip but within the viewport', true, { clip: { x: 0, y: 0, width: 800, height: 2400, scale: 1 } }, null],
+  ['a hidden tab with a clip but within the viewport', false, { clip: { x: 0, y: 0, width: 800, height: 2400, scale: 1 } }, { width: 800, height: 600 }],
+  ['a visible tab beyond the viewport without a clip', true, { captureBeyondViewport: true }, null],
+  ['a visible tab beyond the viewport with a non-numeric clip', true, { captureBeyondViewport: true, clip: { width: '800', height: 2400 } }, null]
+])('passes a capture straight through for %s', async (_name, visible, params, surface) => {
+  const f = fixture({ visible })
+  expect(await f.capture.captureCdp(f.context, params)).toEqual({ data: 'capture-jpeg' })
+  expect(f.paramsOf('Page.captureScreenshot')).toEqual([params])
+  expect(f.setSurface.mock.calls).toEqual(surface ? [[surface], [null]] : [])
+  expect(f.commands()).not.toContain('Runtime.evaluate')
 })
 
 it('bounds layout settling and still attempts capture when dimensions have not caught up', async () => {
@@ -152,9 +233,9 @@ it('bounds layout settling and still attempts capture when dimensions have not c
   f.context.send = async (method, params) => method === 'Page.getLayoutMetrics'
     ? { cssVisualViewport: { clientWidth: 800, clientHeight: 600 } }
     : await original(method, params)
-  const result = f.capture.captureCdp(f.context, { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width: 800, height: 2400 } })
+  const result = f.capture.captureCdp(f.context, { ...beyond, clip: { x: 0, y: 0, width: 800, height: 2400 } })
   await vi.advanceTimersByTimeAsync(1_000)
-  expect(await result).toEqual({ data: 'capture-png' })
+  expect(await result).toEqual({ data: 'capture-jpeg' })
   expect(f.getSurface()).toBeNull()
 })
 
@@ -183,13 +264,16 @@ it('serializes captures so an earlier cleanup cannot clear the next surface', as
   }
   const a = f.capture.screenshot(f.context, { fullPage: true })
   await ready
+  f.context.visible = false
   const b = f.capture.screenshot(f.context)
   await Promise.resolve()
   expect(f.getSurface()).toEqual({ width: 800, height: 2400 })
   release()
-  expect(await a).toBe('capture-png')
-  expect(await b).toBe('capture-png')
-  expect(f.getSurface()).toBeNull()
+  expect(await a).toBe('capture-jpeg')
+  expect(await b).toBe('capture-jpeg')
+  expect(f.setSurface.mock.calls).toEqual([
+    [{ width: 800, height: 2400 }], [null], [{ width: 800, height: 600 }], [null]
+  ])
 })
 
 it('does not run a queued capture after its request was cancelled', async () => {
@@ -208,7 +292,7 @@ it('does not run a queued capture after its request was cancelled', async () => 
   const first = f.capture.screenshot(f.context, { fullPage: true })
   await ready
   const abort = new AbortController()
-  const cancelled = { ...f.context, signal: abort.signal, setSurface: vi.fn() }
+  const cancelled = { ...f.context, visible: false, signal: abort.signal, setSurface: vi.fn() }
   const second = expect(f.capture.screenshot(cancelled)).rejects.toThrow('cancelled')
   abort.abort()
   expect(f.getSurface()).toEqual({ width: 800, height: 2400 })
@@ -250,6 +334,6 @@ it.each(['metrics', 'surface-wait', 'capture'])('identifies a rejected %s comman
   await expect(result).rejects.toMatchObject({
     message: expect.stringContaining(`Screenshot ${stage} failed`), data: { stage }
   })
-  if (stage !== 'capture') expect(f.commands).not.toContain('Page.captureScreenshot')
+  if (stage !== 'capture') expect(f.commands()).not.toContain('Page.captureScreenshot')
   expect(f.getSurface()).toBeNull()
 })

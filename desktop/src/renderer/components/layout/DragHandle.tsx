@@ -64,6 +64,7 @@ export function DragHandle({
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault()
+      e.currentTarget.setPointerCapture?.(e.pointerId)
       updateDragging(true)
       lastX.current = e.clientX
 
@@ -79,6 +80,7 @@ export function DragHandle({
         document.removeEventListener('pointermove', onPointerMove)
         document.removeEventListener('pointerup', onPointerUp)
         document.removeEventListener('pointercancel', onPointerUp)
+        document.removeEventListener('lostpointercapture', onPointerUp)
         document.body.style.cursor = ''
         document.body.style.userSelect = ''
       }
@@ -86,6 +88,7 @@ export function DragHandle({
       document.addEventListener('pointermove', onPointerMove)
       document.addEventListener('pointerup', onPointerUp)
       document.addEventListener('pointercancel', onPointerUp)
+      document.addEventListener('lostpointercapture', onPointerUp)
       document.body.style.cursor = 'col-resize'
       document.body.style.userSelect = 'none'
     },

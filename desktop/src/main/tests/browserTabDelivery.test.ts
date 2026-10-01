@@ -45,8 +45,7 @@ it('delivers multiple live pages, releases client handles and reclaims them with
     listAutomationTargetTabs: () => [...pages.keys()].map(snapshot),
     snapshotState: (_owner: unknown, id: string) => snapshot(id),
     destroyTab: destroy, loadAutomationUrl: load, setAutomationState: () => {},
-    clickMouse: async () => {}, doubleClickMouse: async () => {}, moveMouse: async () => {},
-    typeText: async () => {}, keypress: () => {}, scrollMouse: () => {}, dragMouse: async () => {}
+    moveMouse: async () => {}
   } as any)
   repl = new NodeReplManager(manager, workerFixture.fork)
   let turnId = 'one'

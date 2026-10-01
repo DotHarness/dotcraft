@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.7.10 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-01 |
 | **Parent Specs** | [Chrome Browser Runtime](chrome-browser-runtime.md) |
 
 Purpose: define the behavior contract for DotCraft Desktop's embedded in-app browser automation runtime. The runtime is exposed to AppServer as `desktop-iab` and presents a browser-use compatible `iab` backend inside the thread-bound Node REPL.
@@ -71,7 +71,7 @@ The runtime has five layers:
    - Hosts in-app browser tabs as persistent DOM webview guests in a window-level renderer host. Main registers the guest WebContents and preserves the existing partition, controls and CDP ownership.
    - Tab creation waits for guest readiness, including hidden automation tabs. Switching tasks or hiding the panel changes presentation without removing guest nodes; explicit tab/window closure disposes them.
    - Renderer portals share the page composition hierarchy; ordinary menus never hide the page. Guest viewport dimensions remain available while automation runs in the background.
-   - Shows automation state, session name, last action hints, and virtual cursor movement when available.
+   - Shows automation state, session name, last action hints, and the virtual cursor described in [Section 12](#12-coordinate-input-virtual-cursor-and-dom-cua).
    - Keeps user focus stable after the initial agent-created tab open.
 
 ## 4. AppServer and Session Metadata
@@ -201,7 +201,7 @@ Required primitives:
 | `attach` / `detach` | Manages top-level CDP attachment for a tab. |
 | `attachTarget` / `detachTarget` | Manages target-scoped CDP sessions for frames and related targets. |
 | `executeCdp` | Runs a CDP command with command timeout, cancellation, and result-size limits. |
-| `moveMouse` | Updates the visible virtual cursor and action hints. |
+| `moveMouse` | Moves the virtual cursor only; it never dispatches page input. |
 | `executeUnhandledCommand` | Handles backend-specific capability commands not implemented directly by the browser client. |
 
 Tab ids exposed through backend primitives must be stable numeric ids scoped to the browser session. Desktop may keep existing viewer tab ids internally, but those ids must not leak as browser-use backend tab ids.
@@ -246,12 +246,7 @@ Rules:
 - Main-frame `did-fail-load` must become a structured navigation failure containing safe error code, safe description, requested URL summary, and final URL summary when available.
 - Failed navigation must not make tab snapshots report the failed target URL as a successfully loaded page. Snapshots should prefer the actual `webContents` URL or an explicit error-page URL, with safe navigation-failure diagnostics when available.
 - Chromium error pages such as `chrome-error://chromewebdata/` must not be reported as successful navigation to the requested site.
-- Screenshots may run on empty, loading, or error pages and must not require useful body text.
-- Viewport screenshots first request a fresh PNG screencast frame for up to two seconds, then fall back to `Page.captureScreenshot` for up to five seconds within the existing overall operation deadline. Frames predating the request are acknowledged but never returned.
-- Screenshot surfaces remain mounted, paint above the application with opacity `0.001` and no pointer interaction, and do not change panel visibility or focus. Presentation scales the surface to fit the owner viewport so its entire native backing surface can paint. Visible pages and active automation disable background throttling; idle hidden pages restore it. Capture temporarily disables owner-renderer throttling and restores its previous value after the last capture surface is released.
-- Full-page, cropped, element, and low-level CDP screenshots share temporary capture-surface sizing. The renderer overrides physical guest dimensions without replacing stored bounds or viewport settings; layout settling is bounded to one second and the override is removed on every terminal path.
-- Screenshot stages report bounded metadata (stage, elapsed time, dimensions, throttling, and outcome), never image data or page content. Cancellation, timeout, debugger detachment, and guest closure release listeners, internal screencasts, and temporary surfaces; late command results cannot update a later operation.
-- Screenshot commands serialize per guest. An existing raw CDP screencast prevents an internal screencast from starting; internal screencast events are not exposed to raw CDP subscribers.
+- Screenshot behavior is defined in [Section 11](#11-viewport-and-screenshots).
 - DOM, locator, and accessibility commands use their own readiness and wait behavior.
 - DOM snapshot readiness may proceed for an `interactive` or `complete` document with an existing `document.body`, even when text and interactable-element heuristics are temporarily empty.
 - `waitForLoadState("domcontentloaded")` must complete for an already loaded tab when `document.readyState` is `interactive` or `complete` and `document.body` exists; readiness sampling must not depend on `requestAnimationFrame`, which can be throttled in hidden or unfocused tabs.
@@ -271,7 +266,7 @@ Requirements:
 - The supported reference-client subset includes `tabs.new/selected/list/get/content/finalize`, `browser.user.openTabs/claimTab`, browser `visibility` and `viewport` capabilities, `tab.goto/back/forward/reload/title/url`, screenshots, virtual clipboard `readText/writeText/read/write`, `playwright.evaluate(fnOrExpression, arg?, options?)`, `domSnapshot`, `waitForURL`, real `waitForLoadState`, `waitForTimeout`, `expectNavigation`, common locator reads and actions, `locator.all()` cached reads, `locator.filter()`, `locator.and()`, `locator.or()`, scoped `locator(selector, options)` filters, `getByRole/Text/Label/Placeholder/TestId`, same-origin `frameLocator`, coordinate CUA actions, DOM-CUA visible-node actions, `pageAssets.list/bundle`, and page-defined WebMCP tools through `tab.capabilities.get("webmcp")` only when the current page advertises them.
 - `tabs.new(url?)` is a Desktop IAB compatibility extension. When a URL is supplied, it must trigger at most one backend navigation and must not be followed by a second client-side `goto(url)`.
 - `tab.screenshot()` must use the dedicated backend screenshot command so screenshot failures have browser operation context. Generic `executeCdp(Page.captureScreenshot)` remains available only as a low-level backend primitive.
-- `executeUnhandledCommand` accepts browser-use compatible command aliases for BrowserUser, navigation, screenshots, Playwright evaluate/DOM/locator operations, CUA, DOM-CUA, pageAssets, WebMCP, viewport, visibility, tabs content, clipboard, and dev logs. Aliases must normalize snake_case and camelCase fields to the same Desktop IAB runtime methods.
+- `executeUnhandledCommand` handles only the commands the bundled browser client sends: tab marks, browser visibility and viewport, tabs content, dev logs, screenshots, clipboard, DOM snapshot, load-state waits, locator operations, DOM-CUA node info, and tab close, back, forward, and reload. `tab_content_export` and every other command type fail with `UnsupportedApi`.
 - Playwright-compatible helpers exposed by the browser client must be backed by CDP primitives where practical, including locator actions, `getBy*` helpers, title, URL, and bounded evaluate helpers.
 - `playwright.evaluate(fnOrExpression, arg?, options?)` is model-facing bounded page evaluation. It may read page state and compute bounded results, but must reject common navigation, DOM mutation, storage mutation, network-send, scroll, click, focus, and form side effects. Interaction side effects belong to locators, CUA, DOM-CUA, navigation, or wait helpers.
 - When a Playwright-compatible helper cannot be implemented safely in IAB, the Browser skill must not claim it as supported.
@@ -285,24 +280,63 @@ Requirements:
 
 Default serialized browser result cap: 1 MB unless `capabilities.browserUse.maxBrowserResultBytes` advertises a different lower cap.
 
-## 11. Coordinate Input and DOM-CUA
+## 11. Viewport and Screenshots
+
+Viewport rules:
+
+- A visible tab lays out at the panel's content size. A hidden tab keeps its last visible size; a tab that has never been visible uses 1280x720.
+- `viewport.set({ width, height })` applies an explicit viewport to the session's selected tab, or its first controlled tab, through `Emulation.setDeviceMetricsOverride` with `deviceScaleFactor: 1` and `mobile: false`. Width is clamped to 240-4096 and height to 160-4096. `viewport.reset()` clears it with `Emulation.clearDeviceMetricsOverride`, returning the tab to its natural size. Both resolve after the emulation is applied.
+- When the session controls no tab, `set` and `reset` are held and applied once to the next tab the session creates or controls. Other tabs keep natural sizing; turn end discards a held request.
+- Releasing a tab clears its explicit viewport; deactivation keeps it.
+- Emulation updates for a tab are serialized, and an update superseded by a newer one is skipped. Every CDP command on the tab waits for pending updates. Emulation is reapplied when the debugger attaches.
+- The guest element of a tab with an explicit viewport has the explicit size. When visible, the page and its virtual cursor are scaled together by `min(1, availableWidth / width, availableHeight / height)`, where the available area is the panel content minus 40 px horizontally and 20 px vertically; the scaled page is centered horizontally with at least a 20 px gutter and anchored to the top.
+- Agent-facing documentation describes the existing default viewport without fixed dimensions.
+
+Screenshot rules:
+
+- Screenshots may run on empty, loading, or error pages and must not require useful body text.
+- Viewport screenshots never change the page's layout size. They capture `Page.getLayoutMetrics().cssVisualViewport` with `clip.scale` set to `1 / devicePixelRatio`, so image dimensions equal the CSS viewport used by coordinate input.
+- Screenshots are JPEG at quality 80. Viewport screenshots first request a fresh screencast frame bounded by the CSS viewport for up to two seconds, then fall back to `Page.captureScreenshot` for up to five seconds within the overall operation deadline. Frames predating the request are acknowledged but never returned.
+- A visible tab in a shown, unminimized window is captured in place. Any other tab is presented on a capture surface at its current layout size so it paints; the surface stays mounted above the application with opacity `0.001`, no pointer interaction, and a fit-to-window scale, and never changes panel visibility or focus.
+- Full-page and cropped screenshots, including low-level `Page.captureScreenshot` calls with `captureBeyondViewport` and a clip, use a capture surface sized exactly to the clip (`ceil(width) × ceil(height)`). Layout settling polls for at most one second and the surface is removed on every terminal path.
+- Visible pages and active automation disable background throttling; idle hidden pages restore it. A capture surface temporarily disables owner-renderer throttling and restores its previous value after the last surface is released.
+- Screenshot stages report bounded metadata (stage, elapsed time, dimensions, throttling, and outcome), never image data or page content. Cancellation, timeout, debugger detachment, and guest closure release listeners, internal screencasts, and temporary surfaces; late command results cannot update a later operation.
+- Screenshot commands serialize per guest. An existing raw CDP screencast prevents an internal screencast from starting; internal screencast events are not exposed to raw CDP subscribers.
+
+## 12. Coordinate Input, Virtual Cursor, and DOM-CUA
 
 Coordinate and DOM-CUA behavior must be independent of the DOM snapshot path.
 
-Rules:
+Virtual cursor rules:
 
-- Coordinate actions require object-shaped finite coordinates such as `{ x: 940, y: 444 }`.
+- Backend commands that act on a tab mark it automation-active. Turn cleanup, release, retention, and cancellation deactivate it.
+- The viewer renders the cursor in a non-interactive overlay above the guest page. It is never part of the page DOM, page screenshots, or DOM reads.
+- The cursor is shown only while its tab is automation-active and visible. Deactivation hides it; release clears its position. Activation without a move rests the cursor at 58% of the viewport width and 55% of its height.
+- `moveMouse` assigns each move an increasing sequence number. When the owner window is focused and the tab is visible, the move animates and the backend waits for the renderer's arrival acknowledgement for that sequence, bounded by 1500 ms; otherwise the cursor snaps and the call returns immediately. `waitForArrival: false` never waits. Late acknowledgements for older sequences are ignored, and a timeout never fails the move.
+- Moves animate with springs: long moves follow a curved path and short moves glide directly. Activation and the first move after the cursor was hidden show it at the target immediately; hiding fades it out.
+
+Input rules:
+
+- Coordinate actions require object-shaped finite coordinates such as `{ x: 940, y: 444 }` in CSS pixels of the page's current viewport, the same space as viewport screenshots.
 - Positional calls such as `tab.cua.click(940, 444)` fail with `InvalidArgument` and a message showing the object-shaped form.
-- Pointer actions should move the visible virtual cursor along a short path before click, double-click, drag, and scroll input is sent.
-- Coordinate scroll should prefer CDP `Input.synthesizeScrollGesture` with mouse source, no fling, and deterministic speed after moving the visible virtual cursor. Electron wheel input may be used only as a fallback when CDP scroll is unavailable.
+- Page input is dispatched only through CDP `Input.dispatchMouseEvent`, `Input.dispatchKeyEvent`, and `Input.insertText`; other `Input.*` methods fail with `UnsupportedApi`. Before each input command the backend waits for pending viewport emulation on the tab and enables `Emulation.setFocusEmulationEnabled`.
+- Pointer sequences:
+  - move: cursor move, then `mouseMoved` with no buttons;
+  - click: cursor move, `mouseMoved`, then for each count `n` from 1 to `clickCount` a `mousePressed` and `mouseReleased` pair with `clickCount: n` and the button mask, so a double click sends two pairs. If the page starts loading within 250 ms, the click waits for `DOMContentLoaded` or `load`, bounded by 3 seconds, and a timeout does not fail the click. A blocked navigation fails it;
+  - drag: cursor move and `mouseMoved` to the start, `mousePressed`, then for each later point a non-waiting cursor move and `mouseMoved` with the button held, then `mouseReleased`; a failure releases the button best-effort;
+  - scroll: cursor move, `mouseMoved`, then `mouseWheel` at the origin with the distance as `deltaX`/`deltaY`.
+- Typing text dispatches a synthetic paste of the text to the focused element. When the page does not cancel the paste, the text is inserted into the focused input, textarea, or editable element.
+- Key presses parse `+`-joined chords with a US keyboard layout. Keys go down in order and up in reverse, carrying `key`, `code`, `windowsVirtualKeyCode`, `location`, and modifier flags; a key held with modifiers other than Shift is sent as `rawKeyDown` without `text`. Copy, cut, and paste chords act on the virtual clipboard; other native clipboard shortcuts fail.
+- Copy and cut from credential-like fields copy nothing and delete nothing; these are input, textarea, or select elements that are hidden or whose `type`, `autocomplete`, `id`, `name`, `placeholder`, `aria-label`, or `title` names a username, email, one-time code, password, OTP, 2FA/MFA, or phone field. Copied markup drops the `value` of such inputs.
+- Locator clicks require a visible, enabled target, scroll it into view, wait for a stable box, then use the click sequence. Locator `fill`, `type`, and `press` focus their target through the DOM without moving the cursor; `fill` and `type` then use the paste path and `press` the key sequence.
 - CUA scroll treats `x`/`y` as viewport origin coordinates and `scrollX`/`scrollY` or `deltaX`/`deltaY` as scroll distance. Zero-distance CUA scroll must fail clearly instead of reporting success.
 - DOM-CUA scroll without a `node_id` treats `x`/`y` as scroll distance and uses the viewport center as the gesture origin. DOM-CUA scroll with a `node_id` uses the node center as origin and accepts `x`/`y`, `scrollX`/`scrollY`, or `deltaX`/`deltaY` as distance aliases.
-- Overlay injection failure must not block the underlying native or CDP input event.
+- Cursor failures never fail an action, and cursor waits never exceed the arrival bound.
 - DOM-CUA visible node discovery should use CDP DOM, accessibility, and layout data rather than parsing a browser-client DOM snapshot string.
 - DOM-CUA node ids are session-scoped and invalidated on navigation, reload, frame detach, and tab close.
 - DOM-CUA actions resolve the current element box at action time and fail with `TabStale`, `NodeStale`, or `LocatorStrictModeViolation` when the target is no longer valid or ambiguous.
 
-## 12. Timeouts, Cancellation, and Recovery
+## 13. Timeouts, Cancellation, and Recovery
 
 There are two timeout and cancellation levels:
 
@@ -323,7 +357,7 @@ Rules:
 - Recoverable browser command errors must not clear `browser`, `tab`, or unrelated user-defined globals.
 - Outer process ownership and recovery follow [Node REPL](node-repl.md#process-ownership-and-cancellation).
 
-## 13. Security, Privacy, and Policy
+## 14. Security, Privacy, and Policy
 
 Desktop browser policy remains authoritative.
 
@@ -336,7 +370,7 @@ Rules:
 - Native pipe paths, process ids with nonces, extension ids, and local profile paths are forbidden in UI and ordinary logs.
 - Ambient browser-client network checks are disabled by default; backend policy enforcement must not depend on client-side ambient network calls.
 
-## 14. Error Categories and Diagnostics
+## 15. Error Categories and Diagnostics
 
 Stable IAB error categories:
 
@@ -361,7 +395,7 @@ Client-visible errors must provide:
 - stable `code`;
 - short English fallback text;
 - safe structured params when useful;
-- no sensitive diagnostic fields listed in [Section 13](#13-security-privacy-and-policy).
+- no sensitive diagnostic fields listed in [Section 14](#14-security-privacy-and-policy).
 
 Native-pipe browser clients must preserve backend error `code` and safe `data` on the JavaScript `Error` object so callers can inspect fields such as navigation `validatedURL`, `finalURL`, and safe error descriptions.
 
@@ -374,20 +408,16 @@ Agent recovery guidance:
 - `UnsupportedApi`: use the documented compatibility subset.
 - `InvalidArgument`: fix the call shape before retrying.
 
-## 15. Browser Skill Contract
+## 16. Browser Skill Contract
 
-The bundled Browser skill is part of the runtime contract because it teaches the model how to call the browser API.
+The bundled Browser skill and the runtime documentation returned by `browser.documentation()` are part of the runtime contract because they teach the model how to call the browser API.
 
 Rules:
 
-- The bundled plugin resource is the source of truth for Browser skill text; workspace-installed copies are derived artifacts.
-- Skill examples must match the actual asynchronous API shape.
-- The skill must document Node REPL output rules, including using `nodeRepl.write` for text and `nodeRepl.emitImage` for images.
-- The skill must preserve DotCraft-specific bootstrap through `dotcraft.browserClientPath`, the `NodeReplJs` tool, and the `iab` browser id; it must state that `agent` is returned by the bundled browser client. Plugin-root imports from other runtimes, alternate browser-control fallback wording, ordinary downloads, file chooser, upload, raw CDP capability, and hidden browser history must not be documented as Desktop IAB capabilities.
-- The skill must document model-facing operating discipline for visibility, user-facing progress wording, persistent JavaScript bindings, tab reuse, temporary-tab cleanup, search/URL fallback limits, and stopping repeated verification once an authoritative page signal is present.
-- The skill must state that `tab.playwright` is a supported subset, not a full Playwright page object. It must not encourage methods absent from the bundled API reference, such as `locator.evaluate()` or `locator.evaluateAll()`.
-- The skill must document locator discipline, strict locator failures, search-result narrowing, CUA object-shaped coordinates, DOM-CUA behavior, screenshot output, bounded evaluate limits, and the supported Playwright-compatible subset.
-- The skill must guide noisy result pages toward one snapshot or screenshot followed by scoped locators, not broad per-link text/href loops.
-- The skill must document browser-only safety and confirmation rules for data transmission, account/permission changes, uploads, messages, purchases, browser permission prompts, downloads, and actions that require user hand-off.
-- The skill must include a DotCraft IAB API reference that matches the bundled browser client and backend subset.
-- The skill must not describe APIs that are missing from the bundled browser client or unsupported by the IAB backend.
+- The bundled plugin resource and `desktop/resources/browser/scripts/browser-documentation.mjs` are the sources of truth; workspace-installed copies are derived artifacts.
+- The skill covers surface choice, user-facing progress wording, bootstrap through `dotcraft.browserClientPath`, the `NodeReplJs` tool and the `iab` browser id, Node REPL output through `nodeRepl.write` and `nodeRepl.emitImage`, persistent bindings and stale-tab recovery. It states that `agent` is returned by the bundled browser client and requires reading the complete runtime documentation before the first browser action.
+- The complete runtime documentation contains the supported API (tabs, the Playwright-compatible subset, DOM-CUA, and coordinate actions), operating guidance (observation, locator discipline, strict locator failures, search-result narrowing, bounded evaluate, tab reuse, temporary-tab cleanup, search and URL fallback limits, and stopping repeated verification once an authoritative page signal is present), visibility guidance, browser safety, and the browser confirmation policy for data transmission, account and permission changes, uploads, messages, purchases, browser permission prompts, and actions that require user hand-off.
+- Topic guidance for screenshots, viewport, page assets, and WebMCP is listed in the documentation with when to read it and is returned by `agent.documentation.get(name)`. Topics are filtered by the backend's capabilities.
+- Examples must match the actual asynchronous API shape. `tab.playwright` is described as a supported subset; methods absent from the bundled client, such as `locator.evaluate()`, are not encouraged.
+- The skill and documentation must not describe APIs missing from the bundled client or unsupported by the backend. Plugin-root imports from other runtimes, alternate browser-control fallbacks, ordinary downloads, file choosers, uploads, raw CDP capability, and browsing history are not documented as capabilities.
+- Model-facing text omits implementation details the model cannot act on, such as internal ids, process and reset mechanics, backend command names, and internal product names.

@@ -11,12 +11,28 @@ type Metrics = {
 export interface BrowserScreenshotContext {
   tabId: string
   page: WebContents
-  viewport: Size
+  layoutSize: Size
+  visible: boolean
   timeoutMs: number
   signal?: AbortSignal
   send(method: string, params?: Record<string, unknown>): Promise<unknown>
   setSurface(size: Size | null): void
   diagnostic(message: string): void
+}
+
+const IMAGE = { format: 'jpeg', quality: 80 } as const
+
+function clipOf(source: Size & { x: number; y: number }, scale: number): Clip {
+  return {
+    x: Math.max(0, source.x), y: Math.max(0, source.y),
+    width: Math.max(1, source.width), height: Math.max(1, source.height), scale
+  }
+}
+
+function clipSize(clip: unknown): Size | undefined {
+  const { width, height } = (clip ?? {}) as Partial<Size>
+  return typeof width === 'number' && typeof height === 'number' &&
+    Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0 ? { width, height } : undefined
 }
 
 interface CaptureState {
@@ -155,25 +171,20 @@ export class BrowserScreenshot {
     return await this.serialized(context.page, async () => {
       const operation = new CaptureOperation(context)
       try {
-        operation.setSurface(context.viewport)
-        const metrics = await operation.send<Metrics>('metrics', 'Page.getLayoutMetrics')
-        const viewport = metrics.cssVisualViewport
-        const source = options?.clip ?? (options?.fullPage
-          ? metrics.cssContentSize
-          : { x: viewport.pageX, y: viewport.pageY, width: viewport.clientWidth, height: viewport.clientHeight })
-        const clip: Clip = {
-          x: Math.max(0, source.x), y: Math.max(0, source.y),
-          width: Math.max(1, source.width), height: Math.max(1, source.height), scale: 1
+        if (options?.clip || options?.fullPage) {
+          const source = options.clip ?? (await operation.send<Metrics>('metrics', 'Page.getLayoutMetrics')).cssContentSize
+          const clip = clipOf(source, await this.scale(operation))
+          return (await this.capture(operation, { ...IMAGE, captureBeyondViewport: true, clip })).data as string
         }
-        if (!options?.fullPage && !options?.clip && !this.state(context.page).rawScreencast) {
-          const frame = await this.screencast(operation, clip)
+        if (!context.visible) operation.setSurface(context.layoutSize)
+        const { cssVisualViewport: view } = await operation.send<Metrics>('metrics', 'Page.getLayoutMetrics')
+        const scale = await this.scale(operation)
+        if (scale <= 1 && !this.state(context.page).rawScreencast) {
+          const frame = await this.screencast(operation, { width: view.clientWidth, height: view.clientHeight })
           if (frame) return frame
         }
-        const result = await this.capture(operation, {
-          format: 'png', fromSurface: true,
-          captureBeyondViewport: options?.fullPage === true || options?.clip != null, clip
-        })
-        return result.data as string
+        const clip = clipOf({ x: view.pageX, y: view.pageY, width: view.clientWidth, height: view.clientHeight }, scale)
+        return (await this.captureImage(operation, { ...IMAGE, clip })).data as string
       } finally { operation.dispose() }
     })
   }
@@ -187,34 +198,57 @@ export class BrowserScreenshot {
 
   private async capture(operation: CaptureOperation, params: Record<string, unknown>): Promise<Record<string, unknown>> {
     const { context } = operation
-    const clip = params.clip as Clip | undefined
-    const surface = params.captureBeyondViewport === true && clip
-      ? { width: Math.max(context.viewport.width, Math.ceil(clip.width)), height: Math.max(context.viewport.height, Math.ceil(clip.height)) }
-      : context.viewport
-    operation.setSurface(surface)
-    if (params.captureBeyondViewport === true && clip) {
-      const surfaceDeadline = Date.now() + 1_000
-      try {
-        await operation.run('surface-wait', 1_000, async () => {
-          while (Date.now() < surfaceDeadline) {
-            operation.controller.signal.throwIfAborted()
-            const metrics = await context.send('Page.getLayoutMetrics') as Metrics
-            operation.controller.signal.throwIfAborted()
-            if (Date.now() >= surfaceDeadline) return
-            const viewport = metrics.cssVisualViewport
-            if (viewport.clientWidth >= surface.width && viewport.clientHeight >= surface.height) return
-            await new Promise(resolve => setTimeout(resolve, 16))
-          }
-        })
-      } catch (error) {
-        operation.controller.signal.throwIfAborted()
-        if (!(error instanceof BrowserUseBackendError) || error.code !== -32010 ||
-            (error.data as { stage?: string } | undefined)?.stage !== 'surface-wait') throw error
-      }
+    const size = params.captureBeyondViewport === true ? clipSize(params.clip) : undefined
+    if (size) {
+      const surface = { width: Math.ceil(size.width), height: Math.ceil(size.height) }
+      operation.setSurface(surface)
+      await this.settle(operation, surface)
+    } else if (!context.visible) {
+      operation.setSurface(context.layoutSize)
     }
+    return await this.captureImage(operation, params)
+  }
+
+  private async captureImage(operation: CaptureOperation, params: Record<string, unknown>): Promise<Record<string, unknown>> {
     const result = await operation.send<Record<string, unknown>>('capture', 'Page.captureScreenshot', params)
-    if (typeof result.data !== 'string' || !result.data) throw new Error(`Page.captureScreenshot returned no data for tab ${context.tabId}.`)
+    if (typeof result.data !== 'string' || !result.data) {
+      throw new Error(`Page.captureScreenshot returned no data for tab ${operation.context.tabId}.`)
+    }
     return result
+  }
+
+  private async settle(operation: CaptureOperation, surface: Size): Promise<void> {
+    const { context } = operation
+    const surfaceDeadline = Date.now() + 1_000
+    try {
+      await operation.run('surface-wait', 1_000, async () => {
+        while (Date.now() < surfaceDeadline) {
+          operation.controller.signal.throwIfAborted()
+          const metrics = await context.send('Page.getLayoutMetrics') as Metrics
+          operation.controller.signal.throwIfAborted()
+          if (Date.now() >= surfaceDeadline) return
+          const viewport = metrics.cssVisualViewport
+          if (viewport.clientWidth >= surface.width && viewport.clientHeight >= surface.height) return
+          await new Promise(resolve => setTimeout(resolve, 16))
+        }
+      })
+    } catch (error) {
+      operation.controller.signal.throwIfAborted()
+      if (!(error instanceof BrowserUseBackendError) || error.code !== -32010 ||
+          (error.data as { stage?: string } | undefined)?.stage !== 'surface-wait') throw error
+    }
+  }
+
+  private async scale(operation: CaptureOperation): Promise<number> {
+    try {
+      const result = await operation.send<{ result?: { value?: unknown } }>(
+        'scale', 'Runtime.evaluate', { expression: 'window.devicePixelRatio', returnByValue: true })
+      const ratio = result.result?.value
+      if (typeof ratio === 'number' && Number.isFinite(ratio) && ratio > 0) return 1 / ratio
+    } catch {
+      operation.controller.signal.throwIfAborted()
+    }
+    return 1
   }
 
   private async screencast(operation: CaptureOperation, size: Size): Promise<string | undefined> {
@@ -243,7 +277,7 @@ export class BrowserScreenshot {
       return await operation.run('screencast', 2_000, async () => {
         started = true
         await context.send('Page.startScreencast', {
-          format: 'png', everyNthFrame: 1, maxWidth: Math.round(size.width), maxHeight: Math.round(size.height)
+          ...IMAGE, everyNthFrame: 1, maxWidth: Math.round(size.width), maxHeight: Math.round(size.height)
         })
         return await frame
       })
