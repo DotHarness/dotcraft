@@ -11,7 +11,7 @@ import { LayerBoundary } from '../../../../contexts/LayerContext'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useSatellitesStore } from '../../../../stores/satellitesStore'
 import { isInviteExpired, type SatelliteInvite } from '../../../../../shared/satellites'
-import * as s from '../servers/serversStyles'
+import * as s from '../connections/connectionsStyles'
 
 /** The minted link lives in the store, so closing and reopening shows it again. */
 export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX.Element {

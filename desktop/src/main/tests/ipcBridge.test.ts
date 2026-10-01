@@ -134,10 +134,11 @@ import {
   getProtocolHandlerName,
   broadcastNotification,
   broadcastServerRequest,
-  shouldShowTaskCompletionNotification,
-  getRemoteServersManager
+  shouldShowTaskCompletionNotification
 } from '../ipcBridge'
 import { setDesktopServiceHandoffHandler } from '../desktopServiceHandoff'
+import { SshMachinesManager } from '../sshMachines/sshMachinesManager'
+import { normalizeSshMachines } from '../../shared/sshMachines'
 import { unwrapAppServerResult } from '../../shared/appServerError'
 
 type IpcCallbacks = NonNullable<Parameters<typeof registerIpcHandlers>[3]>
@@ -162,6 +163,17 @@ function createIpcCallbacks(overrides: Partial<IpcCallbacks> = {}): IpcCallbacks
     getWorkspaceStatus: vi.fn(() => ({ status: 'ready', workspacePath: '/workspace', hasUserConfig: false, providers: [] })),
     ...overrides
   }
+}
+
+function machinesManagerFor(hosts: unknown[]): SshMachinesManager {
+  const machines = normalizeSshMachines(hosts)
+  return new SshMachinesManager({
+    loadMachines: () => structuredClone(machines),
+    saveMachines: vi.fn(),
+    installScript: () => '',
+    appVersion: '0.0.0',
+    packaged: false
+  })
 }
 
 function registerHandlersForTest(
@@ -1451,7 +1463,7 @@ describe('registerIpcHandlers', () => {
       handlers.set(channel, handler as (...args: unknown[]) => unknown)
     })
     const updateSettings = vi.fn()
-    const onConnectRemoteStack = vi.fn().mockResolvedValue({ localPort: 51523 })
+    const onConnectDockerDeployment = vi.fn().mockResolvedValue({ localPort: 51523 })
     const host = {
       id: 'h1',
       name: 'Cloud',
@@ -1468,17 +1480,18 @@ describe('registerIpcHandlers', () => {
     }
 
     registerIpcHandlers(null, () => null, '/workspace', createIpcCallbacks({
-      getSettings: vi.fn(() => ({ remoteHosts: [host] })),
+      getSettings: vi.fn(() => ({ remoteHosts: normalizeSshMachines([host]) })),
+      getSshMachinesManager: () => machinesManagerFor([host]),
       updateSettings,
-      onConnectRemoteStack
+      onConnectDockerDeployment
     }))
 
-    const result = await handlers.get('remoteStacks:open-app-server-tunnel')?.({}, {
-      hostId: 'h1',
+    const result = await handlers.get('sshMachines:docker-open')?.({}, {
+      id: 'h1',
       stackId: 's1'
     })
 
-    expect(onConnectRemoteStack).toHaveBeenCalledWith(
+    expect(onConnectDockerDeployment).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'h1' }),
       expect.objectContaining({ id: 's1' })
     )
@@ -1488,7 +1501,7 @@ describe('registerIpcHandlers', () => {
         remote: expect.objectContaining({ url: expect.stringContaining('127.0.0.1') })
       })
     )
-    expect(result).toEqual({ ok: true, hostId: 'h1', stackId: 's1', localPort: 51523 })
+    expect(result).toEqual({ ok: true, machineId: 'h1', stackId: 's1', localPort: 51523 })
   })
 
   it('remote stack disconnect forwards to the active-stack disconnect callback', async () => {
@@ -1496,14 +1509,15 @@ describe('registerIpcHandlers', () => {
     vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
       handlers.set(channel, handler as (...args: unknown[]) => unknown)
     })
-    const onDisconnectRemoteStack = vi.fn().mockResolvedValue(undefined)
+    const onDisconnectDockerDeployment = vi.fn().mockResolvedValue(undefined)
 
     registerIpcHandlers(null, () => null, '/workspace', createIpcCallbacks({
-      onDisconnectRemoteStack
+      getSshMachinesManager: () => machinesManagerFor([]),
+      onDisconnectDockerDeployment
     }))
 
-    await handlers.get('remoteStacks:disconnect')?.({}, { hostId: 'h1', stackId: 's1' })
-    expect(onDisconnectRemoteStack).toHaveBeenCalledWith('h1', 's1')
+    await handlers.get('sshMachines:docker-disconnect')?.({}, { id: 'h1', stackId: 's1' })
+    expect(onDisconnectDockerDeployment).toHaveBeenCalledWith('h1', 's1')
   })
 
   it('workspace-config:get-core reads nested Skills.SelfLearning.Enabled values', async () => {
@@ -1581,7 +1595,8 @@ describe('registerIpcHandlers', () => {
         dashboardPort: 8080,
       }]
     }
-    const readCoreConfig = vi.spyOn(getRemoteServersManager(), 'readCoreConfig').mockResolvedValue({
+    const manager = machinesManagerFor([host])
+    const readCoreConfig = vi.spyOn(manager.docker, 'readCoreConfig').mockResolvedValue({
       workspaceRaw: JSON.stringify({
         ProviderId: 'anthropic-main',
         ProviderPreferences: {
@@ -1613,8 +1628,9 @@ describe('registerIpcHandlers', () => {
           locale: 'en',
           connectionMode: 'remote',
           activeRemoteStack: { hostId: 'h1', stackId: 's1' },
-          remoteHosts: [host]
+          remoteHosts: normalizeSshMachines([host])
         })),
+        getSshMachinesManager: () => manager,
         getWorkspaceStatus: vi.fn(() => ({
           status: 'ready',
           workspacePath: '/local/workspace',
@@ -1668,6 +1684,35 @@ describe('registerIpcHandlers', () => {
     } finally {
       readCoreConfig.mockRestore()
     }
+  })
+
+  it('workspace-config:get-core reads the active SSH remote project config over SSH', async () => {
+    const handlers = new Map<string, (...args: unknown[]) => unknown>()
+    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
+      handlers.set(channel, handler as (...args: unknown[]) => unknown)
+    })
+    const machine = { id: 'm1', source: 'sshConfig', alias: 'lab', projects: [{ id: 'p1', path: '/home/dev/src' }] }
+    const manager = machinesManagerFor([machine])
+    const readProjectConfig = vi.spyOn(manager, 'readProjectConfig').mockResolvedValue({
+      workspaceRaw: JSON.stringify({ ProviderId: 'anthropic' }),
+      userDefaultsRaw: ''
+    })
+
+    registerIpcHandlers(null, () => null, '/local/workspace', createIpcCallbacks({
+      getSettings: vi.fn(() => ({
+        locale: 'en',
+        connectionMode: 'remote',
+        activeRemoteProject: { machineId: 'm1', projectId: 'p1' },
+        remoteHosts: normalizeSshMachines([machine])
+      })),
+      getSshMachinesManager: () => manager
+    }))
+
+    const result = await handlers.get('workspace-config:get-core')?.({})
+
+    expect(readProjectConfig).toHaveBeenCalledWith('m1', 'p1')
+    expect(fs.readFile).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ workspace: { providerId: 'anthropic' } })
   })
 
   it('registers workspace:list-setup-models and forwards to callback', async () => {
@@ -2179,18 +2224,6 @@ describe('unregisterIpcHandlers', () => {
     expect(removedChannels.filter((channel) => channel === 'workspace:remove-recent')).toHaveLength(1)
     expect(removedChannels.filter((channel) => channel === 'workspace:disconnect-remote')).toHaveLength(1)
     expect(removedChannels.filter((channel) => channel === 'workspace:clear-recent')).toHaveLength(1)
-  })
-
-  it('does not close remote tunnels while re-registering IPC handlers', () => {
-    const closeAllTunnels = vi.spyOn(getRemoteServersManager(), 'closeAllTunnels')
-
-    try {
-      unregisterIpcHandlers()
-
-      expect(closeAllTunnels).not.toHaveBeenCalled()
-    } finally {
-      closeAllTunnels.mockRestore()
-    }
   })
 
   it('removes the new workspace handlers after they are registered', () => {

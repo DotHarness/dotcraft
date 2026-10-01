@@ -1446,18 +1446,17 @@ describe('SettingsView self-learning settings', () => {
     })
   })
 
-  it('shows active remote stack connections as Servers-managed settings', async () => {
+  it('keeps an SSH-opened remote project out of the manual connection form', async () => {
     settingsGet.mockResolvedValueOnce({
       locale: 'en',
       connectionMode: 'remote',
-      activeRemoteStack: { hostId: 'host-1', stackId: 'stack-1' },
+      activeRemoteProject: { machineId: 'machine-1', projectId: 'project-1' },
     })
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Connections' }))
 
-    expect(await screen.findByText('Managed by Servers')).toBeInTheDocument()
-    expect(screen.getByText('This remote connection uses the saved server instance. Use Servers to disconnect or change it.')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Manage' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Remote WebSocket URL')).not.toBeInTheDocument()
     expect(screen.queryByText('Enter a remote WebSocket URL before applying Remote mode.')).not.toBeInTheDocument()
     expect(screen.queryByText('Connection changes are staged. Apply them to connect to the remote AppServer.')).not.toBeInTheDocument()

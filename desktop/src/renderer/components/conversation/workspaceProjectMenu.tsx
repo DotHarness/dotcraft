@@ -33,7 +33,7 @@ export function projectIcon(project: WorkspaceProjectSummary): ReactNode {
   if (project.kind !== 'remote') {
     return <Folder size={14} strokeWidth={1.8} aria-hidden />
   }
-  return project.remote?.source === 'servers'
+  return project.remote?.source === 'servers' || project.remote?.source === 'ssh'
     ? <Server size={14} strokeWidth={1.8} aria-hidden />
     : <Cloud size={14} strokeWidth={1.8} aria-hidden />
 }

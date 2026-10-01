@@ -12,7 +12,7 @@ import { SatelliteDetail } from '../satellites/SatelliteDetail'
 import { SatelliteInviteDialog } from '../satellites/SatelliteInviteDialog'
 import { SatelliteList } from '../satellites/SatelliteList'
 import { SegmentSetupState } from './SegmentSetupState'
-import * as s from '../servers/serversStyles'
+import * as s from './connectionsStyles'
 
 interface SatellitesSegmentProps {
   /** Reports whether a detail page is open, so the shell can yield the surface. */

@@ -25,11 +25,11 @@ import {
 import { copyInlineVisualizationImage } from './inlineVisualizationCapture'
 import { resolveBinaryLocation } from './AppServerManager'
 import { openDesktopServiceHandoff } from './desktopServiceHandoff'
-import { RemoteServersManager } from './remoteServers/remoteServersManager'
+import type { SshMachinesManager } from './sshMachines/sshMachinesManager'
 import {
-  registerRemoteServersHandlers,
-  REMOTE_SERVERS_CHANNELS
-} from './remoteServers/remoteServersIpc'
+  registerSshMachinesHandlers,
+  SSH_MACHINES_CHANNELS
+} from './sshMachines/sshMachinesIpc'
 import {
   registerSatellitesHandlers,
   SATELLITES_CHANNELS
@@ -96,7 +96,8 @@ import type {
   WorkspaceSetupModelListResult
 } from '../shared/workspaceSetup'
 import type { WorkspaceSetupResult } from './workspaceSetup'
-import { normalizeRemoteHosts, type RemoteHost, type RemoteStack } from '../shared/remoteServers'
+import type { RemoteStack } from '../shared/dockerDeployments'
+import type { SshMachine } from '../shared/sshMachines'
 import { translate, normalizeLocale, DEFAULT_LOCALE, type AppLocale } from '../shared/locales'
 import { parseJsonObjectConfig } from '../shared/jsonConfig'
 import { findMissingRequiredConfigFields } from '../shared/channelModuleConfig'
@@ -779,15 +780,21 @@ async function readActiveRemoteCoreConfigSnapshot(
   callbacks?: IpcHandlerCallbacks
 ): Promise<{ workspace: WorkspaceCoreConfigSnapshot; userDefaults: WorkspaceCoreConfigSnapshot } | null> {
   const settings = callbacks?.getSettings()
-  if (!settings || settings.connectionMode !== 'remote') return null
-  const ref = settings.activeRemoteStack
-  if (!ref?.hostId || !ref.stackId) return null
+  const manager = callbacks?.getSshMachinesManager?.()
+  if (!settings || !manager || settings.connectionMode !== 'remote') return null
 
-  const host = normalizeRemoteHosts(settings.remoteHosts).find((candidate) => candidate.id === ref.hostId)
-  const stack = host?.stacks.find((candidate) => candidate.id === ref.stackId)
-  if (!host || !stack) return null
-
-  const raw = await getRemoteServersManager().readCoreConfig(host, stack)
+  let raw: { workspaceRaw: string; userDefaultsRaw: string } | null = null
+  const stackRef = settings.activeRemoteStack
+  const projectRef = settings.activeRemoteProject
+  if (stackRef?.hostId && stackRef.stackId) {
+    const machine = manager.list().machines.find((candidate) => candidate.id === stackRef.hostId)
+    const stack = machine?.stacks.find((candidate) => candidate.id === stackRef.stackId)
+    if (!machine || !stack) return null
+    raw = await manager.docker.readCoreConfig(machine, stack)
+  } else if (projectRef?.machineId && projectRef.projectId) {
+    raw = await manager.readProjectConfig(projectRef.machineId, projectRef.projectId)
+  }
+  if (!raw) return null
   return {
     workspace: readCoreConfigSnapshotFromText(raw.workspaceRaw),
     userDefaults: readCoreConfigSnapshotFromText(raw.userDefaultsRaw)
@@ -805,9 +812,9 @@ function resolveModuleWsConfig(
 ): { wsUrl: string; token?: string } {
   const mode = resolveConnectionMode(settings)
   if (mode === 'remote') {
-    if (settings.activeRemoteStack) {
+    if (settings.activeRemoteStack || settings.activeRemoteProject) {
       if (!runtime?.wsUrl?.trim()) {
-        throw new Error('Remote stack AppServer tunnel is not connected.')
+        throw new Error('Remote AppServer SSH forward is not connected.')
       }
       return runtime.token?.trim()
         ? { wsUrl: runtime.wsUrl.trim(), token: runtime.token.trim() }
@@ -906,9 +913,11 @@ export interface IpcHandlerCallbacks {
   onRestartManagedAppServer: () => Promise<void>
   onRetryAppServerConnection?: (request?: RetryConnectionRequest) => Promise<void>
   onApplyConnectionSettings?: (draft: ConnectionSettingsDraft) => Promise<void>
-  onConnectRemoteStack?: (host: RemoteHost, stack: RemoteStack) => Promise<{ localPort?: number }>
-  /** Disconnects a saved remote stack; if it is the active one, Desktop returns to local mode. */
-  onDisconnectRemoteStack?: (hostId: string, stackId: string) => Promise<void>
+  getSshMachinesManager?: () => SshMachinesManager
+  onConnectDockerDeployment?: (machine: SshMachine, stack: RemoteStack) => Promise<{ localPort?: number }>
+  onDisconnectDockerDeployment?: (machineId: string, stackId: string) => Promise<void>
+  onOpenRemoteProject?: (machineId: string, projectId: string) => Promise<void>
+  onLeaveRemoteProject?: (machineId: string, projectId: string) => Promise<void>
   onDisconnectRemoteProject?: () => Promise<void>
   getSettings: () => AppSettings
   /** Absent leaves the satellite channels unregistered. */
@@ -980,11 +989,6 @@ let channelModuleManager: ChannelModuleManager | null = null
 let ensureModulesScanned: (() => Promise<DiscoveredModule[]>) | null = null
 let getSettingsSnapshotForModules: (() => AppSettings) | null = null
 
-let remoteServersManager: RemoteServersManager | null = null
-export function getRemoteServersManager(): RemoteServersManager {
-  if (!remoteServersManager) remoteServersManager = new RemoteServersManager()
-  return remoteServersManager
-}
 const terminalCleanupHookedWindows = new Set<number>()
 
 function normalizeChannelName(channelName: string): string {
@@ -2185,14 +2189,17 @@ export function registerIpcHandlers(
     }
   )
 
-  registerRemoteServersHandlers({
-    handleSafe,
-    getSettings: () => callbacks?.getSettings() ?? {},
-    updateSettings: (partial) => callbacks?.updateSettings(partial),
-    connectRemoteStack: callbacks?.onConnectRemoteStack,
-    disconnectRemoteStack: callbacks?.onDisconnectRemoteStack,
-    manager: getRemoteServersManager()
-  })
+  const sshMachinesManager = callbacks?.getSshMachinesManager?.()
+  if (sshMachinesManager) {
+    registerSshMachinesHandlers({
+      handleSafe,
+      manager: sshMachinesManager,
+      openRemoteProject: callbacks?.onOpenRemoteProject,
+      leaveRemoteProject: callbacks?.onLeaveRemoteProject,
+      connectDockerDeployment: callbacks?.onConnectDockerDeployment,
+      disconnectDockerDeployment: callbacks?.onDisconnectDockerDeployment
+    })
+  }
 
   const hubCallbacks = callbacks
   if (hubCallbacks?.getHubClient) {
@@ -2585,7 +2592,7 @@ export function broadcastServerRequest(
 
 /** Must run before re-registering handlers on a workspace switch. */
 export function unregisterIpcHandlers(): void {
-  for (const channel of REMOTE_SERVERS_CHANNELS) {
+  for (const channel of SSH_MACHINES_CHANNELS) {
     ipcMain.removeHandler(channel)
   }
   for (const channel of SATELLITES_CHANNELS) {

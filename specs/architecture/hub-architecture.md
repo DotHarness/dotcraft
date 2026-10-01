@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.7.8 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-01 |
 
 Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services without changing the AppServer Protocol or replacing DotCraft's per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts on other machines: it accepts their outbound connections and relays each session — a tool session to a local AppServer, or a screen view to a local client — as an opaque byte stream.
 
@@ -33,7 +33,7 @@ Hub solves that by acting like a local container manager:
 2. **Do not change AppServer Protocol for local coordination.** No workspace routing fields are added to AppServer methods.
 3. **Keep Hub off the conversation hot path.** After bootstrap, clients connect directly to the AppServer WebSocket endpoint.
 4. **Use stdio for supervision, WebSocket for sharing.** Hub uses stdio to supervise managed AppServers; local clients use WebSocket to share the same AppServer.
-5. **Keep Hub local and single-user.** The Hub Local API always binds to loopback and uses same-user local trust assumptions. Hub may additionally open a separate, opt-in satellite listener on a LAN address that serves only Remote Tool Host pairing and transport routes; the two listeners are separate applications with separate route tables, and no `/v1/*` endpoint is ever reachable from the satellite listener.
+5. **Keep Hub local and single-user.** The Hub Local API always binds to loopback on the machine where Hub runs and uses same-user trust assumptions. A client on another machine reaches it only through an SSH local forward authenticated as that same OS user (§9.1). Hub may additionally open a separate, opt-in satellite listener on a LAN address that serves only Remote Tool Host pairing and transport routes; the two listeners are separate applications with separate route tables, and no `/v1/*` endpoint is ever reachable from the satellite listener.
 6. **Keep standalone AppServer valid.** `dotcraft app-server` remains available for explicit remote hosting, CI, bots, and debugging.
 7. **Keep UI ownership in Desktop.** Hub is headless; tray and OS notifications belong to Desktop/Electron.
 8. **Keep product services closed and explicit.** Hub may supervise product-owned local services registered by DotCraft composition, but it is not a native-process extension point for plugins.
@@ -291,6 +291,22 @@ Local clients should default to Hub-managed local mode:
 
 Desktop and CLI expose local mode as Hub-managed local execution. Explicit remote WebSocket mode remains available and bypasses Hub.
 
+### 9.1 Remote Hub over SSH
+
+Desktop may use the Hub of another machine it reaches over SSH, as specified in [Remote Machines over SSH](../features/remote-server-management.md). That Hub is an ordinary Hub run by the remote user: it binds loopback on its own machine, is single-user, and is unchanged by being used remotely.
+
+- The client starts the remote Hub over SSH detached from the session; a second start while a Hub holds `hub.lock` exits without effect.
+- The client reads the remote `hub.lock` over SSH, opens an SSH local forward to the port in `apiBaseUrl`, and trusts the metadata only after `GET /v1/status` answers through the forward.
+- `POST /v1/appservers/ensure` takes the remote absolute workspace path. The client forwards the port of the returned `appServerWebSocket` endpoint and connects to it; it follows `appserver.running` and `port.allocated` events, or ensures again, when that port changes.
+
+The remote client mode differs from local bootstrap:
+
+- It never reads a local lock, checks a process id, or starts a local Hub.
+- It never stops or restarts a remote Hub because its binary differs from the client's; the remote Hub is stopped only by an explicit user update of DotCraft on that machine.
+- It never sends runtime tool hints, because local paths mean nothing on the remote machine.
+- It never mints satellite invitations, so the remote satellite listener stays off.
+- Disconnecting closes forwards only; the remote Hub and its AppServers keep running.
+
 Local mode does not require users to configure AppServer or Dashboard ports. Hub owns those runtime allocations for managed processes.
 
 When a Desktop window closes during a running turn, notification delivery to that window is best-effort and may stop immediately. Reopening the workspace should reuse the same managed AppServer and recover the thread state through normal AppServer Protocol reads or subscriptions.
@@ -352,7 +368,7 @@ The satellite listener is the one endpoint that binds a non-loopback address, an
 
 If optional modules are disabled or unavailable, Hub reports service status as `disabled` or `unavailable` and still starts the AppServer.
 
-Desktop and other local clients may pass local runtime tool hints, such as a resolved bundled `rg` path, Electron-as-Node path, Electron run-as-Node flag, bundled TypeScript modules directory, and bundled built-in plugin roots, in `POST /v1/appservers/ensure` or restart requests. Hub persists these hints under `~/.craft/hub/runtime.json` and forwards them only as AppServer process environment variables: `DOTCRAFT_RG_PATH`, `DOTCRAFT_NODE_BIN`, `DOTCRAFT_NODE_RUN_AS_NODE`, `DOTCRAFT_MODULES_DIR`, and `DOTCRAFT_BUILTIN_PLUGIN_ROOTS`. Hub must not expose secrets in runtime-tool status payloads; `serviceStatus.typescriptRuntime` may report `allocated`, `unavailable`, or `restartRequired`.
+Desktop and other local clients, never a remote client (§9.1), may pass local runtime tool hints, such as a resolved bundled `rg` path, Electron-as-Node path, Electron run-as-Node flag, bundled TypeScript modules directory, and bundled built-in plugin roots, in `POST /v1/appservers/ensure` or restart requests. Hub persists these hints under `~/.craft/hub/runtime.json` and forwards them only as AppServer process environment variables: `DOTCRAFT_RG_PATH`, `DOTCRAFT_NODE_BIN`, `DOTCRAFT_NODE_RUN_AS_NODE`, `DOTCRAFT_MODULES_DIR`, and `DOTCRAFT_BUILTIN_PLUGIN_ROOTS`. Hub must not expose secrets in runtime-tool status payloads; `serviceStatus.typescriptRuntime` may report `allocated`, `unavailable`, or `restartRequired`.
 
 Hub must not silently rewrite unrelated user-configured ports for native channels, webhook modules, or future integrations unless a service explicitly participates in Hub-managed runtime overrides.
 
@@ -367,7 +383,8 @@ Security constraints:
 - Hub API uses bearer token authorization for protected endpoints.
 - Managed AppServer WebSocket endpoints use per-process tokens when available.
 - The satellite listener may bind a non-loopback address. It is disabled by default, serves no `/v1/*` route, and authenticates every connection with a one-time invite id or a per-peer bearer credential of which Hub stores only the hash. Profile v1 uses plain `ws://` and assumes a trusted intranet; invitations are single-use and expire. Screen frames relayed for a peer inherit this profile.
-- Remote or multi-user Hub scenarios beyond satellite pairing require a separate security design.
+- A client on another machine reaches Hub only through an SSH local forward authenticated as the Hub's OS user (§9.1); the Hub token travels over that SSH session and is held only in the client's memory.
+- Multi-user Hub scenarios, and remote access other than satellite pairing and SSH forwarding, require a separate security design.
 
 ## 13. Compatibility
 

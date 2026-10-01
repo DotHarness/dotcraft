@@ -53,7 +53,6 @@ import {
   registerIpcHandlers,
   unregisterIpcHandlers,
   getChannelModuleManager,
-  getRemoteServersManager,
   restoreModuleTrackingByChannelName,
   broadcastConnectionStatus,
   broadcastWorkspaceStatus,
@@ -176,10 +175,13 @@ import {
 import {
   effectiveAppServerWorkspacePath,
   effectiveWorkspaceDir,
-  normalizeRemoteHosts,
-  type RemoteHost,
   type RemoteStack
-} from '../shared/remoteServers'
+} from '../shared/dockerDeployments'
+import { normalizeSshMachines, type RemoteProject, type SshMachine } from '../shared/sshMachines'
+import { SshMachinesManager } from './sshMachines/sshMachinesManager'
+import { SSH_MACHINES_CHANGED_CHANNEL } from './sshMachines/sshMachinesIpc'
+import { listRemoteProviders } from './sshMachines/remoteProviderList'
+import { DOTCRAFT_INSTALL_SCRIPT } from './sshMachines/installScript'
 import type {
   WorkspaceProjectKind,
   WorkspaceRemoteProjectMetadata,
@@ -233,6 +235,8 @@ let activeRemoteWorkspace: WorkspaceStatusPayload['remote'] | null = null
 let activeRemoteProject: ActiveRemoteProject | null = null
 let previousLocalForegroundWorkspacePath: string | null = null
 let lastRemoteStackLocalPort: number | null = null
+let sshMachinesManager: SshMachinesManager | null = null
+let remoteProjectRefreshTimer: ReturnType<typeof setTimeout> | null = null
 let connectionGeneration = 0
 const SECONDARY_WORKSPACE_CONNECTION_LIMIT = 8
 
@@ -543,6 +547,27 @@ function getWorkspaceProjectsPayload(): WorkspaceProjectsPayload {
       ...(entry?.errorMessage ? { errorMessage: entry.errorMessage } : {})
     }
   })
+  for (const machine of normalizeSshMachines(sharedSettings.remoteHosts)) {
+    for (const remoteProject of machine.projects) {
+      const saved = buildSshRemoteProject(machine, remoteProject, undefined, '')
+      if (saved.projectId === activeRemoteProject?.projectId) continue
+      projects.push({
+        projectId: saved.projectId,
+        kind: 'remote',
+        path: saved.displayPath,
+        identityWorkspacePath: saved.identityWorkspacePath,
+        name: saved.name,
+        state: 'cold',
+        running: false,
+        loaded: false,
+        threadCount: 0,
+        threads: [],
+        pinnedThreadIds: getPinnedThreadIdsForProject(saved.projectId),
+        pinned: isProjectPinned(saved.projectId),
+        remote: saved.remote
+      })
+    }
+  }
   if (activeRemoteProject) {
     const entry = workspaceConnections.get(activeRemoteProject.projectId)
     const state: WorkspaceProjectState = entry?.errorMessage
@@ -932,7 +957,7 @@ function workspaceTitleName(workspacePath: string | null | undefined, locale: Ap
 }
 
 function buildRemoteWorkspaceStatus(
-  host: RemoteHost,
+  host: SshMachine,
   stack: RemoteStack
 ): NonNullable<WorkspaceStatusPayload['remote']> {
   const projectId = `remote:servers:${host.id}:${stack.id}`
@@ -953,7 +978,7 @@ function buildRemoteWorkspaceStatus(
 }
 
 function buildServersRemoteProject(
-  host: RemoteHost,
+  host: SshMachine,
   stack: RemoteStack,
   endpoint?: string,
   localWorkspacePath: string = currentWorkspacePath
@@ -989,6 +1014,50 @@ function buildServersRemoteProject(
       projectId,
       displayName: status.displayName || stack.name,
       ...(endpoint ? { endpoint } : {})
+    }
+  }
+}
+
+function sshRemoteProjectId(machineId: string, projectId: string): string {
+  return `remote:ssh:${machineId}:${projectId}`
+}
+
+function buildSshRemoteProject(
+  machine: SshMachine,
+  project: RemoteProject,
+  endpoint?: string,
+  localWorkspacePath: string = currentWorkspacePath
+): ActiveRemoteProject {
+  const projectId = sshRemoteProjectId(machine.id, project.id)
+  const remote: WorkspaceRemoteProjectMetadata = {
+    source: 'ssh',
+    displayPath: project.path,
+    ...(endpoint ? { endpoint } : {}),
+    hostId: machine.id,
+    serverName: machine.name,
+    appServerWorkspacePath: project.path,
+    projectName: project.label,
+    remoteProjectId: project.id
+  }
+  return {
+    projectId,
+    source: 'ssh',
+    name: project.label,
+    identityWorkspacePath: project.path,
+    displayPath: project.path,
+    ...(endpoint ? { endpoint } : {}),
+    localWorkspacePath,
+    remote,
+    status: {
+      source: 'ssh',
+      projectId,
+      displayName: project.label,
+      ...(endpoint ? { endpoint } : {}),
+      hostId: machine.id,
+      serverName: machine.name,
+      appServerWorkspacePath: project.path,
+      projectName: project.label,
+      remoteProjectId: project.id
     }
   }
 }
@@ -1063,12 +1132,77 @@ function prepareRemoteForeground(project: ActiveRemoteProject): void {
 
 function resolveActiveRemoteStack(
   settings: AppSettings
-): { host: RemoteHost; stack: RemoteStack } | null {
+): { host: SshMachine; stack: RemoteStack } | null {
   const ref = settings.activeRemoteStack
   if (!ref?.hostId || !ref.stackId) return null
-  const host = normalizeRemoteHosts(settings.remoteHosts).find((candidate) => candidate.id === ref.hostId)
+  const host = normalizeSshMachines(settings.remoteHosts).find((candidate) => candidate.id === ref.hostId)
   const stack = host?.stacks.find((candidate) => candidate.id === ref.stackId)
   return host && stack ? { host, stack } : null
+}
+
+function resolveActiveSshProject(
+  settings: AppSettings
+): { machine: SshMachine; project: RemoteProject } | null {
+  const ref = settings.activeRemoteProject
+  if (!ref?.machineId || !ref.projectId) return null
+  const machine = normalizeSshMachines(settings.remoteHosts).find((candidate) => candidate.id === ref.machineId)
+  const project = machine?.projects.find((candidate) => candidate.id === ref.projectId)
+  return machine && project ? { machine, project } : null
+}
+
+function buildInitialRemoteProject(settings: AppSettings, localWorkspacePath: string): ActiveRemoteProject | null {
+  if (resolveConnectionMode(settings) !== 'remote') return null
+  const sshProject = resolveActiveSshProject(settings)
+  if (sshProject) return buildSshRemoteProject(sshProject.machine, sshProject.project, undefined, localWorkspacePath)
+  const stack = resolveActiveRemoteStack(settings)
+  return stack ? buildServersRemoteProject(stack.host, stack.stack, undefined, localWorkspacePath) : null
+}
+
+function getSshMachinesManager(): SshMachinesManager {
+  if (!sshMachinesManager) {
+    sshMachinesManager = new SshMachinesManager({
+      loadMachines: () => normalizeSshMachines(sharedSettings.remoteHosts),
+      saveMachines: (machines) => updateSharedSettings({ remoteHosts: machines.length > 0 ? machines : undefined }),
+      installScript: () => DOTCRAFT_INSTALL_SCRIPT,
+      appVersion: app.getVersion(),
+      packaged: app.isPackaged,
+      checkProviders: listRemoteProviders,
+      onChanged: (payload) => {
+        const win = mainWindow
+        if (win && !win.isDestroyed()) win.webContents.send(SSH_MACHINES_CHANGED_CHANNEL, payload)
+        emitWorkspaceProjects()
+      },
+      onMachineDisconnected: handleSshMachineDisconnected,
+      onProjectEndpointChanged: handleRemoteProjectEndpointChanged,
+      getForegroundProject: () => {
+        const ref = sharedSettings.activeRemoteProject
+        return activeRemoteProject?.source === 'ssh' && ref ? { machineId: ref.machineId, projectId: ref.projectId } : null
+      }
+    })
+  }
+  return sshMachinesManager
+}
+
+function handleSshMachineDisconnected(machineId: string): void {
+  const project = activeRemoteProject
+  if (!project || (project.source !== 'ssh' && project.source !== 'servers') || project.remote.hostId !== machineId) return
+  void disconnectActiveRemoteProject({ restorePreviousLocal: true }).catch((error) => {
+    console.warn('[desktop] failed to leave the remote project of a disconnected machine', error)
+  })
+}
+
+function handleRemoteProjectEndpointChanged(machineId: string, projectId: string): void {
+  const ref = sharedSettings.activeRemoteProject
+  if (ref?.machineId !== machineId || ref.projectId !== projectId) return
+  if (remoteProjectRefreshTimer) clearTimeout(remoteProjectRefreshTimer)
+  remoteProjectRefreshTimer = setTimeout(() => {
+    remoteProjectRefreshTimer = null
+    const current = sharedSettings.activeRemoteProject
+    if (isAppQuitting || current?.machineId !== machineId || current.projectId !== projectId) return
+    void connectToAppServer(currentWorkspacePath).catch((error) => {
+      console.warn('[desktop] remote project reconnect after port change failed', error)
+    })
+  }, 750)
 }
 
 function getWorkspaceStatusForRenderer(workspacePath: string | null | undefined): WorkspaceStatusPayload {
@@ -1097,7 +1231,8 @@ function hasRecoverableActiveRemoteStack(): boolean {
   if (isAppQuitting || !currentWorkspacePath) return false
   if (resolveConnectionMode(sharedSettings) !== 'remote') return false
   const ref = sharedSettings.activeRemoteStack
-  return Boolean(ref?.hostId && ref.stackId)
+  const projectRef = sharedSettings.activeRemoteProject
+  return Boolean((ref?.hostId && ref.stackId) || (projectRef?.machineId && projectRef.projectId))
 }
 
 function scheduleActiveRemoteStackReconnect(reason: string): void {
@@ -1197,7 +1332,7 @@ async function teardownRuntime(
     ? unregisterDesktopIpcHandlers()
     : false
   if (options?.cleanupIpcHandlers) {
-    getRemoteServersManager().closeAllTunnels()
+    sshMachinesManager?.dispose()
     closeAllScreenViews()
   }
   const hadWireClient = wireClient !== null
@@ -1801,28 +1936,36 @@ async function applyConnectionSettings(draft: ConnectionSettingsDraft): Promise<
       throw new Error(resolved.message)
     }
     await probeRemoteAppServerConnection(resolved.connectUrl)
-    closeActiveRemoteStackTunnels()
-    await updateSharedSettings({ ...draft, activeRemoteStack: undefined })
+    closeActiveRemoteForwards()
+    await updateSharedSettings({ ...draft, activeRemoteStack: undefined, activeRemoteProject: undefined })
     await connectToAppServer(currentWorkspacePath)
     return
   }
 
   await teardownRuntime('apply local connection settings before reconnect')
-  closeActiveRemoteStackTunnels()
-  await updateSharedSettings({ ...draft, activeRemoteStack: undefined })
+  closeActiveRemoteForwards()
+  await updateSharedSettings({ ...draft, activeRemoteStack: undefined, activeRemoteProject: undefined })
   const hubClient = createHubClient(sharedSettings)
   const restarted = await hubClient.restartAppServer(currentWorkspacePath, resolveDotCraftRuntimeTools())
   await connectViaWebSocket(currentWorkspacePath, getManagedAppServerEndpoint(restarted))
   startHubEventSubscription(currentWorkspacePath, hubClient)
 }
 
-function closeActiveRemoteStackTunnels(settings: AppSettings = sharedSettings): void {
-  clearActiveRemoteReconnectTimer()
-  activeRemoteReconnectAttempt = 0
+function closeSettingsRemoteForwards(settings: AppSettings): void {
   const ref = settings.activeRemoteStack
   if (ref?.hostId && ref.stackId) {
-    getRemoteServersManager().closeStackTunnels(ref.hostId, ref.stackId)
+    sshMachinesManager?.docker.closeStackTunnels(ref.hostId, ref.stackId)
   }
+  const projectRef = settings.activeRemoteProject
+  if (projectRef?.machineId && projectRef.projectId) {
+    sshMachinesManager?.closeProjectForward(projectRef.machineId, projectRef.projectId)
+  }
+}
+
+function closeActiveRemoteForwards(settings: AppSettings = sharedSettings): void {
+  clearActiveRemoteReconnectTimer()
+  activeRemoteReconnectAttempt = 0
+  closeSettingsRemoteForwards(settings)
   disposeActiveRemoteConnection()
   setActiveRemoteProject(null)
   lastRemoteStackLocalPort = null
@@ -1836,7 +1979,10 @@ async function disconnectActiveRemoteProject(options: {
   clearActiveRemoteReconnectTimer()
   activeRemoteReconnectAttempt = 0
   if (project?.source === 'servers' && project.remote.hostId && project.remote.stackId) {
-    getRemoteServersManager().closeStackTunnels(project.remote.hostId, project.remote.stackId)
+    sshMachinesManager?.docker.closeStackTunnels(project.remote.hostId, project.remote.stackId)
+  }
+  if (project?.source === 'ssh' && project.remote.hostId && project.remote.remoteProjectId) {
+    sshMachinesManager?.closeProjectForward(project.remote.hostId, project.remote.remoteProjectId)
   }
   disposeActiveRemoteConnection()
   setActiveRemoteProject(null)
@@ -1849,7 +1995,8 @@ async function disconnectActiveRemoteProject(options: {
 
   await updateSharedSettings({
     connectionMode: 'local',
-    activeRemoteStack: undefined
+    activeRemoteStack: undefined,
+    activeRemoteProject: undefined
   })
   emitWorkspaceProjects()
 
@@ -1861,32 +2008,33 @@ async function disconnectActiveRemoteProject(options: {
   }
 }
 
-async function connectRemoteStackFromServers(
-  host: RemoteHost,
+function remoteForegroundAnchorPath(): string {
+  return currentWorkspacePath || ensureDefaultChatWorkspace()
+}
+
+async function connectDockerDeployment(
+  host: SshMachine,
   stack: RemoteStack
 ): Promise<{ localPort?: number }> {
-  if (!currentWorkspacePath) {
-    throw new Error('Open a workspace before connecting a remote stack.')
-  }
   if (process.argv.includes('--remote')) {
     throw new Error('Saved remote stacks cannot be activated while Desktop was launched with --remote.')
   }
 
-  const manager = getRemoteServersManager()
+  const manager = getSshMachinesManager()
   const previousActive = sharedSettings.activeRemoteStack
   if (
     previousActive?.hostId &&
     previousActive.stackId &&
     (previousActive.hostId !== host.id || previousActive.stackId !== stack.id)
   ) {
-    manager.closeStackTunnels(previousActive.hostId, previousActive.stackId)
+    manager.docker.closeStackTunnels(previousActive.hostId, previousActive.stackId)
   }
 
-  const result = await manager.openAppServerTunnel(host, stack)
+  const result = await manager.docker.openAppServerTunnel(host, stack)
   try {
     await probeRemoteAppServerConnection(result.wsUrl)
   } catch (error) {
-    manager.closeStackTunnels(host.id, stack.id)
+    manager.docker.closeStackTunnels(host.id, stack.id)
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(formatRemoteConnectionError(message, {
       stage: 'probe',
@@ -1898,23 +2046,68 @@ async function connectRemoteStackFromServers(
     }))
   }
 
+  closeSettingsRemoteForwards({ activeRemoteProject: sharedSettings.activeRemoteProject })
   await updateSharedSettings({
     connectionMode: 'remote',
     remote: undefined,
-    activeRemoteStack: { hostId: host.id, stackId: stack.id }
+    activeRemoteStack: { hostId: host.id, stackId: stack.id },
+    activeRemoteProject: undefined
   })
-  await connectToAppServer(currentWorkspacePath)
+  await connectToAppServer(remoteForegroundAnchorPath())
   return { localPort: lastRemoteStackLocalPort ?? result.localPort }
 }
 
-async function disconnectRemoteStackFromServers(hostId: string, stackId: string): Promise<void> {
+async function disconnectDockerDeployment(hostId: string, stackId: string): Promise<void> {
   const active = sharedSettings.activeRemoteStack
   if (active?.hostId !== hostId || active.stackId !== stackId) {
-    getRemoteServersManager().closeStackTunnels(hostId, stackId)
+    sshMachinesManager?.docker.closeStackTunnels(hostId, stackId)
     return
   }
 
   await disconnectActiveRemoteProject({ restorePreviousLocal: true })
+}
+
+async function leaveSshRemoteProject(machineId: string, projectId: string): Promise<void> {
+  const ref = sharedSettings.activeRemoteProject
+  if (ref?.machineId !== machineId || ref.projectId !== projectId) return
+  await disconnectActiveRemoteProject({ restorePreviousLocal: true })
+}
+
+async function openSshRemoteProject(machineId: string, projectId: string): Promise<void> {
+  if (process.argv.includes('--remote')) {
+    throw new Error('Remote projects cannot be opened while Desktop was launched with --remote.')
+  }
+  const manager = getSshMachinesManager()
+  const opened = await manager.openProject(machineId, projectId)
+  try {
+    await probeRemoteAppServerConnection(opened.wsUrl)
+  } catch (error) {
+    manager.closeProjectForward(machineId, projectId)
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(formatRemoteConnectionError(message, {
+      stage: 'probe',
+      hostName: opened.machine.name,
+      localPort: opened.localPort,
+      targetPort: opened.remotePort,
+      tokenPresent: opened.tokenPresent
+    }))
+  }
+
+  const previousProject = sharedSettings.activeRemoteProject
+  closeSettingsRemoteForwards({
+    activeRemoteStack: sharedSettings.activeRemoteStack,
+    activeRemoteProject:
+      previousProject && (previousProject.machineId !== machineId || previousProject.projectId !== projectId)
+        ? previousProject
+        : undefined
+  })
+  await updateSharedSettings({
+    connectionMode: 'remote',
+    remote: undefined,
+    activeRemoteStack: undefined,
+    activeRemoteProject: { machineId, projectId }
+  })
+  await connectToAppServer(remoteForegroundAnchorPath())
 }
 
 async function connectViaWebSocket(
@@ -2529,8 +2722,11 @@ function buildCallbacks(): IpcHandlerCallbacks {
     onRestartManagedAppServer: restartCurrentManagedAppServer,
     onRetryAppServerConnection: retryCurrentAppServerConnection,
     onApplyConnectionSettings: applyConnectionSettings,
-    onConnectRemoteStack: connectRemoteStackFromServers,
-    onDisconnectRemoteStack: disconnectRemoteStackFromServers,
+    getSshMachinesManager,
+    onConnectDockerDeployment: connectDockerDeployment,
+    onDisconnectDockerDeployment: disconnectDockerDeployment,
+    onOpenRemoteProject: openSshRemoteProject,
+    onLeaveRemoteProject: leaveSshRemoteProject,
     onDisconnectRemoteProject: () => disconnectActiveRemoteProject({ restorePreviousLocal: true }),
     getSettings: () => sharedSettings,
     updateSettings: async (partial) => {
@@ -2618,7 +2814,7 @@ async function openWorkspaceWithoutConnection(workspacePath: string): Promise<vo
   }
 
   await teardownRuntime('switch to setup-required workspace')
-  closeActiveRemoteStackTunnels()
+  closeActiveRemoteForwards()
   currentWorkspacePath = workspacePath
   ensureWorkspaceActivation(workspacePath)
   reregisterIpcForWorkspace(workspacePath)
@@ -2636,7 +2832,7 @@ async function clearWorkspaceSelection(): Promise<void> {
   if (currentWorkspacePath) {
     await teardownRuntime('clear workspace selection', { releaseWorkspaceLock: true })
   }
-  closeActiveRemoteStackTunnels()
+  closeActiveRemoteForwards()
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     viewerBrowserManager.destroyAllTabs(mainWindow)
@@ -2747,6 +2943,10 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
     !launchedWithRemoteUrl && connectionMode === 'remote'
       ? resolveActiveRemoteStack(sharedSettings)
       : null
+  const activeSshProject =
+    !launchedWithRemoteUrl && connectionMode === 'remote'
+      ? resolveActiveSshProject(sharedSettings)
+      : null
   lastRemoteStackLocalPort = null
 
   // --remote ws://host:port/ws?token=xxx  → skip AppServerManager, connect via WebSocket
@@ -2769,11 +2969,69 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
   }
 
   if (connectionMode === 'remote') {
+    if (activeSshProject) {
+      const win = mainWindow!
+      const { machine, project: remoteProject } = activeSshProject
+      emitConnectionStatus(win, { status: 'connecting' })
+      try {
+        const opened = await getSshMachinesManager().openProject(machine.id, remoteProject.id)
+        if (isAppQuitting || currentWorkspacePath !== workspacePath) return false
+        lastRemoteStackLocalPort = opened.localPort
+        const project = buildSshRemoteProject(
+          opened.machine,
+          opened.project,
+          `ws://127.0.0.1:${opened.localPort}/ws`,
+          workspacePath
+        )
+        prepareRemoteForeground(project)
+        emitCurrentWorkspaceStatus(workspacePath)
+        await connectViaWebSocket(workspacePath, opened.wsUrl, {
+          autoReconnect: false,
+          initializeTimeoutMs: REMOTE_INITIALIZE_TIMEOUT_MS,
+          initialDisconnectIsError: true,
+          projectId: project.projectId,
+          projectKind: 'remote',
+          identityWorkspacePath: project.identityWorkspacePath,
+          displayPath: project.displayPath,
+          remote: project.remote,
+          remoteDiagnostic: {
+            stage: 'active-remote-project',
+            hostName: opened.machine.name,
+            localPort: opened.localPort,
+            targetPort: opened.remotePort,
+            tokenPresent: opened.tokenPresent
+          }
+        })
+        return true
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        emitConnectionStatus(win, {
+          status: 'error',
+          errorMessage: formatRemoteConnectionError(message, {
+            stage: 'open-remote-project',
+            hostName: machine.name
+          }),
+          errorType: 'remote-config-invalid'
+        })
+      }
+      return false
+    }
+
+    if (sharedSettings.activeRemoteProject?.machineId || sharedSettings.activeRemoteProject?.projectId) {
+      const win = mainWindow!
+      emitConnectionStatus(win, {
+        status: 'error',
+        errorMessage: 'Saved remote project was not found. Check SSH settings or disconnect this project.',
+        errorType: 'remote-config-invalid'
+      })
+      return false
+    }
+
     if (activeStack) {
       const win = mainWindow!
       emitConnectionStatus(win, { status: 'connecting' })
       try {
-        const result = await getRemoteServersManager().openAppServerTunnel(
+        const result = await getSshMachinesManager().docker.openAppServerTunnel(
           activeStack.host,
           activeStack.stack,
           { forceNew: true }
@@ -3158,10 +3416,10 @@ app.whenReady().then(async () => {
       if (resolveConnectionMode(sharedSettings) !== 'remote') return null
       const active = resolveActiveRemoteStack(sharedSettings)
       if (!active) return null
-      const manager = getRemoteServersManager()
+      const docker = getSshMachinesManager().docker
       const [oratorio, appServer] = await Promise.all([
-        manager.openOratorioTunnel(active.host, active.stack),
-        manager.openAppServerTunnel(active.host, active.stack)
+        docker.openOratorioTunnel(active.host, active.stack),
+        docker.openAppServerTunnel(active.host, active.stack)
       ])
       const workspacePath = active.stack.appServerWorkspacePath?.trim() || '/workspace'
       return {
@@ -3202,15 +3460,12 @@ app.whenReady().then(async () => {
 
   let workspacePath = resolveInitialWorkspacePath(sharedSettings)
 
-  const initialActiveStack =
-    workspacePath && resolveConnectionMode(sharedSettings) === 'remote'
-      ? resolveActiveRemoteStack(sharedSettings)
-      : null
+  const initialRemoteProject = workspacePath ? buildInitialRemoteProject(sharedSettings, workspacePath) : null
 
   // Publish best-effort activation metadata only for a local foreground project.
   // This is not an exclusive workspace gate; AppServer supports multiple Desktop clients.
   if (workspacePath) {
-    if (!initialActiveStack) {
+    if (!initialRemoteProject) {
       acquireWorkspaceLock(workspacePath)
     }
     if (isDefaultChatWorkspace(workspacePath)) {
@@ -3221,9 +3476,7 @@ app.whenReady().then(async () => {
       saveSettings(sharedSettings)
     }
   }
-  setActiveRemoteProject(initialActiveStack
-    ? buildServersRemoteProject(initialActiveStack.host, initialActiveStack.stack, undefined, workspacePath ?? '')
-    : null)
+  setActiveRemoteProject(initialRemoteProject)
   const initialWorkspaceStatus = getWorkspaceStatusForRenderer(workspacePath)
   if (
     workspacePath
@@ -3236,7 +3489,7 @@ app.whenReady().then(async () => {
   const win = createWindow(workspacePath, initialWorkspaceStatus)
   mainWindow = win
   currentWorkspacePath = workspacePath ?? ''
-  if (!initialActiveStack) {
+  if (!initialRemoteProject) {
     ensureWorkspaceActivation(workspacePath ?? '')
   }
   setViewerSecondaryRootsResolver((root) =>
@@ -3265,6 +3518,7 @@ app.whenReady().then(async () => {
       openChromeSettingsFromDeepLink()
     }
     flushPendingSatelliteJoinLink(satelliteJoinLinkWindow)
+    getSshMachinesManager().connectAutoMachines()
     if (workspacePath && initialWorkspaceStatus.status === 'ready') {
       connectWorkspaceForLoadedWindow(win, workspacePath)
     } else {
@@ -3283,12 +3537,9 @@ app.whenReady().then(async () => {
     if (windows.length === 0) {
       sharedSettings = loadSettings()
       let wsPath = resolveInitialWorkspacePath(sharedSettings)
-      const activeStack =
-        wsPath && resolveConnectionMode(sharedSettings) === 'remote'
-          ? resolveActiveRemoteStack(sharedSettings)
-          : null
+      const remoteProject = wsPath ? buildInitialRemoteProject(sharedSettings, wsPath) : null
       if (wsPath) {
-        if (!activeStack) {
+        if (!remoteProject) {
           acquireWorkspaceLock(wsPath)
         }
         if (isDefaultChatWorkspace(wsPath)) {
@@ -3299,14 +3550,12 @@ app.whenReady().then(async () => {
           saveSettings(sharedSettings)
         }
       }
-      setActiveRemoteProject(activeStack
-        ? buildServersRemoteProject(activeStack.host, activeStack.stack, undefined, wsPath ?? '')
-        : null)
+      setActiveRemoteProject(remoteProject)
       const workspaceStatus = getWorkspaceStatusForRenderer(wsPath)
       const newWin = createWindow(wsPath, workspaceStatus)
       mainWindow = newWin
       currentWorkspacePath = wsPath ?? ''
-      if (!activeStack) {
+      if (!remoteProject) {
         ensureWorkspaceActivation(wsPath ?? '')
       }
 
@@ -3329,6 +3578,7 @@ app.whenReady().then(async () => {
           openChromeSettingsFromDeepLink()
         }
         flushPendingSatelliteJoinLink(satelliteJoinLinkWindow)
+        getSshMachinesManager().connectAutoMachines()
         if (wsPath && workspaceStatus.status === 'ready') {
           connectWorkspaceForLoadedWindow(newWin, wsPath)
         } else {

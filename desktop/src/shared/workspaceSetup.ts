@@ -33,7 +33,7 @@ export interface WorkspaceUserConfigDefaults {
 }
 
 export interface RemoteWorkspaceStatusPayload {
-  source?: 'servers' | 'manual' | 'cli'
+  source?: 'servers' | 'ssh' | 'manual' | 'cli'
   projectId?: string
   displayName?: string
   endpoint?: string
@@ -45,6 +45,7 @@ export interface RemoteWorkspaceStatusPayload {
   appServerWorkspacePath?: string
   composeDir?: string
   projectName?: string
+  remoteProjectId?: string
 }
 
 export interface WorkspaceStatusPayload {

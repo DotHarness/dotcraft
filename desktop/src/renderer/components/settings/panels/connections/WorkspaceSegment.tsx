@@ -14,13 +14,14 @@ import { InputWithAction } from '../../../ui/InputWithAction'
 import { SelectionCard } from '../../../ui/SelectionCard'
 import { SecretInput } from '../../../channels/FormShared'
 import { useT } from '../../../../contexts/LocaleContext'
+import { useWorkspaceProjectsStore } from '../../../../stores/workspaceProjectsStore'
 import type { MessageKey } from '../../../../../shared/locales'
 import type { BinarySource, ConnectionMode } from '../../../../../shared/desktopSettings'
 
 export interface WorkspaceSegmentProps {
   connectionMode: ConnectionMode
   onConnectionModeChange: (mode: ConnectionMode) => void
-  activeRemoteStackConnection: boolean
+  sshManagedConnection: boolean
   manualRemoteConnection: boolean
   remoteUrl: string
   onRemoteUrlChange: (value: string) => void
@@ -63,7 +64,7 @@ const BINARY_SOURCE_KEYS: Record<BinarySource, { title: MessageKey; description:
 export function WorkspaceSegment({
   connectionMode,
   onConnectionModeChange,
-  activeRemoteStackConnection,
+  sshManagedConnection,
   manualRemoteConnection,
   remoteUrl,
   onRemoteUrlChange,
@@ -80,9 +81,17 @@ export function WorkspaceSegment({
   resolvedBinaryPath,
   connectionDirty,
   onRevert,
-  revertDisabled
-}: WorkspaceSegmentProps): JSX.Element {
+  revertDisabled,
+  onShowSsh
+}: WorkspaceSegmentProps & { onShowSsh: () => void }): JSX.Element {
   const t = useT()
+  const sshSource = useWorkspaceProjectsStore((state) => {
+    const foreground = state.projects.find((project) => project.projectId === state.foregroundProjectId)
+    const remote = foreground?.kind === 'remote' ? foreground.remote : undefined
+    return remote?.source === 'ssh' || remote?.source === 'servers'
+      ? [remote.serverName, remote.projectName ?? foreground?.name].filter(Boolean).join(' / ')
+      : ''
+  })
   const remote = connectionMode === 'remote'
   // Only local-only controls dim; the heading and the footnote explaining why stay lit.
   const inertInRemoteMode: CSSProperties | undefined = remote
@@ -111,10 +120,15 @@ export function WorkspaceSegment({
           }
         />
 
-        {activeRemoteStackConnection && (
+        {sshManagedConnection && (
           <SettingsRow
-            label={t('settings.remoteStackManaged.title')}
-            description={t('settings.remoteStackManaged.description')}
+            label={t('settings.ssh.workspaceBanner.title')}
+            description={sshSource || undefined}
+            control={
+              <Button variant="ghost" onClick={onShowSsh}>
+                {t('settings.ssh.workspaceBanner.manage')}
+              </Button>
+            }
           />
         )}
 
