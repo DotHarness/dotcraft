@@ -5,9 +5,11 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { SubagentsTab } from '../components/detail/SubagentsTab'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useSubAgentStore, type SubAgentChild } from '../stores/subAgentStore'
+import { useSubAgentTranscriptStore } from '../stores/subAgentTranscriptStore'
 import { useThreadStore } from '../stores/threadStore'
 
 const appServerSendRequest = vi.fn()
+let notify: (payload: { method: string; params: Record<string, unknown> }) => void = () => {}
 
 function makeChild(overrides: Partial<SubAgentChild> & Pick<SubAgentChild, 'childThreadId' | 'nickname'>): SubAgentChild {
   return {
@@ -46,10 +48,17 @@ describe('SubagentsTab', () => {
     appServerSendRequest.mockResolvedValue({})
     installDesktopApiMock({
       settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
-      appServer: { sendRequest: appServerSendRequest }
+      appServer: {
+        sendRequest: appServerSendRequest,
+        onNotification: vi.fn((callback) => {
+          notify = callback as typeof notify
+          return () => { notify = () => {} }
+        })
+      }
     })
     useConnectionStore.getState().reset()
     useSubAgentStore.getState().reset()
+    useSubAgentTranscriptStore.getState().reset()
     useThreadStore.getState().reset()
     // Leave subAgentSessions capability unset so the mount fetch is a no-op and
     // the seeded children remain the source of truth for the test.
@@ -351,15 +360,75 @@ describe('SubagentsTab', () => {
     }
   })
 
-  it('opens the child thread when the whole row is clicked', () => {
+  it('opens the subagent transcript in the tab without leaving the parent thread', async () => {
+    useConnectionStore.setState({ status: 'connected' })
     useSubAgentStore.getState().setChildren('thread-1', [
       makeChild({ childThreadId: 'child-running', nickname: 'Lovelace' })
     ])
 
     renderTab()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open subagent Lovelace' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Open subagent Lovelace' }))
+    })
 
-    expect(useThreadStore.getState().activeThreadId).toBe('child-running')
+    expect(useThreadStore.getState().activeThreadId).toBe('thread-1')
+    expect(useSubAgentStore.getState().selectedChildByParent.get('thread-1')).toBe('child-running')
+    expect(appServerSendRequest).toHaveBeenCalledWith('thread/subscribe', { threadId: 'child-running', replayRecent: true })
+    expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', { threadId: 'child-running' })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Back to subagents' }))
+    })
+
+    expect(useSubAgentStore.getState().selectedChildByParent.has('thread-1')).toBe(false)
+    expect(appServerSendRequest).toHaveBeenCalledWith('thread/unsubscribe', { threadId: 'child-running' })
+  })
+
+  it('streams the opened subagent\'s events into its transcript', async () => {
+    useConnectionStore.setState({ status: 'connected' })
+    useSubAgentStore.getState().setChildren('thread-1', [
+      makeChild({ childThreadId: 'child-running', nickname: 'Lovelace' })
+    ])
+    useSubAgentStore.getState().selectChild('thread-1', 'child-running')
+
+    await act(async () => { renderTab() })
+    await act(async () => {
+      notify({ method: 'turn/started', params: { threadId: 'child-running', turn: { id: 'turn-9', threadId: 'child-running', status: 'running' } } })
+      notify({ method: 'item/started', params: { threadId: 'child-running', turnId: 'turn-9', item: { id: 'msg-1', type: 'agentMessage', status: 'started', createdAt: '2026-10-01T00:00:00.000Z' } } })
+      notify({ method: 'item/agentMessage/delta', params: { threadId: 'child-running', turnId: 'turn-9', itemId: 'msg-1', delta: 'Reading ' } })
+      notify({ method: 'item/agentMessage/delta', params: { threadId: 'child-running', turnId: 'turn-9', itemId: 'msg-1', delta: 'the atlas' } })
+      notify({ method: 'item/agentMessage/delta', params: { threadId: 'other-thread', turnId: 'turn-1', itemId: 'msg-1', delta: 'ignored' } })
+      await new Promise((resolve) => setTimeout(resolve, 80))
+    })
+
+    const transcript = useSubAgentTranscriptStore.getState().transcripts.get('child-running')
+    expect(transcript?.live).toEqual({ itemId: 'msg-1', kind: 'agentMessage', text: 'Reading the atlas' })
+    expect(transcript?.turns.find((turn) => turn.id === 'turn-9')?.items.map((item) => item.id)).toEqual(['msg-1'])
+  })
+
+  it('falls back to polling a running subagent when the thread cannot be subscribed', async () => {
+    vi.useFakeTimers()
+    try {
+      useConnectionStore.setState({ status: 'connected' })
+      appServerSendRequest.mockImplementation(async (method: string) => {
+        if (method === 'thread/subscribe') throw new Error('unsupported')
+        return {}
+      })
+      useSubAgentStore.getState().setChildren('thread-1', [
+        makeChild({ childThreadId: 'child-running', nickname: 'Lovelace' })
+      ])
+      useSubAgentStore.getState().selectChild('thread-1', 'child-running')
+
+      renderTab()
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      appServerSendRequest.mockClear()
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', { threadId: 'child-running' })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

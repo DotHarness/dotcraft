@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import {
   isSubAgentChildClosed,
@@ -8,13 +8,13 @@ import {
 } from '../../stores/subAgentStore'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { useThreadStore } from '../../stores/threadStore'
-import { useUIStore } from '../../stores/uiStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { RunningShimmer } from '../ui/RunningShimmer'
-import { formatSubAgentMeta, getSubAgentAccent } from '../../utils/subAgentPresentation'
+import { formatSubAgentMeta } from '../../utils/subAgentPresentation'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { formatRelativeTime } from '../../utils/relativeTime'
 import { formatSubAgentElapsed } from '../../utils/formatSubAgentElapsed'
+import { SubagentDetail } from './SubagentDetail'
 import styles from './SubagentsTab.module.css'
 
 const EMPTY_CHILDREN: SubAgentChild[] = []
@@ -23,25 +23,57 @@ const EMPTY_CHILDREN: SubAgentChild[] = []
 const RUNNING_PREVIEW_POLL_MS = 3000
 
 export function SubagentsTab(): JSX.Element {
-  const t = useT()
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
-  const children = useSubAgentStore((s) =>
-    activeThreadId ? s.childrenByParent.get(activeThreadId) ?? EMPTY_CHILDREN : EMPTY_CHILDREN
-  )
   useSubAgentLookup(activeThreadId ?? '')
+  const selectedChild = useSubAgentStore((s) => {
+    if (!activeThreadId) return null
+    const selectedId = s.selectedChildByParent.get(activeThreadId)
+    return selectedId ? findChild(s.childrenByParent, activeThreadId, selectedId) : null
+  })
+
+  if (activeThreadId && selectedChild) {
+    return (
+      <SubagentDetail
+        child={selectedChild}
+        onBack={() => useSubAgentStore.getState().selectChild(activeThreadId, null)}
+      />
+    )
+  }
+  return <SubagentList parentThreadId={activeThreadId} />
+}
+
+function findChild(
+  childrenByParent: Map<string, SubAgentChild[]>,
+  parentThreadId: string,
+  childThreadId: string
+): SubAgentChild | null {
+  const own = childrenByParent.get(parentThreadId)?.find((child) => child.childThreadId === childThreadId)
+  if (own) return own
+  for (const children of childrenByParent.values()) {
+    const match = children.find((child) => child.childThreadId === childThreadId)
+    if (match) return match
+  }
+  return null
+}
+
+function SubagentList({ parentThreadId }: { parentThreadId: string | null }): JSX.Element {
+  const t = useT()
+  const children = useSubAgentStore((s) =>
+    parentThreadId ? s.childrenByParent.get(parentThreadId) ?? EMPTY_CHILDREN : EMPTY_CHILDREN
+  )
   const fetchPreviews = useSubAgentStore((s) => s.fetchPreviews)
 
   // Load previews for any children that arrived via live progress/graph events
   // after the initial fetch (e.g. a subagent finishing while the tab is open).
   useEffect(() => {
-    if (!activeThreadId) return
+    if (!parentThreadId) return
     if (children.some((child) =>
       child.isPlaceholder !== true
       && child.lastMessagePreview == null
     )) {
-      void fetchPreviews(activeThreadId)
+      void fetchPreviews(parentThreadId)
     }
-  }, [activeThreadId, children, fetchPreviews])
+  }, [parentThreadId, children, fetchPreviews])
 
   const hasRunningSubagent = children.some(isSubAgentChildRunning)
   const elapsedNowMs = useElapsedNow(hasRunningSubagent)
@@ -50,12 +82,12 @@ export function SubagentsTab(): JSX.Element {
   // message so the Active rows show live progress. Stops when nothing is running
   // or the tab unmounts, so idle tabs never poll.
   useEffect(() => {
-    if (!activeThreadId || !hasRunningSubagent) return
+    if (!parentThreadId || !hasRunningSubagent) return
     const timer = setInterval(() => {
-      void fetchPreviews(activeThreadId, { runningOnly: true })
+      void fetchPreviews(parentThreadId, { runningOnly: true })
     }, RUNNING_PREVIEW_POLL_MS)
     return () => clearInterval(timer)
-  }, [activeThreadId, hasRunningSubagent, fetchPreviews])
+  }, [parentThreadId, hasRunningSubagent, fetchPreviews])
 
   const { active, done, closed } = useMemo(() => {
     const running: SubAgentChild[] = []
@@ -77,6 +109,10 @@ export function SubagentsTab(): JSX.Element {
     )
   }
 
+  const open = (child: SubAgentChild): void => {
+    if (parentThreadId) useSubAgentStore.getState().selectChild(parentThreadId, child.childThreadId)
+  }
+
   return (
     <div className={`${styles.scrollContainer} dc-scrollbar-stable`}>
       <SectionHeader label={t('subagentsPanel.active')} count={active.length} />
@@ -85,7 +121,7 @@ export function SubagentsTab(): JSX.Element {
       ) : (
         <div className={styles.rows}>
           {active.map((child) => (
-            <SubagentRow key={child.childThreadId} child={child} elapsedNowMs={elapsedNowMs} />
+            <SubagentRow key={child.childThreadId} child={child} elapsedNowMs={elapsedNowMs} onOpen={open} />
           ))}
         </div>
       )}
@@ -95,7 +131,7 @@ export function SubagentsTab(): JSX.Element {
           <SectionHeader label={t('subagentsPanel.done')} count={done.length} />
           <div className={styles.rows}>
             {done.map((child) => (
-              <SubagentRow key={child.childThreadId} child={child} elapsedNowMs={elapsedNowMs} />
+              <SubagentRow key={child.childThreadId} child={child} elapsedNowMs={elapsedNowMs} onOpen={open} />
             ))}
           </div>
         </>
@@ -106,7 +142,7 @@ export function SubagentsTab(): JSX.Element {
           <SectionHeader label={t('subagentsPanel.closed')} count={closed.length} />
           <div className={styles.rows}>
             {closed.map((child) => (
-              <SubagentRow key={child.childThreadId} child={child} elapsedNowMs={elapsedNowMs} />
+              <SubagentRow key={child.childThreadId} child={child} elapsedNowMs={elapsedNowMs} onOpen={open} />
             ))}
           </div>
         </>
@@ -123,11 +159,18 @@ function SectionHeader({ label, count }: { label: string; count: number }): JSX.
   )
 }
 
-function SubagentRow({ child, elapsedNowMs }: { child: SubAgentChild; elapsedNowMs: number }): JSX.Element {
+function SubagentRow({
+  child,
+  elapsedNowMs,
+  onOpen
+}: {
+  child: SubAgentChild
+  elapsedNowMs: number
+  onOpen: (child: SubAgentChild) => void
+}): JSX.Element {
   const t = useT()
   const locale = useLocale()
   const running = isSubAgentChildRunning(child)
-  const color = getSubAgentAccent(child.nickname)
   const meta = formatSubAgentMeta({
     agentRole: child.agentRole,
     profileName: child.profileName,
@@ -141,24 +184,16 @@ function SubagentRow({ child, elapsedNowMs }: { child: SubAgentChild; elapsedNow
       : ''
   const canOpen = child.isPlaceholder !== true
 
-  const openThread = (): void => {
-    if (!canOpen) return
-    useThreadStore.getState().setActiveThreadId(child.childThreadId)
-    useUIStore.getState().setActiveMainView('conversation')
-  }
-
   return (
     <button
       type="button"
-      onClick={openThread}
+      onClick={() => onOpen(child)}
       disabled={!canOpen}
       aria-label={t('subagentsPanel.openAria', { name: child.nickname })}
       className={styles.row}
-      style={{ '--subagent-accent': color } as CSSProperties}
     >
-      <span className={styles.iconSlot}>
-        {/* The accessory is unreadable at this size, so palette and face carry the identity. */}
-        <RobotAvatar name={child.nickname} size={20} />
+      <span className={styles.avatar}>
+        <RobotAvatar name={child.nickname} size={32} />
       </span>
       <span className={styles.bodyCell}>
         <span className={styles.titleRow}>

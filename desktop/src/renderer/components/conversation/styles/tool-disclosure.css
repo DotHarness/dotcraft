@@ -225,7 +225,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--subagent-accent, var(--text-secondary));
+  color: var(--text-secondary);
   font: inherit;
   font-weight: 500;
   cursor: pointer;

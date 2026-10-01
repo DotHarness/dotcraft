@@ -1472,6 +1472,13 @@ afterwards. Keyboard focus is the only state that draws a ring, through the shar
 locate. A reference never paints a ring from a focus event, which a mouse click
 fires too.
 
+### Markdown tables
+
+A markdown table is frameless: a rule under the header and hairlines between rows.
+Each column takes a minimum width from its longest cell — 4, 6, 8, or 14
+twenty-fourths of the reading width for up to 40, 100, 160, or more characters — and
+a table wider than its column scrolls sideways rather than breaking short words.
+
 ### Inline visualization
 
 Assistant inline visualizations are conversation-native media, not tool cards. Their host is
@@ -1819,6 +1826,27 @@ on visibility changes; overdue timestamps read as due now.
 The design system mounts production components and deterministic stateful fixtures;
 it covers editing, save errors/conflicts, pause/resume, history, long content and
 narrow widths.
+
+### Subagents
+
+The Subagents tab in the detail panel lists the thread's subagents under counted
+Active, Done, and Closed headings. A row centres a 32px avatar against two lines:
+the name in `--text-primary` at the UI emphasis weight with its role in
+`--text-dimmed`, then a one-line preview in `--text-secondary`; elapsed or relative
+time sits on the trailing edge. Subagent names carry no hue of their own, here or
+in the conversation; the avatar is the identity.
+
+Opening a row, or a subagent name in the conversation, shows that subagent inside
+the tab and leaves the main view on the parent thread. A header row holds Back, a
+24px avatar, the name and role, and the model with its reasoning effort on the
+trailing edge when known. Below it the transcript reuses the conversation's
+message blocks and is read-only: there is no composer, because subagents are
+steered only through the parent thread, so message actions that act on a thread,
+such as Fork, are absent. While the tab is open the transcript streams like the
+main conversation. A turn that edited files ends with the same changes card as the
+main conversation, with Undo and Reapply but no Review, since the Changes tab
+reviews the parent thread. The first load shows a transcript-shaped skeleton, and a
+transcript that cannot be read says so under the header so Back stays in reach.
 
 ### Documentation site
 

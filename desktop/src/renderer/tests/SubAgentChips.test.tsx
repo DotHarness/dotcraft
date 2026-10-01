@@ -70,14 +70,15 @@ describe('SubAgentChips', () => {
     useThreadStore.setState({ activeThreadId: 'parent-1' } as never)
   })
 
-  it('opens the child thread from the chip', () => {
+  it('opens the child in the Subagents tab from the chip', () => {
     seedChild('Kepler')
     renderChips([spawnItem('spawn-1', 'Kepler')])
 
     fireEvent.click(screen.getByRole('button', { name: /Kepler/ }))
 
-    expect(useThreadStore.getState().activeThreadId).toBe('thread-kepler')
-    expect(useUIStore.getState().activeMainView).toBe('conversation')
+    expect(useThreadStore.getState().activeThreadId).toBe('parent-1')
+    expect(useSubAgentStore.getState().selectedChildByParent.get('parent-1')).toBe('thread-kepler')
+    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'system', id: 'subagents' })
   })
 
   it('reads as finished once every spawned child is terminal', () => {

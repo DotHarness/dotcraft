@@ -306,7 +306,7 @@ describe('Desktop Plugin contribution outlets', () => {
     expect(seen).toHaveBeenCalledWith('parent-B')
     expect(screen.queryByText('Core A')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /Core B/ }))
-    expect(useThreadStore.getState().activeThreadId).toBe('child-B')
+    expect(useSubAgentStore.getState().selectedChildByParent.get('parent-A')).toBe('child-B')
     error.mockRestore()
   })
 

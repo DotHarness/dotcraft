@@ -58,8 +58,8 @@ Tools, grouped activity, plugin fallbacks, and previews resolve from the contain
 agent paths are used only without an ID. Control tools may resolve across parents only when
 source and target ancestry prove the same `rootThreadId`.
 
-Activity and navigation share the resolved child. Clicking it opens its conversation; unresolved
-entries select their source conversation and open the Subagents detail tab.
+Activity and navigation share the resolved child. Clicking it opens the Subagents detail tab of the
+active conversation on that child's read-only transcript; unresolved entries open the tab's list.
 
 Desktop caches `subagent/children/list` with `includeClosed: true` and `includeThreads: true`.
 Conversation and preview surfaces share initial discovery per parent; notifications refresh it.

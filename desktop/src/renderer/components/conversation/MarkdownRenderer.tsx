@@ -1,9 +1,9 @@
-import { memo, useMemo, useState } from 'react'
+import { createContext, memo, useContext, useMemo, useState, type ComponentProps } from 'react'
 import { Globe, Link2 } from 'lucide-react'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { Components } from 'react-markdown'
+import type { Components, ExtraProps } from 'react-markdown'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
@@ -15,6 +15,7 @@ import { ReferencePathContextMenu } from './ReferencePathContextMenu'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { CodeBlock, HighlightedCode } from './MarkdownCodeBlock'
 import { extractText } from './markdownText'
+import { tableCellMinWidths } from './markdownTable'
 
 interface MarkdownRendererProps {
   content: string
@@ -246,7 +247,7 @@ const baseComponents: Components = {
     )
   },
 
-  table({ children, ...props }) {
+  table({ children, node, ...props }) {
     return (
       <div style={{ overflowX: 'auto', margin: '8px 0 10px' }}>
         <table
@@ -258,43 +259,56 @@ const baseComponents: Components = {
           }}
           {...props}
         >
-          {children}
+          <TableCellMinWidths.Provider value={tableCellMinWidths(node)}>
+            {children}
+          </TableCellMinWidths.Provider>
         </table>
       </div>
     )
   },
 
-  th({ children, ...props }) {
-    return (
-      <th
-        style={{
-          padding: '8px 12px',
-          borderBottom: '1px solid var(--border-active)',
-          textAlign: 'left',
-          fontWeight: 600,
-          color: 'var(--text-primary)'
-        }}
-        {...props}
-      >
-        {children}
-      </th>
-    )
-  },
+  th: MarkdownTableHeader,
+  td: MarkdownTableCell
+}
 
-  td({ children, ...props }) {
-    return (
-      <td
-        style={{
-          padding: '8px 12px',
-          borderBottom: '1px solid var(--border-default)',
-          color: 'var(--text-secondary)'
-        }}
-        {...props}
-      >
-        {children}
-      </td>
-    )
-  }
+const TableCellMinWidths = createContext<ReadonlyMap<object, string>>(new Map())
+
+function MarkdownTableHeader({ children, node, style, ...props }: ComponentProps<'th'> & ExtraProps): JSX.Element {
+  const minWidth = useContext(TableCellMinWidths).get(node as object)
+  return (
+    <th
+      style={{
+        padding: '8px 12px',
+        borderBottom: '1px solid var(--border-active)',
+        textAlign: 'left',
+        fontWeight: 600,
+        color: 'var(--text-primary)',
+        minWidth,
+        ...style
+      }}
+      {...props}
+    >
+      {children}
+    </th>
+  )
+}
+
+function MarkdownTableCell({ children, node, style, ...props }: ComponentProps<'td'> & ExtraProps): JSX.Element {
+  const minWidth = useContext(TableCellMinWidths).get(node as object)
+  return (
+    <td
+      style={{
+        padding: '8px 12px',
+        borderBottom: '1px solid var(--border-default)',
+        color: 'var(--text-secondary)',
+        minWidth,
+        ...style
+      }}
+      {...props}
+    >
+      {children}
+    </td>
+  )
 }
 
 type InlineReferenceKind = 'file' | 'browser' | 'external'

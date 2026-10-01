@@ -55,6 +55,8 @@ interface AgentResponseBlockProps {
   shellRuntimeScope?: ShellRuntimeScope
   /** Keeps assistant/user text and plans visible while avoiding historical tool-detail mounts. */
   historicalToolContentMode?: HistoricalToolContentMode
+  readOnly?: boolean
+  renderTurnCompletion?: (turnId: string) => ReactNode
 }
 
 export type HistoricalToolContentMode = 'full' | 'trimmed'
@@ -93,7 +95,9 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   showIdleThinkingFallback = false,
   activeItemIdOverride,
   shellRuntimeScope = 'conversation',
-  historicalToolContentMode = 'full'
+  historicalToolContentMode = 'full',
+  readOnly = false,
+  renderTurnCompletion
 }: AgentResponseBlockProps): JSX.Element {
   useDesktopPluginRegistry((state) => state.toolRenderers)
   const pendingUserInput = useConversationStore((s) => s.pendingUserInput)
@@ -255,6 +259,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
               streaming={isLiveStreaming}
               createdAt={item.createdAt}
               isLastTurn={isLastTurn}
+              readOnly={readOnly}
               showFooter={isFooterMessage}
               afterContent={afterContent}
             />
@@ -320,7 +325,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     lastAgentMessageIndex >= 0 ? renderableItems[lastAgentMessageIndex]?.id : null
   const turnCompletionContent =
     !trimHistoricalToolContent && turn.status === 'completed'
-      ? <TurnCompletionContent turnId={turn.id} />
+      ? renderTurnCompletion ? renderTurnCompletion(turn.id) : <TurnCompletionContent turnId={turn.id} />
       : null
   const shouldCollapseIntermediate = activity.status === 'worked' && lastFinalAgentMessageIndex > 0
   const renderNodes: ConversationRenderNode[] = []
@@ -457,7 +462,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         <TurnFailureNotice message={turn.error} providerError={turn.providerError} />
       )}
 
-      {isLastTurn && turn.status === 'failed' && turn.providerError === 'serverOverloaded' && (
+      {!readOnly && isLastTurn && turn.status === 'failed' && turn.providerError === 'serverOverloaded' && (
         <CapacityRetryRow />
       )}
 

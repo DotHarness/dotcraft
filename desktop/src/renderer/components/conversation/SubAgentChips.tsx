@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type JSX, type ReactNode } from 'react'
+import { useMemo, useState, type JSX, type ReactNode } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { isSubAgentChildClosed, isTerminalSubAgentStatus, type SubAgentChild, type SubAgentDiscovery } from '../../stores/subAgentStore'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
@@ -7,7 +7,6 @@ import { openSubAgent } from '../../utils/subAgentNavigation'
 import type { ConversationItem } from '../../types/conversation'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { RunningShimmer } from '../ui/RunningShimmer'
-import { getSubAgentAccent } from '../../utils/subAgentPresentation'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
 import { resolveDesktopPluginToolRenderer } from '../../plugins/desktopPluginRegistry'
@@ -19,8 +18,6 @@ export interface SubAgentChipDisplay {
   id: string
   name: string
   prompt: string
-  accentColor: string
-  seed: string
   childThreadId: string | null
   agentPath: string | null
   pending: boolean
@@ -56,7 +53,7 @@ export function SubAgentChips({
   const resolved = parsedDisplays.map((display) => {
     const child = findSubAgentChild(lookup, display.childThreadId, display.agentPath, display.scope)
     const name = child?.nickname ?? display.name
-    return { ...display, name, seed: name, accentColor: getSubAgentAccent(name), child }
+    return { ...display, name, child }
   })
   if (resolved.length === 0) return null
   const states = resolved.map((display) => agentState(display, display.child, discovery, turnRunning))
@@ -76,7 +73,7 @@ export function SubAgentChips({
         ))}
       </span>
       {joinNames(locale, visible, (display) => {
-        openSubAgent(parentThreadId, display.child)
+        openSubAgent(parentThreadId, display.child?.childThreadId)
       })}
       {hidden > 0 && (
         <>
@@ -156,7 +153,6 @@ function SubAgentName({ display, open }: { display: SubAgentChipDisplay; open: (
       <button
         type="button"
         className="dc-subagent-name"
-        style={{ '--subagent-accent': display.accentColor } as CSSProperties}
         onClick={open}
         aria-label={label}
       >
@@ -194,14 +190,10 @@ export function getSubAgentChipDisplay(item: ConversationItem): SubAgentChipDisp
     ?? getString(args, 'prompt')
     ?? ''
 
-  const seed = name
-
   return {
     id: item.id,
     name,
     prompt: truncatePrompt(prompt, 180),
-    accentColor: getSubAgentAccent(seed),
-    seed,
     childThreadId,
     agentPath,
     pending: item.status !== 'completed' || item.result == null,

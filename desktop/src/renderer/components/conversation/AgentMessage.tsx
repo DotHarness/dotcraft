@@ -26,6 +26,7 @@ interface AgentMessageProps {
   showFooter?: boolean
   /** Whether this message belongs to the latest turn (forks straight to local). */
   isLastTurn?: boolean
+  readOnly?: boolean
   afterContent?: ReactNode
 }
 
@@ -39,6 +40,7 @@ export function AgentMessage({
   createdAt,
   showFooter = true,
   isLastTurn = false,
+  readOnly = false,
   afterContent
 }: AgentMessageProps): JSX.Element {
   const t = useT()
@@ -47,7 +49,7 @@ export function AgentMessage({
   const [focusedWithin, setFocusedWithin] = useState(false)
   const [forkChoiceOpen, setForkChoiceOpen] = useState(false)
   const actionsVisible = hovered || focusedWithin
-  const forkAvailable = canForkThread(capabilities) && Boolean(threadId && turnId)
+  const forkAvailable = !readOnly && canForkThread(capabilities) && Boolean(threadId && turnId)
   const worktreeForkAvailable = canForkWorktree(capabilities)
   const sentTime = formatMessageTime(createdAt)
   const displayText = useTypewriterReveal(text, streaming)

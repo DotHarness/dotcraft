@@ -531,7 +531,7 @@ The Workflow Detail tab:
 - shows each Agent's total tokens and tool-call count, appending elapsed time only after the Agent is
   terminal;
 - never shows the Agent model column;
-- opens the corresponding child thread when an Agent label with a child thread id is activated;
+- opens the corresponding child in the Subagents tab when an Agent label with a child thread id is activated;
 - hosts Stop as the only Workflow control in this version.
 
 Pause and resume remain public protocol capabilities but are not added to Desktop until their controls

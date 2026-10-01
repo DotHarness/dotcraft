@@ -2,7 +2,7 @@ import { useState, type CSSProperties, type ReactNode } from 'react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { SubAgentChild } from '../../stores/subAgentStore'
 import { findSubAgentChild, type SubAgentLookupSources } from '../../utils/subAgentIdentity'
-import { formatSubAgentMeta, getSubAgentAccent } from '../../utils/subAgentPresentation'
+import { formatSubAgentMeta } from '../../utils/subAgentPresentation'
 import { parseToolResultObject } from '../../utils/toolCallDisplay'
 import { openSubAgent } from '../../utils/subAgentNavigation'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -15,7 +15,6 @@ interface SubAgentToolDisplay {
   identified: boolean
   meta: string
   prompt: string | null
-  accentColor: string
   child: SubAgentChild | null
   message: string | null
   failed: boolean
@@ -47,8 +46,7 @@ export function SubAgentToolResultCard({
           <button
             type="button"
             className="dc-subagent-name"
-            style={{ '--subagent-accent': display.accentColor } as CSSProperties}
-            onClick={(event) => { event.stopPropagation(); openSubAgent(sourceThreadId, display.child) }}
+            onClick={(event) => { event.stopPropagation(); openSubAgent(sourceThreadId, display.child?.childThreadId) }}
             aria-label={translate(locale, 'subagentsPanel.openAria', { name })}
           >
             {name}
@@ -178,7 +176,6 @@ export function getSubAgentToolDisplay(
     identified: resolvedName != null,
     meta: formatSubAgentMeta({ agentRole, profileName: profile, runtimeType }),
     prompt: prompt ? truncateSubAgentPrompt(prompt, 120) : null,
-    accentColor: getSubAgentAccent(label),
     child: matchedChild,
     message: isTimeout
       ? (message && !isTimeoutMessage(message) ? message : null)

@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { GitApplyPatchResult } from '../../shared/gitApply'
 import { useConversationStore } from '../stores/conversationStore'
+import type { FileDiff } from '../types/toolCall'
 import type { TurnFileChange } from '../types/turnDiff'
 import { toWorkspaceRelativePatch } from '../utils/unifiedDiff'
 
@@ -11,10 +12,23 @@ export interface TurnDiffActions {
   reapplyTurn(turnId: string): Promise<TurnPatchOutcome>
 }
 
+export interface TurnDiffSource {
+  rows(turnId: string): TurnFileChange[]
+  setStatus(turnId: string, key: string, status: FileDiff['status']): void
+}
+
+const conversationTurnDiffs: TurnDiffSource = {
+  rows: (turnId) => useConversationStore.getState().turnDiffs.get(turnId)?.files ?? [],
+  setStatus: (turnId, key, status) => useConversationStore.getState().setTurnFileStatus(turnId, key, status)
+}
+
 const needsApply = (change: TurnFileChange, reverse: boolean): boolean =>
   !change.truncated && change.diff.status !== (reverse ? 'reverted' : 'written')
 
-export function useTurnDiffActions(workspacePath: string): TurnDiffActions {
+export function useTurnDiffActions(
+  workspacePath: string,
+  source: TurnDiffSource = conversationTurnDiffs
+): TurnDiffActions {
   return useMemo(() => {
     async function apply(change: TurnFileChange, reverse: boolean): Promise<GitApplyPatchResult> {
       const result = await window.api.git
@@ -24,15 +38,13 @@ export function useTurnDiffActions(workspacePath: string): TurnDiffActions {
           code: 'apply-failed',
           message: error instanceof Error ? error.message : String(error)
         }))
-      if (result.ok) {
-        useConversationStore.getState().setTurnFileStatus(change.turnId, change.key, reverse ? 'reverted' : 'written')
-      }
+      if (result.ok) source.setStatus(change.turnId, change.key, reverse ? 'reverted' : 'written')
       return result
     }
 
     // A later row can edit lines an earlier row of the same file wrote, so revert walks newest to oldest.
     async function applyTurn(turnId: string, reverse: boolean): Promise<TurnPatchOutcome> {
-      const rows = useConversationStore.getState().turnDiffs.get(turnId)?.files ?? []
+      const rows = source.rows(turnId)
       const pending = (reverse ? [...rows].reverse() : rows).filter((row) => needsApply(row, reverse))
       for (const [done, row] of pending.entries()) {
         const result = await apply(row, reverse)
@@ -47,5 +59,5 @@ export function useTurnDiffActions(workspacePath: string): TurnDiffActions {
       revertTurn: (turnId) => applyTurn(turnId, true),
       reapplyTurn: (turnId) => applyTurn(turnId, false)
     }
-  }, [workspacePath])
+  }, [workspacePath, source])
 }

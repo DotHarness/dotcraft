@@ -47,7 +47,7 @@ describe('source conversation rendering and navigation', () => {
     expect(screen.getByText('started working')).toBeInTheDocument()
     expect(screen.queryByText('Core A')).toBeNull()
     fireEvent.click(screen.getAllByRole('button', { name: /Core B/ })[0])
-    expect(useThreadStore.getState().activeThreadId).toBe('child-B')
+    expect(store().selectedChildByParent.get('parent-A')).toBe('child-B')
   })
 
   it('uses the same scoped identity for a single control row and its click target', () => {
@@ -58,15 +58,16 @@ describe('source conversation rendering and navigation', () => {
     render(<LocaleProvider><ToolCallCard threadId="parent-B" turnId="turn-B" item={item} /></LocaleProvider>)
     expect(screen.queryByText('Core A')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /Core B/ }))
-    expect(useThreadStore.getState().activeThreadId).toBe('child-B')
+    expect(store().selectedChildByParent.get('parent-A')).toBe('child-B')
   })
 
-  it('returns an unresolved entry to its source parent and opens the Subagent tab', () => {
+  it('opens the Subagents list for an unresolved entry', () => {
     store().setChildren('parent-A', [makeSubAgent({ childThreadId: 'child-A', parentThreadId: 'parent-A' })])
+    store().selectChild('parent-A', 'child-A')
     chips()
     fireEvent.click(screen.getByRole('button', { name: /Core/ }))
-    expect(useThreadStore.getState().activeThreadId).toBe('parent-B')
-    expect(useUIStore.getState().activeMainView).toBe('conversation')
+    expect(useThreadStore.getState().activeThreadId).toBe('parent-A')
+    expect(store().selectedChildByParent.has('parent-A')).toBe(false)
     expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'system', id: 'subagents' })
   })
 
@@ -76,7 +77,7 @@ describe('source conversation rendering and navigation', () => {
     chips([makeSpawn('spawn', { result: JSON.stringify({ childThreadId: 'explicit', agentPath: '/root/review_core', agentNickname: 'Raw', status: 'running' }) })])
     expect(screen.getByText('finished')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Explicit/ }))
-    expect(useThreadStore.getState().activeThreadId).toBe('explicit')
+    expect(store().selectedChildByParent.get('parent-A')).toBe('explicit')
   })
 })
 

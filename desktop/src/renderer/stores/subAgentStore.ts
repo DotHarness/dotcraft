@@ -24,6 +24,7 @@ interface SubAgentStoreState {
   childrenByParent: Map<string, SubAgentChild[]>
   discoveryByParent: Map<string, SubAgentDiscovery>
   staleProgressBlockedParents: Set<string>
+  selectedChildByParent: Map<string, string>
 }
 
 interface FetchChildrenOptions {
@@ -42,6 +43,7 @@ interface SubAgentStoreActions {
   fetchPreviews(parentThreadId: string, options?: { force?: boolean; runningOnly?: boolean }): Promise<void>
   updateProgress(parentThreadId: string, entries: SubAgentEntry[]): void
   updateChildRuntime(childThreadId: string, runtime: ThreadRuntimeSnapshot): void
+  selectChild(parentThreadId: string, childThreadId: string | null): void
   clearParent(parentThreadId: string): void
   reset(): void
 }
@@ -51,7 +53,8 @@ export interface SubAgentStore extends SubAgentStoreState, SubAgentStoreActions 
 const initialState: SubAgentStoreState = {
   childrenByParent: new Map(),
   discoveryByParent: new Map(),
-  staleProgressBlockedParents: new Set()
+  staleProgressBlockedParents: new Set(),
+  selectedChildByParent: new Map()
 }
 
 interface ChildRequest {
@@ -319,6 +322,16 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     })
   },
 
+  selectChild(parentThreadId, childThreadId) {
+    set((state) => {
+      if ((state.selectedChildByParent.get(parentThreadId) ?? null) === childThreadId) return state
+      const selectedChildByParent = new Map(state.selectedChildByParent)
+      if (childThreadId) selectedChildByParent.set(parentThreadId, childThreadId)
+      else selectedChildByParent.delete(parentThreadId)
+      return { selectedChildByParent }
+    })
+  },
+
   clearParent(parentThreadId) {
     lifetimes.delete(parentThreadId)
     requests.delete(parentThreadId)
@@ -326,10 +339,12 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
       const childrenByParent = new Map(state.childrenByParent)
       const staleProgressBlockedParents = new Set(state.staleProgressBlockedParents)
       const discoveryByParent = new Map(state.discoveryByParent)
+      const selectedChildByParent = new Map(state.selectedChildByParent)
       discoveryByParent.delete(parentThreadId)
       childrenByParent.delete(parentThreadId)
       staleProgressBlockedParents.delete(parentThreadId)
-      return { childrenByParent, staleProgressBlockedParents, discoveryByParent }
+      selectedChildByParent.delete(parentThreadId)
+      return { childrenByParent, staleProgressBlockedParents, discoveryByParent, selectedChildByParent }
     })
   },
 
@@ -339,7 +354,8 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     set({
       childrenByParent: new Map(),
       discoveryByParent: new Map(),
-      staleProgressBlockedParents: new Set()
+      staleProgressBlockedParents: new Set(),
+      selectedChildByParent: new Map()
     })
   }
 }))

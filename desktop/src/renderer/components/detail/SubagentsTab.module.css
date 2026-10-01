@@ -55,9 +55,9 @@
 .row {
   display: grid;
   width: 100%;
-  grid-template-columns: 22px minmax(0, 1fr);
-  align-items: start;
-  gap: 9px;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
   padding: 8px 6px;
   border: none;
   border-radius: var(--control-radius-md);
@@ -80,12 +80,8 @@
   cursor: default;
 }
 
-.iconSlot {
+.avatar {
   display: inline-flex;
-  width: 22px;
-  height: 20px;
-  align-items: center;
-  justify-content: center;
 }
 
 .bodyCell {
@@ -117,9 +113,9 @@
   min-width: 0;
   flex-shrink: 1;
   overflow: hidden;
-  color: var(--subagent-accent);
+  color: var(--text-primary);
   font-size: var(--type-ui-size);
-  font-weight: 600;
+  font-weight: var(--type-ui-emphasis-weight);
   line-height: var(--type-ui-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;

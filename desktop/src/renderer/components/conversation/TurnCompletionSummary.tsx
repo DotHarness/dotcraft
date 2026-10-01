@@ -2,7 +2,7 @@ import { memo, useMemo, useState, type KeyboardEvent, type MouseEvent } from 're
 import { Redo2, Undo2 } from 'lucide-react'
 import type { MessageKey } from '../../../shared/locales'
 import { useT } from '../../contexts/LocaleContext'
-import { useTurnDiffActions, type TurnPatchOutcome } from '../../hooks/useTurnDiffActions'
+import { useTurnDiffActions, type TurnDiffSource, type TurnPatchOutcome } from '../../hooks/useTurnDiffActions'
 import { useConversationStore } from '../../stores/conversationStore'
 import { showToast, type ToastType } from '../../stores/toastStore'
 import { turnPatchTotals } from '../../stores/turnDiffs'
@@ -25,10 +25,24 @@ interface TurnCompletionSummaryProps {
 const NO_ROWS: TurnFileChange[] = []
 const COLLAPSED_ROW_LIMIT = 3
 
+const openInChanges = (key: string): void => useUIStore.getState().showChangesForKey(key)
+
 export const TurnCompletionSummary = memo(function TurnCompletionSummary({ turnId }: TurnCompletionSummaryProps): JSX.Element | null {
-  const t = useT()
   const rows = useConversationStore((s) => s.turnDiffs.get(turnId)?.files ?? NO_ROWS)
   const workspacePath = useConversationStore((s) => s.workspacePath)
+  return <TurnChangesCard turnId={turnId} rows={rows} workspacePath={workspacePath} onReview={openInChanges} />
+})
+
+interface TurnChangesCardProps {
+  turnId: string
+  rows: TurnFileChange[]
+  workspacePath: string
+  source?: TurnDiffSource
+  onReview?: (key: string) => void
+}
+
+export function TurnChangesCard({ turnId, rows, workspacePath, source, onReview }: TurnChangesCardProps): JSX.Element | null {
+  const t = useT()
   const totals = useMemo(() => turnPatchTotals(rows), [rows])
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   const [showAll, setShowAll] = useState(false)
@@ -60,10 +74,12 @@ export const TurnCompletionSummary = memo(function TurnCompletionSummary({ turnI
           </span>
         </div>
         <div className={styles.actions}>
-          <TurnPatchButton turnId={turnId} rows={rows} workspacePath={workspacePath} />
-          <Button variant="outlineGhost" size="toolbar" onClick={() => useUIStore.getState().showChangesForKey(rows[0].key)}>
-            {t('turnChanges.review')}
-          </Button>
+          <TurnPatchButton turnId={turnId} rows={rows} workspacePath={workspacePath} source={source} />
+          {onReview && (
+            <Button variant="outlineGhost" size="toolbar" onClick={() => onReview(rows[0].key)}>
+              {t('turnChanges.review')}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -77,6 +93,7 @@ export const TurnCompletionSummary = memo(function TurnCompletionSummary({ turnI
                 workspacePath={workspacePath}
                 expanded={expanded.has(row.key)}
                 onToggle={() => toggleRow(row.key)}
+                onReview={onReview}
               />
             ))}
           </div>
@@ -97,7 +114,7 @@ export const TurnCompletionSummary = memo(function TurnCompletionSummary({ turnI
       )}
     </section>
   )
-})
+}
 
 function outcomeToast(outcome: Exclude<TurnPatchOutcome, 'not-git-repo'>, undo: boolean): { key: MessageKey; type: ToastType } {
   switch (outcome) {
@@ -111,15 +128,17 @@ function outcomeToast(outcome: Exclude<TurnPatchOutcome, 'not-git-repo'>, undo: 
 function TurnPatchButton({
   turnId,
   rows,
-  workspacePath
+  workspacePath,
+  source
 }: {
   turnId: string
   rows: TurnFileChange[]
   workspacePath: string
+  source?: TurnDiffSource
 }): JSX.Element {
   const t = useT()
   const confirm = useConfirmDialog()
-  const { revertTurn, reapplyTurn } = useTurnDiffActions(workspacePath)
+  const { revertTurn, reapplyTurn } = useTurnDiffActions(workspacePath, source)
   const [pending, setPending] = useState(false)
   // Truncated rows are never applied, so only the rest decide between Undo and Reapply.
   const applicable = rows.filter((row) => !row.truncated)
@@ -161,12 +180,14 @@ function TurnFileRow({
   row,
   workspacePath,
   expanded,
-  onToggle
+  onToggle,
+  onReview
 }: {
   row: TurnFileChange
   workspacePath: string
   expanded: boolean
   onToggle: () => void
+  onReview?: (key: string) => void
 }): JSX.Element {
   const file = row.diff
 
@@ -176,10 +197,11 @@ function TurnFileRow({
     onToggle()
   }
 
-  function openInChanges(event: MouseEvent<HTMLButtonElement>): void {
+  function review(event: MouseEvent<HTMLButtonElement>): void {
     event.stopPropagation()
-    useUIStore.getState().showChangesForKey(row.key)
+    onReview?.(row.key)
   }
+  const path = <ChangePath path={toWorkspaceRelativePath(workspacePath, file.filePath)} />
 
   return (
     <div role="listitem" className={styles.item}>
@@ -192,9 +214,9 @@ function TurnFileRow({
         onKeyDown={handleKeyDown}
       >
         <span className={styles.path}>
-          <button type="button" className={styles.pathLink} onClick={openInChanges}>
-            <ChangePath path={toWorkspaceRelativePath(workspacePath, file.filePath)} />
-          </button>
+          {onReview
+            ? <button type="button" className={styles.pathLink} onClick={review}>{path}</button>
+            : path}
         </span>
         <span className={styles.stats}>
           <FileDiffStats

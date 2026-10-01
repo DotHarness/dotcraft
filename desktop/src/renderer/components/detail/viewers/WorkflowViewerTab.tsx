@@ -2,14 +2,13 @@ import { useEffect, useId, useState, type ReactNode } from 'react'
 import { Square } from 'lucide-react'
 import type { WorkflowPhaseView } from '@dotcraft/sdk/contracts'
 import { useT } from '../../../contexts/LocaleContext'
-import { useThreadStore } from '../../../stores/threadStore'
-import { useUIStore } from '../../../stores/uiStore'
 import { useViewerTabStore } from '../../../stores/viewerTabStore'
 import { selectWorkflowRunEntry, useWorkflowRunStore } from '../../../stores/workflowRunStore'
 import { Button } from '../../ui/Button'
 import { IconButton } from '../../ui/IconButton'
 import { RunningShimmer } from '../../ui/RunningShimmer'
 import { ToolCollapseChevron } from '../../conversation/ToolDisclosure'
+import { openSubAgent } from '../../../utils/subAgentNavigation'
 import { WorkflowStatusGlyph, formatWorkflowElapsed, formatWorkflowPhaseMetrics, formatWorkflowTokens, workflowTone } from '../../workflow/workflowPresentation'
 import type { WorkflowViewerTab as WorkflowViewerTabDescriptor } from '../../../../shared/viewer/types'
 
@@ -92,9 +91,7 @@ export function WorkflowViewerTab({ tabId }: { tabId: string }): JSX.Element {
   )
 
   const openAgent = (childThreadId?: string): void => {
-    if (!childThreadId) return
-    useThreadStore.getState().setActiveThreadId(childThreadId)
-    useUIStore.getState().setActiveMainView('conversation')
+    if (childThreadId) openSubAgent(tab.threadId, childThreadId)
   }
 
   const requestStop = async (): Promise<void> => {
