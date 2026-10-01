@@ -129,10 +129,10 @@ internal static class ThreadContractMapper
         State = value.State,
         Managed = value.Managed,
         RequiresExternalConnection = value.RequiresExternalConnection,
-        SocialTarget = value.SocialTarget is null
+        ChannelTarget = value.ChannelTarget is null
             ? default
-            : Protocol.Optional<Contract.SocialChannelTarget?>.FromValue(
-                ToContract(value.SocialTarget)),
+            : Protocol.Optional<Contract.ChannelTarget?>.FromValue(
+                ToContract(value.ChannelTarget)),
         AuthorityRevision = value.AuthorityRevision == 0 ? default : value.AuthorityRevision,
         ApprovedCapabilityRevision = value.ApprovedCapabilityRevision == 0
             ? default
@@ -174,7 +174,7 @@ internal static class ThreadContractMapper
         Detail = value.Detail
     };
 
-    private static Contract.SocialChannelTarget ToContract(SocialChannelTarget value) => new()
+    private static Contract.ChannelTarget ToContract(ChannelTarget value) => new()
     {
         ChannelName = value.ChannelName,
         AccountId = OmitIfNull(value.AccountId),
@@ -184,8 +184,8 @@ internal static class ThreadContractMapper
         DisplayName = OmitIfNull(value.DisplayName),
         BoundBy = value.BoundBy is null
             ? default
-            : Protocol.Optional<Contract.SocialChannelBoundBy?>.FromValue(
-                new Contract.SocialChannelBoundBy
+            : Protocol.Optional<Contract.ChannelBoundBy?>.FromValue(
+                new Contract.ChannelBoundBy
                 {
                     PlatformUserId = value.BoundBy.PlatformUserId,
                     DisplayName = OmitIfNull(value.BoundBy.DisplayName)

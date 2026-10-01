@@ -32,11 +32,11 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
     private const string ThreadBindingsList = "thread/appBindings/list";
     private const string BindingConfirm = "thread/appBindings/confirmCapabilities";
     private const string BindingRevoke = "thread/appBindings/revoke";
-    private const string SocialRequestCreate = "thread/socialBindings/request/create";
-    private const string SocialRequestGet = "app/socialBinding/request/get";
-    private const string SocialAccept = "app/socialBinding/accept";
-    private const string SocialRebind = "app/socialBinding/rebind";
-    private const string SocialResolve = "app/socialBinding/resolve";
+    private const string ChannelRequestCreate = "thread/channelBindings/request/create";
+    private const string ChannelRequestGet = "app/channelBinding/request/get";
+    private const string ChannelAccept = "app/channelBinding/accept";
+    private const string ChannelRebind = "app/channelBinding/rebind";
+    private const string ChannelResolve = "app/channelBinding/resolve";
     private const string ThreadInputEnqueue = "app/threadInput/enqueue";
 
     private readonly AppBindingService _controlPlane;
@@ -44,7 +44,7 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
     private readonly IAppConfigMonitor _appConfigMonitor;
     private readonly SkillsLoader? _skillsLoader;
     private readonly IReadOnlyList<string>? _builtInPluginSourceRoots;
-    private readonly SocialChannelDeliveryCoordinator? _socialDeliveryCoordinator;
+    private readonly ChannelDeliveryCoordinator? _channelDeliveryCoordinator;
 
     public AppBindingProtocolExtension(
         AppBindingService controlPlane,
@@ -59,9 +59,9 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
         _appConfigMonitor = appConfigMonitor;
         _skillsLoader = skillsLoader;
         _builtInPluginSourceRoots = builtInPluginSourceRoots;
-        _socialDeliveryCoordinator = channelRuntimeRegistry == null
+        _channelDeliveryCoordinator = channelRuntimeRegistry == null
             ? null
-            : new SocialChannelDeliveryCoordinator(controlPlane, channelRuntimeRegistry);
+            : new ChannelDeliveryCoordinator(controlPlane, channelRuntimeRegistry);
     }
 
     public IReadOnlyCollection<string> Methods { get; } =
@@ -71,7 +71,7 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
         ConnectionRefresh, ConnectionStatus, ConnectionRevoke, SurfacePublish, SurfaceResolve,
         BindingEnable, BindingRequestGet, BindingActivate, BindingRebind,
         PrincipalBindingsList, ThreadBindingsList, BindingConfirm, BindingRevoke,
-        SocialRequestCreate, SocialRequestGet, SocialAccept, SocialRebind, SocialResolve,
+        ChannelRequestCreate, ChannelRequestGet, ChannelAccept, ChannelRebind, ChannelResolve,
         ThreadInputEnqueue
     ];
 
@@ -86,9 +86,9 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
         Contract.AppServerRpc.AppBindingRequestGet, Contract.AppServerRpc.AppBindingActivate,
         Contract.AppServerRpc.AppBindingRebind, Contract.AppServerRpc.AppBindingsList,
         Contract.AppServerRpc.ThreadAppBindingsList, Contract.AppServerRpc.ThreadAppBindingConfirmCapabilities,
-        Contract.AppServerRpc.ThreadAppBindingRevoke, Contract.AppServerRpc.ThreadSocialBindingRequestCreate,
-        Contract.AppServerRpc.SocialBindingRequestGet, Contract.AppServerRpc.SocialBindingAccept,
-        Contract.AppServerRpc.SocialBindingRebind, Contract.AppServerRpc.AppSocialBindingResolve,
+        Contract.AppServerRpc.ThreadAppBindingRevoke, Contract.AppServerRpc.ThreadChannelBindingRequestCreate,
+        Contract.AppServerRpc.ChannelBindingRequestGet, Contract.AppServerRpc.ChannelBindingAccept,
+        Contract.AppServerRpc.ChannelBindingRebind, Contract.AppServerRpc.AppChannelBindingResolve,
         Contract.AppServerRpc.AppThreadInputEnqueue
     ];
 
@@ -339,9 +339,12 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
                 var parameters = (Contract.ThreadAppBindingRevokeParams)requestParams;
                 var threadId = AppBindingContractMapper.Read(parameters.ThreadId) ?? string.Empty;
                 var bindingId = AppBindingContractMapper.Read(parameters.BindingId) ?? string.Empty;
+                var wasActive = _controlPlane.GetBinding(craftPath, bindingId).State == AppBindingStates.Active;
                 var binding = _controlPlane.RevokeBinding(craftPath, threadId, bindingId, userId);
                 if (context.SessionService is IThreadMcpRuntimeService mcpRuntime)
                     await _coordinator.RemoveAsync(threadId, bindingId, mcpRuntime, context.CancellationToken);
+                if (wasActive)
+                    ChannelNotices.Append(context.SessionService, binding, "unbound");
                 return await SendNotificationsAfterResponseAsync(msg, context, AppBindingContractMapper.ToContract(binding),
                     (Contract.AppServerRpc.ThreadAppBindingsChanged, new Contract.ThreadAppBindingsChangedNotification
                     {
@@ -381,15 +384,15 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
                 return await SendNotificationsAfterResponseAsync(msg, context, AppBindingContractMapper.ToContract(result),
                     (Contract.AppServerRpc.ThreadAppBindingsChanged, Changed(parameters.ThreadId, parameters.BindingId, result.State)));
             }
-            case SocialRequestCreate:
+            case ChannelRequestCreate:
             {
                 EnsureTrustedClient(context.Connection);
-                var parameters = (Contract.ThreadSocialBindingRequestCreateParams)requestParams;
+                var parameters = (Contract.ThreadChannelBindingRequestCreateParams)requestParams;
                 var threadId = AppBindingContractMapper.Read(parameters.ThreadId) ?? string.Empty;
                 var channelName = AppBindingContractMapper.Read(parameters.ChannelName) ?? string.Empty;
                 await context.SessionService.GetThreadAsync(threadId, context.CancellationToken);
-                var result = _controlPlane.CreateSocialRequest(craftPath, threadId, channelName, userId);
-                var contractResult = new Contract.ThreadSocialBindingRequestCreateResult
+                var result = _controlPlane.CreateChannelRequest(craftPath, threadId, channelName, userId);
+                var contractResult = new Contract.ThreadChannelBindingRequestCreateResult
                 {
                     BindingRequestId = result.BindingRequestId,
                     BindingId = result.BindingId,
@@ -412,44 +415,45 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
                         ExpiresAt = result.ExpiresAt
                     }));
             }
-            case SocialRequestGet:
+            case ChannelRequestGet:
             {
                 var channel = RequireChannel(context.Connection);
-                var parameters = (Contract.SocialBindingRequestGetParams)requestParams;
+                var parameters = (Contract.ChannelBindingRequestGetParams)requestParams;
                 return AppBindingContractMapper.ToContract(
-                    _controlPlane.GetSocialRequest(
+                    _controlPlane.GetChannelRequest(
                         craftPath,
                         AppBindingContractMapper.Read(parameters.Code) ?? string.Empty,
                         channel));
             }
-            case SocialAccept:
+            case ChannelAccept:
             {
-                var result = _controlPlane.AcceptSocial(craftPath, RequireChannel(context.Connection),
-                    AppBindingContractMapper.FromContract((Contract.SocialBindingAcceptParams)requestParams));
+                var result = _controlPlane.AcceptChannel(craftPath, RequireChannel(context.Connection),
+                    AppBindingContractMapper.FromContract((Contract.ChannelBindingAcceptParams)requestParams));
+                ChannelNotices.Append(context.SessionService, result, "bound");
                 return await SendNotificationsAfterResponseAsync(msg, context, AppBindingContractMapper.ToContract(result),
                     (Contract.AppServerRpc.ThreadAppBindingsChanged, Changed(result.ThreadId, result.BindingId, result.State)));
             }
-            case SocialRebind:
+            case ChannelRebind:
             {
-                var result = _controlPlane.RebindSocial(craftPath, RequireChannel(context.Connection),
-                    AppBindingContractMapper.FromContract((Contract.SocialBindingRebindParams)requestParams));
+                var result = _controlPlane.RebindChannel(craftPath, RequireChannel(context.Connection),
+                    AppBindingContractMapper.FromContract((Contract.ChannelBindingRebindParams)requestParams));
                 return await SendNotificationsAfterResponseAsync(msg, context, AppBindingContractMapper.ToContract(result),
                     (Contract.AppServerRpc.ThreadAppBindingsChanged, Changed(result.ThreadId, result.BindingId, result.State)));
             }
-            case SocialResolve:
+            case ChannelResolve:
             {
                 var channel = RequireChannel(context.Connection);
-                var parameters = (Contract.AppSocialBindingResolveParams)requestParams;
+                var parameters = (Contract.AppChannelBindingResolveParams)requestParams;
                 var channelName = AppBindingContractMapper.Read(parameters.ChannelName) ?? string.Empty;
                 if (!string.Equals(channelName, channel, StringComparison.OrdinalIgnoreCase))
                     throw AppServerErrors.AppPrincipalUnauthorized("A channel adapter may resolve only its own bindings.");
-                var binding = _controlPlane.ResolveSocial(
+                var binding = _controlPlane.ResolveChannel(
                     craftPath,
                     channel,
                     AppBindingContractMapper.Read(parameters.AccountId),
                     AppBindingContractMapper.Read(parameters.ConversationKind) ?? string.Empty,
                     AppBindingContractMapper.Read(parameters.ConversationId) ?? string.Empty);
-                return new Contract.AppSocialBindingResolveResult
+                return new Contract.AppChannelBindingResolveResult
                 {
                     Binding = Optional<Contract.AppBinding?>.FromValue(
                         binding is null ? null : AppBindingContractMapper.ToContract(binding))
@@ -505,10 +509,10 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
                             MaterializedInputParts = nativeInput,
                             DisplayText = AppBindingContractMapper.Read(parameters.DisplayText)
                                 ?? SessionWireMapper.BuildDisplayText(nativeInput),
-                            DeliveryBindingId = binding.Kind == "social" ? binding.BindingId : null
+                            DeliveryBindingId = binding.Kind == "channel" ? binding.BindingId : null
                         });
-                    if (binding.Kind == "social")
-                        _socialDeliveryCoordinator?.StartQueuedTurnDelivery(context.SessionService, craftPath,
+                    if (binding.Kind == "channel")
+                        _channelDeliveryCoordinator?.StartQueuedTurnDelivery(context.SessionService, craftPath,
                             binding.ThreadId, binding.BindingId, queued.Id, binding.AuthorityRevision,
                             context.CancellationToken);
                     if (string.Equals(
@@ -719,8 +723,8 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
                 Icon = app.Icon,
                 State = binding.State,
                 ConnectionState = app.ConnectionState,
-                BindingKind = binding.SocialTarget == null ? "app" : "socialChannel",
-                SocialTarget = binding.SocialTarget,
+                BindingKind = binding.ChannelTarget == null ? "app" : "channel",
+                ChannelTarget = binding.ChannelTarget,
                 AuthorityRevision = binding.AuthorityRevision,
                 ApprovedCapabilityRevision = binding.ApprovedCapabilityRevision,
                 CandidateCapabilityRevision = binding.CandidateCapabilityRevision,

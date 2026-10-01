@@ -1,13 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.dotcraft.dev/appserver/v1/app-binding/SocialBindingIntent.schema.json",
-  "title": "SocialBindingIntent",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/app-binding/ChannelBoundBy.schema.json",
+  "title": "ChannelBoundBy",
   "type": "object",
   "properties": {
-    "channelName": {
-      "type": "string"
-    },
-    "displayHint": {
+    "displayName": {
       "anyOf": [
         {
           "type": "string"
@@ -17,7 +14,7 @@
         }
       ]
     },
-    "targetSelection": {
+    "platformUserId": {
       "type": "string"
     }
   },

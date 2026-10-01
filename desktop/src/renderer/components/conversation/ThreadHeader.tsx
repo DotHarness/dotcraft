@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Archive, ArrowRightLeft, FolderOpen, GitFork, Laptop, Pencil, Pin } from 'lucide-react'
+import { Archive, ArrowRightLeft, FolderOpen, GitFork, Laptop, MessageSquareOff, Pencil, Pin } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { writtenFileSummaries } from '../../stores/turnDiffs'
@@ -14,6 +14,9 @@ import { usePerforceChangelistStore, type PerforceChangelistEntry } from '../../
 import { DetailPanelToggleButton } from './DetailPanelToggleButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ScreenViewHeaderSlot } from './screenView/ScreenViewHeaderSlot'
+import { ThreadChannelBindingChips, useThreadChannelBindings } from './ThreadChannelBindingChips'
+import { bindingChannelOf, useChannelBindingStore } from '../../stores/channelBindingStore'
+import { getChannelVisualMeta } from '../ui/channelMeta'
 import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
 import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { Input } from '../ui/Input'
@@ -100,6 +103,7 @@ export function ThreadHeader({
   const canFork = canForkThread(capabilities)
   const canForkIntoWorktree = canForkWorktree(capabilities) && !remoteWorkspace
   const worktreeBranch = activeThread?.worktree?.branchName?.trim()
+  const channelBindings = useThreadChannelBindings(threadId)
 
   useEffect(() => {
     if (remoteWorkspace) return
@@ -165,6 +169,18 @@ export function ThreadHeader({
       await window.api.shell.launchLocalPathInEditor(id, workspacePath)
     } catch {
       addToast(t('conversation.reference.openFailed'), 'warning')
+    }
+  }
+
+  async function stopChannelBinding(bindingId: string, channel: string): Promise<void> {
+    setMenuPosition(null)
+    try {
+      await useChannelBindingStore.getState().revokeBinding(threadId, bindingId)
+    } catch (err) {
+      addToast(t('channelBinding.error.revoke', {
+        channel,
+        error: err instanceof Error ? err.message : String(err)
+      }), 'error')
     }
   }
 
@@ -363,6 +379,19 @@ export function ThreadHeader({
           onClick: () => { void archiveThread() }
         }]
       : []),
+    ...(channelBindings.length > 0
+      ? [
+          { type: 'separator' as const },
+          ...channelBindings.map((binding) => {
+            const channel = getChannelVisualMeta(bindingChannelOf(binding)).label
+            return {
+              label: t('channelBinding.stop', { channel }),
+              icon: <MessageSquareOff size={14} aria-hidden />,
+              onClick: () => { void stopChannelBinding(binding.bindingId, channel) }
+            }
+          })
+        ]
+      : []),
     ...(!activeThreadIsSubAgent && canFork
       ? [
           { type: 'separator' as const },
@@ -495,6 +524,7 @@ export function ThreadHeader({
                       </span>
                     </ActionTooltip>
                   )}
+                  <ThreadChannelBindingChips bindings={channelBindings} />
                 </span>
               </h1>
             </ActionTooltip>

@@ -94,7 +94,7 @@ Start 选项包含 identity 字段、显示名称、history mode、配置、运�
 | --- | --- |
 | `models` | `list()` 返回当前 AppServer 可见的模型目录。 |
 | `mcpRuntime` | `listStatus()`、`readResource()`、`callTool()`、`loginOAuth()`、`reload()`。 |
-| `appBindings` | App 发现、连接、surface、thread binding、social binding 和 principal 操作。 |
+| `appBindings` | App 发现、连接、surface、thread binding、channel binding 和 principal 操作。 |
 
 TypeScript 高层接口可以列出模型，但目前没有模型配置便利方法。应用必须修改完整 thread 配置时，使用类型化 Wire request map 调用 `thread/config/update`，并保留不归自己所有的字段。任务流程见 [MCP 运行时](./mcp-runtime)和 [DotCraft App](../integrations/app-binding)。
 

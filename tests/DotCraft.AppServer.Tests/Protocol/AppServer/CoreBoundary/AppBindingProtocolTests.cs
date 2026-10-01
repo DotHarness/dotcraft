@@ -234,6 +234,62 @@ public sealed class AppBindingProtocolTests : IDisposable
         Assert.Equal("surface-secret", result.GetProperty("bearer").GetString());
     }
 
+    [Fact]
+    public async Task ChannelAcceptAndRevoke_AppendChannelNotices()
+    {
+        var control = new AppBindingService();
+        var request = control.CreateChannelRequest(DataPath, "thread-1", "qq", "user");
+
+        using var channel = CreateHarness(control);
+        await channel.ExecuteRequestAsync(channel.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize, new
+            {
+                clientInfo = new { name = "qq-adapter", version = "1.0.0" },
+                capabilities = new { channelAdapter = new { channelName = "qq" } }
+            }));
+        using (var initialized = await ReadSuccessResponseAsync(channel.Transport))
+            AppServerTestHarness.AssertIsSuccessResponse(initialized);
+        channel.Handler.HandleNotification(channel.BuildNotification(
+            DotCraft.Protocol.AppServer.AppServerRpc.Initialized.Name, new { }));
+        await channel.ExecuteRequestAsync(channel.BuildRequest("app/channelBinding/accept", new
+        {
+            code = request.Code,
+            target = new
+            {
+                channelName = "qq",
+                conversationKind = "group",
+                conversationId = "group-1",
+                deliveryTarget = "group-1",
+                displayName = "Release crew"
+            }
+        }));
+        using (var accepted = await ReadSuccessResponseAsync(channel.Transport))
+            AppServerTestHarness.AssertIsSuccessResponse(accepted);
+
+        var bound = Assert.Single(channel.Service.AppendedSystemNotices);
+        Assert.Equal("thread-1", bound.ThreadId);
+        Assert.Equal("channel", bound.Payload.Kind);
+        Assert.Equal("bound", bound.Payload.Reason);
+        Assert.Equal("qq", bound.Payload.ChannelName);
+        Assert.Equal("Release crew", bound.Payload.TargetName);
+
+        using var desktop = CreateHarness(control);
+        await desktop.InitializeAsync();
+        await desktop.ExecuteRequestAsync(desktop.BuildRequest("thread/appBindings/revoke", new
+        {
+            threadId = "thread-1",
+            bindingId = request.BindingId
+        }));
+        using (var revoked = await ReadSuccessResponseAsync(desktop.Transport))
+            AppServerTestHarness.AssertIsSuccessResponse(revoked);
+
+        var unbound = Assert.Single(desktop.Service.AppendedSystemNotices);
+        Assert.Equal("channel", unbound.Payload.Kind);
+        Assert.Equal("unbound", unbound.Payload.Reason);
+        Assert.Equal("qq", unbound.Payload.ChannelName);
+        Assert.Equal("Release crew", unbound.Payload.TargetName);
+    }
+
     private static void AssertHandoff(JsonElement result, string operation)
     {
         var handoff = result.GetProperty("handoff");

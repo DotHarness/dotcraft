@@ -49,7 +49,7 @@ export type {
   DynamicToolCallResult,
   DynamicToolContentItem,
   RuntimeAdditionalContextEntry,
-  SocialChannelTarget,
+  ChannelTarget,
 } from "@dotcraft/sdk/contracts";
 export {
   ConfigValidationError,

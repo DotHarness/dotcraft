@@ -28,8 +28,8 @@ import type {
   AppHandoff,
   AppInfo,
   AppPrincipal,
-  AppSocialBindingResolveParams,
-  AppSocialBindingResolveResult,
+  AppChannelBindingResolveParams,
+  AppChannelBindingResolveResult,
   AppSurface,
   AppSurfacePublishParams,
   AppSurfaceResolveParams,
@@ -61,16 +61,16 @@ import type {
   SessionIdentity,
   SessionThread,
   SessionTurn,
-  SocialBindingIntent,
-  SocialChannelBoundBy,
-  SocialChannelTarget,
+  ChannelBindingIntent,
+  ChannelBoundBy,
+  ChannelTarget,
   ThreadAppBindingSummary,
   ThreadAppBindingEnableResult,
   ThreadListResult,
   ThreadItemsListResult,
   ThreadSummary,
   ThreadTurnsListResult,
-  ThreadSocialBindingRequestCreateResult,
+  ThreadChannelBindingRequestCreateResult,
   ModelCatalogItem,
 } from "./generated/appserver/index.js";
 export type ApprovalDecision =
@@ -183,9 +183,9 @@ export interface McpRuntimeManager {
   reload(): Promise<McpServerReloadResult>;
 }
 
-export type AppBindingKind = "app" | "socialChannel" | "managedApp" | (string & {});
+export type AppBindingKind = "app" | "channel" | "managedApp" | (string & {});
 
-export type SocialBindingTargetSelection =
+export type ChannelBindingTargetSelection =
   | "confirmInChannel"
   | "currentConversation"
   | (string & {});
@@ -209,20 +209,20 @@ export interface AppBindingManager {
   rebind(params: { bindingId: string; authorityRevision: number; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>>;
   confirmCapabilities(threadId: string, bindingId: string, candidateRevision: number, decision: "accept" | "reject"): Promise<Record<string, unknown>>;
   enable(threadId: string, appId: string): Promise<ThreadAppBindingEnableResult>;
-  createSocialBindingRequest(params: {
+  createChannelBindingRequest(params: {
     threadId: string;
     channelName: string;
-  }): Promise<ThreadSocialBindingRequestCreateResult>;
+  }): Promise<ThreadChannelBindingRequestCreateResult>;
   getBindingRequest(params: {
     bindingRequestId?: string;
     requestToken?: string;
     bindCode?: string;
   }): Promise<AppBindingRequestGetResult>;
-  acceptSocialBinding(params: {
+  acceptChannelBinding(params: {
     requestToken: string;
-    socialTarget: SocialChannelTarget;
+    channelTarget: ChannelTarget;
   }): Promise<AppBinding>;
-  resolveSocialBinding(params: AppSocialBindingResolveParams): Promise<AppSocialBindingResolveResult>;
+  resolveChannelBinding(params: AppChannelBindingResolveParams): Promise<AppChannelBindingResolveResult>;
   enqueueThreadInput(params: {
     bindingId: string;
     input: InputPart[];
@@ -795,11 +795,11 @@ class AppBindingManagerImpl implements AppBindingManager {
     });
   }
 
-  async createSocialBindingRequest(params: {
+  async createChannelBindingRequest(params: {
     threadId: string;
     channelName: string;
-  }): Promise<ThreadSocialBindingRequestCreateResult> {
-    return await this.sdk.request("thread/socialBindings/request/create", {
+  }): Promise<ThreadChannelBindingRequestCreateResult> {
+    return await this.sdk.request("thread/channelBindings/request/create", {
       threadId: params.threadId,
       channelName: params.channelName,
     });
@@ -811,7 +811,7 @@ class AppBindingManagerImpl implements AppBindingManager {
     bindCode?: string;
   }): Promise<AppBindingRequestGetResult> {
     return await this.sdk.request(
-      params.bindCode ? "app/socialBinding/request/get" : "app/binding/request/get",
+      params.bindCode ? "app/channelBinding/request/get" : "app/binding/request/get",
       params.bindCode ? { code: params.bindCode } : {
         bindingRequestId: params.bindingRequestId,
         requestToken: params.requestToken,
@@ -819,19 +819,19 @@ class AppBindingManagerImpl implements AppBindingManager {
     );
   }
 
-  async acceptSocialBinding(params: {
+  async acceptChannelBinding(params: {
     requestToken: string;
-    socialTarget: SocialChannelTarget;
+    channelTarget: ChannelTarget;
   }): Promise<AppBinding> {
-    const target = params.socialTarget;
-    return await this.sdk.request("app/socialBinding/accept", {
+    const target = params.channelTarget;
+    return await this.sdk.request("app/channelBinding/accept", {
       code: params.requestToken,
       target,
     });
   }
 
-  async resolveSocialBinding(params: AppSocialBindingResolveParams): Promise<AppSocialBindingResolveResult> {
-    return await this.sdk.request("app/socialBinding/resolve", {
+  async resolveChannelBinding(params: AppChannelBindingResolveParams): Promise<AppChannelBindingResolveResult> {
+    return await this.sdk.request("app/channelBinding/resolve", {
       channelName: params.channelName,
       accountId: params.accountId,
       conversationKind: params.conversationKind,

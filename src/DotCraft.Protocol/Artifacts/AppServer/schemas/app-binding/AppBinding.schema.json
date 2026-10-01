@@ -38,6 +38,16 @@
         }
       ]
     },
+    "channelTarget": {
+      "anyOf": [
+        {
+          "$ref": "./ChannelTarget.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "failureReason": {
       "anyOf": [
         {
@@ -53,16 +63,6 @@
       "items": {
         "$ref": "./AppBindingCapabilityChange.schema.json"
       }
-    },
-    "socialTarget": {
-      "anyOf": [
-        {
-          "$ref": "./SocialChannelTarget.schema.json"
-        },
-        {
-          "type": "null"
-        }
-      ]
     },
     "state": {
       "type": "string"

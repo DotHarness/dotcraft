@@ -12,8 +12,8 @@ using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 using McpAppViewHintSnapshot = DotCraft.Sessions.Wire.McpAppViewHintSnapshot;
 using SenderContext = DotCraft.Sessions.SenderContext;
-using SocialChannelBoundBy = DotCraft.AppBinding.SocialChannelBoundBy;
-using SocialChannelTarget = DotCraft.AppBinding.SocialChannelTarget;
+using ChannelBoundBy = DotCraft.AppBinding.ChannelBoundBy;
+using ChannelTarget = DotCraft.AppBinding.ChannelTarget;
 using SubAgentThreadSource = DotCraft.Sessions.SubAgentThreadSource;
 using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
 using ThreadGoalSnapshot = DotCraft.Sessions.ThreadGoalSnapshot;
@@ -246,7 +246,7 @@ public sealed class SessionContractParityTests
                     State = "active",
                     Managed = true,
                     RequiresExternalConnection = true,
-                    SocialTarget = new SocialChannelTarget
+                    ChannelTarget = new ChannelTarget
                     {
                         ChannelName = "telegram",
                         AccountId = "account_001",
@@ -254,7 +254,7 @@ public sealed class SessionContractParityTests
                         ConversationId = "group_001",
                         DeliveryTarget = "chat_001",
                         DisplayName = "Fixture chat",
-                        BoundBy = new SocialChannelBoundBy
+                        BoundBy = new ChannelBoundBy
                         {
                             PlatformUserId = "user_001",
                             DisplayName = "Ada"

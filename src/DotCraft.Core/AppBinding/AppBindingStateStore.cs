@@ -171,7 +171,7 @@ public sealed class AppBindingRecord
     public List<AppBindingToolCapability> ApprovedTools { get; set; } = [];
     public List<AppBindingToolCapability> CandidateTools { get; set; } = [];
     public List<AppBindingCapabilityChange> PendingChanges { get; set; } = [];
-    public SocialChannelTarget? SocialTarget { get; set; }
+    public ChannelTarget? ChannelTarget { get; set; }
     public string? EndpointIdentity { get; set; }
     public string? FailureReason { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -200,6 +200,9 @@ internal static class AppBindingSecrets
         RandomNumberGenerator.Fill(bytes);
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
+
+    public static string NewBindCode() =>
+        RandomNumberGenerator.GetInt32(100_000, 1_000_000).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     public static (string Salt, string Verifier) CreateVerifier(string secret)
     {

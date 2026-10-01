@@ -194,9 +194,9 @@ test("FeishuAdapter keeps group thread identity while forwarding real sender con
   });
 });
 
-test("FeishuAdapter builds social binding target from group and p2p contexts", () => {
+test("FeishuAdapter builds channel binding target from group and p2p contexts", () => {
   const adapter = new FeishuAdapter() as unknown as {
-    buildSocialTarget: (
+    buildChannelTarget: (
       opts: Record<string, unknown>,
       sender: Record<string, unknown>,
       channelContext: string,
@@ -204,7 +204,7 @@ test("FeishuAdapter builds social binding target from group and p2p contexts", (
   };
 
   assert.deepEqual(
-    adapter.buildSocialTarget(
+    adapter.buildChannelTarget(
       { userId: "group:oc_group_1", userName: "Alice", text: "/bind 482913" },
       { senderId: "ou_user_1", senderName: "Alice", groupId: "group:oc_group_1" },
       "group:oc_group_1",
@@ -223,7 +223,7 @@ test("FeishuAdapter builds social binding target from group and p2p contexts", (
   );
 
   assert.deepEqual(
-    adapter.buildSocialTarget(
+    adapter.buildChannelTarget(
       { userId: "ou_user_1", userName: "Alice", text: "/bind 482913" },
       { senderId: "ou_user_1", senderName: "Alice" },
       "dm:ou_user_1",
@@ -242,7 +242,7 @@ test("FeishuAdapter builds social binding target from group and p2p contexts", (
   );
 });
 
-test("FeishuAdapter accepts social bind codes for group context", async () => {
+test("FeishuAdapter accepts channel bind codes for group context", async () => {
   const adapter = new FeishuAdapter() as unknown as {
     client: {
       request: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
@@ -261,22 +261,22 @@ test("FeishuAdapter accepts social bind codes for group context", async () => {
   };
   adapter.client.request = async (method, params) => {
     requests.push({ method, params });
-    if (method === "app/socialBinding/request/get") {
+    if (method === "app/channelBinding/request/get") {
       return {
         bindingRequestId: "request-1",
         appId: "com.dotharness.channel.feishu",
         threadId: "thread-1",
-        bindingKind: "socialChannel",
+        bindingKind: "channel",
       };
     }
-    if (method === "app/socialBinding/accept") {
+    if (method === "app/channelBinding/accept") {
       return {
           bindingId: "binding-1",
           appId: "com.dotharness.channel.feishu",
           threadId: "thread-1",
           state: "active",
           authorityRevision: 1,
-          socialTarget: params.target,
+          channelTarget: params.target,
       };
     }
     throw new Error(`unexpected request ${method}`);
@@ -299,10 +299,10 @@ test("FeishuAdapter accepts social bind codes for group context", async () => {
   });
 
   assert.deepEqual(requests[0], {
-    method: "app/socialBinding/request/get",
+    method: "app/channelBinding/request/get",
     params: { code: "482913" },
   });
-  assert.equal(requests[1]?.method, "app/socialBinding/accept");
+  assert.equal(requests[1]?.method, "app/channelBinding/accept");
   assert.deepEqual(requests[1]?.params.target, {
     channelName: "feishu",
     conversationKind: "group",

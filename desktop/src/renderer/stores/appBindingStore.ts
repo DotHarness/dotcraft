@@ -4,21 +4,21 @@ export type AppConnectionState = 'notConnected' | 'connecting' | 'connected' | '
 export type AppBindingState = 'connecting' | 'syncing' | 'active' | 'offline' | 'needsConfirmation' | 'revoked' | 'failed' | 'cancelled'
 export type AppNativeStatus = 'installed' | 'missing' | 'unknown'
 export type AppListSurface = 'pluginDetail' | 'welcome' | 'threadBinding' | 'sdk/default'
-export type AppBindingKind = 'app' | 'socialChannel' | 'managedApp' | string
+export type AppBindingKind = 'app' | 'channel' | 'managedApp' | string
 
-export interface SocialChannelBoundBy {
+export interface ChannelBoundBy {
   platformUserId: string
   displayName?: string | null
 }
 
-export interface SocialChannelTarget {
+export interface ChannelTarget {
   channelName: string
   accountId?: string | null
   conversationKind: string
   conversationId: string
   deliveryTarget: string
   displayName?: string | null
-  boundBy?: SocialChannelBoundBy | null
+  boundBy?: ChannelBoundBy | null
 }
 
 export interface AppHandoffModeDescriptor {
@@ -37,7 +37,7 @@ export interface ThreadAppBindingSummary {
   managed?: boolean
   requiresExternalConnection?: boolean
   icon?: string | null
-  socialTarget?: SocialChannelTarget | null
+  channelTarget?: ChannelTarget | null
   authorityRevision?: number
   approvedCapabilityRevision?: number
   candidateCapabilityRevision?: number | null
@@ -110,7 +110,7 @@ export interface ThreadAppBinding {
   connectionState?: AppConnectionState | string
   managed?: boolean
   requiresExternalConnection?: boolean
-  socialTarget?: SocialChannelTarget | null
+  channelTarget?: ChannelTarget | null
   authorityRevision?: number
   approvedCapabilityRevision?: number
   candidateCapabilityRevision?: number | null

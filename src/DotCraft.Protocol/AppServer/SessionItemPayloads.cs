@@ -742,4 +742,12 @@ public sealed class SystemNoticePayload : ExtensibleJsonObject
     [JsonPropertyName("workspaceName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? WorkspaceName { get; init; }
+
+    [JsonPropertyName("channelName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ChannelName { get; init; }
+
+    [JsonPropertyName("targetName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TargetName { get; init; }
 }

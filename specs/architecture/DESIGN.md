@@ -1052,7 +1052,9 @@ viewer-panel toggle, plus a remote screen launcher when the thread runs on a
 remote host. The overflow opens with the workspace actions (an Open submenu of
 editors, with the last-used one checked, and Commit or Checkout, disabled with its
 reason when there is nothing to commit), then the conversation actions (Pin,
-Rename, Archive), then Fork.
+Rename, Archive), then one "Stop continuing in <Channel>" per active channel
+binding, then Fork. Each such binding also shows as a chip beside the title, in
+the same quiet pill as the worktree badge: the channel icon and the chat name.
 
 Ordinary text-only field selects may expand toward the left when opened so the
 longest option can be read without a tooltip. The trigger finishes its width

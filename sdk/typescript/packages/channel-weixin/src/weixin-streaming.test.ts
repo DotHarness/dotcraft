@@ -98,16 +98,16 @@ test("Weixin retries transient text fetch failures with the same client id", asy
   }
 });
 
-test("WeixinAdapter builds social binding target from user context", () => {
+test("WeixinAdapter builds channel binding target from user context", () => {
   const adapter = new WeixinAdapter() as unknown as {
-    buildSocialTarget: (
+    buildChannelTarget: (
       opts: Record<string, unknown>,
       sender: Record<string, unknown>,
       channelContext: string,
     ) => Record<string, unknown> | null;
   };
 
-  const target = adapter.buildSocialTarget(
+  const target = adapter.buildChannelTarget(
     {
       userId: "wx-user-1",
       userName: "Weixin User",
@@ -136,7 +136,7 @@ test("WeixinAdapter builds social binding target from user context", () => {
   });
 });
 
-test("WeixinAdapter accepts social bind codes for user context", async () => {
+test("WeixinAdapter accepts channel bind codes for user context", async () => {
   const adapter = new WeixinAdapter() as unknown as {
     client: {
       request: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
@@ -155,22 +155,22 @@ test("WeixinAdapter accepts social bind codes for user context", async () => {
   };
   adapter.client.request = async (method, params) => {
     requests.push({ method, params });
-    if (method === "app/socialBinding/request/get") {
+    if (method === "app/channelBinding/request/get") {
       return {
         bindingRequestId: "request-1",
         appId: "com.dotharness.channel.weixin",
         threadId: "thread-1",
-        bindingKind: "socialChannel",
+        bindingKind: "channel",
       };
     }
-    if (method === "app/socialBinding/accept") {
+    if (method === "app/channelBinding/accept") {
       return {
           bindingId: "binding-1",
           appId: "com.dotharness.channel.weixin",
           threadId: "thread-1",
           state: "active",
           authorityRevision: 1,
-          socialTarget: params.target,
+          channelTarget: params.target,
       };
     }
     throw new Error(`unexpected request ${method}`);
@@ -189,10 +189,10 @@ test("WeixinAdapter accepts social bind codes for user context", async () => {
   });
 
   assert.deepEqual(requests[0], {
-    method: "app/socialBinding/request/get",
+    method: "app/channelBinding/request/get",
     params: { code: "482913" },
   });
-  assert.equal(requests[1]?.method, "app/socialBinding/accept");
+  assert.equal(requests[1]?.method, "app/channelBinding/accept");
   assert.deepEqual(requests[1]?.params.target, {
     channelName: "weixin",
     conversationKind: "user",

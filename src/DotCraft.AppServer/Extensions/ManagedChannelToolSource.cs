@@ -6,7 +6,7 @@ using DotCraft.AppServer;
 namespace DotCraft.AppBinding;
 
 /// <summary>Projects active conversation bindings as server-authoritative plugin-native tools.</summary>
-public sealed class ManagedSocialToolSource(
+public sealed class ManagedChannelToolSource(
     AppBindingService controlPlane,
     IChannelRuntimeRegistry runtimeRegistry,
     ChannelToolRegistrationService registrationService) : IToolSource, IThreadScopedToolSource
@@ -17,7 +17,7 @@ public sealed class ManagedSocialToolSource(
         "conversationid", "conversationkind", "touserid", "recipient", "destination"
     };
 
-    public string SourceId => "managed-social";
+    public string SourceId => "managed-channel";
     public int Priority => 70;
 
     public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
@@ -26,9 +26,9 @@ public sealed class ManagedSocialToolSource(
         var dataPath = context.DataPath;
         var registrations = new List<ToolRegistration>();
         foreach (var binding in controlPlane.ListThreadBindings(dataPath, context.ThreadId)
-                     .Where(binding => binding.State == AppBindingStates.Active && binding.SocialTarget != null))
+                     .Where(binding => binding.State == AppBindingStates.Active && binding.ChannelTarget != null))
         {
-            var target = binding.SocialTarget!;
+            var target = binding.ChannelTarget!;
             if (!runtimeRegistry.TryGet(target.ChannelName, out var runtime) || runtime == null) continue;
             var descriptors = registrationService.GetRegisteredTools(
                 runtime,
@@ -49,12 +49,12 @@ public sealed class ManagedSocialToolSource(
     private ToolRegistration Create(
         string dataPath,
         AppBindingSnapshot binding,
-        SocialChannelTarget target,
+        ChannelTarget target,
         IChannelRuntime runtime,
         AppServerConnection? adapterConnection,
         ChannelToolSpec descriptor)
     {
-        var sourceId = $"social:{binding.BindingId}";
+        var sourceId = $"channel:{binding.BindingId}";
         var definitionId = new ToolDefinitionId(ToolSourceKind.PluginNative, sourceId, new SourceToolId(descriptor.Name));
         var definition = new ToolDefinition(
             definitionId,
@@ -63,14 +63,14 @@ public sealed class ManagedSocialToolSource(
             JsonSerializer.SerializeToElement(descriptor.InputSchema),
             descriptor.OutputSchema == null ? null : JsonSerializer.SerializeToElement(descriptor.OutputSchema),
             policyHints: new ToolPolicyHints(RequiresApproval: true, OpenWorld: true),
-            provenance: new ToolProvenance(ToolSourceKind.PluginNative, sourceId, "social-binding"));
+            provenance: new ToolProvenance(ToolSourceKind.PluginNative, sourceId, "channel-binding"));
         var runtimeBinding = new ToolRuntimeBinding(
             new RuntimeBindingId(adapterConnection == null
-                ? $"social:{binding.BindingId}:{descriptor.Name}:{binding.AuthorityRevision}"
-                : $"social:{binding.BindingId}:{descriptor.Name}:{binding.AuthorityRevision}:{adapterConnection.ConnectionId:N}"),
+                ? $"channel:{binding.BindingId}:{descriptor.Name}:{binding.AuthorityRevision}"
+                : $"channel:{binding.BindingId}:{descriptor.Name}:{binding.AuthorityRevision}:{adapterConnection.ConnectionId:N}"),
             definitionId,
-            new SocialRuntime(runtime, adapterConnection, target, descriptor.Name),
-            new SocialLease(
+            new ChannelRuntime(runtime, adapterConnection, target, descriptor.Name),
+            new ChannelLease(
                 controlPlane,
                 runtimeRegistry,
                 runtime,
@@ -79,7 +79,7 @@ public sealed class ManagedSocialToolSource(
                 binding.BindingId,
                 binding.AuthorityRevision,
                 target),
-            $"social-binding:{binding.BindingId}", binding.AuthorityRevision);
+            $"channel-binding:{binding.BindingId}", binding.AuthorityRevision);
         return new ToolRegistration(definition, runtimeBinding, ToolProjectionShape.StandardPair,
             descriptor.DeferLoading == true ? ToolExposure.Deferred : ToolExposure.Direct,
             ToolInvocationAudience.Model | ToolInvocationAudience.Host,
@@ -94,7 +94,7 @@ public sealed class ManagedSocialToolSource(
         ReservedTargets.Contains(new string(name.Where(char.IsLetterOrDigit)
             .Select(char.ToLowerInvariant).ToArray()));
 
-    private sealed class SocialLease(
+    private sealed class ChannelLease(
         AppBindingService controlPlane,
         IChannelRuntimeRegistry runtimeRegistry,
         IChannelRuntime runtime,
@@ -102,7 +102,7 @@ public sealed class ManagedSocialToolSource(
         string dataPath,
         string bindingId,
         long revision,
-        SocialChannelTarget target) : IToolBindingLease
+        ChannelTarget target) : IToolBindingLease
     {
         public ValueTask<ToolBindingLeaseResult> CheckAsync(ToolInvocationContext context, CancellationToken cancellationToken = default)
         {
@@ -110,8 +110,8 @@ public sealed class ManagedSocialToolSource(
             {
                 var live = controlPlane.GetBinding(dataPath, bindingId);
                 if (live.State != AppBindingStates.Active || live.AuthorityRevision != revision
-                    || live.SocialTarget?.DeliveryTarget != target.DeliveryTarget)
-                    return ValueTask.FromResult(ToolBindingLeaseResult.Unavailable("Social binding authority changed."));
+                    || live.ChannelTarget?.DeliveryTarget != target.DeliveryTarget)
+                    return ValueTask.FromResult(ToolBindingLeaseResult.Unavailable("Channel binding authority changed."));
                 if (!runtimeRegistry.TryGet(target.ChannelName, out var current)
                     || !ReferenceEquals(current, runtime)
                     || !runtime.IsReady
@@ -119,18 +119,18 @@ public sealed class ManagedSocialToolSource(
                         && (runtime is not IAdapterChannelToolRuntime adapterRuntime
                             || !ReferenceEquals(adapterRuntime.ChannelToolConnection, adapterConnection)))
                 {
-                    return ValueTask.FromResult(ToolBindingLeaseResult.Unavailable("Social channel is unavailable."));
+                    return ValueTask.FromResult(ToolBindingLeaseResult.Unavailable("Channel is unavailable."));
                 }
                 return ValueTask.FromResult(ToolBindingLeaseResult.Available);
             }
-            catch { return ValueTask.FromResult(ToolBindingLeaseResult.Unavailable("Social binding is unavailable.")); }
+            catch { return ValueTask.FromResult(ToolBindingLeaseResult.Unavailable("Channel binding is unavailable.")); }
         }
     }
 
-    private sealed class SocialRuntime(
+    private sealed class ChannelRuntime(
         IChannelRuntime runtime,
         AppServerConnection? adapterConnection,
-        SocialChannelTarget target,
+        ChannelTarget target,
         string toolName) : IToolRuntime
     {
         public async ValueTask<ToolExecutionResult> InvokeAsync(
@@ -139,7 +139,7 @@ public sealed class ManagedSocialToolSource(
             var overrideName = arguments.Select(pair => pair.Key).FirstOrDefault(IsReservedTarget);
             if (overrideName != null)
                 return ToolExecutionResult.Failed(new ToolError("AppBindingTargetOverride",
-                    $"Argument '{overrideName}' cannot override the bound social target."));
+                    $"Argument '{overrideName}' cannot override the bound channel target."));
             if (!runtime.IsReady)
                 return ToolExecutionResult.Failed(new ToolError(AppBindingErrorCodes.Offline,
                     $"Channel '{target.ChannelName}' is offline."));

@@ -125,9 +125,9 @@ Each binding keeps its own MCP session and bearer. Live MCP clients and binding 
 - App Binding does not accept command, arguments, environment, working-directory, or stdio configuration.
 - Redirects or trust-boundary changes require activation again.
 
-## Social channels
+## Channel bindings
 
-Social conversation bindings use the social binding methods and native plugin tools instead of MCP tools. DotCraft injects the bound delivery target on the server.
+Channel bindings use the `thread/channelBindings/*` and `app/channelBinding/*` methods and native plugin tools instead of MCP tools. DotCraft injects the bound delivery target on the server.
 
 Channel tools must not declare `target`, `chatId`, `groupId`, `conversationId`, `deliveryTarget`, or aliases of those fields.
 

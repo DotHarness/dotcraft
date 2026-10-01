@@ -306,9 +306,9 @@ public sealed class AppBindingRequestGetResult : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<AppScopeDescriptor>> ScopeCatalog { get; init; }
 
-    [JsonPropertyName("socialIntent")]
+    [JsonPropertyName("channelIntent")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SocialBindingIntent?> SocialIntent { get; init; }
+    public Optional<ChannelBindingIntent?> ChannelIntent { get; init; }
 
     [JsonPropertyName("source")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -498,9 +498,9 @@ public sealed class AppBinding : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<AppBindingCapabilityChange>> PendingChanges { get; init; }
 
-    [JsonPropertyName("socialTarget")]
+    [JsonPropertyName("channelTarget")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SocialChannelTarget?> SocialTarget { get; init; }
+    public Optional<ChannelTarget?> ChannelTarget { get; init; }
 
     [JsonPropertyName("state")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1008,9 +1008,9 @@ public sealed class AppScopeDescriptor : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppSocialBindingResolveParams.</summary>
+/// <summary>Executable wire contract for AppChannelBindingResolveParams.</summary>
 [ContractModule("app-binding")]
-public sealed class AppSocialBindingResolveParams : ExtensibleJsonObject
+public sealed class AppChannelBindingResolveParams : ExtensibleJsonObject
 {
     [JsonPropertyName("accountId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1030,9 +1030,9 @@ public sealed class AppSocialBindingResolveParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppSocialBindingResolveResult.</summary>
+/// <summary>Executable wire contract for AppChannelBindingResolveResult.</summary>
 [ContractModule("app-binding")]
-public sealed class AppSocialBindingResolveResult : ExtensibleJsonObject
+public sealed class AppChannelBindingResolveResult : ExtensibleJsonObject
 {
     [JsonPropertyName("binding")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1702,9 +1702,9 @@ public sealed class NodeReplImageResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SocialBindingAcceptParams.</summary>
+/// <summary>Executable wire contract for ChannelBindingAcceptParams.</summary>
 [ContractModule("app-binding")]
-public sealed class SocialBindingAcceptParams : ExtensibleJsonObject
+public sealed class ChannelBindingAcceptParams : ExtensibleJsonObject
 {
     [JsonPropertyName("code")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1712,13 +1712,13 @@ public sealed class SocialBindingAcceptParams : ExtensibleJsonObject
 
     [JsonPropertyName("target")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SocialChannelTarget> Target { get; init; }
+    public Optional<ChannelTarget> Target { get; init; }
 
 }
 
-/// <summary>Executable wire contract for SocialBindingIntent.</summary>
+/// <summary>Executable wire contract for ChannelBindingIntent.</summary>
 [ContractModule("app-binding")]
-public sealed class SocialBindingIntent : ExtensibleJsonObject
+public sealed class ChannelBindingIntent : ExtensibleJsonObject
 {
     [JsonPropertyName("channelName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1734,9 +1734,9 @@ public sealed class SocialBindingIntent : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SocialBindingRebindParams.</summary>
+/// <summary>Executable wire contract for ChannelBindingRebindParams.</summary>
 [ContractModule("app-binding")]
-public sealed class SocialBindingRebindParams : ExtensibleJsonObject
+public sealed class ChannelBindingRebindParams : ExtensibleJsonObject
 {
     [JsonPropertyName("authorityRevision")]
     [JsonSafeInteger]
@@ -1749,13 +1749,13 @@ public sealed class SocialBindingRebindParams : ExtensibleJsonObject
 
     [JsonPropertyName("target")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SocialChannelTarget> Target { get; init; }
+    public Optional<ChannelTarget> Target { get; init; }
 
 }
 
-/// <summary>Executable wire contract for SocialBindingRequestGetParams.</summary>
+/// <summary>Executable wire contract for ChannelBindingRequestGetParams.</summary>
 [ContractModule("app-binding")]
-public sealed class SocialBindingRequestGetParams : ExtensibleJsonObject
+public sealed class ChannelBindingRequestGetParams : ExtensibleJsonObject
 {
     [JsonPropertyName("code")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1763,9 +1763,9 @@ public sealed class SocialBindingRequestGetParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SocialChannelBoundBy.</summary>
+/// <summary>Executable wire contract for ChannelBoundBy.</summary>
 [ContractModule("app-binding")]
-public sealed class SocialChannelBoundBy : ExtensibleJsonObject
+public sealed class ChannelBoundBy : ExtensibleJsonObject
 {
     [JsonPropertyName("displayName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1777,9 +1777,9 @@ public sealed class SocialChannelBoundBy : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SocialChannelTarget.</summary>
+/// <summary>Executable wire contract for ChannelTarget.</summary>
 [ContractModule("app-binding")]
-public sealed class SocialChannelTarget : ExtensibleJsonObject
+public sealed class ChannelTarget : ExtensibleJsonObject
 {
     [JsonPropertyName("accountId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1787,7 +1787,7 @@ public sealed class SocialChannelTarget : ExtensibleJsonObject
 
     [JsonPropertyName("boundBy")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SocialChannelBoundBy?> BoundBy { get; init; }
+    public Optional<ChannelBoundBy?> BoundBy { get; init; }
 
     [JsonPropertyName("channelName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1951,9 +1951,9 @@ public sealed class ThreadAppBindingSummary : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> RequiresExternalConnection { get; init; }
 
-    [JsonPropertyName("socialTarget")]
+    [JsonPropertyName("channelTarget")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SocialChannelTarget?> SocialTarget { get; init; }
+    public Optional<ChannelTarget?> ChannelTarget { get; init; }
 
     [JsonPropertyName("state")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2028,9 +2028,9 @@ public sealed class ThreadAppBindingsListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadSocialBindingRequestCreateParams.</summary>
+/// <summary>Executable wire contract for ThreadChannelBindingRequestCreateParams.</summary>
 [ContractModule("app-binding")]
-public sealed class ThreadSocialBindingRequestCreateParams : ExtensibleJsonObject
+public sealed class ThreadChannelBindingRequestCreateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("channelName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2042,9 +2042,9 @@ public sealed class ThreadSocialBindingRequestCreateParams : ExtensibleJsonObjec
 
 }
 
-/// <summary>Executable wire contract for ThreadSocialBindingRequestCreateResult.</summary>
+/// <summary>Executable wire contract for ThreadChannelBindingRequestCreateResult.</summary>
 [ContractModule("app-binding")]
-public sealed class ThreadSocialBindingRequestCreateResult : ExtensibleJsonObject
+public sealed class ThreadChannelBindingRequestCreateResult : ExtensibleJsonObject
 {
     [JsonPropertyName("bindingId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

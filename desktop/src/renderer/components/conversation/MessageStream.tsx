@@ -13,6 +13,7 @@ import { UserMessageBlock } from './UserMessageBlock'
 import { AgentResponseBlock, type HistoricalToolContentMode } from './AgentResponseBlock'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
 import { StreamRetryNotice } from './StreamRetryNotice'
+import { ChannelBindingCodeCard } from './ChannelBindingCodeCard'
 import { SystemStatusDivider } from './SystemStatusDivider'
 import { ConversationColumn } from './ConversationColumn'
 import { wireTurnToConversationTurn } from '../../types/conversation'
@@ -333,6 +334,8 @@ export function MessageStream(): JSX.Element {
           {systemLabel && <SystemStatusDivider labelKey={systemLabel} />}
 
           {streamRetry && <StreamRetryNotice status={streamRetry} />}
+
+          {activeThreadId && <ChannelBindingCodeCard threadId={activeThreadId} />}
 
           {/* Bottom anchor for auto-scroll */}
           <div />

@@ -560,7 +560,7 @@ public sealed class AppBindingService
         return binding;
     }
 
-    public ThreadSocialBindingRequestCreateOutcome CreateSocialRequest(
+    public ThreadChannelBindingRequestCreateOutcome CreateChannelRequest(
         string workspaceCraftPath,
         string threadId,
         string channelName,
@@ -570,31 +570,49 @@ public sealed class AppBindingService
         Require(channelName, "channelName");
         var normalizedChannel = channelName.Trim().ToLowerInvariant();
         var appId = AppIdForChannel(normalizedChannel);
-        var code = AppBindingSecrets.NewSecret()[..12];
         var now = DateTimeOffset.UtcNow;
         return Store(workspaceCraftPath).Update(state =>
         {
-            if (state.Bindings.Any(binding => binding.State != AppBindingStates.Revoked
-                                              && binding.Kind == "social"
+            foreach (var stale in state.Bindings.Where(binding => binding.State == AppBindingStates.Connecting
+                                                                  && binding.Kind == "channel"
+                                                                  && binding.ThreadId == threadId
+                                                                  && binding.AppId == appId
+                                                                  && !state.BindingRequests.Any(request => request.BindingId == binding.BindingId
+                                                                                                           && !request.Consumed
+                                                                                                           && request.ExpiresAt > now)))
+            {
+                stale.State = AppBindingStates.Cancelled;
+                stale.UpdatedAt = now;
+            }
+            if (state.Bindings.Any(binding => binding.State is not (AppBindingStates.Revoked or AppBindingStates.Cancelled)
+                                              && binding.Kind == "channel"
                                               && binding.ThreadId == threadId
                                               && binding.AppId == appId))
-                throw AppBindingErrors.Conflict("This social channel is already binding to the thread.");
+                throw AppBindingErrors.Conflict("This channel is already binding to the thread.");
+            string code, codeHash;
+            do
+            {
+                code = AppBindingSecrets.NewBindCode();
+                codeHash = AppBindingSecrets.HashRequestToken(code);
+            } while (state.BindingRequests.Any(candidate => !candidate.Consumed
+                                                            && candidate.ExpiresAt > now
+                                                            && candidate.RequestTokenHash == codeHash));
             var binding = new AppBindingRecord
             {
-                BindingId = $"socialbind_{Guid.NewGuid():N}", ThreadId = threadId, AppId = appId,
-                UserId = NormalizeUser(userId), Kind = "social", State = AppBindingStates.Connecting,
+                BindingId = $"channelbind_{Guid.NewGuid():N}", ThreadId = threadId, AppId = appId,
+                UserId = NormalizeUser(userId), Kind = "channel", State = AppBindingStates.Connecting,
                 CreatedAt = now, UpdatedAt = now
             };
             var request = new AppBindingRequestRecord
             {
-                BindingRequestId = $"socialreq_{Guid.NewGuid():N}", BindingId = binding.BindingId,
+                BindingRequestId = $"channelreq_{Guid.NewGuid():N}", BindingId = binding.BindingId,
                 ThreadId = threadId, AppId = appId, UserId = binding.UserId,
-                RequestTokenHash = AppBindingSecrets.HashRequestToken(code), CreatedAt = now,
+                RequestTokenHash = codeHash, CreatedAt = now,
                 ExpiresAt = now.Add(AppBindingContract.HandoffLifetime)
             };
             state.Bindings.Add(binding); state.BindingRequests.Add(request);
-            Audit(state, "social.requested", binding.UserId, appId, threadId, binding.BindingId, binding.AuthorityRevision);
-            return new ThreadSocialBindingRequestCreateOutcome
+            Audit(state, "channel.requested", binding.UserId, appId, threadId, binding.BindingId, binding.AuthorityRevision);
+            return new ThreadChannelBindingRequestCreateOutcome
             {
                 BindingRequestId = request.BindingRequestId,
                 BindingId = binding.BindingId,
@@ -605,102 +623,102 @@ public sealed class AppBindingService
         });
     }
 
-    public AppBindingRequestSnapshot GetSocialRequest(string workspaceCraftPath, string code, string channelName)
+    public AppBindingRequestSnapshot GetChannelRequest(string workspaceCraftPath, string code, string channelName)
     {
         Require(code, "code");
         var state = Store(workspaceCraftPath).Snapshot();
         var hash = AppBindingSecrets.HashRequestToken(code);
         var request = state.BindingRequests.FirstOrDefault(candidate => candidate.ExpiresAt > DateTimeOffset.UtcNow
             && !candidate.Consumed && candidate.RequestTokenHash == hash);
-        if (request == null) throw AppBindingErrors.InvalidInput("Social binding code is invalid or expired.");
+        if (request == null) throw AppBindingErrors.InvalidInput("Channel binding code is invalid or expired.");
         var expected = AppIdForChannel(channelName);
         if (!string.Equals(request.AppId, expected, StringComparison.Ordinal))
-            throw AppBindingErrors.Unauthorized("The social binding request belongs to another channel.");
+            throw AppBindingErrors.Unauthorized("The channel binding request belongs to another channel.");
         return ToWire(request);
     }
 
-    public AppBindingSnapshot AcceptSocial(
-        string workspaceCraftPath, string channelName, SocialBindingAcceptCommand parameters)
+    public AppBindingSnapshot AcceptChannel(
+        string workspaceCraftPath, string channelName, ChannelBindingAcceptCommand parameters)
     {
-        ValidateSocialTarget(channelName, parameters.Target);
+        ValidateChannelTarget(channelName, parameters.Target);
         var now = DateTimeOffset.UtcNow;
         var hash = AppBindingSecrets.HashRequestToken(parameters.Code);
         return Store(workspaceCraftPath).Update(state =>
         {
             var request = state.BindingRequests.FirstOrDefault(candidate => !candidate.Consumed
                 && candidate.ExpiresAt > now && candidate.RequestTokenHash == hash)
-                ?? throw AppBindingErrors.InvalidInput("Social binding code is invalid or expired.");
+                ?? throw AppBindingErrors.InvalidInput("Channel binding code is invalid or expired.");
             var binding = RequireLiveBinding(state, request.BindingId);
             if (!string.Equals(binding.AppId, AppIdForChannel(channelName), StringComparison.Ordinal))
                 throw AppBindingErrors.Unauthorized("The binding request belongs to another channel.");
-            EnsureUniqueSocialTarget(state, binding.BindingId, parameters.Target);
+            EnsureUniqueChannelTarget(state, binding.BindingId, parameters.Target);
             request.Consumed = true; request.State = AppBindingStates.Active;
             binding.PrincipalId = $"channel:{channelName.ToLowerInvariant()}";
-            binding.SocialTarget = parameters.Target;
+            binding.ChannelTarget = parameters.Target;
             binding.State = AppBindingStates.Active;
             binding.AuthorityRevision++;
             binding.ApprovedCapabilityRevision = Math.Max(1, binding.ApprovedCapabilityRevision + 1);
             binding.UpdatedAt = now;
-            Audit(state, "social.accepted", binding.PrincipalId, binding.AppId, binding.ThreadId,
+            Audit(state, "channel.accepted", binding.PrincipalId, binding.AppId, binding.ThreadId,
                 binding.BindingId, binding.AuthorityRevision, binding.ApprovedCapabilityRevision);
             return ToWire(binding);
         });
     }
 
-    public AppBindingSnapshot RebindSocial(
-        string workspaceCraftPath, string channelName, SocialBindingRebindCommand parameters)
+    public AppBindingSnapshot RebindChannel(
+        string workspaceCraftPath, string channelName, ChannelBindingRebindCommand parameters)
     {
-        ValidateSocialTarget(channelName, parameters.Target);
+        ValidateChannelTarget(channelName, parameters.Target);
         return Store(workspaceCraftPath).Update(state =>
         {
             var binding = RequireLiveBinding(state, parameters.BindingId);
-            if (binding.Kind != "social" || binding.AuthorityRevision != parameters.AuthorityRevision
+            if (binding.Kind != "channel" || binding.AuthorityRevision != parameters.AuthorityRevision
                 || !string.Equals(binding.AppId, AppIdForChannel(channelName), StringComparison.Ordinal))
-                throw AppBindingErrors.Conflict("The social binding authority is stale or owned by another channel.");
-            EnsureUniqueSocialTarget(state, binding.BindingId, parameters.Target);
-            binding.SocialTarget = parameters.Target;
+                throw AppBindingErrors.Conflict("The channel binding authority is stale or owned by another channel.");
+            EnsureUniqueChannelTarget(state, binding.BindingId, parameters.Target);
+            binding.ChannelTarget = parameters.Target;
             binding.State = AppBindingStates.Active;
             binding.AuthorityRevision++;
             binding.UpdatedAt = DateTimeOffset.UtcNow;
-            Audit(state, "social.rebound", $"channel:{channelName}", binding.AppId, binding.ThreadId,
+            Audit(state, "channel.rebound", $"channel:{channelName}", binding.AppId, binding.ThreadId,
                 binding.BindingId, binding.AuthorityRevision);
             return ToWire(binding);
         });
     }
 
-    public AppBindingSnapshot? ResolveSocial(
+    public AppBindingSnapshot? ResolveChannel(
         string workspaceCraftPath, string channelName, string? accountId, string conversationKind, string conversationId) =>
         Store(workspaceCraftPath).Snapshot().Bindings
-            .Where(binding => binding.Kind == "social" && binding.State == AppBindingStates.Active
-                              && string.Equals(binding.SocialTarget?.ChannelName, channelName, StringComparison.OrdinalIgnoreCase)
-                              && string.Equals(binding.SocialTarget?.AccountId ?? string.Empty, accountId ?? string.Empty, StringComparison.Ordinal)
-                              && string.Equals(binding.SocialTarget?.ConversationKind, conversationKind, StringComparison.OrdinalIgnoreCase)
-                              && string.Equals(binding.SocialTarget?.ConversationId, conversationId, StringComparison.Ordinal))
+            .Where(binding => binding.Kind == "channel" && binding.State == AppBindingStates.Active
+                              && string.Equals(binding.ChannelTarget?.ChannelName, channelName, StringComparison.OrdinalIgnoreCase)
+                              && string.Equals(binding.ChannelTarget?.AccountId ?? string.Empty, accountId ?? string.Empty, StringComparison.Ordinal)
+                              && string.Equals(binding.ChannelTarget?.ConversationKind, conversationKind, StringComparison.OrdinalIgnoreCase)
+                              && string.Equals(binding.ChannelTarget?.ConversationId, conversationId, StringComparison.Ordinal))
             .Select(ToWire).SingleOrDefault();
 
-    private static void ValidateSocialTarget(string channelName, SocialChannelTarget target)
+    private static void ValidateChannelTarget(string channelName, ChannelTarget target)
     {
         if (!string.Equals(target.ChannelName, channelName, StringComparison.OrdinalIgnoreCase)
             || string.IsNullOrWhiteSpace(target.ConversationKind)
             || string.IsNullOrWhiteSpace(target.ConversationId)
             || string.IsNullOrWhiteSpace(target.DeliveryTarget))
-            throw AppBindingErrors.InvalidInput("The social target is incomplete or belongs to another channel.");
+            throw AppBindingErrors.InvalidInput("The channel target is incomplete or belongs to another channel.");
     }
 
-    private static void EnsureUniqueSocialTarget(
+    private static void EnsureUniqueChannelTarget(
         AppBindingStateDocument state,
         string bindingId,
-        SocialChannelTarget target)
+        ChannelTarget target)
     {
-        if (state.Bindings.Any(candidate => candidate.Kind == "social"
+        if (state.Bindings.Any(candidate => candidate.Kind == "channel"
             && candidate.State == AppBindingStates.Active
             && !string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal)
-            && string.Equals(candidate.SocialTarget?.ChannelName, target.ChannelName, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(candidate.SocialTarget?.AccountId ?? string.Empty, target.AccountId ?? string.Empty, StringComparison.Ordinal)
-            && string.Equals(candidate.SocialTarget?.ConversationKind, target.ConversationKind, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(candidate.SocialTarget?.ConversationId, target.ConversationId, StringComparison.Ordinal)))
+            && string.Equals(candidate.ChannelTarget?.ChannelName, target.ChannelName, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(candidate.ChannelTarget?.AccountId ?? string.Empty, target.AccountId ?? string.Empty, StringComparison.Ordinal)
+            && string.Equals(candidate.ChannelTarget?.ConversationKind, target.ConversationKind, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(candidate.ChannelTarget?.ConversationId, target.ConversationId, StringComparison.Ordinal)))
         {
-            throw AppBindingErrors.Conflict("This social conversation is already bound to another thread.");
+            throw AppBindingErrors.Conflict("This channel conversation is already bound to another thread.");
         }
     }
 
@@ -774,7 +792,7 @@ public sealed class AppBindingService
         CandidateCapabilityRevision = binding.CandidateCapabilityRevision,
         ApprovedTools = binding.ApprovedTools,
         PendingChanges = binding.PendingChanges,
-        SocialTarget = binding.SocialTarget,
+        ChannelTarget = binding.ChannelTarget,
         FailureReason = binding.FailureReason,
         UpdatedAt = binding.UpdatedAt
     };

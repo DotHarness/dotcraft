@@ -29,7 +29,7 @@ import type { DotCraftWireClient, ServerRequestHandler } from "./client.js";
 const appBindingFixture = JSON.parse(readFileSync(
   new URL("../../../specs/protocols/fixtures/app-binding.json", import.meta.url),
   "utf8",
-)) as { version: number; states: string[]; socialMethods: string[]; errors: Record<string, string> };
+)) as { version: number; states: string[]; channelMethods: string[]; errors: Record<string, string> };
 
 test("imageDataUrlPart creates inline image input", () => {
   const dataUrl = "data:image/png;base64,iVBORw0KGgo=";
@@ -449,10 +449,10 @@ test("DotCraft appBindings surface helpers use typed contracts", async () => {
   ]);
 });
 
-test("DotCraft appBindings social helpers send expected JSON-RPC params", async () => {
+test("DotCraft appBindings channel binding helpers send expected JSON-RPC params", async () => {
   const wire = new FakeWire();
   const sdk = createSdk(wire);
-  const socialTarget = {
+  const channelTarget = {
     channelName: "qq",
     conversationKind: "group",
     conversationId: "123",
@@ -464,7 +464,7 @@ test("DotCraft appBindings social helpers send expected JSON-RPC params", async 
     },
   };
 
-  await sdk.appBindings.createSocialBindingRequest({
+  await sdk.appBindings.createChannelBindingRequest({
     threadId: "thread-1",
     channelName: "qq",
   });
@@ -472,11 +472,11 @@ test("DotCraft appBindings social helpers send expected JSON-RPC params", async 
     bindCode: "482913",
     requestToken: "482913",
   });
-  await sdk.appBindings.acceptSocialBinding({
+  await sdk.appBindings.acceptChannelBinding({
     requestToken: "482913",
-    socialTarget,
+    channelTarget,
   });
-  await sdk.appBindings.resolveSocialBinding({
+  await sdk.appBindings.resolveChannelBinding({
     channelName: "qq",
     conversationKind: "group",
     conversationId: "123",
@@ -491,8 +491,8 @@ test("DotCraft appBindings social helpers send expected JSON-RPC params", async 
     sender: { senderId: "456", senderName: "Alice", senderRole: "user", groupId: "group:123" },
   });
 
-  assert.deepEqual(wire.requests.map((request) => request.method), appBindingFixture.socialMethods.filter(
-    (method) => method !== "app/socialBinding/rebind",
+  assert.deepEqual(wire.requests.map((request) => request.method), appBindingFixture.channelMethods.filter(
+    (method) => method !== "app/channelBinding/rebind",
   ));
   assert.deepEqual(wire.requests[0]?.params, {
     threadId: "thread-1",
@@ -503,7 +503,7 @@ test("DotCraft appBindings social helpers send expected JSON-RPC params", async 
   });
   assert.deepEqual(wire.requests[2]?.params, {
     code: "482913",
-    target: socialTarget,
+    target: channelTarget,
   });
   assert.deepEqual(wire.requests[3]?.params, {
     channelName: "qq",

@@ -55,6 +55,7 @@ import { FileSearchPopover } from './FileSearchPopover'
 import { useComposerThreadReferences } from './useComposerThreadReferences'
 import { mentionedThreadIds } from '../../utils/threadReferences'
 import { CommandSearchPopover, type SlashSystemActionInfo } from './CommandSearchPopover'
+import { useChannelBindingCommands } from './useChannelBindingCommands'
 import { GoalControlPopover } from './GoalControlPopover'
 import { GoalComposePill } from './GoalComposePill'
 import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
@@ -359,8 +360,13 @@ function InputComposerCore({
   const normalizedSlashQuery = slashQuery?.toLowerCase() ?? null
   const isAgentBuilderModeSlashQuery = isAgentBuilder
     && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent')
+  const channelBindingCommands = useChannelBindingCommands({
+    threadId,
+    enabled: canUseSystemActions && !hasSubmitOverride
+  })
   const isExactSystemSlashQuery = !isAgentBuilder
-    && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'init' || normalizedSlashQuery === 'compact')
+    && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'init' || normalizedSlashQuery === 'compact'
+      || channelBindingCommands.isExactQuery(normalizedSlashQuery))
   const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery && !isAgentBuilderModeSlashQuery
   const showCommandQueryPopover = commandQuery !== null && canUseSlashPicker
   const showCommandPopover = showSlashPopover || showCommandQueryPopover
@@ -446,9 +452,10 @@ function InputComposerCore({
           icon: <Target size={15} strokeWidth={2} aria-hidden />
         })
       }
+      actions.push(...channelBindingCommands.actions)
       return actions
     },
-    [canCompactCurrentThread, canUseAgentProfiles, canUseCommandPicker, canUseSystemActions, canUseThreadGoals, hasProfile, initAvailable, t, threadMode]
+    [canCompactCurrentThread, canUseAgentProfiles, canUseCommandPicker, canUseSystemActions, canUseThreadGoals, hasProfile, initAvailable, channelBindingCommands.actions, t, threadMode]
   )
 
   useEffect(() => {
@@ -1133,6 +1140,12 @@ function InputComposerCore({
       return
     }
 
+    const channelBindingCommand = channelBindingCommands.runSlashCommand(trimmed)
+    if (channelBindingCommand) {
+      if (await channelBindingCommand) resetComposerInput()
+      return
+    }
+
     const systemCommand = isAgentBuilder ? null : parseSystemSlashCommand(trimmed)
     if (systemCommand) {
       let clearInput = false
@@ -1280,7 +1293,7 @@ function InputComposerCore({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, threadReferences])
+  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,
@@ -1617,6 +1630,7 @@ function InputComposerCore({
   const onSelectSystemAction = useCallback((actionId: string): void => {
     setSlashDismissed(true)
     richRef.current?.removeCommandQuery()
+    if (channelBindingCommands.selectAction(actionId)) return
     if (actionId === 'planMode') {
       void toggleMode()
       return
@@ -1641,7 +1655,7 @@ function InputComposerCore({
     } else {
       enterGoalComposeMode()
     }
-  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, sendMessage, toggleMode])
+  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, sendMessage, channelBindingCommands, toggleMode])
 
   const onSelectSkill = useCallback((skillName: string): void => {
     richRef.current?.insertSkillTag(skillName)

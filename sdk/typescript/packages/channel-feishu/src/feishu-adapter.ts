@@ -2,7 +2,7 @@ import {
   DECISION_CANCEL,
   DECISION_DECLINE,
   textPart,
-  type SocialChannelTarget,
+  type ChannelTarget,
 } from "@dotcraft/channel";
 import {
   WebSocketTransport,
@@ -259,12 +259,12 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     return await this.router.sendCard(message.channelContext, card);
   }
 
-  protected override buildSocialTarget(
+  protected override buildChannelTarget(
     opts: ChannelAdapterMessageOpts,
     sender: Record<string, unknown>,
     channelContext: string,
-  ): SocialChannelTarget | null {
-    const target = parseFeishuSocialTarget(conversationTargetBase(channelContext));
+  ): ChannelTarget | null {
+    const target = parseFeishuChannelTarget(conversationTargetBase(channelContext));
     if (!target) return null;
     const platformUserId = String(sender.senderId ?? opts.userId ?? "");
     const displayName = typeof sender.senderName === "string" && sender.senderName.trim()
@@ -1206,7 +1206,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   }
 }
 
-function parseFeishuSocialTarget(channelContext: string): {
+function parseFeishuChannelTarget(channelContext: string): {
   conversationKind: "group" | "user";
   conversationId: string;
   deliveryTarget: string;

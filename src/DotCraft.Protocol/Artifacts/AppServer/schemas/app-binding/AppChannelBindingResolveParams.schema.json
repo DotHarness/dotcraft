@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.dotcraft.dev/appserver/v1/app-binding/AppSocialBindingResolveParams.schema.json",
-  "title": "AppSocialBindingResolveParams",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/app-binding/AppChannelBindingResolveParams.schema.json",
+  "title": "AppChannelBindingResolveParams",
   "type": "object",
   "properties": {
     "accountId": {

@@ -1,6 +1,7 @@
-import { ChevronsDown, GitFork, Monitor, PlugZap, Unplug } from 'lucide-react'
+import { ChevronsDown, GitFork, MessageSquareShare, MessageSquareOff, Monitor, PlugZap, Unplug } from 'lucide-react'
 import { NoticeDivider } from './NoticeDivider'
 import { useT } from '../../contexts/LocaleContext'
+import { getChannelVisualMeta } from '../ui/channelMeta'
 import type { ConversationItem } from '../../types/conversation'
 
 interface SystemNoticeBlockProps {
@@ -49,6 +50,19 @@ export function SystemNoticeBlock({ item }: SystemNoticeBlockProps): JSX.Element
     if (!route) return null
     const title = t(route.key, { host: notice.hostName ?? notice.hostId ?? '' })
     return <NoticeDivider ariaLabel={title} icon={<route.icon size={14} aria-hidden />} title={title} />
+  }
+
+  if (notice.kind === 'channel' && notice.channelName) {
+    const channel = getChannelVisualMeta(notice.channelName).label
+    const bound = notice.reason === 'bound'
+    if (!bound && notice.reason !== 'unbound') return null
+    const title = bound
+      ? notice.targetName
+        ? t('channelBinding.continuingInTarget', { channel, target: notice.targetName })
+        : t('channelBinding.continuingIn', { channel })
+      : t('channelBinding.stopped', { channel })
+    const Icon = bound ? MessageSquareShare : MessageSquareOff
+    return <NoticeDivider ariaLabel={title} icon={<Icon size={14} aria-hidden />} title={title} />
   }
 
   if (notice.kind !== 'compacted' || notice.mode === 'micro') return null

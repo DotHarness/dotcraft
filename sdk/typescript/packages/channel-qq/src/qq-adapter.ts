@@ -6,7 +6,7 @@ import {
   localImagePart,
   textPart,
   type InputPart,
-  type SocialChannelTarget,
+  type ChannelTarget,
 } from "@dotcraft/channel";
 import {
   WebSocketTransport,
@@ -142,11 +142,11 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     return this.mediaTools.getChannelTools();
   }
 
-  protected override buildSocialTarget(
+  protected override buildChannelTarget(
     opts: ChannelAdapterMessageOpts,
     sender: Record<string, unknown>,
     channelContext: string,
-  ): SocialChannelTarget | null {
+  ): ChannelTarget | null {
     const target = parseQQTarget(channelContext);
     if (!target) return null;
     const platformUserId = String(sender.senderId ?? opts.userId ?? "");
@@ -474,7 +474,7 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
       ...(isGroup ? { groupId: channelContext } : {}),
     };
 
-    if (this.parseSocialBindCode(rawText)) {
+    if (this.parseChannelBindCode(rawText)) {
       this.lastSenderByContext.set(channelContext, senderId);
       await this.handleMessage({
         userId: threadUserId,

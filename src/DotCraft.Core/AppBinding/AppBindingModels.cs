@@ -216,12 +216,12 @@ internal static class LegacyAppBindingStates
 public static class AppBindingKinds
 {
     public const string App = "app";
-    public const string SocialChannel = "socialChannel";
+    public const string Channel = "channel";
     public const string ManagedApp = "managedApp";
 
     public static bool IsKnown(string value) =>
         string.Equals(value, App, StringComparison.Ordinal)
-        || string.Equals(value, SocialChannel, StringComparison.Ordinal)
+        || string.Equals(value, Channel, StringComparison.Ordinal)
         || string.Equals(value, ManagedApp, StringComparison.Ordinal);
 }
 

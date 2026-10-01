@@ -269,21 +269,21 @@ describe('appBindingStore', () => {
     })
   })
 
-  it('treats an active social-channel binding as ready', async () => {
+  it('treats an active channel binding as ready', async () => {
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/list') {
         return {
           bindings: [
             {
-              bindingRequestId: 'request-social-1',
-              bindingId: 'binding-social-1',
+              bindingRequestId: 'request-channel-1',
+              bindingId: 'binding-channel-1',
               threadId: 'thread-1',
               appId: 'com.dotharness.channel.qq',
-              bindingKind: 'socialChannel',
+              bindingKind: 'channel',
               state: 'active',
               authorityRevision: 3,
               approvedCapabilityRevision: 1,
-              socialTarget: {
+              channelTarget: {
                 channelName: 'qq',
                 conversationKind: 'group',
                 conversationId: '123456',
@@ -301,14 +301,14 @@ describe('appBindingStore', () => {
       {
         threadId: 'thread-1',
         appId: 'com.dotharness.channel.qq',
-        bindingRequestId: 'request-social-1'
+        bindingRequestId: 'request-channel-1'
       },
       { timeoutMs: 1, intervalMs: 0 }
     )
 
     expect(binding.state).toBe('active')
     expect(binding.authorityRevision).toBe(3)
-    expect(binding.socialTarget?.displayName).toBe('QQ group 123456')
+    expect(binding.channelTarget?.displayName).toBe('QQ group 123456')
   })
 
   it('treats an active MCP-backed binding as ready without attachment counts', async () => {

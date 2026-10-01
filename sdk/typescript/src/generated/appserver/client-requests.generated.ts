@@ -15,6 +15,10 @@ export interface ClientRequestMethods {
   "app/binding/rebind": { params: Models.AppBindingRebindParams; result: Models.AppBinding };
   "app/binding/request/get": { params: Models.AppBindingRequestGetParams; result: Models.AppBindingRequestGetResult };
   "app/bindings/list": { params: Models.RpcEmpty; result: Models.AppBindingsListResult };
+  "app/channelBinding/accept": { params: Models.ChannelBindingAcceptParams; result: Models.AppBinding };
+  "app/channelBinding/rebind": { params: Models.ChannelBindingRebindParams; result: Models.AppBinding };
+  "app/channelBinding/request/get": { params: Models.ChannelBindingRequestGetParams; result: Models.AppBindingRequest };
+  "app/channelBinding/resolve": { params: Models.AppChannelBindingResolveParams; result: Models.AppChannelBindingResolveResult };
   "app/connection/authenticate": { params: Models.AppConnectionAuthenticateParams; result: Models.AppConnectionAuthenticateResult };
   "app/connection/connect": { params: Models.AppConnectionConnectParams; result: Models.AppConnectionConnectResult };
   "app/connection/refresh": { params: Models.RpcEmpty; result: Models.AppConnectionRefreshResult };
@@ -23,10 +27,6 @@ export interface ClientRequestMethods {
   "app/connection/start": { params: Models.AppConnectionStartParams; result: Models.AppConnectionStartResult };
   "app/connection/status": { params: Models.AppConnectionStatusParams; result: Models.AppConnectionStatusResult };
   "app/list": { params: Models.AppListParams; result: Models.AppListResult };
-  "app/socialBinding/accept": { params: Models.SocialBindingAcceptParams; result: Models.AppBinding };
-  "app/socialBinding/rebind": { params: Models.SocialBindingRebindParams; result: Models.AppBinding };
-  "app/socialBinding/request/get": { params: Models.SocialBindingRequestGetParams; result: Models.AppBindingRequest };
-  "app/socialBinding/resolve": { params: Models.AppSocialBindingResolveParams; result: Models.AppSocialBindingResolveResult };
   "app/surface/publish": { params: Models.AppSurfacePublishParams; result: Models.AppSurface };
   "app/surface/resolve": { params: Models.AppSurfaceResolveParams; result: Models.AppSurface };
   "app/threadInput/enqueue": { params: Models.AppThreadInputEnqueueParams; result: Models.AppThreadInputEnqueueResult };
@@ -149,6 +149,7 @@ export interface ClientRequestMethods {
   "thread/appBindings/list": { params: Models.ThreadAppBindingsListParams; result: Models.ThreadAppBindingsListResult };
   "thread/appBindings/revoke": { params: Models.ThreadAppBindingRevokeParams; result: Models.AppBinding };
   "thread/archive": { params: Models.ThreadArchiveParams; result: Models.RpcEmpty };
+  "thread/channelBindings/request/create": { params: Models.ThreadChannelBindingRequestCreateParams; result: Models.ThreadChannelBindingRequestCreateResult };
   "thread/compact/start": { params: Models.ThreadCompactStartParams; result: Models.ThreadCompactStartResponse };
   "thread/config/update": { params: Models.ThreadConfigUpdateParams; result: Models.RpcEmpty };
   "thread/delete": { params: Models.ThreadDeleteParams; result: Models.RpcEmpty };
@@ -168,7 +169,6 @@ export interface ClientRequestMethods {
   "thread/resume": { params: Models.ThreadResumeParams; result: Models.ThreadResumeResult };
   "thread/rollback": { params: Models.ThreadRollbackParams; result: Models.ThreadRollbackResponse };
   "thread/search": { params: Models.ThreadSearchParams; result: Models.ThreadSearchResult };
-  "thread/socialBindings/request/create": { params: Models.ThreadSocialBindingRequestCreateParams; result: Models.ThreadSocialBindingRequestCreateResult };
   "thread/start": { params: Models.ThreadStartParams; result: Models.ThreadStartResult };
   "thread/subscribe": { params: Models.ThreadSubscribeParams; result: Models.RpcEmpty };
   "thread/turns/list": { params: Models.ThreadTurnsListParams; result: Models.ThreadTurnsListResult };

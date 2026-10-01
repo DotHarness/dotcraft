@@ -261,9 +261,9 @@ export interface AppBinding {
   authorityRevision?: number;
   bindingId?: string;
   candidateCapabilityRevision?: number | null;
+  channelTarget?: ChannelTarget | null;
   failureReason?: string | null;
   pendingChanges?: AppBindingCapabilityChange[];
-  socialTarget?: SocialChannelTarget | null;
   state?: string;
   threadId?: string;
   updatedAt?: string;
@@ -315,6 +315,7 @@ export interface AppBindingRequestGetResult {
   bindingId?: string;
   bindingKind?: string | null;
   bindingRequestId?: string;
+  channelIntent?: ChannelBindingIntent | null;
   developerName?: string;
   displayName?: string;
   dynamicToolCatalog?: AppDynamicToolCatalogDescriptor;
@@ -323,7 +324,6 @@ export interface AppBindingRequestGetResult {
   requestedScopes?: string[];
   requestedTools?: string[];
   scopeCatalog?: AppScopeDescriptor[];
-  socialIntent?: SocialBindingIntent | null;
   source?: string;
   state?: string;
   threadId?: string;
@@ -364,6 +364,19 @@ export interface AppBindingUiCapability {
 
 export interface AppBindingsListResult {
   bindings?: AppBinding[];
+  [key: string]: unknown;
+}
+
+export interface AppChannelBindingResolveParams {
+  accountId?: string | null;
+  channelName?: string;
+  conversationId?: string;
+  conversationKind?: string;
+  [key: string]: unknown;
+}
+
+export interface AppChannelBindingResolveResult {
+  binding?: AppBinding | null;
   [key: string]: unknown;
 }
 
@@ -543,19 +556,6 @@ export interface AppScopeDescriptor {
   displayName?: string;
   id?: string;
   risk?: string;
-  [key: string]: unknown;
-}
-
-export interface AppSocialBindingResolveParams {
-  accountId?: string | null;
-  channelName?: string;
-  conversationId?: string;
-  conversationKind?: string;
-  [key: string]: unknown;
-}
-
-export interface AppSocialBindingResolveResult {
-  binding?: AppBinding | null;
   [key: string]: unknown;
 }
 
@@ -922,6 +922,37 @@ export interface ChannelAdapterCapability {
   [key: string]: unknown;
 }
 
+export interface ChannelBindingAcceptParams {
+  code?: string;
+  target?: ChannelTarget;
+  [key: string]: unknown;
+}
+
+export interface ChannelBindingIntent {
+  channelName?: string;
+  displayHint?: string | null;
+  targetSelection?: string;
+  [key: string]: unknown;
+}
+
+export interface ChannelBindingRebindParams {
+  authorityRevision?: number;
+  bindingId?: string;
+  target?: ChannelTarget;
+  [key: string]: unknown;
+}
+
+export interface ChannelBindingRequestGetParams {
+  code?: string;
+  [key: string]: unknown;
+}
+
+export interface ChannelBoundBy {
+  displayName?: string | null;
+  platformUserId?: string;
+  [key: string]: unknown;
+}
+
 export interface ChannelDeliveryCapabilities {
   media?: ChannelMediaCapabilitySet | null;
   structuredDelivery?: boolean | null;
@@ -989,6 +1020,17 @@ export interface ChannelStatusInfo {
 
 export interface ChannelStatusResult {
   channels?: ChannelStatusInfo[];
+  [key: string]: unknown;
+}
+
+export interface ChannelTarget {
+  accountId?: string | null;
+  boundBy?: ChannelBoundBy | null;
+  channelName?: string;
+  conversationId?: string;
+  conversationKind?: string;
+  deliveryTarget?: string;
+  displayName?: string | null;
   [key: string]: unknown;
 }
 
@@ -3206,48 +3248,6 @@ export interface SleepPayload {
   [key: string]: unknown;
 }
 
-export interface SocialBindingAcceptParams {
-  code?: string;
-  target?: SocialChannelTarget;
-  [key: string]: unknown;
-}
-
-export interface SocialBindingIntent {
-  channelName?: string;
-  displayHint?: string | null;
-  targetSelection?: string;
-  [key: string]: unknown;
-}
-
-export interface SocialBindingRebindParams {
-  authorityRevision?: number;
-  bindingId?: string;
-  target?: SocialChannelTarget;
-  [key: string]: unknown;
-}
-
-export interface SocialBindingRequestGetParams {
-  code?: string;
-  [key: string]: unknown;
-}
-
-export interface SocialChannelBoundBy {
-  displayName?: string | null;
-  platformUserId?: string;
-  [key: string]: unknown;
-}
-
-export interface SocialChannelTarget {
-  accountId?: string | null;
-  boundBy?: SocialChannelBoundBy | null;
-  channelName?: string;
-  conversationId?: string;
-  conversationKind?: string;
-  deliveryTarget?: string;
-  displayName?: string | null;
-  [key: string]: unknown;
-}
-
 export interface SourceControlCapabilities {
   gitCommit?: boolean;
   perforceBinding?: boolean;
@@ -3659,6 +3659,7 @@ export interface SystemJobTokenUsage {
 }
 
 export interface SystemNoticePayload {
+  channelName?: string | null;
   clearedToolResults: number;
   hostId?: string | null;
   hostName?: string | null;
@@ -3668,6 +3669,7 @@ export interface SystemNoticePayload {
   percentLeftAfter: number;
   reason?: string | null;
   sourceThreadId?: string | null;
+  targetName?: string | null;
   tokensAfter: number;
   tokensBefore: number;
   trigger: string;
@@ -3775,13 +3777,13 @@ export interface ThreadAppBindingSummary {
   bindingId?: string;
   bindingRequestId?: string | null;
   candidateCapabilityRevision?: number | null;
+  channelTarget?: ChannelTarget | null;
   displayName?: string | null;
   failureReason?: string | null;
   icon?: string | null;
   managed?: boolean;
   pendingChanges?: AppBindingCapabilityChange[];
   requiresExternalConnection?: boolean;
-  socialTarget?: SocialChannelTarget | null;
   state?: string;
   threadId?: string;
   [key: string]: unknown;
@@ -3812,6 +3814,21 @@ export interface ThreadAppBindingsListResult {
 
 export interface ThreadArchiveParams {
   threadId?: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadChannelBindingRequestCreateParams {
+  channelName?: string;
+  threadId?: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadChannelBindingRequestCreateResult {
+  bindingId?: string;
+  bindingRequestId?: string;
+  channelName?: string;
+  code?: string;
+  expiresAt?: string;
   [key: string]: unknown;
 }
 
@@ -4210,21 +4227,6 @@ export interface ThreadSkillsPolicy {
   allowManage?: boolean | null;
   deny?: string[] | null;
   preload?: string[] | null;
-  [key: string]: unknown;
-}
-
-export interface ThreadSocialBindingRequestCreateParams {
-  channelName?: string;
-  threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface ThreadSocialBindingRequestCreateResult {
-  bindingId?: string;
-  bindingRequestId?: string;
-  channelName?: string;
-  code?: string;
-  expiresAt?: string;
   [key: string]: unknown;
 }
 

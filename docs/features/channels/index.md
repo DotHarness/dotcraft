@@ -34,6 +34,12 @@ Desktop hosts the channel process for you — nothing else to deploy. Which cred
 
 For the model underneath, see [Unified Session Core](../../developing/architecture/session-core).
 
+## Continue a Desktop conversation in chat
+
+In a Desktop conversation, type `/bind` and pick a connected channel. DotCraft shows a command such as `/bind 482913`. Send it in the chat you want within 10 minutes, and the conversation continues there.
+
+The binding applies only to that chat; other chats keep their own conversations. To stop, choose **Stop continuing in …** from the conversation's **⋯** menu, or type `/unbind`.
+
 ## Before you open a bot to a group
 
 Before putting a bot in a group or public chat:

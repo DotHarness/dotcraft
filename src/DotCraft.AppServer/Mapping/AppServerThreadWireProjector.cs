@@ -309,7 +309,7 @@ internal sealed class AppServerThreadWireProjector(
         _ = appBindingService.RevokeThreadBindings(workspaceDataPath, thread.Id, "threadDeleted");
     }
 
-    public IReadOnlyList<AppBindingSnapshot> RevokeSocialAppBindingsForArchivedThread(SessionThread thread)
+    public IReadOnlyList<AppBindingSnapshot> RevokeChannelAppBindingsForArchivedThread(SessionThread thread)
     {
         if (appBindingService == null || string.IsNullOrWhiteSpace(workspaceDataPath))
             return [];
@@ -318,7 +318,7 @@ internal sealed class AppServerThreadWireProjector(
             return [];
 
         return appBindingService.ListThreadBindings(workspaceDataPath, thread.Id)
-            .Where(binding => binding.SocialTarget != null && binding.State != AppBindingStates.Revoked)
+            .Where(binding => binding.ChannelTarget != null && binding.State != AppBindingStates.Revoked)
             .Select(binding => appBindingService.RevokeBinding(workspaceDataPath, thread.Id, binding.BindingId, "threadArchived"))
             .ToArray();
     }
@@ -338,8 +338,8 @@ internal sealed class AppServerThreadWireProjector(
             Icon = app?.Descriptor.Icon,
             State = binding.State,
             ConnectionState = AppConnectionStates.Connected,
-            BindingKind = binding.SocialTarget == null ? "app" : "socialChannel",
-            SocialTarget = binding.SocialTarget,
+            BindingKind = binding.ChannelTarget == null ? "app" : "channel",
+            ChannelTarget = binding.ChannelTarget,
             AuthorityRevision = binding.AuthorityRevision,
             ApprovedCapabilityRevision = binding.ApprovedCapabilityRevision,
             CandidateCapabilityRevision = binding.CandidateCapabilityRevision,

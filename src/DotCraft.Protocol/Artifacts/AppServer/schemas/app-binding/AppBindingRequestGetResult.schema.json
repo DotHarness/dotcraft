@@ -23,6 +23,16 @@
     "bindingRequestId": {
       "type": "string"
     },
+    "channelIntent": {
+      "anyOf": [
+        {
+          "$ref": "./ChannelBindingIntent.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "developerName": {
       "type": "string"
     },
@@ -63,16 +73,6 @@
       "items": {
         "$ref": "./AppScopeDescriptor.schema.json"
       }
-    },
-    "socialIntent": {
-      "anyOf": [
-        {
-          "$ref": "./SocialBindingIntent.schema.json"
-        },
-        {
-          "type": "null"
-        }
-      ]
     },
     "source": {
       "type": "string"

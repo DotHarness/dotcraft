@@ -11,7 +11,7 @@ import {
   DECISION_ACCEPT_FOR_SESSION,
   DECISION_CANCEL,
   DECISION_DECLINE,
-  type SocialChannelTarget,
+  type ChannelTarget,
 } from "@dotcraft/channel";
 import {
   ChannelAppServerClient,
@@ -489,11 +489,11 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
     return this.mediaTools.getChannelTools();
   }
 
-  protected override buildSocialTarget(
+  protected override buildChannelTarget(
     opts: ChannelAdapterMessageOpts,
     sender: Record<string, unknown>,
     channelContext: string,
-  ): SocialChannelTarget | null {
+  ): ChannelTarget | null {
     const conversationId = channelContext.trim();
     if (!conversationId) return null;
     const platformUserId = String(sender.senderId ?? opts.userId ?? "");

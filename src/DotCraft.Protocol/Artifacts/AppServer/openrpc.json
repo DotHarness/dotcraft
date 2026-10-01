@@ -402,6 +402,138 @@
       ]
     },
     {
+      "name": "app/channelBinding/accept",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/app-binding/ChannelBindingAcceptParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/app-binding/AppBinding.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "app-binding",
+      "x-dotcraft-capability": "appBindingVersion:1",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/app-binding.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
+      "name": "app/channelBinding/rebind",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/app-binding/ChannelBindingRebindParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/app-binding/AppBinding.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "app-binding",
+      "x-dotcraft-capability": "appBindingVersion:1",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/app-binding.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
+      "name": "app/channelBinding/request/get",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/app-binding/ChannelBindingRequestGetParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/app-binding/AppBindingRequest.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "app-binding",
+      "x-dotcraft-capability": "appBindingVersion:1",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/app-binding.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
+      "name": "app/channelBinding/resolve",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/app-binding/AppChannelBindingResolveParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/app-binding/AppChannelBindingResolveResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "app-binding",
+      "x-dotcraft-capability": "appBindingVersion:1",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/app-binding.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
       "name": "app/connection/authenticate",
       "paramStructure": "by-name",
       "params": [
@@ -648,138 +780,6 @@
         "name": "result",
         "schema": {
           "$ref": "./schemas/app-binding/AppListResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "app-binding",
-      "x-dotcraft-capability": "appBindingVersion:1",
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/app-binding.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "app/socialBinding/accept",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/app-binding/SocialBindingAcceptParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/app-binding/AppBinding.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "app-binding",
-      "x-dotcraft-capability": "appBindingVersion:1",
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/app-binding.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "app/socialBinding/rebind",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/app-binding/SocialBindingRebindParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/app-binding/AppBinding.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "app-binding",
-      "x-dotcraft-capability": "appBindingVersion:1",
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/app-binding.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "app/socialBinding/request/get",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/app-binding/SocialBindingRequestGetParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/app-binding/AppBindingRequest.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "app-binding",
-      "x-dotcraft-capability": "appBindingVersion:1",
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/app-binding.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "app/socialBinding/resolve",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/app-binding/AppSocialBindingResolveParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/app-binding/AppSocialBindingResolveResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -5405,6 +5405,39 @@
       ]
     },
     {
+      "name": "thread/channelBindings/request/create",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/app-binding/ThreadChannelBindingRequestCreateParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/app-binding/ThreadChannelBindingRequestCreateResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "app-binding",
+      "x-dotcraft-capability": "appBindingVersion:1",
+      "x-dotcraft-scope": "thread",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/app-binding.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
       "name": "thread/compact/start",
       "paramStructure": "by-name",
       "params": [
@@ -6037,39 +6070,6 @@
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
       "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "thread/socialBindings/request/create",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/app-binding/ThreadSocialBindingRequestCreateParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/app-binding/ThreadSocialBindingRequestCreateResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "app-binding",
-      "x-dotcraft-capability": "appBindingVersion:1",
-      "x-dotcraft-scope": "thread",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/app-binding.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",

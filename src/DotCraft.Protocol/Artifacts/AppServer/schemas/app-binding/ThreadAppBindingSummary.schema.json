@@ -48,6 +48,16 @@
         }
       ]
     },
+    "channelTarget": {
+      "anyOf": [
+        {
+          "$ref": "./ChannelTarget.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "displayName": {
       "anyOf": [
         {
@@ -89,16 +99,6 @@
     },
     "requiresExternalConnection": {
       "type": "boolean"
-    },
-    "socialTarget": {
-      "anyOf": [
-        {
-          "$ref": "./SocialChannelTarget.schema.json"
-        },
-        {
-          "type": "null"
-        }
-      ]
     },
     "state": {
       "type": "string"

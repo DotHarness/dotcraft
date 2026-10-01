@@ -45,12 +45,12 @@
       "missingOrExpiredError": "AppSurfaceUnavailable"
     }
   },
-  "socialMethods": [
-    "thread/socialBindings/request/create",
-    "app/socialBinding/request/get",
-    "app/socialBinding/accept",
-    "app/socialBinding/rebind",
-    "app/socialBinding/resolve",
+  "channelMethods": [
+    "thread/channelBindings/request/create",
+    "app/channelBinding/request/get",
+    "app/channelBinding/accept",
+    "app/channelBinding/rebind",
+    "app/channelBinding/resolve",
     "app/threadInput/enqueue"
   ],
   "errors": {

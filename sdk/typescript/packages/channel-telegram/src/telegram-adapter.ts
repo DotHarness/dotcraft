@@ -11,7 +11,7 @@ import {
   type Transport,
 } from "@dotcraft/channel/runtime";
 import {
-  type SocialChannelTarget,
+  type ChannelTarget,
 } from "@dotcraft/channel";
 import {
   ConfigValidationError,
@@ -183,11 +183,11 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
     });
   }
 
-  protected override buildSocialTarget(
+  protected override buildChannelTarget(
     opts: ChannelAdapterMessageOpts,
     sender: Record<string, unknown>,
     channelContext: string,
-  ): SocialChannelTarget | null {
+  ): ChannelTarget | null {
     const chatId = parseTargetChatId(channelContext);
     if (chatId === null) return null;
     const platformUserId = String(sender.senderId ?? opts.userId ?? "");

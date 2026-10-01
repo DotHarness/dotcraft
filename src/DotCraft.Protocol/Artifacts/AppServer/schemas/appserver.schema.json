@@ -912,6 +912,16 @@
             }
           ]
         },
+        "channelTarget": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelTarget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "failureReason": {
           "anyOf": [
             {
@@ -927,16 +937,6 @@
           "items": {
             "$ref": "#/$defs/AppBindingCapabilityChange"
           }
-        },
-        "socialTarget": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SocialChannelTarget"
-            },
-            {
-              "type": "null"
-            }
-          ]
         },
         "state": {
           "type": "string"
@@ -1095,6 +1095,16 @@
         "bindingRequestId": {
           "type": "string"
         },
+        "channelIntent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelBindingIntent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "developerName": {
           "type": "string"
         },
@@ -1135,16 +1145,6 @@
           "items": {
             "$ref": "#/$defs/AppScopeDescriptor"
           }
-        },
-        "socialIntent": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SocialBindingIntent"
-            },
-            {
-              "type": "null"
-            }
-          ]
         },
         "source": {
           "type": "string"
@@ -1309,6 +1309,49 @@
           "items": {
             "$ref": "#/$defs/AppBinding"
           }
+        }
+      },
+      "additionalProperties": true
+    },
+    "AppChannelBindingResolveParams": {
+      "title": "AppChannelBindingResolveParams",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "channelName": {
+          "type": "string"
+        },
+        "conversationId": {
+          "type": "string"
+        },
+        "conversationKind": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "AppChannelBindingResolveResult": {
+      "title": "AppChannelBindingResolveResult",
+      "type": "object",
+      "properties": {
+        "binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": true
@@ -1909,49 +1952,6 @@
         },
         "risk": {
           "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AppSocialBindingResolveParams": {
-      "title": "AppSocialBindingResolveParams",
-      "type": "object",
-      "properties": {
-        "accountId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "channelName": {
-          "type": "string"
-        },
-        "conversationId": {
-          "type": "string"
-        },
-        "conversationKind": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AppSocialBindingResolveResult": {
-      "title": "AppSocialBindingResolveResult",
-      "type": "object",
-      "properties": {
-        "binding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AppBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "additionalProperties": true
@@ -3535,6 +3535,90 @@
         "channelName"
       ]
     },
+    "ChannelBindingAcceptParams": {
+      "title": "ChannelBindingAcceptParams",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/ChannelTarget"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ChannelBindingIntent": {
+      "title": "ChannelBindingIntent",
+      "type": "object",
+      "properties": {
+        "channelName": {
+          "type": "string"
+        },
+        "displayHint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "targetSelection": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ChannelBindingRebindParams": {
+      "title": "ChannelBindingRebindParams",
+      "type": "object",
+      "properties": {
+        "authorityRevision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "bindingId": {
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/ChannelTarget"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ChannelBindingRequestGetParams": {
+      "title": "ChannelBindingRequestGetParams",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ChannelBoundBy": {
+      "title": "ChannelBoundBy",
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "platformUserId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
     "ChannelDeliveryCapabilities": {
       "title": "ChannelDeliveryCapabilities",
       "type": "object",
@@ -3864,6 +3948,55 @@
           "items": {
             "$ref": "#/$defs/ChannelStatusInfo"
           }
+        }
+      },
+      "additionalProperties": true
+    },
+    "ChannelTarget": {
+      "title": "ChannelTarget",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "boundBy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelBoundBy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "channelName": {
+          "type": "string"
+        },
+        "conversationId": {
+          "type": "string"
+        },
+        "conversationKind": {
+          "type": "string"
+        },
+        "deliveryTarget": {
+          "type": "string"
+        },
+        "displayName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": true
@@ -12752,139 +12885,6 @@
         "status"
       ]
     },
-    "SocialBindingAcceptParams": {
-      "title": "SocialBindingAcceptParams",
-      "type": "object",
-      "properties": {
-        "code": {
-          "type": "string"
-        },
-        "target": {
-          "$ref": "#/$defs/SocialChannelTarget"
-        }
-      },
-      "additionalProperties": true
-    },
-    "SocialBindingIntent": {
-      "title": "SocialBindingIntent",
-      "type": "object",
-      "properties": {
-        "channelName": {
-          "type": "string"
-        },
-        "displayHint": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "targetSelection": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "SocialBindingRebindParams": {
-      "title": "SocialBindingRebindParams",
-      "type": "object",
-      "properties": {
-        "authorityRevision": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        "bindingId": {
-          "type": "string"
-        },
-        "target": {
-          "$ref": "#/$defs/SocialChannelTarget"
-        }
-      },
-      "additionalProperties": true
-    },
-    "SocialBindingRequestGetParams": {
-      "title": "SocialBindingRequestGetParams",
-      "type": "object",
-      "properties": {
-        "code": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "SocialChannelBoundBy": {
-      "title": "SocialChannelBoundBy",
-      "type": "object",
-      "properties": {
-        "displayName": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "platformUserId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "SocialChannelTarget": {
-      "title": "SocialChannelTarget",
-      "type": "object",
-      "properties": {
-        "accountId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "boundBy": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SocialChannelBoundBy"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "channelName": {
-          "type": "string"
-        },
-        "conversationId": {
-          "type": "string"
-        },
-        "conversationKind": {
-          "type": "string"
-        },
-        "deliveryTarget": {
-          "type": "string"
-        },
-        "displayName": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
     "SourceControlCapabilities": {
       "title": "SourceControlCapabilities",
       "type": "object",
@@ -14605,6 +14605,16 @@
       "title": "SystemNoticePayload",
       "type": "object",
       "properties": {
+        "channelName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "clearedToolResults": {
           "type": "integer"
         },
@@ -14658,6 +14668,16 @@
           ]
         },
         "sourceThreadId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "targetName": {
           "anyOf": [
             {
               "type": "string"
@@ -15023,6 +15043,16 @@
             }
           ]
         },
+        "channelTarget": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelTarget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "displayName": {
           "anyOf": [
             {
@@ -15064,16 +15094,6 @@
         },
         "requiresExternalConnection": {
           "type": "boolean"
-        },
-        "socialTarget": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SocialChannelTarget"
-            },
-            {
-              "type": "null"
-            }
-          ]
         },
         "state": {
           "type": "string"
@@ -15198,6 +15218,42 @@
       "properties": {
         "threadId": {
           "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ThreadChannelBindingRequestCreateParams": {
+      "title": "ThreadChannelBindingRequestCreateParams",
+      "type": "object",
+      "properties": {
+        "channelName": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ThreadChannelBindingRequestCreateResult": {
+      "title": "ThreadChannelBindingRequestCreateResult",
+      "type": "object",
+      "properties": {
+        "bindingId": {
+          "type": "string"
+        },
+        "bindingRequestId": {
+          "type": "string"
+        },
+        "channelName": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
         }
       },
       "additionalProperties": true
@@ -17048,42 +17104,6 @@
               "type": "null"
             }
           ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "ThreadSocialBindingRequestCreateParams": {
-      "title": "ThreadSocialBindingRequestCreateParams",
-      "type": "object",
-      "properties": {
-        "channelName": {
-          "type": "string"
-        },
-        "threadId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "ThreadSocialBindingRequestCreateResult": {
-      "title": "ThreadSocialBindingRequestCreateResult",
-      "type": "object",
-      "properties": {
-        "bindingId": {
-          "type": "string"
-        },
-        "bindingRequestId": {
-          "type": "string"
-        },
-        "channelName": {
-          "type": "string"
-        },
-        "code": {
-          "type": "string"
-        },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time"
         }
       },
       "additionalProperties": true

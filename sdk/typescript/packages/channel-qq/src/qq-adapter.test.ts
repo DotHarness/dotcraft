@@ -87,16 +87,16 @@ test("QQAdapter uses group thread identity and real sender context", async () =>
   assert.equal(privateOpts.omitSenderGroupId, true);
 });
 
-test("QQAdapter builds social binding targets from native QQ context", () => {
+test("QQAdapter builds channel binding targets from native QQ context", () => {
   const adapter = new QQAdapter() as unknown as {
-    buildSocialTarget: (
+    buildChannelTarget: (
       opts: Record<string, unknown>,
       sender: Record<string, unknown>,
       channelContext: string,
     ) => Record<string, unknown> | null;
   };
 
-  assert.deepEqual(adapter.buildSocialTarget(
+  assert.deepEqual(adapter.buildChannelTarget(
     {
       userId: "group:123",
       userName: "Alice",
@@ -122,7 +122,7 @@ test("QQAdapter builds social binding targets from native QQ context", () => {
     },
   });
 
-  assert.deepEqual(adapter.buildSocialTarget(
+  assert.deepEqual(adapter.buildChannelTarget(
     {
       userId: "456",
       userName: "Alice",
@@ -148,7 +148,7 @@ test("QQAdapter builds social binding targets from native QQ context", () => {
   });
 });
 
-test("QQAdapter accepts social bind codes before group mention gating", async () => {
+test("QQAdapter accepts channel bind codes before group mention gating", async () => {
   const adapter = new QQAdapter() as unknown as {
     permission: QQPermissionService;
     requireMentionInGroups: boolean;
@@ -171,22 +171,22 @@ test("QQAdapter accepts social bind codes before group mention gating", async ()
   };
   adapter.client.request = async (method, params) => {
     requests.push({ method, params });
-    if (method === "app/socialBinding/request/get") {
+    if (method === "app/channelBinding/request/get") {
       return {
         bindingRequestId: "request-1",
         appId: "com.dotharness.channel.qq",
         threadId: "thread-1",
-        bindingKind: "socialChannel",
+        bindingKind: "channel",
       };
     }
-    if (method === "app/socialBinding/accept") {
+    if (method === "app/channelBinding/accept") {
       return {
           bindingId: "binding-1",
           appId: "com.dotharness.channel.qq",
           threadId: "thread-1",
           state: "active",
           authorityRevision: 1,
-          socialTarget: params.target,
+          channelTarget: params.target,
       };
     }
     throw new Error(`unexpected request ${method}`);
@@ -206,10 +206,10 @@ test("QQAdapter accepts social bind codes before group mention gating", async ()
   });
 
   assert.deepEqual(requests[0], {
-    method: "app/socialBinding/request/get",
+    method: "app/channelBinding/request/get",
     params: { code: "482913" },
   });
-  assert.equal(requests[1]?.method, "app/socialBinding/accept");
+  assert.equal(requests[1]?.method, "app/channelBinding/accept");
   assert.deepEqual(requests[1]?.params.target, {
     channelName: "qq",
     conversationKind: "group",

@@ -123,9 +123,9 @@ internal static class AppBindingContractMapper
         CandidateCapabilityRevision = OmitIfNull(value.CandidateCapabilityRevision),
         ApprovedTools = value.ApprovedTools.Select(ToContract).ToArray(),
         PendingChanges = value.PendingChanges.Select(ToContract).ToArray(),
-        SocialTarget = value.SocialTarget is null
+        ChannelTarget = value.ChannelTarget is null
             ? default
-            : Protocol.Optional<Contract.SocialChannelTarget?>.FromValue(ToContract(value.SocialTarget)),
+            : Protocol.Optional<Contract.ChannelTarget?>.FromValue(ToContract(value.ChannelTarget)),
         FailureReason = OmitIfNull(value.FailureReason),
         UpdatedAt = value.UpdatedAt
     };
@@ -158,7 +158,7 @@ internal static class AppBindingContractMapper
         Detail = value.Detail
     };
 
-    public static Contract.SocialChannelTarget ToContract(SocialChannelTarget value) => new()
+    public static Contract.ChannelTarget ToContract(ChannelTarget value) => new()
     {
         ChannelName = value.ChannelName,
         AccountId = OmitIfNull(value.AccountId),
@@ -168,15 +168,15 @@ internal static class AppBindingContractMapper
         DisplayName = OmitIfNull(value.DisplayName),
         BoundBy = value.BoundBy is null
             ? default
-            : Protocol.Optional<Contract.SocialChannelBoundBy?>.FromValue(
-                new Contract.SocialChannelBoundBy
+            : Protocol.Optional<Contract.ChannelBoundBy?>.FromValue(
+                new Contract.ChannelBoundBy
                 {
                     PlatformUserId = value.BoundBy.PlatformUserId,
                     DisplayName = OmitIfNull(value.BoundBy.DisplayName)
                 })
     };
 
-    public static SocialChannelTarget FromContract(Contract.SocialChannelTarget value) => new()
+    public static ChannelTarget FromContract(Contract.ChannelTarget value) => new()
     {
         ChannelName = Read(value.ChannelName) ?? string.Empty,
         AccountId = Read(value.AccountId),
@@ -185,7 +185,7 @@ internal static class AppBindingContractMapper
         DeliveryTarget = Read(value.DeliveryTarget) ?? string.Empty,
         DisplayName = Read(value.DisplayName),
         BoundBy = Read(value.BoundBy) is { } boundBy
-            ? new SocialChannelBoundBy
+            ? new ChannelBoundBy
             {
                 PlatformUserId = Read(boundBy.PlatformUserId) ?? string.Empty,
                 DisplayName = Read(boundBy.DisplayName)
@@ -245,17 +245,17 @@ internal static class AppBindingContractMapper
         Decision = Read(value.Decision) ?? string.Empty
     };
 
-    public static SocialBindingAcceptCommand FromContract(Contract.SocialBindingAcceptParams value) => new()
+    public static ChannelBindingAcceptCommand FromContract(Contract.ChannelBindingAcceptParams value) => new()
     {
         Code = Read(value.Code) ?? string.Empty,
-        Target = Read(value.Target) is { } target ? FromContract(target) : new SocialChannelTarget()
+        Target = Read(value.Target) is { } target ? FromContract(target) : new ChannelTarget()
     };
 
-    public static SocialBindingRebindCommand FromContract(Contract.SocialBindingRebindParams value) => new()
+    public static ChannelBindingRebindCommand FromContract(Contract.ChannelBindingRebindParams value) => new()
     {
         BindingId = Read(value.BindingId) ?? string.Empty,
         AuthorityRevision = Read(value.AuthorityRevision),
-        Target = Read(value.Target) is { } target ? FromContract(target) : new SocialChannelTarget()
+        Target = Read(value.Target) is { } target ? FromContract(target) : new ChannelTarget()
     };
 
     public static T? Read<T>(Protocol.Optional<T> value) =>

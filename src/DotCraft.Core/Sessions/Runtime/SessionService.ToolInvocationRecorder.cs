@@ -31,7 +31,7 @@ public sealed partial class SessionService
         lock (turnRuntime.ToolProjectionLock)
         {
             // Ahead of this invocation, so a pending notice never splits a call from its result.
-            DrainRouteNoticesIntoTurn(context, turnRuntime, turn, channel);
+            RecordQueuedSystemNotices(context, turnRuntime, turn, channel);
             var existing = turn.Items.LastOrDefault(candidate => HasCallId(candidate, context.CallId));
             emitStarted = existing is null || !HasTrustedProjection(existing);
             item = existing ?? new SessionItem
@@ -241,23 +241,23 @@ public sealed partial class SessionService
                 throw new InvalidOperationException($"Unknown tool projection shape '{registration.ProjectionShape}'.");
             }
 
-            DrainRouteNoticesIntoTurn(context, turnRuntime, turn, channel);
+            RecordQueuedSystemNotices(context, turnRuntime, turn, channel);
         }
 
         await PersistThreadIfMaterializedAsync(runtime.Thread, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Records the Remote Tool Host route changes this invocation raised, so a route the model
-    /// changed divides the Turn where it changed instead of trailing the whole Turn.
+    /// Records the system notices raised during this invocation, so a route the model changed divides
+    /// the Turn where it changed instead of trailing the whole Turn.
     /// </summary>
-    private void DrainRouteNoticesIntoTurn(
+    private void RecordQueuedSystemNotices(
         ToolInvocationContext context,
         TurnExecutionState turnRuntime,
         SessionTurn turn,
         SessionEventChannel channel)
     {
-        var notices = DrainRemoteRouteNoticesIntoTurn(
+        var notices = DrainSystemNoticesIntoTurn(
             context.ThreadId,
             turn,
             turnRuntime.NextToolItemSequence

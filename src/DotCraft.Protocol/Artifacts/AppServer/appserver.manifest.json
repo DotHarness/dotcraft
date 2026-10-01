@@ -1256,6 +1256,13 @@
           "maximum": 9007199254740991
         },
         {
+          "name": "channelTarget",
+          "type": "app-binding.ChannelTarget",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "failureReason",
           "type": "string",
           "required": false,
@@ -1267,13 +1274,6 @@
           "type": "array<app-binding.AppBindingCapabilityChange>",
           "required": false,
           "nullable": false,
-          "const": null
-        },
-        {
-          "name": "socialTarget",
-          "type": "app-binding.SocialChannelTarget",
-          "required": false,
-          "nullable": true,
           "const": null
         },
         {
@@ -1534,6 +1534,13 @@
           "const": null
         },
         {
+          "name": "channelIntent",
+          "type": "app-binding.ChannelBindingIntent",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "developerName",
           "type": "string",
           "required": false,
@@ -1587,13 +1594,6 @@
           "type": "array<app-binding.AppScopeDescriptor>",
           "required": false,
           "nullable": false,
-          "const": null
-        },
-        {
-          "name": "socialIntent",
-          "type": "app-binding.SocialBindingIntent",
-          "required": false,
-          "nullable": true,
           "const": null
         },
         {
@@ -1806,6 +1806,63 @@
           "type": "array<app-binding.AppBinding>",
           "required": false,
           "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "app-binding.AppChannelBindingResolveParams",
+      "name": "AppChannelBindingResolveParams",
+      "module": "app-binding",
+      "kind": "object",
+      "schema": "schemas/app-binding/AppChannelBindingResolveParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "channelName",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "conversationId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "conversationKind",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "app-binding.AppChannelBindingResolveResult",
+      "name": "AppChannelBindingResolveResult",
+      "module": "app-binding",
+      "kind": "object",
+      "schema": "schemas/app-binding/AppChannelBindingResolveResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "binding",
+          "type": "app-binding.AppBinding",
+          "required": false,
+          "nullable": true,
           "const": null
         }
       ],
@@ -2651,63 +2708,6 @@
           "type": "string",
           "required": false,
           "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "app-binding.AppSocialBindingResolveParams",
-      "name": "AppSocialBindingResolveParams",
-      "module": "app-binding",
-      "kind": "object",
-      "schema": "schemas/app-binding/AppSocialBindingResolveParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "accountId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "channelName",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "conversationId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "conversationKind",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "app-binding.AppSocialBindingResolveResult",
-      "name": "AppSocialBindingResolveResult",
-      "module": "app-binding",
-      "kind": "object",
-      "schema": "schemas/app-binding/AppSocialBindingResolveResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "binding",
-          "type": "app-binding.AppBinding",
-          "required": false,
-          "nullable": true,
           "const": null
         }
       ],
@@ -4528,6 +4528,140 @@
       "variants": []
     },
     {
+      "id": "app-binding.ChannelBindingAcceptParams",
+      "name": "ChannelBindingAcceptParams",
+      "module": "app-binding",
+      "kind": "object",
+      "schema": "schemas/app-binding/ChannelBindingAcceptParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "code",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "target",
+          "type": "app-binding.ChannelTarget",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "app-binding.ChannelBindingIntent",
+      "name": "ChannelBindingIntent",
+      "module": "app-binding",
+      "kind": "object",
+      "schema": "schemas/app-binding/ChannelBindingIntent.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "channelName",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "displayHint",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "targetSelection",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "app-binding.ChannelBindingRebindParams",
+      "name": "ChannelBindingRebindParams",
+      "module": "app-binding",
+      "kind": "object",
+      "schema": "schemas/app-binding/ChannelBindingRebindParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "authorityRevision",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "bindingId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "target",
+          "type": "app-binding.ChannelTarget",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "app-binding.ChannelBindingRequestGetParams",
+      "name": "ChannelBindingRequestGetParams",
+      "module": "app-binding",
+      "kind": "object",
+      "schema": "schemas/app-binding/ChannelBindingRequestGetParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "code",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "app-binding.ChannelBoundBy",
+      "name": "ChannelBoundBy",
+      "module": "app-binding",
+      "kind": "object",
+      "schema": "schemas/app-binding/ChannelBoundBy.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "displayName",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "platformUserId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ChannelDeliveryCapabilities",
       "name": "ChannelDeliveryCapabilities",
       "module": "core",
@@ -4861,6 +4995,66 @@
           "type": "array<core.ChannelStatusInfo>",
           "required": false,
           "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "app-binding.ChannelTarget",
+      "name": "ChannelTarget",
+      "module": "app-binding",
+      "kind": "object",
+      "schema": "schemas/app-binding/ChannelTarget.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "boundBy",
+          "type": "app-binding.ChannelBoundBy",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "channelName",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "conversationId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "conversationKind",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "deliveryTarget",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "required": false,
+          "nullable": true,
           "const": null
         }
       ],
@@ -16006,200 +16200,6 @@
       "variants": []
     },
     {
-      "id": "app-binding.SocialBindingAcceptParams",
-      "name": "SocialBindingAcceptParams",
-      "module": "app-binding",
-      "kind": "object",
-      "schema": "schemas/app-binding/SocialBindingAcceptParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "code",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "target",
-          "type": "app-binding.SocialChannelTarget",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "app-binding.SocialBindingIntent",
-      "name": "SocialBindingIntent",
-      "module": "app-binding",
-      "kind": "object",
-      "schema": "schemas/app-binding/SocialBindingIntent.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "channelName",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "displayHint",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "targetSelection",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "app-binding.SocialBindingRebindParams",
-      "name": "SocialBindingRebindParams",
-      "module": "app-binding",
-      "kind": "object",
-      "schema": "schemas/app-binding/SocialBindingRebindParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "authorityRevision",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "bindingId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "target",
-          "type": "app-binding.SocialChannelTarget",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "app-binding.SocialBindingRequestGetParams",
-      "name": "SocialBindingRequestGetParams",
-      "module": "app-binding",
-      "kind": "object",
-      "schema": "schemas/app-binding/SocialBindingRequestGetParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "code",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "app-binding.SocialChannelBoundBy",
-      "name": "SocialChannelBoundBy",
-      "module": "app-binding",
-      "kind": "object",
-      "schema": "schemas/app-binding/SocialChannelBoundBy.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "displayName",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "platformUserId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "app-binding.SocialChannelTarget",
-      "name": "SocialChannelTarget",
-      "module": "app-binding",
-      "kind": "object",
-      "schema": "schemas/app-binding/SocialChannelTarget.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "accountId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "boundBy",
-          "type": "app-binding.SocialChannelBoundBy",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "channelName",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "conversationId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "conversationKind",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "deliveryTarget",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "displayName",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.SourceControlCapabilities",
       "name": "SourceControlCapabilities",
       "module": "core",
@@ -18275,6 +18275,13 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "channelName",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "clearedToolResults",
           "type": "integer",
           "required": true,
@@ -18332,6 +18339,13 @@
         },
         {
           "name": "sourceThreadId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "targetName",
           "type": "string",
           "required": false,
           "nullable": true,
@@ -18827,6 +18841,13 @@
           "maximum": 9007199254740991
         },
         {
+          "name": "channelTarget",
+          "type": "app-binding.ChannelTarget",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "displayName",
           "type": "string",
           "required": false,
@@ -18866,13 +18887,6 @@
           "type": "boolean",
           "required": false,
           "nullable": false,
-          "const": null
-        },
-        {
-          "name": "socialTarget",
-          "type": "app-binding.SocialChannelTarget",
-          "required": false,
-          "nullable": true,
           "const": null
         },
         {
@@ -19015,6 +19029,77 @@
         {
           "name": "threadId",
           "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "app-binding.ThreadChannelBindingRequestCreateParams",
+      "name": "ThreadChannelBindingRequestCreateParams",
+      "module": "app-binding",
+      "kind": "object",
+      "schema": "schemas/app-binding/ThreadChannelBindingRequestCreateParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "channelName",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "app-binding.ThreadChannelBindingRequestCreateResult",
+      "name": "ThreadChannelBindingRequestCreateResult",
+      "module": "app-binding",
+      "kind": "object",
+      "schema": "schemas/app-binding/ThreadChannelBindingRequestCreateResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "bindingId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "bindingRequestId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "channelName",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "code",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "expiresAt",
+          "type": "date-time",
           "required": false,
           "nullable": false,
           "const": null
@@ -20933,77 +21018,6 @@
           "type": "array<string>",
           "required": false,
           "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "app-binding.ThreadSocialBindingRequestCreateParams",
-      "name": "ThreadSocialBindingRequestCreateParams",
-      "module": "app-binding",
-      "kind": "object",
-      "schema": "schemas/app-binding/ThreadSocialBindingRequestCreateParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "channelName",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "app-binding.ThreadSocialBindingRequestCreateResult",
-      "name": "ThreadSocialBindingRequestCreateResult",
-      "module": "app-binding",
-      "kind": "object",
-      "schema": "schemas/app-binding/ThreadSocialBindingRequestCreateResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "bindingId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "bindingRequestId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "channelName",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "code",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "expiresAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": false,
           "const": null
         }
       ],
@@ -26098,6 +26112,86 @@
       "stability": "stable"
     },
     {
+      "name": "app/channelBinding/accept",
+      "descriptorMember": "ChannelBindingAccept",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "app-binding.ChannelBindingAcceptParams",
+      "resultType": "app-binding.AppBinding",
+      "module": "app-binding",
+      "capability": "appBindingVersion:1",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/app-binding.md",
+      "stability": "stable"
+    },
+    {
+      "name": "app/channelBinding/rebind",
+      "descriptorMember": "ChannelBindingRebind",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "app-binding.ChannelBindingRebindParams",
+      "resultType": "app-binding.AppBinding",
+      "module": "app-binding",
+      "capability": "appBindingVersion:1",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/app-binding.md",
+      "stability": "stable"
+    },
+    {
+      "name": "app/channelBinding/request/get",
+      "descriptorMember": "ChannelBindingRequestGet",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "app-binding.ChannelBindingRequestGetParams",
+      "resultType": "app-binding.AppBindingRequest",
+      "module": "app-binding",
+      "capability": "appBindingVersion:1",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/app-binding.md",
+      "stability": "stable"
+    },
+    {
+      "name": "app/channelBinding/resolve",
+      "descriptorMember": "AppChannelBindingResolve",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "app-binding.AppChannelBindingResolveParams",
+      "resultType": "app-binding.AppChannelBindingResolveResult",
+      "module": "app-binding",
+      "capability": "appBindingVersion:1",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/app-binding.md",
+      "stability": "stable"
+    },
+    {
       "name": "app/connection/authenticate",
       "descriptorMember": "AppConnectionAuthenticate",
       "kind": "request",
@@ -26285,86 +26379,6 @@
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [],
-      "since": "1",
-      "specRef": "specs/protocols/app-binding.md",
-      "stability": "stable"
-    },
-    {
-      "name": "app/socialBinding/accept",
-      "descriptorMember": "SocialBindingAccept",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "app-binding.SocialBindingAcceptParams",
-      "resultType": "app-binding.AppBinding",
-      "module": "app-binding",
-      "capability": "appBindingVersion:1",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/app-binding.md",
-      "stability": "stable"
-    },
-    {
-      "name": "app/socialBinding/rebind",
-      "descriptorMember": "SocialBindingRebind",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "app-binding.SocialBindingRebindParams",
-      "resultType": "app-binding.AppBinding",
-      "module": "app-binding",
-      "capability": "appBindingVersion:1",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/app-binding.md",
-      "stability": "stable"
-    },
-    {
-      "name": "app/socialBinding/request/get",
-      "descriptorMember": "SocialBindingRequestGet",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "app-binding.SocialBindingRequestGetParams",
-      "resultType": "app-binding.AppBindingRequest",
-      "module": "app-binding",
-      "capability": "appBindingVersion:1",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/app-binding.md",
-      "stability": "stable"
-    },
-    {
-      "name": "app/socialBinding/resolve",
-      "descriptorMember": "AppSocialBindingResolve",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "app-binding.AppSocialBindingResolveParams",
-      "resultType": "app-binding.AppSocialBindingResolveResult",
-      "module": "app-binding",
-      "capability": "appBindingVersion:1",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
       "since": "1",
       "specRef": "specs/protocols/app-binding.md",
       "stability": "stable"
@@ -29698,6 +29712,26 @@
       "stability": "stable"
     },
     {
+      "name": "thread/channelBindings/request/create",
+      "descriptorMember": "ThreadChannelBindingRequestCreate",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "app-binding.ThreadChannelBindingRequestCreateParams",
+      "resultType": "app-binding.ThreadChannelBindingRequestCreateResult",
+      "module": "app-binding",
+      "capability": "appBindingVersion:1",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/app-binding.md",
+      "stability": "stable"
+    },
+    {
       "name": "thread/compact/start",
       "descriptorMember": "ThreadCompactStart",
       "kind": "request",
@@ -30199,26 +30233,6 @@
       ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "thread/socialBindings/request/create",
-      "descriptorMember": "ThreadSocialBindingRequestCreate",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "app-binding.ThreadSocialBindingRequestCreateParams",
-      "resultType": "app-binding.ThreadSocialBindingRequestCreateResult",
-      "module": "app-binding",
-      "capability": "appBindingVersion:1",
-      "scope": "thread",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/app-binding.md",
       "stability": "stable"
     },
     {
