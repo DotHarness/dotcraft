@@ -15,6 +15,7 @@ import {
   badgeTone,
   canAddProject,
   canOpenProject,
+  canReachMachine,
   displayRemotePath,
   machineHostLabel,
   machinePort,
@@ -54,7 +55,7 @@ export function SshMachineSettingsDialog({
   const [editing, setEditing] = useState(false)
   const [serverErrors, setServerErrors] = useState<SshMachineValidation | undefined>()
   const connected = canAddProject(machine)
-  const stacks = useDockerDeployments(machine, connected)
+  const stacks = useDockerDeployments(machine, canReachMachine(machine))
   const manual = machine.source === 'manual'
 
   const identity: ReactNode = manual

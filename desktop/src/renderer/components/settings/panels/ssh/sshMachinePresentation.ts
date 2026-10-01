@@ -117,6 +117,10 @@ export function canAddProject(machine: SshMachineView): boolean {
   return machineHasHub(machine.status)
 }
 
+export function canReachMachine(machine: SshMachineView): boolean {
+  return machineHasHub(machine.status) || machine.status.kind === 'notInstalled' || machine.status.kind === 'updateRequired'
+}
+
 export function canOpenProject(machine: SshMachineView): boolean {
   const kind = machine.status.kind
   return kind !== 'unsupported' && kind !== 'installing' && kind !== 'notInstalled' && kind !== 'updateRequired'
