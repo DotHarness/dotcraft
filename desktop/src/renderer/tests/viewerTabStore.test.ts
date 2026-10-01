@@ -276,8 +276,7 @@ describe('openBrowser / updateBrowserTab', () => {
     store().updateBrowserTab(THREAD_A, id, {
       automationActive: true,
       automationSessionName: 'DotCraft',
-      lastAutomationAction: 'click',
-      virtualCursor: { x: 12, y: 34 }
+      lastAutomationAction: 'click'
     })
 
     const tab = store().getThreadState(THREAD_A).tabs.find((item) => item.id === id)
@@ -286,7 +285,6 @@ describe('openBrowser / updateBrowserTab', () => {
       expect(tab.automationActive).toBe(true)
       expect(tab.automationSessionName).toBe('DotCraft')
       expect(tab.lastAutomationAction).toBe('click')
-      expect(tab.virtualCursor).toEqual({ x: 12, y: 34 })
     }
   })
 

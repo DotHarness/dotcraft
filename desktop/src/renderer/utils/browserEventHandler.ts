@@ -94,13 +94,6 @@ export function handleBrowserEvent(
         ...(event.action !== undefined ? { lastAutomationAction: event.action } : {})
       })
       return
-    case 'virtual-cursor':
-      state.updateBrowserTab(threadId, event.tabId, {
-        ...(typeof event.x === 'number' && typeof event.y === 'number'
-          ? { virtualCursor: { x: event.x, y: event.y } }
-          : {})
-      })
-      return
     case 'request-new-tab':
       handleRequestNewBrowserTab(event, threadId, state.currentThreadId, workspacePath, locale)
       return

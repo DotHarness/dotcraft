@@ -28,4 +28,4 @@ interface WebMcpTabCapability {
 }
 ```
 
-Desktop IAB does not synthesize tools from hidden browser state, extension storage, cookies, history, or local profile data. If the page does not provide `navigator.modelContext`, `webmcp` is omitted from `tab.capabilities.list()`. Forced `get("webmcp")`, `listTools()`, or `invokeTool()` calls fail with `Capability is not available: webmcp` instead of page JavaScript `TypeError` details.
+If the page does not provide `navigator.modelContext`, `webmcp` is omitted from `tab.capabilities.list()` and calls fail with `Capability is not available: webmcp`.

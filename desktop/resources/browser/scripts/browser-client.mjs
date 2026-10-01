@@ -1,4 +1,23 @@
 import { browserDocumentation, browserTopic } from './browser-documentation.mjs'
+import {
+  asArray,
+  asObject,
+  clickAt,
+  dragPath,
+  keysOf,
+  locatorClick,
+  locatorFill,
+  locatorPress,
+  locatorSetChecked,
+  locatorType,
+  movePointer,
+  mouseButton,
+  pasteText,
+  pointOf,
+  pressKeys,
+  scrollAt
+} from './browser-input.mjs'
+import { modifierMask } from './browser-keys.mjs'
 import { Buffer } from 'node:buffer'
 import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir, platform } from 'node:os'
@@ -33,14 +52,6 @@ const READONLY_EVALUATE_DENY_PATTERNS = [
   { pattern: /\b(?:eval|Function)\s*\(/, label: 'dynamic code execution' },
   { pattern: /\bnew\s+Function\s*\(/, label: 'dynamic code execution' }
 ]
-
-function asObject(value) {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
-}
-
-function asArray(value) {
-  return Array.isArray(value) ? value : []
-}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)))
@@ -485,7 +496,7 @@ function plainTabInfo(raw) {
   }
 }
 
-function imageResult(dataBase64, mediaType = 'image/png') {
+function imageResult(dataBase64, mediaType = 'image/jpeg') {
   const length = Buffer.from(String(dataBase64 ?? ''), 'base64').byteLength
   return { mediaType, dataBase64: String(dataBase64 ?? ''), length }
 }
@@ -976,13 +987,6 @@ class Locator {
     return asArray(result).map((item) => asObject(item))
   }
 
-  async strictMatch() {
-    const matches = await this.matches()
-    if (matches.length === 0) throw new Error(`No element found for locator: ${this.selector}`)
-    if (matches.length > 1) throw new Error(`Strict mode violation for locator ${this.selector}: ${matches.length} elements matched.`)
-    return matches[0]
-  }
-
   async locatorOperation(operation, payload = {}) {
     const result = await this.tab.api.executeUnhandledCommand({
       type: 'playwright_locator_operation', tab_id: this.tab.numericId,
@@ -1042,53 +1046,14 @@ class Locator {
     }
   }
 
-  async point() {
-    const match = await this.strictMatch()
-    if (match.visible === false || match.enabled === false) {
-      throw new Error(`Locator ${this.selector} resolved to an element that is not actionable.`)
-    }
-    const box = asObject(match.boundingBox)
-    const width = Number(box.width)
-    const height = Number(box.height)
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-      throw new Error(`Locator ${this.selector} resolved to an element without a clickable bounding box.`)
-    }
-    return {
-      x: Math.max(0, Math.round(Number(box.x ?? 0) + width / 2)),
-      y: Math.max(0, Math.round(Number(box.y ?? 0) + height / 2))
-    }
-  }
-
-  async click() {
-    const point = await this.point()
-    await dispatchClick(this.tab, point, 1)
-  }
-
-  async dblclick() {
-    const point = await this.point()
-    await dispatchClick(this.tab, point, 2)
-  }
-
-  async fill(value) {
-    await this.click()
-    await this.locatorOperation('fill', { value: String(value ?? '') })
-  }
-
-  async type(value) {
-    await this.click()
-    await sendText(this.tab, String(value ?? ''))
-  }
-
-  async press(key) {
-    await this.click()
-    await dispatchKey(this.tab, String(key ?? ''))
-  }
-
-  async check() { await this.setChecked(true) }
-  async uncheck() { await this.setChecked(false) }
-  async setChecked(checked) {
-    await this.locatorOperation('setChecked', { checked: checked === true })
-  }
+  async click(options) { await locatorClick(this, 1, options) }
+  async dblclick(options) { await locatorClick(this, 2, options) }
+  async fill(value) { await locatorFill(this, value) }
+  async type(value) { await locatorType(this, value) }
+  async press(key) { await locatorPress(this, key) }
+  async check(options) { await this.setChecked(true, options) }
+  async uncheck(options) { await this.setChecked(false, options) }
+  async setChecked(checked, options) { await locatorSetChecked(this, checked === true, options) }
 
   async selectOption(value) {
     const values = (Array.isArray(value) ? value : [value]).map((item) => {
@@ -1140,23 +1105,6 @@ class Locator {
   describeApi() { return ['count()', 'all()', 'filter(options)', 'and(locator)', 'or(locator)', 'click(options?)', 'dblclick(options?)', 'fill(value, options?)', 'type(value, options?)', 'press(key, options?)', 'innerText(options?)', 'textContent(options?)', 'getAttribute(name, options?)', 'isVisible()', 'isEnabled()', 'waitFor({ state, timeoutMs })', 'allTextContents(options?)', 'check(options?)', 'uncheck(options?)', 'setChecked(checked, options?)', 'selectOption(value, options?)', 'downloadMedia() unsupported'] }
 }
 
-async function dispatchClick(tab, point, clickCount) {
-  await tab.api.moveMouse({ tabId: tab.numericId, x: point.x, y: point.y })
-  await tab.cdp('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount })
-  await tab.cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount })
-}
-
-async function dispatchKey(tab, key) {
-  await tab.cdp('Input.dispatchKeyEvent', { type: 'keyDown', key })
-  await tab.cdp('Input.dispatchKeyEvent', { type: 'keyUp', key })
-}
-
-async function sendText(tab, text) {
-  for (const char of String(text ?? '')) {
-    await tab.cdp('Input.dispatchKeyEvent', { type: 'char', text: char, key: char })
-  }
-}
-
 function finiteNumberOrDefault(value, fallback, name) {
   if (value == null) return fallback
   const numeric = Number(value)
@@ -1188,42 +1136,24 @@ async function viewportCenter(tab) {
 class CuaApi {
   constructor(tab) { this.tab = tab }
   async move(options = {}) {
-    await this.tab.api.moveMouse({ tabId: this.tab.numericId, x: Number(options.x), y: Number(options.y), waitForArrival: options.waitForArrival !== false })
+    await movePointer(this.tab, pointOf(options, 'tab.cua.move'), modifierMask(options.keys))
   }
   async click(options = {}) {
-    const point = { x: Number(options.x), y: Number(options.y) }
-    await dispatchClick(this.tab, point, 1)
+    await clickAt(this.tab, pointOf(options, 'tab.cua.click'), { button: mouseButton(options.button), modifiers: modifierMask(options.keypress) })
   }
   async double_click(options = {}) {
-    const point = { x: Number(options.x), y: Number(options.y) }
-    await dispatchClick(this.tab, point, 2)
+    await clickAt(this.tab, pointOf(options, 'tab.cua.double_click'), { clickCount: 2, modifiers: modifierMask(options.keypress) })
   }
   async drag(options = {}) {
-    const path = asArray(options.path)
-    for (const point of path) await this.move(point)
-    const last = asObject(path.at(-1))
-    if (last.x != null && last.y != null) await this.tab.cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', x: Number(last.x), y: Number(last.y), button: 'left' })
+    await dragPath(this.tab, asArray(options.path).map((point) => pointOf(point, 'tab.cua.drag')), modifierMask(options.keys))
   }
-  async type(options = {}) { await sendText(this.tab, typeof options === 'string' ? options : String(options.text ?? '')) }
-  async keypress(options = {}) {
-    const keys = typeof options === 'string' ? [options] : Array.isArray(options) ? options : asArray(options.keys ?? options.key)
-    for (const key of keys.map(String)) await dispatchKey(this.tab, key)
-  }
+  async type(options = {}) { await pasteText(this.tab, typeof options === 'string' ? options : String(options.text ?? '')) }
+  async keypress(options = {}) { await pressKeys(this.tab, keysOf(options, 'cua.keypress')) }
   async scroll(options = {}) {
-    const x = Number(options.x ?? 0)
-    const y = Number(options.y ?? 0)
+    const point = pointOf(options, 'tab.cua.scroll')
     const distance = scrollDistance(options, false)
     assertScrollDistance(distance)
-    await this.move({ x, y })
-    await this.tab.cdp('Input.synthesizeScrollGesture', {
-      x,
-      y,
-      xDistance: -distance.scrollX,
-      yDistance: -distance.scrollY,
-      gestureSourceType: 'mouse',
-      preventFling: true,
-      speed: 8000
-    })
+    await scrollAt(this.tab, point, distance, modifierMask(options.keypress))
   }
   async get_visible_screenshot() { return await this.tab.screenshot() }
   async download_media() { throw new Error(unsupportedDownload(this.tab.browser.name)) }
@@ -1249,35 +1179,26 @@ class DomCuaApi {
     const box = asObject(info.boundingBox)
     return { x: Number(box.x) + Number(box.width) / 2, y: Number(box.y) + Number(box.height) / 2 }
   }
-  async click(options = {}) { await dispatchClick(this.tab, await this.pointFor(options), 1) }
-  async double_click(options = {}) { await dispatchClick(this.tab, await this.pointFor(options), 2) }
+  async click(options = {}) { await clickAt(this.tab, await this.pointFor(options)) }
+  async double_click(options = {}) { await clickAt(this.tab, await this.pointFor(options), { clickCount: 2 }) }
   async type(options = {}) {
     if (asObject(options).node_id) await this.click(options)
-    await sendText(this.tab, typeof options === 'string' ? options : String(options.text ?? ''))
+    await pasteText(this.tab, typeof options === 'string' ? options : String(options.text ?? ''))
   }
   async keypress(options = {}) {
+    const keys = keysOf(options, 'dom_cua.keypress')
     if (asObject(options).node_id) await this.click(options)
-    const keys = typeof options === 'string' ? [options] : Array.isArray(options) ? options : asArray(options.keys ?? options.key)
-    for (const key of keys.map(String)) await dispatchKey(this.tab, key)
+    await pressKeys(this.tab, keys)
   }
   async scroll(options = {}) {
     const point = asObject(options).node_id ? await this.pointFor(options) : await viewportCenter(this.tab)
     const distance = scrollDistance(options, true)
     assertScrollDistance(distance)
-    await this.tab.api.moveMouse({ tabId: this.tab.numericId, x: point.x, y: point.y })
-    await this.tab.cdp('Input.synthesizeScrollGesture', {
-      x: point.x,
-      y: point.y,
-      xDistance: -distance.scrollX,
-      yDistance: -distance.scrollY,
-      gestureSourceType: 'mouse',
-      preventFling: true,
-      speed: 8000
-    })
+    await scrollAt(this.tab, point, distance)
   }
   async downloadMedia() { throw new Error(unsupportedDownload(this.tab.browser.name)) }
   async download_media() { return await this.downloadMedia() }
-  describeApi() { return ['get_visible_dom()', 'click({ node_id })', 'double_click({ node_id })', 'type({ node_id?, text })', 'keypress({ node_id?, key|keys })', 'scroll({ node_id?, x?, y?, scrollX?, scrollY?, deltaX?, deltaY? })', 'downloadMedia() unsupported'] }
+  describeApi() { return ['get_visible_dom()', 'click({ node_id })', 'double_click({ node_id })', 'type({ node_id?, text })', 'keypress({ node_id?, keys })', 'scroll({ node_id?, x?, y?, scrollX?, scrollY?, deltaX?, deltaY? })', 'downloadMedia() unsupported'] }
 }
 
 class ClipboardApi {

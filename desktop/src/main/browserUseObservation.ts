@@ -132,7 +132,32 @@ function installObservation(injected: any, semantics: any): void {
     visit(document)
     return { title: document.title, url: location.href, bodyText: normalize(document.body?.innerText).slice(0, 4000), accessibilitySnapshot: aria.join('\n'), elements }
   }
-  const operation = (descriptor: any, action: string, payload: any = {}): any => {
+  const ensure = (element: Element, names: string[]): void => {
+    for (const name of names) {
+      if (!(name === 'visible' ? visible(element) : state(element, name))) throw new Error(`Element is not ${name}`)
+    }
+  }
+  const settle = async (element: Element): Promise<void> => {
+    const view = element.ownerDocument.defaultView
+    let rect = element.getBoundingClientRect()
+    let steady = 0
+    for (let frame = 0; frame < 10 && steady < 2; frame++) {
+      await new Promise<void>(done => {
+        const timer = setTimeout(done, 50)
+        view.requestAnimationFrame(() => { clearTimeout(timer); done() })
+      })
+      const next = element.getBoundingClientRect()
+      steady = next.left === rect.left && next.top === rect.top && next.width === rect.width && next.height === rect.height ? steady + 1 : 0
+      rect = next
+    }
+  }
+  const focused = (element: Element): boolean => {
+    for (let node: any = element; node; node = node.getRootNode().host) {
+      if (node.getRootNode().activeElement !== node) return false
+    }
+    return true
+  }
+  const operation = async (descriptor: any, action: string, payload: any = {}): Promise<any> => {
     const elements = resolve(descriptor)
     if (action === 'resolve') return elements.map(info)
     if (elements.length !== 1) throw new Error(`Strict mode violation: locator resolved to ${elements.length} elements.`)
@@ -142,25 +167,42 @@ function installObservation(injected: any, semantics: any): void {
       case 'innerText': return element.innerText
       case 'getAttribute': return element.getAttribute(payload.name)
       case 'isEnabled': return state(element, 'enabled')
+      case 'checked': {
+        const checked = injected.elementState(element, 'checked')
+        return { checked: !!checked.matches, isRadio: !!checked.isRadio }
+      }
+      case 'prepareClick': {
+        const required = payload.force ? [] : ['visible', 'enabled']
+        ensure(element, required)
+        element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' })
+        await settle(element)
+        ensure(element, required)
+        const { x, y, width, height } = box(element)
+        if (width <= 0 || height <= 0) throw new Error('Element does not have a clickable bounding box')
+        return { x: Math.max(0, x + width / 2), y: Math.max(0, y + height / 2) }
+      }
+      case 'focus': {
+        ensure(element, payload.requireEditable ? ['visible', 'enabled', 'editable'] : ['visible', 'enabled'])
+        const target = injected.retarget(element, 'follow-label')
+        if (!target) throw new Error('Element is not connected')
+        element.scrollIntoView({ block: 'center', inline: 'nearest' })
+        const result = injected.focusNode(target, false)
+        if (result !== 'done') throw new Error(String(result))
+        if (!focused(target)) throw new Error('Element is not focused')
+        return null
+      }
       case 'fill': {
-        if (!state(element, 'enabled')) throw new Error('Element is disabled.')
+        ensure(element, ['visible', 'enabled', 'editable'])
+        element.scrollIntoView({ block: 'center', inline: 'nearest' })
         const result = injected.fill(element, payload.value)
         if (result !== 'done' && result !== 'needsinput') throw new Error(String(result))
         return { needsInput: result === 'needsinput' }
       }
       case 'selectOption': return injected.selectOptions(element, payload.values)
-      case 'setChecked': {
-        if (!state(element, 'enabled')) throw new Error('Element is disabled.')
-        if (state(element, 'checked') !== payload.checked) element.click()
-        return null
-      }
       default: throw new Error(`UnsupportedApi: locator operation ${action}`)
     }
   }
-  host.__dotcraftPlaywrightInjected = injected
   host.__dotcraftBrowserUseSnapshot = snapshot
-  host.__dotcraftBrowserUseElementInfo = info
-  host.__dotcraftBrowserUseResolveSelector = (parsed: any) => injected.querySelectorAll(parsed, document).map(info)
   host.__dotcraftBrowserUseLocator = operation
   host.__dotcraftBrowserUseNode = (id: string) => {
     const element = nodes.get(id)

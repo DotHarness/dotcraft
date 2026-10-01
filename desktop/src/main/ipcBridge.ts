@@ -2005,6 +2005,12 @@ export function registerIpcHandlers(
       else viewerBrowserManager.hosts.remove(win, params.tabId, params.message)
     })
   }
+  handleSafe('viewer:browser:host-cursor-arrived', async (event, params?: { tabId: string; moveSequence: number }) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) throw new Error('Browser window not available.')
+    if (!params) throw new Error('Browser host parameters are required.')
+    viewerBrowserManager.hosts.cursors.arrived(win, params.tabId, params.moveSequence)
+  })
   registerBrowserFeedbackIpc(viewerBrowserManager)
   handleSafe(
     'viewer:browser:create',

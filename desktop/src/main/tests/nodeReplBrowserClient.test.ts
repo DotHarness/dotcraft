@@ -526,41 +526,8 @@ describe('Node REPL browser clients', () => {
       'DOMSnapshot.captureSnapshot',
       'Page.getResourceContent',
       'Input.dispatchMouseEvent',
-      'Input.dispatchKeyEvent',
-      'Input.synthesizeScrollGesture'
+      'Input.dispatchKeyEvent'
     ]))
-    expect(browserManager.cdpCommands).toContainEqual(expect.objectContaining({
-      method: 'Input.synthesizeScrollGesture',
-      commandParams: expect.objectContaining({
-        gestureSourceType: 'mouse',
-        preventFling: true,
-        speed: 8000
-      })
-    }))
-    expect(browserManager.cdpCommands).toContainEqual(expect.objectContaining({
-      method: 'Input.synthesizeScrollGesture',
-      commandParams: expect.objectContaining({
-        x: 12,
-        y: 18,
-        yDistance: -80
-      })
-    }))
-    expect(browserManager.cdpCommands).toContainEqual(expect.objectContaining({
-      method: 'Input.synthesizeScrollGesture',
-      commandParams: expect.objectContaining({
-        x: 640,
-        y: 360,
-        yDistance: -120
-      })
-    }))
-    expect(browserManager.cdpCommands).toContainEqual(expect.objectContaining({
-      method: 'Input.synthesizeScrollGesture',
-      commandParams: expect.objectContaining({
-        x: 60,
-        y: 40,
-        yDistance: -120
-      })
-    }))
     expect(browserManager.unhandledCommands).toContainEqual(expect.objectContaining({
       type: 'playwright_wait_for_load_state',
       state: 'load',

@@ -110,6 +110,23 @@ describe('ThreePanel sidebar resize', () => {
     expect(useUIStore.getState().sidebarWidth).toBe(292)
   })
 
+  it('captures the pointer and stops resizing when capture is lost', () => {
+    renderThreePanel()
+
+    const separator = screen.getByRole('separator')
+    const setPointerCapture = vi.fn()
+    Object.assign(separator, { setPointerCapture })
+
+    fireEvent.pointerDown(separator, { clientX: 240, pointerId: 7 })
+    expect(setPointerCapture).toHaveBeenCalledWith(7)
+
+    fireEvent.pointerMove(document, { clientX: 260 })
+    fireEvent(document, new Event('lostpointercapture', { bubbles: true }))
+    fireEvent.pointerMove(document, { clientX: 300 })
+
+    expect(useUIStore.getState().sidebarWidth).toBe(260)
+  })
+
   it('keeps the sidebar above its minimum width while dragging', () => {
     renderThreePanel()
 

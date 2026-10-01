@@ -1,9 +1,5 @@
 import { createRequire } from 'node:module'
-import { createHash } from 'node:crypto'
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { basename, dirname, extname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 import { BrowserWindow } from 'electron'
 import {
   BrowserUseBackendError,
@@ -15,6 +11,7 @@ import { viewerBrowserManager } from './viewerBrowser'
 import { BrowserScreenshot, type BrowserScreenshotContext } from './browserScreenshot'
 import { BrowserTabLifecycle, readBrowserTurnNotification } from './browserTabLifecycle'
 import { browserObservationSource } from './browserUseObservation'
+import { BrowserUseViewports, normalizeViewportSize, type ViewportSize } from './browserUseViewport'
 import type { AppSettings } from './settings'
 import {
   isBrowserUseUrlAllowed as isBrowserUseUrlAllowedByPolicy,
@@ -32,22 +29,6 @@ import type {
 const require = createRequire(import.meta.url)
 const playwrightCoreRoot = dirname(require.resolve('playwright-core/package.json'))
 const { source: playwrightInjectedScriptSource } = require(join(playwrightCoreRoot, 'lib/generated/injectedScriptSource.js')) as { source: string }
-const { parseSelector: parsePlaywrightSelector } = require(join(playwrightCoreRoot, 'lib/utils/isomorphic/selectorParser.js')) as {
-  parseSelector: (selector: string) => unknown
-}
-const {
-  getByLabelSelector,
-  getByPlaceholderSelector,
-  getByRoleSelector,
-  getByTestIdSelector,
-  getByTextSelector
-} = require(join(playwrightCoreRoot, 'lib/utils/isomorphic/locatorUtils.js')) as {
-  getByLabelSelector: (text: string, options?: { exact?: boolean }) => string
-  getByPlaceholderSelector: (text: string, options?: { exact?: boolean }) => string
-  getByRoleSelector: (role: string, options?: { exact?: boolean; name?: string }) => string
-  getByTestIdSelector: (testIdAttributeName: string, testId: string) => string
-  getByTextSelector: (text: string, options?: { exact?: boolean }) => string
-}
 
 const BROWSER_USE_OPEN_CHANNEL = 'viewer:browser:open'
 const BROWSER_USE_CLOSE_CHANNEL = 'viewer:browser:close'
@@ -57,11 +38,8 @@ const BROWSER_USE_OPERATION_TIMEOUT_MS = 10_000
 const BROWSER_USE_NAVIGATION_TIMEOUT_MS = 30_000
 const BROWSER_USE_BLANK_TAB_READY_TIMEOUT_MS = 5_000
 const BROWSER_USE_NETWORK_IDLE_QUIET_MS = 500
-const BROWSER_USE_DEFAULT_VIEWPORT_WIDTH = 1280
-const BROWSER_USE_DEFAULT_VIEWPORT_HEIGHT = 720
+const BROWSER_USE_INPUT_METHODS = new Set(['Input.dispatchMouseEvent', 'Input.dispatchKeyEvent', 'Input.insertText'])
 const BROWSER_USE_MAX_RESULT_BYTES = 1024 * 1024
-const BROWSER_USE_DISPLAY_TRUNCATE_MAX_CHARS = 100_000
-const READONLY_EVALUATE_ERROR = 'ReadonlyEvaluateViolation'
 const BROWSER_USE_BROWSER_CAPABILITIES = [
   {
     id: 'viewport',
@@ -81,171 +59,8 @@ const BROWSER_USE_TAB_CAPABILITIES = [
     docs: 'docs/capabilities/tab/pageAssets.md'
   }
 ]
-const BROWSER_USE_WEBMCP_CAPABILITY = {
-  id: 'webmcp',
-  description: 'List and invoke WebMCP tools explicitly exposed by the current page through navigator.modelContext.',
-  docs: 'docs/capabilities/tab/webmcp.md'
-}
-const BROWSER_USE_WEBMCP_UNAVAILABLE = 'Capability is not available: webmcp'
-const BROWSER_USE_PAGE_ASSET_BUNDLE_KINDS = new Set(['font', 'image', 'stylesheet', 'video'])
 
 type BrowserUseLoadState = 'commit' | 'domcontentloaded' | 'load' | 'networkidle'
-
-const READONLY_EVALUATE_DENY_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
-  { pattern: /\b(?:window\.)?(?:scrollTo|scrollBy|open|close|stop|print)\s*\(/, label: 'window mutation or viewport side effect' },
-  { pattern: /\b(?:window\.)?location(?:\s*=|\.[A-Za-z_$][\w$]*\s*=|\.(?:assign|replace|reload)\s*\()/, label: 'navigation mutation' },
-  { pattern: /\bhistory\.(?:pushState|replaceState|go|back|forward)\s*\(/, label: 'history mutation' },
-  { pattern: /\bdocument\.(?:write|writeln|open|close)\s*\(/, label: 'document mutation' },
-  { pattern: /\bdocument\.cookie\s*=/, label: 'cookie write' },
-  { pattern: /\b(?:localStorage|sessionStorage)\.(?:setItem|removeItem|clear)\s*\(/, label: 'storage mutation' },
-  { pattern: /\bnavigator\.sendBeacon\s*\(/, label: 'network side effect' },
-  { pattern: /\b(?:fetch|XMLHttpRequest)\s*\(/, label: 'network request' },
-  { pattern: /\bnew\s+XMLHttpRequest\s*\(/, label: 'network request' },
-  { pattern: /\.(?:appendChild|removeChild|replaceChild|insertBefore|insertAdjacentHTML|insertAdjacentElement|setAttribute|removeAttribute|toggleAttribute|click|focus|blur|submit|requestSubmit|dispatchEvent)\s*\(/, label: 'DOM or interaction mutation' },
-  { pattern: /\.classList\.(?:add|remove|toggle|replace)\s*\(/, label: 'classList mutation' },
-  { pattern: /\.(?:innerHTML|outerHTML|textContent|innerText|value|checked|disabled|selected|selectedIndex|style)\s*=/, label: 'DOM property mutation' },
-  { pattern: /\.style\.[A-Za-z_$][\w$]*\s*=/, label: 'style mutation' },
-  { pattern: /\b(?:eval|Function)\s*\(/, label: 'dynamic code execution' },
-  { pattern: /\bnew\s+Function\s*\(/, label: 'dynamic code execution' }
-]
-
-function maskJavaScriptLiteralsAndComments(source: string): string {
-  let output = ''
-  let index = 0
-  let state: 'code' | 'single' | 'double' | 'template' | 'lineComment' | 'blockComment' = 'code'
-  while (index < source.length) {
-    const char = source[index] ?? ''
-    const next = source[index + 1] ?? ''
-    if (state === 'code') {
-      if (char === "'" || char === '"' || char === '`') {
-        state = char === "'" ? 'single' : char === '"' ? 'double' : 'template'
-        output += ' '
-        index += 1
-        continue
-      }
-      if (char === '/' && next === '/') {
-        state = 'lineComment'
-        output += '  '
-        index += 2
-        continue
-      }
-      if (char === '/' && next === '*') {
-        state = 'blockComment'
-        output += '  '
-        index += 2
-        continue
-      }
-      output += char
-      index += 1
-      continue
-    }
-    if (state === 'lineComment') {
-      output += char === '\n' ? '\n' : ' '
-      if (char === '\n') state = 'code'
-      index += 1
-      continue
-    }
-    if (state === 'blockComment') {
-      output += char === '\n' ? '\n' : ' '
-      if (char === '*' && next === '/') {
-        output += ' '
-        index += 2
-        state = 'code'
-      } else {
-        index += 1
-      }
-      continue
-    }
-    output += char === '\n' ? '\n' : ' '
-    if (char === '\\') {
-      output += next === '\n' ? '\n' : ' '
-      index += 2
-      continue
-    }
-    if ((state === 'single' && char === "'") || (state === 'double' && char === '"') || (state === 'template' && char === '`')) {
-      state = 'code'
-    }
-    index += 1
-  }
-  return output
-}
-
-function readonlyEvaluateViolation(label: string): Error {
-  return new Error(`${READONLY_EVALUATE_ERROR}: ${label} is not allowed in tab.playwright.evaluate. Use locators, CUA, DOM-CUA, navigation helpers, or wait helpers for page side effects.`)
-}
-
-function assertReadOnlyEvaluateSource(source: string): void {
-  const stripped = maskJavaScriptLiteralsAndComments(source)
-  for (const { pattern, label } of READONLY_EVALUATE_DENY_PATTERNS) {
-    if (pattern.test(stripped)) throw readonlyEvaluateViolation(label)
-  }
-}
-
-function readOnlyEvaluateSource(source: string): string {
-  assertReadOnlyEvaluateSource(source)
-  return `(() => {
-    const __dotcraftSource = ${JSON.stringify(source)};
-    const __dotcraftRestore = [];
-    const __dotcraftThrow = (name) => {
-      throw new Error(${JSON.stringify(READONLY_EVALUATE_ERROR)} + ': ' + name + ' is not allowed in tab.playwright.evaluate. Use locators, CUA, DOM-CUA, navigation helpers, or wait helpers for page side effects.');
-    };
-    const __dotcraftPatch = (target, key, label) => {
-      try {
-        if (!target) return;
-        const original = target[key];
-        if (typeof original !== 'function') return;
-        target[key] = function readonlyEvaluateBlocked() { __dotcraftThrow(label); };
-        __dotcraftRestore.push(() => {
-          try { target[key] = original; } catch (_) {}
-        });
-      } catch (_) {}
-    };
-    __dotcraftPatch(globalThis, 'fetch', 'fetch');
-    __dotcraftPatch(globalThis, 'XMLHttpRequest', 'XMLHttpRequest');
-    __dotcraftPatch(globalThis, 'open', 'window.open');
-    __dotcraftPatch(globalThis, 'scrollTo', 'window.scrollTo');
-    __dotcraftPatch(globalThis, 'scrollBy', 'window.scrollBy');
-    __dotcraftPatch(globalThis.navigator, 'sendBeacon', 'navigator.sendBeacon');
-    __dotcraftPatch(globalThis.history, 'pushState', 'history.pushState');
-    __dotcraftPatch(globalThis.history, 'replaceState', 'history.replaceState');
-    __dotcraftPatch(globalThis.history, 'go', 'history.go');
-    __dotcraftPatch(globalThis.history, 'back', 'history.back');
-    __dotcraftPatch(globalThis.history, 'forward', 'history.forward');
-    __dotcraftPatch(globalThis.location, 'assign', 'location.assign');
-    __dotcraftPatch(globalThis.location, 'replace', 'location.replace');
-    __dotcraftPatch(globalThis.location, 'reload', 'location.reload');
-    __dotcraftPatch(globalThis.localStorage, 'setItem', 'localStorage.setItem');
-    __dotcraftPatch(globalThis.localStorage, 'removeItem', 'localStorage.removeItem');
-    __dotcraftPatch(globalThis.localStorage, 'clear', 'localStorage.clear');
-    __dotcraftPatch(globalThis.sessionStorage, 'setItem', 'sessionStorage.setItem');
-    __dotcraftPatch(globalThis.sessionStorage, 'removeItem', 'sessionStorage.removeItem');
-    __dotcraftPatch(globalThis.sessionStorage, 'clear', 'sessionStorage.clear');
-    __dotcraftPatch(globalThis.Document?.prototype, 'write', 'document.write');
-    __dotcraftPatch(globalThis.Document?.prototype, 'writeln', 'document.writeln');
-    __dotcraftPatch(globalThis.Node?.prototype, 'appendChild', 'Node.appendChild');
-    __dotcraftPatch(globalThis.Node?.prototype, 'removeChild', 'Node.removeChild');
-    __dotcraftPatch(globalThis.Node?.prototype, 'replaceChild', 'Node.replaceChild');
-    __dotcraftPatch(globalThis.Node?.prototype, 'insertBefore', 'Node.insertBefore');
-    __dotcraftPatch(globalThis.Element?.prototype, 'setAttribute', 'Element.setAttribute');
-    __dotcraftPatch(globalThis.Element?.prototype, 'removeAttribute', 'Element.removeAttribute');
-    __dotcraftPatch(globalThis.Element?.prototype, 'toggleAttribute', 'Element.toggleAttribute');
-    __dotcraftPatch(globalThis.Element?.prototype, 'insertAdjacentHTML', 'Element.insertAdjacentHTML');
-    __dotcraftPatch(globalThis.Element?.prototype, 'insertAdjacentElement', 'Element.insertAdjacentElement');
-    __dotcraftPatch(globalThis.EventTarget?.prototype, 'dispatchEvent', 'EventTarget.dispatchEvent');
-    __dotcraftPatch(globalThis.HTMLElement?.prototype, 'click', 'HTMLElement.click');
-    __dotcraftPatch(globalThis.HTMLElement?.prototype, 'focus', 'HTMLElement.focus');
-    __dotcraftPatch(globalThis.HTMLElement?.prototype, 'blur', 'HTMLElement.blur');
-    __dotcraftPatch(globalThis.HTMLFormElement?.prototype, 'submit', 'HTMLFormElement.submit');
-    __dotcraftPatch(globalThis.HTMLFormElement?.prototype, 'requestSubmit', 'HTMLFormElement.requestSubmit');
-    return (async () => {
-      try {
-        return await (0, eval)(__dotcraftSource);
-      } finally {
-        for (let i = __dotcraftRestore.length - 1; i >= 0; i -= 1) __dotcraftRestore[i]();
-      }
-    })();
-  })()`
-}
 
 export interface BrowserUseImageResult {
   mediaType: string
@@ -259,8 +74,6 @@ interface BrowserUseViewerHost {
     threadId?: string
     workspacePath: string
     initialUrl?: string
-    width?: number
-    height?: number
     allowFileScheme?: boolean
   }): unknown
   getTabWebContents(win: BrowserWindow, tabId: string): Electron.WebContents | null
@@ -282,18 +95,15 @@ interface BrowserUseViewerHost {
   setAutomationState(win: BrowserWindow, params: {
     tabId: string
     active: boolean
+    release?: boolean
     sessionName?: string
     action?: string
   }): void
-  setBounds?(win: BrowserWindow, params: { tabId: string; x: number; y: number; width: number; height: number }): void
+  setViewport(win: BrowserWindow, params: { tabId: string; viewport: ViewportSize | undefined }): void
+  getLayoutSize(win: BrowserWindow, tabId: string): ViewportSize
+  isVisible(win: BrowserWindow, tabId: string): boolean
   setVisible?(win: BrowserWindow, params: { tabId: string; visible: boolean }): void
   moveMouse(win: BrowserWindow, params: { tabId: string; x: number; y: number; waitForArrival?: boolean }): Promise<void>
-  clickMouse(win: BrowserWindow, params: { tabId: string; x: number; y: number; button?: 'left' | 'right' | 'middle' }): Promise<void>
-  doubleClickMouse(win: BrowserWindow, params: { tabId: string; x: number; y: number; button?: 'left' | 'right' | 'middle' }): Promise<void>
-  dragMouse(win: BrowserWindow, params: { tabId: string; path: Array<{ x: number; y: number }> }): Promise<void>
-  scrollMouse(win: BrowserWindow, params: { tabId: string; x: number; y: number; scrollX: number; scrollY: number }): Promise<void>
-  typeText(win: BrowserWindow, params: { tabId: string; text: string }): Promise<void>
-  keypress(win: BrowserWindow, params: { tabId: string; keys: string[] }): void
 }
 
 interface BrowserUsePolicyHost {
@@ -319,10 +129,6 @@ interface BrowserUseTabRuntime {
   debuggerDetachHandler?: (...args: unknown[]) => void
   webContentsFailLoadHandler?: (...args: unknown[]) => void
   lastNavigationFailure?: BrowserUseNavigationFailure
-  snapshotRefs: Map<string, BrowserUseElementMatch>
-  domCuaNodes: Map<string, BrowserUseElementMatch>
-  pageAssetInventories: Map<string, BrowserUsePageAssetInventory>
-  snapshotGeneration: number
 }
 
 interface BrowserUseCreateTabOptions {
@@ -349,40 +155,6 @@ interface BrowserUseNavigationFailure {
   finalURL: string
   isMainFrame: boolean
   timestamp: number
-}
-
-type BrowserUsePageAssetKind = 'script' | 'font' | 'image' | 'stylesheet' | 'video' | 'other'
-
-interface BrowserUsePageAssetSource {
-  kind: 'attribute' | 'computedStyle' | 'resource'
-  nodeId?: number
-  property?: string
-}
-
-interface BrowserUsePageAsset {
-  id: string
-  kind: BrowserUsePageAssetKind
-  name: string
-  sources: BrowserUsePageAssetSource[]
-  url: string
-}
-
-interface BrowserUseInlineSvg {
-  id: string
-  markup: string
-  name: string
-}
-
-interface BrowserUsePageAssetInventory {
-  id: string
-  assets: BrowserUsePageAsset[]
-  inlineSvgs: BrowserUseInlineSvg[]
-  pageUrl: string | null
-  summary: {
-    byKind: Partial<Record<BrowserUsePageAssetKind, number>>
-    inlineSvgCount: number
-    totalCount: number
-  }
 }
 
 type BrowserFinalizeKeepStatus = 'handoff' | 'deliverable'
@@ -427,7 +199,6 @@ interface BrowserUseThreadRuntime {
   owner: BrowserWindow
   workspacePath: string
   sessionName?: string
-  agent?: Record<string, unknown>
   display?: (imageLike: unknown) => Promise<void>
   tabs: Map<string, BrowserUseTabRuntime>
   selectedTabId: string | null
@@ -440,12 +211,10 @@ interface BrowserUseThreadRuntime {
   backendTabIds: Map<string, number>
   backendTabs: Map<number, BrowserUseTabRuntime>
   recentUserBackendTabIds: Set<number>
-  recentOpenTabIds: Set<string>
   pendingBackendCommands: Map<unknown, BrowserUseBackendPendingCommand>
   activeOperation?: BrowserUseOperationTrace
   operationHistory: BrowserUseOperationTrace[]
-  viewportWidth: number
-  viewportHeight: number
+  pendingViewport?: ViewportSize
   browserVisible: boolean
 }
 
@@ -453,33 +222,6 @@ interface BrowserUseOperationTimeouts {
   operationMs?: number
   navigationMs?: number
   blankTabReadyMs?: number
-}
-
-type BrowserUseLocatorKind = 'css' | 'text' | 'role' | 'label' | 'placeholder' | 'testId' | 'ref' | 'and' | 'or'
-
-interface BrowserUseLocatorTextMatcher {
-  value?: string
-  pattern?: string
-  flags?: string
-  exact?: boolean
-}
-
-interface BrowserUseLocatorFilter {
-  kind: 'hasText' | 'hasNotText' | 'visible' | 'has' | 'hasNot'
-  value?: boolean
-  matcher?: BrowserUseLocatorTextMatcher
-  descriptor?: BrowserUseLocatorDescriptor
-}
-
-interface BrowserUseLocatorDescriptor {
-  kind: BrowserUseLocatorKind
-  value: string
-  exact?: boolean
-  name?: string
-  index?: number
-  filters?: BrowserUseLocatorFilter[]
-  left?: BrowserUseLocatorDescriptor
-  right?: BrowserUseLocatorDescriptor
 }
 
 interface BrowserUseElementMatch {
@@ -503,15 +245,6 @@ interface BrowserUseElementMatch {
     width: number
     height: number
   } | null
-}
-
-interface BrowserUseSnapshotRefFilter {
-  ref?: string
-  href?: string
-  testId?: string
-  role?: string
-  expectedName?: string
-  tagName?: string
 }
 
 export function normalizeBrowserUseUrl(input: string): string | null {
@@ -561,6 +294,13 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     owner: BrowserWindow
   }>()
   private readonly closedTabIdsByOwner = new WeakMap<BrowserWindow, Set<string>>()
+  private readonly viewports = new BrowserUseViewports<BrowserUseTabRuntime>({
+    send: async (tab, method, params) => {
+      this.attachDebugger(tab)
+      return await this.webContentsFor(tab.owner, tab.id).debugger.sendCommand(method, params)
+    },
+    present: (tab, viewport) => this.viewerHost.setViewport(tab.owner, { tabId: tab.id, viewport })
+  })
   private readonly backendServer = new BrowserUseBackendServer({
     handleBrowserUseBackendRequest: (method, params, context) =>
       this.handleBrowserUseBackendRequest(method, params, context)
@@ -608,7 +348,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     signal?: AbortSignal
     browserSession?: BrowserSessionMetadata
   }): Promise<{
-    agent: Record<string, unknown>
     display: (imageLike: unknown) => Promise<void>
     collect: () => { images: BrowserUseImageResult[]; logs: string[] }
   }> {
@@ -631,7 +370,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     const sessionId = runtime.browserSession.sessionId
     if (sessionId) this.runtimesBySessionId.set(sessionId, runtime)
     return {
-      agent: runtime.agent!,
       display: runtime.display!,
       collect: () => ({
         images: [...runtime.images],
@@ -674,8 +412,12 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     const runtime = this.runtimes.get(turn.threadId)
     if (!runtime) return turn
     if (workspacePath && runtime.workspacePath && workspacePath !== runtime.workspacePath) return
-    if (!turn.terminal) runtime.lifecycle.beginTurn(turn.turnId)
-    else runtime.lifecycle.finishTurn(turn.turnId, runtime.tabs.values(), this.lifecycleEffects(runtime))
+    if (!turn.terminal) {
+      runtime.lifecycle.beginTurn(turn.turnId)
+    } else {
+      runtime.pendingViewport = undefined
+      runtime.lifecycle.finishTurn(turn.turnId, runtime.tabs.values(), this.lifecycleEffects(runtime))
+    }
     return turn
   }
 
@@ -734,11 +476,8 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       backendTabIds: new Map<string, number>(),
       backendTabs: new Map<number, BrowserUseTabRuntime>(),
       recentUserBackendTabIds: new Set<number>(),
-      recentOpenTabIds: new Set<string>(),
       pendingBackendCommands: new Map<unknown, BrowserUseBackendPendingCommand>(),
       operationHistory: [],
-      viewportWidth: BROWSER_USE_DEFAULT_VIEWPORT_WIDTH,
-      viewportHeight: BROWSER_USE_DEFAULT_VIEWPORT_HEIGHT,
       browserVisible: false
     }
 
@@ -760,36 +499,10 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       }
     }
 
-    const browser = this.createBrowserApi(owner, runtime)
-    const browsers = {
-      list: async () => [this.browserInfo(runtime)],
-      get: async (id: string) => {
-        const normalized = String(id ?? '').toLowerCase()
-        if (normalized === 'iab' || normalized === 'browser') return browser
-        throw new Error(`Browser not found: ${id}. Available browser id: iab.`)
-      },
-      describeApi: () => ['list()', 'get("iab")', 'get("browser")']
-    }
-    const agent = { browser, browsers }
-
-    runtime.agent = agent
     runtime.display = display
 
     this.runtimes.set(threadId, runtime)
     return runtime
-  }
-
-  private browserInfo(runtime: BrowserUseThreadRuntime): Record<string, unknown> {
-    return {
-      id: 'iab',
-      name: 'DotCraft Browser',
-      type: 'iab',
-      capabilities: {
-        browser: BROWSER_USE_BROWSER_CAPABILITIES.map((capability) => ({ ...capability })),
-        tab: BROWSER_USE_TAB_CAPABILITIES.map((capability) => ({ ...capability }))
-      },
-      tabCount: runtime.tabs.size
-    }
   }
 
   async handleBrowserUseBackendRequest(
@@ -1008,9 +721,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
 
   private isBackendResultCapExempt(operation: string, params: Record<string, unknown>): boolean {
     if (operation === 'executeCdp' && this.stringParam(params, 'method') === 'Page.captureScreenshot') return true
-    return operation === 'executeUnhandledCommand' &&
-      (this.stringParam(params, 'type') === 'playwright_element_screenshot' ||
-        this.stringParam(params, 'type') === 'tab_screenshot')
+    return operation === 'executeUnhandledCommand' && this.stringParam(params, 'type') === 'tab_screenshot'
   }
 
   private assertBackendResultWithinLimit(operation: string, value: unknown): void {
@@ -1137,7 +848,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     const candidate = this.viewerHost.getAutomationTargetTab?.(runtime.owner, runtime.threadId)
     const candidates = this.viewerHost.listAutomationTargetTabs?.(runtime.owner, runtime.threadId) ?? (candidate ? [candidate] : [])
     for (const page of candidates) {
-      if (!runtime.tabs.has(page.tabId)) this.registerTab(runtime.owner, runtime, page.tabId, false, true)
+      if (!runtime.tabs.has(page.tabId)) this.registerTab(runtime.owner, runtime, page.tabId, true)
     }
     const tabs = this.backendTabList(runtime)
     runtime.recentUserBackendTabIds = new Set(tabs.map((tab) => Number(tab.id)).filter((id) => Number.isInteger(id)))
@@ -1153,6 +864,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     tab.adopted = true
     runtime.selectedTabId = tab.id
     this.setAutomationState(runtime, tab, true, 'claim')
+    this.applyPendingViewport(runtime, tab)
     return this.backendTabSnapshot(runtime, tab)
   }
 
@@ -1261,15 +973,20 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     const tab = this.backendTabForTarget(runtime, target ?? params)
     const commandParams = this.objectParam(params, 'commandParams') ?? this.objectParam(params, 'params') ?? {}
     const sessionId = this.backendTargetSessionId(tab, target)
+    if (method.startsWith('Input.') && !BROWSER_USE_INPUT_METHODS.has(method)) {
+      throw BrowserUseBackendError.unsupportedApi(method)
+    }
+    this.markAutomation(tab, method)
     return await this.queueBackendTabCommand(tab, async () => {
       try {
+        if (method.startsWith('Input.')) {
+          await this.cdpCommand(tab, 'Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId, signal)
+        }
         if (method === 'Page.navigate') {
           return await this.backendCdpNavigate(runtime, tab, commandParams, sessionId)
         }
         if (method === 'Page.reload') {
-          this.markAutomation(tab, 'reload')
           this.clearNavigationFailure(tab)
-          this.invalidatePageScopedCaches(tab)
         }
         if (method === 'Page.close' || method === 'Target.closeTarget') {
           this.closeTab(tab)
@@ -1313,9 +1030,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     const url = typeof commandParams.url === 'string' ? commandParams.url : ''
     const normalized = normalizeBrowserUseUrl(url)
     if (!normalized) throw BrowserUseBackendError.invalidArgument(`Invalid browser URL: ${url}`)
-    this.markAutomation(tab, 'navigate')
     this.clearNavigationFailure(tab)
-    this.invalidatePageScopedCaches(tab)
     await this.ensureNavigationAllowed(tab.owner, runtime, tab.id, normalized)
     const result = await this.cdpCommand<{ errorText?: string }>(tab, 'Page.navigate', {
       ...commandParams,
@@ -1351,6 +1066,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
       throw BrowserUseBackendError.invalidArgument('moveMouse requires finite x and y coordinates.')
     }
+    this.setAutomationState(runtime, tab, true, 'move')
     await this.viewerHost.moveMouse(tab.owner, {
       tabId: tab.id,
       x,
@@ -1379,27 +1095,14 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
         this.setAutomationState(runtime, tab, true, status)
         return { ok: true }
       }
-      case 'runtime_config':
-        return {
-          display_truncate_max_chars: BROWSER_USE_DISPLAY_TRUNCATE_MAX_CHARS,
-          max_browser_result_bytes: BROWSER_USE_MAX_RESULT_BYTES
-        }
       case 'browser_visibility_get':
         return { visible: runtime.browserVisible }
       case 'browser_visibility_set':
         return this.backendBrowserVisibilitySet(runtime, params)
       case 'browser_viewport_set':
-        return this.backendBrowserViewportSet(runtime, params)
+        return await this.backendBrowserViewportSet(runtime, params)
       case 'browser_viewport_reset':
-        return this.backendBrowserViewportReset(runtime)
-      case 'browser_user_open_tabs':
-        return { tabs: this.backendUserTabList(runtime).map((tab) => this.stringifyBackendTabId(tab)) }
-      case 'browser_user_claim_tab':
-        return this.stringifyBackendTabId(this.backendClaimUserTab(runtime, params))
-      case 'browser_user_history':
-        throw BrowserUseBackendError.unsupportedApi('browser.user.history is not supported by Desktop IAB')
-      case 'name_session':
-        return this.backendNameSession(runtime, params)
+        return await this.backendBrowserViewportReset(runtime)
       case 'tabs_content':
         return await this.backendTabsContent(runtime, params)
       case 'tab_dev_logs':
@@ -1416,20 +1119,11 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       case 'tab_clipboard_write':
         await this.backendClipboardWrite(runtime, params)
         return {}
-      case 'playwright_element_info':
-        return await this.backendPlaywrightElementInfo(runtime, params, signal)
-      case 'playwright_element_screenshot':
-        return await this.backendPlaywrightElementScreenshot(runtime, params, signal)
-      case 'playwright_evaluate':
-        return await this.backendPlaywrightEvaluate(runtime, params)
       case 'playwright_locator_operation': {
         const tab = this.backendTabForCommand(runtime, params)
         await this.ensurePlaywrightInjected(tab)
         const value = await this.executeJavaScript<unknown>(tab,
           `window.__dotcraftBrowserUseLocator(${JSON.stringify(params.descriptor)}, ${JSON.stringify(params.operation)}, ${JSON.stringify(params.payload ?? {})})`, 'locator.operation')
-        if (params.operation === 'fill' && (value as { needsInput?: boolean })?.needsInput) {
-          await this.cuaType(tab, { text: String((params.payload as { value?: unknown })?.value ?? '') })
-        }
         return { value }
       }
       case 'dom_cua_node_info': {
@@ -1439,110 +1133,13 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       }
       case 'playwright_dom_snapshot':
         return await this.backendPlaywrightDomSnapshot(runtime, params)
-      case 'playwright_wait_for_timeout':
-        return await this.backendPlaywrightWaitForTimeout(params)
-      case 'playwright_wait_for_url':
-        return await this.backendPlaywrightWaitForUrl(runtime, params)
       case 'playwright_wait_for_load_state':
         return await this.backendPlaywrightWaitForLoadState(runtime, params)
-      case 'playwright_locator_click':
-        return await this.backendPlaywrightLocatorAction(runtime, params, signal, 'click')
-      case 'playwright_locator_dblclick':
-        return await this.backendPlaywrightLocatorAction(runtime, params, signal, 'dblclick')
-      case 'playwright_locator_fill':
-        return await this.backendPlaywrightLocatorAction(runtime, params, signal, 'fill')
-      case 'playwright_locator_press':
-        return await this.backendPlaywrightLocatorAction(runtime, params, signal, 'press')
-      case 'playwright_locator_wait_for':
-        return await this.backendPlaywrightLocatorWaitFor(runtime, params)
-      case 'playwright_locator_count':
-        return await this.backendPlaywrightLocatorCount(runtime, params)
-      case 'playwright_locator_select_option':
-        return await this.backendPlaywrightLocatorAction(runtime, params, signal, 'selectOption')
-      case 'playwright_locator_set_checked':
-        return await this.backendPlaywrightLocatorAction(runtime, params, signal, 'setChecked')
-      case 'playwright_locator_is_visible':
-        return await this.backendPlaywrightLocatorIsVisible(runtime, params)
-      case 'playwright_locator_is_enabled':
-        return await this.backendPlaywrightLocatorIsEnabled(runtime, params)
-      case 'playwright_locator_all_text_contents':
-        return await this.backendPlaywrightLocatorAllTextContents(runtime, params)
-      case 'playwright_locator_text_content':
-        return await this.backendPlaywrightLocatorTextContent(runtime, params)
-      case 'playwright_locator_inner_text':
-        return await this.backendPlaywrightLocatorInnerText(runtime, params)
-      case 'playwright_locator_get_attribute':
-        return await this.backendPlaywrightLocatorGetAttribute(runtime, params)
-      case 'playwright_locator_read_all':
-        return await this.backendPlaywrightLocatorReadAll(runtime, params)
-      case 'cua_move':
-        return await this.backendCuaAction(runtime, params, signal, 'move')
-      case 'cua_click':
-        return await this.backendCuaAction(runtime, params, signal, 'click')
-      case 'cua_double_click':
-        return await this.backendCuaAction(runtime, params, signal, 'double_click')
-      case 'cua_drag':
-        return await this.backendCuaAction(runtime, params, signal, 'drag')
-      case 'cua_keypress':
-        return await this.backendCuaAction(runtime, params, signal, 'keypress')
-      case 'cua_scroll':
-        return await this.backendCuaAction(runtime, params, signal, 'scroll')
-      case 'cua_type':
-        return await this.backendCuaAction(runtime, params, signal, 'type')
-      case 'dom_cua_get_visible_dom':
-        return await this.domCuaVisibleDom(this.backendTabForCommand(runtime, params))
-      case 'dom_cua_click':
-        return await this.backendDomCuaAction(runtime, params, signal, 'click')
-      case 'dom_cua_double_click':
-        return await this.backendDomCuaAction(runtime, params, signal, 'double_click')
-      case 'dom_cua_keypress':
-        return await this.backendDomCuaAction(runtime, params, signal, 'keypress')
-      case 'dom_cua_scroll':
-        return await this.backendDomCuaAction(runtime, params, signal, 'scroll')
-      case 'dom_cua_type':
-        return await this.backendDomCuaAction(runtime, params, signal, 'type')
-      case 'tab_page_assets_list':
-        return await this.listPageAssets(this.backendTabForCommand(runtime, params))
-      case 'tab_page_assets_bundle':
-        return await this.backendPageAssetsBundle(runtime, params)
-      case 'webmcp_list_tools':
-        return await this.backendWebMcpListTools(runtime, params)
-      case 'webmcp_invoke_tool':
-        return await this.backendWebMcpInvokeTool(runtime, params)
       case 'tab_content_export':
         throw BrowserUseBackendError.unsupportedApi('tab_content_export')
-      case 'tab_content_export_gsuite':
-        throw BrowserUseBackendError.unsupportedApi('tab_content_export_gsuite')
-      case 'playwright_wait_for_download':
-      case 'playwright_download_path':
-      case 'playwright_locator_download_media':
-      case 'cua_download_media':
-      case 'dom_cua_download_media':
-        throw BrowserUseBackendError.unsupportedApi('ordinary downloads are not supported by Desktop IAB')
-      case 'playwright_wait_for_file_chooser':
-      case 'playwright_file_chooser_set_files':
-        throw BrowserUseBackendError.unsupportedApi('ordinary file upload is not supported by Desktop IAB')
-      case 'selected_tab': {
-        const tab = await this.getOrAdoptSelectedTab(runtime.owner, runtime)
-        return this.stringifyBackendTabId(this.backendTabSnapshot(runtime, tab))
-      }
-      case 'list_tabs':
-        return { tabs: this.backendTabList(runtime).map((tab) => this.stringifyBackendTabId(tab)) }
-      case 'create_tab': {
-        const tab = await this.createTab(runtime.owner, runtime)
-        runtime.selectedTabId = tab.id
-        return { id: String(this.backendTabIdFor(runtime, tab)) }
-      }
       case 'close_tab': {
         const tab = this.backendTabForCommand(runtime, params)
         this.closeTab(tab)
-        return {}
-      }
-      case 'navigate_tab_url': {
-        const tab = this.backendTabForCommand(runtime, params)
-        const url = this.stringParam(params, 'url')
-        if (!url) throw BrowserUseBackendError.invalidArgument('navigate_tab_url requires a url.')
-        await this.navigate(tab, url)
         return {}
       }
       case 'navigate_tab_back':
@@ -1554,10 +1151,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       case 'navigate_tab_reload':
         await this.reload(this.backendTabForCommand(runtime, params))
         return {}
-      case 'tab_id': {
-        const tab = this.backendTabForCommand(runtime, params)
-        return { id: String(this.backendTabIdFor(runtime, tab)) }
-      }
       default:
         throw BrowserUseBackendError.unsupportedApi(`executeUnhandledCommand(${type})`)
     }
@@ -1594,51 +1187,12 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     }
   }
 
-  private async backendPlaywrightEvaluate(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    const script = this.stringParam(params, 'script')
-    if (!script) throw BrowserUseBackendError.invalidArgument('playwright_evaluate requires script.')
-    const options = this.objectParam(params, 'options')
-    const hasArg = Object.prototype.hasOwnProperty.call(params, 'arg')
-    const source = hasArg
-      ? `((fn, arg) => fn(arg))(${script}, ${this.evaluateArgSource(params.arg)})`
-      : script
-    return {
-      value: await this.evaluateSourceInPage(tab, source, {
-        timeoutMs: this.numberParam(options, 'timeoutMs') ??
-          this.numberParam(options, 'timeout') ??
-          this.numberParam(params, 'timeout_ms') ??
-          this.numberParam(params, 'timeoutMs')
-      })
-    }
-  }
-
   private async backendPlaywrightDomSnapshot(
     runtime: BrowserUseThreadRuntime,
     params: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
     const tab = this.backendTabForCommand(runtime, params)
     return { dom_snapshot: await this.domSnapshot(tab) }
-  }
-
-  private async backendPlaywrightWaitForTimeout(params: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const timeoutMs = Math.max(0, Math.min(Math.floor(Number(params.timeout_ms ?? params.timeoutMs ?? 0) || 0), 120_000))
-    await new Promise((resolve) => setTimeout(resolve, timeoutMs))
-    return {}
-  }
-
-  private async backendPlaywrightWaitForUrl(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    const url = this.stringParam(params, 'url')
-    if (!url) throw BrowserUseBackendError.invalidArgument('playwright_wait_for_url requires url.')
-    await this.waitForUrl(tab, url, this.backendCommandTimeoutMs(params))
-    return { url: this.operationUrl(tab) }
   }
 
   private async backendPlaywrightWaitForLoadState(
@@ -1648,281 +1202,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     const tab = this.backendTabForCommand(runtime, params)
     await this.waitForLoad(tab, this.stringParam(params, 'state') ?? 'load', this.backendCommandTimeoutMs(params))
     return {}
-  }
-
-  private backendLocatorDescriptor(params: Record<string, unknown>): BrowserUseLocatorDescriptor {
-    const selector = this.stringParam(params, 'selector')
-    if (!selector) throw BrowserUseBackendError.invalidArgument('Playwright locator command requires selector.')
-    return { kind: 'css', value: selector }
-  }
-
-  private async backendPlaywrightLocatorAction(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>,
-    signal: AbortSignal | undefined,
-    action: 'click' | 'dblclick' | 'fill' | 'press' | 'selectOption' | 'setChecked'
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    const descriptor = this.backendLocatorDescriptor(params)
-    return await this.queueBackendTabCommand(tab, async () => {
-      if (action === 'click') await this.locatorClick(tab, descriptor)
-      else if (action === 'dblclick') await this.locatorDoubleClick(tab, descriptor)
-      else if (action === 'fill') {
-        const value = String(params.value ?? '')
-        if (params.replace === false) await this.locatorType(tab, descriptor, value)
-        else await this.locatorFill(tab, descriptor, value)
-      } else if (action === 'press') {
-        await this.locatorPress(tab, descriptor, String(params.value ?? ''))
-      } else if (action === 'selectOption') {
-        await this.locatorSelectOption(tab, descriptor, Array.isArray(params.selections) ? params.selections : [])
-      } else {
-        await this.locatorSetChecked(tab, descriptor, params.checked === true)
-      }
-      return {}
-    }, signal)
-  }
-
-  private async backendPlaywrightLocatorWaitFor(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    await this.locatorWaitFor(tab, this.backendLocatorDescriptor(params), {
-      state: this.stringParam(params, 'state') ?? 'visible',
-      timeoutMs: this.backendCommandTimeoutMs(params)
-    })
-    return {}
-  }
-
-  private async backendPlaywrightLocatorCount(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    return { count: (await this.resolveLocator(tab, this.backendLocatorDescriptor(params))).length }
-  }
-
-  private async backendPlaywrightLocatorIsVisible(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    return { value: (await this.resolveLocator(tab, this.backendLocatorDescriptor(params))).some((match) => match.visible) }
-  }
-
-  private async backendPlaywrightLocatorIsEnabled(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    return { value: Boolean(await this.locatorEvaluate(tab, this.backendLocatorDescriptor(params), 'isEnabled')) }
-  }
-
-  private async backendPlaywrightLocatorAllTextContents(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    const values = (await this.resolveLocator(tab, this.backendLocatorDescriptor(params)))
-      .map((match) => match.text || match.visibleText || '')
-    return { values }
-  }
-
-  private async backendPlaywrightLocatorTextContent(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    return { value: await this.locatorEvaluate(tab, this.backendLocatorDescriptor(params), 'textContent') }
-  }
-
-  private async backendPlaywrightLocatorInnerText(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    return { value: (await this.strictLocator(tab, this.backendLocatorDescriptor(params))).visibleText }
-  }
-
-  private async backendPlaywrightLocatorGetAttribute(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    const name = this.stringParam(params, 'name')
-    if (!name) throw BrowserUseBackendError.invalidArgument('playwright_locator_get_attribute requires name.')
-    return { value: await this.locatorEvaluate(tab, this.backendLocatorDescriptor(params), 'getAttribute', name) }
-  }
-
-  private async backendPlaywrightLocatorReadAll(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    let descriptor = this.backendLocatorDescriptor(params)
-    const relativeSelector = this.stringParam(params, 'relative_selector')
-    if (relativeSelector) {
-      descriptor = this.scopedLocatorDescriptor(tab, descriptor, { kind: 'css', value: relativeSelector })
-    }
-    const values = (await this.resolveLocator(tab, descriptor)).map((match) => ({
-      attributes: {},
-      inner_text: match.visibleText || match.text || '',
-      text_content: match.text || match.visibleText || null
-    }))
-    return { values }
-  }
-
-  private async backendCuaAction(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>,
-    signal: AbortSignal | undefined,
-    action: 'move' | 'click' | 'double_click' | 'drag' | 'keypress' | 'scroll' | 'type'
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    return await this.queueBackendTabCommand(tab, async () => {
-      if (action === 'move') {
-        await this.cuaMove(tab, {
-          x: this.finiteNumberParam(params, 'x'),
-          y: this.finiteNumberParam(params, 'y'),
-          waitForArrival: params.waitForArrival !== false
-        })
-      } else if (action === 'click') {
-        await this.cuaClick(tab, {
-          x: this.finiteNumberParam(params, 'x'),
-          y: this.finiteNumberParam(params, 'y'),
-          button: params.button as number | string | undefined
-        })
-      } else if (action === 'double_click') {
-        await this.cuaDoubleClick(tab, {
-          x: this.finiteNumberParam(params, 'x'),
-          y: this.finiteNumberParam(params, 'y'),
-          button: params.button as number | string | undefined
-        })
-      } else if (action === 'drag') {
-        await this.cuaDrag(tab, { path: this.normalizePointPath(params.path) })
-      } else if (action === 'keypress') {
-        await this.cuaKeypress(tab, { keys: this.stringArrayFromUnknown(params.keys) })
-      } else if (action === 'scroll') {
-        await this.cuaScroll(tab, {
-          x: this.finiteNumberParam(params, 'x'),
-          y: this.finiteNumberParam(params, 'y'),
-          scrollX: this.finiteNumberFromUnknown(params.scroll_x ?? params.scrollX ?? params.delta_x ?? params.deltaX ?? 0, 'scroll_x'),
-          scrollY: this.finiteNumberFromUnknown(params.scroll_y ?? params.scrollY ?? params.delta_y ?? params.deltaY ?? 0, 'scroll_y')
-        })
-      } else {
-        await this.cuaType(tab, { text: String(params.text ?? '') })
-      }
-      return {}
-    }, signal)
-  }
-
-  private async backendDomCuaAction(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>,
-    signal: AbortSignal | undefined,
-    action: 'click' | 'double_click' | 'keypress' | 'scroll' | 'type'
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    return await this.queueBackendTabCommand(tab, async () => {
-      if (action === 'click') await this.domCuaClick(tab, { node_id: this.stringParam(params, 'node_id') }, false)
-      else if (action === 'double_click') await this.domCuaClick(tab, { node_id: this.stringParam(params, 'node_id') }, true)
-      else if (action === 'keypress') await this.domCuaKeypress(tab, { keys: this.stringArrayFromUnknown(params.keys) })
-      else if (action === 'scroll') {
-        await this.domCuaScroll(tab, {
-          node_id: this.stringParam(params, 'node_id'),
-          x: this.finiteOptionalNumber(params.x, 'x'),
-          y: this.finiteOptionalNumber(params.y, 'y'),
-          scrollX: this.finiteOptionalNumber(params.scroll_x ?? params.scrollX, 'scroll_x'),
-          scrollY: this.finiteOptionalNumber(params.scroll_y ?? params.scrollY, 'scroll_y'),
-          deltaX: this.finiteOptionalNumber(params.delta_x ?? params.deltaX, 'delta_x'),
-          deltaY: this.finiteOptionalNumber(params.delta_y ?? params.deltaY, 'delta_y')
-        })
-      } else {
-        await this.domCuaType(tab, { text: String(params.text ?? '') })
-      }
-      return {}
-    }, signal)
-  }
-
-  private async backendPageAssetsBundle(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    return await this.bundlePageAssets(tab, {
-      inventoryId: this.stringParam(params, 'inventoryId') ?? this.stringParam(params, 'inventory_id'),
-      assetIds: this.stringArrayFromUnknown(params.assetIds ?? params.asset_ids),
-      kinds: this.stringArrayFromUnknown(params.kinds)
-    })
-  }
-
-  private async backendWebMcpListTools(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    const tools = (await this.listWebMcpTools(tab)).map((tool) => {
-      const { invoke: _invoke, ...serializable } = tool
-      return {
-        ...serializable,
-        input_schema: serializable.input_schema ?? serializable.inputSchema ?? {}
-      }
-    })
-    return { tools }
-  }
-
-  private async backendWebMcpInvokeTool(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    const toolName = this.stringParam(params, 'tool_name') ?? this.stringParam(params, 'toolName')
-    return {
-      result: await this.invokeWebMcpTool(tab, {
-        toolName,
-        input: params.input,
-        timeoutMs: Number(params.timeout_ms ?? params.timeoutMs)
-      })
-    }
-  }
-
-  private finiteNumberParam(params: Record<string, unknown>, key: string): number {
-    return this.finiteNumberFromUnknown(params[key], key)
-  }
-
-  private finiteNumberOrDefault(value: unknown, name: string, fallback: number): number {
-    return value == null ? fallback : this.finiteNumberFromUnknown(value, name)
-  }
-
-  private finiteOptionalNumber(value: unknown, name: string): number | undefined {
-    return value == null ? undefined : this.finiteNumberFromUnknown(value, name)
-  }
-
-  private finiteNumberFromUnknown(value: unknown, name: string): number {
-    const numeric = Number(value)
-    if (!Number.isFinite(numeric)) {
-      throw BrowserUseBackendError.invalidArgument(`${name} must be a finite number.`)
-    }
-    return numeric
-  }
-
-  private normalizePointPath(value: unknown): Array<{ x: number; y: number }> {
-    if (!Array.isArray(value)) throw BrowserUseBackendError.invalidArgument('cua_drag requires path.')
-    return value.map((point, index) => {
-      const raw = point && typeof point === 'object' && !Array.isArray(point)
-        ? point as Record<string, unknown>
-        : {}
-      return {
-        x: this.finiteNumberFromUnknown(raw.x, `path[${index}].x`),
-        y: this.finiteNumberFromUnknown(raw.y, `path[${index}].y`)
-      }
-    })
-  }
-
-  private stringArrayFromUnknown(value: unknown): string[] {
-    return Array.isArray(value)
-      ? value.map((item) => String(item))
-      : []
   }
 
   private async backendTabsContent(
@@ -2135,21 +1414,34 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     return {}
   }
 
-  private backendBrowserViewportSet(
+  private async backendBrowserViewportSet(
     runtime: BrowserUseThreadRuntime,
     params: Record<string, unknown>
-  ): Record<string, unknown> {
-    runtime.viewportWidth = this.normalizeViewportDimension(params.width, 'width')
-    runtime.viewportHeight = this.normalizeViewportDimension(params.height, 'height')
-    this.applyViewport(runtime)
+  ): Promise<Record<string, unknown>> {
+    await this.setViewport(runtime, normalizeViewportSize(params.width, params.height))
     return {}
   }
 
-  private backendBrowserViewportReset(runtime: BrowserUseThreadRuntime): Record<string, unknown> {
-    runtime.viewportWidth = BROWSER_USE_DEFAULT_VIEWPORT_WIDTH
-    runtime.viewportHeight = BROWSER_USE_DEFAULT_VIEWPORT_HEIGHT
-    this.applyViewport(runtime)
+  private async backendBrowserViewportReset(runtime: BrowserUseThreadRuntime): Promise<Record<string, unknown>> {
+    await this.setViewport(runtime, undefined)
     return {}
+  }
+
+  private async setViewport(runtime: BrowserUseThreadRuntime, size: ViewportSize | undefined): Promise<void> {
+    const controlled = this.modelFacingTabs(runtime).filter((tab) => !tab.userOwned || tab.adopted)
+    const tab = controlled.find((item) => item.id === runtime.selectedTabId) ?? controlled[0]
+    if (!tab) {
+      runtime.pendingViewport = size
+      return
+    }
+    await (size ? this.viewports.set(tab, size) : this.viewports.reset(tab))
+  }
+
+  private applyPendingViewport(runtime: BrowserUseThreadRuntime, tab: BrowserUseTabRuntime): void {
+    const size = runtime.pendingViewport
+    if (!size) return
+    runtime.pendingViewport = undefined
+    this.viewports.set(tab, size).catch(() => {})
   }
 
   private async evaluatePageContent(tab: BrowserUseTabRuntime, contentType: 'html' | 'text'): Promise<string> {
@@ -2157,99 +1449,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       ? 'document.documentElement ? document.documentElement.outerHTML : ""'
       : 'document.body ? document.body.innerText : (document.documentElement ? document.documentElement.innerText : "")'
     return await this.executeJavaScript<string>(tab, expression, `tabs_content.${contentType}`, false)
-  }
-
-  private async backendPlaywrightElementInfo(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>,
-    signal?: AbortSignal
-  ): Promise<unknown> {
-    const tab = this.backendTabForCommand(runtime, params)
-    const x = Number(params.x)
-    const y = Number(params.y)
-    if (!Number.isFinite(x) || !Number.isFinite(y)) {
-      throw BrowserUseBackendError.invalidArgument('playwright_element_info requires numeric x and y.')
-    }
-    return await this.queueBackendTabCommand(tab, async () => await this.evaluateCdpExpression(tab, `(() => {
-      const x = ${JSON.stringify(x)};
-      const y = ${JSON.stringify(y)};
-      const element = document.elementFromPoint(x, y);
-      if (!element) return [];
-      const rect = element.getBoundingClientRect();
-      const tagName = element.tagName.toLowerCase();
-      const text = (element.innerText || element.textContent || "").trim().slice(0, 500);
-      const id = element.id || "";
-      const testId = element.getAttribute("data-testid") || element.getAttribute("data-test-id") || "";
-      const role = element.getAttribute("role") || "";
-      const ariaName = element.getAttribute("aria-label") || element.getAttribute("title") || text;
-      const selectors = [];
-      if (id) selectors.push("#" + CSS.escape(id));
-      if (testId) selectors.push("[data-testid=\\"" + CSS.escape(testId) + "\\"]");
-      selectors.push(tagName);
-      return [{
-        nodeId: null,
-        tagName,
-        role: role || null,
-        visibleText: text || null,
-        ariaName: ariaName || null,
-        testId: testId || null,
-        selector: {
-          primary: selectors[0] || null,
-          candidates: selectors
-        },
-        boundingBox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-        preview: "<" + tagName + ">" + (text ? " " + text : "")
-      }];
-    })()`), signal)
-  }
-
-  private async backendPlaywrightElementScreenshot(
-    runtime: BrowserUseThreadRuntime,
-    params: Record<string, unknown>,
-    signal?: AbortSignal
-  ): Promise<Record<string, unknown>> {
-    const tab = this.backendTabForCommand(runtime, params)
-    const info = await this.backendPlaywrightElementInfo(runtime, params, signal) as
-      Array<{ boundingBox?: { x?: number; y?: number; width?: number; height?: number } }>
-    const box = info[0]?.boundingBox
-    if (!box) throw BrowserUseBackendError.invalidArgument('playwright_element_screenshot did not hit an element.')
-    const clip = {
-      x: Math.max(0, Number(box.x) || 0),
-      y: Math.max(0, Number(box.y) || 0),
-      width: Math.max(1, Number(box.width) || 1),
-      height: Math.max(1, Number(box.height) || 1),
-      scale: 1
-    }
-    return await this.queueBackendTabCommand(tab, async () => await this.cdpCommand<Record<string, unknown>>(
-      tab,
-      'Page.captureScreenshot',
-      {
-        format: 'png',
-        fromSurface: true,
-        captureBeyondViewport: true,
-        clip
-      }, undefined, signal), signal)
-  }
-
-  private async evaluateCdpExpression<T = unknown>(
-    tab: BrowserUseTabRuntime,
-    expression: string
-  ): Promise<T> {
-    const result = await this.cdpCommand<{
-      result?: { value?: T; unserializableValue?: string }
-      exceptionDetails?: { text?: string; exception?: { description?: string; value?: unknown } }
-    }>(tab, 'Runtime.evaluate', {
-      expression,
-      awaitPromise: true,
-      returnByValue: true
-    })
-    if (result.exceptionDetails) {
-      throw new Error(
-        result.exceptionDetails.exception?.description ??
-        result.exceptionDetails.text ??
-        'Runtime.evaluate failed.')
-    }
-    return (result.result?.value ?? result.result?.unserializableValue) as T
   }
 
   private backendTabIdFor(runtime: BrowserUseThreadRuntime, tab: BrowserUseTabRuntime): number {
@@ -2278,14 +1477,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       title: snapshot.title,
       loading: snapshot.loading,
       active: runtime.selectedTabId === tab.id
-    }
-  }
-
-  private stringifyBackendTabId(tab: Record<string, unknown>): Record<string, unknown> {
-    return {
-      ...tab,
-      id: String(tab.id),
-      tabId: String(tab.tabId)
     }
   }
 
@@ -2363,12 +1554,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       : null
   }
 
-  private numberParam(params: Record<string, unknown> | null, key: string): number | undefined {
-    const value = params?.[key]
-    const numeric = Number(value)
-    return Number.isFinite(numeric) ? numeric : undefined
-  }
-
   private positiveIntegerParam(params: Record<string, unknown>, key: string): number | null {
     return this.positiveIntegerFromUnknown(params[key])
   }
@@ -2398,214 +1583,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     })
   }
 
-  private createBrowserApi(owner: BrowserWindow, runtime: BrowserUseThreadRuntime): Record<string, unknown> {
-    const tabs = this.createTabsApi(owner, runtime)
-    return {
-      browserId: 'iab',
-      nameSession: async (name: string) => {
-        runtime.sessionName = String(name ?? '').trim()
-        for (const tab of runtime.tabs.values()) {
-          this.setAutomationState(runtime, tab, true, 'session')
-        }
-        return { ok: true, name: runtime.sessionName }
-      },
-      goto: async (url: string) => {
-        const tab = await this.getOrAdoptSelectedTab(owner, runtime)
-        await this.navigate(tab, url)
-        return this.createTabApi(tab)
-      },
-      tabs,
-      user: {
-        openTabs: async () => {
-          const tabs = this.modelFacingTabs(runtime).map((tab) => this.tabSnapshot(tab))
-          runtime.recentOpenTabIds = new Set(tabs.map((tab) => String(tab.id)))
-          return tabs
-        },
-        claimTab: async (tab: unknown) => this.claimTab(runtime, tab),
-        describeApi: () => ['openTabs()', 'claimTab(tabOrId)']
-      },
-      capabilities: this.createBrowserCapabilitiesApi(runtime),
-      describeApi: () => [
-        'nameSession(name)',
-        'goto(url)',
-        'tabs.list()',
-        'tabs.new(url?)',
-        'tabs.selected()',
-        'tabs.get(id)',
-        'tabs.content({ urls, contentType })',
-        'tabs.finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })',
-        'user.openTabs()',
-        'user.claimTab(tabOrId)',
-        'capabilities.list()',
-        'capabilities.get(id)'
-      ]
-    }
-  }
-
-  private createTabsApi(owner: BrowserWindow, runtime: BrowserUseThreadRuntime): Record<string, unknown> {
-    return {
-      list: async () => this.modelFacingTabs(runtime).map((tab) => this.tabSnapshot(tab)),
-      new: async (url?: string) => {
-        const tab = await this.createTab(owner, runtime, url)
-        runtime.selectedTabId = tab.id
-        return this.createTabApi(tab)
-      },
-      selected: async () => {
-        const tab = await this.getOrAdoptSelectedTab(owner, runtime)
-        return this.createTabApi(tab)
-      },
-      get: async (id: string) => {
-        const tab = runtime.tabs.get(id)
-        if (!tab) throw new Error(`Browser tab not found: ${id}`)
-        return this.createTabApi(tab)
-      },
-      content: async (options?: { urls?: unknown; contentType?: unknown; content_type?: unknown; timeoutMs?: unknown }) => {
-        const result = await this.backendTabsContent(runtime, {
-          urls: Array.isArray(options?.urls) ? options.urls : [],
-          content_type: options?.content_type ?? options?.contentType ?? 'text',
-          timeoutMs: options?.timeoutMs
-        })
-        return Array.isArray(result.results) ? result.results : []
-      },
-      finalize: async (options?: { keep?: unknown[] }) => this.finalizeTabs(runtime, options),
-      describeApi: () => ['list()', 'new(url?)', 'selected()', 'get(id)', 'content({ urls, contentType })', 'finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })']
-    }
-  }
-
-  private createBrowserCapabilitiesApi(runtime: BrowserUseThreadRuntime): Record<string, unknown> {
-    const available = BROWSER_USE_BROWSER_CAPABILITIES.map((capability) => ({ ...capability }))
-    return {
-      list: async () => available,
-      get: (id: string) => {
-        if (id === 'viewport') return this.createViewportCapability(runtime)
-        if (id === 'visibility') return this.createVisibilityCapability(runtime)
-        throw new Error(`Browser capability not found: ${id}. Available capabilities: viewport, visibility.`)
-      },
-      describeApi: () => ['list()', 'get("viewport")', 'get("visibility")']
-    }
-  }
-
-  private createViewportCapability(runtime: BrowserUseThreadRuntime): Record<string, unknown> {
-    return {
-      set: async (options: { width?: number; height?: number }) => {
-        const width = this.normalizeViewportDimension(options?.width, 'width')
-        const height = this.normalizeViewportDimension(options?.height, 'height')
-        runtime.viewportWidth = width
-        runtime.viewportHeight = height
-        this.applyViewport(runtime)
-        return { ok: true, width, height }
-      },
-      reset: async () => {
-        runtime.viewportWidth = BROWSER_USE_DEFAULT_VIEWPORT_WIDTH
-        runtime.viewportHeight = BROWSER_USE_DEFAULT_VIEWPORT_HEIGHT
-        this.applyViewport(runtime)
-        return { ok: true, width: runtime.viewportWidth, height: runtime.viewportHeight }
-      },
-      describeApi: () => ['set({ width, height })', 'reset()']
-    }
-  }
-
-  private createVisibilityCapability(runtime: BrowserUseThreadRuntime): Record<string, unknown> {
-    return {
-      get: async () => runtime.browserVisible,
-      set: async (visible: boolean) => {
-        runtime.browserVisible = visible === true
-        for (const tab of runtime.tabs.values()) {
-          this.viewerHost.setVisible?.(tab.owner, { tabId: tab.id, visible: runtime.browserVisible })
-        }
-        if (runtime.browserVisible) this.presentVisibleTabs(runtime)
-        return { ok: true, visible: runtime.browserVisible }
-      },
-      describeApi: () => ['get()', 'set(visible)']
-    }
-  }
-
-  private normalizeViewportDimension(value: unknown, name: string): number {
-    const numeric = Number(value)
-    if (!Number.isFinite(numeric) || numeric < 200 || numeric > 10_000) {
-      throw new Error(`Invalid browser viewport ${name}: ${value}. Expected a number between 200 and 10000.`)
-    }
-    return Math.round(numeric)
-  }
-
-  private async unsupported(api: string): Promise<never> {
-    throw new Error(`DotCraft embedded browser does not support ${api}.`)
-  }
-
-  private applyViewport(runtime: BrowserUseThreadRuntime): void {
-    for (const tab of runtime.tabs.values()) {
-      this.viewerHost.setBounds?.(tab.owner, {
-        tabId: tab.id,
-        x: 0,
-        y: 0,
-        width: runtime.viewportWidth,
-        height: runtime.viewportHeight
-      })
-    }
-  }
-
-  private claimTab(runtime: BrowserUseThreadRuntime, item: unknown): Record<string, unknown> {
-    const id = this.tabIdFromReference(item)
-    if (!id || !runtime.recentOpenTabIds.has(id)) {
-      throw new Error('Cannot claim browser tab: pass a tab object or id from the current session latest user.openTabs() result.')
-    }
-    const tab = runtime.tabs.get(id)
-    if (!tab) throw new Error(`Browser tab not found: ${id}`)
-    tab.adopted = true
-    this.setAutomationState(runtime, tab, true, 'claim')
-    return this.createTabApi(tab)
-  }
-
-  private async finalizeTabs(
-    runtime: BrowserUseThreadRuntime,
-    options?: { keep?: unknown[] }
-  ): Promise<Record<string, unknown>> {
-    const keep = this.parseFinalizeKeep(options)
-    const { kept, closed, released } = runtime.lifecycle.finalize(runtime.tabs.values(), keep, this.lifecycleEffects(runtime))
-    runtime.logs.push(
-      `Browser finalize summary sessionId=${runtime.browserSession?.sessionId ?? runtime.threadId} ` +
-      `turnId=${runtime.browserSession?.turnId ?? ''} evaluationId=${runtime.browserSession?.evaluationId ?? runtime.activeEvaluationId ?? ''} ` +
-      `backendId=iab created=${closed.length + kept.length} claimed=${released.length + kept.length} kept=${kept.length} closed=${closed.length} released=${released.length}`
-    )
-    return { ok: true, kept, closed, released }
-  }
-
-  private parseFinalizeKeep(options?: { keep?: unknown[] }): Map<string, BrowserFinalizeKeepStatus> {
-    const keep = options?.keep ?? []
-    if (!Array.isArray(keep)) {
-      throw new Error('browser.tabs.finalize requires keep to be an array of { tab, status: "deliverable"|"handoff" } entries.')
-    }
-    const result = new Map<string, BrowserFinalizeKeepStatus>()
-    for (const item of keep) {
-      if (!item || typeof item !== 'object' || Array.isArray(item)) {
-        throw new Error('browser.tabs.finalize keep entries must be objects shaped like { tab, status: "deliverable"|"handoff" }.')
-      }
-      const entry = item as Record<string, unknown>
-      const status = entry.status
-      if (status !== 'handoff' && status !== 'deliverable') {
-        throw new Error('browser.tabs.finalize keep entries must include status "handoff" or "deliverable"; use { tab, status: "deliverable"|"handoff" }.')
-      }
-      const id = this.tabIdFromReference(entry.tab)
-      if (!id) {
-        throw new Error('browser.tabs.finalize keep entries must include a tab reference; use { tab, status: "deliverable"|"handoff" }.')
-      }
-      result.set(id, status)
-    }
-    return result
-  }
-
-  private tabIdFromReference(item: unknown): string {
-    if (typeof item === 'string') return item
-    if (typeof item === 'number' && Number.isFinite(item)) return String(Math.trunc(item))
-    if (item && typeof item === 'object') {
-      const obj = item as Record<string, unknown>
-      if (typeof obj.id === 'string') return obj.id
-      if (typeof obj.tabId === 'string') return obj.tabId
-      if (obj.info && typeof obj.info === 'object') return this.tabIdFromReference(obj.info)
-    }
-    return ''
-  }
-
   private async createTab(
     owner: BrowserWindow,
     runtime: BrowserUseThreadRuntime,
@@ -2626,8 +1603,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       threadId: runtime.threadId,
       workspacePath: runtime.workspacePath || owner.getTitle(),
       initialUrl: 'about:blank',
-      width: runtime.viewportWidth,
-      height: runtime.viewportHeight,
       allowFileScheme: true
     })
 
@@ -2649,8 +1624,12 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       })
     }
 
+    if (exposeToRenderer) this.applyPendingViewport(runtime, tab)
+
     if (normalizedInitial) {
-      await this.navigate(tab, normalizedInitial, { skipPolicyCheck: true })
+      this.markAutomation(tab, 'navigate')
+      this.clearNavigationFailure(tab)
+      await this.loadAutomationUrl(tab, normalizedInitial)
     } else {
       await this.loadAutomationUrl(
         tab,
@@ -2709,6 +1688,10 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   }
 
   private async ensureDebuggerAttached(tab: BrowserUseTabRuntime): Promise<void> {
+    if (this.attachDebugger(tab)) this.viewports.attached(tab)
+  }
+
+  private attachDebugger(tab: BrowserUseTabRuntime): boolean {
     const wc = this.webContentsFor(tab.owner, tab.id)
     const debuggerApi = wc.debugger as Electron.Debugger & {
       on?(event: 'message' | 'detach', listener: (...args: unknown[]) => void): void
@@ -2717,7 +1700,8 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     if (!debuggerApi) {
       throw new Error(`Browser tab ${tab.id} does not expose Electron debugger/CDP.`)
     }
-    if (!tab.cdpAttached || !debuggerApi.isAttached()) {
+    const fresh = !tab.cdpAttached || !debuggerApi.isAttached()
+    if (fresh) {
       debuggerApi.attach('1.3')
       tab.cdpAttached = true
     }
@@ -2743,6 +1727,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       }
       wc.on('did-fail-load', tab.webContentsFailLoadHandler)
     }
+    return fresh
   }
 
   private detachDebugger(tab: BrowserUseTabRuntime): void {
@@ -2807,6 +1792,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     signal?: AbortSignal
   ): Promise<T> {
     await this.ensureDebuggerAttached(tab)
+    await this.viewports.settled(tab)
     const wc = this.webContentsFor(tab.owner, tab.id)
     const send = async () => await (sessionId
       ? wc.debugger.sendCommand(method, params, sessionId)
@@ -3129,8 +2115,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     tab: BrowserUseTabRuntime,
     source: string,
     operation: string,
-    userGesture = true,
-    timeoutMs?: number
+    userGesture = true
   ): Promise<T> {
     return this.withBrowserOperation(
       tab,
@@ -3160,8 +2145,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
           return result.result.unserializableValue as T
         }
         return result.result?.value as T
-      },
-      timeoutMs)
+      })
   }
 
   private async waitForPageReady(
@@ -3265,49 +2249,14 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     })
   }
 
-  private getSelectedTab(runtime: BrowserUseThreadRuntime): BrowserUseTabRuntime | null {
-    if (runtime.selectedTabId) {
-      const existing = runtime.tabs.get(runtime.selectedTabId)
-      if (existing) return existing
-    }
-    const first = runtime.tabs.values().next().value as BrowserUseTabRuntime | undefined
-    return first ?? null
-  }
-
-  private async getOrAdoptSelectedTab(
-    owner: BrowserWindow,
-    runtime: BrowserUseThreadRuntime
-  ): Promise<BrowserUseTabRuntime> {
-    if (runtime.selectedTabId) {
-      const existing = runtime.tabs.get(runtime.selectedTabId)
-      if (existing) return existing
-    }
-
-    const candidate = this.viewerHost.getAutomationTargetTab?.(owner, runtime.threadId)
-    if (candidate) {
-      const adopted = this.registerTab(owner, runtime, candidate.tabId, true, true)
-      runtime.selectedTabId = adopted.id
-      return adopted
-    }
-
-    const selected = this.getSelectedTab(runtime)
-    if (selected) return selected
-
-    const created = await this.createTab(owner, runtime)
-    runtime.selectedTabId = created.id
-    return created
-  }
-
   private registerTab(
     owner: BrowserWindow,
     runtime: BrowserUseThreadRuntime,
     id: string,
-    adopted: boolean,
-    userOwned = adopted
+    userOwned: boolean
   ): BrowserUseTabRuntime {
     const existing = runtime.tabs.get(id)
     if (existing) {
-      if (adopted) existing.adopted = true
       if (userOwned) existing.userOwned = true
       if (userOwned) existing.exposedToRenderer = true
       return existing
@@ -3319,14 +2268,9 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       owner,
       logs: [],
       clipboardItems: [],
-      adopted,
       userOwned,
       exposedToRenderer: userOwned,
-      targetSessions: new Map(),
-      snapshotRefs: new Map(),
-      domCuaNodes: new Map(),
-      pageAssetInventories: new Map(),
-      snapshotGeneration: 0
+      targetSessions: new Map()
     }
     runtime.tabs.set(id, tab)
 
@@ -3355,978 +2299,24 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     return tab
   }
 
-  private createTabApi(tab: BrowserUseTabRuntime): Record<string, unknown> {
-    return {
-      id: tab.id,
-      markDeliverable: async () => this.markTabForTurn(tab, 'deliverable'),
-      markHandoff: async () => this.markTabForTurn(tab, 'handoff'),
-      navigate: async (url: string) => this.navigate(tab, url),
-      goto: async (url: string) => this.navigate(tab, url),
-      back: async () => this.goBack(tab),
-      forward: async () => this.goForward(tab),
-      reload: async () => this.reload(tab),
-      close: async () => this.closeTab(tab),
-      url: async () => this.webContentsFor(tab.owner, tab.id).getURL(),
-      title: async () => this.webContentsFor(tab.owner, tab.id).getTitle(),
-      screenshot: async (options?: { fullPage?: boolean; clip?: Electron.Rectangle }) => this.screenshot(tab, options),
-      domSnapshot: async () => this.domSnapshot(tab),
-      evaluate: async (
-        expressionOrFunction: string | ((arg?: unknown) => unknown),
-        arg?: unknown,
-        options?: { timeoutMs?: number; timeout?: number }
-      ) => this.evaluateInPage(tab, expressionOrFunction, arg, options),
-      click: async (selector: string) => this.click(tab, selector),
-      clickRef: async (ref: string) => this.locatorClick(tab, { kind: 'ref', value: String(ref) }),
-      fillRef: async (ref: string, value: string) => this.locatorFill(tab, { kind: 'ref', value: String(ref) }, value),
-      pressRef: async (ref: string, key: string) => this.locatorPress(tab, { kind: 'ref', value: String(ref) }, key),
-      type: async (selector: string, text: string) => this.type(tab, selector, text),
-      press: async (selector: string, key: string) => this.press(tab, selector, key),
-      waitForLoadState: async (state = 'load', timeoutMs = 30_000) => this.waitForLoad(tab, state, timeoutMs),
-      consoleLogs: async () => tab.logs.map((entry) => entry.message),
-      playwright: this.createPlaywrightApi(tab),
-      cua: this.createCuaApi(tab),
-      dom_cua: this.createDomCuaApi(tab),
-      capabilities: this.createTabCapabilitiesApi(tab),
-      dev: {
-        logs: async (options?: { filter?: string; levels?: string[]; limit?: number }) => this.devLogs(tab, options),
-        describeApi: () => ['logs({ filter?, levels?, limit? })']
-      },
-      clipboard: {
-        read: async () => this.readVirtualClipboard(tab),
-        readText: async () => this.readVirtualClipboardText(tab),
-        write: async (items: unknown) => this.writeVirtualClipboard(tab, items),
-        writeText: async (text: string) => this.writeVirtualClipboardText(tab, text),
-        describeApi: () => ['readText()', 'writeText(text)', 'read()', 'write(items)']
-      },
-      describeApi: () => [
-        'goto(url)',
-        'reload()',
-        'back()',
-        'forward()',
-        'close()',
-        'url()',
-        'title()',
-        'domSnapshot()',
-        'screenshot(options?)',
-        'evaluate(expressionOrFunction, arg?, options?) read-only',
-        'playwright.*',
-        'cua.*',
-        'dom_cua.*',
-        'capabilities.list()',
-        'capabilities.get("pageAssets")',
-        'capabilities.get("webmcp")'
-      ]
-    }
-  }
-
-  private createTabCapabilitiesApi(tab: BrowserUseTabRuntime): Record<string, unknown> {
-    return {
-      list: async () => this.listTabCapabilities(tab),
-      get: async (id: string) => {
-        if (id === 'pageAssets') return this.createPageAssetsCapability(tab)
-        if (id === 'webmcp') {
-          if (await this.isWebMcpAvailable(tab)) return this.createWebMcpCapability(tab)
-          throw new Error(BROWSER_USE_WEBMCP_UNAVAILABLE)
-        }
-        const available = (await this.listTabCapabilities(tab)).map((capability) => capability.id).join(', ')
-        throw new Error(`Tab capability not found: ${id}. Available capabilities: ${available}.`)
-      },
-      describeApi: () => ['list()', 'get("pageAssets")', 'get("webmcp")']
-    }
-  }
-
-  private async listTabCapabilities(tab: BrowserUseTabRuntime): Promise<Array<Record<string, unknown>>> {
-    const available = BROWSER_USE_TAB_CAPABILITIES.map((capability) => ({ ...capability }))
-    if (await this.isWebMcpAvailable(tab)) available.push({ ...BROWSER_USE_WEBMCP_CAPABILITY })
-    return available
-  }
-
-  private createPageAssetsCapability(tab: BrowserUseTabRuntime): Record<string, unknown> {
-    return {
-      list: async () => this.listPageAssets(tab),
-      bundle: async (options: { assetIds?: string[]; inventoryId?: string; kinds?: string[] }) => this.bundlePageAssets(tab, options),
-      describeApi: () => ['list()', 'bundle({ inventoryId, kinds?, assetIds? })']
-    }
-  }
-
-  private createWebMcpCapability(tab: BrowserUseTabRuntime): Record<string, unknown> {
-    return {
-      listTools: async () => this.listWebMcpTools(tab),
-      invokeTool: async (options: { toolName?: string; input?: unknown; timeoutMs?: number }) => this.invokeWebMcpTool(tab, options),
-      describeApi: () => ['listTools()', 'invokeTool({ toolName, input?, timeoutMs? })']
-    }
-  }
-
-  private async isWebMcpAvailable(tab: BrowserUseTabRuntime): Promise<boolean> {
-    try {
-      const available = await this.executeJavaScript<unknown>(tab, `(() => {
-        const __dotcraftWebMcpAvailabilityProbe = true;
-        const modelContext = typeof navigator !== "undefined" ? navigator.modelContext : undefined;
-        return !!modelContext &&
-          typeof modelContext.getTools === "function" &&
-          typeof modelContext.executeTool === "function";
-      })()`, 'webmcp.available')
-      return available === true
-    } catch {
-      return false
-    }
-  }
-
-  private async listWebMcpTools(tab: BrowserUseTabRuntime): Promise<Array<Record<string, unknown>>> {
-    this.markAutomation(tab, 'webmcp.listTools')
-    if (!await this.isWebMcpAvailable(tab)) {
-      throw new Error(BROWSER_USE_WEBMCP_UNAVAILABLE)
-    }
-    await this.waitForPageReady(tab, {
-      operation: 'webmcp.ready',
-      requireContent: false,
-      timeoutMs: this.operationTimeoutMs()
-    })
-    const tools = await this.executeJavaScript<Array<Record<string, unknown>>>(tab, `(() => {
-      const modelContext = typeof navigator !== "undefined" ? navigator.modelContext : undefined;
-      if (!modelContext || typeof modelContext.getTools !== "function" || typeof modelContext.executeTool !== "function") {
-        throw new Error(${JSON.stringify(BROWSER_USE_WEBMCP_UNAVAILABLE)});
-      }
-      return Promise.resolve(modelContext.getTools()).then((tools) => tools.map((tool) => ({
-        name: String(tool.name || ""),
-        title: tool.title,
-        description: tool.description,
-        inputSchema: tool.inputSchema == null ? null : (
-          typeof tool.inputSchema === "string" ? JSON.parse(tool.inputSchema) : tool.inputSchema
-        ),
-        annotations: tool.annotations,
-        origin: tool.origin,
-        pageUrl: tool.pageUrl
-      })));
-    })()`, 'webmcp.listTools')
-    if (!Array.isArray(tools)) throw new Error('WebMCP listTools failed: no result returned.')
-    return tools.map((tool) => ({
-      ...tool,
-      invoke: async (input: unknown, options?: { timeoutMs?: number }) => this.invokeWebMcpTool(tab, {
-        toolName: typeof tool.name === 'string' ? tool.name : '',
-        input,
-        timeoutMs: options?.timeoutMs
-      })
-    }))
-  }
-
-  private async invokeWebMcpTool(
-    tab: BrowserUseTabRuntime,
-    options: { toolName?: string; input?: unknown; timeoutMs?: number }
-  ): Promise<unknown> {
-    const toolName = String(options?.toolName ?? '').trim()
-    if (!toolName) throw new Error('tab.capabilities.webmcp.invokeTool requires a toolName')
-    const timeoutMs = this.normalizeWebMcpTimeout(options?.timeoutMs)
-    this.markAutomation(tab, 'webmcp.invokeTool')
-    if (!await this.isWebMcpAvailable(tab)) {
-      throw new Error(BROWSER_USE_WEBMCP_UNAVAILABLE)
-    }
-    await this.waitForPageReady(tab, {
-      operation: 'webmcp.ready',
-      requireContent: false,
-      timeoutMs
-    })
-    return await this.executeJavaScript(tab, `(() => {
-      const modelContext = typeof navigator !== "undefined" ? navigator.modelContext : undefined;
-      if (!modelContext || typeof modelContext.getTools !== "function" || typeof modelContext.executeTool !== "function") {
-        throw new Error(${JSON.stringify(BROWSER_USE_WEBMCP_UNAVAILABLE)});
-      }
-      return Promise.resolve(modelContext.getTools()).then((tools) => {
-        const tool = tools.find((candidate) => candidate.name === ${JSON.stringify(toolName)});
-        if (!tool) throw new Error(${JSON.stringify(`WebMCP tool not found: ${toolName}`)});
-        return modelContext.executeTool(tool, ${JSON.stringify(JSON.stringify(options?.input ?? null))});
-      }).then((result) => {
-        if (result == null) return null;
-        try {
-          return JSON.parse(result);
-        } catch {
-          return result;
-        }
-      });
-    })()`, 'webmcp.invokeTool')
-  }
-
-  private normalizeWebMcpTimeout(timeoutMs?: number): number {
-    const numeric = Number(timeoutMs)
-    const requested = Number.isFinite(numeric) && numeric > 0 ? numeric : this.operationTimeoutMs()
-    return Math.max(1, Math.min(Math.floor(requested), 120_000))
-  }
-
-  private async listPageAssets(tab: BrowserUseTabRuntime): Promise<BrowserUsePageAssetInventory> {
-    this.markAutomation(tab, 'pageAssets.list')
-    await this.waitForPageReady(tab, {
-      operation: 'pageAssets.ready',
-      requireContent: false,
-      timeoutMs: this.operationTimeoutMs()
-    })
-    const raw = await this.executeJavaScript<unknown>(tab, `
-      (() => {
-        const __dotcraftBrowserUsePageAssets = true;
-        const assets = new Map();
-        const inlineSvgs = [];
-        const absoluteUrl = (value) => {
-          try {
-            const text = String(value || '').trim();
-            if (!text || text.startsWith('#')) return '';
-            return new URL(text, document.baseURI).href;
-          } catch {
-            return '';
-          }
-        };
-        const nameFromUrl = (url, fallback) => {
-          try {
-            const path = new URL(url).pathname.split('/').filter(Boolean).pop();
-            return decodeURIComponent(path || fallback || 'asset');
-          } catch {
-            return fallback || 'asset';
-          }
-        };
-        const add = (url, kind, source, fallbackName) => {
-          const href = absoluteUrl(url);
-          if (!href) return;
-          const key = kind + '\\n' + href;
-          const existing = assets.get(key);
-          if (existing) {
-            existing.sources.push(source);
-            return;
-          }
-          assets.set(key, {
-            kind,
-            name: nameFromUrl(href, fallbackName),
-            sources: [source],
-            url: href
-          });
-        };
-        const bySelector = (selector, kind, attribute, fallbackName) => {
-          Array.from(document.querySelectorAll(selector)).forEach((node, index) => {
-            add(node.getAttribute(attribute), kind, { kind: 'attribute', nodeId: index + 1, property: attribute }, fallbackName);
-          });
-        };
-        bySelector('img[src], input[type="image"][src]', 'image', 'src', 'image');
-        bySelector('source[src], video[src]', 'video', 'src', 'video');
-        bySelector('link[rel~="stylesheet"][href]', 'stylesheet', 'href', 'stylesheet');
-        bySelector('script[src]', 'script', 'src', 'script');
-        Array.from(document.querySelectorAll('link[href]')).forEach((node, index) => {
-          const rel = String(node.getAttribute('rel') || '').toLowerCase();
-          const as = String(node.getAttribute('as') || '').toLowerCase();
-          const href = node.getAttribute('href');
-          if (rel.includes('preload') || rel.includes('prefetch')) {
-            if (as === 'font') add(href, 'font', { kind: 'attribute', nodeId: index + 1, property: 'href' }, 'font');
-            else if (as === 'image') add(href, 'image', { kind: 'attribute', nodeId: index + 1, property: 'href' }, 'image');
-            else if (as === 'style') add(href, 'stylesheet', { kind: 'attribute', nodeId: index + 1, property: 'href' }, 'stylesheet');
-            else if (as === 'video') add(href, 'video', { kind: 'attribute', nodeId: index + 1, property: 'href' }, 'video');
-          }
-        });
-        Array.from(performance.getEntriesByType('resource') || []).forEach((entry) => {
-          const initiator = String(entry.initiatorType || '').toLowerCase();
-          const kind =
-            initiator === 'script' ? 'script' :
-            initiator === 'css' || initiator === 'link' ? 'stylesheet' :
-            initiator === 'img' || initiator === 'image' ? 'image' :
-            initiator === 'video' ? 'video' :
-            initiator === 'font' ? 'font' :
-            'other';
-          add(entry.name, kind, { kind: 'resource', property: initiator || 'resource' }, kind);
-        });
-        const urlPattern = /url\\((?:"([^"]+)"|'([^']+)'|([^)]*))\\)/g;
-        Array.from(document.querySelectorAll('*')).forEach((node, index) => {
-          const style = getComputedStyle(node);
-          for (const property of ['backgroundImage', 'borderImageSource', 'listStyleImage', 'cursor']) {
-            const value = String(style[property] || '');
-            let match;
-            while ((match = urlPattern.exec(value))) {
-              add(match[1] || match[2] || match[3], 'image', { kind: 'computedStyle', nodeId: index + 1, property }, 'image');
-            }
-          }
-        });
-        Array.from(document.querySelectorAll('svg')).slice(0, 100).forEach((node, index) => {
-          inlineSvgs.push({
-            id: 'inline-svg-' + (index + 1),
-            markup: node.outerHTML,
-            name: node.getAttribute('aria-label') || node.getAttribute('id') || node.getAttribute('class') || 'inline-svg-' + (index + 1)
-          });
-        });
-        return { assets: Array.from(assets.values()), inlineSvgs, pageUrl: location.href };
-      })()
-    `, 'pageAssets.list')
-    const inventory = this.normalizePageAssetInventory(tab, raw)
-    tab.pageAssetInventories.set(inventory.id, inventory)
-    return inventory
-  }
-
-  private normalizePageAssetInventory(tab: BrowserUseTabRuntime, raw: unknown): BrowserUsePageAssetInventory {
-    const obj = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
-    const rawAssets = Array.isArray(obj.assets) ? obj.assets : []
-    const usedIds = new Map<string, number>()
-    const assets: BrowserUsePageAsset[] = []
-    for (const rawAsset of rawAssets) {
-      if (!rawAsset || typeof rawAsset !== 'object') continue
-      const asset = rawAsset as Record<string, unknown>
-      const url = this.stringValue(asset.url).trim()
-      if (!url) continue
-      const kind = this.normalizePageAssetKind(asset.kind)
-      const baseId = `${kind}-${createHash('sha1').update(url).digest('hex').slice(0, 10)}`
-      const nextIndex = usedIds.get(baseId) ?? 0
-      usedIds.set(baseId, nextIndex + 1)
-      const id = nextIndex === 0 ? baseId : `${baseId}-${nextIndex + 1}`
-      assets.push({
-        id,
-        kind,
-        name: this.stringValue(asset.name).trim() || this.pageAssetNameFromUrl(url, kind),
-        sources: this.normalizePageAssetSources(asset.sources),
-        url
-      })
-    }
-    const inlineSvgs = (Array.isArray(obj.inlineSvgs) ? obj.inlineSvgs : []).map((value, index) => {
-      const svg = value && typeof value === 'object' ? value as Record<string, unknown> : {}
-      return {
-        id: this.stringValue(svg.id).trim() || `inline-svg-${index + 1}`,
-        markup: this.stringValue(svg.markup),
-        name: this.stringValue(svg.name).trim() || `inline-svg-${index + 1}`
-      }
-    }).filter((svg) => svg.markup.trim().length > 0)
-    const byKind: Partial<Record<BrowserUsePageAssetKind, number>> = {}
-    for (const asset of assets) {
-      byKind[asset.kind] = (byKind[asset.kind] ?? 0) + 1
-    }
-    const inventory: BrowserUsePageAssetInventory = {
-      id: `page-assets-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-      assets,
-      inlineSvgs,
-      pageUrl: typeof obj.pageUrl === 'string' ? obj.pageUrl : this.operationUrl(tab),
-      summary: {
-        byKind,
-        inlineSvgCount: inlineSvgs.length,
-        totalCount: assets.length
-      }
-    }
-    return inventory
-  }
-
-  private normalizePageAssetKind(value: unknown): BrowserUsePageAssetKind {
-    const kind = this.stringValue(value).trim()
-    return kind === 'script' || kind === 'font' || kind === 'image' || kind === 'stylesheet' || kind === 'video'
-      ? kind
-      : 'other'
-  }
-
-  private normalizePageAssetSources(value: unknown): BrowserUsePageAssetSource[] {
-    const items = Array.isArray(value) ? value : []
-    const sources = items.map((item) => {
-      const source = item && typeof item === 'object' ? item as Record<string, unknown> : {}
-      const kind: BrowserUsePageAssetSource['kind'] =
-        source.kind === 'computedStyle' || source.kind === 'resource' ? source.kind : 'attribute'
-      const nodeId = Number(source.nodeId)
-      return {
-        kind,
-        ...(Number.isFinite(nodeId) && nodeId > 0 ? { nodeId: Math.trunc(nodeId) } : {}),
-        ...(typeof source.property === 'string' && source.property.trim() ? { property: source.property.trim() } : {})
-      }
-    })
-    return sources.length > 0 ? sources : [{ kind: 'resource' }]
-  }
-
-  private pageAssetNameFromUrl(url: string, fallback: string): string {
-    try {
-      const parsed = new URL(url)
-      if (parsed.protocol === 'data:') return fallback
-      const name = basename(decodeURIComponent(parsed.pathname || '')).trim()
-      return name || fallback
-    } catch {
-      return fallback
-    }
-  }
-
-  private async bundlePageAssets(
-    tab: BrowserUseTabRuntime,
-    options: { assetIds?: string[]; inventoryId?: string; kinds?: string[] } = {}
-  ): Promise<Record<string, unknown>> {
-    const inventoryId = this.stringValue(options.inventoryId).trim()
-    if (!inventoryId) throw new Error('pageAssets.bundle requires inventoryId from a prior pageAssets.list() result.')
-    const inventory = tab.pageAssetInventories.get(inventoryId)
-    if (!inventory) throw new Error(`Page asset inventory not found: ${inventoryId}. Call pageAssets.list() again before bundling.`)
-    const kindFilter = new Set((Array.isArray(options.kinds) ? options.kinds : [...BROWSER_USE_PAGE_ASSET_BUNDLE_KINDS])
-      .map((kind) => this.normalizePageAssetKind(kind))
-      .filter((kind) => BROWSER_USE_PAGE_ASSET_BUNDLE_KINDS.has(kind)))
-    const assetIdFilter = new Set((Array.isArray(options.assetIds) ? options.assetIds : [])
-      .map((id) => this.stringValue(id).trim())
-      .filter(Boolean))
-    const requested = inventory.assets.filter((asset) => {
-      if (!BROWSER_USE_PAGE_ASSET_BUNDLE_KINDS.has(asset.kind)) return false
-      if (kindFilter.size > 0 && !kindFilter.has(asset.kind)) return false
-      if (assetIdFilter.size > 0 && !assetIdFilter.has(asset.id)) return false
-      return true
-    })
-    const startedAt = Date.now()
-    const directoryPath = await mkdtemp(join(tmpdir(), 'dotcraft-page-assets-'))
-    const assets: Array<Record<string, unknown>> = []
-    const failures: Array<Record<string, unknown>> = []
-    for (const asset of requested) {
-      try {
-        const downloaded = await this.writeBundledPageAsset(asset, directoryPath)
-        assets.push(downloaded)
-      } catch (error) {
-        failures.push({
-          contentType: null,
-          id: asset.id,
-          name: asset.name,
-          reason: error instanceof Error ? error.message : String(error),
-          url: asset.url
-        })
-      }
-    }
-    const manifestPath = join(directoryPath, 'manifest.json')
-    const summary = {
-      requestedCount: requested.length,
-      downloadedCount: assets.length,
-      failedCount: failures.length,
-      elapsedMs: Date.now() - startedAt
-    }
-    await writeFile(manifestPath, JSON.stringify({
-      inventoryId,
-      pageUrl: inventory.pageUrl,
-      assets,
-      failures,
-      summary
-    }, null, 2), 'utf8')
-    return { assets, directoryPath, failures, manifestPath, summary }
-  }
-
-  private async writeBundledPageAsset(asset: BrowserUsePageAsset, directoryPath: string): Promise<Record<string, unknown>> {
-    const data = await this.readPageAssetData(asset.url)
-    const fileName = this.pageAssetFileName(asset, data.contentType)
-    const path = join(directoryPath, fileName)
-    await writeFile(path, data.buffer)
-    return {
-      contentType: data.contentType,
-      id: asset.id,
-      kind: asset.kind,
-      name: fileName,
-      path,
-      url: asset.url
-    }
-  }
-
-  private async readPageAssetData(url: string): Promise<{ buffer: Buffer; contentType: string | null }> {
-    const parsed = new URL(url)
-    if (parsed.protocol === 'data:') return this.readDataUrlAsset(url)
-    if (parsed.protocol === 'file:') {
-      return {
-        buffer: await readFile(fileURLToPath(parsed)),
-        contentType: null
-      }
-    }
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      throw new Error(`Unsupported asset URL scheme: ${parsed.protocol}`)
-    }
-    const response = await fetch(url)
-    if (!response.ok) throw new Error(`HTTP ${response.status} while downloading asset.`)
-    return {
-      buffer: Buffer.from(await response.arrayBuffer()),
-      contentType: response.headers.get('content-type')
-    }
-  }
-
-  private readDataUrlAsset(url: string): { buffer: Buffer; contentType: string | null } {
-    const match = /^data:([^;,]+)?(;base64)?,([\s\S]*)$/i.exec(url)
-    if (!match) throw new Error('Invalid data URL asset.')
-    const contentType = match[1] || null
-    const body = match[3] ?? ''
-    const buffer = match[2]
-      ? Buffer.from(body, 'base64')
-      : Buffer.from(decodeURIComponent(body), 'utf8')
-    return { buffer, contentType }
-  }
-
-  private pageAssetFileName(asset: BrowserUsePageAsset, contentType: string | null): string {
-    const base = this.sanitizeAssetFileBase(asset.name || asset.id)
-    const extension = extname(base) ? '' : this.extensionForAsset(asset.kind, contentType, asset.url)
-    return `${asset.id}-${base}${extension}`
-  }
-
-  private sanitizeAssetFileBase(value: string): string {
-    const cleaned = value
-      .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-')
-      .replace(/\s+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 80)
-    return cleaned || 'asset'
-  }
-
-  private extensionForAsset(kind: BrowserUsePageAssetKind, contentType: string | null, url: string): string {
-    try {
-      const extension = extname(new URL(url).pathname)
-      if (extension) return extension
-    } catch {
-      // Fall through to content-type or kind-based defaults.
-    }
-    const type = (contentType ?? '').split(';')[0]?.trim().toLowerCase()
-    if (type === 'text/css') return '.css'
-    if (type === 'image/png') return '.png'
-    if (type === 'image/jpeg') return '.jpg'
-    if (type === 'image/svg+xml') return '.svg'
-    if (type === 'font/woff') return '.woff'
-    if (type === 'font/woff2') return '.woff2'
-    if (kind === 'stylesheet') return '.css'
-    if (kind === 'font') return '.woff2'
-    if (kind === 'video') return '.mp4'
-    return ''
-  }
-
-  private createCuaApi(tab: BrowserUseTabRuntime): Record<string, unknown> {
-    return {
-      move: async (options: { x: number; y: number; waitForArrival?: boolean }) => this.cuaMove(tab, options),
-      click: async (options: { x: number; y: number; button?: number | string }) => this.cuaClick(tab, options),
-      double_click: async (options: { x: number; y: number; button?: number | string }) => this.cuaDoubleClick(tab, options),
-      drag: async (options: { path: Array<{ x: number; y: number }> }) => this.cuaDrag(tab, options),
-      scroll: async (options: { x: number; y: number; scrollX?: number; scrollY?: number; deltaX?: number; deltaY?: number }) => this.cuaScroll(tab, this.normalizeScrollOptions(options)),
-      type: async (options: { text: string } | string) => this.cuaType(tab, this.normalizeTypeOptions(options)),
-      keypress: async (options: { keys: string[] } | string | string[]) => this.cuaKeypress(tab, this.normalizeKeypressOptions(options)),
-      get_visible_screenshot: async () => this.screenshot(tab),
-      download_media: async () => this.unsupported('tab.cua.download_media()'),
-      describeApi: () => ['move({ x, y })', 'click({ x, y })', 'double_click({ x, y })', 'drag({ path })', 'scroll({ x, y, scrollX?, scrollY?, deltaX?, deltaY? })', 'type(textOrOptions)', 'keypress(keyOrOptions)', 'get_visible_screenshot()', 'download_media() unsupported']
-    }
-  }
-
-  private createDomCuaApi(tab: BrowserUseTabRuntime): Record<string, unknown> {
-    return {
-      get_visible_dom: async () => this.domCuaVisibleDom(tab),
-      click: async (options: { node_id?: string }) => this.domCuaClick(tab, options, false),
-      double_click: async (options: { node_id?: string }) => this.domCuaClick(tab, options, true),
-      type: async (options: { node_id?: string; text?: string } | string) => this.domCuaType(tab, options),
-      keypress: async (options: { node_id?: string; key?: string; keys?: string[] } | string | string[]) => this.domCuaKeypress(tab, options),
-      scroll: async (options: { node_id?: string; x?: number; y?: number; scrollX?: number; scrollY?: number; deltaX?: number; deltaY?: number }) => this.domCuaScroll(tab, options),
-      download_media: async () => this.unsupported('tab.dom_cua.download_media()'),
-      describeApi: () => ['get_visible_dom()', 'click({ node_id })', 'double_click({ node_id })', 'type({ node_id?, text })', 'keypress({ node_id?, key|keys })', 'scroll({ node_id?, x?, y?, scrollX?, scrollY?, deltaX?, deltaY? })', 'download_media() unsupported']
-    }
-  }
-
-  private normalizeScrollOptions(options: {
-    x?: number
-    y?: number
-    scrollX?: number
-    scrollY?: number
-    deltaX?: number
-    deltaY?: number
-  } = {}): { x: number; y: number; scrollX: number; scrollY: number } {
-    return {
-      x: this.finiteNumberOrDefault(options.x, 'x', 0),
-      y: this.finiteNumberOrDefault(options.y, 'y', 0),
-      scrollX: this.finiteNumberOrDefault(options.scrollX ?? options.deltaX, 'scrollX', 0),
-      scrollY: this.finiteNumberOrDefault(options.scrollY ?? options.deltaY, 'scrollY', 0)
-    }
-  }
-
-  private normalizeDomCuaScrollDistance(options: {
-    x?: number
-    y?: number
-    scrollX?: number
-    scrollY?: number
-    deltaX?: number
-    deltaY?: number
-  } = {}): { scrollX: number; scrollY: number } {
-    return {
-      scrollX: this.finiteNumberOrDefault(options.scrollX ?? options.deltaX ?? options.x, 'scrollX', 0),
-      scrollY: this.finiteNumberOrDefault(options.scrollY ?? options.deltaY ?? options.y, 'scrollY', 0)
-    }
-  }
-
-  private normalizeTypeOptions(options: { text?: string } | string): { text: string } {
-    return typeof options === 'string'
-      ? { text: options }
-      : { text: String(options?.text ?? '') }
-  }
-
-  private normalizeKeypressOptions(options: { key?: string; keys?: string[] } | string | string[]): { keys: string[] } {
-    if (typeof options === 'string') return { keys: [options] }
-    if (Array.isArray(options)) return { keys: options.map(String) }
-    const keys = Array.isArray(options?.keys)
-      ? options.keys.map(String)
-      : options?.key == null ? [] : [String(options.key)]
-    return { keys }
-  }
-
-  private async domCuaVisibleDom(tab: BrowserUseTabRuntime): Promise<Array<Record<string, unknown>>> {
-    const snapshot = JSON.parse(await this.domSnapshot(tab)) as { elements?: BrowserUseElementMatch[] }
-    tab.domCuaNodes.clear()
-    return (snapshot.elements ?? []).map((element, index) => {
-      const nodeId = element.ref ?? `dom:${index}`
-      tab.domCuaNodes.set(nodeId, element)
-      return {
-        node_id: nodeId,
-        ref: element.ref,
-        tagName: element.tagName || element.tag,
-        role: element.role,
-        name: element.name || element.ariaName,
-        text: element.visibleText || element.text,
-        selector: element.selector,
-        href: element.href,
-        testId: element.testId,
-        visible: element.visible,
-        enabled: element.enabled,
-        boundingBox: element.boundingBox
-      }
-    })
-  }
-
-  private domCuaTarget(tab: BrowserUseTabRuntime, options: { node_id?: string } = {}): BrowserUseElementMatch {
-    const nodeId = String(options.node_id ?? '')
-    if (tab.closed) throw BrowserUseBackendError.pageClosed(tab.id)
-    if (!nodeId) throw BrowserUseBackendError.invalidArgument('DOM CUA action requires node_id from get_visible_dom().')
-    const current = tab.snapshotRefs.get(nodeId)
-    if (current) return current
-    const cached = tab.domCuaNodes.get(nodeId)
-    if (cached) return cached
-    const domIndex = /^dom:(\d+)$/.exec(nodeId)
-    if (domIndex) {
-      const index = Number(domIndex[1])
-      const match = [...tab.snapshotRefs.values()].find((item) => item.index === index)
-      if (match) return match
-    }
-    throw BrowserUseBackendError.nodeStale(nodeId)
-  }
-
-  private async domCuaClick(
-    tab: BrowserUseTabRuntime,
-    options: { node_id?: string },
-    doubleClick: boolean
-  ): Promise<void> {
-    const target = this.domCuaTarget(tab, options)
-    const point = this.actionPoint(target)
-    if (doubleClick) await this.cuaDoubleClick(tab, point)
-    else await this.cuaClick(tab, { ...point, preserveRefs: true })
-  }
-
-  private async domCuaType(
-    tab: BrowserUseTabRuntime,
-    options: { node_id?: string; text?: string } | string
-  ): Promise<void> {
-    if (typeof options === 'string') {
-      await this.cuaType(tab, { text: options })
-      return
-    }
-    if (options.node_id) {
-      const point = this.actionPoint(this.domCuaTarget(tab, options))
-      await this.cuaClick(tab, { ...point, preserveRefs: true })
-    }
-    await this.cuaType(tab, { text: String(options.text ?? '') })
-  }
-
-  private async domCuaKeypress(
-    tab: BrowserUseTabRuntime,
-    options: { node_id?: string; key?: string; keys?: string[] } | string | string[]
-  ): Promise<void> {
-    if (options && typeof options === 'object' && !Array.isArray(options) && options.node_id) {
-      const point = this.actionPoint(this.domCuaTarget(tab, options))
-      await this.cuaClick(tab, { ...point, preserveRefs: true })
-    }
-    await this.cuaKeypress(tab, this.normalizeKeypressOptions(options))
-  }
-
-  private async domCuaScroll(
-    tab: BrowserUseTabRuntime,
-    options: { node_id?: string; x?: number; y?: number; scrollX?: number; scrollY?: number; deltaX?: number; deltaY?: number } = {}
-  ): Promise<void> {
-    const scroll = this.normalizeDomCuaScrollDistance(options)
-    if (options.node_id) {
-      const target = this.domCuaTarget(tab, options)
-      const point = this.actionPoint(target)
-      await this.cuaScroll(tab, { ...scroll, ...point })
-      return
-    }
-    await this.cuaScroll(tab, { ...this.viewportCenter(tab), ...scroll })
-  }
-
-  private viewportCenter(tab: BrowserUseTabRuntime): { x: number; y: number } {
-    const runtime = this.getRuntimeForTab(tab)
-    return {
-      x: Math.max(0, Math.round(runtime.viewportWidth / 2)),
-      y: Math.max(0, Math.round(runtime.viewportHeight / 2))
-    }
-  }
-
-  private createPlaywrightApi(tab: BrowserUseTabRuntime): Record<string, unknown> {
-    return {
-      domSnapshot: async () => this.domSnapshot(tab),
-      screenshot: async (options?: { fullPage?: boolean; clip?: Electron.Rectangle }) => this.screenshot(tab, options),
-      evaluate: async (
-        expressionOrFunction: string | ((arg?: unknown) => unknown),
-        arg?: unknown,
-        options?: { timeoutMs?: number; timeout?: number }
-      ) => this.evaluateInPage(tab, expressionOrFunction, arg, options),
-      waitForLoadState: async (stateOrOptions?: string | { state?: string; timeoutMs?: number }, timeoutMs?: number) => {
-        const state = typeof stateOrOptions === 'string' ? stateOrOptions : stateOrOptions?.state
-        const timeout = typeof stateOrOptions === 'object' ? stateOrOptions.timeoutMs : timeoutMs
-        return this.waitForLoad(tab, state ?? 'load', timeout ?? 30_000)
-      },
-      waitForTimeout: async (timeoutMs: number) => new Promise((resolve) => {
-        setTimeout(resolve, Math.max(0, Math.min(timeoutMs, 120_000)))
-      }),
-      waitForURL: async (url: unknown, options?: { timeoutMs?: number; timeout?: number }) => {
-        const timeout = options?.timeoutMs ?? options?.timeout ?? 30_000
-        return this.waitForUrl(tab, url, timeout)
-      },
-      waitForEvent: async (event: string) => this.unsupported(`tab.playwright.waitForEvent("${event}")`),
-      expectNavigation: async <T>(action: () => Promise<T>, options?: { timeoutMs?: number; url?: string }) => {
-        const result = await action()
-        if (options?.url) {
-          await this.waitForUrl(tab, options.url, options.timeoutMs ?? 30_000)
-        } else {
-          await this.waitForLoad(tab, 'load', options?.timeoutMs ?? 30_000)
-        }
-        return result
-      },
-      clickRef: async (ref: string) => this.locatorClick(tab, { kind: 'ref', value: String(ref) }),
-      fillRef: async (ref: string, value: string) => this.locatorFill(tab, { kind: 'ref', value: String(ref) }, value),
-      pressRef: async (ref: string, key: string) => this.locatorPress(tab, { kind: 'ref', value: String(ref) }, key),
-      locator: (selector: string, options?: Record<string, unknown>) => this.createLocatorApi(tab, this.withLocatorOptions({ kind: 'css', value: String(selector) }, options)),
-      getByTestId: (testId: string) => this.createLocatorApi(tab, { kind: 'testId', value: String(testId) }),
-      getByText: (text: string, options?: { exact?: boolean }) => this.createLocatorApi(tab, {
-        kind: 'text',
-        value: String(text),
-        exact: options?.exact === true
-      }),
-      getByLabel: (text: string, options?: { exact?: boolean }) => this.createLocatorApi(tab, {
-        kind: 'label',
-        value: String(text),
-        exact: options?.exact === true
-      }),
-      getByPlaceholder: (text: string, options?: { exact?: boolean }) => this.createLocatorApi(tab, {
-        kind: 'placeholder',
-        value: String(text),
-        exact: options?.exact === true
-      }),
-      getByRole: (role: string, options?: { exact?: boolean; name?: string }) => this.createLocatorApi(tab, {
-        kind: 'role',
-        value: String(role),
-        exact: options?.exact === true,
-        name: options?.name == null ? undefined : String(options.name)
-      }),
-      frameLocator: (selector: string) => this.createFrameLocatorApi(tab, String(selector)),
-      describeApi: () => ['evaluate(fnOrExpression, arg?, options?) read-only', 'domSnapshot()', 'screenshot(options?)', 'waitForLoadState(stateOrOptions?, timeoutMs?)', 'waitForURL(url, options?)', 'waitForTimeout(ms)', 'expectNavigation(action, options?)', 'locator(selector, options?)', 'getByRole(role, options?)', 'getByText(text, options?)', 'getByLabel(text, options?)', 'getByPlaceholder(text, options?)', 'getByTestId(testId)', 'waitForEvent(event) unsupported', 'frameLocator(selector)']
-    }
-  }
-
-  private createFrameLocatorApi(tab: BrowserUseTabRuntime, frameSelector: string): Record<string, unknown> {
-    const frame = String(frameSelector ?? '').trim()
-    if (!frame) throw new Error('playwright.frameLocator requires a selector.')
-    const inFrame = (selector: string) => `${frame} >> internal:control=enter-frame >> ${selector}`
-    return {
-      locator: (selector: string, options?: Record<string, unknown>) => this.createLocatorApi(tab, this.withLocatorOptions({ kind: 'css', value: inFrame(String(selector)) }, options)),
-      getByTestId: (testId: string) => this.createLocatorApi(tab, { kind: 'css', value: inFrame(this.playwrightSelectorFor({ kind: 'testId', value: String(testId) })) }),
-      getByText: (text: string, options?: { exact?: boolean }) => this.createLocatorApi(tab, {
-        kind: 'css',
-        value: inFrame(this.playwrightSelectorFor({
-          kind: 'text',
-          value: String(text),
-          exact: options?.exact === true
-        }))
-      }),
-      getByLabel: (text: string, options?: { exact?: boolean }) => this.createLocatorApi(tab, {
-        kind: 'css',
-        value: inFrame(this.playwrightSelectorFor({
-          kind: 'label',
-          value: String(text),
-          exact: options?.exact === true
-        }))
-      }),
-      getByPlaceholder: (text: string, options?: { exact?: boolean }) => this.createLocatorApi(tab, {
-        kind: 'css',
-        value: inFrame(this.playwrightSelectorFor({
-          kind: 'placeholder',
-          value: String(text),
-          exact: options?.exact === true
-        }))
-      }),
-      getByRole: (role: string, options?: { exact?: boolean; name?: string }) => this.createLocatorApi(tab, {
-        kind: 'css',
-        value: inFrame(this.playwrightSelectorFor({
-          kind: 'role',
-          value: String(role),
-          exact: options?.exact === true,
-          name: options?.name == null ? undefined : String(options.name)
-        }))
-      }),
-      frameLocator: (selector: string) => this.createFrameLocatorApi(tab, inFrame(String(selector))),
-      describeApi: () => ['locator(selector, options?)', 'getByRole(role, options?)', 'getByText(text, options?)', 'getByLabel(text, options?)', 'getByPlaceholder(text, options?)', 'getByTestId(testId)', 'frameLocator(selector)']
-    }
-  }
-
-  private createLocatorApi(tab: BrowserUseTabRuntime, descriptor: BrowserUseLocatorDescriptor): Record<string, unknown> {
-    return {
-      __dotcraftLocatorDescriptor: descriptor,
-      count: async () => (await this.resolveLocator(tab, descriptor)).length,
-      all: async () => {
-        const matches = await this.resolveLocator(tab, descriptor)
-        return matches.map((_match, index) => this.createLocatorApi(tab, { ...descriptor, index }))
-      },
-      click: async (_options?: unknown) => this.locatorClick(tab, descriptor),
-      dblclick: async (_options?: unknown) => this.locatorDoubleClick(tab, descriptor),
-      fill: async (value: string, _options?: unknown) => this.locatorFill(tab, descriptor, value),
-      type: async (value: string, _options?: unknown) => this.locatorType(tab, descriptor, value),
-      press: async (value: string, _options?: unknown) => this.locatorPress(tab, descriptor, value),
-      allTextContents: async (_options?: unknown) => (await this.resolveLocator(tab, descriptor)).map((match) => match.text || match.visibleText),
-      check: async (_options?: unknown) => this.locatorSetChecked(tab, descriptor, true),
-      uncheck: async (_options?: unknown) => this.locatorSetChecked(tab, descriptor, false),
-      setChecked: async (checked: boolean, _options?: unknown) => this.locatorSetChecked(tab, descriptor, checked === true),
-      selectOption: async (value: unknown, _options?: unknown) => this.locatorSelectOption(tab, descriptor, value),
-      innerText: async (_options?: unknown) => (await this.strictLocator(tab, descriptor)).visibleText,
-      textContent: async (_options?: unknown) => this.locatorEvaluate(tab, descriptor, 'textContent'),
-      getAttribute: async (name: string, _options?: unknown) => this.locatorEvaluate(tab, descriptor, 'getAttribute', name),
-      isVisible: async () => (await this.resolveLocator(tab, descriptor)).some((match) => match.visible),
-      isEnabled: async () => this.locatorEvaluate(tab, descriptor, 'isEnabled'),
-      waitFor: async (options?: { state?: string; timeoutMs?: number }) => this.locatorWaitFor(tab, descriptor, options),
-      getByText: (text: string, options?: { exact?: boolean }) => this.createLocatorApi(tab, {
-        ...this.scopedLocatorDescriptor(tab, descriptor, {
-          kind: 'text',
-          value: String(text),
-          exact: options?.exact === true
-        })
-      }),
-      getByRole: (role: string, options?: { exact?: boolean; name?: string }) => this.createLocatorApi(tab, {
-        ...this.scopedLocatorDescriptor(tab, descriptor, {
-          kind: 'role',
-          value: String(role),
-          exact: options?.exact === true,
-          name: options?.name == null ? undefined : String(options.name)
-        })
-      }),
-      getByLabel: (text: string, options?: { exact?: boolean }) => this.createLocatorApi(tab, this.scopedLocatorDescriptor(tab, descriptor, {
-        kind: 'label',
-        value: String(text),
-        exact: options?.exact === true
-      })),
-      getByPlaceholder: (text: string, options?: { exact?: boolean }) => this.createLocatorApi(tab, this.scopedLocatorDescriptor(tab, descriptor, {
-        kind: 'placeholder',
-        value: String(text),
-        exact: options?.exact === true
-      })),
-      getByTestId: (testId: string) => this.createLocatorApi(tab, this.scopedLocatorDescriptor(tab, descriptor, { kind: 'testId', value: String(testId) })),
-      locator: (selector: string, options?: Record<string, unknown>) => this.createLocatorApi(tab, this.withLocatorOptions(
-        this.scopedLocatorDescriptor(tab, descriptor, { kind: 'css', value: String(selector) }),
-        options
-      )),
-      filter: (options?: Record<string, unknown>) => this.createLocatorApi(tab, this.withLocatorOptions(descriptor, options)),
-      and: (other: unknown) => this.createLocatorApi(tab, {
-        kind: 'and',
-        value: '',
-        left: descriptor,
-        right: this.locatorDescriptorFromApi(other, 'locator.and')
-      }),
-      or: (other: unknown) => this.createLocatorApi(tab, {
-        kind: 'or',
-        value: '',
-        left: descriptor,
-        right: this.locatorDescriptorFromApi(other, 'locator.or')
-      }),
-      first: () => this.createLocatorApi(tab, { ...descriptor, index: 0 }),
-      last: () => this.createLocatorApi(tab, { ...descriptor, index: -1 }),
-      nth: (index: number) => this.createLocatorApi(tab, { ...descriptor, index: Math.trunc(Number(index)) }),
-      describeApi: () => ['count()', 'all()', 'filter(options)', 'and(locator)', 'or(locator)', 'click(options?)', 'dblclick(options?)', 'fill(value, options?)', 'type(value, options?)', 'press(key, options?)', 'innerText(options?)', 'textContent(options?)', 'getAttribute(name, options?)', 'isVisible()', 'isEnabled()', 'waitFor({ state, timeoutMs })', 'allTextContents(options?)', 'check(options?)', 'uncheck(options?)', 'setChecked(checked, options?)', 'selectOption(value, options?)', 'getByRole(role, options?)', 'getByText(text, options?)', 'getByLabel(text, options?)', 'getByPlaceholder(text, options?)', 'getByTestId(testId)', 'locator(selector, options?)', 'first()', 'last()', 'nth(index)']
-    }
-  }
-
-  private withLocatorOptions(
-    descriptor: BrowserUseLocatorDescriptor,
-    options?: Record<string, unknown>
-  ): BrowserUseLocatorDescriptor {
-    const filters = this.locatorFiltersFromOptions(options)
-    if (filters.length === 0) return descriptor
-    return {
-      ...descriptor,
-      filters: [...(descriptor.filters ?? []), ...filters]
-    }
-  }
-
-  private locatorFiltersFromOptions(options?: Record<string, unknown>): BrowserUseLocatorFilter[] {
-    if (!options || typeof options !== 'object' || Array.isArray(options)) return []
-    const filters: BrowserUseLocatorFilter[] = []
-    if ('hasText' in options && options.hasText != null) {
-      filters.push({ kind: 'hasText', matcher: this.locatorTextMatcher(options.hasText, options) })
-    }
-    if ('hasNotText' in options && options.hasNotText != null) {
-      filters.push({ kind: 'hasNotText', matcher: this.locatorTextMatcher(options.hasNotText, options) })
-    }
-    if ('visible' in options && typeof options.visible === 'boolean') {
-      filters.push({ kind: 'visible', value: options.visible })
-    }
-    if (options.has != null) {
-      filters.push({ kind: 'has', descriptor: this.locatorDescriptorFromApi(options.has, 'locator.filter({ has })') })
-    }
-    if (options.hasNot != null) {
-      filters.push({ kind: 'hasNot', descriptor: this.locatorDescriptorFromApi(options.hasNot, 'locator.filter({ hasNot })') })
-    }
-    return filters
-  }
-
-  private locatorTextMatcher(value: unknown, options?: Record<string, unknown>): BrowserUseLocatorTextMatcher {
-    if (value instanceof RegExp) return { pattern: value.source, flags: value.flags }
-    return {
-      value: String(value ?? ''),
-      exact: options?.exact === true
-    }
-  }
-
-  private locatorDescriptorFromApi(value: unknown, operation: string): BrowserUseLocatorDescriptor {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      const descriptor = (value as Record<string, unknown>).__dotcraftLocatorDescriptor
-      if (descriptor && typeof descriptor === 'object' && !Array.isArray(descriptor)) {
-        return descriptor as BrowserUseLocatorDescriptor
-      }
-    }
-    throw new Error(`InvalidArgument: ${operation} requires another DotCraft locator.`)
-  }
-
-  private scopedLocatorDescriptor(
-    tab: BrowserUseTabRuntime,
-    parent: BrowserUseLocatorDescriptor,
-    child: BrowserUseLocatorDescriptor
-  ): BrowserUseLocatorDescriptor {
-    return {
-      kind: 'css',
-      value: `${this.selectorForLocatorDescriptor(tab, parent)} >> ${this.playwrightSelectorFor(child)}`
-    }
-  }
-
-  private selectorForLocatorDescriptor(tab: BrowserUseTabRuntime, descriptor: BrowserUseLocatorDescriptor): string {
-    if (descriptor.kind !== 'ref') return this.playwrightSelectorFor(descriptor)
-    const snapshotRef = this.snapshotRef(tab, descriptor.value)
-    return snapshotRef.selector || this.fallbackSelectorForSnapshotRef(tab, snapshotRef)
-  }
-
-  private tabSnapshot(tab: BrowserUseTabRuntime): Record<string, unknown> {
+  private tabSnapshot(tab: BrowserUseTabRuntime): { url: string; title: string; loading: boolean } {
     const snapshot = this.viewerHost.snapshotState(tab.owner, tab.id)
-    const navigationFailure = tab.lastNavigationFailure
-      ? { navigationFailure: this.navigationFailureData(tab.lastNavigationFailure) }
-      : {}
-    if (snapshot) {
-      return {
-        id: tab.id,
-        url: snapshot.currentUrl,
-        title: snapshot.title,
-        loading: snapshot.loading,
-        ...navigationFailure
-      }
-    }
+    if (snapshot) return { url: snapshot.currentUrl, title: snapshot.title, loading: snapshot.loading }
     const wc = this.webContentsFor(tab.owner, tab.id)
-    return {
-      id: tab.id,
-      url: wc.getURL(),
-      title: wc.getTitle(),
-      loading: wc.isLoading(),
-      ...navigationFailure
-    }
+    return { url: wc.getURL(), title: wc.getTitle(), loading: wc.isLoading() }
   }
 
   private setAutomationState(
     runtime: BrowserUseThreadRuntime,
     tab: BrowserUseTabRuntime,
     active: boolean,
-    action?: string
+    action?: string,
+    release?: boolean
   ): void {
     this.viewerHost.setAutomationState(tab.owner, {
       tabId: tab.id,
       active,
+      release,
       sessionName: runtime.sessionName,
       action
     })
@@ -4337,58 +2327,44 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     this.setAutomationState(runtime, tab, true, action)
   }
 
-  private markTabForTurn(tab: BrowserUseTabRuntime, status: BrowserFinalizeKeepStatus): void {
-    const runtime = this.getRuntimeForTab(tab)
-    runtime.lifecycle.mark(tab.id, status)
-    tab.keptStatus = status
-    this.setAutomationState(runtime, tab, true, status)
-  }
-
-  private async goBack(tab: BrowserUseTabRuntime): Promise<Record<string, unknown>> {
+  private async goBack(tab: BrowserUseTabRuntime): Promise<void> {
     this.markAutomation(tab, 'back')
     this.clearNavigationFailure(tab)
-    this.invalidatePageScopedCaches(tab)
     const wc = this.webContentsFor(tab.owner, tab.id)
     if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack()
     await this.waitForLoad(tab, 'load', 30_000).catch((error) => {
       if (error instanceof BrowserUseBackendError && error.message.startsWith('NavigationFailed:')) throw error
     })
     this.throwIfNavigationFailed(tab)
-    return this.tabSnapshot(tab)
   }
 
-  private async goForward(tab: BrowserUseTabRuntime): Promise<Record<string, unknown>> {
+  private async goForward(tab: BrowserUseTabRuntime): Promise<void> {
     this.markAutomation(tab, 'forward')
     this.clearNavigationFailure(tab)
-    this.invalidatePageScopedCaches(tab)
     const wc = this.webContentsFor(tab.owner, tab.id)
     if (wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward()
     await this.waitForLoad(tab, 'load', 30_000).catch((error) => {
       if (error instanceof BrowserUseBackendError && error.message.startsWith('NavigationFailed:')) throw error
     })
     this.throwIfNavigationFailed(tab)
-    return this.tabSnapshot(tab)
   }
 
-  private async reload(tab: BrowserUseTabRuntime): Promise<Record<string, unknown>> {
+  private async reload(tab: BrowserUseTabRuntime): Promise<void> {
     this.markAutomation(tab, 'reload')
     this.clearNavigationFailure(tab)
-    this.invalidatePageScopedCaches(tab)
     this.webContentsFor(tab.owner, tab.id).reload()
     await this.waitForLoad(tab, 'load', 30_000).catch((error) => {
       if (error instanceof BrowserUseBackendError && error.message.startsWith('NavigationFailed:')) throw error
     })
     this.throwIfNavigationFailed(tab)
-    return this.tabSnapshot(tab)
   }
 
   private releaseTab(runtime: BrowserUseThreadRuntime, tab: BrowserUseTabRuntime, status?: BrowserFinalizeKeepStatus): void {
-    this.setAutomationState(runtime, tab, false, status)
+    this.setAutomationState(runtime, tab, false, status, true)
+    this.viewports.release(tab)
     this.detachDebugger(tab)
     tab.disposeListeners?.()
-    this.invalidatePageScopedCaches(tab)
     this.forgetBackendTab(runtime, tab)
-    runtime.recentOpenTabIds.delete(tab.id)
     runtime.tabs.delete(tab.id)
     if (runtime.selectedTabId === tab.id) runtime.selectedTabId = null
   }
@@ -4399,7 +2375,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     const runtime = this.getRuntimeForTab(tab)
     const shouldNotifyRenderer = tab.exposedToRenderer === true
     this.detachDebugger(tab)
-    this.invalidatePageScopedCaches(tab)
     this.forgetBackendTab(runtime, tab)
     this.viewerHost.destroyTab(tab.owner, tab.id)
     if (shouldNotifyRenderer) {
@@ -4417,35 +2392,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     }
     closedTabIds.add(tab.id)
     if (runtime.selectedTabId === tab.id) runtime.selectedTabId = null
-  }
-
-  private async navigate(
-    tab: BrowserUseTabRuntime,
-    url: string,
-    options: { skipPolicyCheck?: boolean } = {}
-  ): Promise<Record<string, unknown>> {
-    const normalized = normalizeBrowserUseUrl(url)
-    if (!normalized) throw new Error(`Invalid browser URL: ${url}`)
-    this.markAutomation(tab, 'navigate')
-    this.clearNavigationFailure(tab)
-    this.invalidatePageScopedCaches(tab)
-    if (options.skipPolicyCheck !== true) {
-      const runtime = this.getRuntimeForTab(tab)
-      await this.ensureNavigationAllowed(tab.owner, runtime, tab.id, normalized)
-    }
-    await this.loadAutomationUrl(tab, normalized)
-    return this.tabSnapshot(tab)
-  }
-
-  private invalidateSnapshotRefs(tab: BrowserUseTabRuntime): void {
-    tab.snapshotRefs.clear()
-    tab.snapshotGeneration += 1
-  }
-
-  private invalidatePageScopedCaches(tab: BrowserUseTabRuntime): void {
-    this.invalidateSnapshotRefs(tab)
-    tab.domCuaNodes.clear()
-    tab.pageAssetInventories.clear()
   }
 
   private getRuntimeForTab(tab: BrowserUseTabRuntime): BrowserUseThreadRuntime {
@@ -4543,10 +2489,11 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     const page = this.webContentsFor(tab.owner, tab.id)
     return {
       tabId: tab.id, page,
-      viewport: { width: runtime.viewportWidth, height: runtime.viewportHeight },
+      layoutSize: this.viewerHost.getLayoutSize(tab.owner, tab.id),
+      visible: this.viewerHost.isVisible(tab.owner, tab.id),
       timeoutMs: this.operationTimeoutMs(),
       signal: signal ?? runtime.activeAbortSignal,
-      send: (method, params) => page.debugger.sendCommand(method, params),
+      send: async (method, params) => await page.debugger.sendCommand(method, params),
       setSurface: size => this.viewerHost.setCaptureSurface(tab.owner, tab.id, size),
       diagnostic: message => runtime.logs.push(`${message} tab=${tab.id}`)
     }
@@ -4559,9 +2506,10 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   ): Promise<BrowserUseImageResult> {
     this.markAutomation(tab, 'screenshot')
     await this.ensureDebuggerAttached(tab)
+    await this.viewports.settled(tab)
     const dataBase64 = await this.withBrowserOperation(tab, 'screenshot', () =>
       this.screenshots.screenshot(this.screenshotContext(tab, signal), options))
-    return { mediaType: 'image/png', dataBase64 }
+    return { mediaType: 'image/jpeg', dataBase64 }
   }
 
   private async domSnapshot(tab: BrowserUseTabRuntime): Promise<string> {
@@ -4576,14 +2524,13 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       'window.__dotcraftBrowserUseSnapshot()',
       'domSnapshot')
     const snapshot = this.normalizeSnapshotPayload(rawSnapshot)
-    const elements = this.assignSnapshotRefs(tab, snapshot.elements)
-    const accessibilitySnapshot = snapshot.accessibilitySnapshot || this.formatAccessibilitySnapshot(elements)
+    const accessibilitySnapshot = snapshot.accessibilitySnapshot || this.formatAccessibilitySnapshot(snapshot.elements)
     return JSON.stringify({
       title: snapshot.title,
       url: snapshot.url,
       bodyText: snapshot.bodyText,
       accessibilitySnapshot,
-      elements
+      elements: snapshot.elements
     }, null, 2)
   }
 
@@ -4666,24 +2613,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     return typeof value === 'string' ? value : value == null ? '' : String(value)
   }
 
-  private assignSnapshotRefs(
-    tab: BrowserUseTabRuntime,
-    elements: BrowserUseElementMatch[]
-  ): BrowserUseElementMatch[] {
-    tab.snapshotGeneration += 1
-    tab.snapshotRefs.clear()
-    return elements.map((element, index) => {
-      const ref = element.ref ?? `e${index + 1}`
-      const withRef = {
-        ...element,
-        ref,
-        index
-      }
-      tab.snapshotRefs.set(ref, withRef)
-      return withRef
-    })
-  }
-
   private formatAccessibilitySnapshot(elements: BrowserUseElementMatch[]): string {
     return elements.map((element) => {
       const role = element.role || element.tagName || 'element'
@@ -4706,820 +2635,11 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   private async ensurePlaywrightInjected(tab: BrowserUseTabRuntime): Promise<void> {
     const installed = await this.executeJavaScript<boolean>(
       tab,
-      'Boolean(window.__dotcraftPlaywrightInjected && window.__dotcraftBrowserUseSnapshot && window.__dotcraftBrowserUseResolveSelector && window.__dotcraftBrowserUseElementInfo)',
+      'Boolean(window.__dotcraftBrowserUseSnapshot && window.__dotcraftBrowserUseLocator && window.__dotcraftBrowserUseNode)',
       'playwright.inject.check').catch(() => false)
     if (installed === true) return
 
     await this.executeJavaScript(tab, browserObservationSource(playwrightInjectedScriptSource), 'playwright.inject')
-  }
-
-  private async evaluateInPage(
-    tab: BrowserUseTabRuntime,
-    expressionOrFunction: string | ((arg?: unknown) => unknown),
-    arg?: unknown,
-    options?: { timeoutMs?: number; timeout?: number }
-  ): Promise<unknown> {
-    const source = typeof expressionOrFunction === 'function'
-      ? `((fn, arg) => fn(arg))(${expressionOrFunction.toString()}, ${this.evaluateArgSource(arg)})`
-      : String(expressionOrFunction)
-    return this.evaluateSourceInPage(tab, source, options)
-  }
-
-  private async evaluateSourceInPage(
-    tab: BrowserUseTabRuntime,
-    source: string,
-    options?: { timeoutMs?: number; timeout?: number }
-  ): Promise<unknown> {
-    const timeoutMs = this.normalizeEvaluateTimeout(options)
-    await this.waitForPageReady(tab, {
-      operation: 'evaluate.ready',
-      requireContent: false,
-      timeoutMs
-    })
-    return this.executeJavaScript(tab, readOnlyEvaluateSource(source), 'evaluate', false, timeoutMs)
-  }
-
-  private normalizeEvaluateTimeout(options?: { timeoutMs?: number; timeout?: number }): number {
-    const raw = options?.timeoutMs ?? options?.timeout
-    const timeoutMs = typeof raw === 'number' && Number.isFinite(raw)
-      ? raw
-      : this.operationTimeoutMs()
-    return Math.max(1, Math.min(Math.floor(timeoutMs), 120_000))
-  }
-
-  private evaluateArgSource(arg: unknown): string {
-    if (arg === undefined) return 'undefined'
-    try {
-      const serialized = JSON.stringify(arg)
-      if (serialized === undefined) return 'undefined'
-      return serialized
-    } catch {
-      throw new Error('playwright.evaluate arg must be JSON-serializable.')
-    }
-  }
-
-  private async click(tab: BrowserUseTabRuntime, selector: string): Promise<void> {
-    await this.locatorClick(tab, { kind: 'css', value: selector })
-  }
-
-  private async type(tab: BrowserUseTabRuntime, selector: string, text: string): Promise<void> {
-    await this.locatorType(tab, { kind: 'css', value: selector }, text)
-  }
-
-  private async press(tab: BrowserUseTabRuntime, selector: string, key: string): Promise<void> {
-    await this.locatorPress(tab, { kind: 'css', value: selector }, key)
-  }
-
-  private async cuaMove(tab: BrowserUseTabRuntime, options: { x: number; y: number; waitForArrival?: boolean }): Promise<void> {
-    this.markAutomation(tab, 'move')
-    await this.withBrowserOperation(tab, 'cua.move', () => this.viewerHost.moveMouse(tab.owner, {
-      tabId: tab.id,
-      x: Number(options.x),
-      y: Number(options.y),
-      waitForArrival: options.waitForArrival
-    }))
-  }
-
-  private async cuaClick(tab: BrowserUseTabRuntime, options: { x: number; y: number; button?: number | string; preserveRefs?: boolean }): Promise<void> {
-    this.markAutomation(tab, 'click')
-    await this.withBrowserOperation(tab, 'cua.click', () => this.viewerHost.clickMouse(tab.owner, {
-      tabId: tab.id,
-      x: Number(options.x),
-      y: Number(options.y),
-      button: this.normalizeMouseButton(options.button)
-    }))
-    if (options.preserveRefs !== true) this.invalidateSnapshotRefs(tab)
-  }
-
-  private async cuaDoubleClick(tab: BrowserUseTabRuntime, options: { x: number; y: number; button?: number | string }): Promise<void> {
-    this.markAutomation(tab, 'double click')
-    await this.withBrowserOperation(tab, 'cua.double_click', () => this.viewerHost.doubleClickMouse(tab.owner, {
-      tabId: tab.id,
-      x: Number(options.x),
-      y: Number(options.y),
-      button: this.normalizeMouseButton(options.button)
-    }))
-    this.invalidateSnapshotRefs(tab)
-  }
-
-  private async cuaDrag(tab: BrowserUseTabRuntime, options: { path: Array<{ x: number; y: number }> }): Promise<void> {
-    this.markAutomation(tab, 'drag')
-    await this.withBrowserOperation(tab, 'cua.drag', () => this.viewerHost.dragMouse(tab.owner, {
-      tabId: tab.id,
-      path: Array.isArray(options.path) ? options.path : []
-    }))
-    this.invalidateSnapshotRefs(tab)
-  }
-
-  private async cuaScroll(tab: BrowserUseTabRuntime, options: { x: number; y: number; scrollX: number; scrollY: number }): Promise<void> {
-    this.markAutomation(tab, 'scroll')
-    const x = Number(options.x)
-    const y = Number(options.y)
-    const scrollX = Number(options.scrollX ?? 0)
-    const scrollY = Number(options.scrollY ?? 0)
-    if (scrollX === 0 && scrollY === 0) {
-      throw BrowserUseBackendError.invalidArgument('Scroll requires a non-zero distance. For CUA use scrollX/scrollY or deltaX/deltaY; for DOM-CUA page scroll use { y: 700 }.')
-    }
-    await this.withBrowserOperation(tab, 'cua.scroll', async () => {
-      await this.viewerHost.moveMouse(tab.owner, { tabId: tab.id, x, y })
-      try {
-        await this.cdpCommand(tab, 'Input.synthesizeScrollGesture', {
-          x,
-          y,
-          xDistance: -scrollX,
-          yDistance: -scrollY,
-          gestureSourceType: 'mouse',
-          preventFling: true,
-          speed: 8000
-        })
-      } catch (error) {
-        if (!this.isCdpUnavailableError(error)) throw error
-        await this.viewerHost.scrollMouse(tab.owner, {
-          tabId: tab.id,
-          x,
-          y,
-          scrollX,
-          scrollY
-        })
-      }
-    })
-  }
-
-  private isCdpUnavailableError(error: unknown): boolean {
-    const message = error instanceof Error ? error.message : String(error)
-    if (message.includes('does not expose Electron debugger/CDP')) return true
-    return message.includes('Input.synthesizeScrollGesture') &&
-      /unknown method|not found|not available|unsupported/i.test(message)
-  }
-
-  private async cuaType(tab: BrowserUseTabRuntime, options: { text: string }): Promise<void> {
-    this.markAutomation(tab, 'type')
-    await this.withBrowserOperation(
-      tab,
-      'cua.type',
-      () => this.viewerHost.typeText(tab.owner, { tabId: tab.id, text: String(options.text ?? '') }))
-    this.invalidateSnapshotRefs(tab)
-  }
-
-  private async cuaKeypress(tab: BrowserUseTabRuntime, options: { keys: string[] }): Promise<void> {
-    this.markAutomation(tab, 'keypress')
-    await this.withBrowserOperation(tab, 'cua.keypress', async () => {
-      this.viewerHost.keypress(tab.owner, { tabId: tab.id, keys: Array.isArray(options.keys) ? options.keys.map(String) : [] })
-    })
-    this.invalidateSnapshotRefs(tab)
-  }
-
-  private async locatorClick(tab: BrowserUseTabRuntime, descriptor: BrowserUseLocatorDescriptor): Promise<void> {
-    const target = await this.waitForActionableLocator(tab, descriptor)
-    const point = this.actionPoint(target)
-    await this.cuaClick(tab, { ...point, preserveRefs: true })
-    this.invalidateSnapshotRefs(tab)
-  }
-
-  private async locatorDoubleClick(tab: BrowserUseTabRuntime, descriptor: BrowserUseLocatorDescriptor): Promise<void> {
-    const target = await this.waitForActionableLocator(tab, descriptor)
-    const point = this.actionPoint(target)
-    await this.cuaDoubleClick(tab, { ...point })
-  }
-
-  private async locatorType(tab: BrowserUseTabRuntime, descriptor: BrowserUseLocatorDescriptor, value: string): Promise<void> {
-    const target = await this.waitForActionableLocator(tab, descriptor)
-    const point = this.actionPoint(target)
-    await this.cuaClick(tab, { ...point, preserveRefs: true })
-    await this.cuaType(tab, { text: String(value ?? '') })
-  }
-
-  private async locatorFill(tab: BrowserUseTabRuntime, descriptor: BrowserUseLocatorDescriptor, value: string): Promise<void> {
-    const target = await this.waitForActionableLocator(tab, descriptor)
-    if (descriptor.kind === 'ref') this.selectorForResolvedLocator(tab, descriptor, target)
-    const point = this.actionPoint(target)
-    await this.cuaClick(tab, { ...point, preserveRefs: true })
-    await this.mutateStrictLocator(tab, descriptor, String(value ?? ''))
-    this.invalidateSnapshotRefs(tab)
-  }
-
-  private async locatorPress(tab: BrowserUseTabRuntime, descriptor: BrowserUseLocatorDescriptor, value: string): Promise<void> {
-    const target = await this.waitForActionableLocator(tab, descriptor)
-    const point = this.actionPoint(target)
-    await this.cuaClick(tab, { ...point, preserveRefs: true })
-    await this.cuaKeypress(tab, { keys: [String(value)] })
-  }
-
-  private async locatorSetChecked(
-    tab: BrowserUseTabRuntime,
-    descriptor: BrowserUseLocatorDescriptor,
-    checked: boolean
-  ): Promise<void> {
-    const target = await this.waitForActionableLocator(tab, descriptor)
-    const locator = this.selectorForResolvedLocator(tab, descriptor, target)
-    await this.ensurePlaywrightInjected(tab)
-    const script = `
-      ((parsed, snapshotRef, checked) => {
-        const injected = window.__dotcraftPlaywrightInjected;
-        const matchesSnapshotRef = (info) => {
-          if (!snapshotRef) return true;
-          if (snapshotRef.href && info.href !== snapshotRef.href) return false;
-          if (snapshotRef.testId && info.testId !== snapshotRef.testId) return false;
-          if (snapshotRef.role && info.role !== snapshotRef.role) return false;
-          if (snapshotRef.tagName && info.tagName !== snapshotRef.tagName && info.tag !== snapshotRef.tagName) return false;
-          if (snapshotRef.expectedName) {
-            const actualName = info.name || info.text || info.visibleText;
-            if (actualName !== snapshotRef.expectedName) return false;
-          }
-          return true;
-        };
-        const candidates = injected.querySelectorAll(parsed, document).map((el, index) => ({
-          el,
-          info: window.__dotcraftBrowserUseElementInfo(el, index)
-        })).filter((candidate) => matchesSnapshotRef(candidate.info));
-        if (candidates.length !== 1) throw new Error('Locator resolved to ' + candidates.length + ' elements for checkbox state change.');
-        const el = candidates[0].el;
-        if (!('checked' in el)) throw new Error('Locator does not resolve to a checkable control.');
-        if (el.checked !== checked) {
-          el.focus();
-          el.checked = checked;
-          el.dispatchEvent(new InputEvent('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        return true;
-      })(${JSON.stringify(locator.parsed)}, ${JSON.stringify(locator.snapshotRefFilter)}, ${JSON.stringify(checked)})
-    `
-    await this.executeJavaScript(tab, script, 'locator.setChecked')
-    this.invalidateSnapshotRefs(tab)
-  }
-
-  private async locatorSelectOption(
-    tab: BrowserUseTabRuntime,
-    descriptor: BrowserUseLocatorDescriptor,
-    value: unknown
-  ): Promise<void> {
-    const target = await this.waitForActionableLocator(tab, descriptor)
-    const locator = this.selectorForResolvedLocator(tab, descriptor, target)
-    const values = (Array.isArray(value) ? value : [value]).map((item) => {
-      if (item && typeof item === 'object') {
-        const obj = item as Record<string, unknown>
-        return {
-          value: obj.value == null ? undefined : String(obj.value),
-          label: obj.label == null ? undefined : String(obj.label),
-          index: typeof obj.index === 'number' ? obj.index : undefined
-        }
-      }
-      return { value: String(item ?? '') }
-    })
-    await this.ensurePlaywrightInjected(tab)
-    const script = `
-      ((parsed, snapshotRef, requested) => {
-        const injected = window.__dotcraftPlaywrightInjected;
-        const matchesSnapshotRef = (info) => {
-          if (!snapshotRef) return true;
-          if (snapshotRef.href && info.href !== snapshotRef.href) return false;
-          if (snapshotRef.testId && info.testId !== snapshotRef.testId) return false;
-          if (snapshotRef.role && info.role !== snapshotRef.role) return false;
-          if (snapshotRef.tagName && info.tagName !== snapshotRef.tagName && info.tag !== snapshotRef.tagName) return false;
-          if (snapshotRef.expectedName) {
-            const actualName = info.name || info.text || info.visibleText;
-            if (actualName !== snapshotRef.expectedName) return false;
-          }
-          return true;
-        };
-        const candidates = injected.querySelectorAll(parsed, document).map((el, index) => ({
-          el,
-          info: window.__dotcraftBrowserUseElementInfo(el, index)
-        })).filter((candidate) => matchesSnapshotRef(candidate.info));
-        if (candidates.length !== 1) throw new Error('Locator resolved to ' + candidates.length + ' elements for selectOption.');
-        const select = candidates[0].el;
-        if (select.tagName?.toLowerCase() !== 'select') throw new Error('selectOption requires a native <select> element.');
-        const options = Array.from(select.options);
-        const selected = [];
-        for (const item of requested) {
-          const match = options.find((option, index) =>
-            (item.index !== undefined && index === item.index) ||
-            (item.value !== undefined && option.value === item.value) ||
-            (item.label !== undefined && option.label === item.label)
-          );
-          if (!match) throw new Error('No matching <option> found for selectOption.');
-          selected.push(match);
-        }
-        if (!select.multiple && selected.length > 1) throw new Error('Cannot select multiple options on a single-select element.');
-        for (const option of options) option.selected = selected.includes(option);
-        select.focus();
-        select.dispatchEvent(new InputEvent('input', { bubbles: true }));
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
-      })(${JSON.stringify(locator.parsed)}, ${JSON.stringify(locator.snapshotRefFilter)}, ${JSON.stringify(values)})
-    `
-    await this.executeJavaScript(tab, script, 'locator.selectOption')
-    this.invalidateSnapshotRefs(tab)
-  }
-
-  private async waitForActionableLocator(
-    tab: BrowserUseTabRuntime,
-    descriptor: BrowserUseLocatorDescriptor
-  ): Promise<BrowserUseElementMatch> {
-    const deadline = Date.now() + this.operationTimeoutMs()
-    let lastError: Error | null = null
-    for (;;) {
-      try {
-        const target = await this.strictLocator(tab, descriptor)
-        this.assertActionable(target, descriptor)
-        return target
-      } catch (error) {
-        const current = error instanceof Error ? error : new Error(String(error))
-        if (
-          current.message.startsWith('Strict mode violation') ||
-          current.message.startsWith('Unknown browser snapshot ref')
-        ) {
-          throw current
-        }
-        lastError = current
-      }
-      if (Date.now() >= deadline) {
-        throw new Error(`Timed out waiting for locator ${this.describeLocator(descriptor)} to become visible and enabled. Last error: ${lastError?.message ?? 'unknown'}`)
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    }
-  }
-
-  private assertActionable(match: BrowserUseElementMatch, descriptor: BrowserUseLocatorDescriptor): void {
-    if (!match.visible) {
-      throw new Error(`Locator ${this.describeLocator(descriptor)} resolved to a hidden element: ${this.describeElementMatch(match)}`)
-    }
-    if (!match.enabled) {
-      throw new Error(`Locator ${this.describeLocator(descriptor)} resolved to a disabled element: ${this.describeElementMatch(match)}`)
-    }
-  }
-
-  private async strictLocator(tab: BrowserUseTabRuntime, descriptor: BrowserUseLocatorDescriptor): Promise<BrowserUseElementMatch> {
-    const matches = await this.resolveLocator(tab, descriptor)
-    if (matches.length === 0) {
-      throw new Error(`No element found for locator: ${this.describeLocator(descriptor)}`)
-    }
-    if (matches.length > 1) {
-      const examples = matches.slice(0, 5).map((match) => this.describeElementMatch(match)).join('; ')
-      throw new Error(`Strict mode violation for locator ${this.describeLocator(descriptor)}: ${matches.length} elements matched. Matches: ${examples}`)
-    }
-    return matches[0]!
-  }
-
-  private describeElementMatch(match: BrowserUseElementMatch): string {
-    const box = match.boundingBox
-      ? `@${Math.round(match.boundingBox.x)},${Math.round(match.boundingBox.y)} ${Math.round(match.boundingBox.width)}x${Math.round(match.boundingBox.height)}`
-      : '@no-box'
-    const label = match.name || match.text || match.visibleText || match.ariaName || ''
-    const href = match.href ? ` href=${match.href}` : ''
-    const ref = match.ref ? ` ref=${match.ref}` : ''
-    const state = `${match.visible ? 'visible' : 'hidden'}/${match.enabled ? 'enabled' : 'disabled'}`
-    return `${match.tagName || match.tag || 'element'}[${match.role || 'generic'}] "${label}" ${match.selector}${href}${ref} ${state} ${box}`
-  }
-
-  private actionPoint(match: BrowserUseElementMatch): { x: number; y: number } {
-    const box = match.boundingBox
-    if (!box || box.width <= 0 || box.height <= 0) {
-      throw new Error('Element does not have a clickable bounding box.')
-    }
-    return {
-      x: Math.max(0, Math.round(box.x + box.width / 2)),
-      y: Math.max(0, Math.round(box.y + box.height / 2))
-    }
-  }
-
-  private async resolveLocator(
-    tab: BrowserUseTabRuntime,
-    descriptor: BrowserUseLocatorDescriptor
-  ): Promise<BrowserUseElementMatch[]> {
-    if (descriptor.kind === 'and' || descriptor.kind === 'or') {
-      return await this.resolveCompositeLocator(tab, descriptor)
-    }
-    const snapshotRef = descriptor.kind === 'ref'
-      ? this.snapshotRef(tab, descriptor.value)
-      : null
-    const selector = snapshotRef?.selector || (descriptor.kind !== 'ref' ? this.playwrightSelectorFor(descriptor) : '')
-    if (!selector && snapshotRef) return [snapshotRef]
-    await this.ensurePlaywrightInjected(tab)
-    const parsed = parsePlaywrightSelector(selector)
-    const matches = await this.executeJavaScript<BrowserUseElementMatch[]>(
-      tab,
-      `window.__dotcraftBrowserUseResolveSelector(${JSON.stringify(parsed)})`,
-      'locator.resolve')
-    const normalized = Array.isArray(matches)
-      ? matches.map((match, index) => this.normalizeElementMatch(match, index))
-      : []
-    const filtered = snapshotRef
-      ? normalized
-      .filter((match) => this.matchesSnapshotRef(match, snapshotRef))
-      .map((match) => ({ ...match, ref: snapshotRef.ref }))
-      : normalized
-    return this.applyLocatorIndex(await this.applyLocatorFilters(tab, filtered, descriptor), descriptor)
-  }
-
-  private async resolveCompositeLocator(
-    tab: BrowserUseTabRuntime,
-    descriptor: BrowserUseLocatorDescriptor
-  ): Promise<BrowserUseElementMatch[]> {
-    if (!descriptor.left || !descriptor.right) {
-      throw new Error(`Unsupported browser locator: ${this.describeLocator(descriptor)}`)
-    }
-    const left = await this.resolveLocator(tab, descriptor.left)
-    const right = await this.resolveLocator(tab, descriptor.right)
-    const rightKeys = new Set(right.map((match) => this.locatorMatchKey(match)))
-    const combined = descriptor.kind === 'and'
-      ? left.filter((match) => rightKeys.has(this.locatorMatchKey(match)))
-      : this.uniqueLocatorMatches([...left, ...right])
-    return this.applyLocatorIndex(await this.applyLocatorFilters(tab, combined, descriptor), descriptor)
-  }
-
-  private uniqueLocatorMatches(matches: BrowserUseElementMatch[]): BrowserUseElementMatch[] {
-    const seen = new Set<string>()
-    const result: BrowserUseElementMatch[] = []
-    for (const match of matches) {
-      const key = this.locatorMatchKey(match)
-      if (seen.has(key)) continue
-      seen.add(key)
-      result.push(match)
-    }
-    return result
-  }
-
-  private locatorMatchKey(match: BrowserUseElementMatch): string {
-    return [
-      match.ref ?? '',
-      match.selector,
-      match.href ?? '',
-      match.testId ?? '',
-      match.role,
-      match.name || match.text || match.visibleText,
-      match.index
-    ].join('\u0000')
-  }
-
-  private async applyLocatorFilters(
-    tab: BrowserUseTabRuntime,
-    matches: BrowserUseElementMatch[],
-    descriptor: BrowserUseLocatorDescriptor
-  ): Promise<BrowserUseElementMatch[]> {
-    const filters = descriptor.filters ?? []
-    if (filters.length === 0) return matches
-    const result: BrowserUseElementMatch[] = []
-    for (const match of matches) {
-      let include = true
-      for (const filter of filters) {
-        if (!await this.locatorFilterMatches(tab, match, filter)) {
-          include = false
-          break
-        }
-      }
-      if (include) result.push(match)
-    }
-    return result
-  }
-
-  private async locatorFilterMatches(
-    tab: BrowserUseTabRuntime,
-    match: BrowserUseElementMatch,
-    filter: BrowserUseLocatorFilter
-  ): Promise<boolean> {
-    if (filter.kind === 'hasText') return this.matchesLocatorText(match.visibleText || match.text || match.name, filter.matcher)
-    if (filter.kind === 'hasNotText') return !this.matchesLocatorText(match.visibleText || match.text || match.name, filter.matcher)
-    if (filter.kind === 'visible') return match.visible === (filter.value !== false)
-    if (filter.kind === 'has' || filter.kind === 'hasNot') {
-      if (!filter.descriptor || !match.selector) return filter.kind === 'hasNot'
-      const childDescriptor = this.scopedLocatorDescriptor(tab, { kind: 'css', value: match.selector }, filter.descriptor)
-      const count = (await this.resolveLocator(tab, childDescriptor)).length
-      return filter.kind === 'has' ? count > 0 : count === 0
-    }
-    return true
-  }
-
-  private matchesLocatorText(value: string, matcher?: BrowserUseLocatorTextMatcher): boolean {
-    const actual = this.normalizeLocatorText(value)
-    if (!matcher) return actual.length > 0
-    if (matcher.pattern != null) {
-      try {
-        return new RegExp(matcher.pattern, matcher.flags ?? '').test(actual)
-      } catch (error) {
-        throw new Error(`InvalidArgument: invalid locator text matcher RegExp: ${error instanceof Error ? error.message : String(error)}`)
-      }
-    }
-    const expected = this.normalizeLocatorText(matcher.value ?? '')
-    return matcher.exact === true
-      ? actual === expected
-      : actual.toLowerCase().includes(expected.toLowerCase())
-  }
-
-  private normalizeLocatorText(value: string): string {
-    return String(value ?? '').replace(/\s+/g, ' ').trim()
-  }
-
-  private applyLocatorIndex(
-    matches: BrowserUseElementMatch[],
-    descriptor: BrowserUseLocatorDescriptor
-  ): BrowserUseElementMatch[] {
-    if (descriptor.index === undefined) return matches
-    const index = descriptor.index < 0 ? matches.length + descriptor.index : descriptor.index
-    const match = matches[index]
-    return match ? [match] : []
-  }
-
-  private snapshotRef(tab: BrowserUseTabRuntime, ref: string): BrowserUseElementMatch {
-    const snapshotRef = tab.snapshotRefs.get(ref)
-    if (!snapshotRef) {
-      throw new Error(`Unknown browser snapshot ref '${ref}' for tab ${tab.id}. Take a fresh domSnapshot() and use a current ref.`)
-    }
-    return snapshotRef
-  }
-
-  private matchesSnapshotRef(current: BrowserUseElementMatch, snapshotRef: BrowserUseElementMatch): boolean {
-    if (snapshotRef.href && current.href !== snapshotRef.href) return false
-    if (snapshotRef.testId && current.testId !== snapshotRef.testId) return false
-    if (snapshotRef.role && current.role !== snapshotRef.role) return false
-    const expectedName = snapshotRef.name || snapshotRef.text || snapshotRef.visibleText
-    if (expectedName) {
-      const actualName = current.name || current.text || current.visibleText
-      if (actualName !== expectedName) return false
-    }
-    return true
-  }
-
-  private playwrightSelectorFor(descriptor: BrowserUseLocatorDescriptor): string {
-    if (descriptor.kind === 'css') return descriptor.value
-    if (descriptor.kind === 'text') return getByTextSelector(descriptor.value, { exact: descriptor.exact === true })
-    if (descriptor.kind === 'label') return getByLabelSelector(descriptor.value, { exact: descriptor.exact === true })
-    if (descriptor.kind === 'placeholder') return getByPlaceholderSelector(descriptor.value, { exact: descriptor.exact === true })
-    if (descriptor.kind === 'testId') return getByTestIdSelector('data-testid', descriptor.value)
-    if (descriptor.kind === 'role') {
-      return getByRoleSelector(descriptor.value, {
-        name: descriptor.name,
-        exact: descriptor.exact === true
-      })
-    }
-    throw new Error(`Unsupported browser locator: ${this.describeLocator(descriptor)}`)
-  }
-
-  private selectorForResolvedLocator(
-    tab: BrowserUseTabRuntime,
-    descriptor: BrowserUseLocatorDescriptor,
-    target: BrowserUseElementMatch
-  ): { parsed: unknown; snapshotRefFilter: BrowserUseSnapshotRefFilter | null } {
-    const snapshotRef = descriptor.kind === 'ref' ? target : null
-    const selector = target.selector || this.selectorForLocatorDescriptor(tab, snapshotRef ? { kind: 'ref', value: snapshotRef.ref ?? descriptor.value } : descriptor)
-    return {
-      parsed: parsePlaywrightSelector(selector),
-      snapshotRefFilter: snapshotRef ? this.snapshotRefFilter(snapshotRef) : null
-    }
-  }
-
-  private fallbackSelectorForSnapshotRef(tab: BrowserUseTabRuntime, snapshotRef: BrowserUseElementMatch): string {
-    const tag = this.cssTagName(snapshotRef.tagName || snapshotRef.tag || '')
-    if (snapshotRef.testId) {
-      const prefix = tag || ''
-      return `${prefix}[data-testid="${this.cssAttributeValue(snapshotRef.testId)}"]`
-    }
-    if (snapshotRef.href && (tag === 'a' || snapshotRef.role === 'link')) {
-      return `${tag || 'a'}[href="${this.cssAttributeValue(snapshotRef.href)}"]`
-    }
-    const name = snapshotRef.name || snapshotRef.ariaName
-    if (snapshotRef.role && name) {
-      return getByRoleSelector(snapshotRef.role, { name, exact: true })
-    }
-    const text = snapshotRef.visibleText || snapshotRef.text || name
-    if (text) {
-      return getByTextSelector(text, { exact: true })
-    }
-    if (tag) return tag
-    throw new Error(`Snapshot ref '${snapshotRef.ref ?? ''}' for tab ${tab.id} cannot be resolved to a live DOM selector. Take a fresh domSnapshot() and use a current ref or a stable selector.`)
-  }
-
-  private snapshotRefFilter(snapshotRef: BrowserUseElementMatch): BrowserUseSnapshotRefFilter {
-    return {
-      ref: snapshotRef.ref,
-      href: snapshotRef.href,
-      testId: snapshotRef.testId,
-      role: snapshotRef.role || undefined,
-      expectedName: snapshotRef.name || snapshotRef.text || snapshotRef.visibleText || undefined,
-      tagName: snapshotRef.tagName || snapshotRef.tag || undefined
-    }
-  }
-
-  private cssTagName(value: string): string {
-    const tag = value.toLowerCase()
-    return /^[a-z][a-z0-9-]*$/.test(tag) ? tag : ''
-  }
-
-  private cssAttributeValue(value: string): string {
-    return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-  }
-
-  private async locatorEvaluate(
-    tab: BrowserUseTabRuntime,
-    descriptor: BrowserUseLocatorDescriptor,
-    operation: 'textContent' | 'getAttribute' | 'isEnabled',
-    arg?: string
-  ): Promise<unknown> {
-    const target = await this.strictLocator(tab, descriptor)
-    const locator = this.selectorForResolvedLocator(tab, descriptor, target)
-    await this.ensurePlaywrightInjected(tab)
-    const script = `
-      ((parsed, snapshotRef, operation, arg) => {
-        const injected = window.__dotcraftPlaywrightInjected;
-        const matchesSnapshotRef = (info) => {
-          if (!snapshotRef) return true;
-          if (snapshotRef.href && info.href !== snapshotRef.href) return false;
-          if (snapshotRef.testId && info.testId !== snapshotRef.testId) return false;
-          if (snapshotRef.role && info.role !== snapshotRef.role) return false;
-          if (snapshotRef.tagName && info.tagName !== snapshotRef.tagName && info.tag !== snapshotRef.tagName) return false;
-          if (snapshotRef.expectedName) {
-            const actualName = info.name || info.text || info.visibleText;
-            if (actualName !== snapshotRef.expectedName) return false;
-          }
-          return true;
-        };
-        let el = null;
-        if (snapshotRef) {
-          const candidates = injected.querySelectorAll(parsed, document);
-          const matches = candidates.map((candidate, index) => ({
-            el: candidate,
-            info: window.__dotcraftBrowserUseElementInfo(candidate, index)
-          })).filter((candidate) => matchesSnapshotRef(candidate.info));
-          if (matches.length !== 1) {
-            throw new Error('Snapshot ref ' + JSON.stringify(snapshotRef.ref || '') + ' resolved to ' + matches.length + ' live elements for locator evaluation. Take a fresh domSnapshot() or use a more stable selector. role=' + (snapshotRef.role || '') + ' name=' + (snapshotRef.expectedName || '') + ' href=' + (snapshotRef.href || '') + ' testId=' + (snapshotRef.testId || ''));
-          }
-          el = matches[0].el;
-        } else {
-          el = injected.querySelector(parsed, document, true);
-        }
-        if (!el) return null;
-        if (operation === 'textContent') return el.textContent;
-        if (operation === 'getAttribute') return el.getAttribute(arg);
-        if (operation === 'isEnabled') return !el.disabled && el.getAttribute('aria-disabled') !== 'true' && !el.closest('[aria-disabled="true"]');
-        return null;
-      })(${JSON.stringify(locator.parsed)}, ${JSON.stringify(locator.snapshotRefFilter)}, ${JSON.stringify(operation)}, ${JSON.stringify(arg ?? '')})
-    `
-    return await this.executeJavaScript(tab, script, `locator.${operation}`)
-  }
-
-  private async mutateStrictLocator(
-    tab: BrowserUseTabRuntime,
-    descriptor: BrowserUseLocatorDescriptor,
-    value: string
-  ): Promise<void> {
-    const target = await this.strictLocator(tab, descriptor)
-    const locator = this.selectorForResolvedLocator(tab, descriptor, target)
-    await this.ensurePlaywrightInjected(tab)
-    const script = `
-      ((parsed, snapshotRef, value) => {
-        const injected = window.__dotcraftPlaywrightInjected;
-        const matchesSnapshotRef = (info) => {
-          if (!snapshotRef) return true;
-          if (snapshotRef.href && info.href !== snapshotRef.href) return false;
-          if (snapshotRef.testId && info.testId !== snapshotRef.testId) return false;
-          if (snapshotRef.role && info.role !== snapshotRef.role) return false;
-          if (snapshotRef.tagName && info.tagName !== snapshotRef.tagName && info.tag !== snapshotRef.tagName) return false;
-          if (snapshotRef.expectedName) {
-            const actualName = info.name || info.text || info.visibleText;
-            if (actualName !== snapshotRef.expectedName) return false;
-          }
-          return true;
-        };
-        let el = null;
-        if (snapshotRef) {
-          const candidates = injected.querySelectorAll(parsed, document);
-          const matches = candidates.map((candidate, index) => ({
-            el: candidate,
-            info: window.__dotcraftBrowserUseElementInfo(candidate, index)
-          })).filter((candidate) => matchesSnapshotRef(candidate.info));
-          if (matches.length !== 1) {
-            throw new Error('Snapshot ref ' + JSON.stringify(snapshotRef.ref || '') + ' resolved to ' + matches.length + ' live elements for locator fill. Take a fresh domSnapshot() or use a more stable selector. role=' + (snapshotRef.role || '') + ' name=' + (snapshotRef.expectedName || '') + ' href=' + (snapshotRef.href || '') + ' testId=' + (snapshotRef.testId || ''));
-          }
-          el = matches[0].el;
-        } else {
-          el = injected.querySelector(parsed, document, true);
-        }
-        if (!el) throw new Error('Element is no longer available.');
-        el.focus();
-        if ('value' in el) {
-          el.value = value;
-          el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-          return true;
-        }
-        el.textContent = value;
-        el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
-        return true;
-      })(${JSON.stringify(locator.parsed)}, ${JSON.stringify(locator.snapshotRefFilter)}, ${JSON.stringify(value)})
-    `
-    await this.executeJavaScript(tab, script, 'locator.fill')
-  }
-
-  private async locatorWaitFor(
-    tab: BrowserUseTabRuntime,
-    descriptor: BrowserUseLocatorDescriptor,
-    options?: { state?: string; timeoutMs?: number }
-  ): Promise<void> {
-    const expected = options?.state ?? 'visible'
-    if (!['attached', 'visible', 'hidden', 'detached'].includes(expected)) {
-      throw new Error(`Unsupported locator.waitFor state: ${expected}. Use attached, visible, hidden, or detached.`)
-    }
-    const deadline = Date.now() + Math.max(1_000, Math.min(options?.timeoutMs ?? 30_000, 120_000))
-    let lastMatchCount = 0
-    let lastVisibleCount = 0
-    for (;;) {
-      const signal = this.getRuntimeForTab(tab).activeAbortSignal
-      if (signal?.aborted) throw new Error(`Browser operation 'locator.waitFor' was cancelled for tab ${tab.id}.`)
-      const matches = await this.resolveLocator(tab, descriptor)
-      const visibleCount = matches.filter((m) => m.visible).length
-      lastMatchCount = matches.length
-      lastVisibleCount = visibleCount
-      if (expected === 'attached' && matches.length > 0) return
-      if (expected === 'visible' && visibleCount > 0) return
-      if (expected === 'hidden' && visibleCount === 0) return
-      if (expected === 'detached' && matches.length === 0) return
-      if (Date.now() > deadline) {
-        throw new Error(`Timed out waiting for locator ${this.describeLocator(descriptor)} to be ${expected}. matches=${lastMatchCount} visible=${lastVisibleCount}.`)
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    }
-  }
-
-  private waitForUrl(tab: BrowserUseTabRuntime, expectedUrl: unknown, timeoutMs: number): Promise<void> {
-    return this.withBrowserOperation(
-      tab,
-      'waitForURL',
-      () => this.waitForUrlInner(tab, expectedUrl, timeoutMs),
-      timeoutMs)
-  }
-
-  private waitForUrlInner(tab: BrowserUseTabRuntime, expectedUrl: unknown, timeoutMs: number): Promise<void> {
-    const wc = this.webContentsFor(tab.owner, tab.id)
-    const expectedDescription = this.describeExpectedUrl(expectedUrl)
-    const matches = (url: string) => this.urlMatches(url, expectedUrl)
-    this.throwIfNavigationFailed(tab)
-    if (matches(wc.getURL())) return Promise.resolve()
-    return new Promise((resolve, reject) => {
-      const signal = this.getRuntimeForTab(tab).activeAbortSignal
-      if (signal?.aborted) {
-        reject(new Error(`Browser operation 'waitForURL' was cancelled for tab ${tab.id}.`))
-        return
-      }
-      const effectiveTimeoutMs = Math.max(1_000, Math.min(timeoutMs, 120_000))
-      const timeout = setTimeout(() => {
-        cleanup()
-        reject(new Error(`Browser operation 'waitForURL' timed out after ${effectiveTimeoutMs}ms for tab ${tab.id}: ${expectedDescription}; current=${wc.getURL() || 'about:blank'}`))
-      }, effectiveTimeoutMs)
-      const done = () => {
-        try {
-          this.throwIfNavigationFailed(tab)
-        } catch (error) {
-          cleanup()
-          reject(error)
-          return
-        }
-        if (!matches(wc.getURL())) return
-        cleanup()
-        resolve()
-      }
-      const onFailLoad = (...args: unknown[]) => {
-        const failure = this.navigationFailureFromWebContentsArgs(tab, args)
-        if (!failure) return
-        this.recordNavigationFailure(tab, failure)
-        cleanup()
-        reject(this.navigationFailureError(failure))
-      }
-      const poll = setInterval(done, 100)
-      const onAbort = () => {
-        cleanup()
-        reject(new Error(`Browser operation 'waitForURL' was cancelled for tab ${tab.id}.`))
-      }
-      const cleanup = () => {
-        clearTimeout(timeout)
-        clearInterval(poll)
-        wc.off('did-navigate', done)
-        wc.off('did-navigate-in-page', done)
-        wc.off('did-stop-loading', done)
-        wc.off('did-fail-load', onFailLoad)
-        signal?.removeEventListener('abort', onAbort)
-      }
-      signal?.addEventListener('abort', onAbort, { once: true })
-      wc.on('did-navigate', done)
-      wc.on('did-navigate-in-page', done)
-      wc.on('did-stop-loading', done)
-      wc.on('did-fail-load', onFailLoad)
-      done()
-    })
-  }
-
-  private describeExpectedUrl(expectedUrl: unknown): string {
-    if (expectedUrl instanceof RegExp) return expectedUrl.toString()
-    if (typeof expectedUrl === 'string') return expectedUrl
-    return String(expectedUrl)
-  }
-
-  private urlMatches(actualUrl: string, expectedUrl: unknown): boolean {
-    if (expectedUrl instanceof RegExp) {
-      expectedUrl.lastIndex = 0
-      return expectedUrl.test(actualUrl)
-    }
-    if (typeof expectedUrl === 'string') return actualUrl === expectedUrl
-    return actualUrl === String(expectedUrl)
   }
 
   private devLogs(tab: BrowserUseTabRuntime, options?: { filter?: string; levels?: string[]; limit?: number }): BrowserUseLogEntry[] {
@@ -5531,21 +2651,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     }
     const limit = Math.max(1, Math.min(options?.limit ?? entries.length, 500))
     return entries.slice(-limit)
-  }
-
-  private normalizeMouseButton(value: number | string | undefined): 'left' | 'right' | 'middle' {
-    if (value === 2 || value === 'right') return 'right'
-    if (value === 1 || value === 'middle') return 'middle'
-    return 'left'
-  }
-
-  private describeLocator(descriptor: BrowserUseLocatorDescriptor): string {
-    const index = descriptor.index === undefined ? '' : `[${descriptor.index}]`
-    if (descriptor.kind === 'and' || descriptor.kind === 'or') {
-      return `${descriptor.kind}(${descriptor.left ? this.describeLocator(descriptor.left) : '?'}, ${descriptor.right ? this.describeLocator(descriptor.right) : '?'})${index}`
-    }
-    const filters = descriptor.filters?.length ? `.filter(${descriptor.filters.map((filter) => filter.kind).join(',')})` : ''
-    return `${descriptor.kind}=${descriptor.name ?? descriptor.value}${filters}${index}`
   }
 
   private normalizeLoadState(state: string): BrowserUseLoadState {

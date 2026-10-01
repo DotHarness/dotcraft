@@ -1,6 +1,7 @@
 import { session, webContents, type BrowserWindow, type WebContents } from 'electron'
 import type { BrowserHostDescriptor, BrowserHostEvent } from '../shared/viewer/browserHost'
 import { applyEmbeddedBrowserSecurity } from './browserSecurity'
+import { BrowserAutomationCursors } from './browserAutomationCursor'
 
 interface GuestEntry {
   descriptor: BrowserHostDescriptor
@@ -14,6 +15,10 @@ interface GuestEntry {
 export class BrowserGuestRegistry {
   private windows = new Map<number, Map<string, GuestEntry>>()
   private captureThrottling = new Map<number, boolean>()
+  readonly cursors = new BrowserAutomationCursors({
+    get: (win, tabId) => this.windows.get(win.id)?.get(tabId)?.descriptor,
+    update: (win, tabId, changes) => this.update(win, tabId, changes)
+  })
 
   attachWindow(win: BrowserWindow): void {
     win.webContents.on('will-attach-webview', (_event, preferences) => {
@@ -22,7 +27,7 @@ export class BrowserGuestRegistry {
     win.once('closed', () => this.clear(win))
   }
 
-  request(win: BrowserWindow, tabId: string, partition: string, viewport?: { width: number; height: number }): Promise<WebContents> {
+  request(win: BrowserWindow, tabId: string, partition: string, automation = false): Promise<WebContents> {
     let entries = this.windows.get(win.id)
     if (!entries) this.windows.set(win.id, entries = new Map())
     const previous = entries.get(tabId)
@@ -31,8 +36,8 @@ export class BrowserGuestRegistry {
     let reject!: GuestEntry['reject']
     const ready = new Promise<WebContents>((accept, fail) => { resolve = accept; reject = fail })
     const descriptor: BrowserHostDescriptor = {
-      tabId, partition, visible: false, automation: viewport !== undefined,
-      bounds: { x: 0, y: 0, width: viewport?.width ?? 1280, height: viewport?.height ?? 720 }
+      tabId, partition, visible: false, automation,
+      bounds: { x: 0, y: 0, width: 1280, height: 720 }
     }
     const timer = setTimeout(() => this.remove(win, tabId, 'Browser guest did not become ready.'), 30_000)
     entries.set(tabId, { descriptor, ready, resolve, reject, timer })
@@ -61,6 +66,18 @@ export class BrowserGuestRegistry {
     entry.resolve(page)
   }
 
+  layoutSize(win: BrowserWindow, tabId: string): { width: number; height: number } | undefined {
+    const descriptor = this.windows.get(win.id)?.get(tabId)?.descriptor
+    if (!descriptor) return undefined
+    const { width, height } = descriptor.viewport ?? descriptor.bounds
+    return { width, height }
+  }
+
+  isVisible(win: BrowserWindow, tabId: string): boolean {
+    return !win.isDestroyed() && win.isVisible() && !win.isMinimized() &&
+      this.windows.get(win.id)?.get(tabId)?.descriptor.visible === true
+  }
+
   list(win: BrowserWindow): BrowserHostDescriptor[] {
     return [...this.windows.get(win.id)?.values() ?? []].map(entry => entry.descriptor)
   }
@@ -87,7 +104,7 @@ export class BrowserGuestRegistry {
 
   private syncCaptureThrottling(win: BrowserWindow): void {
     const capturing = [...this.windows.get(win.id)?.values() ?? []].some(entry => entry.descriptor.captureSurfaceSize)
-    if (win.webContents.isDestroyed()) {
+    if (win.isDestroyed() || win.webContents.isDestroyed()) {
       this.captureThrottling.delete(win.id)
     } else if (capturing && !this.captureThrottling.has(win.id)) {
       this.captureThrottling.set(win.id, win.webContents.getBackgroundThrottling())
@@ -103,6 +120,7 @@ export class BrowserGuestRegistry {
     const entry = entries?.get(tabId)
     if (!entry) return
     entries!.delete(tabId)
+    this.cursors.forget(win, tabId)
     this.syncCaptureThrottling(win)
     clearTimeout(entry.timer)
     entry.reject(new Error(message))

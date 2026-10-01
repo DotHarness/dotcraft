@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.7.10 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-01 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md), [Session Import](../features/session-import.md), [Turn Navigation](../features/turn-navigation.md) |
 
@@ -1260,7 +1260,7 @@ Surfaces beyond the conversation follow the same rules as the rest of this docum
 - The Desktop embedded browser runtime contract is defined in [Desktop In-App Browser Runtime](../features/desktop-inapp-browser.md).
 - Agent-controlled browser tabs remain regular viewer tabs: opening a browser tab may focus it on first open, but subsequent automation updates must not steal focus from the user's current thread or active tab.
 - While an agent is actively operating a browser tab, Desktop must surface an automation state on the tab chrome, including the session name when available and a concise last-action hint when useful.
-- Coordinate and locator-driven browser actions should render a virtual cursor inside the page whenever the page can accept the injected overlay. Failure to render the overlay must not block the underlying browser action.
+- While an agent operates a browser tab, Desktop shows a virtual cursor as described in [Desktop In-App Browser Runtime](../features/desktop-inapp-browser.md#12-coordinate-input-virtual-cursor-and-dom-cua).
 - Navigation, screenshots, DOM snapshots, console-log inspection, and coordinate input remain subject to Desktop's browser policy, including local-url defaults and external-domain approval or blocking.
 
 ### 10.3 Desktop Pet

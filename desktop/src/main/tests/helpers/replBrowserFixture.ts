@@ -1,9 +1,15 @@
 import { vi } from 'vitest'
 import { BrowserUseBackendServer, BrowserUseBackendError } from '../../browserUseBackendServer'
+type FakeCdpEmit = (method: string, params?: Record<string, unknown>) => void
+
 export function createFakeBrowserManager(options: {
   staleDomNodesAfterNavigation?: boolean
   webMcpAvailable?: boolean
   navigationFailure?: { errorDescription: string; validatedURL: string; finalURL: string; errorCode?: number }
+  fillNeedsInput?: boolean
+  moveMouseFails?: boolean
+  holdUnawaitedCursorMoves?: boolean
+  onInput?: (command: { method: string; commandParams: Record<string, unknown> }, emit: FakeCdpEmit) => void
 } = {}) {
   let activeSessionId: string | undefined
   const images: Array<{ mediaType: string; dataBase64: string }> = []
@@ -12,7 +18,7 @@ export function createFakeBrowserManager(options: {
   const createTabRequests: Array<Record<string, unknown>> = []
   const unhandledCommands: Array<Record<string, unknown>> = []
   const moveMouseCalls: Array<Record<string, unknown>> = []
-  const pendingActions: Array<() => void> = []
+  const inputSequence: Array<Record<string, unknown>> = []
   const staleDomNodeIds = new Set<number>()
   let nextTabId = 1
   let checkboxChecked = false
@@ -179,12 +185,23 @@ export function createFakeBrowserManager(options: {
         return expression.includes('"index":1') ? 'Cancel' : 'Save'
       }
       if (expression.includes('"isEnabled"')) return true
-      if (
-        expression.includes('"fill"') ||
-        expression.includes('"setChecked"') ||
-        expression.includes('"selectOption"')
-      ) {
+      if (expression.includes('"prepareClick"')) return { x: 60, y: 40 }
+      if (expression.includes('"focus"')) return null
+      if (expression.includes('"checked"')) {
+        checkboxToggleArmed = true
+        return { checked: checkboxChecked, isRadio: false }
+      }
+      if (expression.includes('"fill"') && options.fillNeedsInput) return { needsInput: true }
+      if (expression.includes('"fill"') || expression.includes('"selectOption"')) {
         return true
+      }
+    }
+    if (expression.includes('ClipboardEvent')) {
+      return {
+        ok: true,
+        value: expression.includes('"action":"copy"')
+          ? [{ entries: [{ mimeType: 'text/plain', text: 'copied text' }] }]
+          : []
       }
     }
     if (expression.includes('bodyText') && expression.includes('window.location.href') && expression.includes('document.title')) {
@@ -255,6 +272,10 @@ export function createFakeBrowserManager(options: {
       ? params.commandParams as Record<string, unknown>
       : {}
     cdpCommands.push({ method, target, commandParams })
+    if (method.startsWith('Input.')) {
+      inputSequence.push({ method, ...commandParams })
+      options.onInput?.({ method, commandParams }, (eventMethod, eventParams = {}) => emitCdpEvent(tab.id, eventMethod, eventParams))
+    }
     switch (method) {
       case 'Runtime.enable':
         emitCdpEvent(tab.id, 'Runtime.consoleAPICalled', {
@@ -352,6 +373,14 @@ export function createFakeBrowserManager(options: {
       if (method === 'executeCdp') return await handleExecuteCdp(params)
       if (method === 'moveMouse') {
         moveMouseCalls.push({ ...params })
+        inputSequence.push({
+          method: 'cursor',
+          x: params.x,
+          y: params.y,
+          ...(params.waitForArrival === false ? { waitForArrival: false } : {})
+        })
+        if (options.moveMouseFails) throw new Error('cursor unavailable')
+        if (options.holdUnawaitedCursorMoves && params.waitForArrival === false) return await new Promise(() => {})
         return { ok: true }
       }
       if (method === 'executeUnhandledCommand') {
@@ -363,12 +392,6 @@ export function createFakeBrowserManager(options: {
         if (params.type === 'dom_cua_node_info') {
           if (staleDomNodeIds.has(Number(params.node_id))) throw BrowserUseBackendError.nodeStale(Number(params.node_id))
           return { visible: true, enabled: true, boundingBox: { x: 10, y: 20, width: 100, height: 40 } }
-        }
-        if (params.type === 'list_tabs') return { tabs: backendTabs.map((tab) => ({ ...tab, id: String(tab.id) })) }
-        if (params.type === 'create_tab') {
-          const tab = { id: nextTabId++, url: 'about:blank', title: 'Test Page', loading: false, active: true }
-          backendTabs.push(tab)
-          return { id: String(tab.id) }
         }
         if (params.type === 'browser_visibility_get') return { visible: browserVisible }
         if (params.type === 'browser_visibility_set') {
@@ -439,24 +462,6 @@ export function createFakeBrowserManager(options: {
       throw BrowserUseBackendError.methodNotFound(method)
     }
   })
-  const browser = {
-    nameSession: vi.fn(async (name: string) => ({ ok: true, name })),
-    tabs: {
-      content: vi.fn(async (options?: { urls?: unknown[]; contentType?: string; content_type?: string }) => {
-        const urls = Array.isArray(options?.urls) ? options.urls : []
-        const contentType = options?.content_type ?? options?.contentType ?? 'text'
-        return urls.map((url) => ({
-          url: String(url),
-          title: 'Test Page',
-          content: contentType === 'html'
-            ? '<html><body><button>Save</button></body></html>'
-            : 'Save\nCancel'
-        }))
-      }),
-      describeApi: () => ['selected()', 'new(url?)', 'content({ urls, contentType })', 'finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })']
-    },
-    describeApi: () => ['nameSession(name)', 'tabs.content({ urls, contentType })', 'tabs.finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })']
-  }
   return {
     prepareNodeRepl: vi.fn(async (_owner: unknown, params: any) => {
       logs.length = 0
@@ -464,30 +469,13 @@ export function createFakeBrowserManager(options: {
       activeSessionId = params.browserSession?.sessionId ?? params.threadId
       await backendServer.ensureStarted()
       return {
-      agent: {
-        hang: vi.fn(() => new Promise((resolve) => {
-          pendingActions.push(() => resolve('late'))
-        })),
-        chromeCommandTimeout: vi.fn(async () => {
-          throw new Error('Chrome bridge request timed out: tab.evaluate')
+        display: vi.fn(async (imageLike: { mediaType?: string; dataBase64?: string }) => {
+          images.push({
+            mediaType: imageLike.mediaType ?? 'image/png',
+            dataBase64: imageLike.dataBase64 ?? ''
+          })
         }),
-        browser,
-        browsers: {
-          list: vi.fn(async () => [{ id: 'iab', name: 'DotCraft Browser', type: 'iab' }]),
-          get: vi.fn(async (id: string) => {
-            if (id === 'iab') return browser
-            throw new Error(`Browser not found: ${id}`)
-          }),
-          describeApi: () => ['list()', 'get("iab")']
-        }
-      },
-      display: vi.fn(async (imageLike: { mediaType?: string; dataBase64?: string }) => {
-        images.push({
-          mediaType: imageLike.mediaType ?? 'image/png',
-          dataBase64: imageLike.dataBase64 ?? ''
-        })
-      }),
-      collect: () => ({ images: [...images], logs: [...logs] })
+        collect: () => ({ images: [...images], logs: [...logs] })
       }
     }),
     abortEvaluation: vi.fn(() => {
@@ -501,13 +489,11 @@ export function createFakeBrowserManager(options: {
       meta: { persist: 'session' }
     })),
     reset: vi.fn(() => ({ ok: true })),
-    releasePending: () => {
-      while (pendingActions.length) pendingActions.shift()?.()
-    },
     cdpCommands,
     createTabRequests,
     unhandledCommands,
     moveMouseCalls,
+    inputSequence,
     closeBackendForTests: async () => {
       await backendServer.close()
     }

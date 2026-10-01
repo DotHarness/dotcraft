@@ -11,6 +11,50 @@
   height: 100%;
 }
 
+.dc-browser-cursor {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.dc-browser-guest[data-viewport] webview,
+.dc-browser-guest[data-viewport] .dc-browser-cursor {
+  width: var(--dc-browser-page-width);
+  height: var(--dc-browser-page-height);
+  transform: scale(var(--dc-browser-page-scale));
+  transform-origin: top left;
+}
+
+.dc-browser-cursor-mark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  transform-origin: 0 0;
+  will-change: transform, opacity, filter;
+}
+
+.dc-browser-cursor-art {
+  position: absolute;
+  top: -3.9px;
+  left: -4.7px;
+  width: 28px;
+  height: 28px;
+  overflow: visible;
+  filter: drop-shadow(0 3px 7px rgba(0, 0, 0, 0.42));
+}
+
+.dc-browser-cursor-art path {
+  fill: #2f8af5;
+  stroke: #fff;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
 .dc-browser-guest[data-presentation='parked'] {
   visibility: hidden;
   pointer-events: none;

@@ -73,13 +73,6 @@ export interface BrowserViewerTab extends ViewerTabBase {
   automationSessionName?: string
   /** Concise description of the latest automation action. */
   lastAutomationAction?: string
-  /** Last known virtual cursor location in viewport coordinates. */
-  virtualCursor?: BrowserVirtualCursor
-}
-
-export interface BrowserVirtualCursor {
-  x: number
-  y: number
 }
 
 export interface TerminalExitState {
@@ -270,7 +263,6 @@ export type BrowserEventType =
   | 'automation-started'
   | 'automation-updated'
   | 'automation-stopped'
-  | 'virtual-cursor'
 
 export interface BrowserEventPayload {
   tabId: string
@@ -290,8 +282,6 @@ export interface BrowserEventPayload {
   automationActive?: boolean
   sessionName?: string
   action?: string
-  x?: number
-  y?: number
 }
 
 export interface BrowserUseOpenPayload {
