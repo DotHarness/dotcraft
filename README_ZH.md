@@ -1,9 +1,6 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/hero-dark.webp">
-  <img alt="DotCraft：可嵌入、可扩展的 Agent Runtime。把任务交给桌面应用，它会拆好计划并逐项完成。" src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/hero-light.webp" width="830">
-</picture>
+<img alt="DotCraft：可嵌入、可扩展的 Agent Runtime。把任务交给桌面应用，它会拆好计划并逐项完成。" src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/hero-light.webp" width="830">
 
 [![Release](https://img.shields.io/github/v/release/DotHarness/dotcraft)](https://github.com/DotHarness/dotcraft/releases)
 [![NuGet](https://img.shields.io/nuget/v/DotCraft.Harness?logo=nuget&label=NuGet)](https://www.nuget.org/profiles/DotHarness)
@@ -60,19 +57,13 @@ irm https://www.dotcraft.net/install.ps1 | iex
 
 ## Desktop
 
-<p align="center"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-desktop-dark.png">
-  <a href="https://www.dotcraft.net/zh/features/entry-points/desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-desktop-light.png" width="830" alt="DotCraft Desktop：「Ship dark mode」计划已完成两步，子智能体面板里有两个子智能体正在处理后续步骤。"></a>
-</picture></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/features/entry-points/desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-desktop-light.png" width="830" alt="DotCraft Desktop：「Ship dark mode」计划已完成两步，子智能体面板里有两个子智能体正在处理后续步骤。"></a></p>
 
 一个工作台：Agent 在你的项目里做计划，把任务拆给子智能体，确认结果没问题后才告诉你完成了。
 
 **获取方式：** [下载](https://github.com/DotHarness/dotcraft/releases)，支持 Windows、macOS 和 Linux。
 
-<p align="center"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/desktop-strip-dark.webp">
-  <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/desktop-strip-light.webp" width="830" alt="依次展示 Desktop 的四项能力：应用内浏览器检查你的应用设置页、电脑操控在另一个 Windows 应用里工作、Agent Builder 配置新 Agent、宠物发现可穿戴的龙之翼。">
-</picture></p>
+<p align="center"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/desktop-strip-light.webp" width="830" alt="依次展示 Desktop 的四项能力：应用内浏览器检查你的应用设置页、电脑操控在另一个 Windows 应用里工作、Agent Builder 配置新 Agent、宠物发现可穿戴的龙之翼。"></p>
 
 **开箱即用**
 
@@ -116,10 +107,7 @@ dotcraft exec "src/components 里还有哪些颜色是写死的？"
 
 ## Oratorio
 
-<p align="center"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-oratorio-dark.png">
-  <a href="https://www.dotcraft.net/zh/features/oratorio"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-oratorio-light.png" width="830" alt="Oratorio 看板：一个 issue 正在由 Agent 处理，一个 pull request 等待评审，检查已通过。"></a>
-</picture></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/features/oratorio"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-oratorio-light.png" width="830" alt="Oratorio 看板：一个 issue 正在由 Agent 处理，一个 pull request 等待评审，检查已通过。"></a></p>
 
 内置在 Desktop 里的项目看板。本地任务、GitHub 的 issue 和 pull request、GitLab 的 issue 和 merge request 都汇集在同一块看板上；把卡片交给 Agent，跟进执行过程，评审结果。
 
@@ -131,10 +119,7 @@ dotcraft exec "src/components 里还有哪些颜色是写死的？"
 
 ## 聊天机器人
 
-<p align="center"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-chat-bots-dark.png">
-  <a href="https://www.dotcraft.net/zh/features/channels/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-chat-bots-light.png" width="830" alt="Desktop 的渠道页面，已连接飞书、QQ、Telegram 和企业微信。"></a>
-</picture></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/features/channels/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-chat-bots-light.png" width="830" alt="Desktop 的渠道页面，已连接飞书、QQ、Telegram 和企业微信。"></a></p>
 
 把 DotCraft 拉进群聊，团队成员不用打开 Desktop 也能问项目的事。支持飞书 / Lark、QQ、Telegram、企业微信和微信，这些对话和其他入口共用同一个工作区。
 

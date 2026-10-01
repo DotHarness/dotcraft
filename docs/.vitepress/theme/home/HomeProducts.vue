@@ -12,7 +12,7 @@ const { t, href } = useHome()
       </header>
       <div class="dc-products">
         <a v-for="row in t.products.rows" :key="row.label" class="dc-product" :href="href(row.href)">
-          <img class="dc-product__art" :src="row.art" alt="" width="540" height="430" loading="lazy" />
+          <img class="dc-product__art" :src="row.art" alt="" width="540" height="470" loading="lazy" />
           <span class="dc-product__head">
             <span class="dc-product__name">{{ row.label }}</span>
             <span class="dc-product__get">{{ row.get }}</span>
