@@ -30,11 +30,9 @@ Connect Oratorio to a conversation to read and move tasks from the chat itself.
 
    ![Connect Oratorio from its plugin details](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/app-connection-light.png)
 
-2. Open the target conversation, select **Apps**, and enable Oratorio.
+2. Start a new conversation. Oratorio is available in it from the first message.
 
-   ![Enable Oratorio in a conversation's Apps picker](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/thread-app-light.png)
-
-Turning Oratorio off in **Apps** affects only that conversation. **Disconnect** in the plugin details revokes the whole workspace connection along with its conversation bindings. See [Connected Apps](./agent-system/connected-apps) for the full connection and authorization flow.
+**Disconnect** in the plugin details removes Oratorio from every conversation in the workspace. See [Connected Apps](./agent-system/connected-apps) for the full connection and authorization flow.
 
 ## Local and remote deployments
 

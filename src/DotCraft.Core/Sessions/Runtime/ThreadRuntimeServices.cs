@@ -91,6 +91,16 @@ internal interface INativeSubAgentForkMaterializationService
         CancellationToken ct);
 }
 
+/// <summary>Session Core extension for recording persistent system notices in a thread's timeline.</summary>
+public interface IThreadSystemNoticeService
+{
+    /// <summary>
+    /// Queues a notice for the thread's running Turn, or its latest completed Turn when none is running.
+    /// Returns without waiting for a running Turn to release the thread.
+    /// </summary>
+    void AppendSystemNotice(string threadId, SystemNoticePayload payload);
+}
+
 /// <summary>Session Core extension for resolving the effective MCP runtime of a thread.</summary>
 public interface IThreadMcpRuntimeService
 {

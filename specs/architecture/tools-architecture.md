@@ -86,7 +86,7 @@ Canonical sources are:
 | Source kind | Lifecycle | Executor owner | Typical examples |
 |---|---|---|---|
 | Core Native | process/workspace | DotCraft server | file, web, subagent |
-| Plugin Native | plugin enablement | trusted in-process plugin | plugin-contributed functions, managed social tools |
+| Plugin Native | plugin enablement | trusted in-process plugin | plugin-contributed functions, managed channel tools |
 | MCP | MCP connection/session | MCP server | workspace, thread, plugin, or binding MCP |
 | Runtime Dynamic | AppServer connection + thread | connected AppServer client | Desktop thread management, client-owned run callbacks |
 

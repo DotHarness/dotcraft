@@ -36,11 +36,9 @@ For the model underneath, see [Unified Session Core](../../developing/architectu
 
 ## Continue a Desktop conversation in chat
 
-![DotCraft channel handoff](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channel-handoff.gif)
+In a Desktop conversation, type `/bind` and pick a connected channel. DotCraft shows a command such as `/bind 482913`. Send it in the chat you want within 10 minutes, and the conversation continues there.
 
-From a Desktop conversation's **Apps** menu, bind that conversation to a connected channel. DotCraft shows a `/bind 123456` command. Send it in the target chat to continue the same conversation there.
-
-The binding applies only to that chat. Other chats keep their own channel conversations.
+The binding applies only to that chat; other chats keep their own conversations. To stop, choose **Stop continuing in …** from the conversation's **⋯** menu, or type `/unbind`.
 
 ## Before you open a bot to a group
 

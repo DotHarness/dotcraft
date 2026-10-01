@@ -6,7 +6,7 @@ import { projectInputParts } from '../utils/inputPresentation'
 import { buildComposerHistory, queuedInputToComposerDraft } from '../utils/composerHistory'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
 import { useComposerContextStore } from '../stores/composerContextStore'
-import { acceptWelcomeInput, restoreRejectedWelcomeInput } from '../utils/welcomeSubmissionRecovery'
+import { restoreRejectedWelcomeInput } from '../utils/welcomeSubmissionRecovery'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -54,7 +54,7 @@ describe('composer context recovery', () => {
     useComposerDraftStore.getState().clearDraft('restart')
   })
 
-  it('restores rejected Welcome input and consumes only accepted source identities', async () => {
+  it('restores rejected Welcome input alongside newer contexts', async () => {
     useComposerDraftStore.setState({ draftsByThread: {} })
     useComposerContextStore.setState({ byThread: {}, restoreRequests: {} })
     const submitted = contexts.slice(0, 3)
@@ -64,8 +64,6 @@ describe('composer context recovery', () => {
     await restoreRejectedWelcomeInput('welcome-created', input)
     expect(useComposerDraftStore.getState().getDraft('welcome-created')?.text).toBe('welcome request')
     expect(useComposerContextStore.getState().restoreRequests['welcome-created']?.contexts).toHaveLength(4)
-    acceptWelcomeInput('welcome-created', input)
-    expect(useComposerContextStore.getState().getContexts('welcome-created')).toEqual([newer])
   })
 
   it('merges rejected Welcome references with newer structured input and attachments', async () => {

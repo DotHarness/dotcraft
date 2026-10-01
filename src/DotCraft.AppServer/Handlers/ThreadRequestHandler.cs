@@ -904,11 +904,11 @@ internal sealed partial class ThreadRequestHandler(
         if (previousStatus == ThreadStatus.Archived)
             return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
 
-        var socialBindingCleanup = threadProjector.RevokeSocialAppBindingsForArchivedThread(thread);
+        var channelBindingCleanup = threadProjector.RevokeChannelAppBindingsForArchivedThread(thread);
         if (connection.HasSubscription(threadId))
         {
             await responseWriter.WriteResponseAsync(msg.Id, new Protocol.RpcEmpty(), ct);
-            await SendArchiveSocialBindingNotificationsAsync(socialBindingCleanup, ct);
+            await SendArchiveChannelBindingNotificationsAsync(channelBindingCleanup, ct);
             return AppServerTypedResult<Protocol.RpcEmpty>.Written;
         }
 
@@ -922,11 +922,11 @@ internal sealed partial class ThreadRequestHandler(
                 NewStatus = WireString(ThreadStatus.Archived)
             },
             ct);
-        await SendArchiveSocialBindingNotificationsAsync(socialBindingCleanup, ct);
+        await SendArchiveChannelBindingNotificationsAsync(channelBindingCleanup, ct);
         return AppServerTypedResult<Protocol.RpcEmpty>.Written;
     }
 
-    private async Task SendArchiveSocialBindingNotificationsAsync(
+    private async Task SendArchiveChannelBindingNotificationsAsync(
         IReadOnlyList<AppBindingSnapshot> revokedBindings,
         CancellationToken ct)
     {

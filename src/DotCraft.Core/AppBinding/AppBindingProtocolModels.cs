@@ -72,7 +72,7 @@ public sealed class AppBindingSnapshot
     public List<AppBindingToolCapability> ApprovedTools { get; set; } = [];
     public List<AppBindingCapabilityChange> PendingChanges { get; set; } = [];
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public SocialChannelTarget? SocialTarget { get; set; }
+    public ChannelTarget? ChannelTarget { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? FailureReason { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

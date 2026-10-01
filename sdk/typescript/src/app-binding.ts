@@ -9,7 +9,7 @@ export type {
   AppBindingKind,
   AppBindingManager,
   ParsedAppBindingHandoff,
-  SocialBindingTargetSelection,
+  ChannelBindingTargetSelection,
 } from "./dotcraft.js";
 export type {
   AppBinding,
@@ -19,14 +19,14 @@ export type {
   AppHandoff,
   AppInfo,
   AppPrincipal,
-  AppSocialBindingResolveParams,
-  AppSocialBindingResolveResult,
+  AppChannelBindingResolveParams,
+  AppChannelBindingResolveResult,
   AppSurface,
   AppSurfacePublishParams,
   AppSurfaceResolveParams,
   AppThreadInputEnqueueResult,
-  SocialBindingIntent,
-  SocialChannelBoundBy,
-  SocialChannelTarget,
+  ChannelBindingIntent,
+  ChannelBoundBy,
+  ChannelTarget,
   ThreadAppBindingSummary,
 } from "./generated/appserver/index.js";

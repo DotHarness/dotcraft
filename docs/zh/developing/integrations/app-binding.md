@@ -125,9 +125,9 @@ Client 可以在创建 thread 前暂存 App 选择。完成 `thread/start` 后�
 - App Binding 不接受 command、arguments、environment、working directory 或 stdio 配置。
 - Redirect 或信任边界变化后必须重新激活。
 
-## 社交渠道
+## 渠道绑定
 
-社交会话 binding 使用 social binding 方法和原生 plugin tools，不使用 MCP tools。DotCraft 在 server 端注入已绑定的投递目标。
+Channel binding 使用 `thread/channelBindings/*` 和 `app/channelBinding/*` 方法以及原生 plugin tools，不使用 MCP tools。DotCraft 在 server 端注入已绑定的投递目标。
 
 Channel tools 不得声明 `target`、`chatId`、`groupId`、`conversationId`、`deliveryTarget` 或这些字段的别名。
 

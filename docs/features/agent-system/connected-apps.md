@@ -4,7 +4,7 @@ Connected apps let a conversation work directly with products and services you a
 
 ![Connect an app once for the workspace, then choose it for each conversation](/connected-apps-flow.svg)
 
-An app is connected to the workspace once. Each conversation then decides whether to use it.
+An app is connected to the workspace once. Every new conversation in that workspace can then use it.
 
 ## Connect an app
 
@@ -19,33 +19,16 @@ Once connected, the app appears under the plugin's **App Settings**. Go there wh
 
 ## Use apps in a conversation
 
-1. Start a new conversation.
-2. Select **Apps**.
-3. Turn on the apps this conversation needs.
-4. Send your first message.
+Start a new conversation and send your first message. DotCraft brings every connected app into the conversation before the agent starts working. If an app can't be reached, DotCraft says so and the conversation continues without it.
 
-DotCraft prepares the selected apps before it sends the first message. To change the selection later, open **Apps** in the conversation header. That affects only the current conversation and never disconnects the app from the workspace.
-
-> [!NOTE]
-> A new conversation may already have connected apps selected. Check the list and turn off whatever you don't need before sending your first message.
-
-## Review new capabilities
-
-When an app asks for expanded capabilities, **Review** appears beside it.
-
-- **Keep previous capabilities** declines the new access and stays on the approved baseline. The app may be unavailable until it reconnects with that access.
-- **Accept capabilities** lets the conversation use the expanded set.
-
-If the change adds write actions or access to more data, read it closely before accepting.
+Conversations that already exist keep the apps they started with.
 
 ## Reconnect or disconnect
 
 Open the plugin, then open **App Settings**. Select **Reconnect** when the connection has expired or the app asks you to sign in again. To remove the workspace connection, open **Connected**, then select **Disconnect**.
 
 > [!CAUTION]
-> Turning an app off in a conversation affects only that conversation. Disconnecting it in **App Settings** affects every conversation in the current workspace.
-
-For apps used through social channels, follow the channel's binding flow. See [Channels & Bots](../channels/).
+> Disconnecting an app in **App Settings** removes it from every conversation in the current workspace.
 
 ## Related docs
 

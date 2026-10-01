@@ -7,14 +7,14 @@ using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 namespace DotCraft.AppBinding;
 
 /// <summary>
-/// Delivers the final assistant reply for turns initiated from social-channel app bindings.
+/// Delivers the final assistant reply for turns initiated from channel app bindings.
 /// </summary>
-public sealed class SocialChannelDeliveryCoordinator
+public sealed class ChannelDeliveryCoordinator
 {
     private readonly AppBindingService controlPlane;
     private readonly IChannelRuntimeRegistry runtimeRegistry;
 
-    public SocialChannelDeliveryCoordinator(AppBindingService controlPlane, IChannelRuntimeRegistry registry)
+    public ChannelDeliveryCoordinator(AppBindingService controlPlane, IChannelRuntimeRegistry registry)
     { this.controlPlane = controlPlane; runtimeRegistry = registry; }
     private static readonly TimeSpan DefaultObservationTimeout = TimeSpan.FromHours(12);
 
@@ -98,7 +98,7 @@ public sealed class SocialChannelDeliveryCoordinator
                         threadId,
                         matchedTurnId,
                         asyncText,
-                        "socialBindingAsyncMessage",
+                        "channelBindingAsyncMessage",
                         linked.Token);
                     break;
                 case SessionEventType.TurnCompleted:
@@ -137,7 +137,7 @@ public sealed class SocialChannelDeliveryCoordinator
             turn.ThreadId,
             turn.Id,
             replyText,
-            "socialBindingReply",
+            "channelBindingReply",
             cancellationToken);
     }
 
@@ -157,7 +157,7 @@ public sealed class SocialChannelDeliveryCoordinator
         var binding = controlPlane.GetBinding(workspaceCraftPath, bindingId);
         var target = binding.State == AppBindingStates.Active
                      && (!authorityRevision.HasValue || binding.AuthorityRevision == authorityRevision.Value)
-            ? binding.SocialTarget : null;
+            ? binding.ChannelTarget : null;
         if (target == null)
             return;
 

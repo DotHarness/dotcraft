@@ -24,7 +24,7 @@ export type ItemType =
 
 /**
  * Payload for systemNotice items. Known kinds include `compacted`,
- * `forked`, and `remoteRoute`; the optional fields below mirror
+ * `forked`, `remoteRoute`, and `channel`; the optional fields below mirror
  * `SystemNoticePayload` on the wire.
  */
 export interface SystemNoticeInfo {
@@ -43,6 +43,8 @@ export interface SystemNoticeInfo {
   hostName?: string
   workspaceId?: string
   workspaceName?: string
+  channelName?: string
+  targetName?: string
 }
 
 export type ApprovalDecision =
@@ -767,7 +769,9 @@ function mapSystemNotice(
     hostId: noticeText(raw, payload, 'hostId'),
     hostName: noticeText(raw, payload, 'hostName'),
     workspaceId: noticeText(raw, payload, 'workspaceId'),
-    workspaceName: noticeText(raw, payload, 'workspaceName')
+    workspaceName: noticeText(raw, payload, 'workspaceName'),
+    channelName: noticeText(raw, payload, 'channelName'),
+    targetName: noticeText(raw, payload, 'targetName')
   }
 }
 

@@ -44,7 +44,7 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
         thread.Turns.Add(MakeTurn("turn_002", TurnStatus.Running));
 
         await client.ConnectAsync(thread.Id, HostId, WorkspaceId);
-        await service.DrainRemoteRouteNoticesAsync();
+        await service.DrainSystemNoticesAsync();
 
         var notice = SingleNotice(thread, "turn_002");
         Assert.Equal("remoteRoute", notice.Kind);
@@ -81,7 +81,7 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
         await client.ConnectAsync(thread.Id, HostId, WorkspaceId);
 
         await client.DisconnectAsync(thread.Id, initiator: RemoteToolRouteInitiator.Agent);
-        await service.DrainRemoteRouteNoticesAsync();
+        await service.DrainSystemNoticesAsync();
 
         var notices = thread.Turns
             .Single(turn => turn.Id == "turn_002")
@@ -105,7 +105,7 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
         var (service, thread) = await CreateThreadAsync(client);
 
         await client.ConnectAsync(thread.Id, HostId, WorkspaceId);
-        await service.DrainRemoteRouteNoticesAsync();
+        await service.DrainSystemNoticesAsync();
 
         Assert.Empty(thread.Turns);
     }
@@ -120,7 +120,7 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
         await client.ConnectAsync(thread.Id, HostId, WorkspaceId, initiator: RemoteToolRouteInitiator.System);
 
         await client.DisconnectAsync(thread.Id, initiator: RemoteToolRouteInitiator.System);
-        await service.DrainRemoteRouteNoticesAsync();
+        await service.DrainSystemNoticesAsync();
 
         Assert.DoesNotContain(thread.Turns.Single().Items, IsRemoteRouteNotice);
     }
@@ -134,7 +134,7 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
         await client.ConnectAsync(thread.Id, HostId, WorkspaceId);
 
         client.RaiseLeaseLost(thread.Id, RemoteToolRouteInitiator.System);
-        await service.DrainRemoteRouteNoticesAsync();
+        await service.DrainSystemNoticesAsync();
 
         var reloaded = await service.GetThreadAsync(thread.Id);
         var notice = reloaded.Turns
@@ -165,12 +165,12 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
         {
             await client.ConnectAsync(thread.Id, HostId, WorkspaceId);
             var sequence = SessionIdGenerator.LastItemSequence(turn.Items);
-            var drained = service.DrainRemoteRouteNoticesIntoTurn(thread.Id, turn, () => ++sequence);
+            var drained = service.DrainSystemNoticesIntoTurn(thread.Id, turn, () => ++sequence);
             Assert.Equal("item_003", Assert.Single(drained).Id);
             turn.Items.Add(MakeItem(turn.Id, "item_004"));
         }
 
-        await service.DrainRemoteRouteNoticesAsync();
+        await service.DrainSystemNoticesAsync();
 
         Assert.Equal(2, turn.Items.FindIndex(IsRemoteRouteNotice));
         Assert.Single(turn.Items, IsRemoteRouteNotice);
@@ -188,7 +188,7 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
         thread.Turns.Add(turn);
 
         await client.ConnectAsync(thread.Id, HostId, WorkspaceId);
-        await service.DrainRemoteRouteNoticesAsync();
+        await service.DrainSystemNoticesAsync();
 
         Assert.Equal("item_006", Assert.Single(turn.Items, IsRemoteRouteNotice).Id);
     }

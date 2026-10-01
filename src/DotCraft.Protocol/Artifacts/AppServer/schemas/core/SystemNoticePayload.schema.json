@@ -4,6 +4,16 @@
   "title": "SystemNoticePayload",
   "type": "object",
   "properties": {
+    "channelName": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "clearedToolResults": {
       "type": "integer"
     },
@@ -57,6 +67,16 @@
       ]
     },
     "sourceThreadId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "targetName": {
       "anyOf": [
         {
           "type": "string"

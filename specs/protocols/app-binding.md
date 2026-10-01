@@ -7,7 +7,7 @@
 | Date | 2026-09-28 |
 | Related specs | [Tools architecture](../architecture/tools-architecture.md), [AppServer protocol](appserver-protocol.md), [Session Core](../architecture/session-core.md) |
 
-App Binding is DotCraft's application connection and thread-authorization control plane. It does not define, attach, execute, or present tools. Ordinary application capabilities come from one binding-scoped MCP session; interactive presentation uses MCP Apps. Social-channel bindings authorize a conversation target whose operations are exposed by a managed native tool source.
+App Binding is DotCraft's application connection and thread-authorization control plane. It does not define, attach, execute, or present tools. Ordinary application capabilities come from one binding-scoped MCP session; interactive presentation uses MCP Apps. Channel bindings authorize a conversation target whose operations are exposed by a managed native tool source.
 
 The canonical method, state, and stable-error fixture is [`fixtures/app-binding.json`](./fixtures/app-binding.json).
 
@@ -20,7 +20,7 @@ App Binding owns:
 - app-principal authentication and rotation;
 - one binding grant and authority revision per app/thread relationship;
 - binding MCP activation, rebind, status, capability approval, revoke and audit;
-- verified social conversation authority and routing.
+- verified channel conversation authority and routing.
 
 App Binding does not own:
 
@@ -83,7 +83,7 @@ Desktop Main resolves surfaces for the trusted renderer and applies the path, or
 
 ### 4.1 One-click enable
 
-`thread/appBindings/enable` is the one and only DotCraft user-authorization action for enabling the whole app in one thread. The trusted client's initiating interaction, such as selecting the app in the Welcome composer or enabling its Thread toggle, is the authorization decision. DotCraft MUST NOT request a second confirmation for the same initial grant.
+`thread/appBindings/enable` is the one and only DotCraft user-authorization action for enabling the whole app in one thread. The trusted client's initiating interaction is the authorization decision: an explicit per-thread selection, or a client policy the user chose, such as Desktop binding every new conversation to the apps connected in its workspace. DotCraft MUST NOT request a second confirmation for the same initial grant.
 
 Enable creates a request in `connecting`. If an authenticated principal connection is currently reachable, DotCraft notifies it through `app/binding/requested`. A durable principal credential without a live authenticated connection does not count as reachable. When no live principal receives the notification, the result includes a request-specific activation handoff.
 
@@ -93,7 +93,7 @@ The principal reads the request with `app/binding/request/get` and calls `app/bi
 
 The binding becomes `active` only after the approved snapshot and live runtime are atomically available.
 
-A client that needs the app for an immediately submitted operation MUST wait for `active` before issuing that operation, and MUST surface a delivery or activation failure instead of silently continuing to poll. The pending operation must remain recoverable when activation fails. Activation for several apps is independent and MAY run concurrently.
+A client that needs the app for an immediately submitted operation MUST wait for `active` before issuing that operation, and MUST surface a delivery or activation failure instead of silently continuing to poll. The pending operation must remain recoverable when activation fails, either restored to the user or continued without that app. Activation for several apps is independent and MAY run concurrently.
 
 ### 4.2 Rebind
 
@@ -171,27 +171,31 @@ An offline binding preserves model-visible, schema-stable registrations from its
 
 Turn snapshots remain immutable, but revocation and authority-revision checks apply at dispatch time and override an older snapshot.
 
-## 7. Social-channel bindings
+## 7. Channel bindings
 
-Social binding authorizes one verified channel/account/conversation target for one thread. It does not create a binding MCP session.
+Channel binding authorizes one verified channel/account/conversation target for one thread. It does not create a binding MCP session.
 
 The dedicated methods are:
 
-- `thread/socialBindings/request/create`;
-- `app/socialBinding/request/get`;
-- `app/socialBinding/accept`;
-- `app/socialBinding/rebind`;
-- `app/socialBinding/resolve`.
+- `thread/channelBindings/request/create`;
+- `app/channelBinding/request/get`;
+- `app/channelBinding/accept`;
+- `app/channelBinding/rebind`;
+- `app/channelBinding/resolve`.
 
 The channel adapter is authenticated by its AppServer channel identity. It resolves a short-lived bind request, proves control of the concrete target, and supplies the canonical channel name, account id, conversation kind/id, delivery target, display label, and bound-by principal. DotCraft atomically enforces target uniqueness.
 
-A managed social `IToolSource` contributes Plugin Native registrations for active/offline social bindings. Canonical identity retains the channel namespace and source tool name. Its authority reference includes the binding revision and verified target.
+`thread/channelBindings/request/create` issues a bind code of exactly six decimal digits (`100000`–`999999`) for the named channel. The code is valid for 10 minutes, is unique among live (unexpired, unconsumed) bind requests, and is persisted only as a hash. The person sends `/bind <code>` in the target conversation; only the adapter for the same channel can inspect or accept it. A code that is unknown, expired, or issued for another channel gets the same invalid-code error. After 10 invalid codes from one channel within 10 minutes, every live bind request for that channel is cancelled and the person must request a new code.
+
+When `app/channelBinding/accept` activates a binding, DotCraft appends a persistent `systemNotice` item to the bound thread with `kind = "channel"` and `reason = "bound"`. When `thread/appBindings/revoke` revokes a channel binding that had a verified target, it appends the same notice with `reason = "unbound"`. Both carry `channelName` (the canonical channel name) and `targetName` (the target display label, falling back to the conversation id). The notice follows Session Core placement: the running Turn, otherwise the latest completed Turn; a thread with no Turn records nothing.
+
+A managed channel `IToolSource` contributes Plugin Native registrations for active/offline channel bindings. Canonical identity retains the channel namespace and source tool name. Its authority reference includes the binding revision and verified target.
 
 Target-like fields such as `target`, `deliveryTarget`, `chatId`, `groupId`, and `conversationId` are reserved. A channel descriptor that exposes one at the top level is rejected. Invocation also rejects case or alias variants before dispatch. The verified delivery target is injected only into trusted channel call context.
 
-Explicit social tools and final assistant delivery resolve the same binding revision and target. Channel unavailability retains the authority and stable offline tools but returns a stable unavailable error. Revocation blocks both tool and final-reply routing.
+Explicit channel tools and final assistant delivery resolve the same binding revision and target. Channel unavailability retains the authority and stable offline tools but returns a stable unavailable error. Revocation blocks both tool and final-reply routing.
 
-Threads created by inbound channels retain their independent Origin Channel authority and tool source. They neither require App Binding nor merge with a Desktop social binding by display name.
+Threads created by inbound channels retain their independent Origin Channel authority and tool source. They neither require App Binding nor merge with a Desktop channel binding by display name.
 
 ## 8. Public methods and notifications
 
@@ -200,7 +204,7 @@ Trusted client methods:
 - `app/list`, `app/view`;
 - `app/connection/start`, `app/connection/status`, `app/connection/revoke`;
 - `thread/appBindings/enable`, `thread/appBindings/list`, `thread/appBindings/confirmCapabilities`, `thread/appBindings/revoke`;
-- `thread/socialBindings/request/create`.
+- `thread/channelBindings/request/create`.
 
 App-principal methods:
 
@@ -210,7 +214,7 @@ App-principal methods:
 
 Trusted clients may call `app/surface/resolve`. It is not available to app or channel principals.
 
-Channel-principal methods are the social methods in Section 7 plus `app/threadInput/enqueue` where the External Channel Adapter protocol permits it.
+Channel-principal methods are the channel binding methods in Section 7 plus `app/threadInput/enqueue` where the External Channel Adapter protocol permits it.
 
 Notifications are `app/connection/changed`, `app/binding/requested`, and `thread/appBindings/changed`. They contain stable states/reasons and no secret.
 

@@ -135,6 +135,57 @@ public sealed class AppBindingServiceTests : IDisposable
         Assert.Contains(result.PendingChanges, change => change.Kind == "inputExpanded");
     }
 
+    [Fact]
+    public void ChannelRequest_IssuesSixDigitCode_ThatTheSameChannelCanAccept()
+    {
+        var control = new AppBindingService();
+        var request = control.CreateChannelRequest(CraftPath, "thread-1", "QQ", "user");
+
+        Assert.Matches("^[1-9][0-9]{5}$", request.Code);
+        Assert.Equal("thread-1", control.GetChannelRequest(CraftPath, request.Code, "qq").ThreadId);
+        var accepted = control.AcceptChannel(CraftPath, "qq", new ChannelBindingAcceptCommand
+        {
+            Code = request.Code, Target = ChannelTarget("qq", "group-1")
+        });
+
+        Assert.Equal(AppBindingStates.Active, accepted.State);
+        Assert.Equal(request.BindingId, control.ResolveChannel(CraftPath, "qq", null, "group", "group-1")?.BindingId);
+    }
+
+    [Fact]
+    public void ChannelRequestCode_IsRejectedByAnotherChannel()
+    {
+        var control = new AppBindingService();
+        var request = control.CreateChannelRequest(CraftPath, "thread-1", "qq", "user");
+
+        var get = Assert.Throws<AppBindingException>(() => control.GetChannelRequest(CraftPath, request.Code, "telegram"));
+        Assert.Equal(AppBindingError.InvalidInput, get.Error);
+        var accept = Assert.Throws<AppBindingException>(() => control.AcceptChannel(CraftPath, "telegram",
+            new ChannelBindingAcceptCommand { Code = request.Code, Target = ChannelTarget("telegram", "chat-1") }));
+        Assert.Equal(AppBindingError.InvalidInput, accept.Error);
+    }
+
+    [Fact]
+    public void RepeatedWrongChannelCodes_CancelThePendingCode()
+    {
+        var control = new AppBindingService();
+        var request = control.CreateChannelRequest(CraftPath, "thread-1", "qq", "user");
+        var wrong = request.Code == "100000" ? "100001" : "100000";
+
+        for (var attempt = 0; attempt < 10; attempt++)
+            Assert.Throws<AppBindingException>(() => control.GetChannelRequest(CraftPath, wrong, "qq"));
+
+        Assert.Throws<AppBindingException>(() => control.AcceptChannel(CraftPath, "qq",
+            new ChannelBindingAcceptCommand { Code = request.Code, Target = ChannelTarget("qq", "chat-1") }));
+        Assert.NotNull(control.CreateChannelRequest(CraftPath, "thread-1", "qq", "user").Code);
+    }
+
+    private static ChannelTarget ChannelTarget(string channel, string conversationId) => new()
+    {
+        ChannelName = channel, ConversationKind = "group", ConversationId = conversationId,
+        DeliveryTarget = conversationId
+    };
+
     private static AppBindingToolCapability Tool(string name, bool required) => new()
     {
         Namespace = "example", Name = name, Visibility = ["model"],

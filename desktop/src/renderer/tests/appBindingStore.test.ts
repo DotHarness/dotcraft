@@ -87,7 +87,7 @@ describe('appBindingStore', () => {
     ])
   })
 
-  it('refreshes and revokes thread bindings through AppServer RPCs', async () => {
+  it('normalizes listed thread bindings', async () => {
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/list') {
         return {
@@ -106,7 +106,7 @@ describe('appBindingStore', () => {
       return {}
     })
 
-    await useAppBindingStore.getState().refreshThreadBindings('thread-1', 'bind-1')
+    await useAppBindingStore.getState().fetchThreadBindings('thread-1')
     expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/list', {
       threadId: 'thread-1',
       includeRevoked: false
@@ -114,16 +114,6 @@ describe('appBindingStore', () => {
     expect(useAppBindingStore.getState().bindingsByThread['thread-1']?.[0]?.approvedTools).toEqual([])
     expect(useAppBindingStore.getState().bindingsByThread['thread-1']?.[0]?.pendingChanges).toEqual([])
 
-    await useAppBindingStore.getState().revokeThreadBinding('thread-1', 'bind-1', 'done')
-    expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/revoke', {
-      threadId: 'thread-1',
-      bindingId: 'bind-1',
-      reason: 'done'
-    })
-    expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/list', {
-      threadId: 'thread-1',
-      includeRevoked: true
-    })
   })
 
   it('routes App Binding notifications to the relevant refresh calls', () => {
@@ -279,21 +269,21 @@ describe('appBindingStore', () => {
     })
   })
 
-  it('treats an active social-channel binding as ready', async () => {
+  it('treats an active channel binding as ready', async () => {
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/list') {
         return {
           bindings: [
             {
-              bindingRequestId: 'request-social-1',
-              bindingId: 'binding-social-1',
+              bindingRequestId: 'request-channel-1',
+              bindingId: 'binding-channel-1',
               threadId: 'thread-1',
               appId: 'com.dotharness.channel.qq',
-              bindingKind: 'socialChannel',
+              bindingKind: 'channel',
               state: 'active',
               authorityRevision: 3,
               approvedCapabilityRevision: 1,
-              socialTarget: {
+              channelTarget: {
                 channelName: 'qq',
                 conversationKind: 'group',
                 conversationId: '123456',
@@ -311,14 +301,14 @@ describe('appBindingStore', () => {
       {
         threadId: 'thread-1',
         appId: 'com.dotharness.channel.qq',
-        bindingRequestId: 'request-social-1'
+        bindingRequestId: 'request-channel-1'
       },
       { timeoutMs: 1, intervalMs: 0 }
     )
 
     expect(binding.state).toBe('active')
     expect(binding.authorityRevision).toBe(3)
-    expect(binding.socialTarget?.displayName).toBe('QQ group 123456')
+    expect(binding.channelTarget?.displayName).toBe('QQ group 123456')
   })
 
   it('treats an active MCP-backed binding as ready without attachment counts', async () => {

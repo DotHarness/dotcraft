@@ -2,14 +2,14 @@ using System.Text.Json.Serialization;
 
 namespace DotCraft.AppBinding;
 
-public sealed class SocialChannelBoundBy
+public sealed class ChannelBoundBy
 {
     public string PlatformUserId { get; set; } = string.Empty;
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DisplayName { get; set; }
 }
-public sealed class SocialChannelTarget
+public sealed class ChannelTarget
 {
     public string ChannelName { get; set; } = string.Empty;
 
@@ -24,5 +24,5 @@ public sealed class SocialChannelTarget
     public string? DisplayName { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public SocialChannelBoundBy? BoundBy { get; set; }
+    public ChannelBoundBy? BoundBy { get; set; }
 }

@@ -88,7 +88,7 @@ public sealed class AppServerWireDtoSerializationTests
             ThreadId = "thread-1",
             AppId = "app-1"
         });
-        var socialRequest = Serialize(new Contract.AppBindingRequestedNotification
+        var channelRequest = Serialize(new Contract.AppBindingRequestedNotification
         {
             BindingRequestId = "request-2",
             BindingId = "binding-2",
@@ -102,7 +102,7 @@ public sealed class AppServerWireDtoSerializationTests
             appRequest);
         Assert.Equal(
             "{\"bindingRequestId\":\"request-2\",\"bindingId\":\"binding-2\",\"code\":\"ABC123\",\"channelName\":\"test-channel\",\"expiresAt\":\"2026-07-31T01:02:03+00:00\"}",
-            socialRequest);
+            channelRequest);
     }
 
     [Fact]

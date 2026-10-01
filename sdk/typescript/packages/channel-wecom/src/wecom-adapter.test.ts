@@ -144,16 +144,16 @@ test("WeComAdapter uses chat thread identity and real sender context", async () 
   });
 });
 
-test("WeComAdapter builds social binding target from chat context", () => {
+test("WeComAdapter builds channel binding target from chat context", () => {
   const adapter = new WeComAdapter() as unknown as {
-    buildSocialTarget: (
+    buildChannelTarget: (
       opts: Record<string, unknown>,
       sender: Record<string, unknown>,
       channelContext: string,
     ) => Record<string, unknown> | null;
   };
 
-  const target = adapter.buildSocialTarget(
+  const target = adapter.buildChannelTarget(
     {
       userId: "chat:chat-1",
       userName: "User One",
@@ -182,7 +182,7 @@ test("WeComAdapter builds social binding target from chat context", () => {
   });
 });
 
-test("WeComAdapter accepts social bind codes before forwarding to the agent", async () => {
+test("WeComAdapter accepts channel bind codes before forwarding to the agent", async () => {
   const adapter = new WeComAdapter() as unknown as {
     client: {
       request: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
@@ -205,22 +205,22 @@ test("WeComAdapter accepts social bind codes before forwarding to the agent", as
   };
   adapter.client.request = async (method, params) => {
     requests.push({ method, params });
-    if (method === "app/socialBinding/request/get") {
+    if (method === "app/channelBinding/request/get") {
       return {
         bindingRequestId: "request-1",
         appId: "com.dotharness.channel.wecom",
         threadId: "thread-1",
-        bindingKind: "socialChannel",
+        bindingKind: "channel",
       };
     }
-    if (method === "app/socialBinding/accept") {
+    if (method === "app/channelBinding/accept") {
       return {
           bindingId: "binding-1",
           appId: "com.dotharness.channel.wecom",
           threadId: "thread-1",
           state: "active",
           authorityRevision: 1,
-          socialTarget: params.target,
+          channelTarget: params.target,
       };
     }
     throw new Error(`unexpected request ${method}`);
@@ -237,10 +237,10 @@ test("WeComAdapter accepts social bind codes before forwarding to the agent", as
   );
 
   assert.deepEqual(requests[0], {
-    method: "app/socialBinding/request/get",
+    method: "app/channelBinding/request/get",
     params: { code: "482913" },
   });
-  assert.equal(requests[1]?.method, "app/socialBinding/accept");
+  assert.equal(requests[1]?.method, "app/channelBinding/accept");
   assert.deepEqual(requests[1]?.params.target, {
     channelName: "wecom",
     conversationKind: "chat",

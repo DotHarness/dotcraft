@@ -324,7 +324,7 @@ Fields:
   - `CommandExecution` — Server-observed shell execution projection for `Exec`-style tools. Payload includes command metadata and aggregated output for persistence, history summaries, and non-terminal-capable fallback rendering.
   - `ToolExecution` — Server-observed runtime lifecycle for a normal tool invocation. Payload includes call id, tool name, status, duration, and optional preview/error text.
   - `ImageGeneration` — Hosted image generation lifecycle. Payload includes provider call id, in-progress/completed/failed status, revised prompt, generated image bytes when available, saved path, and error text.
-  - `ToolCall` — Agent invokes a native or plugin tool, including managed social tools. Payload includes canonical namespace/name, arguments, call id, definition identity, and safe provenance.
+  - `ToolCall` — Agent invokes a native or plugin tool, including managed channel tools. Payload includes canonical namespace/name, arguments, call id, definition identity, and safe provenance.
   - `McpToolCall` — MCP invocation lifecycle item preserving raw MCP result fields under audience rules plus separately normalized model content.
   - `DynamicToolCall` — Runtime Dynamic callback lifecycle item with canonical namespace/name, separate call/item ids, status, duration, normalized content, structured content, and stable failure data.
   - `ToolResult` — Result paired with a standard `ToolCall`, including model fallback content and audience-separated client/host data.
@@ -760,7 +760,7 @@ approval must not authorize a command with a different key.
 
 ```
 {
-  "kind": string,              // Notice classifier. Known values: "compacted", "forked", "remoteRoute".
+  "kind": string,              // Notice classifier. Known values: "compacted", "forked", "remoteRoute", "channel".
   "trigger": string,           // For kind="compacted": "auto" | "reactive" | "manual"
   "mode": string,              // For kind="compacted": the compaction mode, "micro" or "partial"
   "tokensBefore": number,      // Approximate input tokens right before compaction ran
@@ -768,12 +768,14 @@ approval must not authorize a command with a different key.
   "percentLeftAfter": number,  // Fraction of EffectiveContextWindow still available (0.0 - 1.0)
   "clearedToolResults": number,// Count of tool results cleared before summary (0 for partial-only compaction)
   "sourceThreadId": string,    // For kind="forked": source thread id
-  "reason": string,            // For kind="remoteRoute": "connected" | "disconnected" | "leaseLost"
+  "reason": string,            // For kind="remoteRoute": "connected" | "disconnected" | "leaseLost"; for kind="channel": "bound" | "unbound"
   "initiator": string,         // For kind="remoteRoute": "client" | "agent" | "system" (system only with reason "leaseLost")
   "hostId": string,            // For kind="remoteRoute": Remote Tool Host id
   "hostName": string,          // For kind="remoteRoute": Host display name, when known
   "workspaceId": string,       // For kind="remoteRoute": remote workspace id
-  "workspaceName": string      // For kind="remoteRoute": workspace display name, when known
+  "workspaceName": string,     // For kind="remoteRoute": workspace display name, when known
+  "channelName": string,       // For kind="channel": canonical channel name
+  "targetName": string         // For kind="channel": bound conversation display name
 }
 ```
 
@@ -797,6 +799,9 @@ work it changed rather than trailing the Turn that changed it. Connects
 and disconnects are recorded only when a person or the model caused them: thread release and process
 teardown are not history. A lost lease is always recorded, with `initiator = "system"`. `hostId`
 and `workspaceId` name the route the change was about, including the route a disconnect removed.
+Hosts outside Session Core append their own notices through `IThreadSystemNoticeService.AppendSystemNotice`,
+which uses the same placement and never waits for a running Turn. `channel` notices are owned by
+App Binding; see `specs/protocols/app-binding.md` §7.
 
 ### 4.3 Stable Identifiers and Normalization Rules
 

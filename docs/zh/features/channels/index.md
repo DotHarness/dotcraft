@@ -36,11 +36,9 @@
 
 ## 把 Desktop 对话接到聊天里
 
-![DotCraft 社交渠道接续](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channel-handoff.gif)
+在 Desktop 对话里输入 `/bind`，选一个已连接的渠道。DotCraft 会给出一条 `/bind 482913` 这样的命令，10 分钟内在目标聊天里发送它，就能在那边接着聊这个会话。
 
-在 Desktop 对话的**应用**菜单里，可以把当前这条对话绑定到已连接的渠道。DotCraft 会给出一条 `/bind 123456` 命令，在目标聊天里发送它，就能在那边接着聊同一条对话。
-
-绑定只对那个聊天生效，其他聊天照旧各聊各的。
+绑定只对那个聊天生效，其他聊天照旧各聊各的。想停止时，在对话的 **⋯** 菜单里选**停止在 … 中继续**，或输入 `/unbind`。
 
 ## 开放到群聊之前
 

@@ -106,7 +106,7 @@ public sealed record UserMessagePayload
 
     /// <summary>
     /// Thread app binding id that should receive this turn's default assistant delivery.
-    /// Only populated for app/social binding initiated turns.
+    /// Only populated for app/channel binding initiated turns.
     /// </summary>
     public string? DeliveryBindingId { get; init; }
 

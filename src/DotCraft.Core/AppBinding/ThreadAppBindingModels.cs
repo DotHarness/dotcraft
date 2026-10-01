@@ -41,7 +41,7 @@ public sealed class ThreadAppBindingSummarySnapshot
     public string? BindingKind { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public SocialChannelTarget? SocialTarget { get; set; }
+    public ChannelTarget? ChannelTarget { get; set; }
 
     [JsonIgnore]
     public long ExposureRevision { get; set; }

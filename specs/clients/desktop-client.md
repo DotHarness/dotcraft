@@ -629,6 +629,16 @@ The slash reference surface includes Desktop-owned system actions above custom C
 - Direct `/plan`, `/agent`, and `/compact` submissions are handled locally and must not start a normal agent turn. Direct `/init` is translated locally into server-managed command execution and starts a normal turn only when the server returns an expanded prompt. `/compact` shows an unavailable message instead of submitting a turn when its visibility conditions are not met. On the welcome screen, Plan mode is also shown as a system action, and `/plan` / `/agent` update the pending welcome mode without starting a thread.
 - Desktop updates the context ring from the RPC response when it includes `contextUsage`, and also consumes `system/event.contextUsage` on terminal compaction notifications so the ring updates even if a long manual compaction outlives the renderer request timeout. Desktop must not update the ring from `compacting` start events because their token counts are projected request estimates, not stable active-context snapshots. When a compacted `SystemNotice` item is the only event that reaches the renderer, Desktop uses its `tokensAfter` / `percentLeftAfter` fields to update an already-seeded ring instead of waiting for the next model request.
 
+### 5.13.1 Continue in a Channel Chat
+
+A conversation can be continued in a connected channel chat through a channel binding ([App Binding](../protocols/app-binding.md)).
+
+- Only the thread composer offers it: not Welcome, the Agent Builder, or a thread still being created. When `capabilities.channelStatus = true`, Desktop reads `channel/status` into a workspace-wide cache, refreshed when a composer mounts after the cache is older than 30 seconds and whenever the connection's capabilities change; it never requests per render.
+- The slash surface shows one `/bind <channel>` system action per running `social` or `external` channel, hinted "Continue this conversation in <Channel>". Selecting it, or submitting `/bind <channel>`, calls `thread/channelBindings/request/create` and never starts a turn. A bare `/bind` binds the only running channel; otherwise it names an example instead of guessing. An unknown or stopped channel reports that it is not connected.
+- The returned code is client-only state for that thread, never persisted. A pending card at the end of the message stream says "Send /bind <code> in <Channel> to continue this conversation there", with the remaining time, Copy for the command, and Cancel. Cancel revokes the pending binding. Before a new request for the same channel, Desktop revokes a still-connecting binding of that channel so the server does not reject it as a duplicate.
+- The card disappears when `thread/appBindings/list` reports the binding as settled: once active, the server's persistent `channel` notice ("Continuing in <Channel> · <chat>") takes over; when it expires, Desktop revokes it and suggests `/bind` again.
+- An active channel binding shows a chip beside the thread title with the channel icon and chat name. The header overflow offers "Stop continuing in <Channel>" for each one, and `/unbind` (or `/unbind <channel>` when several are active) does the same through `thread/appBindings/revoke`. The server then appends an "unbound" notice.
+
 ### 5.14 Desktop Runtime Thread Tools
 
 Desktop exposes its client-owned thread-management profile through Runtime Dynamic Tools on `thread/start`, `worktree/createAndStart`, and `thread/resume`.
@@ -764,31 +774,15 @@ user workflows even though both are backed by App Binding version 2:
   status menu. The connected menu contains Reconnect and Disconnect. Disconnect
   confirms before revoking the app principal because that operation also
   revokes the app's thread bindings.
-- Welcome and conversation-header Apps pickers list only installed, enabled
-  apps that are ready for binding. Apps requiring an external connection must
-  be connected; managed apps that require no external connection are ready
-  immediately. Installation, connection, reconnect, and setup remain exclusive
-  to plugin detail.
-- Both pickers use a switch without a connection-status badge. Before a thread
-  exists, the switch only stages the selection in the welcome draft; it never
-  creates an empty thread or invokes connection or revoke methods. The staged
-  list, including an explicitly empty selection, is restored with the workspace
-  welcome draft. The first message creates the thread and opens it right away;
-  Desktop then enables and awaits each staged binding inside that thread and
-  starts the Turn once they are active. A staged binding that fails leaves the
-  thread open with the submission restored to its composer.
-- In an existing conversation, switching on starts the existing binding
-  request. Switching off directly cancels a pending request or revokes the
-  current thread binding without changing workspace-level connection. Failed
-  operations leave the server-controlled switch state unchanged and surface an
-  error.
-- Capability expansion remains an explicit Review action in the conversation
-  picker alongside the switch. Accept and Reject call the existing
-  capability-confirmation method; the decision is never hidden inside an
-  overflow menu.
-- App and binding notifications drive ordinary status refresh. Per-row manual
-  refresh commands are absent; a Retry action is shown only after a load or
-  recovery failure.
+- Connecting an app is the user's decision to use it in the workspace. Every
+  conversation started from Welcome binds each installed, enabled, connected app
+  that requires an external connection; there is no per-conversation Apps picker
+  in Welcome or the thread header, and an existing conversation's bindings do
+  not change.
+- The first message creates the thread and opens it right away. Desktop enables
+  and awaits those bindings inside the thread without a status of its own, then
+  starts the Turn. A binding that fails is reported as a warning and the Turn
+  starts without that app.
 - Plugin detail keeps Try in chat as the direct primary action. Manage and
   Uninstall are grouped under its overflow menu. Manage opens the installed-plugin
   management surface with a clearable query prefilled for the current plugin;

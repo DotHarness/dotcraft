@@ -43,7 +43,7 @@ public static class AppServerServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, AppBindingProtocolExtension>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, NodeReplProtocolExtension>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, AppBindingOfflineToolSource>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, ManagedSocialToolSource>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, ManagedChannelToolSource>());
         return services;
     }
 }

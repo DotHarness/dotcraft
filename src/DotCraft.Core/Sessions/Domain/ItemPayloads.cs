@@ -83,6 +83,16 @@ public sealed record SystemNoticePayload
     /// Remote workspace display name for <c>"remoteRoute"</c> notices, when one is known.
     /// </summary>
     public string? WorkspaceName { get; init; }
+
+    /// <summary>
+    /// External channel the notice is about, such as a chat platform name.
+    /// </summary>
+    public string? ChannelName { get; init; }
+
+    /// <summary>
+    /// Display name of the external conversation the notice is about.
+    /// </summary>
+    public string? TargetName { get; init; }
 }
 
 /// <summary>

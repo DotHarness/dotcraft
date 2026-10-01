@@ -1,4 +1,5 @@
 import type { QueuedTurnInput } from './conversation'
+import type { ChannelTarget } from '../stores/appBindingStore'
 
 export type ThreadStatus = 'active' | 'paused' | 'archived'
 
@@ -68,9 +69,11 @@ export interface ThreadAppBindingSummaryWire {
   threadId: string
   bindingId: string
   appId: string
+  bindingKind?: string | null
   displayName?: string | null
   icon?: string | null
   state: string
+  channelTarget?: ChannelTarget | null
   managed?: boolean
   requiresExternalConnection?: boolean
   authorityRevision?: number

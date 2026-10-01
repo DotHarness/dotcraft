@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { ComposerFileAttachment, ImageAttachment, InputPart, ThreadMode } from '../types/conversation'
 import type { ComposerDraftSegment } from '../types/composerDraft'
-import type { ApprovalPolicyWire } from '../types/thread'
+import type { ApprovalPolicyWire, ThreadConfigurationWire } from '../types/thread'
 import type { InferenceSpeedWire, ReasoningEffortWire, ReasoningOutputWire } from './modelCatalogStore'
 import { normalizeSettingsTab, type SettingsTab } from '../types/settings'
 import type { DiffMarkerMode } from '../../shared/appearance'
@@ -81,8 +81,6 @@ export interface WelcomeDraft {
   }
   speed?: InferenceSpeedWire
   approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
-  /** Undefined uses automatic defaults; an empty array is an explicit no-app choice. */
-  appIds?: string[]
   updatedAt: number
 }
 
@@ -102,7 +100,6 @@ export interface PendingWelcomeTurnInput {
   inputParts: InputPart[]
   images?: ImageAttachment[]
   files?: ComposerFileAttachment[]
-  /** Staged apps that must be active before this turn starts. */
   appIds?: string[]
   /** True when this first turn establishes the thread goal (durable "sent as goal"). */
   sentAsGoal?: boolean
@@ -117,6 +114,10 @@ export interface PendingThreadCreation {
   createdAt: number
   workspacePath: string
   text: string
+  inputParts: InputPart[]
+  sentAsGoal?: boolean
+  threadName: string
+  configuration: ThreadConfigurationWire
   threadId?: string
 }
 
@@ -340,8 +341,7 @@ function cloneWelcomeDraft(draft: WelcomeDraft): WelcomeDraft {
     ...draft,
     images: [...draft.images],
     files: draft.files ? [...draft.files] : [],
-    segments: draft.segments ? [...draft.segments] : undefined,
-    appIds: draft.appIds ? [...draft.appIds] : draft.appIds
+    segments: draft.segments ? [...draft.segments] : undefined
   }
 }
 
@@ -943,7 +943,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       images: [...draft.images],
       files: draft.files ? [...draft.files] : [],
       segments: draft.segments ? [...draft.segments] : undefined,
-      appIds: draft.appIds ? [...draft.appIds] : draft.appIds,
       selectionStart: draft.selectionStart,
       selectionEnd: draft.selectionEnd,
       updatedAt: Date.now()

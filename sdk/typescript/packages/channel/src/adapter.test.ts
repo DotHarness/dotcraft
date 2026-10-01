@@ -72,12 +72,12 @@ class RecordingAdapter extends ChannelAdapter {
   }
 }
 
-class SocialRecordingAdapter extends RecordingAdapter {
+class ChannelRecordingAdapter extends RecordingAdapter {
   parseBindCodeForTest(text: string): string | null {
-    return this.parseSocialBindCode(text);
+    return this.parseChannelBindCode(text);
   }
 
-  protected override buildSocialTarget(
+  protected override buildChannelTarget(
     opts: ChannelAdapterMessageOpts,
     sender: Record<string, unknown>,
     channelContext: string,
@@ -98,8 +98,8 @@ test("should flush segments for tool calls", () => {
   assert.equal(shouldFlushSegmentOnItemStarted("agentMessage"), false);
 });
 
-test("ChannelAdapter parses numeric social bind codes", () => {
-  const adapter = new SocialRecordingAdapter();
+test("ChannelAdapter parses numeric channel bind codes", () => {
+  const adapter = new ChannelRecordingAdapter();
 
   assert.equal(adapter.parseBindCodeForTest("/bind 482913"), "482913");
   assert.equal(adapter.parseBindCodeForTest("bind 482913"), null);
@@ -244,8 +244,8 @@ test("ChannelAdapter flushes the current segment before tool calls", async () =>
   );
 });
 
-test("processMessage enqueues bound social input instead of streaming a turn", async () => {
-  const adapter = new SocialRecordingAdapter();
+test("processMessage enqueues bound channel input instead of streaming a turn", async () => {
+  const adapter = new ChannelRecordingAdapter();
   const client = (adapter as unknown as { client: Record<string, unknown> }).client;
   let resolveParams: Record<string, unknown> | null = null;
   let enqueueParams: Record<string, unknown> | null = null;
@@ -253,30 +253,30 @@ test("processMessage enqueues bound social input instead of streaming a turn", a
   (adapter as unknown as {
     getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
   }).getOrCreateThread = async () => {
-    throw new Error("bound social input must not create a thread");
+    throw new Error("bound channel input must not create a thread");
   };
 
   client.threadResume = async () => {
-    throw new Error("bound social input must not resume for streaming");
+    throw new Error("bound channel input must not resume for streaming");
   };
   client.streamEvents = () => {
-    throw new Error("bound social input must not open a stream");
+    throw new Error("bound channel input must not open a stream");
   };
   client.turnStart = async () => {
-    throw new Error("bound social input must not start a streaming turn");
+    throw new Error("bound channel input must not start a streaming turn");
   };
   client.request = async (method: unknown, params: unknown) => {
-    if (method === "app/socialBinding/resolve") {
+    if (method === "app/channelBinding/resolve") {
       resolveParams = params as Record<string, unknown>;
       return {
         binding: {
-          bindingId: "bind-social-1",
+          bindingId: "bind-channel-1",
           threadId: "thread-bound-1",
           appId: "com.dotharness.channel.test-channel",
           state: "active",
           authorityRevision: 1,
           approvedCapabilityRevision: 1,
-          socialTarget: {
+          channelTarget: {
             channelName: "test-channel",
             conversationKind: "group",
             conversationId: "group-123",
@@ -308,7 +308,7 @@ test("processMessage enqueues bound social input instead of streaming a turn", a
     conversationId: "group-123",
   });
   assert.deepEqual(enqueueParams, {
-    bindingId: "bind-social-1",
+    bindingId: "bind-channel-1",
     input: [{ type: "text", text: "hello bound" }],
     displayText: "hello bound",
     triggerLabel: "test-channel message",
@@ -318,8 +318,8 @@ test("processMessage enqueues bound social input instead of streaming a turn", a
   });
 });
 
-test("processMessage falls back to normal channel routing for unbound social input", async () => {
-  const adapter = new SocialRecordingAdapter();
+test("processMessage falls back to normal channel routing for unbound channel input", async () => {
+  const adapter = new ChannelRecordingAdapter();
   const client = (adapter as unknown as { client: Record<string, unknown> }).client;
   let resolveParams: Record<string, unknown> | null = null;
   let turnStartParams: Record<string, unknown> | null = null;
@@ -344,7 +344,7 @@ test("processMessage falls back to normal channel routing for unbound social inp
       };
     })();
   client.request = async (method: unknown, params: unknown) => {
-    if (method === "app/socialBinding/resolve") {
+    if (method === "app/channelBinding/resolve") {
       resolveParams = params as Record<string, unknown>;
       return { binding: null };
     }
@@ -374,8 +374,8 @@ test("processMessage falls back to normal channel routing for unbound social inp
   });
 });
 
-test("processMessage falls back to normal channel routing when social binding resolve fails", async () => {
-  const adapter = new SocialRecordingAdapter();
+test("processMessage falls back to normal channel routing when channel binding resolve fails", async () => {
+  const adapter = new ChannelRecordingAdapter();
   const client = (adapter as unknown as { client: Record<string, unknown> }).client;
   const warnMessages: string[] = [];
   let turnStarted = false;
@@ -395,7 +395,7 @@ test("processMessage falls back to normal channel routing when social binding re
       };
     })();
   client.request = async (method: unknown) => {
-    if (method === "app/socialBinding/resolve") throw new Error("resolve unavailable");
+    if (method === "app/channelBinding/resolve") throw new Error("resolve unavailable");
     throw new Error(`unexpected request ${String(method)}`);
   };
 
@@ -420,21 +420,21 @@ test("processMessage falls back to normal channel routing when social binding re
   assert.match(warnMessages[0] ?? "", /falling back to normal channel routing/);
 });
 
-test("handleMessage caches accepted social binding thread", async () => {
-  const adapter = new SocialRecordingAdapter();
+test("handleMessage caches accepted channel binding thread", async () => {
+  const adapter = new ChannelRecordingAdapter();
   const client = (adapter as unknown as { client: Record<string, unknown> }).client;
   const requests: string[] = [];
 
   client.request = async (method: unknown) => {
     requests.push(String(method));
-    if (method === "app/socialBinding/request/get") {
+    if (method === "app/channelBinding/request/get") {
       return {
-        bindingRequestId: "req-social-1",
+        bindingRequestId: "req-channel-1",
       };
     }
-    if (method === "app/socialBinding/accept") {
+    if (method === "app/channelBinding/accept") {
       return {
-        bindingId: "bind-social-1",
+        bindingId: "bind-channel-1",
         threadId: "thread-bound-1",
         appId: "com.dotharness.channel.test-channel",
         state: "active",
@@ -452,7 +452,7 @@ test("handleMessage caches accepted social binding thread", async () => {
     channelContext: "group-123",
   });
 
-  assert.deepEqual(requests, ["app/socialBinding/request/get", "app/socialBinding/accept"]);
+  assert.deepEqual(requests, ["app/channelBinding/request/get", "app/channelBinding/accept"]);
   assert.equal(
     (adapter as unknown as { threadResolver: { getCachedThreadId(identityKey: string): string | undefined } })
       .threadResolver.getCachedThreadId("u:group-123"),
@@ -460,8 +460,8 @@ test("handleMessage caches accepted social binding thread", async () => {
   );
 });
 
-test("handleMessage resolves social binding before running slash commands", async () => {
-  const adapter = new SocialRecordingAdapter();
+test("handleMessage resolves channel binding before running slash commands", async () => {
+  const adapter = new ChannelRecordingAdapter();
   const client = (adapter as unknown as { client: Record<string, unknown> }).client;
   let resolveParams: Record<string, unknown> | null = null;
   let commandThreadId: string | null = null;
@@ -474,11 +474,11 @@ test("handleMessage resolves social binding before running slash commands", asyn
   (adapter as unknown as { threadResolver: { setCachedThread(identityKey: string, threadId: string): void } })
     .threadResolver.setCachedThread("u:group-123", "thread-cached-1");
   client.request = async (method: unknown, params: unknown) => {
-    if (method === "app/socialBinding/resolve") {
+    if (method === "app/channelBinding/resolve") {
       resolveParams = params as Record<string, unknown>;
       return {
         binding: {
-          bindingId: "bind-social-1",
+          bindingId: "bind-channel-1",
           threadId: "thread-bound-1",
           appId: "com.dotharness.channel.test-channel",
           state: "active",
