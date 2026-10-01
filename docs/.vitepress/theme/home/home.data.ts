@@ -8,12 +8,10 @@ import { lucideParts, simpleIconParts, type IconParts } from '../icons'
 import type * as Avatars from './avatars'
 
 export type Pose = 'idle' | 'greeting' | 'done'
-export type LookKey = Avatars.ProductLook | 'oratorio'
 
 export interface HomeData {
   mascots: Record<'hero' | 'close', Record<Pose, string>>
   agents: string[]
-  looks: Record<LookKey, string>
   icons: Record<string, IconParts>
   program: string
 }
@@ -25,7 +23,6 @@ const here = dirname(fileURLToPath(import.meta.url))
 const repo = resolve(here, '../../../..')
 const docs = resolve(repo, 'docs')
 const harnessPage = resolve(docs, 'developing/harness/index.md')
-const oratorioIcon = resolve(repo, 'desktop/src/bundled-plugins/oratorio/src/assets/oratorio-icon.svg')
 
 const lucide = [
   'app-window', 'arrow-right', 'blocks', 'bot', 'check', 'chevron-down', 'chevron-right', 'circuit-board', 'copy', 'cpu',
@@ -54,22 +51,6 @@ async function loadAvatars(): Promise<typeof Avatars> {
   return module.exports
 }
 
-function conductor(size: number, serial: number): string {
-  const width = (size * 1.3 * 640) / (1024 * 0.75)
-  const left = (-153.6 * size) / 1024 + (97 * width) / 640
-  const top = (-137.6 * size) / 1024 + (62 * width) / 640
-  return readFileSync(oratorioIcon, 'utf8')
-    .replace(/<title[^]*?<\/desc>\s*/, '')
-    .replace(' role="img" aria-labelledby="title desc"', ' aria-hidden="true"')
-    .replace(
-      'width="1024" height="1024"',
-      `width="${width.toFixed(2)}" height="${width.toFixed(2)}" class="dc-conductor" style="left:${left.toFixed(2)}px;top:${top.toFixed(2)}px"`
-    )
-    .replace(/id="([\w-]+)"/g, `id="dco${serial}-$1"`)
-    .replace(/url\(#([\w-]+)\)/g, `url(#dco${serial}-$1)`)
-    .replace(/\n\s*/g, '')
-}
-
 async function highlightProgram(): Promise<string> {
   const source = readFileSync(harnessPage, 'utf8').replace(/\r\n/g, '\n')
   const fence = /```csharp\n([\s\S]*?)```/.exec(source)
@@ -96,13 +77,6 @@ export default defineLoader({
     return {
       mascots: { hero: poses(['idle', 'greeting', 'done'], 84), close: poses(['idle', 'done', 'greeting'], 72) },
       agents: ['Leader', 'Explorer', 'Builder', 'Reviewer', 'Operator'].map((name) => avatars.renderAgent(name, 26)),
-      looks: {
-        desktop: avatars.renderLook('desktop', 40),
-        harness: avatars.renderLook('harness', 40),
-        oratorio: conductor(40, 1),
-        satellite: avatars.renderLook('satellite', 40),
-        avatar: avatars.renderLook('avatar', 40)
-      },
       icons: Object.fromEntries([
         ...lucide.map((name) => [name, lucideParts(name)]),
         ...simple.map((name) => [name, simpleIconParts(name)])

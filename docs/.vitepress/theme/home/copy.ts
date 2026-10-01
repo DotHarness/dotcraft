@@ -16,16 +16,17 @@ export interface Story {
   icon: string
   name: string
   line: string
-  media: { src: string; alt: string; width: number; height: number }
+  media: { light: string; dark: string; alt: string; width: number; height: number }
   links: Link[]
   team?: boolean
 }
 
 export interface Product {
-  look: 'desktop' | 'harness' | 'oratorio' | 'satellite' | 'avatar'
   label: string
   hint: string
+  get: string
   href: string
+  art: string
 }
 
 const raw = 'https://github.com/DotHarness/resources/raw/master/'
@@ -33,16 +34,16 @@ const cdn = 'https://cdn.jsdelivr.net/gh/DotHarness/resources@master/'
 
 function stories(base: string, text: { name: string; line: string; alt: string; links: string[] }[]): Story[] {
   const shape = [
-    { icon: 'monitor', src: 'dotcraft/whats-new/multi-workspace.gif', width: 1280, height: 720, hrefs: ['/features/entry-points/desktop', '/getting-started'] },
-    { icon: 'bot', src: 'dotcraft/whats-new/agent-builder.gif', width: 1280, height: 720, hrefs: ['/features/agent-system/agent-profiles', '/features/agent-system/subagents', '/features/agent-system/automations'], team: true },
-    { icon: 'puzzle', src: 'dotcraft/whats-new/desktop-plugins.gif', width: 1280, height: 720, hrefs: ['/developing/integrations/dotnet-plugins', '/developing/integrations/desktop-plugins'] },
-    { icon: 'blocks', src: 'dotcraft-unity/app-binding.gif', width: 1376, height: 774, hrefs: ['/developing/harness/', '/developing/integrations/app-binding', '/developing/sdks/'] }
+    { icon: 'monitor', src: 'dotcraft/docs/tour-desktop', hrefs: ['/features/entry-points/desktop', '/getting-started'] },
+    { icon: 'bot', src: 'dotcraft/docs/tour-agents', hrefs: ['/features/agent-system/agent-profiles', '/features/agent-system/subagents', '/features/agent-system/automations'], team: true },
+    { icon: 'puzzle', src: 'dotcraft/docs/tour-plugins', hrefs: ['/developing/integrations/dotnet-plugins', '/developing/integrations/desktop-plugins'] },
+    { icon: 'blocks', src: 'dotcraft/docs/tour-apps', hrefs: ['/developing/harness/', '/developing/integrations/app-binding', '/developing/sdks/'] }
   ]
   return shape.map((story, index) => ({
     icon: story.icon,
     name: text[index].name,
     line: text[index].line,
-    media: { src: base + story.src, alt: text[index].alt, width: story.width, height: story.height },
+    media: { light: `${base}${story.src}-light.webp`, dark: `${base}${story.src}-dark.webp`, alt: text[index].alt, width: 1600, height: 900 },
     links: story.hrefs.map((href, at) => ({ text: text[index].links[at], href })),
     team: story.team
   }))
@@ -50,9 +51,18 @@ function stories(base: string, text: { name: string; line: string; alt: string; 
 
 const productHrefs = {
   desktop: '/features/entry-points/desktop',
-  harness: '/developing/harness/',
+  cli: '/features/entry-points/',
+  satellite: '/features/agent-system/satellite',
   oratorio: '/features/oratorio',
-  satellite: '/features/agent-system/satellite'
+  chatBots: '/features/channels/',
+  harness: '/developing/harness/',
+  sdks: '/developing/sdks/'
+}
+
+type ProductId = 'desktop' | 'cli' | 'satellite' | 'oratorio' | 'chat-bots' | 'harness' | 'sdks' | 'avatar'
+
+function products(rows: [ProductId, string, string, string, string][]): Product[] {
+  return rows.map(([id, label, hint, get, href]) => ({ label, hint, get, href, art: `${raw}dotcraft/docs/product-${id}.webp` }))
 }
 
 export const homeCopy = {
@@ -87,19 +97,19 @@ export const homeCopy = {
           title: 'Run the app',
           link: { text: 'Getting Started', href: '/getting-started' },
           rows: [
-            { icon: 'sparkles', label: 'Ready out of the box', hint: 'Plan, subagents, Automations, Goals, Dreams, and Dynamic Workflows are built in. Agent Builder turns what you describe into a reusable agent.', href: '/features/agent-system/' },
-            { icon: 'app-window', label: 'Works in your apps', hint: 'With Computer use, agents operate the Windows apps you allow.', href: '/features/entry-points/desktop' },
-            { icon: 'layers', label: 'Pick up anywhere', hint: 'Desktop, the CLI, editors, and chat bots share one workspace. Connect to DotCraft on a server over SSH, or let agents work on another computer through Satellite.', href: '/features/entry-points/' },
-            { icon: 'server', label: 'Your deployment, your costs', hint: 'Run locally or on your own server with a compatible model provider. Byte-stable prompt prefixes improve provider cache reuse.', href: '/features/self-hosted/server-deployment' }
+            { icon: 'sparkles', label: 'Ready out of the box', hint: 'Plan, subagents, automations and the in-app browser, built in.', href: '/features/agent-system/' },
+            { icon: 'app-window', label: 'Works in your apps', hint: 'Agents operate the Windows apps you allow.', href: '/features/entry-points/desktop' },
+            { icon: 'layers', label: 'Pick up anywhere', hint: 'Desktop, CLI, editors and chat bots share one workspace.', href: '/features/entry-points/' },
+            { icon: 'server', label: 'Your models, your costs', hint: 'Any compatible provider or ChatGPT, with keys kept on one machine.', href: '/features/self-hosted/server-deployment' }
           ]
         },
         {
           title: 'Embed and extend',
           link: { text: 'DotCraft Harness', href: '/developing/harness/' },
           rows: [
-            { icon: 'circuit-board', label: 'Build it into your product', hint: 'Embed the runtime behind DotCraft Desktop in your .NET apps.', href: '/developing/harness/' },
-            { icon: 'plug-zap', label: 'Connect existing products', hint: 'Bring agents into products you already ship through AppServer, SDKs, and App Binding.', href: '/developing/sdks/' },
-            { icon: 'dotnet', label: '.NET plugins', hint: 'Add tools, commands, and lifecycle logic. The agent can write one and swap it in while the host keeps running.', href: '/developing/integrations/dotnet-plugins' },
+            { icon: 'circuit-board', label: 'Build it into your product', hint: 'Embed the runtime behind Desktop in your .NET app.', href: '/developing/harness/' },
+            { icon: 'plug-zap', label: 'Connect existing products', hint: 'Bring agents in through the SDKs and App Binding.', href: '/developing/sdks/' },
+            { icon: 'dotnet', label: '.NET plugins', hint: 'Add tools and commands; the agent can write and hot-swap them.', href: '/developing/integrations/dotnet-plugins' },
             { icon: 'layout-dashboard', label: 'Desktop plugins', hint: "React plugins reshape Desktop's interface.", href: '/developing/integrations/desktop-plugins' }
           ]
         }
@@ -109,22 +119,24 @@ export const homeCopy = {
       title: 'From the app to your own product.',
       readMore: 'Read more',
       stories: stories(raw, [
-        { name: 'DotCraft Desktop', line: 'Plan, build, review, and automate in one app.', alt: 'Switching between projects in DotCraft Desktop', links: ['Desktop', 'Getting Started'] },
-        { name: 'Agent Builder + Profiles', line: 'Build your own Agent team through conversation.', alt: 'Customizing a specialized agent through conversation', links: ['Agent Profiles', 'Subagents', 'Automations'] },
-        { name: 'Plugins', line: 'Extend the runtime in C#, and Desktop in TypeScript.', alt: 'Installing a Desktop Plugin and enabling its visual customization in DotCraft Desktop', links: ['.NET Plugins', 'Desktop Plugins'] },
-        { name: 'Built for applications', line: 'Bring DotCraft into your own product.', alt: 'An agent driving Unity from DotCraft through App Binding', links: ['DotCraft Harness', 'DotCraft App', 'SDKs'] }
+        { name: 'DotCraft Desktop', line: 'Plan, build, review, and automate in one app.', alt: 'DotCraft Desktop working through a Ship dark mode plan: two subagents run, the in-app browser checks the settings page, and a weekly contrast check is set up as an automation', links: ['Desktop', 'Getting Started'] },
+        { name: 'Agent Builder + Profiles', line: 'Build your own Agent team through conversation.', alt: 'Agent Builder turning a short description into a contrast-checker agent with its own avatar, tools and skills', links: ['Agent Profiles', 'Subagents', 'Automations'] },
+        { name: 'Plugins', line: 'Extend the runtime in C#, and Desktop in TypeScript.', alt: 'A .NET plugin adding review tools and lifecycle hooks, then a Desktop plugin changing the app wallpaper', links: ['.NET Plugins', 'Desktop Plugins'] },
+        { name: 'Built for applications', line: 'Bring DotCraft into your own product.', alt: 'Code that hosts DotCraft Harness in a .NET app, binds a connected app to a thread, and streams a reply with the SDK', links: ['DotCraft Harness', 'DotCraft App', 'SDKs'] }
       ])
     },
     products: {
       title: 'Explore DotCraft',
-      loop: { src: raw + 'dotcraft/products.webp', alt: 'DotCraft Desktop, DotCraft.Harness, Oratorio, DotCraft Satellite and @dotcraft/avatar' },
-      rows: [
-        { look: 'desktop', label: 'Desktop', hint: 'Work with agents on your projects in one desktop app.', href: productHrefs.desktop },
-        { look: 'harness', label: 'Harness', hint: 'Embed a complete agent runtime in your .NET applications.', href: productHrefs.harness },
-        { look: 'oratorio', label: 'Oratorio', hint: 'Manage agent tasks from assignment to review on one board.', href: productHrefs.oratorio },
-        { look: 'satellite', label: 'Satellite', hint: 'Let your agents work in an approved shared folder on another computer.', href: productHrefs.satellite },
-        { look: 'avatar', label: 'Avatar', hint: 'Give your agents personality with expressive, customizable avatars.', href: '/developing/sdks/typescript#avatar-package' }
-      ] as Product[]
+      rows: products([
+        ['desktop', 'Desktop', 'Plans, builds and checks the work in your projects.', 'Download', productHrefs.desktop],
+        ['cli', 'CLI', 'One command, and the answer is in your terminal.', 'Install script', productHrefs.cli],
+        ['satellite', 'Satellite', 'Your agent works on another Windows PC.', 'Download', productHrefs.satellite],
+        ['oratorio', 'Oratorio', 'Every task, from hand-off to review, on one board.', 'Built in', productHrefs.oratorio],
+        ['chat-bots', 'Chat bots', 'Ask about your project right in the group chat.', 'Built in', productHrefs.chatBots],
+        ['harness', 'Harness', 'The whole agent runtime, inside your .NET app.', 'NuGet', productHrefs.harness],
+        ['sdks', 'SDKs', 'Make your own app a DotCraft client.', 'npm · NuGet', productHrefs.sdks],
+        ['avatar', 'Avatar', 'A face for your agent that moves and dresses up.', 'npm', '/developing/sdks/typescript#avatar-package']
+      ])
     },
     harness: {
       kicker: 'Agent Harness for .NET',
@@ -172,19 +184,19 @@ export const homeCopy = {
           title: '直接运行',
           link: { text: '快速开始', href: '/getting-started' },
           rows: [
-            { icon: 'sparkles', label: '开箱即用', hint: 'Plan、subagents、Automations、Goals、Dreams 和 Dynamic Workflows 都已内置。Agent Builder 能把你的描述变成可复用的 Agent。', href: '/features/agent-system/' },
-            { icon: 'app-window', label: '操作你的应用', hint: '借助电脑操控，Agent 可以在你允许的 Windows 应用里工作。', href: '/features/entry-points/desktop' },
-            { icon: 'layers', label: '随处接着做', hint: 'Desktop、CLI、编辑器和聊天机器人共用同一个工作区。你还可以通过 SSH 连接服务器上的 DotCraft，或借助卫星让 Agent 在另一台电脑上工作。', href: '/features/entry-points/' },
-            { icon: 'server', label: '部署和成本由你掌控', hint: '在本地或自己的服务器上运行，选用兼容的模型服务。提示词前缀保持逐字节稳定，提高缓存复用率。', href: '/features/self-hosted/server-deployment' }
+            { icon: 'sparkles', label: '开箱即用', hint: '计划、子智能体、自动化和应用内浏览器都已内置。', href: '/features/agent-system/' },
+            { icon: 'app-window', label: '操作你的应用', hint: 'Agent 可以操作你允许的 Windows 应用。', href: '/features/entry-points/desktop' },
+            { icon: 'layers', label: '随处接着做', hint: 'Desktop、CLI、编辑器和聊天机器人共用一个工作区。', href: '/features/entry-points/' },
+            { icon: 'server', label: '模型和成本由你掌控', hint: '任选兼容的模型服务或 ChatGPT 订阅，密钥可由一台机器统一保管。', href: '/features/self-hosted/server-deployment' }
           ]
         },
         {
           title: '嵌入与扩展',
           link: { text: 'DotCraft Harness', href: '/developing/harness/' },
           rows: [
-            { icon: 'circuit-board', label: '装进你的产品', hint: '把 DotCraft Desktop 背后的运行时嵌入你的 .NET 应用。', href: '/developing/harness/' },
-            { icon: 'plug-zap', label: '接入现有产品', hint: '通过 AppServer、SDK 和 App Binding，把 Agent 带进你已经在交付的产品。', href: '/developing/sdks/' },
-            { icon: 'dotnet', label: '.NET 插件', hint: '添加工具、命令和生命周期逻辑。Agent 能自己编写插件，并在宿主运行时直接替换。', href: '/developing/integrations/dotnet-plugins' },
+            { icon: 'circuit-board', label: '装进你的产品', hint: '把 Desktop 背后的运行时嵌入你的 .NET 应用。', href: '/developing/harness/' },
+            { icon: 'plug-zap', label: '接入现有产品', hint: '通过 SDK 和 App Binding 把 Agent 带进现有产品。', href: '/developing/sdks/' },
+            { icon: 'dotnet', label: '.NET 插件', hint: '添加工具和命令，Agent 还能自己编写并热替换。', href: '/developing/integrations/dotnet-plugins' },
             { icon: 'layout-dashboard', label: 'Desktop 插件', hint: 'React 插件可以改造 Desktop 的界面。', href: '/developing/integrations/desktop-plugins' }
           ]
         }
@@ -194,22 +206,24 @@ export const homeCopy = {
       title: '从应用到你自己的产品。',
       readMore: '了解更多',
       stories: stories(cdn, [
-        { name: 'DotCraft Desktop', line: '规划、执行、审阅和自动化，都在一个桌面应用里完成。', alt: '在 DotCraft Desktop 中切换项目', links: ['Desktop', '快速开始'] },
-        { name: 'Agent Builder + Profiles', line: '通过对话，打造属于你的 Agent 团队。', alt: '通过对话定制一个专属 Agent', links: ['Agent Profiles', 'Subagents', '自动化'] },
-        { name: '插件', line: '用 C# 扩展运行时，用 TypeScript 扩展 Desktop。', alt: '安装 Desktop Plugin 并在 DotCraft Desktop 中启用视觉定制', links: ['.NET 插件', 'Desktop Plugins'] },
-        { name: '为应用而生', line: '把 DotCraft 带进你自己的产品。', alt: 'Agent 通过 App Binding 从 DotCraft 驱动 Unity', links: ['DotCraft Harness', 'DotCraft App', 'SDK'] }
+        { name: 'DotCraft Desktop', line: '规划、执行、审阅和自动化，都在一个桌面应用里完成。', alt: 'DotCraft Desktop 按「Ship dark mode」计划推进：两个子智能体并行工作，应用内浏览器检查设置页，再把每周对比度检查设为自动化任务', links: ['Desktop', '快速开始'] },
+        { name: 'Agent Builder + Profiles', line: '通过对话，打造属于你的 Agent 团队。', alt: 'Agent Builder 把一段描述变成 contrast-checker Agent，带上它自己的形象、工具和技能', links: ['Agent Profiles', 'Subagents', '自动化'] },
+        { name: '插件', line: '用 C# 扩展运行时，用 TypeScript 扩展 Desktop。', alt: '一个 .NET 插件添加评审工具和生命周期钩子，再由一个 Desktop 插件更换应用壁纸', links: ['.NET 插件', 'Desktop Plugins'] },
+        { name: '为应用而生', line: '把 DotCraft 带进你自己的产品。', alt: '在 .NET 应用中托管 DotCraft Harness、把已连接的应用绑定到线程，并用 SDK 流式输出回复的代码', links: ['DotCraft Harness', 'DotCraft App', 'SDK'] }
       ])
     },
     products: {
       title: '探索 DotCraft',
-      loop: { src: raw + 'dotcraft/products.webp', alt: 'DotCraft Desktop、DotCraft.Harness、Oratorio、DotCraft Satellite 和 @dotcraft/avatar' },
-      rows: [
-        { look: 'desktop', label: 'Desktop', hint: '在一个桌面应用中与 Agent 一起处理项目。', href: productHrefs.desktop },
-        { look: 'harness', label: 'Harness', hint: '将完整的 Agent 运行时嵌入你的 .NET 应用。', href: productHrefs.harness },
-        { look: 'oratorio', label: 'Oratorio', hint: '在同一看板上管理 Agent 任务，从分配到审阅。', href: productHrefs.oratorio },
-        { look: 'satellite', label: '卫星', hint: '让你的 Agent 在另一台电脑获准共享的文件夹中工作。', href: productHrefs.satellite },
-        { look: 'avatar', label: 'Avatar', hint: '用表情丰富、可自由搭配的头像，为你的 Agent 赋予鲜明个性。', href: '/developing/sdks/typescript#avatar-包' }
-      ] as Product[]
+      rows: products([
+        ['desktop', 'Desktop', '在你的项目里规划、动手、自己验收。', '下载', productHrefs.desktop],
+        ['cli', 'CLI', '一条命令，答案直接回到终端。', '安装脚本', productHrefs.cli],
+        ['satellite', '卫星', '你的 Agent 在另一台 Windows 电脑上工作。', '下载', productHrefs.satellite],
+        ['oratorio', 'Oratorio', '每个任务从派发到评审，都在一块看板上。', '已内置', productHrefs.oratorio],
+        ['chat-bots', '聊天机器人', '在群聊里直接问项目的事。', '已内置', productHrefs.chatBots],
+        ['harness', 'Harness', '整套 Agent 运行时，装进你的 .NET 应用。', 'NuGet', productHrefs.harness],
+        ['sdks', 'SDK', '让你的应用成为 DotCraft 客户端。', 'npm · NuGet', productHrefs.sdks],
+        ['avatar', 'Avatar', '给你的 Agent 一张会动、能换装的脸。', 'npm', '/developing/sdks/typescript#avatar-包']
+      ])
     },
     harness: {
       kicker: '面向 .NET 的 Agent Harness',
