@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
+import { useContext, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronRight } from 'lucide-react'
 import { useMenuAim } from '../../hooks/useMenuAim'
 import { ActionTooltip } from './ActionTooltip'
+import { LayerContext } from '../../contexts/LayerContext'
 
 export interface ContextMenuItem {
   type?: 'item'
@@ -84,6 +85,7 @@ interface SubmenuAnchor {
 export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX.Element {
   const menuRef = useRef<HTMLDivElement>(null)
   const submenuRef = useRef<HTMLDivElement>(null)
+  const menuZIndex = useContext(LayerContext) > 0 ? 10100 : 9999
   const [openSubmenuIndex, setOpenSubmenuIndex] = useState<number | null>(null)
   const [submenuAnchor, setSubmenuAnchor] = useState<SubmenuAnchor | null>(null)
   const [hoveredItemIndex, setHoveredItemIndex] = useState<number | null>(null)
@@ -215,7 +217,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
         boxShadow: 'var(--glass-shadow-soft)',
         backdropFilter: 'var(--glass-blur)',
         WebkitBackdropFilter: 'var(--glass-blur)',
-        zIndex: 9999,
+        zIndex: menuZIndex,
         padding: `${menuPadding}px 0`,
         overflow: 'visible'
       }}
@@ -342,7 +344,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
             boxShadow: 'var(--glass-shadow-soft)',
             backdropFilter: 'var(--glass-blur)',
             WebkitBackdropFilter: 'var(--glass-blur)',
-            zIndex: 10000,
+            zIndex: menuZIndex + 1,
             padding: `${menuPadding}px 0`,
             maxHeight: 'calc(100vh - 16px)',
             overflowX: 'hidden',
