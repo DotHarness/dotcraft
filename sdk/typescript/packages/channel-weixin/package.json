@@ -25,7 +25,7 @@
     "build": "node ../../scripts/clean-dist.mjs . && tsc -p tsconfig.json && npm run generate:manifest",
     "bundle": "node ../../scripts/bundle-channel.mjs .",
     "dev": "npm run build && node dist/cli.js --workspace .",
-    "test": "npm run build && node --test dist/module.test.js dist/config.test.js dist/auth.test.js dist/paths.test.js dist/conformance.test.js dist/weixin-api.test.js dist/weixin-media-tools.test.js dist/weixin-streaming.test.js",
+    "test": "npm run build && node --test dist/module.test.js dist/config.test.js dist/auth.test.js dist/paths.test.js dist/conformance.test.js dist/weixin-adapter.test.js dist/weixin-api.test.js dist/weixin-media-tools.test.js dist/weixin-streaming.test.js",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "engines": {

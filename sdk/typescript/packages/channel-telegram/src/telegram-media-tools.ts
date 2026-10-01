@@ -9,6 +9,7 @@ import { InputFile } from "grammy";
 
 export const DOCUMENT_TOOL_NAME = "TelegramSendDocumentToCurrentChat";
 export const VOICE_TOOL_NAME = "TelegramSendVoiceToCurrentChat";
+export const PHOTO_TOOL_NAME = "TelegramSendPhotoToCurrentChat";
 
 const DOCUMENT_URL_EXTENSIONS = new Set([".pdf", ".zip"]);
 const VOICE_EXTENSIONS = new Set([".ogg", ".oga"]);
@@ -33,6 +34,7 @@ export interface TelegramMessageLike {
   message_id?: number;
   document?: { file_id?: string };
   voice?: { file_id?: string };
+  photo?: Array<{ file_id?: string }>;
 }
 
 export interface TelegramApiLike {
@@ -51,7 +53,14 @@ export interface TelegramApiLike {
     voice: InputFile | string,
     other?: Record<string, unknown>,
   ): Promise<TelegramMessageLike>;
+  sendPhoto(
+    chatId: number | string,
+    photo: InputFile | string,
+    other?: Record<string, unknown>,
+  ): Promise<TelegramMessageLike>;
 }
+
+type TelegramMediaKind = "document" | "voice" | "photo";
 
 export class TelegramMediaTools {
   getDeliveryCapabilities(): Record<string, unknown> {
@@ -65,6 +74,12 @@ export class TelegramMediaTools {
           supportsCaption: true,
         },
         audio: {
+          supportsHostPath: true,
+          supportsUrl: true,
+          supportsBase64: true,
+          supportsCaption: true,
+        },
+        image: {
           supportsHostPath: true,
           supportsUrl: true,
           supportsBase64: true,
@@ -129,6 +144,28 @@ export class TelegramMediaTools {
           },
         },
       },
+      {
+        name: PHOTO_TOOL_NAME,
+        description: "Send a photo to the current Telegram chat using the official sendPhoto API.",
+        requiresChatContext: true,
+        display: {
+          icon: "\u{1F5BC}",
+          title: "Send photo to current Telegram chat",
+        },
+        approval: {
+          kind: "file",
+          targetArgument: "filePath",
+          operation: "read",
+        },
+        inputSchema: {
+          type: "object",
+          properties: {
+            ...sourceProperties,
+            fileName: { type: "string" },
+            caption: { type: "string" },
+          },
+        },
+      },
     ];
   }
 
@@ -172,6 +209,21 @@ export class TelegramMediaTools {
         delivered: true,
         remoteMessageId: String(remoteMessage.message_id ?? ""),
         remoteMediaId: remoteMessage.voice?.file_id ?? null,
+        effectiveSourceKind: prepared.sourceKind,
+        fileName: prepared.fileName,
+      };
+    }
+
+    if (kind === "image") {
+      const source = asRecord(message.source);
+      const caption = optionalText(message.caption);
+      const fileName = optionalText(message.fileName) ?? "image.png";
+      const prepared = await this.prepareAdapterMedia(source, fileName, "photo");
+      const remoteMessage = await api.sendPhoto(chatId, prepared.media, { caption });
+      return {
+        delivered: true,
+        remoteMessageId: String(remoteMessage.message_id ?? ""),
+        remoteMediaId: largestPhotoFileId(remoteMessage),
         effectiveSourceKind: prepared.sourceKind,
         fileName: prepared.fileName,
       };
@@ -223,13 +275,26 @@ export class TelegramMediaTools {
       );
     }
 
+    if (toolName === PHOTO_TOOL_NAME) {
+      const caption = optionalText(args.caption);
+      const fileName = optionalText(args.fileName) ?? "image.png";
+      const prepared = await this.prepareToolMedia(args, fileName, "photo");
+      const remoteMessage = await api.sendPhoto(chatId, prepared.media, { caption });
+      return this.toolSuccessResult(
+        "photo",
+        String(remoteMessage.message_id ?? ""),
+        largestPhotoFileId(remoteMessage),
+        prepared,
+      );
+    }
+
     throw new TelegramMediaError("UnsupportedTool", `Unknown tool '${toolName}'.`);
   }
 
   private async prepareToolMedia(
     args: Record<string, unknown>,
     defaultFileName: string,
-    expected: "document" | "voice",
+    expected: TelegramMediaKind,
   ): Promise<TelegramPreparedMedia> {
     const sourceValues = {
       filePath: optionalText(args.filePath),
@@ -253,7 +318,7 @@ export class TelegramMediaTools {
   private async prepareAdapterMedia(
     source: Record<string, unknown>,
     defaultFileName: string,
-    expected: "document" | "voice",
+    expected: TelegramMediaKind,
   ): Promise<TelegramPreparedMedia> {
     const sourceKind = String(source.kind ?? "");
     if (sourceKind === "hostPath") {
@@ -291,7 +356,7 @@ export class TelegramMediaTools {
     sourceName: string,
     value: string,
     fileName: string,
-    expected: "document" | "voice",
+    expected: TelegramMediaKind,
   ): Promise<TelegramPreparedMedia> {
     if (sourceName === "filePath") {
       const prepared = await prepareMediaBytes(
@@ -349,9 +414,13 @@ export class TelegramMediaTools {
     throw new TelegramMediaError("InvalidArguments", `Unsupported source field '${sourceName}'.`);
   }
 
-  private validateSource(expected: "document" | "voice", fileName: string, locationHint: string): void {
+  private validateSource(expected: TelegramMediaKind, fileName: string, locationHint: string): void {
     const fileNameExt = extension(fileName);
     const locationExt = extension(locationHint);
+
+    if (expected === "photo") {
+      return;
+    }
 
     if (expected === "document") {
       if (isHttpUrl(locationHint) && !DOCUMENT_URL_EXTENSIONS.has(locationExt)) {
@@ -406,6 +475,10 @@ export class TelegramMediaTools {
       },
     };
   }
+}
+
+function largestPhotoFileId(message: TelegramMessageLike): string | null {
+  return message.photo?.[message.photo.length - 1]?.file_id ?? null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

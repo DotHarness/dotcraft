@@ -14,6 +14,7 @@ import {
   type Transport,
 } from "@dotcraft/channel/runtime";
 import {
+  ApprovalReplyTracker,
   ConfigValidationError,
   ModuleChannelAdapter,
   buildUserInputPrompt,
@@ -28,7 +29,6 @@ import {
   type WorkspaceContext,
 } from "@dotcraft/channel";
 
-import { parseWeComApprovalDecision } from "./approval.js";
 import { WeComMediaError, WeComMediaTools } from "./wecom-media-tools.js";
 import { WeComPermissionService } from "./permission.js";
 import { WeComBotRegistry, WeComBotServer } from "./wecom-server.js";
@@ -41,13 +41,6 @@ import {
   type WeComMessage,
 } from "./wecom-types.js";
 import type { WeComConfig } from "./wecom-config.js";
-
-type PendingApproval = {
-  channelContext: string;
-  userId: string;
-  resolve: (decision: string) => void;
-  timer: ReturnType<typeof setTimeout>;
-};
 
 type PendingUserInput = {
   channelContext: string;
@@ -110,7 +103,11 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
   private readonly mediaTools = new WeComMediaTools();
   private readonly threadContextMap = new Map<string, string>();
   private readonly lastSenderByContext = new Map<string, string>();
-  private readonly pendingApprovals = new Map<string, PendingApproval>();
+  private readonly approvalReplies = new ApprovalReplyTracker({
+    notify: async ({ channelContext }, text) => {
+      await this.createPusher(channelContext).pushText(text);
+    },
+  });
   private readonly pendingUserInputs = new Map<string, PendingUserInput>();
   private approvalTimeoutMs = 60_000;
   private tempDir = "";
@@ -222,7 +219,7 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
   }
 
   override async stop(): Promise<void> {
-    this.resolveAllPendingApprovals(DECISION_CANCEL);
+    this.approvalReplies.resolveAll(DECISION_CANCEL);
     this.resolveAllPendingUserInputs(emptyUserInputResponse());
     const server = this.server;
     this.server = undefined;
@@ -326,22 +323,11 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
 
     await this.createPusher(channelContext).pushText(prompt);
 
-    return await new Promise<string>((resolveDecision) => {
-      const timer = setTimeout(() => {
-        this.pendingApprovals.delete(requestId);
-        resolveDecision(DECISION_CANCEL);
-      }, this.approvalTimeoutMs);
-      this.pendingApprovals.set(requestId, {
-        channelContext,
-        userId: approvalUserId,
-        resolve: (decision) => {
-          clearTimeout(timer);
-          this.pendingApprovals.delete(requestId);
-          resolveDecision(decision);
-        },
-        timer,
-      });
-    });
+    return await this.approvalReplies.wait(
+      requestId,
+      { channelContext, userId: approvalUserId },
+      this.approvalTimeoutMs,
+    );
   }
 
   protected override async onUserInputRequest(request: Record<string, unknown>): Promise<UserInputResponse> {
@@ -450,8 +436,7 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     }
 
     const channelContext = `chat:${pusher.getChatId()}`;
-    const approvalDecision = parseWeComApprovalDecision(plainText);
-    if (approvalDecision && this.resolvePendingApproval(approvalDecision, from.userId, channelContext)) {
+    if (this.approvalReplies.tryResolve({ channelContext, userId: from.userId }, plainText)) {
       return;
     }
     if (await this.tryResolvePendingUserInput(plainText, from.userId, channelContext)) {
@@ -494,6 +479,9 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
   private async runInboundMessage(text: string, from: WeComFrom, pusher: WeComPusher, inputParts: InputPart[]): Promise<void> {
     const chatId = pusher.getChatId();
     const channelContext = `chat:${chatId}`;
+    if (await this.approvalReplies.remindIfPending({ channelContext, userId: from.userId })) {
+      return;
+    }
     const senderName = from.name || from.alias || from.userId;
     this.lastSenderByContext.set(channelContext, from.userId);
     const role = this.permission.getUserRole(from.userId, chatId);
@@ -557,20 +545,6 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     return new WeComPusher(chatId, webhookUrl);
   }
 
-  private resolvePendingApproval(decision: string, userId: string, channelContext: string): boolean {
-    for (const [requestId, pending] of this.pendingApprovals) {
-      if (pending.userId !== userId || pending.channelContext !== channelContext) {
-        continue;
-      }
-
-      this.pendingApprovals.delete(requestId);
-      pending.resolve(decision);
-      return true;
-    }
-
-    return false;
-  }
-
   private async tryResolvePendingUserInput(text: string, userId: string, channelContext: string): Promise<boolean> {
     for (const [requestId, pending] of this.pendingUserInputs) {
       if (pending.userId !== userId || pending.channelContext !== channelContext) {
@@ -591,14 +565,6 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     }
 
     return false;
-  }
-
-  private resolveAllPendingApprovals(decision: string): void {
-    for (const [requestId, pending] of this.pendingApprovals) {
-      clearTimeout(pending.timer);
-      pending.resolve(decision);
-      this.pendingApprovals.delete(requestId);
-    }
   }
 
   private resolveAllPendingUserInputs(response: UserInputResponse): void {

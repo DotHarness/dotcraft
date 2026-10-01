@@ -8,9 +8,11 @@ export type OutboundClient = Pick<
   | "sendInteractiveCard"
   | "sendCardKitReference"
   | "sendFile"
+  | "sendImage"
   | "replyInteractiveCard"
   | "replyCardKitReference"
   | "replyFile"
+  | "replyImage"
 >;
 
 export type OutboundFile = { fileName: string; data: Buffer; mediaType?: string };
@@ -60,6 +62,14 @@ export class FeishuOutboundRouter {
       target,
       (anchor) => this.client.replyFile(anchor, file, true),
       (base) => this.client.sendFile(base, file),
+    );
+  }
+
+  async sendImage(target: string, image: { data: Buffer }): Promise<FeishuSendResult & { imageKey: string }> {
+    return await this.route(
+      target,
+      (anchor) => this.client.replyImage(anchor, image, true),
+      (base) => this.client.sendImage(base, image),
     );
   }
 

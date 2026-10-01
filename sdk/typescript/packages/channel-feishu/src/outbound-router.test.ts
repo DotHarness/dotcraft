@@ -24,6 +24,11 @@ class FakeOutboundClient implements OutboundClient {
     return { messageId: "om_created_file", chatId: target, fileKey: "fk" };
   }
 
+  async sendImage(target: string, _image: { data: Buffer }): Promise<FeishuSendResult & { imageKey: string }> {
+    this.calls.push({ method: "create.image", target });
+    return { messageId: "om_created_image", chatId: target, imageKey: "ik" };
+  }
+
   async replyInteractiveCard(messageId: string, _card: Record<string, unknown>, replyInThread: boolean): Promise<FeishuSendResult> {
     this.reject(messageId);
     this.calls.push({ method: "reply.card", target: messageId, replyInThread });
@@ -44,6 +49,16 @@ class FakeOutboundClient implements OutboundClient {
     this.reject(messageId);
     this.calls.push({ method: "reply.file", target: messageId, replyInThread });
     return { messageId: "om_replied_file", chatId: "oc_chat", fileKey: "fk" };
+  }
+
+  async replyImage(
+    messageId: string,
+    _image: { data: Buffer },
+    replyInThread: boolean,
+  ): Promise<FeishuSendResult & { imageKey: string }> {
+    this.reject(messageId);
+    this.calls.push({ method: "reply.image", target: messageId, replyInThread });
+    return { messageId: "om_replied_image", chatId: "oc_chat", imageKey: "ik" };
   }
 
   private reject(messageId: string): void {

@@ -52,6 +52,8 @@ internal sealed class ImageGenerationLifecycle(
         if (content.Succeeded && content.ImageBytes is { Length: > 0 } bytes)
         {
             var saved = await SaveHostedImageGenerationAsync(callId, bytes, ct).ConfigureAwait(false);
+            if (saved.ErrorCode is null)
+                content.SavedPath = saved.Path;
             Complete(item, payload with
             {
                 Status = "completed",

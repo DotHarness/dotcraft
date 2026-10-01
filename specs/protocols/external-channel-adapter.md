@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.7.10 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-02 |
 | **Parent Spec** | [AppServer Protocol](appserver-protocol.md) (Section 15) |
 
 Purpose: Define the architecture, protocol extensions, configuration model, and behavioral contract that allow social channel adapters written in any language to integrate with DotCraft as first-class channels, preserving per-platform capabilities such as the Approval flow.
@@ -169,6 +169,7 @@ This section defines the protocol-level obligations that any conforming external
 - If request startup fails before `turn/start` returns a Turn ID, the adapter **must** send exactly one generic failure notification to the originating channel context. The notification must not contain the original server exception or other diagnostic details; those details belong only in channel logs. Once a Turn ID has been returned, the normal Turn event stream owns terminal status and the adapter must not emit this startup-failure notification.
 - An adapter that renders live reply progress may observe `item/agentMessage/delta` and completed AgentMessage snapshots without treating that observation as successful delivery. Progress rendering must preserve AgentMessage boundaries, may coalesce updates to satisfy platform limits, and must reconcile against the completed Turn snapshot before finalizing the platform response.
 - A progress-rendering failure must not interrupt Turn event consumption. The adapter must either continue with its negotiated segment delivery path or deliver the authoritative completed reply once. Platform-specific progress APIs and fallback behavior remain adapter concerns and do not add Wire fields.
+- A completed `imageGeneration` Item with a non-empty base64 `result` is part of the reply. The adapter delivers it to the originating channel context after any reply text that preceded it, as an `image` when the platform can show one and as a `file` attachment otherwise. The adapter uses the base64 `result`, never `savedPath`, which names a path on the server host. A delivery failure is logged and does not interrupt Turn event consumption.
 
 ### 10.3 Sender Context
 
@@ -210,6 +211,7 @@ The adapter plays the client role in the [AppServer approval flow](appserver-pro
 - The adapter **must** map the platform's callback identifier to the Wire Protocol `request.id` and send the JSON-RPC response when the user responds.
 - Multiple approval requests may be in flight on different threads simultaneously. The callback-to-request mapping **must** be per-request, not global.
 - If the user does not respond before the server's approval timeout (`-32020`), the turn fails. The adapter should clean up any pending approval UI on timeout.
+- An adapter that collects decisions from plain-text replies accepts each reply keyword with or without a leading `/`. While an approval is pending for a sender in a conversation, that sender's other messages in the conversation are not forwarded; the adapter answers each with a short reminder of the accepted replies. When the adapter's own approval wait expires, it responds `cancel` and tells the approver that the approval timed out.
 
 ### 11.3 Decision Values
 

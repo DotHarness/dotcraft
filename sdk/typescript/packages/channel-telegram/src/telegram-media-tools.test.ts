@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 
 import {
   DOCUMENT_TOOL_NAME,
+  PHOTO_TOOL_NAME,
   TelegramMediaError,
   TelegramMediaTools,
   VOICE_TOOL_NAME,
@@ -41,14 +42,24 @@ class FakeTelegramApi implements TelegramApiLike {
     this.calls.push({ method: "sendVoice", chatId, other });
     return { message_id: 11, voice: { file_id: "voice-file-id" } };
   }
+
+  async sendPhoto(
+    chatId: number | string,
+    _photo: unknown,
+    other?: Record<string, unknown>,
+  ): Promise<{ message_id: number; photo: Array<{ file_id: string }> }> {
+    this.calls.push({ method: "sendPhoto", chatId, other });
+    return { message_id: 12, photo: [{ file_id: "photo-small" }, { file_id: "photo-large" }] };
+  }
 }
 
 test("getChannelTools exposes filePath approval metadata", () => {
   const descriptors = new TelegramMediaTools().getChannelTools();
   const documentTool = descriptors.find((tool) => tool.name === DOCUMENT_TOOL_NAME);
   const voiceTool = descriptors.find((tool) => tool.name === VOICE_TOOL_NAME);
+  const photoTool = descriptors.find((tool) => tool.name === PHOTO_TOOL_NAME);
 
-  for (const tool of [documentTool, voiceTool]) {
+  for (const tool of [documentTool, voiceTool, photoTool]) {
     assert.deepEqual(tool?.approval, {
       kind: "file",
       targetArgument: "filePath",
@@ -116,4 +127,25 @@ test("sendStructuredMessage sends audio with duration", async () => {
   assert.equal(result.delivered, true);
   assert.equal(api.calls[0]?.method, "sendVoice");
   assert.equal(api.calls[0]?.other?.duration, 12);
+});
+
+test("photo tool and structured image delivery use sendPhoto", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "telegram-photo-"));
+  const filePath = join(tempDir, "chart.png");
+  writeFileSync(filePath, "png-data", "utf-8");
+
+  const api = new FakeTelegramApi();
+  const tools = new TelegramMediaTools();
+  const toolResult = await tools.executeToolCall(api, PHOTO_TOOL_NAME, 123, { filePath, caption: "chart" });
+  const delivered = await tools.sendStructuredMessage(api, 123, {
+    kind: "image",
+    fileName: "ig_1.png",
+    source: { kind: "dataBase64", dataBase64: Buffer.from("generated").toString("base64") },
+  });
+
+  assert.equal(toolResult.success, true);
+  assert.equal((toolResult.structuredContent as Record<string, unknown>).mediaId, "photo-large");
+  assert.equal(delivered.delivered, true);
+  assert.deepEqual(api.calls.map((call) => call.method), ["sendPhoto", "sendPhoto"]);
+  assert.equal(api.calls[0]?.other?.caption, "chart");
 });

@@ -1130,7 +1130,9 @@ public sealed class ThreadStoreTests : IDisposable
                 Status = "completed",
                 RevisedPrompt = "A blue square",
                 Result = Convert.ToBase64String(imageBytes),
-                MediaType = "image/png"
+                MediaType = "image/png",
+                SavedPath = "/workspace/.craft/generated_images/thread/ig_new.png",
+                SaveStatus = "saved"
             }
         });
         await _store.SaveThreadAsync(thread);
@@ -1151,6 +1153,7 @@ public sealed class ThreadStoreTests : IDisposable
         Assert.Equal("ig_new", imageContent.Id);
         Assert.Equal("A blue square", imageContent.RevisedPrompt);
         Assert.Equal(imageBytes, imageContent.ImageBytes);
+        Assert.Equal("/workspace/.craft/generated_images/thread/ig_new.png", imageContent.SavedPath);
     }
 
     [Fact]

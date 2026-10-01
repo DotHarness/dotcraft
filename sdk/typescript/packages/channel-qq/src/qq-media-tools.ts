@@ -8,6 +8,7 @@ import type { ChannelToolDescriptor } from "@dotcraft/channel";
 
 import type { OneBotActionResponse } from "./onebot.js";
 import {
+  imageSegment,
   isActionOk,
   recordSegment,
   sendGroupMessageAction,
@@ -23,6 +24,8 @@ import { parseQQTarget, type QQTarget } from "./target.js";
 
 export const QQ_SEND_GROUP_VOICE_TOOL = "QQSendGroupVoice";
 export const QQ_SEND_PRIVATE_VOICE_TOOL = "QQSendPrivateVoice";
+export const QQ_SEND_GROUP_IMAGE_TOOL = "QQSendGroupImage";
+export const QQ_SEND_PRIVATE_IMAGE_TOOL = "QQSendPrivateImage";
 export const QQ_SEND_GROUP_VIDEO_TOOL = "QQSendGroupVideo";
 export const QQ_SEND_PRIVATE_VIDEO_TOOL = "QQSendPrivateVideo";
 export const QQ_UPLOAD_GROUP_FILE_TOOL = "QQUploadGroupFile";
@@ -49,6 +52,11 @@ export class QQMediaTools {
           supportsBase64: true,
         },
         file: {
+          supportsHostPath: true,
+          supportsUrl: true,
+          supportsBase64: true,
+        },
+        image: {
           supportsHostPath: true,
           supportsUrl: true,
           supportsBase64: true,
@@ -98,6 +106,38 @@ export class QQMediaTools {
           "Send a voice/audio message to a QQ private chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
         requiresChatContext: false,
         display: { icon: "\u{1F3A4}", title: "Send voice to QQ user" },
+        approval: filePathApproval,
+        inputSchema: {
+          type: "object",
+          properties: {
+            userId: { type: "integer" },
+            ...mediaSourceProperties,
+          },
+          required: ["userId"],
+        },
+      },
+      {
+        name: QQ_SEND_GROUP_IMAGE_TOOL,
+        description:
+          "Send an image to a QQ group chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
+        requiresChatContext: false,
+        display: { icon: "\u{1F5BC}", title: "Send image to QQ group" },
+        approval: filePathApproval,
+        inputSchema: {
+          type: "object",
+          properties: {
+            groupId: { type: "integer" },
+            ...mediaSourceProperties,
+          },
+          required: ["groupId"],
+        },
+      },
+      {
+        name: QQ_SEND_PRIVATE_IMAGE_TOOL,
+        description:
+          "Send an image to a QQ private chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
+        requiresChatContext: false,
+        display: { icon: "\u{1F5BC}", title: "Send image to QQ user" },
         approval: filePathApproval,
         inputSchema: {
           type: "object",
@@ -208,6 +248,11 @@ export class QQMediaTools {
       const response = await this.sendMessage(server, parsed, [recordSegment(file)]);
       return toDeliveryResult(response);
     }
+    if (kind === "image") {
+      const file = await this.resolveImageSource(asRecord(message.source), String(message.fileName ?? "image.png"));
+      const response = await this.sendMessage(server, parsed, [imageSegment(file)]);
+      return toDeliveryResult(response);
+    }
     if (kind === "video") {
       const file = await this.resolveVideoSource(asRecord(message.source), String(message.fileName ?? "video.mp4"));
       const response = await this.sendMessage(server, parsed, [videoSegment(file)]);
@@ -266,6 +311,10 @@ export class QQMediaTools {
         return { target: `group:${requiredId(args.groupId, "groupId")}`, message: mediaMessage("audio", parseToolMediaSource(args)) };
       case QQ_SEND_PRIVATE_VOICE_TOOL:
         return { target: requiredId(args.userId, "userId"), message: mediaMessage("audio", parseToolMediaSource(args)) };
+      case QQ_SEND_GROUP_IMAGE_TOOL:
+        return { target: `group:${requiredId(args.groupId, "groupId")}`, message: mediaMessage("image", parseToolMediaSource(args)) };
+      case QQ_SEND_PRIVATE_IMAGE_TOOL:
+        return { target: requiredId(args.userId, "userId"), message: mediaMessage("image", parseToolMediaSource(args)) };
       case QQ_SEND_GROUP_VIDEO_TOOL:
         return { target: `group:${requiredId(args.groupId, "groupId")}`, message: mediaMessage("video", parseToolMediaSource(args)) };
       case QQ_SEND_PRIVATE_VIDEO_TOOL:
@@ -338,6 +387,18 @@ export class QQMediaTools {
     }
     if (kind === "") return await this.resolveAudioSource(parseLegacyFileSource(fileName).source as Record<string, unknown>, fileName);
     throw new QQMediaError("UnsupportedMediaSource", `Unsupported QQ audio source kind '${kind}'.`);
+  }
+
+  private async resolveImageSource(source: Record<string, unknown>, fileName: string): Promise<string> {
+    const kind = String(source.kind ?? "");
+    if (kind === "hostPath" || kind === "url" || kind === "dataBase64") {
+      return (await prepareMediaUploadUri(source, {
+        fileName,
+        fallbackFileName: fileName,
+        errorFactory: qqMediaError,
+      })).uri;
+    }
+    throw new QQMediaError("UnsupportedMediaSource", `Unsupported QQ image source kind '${kind}'.`);
   }
 
   private async resolveVideoSource(source: Record<string, unknown>, fileName: string): Promise<string> {

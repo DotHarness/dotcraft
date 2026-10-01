@@ -1314,7 +1314,8 @@ public sealed partial class ThreadStore : IAsyncDisposable
             RevisedPrompt = payload.RevisedPrompt,
             ImageBytes = imageBytes,
             MediaType = string.IsNullOrWhiteSpace(payload.MediaType) ? "image/png" : payload.MediaType,
-            ErrorMessage = errorMessage
+            ErrorMessage = errorMessage,
+            SavedPath = string.Equals(payload.SaveStatus, "saved", StringComparison.Ordinal) ? payload.SavedPath : null
         };
         message = new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[content]);
         return true;

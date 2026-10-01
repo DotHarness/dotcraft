@@ -955,3 +955,87 @@ test("ModuleConfigLoader applies managed WebSocket runtime endpoint overrides", 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("TurnStreamReducer delivers completed generated images after the pending text segment", async () => {
+  const calls: string[] = [];
+  const images: Array<Record<string, unknown>> = [];
+  await new TurnStreamReducer().consume(events([
+    { method: "item/agentMessage/delta", params: { threadId: "t", itemId: "a", delta: "Here it is:" } },
+    { method: "item/completed", params: { threadId: "t", item: { id: "a", type: "agentMessage", payload: { text: "Here it is:" } } } },
+    {
+      method: "item/completed",
+      params: {
+        threadId: "t",
+        item: { id: "img-pending", type: "imageGeneration", payload: { callId: "ig_0", status: "inProgress" } },
+      },
+    },
+    {
+      method: "item/completed",
+      params: {
+        threadId: "t",
+        item: { id: "img-empty", type: "imageGeneration", payload: { callId: "ig_1", status: "completed", result: "" } },
+      },
+    },
+    {
+      method: "item/completed",
+      params: {
+        threadId: "t",
+        item: {
+          id: "img",
+          type: "imageGeneration",
+          payload: { callId: "ig_2", status: "completed", result: "aGVsbG8=", mediaType: "image/webp", savedPath: "/host/only.webp" },
+        },
+      },
+    },
+    { method: "item/agentMessage/delta", params: { threadId: "t", itemId: "b", delta: " Done." } },
+    { method: "turn/completed", params: { threadId: "t", turn: { items: [] } } },
+  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
+    onSegmentCompleted: async (_threadId, _turnId, text, isFinal) => {
+      calls.push(`segment:${text}:${isFinal}`);
+    },
+    onGeneratedImage: async (_threadId, _turnId, image, channelContext) => {
+      calls.push(`image:${image.callId}:${channelContext}`);
+      images.push({ ...image });
+    },
+    onTurnCompleted: async () => {
+      calls.push("completed");
+    },
+    onTurnFailed: async () => {},
+    onTurnCancelled: async () => {},
+  });
+
+  assert.deepEqual(calls, [
+    "segment:Here it is::false",
+    "image:ig_2:c",
+    "segment: Done.:true",
+    "completed",
+  ]);
+  assert.deepEqual(images, [{ itemId: "img", callId: "ig_2", mediaType: "image/webp", dataBase64: "aGVsbG8=" }]);
+});
+
+test("TurnStreamReducer keeps consuming the turn when generated image delivery throws", async () => {
+  const completed: string[] = [];
+  await new TurnStreamReducer().consume(events([
+    {
+      method: "item/completed",
+      params: {
+        threadId: "t",
+        item: { id: "img", type: "imageGeneration", payload: { callId: "ig", status: "completed", result: "aGVsbG8=" } },
+      },
+    },
+    { method: "item/agentMessage/delta", params: { threadId: "t", itemId: "a", delta: "after" } },
+    { method: "turn/completed", params: { threadId: "t", turn: { items: [] } } },
+  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
+    onSegmentCompleted: async () => {},
+    onGeneratedImage: async () => {
+      throw new Error("upload failed");
+    },
+    onTurnCompleted: async (_threadId, _turnId, reply) => {
+      completed.push(reply);
+    },
+    onTurnFailed: async () => {},
+    onTurnCancelled: async () => {},
+  });
+
+  assert.deepEqual(completed, ["after"]);
+});

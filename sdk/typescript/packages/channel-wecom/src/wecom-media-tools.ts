@@ -10,6 +10,9 @@ import { WeComPusher } from "./wecom-pusher.js";
 
 export const WE_COM_SEND_VOICE_TOOL = "WeComSendVoice";
 export const WE_COM_SEND_FILE_TOOL = "WeComSendFile";
+export const WE_COM_SEND_IMAGE_TOOL = "WeComSendImage";
+
+const WE_COM_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 
 export class WeComMediaError extends Error {
   readonly code: string;
@@ -31,6 +34,11 @@ export class WeComMediaTools {
           supportsBase64: true,
         },
         file: {
+          supportsHostPath: true,
+          supportsBase64: true,
+        },
+        image: {
+          maxBytes: WE_COM_IMAGE_MAX_BYTES,
           supportsHostPath: true,
           supportsBase64: true,
         },
@@ -77,6 +85,25 @@ export class WeComMediaTools {
           operation: "read",
         },
       },
+      {
+        name: WE_COM_SEND_IMAGE_TOOL,
+        description:
+          "Send an image in the current WeCom chat. WeCom images must be JPG or PNG files up to 2 MB; use WeComSendFile for larger images. The file must be a local absolute path.",
+        requiresChatContext: true,
+        display: { icon: "\u{1F5BC}", title: "Send image in current WeCom chat" },
+        inputSchema: {
+          type: "object",
+          properties: {
+            filePath: { type: "string" },
+          },
+          required: ["filePath"],
+        },
+        approval: {
+          kind: "file",
+          targetArgument: "filePath",
+          operation: "read",
+        },
+      },
     ];
   }
 
@@ -94,6 +121,10 @@ export class WeComMediaTools {
       await this.sendMedia(pusher, message, "file");
       return { delivered: true };
     }
+    if (kind === "image") {
+      await this.sendImage(pusher, message);
+      return { delivered: true };
+    }
 
     return {
       delivered: false,
@@ -104,7 +135,13 @@ export class WeComMediaTools {
 
   async executeToolCall(pusher: WeComPusher, toolName: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const filePath = requiredText(args.filePath, "filePath");
-    const kind = toolName === WE_COM_SEND_VOICE_TOOL ? "audio" : toolName === WE_COM_SEND_FILE_TOOL ? "file" : "";
+    const kind = toolName === WE_COM_SEND_VOICE_TOOL
+      ? "audio"
+      : toolName === WE_COM_SEND_FILE_TOOL
+        ? "file"
+        : toolName === WE_COM_SEND_IMAGE_TOOL
+          ? "image"
+          : "";
     if (!kind) {
       return {
         success: false,
@@ -135,6 +172,16 @@ export class WeComMediaTools {
       errorCode: result.errorCode,
       errorMessage: result.errorMessage,
     };
+  }
+
+  private async sendImage(pusher: WeComPusher, message: Record<string, unknown>): Promise<void> {
+    const prepared = await prepareMediaBytes(asRecord(message.source), {
+      fileName: optionalText(message.fileName),
+      fallbackFileName: "image.png",
+      maxBytes: WE_COM_IMAGE_MAX_BYTES,
+      errorFactory: weComMediaError,
+    });
+    await pusher.pushImage(prepared.bytes);
   }
 
   private async sendMedia(pusher: WeComPusher, message: Record<string, unknown>, mediaKind: "voice" | "file"): Promise<void> {

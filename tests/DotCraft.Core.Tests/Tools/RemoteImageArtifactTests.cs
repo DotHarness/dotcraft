@@ -33,7 +33,8 @@ public sealed class RemoteImageArtifactTests
         lifecycle.Start(new ImageGenerationToolCallContent("ig_pinned"));
         if (mode != "success") await client.DisconnectAsync("thread");
         if (mode == "reconnect") await client.ConnectAsync("thread", server.PeerId, "repo");
-        await lifecycle.CompleteAsync(new HostedImageGenerationContent { Id = "ig_pinned", ImageBytes = Png }, default);
+        var content = new HostedImageGenerationContent { Id = "ig_pinned", ImageBytes = Png };
+        await lifecycle.CompleteAsync(content, default);
         var image = Assert.Single(turn.Items).AsImageGeneration!;
         Assert.Equal("completed", image.Status);
         Assert.Equal(Convert.ToBase64String(Png), image.Result);
@@ -44,6 +45,7 @@ public sealed class RemoteImageArtifactTests
         Assert.False(Directory.Exists(Path.Combine(agent.Path, "generated_images")));
         if (mode == "success") Assert.Equal(Png, await File.ReadAllBytesAsync(image.SavedPath!));
         else Assert.Null(image.SavedPath);
+        Assert.Equal(image.SavedPath, content.SavedPath);
     }
 
     [Fact]

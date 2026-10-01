@@ -13,6 +13,7 @@ import {
   type Transport,
 } from "@dotcraft/channel/runtime";
 import {
+  ApprovalReplyTracker,
   ConfigValidationError,
   ModuleChannelAdapter,
   buildUserInputPrompt,
@@ -27,7 +28,6 @@ import {
   type WorkspaceContext,
 } from "@dotcraft/channel";
 
-import { parseQQApprovalDecision } from "./approval.js";
 import {
   OneBotReverseWsServer,
   atSegment,
@@ -43,13 +43,6 @@ import { QQMediaError, QQMediaTools } from "./qq-media-tools.js";
 import type { QQConfig } from "./qq-config.js";
 import { QQPermissionService, normalizeIds } from "./permission.js";
 import { channelContextForQQEvent, parseQQTarget } from "./target.js";
-
-type PendingApproval = {
-  channelContext: string;
-  userId: string;
-  resolve: (decision: string) => void;
-  timer: ReturnType<typeof setTimeout>;
-};
 
 type PendingUserInput = {
   channelContext: string;
@@ -103,7 +96,12 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
   private readonly mediaTools = new QQMediaTools();
   private readonly threadContextMap = new Map<string, string>();
   private readonly lastSenderByContext = new Map<string, string>();
-  private readonly pendingApprovals = new Map<string, PendingApproval>();
+  private readonly approvalReplies = new ApprovalReplyTracker({
+    notify: async ({ channelContext, userId }, text) => {
+      const target = parseQQTarget(channelContext);
+      if (target) await this.sendApprovalPrompt(target, text, userId);
+    },
+  });
   private readonly pendingUserInputs = new Map<string, PendingUserInput>();
   private requireMentionInGroups = true;
   private approvalTimeoutMs = 60_000;
@@ -206,7 +204,7 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
   }
 
   override async stop(): Promise<void> {
-    this.resolveAllPendingApprovals("cancel");
+    this.approvalReplies.resolveAll("cancel");
     this.resolveAllPendingUserInputs(emptyUserInputResponse());
     const server = this.oneBot;
     this.oneBot = null;
@@ -304,22 +302,11 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
       "\n\u56de\u590d \u540c\u610f/yes \u6279\u51c6\uff0c\u540c\u610f\u5168\u90e8/yes all \u672c\u4f1a\u8bdd\u653e\u884c\u540c\u7c7b\u64cd\u4f5c\uff0c\u62d2\u7edd/no \u62d2\u7edd\u3002";
     await this.sendApprovalPrompt(target, prompt, approvalUserId);
 
-    return await new Promise<string>((resolveDecision) => {
-      const timer = setTimeout(() => {
-        this.pendingApprovals.delete(requestId);
-        resolveDecision("cancel");
-      }, this.approvalTimeoutMs);
-      this.pendingApprovals.set(requestId, {
-        channelContext,
-        userId: approvalUserId,
-        resolve: (decision) => {
-          clearTimeout(timer);
-          this.pendingApprovals.delete(requestId);
-          resolveDecision(decision);
-        },
-        timer,
-      });
-    });
+    return await this.approvalReplies.wait(
+      requestId,
+      { channelContext, userId: approvalUserId },
+      this.approvalTimeoutMs,
+    );
   }
 
   protected override async onUserInputRequest(request: Record<string, unknown>): Promise<UserInputResponse> {
@@ -453,8 +440,8 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     const senderName = getSenderName(evt);
     const rawText = getPlainText(evt.message).trim();
 
-    const approvalDecision = parseQQApprovalDecision(rawText);
-    if (approvalDecision && this.resolvePendingApproval(approvalDecision, senderId, channelContext)) {
+    const approver = { channelContext, userId: senderId };
+    if (this.approvalReplies.tryResolve(approver, rawText)) {
       return;
     }
     if (await this.tryResolvePendingUserInput(rawText, senderId, channelContext)) {
@@ -474,7 +461,16 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
       ...(isGroup ? { groupId: channelContext } : {}),
     };
 
-    if (this.parseChannelBindCode(rawText)) {
+    const isBindCode = Boolean(this.parseChannelBindCode(rawText));
+    const segments = normalizeMessageSegments(evt.message);
+    if (!isBindCode && isGroup && this.requireMentionInGroups && !this.isAtSelf(evt, segments)) {
+      return;
+    }
+    if (await this.approvalReplies.remindIfPending(approver)) {
+      return;
+    }
+
+    if (isBindCode) {
       this.lastSenderByContext.set(channelContext, senderId);
       await this.handleMessage({
         userId: threadUserId,
@@ -484,11 +480,6 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
         sender: senderContext,
         omitSenderGroupId: !isGroup,
       });
-      return;
-    }
-
-    const segments = normalizeMessageSegments(evt.message);
-    if (isGroup && this.requireMentionInGroups && !this.isAtSelf(evt, segments)) {
       return;
     }
 
@@ -569,20 +560,6 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     await server.sendAction(action);
   }
 
-  private resolvePendingApproval(decision: string, userId: string, channelContext: string): boolean {
-    for (const [requestId, pending] of this.pendingApprovals) {
-      if (pending.userId !== userId || pending.channelContext !== channelContext) {
-        continue;
-      }
-
-      this.pendingApprovals.delete(requestId);
-      pending.resolve(decision);
-      return true;
-    }
-
-    return false;
-  }
-
   private async tryResolvePendingUserInput(text: string, userId: string, channelContext: string): Promise<boolean> {
     for (const [requestId, pending] of this.pendingUserInputs) {
       if (pending.userId !== userId || pending.channelContext !== channelContext) {
@@ -608,14 +585,6 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     }
 
     return false;
-  }
-
-  private resolveAllPendingApprovals(decision: string): void {
-    for (const [requestId, pending] of this.pendingApprovals) {
-      clearTimeout(pending.timer);
-      pending.resolve(decision);
-      this.pendingApprovals.delete(requestId);
-    }
   }
 
   private resolveAllPendingUserInputs(response: UserInputResponse): void {

@@ -1527,7 +1527,7 @@ Every model-history content value has the shape `{ kind, payload }`. Model-histo
 | `data` | `base64Data`, `mediaType`, `name` |
 | `function_call` | `callId`, `name`, `arguments`, `informationalOnly`, `namespace`, `providerFlatName` |
 | `function_result` | `callId`, versioned result union |
-| `hosted_image_generation` | `id`, `status`, `revisedPrompt`, `imageBase64`, `mediaType`, `errorMessage` |
+| `hosted_image_generation` | `id`, `status`, `revisedPrompt`, `imageBase64`, `mediaType`, `errorMessage`, optional `savedPath` |
 | `image_generation_tool_call` | `callId` |
 | `image_generation_tool_result` | `callId`, ordered `outputs` |
 | `error` | `message`, `errorCode`, `details` |

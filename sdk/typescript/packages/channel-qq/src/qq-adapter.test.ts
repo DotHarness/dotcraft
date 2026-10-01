@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import {
+  APPROVAL_REPLY_PENDING_NOTICE,
+  APPROVAL_REPLY_TIMEOUT_NOTICE,
+  type ApprovalReplyTracker,
+} from "@dotcraft/channel";
+
 import { QQPermissionService } from "./permission.js";
 import { QQAdapter } from "./qq-adapter.js";
 import { channelContextForQQEvent, parseQQTarget } from "./target.js";
@@ -234,62 +240,99 @@ test("QQAdapter accepts channel bind codes before group mention gating", async (
   ]);
 });
 
+type ApprovalTestAdapter = {
+  oneBot: { sendAction: (action: Record<string, unknown>) => Promise<Record<string, unknown>> } | null;
+  permission: QQPermissionService;
+  approvalTimeoutMs: number;
+  threadContextMap: Map<string, string>;
+  approvalReplies: ApprovalReplyTracker;
+  handleMessage: (opts: Record<string, unknown>) => Promise<void>;
+  handleOneBotMessage: (evt: OneBotMessageEvent) => Promise<void>;
+  onApprovalRequest: (request: Record<string, unknown>) => Promise<string>;
+};
+
+function createApprovalTestAdapter(): {
+  adapter: ApprovalTestAdapter;
+  sentTexts: string[];
+  forwarded: Record<string, unknown>[];
+} {
+  const adapter = new QQAdapter() as unknown as ApprovalTestAdapter;
+  const sentTexts: string[] = [];
+  const forwarded: Record<string, unknown>[] = [];
+  adapter.oneBot = {
+    sendAction: async (action) => {
+      const params = action.params as { message: Array<{ type: string; data: { text?: string } }> };
+      sentTexts.push(params.message.filter((segment) => segment.type === "text").map((segment) => segment.data.text).join("").trim());
+      return { status: "ok", retcode: 0 };
+    },
+  };
+  adapter.permission = new QQPermissionService({ adminUsers: [10, 20, 456, 789] });
+  adapter.handleMessage = async (opts) => {
+    forwarded.push(opts);
+  };
+  return { adapter, sentTexts, forwarded };
+}
+
+function groupText(userId: number, groupId: number, text: string, mentionSelf = false): OneBotMessageEvent {
+  return {
+    post_type: "message",
+    message_type: "group",
+    user_id: userId,
+    group_id: groupId,
+    self_id: 999,
+    message: [
+      ...(mentionSelf ? [{ type: "at", data: { qq: "999" } }] : []),
+      { type: "text", data: { text } },
+    ],
+  };
+}
+
 test("QQAdapter resolves approvals only for the matching sender and chat", async () => {
-  type PendingApproval = {
-    channelContext: string;
-    userId: string;
-    resolve: (decision: string) => void;
-    timer: ReturnType<typeof setTimeout>;
-  };
-  const adapter = new QQAdapter() as unknown as {
-    pendingApprovals: Map<string, PendingApproval>;
-    handleOneBotMessage: (evt: OneBotMessageEvent) => Promise<void>;
-  };
-  const resolved: string[] = [];
-  const timers: ReturnType<typeof setTimeout>[] = [];
-  const addPending = (requestId: string, userId: string, channelContext: string) => {
-    const timer = setTimeout(() => undefined, 10_000);
-    timers.push(timer);
-    adapter.pendingApprovals.set(requestId, {
-      channelContext,
-      userId,
-      timer,
-      resolve: (decision) => {
-        clearTimeout(timer);
-        resolved.push(`${requestId}:${decision}`);
-      },
-    });
-  };
+  const { adapter, forwarded } = createApprovalTestAdapter();
+  const first = adapter.approvalReplies.wait("req-1", { channelContext: "group:1", userId: "10" }, 10_000);
+  const second = adapter.approvalReplies.wait("req-2", { channelContext: "group:2", userId: "20" }, 10_000);
 
-  try {
-    addPending("req-1", "10", "group:1");
-    addPending("req-2", "20", "group:2");
+  await adapter.handleOneBotMessage(groupText(10, 2, "yes"));
+  await adapter.handleOneBotMessage(groupText(20, 2, "/yes"));
+  assert.equal(await second, "accept");
+  assert.deepEqual(forwarded, []);
 
-    await adapter.handleOneBotMessage({
-      post_type: "message",
-      message_type: "group",
-      user_id: 10,
-      group_id: 2,
-      message: [{ type: "text", data: { text: "yes" } }],
-    });
+  adapter.approvalReplies.resolveAll("cancel");
+  assert.equal(await first, "cancel");
+});
 
-    assert.deepEqual(resolved, []);
-    assert.equal(adapter.pendingApprovals.size, 2);
+test("QQAdapter holds other messages from the approver while an approval is pending", async () => {
+  const { adapter, sentTexts, forwarded } = createApprovalTestAdapter();
+  const decision = adapter.approvalReplies.wait("req-1", { channelContext: "group:123", userId: "456" }, 10_000);
 
-    await adapter.handleOneBotMessage({
-      post_type: "message",
-      message_type: "group",
-      user_id: 20,
-      group_id: 2,
-      message: [{ type: "text", data: { text: "yes" } }],
-    });
+  await adapter.handleOneBotMessage(groupText(456, 123, "/new", true));
+  await adapter.handleOneBotMessage(groupText(456, 123, "chatting with friends"));
+  await adapter.handleOneBotMessage(groupText(789, 123, "hello bot", true));
 
-    assert.deepEqual(resolved, ["req-2:accept"]);
-    assert.equal(adapter.pendingApprovals.has("req-1"), true);
-    assert.equal(adapter.pendingApprovals.has("req-2"), false);
-  } finally {
-    for (const timer of timers) clearTimeout(timer);
-  }
+  assert.deepEqual(sentTexts, [APPROVAL_REPLY_PENDING_NOTICE]);
+  assert.deepEqual(forwarded.map((opts) => opts.text), ["hello bot"]);
+
+  await adapter.handleOneBotMessage(groupText(456, 123, "/no"));
+  assert.equal(await decision, "decline");
+});
+
+test("QQAdapter tells the approver when an approval times out", async () => {
+  const { adapter, sentTexts } = createApprovalTestAdapter();
+  adapter.approvalTimeoutMs = 5;
+  adapter.threadContextMap.set("thread-1", "user:42");
+
+  const decision = await adapter.onApprovalRequest({
+    threadId: "thread-1",
+    requestId: "req-1",
+    approvalType: "shell",
+    operation: "rm -rf build",
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(decision, "cancel");
+  assert.equal(sentTexts.length, 2);
+  assert.match(sentTexts[0] ?? "", /rm -rf build/);
+  assert.equal(sentTexts[1], APPROVAL_REPLY_TIMEOUT_NOTICE);
 });
 
 test("QQAdapter consumes pending user-input replies before group mention gating", async () => {

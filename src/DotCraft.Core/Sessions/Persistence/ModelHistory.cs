@@ -129,6 +129,7 @@ internal sealed class ModelHistoryCodec
                     ImageBase64 = value.ImageBytes is null ? null : Convert.ToBase64String(value.ImageBytes),
                     MediaType = value.MediaType,
                     ErrorMessage = value.ErrorMessage,
+                    SavedPath = value.SavedPath,
                     AdditionalProperties = SerializeAdditionalProperties(value.AdditionalProperties)
                 }),
             ImageGenerationToolCallContent value => CreateContent(
@@ -317,7 +318,8 @@ internal sealed class ModelHistoryCodec
                 RevisedPrompt = payload.RevisedPrompt,
                 ImageBytes = imageBytes,
                 MediaType = payload.MediaType,
-                ErrorMessage = payload.ErrorMessage
+                ErrorMessage = payload.ErrorMessage,
+                SavedPath = payload.SavedPath
             },
             payload.AdditionalProperties);
     }
@@ -652,6 +654,8 @@ internal sealed class PersistedHostedImageGenerationContent : PersistedModelCont
     public required string MediaType { get; init; }
 
     public required string? ErrorMessage { get; init; }
+
+    public string? SavedPath { get; init; }
 }
 
 internal sealed class PersistedImageGenerationToolCallContent : PersistedModelContentPayload

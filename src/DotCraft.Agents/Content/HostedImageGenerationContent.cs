@@ -22,6 +22,8 @@ public sealed class HostedImageGenerationContent : AIContent
 
     public string? ErrorMessage { get; init; }
 
+    public string? SavedPath { get; set; }
+
     public bool Succeeded =>
         string.Equals(Status, "completed", StringComparison.OrdinalIgnoreCase) &&
         ImageBytes is { Length: > 0 } &&
