@@ -4,6 +4,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { InputComposer } from '../components/conversation/InputComposer'
 import { ChannelBindingCodeCard } from '../components/conversation/ChannelBindingCodeCard'
 import { ThreadHeader } from '../components/conversation/ThreadHeader'
+import { ConversationPanel } from '../components/layout/ConversationPanel'
 import { useAppBindingStore, type ThreadAppBinding } from '../stores/appBindingStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
@@ -231,5 +232,34 @@ describe('channel handoff', () => {
         bindingId: 'channelbind_1'
       })
     })
+  })
+
+  it('shows the code in a conversation that has no messages yet', async () => {
+    useThreadStore.setState({
+      activeThreadId: 'thread-1',
+      activeThread: {
+        id: 'thread-1',
+        userId: 'local',
+        workspacePath: 'X:\fixtures\workspace',
+        displayName: 'Thread',
+        status: 'active',
+        originChannel: 'dotcraft-desktop',
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        turns: []
+      }
+    })
+    render(
+      <LocaleProvider>
+        <ConversationPanel workspacePath="X:\fixtures\workspace" />
+      </LocaleProvider>
+    )
+
+    await act(async () => {
+      await useChannelBindingStore.getState().requestBinding('thread-1', 'qq')
+    })
+
+    expect(await screen.findByText(/482913/)).toBeInTheDocument()
   })
 })

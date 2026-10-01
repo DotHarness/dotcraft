@@ -5,6 +5,7 @@ import { useThreadStore } from '../../stores/threadStore'
 import { selectLatestCreatePlanTurnId, useConversationStore, type PendingApproval } from '../../stores/conversationStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useChannelBindingStore } from '../../stores/channelBindingStore'
 import { ThreadHeader } from '../conversation/ThreadHeader'
 import { MessageStream } from '../conversation/MessageStream'
 import { InputComposer, type InputComposerSubmitPayload } from '../conversation/InputComposer'
@@ -87,6 +88,7 @@ export function ConversationPanel({
   const pendingThreadCreation = useUIStore((s) => s.pendingThreadCreation)
   const setPendingThreadCreation = useUIStore((s) => s.setPendingThreadCreation)
   const pendingWelcomeTurn = useUIStore((s) => s.pendingWelcomeTurn)
+  const hasPendingChannelBinding = useChannelBindingStore((s) => activeThreadId != null && s.pendingByThread[activeThreadId] != null)
   const protocolWorkspacePath = identityWorkspacePath || workspacePath
   const threadStateWorkspacePath = activeThread?.workspacePath || protocolWorkspacePath
   const activeEffectiveWorkspacePath =
@@ -185,7 +187,7 @@ export function ConversationPanel({
   }
 
   const threadName = thread.displayName ?? 'New conversation'
-  const hasContent = turns.length > 0 || turnStatus === 'running'
+  const hasContent = turns.length > 0 || turnStatus === 'running' || hasPendingChannelBinding
   const selectedConversationView = !isAgentBuilder && selectedConversationViewKey
     ? conversationViews.find((view) => view.contributionKey === selectedConversationViewKey) ?? null
     : null
