@@ -169,7 +169,7 @@ public static partial class SubAgentSessionControl
                                         && string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)
                                         && context.SessionService is IThreadForkToolBindingService forkBindingService
                                         && forkBindingService.TryForkThreadToolBindings(context.ParentThread.Id, childThread.Id);
-            if ((childThread.Turns.Count > 0 || materializedFork || inheritedToolBindings)
+            if ((childThread.Turns.Count > 0 || materializedFork || inheritedToolBindings || options.ChildCreated != null)
                 && context.SessionService is IThreadAgentRefreshService refreshService)
             {
                 await refreshService.RefreshThreadAgentAsync(childThread.Id, ct);

@@ -406,7 +406,10 @@ public sealed partial class DynamicWorkflowService
             ["phase"] = phase,
             ["schema"] = schema?.DeepClone()
         };
-        return $"Workflow task metadata:\n{header.ToJsonString()}\n\nTask:\n{prompt}";
+        var task = $"Workflow task metadata:\n{header.ToJsonString()}\n\nTask:\n{prompt}";
+        return schema == null
+            ? task
+            : task + "\n\nWhen done, call SubmitWorkflowResult exactly once with a result that matches `schema`. That call is your final answer; do not reply in prose instead.";
     }
 
     private async Task CleanupWorktreeAsync(ActiveRun active, SessionThread child, CancellationToken cancellationToken)

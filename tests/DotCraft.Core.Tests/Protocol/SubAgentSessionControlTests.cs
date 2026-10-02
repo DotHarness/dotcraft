@@ -112,6 +112,30 @@ public sealed class SubAgentSessionControlTests : IDisposable
     }
 
     [Fact]
+    public async Task SpawnAgent_WithChildCreated_RefreshesFreshChildToolsBeforeFirstTurn()
+    {
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "cli ok");
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync();
+
+        var result = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                ProfileName = "cli-run",
+                ForkTurns = "none",
+                ChildCreated = (_, _) => Task.CompletedTask
+            },
+            waitForCompletion: false,
+            coordinator,
+            CancellationToken.None);
+
+        Assert.Contains(result.ChildThreadId, _sessionService.RefreshedThreadAgents);
+    }
+
+    [Fact]
     public async Task SpawnAgent_RunsSubagentStartAndStopLifecycleHooks()
     {
         var events = new ConcurrentQueue<(HookEvent Event, string? AgentPath, string? Status)>();
