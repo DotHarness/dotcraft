@@ -108,7 +108,7 @@ describe('InputComposer custom command expansion', () => {
 
     installDesktopApiMock({
         settings: { get: settingsGet },
-        appServer: { sendRequest: appServerSendRequest },
+        appServer: { sendRequest: appServerSendRequest, onNotification: vi.fn(() => () => undefined) },
         workspace: { saveImageToTemp, getPathForFile },
         voice: undefined
       })
