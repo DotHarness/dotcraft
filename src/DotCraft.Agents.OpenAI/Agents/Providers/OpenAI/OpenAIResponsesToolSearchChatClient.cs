@@ -37,13 +37,15 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
     public OpenAIResponsesToolSearchChatClient(
         ResponsesClient responsesClient,
         string model,
+        bool supportsFreeformTools,
         IModelRuntimeDiagnostics? traceCollector = null)
         : this(
             responsesClient,
             NormalizeRequiredModel(model),
             CreateInnerClient(responsesClient, model),
             CreateTransport(responsesClient),
-            traceCollector)
+            traceCollector,
+            supportsFreeformTools)
     {
     }
 
@@ -52,13 +54,14 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         string model,
         IChatClient innerClient,
         IResponsesToolSearchTransport toolSearchTransport,
-        IModelRuntimeDiagnostics? traceCollector = null)
+        IModelRuntimeDiagnostics? traceCollector = null,
+        bool supportsFreeformTools = true)
         : this(
             responsesClient,
             model,
             innerClient,
             traceCollector,
-            CreateStandardRequestSender(toolSearchTransport))
+            CreateStandardRequestSender(toolSearchTransport, supportsFreeformTools))
     {
     }
 
@@ -126,10 +129,11 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         sdkUpdates = reasoning.TrackAsync(sdkUpdates, cancellationToken);
         if (providerHistory != null)
             sdkUpdates = CaptureProviderHistoryAsync(sdkUpdates, providerHistory, cancellationToken);
-        var functionCallNamespaces = new Dictionary<string, string>(StringComparer.Ordinal);
+        var callState = new ResponsesToolSearchMapper.ResponsesOutputCallState(
+            ResponsesToolSearchMapper.CollectFreeformParameters(preparedOptions));
         var normalizedUpdates = ResponsesToolSearchMapper.NormalizeToolSearchCalls(
             sdkUpdates,
-            functionCallNamespaces,
+            callState,
             cancellationToken);
 
         await foreach (var update in normalizedUpdates
@@ -146,7 +150,7 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
                 }
             }
             reasoning.Apply(update);
-            ResponsesToolSearchMapper.ApplyRecordedFunctionCallNamespaces(update, functionCallNamespaces);
+            ResponsesToolSearchMapper.ApplyRecordedFunctionCallState(update, callState);
             yield return SuppressProviderContinuation(update);
         }
     }
@@ -193,7 +197,8 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
     }
 
     private static ResponsesRequestSender CreateStandardRequestSender(
-        IResponsesToolSearchTransport transport)
+        IResponsesToolSearchTransport transport,
+        bool supportsFreeformTools)
     {
         ArgumentNullException.ThrowIfNull(transport);
         return (model, messages, options, canonicalInput, canonicalItemIdentity, rawRepresentationClient,
@@ -205,7 +210,8 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
                 options,
                 canonicalInput: canonicalInput,
                 canonicalItemIdentity: canonicalItemIdentity,
-                rawRepresentationClient: rawRepresentationClient);
+                rawRepresentationClient: rawRepresentationClient,
+                supportsFreeformTools: supportsFreeformTools);
             return new PreparedResponseStream(
                 request.Options,
                 transport.CreateResponseStreamingAsync(request.Options, cancellationToken),

@@ -195,7 +195,7 @@ public sealed class ModelServiceTransportTests
         public Task<IReadOnlyList<ModelServiceProvider>> GetProvidersAsync(ModelServiceCaller caller, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ModelServiceProvider>>([
                 new(new RemoteModelProvider("primary", "Primary", ModelProviderProtocols.OpenAIResponses,
-                    "https://upstream.example/v1", "apiKey", true, new ProviderAuthenticationStatus(true)),
+                    "https://upstream.example/v1", "apiKey", true, true, new ProviderAuthenticationStatus(true)),
                     new EffectiveModelRuntime("primary", "", ModelProviderProtocols.OpenAIResponses, "Primary", "upstream-secret",
                         "https://upstream.example/v1", 30, null, ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses)))
             ]);

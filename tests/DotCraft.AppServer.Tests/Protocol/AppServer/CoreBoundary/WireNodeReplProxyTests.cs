@@ -5,6 +5,7 @@ using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Sessions.Wire;
 using DotCraft.Tools;
+using DotCraft.Utilities;
 using Xunit;
 
 namespace DotCraft.Core.Tests.Protocol.AppServer;

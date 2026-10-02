@@ -33,6 +33,10 @@ public sealed class SessionItem
 
     public DateTimeOffset? CompletedAt { get; set; }
 
+    public string? InvocationOrigin { get; set; }
+
+    public bool FreeformCall { get; set; }
+
     // Typed payload accessors
 
     [JsonIgnore]

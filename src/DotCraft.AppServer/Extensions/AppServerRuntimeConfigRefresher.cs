@@ -104,6 +104,15 @@ internal sealed class AppServerRuntimeConfigRefresher(
         current.Provider = merged.Provider;
     }
 
+    public void RefreshCurrentCodeModeConfig()
+    {
+        if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
+            return;
+
+        appConfigMonitor.Current.Tools.CodeMode.Mode =
+            LoadMergedWorkspaceConfig(useGlobalFallback: true).Tools.CodeMode.Mode;
+    }
+
     public void RefreshCurrentReasoningConfig()
     {
         if (appConfigMonitor == null)

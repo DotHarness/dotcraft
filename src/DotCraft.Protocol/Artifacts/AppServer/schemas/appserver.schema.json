@@ -20753,6 +20753,16 @@
             }
           ]
         },
+        "toolsCodeModeMode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "toolsImageGenerationEnabled": {
           "anyOf": [
             {
@@ -20907,6 +20917,16 @@
           "anyOf": [
             {
               "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toolsCodeModeMode": {
+          "anyOf": [
+            {
+              "type": "string"
             },
             {
               "type": "null"

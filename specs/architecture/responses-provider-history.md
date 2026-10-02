@@ -101,7 +101,7 @@ that canonical history changed.
 The existing Responses mapper remains authoritative for converting local MEAI content, assigning
 locally generated item IDs, and sanitizing invalid IDs. A correlation index derived from canonical
 calls is supplied when mapping a tail so a result for a native tool-search call remains a
-`tool_search_output`.
+`tool_search_output` and a result for a `custom_tool_call` remains a `custom_tool_call_output`.
 
 Instructions, tools, reasoning configuration, `prompt_cache_key`, OAuth body shaping, and headers
 continue to use their existing request paths. Canonical history changes only the `input` array.
@@ -117,7 +117,7 @@ An explicitly configured provider-native tool choice takes precedence. No `tool_
 when the request has no tools.
 
 Before transport, request-local normalization supplies a deterministic `aborted` output for a
-client function/tool-search call that has no output and removes orphan client outputs. Synthetic
+client function, custom, or tool-search call that has no output and removes orphan client outputs. Synthetic
 items are not persisted; their IDs are derived from the source call item ID so repeated sampling
 has the same byte shape.
 

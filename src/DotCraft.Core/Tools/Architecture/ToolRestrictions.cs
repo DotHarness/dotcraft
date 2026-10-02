@@ -174,7 +174,8 @@ public static class ToolRestrictionApplier
             definition.Presentation,
             definition.Provenance,
             definition.NamespaceDescription,
-            definition.PolicyScope);
+            definition.PolicyScope,
+            definition.FreeformInput);
 
     private static bool IsNarrower(ToolExposure requested, ToolExposure current, ToolRegistration registration) =>
         Visibility(requested) < Visibility(current)

@@ -7083,6 +7083,10 @@ public sealed class WorkspaceConfigUpdateParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool?> SkillsSelfLearningEnabled { get; init; }
 
+    [JsonPropertyName("toolsCodeModeMode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ToolsCodeModeMode { get; init; }
+
     [JsonPropertyName("toolsImageGenerationEnabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool?> ToolsImageGenerationEnabled { get; init; }
@@ -7147,6 +7151,10 @@ public sealed class WorkspaceConfigUpdateResult : ExtensibleJsonObject
     [JsonPropertyName("skillsSelfLearningEnabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool?> SkillsSelfLearningEnabled { get; init; }
+
+    [JsonPropertyName("toolsCodeModeMode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ToolsCodeModeMode { get; init; }
 
     [JsonPropertyName("toolsImageGenerationEnabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

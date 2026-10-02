@@ -490,9 +490,9 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
         await _appendAsync(payload, cancellationToken).ConfigureAwait(false);
     }
 
-    private Dictionary<string, string> BuildCallCorrelationIndex()
+    private Dictionary<string, ResponsesToolSearchMapper.ResponsesCallReference> BuildCallCorrelationIndex()
     {
-        var correlations = new Dictionary<string, string>(StringComparer.Ordinal);
+        var correlations = new Dictionary<string, ResponsesToolSearchMapper.ResponsesCallReference>(StringComparer.Ordinal);
         foreach (var runtimeEntry in _entries)
         {
             var item = runtimeEntry.Entry.Item;
@@ -514,7 +514,11 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
                     ? nameElement.GetString()
                     : null;
             if (!string.IsNullOrWhiteSpace(name))
-                correlations[callIdElement.GetString()!] = name!;
+            {
+                correlations[callIdElement.GetString()!] = new ResponsesToolSearchMapper.ResponsesCallReference(
+                    name!,
+                    string.Equals(type, "custom_tool_call", StringComparison.Ordinal));
+            }
         }
         return correlations;
     }
@@ -534,8 +538,10 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
     {
         var functionCalls = new HashSet<string>(StringComparer.Ordinal);
         var toolSearchCalls = new HashSet<string>(StringComparer.Ordinal);
+        var customCalls = new HashSet<string>(StringComparer.Ordinal);
         var functionOutputs = new HashSet<string>(StringComparer.Ordinal);
         var toolSearchOutputs = new HashSet<string>(StringComparer.Ordinal);
+        var customOutputs = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var item in input.OfType<JsonObject>())
         {
@@ -552,8 +558,14 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
                     !string.Equals(ReadString(item, "execution"), "server", StringComparison.Ordinal):
                     toolSearchCalls.Add(callId);
                     break;
+                case "custom_tool_call":
+                    customCalls.Add(callId);
+                    break;
                 case "function_call_output":
                     functionOutputs.Add(callId);
+                    break;
+                case "custom_tool_call_output":
+                    customOutputs.Add(callId);
                     break;
                 case "tool_search_output" when
                     !string.Equals(ReadString(item, "execution"), "server", StringComparison.Ordinal):
@@ -584,6 +596,12 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
                 input.RemoveAt(i);
                 continue;
             }
+            if (string.Equals(type, "custom_tool_call_output", StringComparison.Ordinal)
+                && !customCalls.Contains(callId))
+            {
+                input.RemoveAt(i);
+                continue;
+            }
 
             if (string.Equals(type, "function_call", StringComparison.Ordinal)
                 && !functionOutputs.Contains(callId))
@@ -592,6 +610,16 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
                 {
                     ["type"] = "function_call_output",
                     ["id"] = CreateSyntheticOutputId("fco", ReadString(item, "id"), callId),
+                    ["call_id"] = callId,
+                    ["output"] = "aborted"
+                });
+            }
+            else if (string.Equals(type, "custom_tool_call", StringComparison.Ordinal)
+                     && !customOutputs.Contains(callId))
+            {
+                input.Insert(i + 1, new JsonObject
+                {
+                    ["type"] = "custom_tool_call_output",
                     ["call_id"] = callId,
                     ["output"] = "aborted"
                 });

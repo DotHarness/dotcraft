@@ -34,6 +34,6 @@ internal static class RpcToolSchemaPostProcessor
         return new ToolDefinition(definition.Id, definition.Name, definition.Description,
             JsonSerializer.SerializeToElement(schema), definition.OutputSchema, definition.Annotations,
             definition.PolicyHints, definition.Presentation, definition.Provenance,
-            definition.NamespaceDescription, definition.PolicyScope);
+            definition.NamespaceDescription, definition.PolicyScope, definition.FreeformInput);
     }
 }

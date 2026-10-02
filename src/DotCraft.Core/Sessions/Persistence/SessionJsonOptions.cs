@@ -42,7 +42,9 @@ internal sealed class SessionItemConverter : JsonConverter<SessionItem>
             TurnId = root.GetStringOrEmpty("turnId"),
             Status = root.GetEnum<ItemStatus>("status"),
             CreatedAt = root.GetDateTimeOffset("createdAt"),
-            CompletedAt = root.GetNullableDateTimeOffset("completedAt")
+            CompletedAt = root.GetNullableDateTimeOffset("completedAt"),
+            InvocationOrigin = root.TryGetProperty("invocationOrigin", out var origin) ? origin.GetString() : null,
+            FreeformCall = root.TryGetProperty("freeformCall", out var freeform) && freeform.ValueKind == JsonValueKind.True
         };
 
         var itemType = root.GetEnum<ItemType>("type");
@@ -91,6 +93,10 @@ internal sealed class SessionItemConverter : JsonConverter<SessionItem>
             writer.WriteString("completedAt", value.CompletedAt.Value);
         else
             writer.WriteNull("completedAt");
+        if (value.InvocationOrigin is not null)
+            writer.WriteString("invocationOrigin", value.InvocationOrigin);
+        if (value.FreeformCall)
+            writer.WriteBoolean("freeformCall", true);
 
         writer.WritePropertyName("payload");
         if (value.Payload is null)

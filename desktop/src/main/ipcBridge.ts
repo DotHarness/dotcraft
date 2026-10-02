@@ -658,7 +658,10 @@ interface WorkspaceCoreConfigSnapshot {
   defaultApprovalPolicy: 'default' | 'autoApprove' | null
   toolsImageGenerationEnabled: boolean | null
   toolsImageGenerationProvider: string | null
+  toolsCodeModeMode: CodeModeMode | null
 }
+
+type CodeModeMode = 'off' | 'on' | 'only'
 
 function getCaseInsensitiveRecordValue(
   record: Record<string, unknown>,
@@ -735,6 +738,11 @@ function readToolsSection(record: Record<string, unknown>): Record<string, unkno
     : tools as Record<string, unknown>
 }
 
+function readCodeModeMode(tools: Record<string, unknown>): CodeModeMode | null {
+  const raw = readNestedString(tools, 'CodeMode', 'Mode')?.toLowerCase()
+  return raw === 'off' || raw === 'on' || raw === 'only' ? raw : null
+}
+
 function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
   return {
     providerId: null,
@@ -750,7 +758,8 @@ function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
     dreamsAutoApply: null,
     defaultApprovalPolicy: null,
     toolsImageGenerationEnabled: null,
-    toolsImageGenerationProvider: null
+    toolsImageGenerationProvider: null,
+    toolsCodeModeMode: null
   }
 }
 
@@ -774,7 +783,8 @@ function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapsho
     dreamsAutoApply: readNestedBoolean(parsed, 'Dreams', 'AutoApply'),
     defaultApprovalPolicy: readDefaultApprovalPolicy(parsed),
     toolsImageGenerationEnabled: readNestedBoolean(tools, 'ImageGeneration', 'Enabled'),
-    toolsImageGenerationProvider: readNestedString(tools, 'ImageGeneration', 'Provider')
+    toolsImageGenerationProvider: readNestedString(tools, 'ImageGeneration', 'Provider'),
+    toolsCodeModeMode: readCodeModeMode(tools)
   }
 }
 

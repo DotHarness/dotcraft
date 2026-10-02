@@ -19,7 +19,10 @@ describe('SettingsView workspace core readers', () => {
         dreamsInterval: null,
         dreamsThreadLookbackCount: null,
         dreamsAutoApply: null,
-        defaultApprovalPolicy: null
+        defaultApprovalPolicy: null,
+        toolsImageGenerationEnabled: null,
+        toolsImageGenerationProvider: null,
+        toolsCodeModeMode: null
       },
       userDefaults: {
         providerId: null,
@@ -33,7 +36,10 @@ describe('SettingsView workspace core readers', () => {
         dreamsInterval: null,
         dreamsThreadLookbackCount: null,
         dreamsAutoApply: null,
-        defaultApprovalPolicy: null
+        defaultApprovalPolicy: null,
+        toolsImageGenerationEnabled: null,
+        toolsImageGenerationProvider: null,
+        toolsCodeModeMode: null
       }
     })
   })
@@ -63,7 +69,8 @@ describe('SettingsView workspace core readers', () => {
         dreamsInterval: '1.00:00:00',
         dreamsThreadLookbackCount: 50,
         dreamsAutoApply: true,
-        defaultApprovalPolicy: 'autoApprove'
+        defaultApprovalPolicy: 'autoApprove',
+        toolsCodeModeMode: 'only'
       },
       userDefaults: {
         skillsSelfLearningEnabled: false,
@@ -72,7 +79,8 @@ describe('SettingsView workspace core readers', () => {
         dreamsInterval: '12:00:00',
         dreamsThreadLookbackCount: 20,
         dreamsAutoApply: false,
-        defaultApprovalPolicy: 'default'
+        defaultApprovalPolicy: 'default',
+        toolsCodeModeMode: 'sometimes'
       }
     })
 
@@ -93,7 +101,10 @@ describe('SettingsView workspace core readers', () => {
         dreamsInterval: '24:00:00',
         dreamsThreadLookbackCount: 50,
         dreamsAutoApply: true,
-        defaultApprovalPolicy: 'autoApprove'
+        defaultApprovalPolicy: 'autoApprove',
+        toolsImageGenerationEnabled: null,
+        toolsImageGenerationProvider: null,
+        toolsCodeModeMode: 'only'
       },
       userDefaults: {
         providerId: null,
@@ -107,7 +118,10 @@ describe('SettingsView workspace core readers', () => {
         dreamsInterval: '12:00:00',
         dreamsThreadLookbackCount: 20,
         dreamsAutoApply: false,
-        defaultApprovalPolicy: 'default'
+        defaultApprovalPolicy: 'default',
+        toolsImageGenerationEnabled: null,
+        toolsImageGenerationProvider: null,
+        toolsCodeModeMode: null
       }
     })
   })

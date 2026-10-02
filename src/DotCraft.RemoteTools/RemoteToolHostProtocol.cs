@@ -157,7 +157,8 @@ internal sealed record RemoteInvocationMeta(
     int MaxResultChars,
     int SpillPreviewLines,
     string? PreparedBinding = null,
-    long? SnapshotRevision = null);
+    long? SnapshotRevision = null,
+    string? OriginKind = null);
 
 internal sealed record RemoteToolArtifactMeta(string Path, long CharacterCount);
 

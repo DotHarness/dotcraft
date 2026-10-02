@@ -1,8 +1,8 @@
-using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
+using DotCraft.Scripting;
 using DotCraft.Sessions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -22,29 +22,36 @@ public sealed partial class DynamicWorkflowService
         try
         {
             await UpdateStateAsync(active, state => state with { StartedAt = DateTimeOffset.UtcNow }, token).ConfigureAwait(false);
-            var startInfo = CreateWorkerStartInfo(workspacePath);
-            active.Worker = processFactory.Start(startInfo);
+            active.Worker = ScriptWorkerProcess.Start(processFactory, "workflow", workspacePath);
             var process = active.Worker.Process;
-            await using var connection = new WorkflowProtocolConnection(
+            await using var connection = new ScriptProtocolConnection(
                 process.StandardOutput.BaseStream,
                 process.StandardInput.BaseStream,
                 active.State.Limits.MaxFrameBytes);
-            stderrTask = DrainStderrAsync(active, process, token);
-            rssTask = MonitorRssAsync(active, process, token);
-            await connection.WriteAsync(active.State.RunId, active.State.AttemptId, "initialize", new JsonObject
+            stderrTask = ScriptWorkerProcess.DrainStderrAsync(
+                process,
+                active.State.Limits.MaxStderrBytes,
+                (line, ct) => JournalAsync(active, "worker.stderr", new JsonObject { ["text"] = line }, ct),
+                token);
+            rssTask = ScriptWorkerProcess.MonitorRssAsync(process, active.State.Limits.MaxWorkerRssBytes, () =>
+            {
+                active.CancellationStatus = DynamicWorkflowStatuses.Failed;
+                active.CancellationError = "Workflow worker exceeded its RSS limit.";
+                active.Cancellation.Cancel();
+            }, token);
+            await connection.WriteAsync(WorkerScope(active.State), "initialize", new JsonObject
             {
                 ["script"] = script,
                 ["scriptHash"] = active.State.ScriptHash,
                 ["args"] = active.State.Args?.DeepClone(),
                 ["cwd"] = workspacePath,
-                ["limits"] = JsonSerializer.SerializeToNode(active.State.Limits, WorkflowProtocolConnection.JsonOptions),
+                ["limits"] = JsonSerializer.SerializeToNode(active.State.Limits, ScriptProtocolConnection.JsonOptions),
                 ["budget"] = BuildBudget(active)
             }, token).ConfigureAwait(false);
             using var workerCancellationRegistration = active.Cancellation.Token.Register(() =>
             {
                 _ = connection.WriteAsync(
-                    active.State.RunId,
-                    active.State.AttemptId,
+                    WorkerScope(active.State),
                     "cancel",
                     null,
                     CancellationToken.None);
@@ -54,9 +61,9 @@ public sealed partial class DynamicWorkflowService
             while (!token.IsCancellationRequested)
             {
                 var frame = await connection.ReadAsync(token).ConfigureAwait(false)
-                    ?? throw new WorkflowProtocolException("worker_eof", "Workflow worker exited without a terminal frame.");
+                    ?? throw new ScriptProtocolException("worker_eof", "Workflow worker exited without a terminal frame.");
                 ValidateIdentity(active.State, frame);
-                if (terminalSeen) throw new WorkflowProtocolException("duplicate_terminal", "Worker sent a message after its terminal frame.");
+                if (terminalSeen) throw new ScriptProtocolException("duplicate_terminal", "Worker sent a message after its terminal frame.");
                 switch (frame.Type)
                 {
                     case "ready":
@@ -71,7 +78,7 @@ public sealed partial class DynamicWorkflowService
                         break;
                     case "agent.request":
                         var request = frame.Payload as JsonObject
-                            ?? throw new WorkflowProtocolException("agent_request_invalid", "Agent request payload must be an object.");
+                            ?? throw new ScriptProtocolException("agent_request_invalid", "Agent request payload must be an object.");
                         var task = HandleAgentRequestAsync(active, connection, request, token);
                         agentTasks.Add(task);
                         break;
@@ -88,7 +95,7 @@ public sealed partial class DynamicWorkflowService
                         await CompleteAsync(active, DynamicWorkflowStatuses.Failed, null, message, notify: true).ConfigureAwait(false);
                         break;
                     default:
-                        throw new WorkflowProtocolException("protocol_message_invalid", $"Unexpected worker message '{frame.Type}'.");
+                        throw new ScriptProtocolException("protocol_message_invalid", $"Unexpected worker message '{frame.Type}'.");
                 }
                 if (terminalSeen) break;
             }
@@ -156,7 +163,7 @@ public sealed partial class DynamicWorkflowService
 
     private async Task HandleAgentRequestAsync(
         ActiveRun active,
-        WorkflowProtocolConnection connection,
+        ScriptProtocolConnection connection,
         JsonObject request,
         CancellationToken cancellationToken)
     {
@@ -164,16 +171,16 @@ public sealed partial class DynamicWorkflowService
         try
         {
             operationId = request["operationId"]?.GetValue<string>()
-                ?? throw new WorkflowProtocolException("agent_request_invalid", "Agent operation id is required.");
+                ?? throw new ScriptProtocolException("agent_request_invalid", "Agent operation id is required.");
             var result = await ExecuteAgentAsync(active, operationId, request, cancellationToken).ConfigureAwait(false);
-            await connection.WriteAsync(active.State.RunId, active.State.AttemptId, "agent.result", new JsonObject
+            await connection.WriteAsync(WorkerScope(active.State), "agent.result", new JsonObject
             {
                 ["operationId"] = operationId,
                 ["result"] = result
             }, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception ex) when (ex is WorkflowProtocolException or WorkflowRunFatalException)
+        catch (Exception ex) when (ex is ScriptProtocolException or WorkflowRunFatalException)
         {
             active.CancellationStatus = DynamicWorkflowStatuses.Failed;
             active.CancellationError = ex.Message;
@@ -183,7 +190,7 @@ public sealed partial class DynamicWorkflowService
         catch (Exception ex)
         {
             await JournalAsync(active, "agent.failed", new JsonObject { ["operationId"] = operationId, ["error"] = ex.Message }, cancellationToken).ConfigureAwait(false);
-            await connection.WriteAsync(active.State.RunId, active.State.AttemptId, "agent.result", new JsonObject
+            await connection.WriteAsync(WorkerScope(active.State), "agent.result", new JsonObject
             {
                 ["operationId"] = operationId,
                 ["result"] = null
@@ -583,11 +590,12 @@ public sealed partial class DynamicWorkflowService
         ["outputTokens"] = active.State.OutputTokens
     };
 
-    private static void ValidateIdentity(DynamicWorkflowRun run, WorkflowProtocolFrame frame)
+    private static string WorkerScope(DynamicWorkflowRun run) => $"{run.RunId}/{run.AttemptId}";
+
+    private static void ValidateIdentity(DynamicWorkflowRun run, ScriptProtocolFrame frame)
     {
-        if (!string.Equals(run.RunId, frame.RunId, StringComparison.Ordinal)
-            || !string.Equals(run.AttemptId, frame.AttemptId, StringComparison.Ordinal))
-            throw new WorkflowProtocolException("protocol_identity_mismatch", "Worker frame belongs to another run or attempt.");
+        if (!string.Equals(WorkerScope(run), frame.Scope, StringComparison.Ordinal))
+            throw new ScriptProtocolException("protocol_identity_mismatch", "Worker frame belongs to another run or attempt.");
     }
 
     private static JsonNode? BoundPayload(JsonNode? payload, int maxBytes)
@@ -595,33 +603,6 @@ public sealed partial class DynamicWorkflowService
         var json = payload?.ToJsonString() ?? "null";
         if (Encoding.UTF8.GetByteCount(json) <= maxBytes) return payload?.DeepClone();
         return new JsonObject { ["truncated"] = true, ["preview"] = json[..Math.Min(json.Length, 1024)] };
-    }
-
-    private async Task DrainStderrAsync(ActiveRun active, Process process, CancellationToken cancellationToken)
-    {
-        var total = 0;
-        while (!cancellationToken.IsCancellationRequested && await process.StandardError.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
-        {
-            var bytes = Encoding.UTF8.GetByteCount(line);
-            if (total + bytes > active.State.Limits.MaxStderrBytes) continue;
-            total += bytes;
-            await JournalAsync(active, "worker.stderr", new JsonObject { ["text"] = line }, cancellationToken).ConfigureAwait(false);
-        }
-    }
-
-    private static async Task MonitorRssAsync(ActiveRun active, Process process, CancellationToken cancellationToken)
-    {
-        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(500));
-        while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
-        {
-            if (process.HasExited) return;
-            process.Refresh();
-            if (process.WorkingSet64 <= active.State.Limits.MaxWorkerRssBytes) continue;
-            active.CancellationStatus = DynamicWorkflowStatuses.Failed;
-            active.CancellationError = "Workflow worker exceeded its RSS limit.";
-            active.Cancellation.Cancel();
-            return;
-        }
     }
 
     private sealed class WorkflowRunFatalException(string message) : Exception(message);

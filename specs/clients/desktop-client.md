@@ -481,6 +481,10 @@ The latest successful Dynamic Workflow launch in a Turn is one such durable resu
 outside the collapsed summary, before the Turn's final assistant message. Failed Workflow launch
 attempts remain ordinary collapsible tool history.
 
+A scripted tool call (`exec`) and its result are not rendered, and the Desktop pet does not report
+them as activity. The calls the script makes render as ordinary items in time order; see
+[Code Mode Section 10](../features/code-mode.md#10-session-projection-and-presentation).
+
 #### 5.8.1 Trusted Local Renderers
 
 Desktop consumes the exact `PresentationId` projected by the server. An active Desktop Plugin renderer for that id takes precedence, followed by the optimized Core renderer and generic tool card. Tool payloads never provide module paths or executable code, and an unavailable id falls back without changing tool execution authority.

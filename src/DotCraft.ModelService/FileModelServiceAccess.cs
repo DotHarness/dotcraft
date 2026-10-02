@@ -46,7 +46,7 @@ public sealed class FileModelServiceAccess : IModelServiceAccess
                     AccessTokenExpiresAt: status.AccessTokenExpiresAt);
             providers.Add(new ModelServiceProvider(
                 new RemoteModelProvider(id, runtime.DisplayName, runtime.Protocol, runtime.EndPoint, runtime.AuthMethod,
-                    runtime.SupportsImageGeneration, authentication, runtime.MaxOutputTokens, runtime.NetworkTimeoutSeconds),
+                    runtime.SupportsImageGeneration, runtime.SupportsFreeformTools, authentication, runtime.MaxOutputTokens, runtime.NetworkTimeoutSeconds),
                 runtime, runtime.IsChatGptOAuth ? _authentication : null));
         }
         return Task.FromResult<IReadOnlyList<ModelServiceProvider>>(providers);

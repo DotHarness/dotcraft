@@ -1,3 +1,5 @@
+using System.Text.Json.Nodes;
+using DotCraft.GeneratedTools.Core;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
@@ -77,6 +79,36 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
 
         Assert.Contains("fake-output", result.Content);
         Assert.Equal(command, Assert.Single(terminals.StartRequests).Command);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("mcpApp")]
+    [InlineData(ToolInvocationOrigin.CodeModeKind)]
+    public async Task Exec_ReturnsTheCommandObjectOnlyToCodeModeCalls(string? originKind)
+    {
+        var tools = new ShellTools(_tempDir, new FakeBackgroundTerminalService("fake-output", exitCode: 3));
+        var runtime = new AIFunctionToolRuntime(GeneratedToolFunctions.ShellTools_Exec(tools));
+        var context = new ToolInvocationContext(
+            "thread", "turn", "call", ToolInvocationAudience.Model, new ToolName(null, "Exec"),
+            new ToolDefinitionId(ToolSourceKind.CoreNative, "core-native", new SourceToolId("Exec")),
+            new RuntimeBindingId("exec"), 1, DateTimeOffset.UtcNow,
+            originKind is null ? null : new ToolInvocationOrigin(originKind, "call_exec"));
+
+        var result = await runtime.InvokeAsync(context, new JsonObject { ["command"] = "echo ok" });
+
+        Assert.True(result.Success, result.Error?.Message);
+        Assert.Contains("fake-output", result.Content);
+        if (originKind != ToolInvocationOrigin.CodeModeKind)
+        {
+            Assert.Null(result.StructuredContent);
+            return;
+        }
+        var command = JsonNode.Parse(result.StructuredContent!.Value.GetRawText())!;
+        Assert.Equal("fake-output", command["output"]!.GetValue<string>());
+        Assert.Equal(3, command["exitCode"]!.GetValue<int>());
+        Assert.False(command["truncated"]!.GetValue<bool>());
+        Assert.Null(command["outputPath"]);
     }
 
     [Theory]

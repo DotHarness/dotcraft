@@ -160,7 +160,7 @@ Host-owned tools that start external work MUST pass the invocation cancellation 
 
 MCP input schemas are preserved as declared and follow the MCP JSON Schema contract. The Host MUST NOT apply the restricted Plugin/Runtime Dynamic schema validator to MCP arguments or reject valid composition and reference keywords before dispatch. Server-reported protocol and tool-execution input errors remain normal terminal MCP results. Oversized model-visible text is projected as a bounded preview without changing a successful source result into a failure. Raw MCP content, structured content, and metadata use an independent bounded persistence projection.
 
-Image generation is the Core Native tool `image_gen.imagegen`, dispatched through the common pipeline like any other local tool. Image requests go to the image provider: `Tools.ImageGeneration.Provider` when set, otherwise the conversation's effective provider; a configured provider is resolved with `Tools.ImageGeneration.Model` as its model. Planning publishes the tool only when `Tools.ImageGeneration.Enabled` is on and the image provider resolves, uses an OpenAI protocol, has `SupportsImageGeneration`, and has usable credentials: ChatGPT OAuth, model-service routing, or a non-empty API key. A configured provider that is missing or fails these checks withholds the tool; the conversation provider is never used as a fallback. The conversation provider's protocol does not matter, since the tool projects like any other namespaced tool. Only when the conversation provider signs in through the OAuth backend (`IsChatGptOAuth`), which reserves this name and input schema, does the definition carry `dotcraft/reservedSchema`, which sends the schema verbatim with `strict: false`; on every other conversation provider the schema passes through the normal sanitizer and `strict` stays unset. `SupportsImageGeneration` defaults to on for ChatGPT OAuth and for API-key providers on the official OpenAI endpoint, and to off for other endpoints. The model-visible arguments are `prompt`, optional `transparent_background`, and at most one of `referenced_image_paths` or `num_last_images_to_include`, each limited by `Tools.ImageGeneration.MaxReferenceImages`; unknown arguments are rejected. The runtime sends one JSON request to the provider's base endpoint: `images/generations`, or `images/edits` with the reference images as data URLs. Every request carries the image Turn id header and the `originator` header; the backend image request id from the response headers and the image's `generation_id` are kept on the `ImageGeneration` item, and the request id is kept on failures too. Paths are read through the file access guard; on a remote route they are read through `dotcraft/remoteToolHost/images/read`, which applies the Host's `ReadFile` authorization. Recent images are taken newest-first from user input, tool output images, and earlier generated images, then sent in conversation order. A successful result saves the PNG under the thread's generated-images directory, or through the captured remote route, and returns the image plus a saved-path hint of at most 1024 bytes as model content; the hint is omitted when saving fails. Request and API failures, including usage limits, are returned to the model as error text. Plan mode does not restrict the tool.
+Image generation is the Core Native tool `image_gen.imagegen`, dispatched through the common pipeline like any other local tool. Image requests go to the image provider: `Tools.ImageGeneration.Provider` when set, otherwise the conversation's effective provider; a configured provider is resolved with `Tools.ImageGeneration.Model` as its model. Planning publishes the tool only when `Tools.ImageGeneration.Enabled` is on and the image provider resolves, uses an OpenAI protocol, has `SupportsImageGeneration`, and has usable credentials: ChatGPT OAuth, model-service routing, or a non-empty API key. A configured provider that is missing or fails these checks withholds the tool; the conversation provider is never used as a fallback. The conversation provider's protocol does not matter, since the tool projects like any other namespaced tool. Only when the conversation provider signs in through the OAuth backend (`IsChatGptOAuth`), which reserves this name and input schema, does the definition carry `dotcraft/reservedSchema`, which sends the schema verbatim with `strict: false`; on every other conversation provider the schema passes through the normal sanitizer and `strict` stays unset. `SupportsImageGeneration` defaults to on for ChatGPT OAuth and for API-key providers on the official OpenAI endpoint, and to off for other endpoints; `SupportsFreeformTools` (§6.1) is a separate provider field with the same default rule. The model-visible arguments are `prompt`, optional `transparent_background`, and at most one of `referenced_image_paths` or `num_last_images_to_include`, each limited by `Tools.ImageGeneration.MaxReferenceImages`; unknown arguments are rejected. The runtime sends one JSON request to the provider's base endpoint: `images/generations`, or `images/edits` with the reference images as data URLs. Every request carries the image Turn id header and the `originator` header; the backend image request id from the response headers and the image's `generation_id` are kept on the `ImageGeneration` item, and the request id is kept on failures too. Paths are read through the file access guard; on a remote route they are read through `dotcraft/remoteToolHost/images/read`, which applies the Host's `ReadFile` authorization. Recent images are taken newest-first from user input, tool output images, and earlier generated images, then sent in conversation order. A successful result saves the PNG under the thread's generated-images directory, or through the captured remote route, and returns the image plus a saved-path hint of at most 1024 bytes as model content; the hint is omitted when saving fails. Request and API failures, including usage limits, are returned to the model as error text. Plan mode does not restrict the tool.
 
 ### 5.6 Presentation
 
@@ -213,6 +213,39 @@ Provider projection follows the provider's native identity shape:
 A provider that forwards a call elsewhere projects nothing itself, so the composite identity has to travel as data. The declaration it sends carries `ToolName(namespace, name)` and `ProviderFlatName`, and whatever rebuilds it at the far end presents the same identity to the real provider. A rebuilt declaration is never invoked where it was rebuilt; the tool runs where it was declared.
 
 Provider/model call identifiers, canonical `ToolName`, `ProviderFlatName`, source-routing identities, and Session item identifiers are different identities. They MUST be stored and projected separately and MUST survive resume, fork, compaction, and history reconstruction without being substituted for, parsed from, or regenerated from one another.
+
+### 6.1 Freeform input
+
+A definition MAY declare a freeform input: a raw string constrained by a grammar (syntax and definition
+text), plus the name of the one required string parameter that carries it. Its input schema MUST be an
+object with that parameter. Freeform input is a projection choice, not a separate identity or dispatch
+path: every call reaches the dispatcher as an object with that parameter.
+
+- Freeform support is a provider capability, `SupportsFreeformTools`, resolved with the provider
+  runtime. An explicit provider value wins; otherwise it is on for the `chatgptOAuth` auth method and for API-key
+  providers using an OpenAI protocol against the official OpenAI endpoint, and off for every other
+  endpoint, since Responses-compatible third-party endpoints may reject `custom` tools.
+- OpenAI Responses on a provider with freeform support projects the definition as a `custom` tool whose
+  `format` is `{ "type": "grammar", "syntax", "definition" }`, with no `parameters` or `strict`, inside
+  a namespace container when the name has a namespace. A `custom_tool_call` becomes a call whose
+  arguments are `{ <parameter>: input }` and is marked as a custom call; its result is sent as
+  `custom_tool_call_output` with `call_id` and `output`.
+- Every other protocol, and Responses on a provider without freeform support, projects the ordinary
+  function with the input schema.
+- Dispatch marks a call as a custom call when its registration declares freeform input, whatever
+  protocol or provider produced it, so live model history carries the mark. Projections without
+  freeform support ignore the mark and keep projecting the ordinary function call.
+- A standard `ToolCall` item records whether its dispatched registration declared freeform input. The
+  flag is persisted with the item and never projected to the wire. History rebuilt from Session items
+  marks a recorded freeform call as a custom call.
+- Replay on Responses with freeform support sends a call as `custom_tool_call` only when it is marked
+  as a custom call, and its output as `custom_tool_call_output`; otherwise both are function items.
+  Replay never consults the request's declared tools. Canonical provider history keeps the provider's
+  own items unchanged; a request to a Responses provider without freeform support sends its
+  `custom_tool_call` items as `function_call` items with arguments `{ <parameter>: input }` and their
+  outputs as `function_call_output`, taking the parameter from the request's freeform tools and
+  `input` for an undeclared name.
+- Schema sanitization never rewrites a freeform definition.
 
 ## 7. Core contracts
 
@@ -390,6 +423,8 @@ Plugin invocations use the standard `ToolCall` and `ToolResult` items. Plugin pr
 Items MUST record canonical `ToolName`, deterministic `ProviderFlatName`, definition identity, runtime-binding identity and revisions where applicable, snapshot revision, `SourceToolId` or source provenance where safe, trusted presentation, call identifier, arguments, status, duration, success, stable failure data, and audience-safe result fields. MCP items additionally record the exact runtime server name used for routing. Sensitive credentials and raw connection state MUST NOT be persisted.
 
 History reconstruction MUST use the persisted canonical tuple for namespace-capable protocols and the persisted flat alias for flat-only protocols. It MUST NOT consult the current tool inventory, parse a flat alias, or regenerate an alias from current normalization rules. This makes replay independent of reconnects, renamed plugin runtimes, source ordering, and later tool-set changes.
+
+Items of a call dispatched with an invocation origin persist that origin's kind, which is never projected to the wire. History reconstruction MUST skip items whose origin is `codeMode`, because the model saw only the enclosing `exec` result; see [Code Mode](../features/code-mode.md).
 
 Session projection MUST be atomic per Turn, call identifier, and projection shape. Streaming argument observation and dispatcher lifecycle recording MUST upsert the same call item rather than create competing items. A specialized lifecycle item transitions in place from started to exactly one terminal state. A standard projection creates or updates exactly one `ToolCall` and appends exactly one terminal `ToolResult`. Cancellation, timeout, rejection, and execution failure race through the same terminal guard; no path may publish a second terminal result or leave an accepted registered call permanently started.
 

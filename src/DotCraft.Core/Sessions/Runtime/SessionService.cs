@@ -105,7 +105,8 @@ public sealed partial class SessionService(
     IEnumerable<ISubAgentGuidanceProvider>? subAgentGuidanceProviders = null,
     DotCraftPaths? dotCraftPaths = null,
     ILoggerFactory? loggerFactory = null,
-    IEnumerable<ISessionRuntimeRefresher>? runtimeRefreshers = null)
+    IEnumerable<ISessionRuntimeRefresher>? runtimeRefreshers = null,
+    IEnumerable<IToolSnapshotFinalizer>? toolSnapshotFinalizers = null)
     : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IThreadSystemNoticeService, IThreadForkToolBindingService, INativeSubAgentForkMaterializationService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
 {
     private sealed record PreparedContextTokenEstimate(
@@ -158,6 +159,8 @@ public sealed partial class SessionService(
         threadLifecycleObservers?.ToArray() ?? [];
     private readonly IReadOnlyList<ISubAgentGuidanceProvider> _subAgentGuidanceProviders =
         subAgentGuidanceProviders?.ToArray() ?? [];
+    private readonly IReadOnlyList<IToolSnapshotFinalizer> _toolSnapshotFinalizers =
+        toolSnapshotFinalizers?.ToArray() ?? [];
 
     internal int ThreadLoadGateCount
     {

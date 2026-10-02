@@ -134,6 +134,71 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
     }
 
     [Fact]
+    public async Task WorkspaceConfigUpdate_CodeMode_PersistsAppliesAndInvalidatesThreadAgents()
+    {
+        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+            new { toolsCodeModeMode = "Only" }));
+
+        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.CodeMode);
+        var result = Assert.Single(sent, d => d.RootElement.TryGetProperty("result", out _)).RootElement.GetProperty("result");
+        Assert.Equal("only", result.GetProperty("toolsCodeModeMode").GetString());
+        Assert.Equal(AppConfig.CodeModeSetting.Only, harness.Monitor.Current.Tools.CodeMode.Mode);
+        Assert.Equal(1, harness.Service.AgentInvalidationCount);
+        using (var config = JsonDocument.Parse(await File.ReadAllTextAsync(configPath)))
+            Assert.Equal("only", config.RootElement.GetProperty("Tools").GetProperty("CodeMode").GetProperty("Mode").GetString());
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+            new { toolsCodeModeMode = "only" }));
+        Assert.Equal(1, harness.Service.AgentInvalidationCount);
+
+        using var clearRequest = JsonDocument.Parse(
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 3,
+              "method": "workspace/config/update",
+              "params": { "toolsCodeModeMode": null }
+            }
+            """);
+        await harness.ExecuteRequestAsync(new AppServerIncomingMessage
+        {
+            JsonRpc = "2.0",
+            Id = clearRequest.RootElement.GetProperty("id").Clone(),
+            Method = DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+            Params = clearRequest.RootElement.GetProperty("params").Clone()
+        });
+
+        using var cleared = JsonDocument.Parse(await File.ReadAllTextAsync(configPath));
+        Assert.False(cleared.RootElement.TryGetProperty("Tools", out _));
+        Assert.Equal(AppConfig.CodeModeSetting.Off, harness.Monitor.Current.Tools.CodeMode.Mode);
+        Assert.Equal(2, harness.Service.AgentInvalidationCount);
+    }
+
+    [Fact]
+    public async Task WorkspaceConfigUpdate_CodeModeRejectsUnknownMode()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+            new { toolsCodeModeMode = "sometimes" }));
+
+        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
+        Assert.False(File.Exists(Path.Combine(_workspaceCraftPath, "config.json")));
+        Assert.Equal(0, harness.Service.AgentInvalidationCount);
+    }
+
+    [Fact]
     public async Task WorkspaceConfigUpdate_SkillsSelfLearningOnly_WritesConfigAndEmitsSkillsRegion()
     {
         var configPath = Path.Combine(_workspaceCraftPath, "config.json");

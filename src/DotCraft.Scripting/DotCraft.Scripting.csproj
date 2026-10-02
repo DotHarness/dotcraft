@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>DotCraft.Scripting</AssemblyName>
+    <RootNamespace>DotCraft.Scripting</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <DebugSymbols>False</DebugSymbols>
+    <DebugType>None</DebugType>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Jint" Version="4.15.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DotCraft.Core\DotCraft.Core.csproj" />
+  </ItemGroup>
+</Project>

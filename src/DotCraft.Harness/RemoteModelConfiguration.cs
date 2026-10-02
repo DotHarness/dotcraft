@@ -19,6 +19,7 @@ public static class RemoteModelConfiguration
             ChatGptAccountId = provider.Authentication.AccountId ?? "",
             ChatGptPlanType = provider.Authentication.PlanType ?? "",
             SupportsImageGeneration = provider.SupportsImageGeneration,
+            SupportsFreeformTools = provider.SupportsFreeformTools,
             MaxOutputTokens = provider.MaxOutputTokens,
             NetworkTimeoutSeconds = provider.NetworkTimeoutSeconds,
             RemoteAuthentication = provider.Authentication,

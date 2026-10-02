@@ -5059,6 +5059,7 @@ export interface WorkspaceConfigUpdateParams {
   providerPreferences?: Record<string, ModelPreference> | null;
   skillsIncludeSharedSkills?: boolean | null;
   skillsSelfLearningEnabled?: boolean | null;
+  toolsCodeModeMode?: string | null;
   toolsImageGenerationEnabled?: boolean | null;
   toolsImageGenerationProvider?: string | null;
   toolsLspEnabled?: boolean | null;
@@ -5078,6 +5079,7 @@ export interface WorkspaceConfigUpdateResult {
   providerPreferences?: Record<string, ModelPreference> | null;
   skillsIncludeSharedSkills?: boolean | null;
   skillsSelfLearningEnabled?: boolean | null;
+  toolsCodeModeMode?: string | null;
   toolsImageGenerationEnabled?: boolean | null;
   toolsImageGenerationProvider?: string | null;
   toolsLspEnabled?: boolean | null;

@@ -751,6 +751,12 @@ public sealed class AgentFactory : IAsyncDisposable
             return await invocation.Function.InvokeAsync(invocation.Arguments, cancellationToken).ConfigureAwait(false);
         }
 
+        if (snapshot.Registrations.TryGetValue(canonicalName.Value, out var registration)
+            && registration.Definition.FreeformInput is not null)
+        {
+            ProviderFunctionCallMetadata.MarkCustomToolCall(invocation.CallContent);
+        }
+
         var arguments = new JsonObject();
         foreach (var (key, value) in invocation.Arguments)
             arguments[key] = value is JsonNode node
@@ -839,6 +845,7 @@ public sealed class AgentFactory : IAsyncDisposable
         public bool RpcEligible => RemoteToolMetadata.IsRpcEligible(definition);
         public bool ReservedSchema => ReservedToolSchema.IsReserved(definition);
         public bool? Strict => ReservedSchema ? false : null;
+        public ToolFreeformInput? FreeformInput => definition.FreeformInput;
 
         protected override ValueTask<object?> InvokeCoreAsync(
             AIFunctionArguments arguments,

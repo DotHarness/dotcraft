@@ -117,6 +117,16 @@
         }
       ]
     },
+    "toolsCodeModeMode": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "toolsImageGenerationEnabled": {
       "anyOf": [
         {

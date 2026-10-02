@@ -2,19 +2,18 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace DotCraft.DynamicWorkflows;
+namespace DotCraft.Scripting;
 
-public sealed record WorkflowProtocolFrame
+public sealed record ScriptProtocolFrame
 {
     public int Version { get; init; } = 1;
-    public required string RunId { get; init; }
-    public required string AttemptId { get; init; }
     public required long Sequence { get; init; }
+    public required string Scope { get; init; }
     public required string Type { get; init; }
     public JsonNode? Payload { get; init; }
 }
 
-internal sealed class WorkflowProtocolConnection(
+public sealed class ScriptProtocolConnection(
     Stream input,
     Stream output,
     int maxFrameBytes) : IAsyncDisposable
@@ -25,32 +24,36 @@ internal sealed class WorkflowProtocolConnection(
     private long _outgoingSequence;
     private long _incomingSequence;
 
-    public async Task<WorkflowProtocolFrame?> ReadAsync(CancellationToken cancellationToken)
+    public static JsonSerializerOptions JsonOptions { get; } = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = false
+    };
+
+    public async Task<ScriptProtocolFrame?> ReadAsync(CancellationToken cancellationToken)
     {
         var line = await _reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
         if (line == null) return null;
         if (Encoding.UTF8.GetByteCount(line) > maxFrameBytes)
-            throw new WorkflowProtocolException("protocol_frame_too_large", "Workflow protocol frame exceeds the configured limit.");
-        WorkflowProtocolFrame frame;
+            throw new ScriptProtocolException("protocol_frame_too_large", "Script protocol frame exceeds the configured limit.");
+        ScriptProtocolFrame frame;
         try
         {
-            frame = JsonSerializer.Deserialize<WorkflowProtocolFrame>(line, JsonOptions)
+            frame = JsonSerializer.Deserialize<ScriptProtocolFrame>(line, JsonOptions)
                 ?? throw new JsonException("Frame was null.");
         }
         catch (JsonException ex)
         {
-            throw new WorkflowProtocolException("protocol_invalid_json", ex.Message, ex);
+            throw new ScriptProtocolException("protocol_invalid_json", ex.Message, ex);
         }
         if (frame.Version != 1)
-            throw new WorkflowProtocolException("protocol_version_unsupported", $"Unsupported workflow protocol version {frame.Version}.");
+            throw new ScriptProtocolException("protocol_version_unsupported", $"Unsupported script protocol version {frame.Version}.");
         if (frame.Sequence != ++_incomingSequence)
-            throw new WorkflowProtocolException("protocol_sequence_invalid", $"Expected sequence {_incomingSequence}, received {frame.Sequence}.");
+            throw new ScriptProtocolException("protocol_sequence_invalid", $"Expected sequence {_incomingSequence}, received {frame.Sequence}.");
         return frame;
     }
 
     public async Task WriteAsync(
-        string runId,
-        string attemptId,
+        string scope,
         string type,
         JsonNode? payload,
         CancellationToken cancellationToken)
@@ -58,17 +61,16 @@ internal sealed class WorkflowProtocolConnection(
         await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var frame = new WorkflowProtocolFrame
+            var frame = new ScriptProtocolFrame
             {
-                RunId = runId,
-                AttemptId = attemptId,
                 Sequence = ++_outgoingSequence,
+                Scope = scope,
                 Type = type,
                 Payload = payload?.DeepClone()
             };
             var json = JsonSerializer.Serialize(frame, JsonOptions);
             if (Encoding.UTF8.GetByteCount(json) > maxFrameBytes)
-                throw new WorkflowProtocolException("protocol_frame_too_large", "Workflow protocol frame exceeds the configured limit.");
+                throw new ScriptProtocolException("protocol_frame_too_large", "Script protocol frame exceeds the configured limit.");
             await _writer.WriteLineAsync(json.AsMemory(), cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -84,14 +86,9 @@ internal sealed class WorkflowProtocolConnection(
         _writer.Dispose();
         return ValueTask.CompletedTask;
     }
-
-    internal static JsonSerializerOptions JsonOptions { get; } = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = false
-    };
 }
 
-public sealed class WorkflowProtocolException(string code, string message, Exception? inner = null)
+public sealed class ScriptProtocolException(string code, string message, Exception? inner = null)
     : Exception(message, inner)
 {
     public string Code { get; } = code;

@@ -37,7 +37,7 @@ Both are read-only, so they are available in Plan mode. `config show --json` on 
 | `dotcraft tool-host setup \| workspace \| policy \| autostart \| status \| serve \| invite \| join \| revoke \| list \| test` | Remote Tool Host |
 | `dotcraft --version` | Version |
 
-Hidden, for tooling rather than users: `dotcraft model-catalog --provider-id <id>` and `dotcraft workflow-worker`.
+Hidden, for tooling rather than users: `dotcraft model-catalog --provider-id <id>` and `dotcraft script-worker <kind>`.
 
 There is no `dotcraft mcp` command and no top-level `dotcraft doctor`. MCP servers are configured in `McpServers` or through Desktop; troubleshooting is the `dotcraft-doctor` skill.
 

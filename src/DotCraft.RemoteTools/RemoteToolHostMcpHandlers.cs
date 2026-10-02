@@ -173,7 +173,11 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
                 registration.Binding.Id,
                 registration.Binding.Revision,
                 started,
-                new ToolInvocationOrigin("remoteToolHost", invocation.InvocationId),
+                new ToolInvocationOrigin(
+                    invocation.OriginKind == ToolInvocationOrigin.CodeModeKind
+                        ? ToolInvocationOrigin.CodeModeKind
+                        : "remoteToolHost",
+                    invocation.InvocationId),
                 workspacePath);
             var terminalsBeforeExec = string.Equals(toolName, "Exec", StringComparison.Ordinal)
                 ? await SnapshotTerminalIdsAsync(runtime, cancellationToken).ConfigureAwait(false)

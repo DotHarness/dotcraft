@@ -211,6 +211,8 @@ internal sealed class ThreadEventBroker(string threadId)
             Status = eventType == SessionEventType.ItemStarted ? ItemStatus.Started : item.Status,
             CreatedAt = item.CreatedAt,
             CompletedAt = eventType == SessionEventType.ItemStarted ? null : item.CompletedAt,
+            InvocationOrigin = item.InvocationOrigin,
+            FreeformCall = item.FreeformCall,
             Payload = item.Payload
         };
         Publish(new SessionEvent

@@ -33,7 +33,7 @@ internal static partial class ResponsesToolSearchMapper
         return parts.Count == 0 ? null : string.Join("\n\n", parts);
     }
 
-    private static JsonArray BuildTools(ChatOptions? options)
+    private static JsonArray BuildTools(ChatOptions? options, bool supportsFreeformTools)
     {
         var tools = new JsonArray();
         var namespaceToolArrays = new Dictionary<string, JsonArray>(StringComparer.Ordinal);
@@ -53,7 +53,7 @@ internal static partial class ResponsesToolSearchMapper
                 continue;
             }
 
-            var functionTool = CreateFunctionTool(tool, options);
+            var functionTool = CreateFunctionTool(tool, options, supportsFreeformTools);
             if (ToolNamespaceMetadataResolver.TryGet(tool, out var toolNamespace))
             {
                 ValidateProviderToolIdentity(toolNamespace, ReadJsonString(functionTool, "name")!);
@@ -87,14 +87,12 @@ internal static partial class ResponsesToolSearchMapper
         return tools;
     }
 
-    private static JsonObject CreateFunctionTool(AITool tool, ChatOptions? options)
+    private static JsonObject CreateFunctionTool(AITool tool, ChatOptions? options, bool supportsFreeformTools)
     {
-        var functionName = CanonicalToolIdentityMetadataResolver.TryGet(
-            tool,
-            out var canonicalName,
-            out _)
-            ? canonicalName.Name
-            : tool.Name;
+        var functionName = LocalToolName(tool);
+        if (supportsFreeformTools && tool is IOpenAIResponsesFunctionToolMetadata { FreeformInput: { } freeform })
+            return CreateCustomTool(functionName, tool.Description, freeform);
+
         var strict = tool is IOpenAIResponsesFunctionToolMetadata metadata
             ? metadata.Strict ?? IsStrict(options)
             : IsStrict(options);

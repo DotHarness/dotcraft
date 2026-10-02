@@ -11,6 +11,7 @@ public sealed record RemoteModelProvider(
     string Endpoint,
     string AuthMethod,
     bool SupportsImageGeneration,
+    bool SupportsFreeformTools,
     ProviderAuthenticationStatus Authentication,
     int? MaxOutputTokens = null,
     int NetworkTimeoutSeconds = 300,

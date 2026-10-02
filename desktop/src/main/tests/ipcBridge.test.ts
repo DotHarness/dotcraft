@@ -1520,7 +1520,7 @@ describe('registerIpcHandlers', () => {
     expect(onDisconnectDockerDeployment).toHaveBeenCalledWith('h1', 's1')
   })
 
-  it('workspace-config:get-core reads nested Skills.SelfLearning.Enabled values', async () => {
+  it('workspace-config:get-core reads nested Skills.SelfLearning.Enabled and Tools.CodeMode.Mode values', async () => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>()
     vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
       handlers.set(channel, handler as (...args: unknown[]) => unknown)
@@ -1536,6 +1536,11 @@ describe('registerIpcHandlers', () => {
             SelfLearning: {
               Enabled: true
             }
+          },
+          Tools: {
+            CodeMode: {
+              Mode: 'only'
+            }
           }
         })
       }
@@ -1546,6 +1551,11 @@ describe('registerIpcHandlers', () => {
         Skills: {
           SelfLearning: {
             Enabled: false
+          }
+        },
+        Tools: {
+          CodeMode: {
+            Mode: 'sometimes'
           }
         }
       })
@@ -1572,8 +1582,8 @@ describe('registerIpcHandlers', () => {
 
     const result = await handlers.get('workspace-config:get-core')?.({})
     expect(result).toMatchObject({
-      workspace: { skillsSelfLearningEnabled: true, memoryEnabled: true },
-      userDefaults: { skillsSelfLearningEnabled: false, memoryEnabled: false }
+      workspace: { skillsSelfLearningEnabled: true, memoryEnabled: true, toolsCodeModeMode: 'only' },
+      userDefaults: { skillsSelfLearningEnabled: false, memoryEnabled: false, toolsCodeModeMode: null }
     })
   })
 
@@ -1603,8 +1613,7 @@ describe('registerIpcHandlers', () => {
           'anthropic-main': {
             Model: 'claude-sonnet-4-5',
             Reasoning: { Enabled: false, Effort: 'Medium', Output: 'Full' },
-            Speed: 'Standard',
-            ContextWindow: { Mode: 'Default' }
+            Speed: 'Standard'
           }
         },
         Permissions: { DefaultApprovalPolicy: 'autoApprove' }
@@ -1615,8 +1624,7 @@ describe('registerIpcHandlers', () => {
           openai: {
             Model: 'gpt-5',
             Reasoning: { Enabled: false, Effort: 'Medium', Output: 'Full' },
-            Speed: 'Standard',
-            ContextWindow: { Mode: 'Default' }
+            Speed: 'Standard'
           }
         }
       })
@@ -1663,8 +1671,7 @@ describe('registerIpcHandlers', () => {
             'anthropic-main': {
               model: 'claude-sonnet-4-5',
               reasoning: { enabled: false, effort: 'medium', output: 'full' },
-              speed: 'standard',
-              contextWindow: { mode: 'default' }
+              speed: 'standard'
             }
           },
           defaultApprovalPolicy: 'autoApprove'
@@ -1675,8 +1682,7 @@ describe('registerIpcHandlers', () => {
             openai: {
               model: 'gpt-5',
               reasoning: { enabled: false, effort: 'medium', output: 'full' },
-              speed: 'standard',
-              contextWindow: { mode: 'default' }
+              speed: 'standard'
             }
           }
         }

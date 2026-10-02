@@ -154,6 +154,7 @@ public sealed record EffectiveModelRuntime(
     string AuthMethod = ModelProviderAuthMethods.ApiKey,
     string? ChatGptAccountId = null,
     bool SupportsImageGeneration = false,
+    bool SupportsFreeformTools = false,
     bool UseResponsesLite = false,
     string? ProviderStateDirectory = null,
     bool IsRemote = false,

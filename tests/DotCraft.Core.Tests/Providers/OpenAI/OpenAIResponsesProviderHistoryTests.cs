@@ -121,6 +121,110 @@ public sealed class OpenAIResponsesProviderHistoryTests
     }
 
     [Fact]
+    public async Task CanonicalHistory_ReplaysCustomToolCallAndOutputAcrossColdResume()
+    {
+        var records = new List<ThreadRolloutRecord>();
+        var context = CreateContext(
+            CreateIdentity(CreateTurn("turn_001")),
+            ProviderHistorySnapshot.Empty("window_1"),
+            coveredMessages: [],
+            records);
+        var firstMessages = new List<ChatMessage> { new(ChatRole.User, "run it") };
+        await context.PrepareInputAsync(firstMessages, options: null, CancellationToken.None);
+
+        var attemptId = context.BeginAttempt();
+        await context.AppendProviderOutputAsync(
+            ReadResponseItem(
+                """
+                {
+                  "type": "custom_tool_call",
+                  "id": "ctc_provider",
+                  "call_id": "call_exec",
+                  "name": "exec",
+                  "input": "// @exec: {\"timeout_ms\": 1000}\nreturn \"a\\\\b\";",
+                  "status": "completed"
+                }
+                """),
+            outputIndex: 0,
+            sequenceNumber: 1,
+            CancellationToken.None);
+        context.EndAttempt(attemptId);
+
+        var call = new FunctionCallContent(
+            "call_exec",
+            "exec",
+            new Dictionary<string, object?> { ["code"] = "// @exec: {\"timeout_ms\": 1000}\nreturn \"a\\\\b\";" });
+        ProviderFunctionCallMetadata.MarkCustomToolCall(call);
+        var assistantProjection = new ChatMessage(ChatRole.Assistant, [call]);
+        context.MarkProjectionCovered([.. firstMessages, assistantProjection]);
+        var secondMessages = new List<ChatMessage>(firstMessages)
+        {
+            assistantProjection,
+            new(ChatRole.Tool, [new FunctionResultContent("call_exec", "Script completed")])
+        };
+
+        var second = await context.PrepareInputAsync(secondMessages, options: null, CancellationToken.None);
+
+        Assert.Equal(
+            ["message", "custom_tool_call", "custom_tool_call_output"],
+            second.Input.Select(ReadType));
+        Assert.Equal("ctc_provider", second.Input[1]!["id"]!.GetValue<string>());
+        Assert.Equal(
+            "// @exec: {\"timeout_ms\": 1000}\nreturn \"a\\\\b\";",
+            second.Input[1]!["input"]!.GetValue<string>());
+        Assert.Equal("call_exec", second.Input[2]!["call_id"]!.GetValue<string>());
+        Assert.Equal("Script completed", second.Input[2]!["output"]!.GetValue<string>());
+
+        var resumed = CreateContext(
+            CreateIdentity(CreateTurn("turn_002")),
+            ProviderHistoryReplayer.Replay(
+                "thread_test",
+                "window_1",
+                new HashSet<string>(["turn_001"], StringComparer.Ordinal),
+                records),
+            coveredMessages: secondMessages,
+            records: []);
+        var third = await resumed.PrepareInputAsync(
+            [.. secondMessages, new ChatMessage(ChatRole.User, "again")],
+            options: null,
+            CancellationToken.None);
+        Assert.Equal(ItemJson(second.Input), ItemJson(third.Input).Take(second.Input.Count));
+    }
+
+    [Fact]
+    public async Task MissingCustomToolOutput_IsNormalizedAsAbortedCustomOutput()
+    {
+        var context = CreateContext(
+            CreateIdentity(CreateTurn("turn_001")),
+            ProviderHistorySnapshot.Empty("window_1"),
+            coveredMessages: [],
+            records: []);
+        var messages = new List<ChatMessage> { new(ChatRole.User, "run it") };
+        await context.PrepareInputAsync(messages, options: null, CancellationToken.None);
+        context.BeginAttempt();
+        await context.AppendProviderOutputAsync(
+            ReadResponseItem(
+                """
+                {
+                  "type": "custom_tool_call",
+                  "id": "ctc_unfinished",
+                  "call_id": "call_unfinished",
+                  "name": "exec",
+                  "input": "return 1;"
+                }
+                """),
+            outputIndex: 0,
+            sequenceNumber: 1,
+            CancellationToken.None);
+
+        var input = (await context.PrepareInputAsync(messages, options: null, CancellationToken.None)).Input;
+
+        Assert.Equal(["message", "custom_tool_call", "custom_tool_call_output"], input.Select(ReadType));
+        Assert.Equal("call_unfinished", input[2]!["call_id"]!.GetValue<string>());
+        Assert.Equal("aborted", input[2]!["output"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task SplitToolMessages_UseNormalizedSamplingCoverageWithoutReplacingCanonicalHistory()
     {
         var rawBaseline = new List<ChatMessage>

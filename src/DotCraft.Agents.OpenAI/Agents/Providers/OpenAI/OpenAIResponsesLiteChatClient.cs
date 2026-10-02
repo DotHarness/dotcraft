@@ -20,6 +20,7 @@ internal sealed class OpenAIResponsesLiteChatClient : IChatClient
         ResponsesClient responsesClient,
         string model,
         string installationId,
+        bool supportsFreeformTools,
         IModelRuntimeDiagnostics? traceCollector = null)
         : this(
             responsesClient,
@@ -27,7 +28,8 @@ internal sealed class OpenAIResponsesLiteChatClient : IChatClient
             CreateInnerClient(responsesClient, model),
             new OpenAIResponsesLiteTransport(responsesClient),
             installationId,
-            traceCollector)
+            traceCollector,
+            supportsFreeformTools)
     {
     }
 
@@ -37,7 +39,8 @@ internal sealed class OpenAIResponsesLiteChatClient : IChatClient
         IChatClient innerClient,
         IResponsesLiteTransport transport,
         string installationId,
-        IModelRuntimeDiagnostics? traceCollector = null)
+        IModelRuntimeDiagnostics? traceCollector = null,
+        bool supportsFreeformTools = true)
     {
         if (string.IsNullOrWhiteSpace(installationId))
             throw new ArgumentException("Installation id must be non-empty.", nameof(installationId));
@@ -57,7 +60,8 @@ internal sealed class OpenAIResponsesLiteChatClient : IChatClient
                     canonicalInput,
                     canonicalItemIdentity,
                     rawClient,
-                    normalizedInstallationId);
+                    normalizedInstallationId,
+                    supportsFreeformTools);
                 return new OpenAIResponsesToolSearchChatClient.PreparedResponseStream(
                     request.Options,
                     transport.CreateResponseStreamingAsync(request.WireBody, cancellationToken),

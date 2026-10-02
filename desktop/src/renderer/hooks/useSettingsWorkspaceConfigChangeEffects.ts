@@ -44,6 +44,7 @@ export function useSettingsWorkspaceConfigChangeEffects({
       changedRegions.has('welcomeSuggestions') ||
       changedRegions.has('memory') ||
       changedRegions.has('imageGeneration') ||
+      changedRegions.has('codeMode') ||
       changedRegions.has(WORKSPACE_DEFAULT_APPROVAL_POLICY_REGION)
 
     if (workspaceCoreChanged) {

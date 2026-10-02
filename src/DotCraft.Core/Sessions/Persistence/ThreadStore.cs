@@ -898,7 +898,8 @@ public sealed partial class ThreadStore : IAsyncDisposable
     {
         var history = new List<ChatMessage>();
         var completedItems = turn.Items
-            .Where(static item => item.Status == ItemStatus.Completed)
+            .Where(static item => item.Status == ItemStatus.Completed
+                                  && item.InvocationOrigin != ToolInvocationOrigin.CodeModeKind)
             .ToList();
         var pairedToolCalls = CollectPairedToolCalls(completedItems);
         var assistantBuilder = new AssistantSamplingSegmentBuilder();
@@ -1074,6 +1075,8 @@ public sealed partial class ThreadStore : IAsyncDisposable
             payload.ToolName,
             payload.ProviderFlatName,
             payload.Arguments);
+        if (item.FreeformCall)
+            ProviderFunctionCallMetadata.MarkCustomToolCall(content);
         return true;
     }
 

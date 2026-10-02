@@ -56,7 +56,8 @@ public static class SessionServiceFactory
             subAgentGuidanceProviders: sp.GetServices<ISubAgentGuidanceProvider>(),
             dotCraftPaths: sp.GetService<DotCraftPaths>(),
             loggerFactory: loggerFactory,
-            runtimeRefreshers: sp.GetServices<ISessionRuntimeRefresher>());
+            runtimeRefreshers: sp.GetServices<ISessionRuntimeRefresher>(),
+            toolSnapshotFinalizers: sp.GetServices<IToolSnapshotFinalizer>());
         sessionService.ThreadTitleGenerator = new ModelThreadTitleGenerator(
             agentFactory.RuntimeContext.ChatClientRegistry,
             () => appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config);

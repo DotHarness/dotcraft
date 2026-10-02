@@ -222,7 +222,8 @@ public sealed class ToolDefinition
         ToolPresentationDescriptor? presentation = null,
         ToolProvenance? provenance = null,
         string? namespaceDescription = null,
-        ToolPolicyScope policyScope = ToolPolicyScope.ProfileManaged)
+        ToolPolicyScope policyScope = ToolPolicyScope.ProfileManaged,
+        ToolFreeformInput? freeformInput = null)
     {
         if (string.IsNullOrWhiteSpace(id.SourceId) || string.IsNullOrWhiteSpace(id.SourceToolId.Value))
             throw new ArgumentException("A non-default definition identifier is required.", nameof(id));
@@ -246,6 +247,7 @@ public sealed class ToolDefinition
         Provenance = provenance ?? new ToolProvenance(id.Kind, id.SourceId);
         NamespaceDescription = NormalizeNamespaceDescription(namespaceDescription);
         PolicyScope = policyScope;
+        FreeformInput = freeformInput;
     }
 
     /// <summary>Gets the durable definition identifier.</summary>
@@ -273,6 +275,23 @@ public sealed class ToolDefinition
     /// assists tool planning and deferred search; it is never promoted to a system instruction.
     /// </summary>
     public string? NamespaceDescription { get; }
+
+    public ToolFreeformInput? FreeformInput { get; }
+
+    public ToolDefinition WithDescription(string description) =>
+        new(
+            Id,
+            Name,
+            description,
+            InputSchema,
+            OutputSchema,
+            Annotations,
+            PolicyHints,
+            Presentation,
+            Provenance,
+            NamespaceDescription,
+            PolicyScope,
+            FreeformInput);
 
     private static string? NormalizeNamespaceDescription(string? value)
     {

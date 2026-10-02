@@ -17,6 +17,7 @@ internal static class ToolSchemaSanitizer
         {
             ToolSchemaSanitizingFunction => tool,
             IOpenAIResponsesFunctionToolMetadata { ReservedSchema: true } => tool,
+            IOpenAIResponsesFunctionToolMetadata { FreeformInput: not null } => tool,
             AIFunction function when function is IDeferredToolSearchMarker marker =>
                 new DeferredToolSearchSchemaSanitizingFunction(function, marker.Registry),
             AIFunction function => new ToolSchemaSanitizingFunction(function),
@@ -135,6 +136,9 @@ internal class ToolSchemaSanitizingFunction(AIFunction innerFunction)
 
     public bool ReservedSchema =>
         InnerFunction is IOpenAIResponsesFunctionToolMetadata { ReservedSchema: true };
+
+    public ToolFreeformInput? FreeformInput =>
+        InnerFunction is IOpenAIResponsesFunctionToolMetadata metadata ? metadata.FreeformInput : null;
 
     public bool StreamArgumentsEnabled =>
         !GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) || metadata.StreamArgumentsEnabled;

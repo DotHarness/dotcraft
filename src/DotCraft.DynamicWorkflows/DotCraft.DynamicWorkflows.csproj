@@ -12,11 +12,11 @@
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Jint" Version="4.15.3" />
     <PackageReference Include="JsonSchema.Net" Version="7.3.4" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DotCraft.Core\DotCraft.Core.csproj" />
+    <ProjectReference Include="..\DotCraft.Scripting\DotCraft.Scripting.csproj" />
     <ProjectReference Include="..\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
