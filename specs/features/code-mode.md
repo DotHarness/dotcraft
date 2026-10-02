@@ -128,12 +128,13 @@ The `exec` description states, in this order:
 
 1. what `exec` is for: batching independent calls, chaining dependent calls, and reducing large
    results before they reach the model;
-2. the runtime: an async program body with top-level `await` and `return`, no Node.js, file system,
-   network, timers, or modules;
+2. the runtime: raw JavaScript source rather than JSON, a quoted string, or a Markdown code fence, run
+   as an async program body with top-level `await` and `return`, and no Node.js, file system, network,
+   timers, modules, or `console`;
 3. the calling convention: `await tools.<name>(args)` resolves to the result shape in that tool's
    declaration and rejects with an `Error` on failure, and calls still pending when the program ends
    are cancelled;
-4. the globals in §5.1 and the pragma;
+4. the globals in §5.1, and each pragma field with its default;
 5. that unlisted tools exist and are found through `ALL_TOOLS`, when there are any;
 6. the shared MCP preamble, when any nested tool is an MCP tool;
 7. in `only` mode, the declarations of §4.3 for every non-deferred nested registration, grouped by
@@ -159,9 +160,10 @@ A declaration is the tool's description followed by a signature of the form
 object properties in ordinal order with `?` for optional members and their descriptions as `//`
 comments, `additionalProperties` as an index signature, enums and `const` as literal unions,
 `anyOf`/`oneOf` as unions, `allOf` as intersections, arrays and tuples, and local `$ref` expanded with a
-recursion guard that renders a repeated reference as `unknown`. An input type larger than 16,000
-characters renders as `unknown`. `R` follows §6: `CallToolResult<T>` for MCP tools, with `T` from the
-output schema; the output type for other tools with an output schema;
+recursion guard that renders a repeated reference as `unknown`. An input or output type larger than
+16,000 characters renders as `unknown`, and an MCP result type of that size as `CallToolResult`. `R`
+follows §6: `CallToolResult<T>` for MCP tools, with `T` from the output schema; the output type for
+other tools with an output schema;
 `{ sessionId: string; status: "running" | "completed" | "failed"; output: string; exitCode: number | null; truncated: boolean; outputPath?: string }` for command
 execution; otherwise `string`. One shared preamble defines `ContentBlock`, `TextContent`,
 `ImageContent`, and `CallToolResult` once when any nested tool is an MCP tool.

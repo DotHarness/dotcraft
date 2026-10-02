@@ -302,7 +302,8 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         Assert.Equal(pair.Factory.Description, pair.Generated.Description);
         Assert.False(pair.Generated.JsonSchema.GetProperty("additionalProperties").GetBoolean());
         Assert.NotNull(pair.Factory.UnderlyingMethod);
-        if (pair.Factory.UnderlyingMethod.ReturnType == typeof(Task<ToolExecutionResult>))
+        if (pair.Factory.UnderlyingMethod.ReturnType == typeof(Task<ToolExecutionResult>)
+            || pair.Factory.UnderlyingMethod.ReturnType == typeof(Task<IList<AIContent>>))
             Assert.Null(pair.Generated.ReturnJsonSchema);
         else
             AssertNullableJsonEqual(pair.Factory.ReturnJsonSchema, pair.Generated.ReturnJsonSchema, $"{pair.Name} return schema");

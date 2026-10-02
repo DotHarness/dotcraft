@@ -5,7 +5,7 @@ namespace DotCraft.CodeMode;
 
 internal static class CodeModeDeclarations
 {
-    public const int MaxInputTypeChars = 16_000;
+    public const int MaxTypeChars = 16_000;
     private const int MaxInlineShapeChars = 1_000;
 
     public const string CommandResultType =
@@ -27,9 +27,7 @@ internal static class CodeModeDeclarations
 
     public static string Declaration(string jsName, ToolDefinition definition)
     {
-        var input = CodeModeTypeScript.Render(definition.InputSchema, indent: 2);
-        if (input.Length > MaxInputTypeChars)
-            input = "unknown";
+        var input = Bounded(CodeModeTypeScript.Render(definition.InputSchema, indent: 2), "unknown");
         return new StringBuilder()
             .Append(definition.Description.Trim()).Append('\n')
             .Append("declare const tools: {\n")
@@ -56,11 +54,13 @@ internal static class CodeModeDeclarations
         if (IsMcp(definition))
         {
             return definition.OutputSchema is { } mcpOutput
-                ? $"CallToolResult<{CodeModeTypeScript.Render(mcpOutput, indent, inline)}>"
+                ? Bounded($"CallToolResult<{CodeModeTypeScript.Render(mcpOutput, indent, inline)}>", "CallToolResult")
                 : "CallToolResult";
         }
         if (definition.OutputSchema is { } output)
-            return CodeModeTypeScript.Render(output, indent, inline);
+            return Bounded(CodeModeTypeScript.Render(output, indent, inline), "unknown");
         return IsCommandExecution(definition) ? CommandResultType : "string";
     }
+
+    private static string Bounded(string type, string fallback) => type.Length > MaxTypeChars ? fallback : type;
 }

@@ -242,7 +242,9 @@ internal static class GeneratedToolSchema
     public static JsonElement? CreateReturnSchema(Type? returnType, JsonSerializerOptions serializerOptions)
     {
         var unwrapped = UnwrapReturnType(returnType);
-        if (unwrapped == null || unwrapped == typeof(ToolExecutionResult))
+        if (unwrapped == null
+            || unwrapped == typeof(ToolExecutionResult)
+            || GeneratedToolArgumentBinder.IsAIContentResultType(unwrapped))
             return null;
 
         return AIJsonUtilities.CreateJsonSchema(unwrapped, serializerOptions: serializerOptions);
@@ -350,7 +352,7 @@ public static class GeneratedToolArgumentBinder
     private static bool CanAssignNull(Type type) =>
         !type.IsValueType || Nullable.GetUnderlyingType(type) != null;
 
-    private static bool IsAIContentResultType(Type type)
+    internal static bool IsAIContentResultType(Type type)
     {
         if (typeof(AIContent).IsAssignableFrom(type))
             return true;
