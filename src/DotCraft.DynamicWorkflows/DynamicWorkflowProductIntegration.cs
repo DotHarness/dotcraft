@@ -59,7 +59,7 @@ public sealed class DynamicWorkflowSection : IWorldStateSection
     public const string SectionId = "dynamic_workflow";
 
     private const string UltraGuidance =
-        "## Dynamic Workflow\nUltra is active. For a substantive task, do any necessary lightweight scouting, then launch one well-scoped Dynamic Workflow for the current phase. Put parallel work, verification, and synthesis in that script. Treat a successful launch as the handoff for this Turn; after its completion notification, decide whether another phase needs a new Workflow.";
+        "## Dynamic Workflow\nUltra is active. For a substantive task, do any necessary lightweight scouting, then launch one well-scoped Dynamic Workflow for the current phase. Put parallel work, verification, and synthesis in that script. After a successful launch, briefly tell the user what is running and end the Turn; its completion notification starts a new Turn, where you decide whether another phase needs a new Workflow.";
 
     private const string DefaultGuidance =
         "## Dynamic Workflow\nUse Workflow only when the user, a command, or an active skill explicitly opts into dynamic workflow execution.";
@@ -204,9 +204,7 @@ public sealed class DynamicWorkflowToolSource(
         }
 
         private static ToolExecutionResult Started(DynamicWorkflowRun run) =>
-            ToolExecutionResult.Succeeded(
-                ToResult(run),
-                directive: ToolExecutionDirective.TerminateTurn);
+            ToolExecutionResult.Succeeded(ToResult(run));
 
         private static ToolExecutionResult InvalidInput(string message) =>
             ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.InputInvalid, message));
@@ -216,7 +214,8 @@ public sealed class DynamicWorkflowToolSource(
             ["runId"] = run.RunId,
             ["name"] = run.Name,
             ["status"] = run.Status,
-            ["scriptPath"] = run.ScriptPath
+            ["scriptPath"] = run.ScriptPath,
+            ["message"] = "The workflow runs in the background. Its result arrives later as a separate workflow notification. Briefly tell the user what you launched and end your turn; do not wait for, poll, or predict its result."
         }.ToJsonString();
     }
 }

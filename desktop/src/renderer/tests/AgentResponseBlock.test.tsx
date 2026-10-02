@@ -1924,25 +1924,18 @@ describe('AgentResponseBlock completed turn folding', () => {
     expect(screen.getByText('Read main.ts')).toBeInTheDocument()
   })
 
-  it('keeps a successful Workflow handoff message and card together outside the processed summary', async () => {
+  it('keeps a successful Workflow card outside the processed summary before the closing message', async () => {
     useConversationStore.setState({
       workspacePath: 'F:/workspace',
-      turnDiffs: turnDiffsOf('turn-folded-workflow-handoff', makeDiff('reports/release.md'))
+      turnDiffs: turnDiffsOf('turn-folded-workflow-launch', makeDiff('reports/release.md'))
     })
     const turn: ConversationTurn = {
-      id: 'turn-folded-workflow-handoff',
+      id: 'turn-folded-workflow-launch',
       threadId: 'thread-1',
       status: 'completed',
       startedAt: '2026-04-18T11:25:00.000Z',
       completedAt: '2026-04-18T11:25:08.000Z',
       items: [
-        {
-          id: 'reasoning-1',
-          type: 'reasoningContent',
-          status: 'completed',
-          reasoning: 'choose the workflow boundary',
-          createdAt: '2026-04-18T11:25:01.000Z'
-        },
         {
           ...makeToolCallItem('workflow-rejected', 'workflow-rejected-call', 'Workflow', '2026-04-18T11:25:02.000Z'),
           arguments: { name: 'rejected-review' },
@@ -1950,7 +1943,7 @@ describe('AgentResponseBlock completed turn folding', () => {
           success: false
         },
         {
-          id: 'assistant-handoff',
+          id: 'assistant-intro',
           type: 'agentMessage',
           status: 'completed',
           text: 'I’ll hand the independent checks to one workflow.',
@@ -1963,10 +1956,10 @@ describe('AgentResponseBlock completed turn folding', () => {
           '2026-04-18T11:25:04.000Z'
         ),
         {
-          id: 'assistant-terminal-empty',
+          id: 'assistant-closing',
           type: 'agentMessage',
           status: 'completed',
-          text: '',
+          text: 'The release review is running; I’ll report back when it finishes.',
           createdAt: '2026-04-18T11:25:05.000Z'
         }
       ]
@@ -1978,43 +1971,30 @@ describe('AgentResponseBlock completed turn folding', () => {
       </LocaleProvider>
     )
 
-    const handoff = screen.getByText('I’ll hand the independent checks to one workflow.')
     const workflowCard = await screen.findByRole('region', { name: /Running workflow release-review/ })
-    const fileChanges = screen.getByRole('region', { name: /release\.md/ })
+    const closing = screen.getByText('The release review is running; I’ll report back when it finishes.')
     const footer = container.querySelector('[data-testid="agent-message-footer"]') as HTMLElement
-    expect(handoff).toBeInTheDocument()
-    expect(workflowCard).toBeInTheDocument()
-    expect(footer).toBeTruthy()
     expect(container.querySelectorAll('[data-testid="agent-message-footer"]')).toHaveLength(1)
-    expect(handoff.compareDocumentPosition(workflowCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(workflowCard.compareDocumentPosition(fileChanges) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(fileChanges.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(footer).toContainElement(screen.getByRole('button', { name: /copy/i }))
-    expect(footer).toContainElement(screen.getByTestId('agent-message-time'))
-    expect(screen.getByRole('button', { name: 'parallel review' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'independent verification' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'severity synthesis' })).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Run independent reviews'))
-    expect(useUIStore.getState().activeDetailTab.kind).toBe('viewer')
+    expect(workflowCard.compareDocumentPosition(closing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(closing.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByText('I’ll hand the independent checks to one workflow.')).toBeNull()
     expect(screen.queryByText(/rejected-review/)).toBeNull()
-    expect(Array.from(container.querySelectorAll('[data-testid="conversation-flow-item"]')).map(
-      (item) => (item as HTMLElement).dataset.kind
-    )).toEqual(['other', 'assistant'])
 
     fireEvent.click(screen.getByRole('button', { name: /Worked for/ }))
+    expect(screen.getByText('I’ll hand the independent checks to one workflow.')).toBeInTheDocument()
     expect(screen.getByText(/rejected-review/)).toBeInTheDocument()
   })
 
-  it('does not invent an agent footer when a successful Workflow launch has no visible handoff message', async () => {
+  it('does not invent an agent footer when a successful Workflow launch has no message', async () => {
     const turn: ConversationTurn = {
-      id: 'turn-workflow-without-handoff',
+      id: 'turn-workflow-without-message',
       threadId: 'thread-1',
       status: 'completed',
       startedAt: '2026-04-18T11:26:00.000Z',
       completedAt: '2026-04-18T11:26:03.000Z',
       items: [
         makeWorkflowLaunchItem(
-          'workflow-success-without-handoff',
+          'workflow-success-without-message',
           'release-review',
           'run-release-review',
           '2026-04-18T11:26:02.000Z'
@@ -2578,13 +2558,13 @@ describe('AgentResponseBlock historical tool trimming', () => {
     expect(screen.queryByText('raw tool result')).toBeNull()
   })
 
-  it('keeps a Workflow handoff message, card, and footer together in trimmed history', async () => {
+  it('keeps a Workflow card before the closing message in trimmed history', async () => {
     const turn: ConversationTurn = {
-      id: 'turn-trimmed-workflow-handoff',
+      id: 'turn-trimmed-workflow-launch',
       threadId: 'thread-1',
       status: 'completed',
       startedAt: '2026-04-18T12:01:00.000Z',
-      completedAt: '2026-04-18T12:01:04.000Z',
+      completedAt: '2026-04-18T12:01:05.000Z',
       items: [
         {
           id: 'reasoning-before-workflow',
@@ -2594,7 +2574,7 @@ describe('AgentResponseBlock historical tool trimming', () => {
           createdAt: '2026-04-18T12:01:01.000Z'
         },
         {
-          id: 'trimmed-workflow-handoff-message',
+          id: 'trimmed-workflow-intro',
           type: 'agentMessage',
           status: 'completed',
           text: 'I’ll delegate this review to one workflow.',
@@ -2605,7 +2585,14 @@ describe('AgentResponseBlock historical tool trimming', () => {
           'release-review',
           'run-release-review',
           '2026-04-18T12:01:03.000Z'
-        )
+        ),
+        {
+          id: 'trimmed-workflow-closing',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'The review is running in the background.',
+          createdAt: '2026-04-18T12:01:04.000Z'
+        }
       ]
     }
 
@@ -2615,14 +2602,11 @@ describe('AgentResponseBlock historical tool trimming', () => {
       </LocaleProvider>
     )
 
-    const handoff = screen.getByText('I’ll delegate this review to one workflow.')
     const workflowCard = await screen.findByRole('region', { name: /Running workflow release-review/ })
+    const closing = screen.getByText('The review is running in the background.')
     const footer = container.querySelector('[data-testid="agent-message-footer"]') as HTMLElement
-    expect(handoff).toBeInTheDocument()
-    expect(workflowCard).toBeInTheDocument()
-    expect(footer).toBeTruthy()
-    expect(handoff.compareDocumentPosition(workflowCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(workflowCard.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(workflowCard.compareDocumentPosition(closing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(closing.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(container.querySelectorAll('[data-testid="agent-message-footer"]')).toHaveLength(1)
     expect(screen.queryByText('prepare the workflow')).toBeNull()
   })

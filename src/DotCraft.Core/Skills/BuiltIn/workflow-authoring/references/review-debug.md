@@ -15,13 +15,15 @@
 
 ## Debugging map
 
+Each run keeps `script.js` and an append-only `journal.jsonl` under `.craft/workflows/runs/<runId>/`; the workflow notification names that directory. `agent.failed` entries carry the child error, and `agent.completed` entries carry the child thread id and result.
+
 | Symptom | Inspect | Repair |
 |---|---|---|
 | Metadata rejected before launch | First declaration and literal metadata values | Use one literal `export const meta`; make phases a string array |
 | Script syntax or prohibited-syntax error | Imports, runtime globals, time/random APIs, dynamic code | Keep orchestration in plain deterministic JavaScript and delegate external work |
 | `parallel()` rejects input | Array elements were promises or values | Wrap every call in a function |
 | Agent result is `null` | Child stop, cancellation, or unrecoverable execution failure | Record missing coverage and continue only when the workflow can report it honestly |
-| Structured value is unavailable | Prompt/schema mismatch or no valid structured submission | Narrow the schema and prompt, then guard the result before reading fields |
+| Structured value is unavailable | The child never called `SubmitWorkflowResult`, or every submission failed validation | Name the required fields in the prompt, narrow the schema, then guard the result before reading fields |
 | Serialization failure | Host-bound payload or final return contains unsupported values | Convert to plain JSON data and remove cycles, functions, handles, and non-finite values |
 | Budget or Agent-call limit failure | Unbounded fan-out/loop or exhausted configured gate | Reduce or batch work; do not silently invent a larger budget |
 | Phase view is incomplete | Missing declaration, `phase()` call, or `options.phase` | Declare intended phases and associate each operation explicitly or by current-phase inheritance |

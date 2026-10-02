@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.7.10 |
 | **Status** | Draft |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-02 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Prompt Composition](../architecture/prompt-composition.md), [Prompt Cache](../architecture/prompt-cache.md), [Model Options](model-options.md), [Tool Architecture](../architecture/tools-architecture.md) |
 | **Related Specs** | [Agent Profiles](agent-profiles.md) |
 
@@ -268,7 +268,9 @@ Delivery is serialized per root and recipient. Pending messages may enter sampli
 
 `WaitAgent` observes only the caller's root tree. Its optional millisecond timeout uses configured default/minimum/maximum values; out-of-range values fail rather than clamp. `ListAgents` reports `/root` and open path-addressable children with the latest Turn's lifecycle state, or `idle` when no Turn exists.
 
-The terminal `FINAL_ANSWER` mailbox entry records the direct child result and Turn provenance. Passive
+The terminal `FINAL_ANSWER` mailbox entry records the direct child result and Turn provenance. A host
+that consumes the child result itself spawns the child with silent completion, persisted in
+`ThreadSource.SubAgent`; such a child posts no `FINAL_ANSWER` entry to its parent. Passive
 messages are marked delivered only after their materialized input is persisted with a submitted,
 queued, or steered task.
 
