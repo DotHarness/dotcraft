@@ -94,6 +94,7 @@ function DockerRow({ machineId, stack }: { machineId: string; stack: RemoteStack
       if (result.status) setStatus(result.status)
       else await refresh()
       if (!result.ok) addToast(result.message || t('settings.ssh.docker.failed'), 'error')
+      else if (action === 'update') addToast(t(result.changed ? 'settings.ssh.docker.updated' : 'settings.ssh.docker.upToDate'), 'success')
     } catch (error) {
       addToast(messageOf(error), 'error')
     } finally {

@@ -1779,6 +1779,8 @@ export const MESSAGES_FR = {
   'settings.ssh.docker.stopTitle': 'Arrêter {{name}} ?',
   'settings.ssh.docker.stopMessage': 'Cela arrête DotCraft dans ce déploiement Docker. Vous pouvez le redémarrer à tout moment.',
   'settings.ssh.docker.failed': 'Impossible d’effectuer cette action.',
+  'settings.ssh.docker.updated': 'Mis à jour.',
+  'settings.ssh.docker.upToDate': 'Déjà à jour.',
   'settings.ssh.picker.title': 'Ajouter un projet distant',
   'settings.ssh.picker.description': 'Choisissez un dossier sur la machine. DotCraft l’y ouvre comme projet.',
   'settings.ssh.picker.machine': 'Machine',

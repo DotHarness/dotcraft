@@ -1779,6 +1779,8 @@ export const MESSAGES_DE = {
   'settings.ssh.docker.stopTitle': '{{name}} stoppen?',
   'settings.ssh.docker.stopMessage': 'Damit wird DotCraft in dieser Docker-Bereitstellung gestoppt. Du kannst es jederzeit wieder starten.',
   'settings.ssh.docker.failed': 'Diese Aktion konnte nicht abgeschlossen werden.',
+  'settings.ssh.docker.updated': 'Aktualisiert.',
+  'settings.ssh.docker.upToDate': 'Bereits auf dem neuesten Stand.',
   'settings.ssh.picker.title': 'Remote-Projekt hinzufügen',
   'settings.ssh.picker.description': 'Wähle einen Ordner auf dem Rechner. DotCraft öffnet ihn dort als Projekt.',
   'settings.ssh.picker.machine': 'Rechner',

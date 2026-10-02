@@ -1783,6 +1783,8 @@ export const MESSAGES_KO = {
   'settings.ssh.docker.stopTitle': '{{name}}을(를) 중지할까요?',
   'settings.ssh.docker.stopMessage': '이 Docker 배포의 DotCraft를 중지합니다. 언제든 다시 시작할 수 있습니다.',
   'settings.ssh.docker.failed': '작업을 완료하지 못했습니다.',
+  'settings.ssh.docker.updated': '업데이트했습니다.',
+  'settings.ssh.docker.upToDate': '이미 최신 버전입니다.',
   'settings.ssh.picker.title': '원격 프로젝트 추가',
   'settings.ssh.picker.description': '머신의 폴더를 선택하세요. DotCraft가 그 머신에서 프로젝트로 엽니다.',
   'settings.ssh.picker.machine': '머신',

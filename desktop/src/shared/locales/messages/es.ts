@@ -1779,6 +1779,8 @@ export const MESSAGES_ES = {
   'settings.ssh.docker.stopTitle': '¿Detener {{name}}?',
   'settings.ssh.docker.stopMessage': 'Esto detiene DotCraft en este despliegue de Docker. Puedes volver a iniciarlo cuando quieras.',
   'settings.ssh.docker.failed': 'No se pudo completar esa acción.',
+  'settings.ssh.docker.updated': 'Actualizado.',
+  'settings.ssh.docker.upToDate': 'Ya está actualizado.',
   'settings.ssh.picker.title': 'Añadir proyecto remoto',
   'settings.ssh.picker.description': 'Elige una carpeta de la máquina. DotCraft la abre allí como proyecto.',
   'settings.ssh.picker.machine': 'Máquina',

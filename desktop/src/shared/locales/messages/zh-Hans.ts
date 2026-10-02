@@ -3624,6 +3624,8 @@ export const MESSAGES_ZH_HANS = {
   'settings.ssh.docker.stopTitle': '停止 {{name}}？',
   'settings.ssh.docker.stopMessage': '这会停止此 Docker 部署中的 DotCraft，你可以随时再次启动。',
   'settings.ssh.docker.failed': '无法完成该操作。',
+  'settings.ssh.docker.updated': '已更新。',
+  'settings.ssh.docker.upToDate': '已是最新版本。',
   'settings.ssh.picker.title': '添加远程项目',
   'settings.ssh.picker.description': '选择机器上的一个文件夹，DotCraft 会在那台机器上把它作为项目打开。',
   'settings.ssh.picker.machine': '机器',
