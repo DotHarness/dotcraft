@@ -1010,6 +1010,13 @@ function ConversationWelcomeCore({
     }
   }, [flushWelcomeDraft])
 
+  const changeWelcomeWorkspaceMode = useCallback((nextMode: ComposerWorkspaceMode): void => {
+    setWelcomeWorkspaceMode(nextMode)
+    if (nextMode === 'local') {
+      setWelcomeWorktreeBranchName(null)
+    }
+  }, [])
+
   const switchWelcomeWorkspace = useCallback(async (nextWorkspacePath: string): Promise<void> => {
     if (nextWorkspacePath === workspacePath) return
     flushWelcomeDraft()
@@ -1977,12 +1984,7 @@ function ConversationWelcomeCore({
                       remoteWorkspace={remoteWorkspace}
                       baseRef={welcomeBaseRef}
                       worktreeBranchName={welcomeWorktreeBranchName}
-                      onWelcomeModeChange={(nextMode) => {
-                        setWelcomeWorkspaceMode(nextMode)
-                        if (nextMode === 'local') {
-                          setWelcomeWorktreeBranchName(null)
-                        }
-                      }}
+                      onWelcomeModeChange={changeWelcomeWorkspaceMode}
                       onBaseRefChange={setWelcomeBaseRef}
                       onWorktreeBranchNameChange={setWelcomeWorktreeBranchName}
                       onWelcomeWorkspaceChange={switchWelcomeWorkspace}
