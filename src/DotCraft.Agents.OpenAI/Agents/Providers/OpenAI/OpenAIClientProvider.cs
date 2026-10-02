@@ -318,7 +318,8 @@ public sealed partial class OpenAIClientProvider :
                 ? provider.CreateOpenAIResponsesLiteChatClient(chatKey)
                 : new OpenAIResponsesToolSearchChatClient(
                     provider.GetOpenAIResponsesClient(chatKey.Client),
-                    chatKey.Model);
+                    chatKey.Model,
+                    chatKey.SupportsFreeformTools);
         }, this);
     }
 

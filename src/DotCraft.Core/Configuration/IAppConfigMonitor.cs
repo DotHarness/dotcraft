@@ -53,6 +53,7 @@ public static class ConfigChangeRegions
     public const string Mcp = "mcp";
     public const string Lsp = "lsp";
     public const string ImageGeneration = "imageGeneration";
+    public const string CodeMode = "codeMode";
     public const string Hooks = "hooks";
     public const string ExternalChannel = "externalChannel";
     public const string SubAgent = "subagent";

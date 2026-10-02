@@ -21,7 +21,7 @@ Dynamic Workflows comprise four cooperating boundaries:
 1. The parent Agent authors or selects a workflow and invokes the stable `Workflow` model tool.
 2. AppServer owns discovery, approval, run state, limits, replay, child-thread creation, and parent
    notification through `IDynamicWorkflowService`.
-3. A hidden `workflow-worker` process evaluates one JavaScript execution attempt with Jint and asks
+3. A hidden `script-worker workflow` process evaluates one JavaScript execution attempt with Jint and asks
    AppServer to perform agent calls through an internal JSONL protocol.
 4. Trusted AppServer clients read and control persisted runs through typed Workflow methods and render
    the resulting run projection without reading `.craft/workflows/runs` directly.
@@ -241,20 +241,22 @@ does not merge workflow worktrees automatically.
 
 ### 6.1 Process Boundary
 
-`DotCraft.DynamicWorkflows` owns the service and starts the current DotCraft executable in hidden
-`workflow-worker` mode for every execution attempt. The worker uses Jint `EvaluateAsync` and runs one
-script attempt. AppServer is authoritative for run state and terminates the entire worker process tree
+`DotCraft.DynamicWorkflows` owns the service and starts the current DotCraft executable as
+`dotcraft script-worker workflow` for every execution attempt, through the shared script host defined
+in [Code Mode](code-mode.md#9-script-host-and-worker). The worker uses Jint `EvaluateAsync` and runs
+one script attempt. AppServer is authoritative for run state and terminates the entire worker process tree
 on cancellation, limit violation, protocol failure, or shutdown.
 
 Jint is configured without CLR interop, module loading, filesystem, network, process APIs, dynamic
-code evaluation, time, or random capabilities. The worker applies memory, statement-count, recursion,
+code evaluation, time, or random capabilities. The worker applies memory, statement-count, recursion, regex,
 Promise, output-size, and cancellation constraints. A wall-clock deadline and process termination
 remain Host-enforced even when the engine cannot cooperatively yield.
 
 ### 6.2 JSONL Messages
 
 Host and worker exchange one UTF-8 JSON object per line on redirected standard input/output. Every
-message includes a protocol version, run id, attempt id, type, and monotonic sequence number.
+message includes a protocol version, monotonic sequence number, scope (`<runId>/<attemptId>`), type,
+and payload.
 
 The minimum message families are:
 

@@ -66,6 +66,9 @@ internal sealed class HookWrappedFunction : DelegatingAIFunction,
     public bool ReservedSchema =>
         InnerFunction is IOpenAIResponsesFunctionToolMetadata { ReservedSchema: true };
 
+    public ToolFreeformInput? FreeformInput =>
+        InnerFunction is IOpenAIResponsesFunctionToolMetadata metadata ? metadata.FreeformInput : null;
+
     public bool StreamArgumentsEnabled =>
         !GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) || metadata.StreamArgumentsEnabled;
 

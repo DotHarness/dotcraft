@@ -6,6 +6,21 @@ namespace DotCraft.Agents;
 public static class ProviderFunctionCallMetadata
 {
     public const string NamespaceKey = "dotcraft.function_namespace";
+    public const string CustomToolCallKey = "dotcraft.custom_tool_call";
+
+    public static bool IsCustomToolCall(FunctionCallContent call)
+    {
+        ArgumentNullException.ThrowIfNull(call);
+        return call.AdditionalProperties?.TryGetValue(CustomToolCallKey, out var value) == true
+               && value is true or JsonElement { ValueKind: JsonValueKind.True };
+    }
+
+    public static void MarkCustomToolCall(FunctionCallContent call)
+    {
+        ArgumentNullException.ThrowIfNull(call);
+        call.AdditionalProperties ??= new AdditionalPropertiesDictionary();
+        call.AdditionalProperties[CustomToolCallKey] = true;
+    }
 
     public static bool TryGetNamespace(FunctionCallContent call, out string toolNamespace)
     {

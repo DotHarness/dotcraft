@@ -88,6 +88,29 @@ public sealed class RemoteExecutionSessionTests
     }
 
     [Fact]
+    public async Task CodeModeExec_KeepsItsOriginOnTheHostAndReturnsTheCommandObject()
+    {
+        await using var fixture = await RemoteExecutionFixture.CreateAsync();
+        await using var session = await fixture.OpenAsync("code-mode");
+        var exec = fixture.Tool("Exec");
+        var arguments = new JsonObject { ["command"] = "echo remote" };
+
+        var nested = await session.InvokeAsync(session.Route, exec.Definition, RemoteToolContractHasher.Compute(exec.Definition),
+            fixture.Context(exec) with { Origin = new ToolInvocationOrigin(ToolInvocationOrigin.CodeModeKind, "call_exec") },
+            (JsonObject)arguments.DeepClone());
+        var direct = await session.InvokeAsync(session.Route, exec.Definition, RemoteToolContractHasher.Compute(exec.Definition),
+            fixture.Context(exec), (JsonObject)arguments.DeepClone());
+
+        Assert.True(nested.Success, nested.Error?.Message);
+        var result = Assert.IsType<JsonElement>(nested.StructuredContent);
+        Assert.Contains("remote", result.GetProperty("output").GetString());
+        Assert.Equal(0, result.GetProperty("exitCode").GetInt32());
+        Assert.False(result.GetProperty("truncated").GetBoolean());
+        Assert.True(direct.Success, direct.Error?.Message);
+        Assert.Null(direct.StructuredContent);
+    }
+
+    [Fact]
     public async Task NativeChildrenShareSession_ButReleasingOneDrainsOnlyItsThread()
     {
         await using var fixture = await RemoteExecutionFixture.CreateAsync();

@@ -22,13 +22,13 @@ public sealed class WorkflowWorkerProcessTests
             CreateNoWindow = true
         };
         startInfo.ArgumentList.Add(appAssembly);
-        startInfo.ArgumentList.Add("workflow-worker");
+        startInfo.ArgumentList.Add("script-worker");
+        startInfo.ArgumentList.Add("workflow");
         using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("Worker did not start.");
         var frame = new JsonObject
         {
             ["version"] = 1,
-            ["runId"] = "run_test_000001",
-            ["attemptId"] = "attempt_001",
+            ["scope"] = "run_test_000001/attempt_001",
             ["sequence"] = 1,
             ["type"] = "initialize",
             ["payload"] = new JsonObject
@@ -281,7 +281,8 @@ public sealed class WorkflowWorkerProcessTests
             CreateNoWindow = true
         };
         startInfo.ArgumentList.Add(typeof(CommandLineArgs).Assembly.Location);
-        startInfo.ArgumentList.Add("workflow-worker");
+        startInfo.ArgumentList.Add("script-worker");
+        startInfo.ArgumentList.Add("workflow");
         return Process.Start(startInfo) ?? throw new InvalidOperationException("Worker did not start.");
     }
 
@@ -290,8 +291,7 @@ public sealed class WorkflowWorkerProcessTests
         var frame = new JsonObject
         {
             ["version"] = 1,
-            ["runId"] = "run_test_000001",
-            ["attemptId"] = "attempt_001",
+            ["scope"] = "run_test_000001/attempt_001",
             ["sequence"] = sequence,
             ["type"] = type,
             ["payload"] = payload

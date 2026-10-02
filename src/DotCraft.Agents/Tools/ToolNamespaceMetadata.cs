@@ -27,6 +27,8 @@ internal interface IOpenAIResponsesFunctionToolMetadata
     bool? Strict { get; }
 
     bool ReservedSchema { get; }
+
+    ToolFreeformInput? FreeformInput { get; }
 }
 
 internal static class ToolNamespaceMetadataResolver

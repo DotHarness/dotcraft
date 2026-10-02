@@ -727,6 +727,19 @@ public sealed partial class AppConfig
         Native
     }
 
+    [ConfigSection("Tools.CodeMode", DisplayName = "Tools > Code Mode", Order = 26)]
+    public sealed class CodeModeConfig
+    {
+        public CodeModeSetting Mode { get; set; } = CodeModeSetting.Off;
+    }
+
+    public enum CodeModeSetting
+    {
+        Off,
+        On,
+        Only
+    }
+
     public sealed class ToolsConfig
     {
         public FileToolsConfig File { get; set; } = new();
@@ -740,6 +753,8 @@ public sealed partial class AppConfig
         public ImageGenerationToolsConfig ImageGeneration { get; set; } = new();
 
         public DeferredLoadingConfig DeferredLoading { get; set; } = new();
+
+        public CodeModeConfig CodeMode { get; set; } = new();
 
         /// <summary>
         /// Global tool result size limits and spill-to-disk preview settings.

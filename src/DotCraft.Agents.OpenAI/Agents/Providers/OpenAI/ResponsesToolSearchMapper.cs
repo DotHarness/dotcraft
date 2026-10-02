@@ -124,10 +124,11 @@ internal static partial class ResponsesToolSearchMapper
         bool removesUnsupportedOAuthResponsesFields = false,
         JsonArray? canonicalInput = null,
         OpenAIResponsesItemIdentityDiagnostics? canonicalItemIdentity = null,
-        IChatClient? rawRepresentationClient = null)
+        IChatClient? rawRepresentationClient = null,
+        bool supportsFreeformTools = true)
     {
         var messages = chatMessages as IReadOnlyList<ChatMessage> ?? chatMessages.ToList();
-        var callNames = new Dictionary<string, string>(StringComparer.Ordinal);
+        var callNames = new Dictionary<string, ResponsesCallReference>(StringComparer.Ordinal);
         var responseOptions =
             rawRepresentationClient is not null
             && options?.RawRepresentationFactory?.Invoke(rawRepresentationClient) is CreateResponseOptions rawOptions
@@ -145,13 +146,20 @@ internal static partial class ResponsesToolSearchMapper
                 : responseOptions.Instructions + Environment.NewLine + instructions;
         }
 
+        if (canonicalInput != null && !supportsFreeformTools
+            && ProjectCustomCallsAsFunctionCalls(canonicalInput, CollectFreeformParameters(options)))
+        {
+            canonicalItemIdentity = null;
+        }
+
         var inputResult = canonicalInput == null
-            ? BuildInput(messages, callNames, options, addContinuationWhenEmpty: true)
+            ? BuildInput(messages, callNames, options, addContinuationWhenEmpty: true,
+                supportsFreeformTools: supportsFreeformTools)
             : new BuildInputResult(
                 canonicalInput,
                 canonicalItemIdentity ?? OpenAIResponsesItemIdentityDiagnostics.FromInput(canonicalInput));
         var input = inputResult.Input;
-        var tools = BuildTools(options);
+        var tools = BuildTools(options, supportsFreeformTools);
 
         if (tools.Count > 0 && options?.AllowMultipleToolCalls is { } allowMultiple)
             responseOptions.ParallelToolCallsEnabled ??= allowMultiple;
@@ -316,7 +324,7 @@ internal static partial class ResponsesToolSearchMapper
     {
         await foreach (var update in NormalizeToolSearchCalls(
                            updates,
-                           functionCallNamespaces: null,
+                           callState: null,
                            cancellationToken)
                            .ConfigureAwait(false))
         {
@@ -324,9 +332,9 @@ internal static partial class ResponsesToolSearchMapper
         }
     }
 
-    public static async IAsyncEnumerable<StreamingResponseUpdate> NormalizeToolSearchCalls(
+    internal static async IAsyncEnumerable<StreamingResponseUpdate> NormalizeToolSearchCalls(
         IAsyncEnumerable<StreamingResponseUpdate> updates,
-        IDictionary<string, string>? functionCallNamespaces,
+        ResponsesOutputCallState? callState,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await foreach (var update in updates.WithCancellation(cancellationToken).ConfigureAwait(false))
@@ -334,31 +342,38 @@ internal static partial class ResponsesToolSearchMapper
             if (update is StreamingResponseOutputItemDoneUpdate doneWithNamespace
                 && TryReadFunctionCallNamespace(doneWithNamespace.Item, out var functionCallId, out var functionNamespace))
             {
-                functionCallNamespaces?[functionCallId] = functionNamespace;
+                callState?.Namespaces[functionCallId] = functionNamespace;
             }
 
-            yield return update is StreamingResponseOutputItemDoneUpdate done
-                && TryCreateSyntheticToolSearchCall(done.Item, out var functionCall)
-                    ? new StreamingResponseOutputItemDoneUpdate
-                    {
-                        SequenceNumber = done.SequenceNumber,
-                        OutputIndex = done.OutputIndex,
-                        Item = functionCall
-                    }
-                    : update;
+            if (update is StreamingResponseOutputItemDoneUpdate done
+                && (TryCreateSyntheticToolSearchCall(done.Item, out var functionCall)
+                    || TryCreateSyntheticCustomToolCall(done.Item, callState, out functionCall)))
+            {
+                yield return new StreamingResponseOutputItemDoneUpdate
+                {
+                    SequenceNumber = done.SequenceNumber,
+                    OutputIndex = done.OutputIndex,
+                    Item = functionCall
+                };
+                continue;
+            }
+
+            yield return update;
         }
     }
 
-    public static void ApplyRecordedFunctionCallNamespaces(
+    internal static void ApplyRecordedFunctionCallState(
         ChatResponseUpdate update,
-        IReadOnlyDictionary<string, string> functionCallNamespaces)
+        ResponsesOutputCallState callState)
     {
-        if (functionCallNamespaces.Count == 0)
+        if (callState.Namespaces.Count == 0 && callState.CustomCalls.Count == 0)
             return;
 
         foreach (var call in update.Contents.OfType<FunctionCallContent>())
         {
-            if (!functionCallNamespaces.TryGetValue(call.CallId, out var functionNamespace)
+            if (callState.CustomCalls.Contains(call.CallId))
+                ProviderFunctionCallMetadata.MarkCustomToolCall(call);
+            if (!callState.Namespaces.TryGetValue(call.CallId, out var functionNamespace)
                 || string.IsNullOrWhiteSpace(functionNamespace))
             {
                 continue;
@@ -374,12 +389,12 @@ internal static partial class ResponsesToolSearchMapper
     internal static BuildInputResult BuildInputItems(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options,
-        IReadOnlyDictionary<string, string>? callNames = null,
+        IReadOnlyDictionary<string, ResponsesCallReference>? callNames = null,
         int itemOrdinalOffset = 0)
     {
         var mutableCallNames = callNames == null
-            ? new Dictionary<string, string>(StringComparer.Ordinal)
-            : new Dictionary<string, string>(callNames, StringComparer.Ordinal);
+            ? new Dictionary<string, ResponsesCallReference>(StringComparer.Ordinal)
+            : new Dictionary<string, ResponsesCallReference>(callNames, StringComparer.Ordinal);
         return BuildInput(
             messages,
             mutableCallNames,
@@ -390,10 +405,11 @@ internal static partial class ResponsesToolSearchMapper
 
     private static BuildInputResult BuildInput(
         IEnumerable<ChatMessage> messages,
-        Dictionary<string, string> callNames,
+        Dictionary<string, ResponsesCallReference> callNames,
         ChatOptions? options,
         bool addContinuationWhenEmpty,
-        int itemOrdinalOffset = 0)
+        int itemOrdinalOffset = 0,
+        bool supportsFreeformTools = true)
     {
         var input = new JsonArray();
         var identity = new OpenAIResponsesItemIdentityDiagnostics();
@@ -457,16 +473,19 @@ internal static partial class ResponsesToolSearchMapper
 
                     case FunctionCallContent call:
                         FlushMessage();
+                        var customCall = TryCreateCustomToolCallItem(call, supportsFreeformTools, out var customItem);
                         if (!string.IsNullOrWhiteSpace(call.CallId))
-                            callNames[call.CallId] = call.Name;
+                            callNames[call.CallId] = new ResponsesCallReference(call.Name, customCall);
 
-                        var callItem = CreateFunctionCallItem(call);
+                        var callItem = customCall ? customItem : CreateFunctionCallItem(call);
                         OpenAIResponsesItemIdentity.Assign(
                             call,
                             callItem,
-                            string.Equals(call.Name, IDeferredToolSearchMarker.CanonicalName, StringComparison.Ordinal)
-                                ? "tsc"
-                                : "fc",
+                            customCall
+                                ? "ctc"
+                                : string.Equals(call.Name, IDeferredToolSearchMarker.CanonicalName, StringComparison.Ordinal)
+                                    ? "tsc"
+                                    : "fc",
                             itemOrdinalOffset + input.Count,
                             identity,
                             ReadJsonString(callItem, "id"));
@@ -475,9 +494,15 @@ internal static partial class ResponsesToolSearchMapper
 
                     case FunctionResultContent result:
                         FlushMessage();
-                        callNames.TryGetValue(result.CallId, out var toolName);
+                        callNames.TryGetValue(result.CallId, out var callReference);
+                        if (callReference.Custom)
+                        {
+                            input.Add(CreateCustomToolCallOutputItem(result));
+                            break;
+                        }
+
                         var isToolSearchOutput =
-                            string.Equals(toolName, IDeferredToolSearchMarker.CanonicalName, StringComparison.Ordinal)
+                            string.Equals(callReference.Name, IDeferredToolSearchMarker.CanonicalName, StringComparison.Ordinal)
                             || IsToolSearchOutput(result.Result);
                         var resultItem = isToolSearchOutput
                             ? CreateToolSearchOutputItem(result)

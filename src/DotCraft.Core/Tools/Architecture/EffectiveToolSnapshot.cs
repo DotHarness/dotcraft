@@ -33,7 +33,8 @@ public sealed class EffectiveToolSnapshot
         FrozenDictionary<string, string> namespaceDescriptions,
         IReadOnlyList<ToolSnapshotDiagnostic> diagnostics,
         ProviderHostedCapabilityPlan? providerHostedCapabilities = null,
-        IReadOnlyList<ToolRegistration>? sourceRegistrations = null)
+        IReadOnlyList<ToolRegistration>? sourceRegistrations = null,
+        Func<ToolDefinition, bool>? modelExposurePredicate = null)
     {
         Revision = revision;
         Registrations = registrations;
@@ -45,7 +46,10 @@ public sealed class EffectiveToolSnapshot
         Diagnostics = diagnostics;
         ProviderHostedCapabilities = providerHostedCapabilities ?? new ProviderHostedCapabilityPlan();
         SourceRegistrations = sourceRegistrations ?? registrations.Values.ToArray();
+        _modelExposurePredicate = modelExposurePredicate ?? (static _ => true);
     }
+
+    private readonly Func<ToolDefinition, bool> _modelExposurePredicate;
 
     /// <summary>Gets the immutable snapshot revision.</summary>
     public long Revision { get; }
@@ -66,7 +70,7 @@ public sealed class EffectiveToolSnapshot
     public IReadOnlyDictionary<string, IReadOnlyList<ToolDefinition>> DeferredDefinitions { get; }
 
     /// <summary>Gets the resolved model-visible description for each canonical namespace.</summary>
-    internal IReadOnlyDictionary<string, string> NamespaceDescriptions { get; }
+    public IReadOnlyDictionary<string, string> NamespaceDescriptions { get; }
 
     /// <summary>Gets safe diagnostics for quarantined registrations.</summary>
     public IReadOnlyList<ToolSnapshotDiagnostic> Diagnostics { get; }
@@ -75,6 +79,9 @@ public sealed class EffectiveToolSnapshot
     public ProviderHostedCapabilityPlan ProviderHostedCapabilities { get; }
 
     internal IReadOnlyList<ToolRegistration> SourceRegistrations { get; }
+
+    public static bool IsDeferredToolSearch(ToolRegistration registration) =>
+        DeferredToolSearchRuntime.IsRegistration(registration);
 
     /// <summary>Resolves a provider-visible name using ordinal, case-sensitive comparison.</summary>
     public bool TryResolveProviderFlatName(string providerFlatName, out ToolName toolName) =>
@@ -101,6 +108,31 @@ public sealed class EffectiveToolSnapshot
             Revision,
             ProviderHostedCapabilities,
             predicate,
+            []);
+    }
+
+    /// <summary>
+    /// Added registrations are published regardless of the model exposure filter this snapshot was built
+    /// with; replacements keep it.
+    /// </summary>
+    public EffectiveToolSnapshot WithFinalization(ToolSnapshotFinalization finalization)
+    {
+        ArgumentNullException.ThrowIfNull(finalization);
+        if (finalization.IsEmpty)
+            return this;
+
+        var replaced = finalization.Registrations.Select(static registration => registration.Definition.Name).ToHashSet();
+        var added = replaced.Where(name => !Registrations.ContainsKey(name)).ToHashSet();
+        var hidden = finalization.ModelHidden;
+        var predicate = _modelExposurePredicate;
+        return new EffectiveToolSnapshotBuilder().BuildFiltered(
+            SourceRegistrations
+                .Where(registration => !replaced.Contains(registration.Definition.Name))
+                .Concat(finalization.Registrations),
+            Revision,
+            ProviderHostedCapabilities,
+            definition => !hidden.Contains(definition.Name)
+                          && (added.Contains(definition.Name) || predicate(definition)),
             []);
     }
 }
@@ -341,6 +373,7 @@ public sealed class EffectiveToolSnapshotBuilder
             namespaceDescriptions.ToFrozenDictionary(StringComparer.Ordinal),
             Array.AsReadOnly(diagnostics.ToArray()),
             providerHostedCapabilities,
-            Array.AsReadOnly(materialized));
+            Array.AsReadOnly(materialized),
+            modelExposurePredicate);
     }
 }

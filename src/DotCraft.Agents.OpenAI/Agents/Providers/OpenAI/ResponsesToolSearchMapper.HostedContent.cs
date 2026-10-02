@@ -37,7 +37,7 @@ internal static partial class ResponsesToolSearchMapper
 
         if (!TryReadJsonObjectFromRaw(item, out var rawObject))
             return false;
-        if (!string.Equals(ReadJsonString(rawObject, "type"), "function_call", StringComparison.Ordinal))
+        if (ReadJsonString(rawObject, "type") is not ("function_call" or "custom_tool_call"))
             return false;
         if (!TryReadString(rawObject, "namespace", out functionNamespace))
             return false;

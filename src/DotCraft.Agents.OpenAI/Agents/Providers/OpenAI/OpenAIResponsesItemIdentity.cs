@@ -58,6 +58,7 @@ internal sealed class OpenAIResponsesItemIdentityDiagnostics
             or "reasoning"
             or "function_call"
             or "function_call_output"
+            or "custom_tool_call"
             or "tool_search_call"
             or "tool_search_output";
     }

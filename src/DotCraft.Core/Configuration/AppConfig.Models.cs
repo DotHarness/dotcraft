@@ -56,6 +56,8 @@ public sealed partial class AppConfig
 
         public bool? SupportsImageGeneration { get; set; }
 
+        public bool? SupportsFreeformTools { get; set; }
+
         public ModelProviderConfig Clone() => new()
         {
             RemoteAuthentication = RemoteAuthentication,
@@ -71,7 +73,8 @@ public sealed partial class AppConfig
             MaxOutputTokens = MaxOutputTokens,
             StreamMaxRetries = StreamMaxRetries,
             StreamIdleTimeoutMs = StreamIdleTimeoutMs,
-            SupportsImageGeneration = SupportsImageGeneration
+            SupportsImageGeneration = SupportsImageGeneration,
+            SupportsFreeformTools = SupportsFreeformTools
         };
     }
 

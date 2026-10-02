@@ -25,7 +25,8 @@ internal static class OpenAIResponsesLiteRequestMapper
         JsonArray? canonicalInput,
         OpenAIResponsesItemIdentityDiagnostics? canonicalItemIdentity,
         IChatClient rawRepresentationClient,
-        string installationId)
+        string installationId,
+        bool supportsFreeformTools)
     {
         var standard = ResponsesToolSearchMapper.CreateResponseRequest(
             model,
@@ -33,7 +34,8 @@ internal static class OpenAIResponsesLiteRequestMapper
             options,
             canonicalInput: canonicalInput,
             canonicalItemIdentity: canonicalItemIdentity,
-            rawRepresentationClient: rawRepresentationClient);
+            rawRepresentationClient: rawRepresentationClient,
+            supportsFreeformTools: supportsFreeformTools);
         return new OpenAIResponsesLiteRequest(
             standard.Options,
             BuildWireBody(standard.Options, installationId),

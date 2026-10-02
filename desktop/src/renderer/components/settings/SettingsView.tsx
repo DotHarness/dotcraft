@@ -83,6 +83,8 @@ import { useDreamsSettings } from './panels/memory/useDreamsSettings'
 import { ImageGenerationSettingsGroup } from './panels/imageGeneration/ImageGenerationSettingsGroup'
 import { canProviderCreateImages } from './panels/imageGeneration/imageGenerationModel'
 import { useImageGenerationSettings } from './panels/imageGeneration/useImageGenerationSettings'
+import { CodeModeSettingsGroup } from './panels/codeMode/CodeModeSettingsGroup'
+import { useCodeModeSettings, type CodeModeMode } from './panels/codeMode/useCodeModeSettings'
 import {
   DEFAULT_DREAMS_INTERVAL,
   DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT,
@@ -191,6 +193,7 @@ interface WorkspaceCoreConfig {
   defaultApprovalPolicy: VisibleApprovalPolicy | null
   toolsImageGenerationEnabled: boolean | null
   toolsImageGenerationProvider: string | null
+  toolsCodeModeMode: CodeModeMode | null
 }
 
 interface WorkspaceCoreConfigResult {
@@ -212,7 +215,8 @@ const EMPTY_WORKSPACE_CORE_CONFIG: WorkspaceCoreConfig = {
   dreamsAutoApply: null,
   defaultApprovalPolicy: null,
   toolsImageGenerationEnabled: null,
-  toolsImageGenerationProvider: null
+  toolsImageGenerationProvider: null,
+  toolsCodeModeMode: null
 }
 
 interface ProviderDraft {
@@ -365,7 +369,11 @@ function normalizeWorkspaceCoreConfig(value: unknown): WorkspaceCoreConfig {
     toolsImageGenerationEnabled:
       typeof source.toolsImageGenerationEnabled === 'boolean' ? source.toolsImageGenerationEnabled : null,
     toolsImageGenerationProvider:
-      typeof source.toolsImageGenerationProvider === 'string' ? source.toolsImageGenerationProvider : null
+      typeof source.toolsImageGenerationProvider === 'string' ? source.toolsImageGenerationProvider : null,
+    toolsCodeModeMode:
+      source.toolsCodeModeMode === 'off' || source.toolsCodeModeMode === 'on' || source.toolsCodeModeMode === 'only'
+        ? source.toolsCodeModeMode
+        : null
   }
 }
 
@@ -677,7 +685,8 @@ export function SettingsView({
     dreamsAutoApply: null,
     defaultApprovalPolicy: null,
     toolsImageGenerationEnabled: null,
-    toolsImageGenerationProvider: null
+    toolsImageGenerationProvider: null,
+    toolsCodeModeMode: null
   })
   const [providersManagedRemotely, setProvidersManagedRemotely] = useState(false)
   const [providers, setProviders] = useState<ProviderInfoWire[]>([])
@@ -769,6 +778,7 @@ export function SettingsView({
     reloadWorkspaceCore
   })
   const imageGeneration = useImageGenerationSettings(reloadWorkspaceCore)
+  const codeMode = useCodeModeSettings(reloadWorkspaceCore)
   const browserUsePlugin = plugins.find((plugin) => plugin.id === 'browser') ?? null
   const browserUsePluginReady = !pluginManagementEnabled || browserUsePlugin?.installed === true
   const selectedProvider = providers.find((provider) => provider.id === selectedProviderId) ?? null
@@ -864,6 +874,7 @@ export function SettingsView({
       enabled: core.workspace.toolsImageGenerationEnabled ?? core.userDefaults.toolsImageGenerationEnabled ?? true,
       providerId: core.workspace.toolsImageGenerationProvider ?? core.userDefaults.toolsImageGenerationProvider ?? ''
     })
+    codeMode.applyMode(core.workspace.toolsCodeModeMode ?? core.userDefaults.toolsCodeModeMode ?? 'off')
 
     if (keepDraftValues) {
       return
@@ -2498,6 +2509,8 @@ export function SettingsView({
                 <SettingsGroup title={t('settings.group.composer')}>
                   <FollowUpBehaviorRow />
                 </SettingsGroup>
+
+                <CodeModeSettingsGroup settings={codeMode} />
 
                 <SettingsGroup title={t('settings.group.permissions')}>
                   <SettingsRow

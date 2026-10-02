@@ -16,6 +16,8 @@ public enum ToolExecutionDirective
 /// <summary>Identifies the trusted host surface that initiated a direct tool invocation.</summary>
 public sealed record ToolInvocationOrigin
 {
+    public const string CodeModeKind = "codeMode";
+
     /// <summary>Creates an invocation origin.</summary>
     /// <param name="kind">A stable origin kind such as <c>mcpApp</c>.</param>
     /// <param name="sourceItemId">An optional safe Session item correlation identifier.</param>

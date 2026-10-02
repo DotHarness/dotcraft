@@ -22,6 +22,7 @@ import type { AggregatedToolCall } from '../../utils/toolCallAggregation'
 import type { ToolGroupCategory } from '../../utils/toolCallAggregation'
 import { isToolItemLive } from '../../utils/toolCallAggregation'
 import { isToolExecutionFailure } from '../../utils/toolCallDisplay'
+import { isCodeModeExecItem } from '../../utils/codeModeExec'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
 import { resolveDesktopPluginToolRenderer, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
@@ -739,6 +740,7 @@ function isGuidanceUserMessage(item: ConversationItem): boolean {
 }
 
 function isDefaultRenderableItem(item: ConversationItem): boolean {
+  if (isCodeModeExecItem(item)) return false
   // Successful CreateThread / SendMessageToThread calls render as a dedicated card
   // before the agent footer (TurnThreadActions), so suppress their inline tool row.
   if (isThreadActionToolItem(item) && parseThreadToolAction(item) != null) return false

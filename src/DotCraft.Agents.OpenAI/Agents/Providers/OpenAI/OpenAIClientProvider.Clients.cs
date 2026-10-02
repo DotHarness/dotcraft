@@ -59,7 +59,8 @@ public sealed partial class OpenAIClientProvider
     private OpenAIResponsesLiteChatClient CreateOpenAIResponsesLiteChatClient(OpenAIChatClientKey key)
     {
         var context = GetOpenAIResponsesLiteClient(key.Client);
-        return new OpenAIResponsesLiteChatClient(context.Client, key.Model, context.InstallationId);
+        return new OpenAIResponsesLiteChatClient(
+            context.Client, key.Model, context.InstallationId, key.SupportsFreeformTools);
     }
 
     private ResponsesLiteClientContext GetOpenAIResponsesLiteClient(OpenAIClientKey key) =>
@@ -147,13 +148,15 @@ public sealed partial class OpenAIClientProvider
     private readonly record struct OpenAIChatClientKey(
         OpenAIClientKey Client,
         string Model,
-        bool UseResponsesLite)
+        bool UseResponsesLite,
+        bool SupportsFreeformTools)
     {
         public static OpenAIChatClientKey From(EffectiveModelRuntime runtime) =>
             new(
                 OpenAIClientKey.From(runtime),
                 NormalizeRequiredModel(runtime.Model),
-                runtime.IsChatGptOAuth && runtime.UseResponsesLite);
+                runtime.IsChatGptOAuth && runtime.UseResponsesLite,
+                runtime.SupportsFreeformTools);
     }
 
     private sealed record ResponsesLiteClientContext(

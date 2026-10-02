@@ -214,8 +214,12 @@ public sealed class AIFunctionToolRuntime(AIFunction function) : IToolRuntime
             {
                 Context = new Dictionary<object, object?> { [typeof(ToolInvocationContext)] = context }
             };
-            var result = await _function.InvokeAsync(functionArguments, cancellationToken)
-                .ConfigureAwait(false);
+            object? result;
+            using (ToolInvocationScope.Enter(context))
+            {
+                result = await _function.InvokeAsync(functionArguments, cancellationToken)
+                    .ConfigureAwait(false);
+            }
             if (result is ToolExecutionResult executionResult)
                 return executionResult;
             if (result is IEnumerable<AIContent> richContent)

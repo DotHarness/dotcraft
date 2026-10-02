@@ -484,6 +484,15 @@ public sealed partial class SessionService
             toolSnapshot.Registrations.TryGetValue(definition.Name, out var registration)
             && capabilityPolicy.AllowsRegistrationExposure(registration)
             && capabilityPolicy.AllowsTool(AgentFactory.ProjectSnapshotDefinition(toolSnapshot, definition)));
+        if (!config.UseToolProfileOnly)
+        {
+            foreach (var finalizer in _toolSnapshotFinalizers)
+            {
+                toolSnapshot = toolSnapshot.WithFinalization(
+                    await finalizer.FinalizeAsync(toolSnapshot, planningContext, ct).ConfigureAwait(false));
+            }
+        }
+        capabilityPolicy.SetRuntimeManagedTools(toolSnapshot);
         threadRuntimeState.SetLatestToolSnapshot(toolSnapshot);
         EffectiveToolSnapshotChanged?.Invoke(
             this,

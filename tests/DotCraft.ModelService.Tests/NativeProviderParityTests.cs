@@ -121,7 +121,7 @@ public sealed class NativeProviderParityTests
             ValueTask.FromResult<ModelServiceCaller?>(new("test"));
         public Task<IReadOnlyList<ModelServiceProvider>> GetProvidersAsync(ModelServiceCaller caller, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ModelServiceProvider>>([new(new("primary", "Primary", runtime.Protocol,
-                runtime.EndPoint, "apiKey", true, new(true)), runtime)]);
+                runtime.EndPoint, "apiKey", true, true, new(true)), runtime)]);
         public ValueTask<IDisposable?> BeginRequestAsync(ModelServiceCaller caller, ModelServiceRequestContext request, CancellationToken cancellationToken) =>
             ValueTask.FromResult<IDisposable?>(null);
         public ValueTask OnCompletedAsync(ModelServiceCall call, CancellationToken cancellationToken)

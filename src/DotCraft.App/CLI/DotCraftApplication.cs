@@ -9,7 +9,6 @@ using DotCraft.Runtime;
 using DotCraft.Text;
 using DotCraft.Modules;
 using DotCraft.Logging;
-using DotCraft.DynamicWorkflows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
@@ -32,13 +31,9 @@ internal static class DotCraftApplication
             SubprocessEnvironment.Prepare();
         }
 
-        if (cliArgs.Mode == CommandLineArgs.RunMode.WorkflowWorker)
+        if (cliArgs.Mode == CommandLineArgs.RunMode.ScriptWorker)
         {
-            return await WorkflowWorkerRunner.RunAsync(
-                Console.OpenStandardInput(),
-                Console.OpenStandardOutput(),
-                Console.OpenStandardError(),
-                cancellationToken);
+            return await ScriptWorkers.RunAsync(cliArgs.ScriptWorkerKind!, cancellationToken);
         }
 
         if (cliArgs.Mode == CommandLineArgs.RunMode.Hub)

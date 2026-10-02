@@ -15,7 +15,7 @@ public sealed record CommandLineArgs
         Hub,
         Dashboard,
         ModelCatalog,
-        WorkflowWorker
+        ScriptWorker
     }
 
     public required RunMode Mode { get; init; }
@@ -42,6 +42,7 @@ public sealed record CommandLineArgs
     public string? DashboardHost { get; init; }
     public int? DashboardPort { get; init; }
     public bool ModelCatalogReadStdin { get; init; }
+    public string? ScriptWorkerKind { get; init; }
     public bool ReservesStdout { get; init; }
 
     public void ApplyTo(AppConfig config)
@@ -73,7 +74,7 @@ public sealed record CommandLineArgs
             case RunMode.Setup:
             case RunMode.Hub:
             case RunMode.ModelCatalog:
-            case RunMode.WorkflowWorker:
+            case RunMode.ScriptWorker:
                 break;
             default:
                 throw new ArgumentOutOfRangeException();

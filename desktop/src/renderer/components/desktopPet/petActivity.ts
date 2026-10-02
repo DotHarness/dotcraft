@@ -6,6 +6,7 @@ import { turnPatchTotals } from '../../stores/turnDiffs'
 import type { TurnDiff } from '../../types/turnDiff'
 import { approvalQuestionKey, approvalRequestKey } from '../../utils/approvalRequest'
 import { formatCollapsedToolLabel, getStreamingToolDisplay } from '../../utils/toolCallDisplay'
+import { isCodeModeExecItem } from '../../utils/codeModeExec'
 import { isToolItemLive } from '../../utils/toolCallAggregation'
 
 export const PET_LINE_MAX = 60
@@ -91,7 +92,8 @@ function newest(turn: ConversationTurn, type: ItemType, field: 'text' | 'reasoni
 }
 
 function liveToolLine(turn: ConversationTurn, locale: AppLocale): string {
-  const live = turn.items.filter((item) => isToolLikeItemType(item.type) && isToolItemLive(item, { turnRunning: true }))
+  const live = turn.items.filter((item) =>
+    isToolLikeItemType(item.type) && !isCodeModeExecItem(item) && isToolItemLive(item, { turnRunning: true }))
   const item = live[live.length - 1]
   if (!item) return ''
   const preview = item.argumentsPreview || (item.arguments ? JSON.stringify(item.arguments) : '')
@@ -107,7 +109,7 @@ function runningLine(input: PetActivityInput, turn: ConversationTurn): string {
   if (input.streamingReasoning.trim()) return firstSentence(input.streamingReasoning, PET_LINE_MAX)
   for (let index = turn.items.length - 1; index >= 0; index -= 1) {
     const item = turn.items[index]
-    if (isToolLikeItemType(item.type)) return flattenPetLine(formatCollapsedToolLabel(item.toolName ?? '', item.arguments, locale))
+    if (isToolLikeItemType(item.type) && !isCodeModeExecItem(item)) return flattenPetLine(formatCollapsedToolLabel(item.toolName ?? '', item.arguments, locale))
     if (item.type === 'reasoningContent' && item.reasoning?.trim()) return firstSentence(item.reasoning, PET_LINE_MAX)
     if (item.type === 'agentMessage' && item.text?.trim()) return firstSentence(item.text, PET_LINE_MAX)
   }

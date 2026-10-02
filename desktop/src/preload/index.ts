@@ -665,6 +665,7 @@ const api = {
         defaultApprovalPolicy: 'default' | 'autoApprove' | null
         toolsImageGenerationEnabled: boolean | null
         toolsImageGenerationProvider: string | null
+        toolsCodeModeMode: 'off' | 'on' | 'only' | null
       }
       userDefaults: {
         providerId: string | null
@@ -680,6 +681,7 @@ const api = {
         defaultApprovalPolicy: 'default' | 'autoApprove' | null
         toolsImageGenerationEnabled: boolean | null
         toolsImageGenerationProvider: string | null
+        toolsCodeModeMode: 'off' | 'on' | 'only' | null
       }
     }> {
       return ipcRenderer.invoke('workspace-config:get-core')

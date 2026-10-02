@@ -124,7 +124,7 @@ internal sealed partial class WorkspaceRequestHandler(
             "'skillsSelfLearningEnabled', 'skillsIncludeSharedSkills', 'memoryEnabled', " +
             "'dreamsEnabled', 'dreamsInterval', " +
             "'dreamsThreadLookbackCount', 'dreamsAutoApply', 'defaultApprovalPolicy', 'toolsLspEnabled', " +
-            "'toolsImageGenerationEnabled', 'toolsImageGenerationProvider', " +
+            "'toolsImageGenerationEnabled', 'toolsImageGenerationProvider', 'toolsCodeModeMode' " +
             "is required.";
 
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
@@ -183,6 +183,7 @@ internal sealed partial class WorkspaceRequestHandler(
             "toolsLspEnabled",
             out var toolsLspEnabledEl);
         var imageGeneration = ParseImageGenerationConfigUpdate(paramsElement);
+        var codeMode = ParseCodeModeConfigUpdate(paramsElement);
         if (!hasProviderId
             && !hasProviderPreferences
             && !hasWelcomeSuggestionsEnabled
@@ -196,7 +197,8 @@ internal sealed partial class WorkspaceRequestHandler(
             && !hasDreamsAutoApply
             && !hasDefaultApprovalPolicy
             && !hasToolsLspEnabled
-            && !imageGeneration.HasAny)
+            && !imageGeneration.HasAny
+            && !codeMode.HasMode)
         {
             throw AppServerErrors.InvalidParams(requiredFieldMessage);
         }
@@ -274,7 +276,8 @@ internal sealed partial class WorkspaceRequestHandler(
             hasDreamsAutoApply,
             hasDefaultApprovalPolicy,
             hasToolsLspEnabled,
-            imageGeneration);
+            imageGeneration,
+            codeMode);
 
         var changedRegions = new List<string>();
         if (saveResult.ProviderIdChanged)
@@ -331,6 +334,12 @@ internal sealed partial class WorkspaceRequestHandler(
             runtimeConfig.RefreshCurrentImageGenerationConfig();
             runtimeConfig.InvalidateThreadAgents();
         }
+        if (saveResult.CodeMode.Changed)
+        {
+            changedRegions.Add(ConfigChangeRegions.CodeMode);
+            runtimeConfig.RefreshCurrentCodeModeConfig();
+            runtimeConfig.InvalidateThreadAgents();
+        }
         if (changedRegions.Count > 0)
         {
             appConfigMonitor?.NotifyChanged(
@@ -360,7 +369,8 @@ internal sealed partial class WorkspaceRequestHandler(
             DefaultApprovalPolicy = saveResult.DefaultApprovalPolicy,
             ToolsLspEnabled = saveResult.ToolsLspEnabled,
             ToolsImageGenerationEnabled = saveResult.ImageGeneration.Enabled,
-            ToolsImageGenerationProvider = saveResult.ImageGeneration.Provider
+            ToolsImageGenerationProvider = saveResult.ImageGeneration.Provider,
+            ToolsCodeModeMode = saveResult.CodeMode.Mode
         };
     }
 
@@ -617,7 +627,8 @@ internal sealed partial class WorkspaceRequestHandler(
         bool updateDreamsAutoApply,
         bool updateDefaultApprovalPolicy,
         bool updateToolsLspEnabled,
-        ImageGenerationConfigUpdate imageGeneration)
+        ImageGenerationConfigUpdate imageGeneration,
+        CodeModeConfigUpdate codeMode)
     {
         var configPath = Path.Combine(workspaceCraftPath, "config.json");
         Directory.CreateDirectory(workspaceCraftPath);
@@ -781,6 +792,7 @@ internal sealed partial class WorkspaceRequestHandler(
             RemoveConfigSectionIfEmpty(root, "Tools");
         }
         var imageGenerationResult = ApplyImageGenerationConfigUpdate(root, imageGeneration);
+        var codeModeResult = ApplyCodeModeConfigUpdate(root, codeMode);
         if (providerIdChanged
             || providerPreferencesChanged
             || welcomeSuggestionsChanged
@@ -794,7 +806,8 @@ internal sealed partial class WorkspaceRequestHandler(
             || dreamsAutoApplyChanged
             || defaultApprovalPolicyChanged
             || toolsLspEnabledChanged
-            || imageGenerationResult.Changed)
+            || imageGenerationResult.Changed
+            || codeModeResult.Changed)
         {
             WriteConfigObject(configPath, root);
         }
@@ -851,7 +864,8 @@ internal sealed partial class WorkspaceRequestHandler(
             DreamsChanged = dreamsEnabledChanged || dreamsIntervalChanged || dreamsThreadLookbackCountChanged || dreamsAutoApplyChanged,
             DefaultApprovalPolicyChanged = defaultApprovalPolicyChanged,
             ToolsLspEnabledChanged = toolsLspEnabledChanged,
-            ImageGeneration = imageGenerationResult
+            ImageGeneration = imageGenerationResult,
+            CodeMode = codeModeResult
         };
     }
 
@@ -1123,5 +1137,7 @@ internal sealed partial class WorkspaceRequestHandler(
         public bool ToolsLspEnabledChanged { get; init; }
 
         public required ImageGenerationConfigSaveResult ImageGeneration { get; init; }
+
+        public required CodeModeConfigSaveResult CodeMode { get; init; }
     }
 }

@@ -1,6 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -344,37 +342,4 @@ public sealed partial class DynamicWorkflowService(
 
     private void PublishChanged(DynamicWorkflowRun run, string reason) =>
         RunChanged?.Invoke(new DynamicWorkflowRunChanged(run.ParentThreadId, run.RunId, reason));
-
-    private static ProcessStartInfo CreateWorkerStartInfo(string workingDirectory)
-    {
-        var processPath = Environment.ProcessPath;
-        var entryAssembly = Assembly.GetEntryAssembly()?.Location;
-        var loadedAppAssembly = AppDomain.CurrentDomain.GetAssemblies()
-            .FirstOrDefault(assembly => string.Equals(assembly.GetName().Name, "dotcraft", StringComparison.OrdinalIgnoreCase))
-            ?.Location;
-        var binary = !string.IsNullOrWhiteSpace(processPath)
-                     && string.Equals(Path.GetFileNameWithoutExtension(processPath), "dotcraft", StringComparison.OrdinalIgnoreCase)
-            ? processPath
-            : !string.IsNullOrWhiteSpace(entryAssembly)
-              && string.Equals(Path.GetFileNameWithoutExtension(entryAssembly), "dotcraft", StringComparison.OrdinalIgnoreCase)
-                ? entryAssembly
-                : loadedAppAssembly;
-        if (string.IsNullOrWhiteSpace(binary)) throw new InvalidOperationException("Cannot resolve the current DotCraft executable.");
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = binary.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? "dotnet" : binary,
-            WorkingDirectory = workingDirectory,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardInputEncoding = new UTF8Encoding(false),
-            StandardOutputEncoding = new UTF8Encoding(false),
-            StandardErrorEncoding = new UTF8Encoding(false)
-        };
-        if (binary.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) startInfo.ArgumentList.Add(binary);
-        startInfo.ArgumentList.Add("workflow-worker");
-        return startInfo;
-    }
 }

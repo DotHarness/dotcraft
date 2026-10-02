@@ -50,6 +50,7 @@ public sealed partial class SessionService
                 context.SnapshotRevision,
                 context.CallId,
                 arguments);
+            item.InvocationOrigin = context.Origin?.Kind;
             if (existing is null)
                 turn.Items.Add(item);
             turnRuntime.ToolInvocationItems[context.CallId] = item;
@@ -115,6 +116,7 @@ public sealed partial class SessionService
             Type = ItemType.CommandExecution,
             Status = ItemStatus.Started,
             CreatedAt = DateTimeOffset.UtcNow,
+            InvocationOrigin = context.Origin?.Kind,
             Payload = new CommandExecutionPayload
             {
                 CallId = context.CallId,
@@ -215,6 +217,7 @@ public sealed partial class SessionService
                     Status = ItemStatus.Completed,
                     CreatedAt = completedAt,
                     CompletedAt = completedAt,
+                    InvocationOrigin = context.Origin?.Kind,
                     Payload = new ToolResultPayload
                     {
                         CallId = context.CallId,
@@ -345,6 +348,7 @@ public sealed partial class SessionService
                 break;
             case ToolProjectionShape.StandardPair:
                 item.Type = ItemType.ToolCall;
+                item.FreeformCall = registration.Definition.FreeformInput is not null;
                 item.Payload = new ToolCallPayload
                 {
                     Namespace = registration.Definition.Name.Namespace,

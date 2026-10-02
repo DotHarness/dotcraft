@@ -143,7 +143,8 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
             context.ThreadId,
             context.TurnId,
             ResolveRemoteResultLimit(definition),
-            Math.Clamp(_spillPreviewLines, 1, 500), preparedBinding, snapshotRevision);
+            Math.Clamp(_spillPreviewLines, 1, 500), preparedBinding, snapshotRevision,
+            context.Origin?.Kind == ToolInvocationOrigin.CodeModeKind ? ToolInvocationOrigin.CodeModeKind : null);
         var request = new CallToolRequestParams
         {
             Name = definition.Name.ToString(),

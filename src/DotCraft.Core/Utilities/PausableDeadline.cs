@@ -1,8 +1,8 @@
 using System.Diagnostics;
 
-namespace DotCraft.AppServer;
+namespace DotCraft.Utilities;
 
-internal sealed class PausableDeadline : IDisposable
+public sealed class PausableDeadline : IDisposable
 {
     private readonly CancellationTokenSource _cts;
     private readonly Lock _gate = new();

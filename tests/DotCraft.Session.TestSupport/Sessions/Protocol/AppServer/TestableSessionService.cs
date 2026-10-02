@@ -649,9 +649,9 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
         return Task.CompletedTask;
     }
 
-    public void InvalidateThreadAgents()
-    {
-    }
+    public int AgentInvalidationCount { get; private set; }
+
+    public void InvalidateThreadAgents() => AgentInvalidationCount++;
 
     public async Task UpdateThreadConfigurationAsync(
         string threadId, ThreadConfiguration config, CancellationToken ct = default)

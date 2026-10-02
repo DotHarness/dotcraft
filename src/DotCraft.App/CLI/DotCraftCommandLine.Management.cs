@@ -244,15 +244,18 @@ public static partial class DotCraftCommandLine
         return command;
     }
 
-    private static Command CreateWorkflowWorkerCommand()
+    private static Command CreateScriptWorkerCommand()
     {
-        var command = new Command("workflow-worker", "Run the Dynamic Workflow worker protocol.")
+        var kind = RequiredArgument("kind", "Script worker kind.");
+        var command = new Command("script-worker", "Run a script worker protocol.")
         {
-            Hidden = true
+            kind
         };
-        command.SetAction((_, cancellationToken) => RunApplicationAsync(new CommandLineArgs
+        command.Hidden = true;
+        command.SetAction((parseResult, cancellationToken) => RunApplicationAsync(new CommandLineArgs
         {
-            Mode = CommandLineArgs.RunMode.WorkflowWorker,
+            Mode = CommandLineArgs.RunMode.ScriptWorker,
+            ScriptWorkerKind = parseResult.GetRequiredValue(kind),
             ReservesStdout = true
         }, cancellationToken));
         return command;

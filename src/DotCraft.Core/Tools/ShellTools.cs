@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Tools.BackgroundTerminals;
@@ -248,7 +250,11 @@ public sealed class ShellTools
     {
         if (snapshot.Status is BackgroundTerminalStatus.Running or BackgroundTerminalStatus.Completed
             || snapshot.Status == BackgroundTerminalStatus.Failed && snapshot.ExitCode.HasValue)
-            return ToolExecutionResult.Succeeded(content);
+            return ToolExecutionResult.Succeeded(
+                content,
+                ToolInvocationScope.Current?.Origin?.Kind == ToolInvocationOrigin.CodeModeKind
+                    ? CommandResult(snapshot)
+                    : null);
         var code = snapshot.Status switch
         {
             BackgroundTerminalStatus.TimedOut => ToolErrorCodes.Timeout,
@@ -258,6 +264,21 @@ public sealed class ShellTools
         return ToolExecutionResult.Failed(new ToolError(code,
             $"Terminal '{snapshot.SessionId}' finished with status '{snapshot.Status}'" +
             (snapshot.ExitCode is { } exitCode ? $" and exit code {exitCode}." : ".")), content);
+    }
+
+    private static JsonElement CommandResult(BackgroundTerminalSnapshot snapshot)
+    {
+        var result = new JsonObject
+        {
+            ["sessionId"] = snapshot.SessionId,
+            ["status"] = snapshot.Status,
+            ["output"] = snapshot.Output,
+            ["exitCode"] = snapshot.ExitCode,
+            ["truncated"] = snapshot.Truncated
+        };
+        if (snapshot.Truncated)
+            result["outputPath"] = snapshot.OutputPath;
+        return JsonSerializer.SerializeToElement(result);
     }
 
     private static string FormatSnapshot(BackgroundTerminalSnapshot snapshot)

@@ -352,11 +352,16 @@ route-aware runtime binding. On a remote route it then sends an MCP `tools/call`
       "definitionId": "source-qualified-id",
       "contractHash": "sha256-base64url",
       "maxResultChars": 50000,
-      "spillPreviewLines": 40
+      "spillPreviewLines": 40,
+      "originKind": "codeMode"
     }
   }
 }
 ```
+
+`originKind` is present only for a nested [Code Mode](../features/code-mode.md) call, and the Host
+dispatches with that origin kind so the native runtime shapes its result as it does locally; any other
+call runs with the Host's own origin.
 
 The Host validates the admitted execution session, lease attachment, workspace, RPC eligibility,
 definition, contract hash, and arguments. It then applies Host-local policy against the real remote
