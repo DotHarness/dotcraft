@@ -102,7 +102,7 @@ public static class ModelProviderResolver
             $"Model provider '{providerId}' is not configured. {MissingProviderMessage}");
     }
 
-    public static bool ResolveHostedImageGenerationSupport(AppConfig.ModelProviderConfig provider)
+    public static bool ResolveImageGenerationSupport(AppConfig.ModelProviderConfig provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
 
@@ -116,11 +116,11 @@ public static class ModelProviderResolver
             protocol = ModelProviderProtocols.OpenAIResponses;
 
         var endpoint = NormalizeEndpoint(protocol, provider.EndPoint, authMethod);
-        return provider.SupportsHostedImageGeneration
-            ?? DefaultSupportsHostedImageGeneration(protocol, endpoint, configuredAuthMethod);
+        return provider.SupportsImageGeneration
+            ?? DefaultSupportsImageGeneration(protocol, endpoint, configuredAuthMethod);
     }
 
-    public static bool DefaultSupportsHostedImageGeneration(string protocol, string endpoint, string authMethod)
+    public static bool DefaultSupportsImageGeneration(string protocol, string endpoint, string authMethod)
     {
         var configuredAuthMethod = string.IsNullOrWhiteSpace(authMethod)
             ? ModelProviderAuthMethods.ApiKey
@@ -132,7 +132,7 @@ public static class ModelProviderResolver
         if (!string.Equals(configuredAuthMethod, ModelProviderAuthMethods.ApiKey, StringComparison.OrdinalIgnoreCase))
             return false;
 
-        if (!ModelProviderProtocols.IsOpenAIResponses(protocol))
+        if (!ModelProviderProtocols.IsOpenAIProtocol(protocol))
             return false;
 
         return ModelProviderDefaults.IsOfficialOpenAIEndpoint(endpoint);
@@ -173,8 +173,8 @@ public static class ModelProviderResolver
             var maxOutputTokens = NormalizePositiveNullable(provider.MaxOutputTokens);
             var streamMaxRetries = NormalizeStreamMaxRetries(provider.StreamMaxRetries);
             var streamIdleTimeoutMs = NormalizeStreamIdleTimeoutMs(provider.StreamIdleTimeoutMs);
-            var supportsHostedImageGeneration = provider.SupportsHostedImageGeneration
-                ?? DefaultSupportsHostedImageGeneration(protocol, endPoint, configuredAuthMethod);
+            var supportsImageGeneration = provider.SupportsImageGeneration
+                ?? DefaultSupportsImageGeneration(protocol, endPoint, configuredAuthMethod);
             var accountId = string.IsNullOrWhiteSpace(provider.ChatGptAccountId)
                 ? null
                 : provider.ChatGptAccountId.Trim();
@@ -199,7 +199,7 @@ public static class ModelProviderResolver
                 streamIdleTimeoutMs,
                 configuredAuthMethod,
                 accountId,
-                supportsHostedImageGeneration,
+                supportsImageGeneration,
                 ProviderStateDirectory: string.IsNullOrWhiteSpace(config.GlobalConfigPath)
                     ? null
                     : Path.GetDirectoryName(config.GlobalConfigPath),

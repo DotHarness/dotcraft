@@ -101,7 +101,7 @@
         }
       ]
     },
-    "supportsHostedImageGeneration": {
+    "supportsImageGeneration": {
       "type": "boolean"
     }
   },

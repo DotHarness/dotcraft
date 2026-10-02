@@ -220,6 +220,14 @@ internal sealed partial class RemoteToolHostClient : IRemoteToolHostClient, IRem
         return await binding.Session.WriteImageAsync(route, threadId, callId, bytes, operation.Token).ConfigureAwait(false);
     }
 
+    public async ValueTask<byte[]> ReadImageAsync(RemoteToolRoute route, string threadId, string callId,
+        string path, CancellationToken cancellationToken = default)
+    {
+        var binding = Find(threadId, route) ?? throw Lost();
+        using var operation = binding.Operations.TryEnter(cancellationToken) ?? throw Lost();
+        return await binding.Session.ReadImageAsync(route, callId, path, operation.Token).ConfigureAwait(false);
+    }
+
     public async ValueTask<RemoteFileTransferResult> TransferAsync(string threadId, RemoteFileTransferRequest request,
         RemoteLocalWorkspace local, CancellationToken cancellationToken = default, Action<RemoteFileTransferProgress>? reportProgress = null)
     {

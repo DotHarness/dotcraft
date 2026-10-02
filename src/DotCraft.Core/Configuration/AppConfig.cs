@@ -678,19 +678,13 @@ public sealed partial class AppConfig
     [ConfigSection("Tools.ImageGeneration", DisplayName = "Tools > Image Generation", Order = 25)]
     public sealed class ImageGenerationToolsConfig
     {
-        /// <summary>
-        /// Enables hosted OpenAI image generation in conversations when the active provider supports it.
-        /// </summary>
         public bool Enabled { get; set; } = true;
 
-        /// <summary>
-        /// Reserved for image-client integrations. Hosted Responses image generation uses the active model.
-        /// </summary>
+        [ConfigField(Hint = "provider id; empty uses the conversation provider")]
+        public string? Provider { get; set; }
+
         public string Model { get; set; } = "gpt-image-2";
 
-        /// <summary>
-        /// Reserved for image-client integrations that accept reference images.
-        /// </summary>
         [ConfigField(Min = 1, Max = 5)]
         public int MaxReferenceImages { get; set; } = 5;
     }

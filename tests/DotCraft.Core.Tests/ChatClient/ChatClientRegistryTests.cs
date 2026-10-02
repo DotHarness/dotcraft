@@ -380,7 +380,7 @@ public sealed class ChatClientRegistryTests
             StreamIdleTimeoutMs: 0,
             AuthMethod: " CHATGPTOAUTH ",
             ChatGptAccountId: " account-a ",
-            SupportsHostedImageGeneration: true,
+            SupportsImageGeneration: true,
             UseResponsesLite: true,
             ProviderStateDirectory: "provider-state");
 
@@ -400,7 +400,7 @@ public sealed class ChatClientRegistryTests
         Assert.Equal(1, received.StreamIdleTimeoutMs);
         Assert.Equal(ModelProviderAuthMethods.ChatGptOAuth, received.AuthMethod);
         Assert.Equal("account-a", received.ChatGptAccountId);
-        Assert.True(received.SupportsHostedImageGeneration);
+        Assert.True(received.SupportsImageGeneration);
         Assert.True(received.UseResponsesLite);
         Assert.Equal("provider-state", received.ProviderStateDirectory);
     }
@@ -418,13 +418,13 @@ public sealed class ChatClientRegistryTests
         {
             Capabilities = runtime.Capabilities with { ExtendedThinking = !runtime.Capabilities.ExtendedThinking }
         });
-        var differentHostedImageSupport = registry.GetChatClient(runtime with
+        var differentImageSupport = registry.GetChatClient(runtime with
         {
-            SupportsHostedImageGeneration = !runtime.SupportsHostedImageGeneration
+            SupportsImageGeneration = !runtime.SupportsImageGeneration
         });
         Assert.Same(first, same);
         Assert.NotSame(first, differentCapabilities);
-        Assert.NotSame(first, differentHostedImageSupport);
+        Assert.NotSame(first, differentImageSupport);
         Assert.Equal(3, provider.ReceivedRuntimes.Count);
     }
 

@@ -11,53 +11,6 @@ namespace DotCraft.Agents;
 
 internal static partial class ResponsesToolSearchMapper
 {
-    internal static bool TryCreateHostedImageGenerationContent(
-        ResponseItem item,
-        out HostedImageGenerationContent content)
-    {
-        content = null!;
-        if (item is not ImageGenerationCallResponseItem image)
-            return false;
-        var status = image.Status switch
-        {
-            ImageGenerationCallStatus.Completed => "completed",
-            ImageGenerationCallStatus.Failed => "failed",
-            _ => null
-        };
-        if (status is null)
-            return false;
-        var bytes = image.ImageResultBytes?.ToArray();
-        content = new HostedImageGenerationContent
-        {
-            Id = image.Id,
-            Status = status,
-            RevisedPrompt = image.RevisedPrompt,
-            ImageBytes = status == "completed" ? bytes : null,
-            MediaType = "image/png",
-            ErrorMessage = status == "failed"
-                ? (TryReadJsonObjectFromRaw(image, out var raw) ? ReadImageGenerationError(raw) : null) ?? "Image generation failed."
-                : bytes is not { Length: > 0 } ? "Image generation completed without image data." : null
-        };
-        return true;
-    }
-
-    private static string? ReadImageGenerationError(JsonObject rawObject)
-    {
-        if (ReadJsonString(rawObject, "error") is { } textError)
-            return textError;
-
-        if (!rawObject.TryGetPropertyValue("error", out var errorNode) || errorNode is not JsonObject errorObject)
-            return null;
-
-        var message = ReadJsonString(errorObject, "message");
-        var code = ReadJsonString(errorObject, "code");
-        return string.IsNullOrWhiteSpace(code)
-            ? message
-            : string.IsNullOrWhiteSpace(message)
-                ? code
-                : $"{code}: {message}";
-    }
-
     internal static bool TryGetFunctionCallNamespace(
         FunctionCallContent call,
         out string functionNamespace)
@@ -156,42 +109,6 @@ internal static partial class ResponsesToolSearchMapper
             case JsonValue jsonValue when jsonValue.TryGetValue<string>(out var text)
                                       && !string.IsNullOrWhiteSpace(text):
                 value = text;
-                return true;
-
-            default:
-                return false;
-        }
-    }
-
-    private static bool TryReadBool(
-        AdditionalPropertiesDictionary? properties,
-        string name,
-        out bool value)
-    {
-        value = false;
-        if (properties == null || !properties.TryGetValue(name, out var propertyValue))
-            return false;
-
-        switch (propertyValue)
-        {
-            case bool boolean:
-                value = boolean;
-                return true;
-
-            case JsonElement { ValueKind: JsonValueKind.True }:
-                value = true;
-                return true;
-
-            case JsonElement { ValueKind: JsonValueKind.False }:
-                value = false;
-                return true;
-
-            case JsonValue jsonValue when jsonValue.TryGetValue<bool>(out var boolean):
-                value = boolean;
-                return true;
-
-            case string text when bool.TryParse(text, out var boolean):
-                value = boolean;
                 return true;
 
             default:

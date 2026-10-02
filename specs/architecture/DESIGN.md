@@ -1,5 +1,5 @@
 ---
-version: "0.7.9"
+version: "0.7.10"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -1506,6 +1506,22 @@ visualization document. Ordinary visualization buttons are `32px` controls with 
 matching the Desktop icon and field band; primary actions use neutral inversion rather than an
 accent fill. Feature colors remain available for charts and diagrams, not ordinary controls.
 
+### Image preview
+
+Generated images, attached images, and tool output images open in one fullscreen preview over a
+dark scrim. The preview pages through every image in the conversation in order, with
+previous/next buttons in side gutters, `←`/`→`, and an "n of total" counter below the image.
+It opens at Zoom to fit. The top-right toolbar holds a zoom menu (25, 50, 100, 150, 200%, then
+Zoom to fit), Download image, and Close. Ctrl/⌘ + wheel and pinch zoom between 10% and 400%
+around the pointer; dragging pans an image larger than the view; `+`, `-`, and `0` zoom in, out,
+and back to fit. `Esc` or a click on the scrim closes it; a press that moves more than 5px is
+a drag, not a close. Switching images returns to Zoom to fit.
+
+Right-clicking an image lists, in order: Open image, Add to chat, Copy image, the platform reveal
+action (Reveal in Finder, Open in Explorer, or Open in File Manager) only when the image is
+saved on this machine, and Download a copy. Downloads open a save dialog named
+"DotCraft Image <date>". A generated image's thumbnail shows its saved path as a tooltip.
+
 ### Interactive tool UI
 
 MCP tools may render an interactive UI in a sandboxed iframe (see
@@ -1608,6 +1624,13 @@ prerequisite is off: its control is disabled with its stored value unchanged, an
 a tooltip on the control names the prerequisite, such as "Enable memories to use
 Dreams". The hint keeps defining the setting rather than describing the
 dependency, and turning the prerequisite back on restores the setting as stored.
+
+A select over items that do not all qualify for the setting, such as the
+providers that can create images, lists every item and disables the ones that
+cannot serve, with the reason as the option's description; an option that
+follows another setting, such as Same as chat, names what it currently resolves
+to. When the effective choice cannot serve, a one-line warning notice under the
+rows says so and links to the fix.
 
 Each page or segment has one principal action, and it carries the primary neutral
 inversion wherever it sits in the header; refresh and other quiet actions beside

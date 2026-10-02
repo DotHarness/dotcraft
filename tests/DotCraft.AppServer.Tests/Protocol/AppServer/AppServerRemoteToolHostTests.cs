@@ -386,6 +386,9 @@ public sealed class AppServerRemoteToolHostTests
         public ValueTask<string> WriteImageAsync(RemoteToolRoute route, string threadId, string callId,
             byte[] bytes, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
+        public ValueTask<byte[]> ReadImageAsync(RemoteToolRoute route, string threadId, string callId,
+            string path, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public RemoteToolHostCatalog Catalog { get; set; } = new([]);
 
         public Dictionary<string, RemoteToolConnectionSnapshot> Snapshots { get; } = new(StringComparer.Ordinal);

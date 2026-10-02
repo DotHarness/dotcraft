@@ -36,6 +36,7 @@ import { expandInitCommand } from '../../utils/initCommand'
 import { useComposerMascot } from './useComposerMascot'
 import { usePromptSuggestion } from './usePromptSuggestion'
 import { useComposerFileAttachmentRequest } from './useComposerFileAttachmentRequest'
+import { useComposerImageAttachmentRequest } from './useComposerImageAttachmentRequest'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { readThreadHistoryHead } from '../../utils/threadHistory'
 import { restartThreadHistory } from '../../stores/threadHistoryStore'
@@ -979,6 +980,11 @@ function InputComposerCore({
     },
     [images.length, remoteWorkspace, t]
   )
+
+  useComposerImageAttachmentRequest((image) => {
+    void saveDataUrlAsTemp(image.dataUrl, image.fileName, image.mimeType)
+    setTimeout(() => richRef.current?.focus(), 0)
+  })
 
   const onPasteImage = useCallback(
     (file: File): void => {

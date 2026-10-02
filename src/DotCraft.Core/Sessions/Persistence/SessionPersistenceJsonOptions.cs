@@ -42,12 +42,6 @@ public static class SessionPersistenceJsonOptions
                 new JsonDerivedType(typeof(ToolCallArgumentsDeltaContent), "tool_call_args_delta"));
         }
 
-        if (!polymorphismOptions.DerivedTypes.Any(static dt => dt.DerivedType == typeof(HostedImageGenerationContent)))
-        {
-            polymorphismOptions.DerivedTypes.Add(
-                new JsonDerivedType(typeof(HostedImageGenerationContent), "hosted_image_generation"));
-        }
-
         polymorphismOptions.UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType;
         jsonTypeInfo.PolymorphismOptions = polymorphismOptions;
     }

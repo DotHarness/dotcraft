@@ -208,7 +208,7 @@ public sealed class ToolExecutionPayload : ExtensibleJsonObject
     public string? ErrorMessage { get; init; }
 }
 
-/// <summary>Canonical payload for a hosted image generation lifecycle item.</summary>
+/// <summary>Canonical payload for an image generation lifecycle item.</summary>
 public sealed class ImageGenerationPayload : ExtensibleJsonObject
 {
     [JsonPropertyName("callId")]
@@ -255,6 +255,14 @@ public sealed class ImageGenerationPayload : ExtensibleJsonObject
     [JsonPropertyName("errorMessage")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ErrorMessage { get; init; }
+
+    [JsonPropertyName("imagegenRequestId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ImagegenRequestId { get; init; }
+
+    [JsonPropertyName("generationId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GenerationId { get; init; }
 }
 
 /// <summary>Safe persisted provenance for a tool definition.</summary>

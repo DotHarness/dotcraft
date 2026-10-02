@@ -1,431 +1,505 @@
-using System.ComponentModel;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Security;
-using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
-using SixLabors.ImageSharp;
-
-#pragma warning disable OPENAI001
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Tools;
 
-/// <summary>
-/// Gates hosted OpenAI image generation support for provider request adapters.
-/// </summary>
-public static class ProviderHostedCapabilityPlanner
+public sealed class ImageGenerationToolSource(
+    AppConfig config,
+    ChatClientRegistry chatClientRegistry,
+    IApprovalService approvalService,
+    PathBlacklist? pathBlacklist = null,
+    string? userDataPath = null,
+    IRemoteToolHostClient? remoteToolHostClient = null,
+    ILogger? logger = null) : IToolSource
 {
-    internal const string ToolNamespace = "image_gen";
-    internal const string ToolName = "imagegen";
+    public const string ToolNamespace = "image_gen";
+    public const string ToolName = "imagegen";
     private const int HardMaxReferenceImages = 5;
 
-    internal static bool ShouldEnableHostedImageGeneration(AgentRuntimeContext context) =>
-        TryResolveSupportedRuntime(context, out _);
+    public string SourceId => "image-generation";
 
-    internal static ProviderHostedCapabilityPlan Build(AgentRuntimeContext context)
+    public int Priority => 30;
+
+    public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
+        ToolPlanningContext context,
+        CancellationToken cancellationToken = default)
     {
-        var deferredMode = DeferredToolLoadingPlanner.ResolveMode(
-            context.Config.Tools.DeferredLoading,
-            context.EffectiveProviderProtocol);
-        return new ProviderHostedCapabilityPlan(
-            ShouldEnableHostedImageGeneration(context),
-            NormalizeMaxReferenceImages(context.Config.Tools.ImageGeneration.MaxReferenceImages))
+        ArgumentNullException.ThrowIfNull(context);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!config.Tools.ImageGeneration.Enabled
+            || !TryResolveRuntime(context.EffectiveProviderId, context.EffectiveMainModel, out var conversationRuntime))
         {
-            DeferredToolSearch = deferredMode == DeferredToolLoadingMode.Off
-                ? null
-                : new DeferredToolSearchPlan(
-                    deferredMode,
-                    context.Config.Tools.DeferredLoading.Strategy.ToString(),
-                    ModelProviderProtocols.Normalize(context.EffectiveProviderProtocol),
-                    context.Config.Tools.DeferredLoading.MaxSearchResults,
-                    context.TraceCollector)
-        };
+            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
+        }
+
+        var imageProviderId = config.Tools.ImageGeneration.Provider?.Trim();
+        var runtime = conversationRuntime;
+        if ((!string.IsNullOrEmpty(imageProviderId)
+             && !TryResolveRuntime(imageProviderId, config.Tools.ImageGeneration.Model, out runtime))
+            || !IsSupportedRuntime(runtime))
+        {
+            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
+        }
+
+        var maxReferenceImages = NormalizeMaxReferenceImages(config.Tools.ImageGeneration.MaxReferenceImages);
+        var definitionId = new ToolDefinitionId(ToolSourceKind.CoreNative, SourceId, new SourceToolId(ToolName));
+        var definition = new ToolDefinition(
+            definitionId,
+            new ToolName(ToolNamespace, ToolName),
+            ImageGenerationToolText.Description(maxReferenceImages),
+            ImageGenerationToolText.InputSchema(),
+            annotations: CreateAnnotations(conversationRuntime.IsChatGptOAuth),
+            provenance: new ToolProvenance(ToolSourceKind.CoreNative, SourceId, "native"));
+        var toolRuntime = new ImageGenerationToolRuntime(
+            runtime,
+            chatClientRegistry,
+            config.Tools.ImageGeneration.Model,
+            maxReferenceImages,
+            context.DataPath,
+            new FileAccessGuard(
+                context.WorkspacePath,
+                context.RequireApprovalOutsideWorkspace ?? config.Tools.File.RequireApprovalOutsideWorkspace,
+                approvalService,
+                pathBlacklist,
+                trustedReadPaths: userDataPath == null
+                    ? [Path.GetFullPath(context.DataPath)]
+                    : [Path.GetFullPath(userDataPath), Path.GetFullPath(context.DataPath)],
+                workspaceRoots: context.WorkspaceRoots),
+            remoteToolHostClient,
+            logger);
+        var binding = new ToolRuntimeBinding(
+            new RuntimeBindingId($"native:{SourceId}:{ToolName}:{context.Revision}"),
+            definitionId,
+            toolRuntime,
+            ToolBindingLeases.AlwaysAvailable,
+            $"native:{SourceId}",
+            context.Revision);
+        return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>(
+            [new ToolRegistration(definition, binding, ToolProjectionShape.ImageGeneration)]);
     }
 
-    internal static bool TryResolveSupportedRuntime(
-        AgentRuntimeContext context,
-        out EffectiveModelRuntime runtime)
+    private bool TryResolveRuntime(string? providerId, string? model, out EffectiveModelRuntime runtime)
     {
-        runtime = null!;
-        ArgumentNullException.ThrowIfNull(context);
-
-        if (!context.Config.Tools.ImageGeneration.Enabled)
-            return false;
-
         try
         {
-            runtime = context.ChatClientRegistry.ResolveMainRuntime(
-                context.Config,
-                context.EffectiveProviderId,
-                context.EffectiveMainModel);
+            runtime = chatClientRegistry.ResolveMainRuntime(config, providerId, model);
+            return true;
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UriFormatException)
         {
             runtime = null!;
             return false;
         }
-
-        return IsSupportedRuntime(runtime);
     }
 
-    internal static bool IsSupportedRuntime(EffectiveModelRuntime runtime)
+    private static Dictionary<string, JsonElement> CreateAnnotations(bool reservedSchema)
     {
-        if (!runtime.IsOpenAIResponses)
-            return false;
-
-        if (!runtime.SupportsHostedImageGeneration)
-            return false;
-
-        return HasValidHostedImageGenerationAuth(runtime);
+        var annotations = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+        {
+            ["dotcraft/streamArguments"] = JsonSerializer.SerializeToElement(false)
+        };
+        if (reservedSchema)
+            annotations[ReservedToolSchema.Annotation] = JsonSerializer.SerializeToElement(true);
+        return annotations;
     }
 
-    private static bool HasValidHostedImageGenerationAuth(EffectiveModelRuntime runtime)
-    {
-        if (runtime.IsChatGptOAuth)
-            return true;
+    private static bool IsSupportedRuntime(EffectiveModelRuntime runtime) =>
+        runtime.IsOpenAICompatible
+        && runtime.SupportsImageGeneration
+        && (runtime.IsChatGptOAuth
+            || runtime.IsRemote
+            || string.Equals(runtime.AuthMethod?.Trim(), ModelProviderAuthMethods.ApiKey, StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(runtime.ApiKey));
 
-        return string.Equals(
-                   runtime.AuthMethod?.Trim(),
-                   ModelProviderAuthMethods.ApiKey,
-                   StringComparison.OrdinalIgnoreCase) &&
-               !string.IsNullOrWhiteSpace(runtime.ApiKey);
-    }
-
-    internal static int NormalizeMaxReferenceImages(int configured) =>
+    private static int NormalizeMaxReferenceImages(int configured) =>
         Math.Clamp(configured, 1, HardMaxReferenceImages);
-
 }
 
-/// <summary>
-/// Legacy client-side image generation helper. Hosted Responses image generation does not expose this as a model tool.
-/// </summary>
-public sealed class ImageGenerationTools
+internal sealed class ImageGenerationToolRuntime(
+    EffectiveModelRuntime runtime,
+    ChatClientRegistry chatClientRegistry,
+    string imageModel,
+    int maxReferenceImages,
+    string dataPath,
+    FileAccessGuard fileAccessGuard,
+    IRemoteToolHostClient? remoteToolHostClient,
+    ILogger? logger) : IToolRuntime
 {
-    private static readonly Dictionary<string, string> ImageExtensionToMediaType = new(StringComparer.OrdinalIgnoreCase)
-    {
-        [".png"] = "image/png",
-        [".jpg"] = "image/jpeg",
-        [".jpeg"] = "image/jpeg",
-        [".gif"] = "image/gif",
-        [".webp"] = "image/webp",
-        [".bmp"] = "image/bmp"
-    };
+    internal const string FailedErrorCode = "image_generation_failed";
+    internal const string SavedPathMeta = "savedPath";
+    internal const string SaveErrorCodeMeta = "saveErrorCode";
+    internal const string SavedHostIdMeta = "savedHostId";
+    internal const string SavedWorkspaceIdMeta = "savedWorkspaceId";
+    internal const string ImagegenRequestIdMeta = "imagegenRequestId";
+    internal const string GenerationIdMeta = "generationId";
+    private const int MaxOutputHintBytes = 1024;
 
-    private readonly AgentRuntimeContext _context;
-    private readonly EffectiveModelRuntime _runtime;
-    private readonly IImageGenerationService _imageService;
+    private static readonly string[] ArgumentNames =
+        ["prompt", "transparent_background", "referenced_image_paths", "num_last_images_to_include"];
 
-    internal ImageGenerationTools(
-        AgentRuntimeContext context,
-        EffectiveModelRuntime runtime,
-        IImageGenerationService? imageService = null)
-    {
-        _context = context;
-        _runtime = runtime;
-        _imageService = imageService ?? new ProviderImageGenerationService(context.ChatClientRegistry);
-    }
-
-    [Description("Generate an image from a prompt, or edit an image using explicit reference image paths or recent image inputs. Returns a short text summary and image/png bytes.")]
-    [Tool(CatalogVisible = false, Icon = "🖼️", MaxResultChars = 0)]
-    public async Task<IList<AIContent>> imagegen(
-        [Description("The image generation or image editing prompt.")] string prompt,
-        [Description("Optional workspace-relative or absolute paths to reference images. Mutually exclusive with numLastImagesToInclude.")] string[]? referencedImagePaths = null,
-        [Description("Optional number of most recent image inputs to use as references. Mutually exclusive with referencedImagePaths.")] int? numLastImagesToInclude = null,
+    public async ValueTask<ToolExecutionResult> InvokeAsync(
+        ToolInvocationContext context,
+        JsonObject arguments,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(arguments);
+
+        if (!TryParseArguments(arguments, out var request, out var error))
+            return InvalidInput(error);
+
+        RemoteToolRoute? route = remoteToolHostClient?.TryGetRoute(context.ThreadId, out var current) == true
+            ? current
+            : null;
+        var references = request.ReferencedImagePaths.Count > 0
+            ? await LoadReferencedImagesAsync(context, route, request.ReferencedImagePaths, cancellationToken)
+                .ConfigureAwait(false)
+            : request.RecentImageCount is { } count
+                ? CollectRecentImages(StreamingFunctionInvokingChatClient.CurrentContext?.Messages ?? [], count)
+                : ImageReferences.None;
+        if (references.Error is not null)
+            return InvalidInput(references.Error);
+
+        ProviderImageResult generated;
         try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (string.IsNullOrWhiteSpace(prompt))
-                return TextOnly("Error: prompt is required.");
-
-            if (!_context.Config.Tools.ImageGeneration.Enabled)
-                return TextOnly("Error: image generation is disabled by Tools.ImageGeneration.Enabled.");
-
-            if (!ProviderHostedCapabilityPlanner.IsSupportedRuntime(_runtime))
-            {
-                return TextOnly(
-                    "Error: image generation is not enabled for this provider. Turn on SupportsHostedImageGeneration for a compatible OpenAI Responses provider.");
-            }
-
-            var imageModel = _context.Config.Tools.ImageGeneration.Model.Trim();
-            if (string.IsNullOrWhiteSpace(imageModel))
-                return TextOnly("Error: Tools.ImageGeneration.Model must be configured.");
-
-            var maxReferenceImages = ProviderHostedCapabilityPlanner.NormalizeMaxReferenceImages(
-                _context.Config.Tools.ImageGeneration.MaxReferenceImages);
-            var explicitPaths = NormalizeReferencedPaths(referencedImagePaths, out var pathError);
-            if (pathError != null)
-                return TextOnly(pathError);
-
-            if (explicitPaths.Count > 0 && numLastImagesToInclude.HasValue)
-                return TextOnly("Error: referenced_image_paths and num_last_images_to_include are mutually exclusive.");
-
-            if (explicitPaths.Count > maxReferenceImages)
-            {
-                return TextOnly(
-                    $"Error: referenced_image_paths accepts at most {maxReferenceImages} image(s).");
-            }
-
-            if (numLastImagesToInclude is <= 0)
-                return TextOnly("Error: num_last_images_to_include must be greater than zero.");
-
-            if (numLastImagesToInclude > maxReferenceImages)
-            {
-                return TextOnly(
-                    $"Error: num_last_images_to_include accepts at most {maxReferenceImages} image(s).");
-            }
-
-            var references = explicitPaths.Count > 0
-                ? await LoadExplicitReferenceImagesAsync(explicitPaths, maxReferenceImages, cancellationToken)
-                    .ConfigureAwait(false)
-                : LoadRecentReferenceImages(numLastImagesToInclude.GetValueOrDefault());
-            if (references.Error != null)
-                return TextOnly(references.Error);
-
-            var imageBytes = references.Images.Count == 0
-                ? await _imageService.GenerateAsync(_runtime, imageModel, prompt.Trim(), cancellationToken)
-                    .ConfigureAwait(false)
-                : await _imageService.EditAsync(_runtime, imageModel, prompt.Trim(), references.Images, cancellationToken)
-                    .ConfigureAwait(false);
-
-            var savedPath = await SaveGeneratedImageAsync(imageBytes, cancellationToken).ConfigureAwait(false);
-            var relativePath = Path.GetRelativePath(_context.WorkspacePath, savedPath)
-                .Replace(Path.DirectorySeparatorChar, '/');
-            var verb = references.Images.Count == 0 ? "Generated" : "Edited";
-            var summary = $"{verb} image saved to {relativePath}.";
-            return [new TextContent(summary), new DataContent(imageBytes, "image/png")];
+            var provider = chatClientRegistry.GetProviderService<IProviderImageGeneration>(runtime)
+                           ?? throw new InvalidOperationException(
+                               $"Provider '{runtime.ProviderId}' does not support image generation.");
+            generated = await provider.GenerateImageAsync(
+                runtime,
+                new ProviderImageRequest(
+                    imageModel, request.Prompt, request.TransparentBackground, references.Urls, context.TurnId),
+                cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or HttpRequestException or IOException)
+        catch (Exception ex) when (ex is ProviderImageException or HttpRequestException or InvalidOperationException
+                                       or ArgumentException or IOException or OperationCanceledException)
         {
-            return TextOnly($"Error: image generation failed: {TrimError(ex.Message)}");
+            var message = ex is OperationCanceledException
+                ? "the Images API request timed out"
+                : TrimError(ex.Message);
+            var failureMeta = new JsonObject
+            {
+                [ImagegenRequestIdMeta] = (ex as ProviderImageException)?.ImagegenRequestId
+            };
+            return new ToolExecutionResult(
+                false,
+                $"image generation failed: {message}",
+                meta: JsonSerializer.SerializeToElement(failureMeta),
+                error: new ToolError(FailedErrorCode, message));
         }
+
+        var image = generated.Image;
+        var saved = await SaveAsync(context.ThreadId, context.CallId, route, image, cancellationToken).ConfigureAwait(false);
+        var hint = saved.Path is null ? null : CreateOutputHint(saved.Path);
+        List<AIContent> contentItems = [new DataContent(image, "image/png")];
+        if (hint is not null)
+            contentItems.Add(new TextContent(hint));
+        var meta = new JsonObject
+        {
+            [SavedPathMeta] = saved.Path,
+            [SaveErrorCodeMeta] = saved.ErrorCode,
+            [SavedHostIdMeta] = saved.Route?.HostId,
+            [SavedWorkspaceIdMeta] = saved.Route?.WorkspaceId,
+            [ImagegenRequestIdMeta] = generated.ImagegenRequestId,
+            [GenerationIdMeta] = generated.GenerationId
+        };
+        return ToolExecutionResult.Succeeded(
+            hint ?? "Generated image.",
+            meta: JsonSerializer.SerializeToElement(meta),
+            contentItems: contentItems);
     }
 
-    private async Task<ReferenceImageLoadResult> LoadExplicitReferenceImagesAsync(
-        IReadOnlyList<string> paths,
-        int maxReferenceImages,
-        CancellationToken cancellationToken)
+    private static bool TryParseArguments(
+        JsonObject arguments,
+        out ImageGenerationArguments request,
+        out string error)
     {
-        if (paths.Count == 0)
-            return ReferenceImageLoadResult.Success([]);
-
-        if (paths.Count > maxReferenceImages)
-            return ReferenceImageLoadResult.Failure($"Error: at most {maxReferenceImages} reference image(s) are supported.");
-
-        var guard = CreateFileAccessGuard();
-        var images = new List<ImageGenerationReferenceImage>(paths.Count);
-        for (var i = 0; i < paths.Count; i++)
+        request = null!;
+        error = string.Empty;
+        foreach (var (name, _) in arguments)
         {
-            var originalPath = paths[i];
-            string fullPath;
-            try
+            if (Array.IndexOf(ArgumentNames, name) < 0)
             {
-                fullPath = guard.ResolvePath(originalPath);
+                error = $"unknown field `{name}`, expected one of `prompt`, `transparent_background`, "
+                        + "`referenced_image_paths`, `num_last_images_to_include`";
+                return false;
             }
-            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-            {
-                return ReferenceImageLoadResult.Failure($"Error: invalid image path '{originalPath}'.");
-            }
-
-            var validationError = await guard.ValidatePathAsync(
-                fullPath,
-                "read",
-                originalPath,
-                cancellationToken).ConfigureAwait(false);
-            if (validationError != null)
-                return ReferenceImageLoadResult.Failure(validationError);
-
-            if (Directory.Exists(fullPath))
-                return ReferenceImageLoadResult.Failure($"Error: reference image path is a directory: {originalPath}");
-
-            if (!File.Exists(fullPath))
-                return ReferenceImageLoadResult.Failure($"Error: reference image not found: {originalPath}");
-
-            var bytes = await File.ReadAllBytesAsync(fullPath, cancellationToken).ConfigureAwait(false);
-            var mediaType = DetectImageMediaType(fullPath, bytes);
-            var prepared = ModelImageInputPreparer.Prepare(new DataContent(bytes, mediaType));
-            if (!prepared.HasImage || prepared.Content == null)
-            {
-                return ReferenceImageLoadResult.Failure(
-                    $"Error: reference image could not be processed: {originalPath}");
-            }
-
-            images.Add(ToReferenceImage(
-                prepared.Content,
-                Path.GetFileName(fullPath),
-                index: i + 1));
         }
 
-        return ReferenceImageLoadResult.Success(images);
-    }
-
-    private ReferenceImageLoadResult LoadRecentReferenceImages(int count)
-    {
-        if (count <= 0)
-            return ReferenceImageLoadResult.Success([]);
-
-        var invocation = StreamingFunctionInvokingChatClient.CurrentContext;
-        if (invocation == null)
+        if (arguments["prompt"] is not JsonValue promptValue
+            || !promptValue.TryGetValue<string>(out var prompt)
+            || string.IsNullOrWhiteSpace(prompt))
         {
-            return ReferenceImageLoadResult.Failure(
-                "Error: num_last_images_to_include requires an active tool invocation with image history.");
+            error = "`prompt` is required";
+            return false;
         }
 
-        var images = new List<ImageGenerationReferenceImage>(count);
-        var messages = invocation.Messages?.ToList() ?? [];
-        for (var messageIndex = messages.Count - 1; messageIndex >= 0 && images.Count < count; messageIndex--)
+        var transparent = false;
+        if (arguments["transparent_background"] is { } transparentNode
+            && (transparentNode is not JsonValue transparentValue || !transparentValue.TryGetValue(out transparent)))
         {
-            var contents = messages[messageIndex].Contents;
-            for (var contentIndex = contents.Count - 1; contentIndex >= 0 && images.Count < count; contentIndex--)
+            error = "`transparent_background` must be a boolean";
+            return false;
+        }
+
+        var paths = new List<string>();
+        if (arguments["referenced_image_paths"] is { } pathsNode)
+        {
+            if (pathsNode is not JsonArray pathsArray)
             {
-                if (contents[contentIndex] is not DataContent dataContent ||
-                    !ModelImageInputPreparer.IsImageMediaType(dataContent.MediaType))
+                error = "`referenced_image_paths` must be an array of paths";
+                return false;
+            }
+
+            foreach (var pathNode in pathsArray)
+            {
+                if (pathNode is not JsonValue pathValue
+                    || !pathValue.TryGetValue<string>(out var path)
+                    || string.IsNullOrWhiteSpace(path))
                 {
-                    continue;
+                    error = "`referenced_image_paths` must contain non-empty paths";
+                    return false;
                 }
 
-                var prepared = ModelImageInputPreparer.Prepare(dataContent);
-                if (!prepared.HasImage || prepared.Content == null)
-                    continue;
-
-                images.Add(ToReferenceImage(
-                    prepared.Content,
-                    $"recent-image-{images.Count + 1}",
-                    index: images.Count + 1));
+                paths.Add(path.Trim());
             }
         }
 
-        if (images.Count < count)
+        int? recentCount = null;
+        if (arguments["num_last_images_to_include"] is { } countNode)
         {
-            return ReferenceImageLoadResult.Failure(
-                $"Error: requested {count} recent image(s), but only found {images.Count}.");
+            if (countNode is not JsonValue countValue || !countValue.TryGetValue<int>(out var count))
+            {
+                error = "`num_last_images_to_include` must be an integer";
+                return false;
+            }
+
+            recentCount = count;
         }
 
-        images.Reverse();
-        return ReferenceImageLoadResult.Success(images);
+        if (paths.Count > 0 && recentCount is not null)
+        {
+            error = "provide only one of `referenced_image_paths` or `num_last_images_to_include`";
+            return false;
+        }
+
+        request = new ImageGenerationArguments(prompt.Trim(), transparent, paths, recentCount);
+        return true;
     }
 
-    private FileAccessGuard CreateFileAccessGuard()
+    internal ImageReferences CollectRecentImages(IEnumerable<ChatMessage> messages, int count)
     {
-        var botPath = Path.GetFullPath(_context.BotPath);
-        var trustedReadPaths = _context.UserDataPath == null
-            ? new[] { botPath }
-            : new[] { Path.GetFullPath(_context.UserDataPath), botPath };
-        return new FileAccessGuard(
-            _context.WorkspacePath,
-            _context.RequireApprovalOutsideWorkspace ?? _context.Config.Tools.File.RequireApprovalOutsideWorkspace,
-            _context.ApprovalService,
-            _context.PathBlacklist,
-            trustedReadPaths: trustedReadPaths);
+        if (count < 1 || count > maxReferenceImages)
+            return ImageReferences.Failure($"`num_last_images_to_include` must be between 1 and {maxReferenceImages}");
+
+        var urls = new List<string>(count);
+        foreach (var message in messages.Reverse())
+        {
+            foreach (var content in message.Contents.Reverse())
+            {
+                foreach (var url in ImageUrlsNewestFirst(content))
+                {
+                    urls.Add(url);
+                    if (urls.Count == count)
+                    {
+                        urls.Reverse();
+                        return new ImageReferences(urls, null);
+                    }
+                }
+            }
+        }
+
+        return ImageReferences.Failure(
+            $"requested the last {count} conversation images, but only {urls.Count} were available");
     }
 
-    private async Task<string> SaveGeneratedImageAsync(byte[] imageBytes, CancellationToken cancellationToken)
+    private static IEnumerable<string> ImageUrlsNewestFirst(AIContent content)
     {
-        var threadId = _context.CurrentThreadId ??
-                       TracingChatClient.CurrentSessionKey ??
-                       TracingChatClient.GetActiveSessionKey() ??
-                       "thread";
-        var invocation = StreamingFunctionInvokingChatClient.CurrentContext;
-        var callId = invocation?.CallContent?.CallId ?? Guid.NewGuid().ToString("N");
-
-        var outputDirectory = Path.Combine(
-            _context.BotPath,
-            "generated_images",
-            SanitizePathSegment(threadId));
-        Directory.CreateDirectory(outputDirectory);
-
-        var outputPath = Path.Combine(outputDirectory, SanitizePathSegment(callId) + ".png");
-        await File.WriteAllBytesAsync(outputPath, imageBytes, cancellationToken).ConfigureAwait(false);
-        return outputPath;
+        switch (content)
+        {
+            case DataContent data when ModelImageInputPreparer.IsImageMediaType(data.MediaType):
+                if (ToDataUrl(data) is { } url)
+                    yield return url;
+                break;
+            case FunctionResultContent result
+                when ImageContentSanitizingChatClient.TryGetResultContentItems(result.Result, out var items):
+                foreach (var item in items.Reverse())
+                {
+                    if (item is DataContent itemData
+                        && ModelImageInputPreparer.IsImageMediaType(itemData.MediaType)
+                        && ToDataUrl(itemData) is { } itemUrl)
+                    {
+                        yield return itemUrl;
+                    }
+                }
+                break;
+        }
     }
 
-    private static List<string> NormalizeReferencedPaths(string[]? paths, out string? error)
+    private async Task<ImageReferences> LoadReferencedImagesAsync(
+        ToolInvocationContext context,
+        RemoteToolRoute? route,
+        IReadOnlyList<string> paths,
+        CancellationToken cancellationToken)
     {
-        error = null;
-        if (paths == null || paths.Length == 0)
-            return [];
+        if (paths.Count > maxReferenceImages)
+            return ImageReferences.Failure($"`referenced_image_paths` must contain at most {maxReferenceImages} paths");
 
-        var result = new List<string>(paths.Length);
+        var urls = new List<string>(paths.Count);
         foreach (var path in paths)
         {
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                error = "Error: referenced_image_paths cannot contain empty paths.";
-                return [];
-            }
+            var read = route is null
+                ? await ReadLocalImageAsync(path, cancellationToken).ConfigureAwait(false)
+                : await ReadRemoteImageAsync(context, route, path, cancellationToken).ConfigureAwait(false);
+            if (read.Error is not null)
+                return ImageReferences.Failure(read.Error);
 
-            result.Add(path.Trim());
+            var url = ToDataUrl(new DataContent(read.Bytes!, DetectImageMediaType(read.Bytes!)));
+            if (url is null)
+                return ImageReferences.Failure($"unable to process referenced image at `{path}`");
+            urls.Add(url);
         }
 
-        return result;
+        return new ImageReferences(urls, null);
     }
 
-    private static ImageGenerationReferenceImage ToReferenceImage(
-        DataContent content,
-        string fileName,
-        int index)
+    private async Task<ReferencedImage> ReadLocalImageAsync(string path, CancellationToken cancellationToken)
     {
-        var mediaType = NormalizeMediaType(content.MediaType);
-        return new ImageGenerationReferenceImage(
-            content.Data.ToArray(),
-            mediaType,
-            EnsureImageFileName(fileName, mediaType, index));
-    }
+        string fullPath;
+        try
+        {
+            fullPath = fileAccessGuard.ResolvePath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return new ReferencedImage(null, $"invalid referenced image path `{path}`");
+        }
 
-    private static string DetectImageMediaType(string path, byte[] bytes)
-    {
-        if (ImageExtensionToMediaType.TryGetValue(Path.GetExtension(path), out var mediaType))
-            return mediaType;
+        var accessError = await fileAccessGuard.ValidatePathAsync(fullPath, "read", path, cancellationToken)
+            .ConfigureAwait(false);
+        if (accessError is not null)
+            return new ReferencedImage(null, accessError);
 
         try
         {
-            var format = Image.DetectFormat(bytes);
-            return NormalizeMediaType(format.DefaultMimeType);
+            return new ReferencedImage(await File.ReadAllBytesAsync(fullPath, cancellationToken).ConfigureAwait(false), null);
         }
-        catch (Exception ex) when (ex is ArgumentException or ImageFormatException or UnknownImageFormatException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return new ReferencedImage(null, $"unable to read referenced image at `{path}`: {ex.Message}");
+        }
+    }
+
+    private async Task<ReferencedImage> ReadRemoteImageAsync(
+        ToolInvocationContext context,
+        RemoteToolRoute route,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var bytes = await remoteToolHostClient!
+                .ReadImageAsync(route, context.ThreadId, context.CallId, path, cancellationToken)
+                .ConfigureAwait(false);
+            return new ReferencedImage(bytes, null);
+        }
+        catch (RemoteToolHostException ex)
+        {
+            return new ReferencedImage(null, $"unable to read referenced image at `{path}`: {ex.Message}");
+        }
+    }
+
+    private async Task<SavedImage> SaveAsync(
+        string threadId,
+        string callId,
+        RemoteToolRoute? route,
+        byte[] image,
+        CancellationToken cancellationToken)
+    {
+        var threadSegment = SanitizeSegment(threadId);
+        var callSegment = SanitizeSegment(callId);
+        try
+        {
+            if (route is not null)
+            {
+                var remotePath = await remoteToolHostClient!
+                    .WriteImageAsync(route, threadSegment, callSegment, image, cancellationToken)
+                    .ConfigureAwait(false);
+                return new SavedImage(remotePath, route, null);
+            }
+
+            var directory = Path.Combine(dataPath, "generated_images", threadSegment);
+            Directory.CreateDirectory(directory);
+            var path = Path.Combine(directory, callSegment + ".png");
+            await File.WriteAllBytesAsync(path, image, cancellationToken).ConfigureAwait(false);
+            return new SavedImage(path, null, null);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
+                                       or NotSupportedException or RemoteToolHostException or OperationCanceledException)
+        {
+            logger?.LogWarning("Generated image could not be saved for thread {ThreadId}: {ErrorType}", threadId, ex.GetType().Name);
+            return new SavedImage(null, route, ex is RemoteToolHostException remoteError
+                ? remoteError.Code
+                : "image_generation_save_failed");
+        }
+    }
+
+    internal static string? CreateOutputHint(string savedPath)
+    {
+        var separator = savedPath.LastIndexOfAny(['/', '\\']);
+        var directory = separator > 0 ? savedPath[..separator] : savedPath;
+        var hint =
+            $"Generated images are saved to {directory} as {savedPath} by default.\n" +
+            "If you need to use a generated image at another path, copy it and leave the original in place unless the user explicitly asks you to delete it.\n" +
+            "The generated image is already displayed to the user. There is no need to render it in the final response as a Markdown image or file link.";
+        return System.Text.Encoding.UTF8.GetByteCount(hint) <= MaxOutputHintBytes ? hint : null;
+    }
+
+    private static string SanitizeSegment(string value)
+    {
+        var sanitized = new string(value
+            .Select(static ch => char.IsAsciiLetterOrDigit(ch) || ch is '-' or '_' ? ch : '_')
+            .ToArray());
+        return sanitized.Length == 0 ? "generated_image" : sanitized;
+    }
+
+    private static string? ToDataUrl(DataContent content)
+    {
+        var prepared = ModelImageInputPreparer.Prepare(content);
+        return prepared.Content is { } image
+            ? $"data:{image.MediaType};base64,{Convert.ToBase64String(image.Data.ToArray())}"
+            : null;
+    }
+
+    private static string DetectImageMediaType(byte[] bytes)
+    {
+        try
+        {
+            return SixLabors.ImageSharp.Image.DetectFormat(bytes).DefaultMimeType;
+        }
+        catch (Exception ex) when (ex is ArgumentException or SixLabors.ImageSharp.ImageFormatException
+                                       or SixLabors.ImageSharp.UnknownImageFormatException)
         {
             return "application/octet-stream";
         }
     }
 
-    private static string EnsureImageFileName(string fileName, string mediaType, int index)
-    {
-        var stem = Path.GetFileNameWithoutExtension(fileName);
-        if (string.IsNullOrWhiteSpace(stem))
-            stem = $"reference-{index}";
-
-        var extension = mediaType switch
-        {
-            "image/jpeg" => ".jpg",
-            "image/webp" => ".webp",
-            _ => ".png"
-        };
-        return SanitizePathSegment(stem) + extension;
-    }
-
-    private static string NormalizeMediaType(string? mediaType) =>
-        string.IsNullOrWhiteSpace(mediaType)
-            ? "application/octet-stream"
-            : mediaType.Trim().ToLowerInvariant();
-
-    private static string SanitizePathSegment(string value)
-    {
-        var trimmed = string.IsNullOrWhiteSpace(value) ? "image" : value.Trim();
-        var invalid = Path.GetInvalidFileNameChars();
-        var chars = trimmed.Select(ch =>
-            invalid.Contains(ch) || ch is '/' or '\\' or ':' || char.IsControl(ch)
-                ? '_'
-                : ch).ToArray();
-        var sanitized = new string(chars).Trim('.', ' ');
-        return string.IsNullOrWhiteSpace(sanitized) ? "image" : sanitized;
-    }
-
-    private static IList<AIContent> TextOnly(string text) => [new TextContent(text)];
+    private static ToolExecutionResult InvalidInput(string message) =>
+        ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.InputInvalid, message), message);
 
     private static string TrimError(string message)
     {
@@ -433,75 +507,20 @@ public sealed class ImageGenerationTools
         return trimmed.Length <= 1000 ? trimmed : trimmed[..1000];
     }
 
-    private sealed record ReferenceImageLoadResult(
-        IReadOnlyList<ImageGenerationReferenceImage> Images,
-        string? Error)
-    {
-        public static ReferenceImageLoadResult Success(IReadOnlyList<ImageGenerationReferenceImage> images) =>
-            new(images, null);
+    private sealed record SavedImage(string? Path, RemoteToolRoute? Route, string? ErrorCode);
 
-        public static ReferenceImageLoadResult Failure(string error) =>
-            new([], error);
-    }
+    private sealed record ReferencedImage(byte[]? Bytes, string? Error);
 }
 
-internal interface IImageGenerationService
+internal sealed record ImageGenerationArguments(
+    string Prompt,
+    bool TransparentBackground,
+    IReadOnlyList<string> ReferencedImagePaths,
+    int? RecentImageCount);
+
+internal sealed record ImageReferences(IReadOnlyList<string> Urls, string? Error)
 {
-    Task<byte[]> GenerateAsync(
-        EffectiveModelRuntime runtime,
-        string imageModel,
-        string prompt,
-        CancellationToken cancellationToken);
+    public static ImageReferences None { get; } = new([], null);
 
-    Task<byte[]> EditAsync(
-        EffectiveModelRuntime runtime,
-        string imageModel,
-        string prompt,
-        IReadOnlyList<ImageGenerationReferenceImage> images,
-        CancellationToken cancellationToken);
+    public static ImageReferences Failure(string error) => new([], error);
 }
-
-internal sealed class ProviderImageGenerationService(ChatClientRegistry registry) : IImageGenerationService
-{
-    public async Task<byte[]> GenerateAsync(
-        EffectiveModelRuntime runtime,
-        string imageModel,
-        string prompt,
-        CancellationToken cancellationToken)
-    {
-        var capability = registry.GetProviderService<IProviderImageGeneration>(runtime)
-            ?? throw new InvalidOperationException(
-                $"Provider '{runtime.Protocol}' does not support image generation.");
-        return await capability.GenerateAsync(
-            runtime,
-            imageModel,
-            prompt,
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<byte[]> EditAsync(
-        EffectiveModelRuntime runtime,
-        string imageModel,
-        string prompt,
-        IReadOnlyList<ImageGenerationReferenceImage> images,
-        CancellationToken cancellationToken)
-    {
-        var capability = registry.GetProviderService<IProviderImageGeneration>(runtime)
-            ?? throw new InvalidOperationException(
-                $"Provider '{runtime.Protocol}' does not support image generation.");
-        return await capability.EditAsync(
-            runtime,
-            imageModel,
-            prompt,
-            images.Select(static image => new ProviderImageReference(
-                image.Bytes,
-                image.MediaType,
-                image.FileName)).ToArray(),
-            cancellationToken).ConfigureAwait(false);
-    }
-}
-
-internal sealed record ImageGenerationReferenceImage(
-    byte[] Bytes,
-    string MediaType,
-    string FileName);

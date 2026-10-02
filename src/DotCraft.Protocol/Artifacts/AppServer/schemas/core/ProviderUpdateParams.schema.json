@@ -97,7 +97,7 @@
         }
       ]
     },
-    "supportsHostedImageGeneration": {
+    "supportsImageGeneration": {
       "anyOf": [
         {
           "type": "boolean"

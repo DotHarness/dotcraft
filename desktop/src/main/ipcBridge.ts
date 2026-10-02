@@ -70,6 +70,7 @@ import { clearDesktopPluginModuleRoutes } from './pluginFileProtocol'
 import { registerDesktopPluginModuleIpc, unregisterDesktopPluginModuleIpc } from './desktopPluginModuleIpc'
 import { partitionForWorkspace, viewerBrowserManager } from './viewerBrowser'
 import { BROWSER_FEEDBACK_CHANNELS, registerBrowserFeedbackIpc } from './browserFeedbackIpc'
+import { saveImageAs, type SaveImageAsRequest } from './imageSaveAs'
 import { viewerTerminalManager } from './viewerTerminal'
 import { browserUseManager } from './browserUseManager'
 import type { BrowserUseApprovalResponsePayload } from '../shared/viewer/types'
@@ -655,6 +656,8 @@ interface WorkspaceCoreConfigSnapshot {
   dreamsThreadLookbackCount: number | null
   dreamsAutoApply: boolean | null
   defaultApprovalPolicy: 'default' | 'autoApprove' | null
+  toolsImageGenerationEnabled: boolean | null
+  toolsImageGenerationProvider: string | null
 }
 
 function getCaseInsensitiveRecordValue(
@@ -725,6 +728,13 @@ function readDefaultApprovalPolicy(record: Record<string, unknown>): 'default' |
   return raw === 'default' || raw === 'autoApprove' ? raw : null
 }
 
+function readToolsSection(record: Record<string, unknown>): Record<string, unknown> {
+  const tools = getCaseInsensitiveRecordValue(record, 'Tools')
+  return tools == null || typeof tools !== 'object' || Array.isArray(tools)
+    ? {}
+    : tools as Record<string, unknown>
+}
+
 function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
   return {
     providerId: null,
@@ -738,13 +748,16 @@ function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
     dreamsInterval: null,
     dreamsThreadLookbackCount: null,
     dreamsAutoApply: null,
-    defaultApprovalPolicy: null
+    defaultApprovalPolicy: null,
+    toolsImageGenerationEnabled: null,
+    toolsImageGenerationProvider: null
   }
 }
 
 function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapshot {
   if (!raw.trim()) return createEmptyCoreConfigSnapshot()
   const parsed = parseJsonObjectConfig(raw)
+  const tools = readToolsSection(parsed)
   return {
     providerId: normalizeOptionalStringValue(parsed.ProviderId ?? parsed.providerId),
     providerPreferences: readProviderPreferences(
@@ -759,7 +772,9 @@ function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapsho
     dreamsInterval: readNestedString(parsed, 'Dreams', 'Interval'),
     dreamsThreadLookbackCount: readNestedInteger(parsed, 'Dreams', 'ThreadLookbackCount'),
     dreamsAutoApply: readNestedBoolean(parsed, 'Dreams', 'AutoApply'),
-    defaultApprovalPolicy: readDefaultApprovalPolicy(parsed)
+    defaultApprovalPolicy: readDefaultApprovalPolicy(parsed),
+    toolsImageGenerationEnabled: readNestedBoolean(tools, 'ImageGeneration', 'Enabled'),
+    toolsImageGenerationProvider: readNestedString(tools, 'ImageGeneration', 'Provider')
   }
 }
 
@@ -1432,6 +1447,10 @@ export function registerIpcHandlers(
   handleSafe('shell:reveal-local-path', async (_event, targetPath: string) => {
     const resolved = await assertExistingLocalPath(targetPath)
     shell.showItemInFolder(resolved)
+  })
+
+  handleSafe('shell:save-image-as', async (event, request: SaveImageAsRequest) => {
+    return saveImageAs(event.sender, request)
   })
 
   handleSafe('shell:show-item-in-folder', async (_event, targetPath: string) => {
@@ -2634,6 +2653,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('editors:launch-local-path')
   ipcMain.removeHandler('shell:open-local-path')
   ipcMain.removeHandler('shell:reveal-local-path')
+  ipcMain.removeHandler('shell:save-image-as')
   ipcMain.removeHandler('file:write')
   ipcMain.removeHandler('file:read')
   ipcMain.removeHandler('file:exists')

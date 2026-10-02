@@ -630,9 +630,6 @@ public sealed class AgentFactory : IAsyncDisposable
             pipelineContext,
             _logger);
         var chatOptions = CreateChatOptions(tools, ctx.EffectiveReasoning, runtime, instructions);
-        if (ProviderHostedCapabilityPlanner.Build(ctx).ImageGenerationEnabled)
-            _chatClientRegistry.GetProviderService<IProviderHostedToolAdapter>(runtime)?
-                .Configure(chatOptions, new HashSet<string>(StringComparer.Ordinal) { "image_generation" });
 
         AgentPromptInputs? promptInputs = null;
         Func<AIContextProvider>? createBuiltInProvider = null;
@@ -818,7 +815,7 @@ public sealed class AgentFactory : IAsyncDisposable
         string providerFlatName,
         ToolDefinition definition,
         string? namespaceDescription)
-        : AIFunction, ICanonicalToolIdentityMetadata, IGeneratedToolMetadata
+        : AIFunction, ICanonicalToolIdentityMetadata, IGeneratedToolMetadata, IOpenAIResponsesFunctionToolMetadata
     {
         public override string Name => providerFlatName;
         public ToolName CanonicalToolName => definition.Name;
@@ -840,6 +837,8 @@ public sealed class AgentFactory : IAsyncDisposable
         public string? Icon => null;
         public Func<IDictionary<string, object?>?, string>? DisplayFormatter => null;
         public bool RpcEligible => RemoteToolMetadata.IsRpcEligible(definition);
+        public bool ReservedSchema => ReservedToolSchema.IsReserved(definition);
+        public bool? Strict => ReservedSchema ? false : null;
 
         protected override ValueTask<object?> InvokeCoreAsync(
             AIFunctionArguments arguments,

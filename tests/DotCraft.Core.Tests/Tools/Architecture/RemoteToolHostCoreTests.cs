@@ -203,6 +203,9 @@ public sealed partial class RemoteToolHostCoreTests
         public ValueTask<string> WriteImageAsync(RemoteToolRoute route, string threadId, string callId,
             byte[] bytes, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
+        public ValueTask<byte[]> ReadImageAsync(RemoteToolRoute route, string threadId, string callId,
+            string path, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         private readonly Dictionary<string, RemoteToolConnectionSnapshot> _connections = new(StringComparer.Ordinal);
         public event Action<RemoteToolRouteChange>? RouteChanged;
         public int RemoteCalls { get; private set; }

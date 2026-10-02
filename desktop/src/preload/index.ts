@@ -663,6 +663,8 @@ const api = {
         dreamsThreadLookbackCount: number | null
         dreamsAutoApply: boolean | null
         defaultApprovalPolicy: 'default' | 'autoApprove' | null
+        toolsImageGenerationEnabled: boolean | null
+        toolsImageGenerationProvider: string | null
       }
       userDefaults: {
         providerId: string | null
@@ -676,6 +678,8 @@ const api = {
         dreamsThreadLookbackCount: number | null
         dreamsAutoApply: boolean | null
         defaultApprovalPolicy: 'default' | 'autoApprove' | null
+        toolsImageGenerationEnabled: boolean | null
+        toolsImageGenerationProvider: string | null
       }
     }> {
       return ipcRenderer.invoke('workspace-config:get-core')
@@ -840,6 +844,10 @@ const api = {
 
     showItemInFolder(path: string): Promise<void> {
       return ipcRenderer.invoke('shell:show-item-in-folder', path)
+    },
+
+    saveImageAs(request: { data: Uint8Array; suggestedName: string }): Promise<{ saved: boolean }> {
+      return ipcRenderer.invoke('shell:save-image-as', request)
     }
   },
 

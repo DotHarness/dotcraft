@@ -79,6 +79,7 @@ describe('AttachmentStrip', () => {
     expect(useViewerTabStore.getState().getThreadState('thread-1').tabs).toEqual([])
     expect(useTransientOverlayStore.getState().nativeViewBlockerCount).toBe(1)
 
+    fireEvent.pointerDown(lightbox, { button: 0, isPrimary: true })
     fireEvent.click(lightbox)
     expect(useTransientOverlayStore.getState().nativeViewBlockerCount).toBe(0)
   })

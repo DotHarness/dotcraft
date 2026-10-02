@@ -34,13 +34,15 @@ public sealed class ModeToolPolicyTests
         Assert.Contains("TodoWrite/UpdateTodos", result.Result?.ToString(), StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task StreamingClient_AllowsPlanModeCreatePlan()
+    [Theory]
+    [InlineData("CreatePlan")]
+    [InlineData(ImageGenerationToolSource.ToolName)]
+    public async Task StreamingClient_AllowsPlanModeTool(string toolName)
     {
         var modeManager = new AgentModeManager();
         modeManager.SwitchMode(AgentMode.Plan);
-        var inner = new ToolCallChatClient("CreatePlan", new Dictionary<string, object?>());
-        var tool = AIFunctionFactory.Create(() => "plan saved", name: "CreatePlan");
+        var inner = new ToolCallChatClient(toolName, new Dictionary<string, object?>());
+        var tool = AIFunctionFactory.Create(() => "plan saved", name: toolName);
         var client = new StreamingFunctionInvokingChatClient(inner)
         {
             AdditionalTools = [tool],
@@ -291,7 +293,6 @@ Reason: denied by test policy
     [InlineData(GoalToolNames.GetGoal)]
     [InlineData(GoalToolNames.CreateGoal)]
     [InlineData(GoalToolNames.UpdateGoal)]
-    [InlineData("imagegen")]
     public async Task StreamingClient_DeniesPlanModeGoalTools(string toolName)
     {
         var modeManager = new AgentModeManager();

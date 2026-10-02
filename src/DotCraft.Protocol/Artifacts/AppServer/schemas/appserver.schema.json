@@ -6300,6 +6300,26 @@
             }
           ]
         },
+        "generationId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "imagegenRequestId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "mediaType": {
           "type": "string"
         },
@@ -10775,7 +10795,7 @@
             }
           ]
         },
-        "supportsHostedImageGeneration": {
+        "supportsImageGeneration": {
           "anyOf": [
             {
               "type": "boolean"
@@ -10909,7 +10929,7 @@
             }
           ]
         },
-        "supportsHostedImageGeneration": {
+        "supportsImageGeneration": {
           "type": "boolean"
         }
       },
@@ -11180,7 +11200,7 @@
             }
           ]
         },
-        "supportsHostedImageGeneration": {
+        "supportsImageGeneration": {
           "anyOf": [
             {
               "type": "boolean"
@@ -20733,6 +20753,26 @@
             }
           ]
         },
+        "toolsImageGenerationEnabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toolsImageGenerationProvider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "toolsLspEnabled": {
           "anyOf": [
             {
@@ -20867,6 +20907,26 @@
           "anyOf": [
             {
               "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toolsImageGenerationEnabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toolsImageGenerationProvider": {
+          "anyOf": [
+            {
+              "type": "string"
             },
             {
               "type": "null"

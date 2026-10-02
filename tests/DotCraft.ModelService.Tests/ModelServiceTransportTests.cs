@@ -107,11 +107,11 @@ public sealed class ModelServiceTransportTests
             "Primary", "", "https://upstream.example/v1", 30, null,
             ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses), IsRemote: true);
         var images = (IProviderImageGeneration)provider;
-        Assert.Equal(new byte[] { 1, 2, 3 }, await images.GenerateAsync(runtime, "image-model", "draw", default));
-        var reference = new ProviderImageReference([1, 2, 3], "image/png", "reference.png");
-        foreach (var references in new[] { new[] { reference }, new[] { reference, reference } })
-            Assert.Equal(new byte[] { 1, 2, 3 }, await images.EditAsync(runtime, "image-model", "edit", references, default));
-        Assert.Equal(["/v1/images/generations", "/v1/images/edits", "/v1/images/edits"], operations);
+        Assert.Equal(new byte[] { 1, 2, 3 }, (await images.GenerateImageAsync(
+            runtime, new ProviderImageRequest("image-model", "draw", false, [], "turn"), default)).Image);
+        Assert.Equal(new byte[] { 1, 2, 3 }, (await images.GenerateImageAsync(
+            runtime, new ProviderImageRequest("image-model", "edit", false, ["data:image/png;base64,AQID"], "turn"), default)).Image);
+        Assert.Equal(["/v1/images/generations", "/v1/images/edits"], operations);
         Assert.Equal("image-model", fixture.Access.Call!.Context.Model);
         Assert.Equal("images/edits", fixture.Access.Call.Context.Operation);
     }

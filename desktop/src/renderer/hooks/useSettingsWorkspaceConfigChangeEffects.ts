@@ -43,6 +43,7 @@ export function useSettingsWorkspaceConfigChangeEffects({
       llmCoreChanged ||
       changedRegions.has('welcomeSuggestions') ||
       changedRegions.has('memory') ||
+      changedRegions.has('imageGeneration') ||
       changedRegions.has(WORKSPACE_DEFAULT_APPROVAL_POLICY_REGION)
 
     if (workspaceCoreChanged) {

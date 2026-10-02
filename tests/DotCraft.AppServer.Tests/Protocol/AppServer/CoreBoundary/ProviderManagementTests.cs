@@ -133,16 +133,16 @@ public sealed class ProviderManagementTests : IDisposable
         Assert.Equal(ModelProviderProtocols.OpenAIResponses, provider.GetProperty("protocol").GetString());
         Assert.True(provider.GetProperty("capabilities").GetProperty("responsesApi").GetBoolean());
         Assert.True(provider.GetProperty("capabilities").GetProperty("nativeDeferredToolLoading").GetBoolean());
-        Assert.True(provider.GetProperty("supportsHostedImageGeneration").GetBoolean());
+        Assert.True(provider.GetProperty("supportsImageGeneration").GetBoolean());
 
         var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
         var persisted = personal.RootElement.GetProperty("Providers").GetProperty("openai-responses");
         Assert.Equal(ModelProviderProtocols.OpenAIResponses, persisted.GetProperty("Protocol").GetString());
-        Assert.True(persisted.GetProperty("SupportsHostedImageGeneration").GetBoolean());
+        Assert.True(persisted.GetProperty("SupportsImageGeneration").GetBoolean());
     }
 
     [Fact]
-    public async Task ProviderCreate_CustomResponsesEndpointDefaultsHostedImageGenerationOff()
+    public async Task ProviderCreate_CustomResponsesEndpointDefaultsImageGenerationOff()
     {
         using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
@@ -158,15 +158,15 @@ public sealed class ProviderManagementTests : IDisposable
 
         var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
         var provider = response.RootElement.GetProperty("result").GetProperty("provider");
-        Assert.False(provider.GetProperty("supportsHostedImageGeneration").GetBoolean());
+        Assert.False(provider.GetProperty("supportsImageGeneration").GetBoolean());
 
         var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
         var persisted = personal.RootElement.GetProperty("Providers").GetProperty("custom-responses");
-        Assert.False(persisted.GetProperty("SupportsHostedImageGeneration").GetBoolean());
+        Assert.False(persisted.GetProperty("SupportsImageGeneration").GetBoolean());
     }
 
     [Fact]
-    public async Task ProviderCreate_PersistsHostedImageGenerationOverride()
+    public async Task ProviderCreate_PersistsImageGenerationOverride()
     {
         using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
@@ -177,12 +177,12 @@ public sealed class ProviderManagementTests : IDisposable
             displayName = "Responses On",
             protocol = ModelProviderProtocols.OpenAIResponses,
             apiKey = "sk-openai",
-            supportsHostedImageGeneration = true
+            supportsImageGeneration = true
         }));
 
         var enabledResponse = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
         var enabledProvider = enabledResponse.RootElement.GetProperty("result").GetProperty("provider");
-        Assert.True(enabledProvider.GetProperty("supportsHostedImageGeneration").GetBoolean());
+        Assert.True(enabledProvider.GetProperty("supportsImageGeneration").GetBoolean());
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate, new
         {
@@ -190,21 +190,21 @@ public sealed class ProviderManagementTests : IDisposable
             displayName = "Responses Off",
             protocol = ModelProviderProtocols.OpenAIResponses,
             apiKey = "sk-openai",
-            supportsHostedImageGeneration = false
+            supportsImageGeneration = false
         }));
 
         var disabledResponse = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
         var disabledProvider = disabledResponse.RootElement.GetProperty("result").GetProperty("provider");
-        Assert.False(disabledProvider.GetProperty("supportsHostedImageGeneration").GetBoolean());
+        Assert.False(disabledProvider.GetProperty("supportsImageGeneration").GetBoolean());
 
         var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
         var providers = personal.RootElement.GetProperty("Providers");
-        Assert.True(providers.GetProperty("responses-on").GetProperty("SupportsHostedImageGeneration").GetBoolean());
-        Assert.False(providers.GetProperty("responses-off").GetProperty("SupportsHostedImageGeneration").GetBoolean());
+        Assert.True(providers.GetProperty("responses-on").GetProperty("SupportsImageGeneration").GetBoolean());
+        Assert.False(providers.GetProperty("responses-off").GetProperty("SupportsImageGeneration").GetBoolean());
     }
 
     [Fact]
-    public async Task ProviderUpdate_PreservesHostedImageGenerationAndRejectsNull()
+    public async Task ProviderUpdate_PreservesImageGenerationAndRejectsNull()
     {
         using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await WritePersonalConfigAsync(
@@ -216,7 +216,7 @@ public sealed class ProviderManagementTests : IDisposable
                   "DisplayName": "OpenAI Responses",
                   "Protocol": "openai-responses",
                   "ApiKey": "old-key",
-                  "SupportsHostedImageGeneration": true
+                  "SupportsImageGeneration": true
                 }
               }
             }
@@ -231,19 +231,19 @@ public sealed class ProviderManagementTests : IDisposable
 
         var preservedResponse = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
         var preservedProvider = preservedResponse.RootElement.GetProperty("result").GetProperty("provider");
-        Assert.True(preservedProvider.GetProperty("supportsHostedImageGeneration").GetBoolean());
+        Assert.True(preservedProvider.GetProperty("supportsImageGeneration").GetBoolean());
 
         var personalAfterPreserve = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
         Assert.True(personalAfterPreserve.RootElement
             .GetProperty("Providers")
             .GetProperty("openai-responses")
-            .GetProperty("SupportsHostedImageGeneration")
+            .GetProperty("SupportsImageGeneration")
             .GetBoolean());
 
         var nullParams = new JsonObject
         {
             ["id"] = "openai-responses",
-            ["supportsHostedImageGeneration"] = null
+            ["supportsImageGeneration"] = null
         };
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderUpdate, nullParams));
 
@@ -254,7 +254,7 @@ public sealed class ProviderManagementTests : IDisposable
         Assert.True(personalAfterNull.RootElement
             .GetProperty("Providers")
             .GetProperty("openai-responses")
-            .GetProperty("SupportsHostedImageGeneration")
+            .GetProperty("SupportsImageGeneration")
             .GetBoolean());
     }
 

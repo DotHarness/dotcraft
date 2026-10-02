@@ -75,7 +75,7 @@ export function AttachmentStrip({
   removeFileLabel = 'Remove file'
 }: AttachmentStripProps): JSX.Element | null {
   const t = useT()
-  const [previewImage, setPreviewImage] = useState<ImageAttachment | null>(null)
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null)
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
@@ -93,7 +93,7 @@ export function AttachmentStrip({
                 <ActionTooltip label={img.fileName} placement="top" wrapperStyle={imageThumbnailButtonWrapperStyle}>
                   <button
                     type="button"
-                    onClick={() => setPreviewImage(img)}
+                    onClick={() => setPreviewIndex(idx)}
                     aria-label={t('conversation.previewImageAttachmentAria', { file: img.fileName })}
                     style={imageThumbnailButtonStyle}
                   >
@@ -165,11 +165,11 @@ export function AttachmentStrip({
         )}
         {contextAttachments}
       </div>
-      {previewImage && (
+      {previewIndex != null && (
         <ImageLightbox
-          src={previewImage.dataUrl}
-          alt={previewImage.fileName}
-          onClose={() => setPreviewImage(null)}
+          images={images.map((img) => ({ key: img.tempPath, src: img.dataUrl, title: img.fileName }))}
+          initialIndex={previewIndex}
+          onClose={() => setPreviewIndex(null)}
         />
       )}
     </>

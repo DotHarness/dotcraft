@@ -26,6 +26,7 @@ import {
   defaultProviderEndpoint,
   DESKTOP_PROVIDER_PROTOCOLS,
   normalizeProviderProtocol,
+  OPENAI_CHAT_COMPLETIONS_PROTOCOL,
   OPENAI_RESPONSES_PROTOCOL,
   providerProtocolLabel,
   type DesktopProviderProtocol
@@ -79,6 +80,9 @@ import { SettingsSelect } from './ui/SettingsSelect'
 import { DreamsPanel } from './panels/memory/DreamsPanel'
 import { MemorySettingsGroup } from './panels/memory/MemorySettingsGroup'
 import { useDreamsSettings } from './panels/memory/useDreamsSettings'
+import { ImageGenerationSettingsGroup } from './panels/imageGeneration/ImageGenerationSettingsGroup'
+import { canProviderCreateImages } from './panels/imageGeneration/imageGenerationModel'
+import { useImageGenerationSettings } from './panels/imageGeneration/useImageGenerationSettings'
 import {
   DEFAULT_DREAMS_INTERVAL,
   DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT,
@@ -185,6 +189,8 @@ interface WorkspaceCoreConfig {
   dreamsThreadLookbackCount: number | null
   dreamsAutoApply: boolean | null
   defaultApprovalPolicy: VisibleApprovalPolicy | null
+  toolsImageGenerationEnabled: boolean | null
+  toolsImageGenerationProvider: string | null
 }
 
 interface WorkspaceCoreConfigResult {
@@ -204,7 +210,9 @@ const EMPTY_WORKSPACE_CORE_CONFIG: WorkspaceCoreConfig = {
   dreamsInterval: null,
   dreamsThreadLookbackCount: null,
   dreamsAutoApply: null,
-  defaultApprovalPolicy: null
+  defaultApprovalPolicy: null,
+  toolsImageGenerationEnabled: null,
+  toolsImageGenerationProvider: null
 }
 
 interface ProviderDraft {
@@ -215,8 +223,8 @@ interface ProviderDraft {
   endPoint: string
   networkTimeoutSeconds: string
   authMethod: 'apiKey' | 'chatgptOAuth'
-  supportsHostedImageGeneration: boolean
-  supportsHostedImageGenerationTouched: boolean
+  supportsImageGeneration: boolean
+  supportsImageGenerationTouched: boolean
 }
 
 type ProviderEditorId = string | '__new__' | null
@@ -236,7 +244,7 @@ const OPENAI_CHATGPT_DEFAULT_ID = 'openai'
 const OPENAI_CHATGPT_DISPLAY_NAME = 'OpenAI (ChatGPT)'
 
 function createProviderDraft(): ProviderDraft {
-  return withDefaultHostedImageGenerationSupport({
+  return withDefaultImageGenerationSupport({
     id: '',
     displayName: '',
     protocol: OPENAI_RESPONSES_PROTOCOL,
@@ -244,8 +252,8 @@ function createProviderDraft(): ProviderDraft {
     endPoint: defaultProviderEndpoint(OPENAI_RESPONSES_PROTOCOL),
     networkTimeoutSeconds: '',
     authMethod: 'apiKey',
-    supportsHostedImageGeneration: false,
-    supportsHostedImageGenerationTouched: false
+    supportsImageGeneration: false,
+    supportsImageGenerationTouched: false
   })
 }
 
@@ -259,27 +267,31 @@ function providerDraftFromInfo(provider: ProviderInfoWire): ProviderDraft {
     networkTimeoutSeconds:
       typeof provider.networkTimeoutSeconds === 'number' ? String(provider.networkTimeoutSeconds) : '',
     authMethod: provider.authMethod === 'chatgptOAuth' ? 'chatgptOAuth' : 'apiKey',
-    supportsHostedImageGeneration: provider.supportsHostedImageGeneration === true,
-    supportsHostedImageGenerationTouched: true
+    supportsImageGeneration: provider.supportsImageGeneration === true,
+    supportsImageGenerationTouched: true
   }
 }
 
-function canConfigureHostedImageGeneration(provider: Pick<ProviderDraft, 'protocol' | 'authMethod'>): boolean {
-  return provider.protocol === OPENAI_RESPONSES_PROTOCOL || provider.authMethod === 'chatgptOAuth'
+function canConfigureImageGeneration(provider: Pick<ProviderDraft, 'protocol' | 'authMethod'>): boolean {
+  return isOpenAIFamilyProtocol(provider.protocol) || provider.authMethod === 'chatgptOAuth'
 }
 
-function withDefaultHostedImageGenerationSupport(draft: ProviderDraft): ProviderDraft {
-  if (draft.supportsHostedImageGenerationTouched) return draft
+function isOpenAIFamilyProtocol(protocol: DesktopProviderProtocol): boolean {
+  return protocol === OPENAI_RESPONSES_PROTOCOL || protocol === OPENAI_CHAT_COMPLETIONS_PROTOCOL
+}
+
+function withDefaultImageGenerationSupport(draft: ProviderDraft): ProviderDraft {
+  if (draft.supportsImageGenerationTouched) return draft
   return {
     ...draft,
-    supportsHostedImageGeneration: defaultHostedImageGenerationSupport(draft)
+    supportsImageGeneration: defaultImageGenerationSupport(draft)
   }
 }
 
-function defaultHostedImageGenerationSupport(provider: Pick<ProviderDraft, 'protocol' | 'authMethod' | 'endPoint'>): boolean {
+function defaultImageGenerationSupport(provider: Pick<ProviderDraft, 'protocol' | 'authMethod' | 'endPoint'>): boolean {
   if (provider.authMethod === 'chatgptOAuth') return true
-  if (provider.protocol !== OPENAI_RESPONSES_PROTOCOL) return false
-  return isOfficialOpenAIEndpoint(provider.endPoint.trim() || defaultProviderEndpoint(OPENAI_RESPONSES_PROTOCOL))
+  if (!isOpenAIFamilyProtocol(provider.protocol)) return false
+  return isOfficialOpenAIEndpoint(provider.endPoint.trim() || defaultProviderEndpoint(provider.protocol))
 }
 
 function isOfficialOpenAIEndpoint(endpoint: string): boolean {
@@ -349,7 +361,11 @@ function normalizeWorkspaceCoreConfig(value: unknown): WorkspaceCoreConfig {
       typeof source.dreamsAutoApply === 'boolean'
         ? source.dreamsAutoApply
         : null,
-    defaultApprovalPolicy: normalizeVisibleApprovalPolicy(source.defaultApprovalPolicy)
+    defaultApprovalPolicy: normalizeVisibleApprovalPolicy(source.defaultApprovalPolicy),
+    toolsImageGenerationEnabled:
+      typeof source.toolsImageGenerationEnabled === 'boolean' ? source.toolsImageGenerationEnabled : null,
+    toolsImageGenerationProvider:
+      typeof source.toolsImageGenerationProvider === 'string' ? source.toolsImageGenerationProvider : null
   }
 }
 
@@ -659,7 +675,9 @@ export function SettingsView({
     dreamsInterval: null,
     dreamsThreadLookbackCount: null,
     dreamsAutoApply: null,
-    defaultApprovalPolicy: null
+    defaultApprovalPolicy: null,
+    toolsImageGenerationEnabled: null,
+    toolsImageGenerationProvider: null
   })
   const [providersManagedRemotely, setProvidersManagedRemotely] = useState(false)
   const [providers, setProviders] = useState<ProviderInfoWire[]>([])
@@ -750,6 +768,7 @@ export function SettingsView({
     dashboardUrl,
     reloadWorkspaceCore
   })
+  const imageGeneration = useImageGenerationSettings(reloadWorkspaceCore)
   const browserUsePlugin = plugins.find((plugin) => plugin.id === 'browser') ?? null
   const browserUsePluginReady = !pluginManagementEnabled || browserUsePlugin?.installed === true
   const selectedProvider = providers.find((provider) => provider.id === selectedProviderId) ?? null
@@ -841,6 +860,10 @@ export function SettingsView({
       core.userDefaults.defaultApprovalPolicy ??
       'default'
     setDefaultApprovalPolicy(resolvedDefaultApprovalPolicy)
+    imageGeneration.applyConfig({
+      enabled: core.workspace.toolsImageGenerationEnabled ?? core.userDefaults.toolsImageGenerationEnabled ?? true,
+      providerId: core.workspace.toolsImageGenerationProvider ?? core.userDefaults.toolsImageGenerationProvider ?? ''
+    })
 
     if (keepDraftValues) {
       return
@@ -1335,8 +1358,8 @@ export function SettingsView({
       const timeout = providerDraft.networkTimeoutSeconds.trim()
         ? Number(providerDraft.networkTimeoutSeconds.trim())
         : null
-      const supportsHostedImageGeneration = canConfigureHostedImageGeneration(providerDraft)
-        ? providerDraft.supportsHostedImageGeneration
+      const supportsImageGeneration = canConfigureImageGeneration(providerDraft)
+        ? providerDraft.supportsImageGeneration
         : false
       if (providerEditorProvider != null) {
         const editing = providerEditorProvider
@@ -1346,7 +1369,7 @@ export function SettingsView({
           protocol: providerDraft.protocol,
           endPoint: providerDraft.endPoint.trim() || null,
           networkTimeoutSeconds: timeout,
-          supportsHostedImageGeneration,
+          supportsImageGeneration,
           authMethod: providerDraft.authMethod
         }
         if (!(editing?.hasApiKey === true && providerDraft.apiKey === '********')) {
@@ -1364,7 +1387,7 @@ export function SettingsView({
           apiKey: providerDraft.authMethod === 'chatgptOAuth' ? '' : providerDraft.apiKey.trim(),
           endPoint: providerDraft.endPoint.trim(),
           networkTimeoutSeconds: timeout,
-          supportsHostedImageGeneration,
+          supportsImageGeneration,
           authMethod: providerDraft.authMethod
         }, 20_000)
         addToast(t('settings.llm.toast.providerCreated'), 'success')
@@ -2669,6 +2692,15 @@ export function SettingsView({
                       </div>
                     </SettingsGroup>
 
+                    <ImageGenerationSettingsGroup
+                      settings={imageGeneration}
+                      providers={providers}
+                      providersLoading={providersLoading}
+                      workspaceProviderId={selectedProviderId}
+                      onEditProvider={providersManagedRemotely ? undefined : startEditProvider}
+                      onAddProvider={providersManagedRemotely ? undefined : startCreateProvider}
+                    />
+
                     <SettingsGroup
                       title={t('settings.llm.providersTitle')}
                       description={providersLoading ? t('settings.llm.providersLoading') : providersCountLabel}
@@ -2770,6 +2802,12 @@ export function SettingsView({
                                   <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {provider.endPoint || t('settings.llm.providerDefaultEndpoint')}
                                   </span>
+                                  {canProviderCreateImages(provider) && (
+                                    <>
+                                      <span aria-hidden>·</span>
+                                      <span>{t('settings.llm.imageGeneration.createsImages')}</span>
+                                    </>
+                                  )}
                                 </div>
                                 <ProviderModelSummary
                                   main={rememberedMainAgentPreference}
@@ -2868,7 +2906,7 @@ export function SettingsView({
                               if (protocol !== OPENAI_RESPONSES_PROTOCOL && draft.authMethod === 'chatgptOAuth') {
                                 const prev = providerEditorIsNew ? preChatGptDraftRef.current : null
                                 preChatGptDraftRef.current = null
-                                return withDefaultHostedImageGenerationSupport({
+                                return withDefaultImageGenerationSupport({
                                   ...draft,
                                   protocol,
                                   endPoint: nextEndPoint,
@@ -2877,7 +2915,7 @@ export function SettingsView({
                                   displayName: prev ? prev.displayName : draft.displayName
                                 })
                               }
-                              return withDefaultHostedImageGenerationSupport({
+                              return withDefaultImageGenerationSupport({
                                 ...draft,
                                 protocol,
                                 endPoint: nextEndPoint,
@@ -2904,14 +2942,14 @@ export function SettingsView({
                               if (providerEditorIsNew && preChatGptDraftRef.current) {
                                 const prev = preChatGptDraftRef.current
                                 preChatGptDraftRef.current = null
-                                return withDefaultHostedImageGenerationSupport({
+                                return withDefaultImageGenerationSupport({
                                   ...draft,
                                   authMethod: 'apiKey',
                                   id: prev.id,
                                   displayName: prev.displayName
                                 })
                               }
-                              return withDefaultHostedImageGenerationSupport({ ...draft, authMethod: 'apiKey' })
+                              return withDefaultImageGenerationSupport({ ...draft, authMethod: 'apiKey' })
                             })}
                             style={{
                               border: providerDraft.authMethod === 'apiKey'
@@ -2941,7 +2979,7 @@ export function SettingsView({
                               // helper on the backend can't silently rewrite a user-typed displayName.
                               if (providerEditorIsNew) {
                                 preChatGptDraftRef.current = { id: draft.id, displayName: draft.displayName }
-                                return withDefaultHostedImageGenerationSupport({
+                                return withDefaultImageGenerationSupport({
                                   ...draft,
                                   authMethod: 'chatgptOAuth',
                                   apiKey: '',
@@ -2949,7 +2987,7 @@ export function SettingsView({
                                   displayName: OPENAI_CHATGPT_DISPLAY_NAME
                                 })
                               }
-                              return withDefaultHostedImageGenerationSupport({ ...draft, authMethod: 'chatgptOAuth', apiKey: '' })
+                              return withDefaultImageGenerationSupport({ ...draft, authMethod: 'chatgptOAuth', apiKey: '' })
                             })}
                             style={{
                               border: providerDraft.authMethod === 'chatgptOAuth'
@@ -3025,7 +3063,7 @@ export function SettingsView({
                               id="settings-provider-endpoint"
                               type="url"
                               value={providerDraft.endPoint}
-                              onChange={(e) => setProviderDraft((draft) => withDefaultHostedImageGenerationSupport({
+                              onChange={(e) => setProviderDraft((draft) => withDefaultImageGenerationSupport({
                                 ...draft,
                                 endPoint: e.target.value
                               }))}
@@ -3061,20 +3099,20 @@ export function SettingsView({
                           />
                         }
                       />
-                      {canConfigureHostedImageGeneration(providerDraft) && (
+                      {canConfigureImageGeneration(providerDraft) && (
                         <SettingsRow
-                          label={t('settings.llm.field.hostedImageGeneration')}
-                          description={t('settings.llm.field.hostedImageGenerationHint')}
+                          label={t('settings.llm.field.imageGeneration')}
+                          description={t('settings.llm.field.imageGenerationHint')}
                           controlMinWidth={48}
                           control={
                             <PillSwitch
-                              checked={providerDraft.supportsHostedImageGeneration}
-                              aria-label={t('settings.llm.field.hostedImageGeneration')}
-                              onChange={(supportsHostedImageGeneration) => {
+                              checked={providerDraft.supportsImageGeneration}
+                              aria-label={t('settings.llm.field.imageGeneration')}
+                              onChange={(supportsImageGeneration) => {
                                 setProviderDraft((draft) => ({
                                   ...draft,
-                                  supportsHostedImageGeneration,
-                                  supportsHostedImageGenerationTouched: true
+                                  supportsImageGeneration,
+                                  supportsImageGenerationTouched: true
                                 }))
                               }}
                             />

@@ -16,6 +16,7 @@ import { isVisibleUserMessage } from '../../utils/visibleUserMessage'
 import { readReasoningObject } from '../conversation/modelReasoning'
 import { AgentResponseBlock } from '../conversation/AgentResponseBlock'
 import { UserMessageBlock } from '../conversation/UserMessageBlock'
+import { collectConversationImages, ConversationImagesContext } from '../conversation/imagePreview/galleryImages'
 import { ScrollToBottomButton } from '../conversation/ScrollToBottomButton'
 import { TurnChangesCard } from '../conversation/TurnCompletionSummary'
 import { RobotAvatar } from '../agents/RobotAvatar'
@@ -109,6 +110,11 @@ function SubagentTranscript({
     || transcript.status === 'loading'
     || (transcript.status === 'ready' && turns.length === 0 && running)
   const unavailable = !waiting && turns.length === 0
+  const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
+  const getConversationImages = useCallback(
+    () => collectConversationImages(transcript?.turns ?? [], { localFiles: !remoteWorkspaceActive }),
+    [remoteWorkspaceActive, transcript?.turns]
+  )
 
   return (
     <div className={styles.viewport}>
@@ -118,19 +124,21 @@ function SubagentTranscript({
         ) : unavailable ? (
           <p className={styles.notice}>{t('subagentsPanel.transcriptUnavailable')}</p>
         ) : (
-          turns.map((turn, index) => {
-            const isLastTurn = index === turns.length - 1
-            return (
-              <TranscriptTurn
-                key={turn.id}
-                childThreadId={childThreadId}
-                turn={turn}
-                isLastTurn={isLastTurn}
-                running={running && isLastTurn}
-                live={isLastTurn ? live : null}
-              />
-            )
-          })
+          <ConversationImagesContext.Provider value={getConversationImages}>
+            {turns.map((turn, index) => {
+              const isLastTurn = index === turns.length - 1
+              return (
+                <TranscriptTurn
+                  key={turn.id}
+                  childThreadId={childThreadId}
+                  turn={turn}
+                  isLastTurn={isLastTurn}
+                  running={running && isLastTurn}
+                  live={isLastTurn ? live : null}
+                />
+              )
+            })}
+          </ConversationImagesContext.Provider>
         )}
       </div>
       {showScrollButton && <ScrollToBottomButton onClick={scrollToBottom} />}

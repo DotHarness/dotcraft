@@ -93,6 +93,17 @@ internal sealed class AppServerRuntimeConfigRefresher(
         appConfigMonitor.Current.Tools.Lsp.Enabled = false;
     }
 
+    public void RefreshCurrentImageGenerationConfig()
+    {
+        if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
+            return;
+
+        var merged = LoadMergedWorkspaceConfig(useGlobalFallback: true).Tools.ImageGeneration;
+        var current = appConfigMonitor.Current.Tools.ImageGeneration;
+        current.Enabled = merged.Enabled;
+        current.Provider = merged.Provider;
+    }
+
     public void RefreshCurrentReasoningConfig()
     {
         if (appConfigMonitor == null)

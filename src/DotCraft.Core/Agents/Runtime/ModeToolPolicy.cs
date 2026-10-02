@@ -21,7 +21,6 @@ public sealed class ModeToolPolicy(AgentModeManager modeManager)
         "EditFile",
         "WriteStdin",
         "Transfer",
-        "imagegen",
         "UpdateTodos",
         "TodoWrite",
         GoalToolNames.GetGoal,

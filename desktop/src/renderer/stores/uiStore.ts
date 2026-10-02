@@ -64,6 +64,12 @@ export type SelectedChannelKey = `module:${string}` | `external:${string}` | nul
 
 export type PluginCatalogSurface = 'plugins' | 'skills'
 
+export interface ComposerImageAttachmentRequest {
+  dataUrl: string
+  fileName: string
+  mimeType: string
+}
+
 export interface WelcomeDraft {
   text: string
   segments?: ComposerDraftSegment[]
@@ -185,6 +191,10 @@ export interface UIState {
     id: number
     file: ComposerFileAttachment
   } | null
+  composerImageAttachmentRequest: {
+    id: number
+    image: ComposerImageAttachmentRequest
+  } | null
   pendingWelcomeTurn: (PendingWelcomeTurnInput & { createdAt: number }) | null
   pendingThreadCreation: PendingThreadCreation | null
   /** Background project thread click waiting for the target workspace's foreground thread list. */
@@ -266,6 +276,8 @@ interface UIStore extends UIState {
   requestComposerFileAttachment(file: ComposerFileAttachment): void
   /** Read and clear the pending file attachment atomically. */
   consumeComposerFileAttachmentRequest(): ComposerFileAttachment | null
+  requestComposerImageAttachment(image: ComposerImageAttachmentRequest): void
+  consumeComposerImageAttachmentRequest(): ComposerImageAttachmentRequest | null
   setPendingWelcomeTurn(payload: PendingWelcomeTurnInput | null): void
   setPendingThreadCreation(payload: PendingThreadCreation | null): void
   resolvePendingThreadCreation(requestId: string, threadId: string): void
@@ -379,6 +391,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   autoShowReasons: new Set<string>(),
   composerPrefill: null,
   composerFileAttachmentRequest: null,
+  composerImageAttachmentRequest: null,
   pendingWelcomeTurn: null,
   pendingThreadCreation: null,
   pendingProjectThreadOpen: null,
@@ -803,6 +816,16 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     const request = get().composerFileAttachmentRequest
     set({ composerFileAttachmentRequest: null })
     return request?.file ?? null
+  },
+
+  requestComposerImageAttachment(image) {
+    set({ composerImageAttachmentRequest: { id: Date.now(), image } })
+  },
+
+  consumeComposerImageAttachmentRequest() {
+    const request = get().composerImageAttachmentRequest
+    set({ composerImageAttachmentRequest: null })
+    return request?.image ?? null
   },
 
   setPendingThreadCreation(payload) {

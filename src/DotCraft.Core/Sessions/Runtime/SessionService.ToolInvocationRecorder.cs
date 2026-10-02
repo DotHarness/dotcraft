@@ -194,6 +194,14 @@ public sealed partial class SessionService
                     durationMs);
                 channel.EmitItemCompleted(startedItem);
                 break;
+            case ToolProjectionShape.ImageGeneration:
+                if (startedItem.Payload is not ImageGenerationPayload imageStarted)
+                    return;
+                startedItem.Status = ItemStatus.Completed;
+                startedItem.CompletedAt = completedAt;
+                startedItem.Payload = ImageGenerationProjection.Completed(imageStarted, result);
+                channel.EmitItemCompleted(startedItem);
+                break;
             case ToolProjectionShape.StandardPair:
                 startedItem.Status = ItemStatus.Completed;
                 startedItem.CompletedAt ??= completedAt;
@@ -274,6 +282,7 @@ public sealed partial class SessionService
         ToolCallPayload payload => !string.IsNullOrWhiteSpace(payload.ToolDefinitionId),
         McpToolCallPayload payload => !string.IsNullOrWhiteSpace(payload.ToolDefinitionId),
         DynamicToolCallPayload payload => !string.IsNullOrWhiteSpace(payload.ToolDefinitionId),
+        ImageGenerationPayload => true,
         _ => false
     };
 
@@ -330,6 +339,10 @@ public sealed partial class SessionService
                     Status = "inProgress"
                 };
                 break;
+            case ToolProjectionShape.ImageGeneration:
+                item.Type = ItemType.ImageGeneration;
+                item.Payload = ImageGenerationProjection.Started(callId, arguments);
+                break;
             case ToolProjectionShape.StandardPair:
                 item.Type = ItemType.ToolCall;
                 item.Payload = new ToolCallPayload
@@ -375,6 +388,7 @@ public sealed partial class SessionService
         ToolCallPayload payload => string.Equals(payload.CallId, callId, StringComparison.Ordinal),
         McpToolCallPayload payload => string.Equals(payload.CallId, callId, StringComparison.Ordinal),
         DynamicToolCallPayload payload => string.Equals(payload.CallId, callId, StringComparison.Ordinal),
+        ImageGenerationPayload payload => string.Equals(payload.CallId, callId, StringComparison.Ordinal),
         _ => false
     };
 

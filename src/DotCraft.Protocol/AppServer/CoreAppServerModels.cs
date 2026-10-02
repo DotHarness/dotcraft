@@ -3667,9 +3667,9 @@ public sealed class ProviderCreateParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> StreamMaxRetries { get; init; }
 
-    [JsonPropertyName("supportsHostedImageGeneration")]
+    [JsonPropertyName("supportsImageGeneration")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> SupportsHostedImageGeneration { get; init; }
+    public Optional<bool?> SupportsImageGeneration { get; init; }
 
 }
 
@@ -3750,9 +3750,9 @@ public sealed partial class ProviderInfo : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> StreamMaxRetries { get; init; }
 
-    [JsonPropertyName("supportsHostedImageGeneration")]
+    [JsonPropertyName("supportsImageGeneration")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> SupportsHostedImageGeneration { get; init; }
+    public Optional<bool> SupportsImageGeneration { get; init; }
 
 }
 
@@ -3888,9 +3888,9 @@ public sealed class ProviderUpdateParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> StreamMaxRetries { get; init; }
 
-    [JsonPropertyName("supportsHostedImageGeneration")]
+    [JsonPropertyName("supportsImageGeneration")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> SupportsHostedImageGeneration { get; init; }
+    public Optional<bool?> SupportsImageGeneration { get; init; }
 
 }
 
@@ -7083,6 +7083,14 @@ public sealed class WorkspaceConfigUpdateParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool?> SkillsSelfLearningEnabled { get; init; }
 
+    [JsonPropertyName("toolsImageGenerationEnabled")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool?> ToolsImageGenerationEnabled { get; init; }
+
+    [JsonPropertyName("toolsImageGenerationProvider")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ToolsImageGenerationProvider { get; init; }
+
     [JsonPropertyName("toolsLspEnabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool?> ToolsLspEnabled { get; init; }
@@ -7139,6 +7147,14 @@ public sealed class WorkspaceConfigUpdateResult : ExtensibleJsonObject
     [JsonPropertyName("skillsSelfLearningEnabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool?> SkillsSelfLearningEnabled { get; init; }
+
+    [JsonPropertyName("toolsImageGenerationEnabled")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool?> ToolsImageGenerationEnabled { get; init; }
+
+    [JsonPropertyName("toolsImageGenerationProvider")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ToolsImageGenerationProvider { get; init; }
 
     [JsonPropertyName("toolsLspEnabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

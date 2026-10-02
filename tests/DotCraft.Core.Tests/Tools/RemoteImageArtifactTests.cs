@@ -1,8 +1,12 @@
+using DotCraft.Configuration;
 using DotCraft.RemoteTools;
+using DotCraft.Security;
 using DotCraft.Tools;
 using DotCraft.Agents;
 using DotCraft.Sessions;
 using Microsoft.Extensions.AI;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using System.Text.Json.Nodes;
 using Xunit;
 
@@ -16,7 +20,7 @@ public sealed class RemoteImageArtifactTests
     [InlineData("success")]
     [InlineData("disconnect")]
     [InlineData("reconnect")]
-    public async Task Lifecycle_PinsDestinationAndNeverFallsBackToLocal(string mode)
+    public async Task Imagegen_PinsDestinationAndNeverFallsBackToLocal(string mode)
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
@@ -26,26 +30,87 @@ public sealed class RemoteImageArtifactTests
         await using var server = new RemoteToolHostTestServer(storage);
         await using var client = server.CreateClient();
         await client.ConnectAsync("thread", server.PeerId, "repo");
-        var turn = new SessionTurn { Id = "turn", ThreadId = "thread" };
-        var events = new SessionEventChannel("thread", "turn");
-        var seq = 0;
-        var lifecycle = new ImageGenerationLifecycle(agent.Path, null, client, "thread", turn, events, () => ++seq);
-        lifecycle.Start(new ImageGenerationToolCallContent("ig_pinned"));
-        if (mode != "success") await client.DisconnectAsync("thread");
-        if (mode == "reconnect") await client.ConnectAsync("thread", server.PeerId, "repo");
-        var content = new HostedImageGenerationContent { Id = "ig_pinned", ImageBytes = Png };
-        await lifecycle.CompleteAsync(content, default);
-        var image = Assert.Single(turn.Items).AsImageGeneration!;
+        var provider = new RouteChangingImageProvider(async () =>
+        {
+            if (mode != "success") await client.DisconnectAsync("thread");
+            if (mode == "reconnect") await client.ConnectAsync("thread", server.PeerId, "repo");
+        });
+        var config = AppConfigTestFactory.CreateOpenAI();
+        config.Providers["openai"].SupportsImageGeneration = true;
+        var source = new ImageGenerationToolSource(
+            config, new ChatClientRegistry(provider), new AutoApproveApprovalService(), remoteToolHostClient: client);
+        var registration = Assert.Single(await source.GetRegistrationsAsync(
+            new ToolPlanningContext("thread", "turn", workspace.Path, agent.Path, "agent", null, null, 1)));
+        var arguments = new JsonObject { ["prompt"] = "pin" };
+
+        var result = await registration.Binding.Runtime.InvokeAsync(
+            new ToolInvocationContext("thread", "turn", "ig_pinned", ToolInvocationAudience.Model,
+                registration.Definition.Name, registration.Definition.Id, registration.Binding.Id, 1, DateTimeOffset.UtcNow),
+            arguments);
+        var image = ImageGenerationProjection.Completed(ImageGenerationProjection.Started("ig_pinned", arguments), result);
+
         Assert.Equal("completed", image.Status);
         Assert.Equal(Convert.ToBase64String(Png), image.Result);
         Assert.Equal(mode == "success" ? "saved" : "failed", image.SaveStatus);
         Assert.Equal(server.PeerId, image.SavedHostId);
         Assert.Equal("repo", image.SavedWorkspaceId);
-        Assert.Equal(ItemStatus.Completed, Assert.Single(turn.Items).Status);
         Assert.False(Directory.Exists(Path.Combine(agent.Path, "generated_images")));
         if (mode == "success") Assert.Equal(Png, await File.ReadAllBytesAsync(image.SavedPath!));
         else Assert.Null(image.SavedPath);
-        Assert.Equal(image.SavedPath, content.SavedPath);
+    }
+
+    [Theory]
+    [InlineData("allow")]
+    [InlineData("deny")]
+    public async Task Imagegen_ReadsReferencedImagesThroughRemoteRoute(string policy)
+    {
+        using var home = new TemporaryDirectory();
+        using var workspace = new TemporaryDirectory();
+        using var agent = new TemporaryDirectory();
+        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var state = RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string> { ["repo"] = workspace.Path });
+        if (policy == "deny")
+        {
+            state.ToolPolicies["ReadFile"] = "deny";
+            storage.SaveHostState(state);
+        }
+        byte[] reference;
+        using (var bitmap = new Image<Rgba32>(3, 3, new Rgba32(10, 20, 30, 255)))
+        using (var stream = new MemoryStream())
+        {
+            bitmap.SaveAsPng(stream);
+            reference = stream.ToArray();
+        }
+        await File.WriteAllBytesAsync(Path.Combine(workspace.Path, "reference.png"), reference);
+        await using var server = new RemoteToolHostTestServer(storage);
+        await using var client = server.CreateClient();
+        await client.ConnectAsync("thread", server.PeerId, "repo");
+        var provider = new RouteChangingImageProvider(() => Task.CompletedTask);
+        var config = AppConfigTestFactory.CreateOpenAI();
+        config.Providers["openai"].SupportsImageGeneration = true;
+        var source = new ImageGenerationToolSource(
+            config, new ChatClientRegistry(provider), new AutoApproveApprovalService(), remoteToolHostClient: client);
+        var registration = Assert.Single(await source.GetRegistrationsAsync(
+            new ToolPlanningContext("thread", "turn", agent.Path, agent.Path, "agent", null, null, 1)));
+
+        var result = await registration.Binding.Runtime.InvokeAsync(
+            new ToolInvocationContext("thread", "turn", "ig_edit", ToolInvocationAudience.Model,
+                registration.Definition.Name, registration.Definition.Id, registration.Binding.Id, 1, DateTimeOffset.UtcNow),
+            new JsonObject { ["prompt"] = "edit", ["referenced_image_paths"] = new JsonArray("reference.png") });
+
+        if (policy == "allow")
+        {
+            Assert.True(result.Success, result.Content);
+            Assert.Equal(
+                "data:image/png;base64," + Convert.ToBase64String(reference),
+                Assert.Single(Assert.Single(provider.Requests).ReferenceImageUrls));
+        }
+        else
+        {
+            Assert.False(result.Success);
+            Assert.Contains("Host policy denied", result.Content, StringComparison.Ordinal);
+            Assert.Empty(provider.Requests);
+        }
     }
 
     [Fact]
@@ -103,5 +168,25 @@ public sealed class RemoteImageArtifactTests
             await client.WriteImageAsync(route, "thread", mode == "path" ? "../escape" : "ig_denied", Png));
         Assert.Equal(RemoteToolErrorCodes.RemotePolicyDenied, error.Code);
         Assert.False(Directory.Exists(Path.Combine(workspace.Path, ".craft", "generated_images")));
+    }
+
+    private sealed class RouteChangingImageProvider(Func<Task> onGenerate) : IModelProvider, IProviderImageGeneration
+    {
+        public IReadOnlyCollection<string> Protocols { get; } =
+            [ModelProviderProtocols.OpenAIChatCompletions, ModelProviderProtocols.OpenAIResponses];
+
+        public List<ProviderImageRequest> Requests { get; } = [];
+
+        public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => throw new NotSupportedException();
+
+        public async Task<ProviderImageResult> GenerateImageAsync(
+            EffectiveModelRuntime runtime,
+            ProviderImageRequest request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            await onGenerate();
+            return new ProviderImageResult(Png);
+        }
     }
 }

@@ -171,6 +171,9 @@ public interface IRemoteToolHostClient
     ValueTask<string> WriteImageAsync(RemoteToolRoute route, string threadId, string callId,
         byte[] bytes, CancellationToken cancellationToken = default);
 
+    ValueTask<byte[]> ReadImageAsync(RemoteToolRoute route, string threadId, string callId,
+        string path, CancellationToken cancellationToken = default);
+
     /// <summary>Invokes an exact mirrored definition through the active remote workspace lease.</summary>
     ValueTask<ToolExecutionResult> InvokeAsync(
         RemoteToolRoute route,

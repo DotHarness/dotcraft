@@ -76,16 +76,18 @@ interface ContextMenuProps {
   items: ContextMenuEntry[]
   position: ContextMenuPosition
   onClose: () => void
+  zIndex?: number
 }
 
 interface SubmenuAnchor {
   top: number
 }
 
-export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX.Element {
+export function ContextMenu({ items, position, onClose, zIndex }: ContextMenuProps): JSX.Element {
   const menuRef = useRef<HTMLDivElement>(null)
   const submenuRef = useRef<HTMLDivElement>(null)
-  const menuZIndex = useContext(LayerContext) > 0 ? 10100 : 9999
+  const layerDepth = useContext(LayerContext)
+  const menuZIndex = zIndex ?? (layerDepth > 0 ? 10100 : 9999)
   const [openSubmenuIndex, setOpenSubmenuIndex] = useState<number | null>(null)
   const [submenuAnchor, setSubmenuAnchor] = useState<SubmenuAnchor | null>(null)
   const [hoveredItemIndex, setHoveredItemIndex] = useState<number | null>(null)

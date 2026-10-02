@@ -63,6 +63,9 @@ internal sealed class HookWrappedFunction : DelegatingAIFunction,
     public bool? Strict =>
         InnerFunction is IOpenAIResponsesFunctionToolMetadata metadata ? metadata.Strict : null;
 
+    public bool ReservedSchema =>
+        InnerFunction is IOpenAIResponsesFunctionToolMetadata { ReservedSchema: true };
+
     public bool StreamArgumentsEnabled =>
         !GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) || metadata.StreamArgumentsEnabled;
 

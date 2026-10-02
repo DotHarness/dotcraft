@@ -59,8 +59,7 @@ internal sealed class OpenAIResponsesItemIdentityDiagnostics
             or "function_call"
             or "function_call_output"
             or "tool_search_call"
-            or "tool_search_output"
-            or "image_generation_call";
+            or "tool_search_output";
     }
 }
 

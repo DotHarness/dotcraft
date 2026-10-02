@@ -538,7 +538,7 @@ public sealed class ChatGptResponsesCompactBackendTests
     }
 
     [Fact]
-    public void NativeEstimator_AudioAndGeneratedImagePayloadSizesDoNotInflateEstimate()
+    public void NativeEstimator_AudioPayloadSizeDoesNotInflateEstimate()
     {
         var small = JsonSerializer.Serialize(new object[]
         {
@@ -553,8 +553,7 @@ public sealed class ChatGptResponsesCompactBackendTests
                         input_audio = new { data = "AAAA", format = "wav" }
                     }
                 }
-            },
-            new { type = "image_generation_call", result = "AAAA" }
+            }
         });
         var large = JsonSerializer.Serialize(new object[]
         {
@@ -569,8 +568,7 @@ public sealed class ChatGptResponsesCompactBackendTests
                         input_audio = new { data = new string('A', 80_000), format = "wav" }
                     }
                 }
-            },
-            new { type = "image_generation_call", result = new string('B', 120_000) }
+            }
         });
 
         Assert.Equal(EstimateNative(small), EstimateNative(large));

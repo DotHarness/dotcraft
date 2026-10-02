@@ -228,6 +228,14 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 contextPageManager,
                 Paths.UserData.RootPath,
                 contributionRegistry), ContributionOrigin.Builtin));
+            toolSources.Add(new CollectedToolSource(new ImageGenerationToolSource(
+                Config,
+                chatClientRegistry,
+                scopedApproval,
+                PathBlacklist,
+                Paths.UserData.RootPath,
+                remoteToolHostClient,
+                Services.GetService<ILoggerFactory>()?.CreateLogger<ImageGenerationToolSource>()), ContributionOrigin.Builtin));
             if (nodeReplProxy != null)
             {
                 toolSources.Add(new CollectedToolSource(

@@ -92,6 +92,10 @@ public static class OpenAIAuthConstants
     /// <summary>Provider-returned state replayed only within the same logical turn.</summary>
     public const string TurnStateHeader = "x-codex-turn-state";
 
+    public const string ImageTurnIdHeader = "x-codex-image-turn-id";
+
+    public const string ImagegenRequestIdHeader = "x-codex-imagegen-request-id";
+
     /// <summary>Provider compatibility header for child/fork lineage when known.</summary>
     public const string ParentThreadIdHeader = "x-codex-parent-thread-id";
 

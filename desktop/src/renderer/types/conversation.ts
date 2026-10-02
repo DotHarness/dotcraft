@@ -147,7 +147,6 @@ export interface ConversationItem {
   exitCode?: number | null
   executionStatus?: 'inProgress' | 'completed' | 'failed' | 'cancelled'
   imageGenerationStatus?: 'inProgress' | 'completed' | 'failed'
-  /** Revised prompt returned by the hosted image generation service */
   revisedPrompt?: string
   mediaType?: string
   /** Local path where the generated image was persisted */

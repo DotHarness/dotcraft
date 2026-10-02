@@ -354,6 +354,13 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
             byte[] bytes,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
+        public ValueTask<byte[]> ReadImageAsync(
+            RemoteToolRoute route,
+            string threadId,
+            string callId,
+            string path,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public ValueTask<ToolExecutionResult> InvokeAsync(
             RemoteToolRoute route,
             ToolDefinition definition,

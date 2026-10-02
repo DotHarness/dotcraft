@@ -7,6 +7,7 @@ using DotCraft.Plugins;
 using DotCraft.Persistence;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions.Wire;
+using DotCraft.Tools;
 
 namespace DotCraft.Sessions;
 
@@ -943,10 +944,11 @@ public sealed partial class ThreadStore : IAsyncDisposable
                 history.Add(specializedResult);
             }
             else if (item.Type == ItemType.ImageGeneration &&
-                     TryBuildImageGenerationMessage(item, out var imageGenerationMessage))
+                     TryBuildImageGenerationToolHistory(item, out var imageGenerationCall, out var imageGenerationResult))
             {
+                assistantBuilder.AddToolCall(imageGenerationCall);
                 FlushAssistantSegment(history, assistantBuilder);
-                history.Add(imageGenerationMessage);
+                history.Add(imageGenerationResult);
             }
         }
 
@@ -1012,7 +1014,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
         return true;
     }
 
-    private static Dictionary<string, string> CollectPairedToolCalls(IReadOnlyList<SessionItem> items)
+    private static HashSet<string> CollectPairedToolCalls(IReadOnlyList<SessionItem> items)
     {
         var resultIds = items
             .Select(static item => item.Payload as ToolResultPayload)
@@ -1023,7 +1025,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
         if (resultIds.Count == 0)
             return [];
 
-        var paired = new Dictionary<string, string>(StringComparer.Ordinal);
+        var paired = new HashSet<string>(StringComparer.Ordinal);
         foreach (var payload in items.Select(static item => item.Payload as ToolCallPayload))
         {
             if (string.IsNullOrWhiteSpace(payload?.CallId) ||
@@ -1036,7 +1038,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
             if (string.IsNullOrWhiteSpace(payload.ProviderFlatName))
                 continue;
 
-            paired.TryAdd(payload.CallId, payload.ProviderFlatName);
+            paired.Add(payload.CallId);
         }
 
         return paired;
@@ -1053,7 +1055,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
 
     private static bool TryBuildToolCallContent(
         SessionItem item,
-        IReadOnlyDictionary<string, string> pairedToolCalls,
+        IReadOnlySet<string> pairedToolCalls,
         out FunctionCallContent content)
     {
         content = new FunctionCallContent(string.Empty, string.Empty);
@@ -1061,8 +1063,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
             string.IsNullOrWhiteSpace(payload.CallId) ||
             string.IsNullOrWhiteSpace(payload.ToolName) ||
             string.IsNullOrWhiteSpace(payload.ProviderFlatName) ||
-            !pairedToolCalls.ContainsKey(payload.CallId) ||
-            string.Equals(payload.ToolName, HostedImageGenerationContent.ToolName, StringComparison.Ordinal))
+            !pairedToolCalls.Contains(payload.CallId))
         {
             return false;
         }
@@ -1078,19 +1079,16 @@ public sealed partial class ThreadStore : IAsyncDisposable
 
     private static bool TryBuildToolResultMessage(
         SessionItem item,
-        IReadOnlyDictionary<string, string> pairedToolCalls,
+        IReadOnlySet<string> pairedToolCalls,
         out ChatMessage message)
     {
         message = new ChatMessage(ChatRole.Tool, string.Empty);
         if (item.Payload is not ToolResultPayload payload ||
             string.IsNullOrWhiteSpace(payload.CallId) ||
-            !pairedToolCalls.TryGetValue(payload.CallId, out var toolName))
+            !pairedToolCalls.Contains(payload.CallId))
         {
             return false;
         }
-
-        if (string.Equals(toolName, HostedImageGenerationContent.ToolName, StringComparison.Ordinal))
-            return TryBuildHostedImageGenerationMessage(payload, out message);
 
         var result = BuildModelToolResult(
             payload.ContentItems,
@@ -1238,47 +1236,13 @@ public sealed partial class ThreadStore : IAsyncDisposable
         return call;
     }
 
-    private static bool TryBuildHostedImageGenerationMessage(
-        ToolResultPayload payload,
-        out ChatMessage message)
-    {
-        message = new ChatMessage(ChatRole.Assistant, string.Empty);
-        var imageItem = payload.ContentItems?
-            .FirstOrDefault(static item =>
-                string.Equals(item.Type, "image", StringComparison.OrdinalIgnoreCase) &&
-                !string.IsNullOrWhiteSpace(item.DataBase64));
-
-        byte[]? imageBytes = null;
-        if (imageItem?.DataBase64 is { } dataBase64)
-        {
-            try
-            {
-                imageBytes = Convert.FromBase64String(dataBase64);
-            }
-            catch (FormatException)
-            {
-                imageBytes = null;
-            }
-        }
-
-        var content = new HostedImageGenerationContent
-        {
-            Id = payload.CallId,
-            Status = payload.Success ? "completed" : "failed",
-            RevisedPrompt = string.IsNullOrWhiteSpace(payload.Result) ? null : payload.Result,
-            ImageBytes = imageBytes,
-            MediaType = string.IsNullOrWhiteSpace(imageItem?.MediaType) ? "image/png" : imageItem.MediaType!,
-            ErrorMessage = payload.Success ? null : payload.Result
-        };
-        message = new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[content]);
-        return true;
-    }
-
-    private static bool TryBuildImageGenerationMessage(
+    private static bool TryBuildImageGenerationToolHistory(
         SessionItem item,
-        out ChatMessage message)
+        out FunctionCallContent call,
+        out ChatMessage resultMessage)
     {
-        message = new ChatMessage(ChatRole.Assistant, string.Empty);
+        call = new FunctionCallContent(string.Empty, string.Empty);
+        resultMessage = new ChatMessage(ChatRole.Tool, string.Empty);
         if (item.AsImageGeneration is not { } payload ||
             string.IsNullOrWhiteSpace(payload.CallId) ||
             string.Equals(payload.Status, "inProgress", StringComparison.OrdinalIgnoreCase))
@@ -1287,37 +1251,52 @@ public sealed partial class ThreadStore : IAsyncDisposable
         }
 
         byte[]? imageBytes = null;
-        string? errorMessage = payload.ErrorMessage;
-        if (string.Equals(payload.Status, "completed", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(payload.Status, "completed", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(payload.Result))
         {
-            if (!string.IsNullOrWhiteSpace(payload.Result))
+            try
             {
-                try
-                {
-                    imageBytes = Convert.FromBase64String(payload.Result);
-                }
-                catch (FormatException)
-                {
-                    errorMessage = "Image generation returned invalid image data.";
-                }
+                imageBytes = Convert.FromBase64String(payload.Result);
             }
-            else
+            catch (FormatException)
             {
-                errorMessage = "Image generation completed without image data.";
+                imageBytes = null;
             }
         }
 
-        var content = new HostedImageGenerationContent
+        call = CreatePersistedFunctionCall(
+            payload.CallId,
+            ImageGenerationToolSource.ToolNamespace,
+            ImageGenerationToolSource.ToolName,
+            ImageGenerationToolSource.ToolNamespace + "__" + ImageGenerationToolSource.ToolName,
+            string.IsNullOrWhiteSpace(payload.RevisedPrompt)
+                ? null
+                : new JsonObject { ["prompt"] = payload.RevisedPrompt });
+
+        object result;
+        if (imageBytes is { Length: > 0 })
         {
-            Id = payload.CallId,
-            Status = imageBytes is { Length: > 0 } ? "completed" : "failed",
-            RevisedPrompt = payload.RevisedPrompt,
-            ImageBytes = imageBytes,
-            MediaType = string.IsNullOrWhiteSpace(payload.MediaType) ? "image/png" : payload.MediaType,
-            ErrorMessage = errorMessage,
-            SavedPath = string.Equals(payload.SaveStatus, "saved", StringComparison.Ordinal) ? payload.SavedPath : null
-        };
-        message = new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[content]);
+            var contents = new List<AIContent>
+            {
+                new DataContent(imageBytes, string.IsNullOrWhiteSpace(payload.MediaType) ? "image/png" : payload.MediaType)
+            };
+            if (string.Equals(payload.SaveStatus, "saved", StringComparison.Ordinal)
+                && !string.IsNullOrWhiteSpace(payload.SavedPath)
+                && ImageGenerationToolRuntime.CreateOutputHint(payload.SavedPath) is { } hint)
+            {
+                contents.Add(new TextContent(hint));
+            }
+
+            result = contents;
+        }
+        else
+        {
+            result = $"image generation failed: {payload.ErrorMessage ?? "Image generation returned no image data."}";
+        }
+
+        resultMessage = new ChatMessage(
+            ChatRole.Tool,
+            (IList<AIContent>)[new FunctionResultContent(payload.CallId, result)]);
         return true;
     }
 
