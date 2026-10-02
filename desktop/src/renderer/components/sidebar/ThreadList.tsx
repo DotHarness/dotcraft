@@ -49,7 +49,7 @@ import { useSshMachinesStore } from '../../stores/sshMachinesStore'
 import { machineStatusView } from '../settings/panels/ssh/sshMachinePresentation'
 import { ProjectsSectionHeader } from './ProjectsSectionHeader'
 import { RecentsSection, type RecentsRow } from './RecentsSection'
-import { ThreadListRow } from './ThreadListRow'
+import { ThreadListRow, useReorderItem } from './ThreadListRow'
 import {
   collectPinnedProjectRows,
   orderPinnedRows,
@@ -66,7 +66,9 @@ import {
   isRemoteProject,
   isThreadRunning,
   isThreadWaiting,
+  orderProjectsBySortMode,
   projectIdentity,
+  projectOrderIdentity,
   visibleProjectThreads
 } from './projectThreads'
 import {
@@ -76,8 +78,11 @@ import {
   orderThreadsBySortMode,
   partitionPinnedThreads,
   sortThreadsByRecentActivity,
-  topLevelThreadIds
+  topLevelThreadIds,
+  type ThreadDropPlacement
 } from './threadOrdering'
+
+const PROJECT_THREAD_PREVIEW_COUNT = 5
 
 interface ThreadListProps {
   workspacePath?: string
@@ -95,7 +100,7 @@ export function ThreadList({
   openingWorkspacePath
 }: ThreadListProps = {}): JSX.Element {
   const t = useT()
-  const { threadList, threadListProjectKey, searchQuery, loading, pinnedThreadIds } = useThreadStore()
+  const { threadList, threadListProjectKey, searchQuery, loading, pinnedThreadIds, activeThreadId } = useThreadStore()
   const projects = useWorkspaceProjectsStore((s) => s.projects)
   const chat = useWorkspaceProjectsStore((s) => s.chat)
   const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
@@ -114,15 +119,21 @@ export function ThreadList({
     recentsOrder,
     pinnedOrder,
     projectOrders,
+    projectSort,
+    projectOrder,
+    collapsedProjectIds,
     setRecentsSort,
     setProjectsSort,
     setPinnedSort,
     setRecentsShowProjects,
     setRecentsOrder,
     setPinnedOrder,
-    setProjectOrder
+    setProjectOrder,
+    setProjectSort,
+    setProjectListOrder,
+    setProjectsCollapsed
   } = useSidebarThreadOrderStore()
-  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => new Set())
+  const [expandedThreadLists, setExpandedThreadLists] = useState<Set<string>>(() => new Set())
   // useShallow prevents infinite re-renders: selectFilteredThreads returns a new
   // array on every call (via .filter), so without shallow equality Zustand's
   // useSyncExternalStore sees a changed snapshot every render and loops.
@@ -251,8 +262,6 @@ export function ThreadList({
     )
     const pinnedThreadRows = orderPinnedRows(collectPinnedRows(searchQuery), pinnedSort, pinnedOrder)
     const pinnedSortable = collectPinnedRows('').length > 1
-    const pinnedProjects = projectsForRender.filter((project) => project.pinned === true)
-    const ordinaryProjects = projectsForRender.filter((project) => project.pinned !== true)
     const searching = searchQuery.trim().length > 0
     const foregroundListThreads = threadList.filter(
       (thread) => thread.status !== 'archived' && !isSubAgentThread(thread)
@@ -270,6 +279,30 @@ export function ThreadList({
         threads: live ? filterThreadsByQuery(foregroundListThreads, query) : filterProjectThreads(project, query),
         pinnedIds: live ? pinnedThreadIds : (project.pinnedThreadIds ?? [])
       }
+    }
+
+    const projectLastActivity = (project: WorkspaceProjectSummary): number => {
+      const latest = Math.max(0, ...projectListSource(project, '').threads.map((thread) => Date.parse(thread.lastActiveAt) || 0))
+      return latest || Date.parse(project.lastOpenedAt ?? '') || 0
+    }
+    const orderedProjects = orderProjectsBySortMode(projectsForRender, projectSort, projectOrder, projectLastActivity)
+    const orderedProjectKeys = orderedProjects.map(projectOrderIdentity)
+    const pinnedProjects = orderedProjects.filter((project) => project.pinned === true)
+    const ordinaryProjects = orderedProjects.filter((project) => project.pinned !== true)
+    const collapsedProjectKeys = new Set(collapsedProjectIds)
+    const collapsibleProjectKeys = ordinaryProjects
+      .filter((project) => !isColdProject(project))
+      .map(projectOrderIdentity)
+    const allProjectsCollapsed =
+      collapsibleProjectKeys.length > 0 && collapsibleProjectKeys.every((key) => collapsedProjectKeys.has(key))
+
+    const changeProjectSort = (mode: SidebarThreadSortMode): void => {
+      if (mode === projectSort) return
+      setProjectSort(mode, mode === 'manual' ? orderedProjectKeys : undefined)
+    }
+
+    const moveProject = (movedKey: string, targetKey: string, placement: ThreadDropPlacement): void => {
+      setProjectListOrder(moveThreadId(orderedProjectKeys, movedKey, targetKey, placement))
     }
 
     const snapshotProjectOrders = (): Record<string, string[]> => {
@@ -372,6 +405,7 @@ export function ThreadList({
 
     const renderProjectBlock = (project: WorkspaceProjectSummary): JSX.Element => {
       const projectKey = projectIdentity(project)
+      const orderKey = projectOrderIdentity(project)
       const isForeground = isProjectForeground(project, effectiveForegroundProjectId, effectiveForegroundWorkspacePath)
       const {
         live: foregroundListMatchesProject,
@@ -384,7 +418,7 @@ export function ThreadList({
         (loading && !foregroundListMatchesProject)
       )
       const cold = isColdProject(project) && !openingProject
-      const collapsed = cold || (!openingProject && collapsedProjects.has(projectKey))
+      const collapsed = cold || (!openingProject && collapsedProjectKeys.has(orderKey))
       const detailThreads = foregroundListMatchesProject
         ? orderSubAgentsAfterParents(visibleProjectThreads(threadList))
         : orderSubAgentsAfterParents(filterProjectThreads(project, ''))
@@ -395,13 +429,25 @@ export function ThreadList({
       ))
       const projectReorderIds = topLevelThreadIds(projectThreads)
       const reorderEnabled = projectsSort === 'manual' && !searching
+      const threadListExpanded = searching || expandedThreadLists.has(orderKey)
+      const threadListTruncatable = projectThreads.length > PROJECT_THREAD_PREVIEW_COUNT
+      const visibleThreads = threadListExpanded || !threadListTruncatable
+        ? projectThreads
+        : projectThreads.filter((thread, index) =>
+          index < PROJECT_THREAD_PREVIEW_COUNT || thread.id === activeThreadId
+        )
       const activity = getProjectActivity(detailThreads)
       const showProjectThreadSkeleton =
         openingProject &&
         (foregroundOpening || project.state === 'connecting' || projectThreads.length === 0)
       return (
-        <div key={projectKey} style={{ marginBottom: '6px' }}>
-          <ProjectHeader
+        <ProjectListItem
+          key={projectKey}
+          listId={project.pinned ? 'projects:pinned' : 'projects:ordinary'}
+          projectKey={orderKey}
+          reorderable={projectSort === 'manual' && !searching}
+          onMove={moveProject}
+          header={<ProjectHeader
             project={project}
             projectKey={projectKey}
             active={isForeground}
@@ -411,14 +457,10 @@ export function ThreadList({
             detailThreads={detailThreads}
             onToggle={() => {
               if (cold) return
-              setCollapsedProjects((current) => {
-                const next = new Set(current)
-                if (next.has(projectKey)) next.delete(projectKey)
-                else next.add(projectKey)
-                return next
-              })
+              setProjectsCollapsed([orderKey], !collapsedProjectKeys.has(orderKey))
             }}
-          />
+          />}
+        >
           <CollapsibleThreads collapsed={collapsed}>
             {showProjectThreadSkeleton ? (
               <ProjectThreadSkeletonList />
@@ -433,7 +475,7 @@ export function ThreadList({
                 )}
                 {projectThreads.length > 0 && (
                   <div role="list" aria-label={project.name || project.path}>
-                    {projectThreads.map((thread) => (
+                    {visibleThreads.map((thread) => (
                       <ThreadListRow
                         key={thread.id}
                         listId={`project:${projectKey}`}
@@ -452,10 +494,23 @@ export function ThreadList({
                     ))}
                   </div>
                 )}
+                {threadListTruncatable && !searching && (
+                  <ProjectThreadListToggle
+                    expanded={threadListExpanded}
+                    onToggle={() =>
+                      setExpandedThreadLists((current) => {
+                        const next = new Set(current)
+                        if (next.has(orderKey)) next.delete(orderKey)
+                        else next.add(orderKey)
+                        return next
+                      })
+                    }
+                  />
+                )}
               </>
             )}
           </CollapsibleThreads>
-        </div>
+        </ProjectListItem>
       )
     }
     return (
@@ -498,6 +553,12 @@ export function ThreadList({
             onToggle={() => setProjectsSectionCollapsed(!projectsSectionCollapsed)}
             sortMode={projectsSort}
             onSortChange={projectsSortable ? changeProjectsSort : undefined}
+            projectSortMode={projectSort}
+            onProjectSortChange={orderedProjects.length > 1 ? changeProjectSort : undefined}
+            allProjectsCollapsed={allProjectsCollapsed}
+            onAllProjectsCollapsedChange={collapsibleProjectKeys.length > 0
+              ? (collapsed) => setProjectsCollapsed(collapsibleProjectKeys, collapsed)
+              : undefined}
           />
         )}
         {showProjects && (
@@ -561,6 +622,50 @@ export function ThreadList({
         <ThreadEntryWrapper key={thread.id} thread={thread} />
       ))}
     </div>
+  )
+}
+
+function ProjectListItem({
+  listId,
+  projectKey,
+  reorderable,
+  onMove,
+  header,
+  children
+}: {
+  listId: string
+  projectKey: string
+  reorderable: boolean
+  onMove: (movedKey: string, targetKey: string, placement: ThreadDropPlacement) => void
+  header: ReactNode
+  children: ReactNode
+}): JSX.Element {
+  const { dragging, dropPlacement, sourceProps, targetProps } = useReorderItem(listId, projectKey, reorderable, onMove)
+  return (
+    <div
+      className="dc-thread-list-row"
+      data-dragging={dragging ? 'true' : undefined}
+      data-drop-placement={dropPlacement ?? undefined}
+      style={{ marginBottom: '6px' }}
+      {...targetProps}
+    >
+      <div {...sourceProps}>{header}</div>
+      {children}
+    </div>
+  )
+}
+
+function ProjectThreadListToggle({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }): JSX.Element {
+  const t = useT()
+  return (
+    <button
+      type="button"
+      className="dc-project-thread-list-toggle"
+      aria-expanded={expanded}
+      onClick={onToggle}
+    >
+      {expanded ? t('threadList.showLess') : t('threadList.showMore')}
+    </button>
   )
 }
 

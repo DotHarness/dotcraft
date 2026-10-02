@@ -55,6 +55,27 @@ export function SectionOptionsMenu({
   )
 }
 
+export function sortModeMenuItems(
+  t: ReturnType<typeof useT>,
+  mode: SidebarThreadSortMode,
+  onSelect: (mode: SidebarThreadSortMode) => void
+): ContextMenuItem[] {
+  return [
+    {
+      label: t('threadList.sortLastUpdated'),
+      selection: 'radio',
+      checked: mode === 'updated',
+      onClick: () => onSelect('updated')
+    },
+    {
+      label: t('threadList.sortManual'),
+      selection: 'radio',
+      checked: mode === 'manual',
+      onClick: () => onSelect('manual')
+    }
+  ]
+}
+
 export function sortChatsMenuEntry(
   t: ReturnType<typeof useT>,
   mode: SidebarThreadSortMode,
@@ -64,20 +85,7 @@ export function sortChatsMenuEntry(
     label: t('threadList.sortChatsBy'),
     icon: <ArrowDownUp size={14} aria-hidden />,
     onClick: () => {},
-    submenu: [
-      {
-        label: t('threadList.sortLastUpdated'),
-        selection: 'radio',
-        checked: mode === 'updated',
-        onClick: () => onSelect('updated')
-      },
-      {
-        label: t('threadList.sortManual'),
-        selection: 'radio',
-        checked: mode === 'manual',
-        onClick: () => onSelect('manual')
-      }
-    ]
+    submenu: sortModeMenuItems(t, mode, onSelect)
   }
 }
 

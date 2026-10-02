@@ -88,3 +88,24 @@
 .dc-thread-list-row[data-drop-placement="after"]::after {
   bottom: -2px;
 }
+
+.dc-project-thread-list-toggle {
+  display: flex;
+  align-items: center;
+  width: calc(100% - 8px);
+  min-height: 26px;
+  margin: 0 4px 2px;
+  padding: 3px 6px 3px 38px;
+  border: none;
+  border-radius: var(--sidebar-row-radius);
+  background: transparent;
+  color: var(--text-dimmed);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+  text-align: left;
+  cursor: pointer;
+}
+
+.dc-project-thread-list-toggle:hover {
+  color: var(--text-secondary);
+}

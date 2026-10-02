@@ -12,6 +12,9 @@ export interface SidebarThreadOrderSettings {
   recentsThreadOrder?: string[]
   pinnedThreadOrder?: string[]
   threadOrderByProject?: Record<string, string[]>
+  projectSort?: SidebarThreadSortMode
+  projectOrder?: string[]
+  collapsedProjectIds?: string[]
 }
 
 export function normalizeSidebarThreadSortMode(
@@ -47,4 +50,15 @@ export function normalizeThreadOrderByProject(value: unknown): Record<string, st
     else delete normalized[key]
   }
   return Object.keys(normalized).length > 0 ? normalized : undefined
+}
+
+export function normalizeProjectKeyList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const keys = new Set<string>()
+  for (const entry of value) {
+    const key = typeof entry === 'string' ? normalizeWorkspaceProjectKey(entry) : ''
+    if (key) keys.add(key)
+    if (keys.size >= MAX_MANUAL_THREAD_ORDER_LENGTH) break
+  }
+  return keys.size > 0 ? [...keys] : undefined
 }

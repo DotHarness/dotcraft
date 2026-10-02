@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import {
   normalizeManualThreadOrder,
+  normalizeProjectKeyList,
   normalizeThreadOrderByProject,
   type SidebarThreadOrderSettings,
   type SidebarThreadSortMode
@@ -15,6 +16,9 @@ interface SidebarThreadOrderState {
   recentsOrder: string[]
   pinnedOrder: string[]
   projectOrders: Record<string, string[]>
+  projectSort: SidebarThreadSortMode
+  projectOrder: string[]
+  collapsedProjectIds: string[]
   hydrate(settings: SidebarThreadOrderSettings): void
   setRecentsSort(mode: SidebarThreadSortMode, snapshot?: string[]): void
   setProjectsSort(mode: SidebarThreadSortMode, snapshots?: Record<string, string[]>): void
@@ -23,6 +27,9 @@ interface SidebarThreadOrderState {
   setRecentsOrder(threadIds: string[]): void
   setPinnedOrder(threadIds: string[]): void
   setProjectOrder(projectKey: string, threadIds: string[]): void
+  setProjectSort(mode: SidebarThreadSortMode, snapshot?: string[]): void
+  setProjectListOrder(projectKeys: string[]): void
+  setProjectsCollapsed(projectKeys: string[], collapsed: boolean): void
 }
 
 function persist(partial: SidebarThreadOrderSettings): void {
@@ -35,7 +42,7 @@ export function projectOrderKey(projectKey: string): string {
   return normalizeWorkspaceProjectKey(projectKey)
 }
 
-export const useSidebarThreadOrderStore = create<SidebarThreadOrderState>((set) => ({
+export const useSidebarThreadOrderStore = create<SidebarThreadOrderState>((set, get) => ({
   recentsSort: 'updated',
   projectsSort: 'updated',
   pinnedSort: 'manual',
@@ -43,6 +50,9 @@ export const useSidebarThreadOrderStore = create<SidebarThreadOrderState>((set) 
   recentsOrder: [],
   pinnedOrder: [],
   projectOrders: {},
+  projectSort: 'manual',
+  projectOrder: [],
+  collapsedProjectIds: [],
 
   hydrate(settings) {
     set({
@@ -52,7 +62,10 @@ export const useSidebarThreadOrderStore = create<SidebarThreadOrderState>((set) 
       recentsShowProjects: settings.recentsShowProjects === true,
       recentsOrder: normalizeManualThreadOrder(settings.recentsThreadOrder) ?? [],
       pinnedOrder: normalizeManualThreadOrder(settings.pinnedThreadOrder) ?? [],
-      projectOrders: normalizeThreadOrderByProject(settings.threadOrderByProject) ?? {}
+      projectOrders: normalizeThreadOrderByProject(settings.threadOrderByProject) ?? {},
+      projectSort: settings.projectSort === 'updated' ? 'updated' : 'manual',
+      projectOrder: normalizeProjectKeyList(settings.projectOrder) ?? [],
+      collapsedProjectIds: normalizeProjectKeyList(settings.collapsedProjectIds) ?? []
     })
   },
 
@@ -106,5 +119,32 @@ export const useSidebarThreadOrderStore = create<SidebarThreadOrderState>((set) 
     const order = normalizeManualThreadOrder(threadIds) ?? []
     set((state) => ({ projectOrders: { ...state.projectOrders, [key]: order } }))
     persist({ threadOrderByProject: { [key]: order } })
+  },
+
+  setProjectSort(mode, snapshot) {
+    if (mode === 'manual' && snapshot) {
+      const order = normalizeProjectKeyList(snapshot) ?? []
+      set({ projectSort: mode, projectOrder: order })
+      persist({ projectSort: mode, projectOrder: order })
+      return
+    }
+    set({ projectSort: mode })
+    persist({ projectSort: mode })
+  },
+
+  setProjectListOrder(projectKeys) {
+    const order = normalizeProjectKeyList(projectKeys) ?? []
+    set({ projectOrder: order })
+    persist({ projectOrder: order })
+  },
+
+  setProjectsCollapsed(projectKeys, collapsed) {
+    const keys = new Set(projectKeys.map(projectOrderKey).filter(Boolean))
+    const current = get().collapsedProjectIds
+    const next = collapsed
+      ? [...new Set([...current, ...keys])]
+      : current.filter((key) => !keys.has(key))
+    set({ collapsedProjectIds: next })
+    persist({ collapsedProjectIds: next })
   }
 }))

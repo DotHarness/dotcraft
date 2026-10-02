@@ -5,6 +5,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadList } from '../components/sidebar/ThreadList'
 import { ConfirmDialogHost } from '../components/ui/ConfirmDialog'
 import { useThreadStore } from '../stores/threadStore'
+import { useSidebarThreadOrderStore } from '../stores/sidebarThreadOrderStore'
 import { useUIStore } from '../stores/uiStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import type { ThreadSummary } from '../types/thread'
@@ -71,6 +72,7 @@ function resetStores(): void {
 describe('ThreadList project-first layout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useSidebarThreadOrderStore.getState().hydrate({})
     settingsGet.mockResolvedValue({ locale: 'en' })
     settingsSet.mockResolvedValue({})
     workspaceSwitch.mockResolvedValue(undefined)

@@ -1,3 +1,4 @@
+import type { SidebarThreadSortMode } from '../../../shared/sidebarThreadOrder'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import {
   isRemoteProjectKey,
@@ -10,6 +11,27 @@ import { isSubAgentThread } from '../../utils/subAgentThreads'
 
 export function projectIdentity(project: WorkspaceProjectSummary): string {
   return project.projectId?.trim() || normalizeWorkspaceProjectKey(project.path)
+}
+
+export function projectOrderIdentity(project: WorkspaceProjectSummary): string {
+  return normalizeWorkspaceProjectKey(projectIdentity(project))
+}
+
+export function orderProjectsBySortMode(
+  projects: WorkspaceProjectSummary[],
+  mode: SidebarThreadSortMode,
+  manualOrder: readonly string[],
+  lastActivity: (project: WorkspaceProjectSummary) => number
+): WorkspaceProjectSummary[] {
+  if (mode === 'updated') {
+    return [...projects].sort((left, right) => lastActivity(right) - lastActivity(left))
+  }
+  const position = new Map(manualOrder.map((key, index) => [key, index]))
+  const placed = projects
+    .filter((project) => position.has(projectOrderIdentity(project)))
+    .sort((left, right) => position.get(projectOrderIdentity(left))! - position.get(projectOrderIdentity(right))!)
+  const unplaced = projects.filter((project) => !position.has(projectOrderIdentity(project)))
+  return [...placed, ...unplaced]
 }
 
 export function isRemoteProject(project: WorkspaceProjectSummary): boolean {

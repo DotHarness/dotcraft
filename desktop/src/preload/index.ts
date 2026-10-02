@@ -1526,6 +1526,9 @@ const api = {
       recentsThreadOrder?: string[]
       pinnedThreadOrder?: string[]
       threadOrderByProject?: Record<string, string[]>
+      projectSort?: SidebarThreadSortMode
+      projectOrder?: string[]
+      collapsedProjectIds?: string[]
       showInMenuBar?: boolean
       lastOpenEditorId?: EditorId
       lastSeenWhatsNewVersion?: string
@@ -1605,6 +1608,9 @@ const api = {
       pinnedThreadOrder?: string[]
       /** Merged per project key; an empty list removes the key when persisted. */
       threadOrderByProject?: Record<string, string[]>
+      projectSort?: SidebarThreadSortMode
+      projectOrder?: string[]
+      collapsedProjectIds?: string[]
       showInMenuBar?: boolean
       lastOpenEditorId?: EditorId
       lastSeenWhatsNewVersion?: string

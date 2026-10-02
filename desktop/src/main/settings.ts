@@ -23,6 +23,7 @@ import { normalizeThemeSeeds, type ThemeSeedOverrides, type ThemeVariant } from 
 import { normalizePetSetting, type PetSettings } from '../shared/pet'
 import {
   normalizeManualThreadOrder,
+  normalizeProjectKeyList,
   normalizeSidebarThreadSortMode,
   normalizeThreadOrderByProject,
   type SidebarThreadOrderSettings
@@ -403,6 +404,9 @@ function normalizeSidebarThreadOrderSettings(settings: AppSettings): void {
   settings.recentsThreadOrder = normalizeManualThreadOrder(settings.recentsThreadOrder)
   settings.pinnedThreadOrder = normalizeManualThreadOrder(settings.pinnedThreadOrder)
   settings.threadOrderByProject = normalizeThreadOrderByProject(settings.threadOrderByProject)
+  settings.projectSort = normalizeSidebarThreadSortMode(settings.projectSort, 'manual')
+  settings.projectOrder = normalizeProjectKeyList(settings.projectOrder)
+  settings.collapsedProjectIds = normalizeProjectKeyList(settings.collapsedProjectIds)
 }
 
 export function normalizeShowInMenuBar(settings: AppSettings): boolean | undefined {
@@ -792,10 +796,12 @@ export function saveLocalProject(
     settings.recentWorkspaces = (settings.recentWorkspaces ?? []).filter(
       (recent) => !sameWorkspaceProjectKey(recent.path, previousPath)
     )
-    if (settings.pinnedProjectIds && previousKey) {
-      settings.pinnedProjectIds = settings.pinnedProjectIds.map((id) =>
-        id === previousKey ? primaryKey : id
-      )
+    if (previousKey) {
+      const rekey = (ids: string[] | undefined): string[] | undefined =>
+        ids?.map((id) => (id === previousKey ? primaryKey : id))
+      settings.pinnedProjectIds = rekey(settings.pinnedProjectIds)
+      settings.projectOrder = rekey(settings.projectOrder)
+      settings.collapsedProjectIds = rekey(settings.collapsedProjectIds)
     }
   }
 

@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { FolderPlus } from 'lucide-react'
+import { ArrowDownUp, ChevronsDownUp, ChevronsUpDown, FolderPlus } from 'lucide-react'
 import type { SidebarThreadSortMode } from '../../../shared/sidebarThreadOrder'
 import { useT } from '../../contexts/LocaleContext'
 import { useAddProjectFlow } from '../projects/AddProject'
+import type { ContextMenuEntry } from '../ui/ContextMenu'
 import { IconButton } from '../ui/IconButton'
-import { SidebarSectionHeader, sortChatsMenuEntry } from './SidebarSectionParts'
+import { SidebarSectionHeader, sortModeMenuItems } from './SidebarSectionParts'
 import { WorkspaceOptionsMenu } from './WorkspaceHeader'
 
 export function ProjectsSectionHeader({
@@ -14,7 +15,11 @@ export function ProjectsSectionHeader({
   collapsed,
   onToggle,
   sortMode,
-  onSortChange
+  onSortChange,
+  projectSortMode,
+  onProjectSortChange,
+  allProjectsCollapsed,
+  onAllProjectsCollapsedChange
 }: {
   workspacePath: string
   localWorkspacePath?: string
@@ -23,12 +28,49 @@ export function ProjectsSectionHeader({
   onToggle: () => void
   sortMode: SidebarThreadSortMode
   onSortChange?: (mode: SidebarThreadSortMode) => void
+  projectSortMode: SidebarThreadSortMode
+  onProjectSortChange?: (mode: SidebarThreadSortMode) => void
+  allProjectsCollapsed: boolean
+  onAllProjectsCollapsedChange?: (collapsed: boolean) => void
 }): JSX.Element {
   const t = useT()
   const [menuOpen, setMenuOpen] = useState(false)
   const addProject = useAddProjectFlow()
-  const sortItems = onSortChange ? [sortChatsMenuEntry(t, sortMode, onSortChange)] : []
-  const showMenu = workspacePath.trim().length > 0 || sortItems.length > 0
+  const sortSubmenu: ContextMenuEntry[] = [
+    ...(onProjectSortChange
+      ? [
+          { type: 'label' as const, label: t('threadList.sortGroupProjects') },
+          ...sortModeMenuItems(t, projectSortMode, onProjectSortChange)
+        ]
+      : []),
+    ...(onProjectSortChange && onSortChange ? [{ type: 'separator' as const }] : []),
+    ...(onSortChange
+      ? [
+          { type: 'label' as const, label: t('threadList.sortGroupChats') },
+          ...sortModeMenuItems(t, sortMode, onSortChange)
+        ]
+      : [])
+  ]
+  const leadingItems: ContextMenuEntry[] = [
+    ...(sortSubmenu.length > 0
+      ? [{
+          label: t('threadList.sortBy'),
+          icon: <ArrowDownUp size={14} aria-hidden />,
+          onClick: () => {},
+          submenu: sortSubmenu
+        }]
+      : []),
+    ...(onAllProjectsCollapsedChange
+      ? [{
+          label: allProjectsCollapsed ? t('threadList.expandAllProjects') : t('threadList.collapseAllProjects'),
+          icon: allProjectsCollapsed
+            ? <ChevronsUpDown size={14} aria-hidden />
+            : <ChevronsDownUp size={14} aria-hidden />,
+          onClick: () => onAllProjectsCollapsedChange(!allProjectsCollapsed)
+        }]
+      : [])
+  ]
+  const showMenu = workspacePath.trim().length > 0 || leadingItems.length > 0
 
   return (
     <>
@@ -45,7 +87,7 @@ export function ProjectsSectionHeader({
                 workspacePath={workspacePath}
                 localWorkspacePath={localWorkspacePath}
                 localActionsDisabled={localActionsDisabled}
-                leadingItems={sortItems}
+                leadingItems={leadingItems}
                 onOpenChange={setMenuOpen}
               />
             )}
