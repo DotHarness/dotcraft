@@ -25,29 +25,32 @@ internal static class ImageGenerationToolText
         - Always use this tool for image editing unless the user explicitly requests otherwise. Do not edit images with shell commands or scripts unless specifically instructed.
         """;
 
-    public static JsonElement InputSchema(int maxReferenceImages) =>
+    private const string AbsolutePathDescription =
+        "A path that is guaranteed to be absolute and normalized (though it is not guaranteed to be canonicalized or exist on the filesystem).\n\n"
+        + "IMPORTANT: When deserializing an `AbsolutePathBuf`, a base path must be set using [AbsolutePathBufGuard::new]. "
+        + "If no base path is set, the deserialization will fail unless the path being deserialized is already absolute.";
+
+    public static JsonElement InputSchema() =>
         JsonSerializer.SerializeToElement(new JsonObject
         {
             ["type"] = "object",
             ["properties"] = new JsonObject
             {
+                ["num_last_images_to_include"] = new JsonObject { ["type"] = new JsonArray("integer", "null") },
                 ["prompt"] = new JsonObject { ["type"] = "string" },
+                ["referenced_image_paths"] = new JsonObject
+                {
+                    ["type"] = new JsonArray("array", "null"),
+                    ["items"] = new JsonObject
+                    {
+                        ["type"] = "string",
+                        ["description"] = AbsolutePathDescription
+                    }
+                },
                 ["transparent_background"] = new JsonObject
                 {
                     ["type"] = "boolean",
                     ["description"] = "Whether the output should have a transparent background. Defaults to false."
-                },
-                ["referenced_image_paths"] = new JsonObject
-                {
-                    ["type"] = "array",
-                    ["items"] = new JsonObject { ["type"] = "string" },
-                    ["maxItems"] = maxReferenceImages
-                },
-                ["num_last_images_to_include"] = new JsonObject
-                {
-                    ["type"] = "integer",
-                    ["minimum"] = 1,
-                    ["maximum"] = maxReferenceImages
                 }
             },
             ["required"] = new JsonArray("prompt"),

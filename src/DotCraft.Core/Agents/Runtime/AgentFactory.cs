@@ -815,7 +815,7 @@ public sealed class AgentFactory : IAsyncDisposable
         string providerFlatName,
         ToolDefinition definition,
         string? namespaceDescription)
-        : AIFunction, ICanonicalToolIdentityMetadata, IGeneratedToolMetadata
+        : AIFunction, ICanonicalToolIdentityMetadata, IGeneratedToolMetadata, IOpenAIResponsesFunctionToolMetadata
     {
         public override string Name => providerFlatName;
         public ToolName CanonicalToolName => definition.Name;
@@ -837,6 +837,8 @@ public sealed class AgentFactory : IAsyncDisposable
         public string? Icon => null;
         public Func<IDictionary<string, object?>?, string>? DisplayFormatter => null;
         public bool RpcEligible => RemoteToolMetadata.IsRpcEligible(definition);
+        public bool ReservedSchema => ReservedToolSchema.IsReserved(definition);
+        public bool? Strict => ReservedSchema ? false : null;
 
         protected override ValueTask<object?> InvokeCoreAsync(
             AIFunctionArguments arguments,

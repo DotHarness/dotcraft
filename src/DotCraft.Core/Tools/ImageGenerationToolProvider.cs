@@ -47,10 +47,11 @@ public sealed class ImageGenerationToolSource(
             definitionId,
             new ToolName(ToolNamespace, ToolName),
             ImageGenerationToolText.Description(maxReferenceImages),
-            ImageGenerationToolText.InputSchema(maxReferenceImages),
+            ImageGenerationToolText.InputSchema(),
             annotations: new Dictionary<string, JsonElement>(StringComparer.Ordinal)
             {
-                ["dotcraft/streamArguments"] = JsonSerializer.SerializeToElement(false)
+                ["dotcraft/streamArguments"] = JsonSerializer.SerializeToElement(false),
+                [ReservedToolSchema.Annotation] = JsonSerializer.SerializeToElement(true)
             },
             provenance: new ToolProvenance(ToolSourceKind.CoreNative, SourceId, "native"));
         var toolRuntime = new ImageGenerationToolRuntime(

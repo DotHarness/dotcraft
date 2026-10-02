@@ -1,3 +1,4 @@
+using System.ClientModel.Primitives;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
@@ -60,6 +61,59 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
         var registration = Assert.Single(registrations);
         Assert.Equal(new ToolName("image_gen", "imagegen"), registration.Definition.Name);
         Assert.Equal(ToolProjectionShape.ImageGeneration, registration.ProjectionShape);
+    }
+
+    [Fact]
+    public async Task ResponsesRequest_SendsTheReservedImagegenDefinitionVerbatim()
+    {
+        var registration = Assert.Single(
+            await CreateSource(OpenAIConfig(), new FakeImageProvider()).GetRegistrationsAsync(CreatePlanningContext()));
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], 1);
+        var tools = ToolSchemaSanitizer.SanitizeTools(AgentFactory.ProjectSnapshotTools(snapshot));
+
+        var request = JsonNode.Parse(ModelReaderWriter.Write(ResponsesToolSearchMapper.CreateResponseOptions(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "draw a cat")],
+            new ChatOptions { Tools = tools })).ToString())!;
+
+        var expected = JsonNode.Parse("""
+            {
+              "type": "namespace",
+              "name": "image_gen",
+              "description": "Tools in the image_gen namespace.",
+              "tools": [
+                {
+                  "type": "function",
+                  "name": "imagegen",
+                  "description": null,
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "num_last_images_to_include": { "type": ["integer", "null"] },
+                      "prompt": { "type": "string" },
+                      "referenced_image_paths": {
+                        "type": ["array", "null"],
+                        "items": {
+                          "type": "string",
+                          "description": "A path that is guaranteed to be absolute and normalized (though it is not guaranteed to be canonicalized or exist on the filesystem).\n\nIMPORTANT: When deserializing an `AbsolutePathBuf`, a base path must be set using [AbsolutePathBufGuard::new]. If no base path is set, the deserialization will fail unless the path being deserialized is already absolute."
+                        }
+                      },
+                      "transparent_background": {
+                        "type": "boolean",
+                        "description": "Whether the output should have a transparent background. Defaults to false."
+                      }
+                    },
+                    "required": ["prompt"],
+                    "additionalProperties": false
+                  },
+                  "strict": false
+                }
+              ]
+            }
+            """)!;
+        expected["tools"]![0]!["description"] = registration.Definition.Description;
+        var actual = Assert.Single(request["tools"]!.AsArray())!;
+        Assert.Equal(expected.ToJsonString(), actual.ToJsonString());
     }
 
     [Fact]

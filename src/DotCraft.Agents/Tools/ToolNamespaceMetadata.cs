@@ -25,6 +25,8 @@ internal interface ICanonicalToolIdentityMetadata : IToolNamespaceMetadata
 internal interface IOpenAIResponsesFunctionToolMetadata
 {
     bool? Strict { get; }
+
+    bool ReservedSchema { get; }
 }
 
 internal static class ToolNamespaceMetadataResolver
