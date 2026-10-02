@@ -1289,28 +1289,28 @@ function ConversationWelcomeCore({
     }
 
     sendInFlightRef.current = true
-    setMascotBounce((n) => n + 1)
     const submittedDraft = buildWelcomeDraftSnapshot()
     const submittedContexts = useComposerContextStore.getState().getContexts(contextKey)
     const requestId = crypto.randomUUID()
 
     const preview = buildComposerInputParts({ text: trimmedObjective })
     const threadName = welcomeThreadName(preview.visibleText, 0, 0)
-    useUIStore.getState().setPendingThreadCreation({
-      requestId,
-      createdAt: Date.now(),
-      workspacePath: identityPath,
-      text: trimmedObjective,
-      inputParts: preview.inputParts,
-      sentAsGoal: true,
-      threadName,
-      configuration: welcomeThreadConfiguration as ThreadConfigurationWire
-    })
-    useUIStore.getState().setActiveMainView('conversation')
-    clearWelcomeComposer()
 
     let createdThreadId: string | null = null
     try {
+      setMascotBounce((n) => n + 1)
+      useUIStore.getState().setPendingThreadCreation({
+        requestId,
+        createdAt: Date.now(),
+        workspacePath: identityPath,
+        text: trimmedObjective,
+        inputParts: preview.inputParts,
+        sentAsGoal: true,
+        threadName,
+        configuration: welcomeThreadConfiguration as ThreadConfigurationWire
+      })
+      useUIStore.getState().setActiveMainView('conversation')
+      clearWelcomeComposer()
       const thread = await startWelcomeThread()
       createdThreadId = thread.id
       useUIStore.getState().resolvePendingThreadCreation(requestId, thread.id)
@@ -1428,7 +1428,6 @@ function ConversationWelcomeCore({
     }
 
     sendInFlightRef.current = true
-    setMascotBounce((n) => n + 1)
     const capturedImages = [...inputImages]
     const capturedFiles = [...inputFiles]
     const capturedSegments = [...segments]
@@ -1443,20 +1442,21 @@ function ConversationWelcomeCore({
       images: capturedImages
     })
     const threadName = welcomeThreadName(preview.visibleText, capturedImages.length, capturedFiles.length)
-    useUIStore.getState().setPendingThreadCreation({
-      requestId,
-      createdAt: Date.now(),
-      workspacePath: identityPath,
-      text: preview.visibleText,
-      inputParts: preview.inputParts,
-      threadName,
-      configuration: welcomeThreadConfiguration as ThreadConfigurationWire
-    })
-    useUIStore.getState().setActiveMainView('conversation')
-    clearWelcomeComposer()
 
     let createdThreadId: string | null = null
     try {
+      setMascotBounce((n) => n + 1)
+      useUIStore.getState().setPendingThreadCreation({
+        requestId,
+        createdAt: Date.now(),
+        workspacePath: identityPath,
+        text: preview.visibleText,
+        inputParts: preview.inputParts,
+        threadName,
+        configuration: welcomeThreadConfiguration as ThreadConfigurationWire
+      })
+      useUIStore.getState().setActiveMainView('conversation')
+      clearWelcomeComposer()
       const thread = await startWelcomeThread()
       createdThreadId = thread.id
       useUIStore.getState().resolvePendingThreadCreation(requestId, thread.id)

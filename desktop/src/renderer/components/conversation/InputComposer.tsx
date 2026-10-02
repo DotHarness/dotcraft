@@ -906,8 +906,8 @@ function InputComposerCore({
     if (sendInFlightRef.current) return
     sendInFlightRef.current = true
     const submission = captureComposerDraft()
-    clearComposerForSubmission()
     try {
+      clearComposerForSubmission()
       const ok = await setGoalObjective(objective)
       if (!ok) {
         restoreComposerSubmission(submission)
@@ -1126,8 +1126,8 @@ function InputComposerCore({
       if (sendInFlightRef.current) return
       sendInFlightRef.current = true
       const submission = submissionSnapshot()
-      clearComposerForSubmission()
       try {
+        clearComposerForSubmission()
         const expandedPrompt = await expandInitCommand(threadId)
         await startTurnWithOptimisticUI({
           threadId,
@@ -1201,8 +1201,8 @@ function InputComposerCore({
         images: capturedImages
       })
       const submission = submissionSnapshot()
-      clearComposerForSubmission()
       try {
+        clearComposerForSubmission()
         await submitOverride({
           text: trimmed,
           segments: capturedSegments,
@@ -1235,8 +1235,8 @@ function InputComposerCore({
         files: inputFiles,
         images: inputImages
       })
-      clearComposerForSubmission()
       try {
+        clearComposerForSubmission()
         await sendFollowUpWithEcho(clientUserMessageId, inputParts, visibleText, followUpMode)
       } catch (err) {
         console.error(`turn/${followUpMode === 'steer' ? 'steer' : 'enqueue'} failed:`, err)
@@ -1262,8 +1262,8 @@ function InputComposerCore({
       images: capturedImages
     })
     const submission = submissionSnapshot()
-    clearComposerForSubmission()
     try {
+      clearComposerForSubmission()
       await startTurnWithOptimisticUI({
         clientUserMessageId: submission.clientUserMessageId,
         threadId,
