@@ -337,7 +337,6 @@ export const MESSAGES_KO = {
   'update.viewRelease': '릴리스 보기',
   'update.download': '다운로드',
   'update.downloading': '다운로드 중...',
-  'update.installing': '설치 준비됨',
   'update.restart': '다시 시작하여 업데이트',
   'update.readyToRestart': '업데이트를 다운로드했습니다. DotCraft를 다시 시작하면 설치됩니다.',
   'update.retry': '다시 시도',

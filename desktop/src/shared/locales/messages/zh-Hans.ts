@@ -467,7 +467,6 @@ export const MESSAGES_ZH_HANS = {
   'update.viewRelease': '查看 Release',
   'update.download': '下载',
   'update.downloading': '下载中...',
-  'update.installing': '准备安装',
   'update.restart': '重启以更新',
   'update.readyToRestart': '更新已下载。重启 DotCraft 即可完成安装。',
   'update.retry': '重试下载',

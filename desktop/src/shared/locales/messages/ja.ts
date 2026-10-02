@@ -337,7 +337,6 @@ export const MESSAGES_JA = {
   'update.viewRelease': 'リリースを見る',
   'update.download': 'ダウンロード',
   'update.downloading': 'ダウンロード中...',
-  'update.installing': 'インストール準備完了',
   'update.restart': '再起動してアップデート',
   'update.readyToRestart': 'アップデートをダウンロードしました。DotCraft を再起動するとインストールされます。',
   'update.retry': '再試行',

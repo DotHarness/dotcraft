@@ -98,10 +98,10 @@ export function AppUpdateDialog({
             <p style={bodyStyle}>{t('update.checkingBody')}</p>
           )}
 
-          {(downloading || downloaded) && (
+          {downloading && (
             <div style={progressWrapStyle}>
               <div style={progressLabelStyle}>
-                <span>{downloaded ? t('update.installing') : t('update.downloading')}</span>
+                <span>{t('update.downloading')}</span>
                 <span style={progressBytesStyle}>
                   {formatBytes(progress?.transferredBytes ?? 0)} / {formatBytes(progress?.totalBytes ?? 0)}
                   {' · '}

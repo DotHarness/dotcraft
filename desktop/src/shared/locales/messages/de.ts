@@ -337,7 +337,6 @@ export const MESSAGES_DE = {
   'update.viewRelease': 'Release anzeigen',
   'update.download': 'Herunterladen',
   'update.downloading': 'Wird heruntergeladen...',
-  'update.installing': 'Bereit zur Installation',
   'update.restart': 'Neu starten und aktualisieren',
   'update.readyToRestart': 'Update heruntergeladen. Starte DotCraft neu, um es zu installieren.',
   'update.retry': 'Erneut versuchen',

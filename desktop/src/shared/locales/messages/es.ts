@@ -337,7 +337,6 @@ export const MESSAGES_ES = {
   'update.viewRelease': 'Ver versión',
   'update.download': 'Descargar',
   'update.downloading': 'Descargando...',
-  'update.installing': 'Listo para instalar',
   'update.restart': 'Reiniciar para actualizar',
   'update.readyToRestart': 'Actualización descargada. Reinicia DotCraft para instalarla.',
   'update.retry': 'Reintentar',
