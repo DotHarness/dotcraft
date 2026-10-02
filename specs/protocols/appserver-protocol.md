@@ -6405,6 +6405,8 @@ Update workspace-level config values.
 | `dreamsAutoApply` | boolean \| null | no | Workspace-level override for `Dreams.AutoApply`. `true` makes future successful Dreams runs active immediately, `false` keeps them pending for Dashboard review, and `null` removes the explicit override. |
 | `defaultApprovalPolicy` | string \| null | no | Workspace default approval policy for threads whose `ThreadConfiguration.approvalPolicy` is `default` or unset. Supported values are `default` and `autoApprove`; `null` removes the explicit workspace override so server defaults apply. |
 | `toolsLspEnabled` | boolean \| null | no | Workspace-level override for `Tools.Lsp.Enabled`. `true` enables the built-in LSP tool, `false` disables it, and `null` removes the explicit override so server defaults apply. |
+| `toolsImageGenerationEnabled` | boolean \| null | no | Workspace-level override for `Tools.ImageGeneration.Enabled`. `true` offers the image generation tool when an eligible image provider exists, `false` withholds it, and `null` removes the explicit override so server defaults apply (`true` by default). Applies to threads whose agents are rebuilt after the change. |
+| `toolsImageGenerationProvider` | string \| null | no | Workspace-level override for `Tools.ImageGeneration.Provider`, the provider id that serves image generation. `null` or empty removes the override so image generation uses the conversation's provider. Applies to threads whose agents are rebuilt after the change. |
 
 **Result**:
 
@@ -6432,7 +6434,9 @@ Update workspace-level config values.
   "dreamsThreadLookbackCount": 20,
   "dreamsAutoApply": false,
   "defaultApprovalPolicy": "default",
-  "toolsLspEnabled": true
+  "toolsLspEnabled": true,
+  "toolsImageGenerationEnabled": true,
+  "toolsImageGenerationProvider": "openai"
 }
 ```
 
@@ -6441,12 +6445,12 @@ Update workspace-level config values.
 - This method updates **workspace default** only, not any active thread state.
 - Clients that need immediate effect in a running thread should additionally call `thread/config/update`.
 - Server preserves unrelated configuration state.
-- At least one of `providerId`, `providerPreferences`, `welcomeSuggestionsEnabled`, `promptSuggestionsEnabled`, `skillsSelfLearningEnabled`, `skillsIncludeSharedSkills`, `memoryEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, or `toolsLspEnabled` must be provided.
+- At least one of `providerId`, `providerPreferences`, `welcomeSuggestionsEnabled`, `promptSuggestionsEnabled`, `skillsSelfLearningEnabled`, `skillsIncludeSharedSkills`, `memoryEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, `toolsLspEnabled`, `toolsImageGenerationEnabled`, or `toolsImageGenerationProvider` must be provided.
 - `providerPreferences` replaces the complete workspace map. Each workspace record atomically overrides the personal record for the same provider; fields are never merged across scopes.
 - Provider-aware saves persist `ProviderId` and `ProviderPreferences` while preserving unrelated configuration state. Credentials and endpoints are changed through `provider/create` and `provider/update`.
 - A supplied field is stored as the workspace override for that setting. Setting a field to `null` removes the override, and a subsequent read reports the server default.
 - Each preference must contain a non-empty model and valid enum values. Unsupported reasoning selections are repaired to catalog defaults, unsupported `max` is reset to `default`, and `fast` may remain stored even when the selected model executes it as `standard`.
-- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "workspace/config/update"` and one or more regions from `workspace.provider`, `workspace.providerPreferences`, `providers`, `welcomeSuggestions`, `promptSuggestions`, `skills`, `memory`, `workspace.defaultApprovalPolicy`, or `lsp`.
+- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "workspace/config/update"` and one or more regions from `workspace.provider`, `workspace.providerPreferences`, `providers`, `welcomeSuggestions`, `promptSuggestions`, `skills`, `memory`, `workspace.defaultApprovalPolicy`, `lsp`, or `imageGeneration`.
 
 ### 25.4 Capability Advertisement
 
@@ -6476,7 +6480,7 @@ Server notification emitted after a successful workspace configuration write.
 | `regions` | string[] | Coarse region tags describing what changed. |
 | `changedAt` | string (ISO-8601) | Server-side UTC timestamp when the change event was emitted. |
 
-Defined region tags: `providers`, `workspace.provider`, `workspace.providerPreferences`, `workspace.defaultApprovalPolicy`, `welcomeSuggestions`, `skills`, `plugins`, `plugins.config`, `memory`, `lsp`, `mcp`, `hooks`, `externalChannel`, `subagent`, and `sourceControl`.
+Defined region tags: `providers`, `workspace.provider`, `workspace.providerPreferences`, `workspace.defaultApprovalPolicy`, `welcomeSuggestions`, `skills`, `plugins`, `plugins.config`, `memory`, `lsp`, `imageGeneration`, `mcp`, `hooks`, `externalChannel`, `subagent`, and `sourceControl`.
 
 Semantics:
 

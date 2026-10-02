@@ -1625,6 +1625,13 @@ a tooltip on the control names the prerequisite, such as "Enable memories to use
 Dreams". The hint keeps defining the setting rather than describing the
 dependency, and turning the prerequisite back on restores the setting as stored.
 
+A select over items that do not all qualify for the setting, such as the
+providers that can create images, lists every item and disables the ones that
+cannot serve, with the reason as the option's description; an option that
+follows another setting, such as Same as chat, names what it currently resolves
+to. When the effective choice cannot serve, a one-line warning notice under the
+rows says so and links to the fix.
+
 Each page or segment has one principal action, and it carries the primary neutral
 inversion wherever it sits in the header; refresh and other quiet actions beside
 it stay frameless icon buttons. Option cards show their choice through the

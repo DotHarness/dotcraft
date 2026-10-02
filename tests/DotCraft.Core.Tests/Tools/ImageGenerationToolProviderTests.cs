@@ -64,10 +64,10 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task ResponsesRequest_SendsTheReservedImagegenDefinitionVerbatim()
+    public async Task ResponsesRequest_SendsTheReservedImagegenDefinitionVerbatimForOAuthConversations()
     {
         var registration = Assert.Single(
-            await CreateSource(OpenAIConfig(), new FakeImageProvider()).GetRegistrationsAsync(CreatePlanningContext()));
+            await CreateSource(ChatGptOAuthConfig(), new FakeImageProvider()).GetRegistrationsAsync(CreatePlanningContext()));
         var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], 1);
         var tools = ToolSchemaSanitizer.SanitizeTools(AgentFactory.ProjectSnapshotTools(snapshot));
 
@@ -114,6 +114,92 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
         expected["tools"]![0]!["description"] = registration.Definition.Description;
         var actual = Assert.Single(request["tools"]!.AsArray())!;
         Assert.Equal(expected.ToJsonString(), actual.ToJsonString());
+    }
+
+    public static TheoryData<string, AppConfig, bool> ReservedSchemaByConversation => new()
+    {
+        { "oauth", ChatGptOAuthConfig(), true },
+        { "api key", OpenAIConfig(), false },
+        { "api key with oauth images", WithImageProvider(AddOAuthProvider(OpenAIConfig()), "oauth"), false },
+        { "anthropic with oauth images", WithImageProvider(AddOAuthProvider(AnthropicConfig()), "oauth"), false },
+        { "oauth with api key images", WithImageProvider(AddOpenAIProvider(ChatGptOAuthConfig()), "openai"), true }
+    };
+
+    [Theory]
+    [MemberData(nameof(ReservedSchemaByConversation))]
+    public async Task GetRegistrations_ReservesTheSchemaOnlyForOAuthConversations(
+        string scenario,
+        AppConfig config,
+        bool expected)
+    {
+        var registration = Assert.Single(
+            await CreateSource(config, new FakeImageProvider()).GetRegistrationsAsync(CreatePlanningContext()));
+
+        Assert.True(ReservedToolSchema.IsReserved(registration.Definition) == expected, scenario);
+    }
+
+    [Fact]
+    public async Task AnthropicConversation_ProjectsASanitizedFlatImagegenFunction()
+    {
+        var config = WithImageProvider(AddOpenAIProvider(AnthropicConfig()), "openai");
+        var registration = Assert.Single(
+            await CreateSource(config, new FakeImageProvider()).GetRegistrationsAsync(CreatePlanningContext()));
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], 1);
+
+        var tool = Assert.IsAssignableFrom<AIFunction>(
+            Assert.Single(ToolSchemaSanitizer.SanitizeTools(AgentFactory.ProjectSnapshotTools(snapshot))));
+
+        Assert.Equal("image_gen__imagegen", tool.Name);
+        Assert.Equal(
+            "integer",
+            tool.JsonSchema.GetProperty("properties").GetProperty("num_last_images_to_include").GetProperty("type").GetString());
+        Assert.Null(Assert.IsAssignableFrom<IOpenAIResponsesFunctionToolMetadata>(tool).Strict);
+    }
+
+    [Fact]
+    public async Task Invoke_ConfiguredImageProviderGeneratesWithThatProvider()
+    {
+        var provider = new FakeImageProvider();
+        var config = WithImageProvider(AddOpenAIProvider(AnthropicConfig()), "openai");
+        config.Tools.ImageGeneration.Model = "gpt-image-test";
+        var runtime = await CreateRuntimeAsync(config, provider);
+
+        var result = await runtime.InvokeAsync(CreateInvocationContext("call_other"), new JsonObject { ["prompt"] = "x" });
+
+        Assert.True(result.Success, result.Content);
+        var imageRuntime = Assert.Single(provider.Runtimes);
+        Assert.Equal("openai", imageRuntime.ProviderId);
+        Assert.Equal("sk-test", imageRuntime.ApiKey);
+        Assert.Equal("gpt-image-test", Assert.Single(provider.Requests).Model);
+    }
+
+    [Fact]
+    public async Task Invoke_EmptyImageProviderUsesTheConversationProvider()
+    {
+        var provider = new FakeImageProvider();
+        var config = WithImageProvider(AddOAuthProvider(OpenAIConfig()), " ");
+        var runtime = await CreateRuntimeAsync(config, provider);
+
+        await runtime.InvokeAsync(CreateInvocationContext("call_same"), new JsonObject { ["prompt"] = "x" });
+
+        Assert.Equal("openai", Assert.Single(provider.Runtimes).ProviderId);
+    }
+
+    public static TheoryData<string, AppConfig> IneligibleImageProviders => new()
+    {
+        { "missing provider", WithImageProvider(OpenAIConfig(), "missing") },
+        { "anthropic provider", WithImageProvider(AddAnthropicProvider(OpenAIConfig()), "claude") },
+        { "eligible conversation cannot rescue an ineligible image provider", WithImageProvider(
+            AddOpenAIProvider(ChatGptOAuthConfig(), supportsImageGeneration: false), "openai") }
+    };
+
+    [Theory]
+    [MemberData(nameof(IneligibleImageProviders))]
+    public async Task GetRegistrations_OmitsImagegenWhenTheConfiguredImageProviderIsIneligible(string scenario, AppConfig config)
+    {
+        var registrations = await CreateSource(config, new FakeImageProvider()).GetRegistrationsAsync(CreatePlanningContext());
+
+        Assert.True(registrations.Count == 0, scenario);
     }
 
     [Fact]
@@ -317,9 +403,58 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
         return config;
     }
 
+    private static AppConfig WithImageProvider(AppConfig config, string providerId)
+    {
+        config.Tools.ImageGeneration.Provider = providerId;
+        return config;
+    }
+
+    private static AppConfig AnthropicConfig()
+    {
+        var config = new AppConfig
+        {
+            ProviderId = "claude",
+            ProviderPreferences = new() { ["claude"] = new ModelPreference { Model = "claude-test" } }
+        };
+        return AddAnthropicProvider(config);
+    }
+
+    private static AppConfig AddAnthropicProvider(AppConfig config)
+    {
+        config.Providers["claude"] = new AppConfig.ModelProviderConfig
+        {
+            Protocol = ModelProviderProtocols.Anthropic,
+            ApiKey = "sk-ant-test"
+        };
+        return config;
+    }
+
+    private static AppConfig AddOpenAIProvider(AppConfig config, bool? supportsImageGeneration = null)
+    {
+        config.Providers["openai"] = new AppConfig.ModelProviderConfig
+        {
+            Protocol = ModelProviderProtocols.OpenAIResponses,
+            ApiKey = "sk-test",
+            SupportsImageGeneration = supportsImageGeneration
+        };
+        return config;
+    }
+
+    private static AppConfig AddOAuthProvider(AppConfig config)
+    {
+        config.Providers["oauth"] = new AppConfig.ModelProviderConfig
+        {
+            Protocol = ModelProviderProtocols.OpenAIResponses,
+            AuthMethod = ModelProviderAuthMethods.ChatGptOAuth
+        };
+        return config;
+    }
+
     private sealed class FakeImageProvider : IModelProvider, IProviderImageGeneration
     {
         public List<ProviderImageRequest> Requests { get; } = [];
+
+        public List<EffectiveModelRuntime> Runtimes { get; } = [];
 
         public byte[] Result { get; init; } = CreatePng(1);
 
@@ -340,6 +475,7 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
             CancellationToken cancellationToken)
         {
             Requests.Add(request);
+            Runtimes.Add(runtime);
             return Error is null
                 ? Task.FromResult(new ProviderImageResult(Result, ImagegenRequestId, GenerationId))
                 : Task.FromException<ProviderImageResult>(Error);

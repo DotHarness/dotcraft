@@ -324,6 +324,7 @@ For Anthropic-compatible providers, `anthropicMessageContent` can declare how Do
 | `Tools.Lsp.Enabled` | Enables built-in LSP tools | `false` |
 | `Tools.Lsp.MaxFileSize` | Max LSP file size | `10485760` |
 | `Tools.ImageGeneration.Enabled` | Lets the agent generate and edit images with supported OpenAI providers | `true` |
+| `Tools.ImageGeneration.Provider` | Provider id that generates images. Empty uses the conversation's provider | Empty |
 | `Tools.ImageGeneration.Model` | Image model used for generation and edits | `gpt-image-2` |
 | `Tools.ImageGeneration.MaxReferenceImages` | Maximum reference images one edit can use, from `1` to `5` | `5` |
 
@@ -331,7 +332,21 @@ Generated images are saved under the Agent data directory at `generated_images/<
 
 With a supported provider, ask DotCraft to generate an image, or to edit an attached, local, or previously generated one, in a normal conversation. DotCraft calls the OpenAI Images API, saves the PNG, and shows the image inline in clients that render rich content.
 
-Two switches gate the `image_gen.imagegen` tool, and both must be true: the global `Tools.ImageGeneration.Enabled`, and the provider's own `SupportsImageGeneration`. The provider must also use an OpenAI protocol. Omitting the provider field leaves ChatGPT OAuth and the official OpenAI API-key endpoint enabled, and other endpoints disabled. Enable another endpoint only once you know it serves `images/generations` and `images/edits`.
+Two switches gate the `image_gen.imagegen` tool, and both must be true: the global `Tools.ImageGeneration.Enabled`, and the image provider's own `SupportsImageGeneration`. The image provider must also use an OpenAI protocol. Omitting the provider field leaves ChatGPT OAuth and the official OpenAI API-key endpoint enabled, and other endpoints disabled. Enable another endpoint only once you know it serves `images/generations` and `images/edits`.
+
+The image provider is the conversation's provider unless `Tools.ImageGeneration.Provider` names another one. Set it to keep image generation available while you chat through a provider without an Images API, such as an Anthropic or a custom OpenAI-compatible endpoint:
+
+```json
+{
+  "Tools": {
+    "ImageGeneration": {
+      "Provider": "openai"
+    }
+  }
+}
+```
+
+If the named provider is missing or cannot generate images, the tool is not offered; DotCraft does not fall back to the conversation's provider.
 
 Personal local hardening example:
 

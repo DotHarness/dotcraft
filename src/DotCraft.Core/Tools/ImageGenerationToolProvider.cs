@@ -31,12 +31,17 @@ public sealed class ImageGenerationToolSource(
     {
         ArgumentNullException.ThrowIfNull(context);
         cancellationToken.ThrowIfCancellationRequested();
-        if (!TryResolveSupportedRuntime(
-                config,
-                chatClientRegistry,
-                context.EffectiveProviderId,
-                context.EffectiveMainModel,
-                out var runtime))
+        if (!config.Tools.ImageGeneration.Enabled
+            || !TryResolveRuntime(context.EffectiveProviderId, context.EffectiveMainModel, out var conversationRuntime))
+        {
+            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
+        }
+
+        var imageProviderId = config.Tools.ImageGeneration.Provider?.Trim();
+        var runtime = conversationRuntime;
+        if ((!string.IsNullOrEmpty(imageProviderId)
+             && !TryResolveRuntime(imageProviderId, config.Tools.ImageGeneration.Model, out runtime))
+            || !IsSupportedRuntime(runtime))
         {
             return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
         }
@@ -48,11 +53,7 @@ public sealed class ImageGenerationToolSource(
             new ToolName(ToolNamespace, ToolName),
             ImageGenerationToolText.Description(maxReferenceImages),
             ImageGenerationToolText.InputSchema(),
-            annotations: new Dictionary<string, JsonElement>(StringComparer.Ordinal)
-            {
-                ["dotcraft/streamArguments"] = JsonSerializer.SerializeToElement(false),
-                [ReservedToolSchema.Annotation] = JsonSerializer.SerializeToElement(true)
-            },
+            annotations: CreateAnnotations(conversationRuntime.IsChatGptOAuth),
             provenance: new ToolProvenance(ToolSourceKind.CoreNative, SourceId, "native"));
         var toolRuntime = new ImageGenerationToolRuntime(
             runtime,
@@ -82,28 +83,29 @@ public sealed class ImageGenerationToolSource(
             [new ToolRegistration(definition, binding, ToolProjectionShape.ImageGeneration)]);
     }
 
-    private static bool TryResolveSupportedRuntime(
-        AppConfig config,
-        ChatClientRegistry chatClientRegistry,
-        string? providerId,
-        string? model,
-        out EffectiveModelRuntime runtime)
+    private bool TryResolveRuntime(string? providerId, string? model, out EffectiveModelRuntime runtime)
     {
-        runtime = null!;
-        if (!config.Tools.ImageGeneration.Enabled)
-            return false;
-
         try
         {
             runtime = chatClientRegistry.ResolveMainRuntime(config, providerId, model);
+            return true;
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UriFormatException)
         {
             runtime = null!;
             return false;
         }
+    }
 
-        return IsSupportedRuntime(runtime);
+    private static Dictionary<string, JsonElement> CreateAnnotations(bool reservedSchema)
+    {
+        var annotations = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+        {
+            ["dotcraft/streamArguments"] = JsonSerializer.SerializeToElement(false)
+        };
+        if (reservedSchema)
+            annotations[ReservedToolSchema.Annotation] = JsonSerializer.SerializeToElement(true);
+        return annotations;
     }
 
     private static bool IsSupportedRuntime(EffectiveModelRuntime runtime) =>

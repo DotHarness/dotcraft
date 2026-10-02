@@ -25388,6 +25388,20 @@
           "const": null
         },
         {
+          "name": "toolsImageGenerationEnabled",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "toolsImageGenerationProvider",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "toolsLspEnabled",
           "type": "boolean",
           "required": false,
@@ -25485,6 +25499,20 @@
         {
           "name": "skillsSelfLearningEnabled",
           "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "toolsImageGenerationEnabled",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "toolsImageGenerationProvider",
+          "type": "string",
           "required": false,
           "nullable": true,
           "const": null

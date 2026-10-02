@@ -656,6 +656,8 @@ interface WorkspaceCoreConfigSnapshot {
   dreamsThreadLookbackCount: number | null
   dreamsAutoApply: boolean | null
   defaultApprovalPolicy: 'default' | 'autoApprove' | null
+  toolsImageGenerationEnabled: boolean | null
+  toolsImageGenerationProvider: string | null
 }
 
 function getCaseInsensitiveRecordValue(
@@ -726,6 +728,13 @@ function readDefaultApprovalPolicy(record: Record<string, unknown>): 'default' |
   return raw === 'default' || raw === 'autoApprove' ? raw : null
 }
 
+function readToolsSection(record: Record<string, unknown>): Record<string, unknown> {
+  const tools = getCaseInsensitiveRecordValue(record, 'Tools')
+  return tools == null || typeof tools !== 'object' || Array.isArray(tools)
+    ? {}
+    : tools as Record<string, unknown>
+}
+
 function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
   return {
     providerId: null,
@@ -739,13 +748,16 @@ function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
     dreamsInterval: null,
     dreamsThreadLookbackCount: null,
     dreamsAutoApply: null,
-    defaultApprovalPolicy: null
+    defaultApprovalPolicy: null,
+    toolsImageGenerationEnabled: null,
+    toolsImageGenerationProvider: null
   }
 }
 
 function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapshot {
   if (!raw.trim()) return createEmptyCoreConfigSnapshot()
   const parsed = parseJsonObjectConfig(raw)
+  const tools = readToolsSection(parsed)
   return {
     providerId: normalizeOptionalStringValue(parsed.ProviderId ?? parsed.providerId),
     providerPreferences: readProviderPreferences(
@@ -760,7 +772,9 @@ function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapsho
     dreamsInterval: readNestedString(parsed, 'Dreams', 'Interval'),
     dreamsThreadLookbackCount: readNestedInteger(parsed, 'Dreams', 'ThreadLookbackCount'),
     dreamsAutoApply: readNestedBoolean(parsed, 'Dreams', 'AutoApply'),
-    defaultApprovalPolicy: readDefaultApprovalPolicy(parsed)
+    defaultApprovalPolicy: readDefaultApprovalPolicy(parsed),
+    toolsImageGenerationEnabled: readNestedBoolean(tools, 'ImageGeneration', 'Enabled'),
+    toolsImageGenerationProvider: readNestedString(tools, 'ImageGeneration', 'Provider')
   }
 }
 

@@ -319,6 +319,7 @@ Deep-thinking adapter 文件：
 | `Tools.Lsp.Enabled` | 是否启用内置 LSP 工具 | `false` |
 | `Tools.Lsp.MaxFileSize` | LSP 打开或同步文件时允许的最大文件大小 | `10485760` |
 | `Tools.ImageGeneration.Enabled` | 允许智能体通过支持的 OpenAI 提供商生成和编辑图片 | `true` |
+| `Tools.ImageGeneration.Provider` | 负责生成图片的提供商 ID。留空时使用当前对话的提供商 | 空 |
 | `Tools.ImageGeneration.Model` | 生成和编辑图片使用的图片模型 | `gpt-image-2` |
 | `Tools.ImageGeneration.MaxReferenceImages` | 单次编辑最多使用的参考图数量，取值 `1` 到 `5` | `5` |
 
@@ -326,7 +327,21 @@ Deep-thinking adapter 文件：
 
 使用支持的提供商时，你可以在普通对话里直接让 DotCraft 生成图片，或编辑附件、本地文件和之前生成的图片。DotCraft 会调用 OpenAI Images API，保存 PNG 文件，并在支持富内容的客户端中以内联图片展示。
 
-`image_gen.imagegen` 工具由两个开关共同决定，两者都为真才会提供：全局的 `Tools.ImageGeneration.Enabled`，以及提供商自己的 `SupportsImageGeneration`。提供商还必须使用 OpenAI 协议。省略提供商字段时，ChatGPT OAuth 和官方 OpenAI API-key endpoint 视为开启，其他 endpoint 视为关闭。只有确认其他 endpoint 支持 `images/generations` 和 `images/edits` 时再开启。
+`image_gen.imagegen` 工具由两个开关共同决定，两者都为真才会提供：全局的 `Tools.ImageGeneration.Enabled`，以及图片提供商自己的 `SupportsImageGeneration`。图片提供商还必须使用 OpenAI 协议。省略提供商字段时，ChatGPT OAuth 和官方 OpenAI API-key endpoint 视为开启，其他 endpoint 视为关闭。只有确认其他 endpoint 支持 `images/generations` 和 `images/edits` 时再开启。
+
+图片提供商默认就是当前对话的提供商，除非 `Tools.ImageGeneration.Provider` 指定了另一个。当你通过没有 Images API 的提供商对话时（例如 Anthropic 或自定义的 OpenAI 兼容 endpoint），可以用它继续保留图片生成：
+
+```json
+{
+  "Tools": {
+    "ImageGeneration": {
+      "Provider": "openai"
+    }
+  }
+}
+```
+
+如果指定的提供商不存在或无法生成图片，就不会提供该工具；DotCraft 不会退回到对话的提供商。
 
 个人本地 hardening 示例：
 

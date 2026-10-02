@@ -80,6 +80,9 @@ import { SettingsSelect } from './ui/SettingsSelect'
 import { DreamsPanel } from './panels/memory/DreamsPanel'
 import { MemorySettingsGroup } from './panels/memory/MemorySettingsGroup'
 import { useDreamsSettings } from './panels/memory/useDreamsSettings'
+import { ImageGenerationSettingsGroup } from './panels/imageGeneration/ImageGenerationSettingsGroup'
+import { canProviderCreateImages } from './panels/imageGeneration/imageGenerationModel'
+import { useImageGenerationSettings } from './panels/imageGeneration/useImageGenerationSettings'
 import {
   DEFAULT_DREAMS_INTERVAL,
   DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT,
@@ -186,6 +189,8 @@ interface WorkspaceCoreConfig {
   dreamsThreadLookbackCount: number | null
   dreamsAutoApply: boolean | null
   defaultApprovalPolicy: VisibleApprovalPolicy | null
+  toolsImageGenerationEnabled: boolean | null
+  toolsImageGenerationProvider: string | null
 }
 
 interface WorkspaceCoreConfigResult {
@@ -205,7 +210,9 @@ const EMPTY_WORKSPACE_CORE_CONFIG: WorkspaceCoreConfig = {
   dreamsInterval: null,
   dreamsThreadLookbackCount: null,
   dreamsAutoApply: null,
-  defaultApprovalPolicy: null
+  defaultApprovalPolicy: null,
+  toolsImageGenerationEnabled: null,
+  toolsImageGenerationProvider: null
 }
 
 interface ProviderDraft {
@@ -354,7 +361,11 @@ function normalizeWorkspaceCoreConfig(value: unknown): WorkspaceCoreConfig {
       typeof source.dreamsAutoApply === 'boolean'
         ? source.dreamsAutoApply
         : null,
-    defaultApprovalPolicy: normalizeVisibleApprovalPolicy(source.defaultApprovalPolicy)
+    defaultApprovalPolicy: normalizeVisibleApprovalPolicy(source.defaultApprovalPolicy),
+    toolsImageGenerationEnabled:
+      typeof source.toolsImageGenerationEnabled === 'boolean' ? source.toolsImageGenerationEnabled : null,
+    toolsImageGenerationProvider:
+      typeof source.toolsImageGenerationProvider === 'string' ? source.toolsImageGenerationProvider : null
   }
 }
 
@@ -664,7 +675,9 @@ export function SettingsView({
     dreamsInterval: null,
     dreamsThreadLookbackCount: null,
     dreamsAutoApply: null,
-    defaultApprovalPolicy: null
+    defaultApprovalPolicy: null,
+    toolsImageGenerationEnabled: null,
+    toolsImageGenerationProvider: null
   })
   const [providersManagedRemotely, setProvidersManagedRemotely] = useState(false)
   const [providers, setProviders] = useState<ProviderInfoWire[]>([])
@@ -755,6 +768,7 @@ export function SettingsView({
     dashboardUrl,
     reloadWorkspaceCore
   })
+  const imageGeneration = useImageGenerationSettings(reloadWorkspaceCore)
   const browserUsePlugin = plugins.find((plugin) => plugin.id === 'browser') ?? null
   const browserUsePluginReady = !pluginManagementEnabled || browserUsePlugin?.installed === true
   const selectedProvider = providers.find((provider) => provider.id === selectedProviderId) ?? null
@@ -846,6 +860,10 @@ export function SettingsView({
       core.userDefaults.defaultApprovalPolicy ??
       'default'
     setDefaultApprovalPolicy(resolvedDefaultApprovalPolicy)
+    imageGeneration.applyConfig({
+      enabled: core.workspace.toolsImageGenerationEnabled ?? core.userDefaults.toolsImageGenerationEnabled ?? true,
+      providerId: core.workspace.toolsImageGenerationProvider ?? core.userDefaults.toolsImageGenerationProvider ?? ''
+    })
 
     if (keepDraftValues) {
       return
@@ -2674,6 +2692,15 @@ export function SettingsView({
                       </div>
                     </SettingsGroup>
 
+                    <ImageGenerationSettingsGroup
+                      settings={imageGeneration}
+                      providers={providers}
+                      providersLoading={providersLoading}
+                      workspaceProviderId={selectedProviderId}
+                      onEditProvider={providersManagedRemotely ? undefined : startEditProvider}
+                      onAddProvider={providersManagedRemotely ? undefined : startCreateProvider}
+                    />
+
                     <SettingsGroup
                       title={t('settings.llm.providersTitle')}
                       description={providersLoading ? t('settings.llm.providersLoading') : providersCountLabel}
@@ -2775,6 +2802,12 @@ export function SettingsView({
                                   <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {provider.endPoint || t('settings.llm.providerDefaultEndpoint')}
                                   </span>
+                                  {canProviderCreateImages(provider) && (
+                                    <>
+                                      <span aria-hidden>·</span>
+                                      <span>{t('settings.llm.imageGeneration.createsImages')}</span>
+                                    </>
+                                  )}
                                 </div>
                                 <ProviderModelSummary
                                   main={rememberedMainAgentPreference}

@@ -13,7 +13,7 @@ using ModelPreference = DotCraft.Configuration.ModelPreference;
 
 namespace DotCraft.AppServer;
 
-internal sealed class WorkspaceRequestHandler(
+internal sealed partial class WorkspaceRequestHandler(
     ICommitMessageSuggester? commitMessageSuggest,
     IWelcomeSuggester? welcomeSuggestionService,
     IReadOnlyList<ConfigSchemaSection> configSchema,
@@ -124,6 +124,7 @@ internal sealed class WorkspaceRequestHandler(
             "'skillsSelfLearningEnabled', 'skillsIncludeSharedSkills', 'memoryEnabled', " +
             "'dreamsEnabled', 'dreamsInterval', " +
             "'dreamsThreadLookbackCount', 'dreamsAutoApply', 'defaultApprovalPolicy', 'toolsLspEnabled', " +
+            "'toolsImageGenerationEnabled', 'toolsImageGenerationProvider', " +
             "is required.";
 
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
@@ -181,6 +182,7 @@ internal sealed class WorkspaceRequestHandler(
             paramsElement,
             "toolsLspEnabled",
             out var toolsLspEnabledEl);
+        var imageGeneration = ParseImageGenerationConfigUpdate(paramsElement);
         if (!hasProviderId
             && !hasProviderPreferences
             && !hasWelcomeSuggestionsEnabled
@@ -193,7 +195,8 @@ internal sealed class WorkspaceRequestHandler(
             && !hasDreamsThreadLookbackCount
             && !hasDreamsAutoApply
             && !hasDefaultApprovalPolicy
-            && !hasToolsLspEnabled)
+            && !hasToolsLspEnabled
+            && !imageGeneration.HasAny)
         {
             throw AppServerErrors.InvalidParams(requiredFieldMessage);
         }
@@ -270,7 +273,8 @@ internal sealed class WorkspaceRequestHandler(
             hasDreamsThreadLookbackCount,
             hasDreamsAutoApply,
             hasDefaultApprovalPolicy,
-            hasToolsLspEnabled);
+            hasToolsLspEnabled,
+            imageGeneration);
 
         var changedRegions = new List<string>();
         if (saveResult.ProviderIdChanged)
@@ -321,6 +325,12 @@ internal sealed class WorkspaceRequestHandler(
             runtimeConfig.RefreshCurrentLspConfig(saveResult.ToolsLspEnabled);
             await ReconnectEffectiveLspRuntimeAsync(ct);
         }
+        if (saveResult.ImageGeneration.Changed)
+        {
+            changedRegions.Add(ConfigChangeRegions.ImageGeneration);
+            runtimeConfig.RefreshCurrentImageGenerationConfig();
+            runtimeConfig.InvalidateThreadAgents();
+        }
         if (changedRegions.Count > 0)
         {
             appConfigMonitor?.NotifyChanged(
@@ -348,7 +358,9 @@ internal sealed class WorkspaceRequestHandler(
             DreamsThreadLookbackCount = saveResult.DreamsThreadLookbackCount,
             DreamsAutoApply = saveResult.DreamsAutoApply,
             DefaultApprovalPolicy = saveResult.DefaultApprovalPolicy,
-            ToolsLspEnabled = saveResult.ToolsLspEnabled
+            ToolsLspEnabled = saveResult.ToolsLspEnabled,
+            ToolsImageGenerationEnabled = saveResult.ImageGeneration.Enabled,
+            ToolsImageGenerationProvider = saveResult.ImageGeneration.Provider
         };
     }
 
@@ -604,7 +616,8 @@ internal sealed class WorkspaceRequestHandler(
         bool updateDreamsThreadLookbackCount,
         bool updateDreamsAutoApply,
         bool updateDefaultApprovalPolicy,
-        bool updateToolsLspEnabled)
+        bool updateToolsLspEnabled,
+        ImageGenerationConfigUpdate imageGeneration)
     {
         var configPath = Path.Combine(workspaceCraftPath, "config.json");
         Directory.CreateDirectory(workspaceCraftPath);
@@ -767,6 +780,7 @@ internal sealed class WorkspaceRequestHandler(
             RemoveConfigSectionIfEmpty(tools, "Lsp");
             RemoveConfigSectionIfEmpty(root, "Tools");
         }
+        var imageGenerationResult = ApplyImageGenerationConfigUpdate(root, imageGeneration);
         if (providerIdChanged
             || providerPreferencesChanged
             || welcomeSuggestionsChanged
@@ -779,7 +793,8 @@ internal sealed class WorkspaceRequestHandler(
             || dreamsThreadLookbackCountChanged
             || dreamsAutoApplyChanged
             || defaultApprovalPolicyChanged
-            || toolsLspEnabledChanged)
+            || toolsLspEnabledChanged
+            || imageGenerationResult.Changed)
         {
             WriteConfigObject(configPath, root);
         }
@@ -835,7 +850,8 @@ internal sealed class WorkspaceRequestHandler(
             MemoryEnabledChanged = memoryEnabledChanged,
             DreamsChanged = dreamsEnabledChanged || dreamsIntervalChanged || dreamsThreadLookbackCountChanged || dreamsAutoApplyChanged,
             DefaultApprovalPolicyChanged = defaultApprovalPolicyChanged,
-            ToolsLspEnabledChanged = toolsLspEnabledChanged
+            ToolsLspEnabledChanged = toolsLspEnabledChanged,
+            ImageGeneration = imageGenerationResult
         };
     }
 
@@ -1105,5 +1121,7 @@ internal sealed class WorkspaceRequestHandler(
         public bool DefaultApprovalPolicyChanged { get; init; }
 
         public bool ToolsLspEnabledChanged { get; init; }
+
+        public required ImageGenerationConfigSaveResult ImageGeneration { get; init; }
     }
 }

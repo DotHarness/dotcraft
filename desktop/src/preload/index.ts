@@ -663,6 +663,8 @@ const api = {
         dreamsThreadLookbackCount: number | null
         dreamsAutoApply: boolean | null
         defaultApprovalPolicy: 'default' | 'autoApprove' | null
+        toolsImageGenerationEnabled: boolean | null
+        toolsImageGenerationProvider: string | null
       }
       userDefaults: {
         providerId: string | null
@@ -676,6 +678,8 @@ const api = {
         dreamsThreadLookbackCount: number | null
         dreamsAutoApply: boolean | null
         defaultApprovalPolicy: 'default' | 'autoApprove' | null
+        toolsImageGenerationEnabled: boolean | null
+        toolsImageGenerationProvider: string | null
       }
     }> {
       return ipcRenderer.invoke('workspace-config:get-core')

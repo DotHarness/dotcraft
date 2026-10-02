@@ -20753,6 +20753,26 @@
             }
           ]
         },
+        "toolsImageGenerationEnabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toolsImageGenerationProvider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "toolsLspEnabled": {
           "anyOf": [
             {
@@ -20887,6 +20907,26 @@
           "anyOf": [
             {
               "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toolsImageGenerationEnabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toolsImageGenerationProvider": {
+          "anyOf": [
+            {
+              "type": "string"
             },
             {
               "type": "null"

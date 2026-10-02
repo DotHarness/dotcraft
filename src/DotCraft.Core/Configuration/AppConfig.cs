@@ -680,6 +680,9 @@ public sealed partial class AppConfig
     {
         public bool Enabled { get; set; } = true;
 
+        [ConfigField(Hint = "provider id; empty uses the conversation provider")]
+        public string? Provider { get; set; }
+
         public string Model { get; set; } = "gpt-image-2";
 
         [ConfigField(Min = 1, Max = 5)]
