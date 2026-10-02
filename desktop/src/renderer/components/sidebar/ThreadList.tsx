@@ -1,26 +1,22 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   AlertCircle,
+  Archive,
   ArrowUpRight,
   Cloud,
-  Copy,
   CircleDashed,
   ExternalLink,
   Folder,
   FolderOpen,
   LogOut,
   Pin,
-  RotateCw,
   Server,
   Settings,
-  Square,
   SquarePen,
   Trash2
 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import { LayerBoundary } from '../../contexts/LayerContext'
 import { useDragDropStore } from '../../stores/dragDropStore'
 import { useThreadStore, selectFilteredThreads } from '../../stores/threadStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
@@ -35,6 +31,8 @@ import { IconButton } from '../ui/IconButton'
 import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
+import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
+import { archiveProjectThreads } from '../../utils/archiveProjectThreads'
 import type { WorkspaceProjectSummary, WorkspaceProjectState } from '../../../shared/workspaceProjects'
 import type { SidebarThreadSortMode } from '../../../shared/sidebarThreadOrder'
 import { normalizeWorkspaceProjectKey, sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
@@ -455,6 +453,10 @@ export function ThreadList({
             activity={activity}
             cold={cold}
             detailThreads={detailThreads}
+            archivableThreads={foregroundListMatchesProject || !isRemoteProject(project)
+              ? excludePinnedThreadTrees(detailThreads, projectPinnedIds)
+              : []}
+            live={foregroundListMatchesProject}
             onToggle={() => {
               if (cold) return
               setProjectsCollapsed([orderKey], !collapsedProjectKeys.has(orderKey))
@@ -704,31 +706,6 @@ function DragHint({ title }: { title: string }): JSX.Element {
   )
 }
 
-/**
- * Prefers the most-recently-used *other* running workspace, else the default
- * Chats workspace, so the main view never lingers on a dead connection.
- */
-function pickNextWorkspaceAfterStop(
-  stoppedPath: string
-): { path: string; name: string } | null {
-  const { projects, chat } = useWorkspaceProjectsStore.getState()
-  const stoppedKey = normalizeWorkspaceProjectKey(stoppedPath)
-  const runningOthers = projects
-    .filter((candidate) => candidate.kind !== 'remote')
-    .filter((candidate) => normalizeWorkspaceProjectKey(candidate.path) !== stoppedKey)
-    .filter((candidate) => candidate.running && candidate.state !== 'error')
-    .sort((left, right) =>
-      (right.lastOpenedAt ?? '').localeCompare(left.lastOpenedAt ?? '')
-    )
-  const mru = runningOthers[0]
-  if (mru) return { path: mru.path, name: mru.name || mru.path }
-  if (chat && normalizeWorkspaceProjectKey(chat.path) !== stoppedKey) {
-    return { path: chat.path, name: chat.name || chat.path }
-  }
-  return null
-}
-
-
 function getProjectActivity(threads: ThreadSummary[]): ProjectActivity {
   if (threads.some(isThreadRunning)) return 'running'
   if (threads.some(isThreadWaiting)) return 'waiting'
@@ -795,6 +772,8 @@ function ProjectHeader({
   activity,
   cold,
   detailThreads,
+  archivableThreads,
+  live,
   onToggle
 }: {
   project: WorkspaceProjectSummary
@@ -805,14 +784,14 @@ function ProjectHeader({
   activity: ProjectActivity
   cold: boolean
   detailThreads: ThreadSummary[]
+  archivableThreads: ThreadSummary[]
+  live: boolean
   onToggle: () => void
 }): JSX.Element {
   const t = useT()
   const confirm = useConfirmDialog()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const rowRef = useRef<HTMLDivElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
+  const menuOpen = menuPosition != null
   const addProject = useAddProjectFlow()
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
   const label = project.name || project.path
@@ -915,46 +894,6 @@ function ProjectHeader({
     </>
   )
 
-  function updateProjectMenuPosition(): void {
-    const rect = rowRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const viewportWidth = window.innerWidth || 320
-    const viewportHeight = window.innerHeight || 480
-    const menuWidth = 220
-    // Local projects gain an "Edit project" row; remote projects do not.
-    const estimatedMenuHeight = isRemoteProject(project) ? 144 : project.running ? 298 : 210
-    const left = Math.max(8, Math.min(rect.left, viewportWidth - menuWidth - 8))
-    const belowTop = rect.bottom + 4
-    const top = belowTop + estimatedMenuHeight > viewportHeight - 8
-      ? Math.max(8, rect.top - estimatedMenuHeight - 4)
-      : belowTop
-    setMenuPosition({ top, left, width: menuWidth })
-  }
-
-  useEffect(() => {
-    if (!menuOpen) return
-    updateProjectMenuPosition()
-
-    function handleClick(event: MouseEvent): void {
-      const target = event.target as Node
-      if (rowRef.current?.contains(target) || menuRef.current?.contains(target)) return
-      setMenuOpen(false)
-    }
-
-    function handlePositionChange(): void {
-      updateProjectMenuPosition()
-    }
-
-    document.addEventListener('mousedown', handleClick)
-    window.addEventListener('resize', handlePositionChange)
-    window.addEventListener('scroll', handlePositionChange, true)
-    return () => {
-      document.removeEventListener('mousedown', handleClick)
-      window.removeEventListener('resize', handlePositionChange)
-      window.removeEventListener('scroll', handlePositionChange, true)
-    }
-  }, [menuOpen, project])
-
   async function openProject(): Promise<boolean> {
     if (active) return true
     if (sshRef) {
@@ -976,11 +915,6 @@ function ProjectHeader({
     if (!active && (sshRef || !isRemoteProject(project)) && !(await openProject())) return
     useUIStore.getState().goToNewChat({ workspacePath: projectKey })
     setActiveMainView('conversation')
-  }
-
-  async function copyPath(): Promise<void> {
-    await navigator.clipboard.writeText(detailLabel)
-    addToast(t('projectsRail.pathCopied'), 'success')
   }
 
   async function removeProject(): Promise<void> {
@@ -1008,26 +942,60 @@ function ProjectHeader({
     await window.api.workspace.disconnectRemote()
   }
 
-  async function restartWorkspace(): Promise<void> {
-    if (isRemoteProject(project)) return
-    await window.api.workspace.restart(project.path)
-  }
-
-  async function stopWorkspace(): Promise<void> {
-    if (isRemoteProject(project)) return
-    // Stopping the foreground workspace would leave the main view on a dead
-    // connection, so resolve the next target before the stop request.
-    const nextTarget = active ? pickNextWorkspaceAfterStop(project.path) : null
-    await window.api.workspace.stop(project.path)
-    if (nextTarget) {
-      try {
-        await window.api.workspace.switch(nextTarget.path)
-        addToast(t('projectsRail.stoppedSwitched', { project: nextTarget.name }), 'info')
-      } catch (err) {
-        console.error('Failed to switch workspace after stop:', err)
+  const remote = isRemoteProject(project)
+  const menuItems: ContextMenuEntry[] = [
+    ...(!active && (!remote || (sshRef && cold))
+      ? [{
+          label: t('projectsRail.openProject'),
+          icon: <ExternalLink size={14} aria-hidden />,
+          disabled: !canOpenSshProject(sshMachine),
+          onClick: () => { void openProject() }
+        }]
+      : []),
+    {
+      label: project.pinned ? t('projectsRail.unpinProject') : t('projectsRail.pinProject'),
+      icon: <Pin size={14} fill={project.pinned ? 'currentColor' : 'none'} aria-hidden />,
+      onClick: () => { void toggleProjectPinned() }
+    },
+    ...(!remote
+      ? [
+          {
+            label: t('projectsRail.editProject'),
+            icon: <Settings size={14} aria-hidden />,
+            onClick: () => addProject.beginEdit(project, active)
+          },
+          { type: 'separator' as const },
+          {
+            label: t('workspaceHeader.openInExplorer'),
+            icon: <FolderOpen size={14} aria-hidden />,
+            onClick: () => { void window.api.shell.openPath(project.path) }
+          }
+        ]
+      : []),
+    { type: 'separator' },
+    {
+      label: t('projectsRail.archiveChats'),
+      icon: <Archive size={14} aria-hidden />,
+      disabled: archivableThreads.length === 0,
+      onClick: () => {
+        void archiveProjectThreads({ projectLabel: label, workspacePath: project.path, threads: archivableThreads, live, t })
       }
-    }
-  }
+    },
+    { type: 'separator' },
+    remote && !(sshRef && cold)
+      ? {
+          label: t('projectsRail.disconnectRemote'),
+          icon: <LogOut size={14} aria-hidden />,
+          danger: true,
+          onClick: () => { void disconnectRemote() }
+        }
+      : {
+          label: t('projectsRail.removeProject'),
+          icon: <Trash2 size={14} aria-hidden />,
+          disabled: active,
+          onClick: () => { void removeProject() }
+        }
+  ]
 
   function handlePrimaryAction(): void {
     if (cold) return
@@ -1057,7 +1025,6 @@ function ProjectHeader({
       wrapperStyle={{ width: '100%' }}
     >
     <div
-      ref={rowRef}
       className="dotcraft-sidebar-row-radius dc-project-row"
       data-menu-open={menuOpen || undefined}
       role="button"
@@ -1070,8 +1037,7 @@ function ProjectHeader({
       onKeyDown={handleKeyDown}
       onContextMenu={(event) => {
         event.preventDefault()
-        updateProjectMenuPosition()
-        setMenuOpen(true)
+        setMenuPosition({ x: event.clientX, y: event.clientY })
       }}
       style={{
         position: 'relative',
@@ -1140,9 +1106,14 @@ function ProjectHeader({
               tooltipPlacement="top"
               className="dc-thread-list-icon-button"
               open={menuOpen}
-              onClick={() => {
-                if (!menuOpen) updateProjectMenuPosition()
-                setMenuOpen((open) => !open)
+              onMouseDown={(event) => { if (menuOpen) event.stopPropagation() }}
+              onClick={(event) => {
+                if (menuOpen) {
+                  setMenuPosition(null)
+                  return
+                }
+                const rect = event.currentTarget.getBoundingClientRect()
+                setMenuPosition({ x: rect.left, y: rect.bottom + 4 })
               }}
             />
         </span>
@@ -1162,59 +1133,8 @@ function ProjectHeader({
           </span>
         ) : null}
       </div>
-      {menuOpen && menuPosition && typeof document !== 'undefined' && createPortal(
-        <LayerBoundary>
-        <div
-          ref={menuRef}
-          role="menu"
-          aria-label={t('projectsRail.moreActions')}
-          style={{
-            ...projectMenuStyle,
-            top: menuPosition.top,
-            left: menuPosition.left,
-            width: menuPosition.width
-          }}
-          onClick={(event) => event.stopPropagation()}
-        >
-          {(!isRemoteProject(project) || (sshRef && cold)) && (
-            <ProjectMenuItem icon={<ExternalLink size={14} aria-hidden />} label={t('projectsRail.openProject')} disabled={!canOpenSshProject(sshMachine)} onClick={() => { setMenuOpen(false); void openProject() }} />
-          )}
-          <ProjectMenuItem
-            icon={<Pin size={14} fill={project.pinned ? 'currentColor' : 'none'} aria-hidden />}
-            label={project.pinned ? t('projectsRail.unpinProject') : t('projectsRail.pinProject')}
-            onClick={() => { setMenuOpen(false); void toggleProjectPinned() }}
-          />
-          {!isRemoteProject(project) && (
-            <ProjectMenuItem icon={<FolderOpen size={14} aria-hidden />} label={t('workspaceHeader.openInExplorer')} onClick={() => { setMenuOpen(false); void window.api.shell.openPath(project.path) }} />
-          )}
-          <ProjectMenuItem icon={<Copy size={14} aria-hidden />} label={t('projectsRail.copyPath')} onClick={() => { setMenuOpen(false); void copyPath() }} />
-          {!isRemoteProject(project) && (
-            <ProjectMenuItem icon={<Settings size={14} aria-hidden />} label={t('projectsRail.editProject')} onClick={() => { setMenuOpen(false); addProject.beginEdit(project, active) }} />
-          )}
-          {!isRemoteProject(project) && project.running && (
-            <ProjectMenuItem icon={<RotateCw size={14} aria-hidden />} label={t('projectsRail.restartWorkspace')} onClick={() => { setMenuOpen(false); void restartWorkspace() }} />
-          )}
-          {!isRemoteProject(project) && project.running && (
-            <ProjectMenuItem icon={<Square size={14} aria-hidden />} label={t('projectsRail.stopWorkspace')} onClick={() => { setMenuOpen(false); void stopWorkspace() }} />
-          )}
-          {isRemoteProject(project) && !(sshRef && cold) ? (
-            <ProjectMenuItem
-              icon={<LogOut size={14} aria-hidden />}
-              label={t('projectsRail.disconnectRemote')}
-              danger
-              onClick={() => { setMenuOpen(false); void disconnectRemote() }}
-            />
-          ) : (
-            <ProjectMenuItem
-              icon={<Trash2 size={14} aria-hidden />}
-              label={t('projectsRail.removeProject')}
-              disabled={active}
-              onClick={() => { setMenuOpen(false); void removeProject() }}
-            />
-          )}
-        </div>
-        </LayerBoundary>,
-        document.body
+      {menuPosition && (
+        <ContextMenu position={menuPosition} items={menuItems} onClose={() => setMenuPosition(null)} />
       )}
     </div>
     </SidebarEntryDetailsCard>
@@ -1232,60 +1152,6 @@ function ProjectErrorIndicator({ label }: { label: string }): JSX.Element {
         </span>
       </ActionTooltip>
     </span>
-  )
-}
-
-function ProjectMenuItem({
-  icon,
-  label,
-  onClick,
-  disabled = false,
-  danger = false
-}: {
-  icon: ReactNode
-  label: string
-  onClick: () => void
-  disabled?: boolean
-  danger?: boolean
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      disabled={disabled}
-      onClick={onClick}
-      style={{
-        width: '100%',
-        border: 'none',
-        borderRadius: '4px',
-        background: 'transparent',
-        color: disabled
-          ? 'var(--text-tertiary)'
-          : danger
-            ? 'var(--error)'
-            : 'var(--text-primary)',
-        display: 'grid',
-        gridTemplateColumns: '18px minmax(0, 1fr)',
-        alignItems: 'center',
-        gap: '8px',
-        padding: '7px 14px',
-        fontSize: 'var(--type-ui-size)',
-        lineHeight: 'var(--type-ui-line-height)',
-        cursor: disabled ? 'default' : 'pointer',
-        textAlign: 'left'
-      }}
-      onMouseEnter={(event) => {
-        if (!disabled) event.currentTarget.style.backgroundColor = 'var(--sidebar-control-hover)'
-      }}
-      onMouseLeave={(event) => {
-        event.currentTarget.style.backgroundColor = 'transparent'
-      }}
-    >
-      {icon}
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {label}
-      </span>
-    </button>
   )
 }
 
@@ -1383,20 +1249,6 @@ function projectFolderPaths(project: WorkspaceProjectSummary): string[] {
     return key.length > 0 &&
       folders.findIndex((candidate) => normalizeWorkspaceProjectKey(candidate) === key) === index
   })
-}
-
-const projectMenuStyle: CSSProperties = {
-  position: 'fixed',
-  zIndex: 1000,
-  maxWidth: '320px',
-  padding: '6px',
-  borderRadius: '10px',
-  backgroundColor: 'var(--glass-surface-strong)',
-  border: 'none',
-  boxShadow: 'var(--glass-shadow-soft)',
-  backdropFilter: 'var(--glass-blur)',
-  WebkitBackdropFilter: 'var(--glass-blur)',
-  color: 'var(--text-primary)'
 }
 
 const emptyStyle: CSSProperties = {

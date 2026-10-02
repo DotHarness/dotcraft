@@ -1149,7 +1149,7 @@ describe('ThreadList project-first layout', () => {
     })
   })
 
-  it('confirms a neutral Remove action before removing a project', async () => {
+  it('confirms a neutral Remove project action before removing a project', async () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
       foregroundProjectId: '/workspace/a',
@@ -1182,9 +1182,7 @@ describe('ThreadList project-first layout', () => {
     const projectRow = screen.getByRole('button', { name: 'b' })
     fireEvent.click(within(projectRow).getByRole('button', { name: 'Project actions' }))
 
-    expect(screen.getByRole('menuitem', { name: 'Restart' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Stop' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove project' }))
 
     expect(screen.getByRole('dialog', { name: 'Remove b?' })).toBeInTheDocument()
     expect(screen.getByText("This removes the project from the app. Files on your computer and existing chats won't be deleted.")).toBeInTheDocument()
@@ -1194,7 +1192,7 @@ describe('ThreadList project-first layout', () => {
     expect(workspaceRemoveRecent).not.toHaveBeenCalled()
 
     fireEvent.click(within(projectRow).getByRole('button', { name: 'Project actions' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove project' }))
     fireEvent.click(screen.getByRole('button', { name: 'Remove project' }))
 
     await waitFor(() => {
@@ -1727,6 +1725,55 @@ describe('ThreadList project-first layout', () => {
     })
   })
 
+  it('archives the unpinned chats of a background project from its menu', async () => {
+    useThreadStore.getState().setThreadList([makeThread('thread-a', 'Thread from A')], '/workspace/a')
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          kind: 'local',
+          path: '/workspace/a',
+          name: 'a',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 1,
+          threads: [],
+          pinnedThreadIds: []
+        },
+        {
+          kind: 'local',
+          path: '/workspace/b',
+          name: 'b',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 3,
+          threads: [
+            makeThread('thread-b1', 'Thread B1'),
+            makeThread('thread-b2', 'Thread B2'),
+            makeThread('thread-b-pinned', 'Pinned B')
+          ],
+          pinnedThreadIds: ['thread-b-pinned']
+        }
+      ]
+    })
+
+    renderList({ workspacePath: '/workspace/a' })
+    const projectRow = screen.getByRole('button', { name: 'b' })
+    fireEvent.click(within(projectRow).getByRole('button', { name: 'Project actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Archive chats' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Archive 2 chats?' })).getByRole('button', { name: 'Archive all' }))
+
+    await waitFor(() => {
+      expect(workspaceArchiveThread).toHaveBeenCalledTimes(2)
+    })
+    expect(workspaceArchiveThread).toHaveBeenCalledWith('/workspace/b', 'thread-b1')
+    expect(workspaceArchiveThread).toHaveBeenCalledWith('/workspace/b', 'thread-b2')
+  })
+
   it('copies identifiers for a secondary-workspace thread from its context menu', async () => {
     useThreadStore.getState().setThreadList([makeThread('thread-a', 'Thread from A')], '/workspace/a')
     useWorkspaceProjectsStore.getState().setPayload({
@@ -1775,61 +1822,4 @@ describe('ThreadList project-first layout', () => {
     })
   })
 
-  it('auto-switches to the MRU running workspace when stopping the foreground project', async () => {
-    useThreadStore.getState().setThreadList([], '/workspace/a')
-    useWorkspaceProjectsStore.getState().setPayload({
-      foregroundWorkspacePath: '/workspace/a',
-      foregroundProjectId: '/workspace/a',
-      secondaryLimit: 8,
-      projects: [
-        {
-          kind: 'local',
-          path: '/workspace/a',
-          name: 'a',
-          state: 'foreground',
-          running: true,
-          loaded: true,
-          threadCount: 0,
-          threads: [],
-          pinnedThreadIds: [],
-          lastOpenedAt: '2026-07-01T00:00:00.000Z'
-        },
-        {
-          kind: 'local',
-          path: '/workspace/b',
-          name: 'b',
-          state: 'secondary',
-          running: true,
-          loaded: true,
-          threadCount: 0,
-          threads: [],
-          pinnedThreadIds: [],
-          lastOpenedAt: '2026-07-05T00:00:00.000Z'
-        },
-        {
-          kind: 'local',
-          path: '/workspace/c',
-          name: 'c',
-          state: 'secondary',
-          running: true,
-          loaded: true,
-          threadCount: 0,
-          threads: [],
-          pinnedThreadIds: [],
-          lastOpenedAt: '2026-07-03T00:00:00.000Z'
-        }
-      ]
-    })
-
-    renderList()
-
-    fireEvent.click(within(screen.getByRole('button', { name: 'a' })).getByRole('button', { name: 'Project actions' }))
-    fireEvent.click(await screen.findByText('Stop'))
-
-    await waitFor(() => {
-      expect(workspaceStop).toHaveBeenCalledWith('/workspace/a')
-      // /workspace/b has the most recent lastOpenedAt among running others.
-      expect(workspaceSwitch).toHaveBeenCalledWith('/workspace/b')
-    })
-  })
 })
