@@ -18,6 +18,7 @@ import { Skeleton } from '../components/ui/Skeleton'
 import { SettingsBreadcrumb } from '../components/settings/SettingsBreadcrumb'
 import { SettingsGroup, SettingsRow } from '../components/settings/SettingsGroup'
 import { SettingsPanelShell } from '../components/settings/SettingsPanelShell'
+import { RobotAvatar } from '../components/agents/RobotAvatar'
 import { DesktopPluginInlineDiff } from '../components/desktopPlugins/DesktopPluginInlineDiff'
 import { DesktopPluginSegmentedControl } from '../components/desktopPlugins/DesktopPluginSegmentedControl'
 
@@ -43,6 +44,7 @@ installDesktopPluginRuntime({
     SettingsBreadcrumb,
     SettingsGroup,
     SettingsRow,
-    InlineDiff: DesktopPluginInlineDiff
+    InlineDiff: DesktopPluginInlineDiff,
+    AgentAvatar: RobotAvatar
   }
 })

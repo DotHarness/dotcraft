@@ -15,6 +15,8 @@ public sealed class SubAgentSessionContext
 
     public required string ParentTurnId { get; init; }
 
+    public CancellationToken? ParentTurnCancellation { get; init; }
+
     public required string RootThreadId { get; init; }
 
     public int Depth { get; init; }

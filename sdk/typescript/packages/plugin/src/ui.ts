@@ -22,10 +22,13 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   readonly icon: ReactNode;
   readonly label: string;
   readonly size?: number;
+  readonly radius?: number;
   readonly active?: boolean;
+  readonly activeTone?: "accent" | "neutral";
   readonly tone?: "neutral" | "danger";
   readonly bordered?: boolean;
   readonly tooltipLabel?: string;
+  readonly tooltipPlacement?: "top" | "bottom" | "left" | "right";
 }
 
 export type FieldSize = "default" | "toolbar";
@@ -186,6 +189,12 @@ export interface InlineDiffProps {
   readonly after: string;
 }
 
+export interface AgentAvatarProps {
+  readonly name: string;
+  readonly size?: number;
+  readonly animated?: boolean;
+}
+
 export interface PluginSurfaceProps<Surface extends string = string> {
   readonly name: Surface;
   readonly context: DesktopPluginSurfaceContext<Surface>;
@@ -225,4 +234,5 @@ export interface DesktopPluginUiComponents {
   readonly SettingsGroup: ComponentType<SettingsGroupProps>;
   readonly SettingsRow: ComponentType<SettingsRowProps>;
   readonly InlineDiff: ComponentType<InlineDiffProps>;
+  readonly AgentAvatar: ComponentType<AgentAvatarProps>;
 }

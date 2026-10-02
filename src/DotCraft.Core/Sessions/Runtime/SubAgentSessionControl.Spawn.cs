@@ -208,14 +208,15 @@ public static partial class SubAgentSessionControl
                 ct);
 
             ct.ThrowIfCancellationRequested();
-            var childCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            var childCts = CancellationTokenSource.CreateLinkedTokenSource(context.ParentTurnCancellation ?? ct);
             startup.Cancellation = childCts;
             var initialTrigger = CreateSubAgentTrigger(SubAgentInputTriggerKind, nickname, agentPath.Value);
             var completion = string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase)
                 ? RunChildTurnAsync(context.SessionService, childThread.Id, prompt, initialTrigger, childCts.Token, startup.Admission)
                 : RunExternalChildTurnsAsync(context.SessionService, coordinator, prepared!, childThread.Id, prompt, initialTrigger, childCts.Token, startup.Admission);
             startup.Completion = completion;
-            await startup.Admission.Task.ConfigureAwait(false);
+            await using (ct.Register(childCts.Cancel))
+                await startup.Admission.Task.ConfigureAwait(false);
             var runningChild = new RunningChild(context.ParentThread.Id, childCts, completion);
             RunningChildren[childThread.Id] = runningChild;
             _ = ObserveChildCompletionAsync(context.SessionService, childThread.Id, runningChild, context.LifecycleHook);

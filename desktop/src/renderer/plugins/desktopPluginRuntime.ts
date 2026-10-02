@@ -3,6 +3,7 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import * as JsxRuntime from 'react/jsx-runtime'
 
+import { RobotAvatar } from '../components/agents/RobotAvatar'
 import { DesktopPluginInlineDiff } from '../components/desktopPlugins/DesktopPluginInlineDiff'
 import { DesktopPluginSegmentedControl } from '../components/desktopPlugins/DesktopPluginSegmentedControl'
 import { DesktopPluginSurface } from '../components/desktopPlugins/DesktopPluginSurface'
@@ -56,6 +57,7 @@ export function startDesktopPluginRuntime(): () => void {
       SettingsGroup,
       SettingsRow,
       InlineDiff: DesktopPluginInlineDiff,
+      AgentAvatar: RobotAvatar,
       PluginSurface: DesktopPluginSurface
     }
   })

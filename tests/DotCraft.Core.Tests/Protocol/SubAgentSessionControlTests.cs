@@ -381,6 +381,41 @@ public sealed class SubAgentSessionControlTests : IDisposable
     }
 
     [Fact]
+    public async Task SpawnAgent_ChildOutlivesCallerTokenButNotParentTurn()
+    {
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "unused")
+        {
+            WaitForCancellation = true
+        };
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        using var parentTurn = new CancellationTokenSource();
+        var baseContext = await CreateContextAsync();
+        var context = new SubAgentSessionContext
+        {
+            SessionService = baseContext.SessionService,
+            ParentThread = baseContext.ParentThread,
+            ParentTurnId = baseContext.ParentTurnId,
+            ParentTurnCancellation = parentTurn.Token,
+            RootThreadId = baseContext.RootThreadId
+        };
+        using var caller = new CancellationTokenSource();
+        var spawned = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions { AgentPrompt = "inspect code", TaskName = "inspect", AgentNickname = "Inspect", ProfileName = "cli-run" },
+            waitForCompletion: false,
+            coordinator,
+            caller.Token);
+
+        await caller.CancelAsync();
+        await Task.Delay(100);
+        Assert.Equal(TurnStatus.Running, (await _sessionService.GetThreadAsync(spawned.ChildThreadId)).Turns.Single().Status);
+
+        await parentTurn.CancelAsync();
+        await WaitUntilAsync(() =>
+            _sessionService.GetThreadAsync(spawned.ChildThreadId).GetAwaiter().GetResult().Turns.Single().Status == TurnStatus.Cancelled);
+    }
+
+    [Fact]
     public async Task CloseAgent_WithRunningExternalProfile_CancelsSyntheticTurnClosesEdgeAndArchivesChild()
     {
         var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "unused")

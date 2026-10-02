@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "conversation-summary",
+  "version": "0.1.0",
+  "displayName": "Summary",
+  "description": "Shows a chat's changes, plan, subagents, scheduled tasks, and sources beside the conversation.",
+  "capabilities": ["desktop"],
+  "settings": "./settings.schema.json",
+  "desktop": {
+    "description": "Adds a summary card beside the conversation and a header button to show it.",
+    "entry": "./desktop/dist/index.mjs",
+    "styles": ["./desktop/dist/index.css"]
+  },
+  "interface": {
+    "displayName": "Summary",
+    "shortDescription": "See what a chat used at a glance",
+    "longDescription": "Summary keeps a card next to the conversation with what a chat changed, its plan, subagents, and scheduled tasks, and the websites, files, skills, and tools it used. Reopen a website or file with one click.",
+    "developerName": "DotHarness",
+    "category": "Productivity",
+    "capabilities": ["Desktop", "Conversation"],
+    "defaultPrompt": "Which sources did this chat use?",
+    "logo": "./assets/conversation-summary.svg",
+    "composerIcon": "./assets/conversation-summary.svg"
+  }
+}

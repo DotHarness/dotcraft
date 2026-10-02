@@ -26,6 +26,7 @@ import { readThreadHistoryHead } from '../../utils/threadHistory'
 import { isVisibleUserMessage } from '../../utils/visibleUserMessage'
 import { estimateQueuedInputDockHeightPx } from './queuedInputDockLayout'
 import { TurnNavigation } from './turnNavigation/TurnNavigation'
+import { ConversationAsides } from './conversationAside/ConversationAside'
 
 /** Module-level scroll position cache — ephemeral, not persisted to storage. */
 const scrollPositionCache = new Map<string, number>()
@@ -356,6 +357,8 @@ function MessageStreamContent(): JSX.Element {
       </div>
 
       <TurnNavigation scrollRef={scrollRef} columnRef={columnRef} />
+
+      <ConversationAsides scrollRef={scrollRef} />
 
       {showScrollButton && (
         <ScrollToBottomButton

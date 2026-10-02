@@ -101,7 +101,7 @@ Event listeners are removed with their generation. Events are renderer-local and
 
 ## Target Core surfaces
 
-DotCraft's formal surfaces cover the application and Composer. Composer surfaces form a hierarchy, so you can target a complete region or one Core control:
+DotCraft's formal surfaces cover the application, the Composer, and the active conversation. Composer surfaces form a hierarchy, so you can target a complete region or one Core control:
 
 | Surface | Placement |
 |---|---|
@@ -118,6 +118,9 @@ DotCraft's formal surfaces cover the application and Composer. Composer surfaces
 | **`composer.toolbar.leading`** | The leading command, permission, mode, and goal group. |
 | **`composer.toolbar.trailing`** | The trailing context, model, voice, and submit group. |
 | **`composer.status`** | The workspace and subscription row below the Composer card. |
+| **`thread.header.actions`** | The action group in the active thread header, between the overflow menu and the Detail Panel toggle. |
+| **`conversation.aside.leading`** | A seat beside the leading edge of the conversation reading column. |
+| **`conversation.aside.trailing`** | A seat beside the trailing edge of the conversation reading column. |
 
 Target these Core controls when a region is too broad:
 
@@ -160,7 +163,7 @@ Use `app.status` for a passive status readout that should coexist with DotCraft'
 
 The same names mount in thread, Welcome, approval, and user-input Composers. A surface stays available when its Core default is hidden by the current provider, compact mode, minimal chrome, or decision state. Inspect the shared Composer context before rendering plugin content. A surface name and its typed context are public contracts. The DOM the surface generates is not.
 
-The Core names listed above are the complete set. Register under `app` or `composer` with a name Core does not define and Desktop keeps the registration but writes a console warning naming it, because at that point it is almost always a typo. Names outside those two roots belong to plugins and are never checked: targeting a surface another plugin has not mounted yet is normal, and your component renders as soon as that surface appears.
+The Core names listed above are the complete set. Register under `app`, `composer`, `thread`, or `conversation` with a name Core does not define and Desktop keeps the registration but writes a console warning naming it, because at that point it is almost always a typo. Names outside those four roots belong to plugins and are never checked: targeting a surface another plugin has not mounted yet is normal, and your component renders as soon as that surface appears.
 
 Composer surface contexts have `threadId: null` whenever the Composer has not created or attached to a real Session thread, including welcome and detached embedded Composers. They carry the real thread id after attachment.
 
@@ -175,6 +178,55 @@ Composer surface contexts have `threadId: null` whenever the Composer has not cr
 | `minimalChrome` | Core has hidden nonessential controls for an embedded Composer. |
 
 On the new-chat Welcome screen, `composer` covers the complete pre-thread composition experience: app selection, hero, input, workspace footer, and quick starts. Those elements share one draft and voice lifecycle, so replacing `composer` swaps them as a single unit.
+
+### Place content beside the conversation
+
+`thread.header.actions` and the two conversation asides mount only while a real Session thread shows its Chat view. They are absent on the new-chat Welcome screen and while a conversation view contribution replaces the message stream. All three share the thread context:
+
+| Field | Meaning |
+|---|---|
+| `workspacePath` | The thread's workspace, or `null` when unavailable. |
+| `threadId` | The thread on screen. |
+| `busy` | A turn is running or waiting for the user's input. |
+
+A `thread.header.actions` contribution renders one `IconButton` from the UI kit. The Host owns its spacing, its order next to Core controls, and the header height.
+
+Each aside is a seat between the edge of the message stream and the reading column. It spans the visible stream height and does not scroll with messages. Like `app.overlay`, the seat is click-through, so set `pointer-events: auto` on your own interactive elements. The aside context adds layout to the thread context:
+
+| Field | Meaning |
+|---|---|
+| `layout` | `gutter`, `shift`, or `overlay`, chosen by the Host from the available width. |
+| `width` | The seat's current width in logical pixels. |
+| `pin()` | Holds room for a panel beside the conversation and returns a dispose. |
+
+The Host picks `layout` from the side space, which is half the difference between the stream width and the reading column width:
+
+| Layout | Side space | What a trailing pin does |
+|---|---|---|
+| `gutter` | 400 logical pixels or more | Nothing; the column stays centered. |
+| `shift` | From 180 up to 400 logical pixels | Moves the reading column and the Composer 153 logical pixels toward the leading edge. |
+| `overlay` | Under 180 logical pixels | Nothing. Show a compact or popover form instead of a panel. |
+
+Call `pin` from `conversation.aside.trailing` while your panel is visible, and dispose it when the panel goes away. `conversation.aside.leading` never pins, and starts after the turn navigation rail while the rail is shown. A layout change animates unless reduced motion is requested, and never remounts your component:
+
+```tsx
+import { useEffect } from "react";
+import type { DesktopPluginSurfaceProps } from "@dotcraft/plugin";
+
+function NotesPanel({ context }: DesktopPluginSurfaceProps<"conversation.aside.trailing">) {
+  const showPanel = context.layout !== "overlay";
+  const { pin } = context;
+  useEffect(() => (showPanel ? pin() : undefined), [showPanel, pin]);
+  if (!showPanel) return null;
+  return (
+    <aside style={{ pointerEvents: "auto", width: Math.min(300, context.width - 32), margin: 16 }}>
+      Notes for {context.threadId}
+    </aside>
+  );
+}
+
+host.ui.add("conversation.aside.trailing", NotesPanel);
+```
 
 ### Replace the Composer mascot
 
@@ -294,7 +346,8 @@ Beyond the four primitives, `DesktopPluginHost` groups stable product operations
 | `plugin`, `environment` | The plugin's id, version, and display name, plus the current locale, theme, and theme seed, and a change subscription. |
 | `appearance` | Generation-owned theme-seed and backdrop-presentation contributions. |
 | `session` | The foreground workspace, active thread, mode, and busy state, plus a change subscription. |
-| `navigation` | Opening plugin views, Settings pages, and threads, and claiming custom-scheme links. |
+| `subagents` | The SubAgents a thread has started, their state, and their completions. |
+| `navigation` | Opening plugin views, Settings pages, threads, files, Detail Panel tabs, and automations, and claiming custom-scheme links. |
 | `ui` | Toasts, Host-owned confirmation and color dialogs, and the three surface operations. |
 | `appServer` | Supported JSON-RPC requests and subscriptions. |
 | `settings` | Reading, mutating, and following this plugin's schema-backed settings. |
@@ -460,6 +513,45 @@ useEffect(() => {
 }, [host]);
 ```
 
+### Follow SubAgents
+
+`host.subagents` reads the SubAgents Desktop tracks for a parent thread, the same ones its Subagents tab lists. `list` returns a snapshot. `onChange` sends the complete list again whenever a child's identity, state, or summary changes:
+
+```ts
+const render = (agents: readonly DesktopPluginSubAgent[]) =>
+  repaint(agents.filter((agent) => agent.state === "working").length);
+
+render(host.subagents.list(threadId));
+host.subagents.onChange(threadId, render);
+```
+
+| Field | Meaning |
+|---|---|
+| `parentThreadId` | The thread that started the SubAgent. |
+| `childThreadId` | The SubAgent's own thread. |
+| `agentPath` | Its agent path, or `null` when unknown. |
+| `nickname` | The name the Subagents tab shows. Pass it to `AgentAvatar`. |
+| `state` | `working`, `waiting`, `done`, `failed`, or `cancelled`. |
+| `summary` | A preview of its latest message, or `null` before Desktop has read one. |
+
+`waiting` means the SubAgent's active turn needs approval or user input. `done` covers a SubAgent that completed or was closed.
+
+
+`reveal(parentThreadId, childThreadId)` opens the parent thread's Subagents tab with that SubAgent selected.
+
+### Open product destinations
+
+`host.navigation` opens Desktop destinations:
+
+| Method | Opens |
+|---|---|
+| `openMainView(id)`, `openSettingsPage(id)` | One of this plugin's own main views or Settings pages. |
+| `openThread(threadId, workspacePath?)` | A thread, switching workspace when needed. |
+| `openFile(path)` | A workspace file in the Detail Panel file viewer. A relative path resolves against the current thread's workspace. |
+| `openDetailPanel(tab)` | The current thread's Detail Panel on `changes`, `plan`, or `subagents`. |
+| `openAutomation(automationId)` | That automation in the Automations view. |
+| `openExternal(url)` | An http(s) URL in the user's default browser. |
+
 ## Use the UI kit
 
 Import shared UI components from `@dotcraft/plugin` so a plugin page looks like the rest of Desktop without copying Core styles. The official builder connects hooks and JSX to Desktop's React runtime.
@@ -467,8 +559,10 @@ Import shared UI components from `@dotcraft/plugin` so a plugin page looks like 
 | Group | Components |
 |---|---|
 | **Controls** | `Button`, `IconButton`, `Input`, `Textarea`, `Select`, `SegmentedControl`, `Combobox`, `Checkbox`, `PillSwitch`, `Slider` |
-| **Presentation** | `Spinner`, `Skeleton`, `ActionTooltip`, `ModalHeader`, `InlineDiff` |
+| **Presentation** | `Spinner`, `Skeleton`, `ActionTooltip`, `ModalHeader`, `InlineDiff`, `AgentAvatar` |
 | **Settings layout** | `SettingsPanelShell`, `SettingsBreadcrumb`, `SettingsGroup`, `SettingsRow` |
+
+`AgentAvatar` draws the character Desktop shows for an agent. Pass the SubAgent's `nickname` as `name`, plus an optional `size` and `animated`, and your plugin draws the same character as the Subagents tab. Desktop supplies the component, so do not bundle the avatar package yourself.
 
 A control that reports a chosen value — `Select`, `Combobox`, `SegmentedControl` — calls `onValueChange` and takes its accessible name from `ariaLabel`. A boolean toggle — `Checkbox`, `PillSwitch` — calls `onChange`.
 

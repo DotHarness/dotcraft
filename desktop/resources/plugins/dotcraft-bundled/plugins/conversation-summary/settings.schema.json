@@ -1,0 +1,5 @@
+{
+  "fields": [
+    { "key": "pinned", "type": "bool", "defaultValue": true }
+  ]
+}

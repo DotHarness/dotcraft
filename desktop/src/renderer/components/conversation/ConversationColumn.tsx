@@ -9,7 +9,11 @@ interface ConversationColumnProps {
 
 export function ConversationColumn({ children, className, style, ref }: ConversationColumnProps): JSX.Element {
   return (
-    <div ref={ref} className={className} style={{ ...conversationColumnStyle(), ...style }}>
+    <div
+      ref={ref}
+      className={className ? `dc-conversation-column ${className}` : 'dc-conversation-column'}
+      style={{ ...conversationColumnStyle(), ...style }}
+    >
       {children}
     </div>
   )

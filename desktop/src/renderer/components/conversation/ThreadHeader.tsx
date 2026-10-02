@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import type { DesktopPluginThreadSurfaceContext } from '@dotcraft/plugin'
 import { Archive, ArrowRightLeft, FolderOpen, GitFork, Laptop, MessageSquareOff, Pencil, Pin } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -12,6 +13,7 @@ import { PerforcePrepareDialog } from '../detail/PerforcePrepareDialog'
 import { CommitIcon } from '../ui/AppIcons'
 import { usePerforceChangelistStore, type PerforceChangelistEntry } from '../../stores/perforceChangelistStore'
 import { DetailPanelToggleButton } from './DetailPanelToggleButton'
+import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ScreenViewHeaderSlot } from './screenView/ScreenViewHeaderSlot'
 import { ThreadChannelBindingChips, useThreadChannelBindings } from './ThreadChannelBindingChips'
@@ -37,6 +39,7 @@ interface ThreadHeaderProps {
   threadId: string
   workspacePath: string
   remoteWorkspace?: boolean
+  pluginSurfaceContext?: DesktopPluginThreadSurfaceContext | null
 }
 
 /** Fixed header bar at the top of the conversation panel. Spec §10.2. */
@@ -44,7 +47,8 @@ export function ThreadHeader({
   threadName,
   threadId,
   workspacePath,
-  remoteWorkspace = false
+  remoteWorkspace = false,
+  pluginSurfaceContext = null
 }: ThreadHeaderProps): JSX.Element {
   const t = useT()
   const [commitOpen, setCommitOpen] = useState(false)
@@ -542,6 +546,10 @@ export function ThreadHeader({
             setMenuPosition({ x: rect.right - 200, y: rect.bottom + 4 })
           }}
         />
+
+        {pluginSurfaceContext && (
+          <DesktopPluginSurface name="thread.header.actions" context={pluginSurfaceContext} />
+        )}
 
         <DetailPanelToggleButton />
       </div>

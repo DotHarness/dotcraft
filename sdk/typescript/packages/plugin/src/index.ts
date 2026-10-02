@@ -15,8 +15,11 @@ export type {
   DesktopPluginColorPickerOptions,
   DesktopPluginColorPickerResult,
   DesktopPluginConfirmOptions,
+  DesktopPluginConversationAsideContext,
+  DesktopPluginConversationAsideLayout,
   DesktopPluginConversationViewContribution,
   DesktopPluginConversationViewProps,
+  DesktopPluginDetailPanelTab,
   DesktopPluginDispose,
   DesktopPluginEnvironment,
   DesktopPluginEnvironmentSnapshot,
@@ -55,6 +58,9 @@ export type {
   DesktopPluginComposerMascotSurfaceContext,
   DesktopPluginComposerSurfaceContext,
   DesktopPluginMascotActivity,
+  DesktopPluginSubAgent,
+  DesktopPluginSubAgents,
+  DesktopPluginSubAgentState,
   DesktopPluginSurfaceComponent,
   DesktopPluginSurfaceContext,
   DesktopPluginSurfaceContextMap,
@@ -65,6 +71,7 @@ export type {
   DesktopPluginToolPresentationModel,
   DesktopPluginToolRendererContribution,
   DesktopPluginToolRendererProps,
+  DesktopPluginThreadSurfaceContext,
   DesktopPluginToastOptions,
   DesktopPluginUi,
   DesktopPluginViewProps,
@@ -72,6 +79,7 @@ export type {
 } from "./contracts.js";
 export type {
   ActionTooltipProps,
+  AgentAvatarProps,
   ButtonProps,
   ButtonSize,
   ButtonVariant,
@@ -127,3 +135,4 @@ export const SettingsBreadcrumb = ui.SettingsBreadcrumb;
 export const SettingsGroup = ui.SettingsGroup;
 export const SettingsRow = ui.SettingsRow;
 export const InlineDiff = ui.InlineDiff;
+export const AgentAvatar = ui.AgentAvatar;

@@ -1682,6 +1682,18 @@ controls around it stay on the shared neutral borders, radii, spacing, focus, an
 selection states. What a plugin may contribute, and how the Host composites it,
 is defined in [Desktop Plugins](desktop-plugins.md).
 
+#### Conversation side surfaces
+
+Content beside the conversation stays quieter than the conversation itself. The surfaces and their layout are defined in [Desktop Plugins](desktop-plugins.md).
+
+- **Header toggle.** A side panel's header toggle is a standard toolbar `IconButton` with the same size and gap as the header's other buttons. Its pressed state uses the header's existing treatment. Its glyph must not echo the panel toggle glyphs or the overflow menu.
+- **Summary card.** The summary is one self-contained card:
+  - **Container:** `--bg-elevated`, a 1px default border, and a 16px radius, with 20px horizontal padding. The pinned card aligns to the trailing edge of the stream, 16px in, and has no shadow. The popover form adds `--shadow-lg`.
+  - **Header:** the workspace name at ui size and medium weight.
+  - **Sections:** a secondary-size title in muted text with no count. Sections are separated by a hairline.
+  - **Rows:** single-line at ui size, with a 16px leading glyph and no trailing meta. Action rows take the standard hover fill.
+- **Avatar stacks.** Overlapping agent avatars carry a 1.5px ring of the card surface. A muted row also mutes its avatars.
+
 ## Viewers and editors
 
 - File viewers and docked file lists inherit the surrounding main surface instead

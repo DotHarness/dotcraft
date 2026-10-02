@@ -139,6 +139,7 @@ public static partial class SubAgentSessionControl
                     requireExternalResume: false,
                     CreateSubAgentTrigger(SubAgentFollowupTriggerKind, BuildFollowupTriggerLabel(resolved), resolved.Path.Value),
                     context.LifecycleHook,
+                    context.ParentTurnCancellation ?? ct,
                     ct);
             }
 
@@ -190,6 +191,7 @@ public static partial class SubAgentSessionControl
             requireExternalResume: true,
             CreateSubAgentTrigger(SubAgentInputTriggerKind, BuildChildTriggerLabel(child), child.Source.SubAgent?.AgentPath),
             lifecycleHook,
+            ct,
             ct);
     }
 

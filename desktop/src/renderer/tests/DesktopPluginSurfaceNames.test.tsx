@@ -40,6 +40,19 @@ describe('Core surface names', () => {
     expect(warn).not.toHaveBeenCalled()
   })
 
+  it('stays quiet for the thread and conversation surfaces Core defines', () => {
+    registerDesktopPluginSurface('hud', host, 'thread.header.actions', 'add', component)
+    registerDesktopPluginSurface('hud', host, 'conversation.aside.leading', 'add', component)
+    registerDesktopPluginSurface('hud', host, 'conversation.aside.trailing', 'add', component)
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('warns about a misspelled thread or conversation surface', () => {
+    registerDesktopPluginSurface('hud', host, 'thread.header.action', 'add', component)
+    registerDesktopPluginSurface('hud', host, 'conversation.aside', 'add', component)
+    expect(warn).toHaveBeenCalledTimes(2)
+  })
+
   it('warns for a bare Core root Core does not define', () => {
     registerDesktopPluginSurface('hud', host, 'app.sidebar', 'replace', component)
     expect(warn).toHaveBeenCalledTimes(1)

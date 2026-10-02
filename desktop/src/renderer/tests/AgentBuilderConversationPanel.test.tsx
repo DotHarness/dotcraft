@@ -23,7 +23,7 @@ describe('Agent Builder conversation panel', () => {
 
     installDesktopApiMock({
       settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
-      appServer: { sendRequest: appServerSendRequest },
+      appServer: { sendRequest: appServerSendRequest, onNotification: vi.fn(() => () => undefined) },
       file: { readFile: vi.fn().mockResolvedValue('{}') },
       workspace: { saveImageToTemp: vi.fn() }
     })

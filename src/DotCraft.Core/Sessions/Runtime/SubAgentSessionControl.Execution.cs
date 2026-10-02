@@ -208,6 +208,7 @@ public static partial class SubAgentSessionControl
         bool requireExternalResume,
         TurnTriggerInfo? triggerInfo,
         Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? lifecycleHook,
+        CancellationToken childLifetime,
         CancellationToken ct)
     {
         var childThreadId = child.Id;
@@ -216,7 +217,7 @@ public static partial class SubAgentSessionControl
         if (running != null)
             throw new InvalidOperationException($"Subagent thread '{childThreadId}' already has a running turn.");
 
-        var childCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var childCts = CancellationTokenSource.CreateLinkedTokenSource(childLifetime);
         var parentThreadId = child.Source.SubAgent?.ParentThreadId ?? child.ChannelContext ?? string.Empty;
         var source = child.Source.SubAgent;
         var runtimeType = source?.RuntimeType ?? NativeSubAgentRuntime.RuntimeTypeName;
@@ -259,7 +260,8 @@ public static partial class SubAgentSessionControl
         var runningChild = new RunningChild(parentThreadId, childCts, completion);
         RunningChildren[childThreadId] = runningChild;
         _ = ObserveChildCompletionAsync(sessionService, childThreadId, runningChild, lifecycleHook);
-        await dispatchStarted.Task.WaitAsync(ct);
+        await using (ct.Register(childCts.Cancel))
+            await dispatchStarted.Task.WaitAsync(ct);
 
         return new SubAgentControlResult
         {

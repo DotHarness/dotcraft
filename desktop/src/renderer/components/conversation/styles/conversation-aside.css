@@ -1,0 +1,42 @@
+.dc-conversation-column {
+  position: relative;
+  left: calc(-1 * var(--conversation-column-shift, 0px));
+  transition: left 260ms var(--ease-standard);
+}
+
+.dc-conversation-asides {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.dc-conversation-asides__probe {
+  position: absolute;
+  width: var(--conversation-reading-width);
+  height: 0;
+  visibility: hidden;
+}
+
+.dc-conversation-aside {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  pointer-events: none;
+  transition:
+    left 260ms var(--ease-standard),
+    width 260ms var(--ease-standard);
+}
+
+html[data-reduce-motion='on'] .dc-conversation-column,
+html[data-reduce-motion='on'] .dc-conversation-aside {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-reduce-motion='off']) .dc-conversation-column,
+  html:not([data-reduce-motion='off']) .dc-conversation-aside {
+    transition: none;
+  }
+}

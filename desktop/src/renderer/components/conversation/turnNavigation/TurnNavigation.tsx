@@ -1,6 +1,7 @@
-import { memo, useCallback, useMemo, useRef, useState, type JSX, type RefObject } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type JSX, type RefObject } from 'react'
 import { useThreadStore } from '../../../stores/threadStore'
 import { turnBookmarkKey, useTurnBookmarkStore } from '../../../stores/turnBookmarkStore'
+import { useConversationAsideControl, useConversationColumnShift } from '../conversationAside/ConversationAside'
 import type { TurnNavigationEntry } from './navigationIndex'
 import { jumpToEntry, type JumpMode } from './turnJump'
 import { TurnNavigationRail } from './TurnNavigationRail'
@@ -21,7 +22,8 @@ export const TurnNavigation = memo(function TurnNavigation({
   columnRef
 }: TurnNavigationProps): JSX.Element | null {
   const { threadId, entries, railAllowed, requestPreview } = useTurnNavigationIndex()
-  const roomy = useRailGutter(scrollRef, columnRef)
+  const roomy = useRailGutter(scrollRef, columnRef, useConversationColumnShift())
+  const { reportRail } = useConversationAsideControl()
   const [introducedThreadId, setIntroducedThreadId] = useState<string | null>(null)
   const entriesRef = useRef(entries)
   entriesRef.current = entries
@@ -47,7 +49,13 @@ export const TurnNavigation = memo(function TurnNavigation({
   const jumpFromKeyboard = useCallback((entry: TurnNavigationEntry) => jump(entry, 'jump'), [jump])
   useTurnNavigationKeyboard(scrollRef, entriesRef, jumpFromKeyboard)
 
-  if (!threadId || !railAllowed || entries.length < MIN_RAIL_ENTRIES || !roomy) return null
+  const shown = Boolean(threadId) && railAllowed && entries.length >= MIN_RAIL_ENTRIES && roomy
+  useEffect(() => {
+    reportRail(shown)
+  }, [reportRail, shown])
+  useEffect(() => () => reportRail(false), [reportRail])
+
+  if (!shown) return null
   return (
     <TurnNavigationRail
       key={threadId}

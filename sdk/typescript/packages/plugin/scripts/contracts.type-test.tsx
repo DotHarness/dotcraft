@@ -4,6 +4,7 @@ import {
   SettingsGroup,
   SettingsRow,
   Slider,
+  AgentAvatar,
   type DesktopPluginActivate,
   type DesktopPluginHost,
   type DesktopPluginLocale,
@@ -59,6 +60,19 @@ host.ui.replace("composer.mascot", ({ context }) => (
   `${context.activity}:${context.expression}:${context.submitRevision}`
 ));
 host.ui.wrap("composer.toolbar.model", ({ context, children }) => context.busy ? null : children);
+host.ui.add("thread.header.actions", ({ context }) => {
+  const threadId: string = context.threadId;
+  return context.busy ? null : threadId;
+});
+host.ui.add("conversation.aside.trailing", ({ context }) => {
+  const layout: "gutter" | "shift" | "overlay" = context.layout;
+  const release: () => void = context.pin();
+  release();
+  return `${layout}:${context.width}`;
+});
+host.navigation.openDetailPanel("subagents");
+// @ts-expect-error Only Core Detail Panel tabs open.
+host.navigation.openDetailPanel("browser");
 host.ui.add("sample.details", ({ context }) => context.value);
 host.ui.add("sample.unknown", ({ context }) => {
   const unknownContext: unknown = context;
@@ -156,6 +170,8 @@ void (
     ariaLabel="Theme"
   />
 );
+
+void <AgentAvatar name="Ada" size={28} animated />;
 
 void (
   <SettingsGroup title="Preview" flush>

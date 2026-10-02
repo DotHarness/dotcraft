@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
-import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
+import type { DesktopPluginComposerSurfaceContext, DesktopPluginThreadSurfaceContext } from '@dotcraft/plugin'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { selectLatestCreatePlanTurnId, useConversationStore, type PendingApproval } from '../../stores/conversationStore'
@@ -28,6 +28,7 @@ import {
 } from '../desktopPlugins/DesktopPluginConversationView'
 import { useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
+import { ConversationAsideProvider } from '../conversation/conversationAside/ConversationAside'
 
 interface ConversationPanelProps {
   workspacePath?: string
@@ -200,17 +201,17 @@ export function ConversationPanel({
     variant,
     minimalChrome: minimalComposer || isAgentBuilder
   }
+  const threadSurfaceContext: DesktopPluginThreadSurfaceContext | null =
+    isAgentBuilder || creating || selectedConversationView
+      ? null
+      : {
+          workspacePath: desktopPluginSurfaceContext.workspacePath,
+          threadId: thread.id,
+          busy: desktopPluginSurfaceContext.busy
+        }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        background: 'transparent',
-        overflow: 'hidden'
-      }}
-    >
+    <ConversationAsideProvider thread={threadSurfaceContext} style={panelStyle}>
       {/* Interactive Tool UI expanded surface (pip/fullscreen) — portals to body when a card is expanded. */}
 
       {!isAgentBuilder && (
@@ -219,6 +220,7 @@ export function ConversationPanel({
           threadId={thread.id}
           workspacePath={activeEffectiveWorkspacePath}
           remoteWorkspace={remoteWorkspace}
+          pluginSurfaceContext={threadSurfaceContext}
         />
       )}
 
@@ -355,8 +357,16 @@ export function ConversationPanel({
           onModelCatalogRetry={modelControls.onModelCatalogRetry}
         />
       )}
-    </div>
+    </ConversationAsideProvider>
   )
+}
+
+const panelStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  height: '100%',
+  background: 'transparent',
+  overflow: 'hidden'
 }
 
 const conversationPlaceholderStyle: CSSProperties = { color: 'var(--text-dimmed)', fontSize: '13px' }

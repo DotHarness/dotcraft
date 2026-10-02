@@ -141,7 +141,10 @@ const CORE_SURFACES: ReadonlySet<string> = new Set<keyof DesktopPluginSurfaceCon
   'composer.status',
   'composer.status.workspace',
   'composer.status.subscription',
-  'composer.status.trailing'
+  'composer.status.trailing',
+  'thread.header.actions',
+  'conversation.aside.leading',
+  'conversation.aside.trailing'
 ])
 
 export function registerDesktopPluginSurface<S extends string>(
@@ -197,9 +200,11 @@ export function registerDesktopPluginSurface<S extends string>(
 }
 
 /** Only the `app` and `composer` roots are Core's to close; a plugin-declared name may legally be unmounted. */
+const CORE_SURFACE_ROOTS: ReadonlySet<string> = new Set(['app', 'composer', 'thread', 'conversation'])
+
 function reportUnknownCoreSurface(pluginId: string, surface: string): void {
   const root = surface.split('.')[0]
-  if (root !== 'app' && root !== 'composer') return
+  if (!CORE_SURFACE_ROOTS.has(root)) return
   if (CORE_SURFACES.has(surface)) return
   console.warn(
     `Desktop Plugin '${pluginId}' registered into '${surface}', which Core does not define. `

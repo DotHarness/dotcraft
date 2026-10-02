@@ -109,7 +109,9 @@ in-flight startup work, stops runtime resources, closes the edge, and deletes ch
 an internal parent-ownership-checked lifecycle operation. It uses an independent 30-second cleanup
 budget and preserves the original failure, attaching cleanup diagnostics if compensation fails.
 Direct public deletion of child threads remains prohibited. Once admitted, a child's failure or
-cancellation follows normal Turn lifecycle and keeps its history.
+cancellation follows normal Turn lifecycle and keeps its history. An admitted child's work is bound to the parent Turn, not to the
+tool call that started it, so a child started from a code mode program keeps running after the
+program ends.
 
 Module integrations release preparation resources before child deletion and preserve recoverable work. Their started notification follows admission. Compensation covers live startup failure and cancellation, not process-crash recovery.
 

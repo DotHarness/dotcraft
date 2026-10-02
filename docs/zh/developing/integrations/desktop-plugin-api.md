@@ -97,7 +97,7 @@ Event listener 会随 generation 一起移除。Event 只存在于 renderer，�
 
 ## 使用 Core surface
 
-DotCraft 的正式 surface 覆盖 application 与 Composer。Composer surface 采用层级结构，既可以定位完整区域，也可以定位单个 Core 控件：
+DotCraft 的正式 surface 覆盖 application、Composer 与当前会话。Composer surface 采用层级结构，既可以定位完整区域，也可以定位单个 Core 控件：
 
 | Surface | 位置 |
 |---|---|
@@ -114,6 +114,9 @@ DotCraft 的正式 surface 覆盖 application 与 Composer。Composer surface �
 | **`composer.toolbar.leading`** | command、permission、mode 与 goal 所在的 leading group。 |
 | **`composer.toolbar.trailing`** | context、model、voice 与 submit 所在的 trailing group。 |
 | **`composer.status`** | Composer card 下方的 workspace 与 subscription 状态行。 |
+| **`thread.header.actions`** | 当前 thread 标题栏中的操作组，位于溢出菜单与 Detail Panel 开关之间。 |
+| **`conversation.aside.leading`** | 会话阅读列 leading 一侧的座位。 |
+| **`conversation.aside.trailing`** | 会话阅读列 trailing 一侧的座位。 |
 
 当区域范围过大时，可以直接定位这些 Core 控件：
 
@@ -156,7 +159,7 @@ host.ui.add("composer.status.subscription", SubscriptionStatus);
 
 同一组名称会挂载在 thread、Welcome、approval 与 user-input Composer 中。即使当前 provider、compact mode、minimal chrome 或 decision state 隐藏了 Core default，surface 仍然可用。渲染插件内容前应检查共享的 Composer context。Surface 名称与它的 typed context 属于公共契约，surface 生成的 DOM 不属于。
 
-上面列出的 Core 名称就是全部。如果在 `app` 或 `composer` 下注册了 Core 并未定义的名称，Desktop 会保留这次注册，同时在控制台写一条点名该 surface 的警告——出现在这两个根下面时，它基本上就是拼写错误。这两个根之外的名称属于插件，因此不做检查：把内容注册到另一个插件尚未挂载的 surface 上很正常，那个 surface 一出现，你的组件就会渲染。
+上面列出的 Core 名称就是全部。如果在 `app`、`composer`、`thread` 或 `conversation` 下注册了 Core 并未定义的名称，Desktop 会保留这次注册，同时在控制台写一条点名该 surface 的警告——出现在这四个根下面时，它基本上就是拼写错误。这四个根之外的名称属于插件，因此不做检查：把内容注册到另一个插件尚未挂载的 surface 上很正常，那个 surface 一出现，你的组件就会渲染。
 
 只要 Composer 尚未创建或挂接到真实 Session thread，surface context 的 `threadId` 就是 `null`，welcome 与 detached embedded Composer 都是如此。挂接之后它是真实 thread id。
 
@@ -171,6 +174,55 @@ host.ui.add("composer.status.subscription", SubscriptionStatus);
 | `minimalChrome` | Core 为嵌入式 Composer 隐藏了非必要控件。 |
 
 在新聊天 Welcome 页，`composer` 覆盖创建 thread 之前的完整撰写体验：app 选择、hero、输入框、workspace footer 与 quick starts。这些元素共享同一份 draft 与 voice lifecycle，替换 `composer` 会把它们作为一个整体换掉。
+
+### 在会话旁放置内容
+
+`thread.header.actions` 与两个会话侧座位只在真实 Session thread 显示 Chat 视图时挂载。新聊天 Welcome 页上没有它们，conversation view contribution 替换消息流时也没有。三者共享 thread context：
+
+| 字段 | 含义 |
+|---|---|
+| `workspacePath` | 该 thread 的 workspace，不可用时为 `null`。 |
+| `threadId` | 当前显示的 thread。 |
+| `busy` | 有一轮正在运行，或正在等待用户输入。 |
+
+`thread.header.actions` 贡献渲染一个来自 UI kit 的 `IconButton`。它的间距、与 Core 控件的先后顺序以及标题栏高度都由 Host 管理。
+
+每个侧座位位于消息流边缘与阅读列之间，纵向铺满可见的消息流高度，不随消息滚动。与 `app.overlay` 一样，座位默认穿透点击，你需要在自己的可交互元素上设置 `pointer-events: auto`。侧座位 context 在 thread context 之上增加了布局信息：
+
+| 字段 | 含义 |
+|---|---|
+| `layout` | `gutter`、`shift` 或 `overlay`，由 Host 根据可用宽度选择。 |
+| `width` | 座位当前的宽度，单位为逻辑像素。 |
+| `pin()` | 为会话旁的面板保留位置，返回一个 dispose。 |
+
+Host 根据侧边空间选择 `layout`，侧边空间是消息流宽度与阅读列宽度之差的一半：
+
+| 布局 | 侧边空间 | trailing pin 的效果 |
+|---|---|---|
+| `gutter` | 400 逻辑像素及以上 | 无，阅读列保持居中。 |
+| `shift` | 180 到 400 逻辑像素（不含 400） | 阅读列与 Composer 向 leading 一侧移动 153 逻辑像素。 |
+| `overlay` | 小于 180 逻辑像素 | 无。改用紧凑形态或 popover，不要显示面板。 |
+
+面板在 `conversation.aside.trailing` 中可见时调用 `pin`，面板消失时 dispose。`conversation.aside.leading` 从不 pin；轮次导航条显示时，它从导航条之后开始。布局变化会以动画过渡，除非用户要求减少动态效果，而且从不重新挂载你的组件：
+
+```tsx
+import { useEffect } from "react";
+import type { DesktopPluginSurfaceProps } from "@dotcraft/plugin";
+
+function NotesPanel({ context }: DesktopPluginSurfaceProps<"conversation.aside.trailing">) {
+  const showPanel = context.layout !== "overlay";
+  const { pin } = context;
+  useEffect(() => (showPanel ? pin() : undefined), [showPanel, pin]);
+  if (!showPanel) return null;
+  return (
+    <aside style={{ pointerEvents: "auto", width: Math.min(300, context.width - 32), margin: 16 }}>
+      Notes for {context.threadId}
+    </aside>
+  );
+}
+
+host.ui.add("conversation.aside.trailing", NotesPanel);
+```
 
 ### 替换 Composer mascot
 
@@ -290,7 +342,8 @@ function ReviewIcon({ size = 16, ...rest }: DesktopPluginIconProps) {
 | `plugin`、`environment` | 插件的 id、版本与显示名，以及当前 locale、theme、theme 种子与变更订阅。 |
 | `appearance` | 由 generation 持有的 theme seed 与 backdrop presentation contribution。 |
 | `session` | 前台 workspace、当前 thread、mode 与忙碌状态，以及变更订阅。 |
-| `navigation` | 打开插件 view、Settings 页与 thread，并接管自定义 scheme 的链接。 |
+| `subagents` | 某个 thread 启动的 SubAgent、它们的状态与完成事件。 |
+| `navigation` | 打开插件 view、Settings 页、thread、文件、Detail Panel 标签页与自动化任务，并接管自定义 scheme 的链接。 |
 | `ui` | 除三个 surface 操作外，还提供 toast、确认与颜色选择等 Host-owned 对话框。 |
 | `appServer` | 受支持的 JSON-RPC request 与 subscription。 |
 | `settings` | 读取、修改并跟随本插件由 schema 约束的设置。 |
@@ -456,6 +509,45 @@ useEffect(() => {
 }, [host]);
 ```
 
+### 跟随 SubAgent
+
+`host.subagents` 读取 Desktop 为某个父 thread 跟踪的 SubAgent，也就是它的 Subagents 标签页列出的那些。`list` 返回快照。只要某个子 SubAgent 的身份、状态或摘要发生变化，`onChange` 就会重新发送完整列表：
+
+```ts
+const render = (agents: readonly DesktopPluginSubAgent[]) =>
+  repaint(agents.filter((agent) => agent.state === "working").length);
+
+render(host.subagents.list(threadId));
+host.subagents.onChange(threadId, render);
+```
+
+| 字段 | 含义 |
+|---|---|
+| `parentThreadId` | 启动该 SubAgent 的 thread。 |
+| `childThreadId` | 该 SubAgent 自己的 thread。 |
+| `agentPath` | 它的 agent path，未知时为 `null`。 |
+| `nickname` | Subagents 标签页显示的名字。把它传给 `AgentAvatar`。 |
+| `state` | `working`、`waiting`、`done`、`failed` 或 `cancelled`。 |
+| `summary` | 它最新一条消息的预览，Desktop 尚未读取时为 `null`。 |
+
+`waiting` 表示该 SubAgent 的当前轮次需要审批或用户输入。`done` 涵盖已完成或已关闭的 SubAgent。
+
+
+`reveal(parentThreadId, childThreadId)` 打开父 thread 的 Subagents 标签页，并选中该 SubAgent。
+
+### 打开产品目的地
+
+`host.navigation` 打开 Desktop 中的目的地：
+
+| 方法 | 打开 |
+|---|---|
+| `openMainView(id)`、`openSettingsPage(id)` | 本插件自己的某个 main view 或 Settings 页。 |
+| `openThread(threadId, workspacePath?)` | 一个 thread，必要时切换 workspace。 |
+| `openFile(path)` | Detail Panel 文件查看器中的一个 workspace 文件。相对路径基于当前 thread 的 workspace 解析。 |
+| `openDetailPanel(tab)` | 当前 thread 的 Detail Panel，并切到 `changes`、`plan` 或 `subagents`。 |
+| `openAutomation(automationId)` | Automations 视图中的该自动化任务。 |
+| `openExternal(url)` | 在用户默认浏览器中打开 http(s) URL。 |
+
 ## 使用 UI kit
 
 共享 UI 组件从 `@dotcraft/plugin` 导入，插件页面不必复制 Core 的样式就能和 Desktop 其他部分保持一致。官方 builder 会把 hooks 与 JSX 接到 Desktop 的 React runtime 上。
@@ -463,8 +555,10 @@ useEffect(() => {
 | 分组 | 组件 |
 |---|---|
 | **控件** | `Button`、`IconButton`、`Input`、`Textarea`、`Select`、`SegmentedControl`、`Combobox`、`Checkbox`、`PillSwitch`、`Slider` |
-| **展示** | `Spinner`、`Skeleton`、`ActionTooltip`、`ModalHeader`、`InlineDiff` |
+| **展示** | `Spinner`、`Skeleton`、`ActionTooltip`、`ModalHeader`、`InlineDiff`、`AgentAvatar` |
 | **Settings 布局** | `SettingsPanelShell`、`SettingsBreadcrumb`、`SettingsGroup`、`SettingsRow` |
+
+`AgentAvatar` 绘制 Desktop 为某个 agent 显示的角色。把 SubAgent 的 `nickname` 作为 `name` 传入，可选传入 `size` 与 `animated`，你的插件就会画出与 Subagents 标签页相同的角色。该组件由 Desktop 提供，不要自行打包 avatar 包。
 
 报告所选值的控件——`Select`、`Combobox`、`SegmentedControl`——回调名为 `onValueChange`，无障碍名称来自 `ariaLabel`。布尔开关——`Checkbox`、`PillSwitch`——回调名为 `onChange`。
 

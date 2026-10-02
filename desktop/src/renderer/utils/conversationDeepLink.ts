@@ -36,24 +36,28 @@ function rejectReasonToMessageKey(reason: LinkRejectReason): string {
   }
 }
 
+export async function openWorkspaceFileViewer(params: Omit<OpenFileViewerParams, 't'>): Promise<void> {
+  const authorized = await window.api.workspace.viewer.authorizeFile({ absolutePath: params.absolutePath })
+  const absolutePath = authorized.absolutePath
+  const classified = await window.api.workspace.viewer.classify({ absolutePath })
+  const relativePath = deriveRelativePathForViewer(absolutePath, params.workspacePath)
+  const tabId = useViewerTabStore.getState().openFile({
+    threadId: params.threadId,
+    absolutePath,
+    relativePath,
+    contentClass: classified.contentClass,
+    sizeBytes: classified.sizeBytes,
+    forceNew: params.forceNew,
+    navigationHint: params.hint
+  })
+  const ui = useUIStore.getState()
+  ui.setActiveViewerTab(tabId)
+  ui.setDetailPanelVisible(true)
+}
+
 async function openFileViewer(params: OpenFileViewerParams): Promise<boolean> {
   try {
-    const authorized = await window.api.workspace.viewer.authorizeFile({ absolutePath: params.absolutePath })
-    const absolutePath = authorized.absolutePath
-    const classified = await window.api.workspace.viewer.classify({ absolutePath })
-    const relativePath = deriveRelativePathForViewer(absolutePath, params.workspacePath)
-    const tabId = useViewerTabStore.getState().openFile({
-      threadId: params.threadId,
-      absolutePath,
-      relativePath,
-      contentClass: classified.contentClass,
-      sizeBytes: classified.sizeBytes,
-      forceNew: params.forceNew,
-      navigationHint: params.hint
-    })
-    const ui = useUIStore.getState()
-    ui.setActiveViewerTab(tabId)
-    ui.setDetailPanelVisible(true)
+    await openWorkspaceFileViewer(params)
     return true
   } catch {
     addToast(params.t('conversation.deepLink.rejectUnreadable'), 'warning')

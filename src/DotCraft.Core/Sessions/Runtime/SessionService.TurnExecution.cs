@@ -1263,6 +1263,7 @@ public sealed partial class SessionService
                     SessionService = this,
                     ParentThread = thread,
                     ParentTurnId = turn.Id,
+                    ParentTurnCancellation = cts.Token,
                     RootThreadId = currentSubAgentSource?.RootThreadId ?? thread.Id,
                     Depth = currentSubAgentSource?.Depth ?? 0,
                     ParentModelHistory = session,

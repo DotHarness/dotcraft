@@ -103,6 +103,21 @@ export interface DesktopPluginComposerMascotSurfaceContext
   readonly reducedMotion: boolean;
 }
 
+export interface DesktopPluginThreadSurfaceContext {
+  readonly workspacePath: string | null;
+  readonly threadId: string;
+  readonly busy: boolean;
+}
+
+export type DesktopPluginConversationAsideLayout = "gutter" | "shift" | "overlay";
+
+export interface DesktopPluginConversationAsideContext extends DesktopPluginThreadSurfaceContext {
+  readonly layout: DesktopPluginConversationAsideLayout;
+  readonly width: number;
+  /** Holds room beside the conversation while live; only the trailing seat moves the column. */
+  pin(): DesktopPluginDispose;
+}
+
 /**
  * Known Desktop surface contexts. Plugins may augment this interface with their own surfaces.
  */
@@ -133,6 +148,9 @@ export interface DesktopPluginSurfaceContextMap {
   readonly "composer.status.workspace": DesktopPluginComposerSurfaceContext;
   readonly "composer.status.subscription": DesktopPluginComposerSurfaceContext;
   readonly "composer.status.trailing": DesktopPluginComposerSurfaceContext;
+  readonly "thread.header.actions": DesktopPluginThreadSurfaceContext;
+  readonly "conversation.aside.leading": DesktopPluginConversationAsideContext;
+  readonly "conversation.aside.trailing": DesktopPluginConversationAsideContext;
 }
 
 export type DesktopPluginSurfaceContext<Surface extends string> =
@@ -168,13 +186,40 @@ export interface DesktopPluginEvents {
   emit<T = unknown>(event: string, payload: T): void;
 }
 
+export type DesktopPluginDetailPanelTab = "changes" | "plan" | "subagents";
+
 export interface DesktopPluginNavigation {
   openMainView(contributionId: string): void;
   openSettingsPage(contributionId: string): void;
   openThread(threadId: string, workspacePath?: string): Promise<void>;
   /** Opens an http(s) URL in the user's default browser. */
   openExternal(url: string): Promise<void>;
+  /** Opens a workspace file in the Detail Panel file viewer; a relative path resolves against the current thread's workspace. */
+  openFile(path: string): Promise<void>;
+  openDetailPanel(tab: DesktopPluginDetailPanelTab): void;
+  openAutomation(automationId: string): void;
   onOpenUrl(listener: (url: string) => boolean): DesktopPluginDispose;
+}
+
+export type DesktopPluginSubAgentState = "working" | "waiting" | "done" | "failed" | "cancelled";
+
+export interface DesktopPluginSubAgent {
+  readonly parentThreadId: string;
+  readonly childThreadId: string;
+  readonly agentPath: string | null;
+  readonly nickname: string;
+  readonly state: DesktopPluginSubAgentState;
+  readonly summary: string | null;
+}
+
+export interface DesktopPluginSubAgents {
+  list(parentThreadId: string): readonly DesktopPluginSubAgent[];
+  /** Notifies with the complete list when a child's identity, state, or summary changes; never fires on subscribe. */
+  onChange(
+    parentThreadId: string,
+    listener: (subagents: readonly DesktopPluginSubAgent[]) => void,
+  ): DesktopPluginDispose;
+  reveal(parentThreadId: string, childThreadId: string): void;
 }
 
 export interface DesktopPluginToastOptions {
@@ -387,6 +432,7 @@ export interface DesktopPluginHost {
   readonly environment: DesktopPluginEnvironment;
   readonly appearance: DesktopPluginAppearance;
   readonly session: DesktopPluginSession;
+  readonly subagents: DesktopPluginSubAgents;
   effect(setup: DesktopPluginEffectSetup): DesktopPluginDispose;
   readonly services: DesktopPluginServices;
   readonly events: DesktopPluginEvents;

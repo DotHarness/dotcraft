@@ -13,12 +13,16 @@ import type {
 
 import { requestColorPickerDialog } from '../components/ui/ColorPickerDialog'
 import { requestConfirmDialog } from '../components/ui/ConfirmDialog'
+import { useAutomationsStore } from '../stores/automationsStore'
 import type { PluginEntry } from '../stores/pluginStore'
 import { useThreadStore } from '../stores/threadStore'
 import { removeToast, showToast } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
+import { openWorkspaceFileViewer } from '../utils/conversationDeepLink'
 import { openWorkspaceThread } from '../utils/openWorkspaceThread'
+import { openSubAgent } from '../utils/subAgentNavigation'
+import { toAbsoluteWorkspacePath } from '../utils/workspacePaths'
 import { registerDesktopPluginAppearanceSlot } from './desktopPluginAppearance'
 import {
   onDesktopPluginEnvironmentChange,
@@ -40,6 +44,10 @@ import {
   onDesktopPluginSessionChange,
   readDesktopPluginSession
 } from './desktopPluginSession'
+import {
+  listDesktopPluginSubAgents,
+  onDesktopPluginSubAgentsChange
+} from './desktopPluginSubAgents'
 import {
   mutateDesktopPluginSettings,
   onDesktopPluginSettingsChange,
@@ -118,6 +126,22 @@ export function createDesktopPluginHost(
         return own(cleanups, onDesktopPluginSessionChange(listener))
       }
     },
+    subagents: {
+      list(parentThreadId) {
+        return listDesktopPluginSubAgents(parentThreadId)
+      },
+      onChange(parentThreadId, listener) {
+        return own(cleanups, onDesktopPluginSubAgentsChange(parentThreadId, listener))
+      },
+      reveal(parentThreadId, childThreadId) {
+        const show = (): void => {
+          useUIStore.getState().setActiveMainView('conversation')
+          openSubAgent(parentThreadId, childThreadId)
+        }
+        if (useThreadStore.getState().activeThreadId === parentThreadId) show()
+        else void host.navigation.openThread(parentThreadId).then(show)
+      }
+    },
     navigation: {
       openMainView(id) {
         useUIStore.getState().setActiveMainView(buildDesktopPluginMainViewKey(pluginId, id))
@@ -145,6 +169,24 @@ export function createDesktopPluginHost(
       },
       async openExternal(url) {
         await window.api.shell.openExternal(url)
+      },
+      async openFile(path) {
+        const thread = useThreadStore.getState().activeThread
+        if (!thread) return
+        const workspacePath = thread.effectiveWorkspacePath?.trim() || thread.workspacePath
+        await openWorkspaceFileViewer({
+          threadId: thread.id,
+          workspacePath,
+          absolutePath: toAbsoluteWorkspacePath(workspacePath, path),
+          forceNew: false
+        })
+      },
+      openDetailPanel(tab) {
+        useUIStore.getState().setActiveDetailTab(tab)
+      },
+      openAutomation(automationId) {
+        useAutomationsStore.getState().selectAutomation(automationId)
+        useUIStore.getState().setActiveMainView('automations')
       },
       onOpenUrl(listener) {
         return own(

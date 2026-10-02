@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.7.8 |
+| Version | 0.7.10 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-02 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -97,6 +97,10 @@ supported authoring contracts; private renderer components and properties are no
 Value controls use `onValueChange` and `ariaLabel`; boolean controls use `onChange`.
 Host adapters preserve these SDK names independently of internal component prop names.
 
+### Agent identity
+
+`AgentAvatar` renders the avatar Core shows for an agent, using `{ name: string; size?: number; animated?: boolean }`. `name` is the agent nickname, the same value the Subagents tab uses, so a plugin and Core always draw the same character for the same agent. The Host supplies the component; a plugin does not bundle the avatar package to recreate it.
+
 ## Activation contract
 
 The entry module exports `activate(host)`. Activation may be synchronous or asynchronous and may return nothing:
@@ -176,6 +180,9 @@ The formal Core surfaces are:
 | `composer.status.workspace` | The context row: project, Run on, work location, branch, worktree, or changelist controls. The row is Core content; its individual chips are not surfaces. |
 | `composer.status.subscription` | The ChatGPT subscription indicator when applicable. |
 | `composer.status.trailing` | The trailing end of the status row, opposite the context row. Core contributes nothing; it is reserved for compact, persistent readouts. |
+| `thread.header.actions` | The action group in the active thread header, between the overflow menu and the Detail Panel toggle. Empty by default. |
+| `conversation.aside.leading` | A seat beside the leading edge of the conversation reading column, for transient or ambient content. Empty by default. |
+| `conversation.aside.trailing` | A seat beside the trailing edge of the conversation reading column, for panels that accompany the conversation. Empty by default. |
 
 `app.background`, `app.overlay`, and `app.status` share the application context. The overlay mounts after the application, so its content paints over the shell without a plugin having to consume the single `app` wrapper. The seat sets `pointer-events: none`, and the property inherits, so a floating readout stays click-through by default and a plugin that wants clicks opts back in with `pointer-events: auto` on its own element. That default keeps a decorative overlay from swallowing the interface underneath it, which is the failure a plugin cannot recover from once shipped.
 
@@ -193,7 +200,43 @@ On the new-chat Welcome screen, `composer` deliberately covers the complete pre-
 
 These are the first stable surfaces, not a capability ceiling. The SDK's `PluginSurface` component declares and renders a plugin-owned surface from its `name` and typed `context`. Plugin-qualified names are recommended but not enforced. Core or another plugin may target it with `add`, `replace`, or `wrap`, regardless of activation order. It exists while mounted; registrations targeting it remain generation-owned and render whenever it is present.
 
-The Core surface names above are closed. The Host warns about unknown names rooted at `app` or `composer` but still stores the registration. Plugin-owned names remain open because their surface may mount later.
+### Thread and conversation surfaces
+
+`thread.header.actions` and the two conversation asides mount only while a real Session thread shows its Chat view. They are absent on the new-chat Welcome screen and while a conversation view contribution replaces the message stream. They share one thread context:
+
+```ts
+interface DesktopPluginThreadSurfaceContext {
+  readonly workspacePath: string | null
+  readonly threadId: string
+  readonly busy: boolean
+}
+```
+
+`thread.header.actions` holds compact controls that act on the current thread. A contribution renders a single icon button from the UI kit; the Host owns spacing, order relative to Core controls, and the header height.
+
+The conversation asides add layout to that context:
+
+```ts
+interface DesktopPluginConversationAsideContext extends DesktopPluginThreadSurfaceContext {
+  readonly layout: "gutter" | "shift" | "overlay"
+  readonly width: number
+  pin(): DesktopPluginDispose
+}
+```
+
+Each aside is a seat between the edge of the message stream and the reading column. It spans the visible stream height and does not scroll with messages. Like `app.overlay`, the seat sets `pointer-events: none`, and a contribution opts back in on its own interactive elements.
+
+Layout belongs to the Host and depends only on width. The side space is half the difference between the stream width and the reading column width:
+
+- `overlay`: the side space is under 180 logical pixels.
+- `shift`: the side space is from 180 up to, but not including, 400 logical pixels.
+- `gutter`: the side space is 400 logical pixels or more.
+
+A trailing contribution calls `pin` while it shows a panel beside the conversation and disposes the handle when it stops. In `shift`, while any trailing pin is live, the reading column moves 153 logical pixels toward the leading edge, and the Composer moves with it. In `gutter`, the column stays centered. In `overlay`, a pin has no effect on layout. A contribution keeps its pin and shows a compact or popover form instead of a panel.
+
+`width` is the seat's current width in logical pixels. That is the side space, plus the shift for the trailing seat, or minus the shift for the leading seat. `conversation.aside.leading` never pins. While the [turn navigation rail](../features/turn-navigation.md) is shown, the rail keeps the outermost lane, and the leading seat starts after it. Layout changes, including the column shift, animate unless reduced motion is requested. They never remount contributions.
+
+The Core surface names above are closed. The Host warns about unknown names rooted at `app`, `composer`, `thread`, or `conversation` but still stores the registration. Plugin-owned names remain open because their surface may mount later.
 
 ## Convenience contributions
 
@@ -242,7 +285,7 @@ Verified cache entries survive disconnects. Superseded revisions and removed plu
 
 ## Host and compatibility contract
 
-Every Desktop Plugin receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, navigation, notifications, AppServer, App Binding, App Surfaces, workspaces, and Oratorio. It is a supported authoring API, not a security membrane. Private stores, routes, components, DOM, and CSS remain reachable to trusted code but are not compatibility contracts. Main-process validation remains a service invariant rather than a plugin permission.
+Every Desktop Plugin receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, notifications, AppServer, App Binding, App Surfaces, workspaces, and Oratorio. It is a supported authoring API, not a security membrane. Private stores, routes, components, DOM, and CSS remain reachable to trusted code but are not compatibility contracts. Main-process validation remains a service invariant rather than a plugin permission.
 
 ### Environment changes
 
@@ -276,6 +319,30 @@ interface DesktopPluginSessionSnapshot {
 `busy` means a turn is running or waiting on user input. Approval state, Composer variant, and
 minimal chrome remain on the Composer surface context; `workspaces` owns workspace lists and
 switching.
+
+### SubAgent state
+
+`subagents` reads the SubAgent children Desktop tracks for a parent thread. These are the children its Subagents tab lists. `subagents.list(parentThreadId)` returns a snapshot. `subagents.onChange(parentThreadId, listener)` notifies with a complete snapshot whenever a listed child's identity, state, or summary changes.
+
+```ts
+interface DesktopPluginSubAgent {
+  readonly parentThreadId: string
+  readonly childThreadId: string
+  readonly agentPath: string | null
+  readonly nickname: string
+  readonly state: "working" | "waiting" | "done" | "failed" | "cancelled"
+  readonly summary: string | null
+}
+```
+
+`state` is a product reading, not the wire status. `waiting` means the child's active Turn needs approval or user input. `done` covers a completed or closed child. `summary` is a preview of the child's latest agent message, or `null` before Desktop has read one.
+
+
+`subagents.reveal(parentThreadId, childThreadId)` opens the parent thread's Subagents tab with that child selected.
+
+### Navigation
+
+`navigation` opens product destinations. `openFile(path)` opens a workspace file in the Detail Panel file viewer. `openDetailPanel(tab)` opens the current thread's Detail Panel on `changes`, `plan`, or `subagents`. `openAutomation(automationId)` opens that automation in the Automations view. `openMainView` remains limited to the plugin's own main views.
 
 ### AppServer notifications
 

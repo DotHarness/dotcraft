@@ -2,15 +2,18 @@ import { useEffect, useState, type RefObject } from 'react'
 
 const MIN_GUTTER_PX = 48
 
-function hasRoomForRail(scrollEl: HTMLElement, column: HTMLElement): boolean {
+function hasRoomForRail(scrollEl: HTMLElement, column: HTMLElement, columnShift: number): boolean {
   const area = scrollEl.getBoundingClientRect()
   const zoom = scrollEl.offsetWidth > 0 ? area.width / scrollEl.offsetWidth : 1
-  return (column.getBoundingClientRect().left - area.left) / (zoom > 0 ? zoom : 1) >= MIN_GUTTER_PX
+  const gutter = (column.getBoundingClientRect().left - area.left) / (zoom > 0 ? zoom : 1)
+  const appliedShift = -(Number.parseFloat(getComputedStyle(column).left) || 0)
+  return gutter + appliedShift - columnShift >= MIN_GUTTER_PX
 }
 
 export function useRailGutter(
   scrollRef: RefObject<HTMLDivElement | null>,
-  columnRef: RefObject<HTMLDivElement | null>
+  columnRef: RefObject<HTMLDivElement | null>,
+  columnShift: number
 ): boolean {
   const [roomy, setRoomy] = useState(false)
 
@@ -22,7 +25,7 @@ export function useRailGutter(
     const measure = (): void => {
       frame ??= requestAnimationFrame(() => {
         frame = null
-        setRoomy(hasRoomForRail(scrollEl, column))
+        setRoomy(hasRoomForRail(scrollEl, column, columnShift))
       })
     }
     const resizes = new ResizeObserver(measure)
@@ -38,7 +41,7 @@ export function useRailGutter(
       styles.disconnect()
       window.removeEventListener('resize', measure)
     }
-  }, [columnRef, scrollRef])
+  }, [columnRef, columnShift, scrollRef])
 
   return roomy
 }
