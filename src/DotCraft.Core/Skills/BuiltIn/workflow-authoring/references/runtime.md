@@ -46,11 +46,13 @@ Pass either a prompt string or an object containing `prompt` and JSON-serializab
 - `phase`: explicit phase association; otherwise inherit the latest `phase()` call.
 - `schema`: JSON Schema for a structured result.
 - `model`: invocation-specific child model override.
-- `effort`: invocation-specific reasoning override; `xhigh` and `max` normalize to `extraHigh`.
+- `effort`: invocation-specific reasoning override; `xhigh` normalizes to `extraHigh` and `max` stays `max`.
 - `isolation`: `shared` or managed `worktree`.
 - `agentType`: a native Agent role name supplied by the current context.
 
 Use `model` or `agentType` only when the environment supplies an exact valid name. A Workflow child starts with fresh conversation context and does not inherit the parent's dialogue history.
+
+With `schema`, the child receives a `SubmitWorkflowResult` tool and finishes by submitting one value that matches the schema; a failed validation is returned to the child so it can correct the value. A child that ends without a valid submission contributes `null`.
 
 When using `schema`, ask for only the fields the next stage needs. Read the returned value only after checking it is not `null`. A stopped child or unrecoverable child execution failure contributes `null`; preserve the intended work ID so missing coverage remains visible.
 
