@@ -120,7 +120,8 @@ The optional first line `// @exec: {"timeout_ms": 60000, "max_output_tokens": 10
 limits. Only those two keys are accepted; `timeout_ms` is at most 3,600,000 and `max_output_tokens` at
 most 100,000, counted at 4 characters per token. Unknown keys, invalid JSON, or values outside these
 limits fail the call before execution. The pragma line is replaced by an empty line so stack trace
-line numbers match the submitted source.
+line numbers match the submitted source. The `timeout_ms` clock starts once the worker has accepted the program, so
+starting a cold worker does not count against it.
 
 ### 4.2 Description
 

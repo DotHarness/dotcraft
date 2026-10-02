@@ -33,7 +33,6 @@ internal sealed class CodeModeExecRuntime(CodeModeExecDependencies dependencies)
             return ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.InputInvalid, error), error);
 
         var stopwatch = Stopwatch.StartNew();
-        using var deadline = new PausableDeadline(program.Timeout, cancellationToken);
         CodeModeCellSession session;
         try
         {
@@ -47,6 +46,7 @@ internal sealed class CodeModeExecRuntime(CodeModeExecDependencies dependencies)
             return ToolExecutionResult.Failed(new ToolError(UnavailableErrorCode, ex.Message), ex.Message);
         }
 
+        using var deadline = new PausableDeadline(program.Timeout, cancellationToken);
         try
         {
             using var run = new CodeModeCellRun(dependencies, context, session, deadline, cancellationToken);

@@ -18,7 +18,7 @@ public sealed class CodeModeNestedDispatchTests
         _ = typeof(CommandLineArgs).Assembly;
         var workspace = Directory.CreateTempSubdirectory("codemode-").FullName;
         var recorder = new RecordingRecorder();
-        var approvals = new SlowRejectingApprovalService(TimeSpan.FromMilliseconds(1500));
+        var approvals = new SlowRejectingApprovalService(TimeSpan.FromMilliseconds(3000));
         var approvalEvaluator = new CommonToolApprovalEvaluator();
         approvalEvaluator.Bind(new DotCraft.Sessions.SessionScopedApprovalService(approvals));
         var dispatcher = new ToolDispatcher(approvalEvaluator: approvalEvaluator, recorder: recorder);
@@ -41,7 +41,7 @@ public sealed class CodeModeNestedDispatchTests
         var result = await exec.Binding.Runtime.InvokeAsync(context, new JsonObject
         {
             ["code"] = """
-                // @exec: {"timeout_ms": 1000}
+                // @exec: {"timeout_ms": 2000}
                 const [echoed, guarded] = await Promise.allSettled([tools.Echo({ value: 'hi' }), tools.Guarded({ value: 'x' })]);
                 text(echoed.value);
                 text(guarded.reason.message);
@@ -62,6 +62,35 @@ public sealed class CodeModeNestedDispatchTests
             Assert.Equal(ToolInvocationAudience.Model, started.Audience);
             Assert.Equal("turn_1", started.TurnId);
         });
+    }
+
+    [Fact]
+    public async Task WorkerStartup_DoesNotCountAgainstTheScriptTimeout()
+    {
+        _ = typeof(CommandLineArgs).Assembly;
+        var workspace = Directory.CreateTempSubdirectory("codemode-").FullName;
+        var dispatcher = new ToolDispatcher();
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([Registration("Echo", requiresApproval: false)], revision: 1);
+        await using var host = new CodeModeWorkerHost(new SlowStartProcessFactory(TimeSpan.FromMilliseconds(1500)), workspace, new CodeModeLimits());
+        var config = new AppConfig();
+        config.Tools.CodeMode.Mode = AppConfig.CodeModeSetting.On;
+        var finalizer = new CodeModeToolFinalizer(() => config, host, new CodeModeStore(), dispatcher);
+        var planning = new ToolPlanningContext("thread_1", null, workspace, Path.Combine(workspace, ".craft"), "agent", null, null, 1);
+        var exec = (await finalizer.FinalizeAsync(snapshot, planning)).Registrations.Single(static registration => registration.Definition.Name.Name == "exec");
+        var context = new ToolInvocationContext(
+            "thread_1", "turn_1", "call_exec", ToolInvocationAudience.Model, exec.Definition.Name,
+            exec.Definition.Id, exec.Binding.Id, 1, DateTimeOffset.UtcNow, WorkspacePath: workspace);
+
+        var result = await exec.Binding.Runtime.InvokeAsync(context, new JsonObject
+        {
+            ["code"] = """
+                // @exec: {"timeout_ms": 1000}
+                text('ready');
+                """
+        });
+
+        Assert.StartsWith("Script completed", result.Content);
+        Assert.Contains("ready", result.Content);
     }
 
     private static ToolRegistration Registration(string name, bool requiresApproval)
@@ -118,6 +147,15 @@ public sealed class CodeModeNestedDispatchTests
             ToolExecutionResult result,
             TimeSpan duration,
             CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+    }
+
+    private sealed class SlowStartProcessFactory(TimeSpan delay) : IManagedChildProcessFactory
+    {
+        public ManagedChildProcess Start(System.Diagnostics.ProcessStartInfo startInfo)
+        {
+            Thread.Sleep(delay);
+            return ManagedChildProcess.Start(startInfo);
+        }
     }
 
     private sealed class SlowRejectingApprovalService(TimeSpan delay) : IApprovalService
