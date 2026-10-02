@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.7.10 |
 | **Status** | Living |
-| **Date** | 2026-10-01 |
+| **Date** | 2026-10-02 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Machines over SSH](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md), [Session Import](../features/session-import.md), [Turn Navigation](../features/turn-navigation.md) |
 
@@ -477,11 +477,9 @@ A fullscreen renderer overlay that covers an embedded native view, such as an im
 
 Durable user-actionable result cards and available interactive Views remain outside collapsed Turn summaries. Collapsing intermediate work must not hide an action the user still needs or a completed result intended for direct review.
 
-The latest successful Dynamic Workflow launch in a Turn is one such durable result. When the launch
-immediately follows a visible assistant handoff message, Desktop keeps the message and Workflow card
-together outside the collapsed summary. The card follows the handoff text within the assistant
-message, followed by Turn completion content and then the message's standard copy, fork, and time
-footer. Failed Workflow launch attempts remain ordinary collapsible tool history.
+The latest successful Dynamic Workflow launch in a Turn is one such durable result: its card stays
+outside the collapsed summary, before the Turn's final assistant message. Failed Workflow launch
+attempts remain ordinary collapsible tool history.
 
 #### 5.8.1 Trusted Local Renderers
 

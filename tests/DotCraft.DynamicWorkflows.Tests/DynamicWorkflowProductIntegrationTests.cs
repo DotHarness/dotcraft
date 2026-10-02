@@ -95,7 +95,7 @@ public sealed class DynamicWorkflowProductIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task WorkflowStartSuccessHandsOffParentTurnWithExistingRunDetails()
+    public async Task WorkflowStartSuccessKeepsParentTurnRunningWithRunDetails()
     {
         var service = new RecordingWorkflowService();
 
@@ -106,7 +106,7 @@ public sealed class DynamicWorkflowProductIntegrationTests : IDisposable
             new AutoApproveApprovalService());
 
         Assert.True(result.Success, result.Error?.Message);
-        Assert.Equal(ToolExecutionDirective.TerminateTurn, result.Directive);
+        Assert.Equal(ToolExecutionDirective.Continue, result.Directive);
         Assert.Contains("\"runId\":\"run_start\"", result.Content);
         Assert.Contains("\"name\":\"review\"", result.Content);
         Assert.Contains("\"status\":\"running\"", result.Content);
@@ -141,7 +141,7 @@ public sealed class DynamicWorkflowProductIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task WorkflowResumeSuccessHandsOffParentTurn()
+    public async Task WorkflowResumeSuccessKeepsParentTurnRunning()
     {
         var service = new RecordingWorkflowService();
 
@@ -152,7 +152,7 @@ public sealed class DynamicWorkflowProductIntegrationTests : IDisposable
             new RejectingApprovalService());
 
         Assert.True(result.Success, result.Error?.Message);
-        Assert.Equal(ToolExecutionDirective.TerminateTurn, result.Directive);
+        Assert.Equal(ToolExecutionDirective.Continue, result.Directive);
         Assert.Contains("\"runId\":\"run_resume\"", result.Content);
         Assert.Equal(1, service.ResumeCalls);
     }

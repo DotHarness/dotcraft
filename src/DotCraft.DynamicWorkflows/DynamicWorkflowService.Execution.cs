@@ -278,7 +278,7 @@ public sealed partial class DynamicWorkflowService
                 new SubAgentSpawnOptions
                 {
                     AgentPrompt = childPrompt,
-                    TaskName = $"workflow_{operationId}",
+                    TaskName = $"workflow_{active.State.RunId}_{operationId}",
                     AgentNickname = label,
                     AgentRole = options["agentType"]?.GetValue<string>(),
                     RoleConfigs = roleConfigs,
@@ -288,6 +288,7 @@ public sealed partial class DynamicWorkflowService
                     MaxDepth = 1,
                     MaxConcurrentSubAgents = active.State.Limits.MaxConcurrency,
                     Purpose = "dynamicWorkflow",
+                    SilentCompletion = true,
                     ChildStarted = async (child, ct) =>
                     {
                         await JournalAsync(active, "agent.started", new JsonObject
@@ -466,22 +467,60 @@ public sealed partial class DynamicWorkflowService
             await UpdateStateAsync(active, state => state with { NotificationStatus = "queued" }, CancellationToken.None).ConfigureAwait(false);
             return;
         }
-        var content = active.State.Status == DynamicWorkflowStatuses.Succeeded
-            ? $"Dynamic workflow '{active.State.Name}' ({active.State.RunId}) completed. Result: {active.State.Result?.ToJsonString() ?? "null"}"
-            : $"Dynamic workflow '{active.State.Name}' ({active.State.RunId}) ended with status '{active.State.Status}': {active.State.Error}";
+        var (summary, content) = BuildParentNotification(active.State, store.GetRunDirectory(active.State.RunId));
         using var trigger = TurnTriggerScope.Set(new TurnTriggerInfo
         {
             Kind = "workflow",
             Label = active.State.Name,
             RefId = active.State.RunId
         });
-        var queued = await session.EnqueueTurnInputAsync(active.State.ParentThreadId, [new TextContent(content)], ct: CancellationToken.None).ConfigureAwait(false);
+        var queued = await session.EnqueueTurnInputAsync(
+            active.State.ParentThreadId,
+            [new TextContent(content)],
+            ct: CancellationToken.None,
+            inputSnapshot: new SessionInputSnapshot
+            {
+                DisplayText = summary,
+                NativeInputParts = [new SessionInputPart { Type = "text", Text = summary }],
+                MaterializedInputParts = [new SessionInputPart { Type = "text", Text = content }]
+            }).ConfigureAwait(false);
         await UpdateStateAsync(active, state => state with
         {
             NotificationStatus = "queued",
             NotificationInputId = queued.Id
         }, CancellationToken.None).ConfigureAwait(false);
         await session.TryStartNextQueuedTurnAsync(active.State.ParentThreadId, CancellationToken.None).ConfigureAwait(false);
+    }
+
+    internal static (string Summary, string Content) BuildParentNotification(DynamicWorkflowRun run, string runDirectory)
+    {
+        var outcome = run.Status switch
+        {
+            DynamicWorkflowStatuses.Succeeded => "finished",
+            DynamicWorkflowStatuses.Stopped => "was stopped",
+            _ => run.Status
+        };
+        var details = new JsonObject
+        {
+            ["runId"] = run.RunId,
+            ["name"] = run.Name,
+            ["status"] = run.Status,
+            ["runDirectory"] = runDirectory
+        };
+        if (run.Status == DynamicWorkflowStatuses.Succeeded)
+            details["result"] = run.Result?.DeepClone();
+        else
+            details["error"] = run.Error;
+        var summary = $"Workflow {run.Name} {outcome}.";
+        return (summary, $"""
+            {summary}
+            <system-reminder>
+            DotCraft sent this notification because a background workflow you launched reached a terminal state. It is not a message from the user.
+            <workflow_notification>
+            {details.ToJsonString()}
+            </workflow_notification>
+            </system-reminder>
+            """);
     }
 
     private async Task UpdateUsageAsync(ActiveRun active, long inputTokens, long outputTokens, CancellationToken cancellationToken) =>

@@ -56,6 +56,9 @@ public sealed class SubAgentThreadSource
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Purpose { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SilentCompletion { get; set; }
+
     public string ParentThreadId { get; set; } = string.Empty;
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -114,6 +117,8 @@ internal sealed class PersistedThreadSource
 internal sealed class PersistedSubAgentThreadSource
 {
     public string? Purpose { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SilentCompletion { get; init; }
     public string ParentThreadId { get; init; } = string.Empty;
     public string? ParentTurnId { get; init; }
     public string? SpawnCallId { get; init; }
@@ -153,6 +158,7 @@ internal static class PersistedThreadSourceCodec
                 SubAgent = new PersistedSubAgentThreadSource
                 {
                     Purpose = subAgent.Purpose,
+                    SilentCompletion = subAgent.SilentCompletion,
                     ParentThreadId = subAgent.ParentThreadId,
                     ParentTurnId = subAgent.ParentTurnId,
                     SpawnCallId = subAgent.SpawnCallId,
@@ -192,6 +198,7 @@ internal static class PersistedThreadSourceCodec
                 new SubAgentThreadSource
                 {
                     Purpose = subAgent.Purpose,
+                    SilentCompletion = subAgent.SilentCompletion,
                     ParentThreadId = subAgent.ParentThreadId,
                     ParentTurnId = subAgent.ParentTurnId,
                     SpawnCallId = subAgent.SpawnCallId,

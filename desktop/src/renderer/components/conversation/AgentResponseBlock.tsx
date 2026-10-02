@@ -206,38 +206,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
           i++
           continue
         }
-        const followingWorkflow = i + 1 < itemsToRender.length
-          && isSuccessfulWorkflowLaunchItem(itemsToRender[i + 1])
-            ? itemsToRender[i + 1]
-            : null
         const isFooterMessage = item.id === footerAgentMessageId
-        let afterContent = isFooterMessage ? turnCompletionContent : undefined
-        if (followingWorkflow) {
-          const { entries } = planToolRunRender([followingWorkflow], {
-            isRunning,
-            isTrailingRun: i + 2 >= itemsToRender.length
-          })
-          const workflowNodes = entries.map((entry, offset) =>
-            renderAggregatedEntry(
-              entry,
-              turn.threadId,
-              turn.id,
-              offset,
-              isRunning,
-              shellRuntimeScope,
-              `${keyPrefix}-workflow-handoff-${item.id}`
-            )
-          )
-          afterContent = (
-            <>
-              <div style={workflowHandoffToolStyle}>
-                <ToolRunStack>{workflowNodes}</ToolRunStack>
-              </div>
-              {isFooterMessage ? turnCompletionContent : undefined}
-            </>
-          )
-          i++
-        }
         nodes.push({
           kind: 'assistant',
           node: (
@@ -252,7 +221,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
               isLastTurn={isLastTurn}
               readOnly={readOnly}
               showFooter={isFooterMessage}
-              afterContent={afterContent}
+              afterContent={isFooterMessage ? turnCompletionContent : undefined}
             />
           )
         })
@@ -279,29 +248,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       i++
     }
 
-    return nodes
-  }
-
-  const renderPinnedSequences = (
-    sourceItems: ConversationItem[],
-    pinnedIndices: number[],
-    keyPrefix: string
-  ): ConversationRenderNode[] => {
-    const nodes: ConversationRenderNode[] = []
-    for (let position = 0; position < pinnedIndices.length; position++) {
-      const pinnedIndex = pinnedIndices[position]
-      const nextPinnedIndex = pinnedIndices[position + 1]
-      const isWorkflowHandoffPair =
-        nextPinnedIndex === pinnedIndex + 1
-        && sourceItems[pinnedIndex]?.type === 'agentMessage'
-        && isSuccessfulWorkflowLaunchItem(sourceItems[nextPinnedIndex])
-      const endIndex = isWorkflowHandoffPair ? nextPinnedIndex + 1 : pinnedIndex + 1
-      nodes.push(...renderItemSequence(
-        sourceItems.slice(pinnedIndex, endIndex),
-        `${keyPrefix}-${position}`
-      ))
-      if (isWorkflowHandoffPair) position++
-    }
     return nodes
   }
 
@@ -350,11 +296,11 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         ),
         'trimmed-history-intermediate'
       )
-      const pinnedTrimmedNodes = renderPinnedSequences(
-        beforeFinalItems,
-        Array.from(pinnedTrimmedIndices).sort((a, b) => a - b),
-        'trimmed-history-pinned'
-      )
+      const pinnedTrimmedNodes = Array.from(pinnedTrimmedIndices)
+        .sort((a, b) => a - b)
+        .flatMap((pinnedIndex, position) =>
+          renderItemSequence([beforeFinalItems[pinnedIndex]], `trimmed-history-pinned-${position}`)
+        )
       const trailingNodes = renderItemSequence(
         collapseSourceItems.slice(lastFinalAgentMessageIndex).filter(isTrimmedHistoryRenderableItem),
         'trimmed-history-trailing'
@@ -400,7 +346,9 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         ))
       }
 
-      const pinnedNodes = renderPinnedSequences(renderableItems, pinnedIndices, 'pinned')
+      const pinnedNodes = pinnedIndices.flatMap((pinnedIndex, position) =>
+        renderItemSequence([renderableItems[pinnedIndex]], `pinned-${position}`)
+      )
 
       hasActivitySummary = true
       renderNodes.push({
@@ -638,10 +586,6 @@ const toolRunStackStyle: CSSProperties = {
   gap: 'var(--conversation-tool-run-gap)'
 }
 
-const workflowHandoffToolStyle: CSSProperties = {
-  marginTop: 'var(--conversation-tool-run-gap)'
-}
-
 const toolEntryWithOutputsStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -774,11 +718,7 @@ function collectPinnedIntermediateIndices(items: ConversationItem[], beforeIndex
   const imageIndex = findLastImageGenerationIndexBefore(items, beforeIndex)
   if (imageIndex >= 0) indices.add(imageIndex)
   const workflowIndex = findLastSuccessfulWorkflowIndexBefore(items, beforeIndex)
-  if (workflowIndex >= 0) {
-    indices.add(workflowIndex)
-    const handoffIndex = findWorkflowHandoffMessageIndex(items, workflowIndex)
-    if (handoffIndex >= 0) indices.add(handoffIndex)
-  }
+  if (workflowIndex >= 0) indices.add(workflowIndex)
   return Array.from(indices).sort((a, b) => a - b)
 }
 
@@ -790,11 +730,7 @@ function collectTrimmedPinnedIntermediateIndices(items: ConversationItem[]): Set
   const imageIndex = findLastImageGenerationIndexBefore(items, items.length)
   if (imageIndex >= 0) indices.add(imageIndex)
   const workflowIndex = findLastSuccessfulWorkflowIndexBefore(items, items.length)
-  if (workflowIndex >= 0) {
-    indices.add(workflowIndex)
-    const handoffIndex = findWorkflowHandoffMessageIndex(items, workflowIndex)
-    if (handoffIndex >= 0) indices.add(handoffIndex)
-  }
+  if (workflowIndex >= 0) indices.add(workflowIndex)
   return indices
 }
 
@@ -842,17 +778,6 @@ function findLastSuccessfulWorkflowIndexBefore(
     if (isSuccessfulWorkflowLaunchItem(items[index])) return index
   }
   return -1
-}
-
-function findWorkflowHandoffMessageIndex(
-  items: ConversationItem[],
-  workflowIndex: number
-): number {
-  if (workflowIndex <= 0) return -1
-  const candidate = items[workflowIndex - 1]
-  return candidate.type === 'agentMessage' && (candidate.text ?? '').trim().length > 0
-    ? workflowIndex - 1
-    : -1
 }
 
 function isTrimmedHistoryRenderableItem(item: ConversationItem): boolean {

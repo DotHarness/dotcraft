@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.7.10 |
 | **Status** | Draft |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-02 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [SubAgent Core](subagents.md), [Tool Architecture](../architecture/tools-architecture.md), [Prompt Cache](../architecture/prompt-cache.md), [Model Options](model-options.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: define the runtime, persistence, AppServer control, and Desktop presentation contracts for
@@ -131,14 +131,16 @@ After persistence and worker launch, the tool returns immediately:
   "runId": "run_...",
   "name": "review-change",
   "status": "running",
-  "scriptPath": ".craft/workflows/runs/run_.../script.js"
+  "scriptPath": ".craft/workflows/runs/run_.../script.js",
+  "message": "The workflow runs in the background. ..."
 }
 ```
 
-After recording this successful tool result, AppServer completes the initiating parent Turn. The
-Workflow continues in the background, and its terminal state resumes the parent through the
-queued-turn contract in §8. A failed launch remains a normal tool error and does not complete the
-parent Turn, so the Agent may recover or retry.
+`message` tells the Agent that the result arrives later as a separate notification and that it should
+briefly tell the user what it launched and end the Turn without waiting for, polling, or predicting the
+result. The parent Turn continues normally after the launch; the Workflow runs in the background, and
+its terminal state resumes the parent through the queued-turn contract in §8. A failed launch remains a
+normal tool error, so the Agent may recover or retry.
 
 ## 4. JavaScript Runtime Contract
 
@@ -204,7 +206,9 @@ returns `null`, later stages for that item are skipped and its final result rema
 ### 5.1 Context and Policy
 
 Each `agent()` call creates a fresh native Session Core child thread with `forkTurns=none`. It waits for
-that child's current task to finish but does not inherit the parent conversation transcript. It
+that child's current task to finish but does not inherit the parent conversation transcript. Its task
+name is scoped to the run, so later runs in the same parent thread never collide with earlier children,
+and it uses silent completion: its result returns only to the script, never to the parent mailbox. It
 inherits the stable base instructions, workspace, permission policy, and effective model defaults of
 the parent invocation.
 
@@ -330,7 +334,7 @@ notification delivery, and error envelopes are defined by the AppServer Protocol
 
 There is no public Workflow start or definition CRUD method. New script execution still begins only
 through the model-visible `Workflow` tool and its approval contract. Protocol clients cannot bypass
-source validation, approval, or parent-Turn handoff.
+source validation, approval, or parent notification.
 
 ### 8.2 Status
 
@@ -444,9 +448,11 @@ Exactly one terminal notification is enqueued for `succeeded`, `failed`, or `sto
 }
 ```
 
-The queued turn carries the terminal status, workflow name, result or error summary, and references
-needed to inspect persisted details. If the parent thread is idle, Session Core starts the queued turn
-automatically. If it is busy, the notification waits in the existing FIFO queue. Journaled delivery
+The queued input displays a one-line summary such as `Workflow review finished.`. The model-visible
+content follows that line with a `<system-reminder>` block stating that DotCraft, not the user, sent the
+notification, and a `<workflow_notification>` JSON object carrying `runId`, `name`, `status`,
+`runDirectory`, and either `result` (succeeded) or `error`. If the parent thread is idle, Session Core
+starts the queued turn automatically. If it is busy, the notification waits in the existing FIFO queue. Journaled delivery
 state prevents duplicate continuation after reconnect or reconciliation.
 
 ## 9. Limits and Cancellation
@@ -487,7 +493,8 @@ its model-visible tools. Plugin installation or enablement does not implicitly a
 - in normal reasoning tiers, use `Workflow` only when the user, a slash command, or an active skill
   explicitly opts in;
 - in Ultra, proactively plan one or more workflows for substantive tasks when delegation provides a
-  useful independent or staged execution structure.
+  useful independent or staged execution structure; after a successful launch, briefly tell the user
+  what is running and end the Turn, then decide on any further phase when the notification arrives.
 
 The reminder never changes base instructions. `Workflow` and `SubmitWorkflowResult` keep stable model
 tool descriptions, schemas, identities, and order. Child model/effort overrides use the existing
@@ -511,11 +518,8 @@ The Workflow tool card:
 - does not show nested Agent operations, phase fractions, or a separate View button.
 
 A successful Workflow launch is a durable Turn result. Desktop keeps the latest successful launch
-card, together with an immediately preceding visible handoff message, outside the collapsed
-`Processed` summary. The Workflow card follows the handoff text inside the same assistant message;
-Turn completion content follows the card, and the message's standard copy, fork, and time footer
-remains last. Failed launch attempts retain normal tool-history behavior and do not become pinned
-results.
+card outside the collapsed `Processed` summary, in its own position before the Turn's final assistant
+message. Failed launch attempts retain normal tool-history behavior and do not become pinned results.
 
 Workflow tool construction and launch use dedicated lifecycle copy rather than the generic external-tool
 labels. After a successful launch in the currently visible parent thread, Desktop opens the corresponding

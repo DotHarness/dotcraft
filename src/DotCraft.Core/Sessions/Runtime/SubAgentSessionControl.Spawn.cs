@@ -115,6 +115,7 @@ public static partial class SubAgentSessionControl
         var source = ThreadSource.ForSubAgent(new SubAgentThreadSource
         {
             Purpose = NormalizeOptional(options.Purpose),
+            SilentCompletion = options.SilentCompletion,
             ParentThreadId = context.ParentThread.Id,
             ParentTurnId = context.ParentTurnId,
             RootThreadId = context.RootThreadId,

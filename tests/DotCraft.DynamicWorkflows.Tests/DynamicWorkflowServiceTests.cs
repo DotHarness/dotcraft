@@ -16,6 +16,32 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "dotcraft-workflow-service-tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void ParentNotification_ShowsSummaryAndMarksDetailsAsSystemContent()
+    {
+        var run = new DynamicWorkflowRun
+        {
+            RunId = "run_1",
+            AttemptId = "attempt_001",
+            Name = "review",
+            ParentThreadId = "thread_parent",
+            ParentTurnId = "turn_001",
+            ScriptPath = "script.js",
+            ScriptHash = "hash",
+            Status = DynamicWorkflowStatuses.Succeeded,
+            CreatedAt = DateTimeOffset.UnixEpoch,
+            Result = new JsonObject { ["findings"] = 2 }
+        };
+
+        var (summary, content) = DynamicWorkflowService.BuildParentNotification(run, "runs/run_1");
+
+        Assert.Equal("Workflow review finished.", summary);
+        Assert.StartsWith(summary + "\n<system-reminder>", content.ReplaceLineEndings("\n"));
+        Assert.Contains("\"result\":{\"findings\":2}", content);
+        Assert.Contains("\"runDirectory\":\"runs/run_1\"", content);
+        Assert.EndsWith("</system-reminder>", content);
+    }
+
+    [Fact]
     public async Task StartInline_RunsInBackgroundPersistsTerminalStateAndQueuesOnce()
     {
         _ = typeof(CommandLineArgs).Assembly;

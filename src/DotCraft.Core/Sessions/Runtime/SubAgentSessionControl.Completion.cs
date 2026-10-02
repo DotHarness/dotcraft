@@ -136,6 +136,7 @@ public static partial class SubAgentSessionControl
         var child = await sessionService.GetThreadAsync(childThreadId, ct).ConfigureAwait(false);
         var source = child.Source.SubAgent;
         if (source == null
+            || source.SilentCompletion
             || string.IsNullOrWhiteSpace(source.RootThreadId)
             || !AgentPath.TryParse(source.AgentPath, out var childPath)
             || string.IsNullOrWhiteSpace(childPath.ParentValue))

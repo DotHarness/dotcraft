@@ -59,6 +59,9 @@ public sealed class SubAgentSpawnOptions
     /// <summary>Optional stable purpose used by host integrations to specialize child behavior.</summary>
     public string? Purpose { get; set; }
 
+    /// <summary>When true, the host consumes the child's result and its completion is not posted to the parent mailbox.</summary>
+    public bool SilentCompletion { get; set; }
+
     /// <summary>Optional callback invoked after child creation and before its first Turn starts.</summary>
     public Func<SessionThread, CancellationToken, Task>? ChildCreated { get; set; }
 
