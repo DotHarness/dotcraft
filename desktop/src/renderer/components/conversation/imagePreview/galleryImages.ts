@@ -38,6 +38,15 @@ export function toolOutputImageKey(itemId: string, contentIndex: number): string
   return `${itemId}-image-${contentIndex}`
 }
 
+export function userImageKeys(messageId: string, sources: string[]): string[] {
+  const seen = new Map<string, number>()
+  return sources.map((source) => {
+    const occurrence = seen.get(source) ?? 0
+    seen.set(source, occurrence + 1)
+    return `${messageId}-attachment-${occurrence}-${source}`
+  })
+}
+
 export function collectConversationImages(
   turns: ConversationTurn[],
   options: { localFiles: boolean }
@@ -90,17 +99,17 @@ function userMessageImages(item: ConversationItem, localFiles: boolean): Gallery
   const projected = item.nativeInputParts ? projectInputParts(item.nativeInputParts) : null
   const dataUrls = projected?.imageDataUrls ?? item.imageDataUrls ?? []
   const refs = projected?.images ?? item.images ?? []
+  const localRefs = localFiles ? refs : []
+  const keys = userImageKeys(item.id, [...dataUrls, ...localRefs.map((ref) => ref.path)])
   return [
-    ...dataUrls.map((url) => ({ key: url, src: url })),
-    ...(localFiles
-      ? refs.map((ref) => ({
-          key: ref.path,
-          src: cachedLocalImageDataUrl(ref.path),
-          localPath: ref.path,
-          title: ref.fileName,
-          revealPath: ref.path
-        }))
-      : [])
+    ...dataUrls.map((url, index) => ({ key: keys[index], src: url })),
+    ...localRefs.map((ref, index) => ({
+      key: keys[dataUrls.length + index],
+      src: cachedLocalImageDataUrl(ref.path),
+      localPath: ref.path,
+      title: ref.fileName,
+      revealPath: ref.path
+    }))
   ]
 }
 

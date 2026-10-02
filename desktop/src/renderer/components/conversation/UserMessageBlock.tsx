@@ -7,7 +7,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
-import { loadLocalImageDataUrl, type GalleryImage } from './imagePreview/galleryImages'
+import { loadLocalImageDataUrl, userImageKeys, type GalleryImage } from './imagePreview/galleryImages'
 import { useImagePreview } from './imagePreview/useImagePreview'
 import { MessageCopyButton } from './MessageCopyButton'
 import {
@@ -94,13 +94,16 @@ export function UserMessageBlock({
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
   const hasImages = hydratedImages.length > 0
-  const galleryImages = useMemo<GalleryImage[]>(() => hydratedImages.map((image) => ({
-    key: image.absolutePath ?? image.url,
-    src: image.url,
-    localPath: image.absolutePath,
-    title: image.fileName,
-    revealPath: image.absolutePath
-  })), [hydratedImages])
+  const galleryImages = useMemo<GalleryImage[]>(() => {
+    const keys = userImageKeys(messageId ?? '', hydratedImages.map((image) => image.absolutePath ?? image.url))
+    return hydratedImages.map((image, index) => ({
+      key: keys[index],
+      src: image.url,
+      localPath: image.absolutePath,
+      title: image.fileName,
+      revealPath: image.absolutePath
+    }))
+  }, [hydratedImages, messageId])
   const displayText = stripSystemReminderBlocks(text)
   const segments = nativeInputParts != null && nativeInputParts.length > 0
     ? segmentsFromNativeInputParts(projected!.parts)

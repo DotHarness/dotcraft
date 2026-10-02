@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ConversationTurn } from '../types/conversation'
-import { collectConversationImages, galleryForImage } from '../components/conversation/imagePreview/galleryImages'
+import { collectConversationImages, galleryForImage, userImageKeys } from '../components/conversation/imagePreview/galleryImages'
 import {
   movedBeyondClickSlop,
   pinchImageZoom,
@@ -74,13 +74,24 @@ describe('conversation image gallery', () => {
   it('orders user attachments before the turn output and reveals only local saved images', () => {
     const images = collectConversationImages(turns, { localFiles: true })
     expect(images.map((image) => image.key)).toEqual([
-      'data:image/png;base64,VVNFUg==',
+      'user-1-attachment-0-data:image/png;base64,VVNFUg==',
       'gen-1-image-0',
       'remote-gen-image-0'
     ])
     expect(images[1].revealPath).toBe('C:/images/gen-1.png')
     expect(images[2].revealPath).toBeUndefined()
     expect(collectConversationImages(turns, { localFiles: false })[1].revealPath).toBeUndefined()
+  })
+
+  it('keeps repeated attachments at their own gallery positions', () => {
+    const url = 'data:image/png;base64,QQ=='
+    const repeated: ConversationTurn[] = [{
+      ...turns[0],
+      items: [{ id: 'user-2', type: 'userMessage', text: 'again', imageDataUrls: [url, url], createdAt: '2026-10-01T00:00:00.000Z' }]
+    }]
+    const conversation = collectConversationImages(repeated, { localFiles: true })
+    const [, second] = userImageKeys('user-2', [url, url])
+    expect(galleryForImage({ key: second, src: url }, [], () => conversation).index).toBe(1)
   })
 
   it('opens the clicked image inside the conversation gallery, else its local group', () => {
