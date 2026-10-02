@@ -97,6 +97,36 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
     }
 
     [Fact]
+    public void Parse_ReadsListsInAnyYamlLayout()
+    {
+        const string markdown = """
+            ---
+            name: "Research Agent"
+            tools:
+                allow:
+                    [
+                        ReadFile,
+                        "WebSearch"
+                    ]
+                agentControl: disabled
+            skills:
+                preload:
+                    - research
+            ---
+            Body
+            """;
+
+        var draft = AgentProfileDraftEditor.Parse(markdown);
+
+        Assert.Equal("Research Agent", draft.Name);
+        Assert.Equal("allowList", draft.ToolPolicyMode);
+        Assert.Equal(["ReadFile", "WebSearch"], draft.ToolsAllow);
+        Assert.Equal("disabled", draft.AgentControl);
+        Assert.Equal(["research"], draft.SkillsPreload);
+        Assert.Equal("Body", draft.RoleInstructions);
+    }
+
+    [Fact]
     public void ToMarkdown_OmitsDefaultSectionsButAlwaysEmitsPermissions()
     {
         var draft = new AgentProfileDraft { Name = "minimal", Description = "A minimal agent" };

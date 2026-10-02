@@ -179,3 +179,25 @@ describe('canonical profile names', () => {
     expect(() => parseProfile('---\nname: "unfinished\ndescription: Test\n---\nBody')).not.toThrow()
   })
 })
+
+describe('profile layouts', () => {
+  it('reads lists in any YAML layout', () => {
+    const parsed = parseProfile(`---
+name: "Research Agent"
+tools:
+    allow:
+        [
+            ReadFile,
+            "WebSearch"
+        ]
+    agentControl: disabled
+skills:
+    preload:
+        - research
+---
+Body`)
+    expect(parsed.tools).toEqual({ mode: 'allowList', allow: ['ReadFile', 'WebSearch'], deny: [], agentControl: 'disabled' })
+    expect(parsed.skills.preload).toEqual(['research'])
+    expect(parsed.roleInstructions).toBe('Body')
+  })
+})

@@ -1,5 +1,6 @@
 using System.Text.Json;
-using YamlDotNet.Serialization;
+using YamlDotNet.Core;
+using YamlDotNet.RepresentationModel;
 namespace DotCraft.Agents;
 
 /// <summary>
@@ -76,79 +77,73 @@ public static class AgentProfileDraftEditor
 
         draft.RoleInstructions = body.Trim();
 
-        string? section = null;
-        string? sub = null;
+        // Read as YAML, as AgentProfileStore does, so every valid layout of a key yields the same draft.
+        YamlMappingNode root;
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(frontmatter));
+            if (yaml.Documents.Count == 0 || yaml.Documents[0].RootNode is not YamlMappingNode map)
+                return draft;
+            root = map;
+        }
+        catch (YamlException)
+        {
+            return draft;
+        }
+
+        draft.Name = Scalar(root, "name") ?? string.Empty;
+        draft.Description = Scalar(root, "description") ?? string.Empty;
+
+        if (Child(root, "providerPreference") is { } preferenceNode)
+        {
+            draft.HasProviderPreference = true;
+            if (preferenceNode is YamlMappingNode preference)
+            {
+                draft.ProviderId = Scalar(preference, "providerId") ?? string.Empty;
+                draft.Model = Scalar(preference, "model") ?? string.Empty;
+                if (Child(preference, "reasoning") is YamlMappingNode reasoning)
+                {
+                    draft.ReasoningEnabled = Scalar(reasoning, "enabled") == "true";
+                    draft.ReasoningEffort = NonEmpty(Scalar(reasoning, "effort")) ?? "medium";
+                }
+                draft.Speed = NonEmpty(Scalar(preference, "speed")) ?? "standard";
+            }
+        }
+
         var hasToolsAllow = false;
         var hasToolsDeny = false;
-        foreach (var rawLine in frontmatter.Split('\n'))
+        if (Child(root, "tools") is YamlMappingNode tools)
         {
-            if (string.IsNullOrWhiteSpace(rawLine))
-                continue;
+            hasToolsAllow = Child(tools, "allow") is not null;
+            hasToolsDeny = Child(tools, "deny") is not null;
+            draft.ToolsAllow = List(tools, "allow");
+            draft.ToolsDeny = List(tools, "deny");
+            draft.AgentControl = NonEmpty(Scalar(tools, "agentControl")) ?? "full";
+        }
 
-            var indent = rawLine.Length - rawLine.TrimStart().Length;
-            var line = rawLine.Trim();
-            var ci = line.IndexOf(':');
-            if (ci < 0)
-                continue;
+        if (Child(root, "mcp") is YamlMappingNode mcp)
+        {
+            draft.McpServers = List(mcp, "servers");
+            if (Child(mcp, "tools") is YamlMappingNode mcpTools)
+            {
+                draft.McpToolsAllow = List(mcpTools, "allow");
+                draft.McpToolsDeny = List(mcpTools, "deny");
+            }
+        }
 
-            var key = line[..ci].Trim();
-            var val = line[(ci + 1)..].Trim();
+        if (Child(root, "skills") is YamlMappingNode skills)
+        {
+            draft.SkillsPreload = List(skills, "preload");
+            draft.SkillsAllow = List(skills, "allow");
+            draft.SkillsDeny = List(skills, "deny");
+        }
 
-            if (indent == 0)
-            {
-                section = null;
-                sub = null;
-                switch (key)
-                {
-                    case "name": draft.Name = new DeserializerBuilder().Build().Deserialize<string>(val) ?? string.Empty; break;
-                    case "description": draft.Description = new DeserializerBuilder().Build().Deserialize<string>(val) ?? string.Empty; break;
-                    case "providerPreference":
-                        draft.HasProviderPreference = true;
-                        section = key;
-                        break;
-                    case "tools" or "mcp" or "skills" or "permissions": section = key; break;
-                }
-            }
-            else if (indent == 2)
-            {
-                sub = null;
-                switch (section)
-                {
-                    case "providerPreference" when key == "providerId": draft.ProviderId = val; break;
-                    case "providerPreference" when key == "model": draft.Model = val; break;
-                    case "providerPreference" when key == "reasoning": sub = "providerReasoning"; break;
-                    case "providerPreference" when key == "speed": draft.Speed = string.IsNullOrEmpty(val) ? "standard" : val; break;
-                    case "tools" when key == "allow":
-                        hasToolsAllow = true;
-                        draft.ToolsAllow = ParseList(val);
-                        break;
-                    case "tools" when key == "deny":
-                        hasToolsDeny = true;
-                        draft.ToolsDeny = ParseList(val);
-                        break;
-                    case "tools" when key == "agentControl": draft.AgentControl = string.IsNullOrEmpty(val) ? "full" : val; break;
-                    case "mcp" when key == "servers": draft.McpServers = ParseList(val); break;
-                    case "mcp" when key == "tools": sub = "mcpTools"; break;
-                    case "skills" when key == "preload": draft.SkillsPreload = ParseList(val); break;
-                    case "skills" when key == "allow": draft.SkillsAllow = ParseList(val); break;
-                    case "skills" when key == "deny": draft.SkillsDeny = ParseList(val); break;
-                    case "permissions" when key == "approvalPolicy": draft.ApprovalPolicy = string.IsNullOrEmpty(val) ? "default" : val; break;
-                    case "permissions" when key == "requireApprovalOutsideWorkspace": draft.RequireApprovalOutsideWorkspace = val == "true"; break;
-                }
-            }
-            else if (indent >= 4 && section == "providerPreference")
-            {
-                if (sub == "providerReasoning")
-                {
-                    if (key == "enabled") draft.ReasoningEnabled = val == "true";
-                    else if (key == "effort") draft.ReasoningEffort = string.IsNullOrEmpty(val) ? "medium" : val;
-                }
-            }
-            else if (indent >= 4 && sub == "mcpTools")
-            {
-                if (key == "allow") draft.McpToolsAllow = ParseList(val);
-                else if (key == "deny") draft.McpToolsDeny = ParseList(val);
-            }
+        if (Child(root, "permissions") is YamlMappingNode permissions)
+        {
+            draft.ApprovalPolicy = NonEmpty(Scalar(permissions, "approvalPolicy")) ?? "default";
+            if (Child(permissions, "requireApprovalOutsideWorkspace") is not null)
+                draft.RequireApprovalOutsideWorkspace = Scalar(permissions, "requireApprovalOutsideWorkspace") == "true";
         }
 
         draft.ToolPolicyMode = hasToolsAllow ? "allowList" : hasToolsDeny ? "denyList" : "all";
@@ -284,17 +279,25 @@ public static class AgentProfileDraftEditor
         return -1;
     }
 
-    private static List<string> ParseList(string value)
+    private static YamlNode? Child(YamlMappingNode map, string key) =>
+        map.Children.TryGetValue(new YamlScalarNode(key), out var value) ? value : null;
+
+    private static string? Scalar(YamlMappingNode map, string key) =>
+        Child(map, key) is YamlScalarNode scalar ? scalar.Value : null;
+
+    private static string? NonEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
+
+    private static List<string> List(YamlMappingNode map, string key) => Child(map, key) switch
     {
-        var v = (value ?? string.Empty).Trim();
-        if (string.IsNullOrEmpty(v) || v == "[]")
-            return [];
-        var inner = v.TrimStart('[').TrimEnd(']');
-        return inner.Split(',')
-            .Select(x => x.Trim())
-            .Where(x => !string.IsNullOrEmpty(x))
-            .ToList();
-    }
+        YamlSequenceNode sequence => sequence.Children
+            .OfType<YamlScalarNode>()
+            .Select(item => item.Value)
+            .Where(value => !string.IsNullOrEmpty(value))
+            .Select(value => value!)
+            .ToList(),
+        YamlScalarNode { Value: { Length: > 0 } value } => [value],
+        _ => []
+    };
 
     private static string YamlList(IReadOnlyList<string> values) =>
         values.Count == 0 ? "[]" : $"[{string.Join(", ", values)}]";

@@ -75,8 +75,14 @@ export function createEmptyDraft(): ProfileDraft {
   }
 }
 
-function parseScalar(value: string): string {
-  try { return String(loadYaml(value) ?? '') } catch { return value }
+type YamlMap = Record<string, unknown>
+
+function isMap(value: unknown): value is YamlMap {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function scalarText(value: unknown): string {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? String(value) : ''
 }
 
 /** A persisted `interrupt` is the former name of `deny`. */
@@ -85,11 +91,10 @@ function parseApprovalPolicy(value: string): ApprovalPolicy {
   return (value || 'default') as ApprovalPolicy
 }
 
-function parseList(value: string): string[] {
-  const v = (value || '').trim()
-  if (!v || v === '[]') return []
-  const inner = v.replace(/^\[/, '').replace(/\]$/, '')
-  return inner.split(',').map((x) => x.trim()).filter(Boolean)
+function parseList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(scalarText).filter(Boolean)
+  const single = scalarText(value)
+  return single ? [single] : []
 }
 
 /** Parse the raw Markdown (frontmatter + body) returned by agent/profiles/read into a draft. */
@@ -101,83 +106,58 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
     draft.roleInstructions = text.trim()
     return draft
   }
-  const front = match[1]
   draft.roleInstructions = (match[2] || '').trim()
 
-  let section: string | null = null
-  let sub: string | null = null
-  let hasToolsAllow = false
-  let hasToolsDeny = false
-  const providerPreference: {
-    providerId?: string
-    model?: string
-    reasoning?: Partial<AgentProviderPreference['reasoning']>
-    speed?: ModelPreferenceSpeed
-  } = {}
-  let providerPreferenceHasRemovedOutput = false
-  for (const rawLine of front.split('\n')) {
-    if (!rawLine.trim()) continue
-    const indent = rawLine.length - rawLine.replace(/^\s+/, '').length
-    const line = rawLine.trim()
-    const ci = line.indexOf(':')
-    if (ci < 0) continue
-    const key = line.slice(0, ci).trim()
-    const val = line.slice(ci + 1).trim()
-    if (indent === 0) {
-      section = null
-      sub = null
-      if (key === 'name') draft.name = parseScalar(val)
-      else if (key === 'description') draft.description = parseScalar(val)
-      else if (key === 'providerPreference' || key === 'tools' || key === 'mcp' || key === 'skills' || key === 'permissions') section = key
-    } else if (indent === 2) {
-      sub = null
-      if (section === 'providerPreference' && key === 'providerId') providerPreference.providerId = val
-      else if (section === 'providerPreference' && key === 'model') providerPreference.model = val
-      else if (section === 'providerPreference' && key === 'reasoning') {
-        providerPreference.reasoning = {}
-        sub = 'providerReasoning'
-      } else if (section === 'providerPreference' && key === 'speed') {
-        providerPreference.speed = val as ModelPreferenceSpeed
+  // Read as YAML, as the Runtime does, so every valid layout of a key yields the same draft.
+  let front: unknown = null
+  try { front = loadYaml(match[1]) } catch { /* Malformed frontmatter states nothing. */ }
+  if (!isMap(front)) return draft
 
-      } else if (section === 'tools' && key === 'allow') {
-        hasToolsAllow = true
-        draft.tools.allow = parseList(val)
-      } else if (section === 'tools' && key === 'deny') {
-        hasToolsDeny = true
-        draft.tools.deny = parseList(val)
-      }
-      else if (section === 'tools' && key === 'agentControl') draft.tools.agentControl = (val || 'full') as AgentControl
-      else if (section === 'mcp' && key === 'servers') draft.mcp.servers = parseList(val)
-      else if (section === 'mcp' && key === 'tools') sub = 'mcpTools'
-      else if (section === 'skills' && key === 'preload') draft.skills.preload = parseList(val)
-      else if (section === 'skills' && key === 'allow') draft.skills.allow = parseList(val)
-      else if (section === 'skills' && key === 'deny') draft.skills.deny = parseList(val)
-      else if (section === 'permissions' && key === 'approvalPolicy') draft.permissions.approvalPolicy = parseApprovalPolicy(val)
-      else if (section === 'permissions' && key === 'requireApprovalOutsideWorkspace') draft.permissions.requireApprovalOutsideWorkspace = val === 'true'
-    } else if (indent >= 4) {
-      if (sub === 'providerReasoning') {
-        if (key === 'enabled' && (val === 'true' || val === 'false')) {
-          providerPreference.reasoning!.enabled = val === 'true'
-        }
-        else if (key === 'effort') providerPreference.reasoning!.effort = val as ModelPreferenceReasoningEffort
-        else if (key === 'output') providerPreferenceHasRemovedOutput = true
+  draft.name = scalarText(front.name)
+  draft.description = scalarText(front.description)
 
-      } else if (sub === 'mcpTools') {
-        if (key === 'allow') draft.mcp.toolsAllow = parseList(val)
-        else if (key === 'deny') draft.mcp.toolsDeny = parseList(val)
-      }
-    }
+  const tools = isMap(front.tools) ? front.tools : {}
+  draft.tools.allow = parseList(tools.allow)
+  draft.tools.deny = parseList(tools.deny)
+  draft.tools.agentControl = (scalarText(tools.agentControl) || 'full') as AgentControl
+  draft.tools.mode = 'allow' in tools ? 'allowList' : 'deny' in tools ? 'denyList' : 'all'
+
+  const mcp = isMap(front.mcp) ? front.mcp : {}
+  draft.mcp.servers = parseList(mcp.servers)
+  const mcpTools = isMap(mcp.tools) ? mcp.tools : {}
+  draft.mcp.toolsAllow = parseList(mcpTools.allow)
+  draft.mcp.toolsDeny = parseList(mcpTools.deny)
+
+  const skills = isMap(front.skills) ? front.skills : {}
+  draft.skills.preload = parseList(skills.preload)
+  draft.skills.allow = parseList(skills.allow)
+  draft.skills.deny = parseList(skills.deny)
+
+  const permissions = isMap(front.permissions) ? front.permissions : {}
+  draft.permissions.approvalPolicy = parseApprovalPolicy(scalarText(permissions.approvalPolicy))
+  if ('requireApprovalOutsideWorkspace' in permissions) {
+    draft.permissions.requireApprovalOutsideWorkspace = scalarText(permissions.requireApprovalOutsideWorkspace) === 'true'
   }
-  draft.tools.mode = hasToolsAllow ? 'allowList' : hasToolsDeny ? 'denyList' : 'all'
+
+  const preference = isMap(front.providerPreference) ? front.providerPreference : null
+  const reasoning = preference && isMap(preference.reasoning) ? preference.reasoning : null
+  const effort = scalarText(reasoning?.effort)
+  const speed = scalarText(preference?.speed)
   if (
-    !providerPreferenceHasRemovedOutput
-    && providerPreference.providerId
-    && providerPreference.model
-    && typeof providerPreference.reasoning?.enabled === 'boolean'
-    && ['low', 'medium', 'high', 'extraHigh', 'max', 'ultra'].includes(providerPreference.reasoning.effort ?? '')
-    && ['standard', 'fast'].includes(providerPreference.speed ?? '')
+    preference && reasoning
+    && !('output' in reasoning)
+    && scalarText(preference.providerId)
+    && scalarText(preference.model)
+    && typeof reasoning.enabled === 'boolean'
+    && ['low', 'medium', 'high', 'extraHigh', 'max', 'ultra'].includes(effort)
+    && ['standard', 'fast'].includes(speed)
   ) {
-    draft.providerPreference = providerPreference as AgentProviderPreference
+    draft.providerPreference = {
+      providerId: scalarText(preference.providerId),
+      model: scalarText(preference.model),
+      reasoning: { enabled: reasoning.enabled, effort: effort as ModelPreferenceReasoningEffort },
+      speed: speed as ModelPreferenceSpeed
+    }
   }
   return draft
 }
