@@ -73,7 +73,7 @@ public sealed class CodeModeSessionTests : IDisposable
             Assert.EndsWith("\n\nCode mode: `tools.Echo(args)` resolves to a string.", chatClient.Descriptions["Echo"]);
         }
         var execResult = Assert.IsType<FunctionResultContent>(chatClient.ExecResult);
-        Assert.StartsWith("Script completed", execResult.Result?.ToString());
+        Assert.True(execResult.Result?.ToString()?.StartsWith("Script completed") == true, execResult.Result?.ToString());
         Assert.Contains("echo:hi", execResult.Result?.ToString());
         var items = (await service.GetThreadAsync(thread.Id)).Turns.Single().Items;
         var execCall = Assert.Single(items, static item => item.Payload is ToolCallPayload { ToolName: "exec" });
