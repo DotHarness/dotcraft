@@ -71,7 +71,7 @@ public sealed class CodeModeNestedDispatchTests
         var workspace = Directory.CreateTempSubdirectory("codemode-").FullName;
         var dispatcher = new ToolDispatcher();
         var snapshot = new EffectiveToolSnapshotBuilder().Build([Registration("Echo", requiresApproval: false)], revision: 1);
-        await using var host = new CodeModeWorkerHost(new SlowStartProcessFactory(TimeSpan.FromMilliseconds(1500)), workspace, new CodeModeLimits());
+        await using var host = new CodeModeWorkerHost(new SlowStartProcessFactory(TimeSpan.FromMilliseconds(3000)), workspace, new CodeModeLimits());
         var config = new AppConfig();
         config.Tools.CodeMode.Mode = AppConfig.CodeModeSetting.On;
         var finalizer = new CodeModeToolFinalizer(() => config, host, new CodeModeStore(), dispatcher);
@@ -84,7 +84,7 @@ public sealed class CodeModeNestedDispatchTests
         var result = await exec.Binding.Runtime.InvokeAsync(context, new JsonObject
         {
             ["code"] = """
-                // @exec: {"timeout_ms": 1000}
+                // @exec: {"timeout_ms": 2000}
                 text('ready');
                 """
         });

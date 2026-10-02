@@ -24,6 +24,7 @@ public static class CodeModeWorkerRunner
         var running = new ConcurrentDictionary<Task, byte>();
         try
         {
+            await WarmUpAsync(connection, errorWriter).ConfigureAwait(false);
             await connection.WriteAsync(CodeModeProtocol.WorkerScope, CodeModeProtocol.Ready, null, cancellationToken).ConfigureAwait(false);
             while (await connection.ReadAsync(cancellationToken).ConfigureAwait(false) is { } frame)
             {
@@ -68,6 +69,36 @@ public static class CodeModeWorkerRunner
                 cell.Cancel("cancelled");
             try { await Task.WhenAll(running.Keys).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); }
             catch { }
+        }
+    }
+
+    private static async Task WarmUpAsync(ScriptProtocolConnection connection, StreamWriter errorWriter)
+    {
+        var limits = new CodeModeLimits();
+        try
+        {
+            var cell = new WorkerCell("warmup", new JsonObject
+            {
+                ["source"] = "",
+                ["tools"] = new JsonArray(),
+                ["limits"] = new JsonObject
+                {
+                    ["maxMemoryBytes"] = limits.MaxCellMemoryBytes,
+                    ["maxStatements"] = limits.MaxStatements,
+                    ["maxRecursionDepth"] = limits.MaxRecursionDepth,
+                    ["engineTimeoutMs"] = (long)limits.EngineTimeout.TotalMilliseconds,
+                    ["regexTimeoutMs"] = (long)limits.DefaultTimeout.TotalMilliseconds,
+                    ["maxOutputBytes"] = limits.MaxCellOutputBytes
+                }
+            });
+            var engine = ScriptEngineFactory.Create(cell.EngineLimits, cell.Token);
+            Install(engine, connection, cell);
+            engine.Execute(CodeModeWorkerBootstrap.Source);
+            await engine.EvaluateAsync("(async () => JSON.stringify(await Promise.all([1, 2].map(async (value) => ({ value })))))()", "warmup").ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            await errorWriter.WriteLineAsync(ex.ToString()).ConfigureAwait(false);
         }
     }
 
