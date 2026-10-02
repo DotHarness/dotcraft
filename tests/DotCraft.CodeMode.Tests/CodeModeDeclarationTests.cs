@@ -42,7 +42,7 @@ public sealed class CodeModeDeclarationTests
             "Code mode: `tools.mcp__docs__search(args)` resolves to `CallToolResult<{ count: number }>`.",
             CodeModeDeclarations.CallLine("mcp__docs__search", SearchDefinition()));
         Assert.Equal(
-            "Code mode: `tools.Exec(args)` resolves to `{ output: string; exitCode: number | null; truncated: boolean; outputPath?: string }`.",
+            "Code mode: `tools.Exec(args)` resolves to `{ sessionId: string; status: \"running\" | \"completed\" | \"failed\"; output: string; exitCode: number | null; truncated: boolean; outputPath?: string }`.",
             CodeModeDeclarations.CallLine("Exec", Definition(
                 new ToolDefinitionId(ToolSourceKind.CoreNative, "core-native", new SourceToolId("Exec")),
                 new ToolName(null, "Exec"),

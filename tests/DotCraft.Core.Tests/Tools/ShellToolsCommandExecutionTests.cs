@@ -105,6 +105,8 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
             return;
         }
         var command = JsonNode.Parse(result.StructuredContent!.Value.GetRawText())!;
+        Assert.Equal("term_test", command["sessionId"]!.GetValue<string>());
+        Assert.Equal("failed", command["status"]!.GetValue<string>());
         Assert.Equal("fake-output", command["output"]!.GetValue<string>());
         Assert.Equal(3, command["exitCode"]!.GetValue<int>());
         Assert.False(command["truncated"]!.GetValue<bool>());

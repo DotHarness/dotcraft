@@ -9,7 +9,7 @@ internal static class CodeModeDeclarations
     private const int MaxInlineShapeChars = 1_000;
 
     public const string CommandResultType =
-        "{ output: string; exitCode: number | null; truncated: boolean; outputPath?: string }";
+        "{ sessionId: string; status: \"running\" | \"completed\" | \"failed\"; output: string; exitCode: number | null; truncated: boolean; outputPath?: string }";
 
     public const string McpPreamble = """
         type TextContent = { type: "text"; text: string };

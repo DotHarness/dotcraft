@@ -11,7 +11,6 @@ namespace DotCraft.CodeMode;
 public static class CodeModeWorkerRunner
 {
     private const int MaxStoreValueBytes = 256 * 1024;
-    private const int MaxStoreBytes = 1024 * 1024;
 
     public static async Task<int> RunAsync(
         Stream input,
@@ -313,8 +312,8 @@ public static class CodeModeWorkerRunner
             if (Encoding.UTF8.GetByteCount(json) > MaxStoreValueBytes)
                 return $"store() value for '{key}' exceeds {MaxStoreValueBytes / 1024} KiB.";
             var previous = _store.TryGetValue(key, out var existing) ? Size(key, existing) : 0;
-            if (_storeBytes - previous + size > MaxStoreBytes)
-                return $"store() would exceed the {MaxStoreBytes / (1024 * 1024)} MiB store.";
+            if (_storeBytes - previous + size > CodeModeStore.MaxBytes)
+                return $"store() would exceed the {CodeModeStore.MaxBytes / (1024 * 1024)} MiB store.";
             _storeBytes += size - previous;
             _store[key] = json;
             _writes[key] = json;
@@ -344,7 +343,6 @@ public static class CodeModeWorkerRunner
             return new JsonObject { ["set"] = set, ["deleted"] = deleted };
         }
 
-        private static long Size(string key, string json) =>
-            Encoding.UTF8.GetByteCount(key) + Encoding.UTF8.GetByteCount(json);
+        private static long Size(string key, string json) => CodeModeStore.Size(key, json);
     }
 }

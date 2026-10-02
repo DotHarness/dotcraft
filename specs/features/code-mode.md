@@ -162,7 +162,7 @@ comments, `additionalProperties` as an index signature, enums and `const` as lit
 recursion guard that renders a repeated reference as `unknown`. An input type larger than 16,000
 characters renders as `unknown`. `R` follows §6: `CallToolResult<T>` for MCP tools, with `T` from the
 output schema; the output type for other tools with an output schema;
-`{ output: string; exitCode: number | null; truncated: boolean; outputPath?: string }` for command
+`{ sessionId: string; status: "running" | "completed" | "failed"; output: string; exitCode: number | null; truncated: boolean; outputPath?: string }` for command
 execution; otherwise `string`. One shared preamble defines `ContentBlock`, `TextContent`,
 `ImageContent`, and `CallToolResult` once when any nested tool is an MCP tool.
 
@@ -230,7 +230,7 @@ The value a nested Promise resolves to is:
 |------|-------|
 | Tool with an output schema | Its structured result. |
 | MCP tool | The complete `CallToolResult`, including `isError`. |
-| Command execution (`Exec`, `WriteStdin`) | `{ output, exitCode, truncated, outputPath? }`. The shell tools produce this object only for calls with the `codeMode` origin; direct calls and their items are unchanged. |
+| Command execution (`Exec`, `WriteStdin`) | `{ sessionId, status, output, exitCode, truncated, outputPath? }`; `sessionId` lets a program pass a still-running command to `WriteStdin`. The shell tools produce this object only for calls with the `codeMode` origin; direct calls and their items are unchanged. |
 | Any other tool | Its text result. |
 
 A failed dispatch rejects the Promise with an `Error` whose message is the stable error code and
@@ -264,7 +264,9 @@ output directory with its path included. Images are kept.
 `store` and `load` read and write a per-thread map of JSON values. Each cell sees a snapshot taken at
 start; its writes are merged by key when the cell completes successfully, and discarded when it fails.
 `load` returns a copy. Storing `undefined` deletes a key. A value is at most 256 KiB of JSON and the
-map at most 1 MiB; larger writes throw inside the program. The map lives in AppServer runtime state
+map at most 1 MiB; larger writes throw inside the program. The merge re-checks the 1 MiB cap against
+the current map, because concurrent cells start from separate snapshots; a merge that would exceed it
+saves none of the cell's writes, and the `exec` result says so. The map lives in AppServer runtime state
 for the thread and is not persisted across AppServer restarts.
 
 ## 9. Script Host and Worker

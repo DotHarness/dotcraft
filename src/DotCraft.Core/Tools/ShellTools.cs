@@ -270,6 +270,8 @@ public sealed class ShellTools
     {
         var result = new JsonObject
         {
+            ["sessionId"] = snapshot.SessionId,
+            ["status"] = snapshot.Status,
             ["output"] = snapshot.Output,
             ["exitCode"] = snapshot.ExitCode,
             ["truncated"] = snapshot.Truncated

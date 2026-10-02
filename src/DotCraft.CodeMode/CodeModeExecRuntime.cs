@@ -51,14 +51,12 @@ internal sealed class CodeModeExecRuntime(CodeModeExecDependencies dependencies)
         {
             using var run = new CodeModeCellRun(dependencies, context, session, deadline, cancellationToken);
             var outcome = await run.RunAsync().ConfigureAwait(false);
-            if (outcome is { Status: CodeModeProtocol.Completed, StoreWrites: { } writes })
-            {
-                dependencies.Store.Apply(
+            var storeRejected = outcome is { Status: CodeModeProtocol.Completed, StoreWrites: { } writes }
+                && !dependencies.Store.TryApply(
                     context.ThreadId,
                     writes["set"] as JsonObject ?? new JsonObject(),
                     (writes["deleted"] as JsonArray ?? []).Select(static key => key!.GetValue<string>()));
-            }
-            return BuildResult(context, program, outcome, run.Output, run.Calls, stopwatch.Elapsed);
+            return BuildResult(context, program, outcome, run.Output, run.Calls, storeRejected, stopwatch.Elapsed);
         }
         finally
         {
@@ -105,6 +103,7 @@ internal sealed class CodeModeExecRuntime(CodeModeExecDependencies dependencies)
         CodeModeCellOutcome outcome,
         IReadOnlyList<CodeModeOutputItem> output,
         IReadOnlyList<CodeModeNestedCall> calls,
+        bool storeRejected,
         TimeSpan elapsed)
     {
         var builder = new StringBuilder();
@@ -120,6 +119,10 @@ internal sealed class CodeModeExecRuntime(CodeModeExecDependencies dependencies)
         builder.Append("Output:");
         foreach (var item in output.Where(static item => item.Text is not null))
             builder.Append('\n').Append(item.Text);
+        if (storeRejected)
+            builder.Append("\nStore writes were not saved: the store would exceed ")
+                .Append(CodeModeStore.MaxBytes / (1024 * 1024))
+                .Append(" MiB.");
         if (outcome.Status == CodeModeProtocol.Failed)
         {
             builder.Append("\nScript error:\n").Append(outcome.Error ?? "The script failed.");
