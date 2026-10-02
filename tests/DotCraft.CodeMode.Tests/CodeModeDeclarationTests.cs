@@ -50,15 +50,16 @@ public sealed class CodeModeDeclarationTests
     }
 
     [Fact]
-    public void Declaration_FallsBackToUnknownForOversizedInputTypes()
+    public void Declaration_FallsBackToUnknownForOversizedTypes()
     {
         var properties = Enumerable.Range(0, 800).ToDictionary(index => $"property{index:D4}", _ => new { type = "string" });
         var declaration = CodeModeDeclarations.Declaration("Big", Definition(
             new ToolDefinitionId(ToolSourceKind.CoreNative, "test", new SourceToolId("Big")),
             new ToolName(null, "Big"),
+            new { type = "object", properties },
             new { type = "object", properties }));
 
-        Assert.Contains("  Big(args: unknown): Promise<string>;", declaration);
+        Assert.Contains("  Big(args: unknown): Promise<unknown>;", declaration);
     }
 
     private static ToolDefinition SearchDefinition() => Definition(

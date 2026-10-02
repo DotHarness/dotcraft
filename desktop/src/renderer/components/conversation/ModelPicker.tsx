@@ -200,15 +200,17 @@ export function ModelPicker({
   }
 
   useEffect(() => {
-    if (!open) {
-      setSecondary(null)
-      setView('panel')
-      setPopupShiftX(0)
-      setSubmenuShiftY(0)
-      setSubmenuMaxHeight(MAX_SUBMENU_HEIGHT)
-      cancelMenuAim()
-      return
-    }
+    if (open) return
+    setSecondary(null)
+    setView('panel')
+    setPopupShiftX(0)
+    setSubmenuShiftY(0)
+    setSubmenuMaxHeight(MAX_SUBMENU_HEIGHT)
+    cancelMenuAim()
+  }, [open, cancelMenuAim])
+
+  useEffect(() => {
+    if (!open) return
 
     const mainButtons = (): HTMLButtonElement[] =>
       Array.from(popupRef.current?.querySelectorAll<HTMLButtonElement>('[data-main-action]') ?? [])

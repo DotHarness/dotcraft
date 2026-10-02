@@ -306,6 +306,8 @@ Task isolation remains the business service's responsibility using that live ide
 Methods declared to return `ToolExecutionResult`, `Task<ToolExecutionResult>` or
 `ValueTask<ToolExecutionResult>` retain the result object through generated marshalling. The
 runtime envelope has no generated output schema, and a null envelope is `tool_result_invalid`.
+Methods returning `AIContent` or a collection of it return model content, not structured data, and
+also have no generated output schema.
 Ordinary return values retain their existing serialization behavior. An explicit business result,
 including an uncertain external outcome, MUST NOT be overwritten by the adapter.
 
