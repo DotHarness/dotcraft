@@ -23,7 +23,7 @@ internal static class RemoteModelSmoke
             options.ModelService = new(new Uri("https://models.example/model-service/"), "client-test");
             options.InitialModelServiceCatalog = new("consumer",
                 [new("primary", "Primary", ModelProviderProtocols.OpenAIChatCompletions,
-                    "https://upstream.example/v1", "apiKey", false, new(true))]);
+                    "https://upstream.example/v1", "apiKey", false, false, new(true))]);
             options.RefreshModelServiceCatalog = false;
         });
         using var host = builder.Build();
