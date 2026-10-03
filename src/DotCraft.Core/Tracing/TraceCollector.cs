@@ -83,6 +83,14 @@ public sealed partial class TraceCollector(TraceStore store) : IModelRuntimeDiag
                     Read<IReadOnlyList<PromptCachePointTraceEntry>>(properties, "points") ?? [],
                     Read<int?>(properties, "llmCallIndex"));
                 break;
+            case "prompt_cache.warm":
+                RecordPromptCacheWarm(
+                    sessionKey,
+                    Read<string>(properties, "outcome") ?? "unknown",
+                    Read<TokenUsageSnapshot?>(properties, "usage"),
+                    Read<string>(properties, "turnId"),
+                    Read<string>(properties, "failureReason"));
+                break;
             case "prompt_cache.request":
                 if (Read<PromptCacheRequestDiagnosticSnapshot>(properties, "request") is { } request)
                     RecordPromptCacheRequestSnapshot(sessionKey, request);

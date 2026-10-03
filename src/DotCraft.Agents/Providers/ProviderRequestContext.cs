@@ -4,7 +4,8 @@ namespace DotCraft.Agents;
 public enum ProviderRequestKind
 {
     Turn,
-    Compaction
+    Compaction,
+    CacheWarm
 }
 
 /// <summary>Provider-neutral identity for one model request.</summary>

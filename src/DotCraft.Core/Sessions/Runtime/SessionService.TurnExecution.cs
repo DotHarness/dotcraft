@@ -1415,6 +1415,7 @@ public sealed partial class SessionService
                             TryCompactAsync = (history, options, compactCt) =>
                                 TryCompactBeforeSamplingAsync(history, null, options, compactCt)
                         });
+                    using var promptCacheWarmingScope = PromptCacheWarmingScope.Begin();
                     using var guidanceScope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
                     {
                         ThreadId = threadId,

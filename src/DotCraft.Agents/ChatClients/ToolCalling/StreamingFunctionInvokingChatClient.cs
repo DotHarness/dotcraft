@@ -146,7 +146,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
         if (invocationHistory is not null) invocationHistory.LoopObserved = true;
         var originalMessages = messages.ToList();
         var requestContext = ProviderRequestContextScope.Current;
-        var providerHistoryBridge = requestContext?.CurrentIdentity.RequestKind is ProviderRequestKind.Compaction
+        var providerHistoryBridge = requestContext?.CurrentIdentity.RequestKind is ProviderRequestKind.Compaction or ProviderRequestKind.CacheWarm
             ? null
             : requestContext?.History
               ?? GetService(typeof(IProviderConversationHistory)) as IProviderConversationHistory;

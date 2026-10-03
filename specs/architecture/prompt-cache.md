@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.8.1 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-03 |
 | **Parent Specs** | [Session Core](session-core.md), [Prompt Composition](prompt-composition.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: define the per-protocol contract DotCraft must satisfy for the provider's prompt cache to hit, and the empirical hit-rate envelope each protocol is expected to deliver. This is a design document — it constrains what the runtime emits on the wire, not how it builds the request internally.
@@ -140,6 +140,31 @@ shaping is allowed to clone selected content blocks request-locally, but it is n
 the persisted thread rollout or rewrite the tool-use/tool-result pairing.
 
 The cache write that produced a segment counts as `cache_write_input_tokens` on that call and as `cached_input_tokens` on subsequent calls; both fields surface in trace.
+
+#### Cache keepalive during a turn
+
+A turn can sit between sampling requests for longer than the cache TTL: a long tool run, a SubAgent
+or workflow wait, or a pending approval. The next request then pays a full cache write for the whole
+prefix. While `PromptCaching.Warming` is enabled (default `true`), DotCraft refreshes the cache by
+replaying the turn's latest sampling request before the TTL runs out.
+
+1. **Eligibility.** Only a main agent sampling request on the `anthropic` protocol whose model
+   receives cache markers is armed. Maintenance forks, title generation, and other auxiliary requests
+   are never armed. A request whose total prompt (`input + cache read + cache write` from its usage)
+   is below 16,000 tokens is not worth refreshing and stops warming.
+2. **Replay.** The keepalive resends the latest sampling request through the same client chain below
+   tool invocation, with only `max_tokens` set to 1 and no retries. It reuses the breakpoints that
+   request committed instead of selecting new ones and commits nothing, so its provider-visible bytes
+   match the original request up to the last breakpoint.
+3. **Timing.** The keepalive fires at 90% of the TTL after the request it replays, leaving at least 10
+   seconds of margin, and re-arms after each successful refresh. If it fires later than halfway
+   between its due time and expiry, it stops, because a late refresh is a full-price cache write.
+4. **Lifetime.** Each new sampling request cancels the pending keepalive and any refresh in flight.
+   Warming ends when the turn ends, fails, or is cancelled, and after 60 minutes from the request that
+   armed it. It never runs while the thread is idle.
+5. **Accounting.** A keepalive is an auxiliary request of kind `cacheWarm`. Its usage is traced as its
+   own event and never counts toward the turn's token usage or context estimate. A failed keepalive
+   is traced and stops warming; it never fails the turn.
 
 Deferred discovery and provider-flat identity follow [Tool Architecture](tools-architecture.md#54-exposure).
 Anthropic native discovery adds `anthropic-beta: advanced-tool-use-2025-11-20`; discovered definitions

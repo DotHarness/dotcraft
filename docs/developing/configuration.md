@@ -257,6 +257,7 @@ are applied by compaction after the optional client budget.
 | `PromptCaching.ModelPatterns` | Case-insensitive model name fragments. Empty matches no models | `["claude"]` |
 | `PromptCaching.Placement` | Marker placement strategy. Currently only `ConversationTail` is supported | `ConversationTail` |
 | `PromptCaching.Ttl` | Anthropic cache TTL. Empty uses the default 5 minutes; `1h` requests the long cache | Empty |
+| `PromptCaching.Warming` | Refresh the Anthropic prompt cache while a turn waits on long tool runs or approvals, so the next request reuses the cache instead of writing it again | `true` |
 
 Deep-thinking adapter catalog files:
 

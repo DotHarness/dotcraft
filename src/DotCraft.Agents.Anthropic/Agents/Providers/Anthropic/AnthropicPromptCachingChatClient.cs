@@ -109,6 +109,15 @@ internal sealed class AnthropicPromptCachingChatClient : DelegatingChatClient
             preparedMessages.Add(message);
 
         var candidates = BuildCachePointCandidates(preparedMessages);
+        if (ProviderRequestContextScope.Current?.CurrentIdentity.RequestKind == ProviderRequestKind.CacheWarm)
+        {
+            ApplyCacheControl(
+                preparedMessages,
+                PromptCachePointSelector.SelectRemembered(candidates, state.GetHashes()),
+                cacheControl);
+            return (preparedMessages, preparedOptions, [], null, null, null, null);
+        }
+
         var selected = SelectCachePoints(state, candidates, keys.MaintenanceScope, insertedSystemMessage);
         ApplyCacheControl(preparedMessages, selected, cacheControl);
         var commitCachePoints = keys.MaintenanceScope is null;

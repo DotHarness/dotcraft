@@ -569,10 +569,14 @@ public sealed class AgentFactory : IAsyncDisposable
         // Default chain, outermost first:
         // TracingChatClient => StreamingFunctionInvokingChatClient => [DynamicToolInjectionChatClient]
         // => ImageContentSanitizingChatClient => [AnthropicDeferredToolCatalogChatClient]
-        // => [AnthropicDeferredToolLoadingChatClient]
+        // => [PromptCacheWarmingChatClient] => [AnthropicDeferredToolLoadingChatClient]
         // => provider-specific clients.
         var streamOptOutTools = BuildStreamOptOutToolNames(
             tools, deferredRegistry?.DeferredTools.Values);
+        var promptCaching = ctx.Config.PromptCaching;
+        var warmsPromptCache = promptCaching.Warming
+            && string.Equals(runtime.Protocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal)
+            && promptCaching.ShouldApply(runtime.Model);
         var pipelineContext = new ChatPipelineContext(ChatPipelineKind.Agent, ctx.CurrentThreadId)
         {
             Host = new ChatPipelineHostInputs
@@ -616,6 +620,8 @@ public sealed class AgentFactory : IAsyncDisposable
             ctx.EffectiveSpeed,
             ctx.Config.PromptCaching);
         IChatClient requestAdaptedChatClient = chatClientBuilder.Build();
+        if (warmsPromptCache)
+            requestAdaptedChatClient = new PromptCacheWarmingChatClient(requestAdaptedChatClient, promptCaching.ResolveTtl());
         if (deferredRegistry is { Mode: DeferredToolLoadingMode.Native }
             && string.Equals(runtime.Protocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal))
         {

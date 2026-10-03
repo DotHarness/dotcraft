@@ -317,6 +317,7 @@ internal static class OpenAIResponsesCodexMetadata
         {
             ProviderRequestKind.Turn => "turn",
             ProviderRequestKind.Compaction => "compaction",
+            ProviderRequestKind.CacheWarm => "cache_warm",
             _ => throw new ArgumentOutOfRangeException(nameof(requestKind), requestKind, null)
         };
 
