@@ -22,7 +22,7 @@ vi.mock('./usage', () => ({
 }))
 
 vi.mock('./settings', () => {
-  const settings = { visible: true, opacity: 80 }
+  const settings = { visible: true }
   return {
     getSettings: () => settings,
     subscribeSettings: () => () => undefined

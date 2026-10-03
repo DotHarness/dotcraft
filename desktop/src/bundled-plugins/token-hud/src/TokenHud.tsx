@@ -1,5 +1,5 @@
 import type { DesktopPluginSessionSnapshot, DesktopPluginSurfaceProps } from '@dotcraft/plugin'
-import { useEffect, useState, useSyncExternalStore, type CSSProperties, type JSX, type MouseEvent } from 'react'
+import { useEffect, useState, useSyncExternalStore, type JSX, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { stringsFor } from './i18n'
 import { getSettings, subscribeSettings } from './settings'
@@ -82,7 +82,6 @@ export function TokenHud({ host }: DesktopPluginSurfaceProps<'composer.status.tr
     <div
       className="token-hud"
       data-busy={session.busy ? 'true' : 'false'}
-      style={{ '--token-hud-opacity': settings.opacity / 100 } as CSSProperties}
       role="status"
       aria-live="off"
       aria-label={`${strings.hudLabel}: ${ariaParts.join(', ')}`}

@@ -1,6 +1,5 @@
 {
   "fields": [
-    { "key": "visible", "type": "bool", "defaultValue": true },
-    { "key": "opacity", "type": "number", "defaultValue": 80, "min": 20, "max": 100 }
+    { "key": "visible", "type": "bool", "defaultValue": true }
   ]
 }

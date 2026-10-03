@@ -2,7 +2,6 @@ import type { DesktopPluginSettings, DesktopPluginSettingsMutation } from '@dotc
 
 export interface TokenHudSettings {
   readonly visible: boolean
-  readonly opacity: number
 }
 
 let current: TokenHudSettings | null = null
@@ -36,12 +35,6 @@ export function setSettings(patch: Partial<TokenHudSettings>): TokenHudSettings 
   return current
 }
 
-export function previewSettings(patch: Partial<TokenHudSettings>): TokenHudSettings | null {
-  if (!current) return null
-  publish({ ...current, ...patch })
-  return current
-}
-
 export function subscribeSettings(listener: (settings: TokenHudSettings) => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
@@ -52,7 +45,7 @@ function mutationsOf(patch: Partial<TokenHudSettings>): DesktopPluginSettingsMut
 }
 
 function publish(next: TokenHudSettings): void {
-  if (current !== null && current.visible === next.visible && current.opacity === next.opacity) return
+  if (current !== null && current.visible === next.visible) return
   current = next
   for (const listener of listeners) listener(next)
 }

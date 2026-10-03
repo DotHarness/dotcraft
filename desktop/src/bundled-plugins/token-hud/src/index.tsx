@@ -1,7 +1,6 @@
 import type { DesktopPluginActivate, DesktopPluginIconProps } from '@dotcraft/plugin'
 import type { JSX } from 'react'
 import { TokenHud } from './TokenHud'
-import { TokenHudSettingsPage } from './TokenHudSettingsPage'
 import { stringsFor, translationsOf } from './i18n'
 import { getSettings, initializeSettings, setSettings } from './settings'
 import { startUsageFeed } from './usage'
@@ -34,14 +33,6 @@ export const activate: DesktopPluginActivate = async (host) => {
   host.ui.add('composer.status.trailing', TokenHud)
 
   return {
-    settingsPages: [
-      {
-        id: 'token-hud',
-        label: { default: 'Token HUD', translations: translationsOf('settingsLabel') },
-        icon: TokenHudIcon,
-        component: TokenHudSettingsPage
-      }
-    ],
     commands: [
       {
         id: 'toggle',
