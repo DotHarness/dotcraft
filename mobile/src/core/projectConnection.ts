@@ -4,6 +4,7 @@ import type {
   ItemDeltaNotification,
   ItemNotification,
   SessionThread,
+  ThreadConfiguration,
   ThreadRuntimeState,
   TurnNotification,
   UserInputResponseResult,
@@ -15,6 +16,7 @@ import { applyEvent, historyFromPages, restoreEchoes, type HistoryEvent, type Hi
 import { HTTP_REJECTED } from './pinned'
 import { PinnedSocketTransport, SocketOpenError } from './pinnedSocketTransport'
 import type { PinnedSockets, SocketEnd } from './sockets'
+import { applyChange, type ConfigChange } from './threadConfig'
 import { chatKey, type Action, type ChatSummary, type MobileState, type PendingRequest } from './state'
 import type { Store } from './store'
 
@@ -78,6 +80,7 @@ export class ProjectConnection {
   private readonly capturing = new Map<string, HistoryEvent[]>()
   private readonly lookedUp = new Set<string>()
   private profiles: AgentProfileEntry[] | null = null
+  private readonly catalogs = new Map<string, Promise<void>>()
 
   constructor(private readonly options: ProjectConnectionOptions) {}
 
@@ -134,6 +137,14 @@ export class ProjectConnection {
       streamingSupport: true,
       optOutNotifications: OPTED_OUT_NOTIFICATIONS,
     })
+    const capabilities = client.initializeResult?.capabilities
+    this.store.dispatch({
+      type: 'capabilities',
+      projectId: this.projectId,
+      canConfigure: capabilities?.configOverride === true,
+      canListModels: capabilities?.modelCatalogManagement === true,
+      canFork: capabilities?.threadFork === true,
+    })
     await this.loadThreads(client)
     this.readyValue = true
     await Promise.all(this.options.openThreads().map((threadId) => this.syncChat(threadId).catch(() => undefined)))
@@ -178,6 +189,11 @@ export class ProjectConnection {
       this.patch(threadId, { runtime: runtime ?? null, updatedAt: now(), ...(runtime?.running ? { lastTurnFailed: false } : {}) })
     })
     client.on('thread/started', ({ thread }) => this.threadSeen(thread))
+    client.on('thread/updated', ({ thread }) => {
+      if (thread.configuration && this.subscribed.has(thread.id)) {
+        this.store.dispatch({ type: 'chatConfig', key: this.key(thread.id), config: thread.configuration })
+      }
+    })
     client.on('thread/renamed', ({ threadId, displayName }) => {
       if (threadId && displayName) this.patch(threadId, { title: displayName })
     })
@@ -312,11 +328,18 @@ export class ProjectConnection {
       )
       this.threadSeen(thread)
       this.patch(threadId, { lastTurnFailed: !thread.runtime.running && turns.data[0]?.status === 'failed' })
-      this.store.dispatch({ type: 'detailLoaded', key, history, profileName })
+      this.store.dispatch({
+        type: 'detailLoaded',
+        key,
+        history,
+        profileName,
+        config: thread.configuration ?? null,
+        workspacePath: thread.workspacePath || null,
+      })
       this.dropAnswered(key, history.items)
     } catch (error) {
       const existing = this.store.getState().details[key]
-      if (existing) this.store.dispatch({ type: 'detailLoaded', key, history: existing.history, profileName: existing.profileName })
+      if (existing) this.store.dispatch({ type: 'detailLoaded', key, ...existing })
       throw error
     } finally {
       this.capturing.delete(threadId)
@@ -339,13 +362,20 @@ export class ProjectConnection {
     await this.client?.request('thread/unsubscribe', { threadId }).catch(() => undefined)
   }
 
-  async startThread(text: string): Promise<string> {
+  async startThread(text: string, config?: ThreadConfiguration): Promise<string> {
     const client = this.requireClient()
-    const { thread } = await client.request('thread/start', { identity: PHONE_IDENTITY })
+    const { thread } = await client.request('thread/start', { identity: PHONE_IDENTITY, ...(config ? { config } : {}) })
     const key = this.key(thread.id)
     this.threadSeen(thread)
     this.patch(thread.id, { title: thread.displayName ?? titleFrom(text) })
-    this.store.dispatch({ type: 'detailLoaded', key, history: { items: [], turns: [], echoes: [] }, profileName: null })
+    this.store.dispatch({
+      type: 'detailLoaded',
+      key,
+      history: { items: [], turns: [], echoes: [] },
+      profileName: null,
+      config: thread.configuration ?? null,
+      workspacePath: thread.workspacePath || null,
+    })
     await client.request('thread/subscribe', { threadId: thread.id })
     this.subscribed.add(thread.id)
     await this.send(thread.id, text)
@@ -382,6 +412,67 @@ export class ProjectConnection {
       this.store.dispatch({ type: 'echoDropped', key, clientId: clientUserMessageId })
       throw error
     }
+  }
+
+  loadModels(providerId: string | null): Promise<void> {
+    const client = this.requireClient()
+    const slot = providerId ?? ''
+    const known = this.catalogs.get(slot)
+    if (known) return known
+    const loading = this.fetchModels(client, providerId).catch((error: unknown) => {
+      this.catalogs.delete(slot)
+      throw error
+    })
+    this.catalogs.set(slot, loading)
+    return loading
+  }
+
+  private async fetchModels(client: DotCraftWireClient, providerId: string | null): Promise<void> {
+    const [catalog, providers] = await Promise.all([
+      client.request('model/list', { providerId }),
+      providerId === null && client.initializeResult?.capabilities?.providerManagement ? client.request('provider/list', {}) : null,
+    ])
+    if (catalog.providerId) {
+      this.store.dispatch({
+        type: 'catalog',
+        projectId: this.projectId,
+        providerId: catalog.providerId,
+        models: catalog.success === false ? [] : (catalog.models ?? []),
+        isDefault: providerId === null,
+      })
+    }
+    if (providers) {
+      this.store.dispatch({
+        type: 'providers',
+        projectId: this.projectId,
+        providers: (providers.providers ?? []).flatMap((provider) => (provider.id ? [{ id: provider.id, name: provider.displayName || provider.id }] : [])),
+      })
+    }
+  }
+
+  async updateConfig(threadId: string, change: ConfigChange): Promise<void> {
+    const client = this.requireClient()
+    const { thread } = await client.request('thread/read', { threadId })
+    const config = applyChange(thread.configuration ?? {}, change)
+    await client.request('thread/config/update', { threadId, config })
+    this.store.dispatch({ type: 'chatConfig', key: this.key(threadId), config })
+  }
+
+  async rename(threadId: string, displayName: string): Promise<void> {
+    await this.requireClient().request('thread/rename', { threadId, displayName })
+    this.patch(threadId, { title: displayName })
+  }
+
+  async fork(threadId: string): Promise<string> {
+    const { thread } = await this.requireClient().request('thread/fork', { threadId })
+    if (!thread) throw new Error('The fork response did not include a thread.')
+    this.threadSeen(thread)
+    return this.key(thread.id)
+  }
+
+  async archive(threadId: string): Promise<void> {
+    await this.requireClient().request('thread/archive', { threadId })
+    this.store.dispatch({ type: 'chatRemoved', key: this.key(threadId) })
   }
 
   async stop(threadId: string): Promise<void> {

@@ -1,4 +1,14 @@
-import { FakeComputer, sequenceId, type FakeComputerSeed, type FakeItem, type FakePending, type FakeProject, type FakeThread } from './fakeComputer'
+import {
+  FakeComputer,
+  sequenceId,
+  type FakeComputerSeed,
+  type FakeItem,
+  type FakePending,
+  type FakeProject,
+  type FakeProvider,
+  type FakeThread,
+} from './fakeComputer'
+import { MEADOW_PNG } from './images'
 
 export const STUDIO_FINGERPRINT = '3f9c1b0e5d2a4c7f8b6e1d0a9c3f5e7b2a4d6c8e0f1a3b5c7d9e2f4a6b8c0d1e'
 export const STUDIO_ADDRESSES = ['192.168.1.20', '100.101.102.103']
@@ -9,10 +19,13 @@ type Line =
   | { kind: 'user'; text: string }
   | { kind: 'assistant'; text: string }
   | { kind: 'reasoning'; seconds: number; text: string }
-  | { kind: 'ran'; command: string }
+  | { kind: 'ran'; command: string; output?: string }
   | { kind: 'read'; paths: string[] }
   | { kind: 'searched'; pattern: string }
   | { kind: 'edited'; files: { path: string; added: number; removed: number }[] }
+  | { kind: 'codeMode'; lines: Line[]; running?: boolean }
+  | { kind: 'image'; prompt: string }
+  | { kind: 'chart'; text: string }
 
 interface ChatSeed {
   id: string
@@ -27,9 +40,63 @@ interface ChatSeed {
   continuation: string
 }
 
+const RELEASE_REPLY = [
+  '### What it does',
+  '',
+  'The release script does **three things**, in order:',
+  '',
+  '1. Builds the app with `dotnet publish` for each runtime.',
+  '2. Signs the binaries and ~~uploads symbols~~ skips symbols for now.',
+  '3. Fills the notes from [the template](scripts/release-notes.md) inside [release.ps1](D:/Projects/dotcraft/scripts/release.ps1:42).',
+  '',
+  '- [x] Builds on Windows and Linux',
+  '- [ ] Mac signing still needs a certificate',
+  '',
+  '> It stops at the *first* failed step, so a half-published release never happens.',
+  '',
+  '```powershell',
+  './scripts/release.ps1 -Version 0.8.1 -Runtime win-x64,linux-x64 -SkipSymbols -OutputDirectory artifacts/release',
+  '```',
+  '',
+  '| Step | Time | Output |',
+  '|---|---:|---|',
+  '| Publish | 3 min | `artifacts/release/<rid>` |',
+  '| Sign | 40 s | signed executables and installers |',
+  '',
+  '---',
+  '',
+  'The full checklist is in the [publishing guide](https://example.com/docs/publishing).',
+].join('\n')
+
+const PUBLISH_COMMAND =
+  'dotnet publish src/App/App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o artifacts/release/win-x64'
+
+const PUBLISH_OUTPUT = [
+  '  Determining projects to restore...',
+  '  All projects are up-to-date for restore.',
+  '  Core -> D:\\Projects\\dotcraft\\src\\Core\\bin\\Release\\net10.0\\win-x64\\Core.dll',
+  '  App -> D:\\Projects\\dotcraft\\artifacts\\release\\win-x64\\',
+  'Build succeeded in 182.4s',
+].join('\n')
+
 const fileList = (prefix: string, count: number) => Array.from({ length: count }, (_, index) => `${prefix}/file-${index + 1}.ts`)
 
 const CHATS: ChatSeed[] = [
+  {
+    id: 'release-script',
+    title: 'Explain the release script',
+    project: 'dotcraft',
+    minutesAgo: 4,
+    lines: [
+      { kind: 'user', text: 'Walk me through @scripts/release.ps1 with $release-notes and try a Windows publish.' },
+      { kind: 'codeMode', lines: [{ kind: 'read', paths: ['scripts/release.ps1'] }, { kind: 'searched', pattern: 'Publish-Runtime' }] },
+      { kind: 'ran', command: PUBLISH_COMMAND, output: PUBLISH_OUTPUT },
+      { kind: 'chart', text: 'Publish time per runtime' },
+      { kind: 'image', prompt: 'A release banner with green hills' },
+      { kind: 'assistant', text: RELEASE_REPLY },
+    ],
+    continuation: 'Sure, here’s more detail.',
+  },
   {
     id: 'vite-upgrade',
     title: 'Upgrade Vite to 6.4',
@@ -171,6 +238,7 @@ const CHATS: ChatSeed[] = [
       { kind: 'user', text: 'Check every dialog in the lab for the shared header treatment.' },
       { kind: 'searched', pattern: 'ModalHeader' },
       { kind: 'read', paths: fileList('src/dialogs', 14) },
+      { kind: 'codeMode', running: true, lines: [{ kind: 'searched', pattern: 'DialogBadge' }] },
     ],
     stream:
       'Twelve of the fourteen dialogs use the shared header. The two that don’t are the color picker and the import sync dialog, and both draw a bare icon without the badge.',
@@ -236,6 +304,33 @@ const CHATS: ChatSeed[] = [
   },
 ]
 
+const EFFORTS = [
+  { effort: 'low', label: 'Low' },
+  { effort: 'medium', label: 'Medium' },
+  { effort: 'high', label: 'High' },
+  { effort: 'extraHigh', label: 'Extra High' },
+]
+
+const PROVIDERS: FakeProvider[] = [
+  {
+    id: 'studio',
+    displayName: 'Studio Gateway',
+    models: [
+      {
+        id: 'atlas-2',
+        reasoning: { supportsDisable: true, supportedEfforts: EFFORTS, defaultEffort: 'high', supportedOutputs: ['none', 'summary', 'full'], defaultOutput: 'full' },
+        speed: { supportedModes: ['standard', 'fast'], defaultMode: 'standard' },
+      },
+      {
+        id: 'atlas-2-mini',
+        reasoning: { supportsDisable: false, supportedEfforts: EFFORTS.slice(0, 3), defaultEffort: 'medium', supportedOutputs: ['full'], defaultOutput: 'full' },
+      },
+      { id: 'atlas-1' },
+    ],
+  },
+  { id: 'local', displayName: 'Local runtime', models: [{ id: 'quill-7b' }, { id: 'quill-14b' }] },
+]
+
 function iso(now: Date, minutesAgo: number, secondsOffset = 0): string {
   return new Date(now.getTime() - minutesAgo * 60_000 + secondsOffset * 1000).toISOString()
 }
@@ -246,18 +341,22 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
   let clock = 0
   let call = 0
   const items: FakeItem[] = []
-  const push = (type: string, payload: Record<string, unknown>, seconds = 1) => {
+  const push = (type: string, payload: Record<string, unknown>, seconds = 1, status = 'completed') => {
     const createdAt = iso(now, chat.minutesAgo + 1, clock)
     clock += seconds
-    items.push({ id: sequenceId('item', items.length + 1), turnId, type, status: 'completed', payload, createdAt, completedAt: iso(now, chat.minutesAgo + 1, clock) })
+    const completedAt = status === 'completed' ? iso(now, chat.minutesAgo + 1, clock) : null
+    items.push({ id: sequenceId('item', items.length + 1), turnId, type, status, payload, createdAt, completedAt })
   }
-  const tool = (toolName: string, args: Record<string, unknown>, structuredContent?: Record<string, unknown>) => {
+  const nextCall = () => {
     call += 1
-    const callId = sequenceId('call', call)
-    push('toolCall', { toolName, providerFlatName: toolName, callId, arguments: args })
-    push('toolResult', { toolName, providerFlatName: toolName, callId, result: 'ok', success: true, ...(structuredContent ? { structuredContent } : {}) })
+    return sequenceId('call', call)
   }
-  for (const line of chat.lines) {
+  const tool = (toolName: string, args: Record<string, unknown>, result: Record<string, unknown> = {}) => {
+    const callId = nextCall()
+    push('toolCall', { toolName, providerFlatName: toolName, callId, arguments: args })
+    push('toolResult', { toolName, providerFlatName: toolName, callId, result: 'ok', success: true, ...result })
+  }
+  const emit = (line: Line) => {
     switch (line.kind) {
       case 'user':
         push('userMessage', { text: line.text })
@@ -269,7 +368,7 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
         push('reasoningContent', { text: line.text }, line.seconds)
         break
       case 'ran':
-        tool('Exec', { command: line.command })
+        tool('Exec', { command: line.command }, line.output ? { result: line.output } : {})
         break
       case 'read':
         for (const path of line.paths) tool('ReadFile', { path })
@@ -280,14 +379,42 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
       case 'edited':
         for (const file of line.files) {
           tool('EditFile', { path: file.path }, {
-            kind: 'fileChange',
-            writeState: 'applied',
-            changes: [{ path: file.path, kind: 'update', additions: file.added, deletions: file.removed }],
+            structuredContent: {
+              kind: 'fileChange',
+              writeState: 'applied',
+              changes: [{ path: file.path, kind: 'update', additions: file.added, deletions: file.removed }],
+            },
           })
         }
         break
+      case 'codeMode': {
+        const callId = nextCall()
+        const wrapper = { toolName: 'CodeMode', providerFlatName: 'CodeMode', callId, arguments: { code: 'await tools.ReadFile({ path })' } }
+        if (line.running) {
+          push('toolCall', wrapper, 1, 'started')
+          for (const nested of line.lines) emit(nested)
+          break
+        }
+        push('toolCall', { ...wrapper, source: { kind: 'CoreNative', sourceId: 'code-mode' } })
+        for (const nested of line.lines) emit(nested)
+        push('toolResult', { toolName: 'CodeMode', providerFlatName: 'CodeMode', callId, result: 'done', success: true })
+        break
+      }
+      case 'image':
+        push('imageGeneration', { callId: nextCall(), status: 'completed', revisedPrompt: line.prompt, result: MEADOW_PNG, mediaType: 'image/png' }, 8)
+        break
+      case 'chart':
+        tool('NodeReplJs', { code: 'renderChart()' }, {
+          result: '',
+          contentItems: [
+            { type: 'text', text: line.text },
+            { type: 'image', dataBase64: MEADOW_PNG, mediaType: 'image/png' },
+          ],
+        })
+        break
     }
   }
+  for (const line of chat.lines) emit(line)
   if (chat.pending) {
     const { kind, ...payload } = chat.pending
     push(kind === 'approval' ? 'approvalRequest' : 'userInputRequest', payload)
@@ -330,6 +457,7 @@ function studioSeed(now: Date, options: StudioOptions = {}): FakeComputerSeed {
     running,
     cantStart: options.cantStart?.includes(id) ?? false,
     lastActiveAt: iso(now, minutesAgo),
+    path: `D:/Projects/${id}`,
     threads: chats.filter((entry) => entry.chat.project === id).map((entry) => entry.thread),
   })
   return {
@@ -346,6 +474,7 @@ function studioSeed(now: Date, options: StudioOptions = {}): FakeComputerSeed {
     credentials: { [DEMO_CREDENTIAL]: 'dev_demo' },
     pairingCodes: ['demo-code'],
     profiles: [{ id: 'reviewer', name: 'Reviewer' }],
+    providers: PROVIDERS,
   }
 }
 

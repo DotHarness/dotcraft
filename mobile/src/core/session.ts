@@ -1,3 +1,4 @@
+import type { ThreadConfiguration } from '@dotcraft/sdk/contracts'
 import { Reconnector, systemTimers, type Timers } from './backoff'
 import { GatewayClient, GatewayError, GatewayUnreachableError, isUnauthorized } from './gateway'
 import { LiveSession, type LiveNotifier } from './liveSession'
@@ -16,6 +17,7 @@ import {
   type PersistedState,
 } from './state'
 import { createStore, type Store } from './store'
+import type { ConfigChange } from './threadConfig'
 
 export interface CredentialStore {
   get(): Promise<string | null>
@@ -405,6 +407,31 @@ export class MobileSession {
     await this.connection(projectId).stop(threadId)
   }
 
+  async rename(key: string, title: string): Promise<void> {
+    const { projectId, threadId } = this.split(key)
+    await this.connection(projectId).rename(threadId, title)
+  }
+
+  async fork(key: string): Promise<string> {
+    const { projectId, threadId } = this.split(key)
+    return await this.connection(projectId).fork(threadId)
+  }
+
+  async archive(key: string): Promise<void> {
+    const { projectId, threadId } = this.split(key)
+    await this.connection(projectId).archive(threadId)
+  }
+
+  async updateConfig(key: string, change: ConfigChange): Promise<void> {
+    const { projectId, threadId } = this.split(key)
+    await this.connection(projectId).updateConfig(threadId, change)
+  }
+
+  async loadModels(projectId: string, providerId: string | null = null): Promise<void> {
+    const connection = this.connections.get(projectId)
+    if (connection?.ready) await connection.loadModels(providerId)
+  }
+
   decide(key: string, requestId: string, decision: ApprovalDecision): void {
     const { projectId, threadId } = this.split(key)
     this.connections.get(projectId)?.decide(threadId, requestId, decision)
@@ -440,9 +467,9 @@ export class MobileSession {
     return false
   }
 
-  async newChat(projectId: string, text: string): Promise<string> {
+  async newChat(projectId: string, text: string, config?: ThreadConfiguration): Promise<string> {
     if (!(await this.startProject(projectId))) throw new CantStartProjectError()
-    return await this.connection(projectId).startThread(text)
+    return await this.connection(projectId).startThread(text, config)
   }
 
   async removeComputer(): Promise<void> {

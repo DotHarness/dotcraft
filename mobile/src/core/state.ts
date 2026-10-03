@@ -1,7 +1,7 @@
-import type { ThreadRuntimeState, UserInputQuestion } from '@dotcraft/sdk/contracts'
+import type { ModelCatalogItem, ThreadConfiguration, ThreadRuntimeState, UserInputQuestion } from '@dotcraft/sdk/contracts'
 import { chatState, needsYou, type ChatState } from './chatState'
 import type { RelayInfo } from './gateway'
-import { applyEvent, emptyHistory, type ChatHistory, type Echo, type HistoryEvent } from './history'
+import { applyEvent, emptyHistory, type ChatHistory, type Echo, type HistoryEvent, type HistoryItem } from './history'
 import type { PairingOffer } from './pairing'
 
 export interface ComputerRecord {
@@ -41,6 +41,17 @@ export interface ChatDetail {
   loading: boolean
   history: ChatHistory
   profileName: string | null
+  config: ThreadConfiguration | null
+  workspacePath: string | null
+}
+
+export interface ProjectModels {
+  canConfigure: boolean
+  canListModels: boolean
+  canFork: boolean
+  defaultProviderId: string | null
+  providers: { id: string; name: string }[]
+  catalogs: Record<string, ModelCatalogItem[]>
 }
 
 export type PendingRequest =
@@ -79,6 +90,7 @@ export interface MobileState {
   chats: Record<string, ChatSummary>
   details: Record<string, ChatDetail>
   pending: Record<string, PendingRequest[]>
+  models: Record<string, ProjectModels>
   pairing: PairingState
 }
 
@@ -109,7 +121,18 @@ export type Action =
   | { type: 'chatPatched'; key: string; patch: Partial<Omit<ChatSummary, 'key' | 'projectId' | 'threadId'>> }
   | { type: 'chatRemoved'; key: string }
   | { type: 'detailLoading'; key: string }
-  | { type: 'detailLoaded'; key: string; history: ChatHistory; profileName: string | null }
+  | {
+      type: 'detailLoaded'
+      key: string
+      history: ChatHistory
+      profileName: string | null
+      config: ThreadConfiguration | null
+      workspacePath: string | null
+    }
+  | { type: 'chatConfig'; key: string; config: ThreadConfiguration }
+  | { type: 'capabilities'; projectId: string; canConfigure: boolean; canListModels: boolean; canFork: boolean }
+  | { type: 'catalog'; projectId: string; providerId: string; models: ModelCatalogItem[]; isDefault: boolean }
+  | { type: 'providers'; projectId: string; providers: ProjectModels['providers'] }
   | { type: 'history'; key: string; event: HistoryEvent }
   | { type: 'echo'; key: string; echo: Echo }
   | { type: 'echoDropped'; key: string; clientId: string }
@@ -133,6 +156,7 @@ export function initialState(): MobileState {
     chats: {},
     details: {},
     pending: {},
+    models: {},
     pairing: { step: 'idle' },
   }
 }
@@ -154,6 +178,7 @@ function cleared(state: MobileState): MobileState {
     chats: {},
     details: {},
     pending: {},
+    models: {},
   }
 }
 
@@ -162,6 +187,11 @@ function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T
   const next = { ...record }
   delete next[key]
   return next
+}
+
+function patchModels(state: MobileState, projectId: string, patch: Partial<ProjectModels>): MobileState {
+  const current = state.models[projectId] ?? { canConfigure: false, canListModels: false, canFork: false, defaultProviderId: null, providers: [], catalogs: {} }
+  return { ...state, models: { ...state.models, [projectId]: { ...current, ...patch } } }
 }
 
 function patchDetail(state: MobileState, key: string, update: (history: ChatHistory) => ChatHistory): MobileState {
@@ -239,7 +269,7 @@ export function reducer(state: MobileState, action: Action): MobileState {
         ...state,
         details: {
           ...state.details,
-          [action.key]: detail ? { ...detail, loading: true } : { loading: true, history: emptyHistory(), profileName: null },
+          [action.key]: detail ? { ...detail, loading: true } : { loading: true, history: emptyHistory(), profileName: null, config: null, workspacePath: null },
         },
       }
     }
@@ -248,9 +278,30 @@ export function reducer(state: MobileState, action: Action): MobileState {
         ...state,
         details: {
           ...state.details,
-          [action.key]: { loading: false, history: action.history, profileName: action.profileName },
+          [action.key]: {
+            loading: false,
+            history: action.history,
+            profileName: action.profileName,
+            config: action.config,
+            workspacePath: action.workspacePath,
+          },
         },
       }
+    case 'chatConfig': {
+      const detail = state.details[action.key]
+      return detail ? { ...state, details: { ...state.details, [action.key]: { ...detail, config: action.config } } } : state
+    }
+    case 'capabilities':
+      return patchModels(state, action.projectId, { canConfigure: action.canConfigure, canListModels: action.canListModels, canFork: action.canFork })
+    case 'catalog': {
+      const current = state.models[action.projectId]
+      return patchModels(state, action.projectId, {
+        catalogs: { ...current?.catalogs, [action.providerId]: action.models },
+        ...(action.isDefault ? { defaultProviderId: action.providerId } : {}),
+      })
+    }
+    case 'providers':
+      return patchModels(state, action.projectId, { providers: action.providers })
     case 'history':
       return patchDetail(state, action.key, (history) => applyEvent(history, action.event))
     case 'echo':
@@ -340,8 +391,15 @@ export function projectsByRecentUse(state: Pick<MobileState, 'projects' | 'chats
   return [...state.projects].sort((left, right) => score(right) - score(left))
 }
 
+function withoutImageData(item: HistoryItem): HistoryItem {
+  if (item.type === 'imageGeneration') return { ...item, payload: { ...item.payload, result: undefined, imageDropped: true } }
+  const contentItems = item.payload.contentItems
+  if (!Array.isArray(contentItems)) return item
+  return { ...item, payload: { ...item.payload, contentItems: contentItems.filter((entry: { type?: string }) => entry.type !== 'image') } }
+}
+
 function trimmed(history: ChatHistory): ChatHistory {
-  const items = history.items.slice(-200)
+  const items = history.items.slice(-200).map(withoutImageData)
   const turnIds = new Set(items.map((item) => item.turnId))
   return { items, turns: history.turns.filter((turn) => turnIds.has(turn.id)), echoes: [] }
 }
@@ -353,7 +411,8 @@ export function persistable(state: MobileState): PersistedState {
     .sort((left, right) => byRecent(state.chats[left], state.chats[right]))
     .slice(0, 8)
   for (const key of keys) {
-    details[key] = { loading: false, history: trimmed(state.details[key].history), profileName: state.details[key].profileName }
+    const detail = state.details[key]
+    details[key] = { ...detail, loading: false, history: trimmed(detail.history) }
   }
   return {
     computer: state.computer,

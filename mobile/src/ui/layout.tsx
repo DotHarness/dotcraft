@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native'
+import { ScrollView, StyleSheet, View, type ScrollViewProps, type StyleProp, type ViewStyle } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { camera, metrics, useTheme } from './theme'
 
@@ -19,11 +19,11 @@ export function Screen({ children, tone = 'default', style }: { children: ReactN
   )
 }
 
-export function TopBar({ children, end = false }: { children?: ReactNode; end?: boolean }) {
-  return <View style={[styles.topBar, end && styles.topBarEnd]}>{children}</View>
+export function TopBar({ children }: { children?: ReactNode }) {
+  return <View style={styles.topBar}>{children}</View>
 }
 
-export function ScrollArea({ children, last = false }: { children: ReactNode; last?: boolean }) {
+export function ScrollArea({ children, last = false, onScroll }: { children: ReactNode; last?: boolean; onScroll?: ScrollViewProps['onScroll'] }) {
   const insets = useSafeAreaInsets()
   return (
     <ScrollView
@@ -31,6 +31,8 @@ export function ScrollArea({ children, last = false }: { children: ReactNode; la
       contentContainerStyle={[styles.scrollContent, { paddingBottom: last ? insets.bottom + 24 : 24 }]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
+      onScroll={onScroll}
+      scrollEventThrottle={onScroll ? 16 : undefined}
     >
       {children}
     </ScrollView>
@@ -50,7 +52,6 @@ export function Hero({ children }: { children: ReactNode }) {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   topBar: { flexDirection: 'row', alignItems: 'center', minHeight: 52, paddingVertical: 4, paddingHorizontal: 12 },
-  topBarEnd: { justifyContent: 'flex-end' },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: metrics.gutter },
   bottomBar: { flexDirection: 'row', gap: 10, paddingTop: 10, paddingHorizontal: metrics.gutter },

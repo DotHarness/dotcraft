@@ -5,53 +5,40 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useMobileState, useSession } from '../../app-state/SessionContext'
 import { isLive, type ChatState } from '../../core/chatState'
 import { CantStartProjectError } from '../../core/session'
-import { chatKey, computerStatus, isReachable, projectById, stateOf, type PendingRequest } from '../../core/state'
+import { chatKey, computerStatus, isReachable, projectById, stateOf, type PendingRequest, type ProjectModels } from '../../core/state'
+import { controlsOf, startConfig, type ChatControls, type NewChatChoices } from '../../core/threadConfig'
 import { buildTranscript } from '../../core/transcript'
 import { useI18n } from '../../i18n'
+import { BAR_HEIGHT, BarButton, ChatBar } from '../chat/ChatBar'
+import { ChatMenu } from '../chat/ChatMenu'
 import { Composer } from '../chat/Composer'
+import { catalogItem, ComposerControls, type ControlChange } from '../chat/ComposerControls'
 import { ApprovalCard, ApprovalSheet, QuestionCard } from '../chat/RequestCards'
 import { TranscriptLine } from '../chat/Transcript'
 import { Screen } from '../layout'
-import { Mascot, MascotNote, MascotTransition, type MascotMoment } from '../mascot/Mascot'
-import { BackButton, ChatStateLine, Notice, PhoneButton, ReadOnlyNotice, Txt } from '../parts'
+import { Mascot, MascotNote, MascotTransition } from '../mascot/Mascot'
+import { Notice, PhoneButton, ReadOnlyNotice, StateMark, Txt } from '../parts'
 import { chatTitle } from '../rows'
 import { metrics, useTheme } from '../theme'
 import { chatHref } from './HomeScreen'
 
-function composerMoment(state: ChatState): MascotMoment {
-  if (state === 'running') return 'working'
-  if (state === 'needs-approval' || state === 'needs-answer') return 'question'
-  return state === 'failed' ? 'sad' : 'idle'
-}
-
-function ChatBar({ title, meta, profile, onBack }: { title: string; meta: ReactNode; profile?: string | null; onBack: () => void }) {
-  const { colors } = useTheme()
-  return (
-    <View style={[styles.chatBar, { borderBottomColor: colors.borderSubtle }]}>
-      <BackButton onPress={onBack} />
-      {profile ? <Mascot moment="idle" profile={profile} size={28} /> : null}
-      <View style={styles.chatBarText}>
-        <Txt accessibilityRole="header" numberOfLines={1} style={styles.chatTitle}>
-          {title}
-        </Txt>
-        <View style={styles.chatMeta}>{meta}</View>
-      </View>
-    </View>
-  )
-}
-
-function Dot() {
-  return (
-    <Txt variant="meta" tone="secondary" accessibilityElementsHidden importantForAccessibility="no">
-      ·
-    </Txt>
-  )
-}
-
 function Dock({ children }: { children: ReactNode }) {
   const { colors } = useTheme()
   const insets = useSafeAreaInsets()
-  return <View style={[styles.dock, { paddingBottom: insets.bottom + 4, backgroundColor: colors.bgPrimary }]}>{children}</View>
+  return <View style={[styles.dock, { paddingBottom: insets.bottom + 6, backgroundColor: colors.bgPrimary }]}>{children}</View>
+}
+
+function useModels(projectId: string, ready: boolean, providerId: string | null): ProjectModels | undefined {
+  const session = useSession()
+  const models = useMobileState().models[projectId]
+  const listable = ready && models?.canListModels === true
+  const loaded = providerId ? Boolean(models?.catalogs[providerId]) : false
+  useEffect(() => {
+    if (!listable) return
+    void session.loadModels(projectId).catch(() => undefined)
+    if (providerId && !loaded) void session.loadModels(projectId, providerId).catch(() => undefined)
+  }, [listable, loaded, projectId, providerId, session])
+  return models
 }
 
 export function ChatScreen({ projectId, threadId }: { projectId: string; threadId: string }) {
@@ -61,6 +48,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const router = useRouter()
   const { t } = useI18n()
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const scroller = useRef<ScrollView>(null)
   const pinned = useRef(true)
 
@@ -85,87 +73,93 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const transcript = useMemo(() => (detail ? buildTranscript(detail.history) : []), [detail])
   const catchingUp = live && (detail ? detail.loading && detail.history.items.length === 0 : true)
   const profile = chat?.profileId ? (detail?.profileName ?? chat.profileId) : null
+  const configured = controlsOf(detail?.config)
+  const models = useModels(projectId, ready, configured.providerId)
+  const controls: ChatControls = { ...configured, providerId: configured.providerId ?? models?.defaultProviderId ?? null }
 
   if (!computer) return <Screen>{null}</Screen>
   const title = chat ? chatTitle(chat, t('chat.untitled')) : t('chat.untitled')
+  const stoppable = live && isLive(chatState)
+
+  const change = (next: ControlChange) => {
+    if (next.kind !== 'model') return session.updateConfig(key, next)
+    if (!next.model) return Promise.resolve()
+    return session.updateConfig(key, { ...next, model: next.model, catalog: catalogItem(models, next.providerId, next.model) })
+  }
 
   return (
     <Screen>
       <KeyboardAvoidingView style={styles.fill} behavior="padding">
-        <ChatBar
-          title={title}
-          profile={profile}
-          onBack={() => router.back()}
-          meta={
-            <>
-              {profile ? (
-                <>
-                  <Txt variant="meta" tone="secondary" numberOfLines={1}>
-                    {profile}
-                  </Txt>
-                  <Dot />
-                </>
+        <View style={styles.fill}>
+          {catchingUp ? (
+            <MascotTransition line={t('chat.catchingUp')} />
+          ) : (
+            <ScrollView
+              ref={scroller}
+              style={styles.fill}
+              contentContainerStyle={[styles.transcript, !live && { paddingBottom: 16 + 34 }]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              scrollEventThrottle={64}
+              onScroll={({ nativeEvent }) => {
+                const { contentSize, contentOffset, layoutMeasurement } = nativeEvent
+                pinned.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 48
+              }}
+              onContentSizeChange={() => {
+                if (pinned.current) scroller.current?.scrollToEnd({ animated: false })
+              }}
+            >
+              {!online ? <ReadOnlyNotice status={status} computer={computer.name} /> : null}
+              {online && project && !running ? (
+                <Notice
+                  icon="info"
+                  action={
+                    <PhoneButton
+                      variant="outline"
+                      compact
+                      loading={state.phases[projectId] === 'starting'}
+                      disabled={status !== 'online'}
+                      onPress={() => void session.startProject(projectId)}
+                    >
+                      {t('notice.start')}
+                    </PhoneButton>
+                  }
+                >
+                  {state.phases[projectId] === 'cantStart'
+                    ? t('project.cantStart', { computer: computer.name, project: project.name })
+                    : t('notice.projectStopped', { project: project.name, computer: computer.name })}
+                </Notice>
               ) : null}
-              <Txt variant="meta" tone="secondary" numberOfLines={1}>
-                {project?.name ?? ''}
-              </Txt>
-              <Dot />
-              <ChatStateLine state={chatState} live={live} />
-            </>
-          }
-        />
-
-        {!online ? <ReadOnlyNotice status={status} computer={computer.name} style={styles.screenNotice} /> : null}
-        {online && project && !running ? (
-          <Notice
-            icon="info"
-            style={styles.screenNotice}
-            action={
-              <PhoneButton
-                variant="outline"
-                compact
-                loading={state.phases[projectId] === 'starting'}
-                disabled={status !== 'online'}
-                onPress={() => void session.startProject(projectId)}
-              >
-                {t('notice.start')}
-              </PhoneButton>
+              {transcript.length === 0 && detail && !detail.loading ? (
+                <MascotNote moment="greeting" profile={profile}>
+                  {t('newChat.runsOn', { computer: computer.name, project: project?.name ?? '' })}
+                </MascotNote>
+              ) : null}
+              {transcript.map((entry, index) => (
+                <TranscriptLine
+                  key={entry.id}
+                  entry={entry}
+                  previous={transcript[index - 1]}
+                  caret={live && chatState === 'running' && index === transcript.length - 1 && entry.kind === 'assistant'}
+                  workspacePath={detail?.workspacePath ?? null}
+                />
+              ))}
+            </ScrollView>
+          )}
+          <ChatBar
+            title={title}
+            project={project?.name ?? ''}
+            computer={computer.name}
+            status={status}
+            onBack={() => router.back()}
+            trailing={
+              <>
+                {chatState === 'running' ? <StateMark state={chatState} live={live} /> : null}
+                <BarButton icon="ellipsisVertical" label={t('chat.menu')} onPress={() => setMenuOpen(true)} />
+              </>
             }
-          >
-            {state.phases[projectId] === 'cantStart'
-              ? t('project.cantStart', { computer: computer.name, project: project.name })
-              : t('notice.projectStopped', { project: project.name, computer: computer.name })}
-          </Notice>
-        ) : null}
-
-        {catchingUp ? (
-          <MascotTransition line={t('chat.catchingUp')} />
-        ) : (
-          <ScrollView
-            ref={scroller}
-            style={styles.fill}
-            contentContainerStyle={[styles.transcript, !live && { paddingBottom: 16 + 34 }]}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            scrollEventThrottle={64}
-            onScroll={({ nativeEvent }) => {
-              const { contentSize, contentOffset, layoutMeasurement } = nativeEvent
-              pinned.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 48
-            }}
-            onContentSizeChange={() => {
-              if (pinned.current) scroller.current?.scrollToEnd({ animated: false })
-            }}
-          >
-            {transcript.map((entry, index) => (
-              <TranscriptLine
-                key={entry.id}
-                entry={entry}
-                previous={transcript[index - 1]}
-                caret={live && chatState === 'running' && index === transcript.length - 1 && entry.kind === 'assistant'}
-              />
-            ))}
-          </ScrollView>
-        )}
+          />
+        </View>
 
         {!catchingUp && live ? (
           <Dock>
@@ -187,9 +181,10 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
             ) : null}
             <Composer
               key={key}
+              computer={computer.name}
               running={isLive(chatState)}
               canSend={ready}
-              mascot={<Mascot moment={composerMoment(chatState)} profile={profile} size={36} />}
+              controls={<ComposerControls projectId={projectId} controls={controls} models={models} allowDefault={false} onChange={change} />}
               onSend={(text) => session.send(key, text)}
               onStop={() => void session.stop(key).catch(() => undefined)}
             />
@@ -208,8 +203,46 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
           }}
         />
       ) : null}
+      <ChatMenu
+        visible={menuOpen}
+        title={title}
+        ready={live && ready}
+        canFork={models?.canFork === true}
+        stoppable={stoppable}
+        onClose={() => setMenuOpen(false)}
+        onRename={(name) => void session.rename(key, name).catch(() => undefined)}
+        onFork={() => void session.fork(key).then((forked) => router.replace(chatHref(forked)), () => undefined)}
+        onArchive={() => {
+          router.back()
+          void session.archive(key).catch(() => undefined)
+        }}
+        onOpenProject={() => router.push({ pathname: '/project/[projectId]', params: { projectId } })}
+        onStop={() => void session.stop(key).catch(() => undefined)}
+      />
     </Screen>
   )
+}
+
+const UNTOUCHED: NewChatChoices = {
+  touched: {},
+  controls: { providerId: null, model: null, reasoning: 'default', speed: 'standard', approvalPolicy: 'prompt' },
+}
+
+function chosen(previous: NewChatChoices, change: ControlChange): NewChatChoices {
+  const { touched, controls } = previous
+  switch (change.kind) {
+    case 'model':
+      return {
+        touched: { approval: touched.approval, ...(change.model ? { model: true } : {}) },
+        controls: { ...controls, providerId: change.providerId, model: change.model, reasoning: 'default', speed: 'standard' },
+      }
+    case 'reasoning':
+      return { touched: { ...touched, reasoning: true }, controls: { ...controls, reasoning: change.value } }
+    case 'speed':
+      return { touched: { ...touched, speed: true }, controls: { ...controls, speed: change.speed } }
+    case 'approval':
+      return { touched: { ...touched, approval: true }, controls: { ...controls, approvalPolicy: change.policy } }
+  }
 }
 
 export function NewChatScreen({ projectId }: { projectId: string }) {
@@ -218,15 +251,19 @@ export function NewChatScreen({ projectId }: { projectId: string }) {
   const router = useRouter()
   const { t } = useI18n()
   const [phase, setPhase] = useState<'idle' | 'starting' | 'cantStart'>('idle')
+  const [choices, setChoices] = useState(UNTOUCHED)
   const project = projectById(state, projectId)
+  const ready = state.phases[projectId] === 'ready'
+  const models = useModels(projectId, ready, choices.controls.providerId)
   const computer = state.computer
   if (!computer || !project) return <Screen>{null}</Screen>
   const status = computerStatus(state)
+  const controls: ChatControls = { ...choices.controls, providerId: choices.controls.providerId ?? models?.defaultProviderId ?? null }
 
   async function send(text: string) {
     if (!project?.running) setPhase('starting')
     try {
-      const key = await session.newChat(projectId, text)
+      const key = await session.newChat(projectId, text, startConfig({ touched: choices.touched, controls }))
       router.replace(chatHref(key))
     } catch (error) {
       setPhase(error instanceof CantStartProjectError ? 'cantStart' : 'idle')
@@ -237,34 +274,38 @@ export function NewChatScreen({ projectId }: { projectId: string }) {
   return (
     <Screen>
       <KeyboardAvoidingView style={styles.fill} behavior="padding">
-        <ChatBar
-          title={t('newChat.title')}
-          onBack={() => router.back()}
-          meta={
-            <Txt variant="meta" tone="secondary" numberOfLines={1}>
-              {project.name}
-            </Txt>
-          }
-        />
         <View style={[styles.fill, styles.emptyBody]}>
           {phase === 'starting' ? (
             <MascotTransition line={t('project.starting', { project: project.name })} />
           ) : phase === 'cantStart' ? (
             <MascotNote moment="asleep">{t('project.cantStart', { computer: computer.name, project: project.name })}</MascotNote>
           ) : (
-            <Txt tone="secondary" style={styles.centered}>
-              {project.running
-                ? t('newChat.runsOn', { computer: computer.name, project: project.name })
-                : t('newChat.startsOn', { computer: computer.name, project: project.name })}
-            </Txt>
+            <View style={styles.greeting}>
+              <Mascot moment="greeting" size={72} />
+              <Txt tone="secondary" style={styles.centered}>
+                {project.running
+                  ? t('newChat.runsOn', { computer: computer.name, project: project.name })
+                  : t('newChat.startsOn', { computer: computer.name, project: project.name })}
+              </Txt>
+            </View>
           )}
+          <ChatBar title={t('newChat.title')} project={project.name} computer={computer.name} status={status} onBack={() => router.back()} />
         </View>
         <Dock>
           <Composer
+            computer={computer.name}
             running={false}
             autoFocus
             canSend={status === 'online' && phase !== 'starting'}
-            mascot={<Mascot moment="idle" size={36} />}
+            controls={
+              <ComposerControls
+                projectId={projectId}
+                controls={controls}
+                models={models}
+                allowDefault
+                onChange={async (change) => setChoices((previous) => chosen(previous, change))}
+              />
+            }
             onSend={send}
             onStop={() => undefined}
           />
@@ -276,21 +317,9 @@ export function NewChatScreen({ projectId }: { projectId: string }) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  chatBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingTop: 4,
-    paddingHorizontal: 12,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-  },
-  chatBarText: { flex: 1, minWidth: 0 },
-  chatTitle: { fontWeight: '600' },
-  chatMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0, overflow: 'hidden' },
-  screenNotice: { marginTop: 10, marginHorizontal: metrics.gutter },
-  transcript: { gap: 14, paddingTop: 16, paddingHorizontal: metrics.gutter, paddingBottom: 16 },
+  transcript: { gap: 14, paddingTop: BAR_HEIGHT + 20, paddingHorizontal: metrics.gutter, paddingBottom: 16 },
   dock: { gap: 10, paddingTop: 8, paddingHorizontal: metrics.gutter },
   emptyBody: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: metrics.gutter },
-  centered: { textAlign: 'center' },
+  greeting: { alignItems: 'center', gap: 14 },
+  centered: { textAlign: 'center', maxWidth: 300 },
 })

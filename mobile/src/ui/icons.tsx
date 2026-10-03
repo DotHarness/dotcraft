@@ -87,22 +87,6 @@ const ICONS = {
     ['path', { d: 'm15 10 5 5-5 5' }],
     ['path', { d: 'M4 4v7a4 4 0 0 0 4 4h12' }],
   ],
-  filePen: [
-    ['path', { d: 'M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34' }],
-    ['path', { d: 'M14 2v5a1 1 0 0 0 1 1h5' }],
-    ['path', { d: 'M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z' }],
-  ],
-  fileText: [
-    ['path', { d: 'M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z' }],
-    ['path', { d: 'M14 2v5a1 1 0 0 0 1 1h5' }],
-    ['path', { d: 'M10 9H8' }],
-    ['path', { d: 'M16 13H8' }],
-    ['path', { d: 'M16 17H8' }],
-  ],
-  terminal: [
-    ['path', { d: 'M12 19h8' }],
-    ['path', { d: 'm4 17 6-6-6-6' }],
-  ],
   triangleAlert: [
     ['path', { d: 'm21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3' }],
     ['path', { d: 'M12 9v4' }],
@@ -120,18 +104,114 @@ const ICONS = {
       },
     ],
   ],
+  bookOpen: [
+    ['path', { d: 'M12 7v14' }],
+    ['path', { d: 'M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z' }],
+  ],
+  pencil: [
+    ['path', { d: 'M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z' }],
+    ['path', { d: 'm15 5 4 4' }],
+  ],
+  globe: [
+    ['circle', { cx: 12, cy: 12, r: 10 }],
+    ['path', { d: 'M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20' }],
+    ['path', { d: 'M2 12h20' }],
+  ],
+  copy: [
+    ['rect', { width: 14, height: 14, x: 8, y: 8, rx: 2 }],
+    ['path', { d: 'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2' }],
+  ],
+  check: [['path', { d: 'M20 6 9 17l-5-5' }]],
+  ellipsisVertical: [
+    ['circle', { cx: 12, cy: 12, r: 1 }],
+    ['circle', { cx: 12, cy: 5, r: 1 }],
+    ['circle', { cx: 12, cy: 19, r: 1 }],
+  ],
+  file: [
+    ['path', { d: 'M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z' }],
+    ['path', { d: 'M14 2v5a1 1 0 0 0 1 1h5' }],
+  ],
+  image: [
+    ['rect', { width: 18, height: 18, x: 3, y: 3, rx: 2 }],
+    ['circle', { cx: 9, cy: 9, r: 2 }],
+    ['path', { d: 'm21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21' }],
+  ],
+  zap: [
+    [
+      'path',
+      { d: 'M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z' },
+    ],
+  ],
+  hand: [
+    ['path', { d: 'M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2' }],
+    ['path', { d: 'M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2' }],
+    ['path', { d: 'M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8' }],
+    ['path', { d: 'M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15' }],
+  ],
+  link: [
+    ['path', { d: 'M9 17H7A5 5 0 0 1 7 7h2' }],
+    ['path', { d: 'M15 7h2a5 5 0 1 1 0 10h-2' }],
+    ['line', { x1: 8, x2: 16, y1: 12, y2: 12 }],
+  ],
+  box: [
+    ['path', { d: 'M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z' }],
+    ['path', { d: 'm3.3 7 8.7 5 8.7-5' }],
+    ['path', { d: 'M12 22V12' }],
+  ],
+  squareTerminal: [
+    ['path', { d: 'm7 11 2-2-2-2' }],
+    ['path', { d: 'M11 13h4' }],
+    ['rect', { width: 18, height: 18, x: 3, y: 3, rx: 2 }],
+  ],
+  shieldAlert: [
+    [
+      'path',
+      { d: 'M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z' },
+    ],
+    ['path', { d: 'M12 8v4' }],
+    ['path', { d: 'M12 16h.01' }],
+  ],
+  circleStop: [
+    ['circle', { cx: 12, cy: 12, r: 10 }],
+    ['rect', { width: 6, height: 6, x: 9, y: 9, rx: 1 }],
+  ],
+  gitFork: [
+    ['circle', { cx: 12, cy: 18, r: 3 }],
+    ['circle', { cx: 6, cy: 6, r: 3 }],
+    ['circle', { cx: 18, cy: 6, r: 3 }],
+    ['path', { d: 'M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9' }],
+    ['path', { d: 'M12 12v3' }],
+  ],
+  archive: [
+    ['rect', { width: 20, height: 5, x: 2, y: 3, rx: 1 }],
+    ['path', { d: 'M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8' }],
+    ['path', { d: 'M10 12h4' }],
+  ],
 } satisfies Record<string, Shape[]>
 
 export type IconName = keyof typeof ICONS
 
-export function Icon({ name, size, color, strokeWidth = 1.8 }: { name: IconName; size: number; color: string; strokeWidth?: number }) {
+export function Icon({
+  name,
+  size,
+  color,
+  strokeWidth = 1.8,
+  fill = 'none',
+}: {
+  name: IconName
+  size: number
+  color: string
+  strokeWidth?: number
+  fill?: string
+}) {
   const shapes: Shape[] = ICONS[name]
   return (
     <Svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
+      style={{ flexShrink: 0 }}
+      fill={fill}
       stroke={color}
       strokeWidth={strokeWidth}
       strokeLinecap="round"

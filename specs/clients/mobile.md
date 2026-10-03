@@ -311,9 +311,9 @@ that supports user-input requests and streaming.
 | Screen | Content |
 |---|---|
 | Pair | Camera scan, the Allow confirmation, and a connected confirmation. |
-| Home | The computer with its status. **Needs you** lists every chat waiting on an approval or a question across running projects. **Projects** lists projects, marking those whose runtime is not running; **Recent** lists the other chats of running projects with a trailing state. Search over chat titles, and New chat, which asks for the project with the most recently used one first. |
+| Home | No screen title. A top row shows the computer, with the mascot as its avatar, its name, and its status, and Settings at the end; it stays in place while the lists scroll. **Needs you** lists every chat waiting on an approval or a question across running projects. **Projects** lists projects, marking those whose runtime is not running; **Recent** lists the other chats of running projects with a trailing state. Search over chat titles, and New chat, which asks for the project with the most recently used one first. |
 | Project | The project's chats, newest first, and New chat. Opening a project whose runtime is not running starts it; Home never starts a project by itself. |
-| Chat | The transcript, with tool activity collapsed to one line each and reasoning hidden behind a disclosure. A pending approval or question is pinned above the composer. While a turn runs the composer adds a message to it and a Stop control interrupts it. |
+| Chat | A floating top bar over the transcript: Back, the chat title with its project and computer, and a menu; the spinner beside the menu shows only while a turn runs, because a waiting request is already pinned above the composer. The transcript collapses each tool activity to one line and hides reasoning behind a disclosure; finished replies offer Copy. A pending approval or question is pinned above the composer. The composer card names the computer it works on and carries the approval policy and model controls; while a turn runs it adds a message to the turn and a Stop control interrupts it. |
 | Approval | The request's reason and the command or files it covers, with the Desktop decision labels **Allow once**, **Allow for session**, and **Reject**. |
 | Settings | The paired computer with Remove, Pair a different computer, and app information. |
 
@@ -333,7 +333,21 @@ list shows **failed** only for a chat whose failure the phone has seen.
 - Approvals answer `item/approval/request` with `accept`, `acceptForSession`, or `decline`. The phone
   never offers `acceptAlways`, because a permanent grant belongs on the computer.
 - Questions answer `item/tool/requestUserInput` with the chosen option or typed text.
-- The app never changes a thread's model, mode, approval policy, or configuration.
+- The chat menu offers the basic chat actions Desktop's chat menu has: Rename (`thread/rename`),
+  Fork (`thread/fork` into the same project, opening the copy), and Archive (`thread/archive`,
+  returning to the list), plus Open project and, while a turn runs, Stop. Worktree forks, pinning,
+  and actions that open things on the computer stay on Desktop.
+- The composer shows the chat's model, reasoning effort, speed, and approval policy (`prompt` or
+  `autoApprove`). Changing one sends the whole configuration with `thread/config/update`, which takes
+  effect from the next turn; New chat passes the chosen values in the `thread/start` configuration.
+  Models and their reasoning and speed options come from `model/list`, never from rules in the app,
+  and each control is hidden when the server lacks its capability. The phone never changes a chat's
+  mode or Agent Profile.
+- Replies render Markdown with the same GitHub-flavored rules as Desktop. A link to a local file shows
+  as a file chip with its name; tapping it shows the full path to copy, because the file stays on the
+  computer. Web links open the browser. File and skill references in user messages show as chips.
+- A tool activity line shows the tool kind's icon and fits one line, ending in an ellipsis; tapping it
+  shows the full command or target and its output.
 
 ### 8.4 Mascot
 
@@ -342,10 +356,10 @@ and motion match Desktop. It marks moments, not every screen:
 
 | Moment | Mascot |
 |---|---|
-| Home | Beside the computer row, reflecting the computer: idle when online, looking around while connecting, asleep when offline or when phone access is off, and holding up its question sign while anything needs you. |
+| Home | As the computer's avatar in the top row, aligned by its drawn shape rather than its box, reflecting the computer: idle when online, looking around while connecting, asleep when offline or when phone access is off, and holding up its question sign while anything needs you. |
 | Pair | Greets on the scan screen, waits while the phone reaches the computer, and celebrates once when pairing completes. |
 | Transitions | Opening a chat while history loads, a project starting, and reconnecting show the mascot working with one line saying what is happening, in place of skeleton rows. |
-| Chat | A small mascot beside the composer works while the turn runs and raises its question sign while the turn waits on the user. A chat that runs an Agent Profile shows that profile's name-derived avatar instead. |
+| Chat | A new chat's empty transcript greets with the mascot; a chat that runs an Agent Profile shows that profile's name-derived avatar there instead. The composer carries no mascot, so its controls keep the room. |
 | Empty and error states | Empty lists, the revoked notice, and the identity-changed notice pair one sentence with a matching expression. |
 
 The mascot is the original brand appearance; the phone does not read the Desktop pet's outfit.

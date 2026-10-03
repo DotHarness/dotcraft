@@ -46,7 +46,7 @@ export function Txt({
   return <Text {...props} style={[type[variant], { color }, style]} />
 }
 
-function Spinner({ size, color }: { size: number; color?: string }) {
+export function Spinner({ size, color }: { size: number; color?: string }) {
   const { colors } = useTheme()
   const [rotation] = useState(() => new Animated.Value(0))
   useEffect(() => {
@@ -68,9 +68,9 @@ function Spinner({ size, color }: { size: number; color?: string }) {
   )
 }
 
-function StatusIndicator({ tone }: { tone: 'success' | 'warning' | 'error' | 'neutral' | 'pending' }) {
+function StatusIndicator({ tone }: { tone: 'success' | 'neutral' | 'pending' }) {
   const { colors } = useTheme()
-  const fill = tone === 'success' ? colors.success : tone === 'warning' ? colors.warning : tone === 'error' ? colors.error : colors.textDimmed
+  const fill = tone === 'success' ? colors.success : colors.textDimmed
   return (
     <View style={styles.indicator}>
       {tone === 'pending' ? <Spinner size={14} /> : <View style={[styles.dot, { backgroundColor: fill }]} />}
@@ -123,20 +123,6 @@ export function ComputerStatusLine({ status, updatedAt }: { status: ComputerStat
       <StatusIndicator tone={status === 'online' ? 'success' : status === 'connecting' ? 'pending' : 'neutral'} />
       <Txt variant="meta" tone="secondary" numberOfLines={1} style={styles.shrink}>
         {label}
-      </Txt>
-    </View>
-  )
-}
-
-export function ChatStateLine({ state, live }: { state: ChatState; live: boolean }) {
-  const { t } = useI18n()
-  const tone = state === 'failed' ? 'error' : state === 'needs-approval' || state === 'needs-answer' ? 'warning' : 'neutral'
-  const label = t(STATE_LABEL[state])
-  return (
-    <View style={styles.statusLine}>
-      <StatusIndicator tone={state === 'running' && live ? 'pending' : tone} />
-      <Txt variant="meta" tone="secondary" numberOfLines={1} style={styles.shrink}>
-        {live || state === 'done' || state === 'failed' ? label : t('state.lastSynced', { state: label })}
       </Txt>
     </View>
   )
@@ -309,22 +295,6 @@ export function Section({ title, children }: { title: string; children: ReactNod
   )
 }
 
-function InlineText({ text, codeStyle }: { text: string; codeStyle: TextStyle }) {
-  return (
-    <>
-      {text.split(/(`[^`]+`)/g).map((part, index) =>
-        part.startsWith('`') && part.endsWith('`') && part.length > 1 ? (
-          <Text key={index} style={codeStyle}>
-            {part.slice(1, -1)}
-          </Text>
-        ) : (
-          <Text key={index}>{part}</Text>
-        ),
-      )}
-    </>
-  )
-}
-
 export function Caret() {
   const { colors } = useTheme()
   const [opacity] = useState(() => new Animated.Value(1))
@@ -339,50 +309,6 @@ export function Caret() {
     return () => loop.stop()
   }, [opacity])
   return <Animated.Text style={{ opacity, color: colors.textPrimary }}>{'▏'}</Animated.Text>
-}
-
-export function RichText({ text, trailing }: { text: string; trailing: ReactNode }) {
-  const { colors } = useTheme()
-  const codeStyle: TextStyle = { ...type.code, backgroundColor: colors.bgTertiary, borderRadius: 5 }
-  const blocks: ({ kind: 'p'; text: string } | { kind: 'ul'; items: string[] })[] = []
-  for (const line of text.split('\n')) {
-    if (line.startsWith('- ')) {
-      const last = blocks[blocks.length - 1]
-      if (last?.kind === 'ul') last.items.push(line.slice(2))
-      else blocks.push({ kind: 'ul', items: [line.slice(2)] })
-    } else if (line.trim().length > 0) {
-      blocks.push({ kind: 'p', text: line })
-    }
-  }
-  const base: StyleProp<TextStyle> = [type.text, styles.prose, { color: colors.textPrimary }]
-  return (
-    <View style={styles.blocks}>
-      {blocks.map((block, index) => {
-        const last = index === blocks.length - 1
-        if (block.kind === 'ul') {
-          return (
-            <View key={index} style={styles.list}>
-              {block.items.map((item, itemIndex) => (
-                <View key={itemIndex} style={styles.listItem}>
-                  <Text style={base}>{'•'}</Text>
-                  <Text style={[base, styles.shrink]}>
-                    <InlineText text={item} codeStyle={codeStyle} />
-                    {last && itemIndex === block.items.length - 1 ? trailing : null}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )
-        }
-        return (
-          <Text key={index} style={base}>
-            <InlineText text={block.text} codeStyle={codeStyle} />
-            {last ? trailing : null}
-          </Text>
-        )
-      })}
-    </View>
-  )
 }
 
 const styles = StyleSheet.create({
@@ -418,8 +344,4 @@ const styles = StyleSheet.create({
   round: { width: 40, height: 40, margin: 2, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   section: { marginTop: 26 },
   sectionTitle: { fontWeight: '600', marginBottom: 2 },
-  prose: { lineHeight: 22 },
-  blocks: { gap: 8 },
-  list: { gap: 4 },
-  listItem: { flexDirection: 'row', gap: 8, paddingLeft: 4 },
 })

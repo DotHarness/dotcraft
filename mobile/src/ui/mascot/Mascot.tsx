@@ -128,10 +128,10 @@ export function MascotTransition({ line, inList = false }: { line: string; inLis
   )
 }
 
-export function MascotNote({ moment, children }: { moment: MascotMoment; children: string }) {
+export function MascotNote({ moment, profile, children }: { moment: MascotMoment; profile?: string | null; children: string }) {
   return (
     <View style={styles.note}>
-      <Mascot moment={moment} size={56} />
+      <Mascot moment={moment} profile={profile} size={56} />
       <Txt tone="secondary" style={styles.centered}>
         {children}
       </Txt>

@@ -15,7 +15,7 @@ import {
 } from '../../core/state'
 import { useI18n } from '../../i18n'
 import { Icon } from '../icons'
-import { BottomBar, Hero, Screen, ScrollArea, TopBar } from '../layout'
+import { BottomBar, Screen, ScrollArea } from '../layout'
 import { Mascot, MascotNote, MascotTransition, type MascotMoment } from '../mascot/Mascot'
 import { ComputerStatusLine, PhoneButton, ReadOnlyNotice, RoundIconButton, Section, Txt } from '../parts'
 import { ChatRow, chatTitle, ProjectRow } from '../rows'
@@ -63,6 +63,7 @@ export function HomeScreen() {
   const [query, setQuery] = useState('')
   const [focused, setFocused] = useState(false)
   const [picking, setPicking] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
   const computer = state.computer
   const status = computerStatus(state)
   const live = isReachable(status)
@@ -79,70 +80,65 @@ export function HomeScreen() {
 
   return (
     <Screen>
-      <TopBar end>
+      <View style={[styles.top, { backgroundColor: colors.bgPrimary, borderBottomColor: scrolled ? colors.borderDefault : 'transparent' }]}>
+        <Pressable accessibilityRole="button" style={styles.computer} onPress={openSettings}>
+          <Mascot moment={computerMoment(status, waiting.length)} size={40} style={styles.avatar} />
+          <View style={styles.computerText}>
+            <Txt numberOfLines={1} style={styles.computerName}>
+              {computer.name}
+            </Txt>
+            <ComputerStatusLine status={status} updatedAt={state.syncedAt} />
+          </View>
+        </Pressable>
         <RoundIconButton label={t('common.settings')} icon="settings" onPress={openSettings} />
-      </TopBar>
-      <ScrollArea>
-        <Hero>
-          <Txt accessibilityRole="header" numberOfLines={1} style={type.title}>
-            {t('home.title')}
-          </Txt>
-          <Pressable accessibilityRole="button" style={styles.computer} onPress={openSettings}>
-            <View style={[styles.computerIcon, { backgroundColor: colors.bgTertiary }]}>
-              <Icon name="monitor" size={18} color={colors.textSecondary} strokeWidth={1.7} />
-            </View>
-            <View style={styles.computerText}>
-              <Txt numberOfLines={1} style={styles.computerName}>
-                {computer.name}
-              </Txt>
-              <ComputerStatusLine status={status} updatedAt={state.syncedAt} />
-            </View>
-            {state.syncing ? null : <Mascot moment={computerMoment(status, waiting.length)} size={40} style={styles.computerMascot} />}
-          </Pressable>
-          {status === 'access-off' ? <ReadOnlyNotice status={status} computer={computer.name} style={styles.heroNotice} /> : null}
-        </Hero>
-
-        {state.syncing ? (
-          <MascotTransition inList line={t('home.catchingUp', { computer: computer.name })} />
-        ) : trimmed ? (
-          <Section title={t('home.results')}>
-            {results.length > 0 ? (
-              results.map((chat) => <ChatRow key={chat.key} chat={chat} live={live} projectName={nameOf(chat.projectId)} onPress={() => openChat(chat.key)} />)
-            ) : (
-              <MascotNote moment="curious">{t('home.noResults', { query: query.trim() })}</MascotNote>
-            )}
-          </Section>
-        ) : (
-          <>
-            {waiting.length > 0 ? (
-              <Section title={t('home.needsYou')}>
-                {waiting.map((chat) => (
-                  <ChatRow key={chat.key} chat={chat} live={live} projectName={nameOf(chat.projectId)} onPress={() => openChat(chat.key)} />
-                ))}
-              </Section>
-            ) : null}
-            <Section title={t('home.projects')}>
-              {state.projects.map((project) => (
-                <ProjectRow
-                  key={project.id}
-                  project={project}
-                  running={visible.some((chat) => chat.projectId === project.id && stateOf(chat) === 'running')}
-                  live={live}
-                  onPress={() => router.push({ pathname: '/project/[projectId]', params: { projectId: project.id } })}
-                />
-              ))}
-            </Section>
-            <Section title={t('home.recent')}>
-              {visible.length === 0 ? (
-                <MascotNote moment="content">{t('home.empty', { computer: computer.name })}</MascotNote>
-              ) : (
-                recent.map((chat) => (
+      </View>
+      <ScrollArea onScroll={({ nativeEvent }) => setScrolled(nativeEvent.contentOffset.y > 0)}>
+        {status === 'access-off' ? <ReadOnlyNotice status={status} computer={computer.name} style={styles.notice} /> : null}
+        <View style={styles.lists}>
+          {state.syncing ? (
+            <MascotTransition inList line={t('home.catchingUp', { computer: computer.name })} />
+          ) : trimmed ? (
+            <Section title={t('home.results')}>
+              {results.length > 0 ? (
+                results.map((chat) => (
                   <ChatRow key={chat.key} chat={chat} live={live} projectName={nameOf(chat.projectId)} onPress={() => openChat(chat.key)} />
                 ))
+              ) : (
+                <MascotNote moment="curious">{t('home.noResults', { query: query.trim() })}</MascotNote>
               )}
             </Section>
-          </>
-        )}
+          ) : (
+            <>
+              {waiting.length > 0 ? (
+                <Section title={t('home.needsYou')}>
+                  {waiting.map((chat) => (
+                    <ChatRow key={chat.key} chat={chat} live={live} projectName={nameOf(chat.projectId)} onPress={() => openChat(chat.key)} />
+                  ))}
+                </Section>
+              ) : null}
+              <Section title={t('home.projects')}>
+                {state.projects.map((project) => (
+                  <ProjectRow
+                    key={project.id}
+                    project={project}
+                    running={visible.some((chat) => chat.projectId === project.id && stateOf(chat) === 'running')}
+                    live={live}
+                    onPress={() => router.push({ pathname: '/project/[projectId]', params: { projectId: project.id } })}
+                  />
+                ))}
+              </Section>
+              <Section title={t('home.recent')}>
+                {visible.length === 0 ? (
+                  <MascotNote moment="content">{t('home.empty', { computer: computer.name })}</MascotNote>
+                ) : (
+                  recent.map((chat) => (
+                    <ChatRow key={chat.key} chat={chat} live={live} projectName={nameOf(chat.projectId)} onPress={() => openChat(chat.key)} />
+                  ))
+                )}
+              </Section>
+            </>
+          )}
+        </View>
       </ScrollArea>
       <BottomBar>
         <View style={[styles.search, { borderColor: focused ? colors.accent : colors.borderDefault, backgroundColor: colors.bgSecondary }]}>
@@ -178,12 +174,21 @@ export function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  computer: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 },
-  computerIcon: { width: 40, height: 40, borderRadius: metrics.listRadius, alignItems: 'center', justifyContent: 'center' },
+  top: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    paddingLeft: metrics.gutter,
+    paddingRight: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  computer: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatar: { marginLeft: -4, transform: [{ translateY: -3 }] },
   computerText: { flexShrink: 1, minWidth: 0, gap: 1 },
   computerName: { fontWeight: '600' },
-  computerMascot: { marginLeft: 'auto' },
-  heroNotice: { marginTop: 14 },
+  notice: { marginTop: 8 },
+  lists: { marginTop: -12 },
   search: {
     flex: 1,
     minWidth: 0,

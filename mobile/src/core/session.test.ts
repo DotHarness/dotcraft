@@ -5,6 +5,7 @@ import { buildBoxSeed, createStudio, pairingUrl, type StudioOptions } from '../d
 import { createHarness, waitFor, type Harness } from '../test/harness'
 import { parsePairingUrl } from './pairing'
 import { computerStatus, homeLists, stateOf, type MobileState } from './state'
+import { startConfig } from './threadConfig'
 import { buildTranscript } from './transcript'
 
 const harnesses: Harness[] = []
@@ -272,6 +273,47 @@ describe('turn control', () => {
     expect(computer.calls.find((call) => call.method === 'thread/start')!.params.config).toBeUndefined()
     expect(harness.state().chats[key].title).toBe('Summarize the open pull requests')
     await waitFor(() => stateOf(harness.state().chats[key]) === 'done')
+  })
+
+  it('sends the whole read configuration with one changed field to thread/config/update', async () => {
+    const computer = studio()
+    const harness = setup([computer])
+    const key = keyOf(await online(harness), 'Explain the release script')
+    harness.session.openChat(key)
+    await waitFor(() => harness.state().details[key]?.loading === false)
+    await harness.session.updateConfig(key, { kind: 'approval', policy: 'autoApprove' })
+    const update = computer.calls.find((call) => call.method === 'thread/config/update')!
+    expect(update.params.config).toEqual({
+      providerId: 'studio',
+      model: 'atlas-2',
+      reasoning: { enabled: true, effort: 'high', output: 'full' },
+      speed: 'standard',
+      agentProfileId: null,
+      approvalPolicy: 'autoApprove',
+    })
+    expect(harness.state().details[key].config?.approvalPolicy).toBe('autoApprove')
+  })
+
+  it('passes only the controls changed for a new chat in the thread/start configuration', async () => {
+    const computer = studio()
+    const harness = setup([computer])
+    const state = await online(harness)
+    const project = state.projects.find((entry) => entry.name === 'dotcraft')!
+    const controls = { providerId: 'studio', model: 'atlas-2', reasoning: 'high', speed: 'fast', approvalPolicy: 'prompt' } as const
+    await harness.session.newChat(project.id, 'tidy the release script', startConfig({ touched: { speed: true }, controls }))
+    expect(computer.calls.find((call) => call.method === 'thread/start')!.params.config).toEqual({ speed: 'fast' })
+  })
+
+  it('forks a chat into a new chat in the same project and archives a chat off the lists', async () => {
+    const harness = setup([studio()])
+    const key = keyOf(await online(harness), 'Explain the release script')
+    const forked = await harness.session.fork(key)
+    expect(forked).not.toBe(key)
+    expect(harness.state().chats[forked]).toMatchObject({ projectId: harness.state().chats[key].projectId, title: 'Explain the release script' })
+
+    await harness.session.archive(key)
+    expect(harness.state().chats[key]).toBeUndefined()
+    expect(harness.state().chats[forked]).toBeDefined()
   })
 })
 

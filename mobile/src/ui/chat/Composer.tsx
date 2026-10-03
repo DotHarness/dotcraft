@@ -7,15 +7,17 @@ import { type, useTheme } from '../theme'
 import { SendButton } from './RequestCards'
 
 export function Composer({
+  computer,
   running,
-  mascot,
+  controls,
   autoFocus = false,
   canSend,
   onSend,
   onStop,
 }: {
+  computer: string
   running: boolean
-  mascot: ReactNode
+  controls?: ReactNode
   autoFocus?: boolean
   canSend: boolean
   onSend: (text: string) => Promise<void>
@@ -51,33 +53,34 @@ export function Composer({
           {t('composer.failed')}
         </Txt>
       ) : null}
-      <View style={styles.row}>
-        <View style={styles.mascot}>{mascot}</View>
-        <View
-          style={[
-            styles.composer,
-            {
-              borderColor: focused ? colors.composerFocusBorder : colors.composerInputBorder,
-              backgroundColor: colors.composerInputBackground,
-            },
-          ]}
-        >
-          <TextInput
-            multiline
-            numberOfLines={Platform.OS === 'web' ? 1 : undefined}
-            autoFocus={autoFocus}
-            value={draft}
-            onChangeText={(value) => {
-              setDraft(value)
-              setFailed(false)
-            }}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholder={running ? t('composer.addToTurn') : t('composer.placeholder')}
-            placeholderTextColor={colors.composerPlaceholder}
-            accessibilityLabel={t('composer.message')}
-            style={[type.text, styles.input, { color: colors.textPrimary }]}
-          />
+      <View
+        style={[
+          styles.card,
+          {
+            borderColor: focused ? colors.composerFocusBorder : colors.composerInputBorder,
+            backgroundColor: colors.composerInputBackground,
+            boxShadow: colors.shadow1,
+          },
+        ]}
+      >
+        <TextInput
+          multiline
+          numberOfLines={Platform.OS === 'web' ? 2 : undefined}
+          autoFocus={autoFocus}
+          value={draft}
+          onChangeText={(value) => {
+            setDraft(value)
+            setFailed(false)
+          }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder={t('composer.placeholder', { computer })}
+          placeholderTextColor={colors.composerPlaceholder}
+          accessibilityLabel={t('composer.message')}
+          style={[type.text, styles.input, { color: colors.textPrimary }]}
+        />
+        <View style={styles.bar}>
+          <View style={styles.controls}>{controls}</View>
           {running && empty ? (
             <Pressable
               accessibilityRole="button"
@@ -99,21 +102,9 @@ export function Composer({
 
 const styles = StyleSheet.create({
   wrap: { gap: 6 },
-  row: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
-  mascot: { marginBottom: 6 },
-  composer: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-    minHeight: 48,
-    paddingVertical: 6,
-    paddingRight: 6,
-    paddingLeft: 16,
-    borderWidth: 1,
-    borderRadius: 24,
-  },
-  input: { flex: 1, minWidth: 0, maxHeight: 120, paddingVertical: 8, paddingHorizontal: 0, outlineWidth: 0 },
+  card: { borderWidth: 1, borderRadius: 26, paddingTop: 6, paddingBottom: 8, paddingHorizontal: 8 },
+  input: { minHeight: 40, maxHeight: 140, paddingTop: 8, paddingBottom: 6, paddingHorizontal: 10, outlineWidth: 0 },
+  bar: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  controls: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 4 },
   stop: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
 })

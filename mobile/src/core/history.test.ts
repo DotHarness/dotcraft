@@ -33,7 +33,7 @@ describe('history catch-up', () => {
       { kind: 'item', item: item('m', 'agentMessage', { text: 'Hello there' }) },
       { kind: 'delta', itemId: 'm', turnId: 't1', itemType: 'agentMessage', delta: 'late' },
     )
-    expect(buildTranscript(next)).toEqual([
+    expect(buildTranscript(next)).toMatchObject([
       { kind: 'user', id: 't1/a', text: 'go', added: false },
       { kind: 'assistant', id: 't1/m', text: 'Hello there', streaming: false },
     ])
@@ -59,7 +59,7 @@ describe('history catch-up', () => {
       kind: 'item',
       item: item('u2', 'userMessage', { text: 'also run lint', deliveryMode: 'guidance', clientUserMessageId: 'c1' }),
     })
-    expect(buildTranscript(acknowledged)).toEqual([{ kind: 'user', id: 't1/u2', text: 'also run lint', added: true }])
+    expect(buildTranscript(acknowledged)).toMatchObject([{ kind: 'user', id: 't1/u2', text: 'also run lint', added: true }])
 
     const pages = historyFromPages([{ turnId: 't1', item: item('a', 'userMessage', { text: 'go', clientUserMessageId: 'c1' }) }], [turn('t1', 'running')])
     const restored = restoreEchoes(pages, [
@@ -90,7 +90,7 @@ describe('turn-scoped item ids', () => {
         item('item_004', 'approvalResponse', { requestId: 'approval_001', approved: false, decision: 'decline' }, { turnId: 't2' }),
       ],
     }
-    expect(buildTranscript(history)).toEqual([
+    expect(buildTranscript(history)).toMatchObject([
       { kind: 'tool', id: 't1/item_001', verb: 'edited', subjects: ['a.ts'], code: false, group: 'edit-file', added: 3, removed: 1 },
       { kind: 'notice', id: 't1/item_004', tone: 'neutral', notice: 'allowedOnce', detail: 'npm test' },
       { kind: 'tool', id: 't2/item_001', verb: 'edited', subjects: ['b.ts'], code: false, group: 'edit-file', added: 7, removed: 0 },

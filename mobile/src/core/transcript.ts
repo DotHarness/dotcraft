@@ -1,6 +1,14 @@
 import { isComplete, type ChatHistory, type HistoryItem } from './history'
+import { userSegments, type UserSegment } from './userSegments'
 
 export type ToolVerb = 'ran' | 'edited' | 'read' | 'searched' | 'used'
+
+export type ToolIcon = 'terminal' | 'declined' | 'stopped' | 'read' | 'search' | 'folder' | 'edit' | 'web' | 'other'
+
+interface ToolDetail {
+  target: string
+  output: string | null
+}
 
 export type NoticeKind =
   | 'allowedOnce'
@@ -12,20 +20,24 @@ export type NoticeKind =
   | 'turnFailed'
 
 export type TranscriptEntry =
-  | { kind: 'user'; id: string; text: string; added: boolean }
+  | { kind: 'user'; id: string; text: string; segments: UserSegment[]; added: boolean }
   | { kind: 'assistant'; id: string; text: string; streaming: boolean }
   | { kind: 'reasoning'; id: string; text: string; seconds: number | null }
   | {
       kind: 'tool'
       id: string
       verb: ToolVerb
+      icon: ToolIcon
       subjects: string[]
+      details: ToolDetail[]
+      images: string[]
       code: boolean
       group: 'read-file' | 'edit-file' | null
       added?: number
       removed?: number
     }
   | { kind: 'notice'; id: string; tone: 'neutral' | 'error'; notice: NoticeKind; detail?: string }
+  | { kind: 'image'; id: string; status: 'inProgress' | 'completed' | 'failed'; uri: string | null; dropped: boolean; error?: string }
 
 type ToolEntry = Extract<TranscriptEntry, { kind: 'tool' }>
 
@@ -76,19 +88,21 @@ function entryId(item: HistoryItem): string {
 interface ToolShape {
   verb: ToolVerb
   target: string
+  full?: string
   code?: boolean
   group?: ToolEntry['group']
   counts?: { added: number; removed: number } | null
 }
 
 function toolShape(toolName: string, input: Record<string, unknown>, result: HistoryItem | undefined): ToolShape {
-  if (SHELL_TOOLS.has(toolName)) return { verb: 'ran', target: firstLine(str(input.command)), code: true }
+  if (SHELL_TOOLS.has(toolName)) return { verb: 'ran', target: firstLine(str(input.command)), full: str(input.command), code: true }
+  const path = str(input.path)
   switch (toolName) {
     case 'ReadFile':
-      return { verb: 'read', target: baseName(str(input.path)), group: 'read-file' }
+      return { verb: 'read', target: baseName(path), full: path, group: 'read-file' }
     case 'WriteFile':
     case 'EditFile':
-      return { verb: 'edited', target: baseName(str(input.path)), group: 'edit-file', counts: fileChangeCounts(result) }
+      return { verb: 'edited', target: baseName(path), full: path, group: 'edit-file', counts: fileChangeCounts(result) }
     case 'GrepFiles':
     case 'FindFiles':
       return { verb: 'searched', target: str(input.pattern), code: true }
@@ -101,18 +115,78 @@ function toolShape(toolName: string, input: Record<string, unknown>, result: His
   }
 }
 
+function toolIcon(toolName: string, result: HistoryItem | undefined): ToolIcon {
+  if (SHELL_TOOLS.has(toolName)) {
+    const errorCode = str(result?.payload.errorCode)
+    if (errorCode === 'tool_approval_rejected') return 'declined'
+    return errorCode === 'tool_cancelled' ? 'stopped' : 'terminal'
+  }
+  switch (toolName) {
+    case 'ReadFile':
+    case 'SkillView':
+      return 'read'
+    case 'GrepFiles':
+      return 'search'
+    case 'FindFiles':
+      return 'folder'
+    case 'WriteFile':
+    case 'EditFile':
+    case 'SkillManage':
+      return 'edit'
+    case 'WebSearch':
+    case 'WebFetch':
+      return 'web'
+    default:
+      return 'other'
+  }
+}
+
+function isCodeModeWrapper(item: HistoryItem): boolean {
+  if (str(item.payload.toolName) !== 'CodeMode' || item.payload.namespace) return false
+  const source = item.payload.source as { kind?: string; sourceId?: string } | null | undefined
+  if (source) return source.kind === 'CoreNative' && source.sourceId === 'code-mode'
+  return !isComplete(item)
+}
+
+type ContentItem = { type?: string; text?: string; dataBase64?: string; mediaType?: string }
+
+function contentItems(item: HistoryItem | undefined): ContentItem[] {
+  const value = item?.payload.contentItems
+  return Array.isArray(value) ? (value as ContentItem[]) : []
+}
+
+function imageUri(mediaType: string, data: string): string {
+  return `data:${mediaType || 'image/png'};base64,${data}`
+}
+
+function outputOf(item: HistoryItem | undefined): string | null {
+  const result = str(item?.payload.result)
+  if (result) return result
+  const text = contentItems(item)
+    .flatMap((entry) => (entry.type === 'text' && entry.text ? [entry.text] : []))
+    .join('\n')
+  return text || null
+}
+
+function imagesOf(item: HistoryItem | undefined): string[] {
+  return contentItems(item).flatMap((entry) =>
+    entry.type === 'image' && entry.dataBase64?.trim() ? [imageUri(entry.mediaType?.trim() ?? '', entry.dataBase64.trim())] : [],
+  )
+}
+
 function toolEntry(item: HistoryItem, results: Map<string, HistoryItem>): ToolEntry | null {
   const toolName = str(item.payload.toolName)
-  if (!toolName || HIDDEN_TOOLS.has(toolName)) return null
+  if (!toolName || HIDDEN_TOOLS.has(toolName) || isCodeModeWrapper(item)) return null
   const id = entryId(item)
-  if (item.type !== 'toolCall') return { kind: 'tool', id, verb: 'used', subjects: [toolName], code: false, group: null }
-  const shape = toolShape(toolName, args(item.payload), results.get(inTurn(item.turnId, str(item.payload.callId))))
-  if (!shape.target && !isComplete(item)) return { kind: 'tool', id, verb: shape.verb, subjects: [], code: false, group: null }
+  const result = item.type === 'toolCall' ? results.get(inTurn(item.turnId, str(item.payload.callId))) : item
+  const shape: ToolShape =
+    item.type === 'toolCall' ? toolShape(toolName, args(item.payload), result) : { verb: 'used', target: toolName }
+  const base = { kind: 'tool' as const, id, verb: shape.verb, icon: toolIcon(toolName, result), images: imagesOf(result) }
+  if (!shape.target && !isComplete(item)) return { ...base, subjects: [], details: [], code: false, group: null }
   return {
-    kind: 'tool',
-    id,
-    verb: shape.verb,
+    ...base,
     subjects: [shape.target || toolName],
+    details: [{ target: shape.full || shape.target || toolName, output: outputOf(result) }],
     code: Boolean(shape.target) && shape.code === true,
     group: shape.group ?? null,
     ...shape.counts,
@@ -149,6 +223,8 @@ function seconds(item: HistoryItem): number | null {
 function mergeTool(previous: TranscriptEntry | undefined, next: ToolEntry): boolean {
   if (!previous || previous.kind !== 'tool' || !next.group || previous.group !== next.group) return false
   for (const subject of next.subjects) if (!previous.subjects.includes(subject)) previous.subjects.push(subject)
+  previous.details.push(...next.details)
+  previous.images.push(...next.images)
   if (next.added !== undefined || next.removed !== undefined) {
     previous.added = (previous.added ?? 0) + (next.added ?? 0)
     previous.removed = (previous.removed ?? 0) + (next.removed ?? 0)
@@ -188,7 +264,9 @@ export function buildTranscript(history: ChatHistory): TranscriptEntry[] {
         const mode = str(payload.deliveryMode)
         if (mode === 'subagentMailbox') break
         const value = str(payload.text)
-        if (value) out.push({ kind: 'user', id: entryId(item), text: value, added: mode === 'guidance' })
+        if (value) {
+          out.push({ kind: 'user', id: entryId(item), text: value, segments: userSegments(value, payload.nativeInputParts), added: mode === 'guidance' })
+        }
         break
       }
       case 'agentMessage': {
@@ -208,6 +286,19 @@ export function buildTranscript(history: ChatHistory): TranscriptEntry[] {
         if (entry && !mergeTool(out[out.length - 1], entry)) out.push(entry)
         break
       }
+      case 'imageGeneration': {
+        const status = str(payload.status) || (isComplete(item) ? 'completed' : 'inProgress')
+        const data = str(payload.result).trim()
+        out.push({
+          kind: 'image',
+          id: entryId(item),
+          status: status === 'failed' || status === 'completed' ? status : 'inProgress',
+          uri: data ? imageUri(str(payload.mediaType).trim(), data) : null,
+          dropped: payload.imageDropped === true,
+          ...(str(payload.errorMessage) ? { error: str(payload.errorMessage) } : {}),
+        })
+        break
+      }
       case 'approvalResponse': {
         const notice = DECISION_NOTICE[str(payload.decision)] ?? 'rejected'
         const detail = approvalSubject(approvals.get(inTurn(item.turnId, str(payload.requestId))))
@@ -225,7 +316,7 @@ export function buildTranscript(history: ChatHistory): TranscriptEntry[] {
   }
   if (currentTurn !== null) closeTurn(currentTurn)
   for (const echo of history.echoes) {
-    out.push({ kind: 'user', id: `echo-${echo.clientId}`, text: echo.text, added: echo.added })
+    out.push({ kind: 'user', id: `echo-${echo.clientId}`, text: echo.text, segments: userSegments(echo.text, null), added: echo.added })
   }
   return out
 }

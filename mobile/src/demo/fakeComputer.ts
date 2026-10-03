@@ -46,6 +46,26 @@ export interface FakeThread {
   stream: string | null
   continuation: string
   source?: 'user' | 'subagent'
+  config?: Record<string, unknown>
+  archived?: boolean
+}
+
+export interface FakeModel {
+  id: string
+  reasoning?: {
+    supportsDisable: boolean
+    supportedEfforts: { effort: string; label: string }[]
+    defaultEffort: string
+    supportedOutputs: string[]
+    defaultOutput: string
+  }
+  speed?: { supportedModes: string[]; defaultMode: string }
+}
+
+export interface FakeProvider {
+  id: string
+  displayName: string
+  models: FakeModel[]
 }
 
 export interface FakeProject {
@@ -54,6 +74,7 @@ export interface FakeProject {
   running: boolean
   cantStart: boolean
   lastActiveAt: string
+  path?: string
   threads: FakeThread[]
 }
 
@@ -67,6 +88,7 @@ export interface FakeComputerSeed {
   pairingCodes?: string[]
   credentials?: Record<string, string>
   profiles?: { id: string; name: string }[]
+  providers?: FakeProvider[]
 }
 
 export interface FakeSocketSink {
@@ -112,6 +134,7 @@ export class FakeComputer {
   private readonly credentials: Map<string, string>
   private readonly pairingCodes: Set<string>
   private readonly profiles: { id: string; name: string }[]
+  private readonly providers: FakeProvider[]
   private readonly connections = new Map<string, Connection>()
   private readonly events = new Map<string, FakeSocketSink>()
   private readonly streams = new Map<string, ReturnType<typeof setTimeout>>()
@@ -127,6 +150,8 @@ export class FakeComputer {
     this.pairingCodes = new Set(seed.pairingCodes)
     this.credentials = new Map(Object.entries(seed.credentials ?? {}))
     this.profiles = seed.profiles ?? []
+    this.providers = seed.providers ?? []
+    for (const project of this.projects) for (const thread of project.threads) thread.config ??= this.defaultConfig()
   }
 
   private nextId(prefix: string): string {
@@ -273,7 +298,14 @@ export class FakeComputer {
   }
 
   private threadBody(thread: FakeThread): Record<string, unknown> {
-    return { ...this.summary(thread), configuration: { agentProfileId: thread.profileId }, metadata: {}, ephemeral: false, source: { kind: thread.source ?? 'user' } }
+    return {
+      ...this.summary(thread),
+      workspacePath: this.thread(thread.id).project.path ?? '',
+      configuration: { ...thread.config, agentProfileId: thread.profileId },
+      metadata: {},
+      ephemeral: false,
+      source: { kind: thread.source ?? 'user' },
+    }
   }
 
   private runtimeChanged(project: FakeProject, thread: FakeThread): void {
@@ -285,11 +317,29 @@ export class FakeComputer {
     const project = connection.project
     switch (method) {
       case 'initialize':
-        return { result: { serverInfo: { name: 'dotcraft', version: this.version }, capabilities: { agentProfileManagement: true } } }
+        return {
+          result: {
+            serverInfo: { name: 'dotcraft', version: this.version },
+            capabilities: {
+              agentProfileManagement: true,
+              threadFork: true,
+              configOverride: this.providers.length > 0,
+              modelCatalogManagement: this.providers.length > 0,
+              providerManagement: this.providers.length > 0,
+            },
+          },
+        }
       case 'thread/list':
-        return { result: { data: project.threads.map((thread) => this.summary(thread)) } }
+        return { result: { data: project.threads.filter((thread) => !thread.archived).map((thread) => this.summary(thread)) } }
       case 'agent/profiles/list':
         return { result: { profiles: this.profiles } }
+      case 'provider/list':
+        return { result: { providers: this.providers.map(({ id, displayName }) => ({ id, displayName })) } }
+      case 'model/list': {
+        const provider = this.providers.find((entry) => entry.id === (params.providerId ?? this.providers[0]?.id))
+        if (!provider) return { result: { success: false, providerId: params.providerId ?? null, models: [], errorCode: 'ProviderNotFound' } }
+        return { result: { success: true, providerId: provider.id, models: provider.models } }
+      }
       case 'thread/start': {
         const thread: FakeThread = {
           id: this.nextId('thread'),
@@ -302,6 +352,7 @@ export class FakeComputer {
           pending: null,
           stream: null,
           continuation: 'Picking up from here.',
+          config: { ...this.defaultConfig(), ...(params.config as Record<string, unknown> | undefined) },
         }
         project.threads.push(thread)
         return {
@@ -324,6 +375,33 @@ export class FakeComputer {
       case 'thread/unsubscribe':
         connection.subscribed.delete(thread.id)
         return { result: {} }
+      case 'thread/rename':
+        thread.displayName = params.displayName as string
+        return { result: {}, after: () => this.broadcast(project, 'thread/renamed', { threadId: thread.id, displayName: thread.displayName }) }
+      case 'thread/fork': {
+        const id = this.nextId('thread')
+        const fork: FakeThread = {
+          ...thread,
+          id,
+          createdAt: this.stamp(),
+          lastActiveAt: this.stamp(),
+          turns: thread.turns.map((turn) => ({ ...turn, threadId: id, status: turn.status === 'running' ? 'cancelled' : turn.status })),
+          items: thread.items.map((item) => ({ ...item, status: 'completed' })),
+          pending: null,
+          stream: null,
+        }
+        project.threads.push(fork)
+        return { result: { thread: this.threadBody(fork) }, after: () => this.broadcast(project, 'thread/started', { thread: this.threadBody(fork) }) }
+      }
+      case 'thread/archive':
+        thread.archived = true
+        return { result: {}, after: () => this.broadcast(project, 'thread/statusChanged', { threadId: thread.id, newStatus: 'archived' }) }
+      case 'thread/config/update': {
+        const config = { ...(params.config as Record<string, unknown>) }
+        delete config.agentProfileId
+        thread.config = config
+        return { result: {}, after: () => this.broadcast(project, 'thread/updated', { thread: this.threadBody(thread) }) }
+      }
       case 'turn/start': {
         if (this.activeTurn(thread)) return { error: { code: -32012, message: 'A turn is already running on this thread.' } }
         const turn: FakeTurn = { id: sequenceId('turn', thread.turns.length + 1), threadId: thread.id, status: 'running', startedAt: this.stamp() }
@@ -364,6 +442,18 @@ export class FakeComputer {
       }
       default:
         return { error: { code: -32601, message: `Method not found: ${method}` } }
+    }
+  }
+
+  private defaultConfig(): Record<string, unknown> {
+    const provider = this.providers[0]
+    const model = provider?.models[0]
+    if (!provider || !model) return {}
+    return {
+      providerId: provider.id,
+      model: model.id,
+      ...(model.reasoning ? { reasoning: { enabled: true, effort: model.reasoning.defaultEffort, output: model.reasoning.defaultOutput } } : {}),
+      speed: 'standard',
     }
   }
 
