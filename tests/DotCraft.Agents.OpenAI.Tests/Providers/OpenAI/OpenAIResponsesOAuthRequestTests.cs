@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
@@ -5,7 +6,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Agents;
 
-public sealed class OpenAIResponsesClientMetadataPipelinePolicyTests
+public sealed class OpenAIResponsesOAuthRequestTests
 {
     private const string InstallationId = "11111111-1111-4111-8111-111111111111";
 
@@ -19,12 +20,10 @@ public sealed class OpenAIResponsesClientMetadataPipelinePolicyTests
             input = new[] { new { type = "message", role = "user", content = "hi" } }
         });
 
-        var rewritten = OpenAIResponsesClientMetadataPipelinePolicy.AddInstallationIdMetadata(
-            original,
-            InstallationId);
+        var rewritten = RewriteOAuth(original).Body;
 
         Assert.NotNull(rewritten);
-        var node = JsonNode.Parse(rewritten!);
+        var node = JsonNode.Parse(rewritten!.Value.Span);
         Assert.NotNull(node);
         Assert.Equal(InstallationId, node!["client_metadata"]!["x-codex-installation-id"]!.GetValue<string>());
     }
@@ -41,12 +40,10 @@ public sealed class OpenAIResponsesClientMetadataPipelinePolicyTests
             }
         });
 
-        var rewritten = OpenAIResponsesClientMetadataPipelinePolicy.AddInstallationIdMetadata(
-            original,
-            InstallationId);
+        var rewritten = RewriteOAuth(original).Body;
 
         Assert.NotNull(rewritten);
-        var node = JsonNode.Parse(rewritten!);
+        var node = JsonNode.Parse(rewritten!.Value.Span);
         Assert.NotNull(node);
         Assert.Equal("dotcraft", node!["client_metadata"]!["caller-tag"]!.GetValue<string>());
         Assert.Equal(InstallationId, node["client_metadata"]!["x-codex-installation-id"]!.GetValue<string>());
@@ -63,11 +60,9 @@ public sealed class OpenAIResponsesClientMetadataPipelinePolicyTests
             }
         });
 
-        var rewritten = OpenAIResponsesClientMetadataPipelinePolicy.AddInstallationIdMetadata(
-            original,
-            InstallationId);
+        var rewritten = RewriteOAuth(original).Body;
 
-        Assert.Null(rewritten); // signal: no change required
+        Assert.Null(rewritten);
     }
 
     [Fact]
@@ -83,26 +78,28 @@ public sealed class OpenAIResponsesClientMetadataPipelinePolicyTests
             }
         });
 
-        var rewritten = OpenAIResponsesClientMetadataPipelinePolicy.AddInstallationIdMetadata(
-            original,
-            InstallationId);
+        var result = RewriteOAuth(original);
+        var rewritten = result.Body;
 
+        Assert.True(result.InstallationIdMismatch);
         Assert.NotNull(rewritten);
-        var node = JsonNode.Parse(rewritten!);
+        var node = JsonNode.Parse(rewritten!.Value.Span);
         Assert.NotNull(node);
         Assert.Equal("dotcraft", node!["client_metadata"]!["caller-tag"]!.GetValue<string>());
         Assert.Equal(InstallationId, node!["client_metadata"]!["x-codex-installation-id"]!.GetValue<string>());
     }
 
     [Fact]
-    public void OverwritesMismatchedExistingInstallationIdAndCanonicalizesDuplicateTopLevelKeys()
+    public void RewritesOAuthMetadataUnsupportedFieldAndDuplicateKeysTogether()
     {
         var original = """
             {
               "model": "gpt-test",
+              "max_output_tokens": 12000,
               "input": [],
               "client_metadata": {
-                "x-codex-installation-id": "22222222-2222-4222-8222-222222222222"
+                "x-codex-installation-id": "22222222-2222-4222-8222-222222222222",
+                "caller-tag": "retained"
               },
               "input": [
                 {
@@ -119,13 +116,13 @@ public sealed class OpenAIResponsesClientMetadataPipelinePolicyTests
             }
             """;
 
-        var rewritten = OpenAIResponsesClientMetadataPipelinePolicy.AddInstallationIdMetadata(
-            original,
-            InstallationId);
+        var rewritten = RewriteOAuth(original).Body;
 
         Assert.NotNull(rewritten);
-        using var document = JsonDocument.Parse(rewritten!);
+        using var document = JsonDocument.Parse(rewritten!.Value);
         Assert.Equal(1, document.RootElement.EnumerateObject().Count(prop => prop.Name == "input"));
+        Assert.False(document.RootElement.TryGetProperty("max_output_tokens", out _));
+        Assert.Equal("retained", document.RootElement.GetProperty("client_metadata").GetProperty("caller-tag").GetString());
         Assert.Equal(
             InstallationId,
             document.RootElement
@@ -176,12 +173,12 @@ public sealed class OpenAIResponsesClientMetadataPipelinePolicyTests
             TurnMetadataJson: turnMetadataJson,
             TurnState: null);
 
-        var rewritten = OpenAIResponsesClientMetadataPipelinePolicy.AddCodexClientMetadata(
-            original,
-            snapshot);
+        var rewritten = OpenAIResponsesRequestBodyCanonicalizer.RewriteOAuthRequest(
+            Encoding.UTF8.GetBytes(original),
+            OpenAIResponsesCodexMetadata.BuildClientMetadata(snapshot)).Body;
 
         Assert.NotNull(rewritten);
-        using var document = JsonDocument.Parse(rewritten!);
+        using var document = JsonDocument.Parse(rewritten!.Value);
         var metadata = document.RootElement.GetProperty("client_metadata");
         Assert.Equal("dotcraft", metadata.GetProperty("caller-tag").GetString());
         Assert.Equal(InstallationId, metadata.GetProperty("x-codex-installation-id").GetString());
@@ -202,7 +199,7 @@ public sealed class OpenAIResponsesClientMetadataPipelinePolicyTests
     }
 
     [Fact]
-    public void RemoveUnsupportedOAuthResponsesFields_DropsMaxOutputTokens()
+    public void RewriteOAuthRequest_DropsMaxOutputTokens()
     {
         var original = JsonSerializer.Serialize(new
         {
@@ -211,36 +208,46 @@ public sealed class OpenAIResponsesClientMetadataPipelinePolicyTests
             stream = true
         });
 
-        var rewritten = OpenAIResponsesClientMetadataPipelinePolicy.RemoveUnsupportedOAuthResponsesFields(original);
+        var rewritten = RewriteOAuth(original).Body;
 
         Assert.NotNull(rewritten);
-        using var document = JsonDocument.Parse(rewritten!);
+        using var document = JsonDocument.Parse(rewritten!.Value);
         Assert.False(document.RootElement.TryGetProperty("max_output_tokens", out _));
         Assert.Equal("gpt-5-codex", document.RootElement.GetProperty("model").GetString());
         Assert.True(document.RootElement.GetProperty("stream").GetBoolean());
     }
 
-    [Fact]
-    public void ReturnsNullOnMalformedJson()
+    [Theory]
+    [InlineData("{not json")]
+    [InlineData("")]
+    [InlineData("[]")]
+    public void ReturnsNullForInvalidOrUnsupportedBodies(string json)
     {
-        Assert.Null(OpenAIResponsesClientMetadataPipelinePolicy.AddInstallationIdMetadata(
-            "{not json",
-            InstallationId));
+        Assert.Null(RewriteOAuth(json).Body);
     }
 
     [Fact]
-    public void ReturnsNullOnEmptyBody()
+    public void RewriteOAuthRequest_PreservesOpaquePayloadBytes()
     {
-        Assert.Null(OpenAIResponsesClientMetadataPipelinePolicy.AddInstallationIdMetadata(
-            string.Empty,
-            InstallationId));
+        const string json = """
+            {"input":[],"input":[ { "id":"rs_original", "encrypted_content":"opaque/+abc==", "arguments":" { \"path\": \"\\u0061\", \"n\": 1.00 } ", "text":"\u0061\n中文<>\uD800", "future_field":{ "k":1, "k":2 }, "number":123456789012345678901234567890 } ],"max_output_tokens":100,"client_metadata":{"caller-tag": { "future":true }}}
+            """;
+        var result = RewriteOAuth(json);
+
+        Assert.NotNull(result.Body);
+        using var original = JsonDocument.Parse(json);
+        using var rewritten = JsonDocument.Parse(result.Body!.Value);
+        Assert.Equal(
+            original.RootElement.GetProperty("input").GetRawText(),
+            rewritten.RootElement.GetProperty("input").GetRawText());
+        Assert.Equal(
+            original.RootElement.GetProperty("client_metadata").GetProperty("caller-tag").GetRawText(),
+            rewritten.RootElement.GetProperty("client_metadata").GetProperty("caller-tag").GetRawText());
+        Assert.Equal(new[] { "input", "client_metadata" }, rewritten.RootElement.EnumerateObject().Select(p => p.Name));
     }
 
-    [Fact]
-    public void ReturnsNullWhenRootIsNotAnObject()
-    {
-        Assert.Null(OpenAIResponsesClientMetadataPipelinePolicy.AddInstallationIdMetadata(
-            "[]",
-            InstallationId));
-    }
+    private static OpenAIResponsesRequestBodyCanonicalizer.OAuthRewriteResult RewriteOAuth(string json) =>
+        OpenAIResponsesRequestBodyCanonicalizer.RewriteOAuthRequest(
+            Encoding.UTF8.GetBytes(json),
+            new Dictionary<string, string> { ["x-codex-installation-id"] = InstallationId });
 }

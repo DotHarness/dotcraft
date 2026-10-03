@@ -117,8 +117,9 @@ public sealed class OpenAISdkCompatibilityTests
         using var standard = JsonDocument.Parse(standardBody);
         AssertPriorityAndCache(standard.RootElement);
 
-        var oauthBody = OpenAIResponsesClientMetadataPipelinePolicy.RemoveUnsupportedOAuthResponsesFields(standardBody.ToString())!;
-        oauthBody = OpenAIResponsesClientMetadataPipelinePolicy.AddInstallationIdMetadata(oauthBody, "install-1")!;
+        var oauthBody = OpenAIResponsesRequestBodyCanonicalizer.RewriteOAuthRequest(
+            standardBody.ToMemory(),
+            new Dictionary<string, string> { ["x-codex-installation-id"] = "install-1" }).Body!.Value;
         using var oauth = JsonDocument.Parse(oauthBody);
         AssertPriorityAndCache(oauth.RootElement);
         Assert.False(oauth.RootElement.TryGetProperty("max_output_tokens", out _));

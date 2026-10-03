@@ -1,145 +1,124 @@
 using System.Buffers;
 using System.Text;
 using System.Text.Json;
+using DotCraft.Auth.OpenAI;
 
 namespace DotCraft.Agents;
 
-/// <summary>
-/// Rewrites OpenAI Responses request bodies into a single canonical top-level object.
-/// </summary>
+/// <summary>Rewrites Responses requests while retaining untouched values as raw UTF-8 slices.</summary>
 internal static class OpenAIResponsesRequestBodyCanonicalizer
 {
     private const string ClientMetadataField = "client_metadata";
 
-    internal static string? Canonicalize(string json)
+    internal readonly record struct OAuthRewriteResult(
+        ReadOnlyMemory<byte>? Body,
+        bool InstallationIdMismatch);
+
+    internal static ReadOnlyMemory<byte>? Canonicalize(ReadOnlyMemory<byte> json)
+    {
+        if (!TryParseTopLevelObject(json, out var body) || !body.HadDuplicateTopLevelKeys)
+            return null;
+
+        return body.ToUtf8Json();
+    }
+
+    internal static ReadOnlyMemory<byte>? NormalizeTopLevelObject(ReadOnlyMemory<byte> json)
     {
         if (!TryParseTopLevelObject(json, out var body))
             return null;
 
-        return body.HadDuplicateTopLevelKeys ? body.ToJsonString() : null;
+        return body.ToUtf8Json();
     }
 
     internal static string? NormalizeTopLevelObject(string json)
     {
-        if (!TryParseTopLevelObject(json, out var body))
-            return null;
-
-        return body.ToJsonString();
+        var normalized = NormalizeTopLevelObject(Encoding.UTF8.GetBytes(json));
+        return normalized is { } bytes ? Encoding.UTF8.GetString(bytes.Span) : null;
     }
 
-    internal static string? RemoveTopLevelFields(string json, params string[] fieldNames)
-    {
-        if (fieldNames.Length == 0 || !TryParseTopLevelObject(json, out var body))
-            return null;
-
-        var normalizedFieldNames = fieldNames
-            .Where(static name => !string.IsNullOrWhiteSpace(name))
-            .Select(static name => name.Trim())
-            .ToHashSet(StringComparer.Ordinal);
-        if (normalizedFieldNames.Count == 0)
-            return null;
-
-        var changed = body.HadDuplicateTopLevelKeys;
-        foreach (var fieldName in normalizedFieldNames)
-            changed |= body.RemoveRawValue(fieldName);
-
-        return changed ? body.ToJsonString() : null;
-    }
-
-    internal static string? AddInstallationIdMetadata(
-        string json,
-        string installationIdHeader,
-        string installationId)
-    {
-        if (string.IsNullOrWhiteSpace(installationIdHeader) ||
-            string.IsNullOrWhiteSpace(installationId))
-        {
-            return null;
-        }
-
-        return AddClientMetadata(
-            json,
-            new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                [installationIdHeader] = installationId
-            });
-    }
-
-    internal static string? AddClientMetadata(
-        string json,
+    internal static OAuthRewriteResult RewriteOAuthRequest(
+        ReadOnlyMemory<byte> json,
         IReadOnlyDictionary<string, string> metadataValues)
     {
-        if (metadataValues.Count == 0 || !TryParseTopLevelObject(json, out var body))
-            return null;
-
-        var normalizedValues = metadataValues
-            .Where(static pair => !string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
-            .ToDictionary(
-                static pair => pair.Key.Trim(),
-                static pair => pair.Value.Trim(),
-                StringComparer.Ordinal);
-        if (normalizedValues.Count == 0)
-            return null;
+        if (!TryParseTopLevelObject(json, out var body))
+            return default;
 
         var changed = body.HadDuplicateTopLevelKeys;
-        if (body.TryGetRawValue(ClientMetadataField, out var rawMetadata) &&
-            TryParseTopLevelObject(rawMetadata, out var metadata))
+        changed |= body.RemoveRawValue("max_output_tokens");
+        CanonicalTopLevelJsonObject metadata;
+        bool metadataChanged;
+        if (body.TryGetRawValue(ClientMetadataField, out var rawMetadata)
+            && TryParseTopLevelObject(rawMetadata, out var parsedMetadata))
         {
-            changed |= metadata.HadDuplicateTopLevelKeys;
-            foreach (var pair in normalizedValues)
-            {
-                if (metadata.TryGetRawValue(pair.Key, out var existingRaw) &&
-                    TryReadString(existingRaw, out var existing) &&
-                    string.Equals(existing, pair.Value, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                metadata.SetRawValue(pair.Key, JsonSerializer.Serialize(pair.Value));
-                changed = true;
-            }
-
-            if (!changed)
-                return null;
-
-            body.SetRawValue(ClientMetadataField, metadata.ToJsonString());
-            return body.ToJsonString();
+            metadata = parsedMetadata;
+            metadataChanged = metadata.HadDuplicateTopLevelKeys;
+        }
+        else
+        {
+            metadata = new CanonicalTopLevelJsonObject(2);
+            metadataChanged = true;
         }
 
-        body.SetRawValue(ClientMetadataField, BuildStringPropertyObject(normalizedValues));
-        return body.ToJsonString();
+        var installationIdMismatch = false;
+        foreach (var pair in metadataValues)
+        {
+            if (metadata.TryGetRawValue(pair.Key, out var existingRaw)
+                && TryReadString(existingRaw, out var existing))
+            {
+                if (string.Equals(existing, pair.Value, StringComparison.Ordinal))
+                    continue;
+
+                if (pair.Key == OpenAIAuthConstants.InstallationIdHeader)
+                    installationIdMismatch = true;
+            }
+
+            metadata.SetRawValue(pair.Key, JsonSerializer.SerializeToUtf8Bytes(pair.Value));
+            metadataChanged = true;
+        }
+
+        if (metadataChanged)
+        {
+            body.SetRawValue(ClientMetadataField, metadata.ToUtf8Json());
+            changed = true;
+        }
+
+        if (!changed)
+            return default;
+
+        return new OAuthRewriteResult(body.ToUtf8Json(), installationIdMismatch);
     }
 
     private static bool TryParseTopLevelObject(
-        string json,
+        ReadOnlyMemory<byte> json,
         out CanonicalTopLevelJsonObject body)
     {
         body = null!;
-        if (string.IsNullOrWhiteSpace(json))
-            return false;
-
         try
         {
-            using var document = JsonDocument.Parse(json);
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            var reader = new Utf8JsonReader(json.Span);
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
                 return false;
 
-            var entries = new List<JsonPropertyEntry>();
-            var hadDuplicate = false;
-            foreach (var property in document.RootElement.EnumerateObject())
+            var parsed = new CanonicalTopLevelJsonObject(json.Length);
+            while (reader.Read())
             {
-                var previous = entries.FindIndex(entry => string.Equals(entry.Name, property.Name, StringComparison.Ordinal));
-                if (previous >= 0)
+                if (reader.TokenType == JsonTokenType.EndObject)
                 {
-                    entries.RemoveAt(previous);
-                    hadDuplicate = true;
+                    if (reader.Read())
+                        return false;
+                    body = parsed;
+                    return true;
                 }
 
-                entries.Add(new JsonPropertyEntry(property.Name, property.Value.GetRawText()));
+                var name = reader.GetString()!;
+                if (!reader.Read())
+                    return false;
+                var start = (int)reader.TokenStartIndex;
+                reader.Skip();
+                parsed.AddParsedProperty(name, json.Slice(start, (int)reader.BytesConsumed - start));
             }
 
-            body = new CanonicalTopLevelJsonObject(entries, hadDuplicate);
-            return true;
+            return false;
         }
         catch (JsonException)
         {
@@ -147,65 +126,48 @@ internal static class OpenAIResponsesRequestBodyCanonicalizer
         }
     }
 
-    private static string BuildStringPropertyObject(IReadOnlyDictionary<string, string> values)
+    private static bool TryReadString(ReadOnlyMemory<byte> rawJson, out string? value)
     {
-        var buffer = new ArrayBufferWriter<byte>();
-        using (var writer = new Utf8JsonWriter(buffer))
-        {
-            writer.WriteStartObject();
-            foreach (var pair in values)
-                writer.WriteString(pair.Key, pair.Value);
-            writer.WriteEndObject();
-        }
-
-        return Encoding.UTF8.GetString(buffer.WrittenSpan);
+        var reader = new Utf8JsonReader(rawJson.Span);
+        reader.Read();
+        value = reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
+        return value != null;
     }
 
-    private static bool TryReadString(string rawJson, out string? value)
+    private sealed class CanonicalTopLevelJsonObject(int sourceLength)
     {
-        value = null;
-        try
-        {
-            using var document = JsonDocument.Parse(rawJson);
-            if (document.RootElement.ValueKind != JsonValueKind.String)
-                return false;
+        private readonly List<JsonPropertyEntry> _entries = [];
+        private int _capacity = sourceLength;
 
-            value = document.RootElement.GetString();
-            return true;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
-    }
+        public bool HadDuplicateTopLevelKeys { get; private set; }
 
-    private sealed class CanonicalTopLevelJsonObject(
-        List<JsonPropertyEntry> entries,
-        bool hadDuplicateTopLevelKeys)
-    {
-        public bool HadDuplicateTopLevelKeys { get; } = hadDuplicateTopLevelKeys;
-
-        public bool TryGetRawValue(string name, out string rawValue)
+        public void AddParsedProperty(string name, ReadOnlyMemory<byte> rawValue)
         {
             var index = FindIndex(name);
-            if (index < 0)
+            if (index >= 0)
             {
-                rawValue = string.Empty;
-                return false;
+                _entries.RemoveAt(index);
+                HadDuplicateTopLevelKeys = true;
             }
-
-            rawValue = entries[index].RawValue;
-            return true;
+            _entries.Add(new JsonPropertyEntry(name, rawValue));
         }
 
-        public void SetRawValue(string name, string rawValue)
+        public bool TryGetRawValue(string name, out ReadOnlyMemory<byte> rawValue)
+        {
+            var index = FindIndex(name);
+            rawValue = index >= 0 ? _entries[index].RawValue : default;
+            return index >= 0;
+        }
+
+        public void SetRawValue(string name, ReadOnlyMemory<byte> rawValue)
         {
             var index = FindIndex(name);
             var entry = new JsonPropertyEntry(name, rawValue);
             if (index >= 0)
-                entries[index] = entry;
+                _entries[index] = entry;
             else
-                entries.Add(entry);
+                _entries.Add(entry);
+            _capacity += rawValue.Length + Encoding.UTF8.GetByteCount(name) + 4;
         }
 
         public bool RemoveRawValue(string name)
@@ -214,31 +176,34 @@ internal static class OpenAIResponsesRequestBodyCanonicalizer
             if (index < 0)
                 return false;
 
-            entries.RemoveAt(index);
+            _entries.RemoveAt(index);
             return true;
         }
 
-        public string ToJsonString()
+        public ReadOnlyMemory<byte> ToUtf8Json()
         {
-            var buffer = new ArrayBufferWriter<byte>();
+            var buffer = new ArrayBufferWriter<byte>(_capacity);
             using (var writer = new Utf8JsonWriter(buffer))
             {
                 writer.WriteStartObject();
-                foreach (var entry in entries)
+                foreach (var entry in _entries)
                 {
                     writer.WritePropertyName(entry.Name);
-                    writer.WriteRawValue(entry.RawValue);
+                    writer.WriteRawValue(entry.RawValue.Span, skipInputValidation: true);
                 }
-
                 writer.WriteEndObject();
             }
-
-            return Encoding.UTF8.GetString(buffer.WrittenSpan);
+            return buffer.WrittenMemory;
         }
 
-        private int FindIndex(string name) =>
-            entries.FindIndex(entry => string.Equals(entry.Name, name, StringComparison.Ordinal));
+        private int FindIndex(string name)
+        {
+            for (var i = 0; i < _entries.Count; i++)
+                if (string.Equals(_entries[i].Name, name, StringComparison.Ordinal))
+                    return i;
+            return -1;
+        }
     }
 
-    private sealed record JsonPropertyEntry(string Name, string RawValue);
+    private readonly record struct JsonPropertyEntry(string Name, ReadOnlyMemory<byte> RawValue);
 }

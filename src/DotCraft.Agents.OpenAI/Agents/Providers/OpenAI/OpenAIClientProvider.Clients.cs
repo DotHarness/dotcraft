@@ -15,18 +15,23 @@ public sealed partial class OpenAIClientProvider
     {
         return _openAIClients.GetOrAdd(key, static (clientKey, provider) =>
         {
+            var isOAuth = clientKey.AuthMethod == ModelProviderAuthMethods.ChatGptOAuth;
+            if (isOAuth && !clientKey.IsRemote && provider._openAIAuthService is null)
+                throw new InvalidOperationException(
+                    "ChatGPT OAuth provider requested but no IOpenAIAuthService was registered.");
+
+            var installationId = isOAuth
+                ? provider._installationIdProvider?.GetInstallationId()
+                : null;
             var options = CreateClientOptions(
                 clientKey.Endpoint,
-                clientKey.NetworkTimeoutSeconds);
+                clientKey.NetworkTimeoutSeconds,
+                installationId,
+                provider._logger);
             if (clientKey.IsRemote)
                 options.Transport = new HttpClientPipelineTransport(provider.RemoteHttpClient(clientKey.ProviderId, clientKey.Endpoint));
-            if (clientKey.AuthMethod == ModelProviderAuthMethods.ChatGptOAuth)
+            if (isOAuth)
             {
-                if (!clientKey.IsRemote && provider._openAIAuthService is null)
-                    throw new InvalidOperationException(
-                        "ChatGPT OAuth provider requested but no IOpenAIAuthService was registered.");
-
-                var installationId = provider._installationIdProvider?.GetInstallationId();
                 options.AddPolicy(
                     clientKey.IsRemote ? new OpenAIRequestMetadataPolicy(installationId, provider._logger) : new OpenAIOAuthPipelinePolicy(
                         provider._openAIAuthService!,
@@ -34,12 +39,6 @@ public sealed partial class OpenAIClientProvider
                         installationId,
                         provider._logger),
                     PipelinePosition.BeforeTransport);
-                if (!string.IsNullOrWhiteSpace(installationId))
-                {
-                    options.AddPolicy(
-                        new OpenAIResponsesClientMetadataPipelinePolicy(installationId, provider._logger),
-                        PipelinePosition.PerCall);
-                }
                 options.AddPolicy(
                     new OpenAIResponsesRequestCompressionPipelinePolicy(),
                     PipelinePosition.PerCall);
