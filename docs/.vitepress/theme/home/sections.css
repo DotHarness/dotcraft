@@ -260,7 +260,7 @@
 
 .dc-products {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -321,10 +321,6 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .dc-products {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .dc-tour {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -360,6 +356,10 @@
 }
 
 @media (max-width: 640px) {
+  .dc-products {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .dc-row {
     align-items: flex-start;
     padding: 14px;

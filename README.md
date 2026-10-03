@@ -18,7 +18,7 @@ DotCraft is an open-source AI agent that runs on your own machine. Use the deskt
 ## What's in the box
 
 <p align="center"><b>USE IT</b></p>
-<p align="center"><a href="#desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-desktop.webp" width="264" alt="Desktop: plans, builds and checks the work in your projects. Download."></a> <a href="#cli"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-cli.webp" width="264" alt="CLI: one command, and the answer is in your terminal. Install script."></a></p>
+<p align="center"><a href="#desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-desktop.webp" width="264" alt="Desktop: plans, builds and checks the work in your projects. Download."></a> <a href="#mobile"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-mobile.webp" width="264" alt="Mobile: follow and answer your chats from your phone. Download."></a> <a href="#cli"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-cli.webp" width="264" alt="CLI: one command, and the answer is in your terminal. Install script."></a></p>
 
 <p align="center"><b>CONNECT IT</b></p>
 <p align="center"><a href="#satellite"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-satellite.webp" width="264" alt="Satellite: your agent works on another Windows PC. Download."></a> <a href="#oratorio"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-oratorio.webp" width="264" alt="Oratorio: every task, from hand-off to review, on one board. Built in."></a> <a href="#chat-bots"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-chat-bots.webp" width="264" alt="Chat bots: ask about your project right in the group chat. Built in."></a></p>
@@ -61,7 +61,7 @@ See [Getting started](https://www.dotcraft.net/getting-started) for the full wal
 
 A workbench where the agent plans in your project, hands parts to subagents, and checks the result before it says done.
 
-**Get it:** [Download](https://github.com/DotHarness/dotcraft/releases) for Windows, macOS or Linux. The Android app on the same page follows and answers your chats from your phone.
+**Get it:** [Download](https://github.com/DotHarness/dotcraft/releases) for Windows, macOS or Linux.
 
 <p align="center"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/desktop-strip-light.webp" width="830" alt="Four Desktop features in turn: the in-app browser checking your app's settings page, Computer Use working in another Windows app, Agent Builder setting up a new agent, and the pet finding Dragon wings to wear."></p>
 
@@ -75,9 +75,17 @@ A workbench where the agent plans in your project, hands parts to subagents, and
 - **Automations**, **Goals**, **Dreams** and **Dynamic Workflows** keep work moving when you are away.
 - **Your pet** lives on the composer and finds things to wear while agents work.
 
-**Your first result:** open a project, ask *"Plan how we would ship dark mode, then do it."*, approve the plan, and watch the steps tick off.
+[Desktop guide](https://www.dotcraft.net/features/entry-points/desktop) · [Subagents](https://www.dotcraft.net/features/agent-system/subagents) · [Agent profiles](https://www.dotcraft.net/features/agent-system/agent-profiles) · [Automations](https://www.dotcraft.net/features/agent-system/automations)
 
-[Desktop guide](https://www.dotcraft.net/features/entry-points/desktop) · [Phone app](https://www.dotcraft.net/features/entry-points/mobile) · [Subagents](https://www.dotcraft.net/features/agent-system/subagents) · [Agent profiles](https://www.dotcraft.net/features/agent-system/agent-profiles) · [Automations](https://www.dotcraft.net/features/agent-system/automations)
+## Mobile
+
+<p align="center"><a href="https://www.dotcraft.net/features/entry-points/mobile"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-mobile.png" width="830" alt="DotCraft on an Android phone asking to run npm run test:contrast, with Allow once."></a></p>
+
+Keep up with your agent from your phone while it works on your computer. See what's running, answer approvals and questions, add a message or stop a chat, and start new chats in any project.
+
+**Get it:** [download](https://github.com/DotHarness/dotcraft/releases) the Android app, then scan the code under **Settings → Connections → Phones** in Desktop.
+
+[Phone app guide](https://www.dotcraft.net/features/entry-points/mobile) · [Access from anywhere](https://www.dotcraft.net/developing/lifecycle/hub#access-from-anywhere)
 
 ## CLI
 
@@ -89,8 +97,6 @@ Run a task with one command and get the answer in your terminal, on your laptop,
 dotcraft exec "Which colors in src/components are still hard-coded?"
 ```
 
-**Your first result:** a plain-text answer in the terminal, saved to the same workspace Desktop uses. IDEs connect to the same workspace too.
-
 [Entry points](https://www.dotcraft.net/features/entry-points/) · [IDEs](https://www.dotcraft.net/features/entry-points/editors)
 
 ## Satellite
@@ -100,8 +106,6 @@ dotcraft exec "Which colors in src/components are still hard-coded?"
 Let your agent work on another Windows PC. The person sharing it chooses full access or one folder, sees every request at the top of the screen, and can pause sharing at any time.
 
 **Get it:** in Desktop, open **Settings → Connections → Satellites → Invite** and send the link. The other PC downloads DotCraft Satellite from that page.
-
-**Your first result:** pick the PC under **Run on** below the composer, and the next task runs there.
 
 [Satellite guide](https://www.dotcraft.net/features/agent-system/satellite)
 
@@ -113,8 +117,6 @@ Your project board, built into Desktop. Local tasks, GitHub issues and pull requ
 
 **Get it:** built in. Select **Oratorio** in the Desktop sidebar.
 
-**Your first result:** a task card that the agent works on in its own worktree, waiting in **In review** for you.
-
 [Oratorio guide](https://www.dotcraft.net/features/oratorio) · [Workflow](https://www.dotcraft.net/features/oratorio/workflow)
 
 ## Chat bots
@@ -124,8 +126,6 @@ Your project board, built into Desktop. Local tasks, GitHub issues and pull requ
 Put DotCraft in the group chat so teammates can ask about the project without opening Desktop. Feishu / Lark, QQ, Telegram, WeCom and WeChat connect, and their conversations share the workspace with every other entry point.
 
 **Get it:** built in. Open **Channels** in Desktop, pick a platform and fill in its credentials.
-
-**Your first result:** the bot answers a test message in your chat.
 
 [Channels & bots](https://www.dotcraft.net/features/channels/)
 
@@ -148,8 +148,6 @@ using var host = builder.Build();
 await host.StartAsync();
 ```
 
-**Your first result:** a running host whose `ISessionService` creates threads and streams each turn's events to your UI.
-
 [Harness guide](https://www.dotcraft.net/developing/harness/) · [.NET plugins](https://www.dotcraft.net/developing/integrations/dotnet-plugins)
 
 ## SDKs
@@ -170,8 +168,6 @@ const thread = await dotcraft.threads.start({ userId: "me" });
 const result = await thread.run("Check contrast in dark mode.");
 console.log(result.text);
 ```
-
-**Your first result:** the agent's reply printed by your own code, in a thread Desktop can open too.
 
 [SDK quickstart](https://www.dotcraft.net/developing/sdks/quickstart) · [App Binding](https://www.dotcraft.net/developing/integrations/app-binding) · [Desktop plugins](https://www.dotcraft.net/developing/integrations/desktop-plugins)
 

@@ -51,6 +51,7 @@ function stories(base: string, text: { name: string; line: string; alt: string; 
 
 const productHrefs = {
   desktop: '/features/entry-points/desktop',
+  mobile: '/features/entry-points/mobile',
   cli: '/features/entry-points/',
   satellite: '/features/agent-system/satellite',
   oratorio: '/features/oratorio',
@@ -59,7 +60,7 @@ const productHrefs = {
   sdks: '/developing/sdks/'
 }
 
-type ProductId = 'desktop' | 'cli' | 'satellite' | 'oratorio' | 'chat-bots' | 'harness' | 'sdks' | 'avatar'
+type ProductId = 'desktop' | 'mobile' | 'cli' | 'satellite' | 'oratorio' | 'chat-bots' | 'harness' | 'sdks' | 'avatar'
 
 function products(rows: [ProductId, string, string, string, string][]): Product[] {
   return rows.map(([id, label, hint, get, href]) => ({ label, hint, get, href, art: `${raw}dotcraft/docs/product-${id}.webp` }))
@@ -129,6 +130,7 @@ export const homeCopy = {
       title: 'Explore DotCraft',
       rows: products([
         ['desktop', 'Desktop', 'Plans, builds and checks the work in your projects.', 'Download', productHrefs.desktop],
+        ['mobile', 'Mobile', 'Follow and answer your chats from your phone.', 'Download', productHrefs.mobile],
         ['cli', 'CLI', 'One command, and the answer is in your terminal.', 'Install script', productHrefs.cli],
         ['satellite', 'Satellite', 'Your agent works on another Windows PC.', 'Download', productHrefs.satellite],
         ['oratorio', 'Oratorio', 'Every task, from hand-off to review, on one board.', 'Built in', productHrefs.oratorio],
@@ -216,6 +218,7 @@ export const homeCopy = {
       title: '探索 DotCraft',
       rows: products([
         ['desktop', 'Desktop', '在你的项目里规划、动手、自己验收。', '下载', productHrefs.desktop],
+        ['mobile', '手机 App', '在手机上跟进和处理你的聊天。', '下载', productHrefs.mobile],
         ['cli', 'CLI', '一条命令，答案直接回到终端。', '安装脚本', productHrefs.cli],
         ['satellite', '卫星', '你的 Agent 在另一台 Windows 电脑上工作。', '下载', productHrefs.satellite],
         ['oratorio', 'Oratorio', '每个任务从派发到评审，都在一块看板上。', '已内置', productHrefs.oratorio],

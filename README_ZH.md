@@ -18,7 +18,7 @@ DotCraft 是一个开源的 AI Agent，运行在你自己的机器上。用桌�
 ## 都有什么
 
 <p align="center"><b>直接用</b></p>
-<p align="center"><a href="#desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-desktop.webp" width="264" alt="Desktop：在你的项目里规划、动手、自己验收。下载安装。"></a> <a href="#cli"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-cli.webp" width="264" alt="CLI：一条命令，答案直接回到终端。安装脚本。"></a></p>
+<p align="center"><a href="#desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-desktop.webp" width="264" alt="Desktop：在你的项目里规划、动手、自己验收。下载安装。"></a> <a href="#手机-app"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-mobile.webp" width="264" alt="手机 App：在手机上跟进和处理你的聊天。下载安装。"></a> <a href="#cli"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-cli.webp" width="264" alt="CLI：一条命令，答案直接回到终端。安装脚本。"></a></p>
 
 <p align="center"><b>接到更多地方</b></p>
 <p align="center"><a href="#卫星"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-satellite.webp" width="264" alt="卫星：你的 Agent 在另一台 Windows 电脑上工作。下载安装。"></a> <a href="#oratorio"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-oratorio.webp" width="264" alt="Oratorio：每个任务从派发到评审，都在一块看板上。已内置。"></a> <a href="#聊天机器人"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-chat-bots.webp" width="264" alt="聊天机器人：在群聊里直接问项目的事。已内置。"></a></p>
@@ -61,7 +61,7 @@ irm https://www.dotcraft.net/install.ps1 | iex
 
 一个工作台：Agent 在你的项目里做计划，把任务拆给子智能体，确认结果没问题后才告诉你完成了。
 
-**获取方式：** [下载](https://github.com/DotHarness/dotcraft/releases)，支持 Windows、macOS 和 Linux。同一页面还有 Android App，在手机上跟进并回复你的聊天。
+**获取方式：** [下载](https://github.com/DotHarness/dotcraft/releases)，支持 Windows、macOS 和 Linux。
 
 <p align="center"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/desktop-strip-light.webp" width="830" alt="依次展示 Desktop 的四项能力：应用内浏览器检查你的应用设置页、电脑操控在另一个 Windows 应用里工作、Agent Builder 配置新 Agent、宠物发现可穿戴的龙之翼。"></p>
 
@@ -75,9 +75,17 @@ irm https://www.dotcraft.net/install.ps1 | iex
 - **Automations**、**Goals**、**Dreams** 和 **Dynamic Workflows** 在你离开时也让工作继续推进。
 - **你的宠物** 待在输入框上，在 Agent 工作时找到可以穿戴的道具。
 
-**你会得到：** 打开一个项目，输入「先规划一下怎么给应用加上深色模式，然后把它做完。」，确认计划，看着步骤逐项完成。
+[Desktop 指南](https://www.dotcraft.net/zh/features/entry-points/desktop) · [子智能体](https://www.dotcraft.net/zh/features/agent-system/subagents) · [Agent Profiles](https://www.dotcraft.net/zh/features/agent-system/agent-profiles) · [Automations](https://www.dotcraft.net/zh/features/agent-system/automations)
 
-[Desktop 指南](https://www.dotcraft.net/zh/features/entry-points/desktop) · [手机 App](https://www.dotcraft.net/zh/features/entry-points/mobile) · [子智能体](https://www.dotcraft.net/zh/features/agent-system/subagents) · [Agent Profiles](https://www.dotcraft.net/zh/features/agent-system/agent-profiles) · [Automations](https://www.dotcraft.net/zh/features/agent-system/automations)
+## 手机 App
+
+<p align="center"><a href="https://www.dotcraft.net/zh/features/entry-points/mobile"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-mobile.png" width="830" alt="Android 手机上的 DotCraft 请求运行 npm run test:contrast，带 Allow once 按钮。"></a></p>
+
+Agent 在你的电脑上干活时，你可以在手机上跟进：看哪些聊天在运行，处理审批和提问，追加消息或停止聊天，还能在任意项目里开新聊天。
+
+**获取方式：** [下载](https://github.com/DotHarness/dotcraft/releases) Android App，然后在 Desktop 的**设置 → 连接 → 手机**里扫码配对。
+
+[手机 App 指南](https://www.dotcraft.net/zh/features/entry-points/mobile) · [随处访问](https://www.dotcraft.net/zh/developing/lifecycle/hub#随处访问)
 
 ## CLI
 
@@ -89,8 +97,6 @@ irm https://www.dotcraft.net/install.ps1 | iex
 dotcraft exec "src/components 里还有哪些颜色是写死的？"
 ```
 
-**你会得到：** 终端里的一段纯文本回答，并保存在 Desktop 使用的同一个工作区里。IDE 也连接到这个工作区。
-
 [入口概览](https://www.dotcraft.net/zh/features/entry-points/) · [IDE](https://www.dotcraft.net/zh/features/entry-points/editors)
 
 ## 卫星
@@ -100,8 +106,6 @@ dotcraft exec "src/components 里还有哪些颜色是写死的？"
 让你的 Agent 在另一台 Windows 电脑上工作。共享电脑的人可以选择完全访问或只开放一个文件夹，在屏幕顶部看到每个请求，并随时暂停共享。
 
 **获取方式：** 在 Desktop 打开 **设置 → 连接 → 卫星 → 邀请**，把链接发给对方。对方在那个页面下载 DotCraft Satellite。
-
-**你会得到：** 在输入框下方的 **执行位置** 里选中那台电脑，下一个任务就在那里运行。
 
 [卫星指南](https://www.dotcraft.net/zh/features/agent-system/satellite)
 
@@ -113,8 +117,6 @@ dotcraft exec "src/components 里还有哪些颜色是写死的？"
 
 **获取方式：** 已内置。在 Desktop 侧边栏选择 **Oratorio**。
 
-**你会得到：** 一张由 Agent 在独立 worktree 里处理的任务卡，处理完后停在评审列等你。
-
 [Oratorio 指南](https://www.dotcraft.net/zh/features/oratorio) · [工作流](https://www.dotcraft.net/zh/features/oratorio/workflow)
 
 ## 聊天机器人
@@ -124,8 +126,6 @@ dotcraft exec "src/components 里还有哪些颜色是写死的？"
 把 DotCraft 拉进群聊，团队成员不用打开 Desktop 也能问项目的事。支持飞书 / Lark、QQ、Telegram、企业微信和微信，这些对话和其他入口共用同一个工作区。
 
 **获取方式：** 已内置。在 Desktop 打开 **渠道**，选择平台并填写凭据。
-
-**你会得到：** 机器人在你的群聊里回复一条测试消息。
 
 [渠道与机器人](https://www.dotcraft.net/zh/features/channels/)
 
@@ -148,8 +148,6 @@ using var host = builder.Build();
 await host.StartAsync();
 ```
 
-**你会得到：** 一个运行中的宿主，它的 `ISessionService` 能创建线程，并把每一轮的事件流式推送到你的界面。
-
 [Harness 指南](https://www.dotcraft.net/zh/developing/harness/) · [.NET 插件](https://www.dotcraft.net/zh/developing/integrations/dotnet-plugins)
 
 ## SDK
@@ -170,8 +168,6 @@ const thread = await dotcraft.threads.start({ userId: "me" });
 const result = await thread.run("Check contrast in dark mode.");
 console.log(result.text);
 ```
-
-**你会得到：** 你自己的代码打印出 Agent 的回复，这个线程在 Desktop 里也能打开。
 
 [SDK 快速开始](https://www.dotcraft.net/zh/developing/sdks/quickstart) · [App Binding](https://www.dotcraft.net/zh/developing/integrations/app-binding) · [Desktop 插件](https://www.dotcraft.net/zh/developing/integrations/desktop-plugins)
 
