@@ -14,7 +14,13 @@ internal sealed class HubMobileListener : IAsyncDisposable
 {
     private readonly WebApplication _app;
 
-    private HubMobileListener(WebApplication app) => _app = app;
+    private HubMobileListener(WebApplication app, IPEndPoint localEndPoint)
+    {
+        _app = app;
+        LocalEndPoint = localEndPoint;
+    }
+
+    public IPEndPoint LocalEndPoint { get; }
 
     public static async Task<HubMobileListener> StartAsync(
         string host,
@@ -26,7 +32,8 @@ internal sealed class HubMobileListener : IAsyncDisposable
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         builder.Logging.AddProvider(new NonOwningLoggerProvider(loggerFactory));
-        builder.WebHost.ConfigureKestrel(kestrel => kestrel.Listen(ParseHost(host), port, listen =>
+        var address = ParseHost(host);
+        builder.WebHost.ConfigureKestrel(kestrel => kestrel.Listen(address, port, listen =>
         {
             listen.Use(next => connection =>
             {
@@ -55,7 +62,7 @@ internal sealed class HubMobileListener : IAsyncDisposable
                 new { port, reason = ex.GetType().Name });
         }
 
-        return new HubMobileListener(app);
+        return new HubMobileListener(app, new IPEndPoint(LocalAddress(address), port));
     }
 
     public async ValueTask DisposeAsync()
@@ -67,6 +74,11 @@ internal sealed class HubMobileListener : IAsyncDisposable
 
     private static IPAddress ParseHost(string host) =>
         IPAddress.TryParse(host?.Trim(), out var address) ? address : IPAddress.Any;
+
+    private static IPAddress LocalAddress(IPAddress bound) =>
+        bound.Equals(IPAddress.Any) ? IPAddress.Loopback
+        : bound.Equals(IPAddress.IPv6Any) ? IPAddress.IPv6Loopback
+        : bound;
 }
 
 internal static class MobileGatewayRoutes

@@ -60,20 +60,20 @@ internal sealed class AppServerInteractiveRequestSender
             Shell = ToContract(request.Shell)
         };
 
-        var response = await AwaitAnswerAsync(
+        var result = await AwaitAnswerAsync(
             hold,
             ct => _transport.RequestAsync(
                 Contract.AppServerRpc.ApprovalRequest,
                 approvalParams,
                 ct,
                 timeout: Timeout.InfiniteTimeSpan));
-        if (response is not null && _holders.TryResolve(hold.Key))
+        if (result is not null && _holders.TryResolve(hold.Key))
         {
             await TryResolveApprovalAsync(
                 threadId,
                 turnId,
                 request.RequestId,
-                ParseApprovalDecision(response.Result));
+                ParseApprovalDecision(result));
         }
     }
 
@@ -111,20 +111,20 @@ internal sealed class AppServerInteractiveRequestSender
             }).ToArray()
         };
 
-        var response = await AwaitAnswerAsync(
+        var result = await AwaitAnswerAsync(
             hold,
             ct => _transport.RequestAsync(
                 Contract.AppServerRpc.UserInputRequest,
                 requestParams,
                 ct,
                 timeout: Timeout.InfiniteTimeSpan));
-        if (response is not null && _holders.TryResolve(hold.Key))
+        if (result is not null && _holders.TryResolve(hold.Key))
         {
             await TryResolveUserInputAsync(
                 threadId,
                 turnId,
                 request.RequestId,
-                ParseUserInputResponse(response.Result));
+                ParseUserInputResponse(result));
         }
     }
 
@@ -167,7 +167,7 @@ internal sealed class AppServerInteractiveRequestSender
             ? _holders.TryHold(key)
             : null;
 
-    private async Task<AppServerTypedClientResponse<TResult>?> AwaitAnswerAsync<TResult>(
+    private async Task<TResult?> AwaitAnswerAsync<TResult>(
         AppServerInteractiveRequestHolders.Hold hold,
         Func<CancellationToken, Task<AppServerTypedClientResponse<TResult>>> send)
         where TResult : class
@@ -177,7 +177,14 @@ internal sealed class AppServerInteractiveRequestSender
         {
             var request = send(resolvedElsewhere.Token);
             if (await Task.WhenAny(request, hold.Resolved) == request)
-                return await request;
+            {
+                if ((await request).Result is { } result)
+                    return result;
+
+                var key = hold.Key;
+                _connection.ReleaseInteractiveRequest(key.Method, key.ThreadId, key.TurnId, key.RequestId);
+                return null;
+            }
 
             resolvedElsewhere.Cancel();
             _ = request.ContinueWith(
@@ -263,9 +270,9 @@ internal sealed class AppServerInteractiveRequestSender
         catch (OperationCanceledException) { /* Ignore if session was cancelled */ }
     }
 
-    private static SessionApprovalDecision ParseApprovalDecision(Contract.ApprovalResponseResult? result)
+    private static SessionApprovalDecision ParseApprovalDecision(Contract.ApprovalResponseResult result)
     {
-        return result?.Decision switch
+        return result.Decision switch
         {
             "accept" => SessionApprovalDecision.AcceptOnce,
             "acceptForSession" => SessionApprovalDecision.AcceptForSession,
@@ -276,11 +283,8 @@ internal sealed class AppServerInteractiveRequestSender
         };
     }
 
-    private static RequestUserInputResponse ParseUserInputResponse(Contract.UserInputResponseResult? result)
+    private static RequestUserInputResponse ParseUserInputResponse(Contract.UserInputResponseResult result)
     {
-        if (result is null)
-            return new RequestUserInputResponse();
-
         try
         {
             return new RequestUserInputResponse

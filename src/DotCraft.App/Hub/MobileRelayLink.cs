@@ -20,18 +20,18 @@ internal sealed class MobileRelayLink : IAsyncDisposable
 
     private readonly MobileRelayRecord _relay;
     private readonly string _hostId;
-    private readonly int _gatewayPort;
+    private readonly IPEndPoint _gateway;
     private readonly Action _stateChanged;
     private readonly ILogger _logger;
     private readonly CancellationTokenSource _stop = new();
     private Task _run = Task.CompletedTask;
     private string _state = Connecting;
 
-    public MobileRelayLink(MobileRelayRecord relay, string hostId, int gatewayPort, Action stateChanged, ILogger logger)
+    public MobileRelayLink(MobileRelayRecord relay, string hostId, IPEndPoint gateway, Action stateChanged, ILogger logger)
     {
         _relay = relay;
         _hostId = hostId;
-        _gatewayPort = gatewayPort;
+        _gateway = gateway;
         _stateChanged = stateChanged;
         _logger = logger;
     }
@@ -129,8 +129,8 @@ internal sealed class MobileRelayLink : IAsyncDisposable
     {
         try
         {
-            using var gateway = new TcpClient { NoDelay = true };
-            await gateway.ConnectAsync(IPAddress.Loopback, _gatewayPort, cancellationToken);
+            using var gateway = new TcpClient(_gateway.AddressFamily) { NoDelay = true };
+            await gateway.ConnectAsync(_gateway, cancellationToken);
             using var relay = await ConnectAsync("/r/accept", "tunnel", tunnelId, cancellationToken);
             using var tunnel = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             var stream = gateway.GetStream();

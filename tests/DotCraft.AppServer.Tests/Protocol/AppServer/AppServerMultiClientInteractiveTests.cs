@@ -98,6 +98,30 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Approval_AnsweredWithoutAValidResult_StaysPendingAndReturnsOnTheNextSubscription()
+    {
+        var thread = await CreateThreadAsync();
+        var desktop = await ConnectAsync("dotcraft-desktop");
+        var phone = await ConnectAsync("dotcraft-mobile");
+        await desktop.SubscribeAsync(thread.Id);
+        await phone.SubscribeAsync(thread.Id);
+        await desktop.StartTurnAsync(thread.Id);
+        var onDesktop = await desktop.NextRequestAsync();
+        var onPhone = await phone.NextRequestAsync();
+
+        onDesktop.Response.TrySetResult(null);
+        await Task.Delay(200);
+        Assert.Equal(TurnStatus.WaitingApproval, thread.Turns[^1].Status);
+
+        await desktop.SubscribeAsync(thread.Id);
+        Assert.Equal(onPhone.RequestId, (await desktop.NextRequestAsync()).RequestId);
+
+        onPhone.Answer(new { decision = "accept" });
+        Assert.NotNull(await phone.Wire.WaitForNotificationAsync(Methods.TurnCompleted, TimeSpan.FromSeconds(10)));
+        Assert.True(await _model.Approved);
+    }
+
+    [Fact]
     public async Task Interrupt_ResolvesPendingApprovalForEverySubscriber_AndIgnoresALateAnswer()
     {
         var thread = await CreateThreadAsync();

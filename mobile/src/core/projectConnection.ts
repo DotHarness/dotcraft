@@ -11,7 +11,7 @@ import type {
 import { DotCraftWireClient, ERR_TURN_IN_PROGRESS, JsonRpcError } from '@dotcraft/sdk/wire'
 import { followUpMethod } from './chatState'
 import { GatewayError, type GatewayClient } from './gateway'
-import { applyEvent, historyFromPages, restoreEchoes, type HistoryEvent } from './history'
+import { applyEvent, historyFromPages, restoreEchoes, type HistoryEvent, type HistoryItem } from './history'
 import { HTTP_REJECTED } from './pinned'
 import { PinnedSocketTransport, SocketOpenError } from './pinnedSocketTransport'
 import type { PinnedSockets, SocketEnd } from './sockets'
@@ -170,7 +170,6 @@ export class ProjectConnection {
 
     client.on('thread/runtimeChanged', ({ threadId, runtime }) => {
       if (!threadId) return
-      this.ensureSummary(threadId)
       this.patch(threadId, { runtime: runtime ?? null, updatedAt: now(), ...(runtime?.running ? { lastTurnFailed: false } : {}) })
     })
     client.on('thread/started', ({ thread }) => this.threadSeen(thread))
@@ -300,12 +299,24 @@ export class ProjectConnection {
       this.threadSeen(thread)
       this.patch(threadId, { lastTurnFailed: !thread.runtime.running && turns.data[0]?.status === 'failed' })
       this.store.dispatch({ type: 'detailLoaded', key, history, profileName })
+      this.dropAnswered(key, history.items)
     } catch (error) {
       const existing = this.store.getState().details[key]
       if (existing) this.store.dispatch({ type: 'detailLoaded', key, history: existing.history, profileName: existing.profileName })
       throw error
     } finally {
       this.capturing.delete(threadId)
+    }
+  }
+
+  private dropAnswered(key: string, items: HistoryItem[]): void {
+    const answered = new Set(
+      items.filter((item) => item.type === 'approvalResponse' || item.type === 'userInputResponse').map((item) => item.payload.requestId),
+    )
+    for (const { requestId } of this.store.getState().pending[key] ?? []) {
+      if (!answered.has(requestId)) continue
+      this.held.delete(requestId)
+      this.store.dispatch({ type: 'pendingRemoved', key, requestId })
     }
   }
 

@@ -195,6 +195,19 @@ describe('approvals and questions', () => {
     await waitFor(() => harness.state().pending[key] === undefined)
     expect(computer.decisions).toHaveLength(1)
   })
+
+  it('dismisses the card when the computer answered while the chat was closed', async () => {
+    const computer = studio()
+    const harness = setup([computer])
+    const key = keyOf(await online(harness), 'Upgrade Vite to 6.4')
+    harness.session.openChat(key)
+    await waitFor(() => Boolean(harness.state().pending[key]))
+    harness.session.closeChat(key)
+    await waitFor(() => methods(computer).includes('thread/unsubscribe'))
+    computer.answerFromComputer(harness.state().chats[key].threadId, { decision: 'accept' })
+    harness.session.openChat(key)
+    await waitFor(() => harness.state().pending[key] === undefined)
+  })
 })
 
 describe('turn control', () => {

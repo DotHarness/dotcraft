@@ -324,6 +324,16 @@ public sealed class AppServerConnection
         _interactiveRequests.TryAdd(new InteractiveRequestKey(method, threadId, turnId, requestId), 0);
 
     /// <summary>
+    /// Forgets a delivered interactive request so a later subscription delivers it again.
+    /// </summary>
+    public void ReleaseInteractiveRequest(
+        string method,
+        string threadId,
+        string turnId,
+        string requestId) =>
+        _interactiveRequests.TryRemove(new InteractiveRequestKey(method, threadId, turnId, requestId), out _);
+
+    /// <summary>
     /// Returns <c>true</c> if the client declared streaming support (default true when not specified).
     /// </summary>
     public bool SupportsStreaming =>

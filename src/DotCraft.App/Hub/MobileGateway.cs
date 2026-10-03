@@ -388,7 +388,7 @@ internal sealed class MobileGateway : IAsyncDisposable
     {
         if (_registry.Relay is not { } relay || _registry.HostId is not { } hostId)
             return;
-        _relay = new MobileRelayLink(relay, hostId, _config.MobilePort, PublishState, _loggerFactory.CreateLogger<MobileRelayLink>());
+        _relay = new MobileRelayLink(relay, hostId, _listener!.LocalEndPoint, PublishState, _loggerFactory.CreateLogger<MobileRelayLink>());
         _relay.Start();
     }
 
