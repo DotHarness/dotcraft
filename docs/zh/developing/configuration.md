@@ -252,6 +252,7 @@ workspace 条目覆盖全局条目，全局条目覆盖内置目录。同一模�
 | `PromptCaching.ModelPatterns` | 大小写不敏感的模型名片段。为空则不匹配任何模型 | `["claude"]` |
 | `PromptCaching.Placement` | marker 放置策略，当前仅支持 `ConversationTail` | `ConversationTail` |
 | `PromptCaching.Ttl` | Anthropic cache TTL。为空使用默认 5 分钟，`1h` 使用长缓存 | 空 |
+| `PromptCaching.Warming` | 在一轮对话等待长时间工具运行或审批时刷新 Anthropic prompt cache，让下一次请求复用缓存而不是重新写入 | `true` |
 
 Deep-thinking adapter 文件：
 

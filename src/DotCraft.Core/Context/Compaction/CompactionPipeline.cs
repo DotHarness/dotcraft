@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Globalization;
 using DotCraft.Configuration;
 using DotCraft.Contributions;
 using DotCraft.Tracing;
@@ -715,7 +714,7 @@ public sealed class CompactionPipeline
         {
             effectiveGapMinutes = Math.Max(
                 effectiveGapMinutes,
-                ResolveAnthropicPromptCacheTtlMinutes(promptCaching.Ttl));
+                promptCaching.ResolveTtl().TotalMinutes);
         }
 
         var gap = DateTimeOffset.UtcNow - lastTime;
@@ -735,38 +734,6 @@ public sealed class CompactionPipeline
         {
             return false;
         }
-    }
-
-    private static double ResolveAnthropicPromptCacheTtlMinutes(string? ttl)
-    {
-        if (string.IsNullOrWhiteSpace(ttl))
-            return 5;
-
-        var value = ttl.Trim().ToLowerInvariant();
-        if (TryParseDuration(value, "h", out var hours))
-            return hours * 60;
-        if (TryParseDuration(value, "m", out var minutes))
-            return minutes;
-        if (TryParseDuration(value, "s", out var seconds))
-            return seconds / 60;
-        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var rawMinutes) &&
-            rawMinutes > 0)
-        {
-            return rawMinutes;
-        }
-
-        return 5;
-    }
-
-    private static bool TryParseDuration(string value, string suffix, out double parsed)
-    {
-        parsed = 0;
-        if (!value.EndsWith(suffix, StringComparison.Ordinal))
-            return false;
-
-        var number = value[..^suffix.Length].Trim();
-        return double.TryParse(number, NumberStyles.Float, CultureInfo.InvariantCulture, out parsed) &&
-            parsed > 0;
     }
 
     private static IReadOnlyList<ChatMessage> SnapshotHistory(List<ChatMessage> history) =>

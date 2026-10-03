@@ -38,6 +38,16 @@ internal static class PromptCachePointSelector
         return selected.Values.OrderBy(static point => point.Candidate.Sequence).ToArray();
     }
 
+    public static IReadOnlyList<SelectedCachePoint> SelectRemembered(
+        IReadOnlyList<CachePointCandidate> candidates,
+        HashSet<string> remembered) =>
+        candidates.Where(candidate => remembered.Contains(candidate.Hash))
+            .DistinctBy(static candidate => candidate.Hash)
+            .OrderBy(static candidate => candidate.Sequence)
+            .Take(MaxCacheBreakpoints)
+            .Select(static candidate => new SelectedCachePoint(candidate, Remembered: true, Latest: false))
+            .ToArray();
+
     private static Dictionary<string, SelectedCachePoint> SelectMaintenance(
         IReadOnlyList<CachePointCandidate> candidates,
         HashSet<string> remembered,

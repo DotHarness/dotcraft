@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -484,6 +485,43 @@ public sealed partial class AppConfig
         /// </summary>
         [ConfigField(Hint = "Empty = provider default 5m; set to 1h for Anthropic's longer cache.")]
         public string Ttl { get; set; } = string.Empty;
+
+        [ConfigField(Hint = "Refresh the Anthropic prompt cache during long tool runs and approvals.")]
+        public bool Warming { get; set; } = true;
+
+        public TimeSpan ResolveTtl()
+        {
+            if (string.IsNullOrWhiteSpace(Ttl))
+                return DefaultTtl;
+
+            var value = Ttl.Trim().ToLowerInvariant();
+            if (TryParseDuration(value, "h", out var hours))
+                return TimeSpan.FromHours(hours);
+            if (TryParseDuration(value, "m", out var minutes))
+                return TimeSpan.FromMinutes(minutes);
+            if (TryParseDuration(value, "s", out var seconds))
+                return TimeSpan.FromSeconds(seconds);
+            if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var rawMinutes) &&
+                rawMinutes > 0)
+            {
+                return TimeSpan.FromMinutes(rawMinutes);
+            }
+
+            return DefaultTtl;
+        }
+
+        private static readonly TimeSpan DefaultTtl = TimeSpan.FromMinutes(5);
+
+        private static bool TryParseDuration(string value, string suffix, out double parsed)
+        {
+            parsed = 0;
+            if (!value.EndsWith(suffix, StringComparison.Ordinal))
+                return false;
+
+            var number = value[..^suffix.Length].Trim();
+            return double.TryParse(number, NumberStyles.Float, CultureInfo.InvariantCulture, out parsed) &&
+                parsed > 0;
+        }
 
         /// <summary>
         /// Returns true when prompt-cache markers should be applied for the model.
