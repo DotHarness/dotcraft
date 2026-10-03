@@ -1452,6 +1452,28 @@ label left, actions right, both on the same vertical centre. This is preferred t
 floating the controls over the card, which reserves no space for them and lets
 long labels slide underneath.
 
+### Tool rows
+
+Each individual tool row leads with a 16px activity icon, 4px before its summary.
+The icon takes the row's text colour, so it rests dimmed and lifts with the row on
+hover; only a declined command tints it, in `--warning`. Grouped summary rows
+("Explored …", "Ran commands") carry no icon; their expanded child rows do. Rows
+that already lead with an identity mark (subagents) and cards with their own
+surface (automation, agent builder, plan, workflow, image, browser) take none.
+The summary stays one line and ellipsizes, however long the command.
+
+| Activity | Icon |
+|---|---|
+| Command run | terminal |
+| Interrupted command | stop |
+| Declined command | shield, `--warning` |
+| File or skill read | open book |
+| Text search | magnifying glass |
+| File listing | folder |
+| File or skill edit | pencil |
+| Web search or fetch | globe |
+| Any other tool | wrench |
+
 ### Inline reference chips
 
 File, command, skill, link, scheduled-task, and profile references — in the

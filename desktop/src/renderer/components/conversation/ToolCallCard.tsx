@@ -21,7 +21,8 @@ import {
   formatCollapsedToolLabel,
   formatExpandedInvocation,
   formatWorkflowFailureLabel,
-  getStreamingToolDisplay
+  getStreamingToolDisplay,
+  getToolRowIcon
 } from '../../utils/toolCallDisplay'
 import { PlanToolOutput } from './PlanToolOutput'
 import { CreatePlanCard, hasCreatePlanDisplayData } from './CreatePlanCard'
@@ -463,6 +464,8 @@ export const ToolCallCard = memo(function ToolCallCard({
     return <AgentBuilderEditCard item={item} field={builderField} locale={locale} />
   }
 
+  const rowIcon = rendererFamily === 'subagent' ? undefined : getToolRowIcon(item)
+
   if (isRunning) {
     const runningExpanded = expanded && canExpandWhileRunning
     const runningDisplayLabel = runningExpanded && isStreamingFileTool
@@ -500,6 +503,7 @@ export const ToolCallCard = memo(function ToolCallCard({
         onToggle={toggleExpand}
         expandable={canExpandWhileRunning}
         onHoverChange={setHovered}
+        icon={rowIcon}
         title={remoteToolHostRow?.title ?? runningTitle}
         accessory={runningAccessory}
       >
@@ -634,6 +638,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       expandable={canExpandCompleted}
       onHoverChange={setHovered}
       tone={success ? undefined : 'error'}
+      icon={rowIcon}
       title={remoteToolHostRow?.title ?? completedTitle}
       accessory={completedAccessory}
     >

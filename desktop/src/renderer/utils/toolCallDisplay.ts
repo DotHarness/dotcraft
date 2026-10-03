@@ -1,3 +1,15 @@
+import {
+  BookOpen,
+  CircleStop,
+  Folder,
+  Globe,
+  Pencil,
+  Search,
+  ShieldAlert,
+  SquareTerminal,
+  Wrench,
+  type LucideIcon
+} from 'lucide-react'
 import { translate, type AppLocale } from '../../shared/locales'
 import type { ConversationItem } from '../types/conversation'
 import { isShellToolName } from './shellTools'
@@ -15,13 +27,19 @@ import {
 import {
   formatInvocationDisplay,
   invocationNeedsCallingPrefix,
+  isToolSearchTool,
   isWebToolName
 } from './webToolDisplay'
 
 type ToolArgs = Record<string, unknown> | undefined
 type PlanTodoLike = { id?: string; content?: string }
 
-const EXPLORE_TOOLS = new Set(['ReadFile', 'GrepFiles', 'FindFiles'])
+const EXPLORE_TOOL_ICONS: Readonly<Record<string, LucideIcon>> = {
+  ReadFile: BookOpen,
+  GrepFiles: Search,
+  FindFiles: Folder
+}
+const EXPLORE_TOOLS = new Set(Object.keys(EXPLORE_TOOL_ICONS))
 const REQUEST_USER_INPUT_TOOL_NAME = 'RequestUserInput'
 export const FILE_WRITE_TOOLS = new Set(['WriteFile', 'EditFile'])
 
@@ -386,6 +404,27 @@ export function formatCollapsedToolLabel(
   }
 
   return translate(locale, 'toolCall.called', { toolName })
+}
+
+export interface ToolRowIcon {
+  icon: LucideIcon
+  tone?: 'warning'
+}
+
+export function getToolRowIcon(
+  item: Pick<ConversationItem, 'toolName' | 'errorCode' | 'executionStatus'>
+): ToolRowIcon {
+  const toolName = item.toolName ?? ''
+  if (isShellToolName(toolName)) {
+    if (item.errorCode === 'tool_approval_rejected') return { icon: ShieldAlert, tone: 'warning' }
+    if (item.errorCode === 'tool_cancelled' || item.executionStatus === 'cancelled') return { icon: CircleStop }
+    return { icon: SquareTerminal }
+  }
+  if (EXPLORE_TOOLS.has(toolName)) return { icon: EXPLORE_TOOL_ICONS[toolName] }
+  if (toolName === SKILL_VIEW_TOOL_NAME) return { icon: BookOpen }
+  if (FILE_WRITE_TOOLS.has(toolName) || toolName === SKILL_MANAGE_TOOL_NAME) return { icon: Pencil }
+  if (isWebToolName(toolName) && !isToolSearchTool(toolName)) return { icon: Globe }
+  return { icon: Wrench }
 }
 
 export function formatWorkflowFailureLabel(args: ToolArgs, locale: AppLocale): string {

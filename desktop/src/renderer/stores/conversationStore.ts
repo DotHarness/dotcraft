@@ -784,6 +784,7 @@ function mergeToolResultIntoToolCall(
     contentItems: toolResult.contentItems ?? item.contentItems,
     structuredResult: toolResult.structuredResult ?? item.structuredResult,
     success: toolResult.success ?? item.success ?? true,
+    errorCode: toolResult.errorCode ?? item.errorCode,
     duration,
     completedAt
   }

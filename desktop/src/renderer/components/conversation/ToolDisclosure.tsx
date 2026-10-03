@@ -1,11 +1,13 @@
 import { useRef, type JSX, type ReactNode } from 'react'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
+import type { ToolRowIcon } from '../../utils/toolCallDisplay'
 
 interface ToolDisclosureProps {
   expanded: boolean
   onToggle: () => void
   expandable?: boolean
   title: ReactNode
+  icon?: ToolRowIcon
   accessory?: ReactNode
   tone?: 'error'
   variant?: 'turn'
@@ -23,6 +25,7 @@ export function ToolDisclosure({
   onToggle,
   expandable = true,
   title,
+  icon,
   accessory,
   tone,
   variant,
@@ -43,10 +46,15 @@ export function ToolDisclosure({
     }
     : {}
 
+  const leadingIcon = icon
+    ? <icon.icon className="dc-tool-row-icon" data-tone={icon.tone} size={16} strokeWidth={1.6} aria-hidden />
+    : null
+
   if (!expandable) {
     return (
       <div className="dc-tool-row-static" data-testid="tool-row" data-expandable="false" data-tone={tone} data-variant={variant} {...hoverProps}>
         <span className="dc-tool-row-title" data-testid="tool-row-title-group">
+          {leadingIcon}
           <span className="dc-tool-row-text">{title}</span>
           {accessory ? <span className="dc-tool-row-accessory">{accessory}</span> : null}
         </span>
@@ -77,6 +85,7 @@ export function ToolDisclosure({
         {...hoverProps}
       >
         <span className="dc-tool-row-title" data-testid="tool-row-title-group">
+          {leadingIcon}
           <span className="dc-tool-row-text">{title}</span>
           {accessory ? <span className="dc-tool-row-accessory">{accessory}</span> : null}
           <ToolCollapseChevron expanded={expanded} />

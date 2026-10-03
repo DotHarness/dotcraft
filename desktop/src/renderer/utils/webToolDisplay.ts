@@ -27,7 +27,7 @@ export function isWebToolName(toolName: string): boolean {
   return WEB_TOOLS.has(toolName)
 }
 
-function isToolSearchTool(toolName: string): boolean {
+export function isToolSearchTool(toolName: string): boolean {
   return TOOL_SEARCH_TOOLS.has(toolName)
 }
 

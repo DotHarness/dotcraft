@@ -946,6 +946,7 @@ function hydrateToolCallItems(items: ConversationItem[]): ConversationItem[] {
         result: resultItem.result ?? hydrated.result,
         contentItems: resultItem.contentItems ?? hydrated.contentItems,
         success: resultItem.success ?? hydrated.success ?? true,
+        errorCode: resultItem.errorCode ?? hydrated.errorCode,
         duration: hydrated.duration ?? computeItemDurationMs(hydrated.createdAt, resultItem.completedAt),
         completedAt: resultItem.completedAt ?? hydrated.completedAt
       }
