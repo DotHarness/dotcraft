@@ -182,7 +182,6 @@ public sealed class SessionContractParityTests
                 ToolDenyList = ["denied"],
                 RoleInstructions = "Research",
                 OverrideBasePrompt = true,
-                ApprovalTimeoutSeconds = 60,
                 AutomationTaskDirectory = "C:/automation",
                 RequireApprovalOutsideWorkspace = true
             },

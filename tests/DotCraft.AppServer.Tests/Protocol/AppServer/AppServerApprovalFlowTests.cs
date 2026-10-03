@@ -8,8 +8,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// Verifies:
 /// - Server sends item/approval/request to the client and awaits a response
 /// - Client response is parsed into SessionApprovalDecision and resolved
-/// - Timeout falls back to the default approval decision (Fix 6)
-/// - approvalSupport=false applies the default policy without asking the client (Fix 6)
+/// - a turn started by a client with approvalSupport=false applies the default policy without asking it (Fix 6)
 /// - a thread whose approvalPolicy is deny resolves as decline without asking (spec Section 7.4)
 /// </summary>
 public sealed class AppServerApprovalFlowTests : IDisposable

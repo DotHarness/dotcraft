@@ -35,6 +35,8 @@ import {
   SATELLITES_CHANNELS
 } from './satellites/satellitesIpc'
 import { getSatellitesHubBridge } from './satellites/satellitesHubBridge'
+import { MOBILE_CHANNELS, registerMobileHandlers } from './mobile/mobileIpc'
+import { getMobileHubBridge } from './mobile/mobileHubBridge'
 import {
   registerScreenViewHandlers,
   unregisterScreenViewHandlers
@@ -2241,6 +2243,7 @@ export function registerIpcHandlers(
       updateSettings: (partial) => hubCallbacks.updateSettings(partial)
     })
     registerScreenViewHandlers({ handleSafe, getHubClient })
+    registerMobileHandlers({ handleSafe, getHubClient, bridge: getMobileHubBridge({ getHubClient }) })
   }
 
   handleSafe('modules:list', async () => {
@@ -2560,61 +2563,9 @@ export function broadcastNotification(
   }
 }
 
-function interactiveRequestNotification(
-  payload: ServerRequestPayload,
-  settings?: AppSettings
-): { title: string; body: string } | null {
-  const locale = normalizeLocale(settings?.locale ?? DEFAULT_LOCALE)
-  const params = (payload.params ?? {}) as Record<string, unknown>
-
-  if (payload.method === 'item/tool/requestUserInput') {
-    const questions = Array.isArray(params.questions) ? params.questions : []
-    const firstQuestion = questions[0] as Record<string, unknown> | undefined
-    const questionText = typeof firstQuestion?.question === 'string'
-      ? firstQuestion.question.trim()
-      : ''
-    const body = questionText.length > 0
-      ? questionText
-      : translate(locale, 'notification.userInput.body')
-    return {
-      title: translate(locale, 'notification.userInput.title'),
-      body: stripMarkdownForNotify(body).slice(0, 240)
-    }
-  }
-
-  if (payload.method === 'item/approval/request') {
-    const reason = typeof params.reason === 'string' ? params.reason.trim() : ''
-    const operation = typeof params.operation === 'string' ? params.operation.trim() : ''
-    const target = typeof params.target === 'string' ? params.target.trim() : ''
-    const body = reason || [operation, target].filter(Boolean).join(' ') || translate(locale, 'notification.approval.body')
-    return {
-      title: translate(locale, 'notification.approval.title'),
-      body: stripMarkdownForNotify(body).slice(0, 240)
-    }
-  }
-
-  return null
-}
-
 /** The renderer must answer by calling sendServerResponse(bridgeId, result). */
-export function broadcastServerRequest(
-  win: BrowserWindow,
-  payload: ServerRequestPayload,
-  settings?: AppSettings
-): void {
+export function broadcastServerRequest(win: BrowserWindow, payload: ServerRequestPayload): void {
   if (!win.isDestroyed()) {
-    if (!win.isFocused()) {
-      const notification = interactiveRequestNotification(payload, settings)
-      if (notification != null) {
-        try {
-          if (Notification.isSupported()) {
-            new Notification(notification).show()
-          }
-        } catch {
-          /* ignore — notification optional */
-        }
-      }
-    }
     win.webContents.send('appserver:server-request', payload)
   }
 }
@@ -2625,6 +2576,9 @@ export function unregisterIpcHandlers(): void {
     ipcMain.removeHandler(channel)
   }
   for (const channel of SATELLITES_CHANNELS) {
+    ipcMain.removeHandler(channel)
+  }
+  for (const channel of MOBILE_CHANNELS) {
     ipcMain.removeHandler(channel)
   }
   unregisterScreenViewHandlers()

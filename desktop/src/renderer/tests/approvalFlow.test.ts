@@ -156,15 +156,6 @@ describe('approval card state machine', () => {
     expect(approvalItem?.approvalState).toBe('cancelled')
   })
 
-  it('pending → timedOut after onApprovalTimeout()', () => {
-    s().onApprovalRequest('bridge-5', SHELL_PARAMS)
-    s().onApprovalTimeout()
-
-    const approvalItem = s().turns[0].items.find((i) => i.type === 'approvalCard')
-    expect(approvalItem?.approvalState).toBe('timedOut')
-    expect(s().pendingApproval).toBeNull()
-  })
-
   it('onApprovalResolved clears pendingApproval and restores running status', () => {
     s().onApprovalRequest('bridge-6', SHELL_PARAMS)
     expect(s().turnStatus).toBe('waitingApproval')
@@ -429,20 +420,6 @@ describe('approval lifecycle integration', () => {
 
     const completedTurn = { ...makeTurn(), status: 'completed', completedAt: new Date().toISOString() }
     s().onTurnCompleted(completedTurn)
-    expect(s().turnStatus).toBe('idle')
-  })
-
-  it('timeout flow: request → timeout → turn failed', () => {
-    s().onApprovalRequest('bridge-9', SHELL_PARAMS)
-    expect(s().turnStatus).toBe('waitingApproval')
-
-    s().onApprovalTimeout()
-    expect(s().pendingApproval).toBeNull()
-
-    const approvalItem = s().turns[0].items.find((i) => i.type === 'approvalCard')
-    expect(approvalItem?.approvalState).toBe('timedOut')
-
-    s().onTurnFailed(makeTurn(), 'Approval timed out')
     expect(s().turnStatus).toBe('idle')
   })
 })

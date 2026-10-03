@@ -308,6 +308,11 @@ export async function tryAcquireTrayLock(
   return null
 }
 
+export async function isTrayRunning(lockPath = getTrayLockPath()): Promise<boolean> {
+  const endpoint = endpointFromSnapshot(readLockSnapshot(lockPath))
+  return endpoint != null && await requestTrayControl(endpoint, 'ping')
+}
+
 export async function requestTrayShutdown(lockPath = getTrayLockPath()): Promise<boolean> {
   const endpoint = endpointFromSnapshot(readLockSnapshot(lockPath))
   if (!endpoint) return false

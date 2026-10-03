@@ -352,8 +352,7 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
                 ApprovalType = "shell",
                 Operation = "dotnet test",
                 Target = ".",
-                RequestId = "approval_001",
-                ExpiresAt = now.AddHours(1)
+                RequestId = "approval_001"
             }
         },
         TurnStatus.WaitingInput => new SessionItem

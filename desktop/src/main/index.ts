@@ -153,6 +153,7 @@ import {
   type TopLevelMenuId
 } from '../shared/locales'
 import { ensureTrayProcess, openDesktopWindow, runTrayProcess, stopTrayProcess } from './trayManager'
+import { createWindowAttentionNotifier } from './windowAttentionNotifier'
 import {
   registerDesktopProcess,
   type DesktopProcessRegistrationHandle
@@ -215,6 +216,7 @@ import {
 
 let mainWindow: BrowserWindow | null = null
 let wireClient: DesktopAppServerClient | null = null
+const notifyWindowAttention = createWindowAttentionNotifier()
 const userInputAutoResolution = new UserInputAutoResolutionCoordinator({
   onResolve: (bridgeId) => {
     resolveServerRequestBridge(bridgeId, { answers: {} })
@@ -743,7 +745,11 @@ function observeComputerUseApproval(win: BrowserWindow, params: unknown, respons
   }).catch(() => {})
 }
 
-async function bridgeServerRequestToRenderer(method: string, params: unknown): Promise<unknown> {
+async function bridgeServerRequestToRenderer(
+  method: string,
+  params: unknown,
+  entry: WorkspaceConnectionEntry
+): Promise<unknown> {
   const win = mainWindow
   if (!win || win.isDestroyed()) {
     throw new Error('Window is not available to handle server request')
@@ -767,7 +773,17 @@ async function bridgeServerRequestToRenderer(method: string, params: unknown): P
       })
     }
   }
-  broadcastServerRequest(win, { bridgeId, method, params }, sharedSettings)
+  broadcastServerRequest(win, { bridgeId, method, params })
+  void notifyWindowAttention(method, params, {
+    connectionKind: entry.kind,
+    window: win,
+    settings: sharedSettings,
+    threads: entry.threads,
+    openThread: (threadId) => {
+      showWindowSafely(win)
+      sendOpenThread(win, threadId)
+    }
+  }).catch(console.warn)
   if (method === 'item/approval/request') observeComputerUseApproval(win, params, promise)
   return promise
 }
@@ -775,6 +791,7 @@ async function bridgeServerRequestToRenderer(method: string, params: unknown): P
 async function handleWorkspaceServerRequest(
   method: string,
   params: unknown,
+  entry: WorkspaceConnectionEntry,
   canUseForegroundMainHandlers: boolean,
   canBridgeInteractiveToRenderer: boolean
 ): Promise<unknown> {
@@ -793,7 +810,7 @@ async function handleWorkspaceServerRequest(
     throw new Error('Window is not available to handle interactive server request.')
   }
 
-  return bridgeServerRequestToRenderer(method, params)
+  return bridgeServerRequestToRenderer(method, params, entry)
 }
 
 /** PNG shipped via `build.extraResources` (prod) or repo `resources/` (dev). macOS uses bundle icon. */
@@ -2207,6 +2224,7 @@ async function connectViaWebSocket(
     return handleWorkspaceServerRequest(
       method,
       params,
+      entry,
       shouldBridgeWorkspaceServerRequest(routingState),
       canBridgeRendererInteractiveServerRequest(routingState)
     )
@@ -2544,6 +2562,7 @@ function createSecondaryWorkspaceConnection(
     return handleWorkspaceServerRequest(
       method,
       params,
+      entry,
       shouldBridgeWorkspaceServerRequest(routingState),
       canBridgeRendererInteractiveServerRequest(routingState)
     )

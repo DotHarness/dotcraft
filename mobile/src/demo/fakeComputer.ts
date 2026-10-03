@@ -1,0 +1,551 @@
+import type { RelayInfo } from '../core/gateway'
+
+export interface FakeItem {
+  id: string
+  turnId: string
+  type: string
+  status: string
+  payload: Record<string, unknown>
+  createdAt: string
+  completedAt: string | null
+}
+
+export interface FakeTurn {
+  id: string
+  threadId: string
+  status: 'running' | 'completed' | 'failed' | 'cancelled'
+  startedAt: string
+  completedAt?: string
+  error?: string
+}
+
+export type FakePending =
+  | { kind: 'approval'; requestId: string; approvalType: string; operation: string; target: string; reason: string }
+  | {
+      kind: 'question'
+      requestId: string
+      questions: {
+        id: string
+        header: string
+        question: string
+        options: { label: string; description: string }[]
+        isOther: boolean
+        isSecret: boolean
+      }[]
+    }
+
+export interface FakeThread {
+  id: string
+  displayName: string | null
+  profileId: string | null
+  createdAt: string
+  lastActiveAt: string
+  turns: FakeTurn[]
+  items: FakeItem[]
+  pending: FakePending | null
+  stream: string | null
+  continuation: string
+}
+
+export interface FakeProject {
+  id: string
+  name: string
+  running: boolean
+  cantStart: boolean
+  lastActiveAt: string
+  threads: FakeThread[]
+}
+
+export interface FakeComputerSeed {
+  name: string
+  version: string
+  port: number
+  fingerprint: string
+  addresses: string[]
+  projects: FakeProject[]
+  pairingCodes?: string[]
+  credentials?: Record<string, string>
+  profiles?: { id: string; name: string }[]
+}
+
+export interface FakeSocketSink {
+  open(): void
+  message(text: string): void
+  close(code: number, reason: string): void
+  fail(code: string, message: string, status?: number): void
+}
+
+interface Connection {
+  project: FakeProject
+  sink: FakeSocketSink
+  initialized: boolean
+  subscribed: Set<string>
+  held: Map<string | number, { threadId: string; requestId: string }>
+}
+
+type Outcome = { result?: unknown; error?: { code: number; message: string }; after?: () => void }
+
+export function sequenceId(prefix: string, sequence: number): string {
+  return `${prefix}_${sequence.toString().padStart(3, '0')}`
+}
+
+function inputText(input: unknown): string {
+  return (input as { text: string }[]).map((part) => part.text).join('')
+}
+
+export class FakeComputer {
+  readonly name: string
+  readonly version: string
+  readonly port: number
+  readonly addresses: string[]
+  readonly projects: FakeProject[]
+  certificate: string
+  relay: RelayInfo | null = null
+  gatewayOn = true
+  reachable = true
+  streamDelayMs = 85
+  readonly calls: { method: string; params: Record<string, unknown> }[] = []
+  readonly decisions: { requestId: string; decision: string }[] = []
+  readonly answers: { requestId: string; answers: unknown }[] = []
+  readonly removedDevices: string[] = []
+  private readonly credentials: Map<string, string>
+  private readonly pairingCodes: Set<string>
+  private readonly profiles: { id: string; name: string }[]
+  private readonly connections = new Map<string, Connection>()
+  private readonly events = new Map<string, FakeSocketSink>()
+  private readonly streams = new Map<string, ReturnType<typeof setTimeout>>()
+  private counter = 0
+
+  constructor(seed: FakeComputerSeed) {
+    this.name = seed.name
+    this.version = seed.version
+    this.port = seed.port
+    this.addresses = seed.addresses
+    this.projects = seed.projects
+    this.certificate = seed.fingerprint
+    this.pairingCodes = new Set(seed.pairingCodes)
+    this.credentials = new Map(Object.entries(seed.credentials ?? {}))
+    this.profiles = seed.profiles ?? []
+  }
+
+  private nextId(prefix: string): string {
+    this.counter += 1
+    return `${prefix}_${this.counter.toString(36)}`
+  }
+
+  private stamp(): string {
+    return new Date().toISOString()
+  }
+
+  private deviceFor(authorization: string | undefined): string | undefined {
+    return this.credentials.get(authorization?.replace(/^Bearer /, '') ?? '')
+  }
+
+  addPairingCode(code: string): void {
+    this.pairingCodes.add(code)
+  }
+
+  private project(projectId: string): FakeProject | undefined {
+    return this.projects.find((project) => project.id === projectId)
+  }
+
+  thread(threadId: string): { project: FakeProject; thread: FakeThread } {
+    for (const project of this.projects) {
+      const thread = project.threads.find((entry) => entry.id === threadId)
+      if (thread) return { project, thread }
+    }
+    throw new Error(`Unknown thread ${threadId}`)
+  }
+
+  get connectionCount(): number {
+    return this.connections.size + this.events.size
+  }
+
+  http(method: string, path: string, headers: Record<string, string>, body: string | undefined): { status: number; body: unknown } {
+    const error = (status: number, code: string) => ({ status, body: { error: { code, message: code } } })
+    const computer = { name: this.name, port: this.port, fingerprint: this.certificate, addresses: this.addresses }
+    if (method === 'POST' && path === '/m/pair') {
+      if (!this.pairingCodes.delete((JSON.parse(body ?? '{}') as { code: string }).code)) return error(400, 'pairingCodeInvalid')
+      const credential = this.nextId('credential')
+      const deviceId = this.nextId('dev')
+      this.credentials.set(credential, deviceId)
+      return { status: 200, body: { deviceId, credential, computer } }
+    }
+    const device = this.deviceFor(headers.Authorization)
+    if (!device) return error(401, 'unauthorized')
+    if (path === '/m/hello') return { status: 200, body: { ...computer, version: this.version, relay: this.relay } }
+    if (path === '/m/projects') return { status: 200, body: { projects: this.projects.map(projectBody) } }
+    if (path === '/m/device') {
+      this.removedDevices.push(device)
+      for (const [credential, id] of this.credentials) if (id === device) this.credentials.delete(credential)
+      return { status: 204, body: null }
+    }
+    const project = this.project(/^\/m\/projects\/([^/]+)\/ensure$/.exec(path)?.[1] ?? '')
+    if (!project) return error(404, 'projectNotFound')
+    if (project.cantStart) return error(500, 'appServerStartFailed')
+    this.startProject(project.id)
+    return { status: 200, body: projectBody(project) }
+  }
+
+  socket(path: string, headers: Record<string, string>, sink: FakeSocketSink): string | null {
+    if (!this.deviceFor(headers.Authorization)) {
+      sink.fail('ERR_HTTP', 'unauthorized', 401)
+      return null
+    }
+    const id = this.nextId('socket')
+    if (path === '/m/events') {
+      this.events.set(id, sink)
+      sink.open()
+      return id
+    }
+    const project = this.project(/^\/m\/projects\/([^/]+)\/appserver$/.exec(path)?.[1] ?? '')
+    if (!project?.running) {
+      sink.fail('ERR_HTTP', 'projectNotRunning', 409)
+      return null
+    }
+    this.connections.set(id, { project, sink, initialized: false, subscribed: new Set(), held: new Map() })
+    sink.open()
+    return id
+  }
+
+  socketClosed(id: string): void {
+    this.connections.delete(id)
+    this.events.delete(id)
+  }
+
+  receive(id: string, text: string): void {
+    const connection = this.connections.get(id)
+    if (!connection) return
+    const message = JSON.parse(text) as { id?: string | number; method?: string; params?: Record<string, unknown>; result?: unknown }
+    if (message.method === 'initialized') {
+      connection.initialized = true
+    } else if (message.method) {
+      const params = message.params ?? {}
+      this.calls.push({ method: message.method, params })
+      const { after, ...reply } = this.request(connection, message.method, params)
+      this.write(connection, { jsonrpc: '2.0', id: message.id, ...reply })
+      after?.()
+    } else if (message.id !== undefined) {
+      const held = connection.held.get(message.id)
+      if (held) this.resolvePending(held.threadId, held.requestId, message.result as Record<string, unknown>)
+    }
+  }
+
+  private write(connection: Connection, frame: Record<string, unknown>): void {
+    connection.sink.message(JSON.stringify(frame))
+  }
+
+  private projectConnections(project: FakeProject): Connection[] {
+    return [...this.connections.values()].filter((connection) => connection.project === project && connection.initialized)
+  }
+
+  private broadcast(project: FakeProject, method: string, params: Record<string, unknown>): void {
+    for (const connection of this.projectConnections(project)) this.write(connection, { jsonrpc: '2.0', method, params })
+  }
+
+  private toSubscribers(project: FakeProject, threadId: string, method: string, params: Record<string, unknown>): void {
+    for (const connection of this.projectConnections(project)) {
+      if (connection.subscribed.has(threadId)) this.write(connection, { jsonrpc: '2.0', method, params })
+    }
+  }
+
+  private activeTurn(thread: FakeThread): FakeTurn | null {
+    const turn = thread.turns.at(-1)
+    return turn?.status === 'running' ? turn : null
+  }
+
+  private summary(thread: FakeThread): Record<string, unknown> {
+    const active = this.activeTurn(thread)
+    return {
+      id: thread.id,
+      displayName: thread.displayName,
+      createdAt: thread.createdAt,
+      lastActiveAt: thread.lastActiveAt,
+      runtime: {
+        running: active !== null,
+        busy: active !== null,
+        waitingOnApproval: thread.pending?.kind === 'approval',
+        waitingOnInput: thread.pending?.kind === 'question',
+        activeTurnId: active?.id ?? null,
+      },
+    }
+  }
+
+  private threadBody(thread: FakeThread): Record<string, unknown> {
+    return { ...this.summary(thread), configuration: { agentProfileId: thread.profileId }, metadata: {}, ephemeral: false, source: { kind: 'user' } }
+  }
+
+  private runtimeChanged(project: FakeProject, thread: FakeThread): void {
+    thread.lastActiveAt = this.stamp()
+    this.broadcast(project, 'thread/runtimeChanged', { threadId: thread.id, runtime: this.summary(thread).runtime })
+  }
+
+  private request(connection: Connection, method: string, params: Record<string, unknown>): Outcome {
+    const project = connection.project
+    switch (method) {
+      case 'initialize':
+        return { result: { serverInfo: { name: 'dotcraft', version: this.version }, capabilities: { agentProfileManagement: true } } }
+      case 'thread/list':
+        return { result: { data: project.threads.map((thread) => this.summary(thread)) } }
+      case 'agent/profiles/list':
+        return { result: { profiles: this.profiles } }
+      case 'thread/start': {
+        const thread: FakeThread = {
+          id: this.nextId('thread'),
+          displayName: null,
+          profileId: null,
+          createdAt: this.stamp(),
+          lastActiveAt: this.stamp(),
+          turns: [],
+          items: [],
+          pending: null,
+          stream: null,
+          continuation: 'Picking up from here.',
+        }
+        project.threads.push(thread)
+        return {
+          result: { thread: this.threadBody(thread) },
+          after: () => this.broadcast(project, 'thread/started', { thread: this.threadBody(thread) }),
+        }
+      }
+    }
+    const { thread } = this.thread(params.threadId as string)
+    switch (method) {
+      case 'thread/read':
+        return { result: { thread: this.threadBody(thread) } }
+      case 'thread/turns/list':
+        return { result: { data: [...thread.turns].reverse() } }
+      case 'thread/items/list':
+        return { result: { data: [...thread.items].reverse().map((item) => ({ turnId: item.turnId, item })) } }
+      case 'thread/subscribe':
+        connection.subscribed.add(thread.id)
+        return { result: {}, after: () => this.afterSubscribe(connection, project, thread) }
+      case 'thread/unsubscribe':
+        connection.subscribed.delete(thread.id)
+        return { result: {} }
+      case 'turn/start': {
+        if (this.activeTurn(thread)) return { error: { code: -32012, message: 'A turn is already running on this thread.' } }
+        const turn: FakeTurn = { id: sequenceId('turn', thread.turns.length + 1), threadId: thread.id, status: 'running', startedAt: this.stamp() }
+        thread.turns.push(turn)
+        return {
+          result: { turn },
+          after: () => {
+            const user = this.addItem(thread, turn.id, 'userMessage', { text: inputText(params.input), clientUserMessageId: params.clientUserMessageId })
+            this.toSubscribers(project, thread.id, 'turn/started', { turn: { ...turn, items: [user] } })
+            this.runtimeChanged(project, thread)
+            const reply =
+              thread.turns.length === 1 ? `Starting on ${this.name} in ${project.name}. I’ll read the project first and report back here.` : thread.continuation
+            this.streamReply(project, thread, turn, reply, true)
+          },
+        }
+      }
+      case 'turn/steer': {
+        const active = this.activeTurn(thread)
+        if (!active || active.id !== params.expectedTurnId) return { error: { code: -32602, message: 'The active turn does not accept this input.' } }
+        return {
+          result: { turnId: active.id },
+          after: () => {
+            const item = this.addItem(thread, active.id, 'userMessage', {
+              text: inputText(params.input),
+              deliveryMode: 'guidance',
+              clientUserMessageId: params.clientUserMessageId,
+            })
+            this.toSubscribers(project, thread.id, 'item/completed', { threadId: thread.id, turnId: active.id, item })
+          },
+        }
+      }
+      case 'turn/enqueue':
+        return { result: {} }
+      case 'turn/interrupt': {
+        const active = this.activeTurn(thread)
+        if (!active) return { error: { code: -32014, message: 'The turn is not running.' } }
+        return { result: {}, after: () => this.finishTurn(project, thread, active, 'cancelled') }
+      }
+      default:
+        return { error: { code: -32601, message: `Method not found: ${method}` } }
+    }
+  }
+
+  addItem(thread: FakeThread, turnId: string, type: string, payload: Record<string, unknown>, status = 'completed'): FakeItem {
+    const item: FakeItem = {
+      id: sequenceId('item', thread.items.filter((entry) => entry.turnId === turnId).length + 1),
+      turnId,
+      type,
+      status,
+      payload,
+      createdAt: this.stamp(),
+      completedAt: status === 'completed' ? this.stamp() : null,
+    }
+    thread.items.push(item)
+    return item
+  }
+
+  private deliver(connection: Connection, thread: FakeThread, turnId: string, pending: FakePending): void {
+    if ([...connection.held.values()].some((held) => held.requestId === pending.requestId)) return
+    const id = this.nextId('rpc')
+    connection.held.set(id, { threadId: thread.id, requestId: pending.requestId })
+    const { kind, ...fields } = pending
+    const method = kind === 'approval' ? 'item/approval/request' : 'item/tool/requestUserInput'
+    this.write(connection, { jsonrpc: '2.0', id, method, params: { threadId: thread.id, turnId, ...fields } })
+  }
+
+  private afterSubscribe(connection: Connection, project: FakeProject, thread: FakeThread): void {
+    const active = this.activeTurn(thread)
+    const pending = thread.pending
+    if (active && pending) this.deliver(connection, thread, active.id, pending)
+    if (active && thread.stream && !pending) {
+      const stream = thread.stream
+      thread.stream = null
+      this.streamReply(project, thread, active, stream, false)
+    }
+  }
+
+  ask(threadId: string, pending: FakePending): void {
+    const { project, thread } = this.thread(threadId)
+    const active = this.activeTurn(thread)
+    if (!active) return
+    thread.pending = pending
+    for (const connection of this.projectConnections(project)) {
+      if (connection.subscribed.has(thread.id)) this.deliver(connection, thread, active.id, pending)
+    }
+    this.runtimeChanged(project, thread)
+  }
+
+  endTurn(threadId: string, status: 'completed' | 'cancelled' | 'failed'): void {
+    const { project, thread } = this.thread(threadId)
+    const active = this.activeTurn(thread)
+    if (active) this.finishTurn(project, thread, active, status)
+  }
+
+  answerFromComputer(threadId: string, result: Record<string, unknown>): void {
+    const pending = this.thread(threadId).thread.pending
+    if (pending) this.resolvePending(threadId, pending.requestId, result)
+  }
+
+  private forgetHeld(requestId: string): void {
+    for (const connection of this.connections.values()) {
+      for (const [id, held] of connection.held) if (held.requestId === requestId) connection.held.delete(id)
+    }
+  }
+
+  private resolvePending(threadId: string, requestId: string, result: Record<string, unknown>): void {
+    const { project, thread } = this.thread(threadId)
+    const pending = thread.pending
+    const active = this.activeTurn(thread)
+    if (pending?.requestId !== requestId || !active) return
+    thread.pending = null
+    this.forgetHeld(requestId)
+    let item: FakeItem
+    let reply = thread.continuation
+    if (pending.kind === 'approval') {
+      const decision = String(result.decision)
+      this.decisions.push({ requestId, decision })
+      item = this.addItem(thread, active.id, 'approvalResponse', { requestId, approved: decision.startsWith('accept'), decision })
+      if (decision === 'decline') reply = 'Understood, I won’t run that. I’ll look for a way to finish without it.'
+    } else {
+      this.answers.push({ requestId, answers: result.answers })
+      item = this.addItem(thread, active.id, 'userInputResponse', { requestId, response: { answers: result.answers } })
+    }
+    const resolved = pending.kind === 'approval' ? 'item/approval/resolved' : 'item/tool/requestUserInput/resolved'
+    for (const method of [resolved, 'item/completed']) this.toSubscribers(project, thread.id, method, { threadId: thread.id, turnId: active.id, item })
+    this.runtimeChanged(project, thread)
+    this.streamReply(project, thread, active, reply, true)
+  }
+
+  private completeItem(project: FakeProject, thread: FakeThread, item: FakeItem): void {
+    item.status = 'completed'
+    item.completedAt = this.stamp()
+    this.toSubscribers(project, thread.id, 'item/completed', { threadId: thread.id, turnId: item.turnId, item })
+  }
+
+  private streamReply(project: FakeProject, thread: FakeThread, turn: FakeTurn, text: string, complete: boolean): void {
+    const payload = { text: '' }
+    const message = this.addItem(thread, turn.id, 'agentMessage', payload, 'started')
+    this.toSubscribers(project, thread.id, 'item/started', { threadId: thread.id, turnId: turn.id, item: message })
+    const pieces = text.split(/(\s+)/).filter(Boolean)
+    const step = () => {
+      if (this.activeTurn(thread) !== turn) return
+      const delta = pieces.splice(0, 2).join('')
+      payload.text += delta
+      this.toSubscribers(project, thread.id, 'item/agentMessage/delta', { threadId: thread.id, turnId: turn.id, itemId: message.id, delta })
+      if (pieces.length > 0) {
+        this.streams.set(thread.id, setTimeout(step, this.streamDelayMs))
+        return
+      }
+      this.streams.delete(thread.id)
+      this.completeItem(project, thread, message)
+      if (complete) this.finishTurn(project, thread, turn, 'completed')
+    }
+    this.streams.set(thread.id, setTimeout(step, this.streamDelayMs))
+  }
+
+  private finishTurn(project: FakeProject, thread: FakeThread, turn: FakeTurn, status: 'completed' | 'cancelled' | 'failed'): void {
+    clearTimeout(this.streams.get(thread.id))
+    this.streams.delete(thread.id)
+    for (const item of thread.items) if (item.turnId === turn.id && item.status === 'started') this.completeItem(project, thread, item)
+    if (thread.pending) this.forgetHeld(thread.pending.requestId)
+    thread.pending = null
+    thread.stream = null
+    turn.status = status
+    turn.completedAt = this.stamp()
+    this.toSubscribers(project, thread.id, `turn/${status}`, { turn })
+    this.runtimeChanged(project, thread)
+  }
+
+  private sendEvent(type: string, projectId: string): void {
+    for (const sink of this.events.values()) sink.message(JSON.stringify({ type, projectId }))
+  }
+
+  startProject(projectId: string): void {
+    const project = this.project(projectId)
+    if (!project || project.running) return
+    project.running = true
+    project.lastActiveAt = this.stamp()
+    this.sendEvent('projectStarted', projectId)
+  }
+
+  stopProject(projectId: string): void {
+    const project = this.project(projectId)
+    if (!project?.running) return
+    project.running = false
+    project.lastActiveAt = this.stamp()
+    for (const [id, connection] of this.connections) {
+      if (connection.project !== project) continue
+      this.connections.delete(id)
+      connection.sink.close(1000, '')
+    }
+    this.sendEvent('projectStopped', projectId)
+  }
+
+  private closeAll(reason: string, code: number): void {
+    for (const sink of this.events.values()) {
+      sink.message(JSON.stringify({ type: reason }))
+      sink.close(code, reason)
+    }
+    for (const { sink } of this.connections.values()) sink.close(code, reason)
+    this.events.clear()
+    this.connections.clear()
+  }
+
+  revokeAll(): void {
+    this.credentials.clear()
+    this.closeAll('deviceRevoked', 1008)
+  }
+
+  turnGatewayOff(): void {
+    this.gatewayOn = false
+    this.closeAll('gatewayOff', 1001)
+  }
+
+  dropConnections(): void {
+    for (const sink of [...this.events.values(), ...[...this.connections.values()].map((connection) => connection.sink)]) {
+      sink.fail('ERR_UNREACHABLE', 'The connection was lost.')
+    }
+    this.events.clear()
+    this.connections.clear()
+  }
+}
+
+function projectBody(project: FakeProject) {
+  return { projectId: project.id, displayName: project.name, running: project.running, lastActiveAt: project.lastActiveAt }
+}

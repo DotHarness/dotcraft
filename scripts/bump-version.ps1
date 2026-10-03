@@ -93,6 +93,20 @@ function Update-PackageJsonVersion {
     Write-Utf8NoBomFile -Path $Path -Content $content
 }
 
+function Update-ExpoAppVersion {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$NewVersion
+    )
+
+    Update-PackageJsonVersion -Path $Path -NewVersion $NewVersion
+    $parts = $NewVersion.Split('.') | ForEach-Object { [int]$_ }
+    $versionCode = $parts[0] * 10000 + $parts[1] * 100 + $parts[2]
+    $content = [System.IO.File]::ReadAllText($Path)
+    $content = Replace-Regex -Content $content -Pattern '("versionCode"\s*:\s*)\d+' -Replacement ('${1}' + $versionCode)
+    Write-Utf8NoBomFile -Path $Path -Content $content
+}
+
 function Update-PackageJsonDependencyVersion {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -128,6 +142,7 @@ function Update-ReleaseDownloadsManifest {
         "cli-linux-x64" = "DotCraft-$tag-linux-x64.tar.gz"
         "satellite-win-x64" = "DotCraft-Satellite-$tag-win-x64-Installer.exe"
         "satellite-win-arm64" = "DotCraft-Satellite-$tag-win-arm64-Installer.exe"
+        "mobile-android" = "DotCraft-$tag-android.apk"
     }
 
     $assets = [ordered]@{}
@@ -266,6 +281,9 @@ $targets = @(
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/plugin/package.json"; SyncSdkDependency = $true },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/avatar/package.json" },
     @{ Type = "packageJsonDependency"; Path = "sdk/dotnet/samples/DotNetPluginSample/Desktop/package.json"; Dependency = "@dotcraft/plugin" },
+    @{ Type = "packageJson"; Path = "mobile/package.json" },
+    @{ Type = "expoApp"; Path = "mobile/app.json" },
+    @{ Type = "npmLock"; Path = "mobile/package-lock.json"; Name = "dotcraft-mobile"; UpdateLinkedSdk = $true; UpdateLinkedAvatar = $true },
     @{ Type = "releaseDownloads"; Path = "docs/public/release-downloads.json" }
 )
 
@@ -309,6 +327,9 @@ foreach ($target in $targets) {
         }
         "packageJsonDependency" {
             Update-PackageJsonDependencyVersion -Path $absolutePath -Dependency $target.Dependency -NewVersion $Version
+        }
+        "expoApp" {
+            Update-ExpoAppVersion -Path $absolutePath -NewVersion $Version
         }
         "releaseDownloads" {
             Update-ReleaseDownloadsManifest -Path $absolutePath -NewVersion $Version

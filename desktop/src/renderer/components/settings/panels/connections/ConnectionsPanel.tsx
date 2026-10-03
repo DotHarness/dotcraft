@@ -4,19 +4,21 @@ import { SettingsPageHeader } from '../../SettingsPageHeader'
 import { SegmentedControl } from '../../ui/SegmentedControl'
 import { useT } from '../../../../contexts/LocaleContext'
 import type { MessageKey } from '../../../../../shared/locales'
+import { PhonesSegment } from '../phones/PhonesSegment'
 import { SshMachinesSegment } from '../ssh/SshMachinesSegment'
 import { SatellitesSegment } from './SatellitesSegment'
 import { SharePcSegment } from './SharePcSegment'
 import { useSharePcStatus } from './useSharePcStatus'
 import { WorkspaceSegment, type WorkspaceSegmentProps } from './WorkspaceSegment'
 
-type ConnectionsSegment = 'workspace' | 'satellites' | 'share' | 'ssh'
+type ConnectionsSegment = 'workspace' | 'satellites' | 'share' | 'ssh' | 'phones'
 
 const SEGMENTS: { value: ConnectionsSegment; labelKey: MessageKey }[] = [
   { value: 'workspace', labelKey: 'settings.connections.segments.workspace' },
   { value: 'satellites', labelKey: 'settings.connections.segments.satellites' },
   { value: 'share', labelKey: 'settings.connections.segments.share' },
-  { value: 'ssh', labelKey: 'settings.connections.segments.ssh' }
+  { value: 'ssh', labelKey: 'settings.connections.segments.ssh' },
+  { value: 'phones', labelKey: 'settings.connections.segments.phones' }
 ]
 
 interface ConnectionsPanelProps {
@@ -64,6 +66,7 @@ export function ConnectionsPanel({ workspace }: ConnectionsPanelProps): JSX.Elem
       {active === 'satellites' && <SatellitesSegment onSubPageChange={setSubPageOpen} />}
       {active === 'share' && <SharePcSegment status={share.status} onRefresh={share.reload} />}
       {active === 'ssh' && <SshMachinesSegment />}
+      {active === 'phones' && <PhonesSegment />}
     </div>
   )
 }

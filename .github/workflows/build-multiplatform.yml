@@ -338,8 +338,70 @@ jobs:
         name: DotCraft-Satellite-${{ matrix.runtime_id }}
         path: satellite-installer/${{ matrix.runtime_id }}/*Setup.exe
 
+  android:
+    needs: test
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build')
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: '22'
+
+    - name: Setup Java
+      uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: '17'
+
+    - name: Build SDK packages
+      working-directory: sdk/typescript
+      run: |
+        npm ci
+        npm run build
+        npm run build --workspace @dotcraft/avatar
+
+    - name: Install app dependencies
+      working-directory: mobile
+      run: npm ci
+
+    - name: Generate Android project
+      working-directory: mobile
+      run: npx expo prebuild --platform android --no-install
+
+    - name: Build APK
+      working-directory: mobile/android
+      run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+
+    - name: Sign APK
+      env:
+        ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      run: |
+        mkdir -p apk
+        if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          apksigner="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner"
+          "$apksigner" sign --ks "$RUNNER_TEMP/release.keystore" --ks-pass env:ANDROID_KEYSTORE_PASSWORD --ks-key-alias "$ANDROID_KEY_ALIAS" --key-pass env:ANDROID_KEY_PASSWORD --out apk/DotCraft-android.apk mobile/android/app/build/outputs/apk/release/app-release.apk
+        else
+          echo "No release keystore is configured; the APK keeps the debug signature."
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk apk/DotCraft-android.apk
+        fi
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v6
+      with:
+        name: DotCraft-Android
+        path: apk/DotCraft-android.apk
+
   release:
-    needs: build
+    needs: [build, android]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -400,6 +462,8 @@ jobs:
           cp "$file" "release/$new_name"
           echo "Renamed: $(basename "$file") -> $new_name"
         done
+
+        cp artifacts/DotCraft-Android/DotCraft-android.apk "release/DotCraft-${VERSION}-android.apk"
 
         # Rename app artifacts - macOS
         for file in artifacts/DotCraft-macos-*-dmg/*.dmg; do

@@ -69,7 +69,6 @@ export type ApprovalState =
   | 'acceptedAlways'
   | 'declined'
   | 'cancelled'
-  | 'timedOut'
 
 export type ItemStatus = 'started' | 'streaming' | 'completed'
 

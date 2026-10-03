@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.8.1 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-03 |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md) |
 
 Purpose: define the shared SDK design contract for DotCraft across languages while allowing each language binding to keep idiomatic package structure, runtime constraints, publishing rules, and environment-specific helpers.
@@ -273,7 +273,6 @@ SDKs should expose stable error codes for common AppServer and SDK cases:
 - turn already in progress;
 - turn failed;
 - turn cancelled;
-- approval timeout;
 - Hub discovery or request failure.
 
 Exact class names and inheritance are language binding concerns.

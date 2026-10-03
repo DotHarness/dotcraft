@@ -24,6 +24,10 @@ public sealed record HubPaths(
     /// </summary>
     public string SatellitesPath => Path.Combine(HubStatePath, "satellites.json");
 
+    public string MobilePath => Path.Combine(HubStatePath, "mobile.json");
+
+    public string MobileCertificatePath => Path.Combine(HubStatePath, "mobile-certificate.pfx");
+
     /// <summary>
     /// Default local workspace used for projectless Chat entry points.
     /// </summary>

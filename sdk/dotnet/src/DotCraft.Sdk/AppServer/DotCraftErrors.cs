@@ -28,9 +28,6 @@ public static class AppServerErrorCodes
     /// <summary>turn/interrupt called on a turn that is not in progress.</summary>
     public const int TurnNotRunning = -32014;
 
-    /// <summary>The client took too long to respond to an approval request.</summary>
-    public const int ApprovalTimeout = -32020;
-
     /// <summary>A deterministic Thread recovery validation or installation failure.</summary>
     public const int ThreadRecoveryFailed = -32097;
 }
@@ -166,7 +163,3 @@ public sealed class RunDisconnectedException(
     /// <summary>Identifier of the interrupted Turn when it was already known.</summary>
     public string? TurnId { get; } = turnId;
 }
-
-/// <summary>The client did not answer an approval request in time.</summary>
-public sealed class ApprovalTimeoutException(string message, Exception? innerException = null)
-    : DotCraftException("approvalTimeout", message, innerException);

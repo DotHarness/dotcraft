@@ -8,6 +8,8 @@ Install DotCraft Desktop, open your project, finish the setup wizard, and send y
 
 Download the installer for your system from [GitHub Releases](https://github.com/DotHarness/dotcraft/releases), run it, then open DotCraft.
 
+Releases also carries the Android [phone app](./features/entry-points/mobile). Pair it after you finish this guide to follow your chats from your phone.
+
 ## 2. Open your project
 
 Select **Open Workspace** and choose the folder that holds your project. DotCraft opens the workspace setup wizard.

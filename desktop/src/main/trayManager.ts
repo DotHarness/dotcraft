@@ -426,34 +426,35 @@ export function parseHubNotificationPayload(
   }
 }
 
-function isTurnResultNotification(payload: HubNotificationPayload): boolean {
-  return payload.kind === 'turnCompleted' || payload.kind === 'turnFailed'
-}
-
-async function shouldShowTurnResultNotification(
-  payload: HubNotificationPayload,
-  settings?: AppSettings
-): Promise<boolean> {
-  const mode = resolveTaskCompletionNotificationMode(settings)
-  if (mode === 'never') return false
-  if (mode === 'always') return true
-
+async function isWorkspaceWindowFocused(payload: HubNotificationPayload): Promise<boolean> {
   const workspacePath = payload.workspacePath?.trim()
-  if (!workspacePath) return true
+  if (!workspacePath) return false
 
   const lock = checkWorkspaceLock(workspacePath)
-  if (!lock.activation) return true
+  if (!lock.activation) return false
 
   const state = await requestWorkspaceWindowState(lock.activation, workspacePath)
-  return state?.focused !== true
+  return state?.focused === true
 }
 
 async function shouldShowHubNotification(
   payload: HubNotificationPayload,
   settings?: AppSettings
 ): Promise<boolean> {
-  if (!isTurnResultNotification(payload)) return true
-  return await shouldShowTurnResultNotification(payload, settings)
+  switch (payload.kind) {
+    case 'turnCompleted':
+    case 'turnFailed': {
+      const mode = resolveTaskCompletionNotificationMode(settings)
+      if (mode === 'never') return false
+      return mode === 'always' || !await isWorkspaceWindowFocused(payload)
+    }
+    case 'approvalRequested':
+      return settings?.notifications?.approvalRequests !== false && !await isWorkspaceWindowFocused(payload)
+    case 'inputRequested':
+      return settings?.notifications?.questions !== false && !await isWorkspaceWindowFocused(payload)
+    default:
+      return true
+  }
 }
 
 function showHubNotificationPayload(payload: HubNotificationPayload): boolean {

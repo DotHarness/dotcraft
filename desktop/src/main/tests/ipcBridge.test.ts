@@ -2149,64 +2149,19 @@ describe('task completion notifications', () => {
     })
   })
 
-  it('shows native user input request notifications when unfocused', () => {
+  it('forwards interactive requests without a native notification of their own', () => {
     const win = createWindow(false)
     const payload = {
       bridgeId: 'bridge-1',
-      method: 'item/tool/requestUserInput',
-      params: {
-        questions: [
-          { question: 'Which option should DotCraft use?' }
-        ]
-      }
-    }
-
-    broadcastServerRequest(win, payload, { locale: 'en' })
-
-    expect(Notification).toHaveBeenCalledWith({
-      title: 'DotCraft needs your answer',
-      body: 'Which option should DotCraft use?'
-    })
-    expect(notificationShowMock).toHaveBeenCalledOnce()
-    expect(win.webContents.send).toHaveBeenCalledWith('appserver:server-request', payload)
-  })
-
-  it('shows localized approval request notifications when unfocused', () => {
-    const win = createWindow(false)
-    const payload = {
-      bridgeId: 'bridge-2',
       method: 'item/approval/request',
       params: {
-        reason: '需要运行命令'
+        reason: 'Run a command'
       }
     }
 
-    broadcastServerRequest(win, payload, { locale: 'zh-Hans' })
-
-    expect(Notification).toHaveBeenCalledWith({
-      title: 'DotCraft 需要你审批',
-      body: '需要运行命令'
-    })
-    expect(notificationShowMock).toHaveBeenCalledOnce()
-    expect(win.webContents.send).toHaveBeenCalledWith('appserver:server-request', payload)
-  })
-
-  it('does not show interactive request notifications while focused', () => {
-    const win = createWindow(true)
-    const payload = {
-      bridgeId: 'bridge-3',
-      method: 'item/tool/requestUserInput',
-      params: {
-        questions: [
-          { question: 'Choose one.' }
-        ]
-      }
-    }
-
-    broadcastServerRequest(win, payload, { locale: 'en' })
+    broadcastServerRequest(win, payload)
 
     expect(Notification).not.toHaveBeenCalled()
-    expect(notificationShowMock).not.toHaveBeenCalled()
     expect(win.webContents.send).toHaveBeenCalledWith('appserver:server-request', payload)
   })
 })

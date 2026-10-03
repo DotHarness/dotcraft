@@ -2156,10 +2156,6 @@
         "approvalType": {
           "type": "string"
         },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time"
-        },
         "itemId": {
           "type": "string"
         },
@@ -2215,7 +2211,6 @@
       "additionalProperties": true,
       "required": [
         "approvalType",
-        "expiresAt",
         "itemId",
         "operation",
         "requestId",
@@ -2231,10 +2226,6 @@
       "properties": {
         "approvalType": {
           "type": "string"
-        },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time"
         },
         "operation": {
           "type": "string"
@@ -2275,7 +2266,6 @@
       "additionalProperties": true,
       "required": [
         "approvalType",
-        "expiresAt",
         "operation",
         "reason",
         "requestId",
@@ -15420,16 +15410,6 @@
         },
         "approvalPolicy": {
           "type": "string"
-        },
-        "approvalTimeoutSeconds": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
         },
         "automationTaskDirectory": {
           "anyOf": [

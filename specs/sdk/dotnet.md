@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.8.1 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-03 |
 | **Related Specs** | [Unified SDK](sdk.md), [Protocol Contracts and Generation](protocol-contract-generation.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md), [Session Core](../architecture/session-core.md), [Hub Architecture](../architecture/hub-architecture.md) |
 
 Purpose: define the .NET package, its generated Wire binding, its Contracts-first public API, high-level Thread and Run behavior, raw extension boundary, and error model.
@@ -257,7 +257,6 @@ Required errors include:
 - `TurnFailedException`;
 - `TurnCancelledException`;
 - `RunDisconnectedException`;
-- `ApprovalTimeoutException`;
 - `RequestTimeoutException`;
 - `ReconnectQueueFullException`.
 

@@ -93,6 +93,7 @@ import {
 import { SegmentedControl } from './ui/SegmentedControl'
 import { GeneralPanel } from './panels/GeneralPanel'
 import { FollowUpBehaviorRow } from './panels/FollowUpBehaviorRow'
+import { NotificationsSettingsGroup } from './panels/NotificationsSettingsGroup'
 import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
 import { ProviderProtocolIcon } from './panels/ProviderProtocolIcon'
 import { UsagePanel } from './panels/UsagePanel'
@@ -122,8 +123,7 @@ import {
 import type {
   BinarySource,
   BrowserUseApprovalMode,
-  ConnectionMode,
-  TaskCompletionNotificationMode
+  ConnectionMode
 } from '../../../preload/api'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
 import { slugProviderId, uniqueProviderId } from '../../utils/providerId'
@@ -646,8 +646,6 @@ export function SettingsView({
   const [remoteToken, setRemoteToken] = useState('')
   const [sshManagedSession, setSshManagedSession] = useState(false)
   const [locale, setLocale] = useState<AppLocale>(normalizeLocale(undefined))
-  const [taskCompletionNotificationMode, setTaskCompletionNotificationMode] =
-    useState<TaskCompletionNotificationMode>('whenUnfocused')
   const [showInMenuBar, setShowInMenuBar] = useState(isMac)
   const [version, setVersion] = useState('')
   const [saving, setSaving] = useState(false)
@@ -1723,11 +1721,6 @@ export function SettingsView({
             Boolean(s.activeRemoteProject?.machineId && s.activeRemoteProject.projectId)
         )
         setLocale(normalizeLocale(s.locale))
-        setTaskCompletionNotificationMode(
-          s.notifications?.taskCompletionMode === 'always' || s.notifications?.taskCompletionMode === 'never'
-            ? s.notifications.taskCompletionMode
-            : 'whenUnfocused'
-        )
         setShowInMenuBar(isMac ? s.showInMenuBar !== false : false)
         setShowThinkingContent(s.showThinkingContent === true)
         useComposerPreferencesStore.getState().hydrate(s)
@@ -2069,26 +2062,6 @@ export function SettingsView({
       setUiLocale(normalized)
     } catch (err) {
       setLocale(prev)
-      addToast(
-        t('settings.saveFailed', {
-          error: err instanceof Error ? err.message : String(err)
-        }),
-        'error'
-      )
-    }
-  }
-
-  async function handleTaskCompletionNotificationModeChange(next: TaskCompletionNotificationMode): Promise<void> {
-    const previous = taskCompletionNotificationMode
-    setTaskCompletionNotificationMode(next)
-    try {
-      await window.api.settings.set({
-        notifications: {
-          taskCompletionMode: next
-        }
-      })
-    } catch (err) {
-      setTaskCompletionNotificationMode(previous)
       addToast(
         t('settings.saveFailed', {
           error: err instanceof Error ? err.message : String(err)
@@ -2480,31 +2453,7 @@ export function SettingsView({
                   )}
                 </SettingsGroup>
 
-                <SettingsGroup title={t('settings.notifications.title')}>
-                  <SettingsRow
-                    label={t('settings.notifications.taskCompletion')}
-                    description={t('settings.notifications.taskCompletionHint')}
-                    htmlFor="settings-task-completion-notification"
-                    control={
-                      <SettingsSelect
-                        id="settings-task-completion-notification"
-                        value={taskCompletionNotificationMode}
-                        onValueChange={(mode) => {
-                          void handleTaskCompletionNotificationModeChange(mode as TaskCompletionNotificationMode)
-                        }}
-                        style={{ width: SETTINGS_SELECT_WIDTH }}
-                        options={[
-                          {
-                            value: 'whenUnfocused',
-                            label: t('settings.notifications.taskCompletion.whenUnfocused')
-                          },
-                          { value: 'always', label: t('settings.notifications.taskCompletion.always') },
-                          { value: 'never', label: t('settings.notifications.taskCompletion.never') }
-                        ]}
-                      />
-                    }
-                  />
-                </SettingsGroup>
+                <NotificationsSettingsGroup />
 
                 <SettingsGroup title={t('settings.group.composer')}>
                   <FollowUpBehaviorRow />

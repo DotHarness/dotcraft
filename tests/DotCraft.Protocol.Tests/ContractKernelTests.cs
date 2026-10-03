@@ -229,7 +229,7 @@ public sealed class ContractKernelTests
             ["dynamicToolCall"] = """{"toolName":"lookup","providerFlatName":"lookup","callId":"call_1","status":"completed"}""",
             ["mcpToolCall"] = """{"toolName":"read","providerFlatName":"mcp__read","server":"docs","origin":"workspace","sourceToolId":"read","callId":"call_1","status":"completed"}""",
             ["toolResult"] = """{"callId":"call_1","toolName":"shell","providerFlatName":"shell","result":"ok","success":true}""",
-            ["approvalRequest"] = """{"approvalType":"shell","operation":"pwd","target":"/tmp","requestId":"req_1","scopeKey":"shell:pwd","reason":"required","expiresAt":"2026-08-03T01:02:03Z"}""",
+            ["approvalRequest"] = """{"approvalType":"shell","operation":"pwd","target":"/tmp","requestId":"req_1","scopeKey":"shell:pwd","reason":"required"}""",
             ["approvalResponse"] = """{"requestId":"req_1","approved":true,"decision":"accept"}""",
             ["userInputRequest"] = """{"requestId":"req_1","questions":[],"isBlocking":true}""",
             ["userInputResponse"] = """{"requestId":"req_1","response":{"answers":{}}}""",

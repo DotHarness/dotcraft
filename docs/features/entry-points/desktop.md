@@ -46,6 +46,8 @@ To reach a DotCraft running on a server, enter the remote AppServer address unde
 
 Remote tool calls let your agent work on another PC while the conversation stays here. Pair the PC under **Settings → Connections → Satellites**, then select it in **Run on** below the composer. See [DotCraft Satellite](../agent-system/satellite) for setup and screen viewing.
 
+To follow and answer chats from your phone, pair it under **Settings → Connections → Phones**. See [Phone app](./mobile) for the download and setup.
+
 ## Stay on the latest version
 
 On startup, DotCraft checks [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) for a newer version. When an installer exists for your platform, a download button appears in the title bar: open it to read the release notes and download the installer with progress, then DotCraft quits and opens it for you.

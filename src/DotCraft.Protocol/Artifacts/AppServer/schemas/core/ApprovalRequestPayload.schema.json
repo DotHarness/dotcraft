@@ -7,10 +7,6 @@
     "approvalType": {
       "type": "string"
     },
-    "expiresAt": {
-      "type": "string",
-      "format": "date-time"
-    },
     "operation": {
       "type": "string"
     },
@@ -50,7 +46,6 @@
   "additionalProperties": true,
   "required": [
     "approvalType",
-    "expiresAt",
     "operation",
     "reason",
     "requestId",

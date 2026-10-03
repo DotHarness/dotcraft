@@ -9,7 +9,7 @@ using Xunit;
 namespace DotCraft.Tests.Sessions.Protocol;
 
 /// <summary>
-/// Tests for SessionApprovalService: approval request/resolve, rejection, and timeout.
+/// Tests for SessionApprovalService: approval request/resolve, rejection, and turn-end resolution.
 /// </summary>
 public sealed class SessionApprovalServiceTests
 {
@@ -20,7 +20,7 @@ public sealed class SessionApprovalServiceTests
     // -------------------------------------------------------------------------
 
     private static (SessionApprovalService svc, SessionEventChannel channel, SessionTurn turn)
-        MakeApprovalService(TimeSpan? timeout = null, ApprovalStore? store = null)
+        MakeApprovalService(ApprovalStore? store = null)
     {
         var threadId = "thread_aprv_001";
         var channel = new SessionEventChannel(threadId, TurnId);
@@ -36,14 +36,14 @@ public sealed class SessionApprovalServiceTests
             channel,
             turn,
             () => seq++,
-            timeout ?? TimeSpan.FromMinutes(1),
+            CancellationToken.None,
             () => { },
             store);
         return (svc, channel, turn);
     }
 
     private static (SessionApprovalService svc, SessionEventChannel channel, SessionTurn turn, List<SessionThreadRuntimeSignal> signals)
-        MakeApprovalServiceWithSignals(TimeSpan? timeout = null, ApprovalStore? store = null)
+        MakeApprovalServiceWithSignals(CancellationToken turnCancellation = default)
     {
         var signals = new List<SessionThreadRuntimeSignal>();
         var threadId = "thread_aprv_001";
@@ -60,10 +60,9 @@ public sealed class SessionApprovalServiceTests
             channel,
             turn,
             () => seq++,
-            timeout ?? TimeSpan.FromMinutes(1),
+            turnCancellation,
             () => { },
-            store,
-            (_, signal, _) => signals.Add(signal));
+            runtimeSignalForBroadcast: (_, signal, _) => signals.Add(signal));
         return (svc, channel, turn, signals);
     }
 
@@ -211,10 +210,6 @@ public sealed class SessionApprovalServiceTests
         Assert.Equal("remoteResource", payload!.ApprovalType);
         Assert.Equal("create", payload.Operation);
         Assert.Equal("doc-123", payload.Target);
-        Assert.InRange(
-            payload.ExpiresAt,
-            DateTimeOffset.UtcNow.AddSeconds(50),
-            DateTimeOffset.UtcNow.AddSeconds(70));
 
         svc.TryResolve(payload.RequestId, SessionApprovalDecision.AcceptOnce);
 
@@ -389,46 +384,36 @@ public sealed class SessionApprovalServiceTests
     }
 
     // -------------------------------------------------------------------------
-    // Timeout
+    // Turn end
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task RequestApproval_Timeout_AutoRejectsAndReturnsFalse()
+    public async Task TurnCancellation_ResolvesPendingApprovalAsCancelled_AndIgnoresLateAnswer()
     {
-        // Use a very short timeout (100ms) for fast test execution
-        var (svc, channel, turn) = MakeApprovalService(TimeSpan.FromMilliseconds(100));
+        using var turnCancellation = new CancellationTokenSource();
+        var (svc, channel, turn, signals) = MakeApprovalServiceWithSignals(turnCancellation.Token);
 
         var requestTask = svc.RequestFileApprovalAsync("write", "/file.txt");
+        var requestId = await GetApprovalRequestIdAsync(channel);
 
-        // Wait longer than the timeout
-        var result = await requestTask.WaitAsync(TimeSpan.FromSeconds(5));
+        await turnCancellation.CancelAsync();
 
-        Assert.False(result);
-    }
-
-    [Fact]
-    public async Task RequestApproval_Timeout_EmitsApprovalResolvedRuntimeSignal()
-    {
-        var (svc, _, turn, signals) = MakeApprovalServiceWithSignals(TimeSpan.FromMilliseconds(100));
-
-        await svc.RequestFileApprovalAsync("write", "/file.txt").WaitAsync(TimeSpan.FromSeconds(5));
-
+        Assert.False(await requestTask.WaitAsync(TimeSpan.FromSeconds(5)));
+        var response = Assert.Single(turn.Items.Select(i => i.Payload).OfType<ApprovalResponsePayload>());
+        Assert.Equal((requestId, SessionApprovalDecision.CancelTurn), (response.RequestId, response.Decision));
         Assert.Equal([SessionThreadRuntimeSignal.ApprovalRequested, SessionThreadRuntimeSignal.ApprovalResolved], signals);
-        Assert.Equal(TurnStatus.Running, turn.Status);
+        Assert.False(svc.TryResolve(requestId!, SessionApprovalDecision.AcceptOnce));
     }
 
     [Fact]
-    public async Task RequestApproval_Timeout_AddErrorItemToTurn()
+    public async Task Close_RejectsLaterRequestWithoutPrompting()
     {
-        var (svc, channel, turn) = MakeApprovalService(TimeSpan.FromMilliseconds(100));
+        var (svc, _, turn) = MakeApprovalService();
 
-        await svc.RequestFileApprovalAsync("write", "/file.txt");
+        svc.Close();
 
-        var errorItem = turn.Items.FirstOrDefault(i => i.Type == ItemType.Error);
-        Assert.NotNull(errorItem);
-        var errorPayload = errorItem!.AsError;
-        Assert.NotNull(errorPayload);
-        Assert.Contains("timed out", errorPayload!.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(await svc.RequestFileApprovalAsync("write", "/file.txt"));
+        Assert.Empty(turn.Items);
     }
 
     // -------------------------------------------------------------------------
@@ -675,7 +660,7 @@ public sealed class SessionApprovalServiceTests
             var channel = new SessionEventChannel(threadId, turnId);
             var turn = new SessionTurn { Id = turnId, ThreadId = threadId, Status = TurnStatus.Running };
             var sequence = 1;
-            return (new SessionApprovalService(channel, turn, () => sequence++, TimeSpan.FromMinutes(1), () => { }, sessionScopes: registry), channel, turn);
+            return (new SessionApprovalService(channel, turn, () => sequence++, CancellationToken.None, () => { }, sessionScopes: registry), channel, turn);
         }
     }
 
@@ -772,7 +757,7 @@ public sealed class SessionApprovalServiceTests
             channel,
             turn,
             () => seq++,
-            TimeSpan.FromMinutes(1),
+            CancellationToken.None,
             () => cancelled = true);
 
         var requestTask = svc.RequestShellApprovalAsync(ShellApprovalRequests.For("rm -rf /tmp/data", "/tmp"));

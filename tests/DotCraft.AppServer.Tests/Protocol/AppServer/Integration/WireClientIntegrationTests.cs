@@ -226,11 +226,10 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
         _service.EnqueueSubmitEvents(threadId, AppServerTestHarness.BuildApprovalEventSequence(threadId));
 
         // Install an approval handler that auto-accepts
-        var approvalRequests = new List<string>();
+        var approvalRequest = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
         _wire.ServerRequestHandler = async doc =>
         {
-            var method = doc.RootElement.TryGetProperty("method", out var m) ? m.GetString() : null;
-            approvalRequests.Add(method ?? "unknown");
+            approvalRequest.TrySetResult(doc.RootElement.TryGetProperty("method", out var m) ? m.GetString() : null);
             return new { decision = "accept" };
         };
 
@@ -248,7 +247,9 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
         }
 
         // The approval request should have been received by the handler
-        Assert.Contains(DotCraft.Protocol.AppServer.AppServerMethodNames.ApprovalRequest, approvalRequests);
+        Assert.Equal(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ApprovalRequest,
+            await approvalRequest.Task.WaitAsync(TimeSpan.FromSeconds(5)));
 
         // The turn should have completed after approval
         Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted, methods[^1]);

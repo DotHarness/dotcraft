@@ -76,7 +76,6 @@ public static class AppServerErrors
     public const int TurnInProgressCode = -32012;
     public const int TurnNotFoundCode = -32013;
     public const int TurnNotRunningCode = -32014;
-    public const int ApprovalTimeoutCode = -32020;
     public const int ChannelRejectedCode = -32030;
 
     public const int SkillNotFoundCode = -32040;
@@ -233,9 +232,6 @@ public static class AppServerErrors
             "errors.worktreeHandoffConflict",
             "Local workspace has conflicting uncommitted changes.",
             new WorktreeConflictErrorParams(conflictPaths));
-
-    public static AppServerException ApprovalTimeout() =>
-        Create(ApprovalTimeoutCode, "ApprovalTimeout", "errors.approvalTimeout", "Approval request timed out");
 
     public static AppServerException ChannelRejected(string channelName) =>
         Create(ChannelRejectedCode, "ChannelRejected", "errors.channelRejected", $"Channel adapter rejected: '{channelName}' is not registered in server configuration", new ChannelErrorParams(channelName));

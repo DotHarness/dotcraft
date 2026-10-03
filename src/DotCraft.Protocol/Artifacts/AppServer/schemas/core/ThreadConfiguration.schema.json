@@ -90,16 +90,6 @@
     "approvalPolicy": {
       "type": "string"
     },
-    "approvalTimeoutSeconds": {
-      "anyOf": [
-        {
-          "type": "integer"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "automationTaskDirectory": {
       "anyOf": [
         {

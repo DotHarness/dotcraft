@@ -548,8 +548,6 @@ public sealed partial class AgentProfileStore
             resolved.Reasoning = CloneReasoning(requested.Reasoning);
         if (HasConfigProperty(configElement, "speed"))
             resolved.Speed = requested.Speed;
-        if (HasConfigProperty(configElement, "approvalTimeoutSeconds"))
-            resolved.ApprovalTimeoutSeconds = requested.ApprovalTimeoutSeconds;
         if (HasConfigProperty(configElement, "developerInstructions"))
             resolved.DeveloperInstructions = NormalizeNullableString(requested.DeveloperInstructions);
 
@@ -579,7 +577,6 @@ public sealed partial class AgentProfileStore
         || string.Equals(name, "model", StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, "reasoning", StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, "speed", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(name, "approvalTimeoutSeconds", StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, "developerInstructions", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsBenignSerializedDefaultOverlay(JsonProperty property)
@@ -1504,7 +1501,6 @@ public sealed partial class AgentProfileStore
         DeveloperInstructions = source.DeveloperInstructions,
         OverrideBasePrompt = source.OverrideBasePrompt,
         ApprovalPolicy = source.ApprovalPolicy,
-        ApprovalTimeoutSeconds = source.ApprovalTimeoutSeconds,
         AutomationTaskDirectory = source.AutomationTaskDirectory,
         RequireApprovalOutsideWorkspace = source.RequireApprovalOutsideWorkspace
     };

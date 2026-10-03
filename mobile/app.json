@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "DotCraft",
+    "slug": "dotcraft",
+    "version": "0.8.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "dotcraft",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#141515",
+    "android": {
+      "package": "com.dotharness.dotcraft",
+      "versionCode": 800,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.VIBRATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "recordAudioAndroid": false
+        }
+      ],
+      "expo-secure-store",
+      "expo-localization",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 88,
+          "backgroundColor": "#F9F9F9",
+          "dark": {
+            "image": "./assets/images/splash-icon.png",
+            "backgroundColor": "#141515"
+          }
+        }
+      ]
+    ]
+  }
+}

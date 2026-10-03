@@ -395,7 +395,9 @@ Response:
 
 Common decisions include `accept`, `acceptForSession`, `acceptAlways`, `decline`, and `cancel`. Use the available decisions in the actual request payload as the source of truth.
 
-If a client declares `approvalSupport: false` during `initialize`, the server handles non-interactive approval situations according to server policy. Rich UI clients should keep `approvalSupport: true`.
+Approval requests do not expire, and they belong to the thread rather than to one connection. Every subscribed client that supports approvals receives a pending request, including one that subscribes after it was raised. The request stays pending until one client answers or its turn ends, and every subscribed client then receives `item/approval/resolved` and should dismiss its prompt.
+
+If a client declares `approvalSupport: false` during `initialize`, the server never sends it approval requests, and approvals in turns that client starts resolve immediately from the thread's approval policy. Rich UI clients should keep `approvalSupport: true`.
 
 ## API overview
 

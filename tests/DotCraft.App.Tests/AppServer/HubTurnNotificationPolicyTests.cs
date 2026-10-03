@@ -123,6 +123,16 @@ public sealed class HubTurnNotificationPolicyTests
         Assert.Null(decision.ThreadId);
     }
 
+    [Theory]
+    [InlineData(SessionThreadRuntimeSignal.ApprovalRequested, "approvalRequested")]
+    [InlineData(SessionThreadRuntimeSignal.UserInputRequested, "inputRequested")]
+    [InlineData(SessionThreadRuntimeSignal.ApprovalResolved, null)]
+    [InlineData(SessionThreadRuntimeSignal.UserInputResolved, null)]
+    public void GetSpec_RaisesAttentionOnlyWhenARequestStarts(SessionThreadRuntimeSignal signal, string? kind)
+    {
+        Assert.Equal(kind, HubTurnNotificationPolicy.GetSpec(signal)?.Kind);
+    }
+
     [Fact]
     public void BuildDesktopOpenActionUrl_EncodesWorkspaceAndThread()
     {

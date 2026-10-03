@@ -130,6 +130,8 @@ public static class FallbackText
   "hub.notification.turn_completed.body": "\"{0}\" finished.",
   "hub.notification.turn_failed.title": "DotCraft task failed",
   "hub.notification.turn_failed.body": "\"{0}\" failed.",
+  "hub.notification.approval_requested.body": "Needs your approval",
+  "hub.notification.input_requested.body": "Has a question for you",
   "hub.notification.thread.default": "Current chat",
   "auth.openai.login.starting": "Starting Sign in with ChatGPT...",
   "auth.openai.login.url": "If your browser does not open automatically, visit:\n  {0}",

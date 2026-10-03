@@ -27,6 +27,7 @@ public sealed class HubHost : IDotCraftHost
     private ManagedAppServerRegistry? _registry;
     private ManagedLocalServiceRegistry? _serviceRegistry;
     private SatelliteConnectionManager? _satellites;
+    private MobileGateway? _mobile;
     private int _cleanupStarted;
 
     /// <summary>
@@ -98,11 +99,19 @@ public sealed class HubHost : IDotCraftHost
                 _config,
                 _eventBus,
                 _loggerFactory);
+            _mobile = new MobileGateway(
+                new MobileRegistry(_paths.MobilePath),
+                _config,
+                _paths,
+                _eventBus,
+                _registry,
+                _loggerFactory);
             _registry.StartHealthChecks();
             _app = BuildApp(apiBaseUrl, token, startedAt, binaryPath, _registry, _serviceRegistry, _eventBus);
             _app.Urls.Add(apiBaseUrl);
             await _app.StartAsync(cancellationToken);
             await _satellites.StartForExistingPeersAsync(cancellationToken);
+            await _mobile.StartIfEnabledAsync();
 
             var lockInfo = new HubLockInfo(
                 Pid: Environment.ProcessId,
@@ -273,6 +282,11 @@ public sealed class HubHost : IDotCraftHost
             events,
             request => Unauthorized(request, token),
             ProtectedAsync);
+        HubMobileApi.Map(
+            app,
+            _mobile!,
+            request => Unauthorized(request, token),
+            ProtectedAsync);
 
         return app;
     }
@@ -292,7 +306,8 @@ public sealed class HubHost : IDotCraftHost
                 Events: true,
                 Notifications: true,
                 Tray: false,
-                Satellites: true));
+                Satellites: true,
+                Mobile: true));
 
     private static bool IsAuthorized(HttpRequest request, string token)
     {
@@ -427,6 +442,12 @@ public sealed class HubHost : IDotCraftHost
             await _app.StopAsync(CancellationToken.None);
             await _app.DisposeAsync();
             _app = null;
+        }
+
+        if (_mobile is not null)
+        {
+            await _mobile.DisposeAsync();
+            _mobile = null;
         }
 
         if (_registry is not null)

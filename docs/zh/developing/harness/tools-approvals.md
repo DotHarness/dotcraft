@@ -96,7 +96,7 @@ await handler.ProcessAsync(
 
 面对陌生或影响较大的操作，优先给出 `AcceptOnce`。只有在用户清楚永久审批的范围时，才把 `AcceptAlways` 摆到界面上。
 
-审批请求会超时。默认 5 分钟内没有决策就按 `Reject` 处理，Turn 随后继续。用 `ThreadConfiguration.ApprovalTimeoutSeconds` 可以按 Thread 调整这个窗口。
+审批请求不会超时。请求会一直等待，直到收到决策或所属 Turn 结束。Turn 先结束时，Session Core 按 `CancelTurn` 处理该请求，操作不会执行。
 
 > [!CAUTION]
 > 不要只根据工具展示名称自动批准操作。请向用户展示具体操作、参数、受影响资源与审批范围。

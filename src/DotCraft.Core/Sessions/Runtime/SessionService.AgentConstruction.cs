@@ -240,8 +240,6 @@ public sealed partial class SessionService
             return true;
         if (config.ApprovalPolicy != ApprovalPolicy.Default)
             return true;
-        if (config.ApprovalTimeoutSeconds.HasValue)
-            return true;
         if (!string.IsNullOrWhiteSpace(config.AutomationTaskDirectory))
             return true;
         return config.RequireApprovalOutsideWorkspace.HasValue;

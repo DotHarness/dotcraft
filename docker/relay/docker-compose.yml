@@ -1,0 +1,32 @@
+services:
+  relay:
+    image: ghcr.io/dotharness/dotcraft:${DOTCRAFT_VERSION:-latest}
+    # To build from a source checkout instead of pulling GHCR:
+    # build:
+    #   context: ../..
+    #   dockerfile: docker/dotcraft/Dockerfile
+    command: ["dotcraft", "relay", "serve", "--listen", "http://0.0.0.0:47620"]
+    environment:
+      DOTCRAFT_RELAY_TOKEN: ${RELAY_TOKEN:?set RELAY_TOKEN in .env}
+    ports:
+      - "${RELAY_PUBLISH_HOST:-127.0.0.1}:${RELAY_PORT:-47620}:47620"
+    restart: unless-stopped
+
+  gateway:
+    image: caddy:2.11-alpine
+    depends_on:
+      - relay
+    environment:
+      RELAY_PUBLIC_HOST: ${RELAY_PUBLIC_HOST:-}
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - relay-caddy-data:/data
+      - relay-caddy-config:/config
+    restart: unless-stopped
+
+volumes:
+  relay-caddy-data:
+  relay-caddy-config:

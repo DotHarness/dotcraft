@@ -1,5 +1,4 @@
 import {
-  ERR_APPROVAL_TIMEOUT,
   ERR_THREAD_NOT_ACTIVE,
   ERR_THREAD_NOT_FOUND,
   ERR_TURN_IN_PROGRESS,
@@ -56,13 +55,6 @@ export class ThreadNotActiveError extends JsonRpcError {
   constructor(rpcCode: number, rpcMessage: string, data?: unknown) {
     super(rpcCode, rpcMessage, data, "threadNotActive");
     this.name = "ThreadNotActiveError";
-  }
-}
-
-export class ApprovalTimeoutError extends JsonRpcError {
-  constructor(rpcCode: number, rpcMessage: string, data?: unknown) {
-    super(rpcCode, rpcMessage, data, "approvalTimeout");
-    this.name = "ApprovalTimeoutError";
   }
 }
 
@@ -125,6 +117,5 @@ export function toJsonRpcError(rpcCode: number, rpcMessage: string, data?: unkno
   if (rpcCode === ERR_TURN_IN_PROGRESS) return new TurnInProgressError(rpcCode, rpcMessage, data);
   if (rpcCode === ERR_THREAD_NOT_FOUND) return new ThreadNotFoundError(rpcCode, rpcMessage, data);
   if (rpcCode === ERR_THREAD_NOT_ACTIVE) return new ThreadNotActiveError(rpcCode, rpcMessage, data);
-  if (rpcCode === ERR_APPROVAL_TIMEOUT) return new ApprovalTimeoutError(rpcCode, rpcMessage, data);
   return new JsonRpcError(rpcCode, rpcMessage, data);
 }

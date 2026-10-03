@@ -25,6 +25,8 @@
     },
     "./wire": {
       "types": "./dist/wire.d.ts",
+      "react-native": "./dist/wireCore.js",
+      "browser": "./dist/wireCore.js",
       "import": "./dist/wire.js"
     },
     "./hub": {

@@ -305,33 +305,6 @@ public sealed class AppServerEventDispatcherDisconnectTests
     }
 
     [Fact]
-    public async Task RunAsync_WhenApprovalRequestTransportFails_ResolvesWithNonInteractiveFallback()
-    {
-        using var harness = new AppServerTestHarness(
-            defaultApprovalDecision: SessionApprovalDecision.Reject);
-        var thread = await harness.Service.CreateThreadAsync(
-            harness.Identity,
-            new ThreadConfiguration { ApprovalPolicy = ApprovalPolicy.AutoApprove });
-        var events = AppServerTestHarness.BuildApprovalEventSequence(thread.Id);
-        var consumed = new List<SessionEventType>();
-        var transport = new FailingTransport(clientRequestException: new IOException("client disconnected"));
-
-        var dispatcher = new AppServerEventDispatcher(
-            TrackEvents(events, consumed),
-            CreateReadyConnection(),
-            transport,
-            harness.Service,
-            defaultApprovalDecision: SessionApprovalDecision.Reject);
-
-        await dispatcher.RunAsync();
-
-        Assert.Equal(events.Select(e => e.EventType), consumed);
-        var resolved = Assert.Single(harness.Service.ResolvedApprovals);
-        Assert.Equal("req_001", resolved.requestId);
-        Assert.Equal(SessionApprovalDecision.AcceptOnce, resolved.decision);
-    }
-
-    [Fact]
     public async Task RunAsync_WhenUserInputRequestTokenCancelled_DoesNotResolveUntilClientResponds()
     {
         using var harness = new AppServerTestHarness();
@@ -410,50 +383,6 @@ public sealed class AppServerEventDispatcherDisconnectTests
     }
 
     [Fact]
-    public async Task RunAsync_WhenUserInputUnsupported_ResolvesWithEmptyAnswers()
-    {
-        using var harness = new AppServerTestHarness();
-        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
-        var userInputEvent = BuildUserInputRequestedEvent(thread.Id, "turn_001", "req_input_001");
-        var transport = new BlockingClientRequestTransport();
-
-        var dispatcher = new AppServerEventDispatcher(
-            TrackEvents([userInputEvent], []),
-            CreateReadyConnection(requestUserInputSupport: false),
-            transport,
-            harness.Service);
-
-        await dispatcher.RunAsync();
-
-        Assert.False(transport.RequestObserved.Task.IsCompleted);
-        var resolved = Assert.Single(harness.Service.ResolvedUserInputs);
-        Assert.Equal("req_input_001", resolved.requestId);
-        Assert.Empty(resolved.response.Answers);
-    }
-
-    [Fact]
-    public async Task RunAsync_WhenUserInputTransportFails_ResolvesWithEmptyAnswers()
-    {
-        using var harness = new AppServerTestHarness();
-        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
-        var userInputEvent = BuildUserInputRequestedEvent(thread.Id, "turn_001", "req_input_001");
-        var transport = new FailingTransport(clientRequestException: new IOException("client disconnected"));
-
-        var dispatcher = new AppServerEventDispatcher(
-            TrackEvents([userInputEvent], []),
-            CreateReadyConnection(requestUserInputSupport: true),
-            transport,
-            harness.Service);
-
-        await dispatcher.RunAsync();
-
-        await WaitForAsync(() => harness.Service.ResolvedUserInputs.Count == 1);
-        var resolved = Assert.Single(harness.Service.ResolvedUserInputs);
-        Assert.Equal("req_input_001", resolved.requestId);
-        Assert.Empty(resolved.response.Answers);
-    }
-
-    [Fact]
     public async Task TurnStart_UsesNonConnectionCancellationTokenForPersistedTurnExecution()
     {
         using var harness = new AppServerTestHarness();
@@ -496,38 +425,6 @@ public sealed class AppServerEventDispatcherDisconnectTests
 
         await WaitForAsync(() => harness.Service.YieldedSubmitEventTypes.Count >= events.Length);
         Assert.Equal(events.Select(e => e.EventType), harness.Service.YieldedSubmitEventTypes);
-    }
-
-    [Fact]
-    public async Task TurnStart_WhenSubscribedAndConnectionClosesDuringApproval_UsesFallbackDecision()
-    {
-        using var harness = new AppServerTestHarness(
-            defaultApprovalDecision: SessionApprovalDecision.Reject);
-        await harness.InitializeAsync();
-        var thread = await harness.Service.CreateThreadAsync(
-            harness.Identity,
-            new ThreadConfiguration { ApprovalPolicy = ApprovalPolicy.AutoApprove });
-        var events = AppServerTestHarness.BuildApprovalEventSequence(thread.Id);
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadSubscribe,
-            new { threadId = thread.Id }));
-        await harness.Transport.ReadNextSentAsync();
-
-        harness.Service.EnqueueSubmitEvents(thread.Id, events);
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
-        {
-            threadId = thread.Id,
-            input = new[] { new { type = "text", text = "approval while subscribed" } }
-        }));
-
-        harness.Connection.MarkClosed();
-        harness.Connection.CancelAllSubscriptions();
-
-        await WaitForAsync(() => harness.Service.ResolvedApprovals.Count == 1);
-        var resolved = Assert.Single(harness.Service.ResolvedApprovals);
-        Assert.Equal("req_001", resolved.requestId);
-        Assert.Equal(SessionApprovalDecision.AcceptOnce, resolved.decision);
     }
 
     [Fact]
@@ -689,9 +586,7 @@ public sealed class AppServerEventDispatcherDisconnectTests
             Task.FromResult(InMemoryTransport.BuildClientResponse(1, new { }));
     }
 
-    private sealed class FailingTransport(
-        int? failOnWriteAttempt = null,
-        Exception? clientRequestException = null) : IAppServerTransport
+    private sealed class FailingTransport(int? failOnWriteAttempt = null) : IAppServerTransport
     {
         public int WriteAttempts { get; private set; }
 
@@ -713,13 +608,8 @@ public sealed class AppServerEventDispatcherDisconnectTests
             string method,
             object? @params,
             CancellationToken ct = default,
-            TimeSpan? timeout = null)
-        {
-            if (clientRequestException != null)
-                throw clientRequestException;
-
-            return Task.FromResult(InMemoryTransport.BuildClientResponse(1, new { decision = "accept" }));
-        }
+            TimeSpan? timeout = null) =>
+            Task.FromResult(InMemoryTransport.BuildClientResponse(1, new { decision = "accept" }));
     }
 
     private sealed class BlockingClientRequestTransport : IAppServerTransport

@@ -39,11 +39,6 @@ public sealed record ApprovalRequestPayload
     /// </summary>
     public string Reason { get; init; } = string.Empty;
 
-    /// <summary>
-    /// UTC instant after which the request can no longer be approved.
-    /// </summary>
-    public DateTimeOffset ExpiresAt { get; init; }
-
     public ShellApprovalDetails? Shell { get; init; }
 }
 

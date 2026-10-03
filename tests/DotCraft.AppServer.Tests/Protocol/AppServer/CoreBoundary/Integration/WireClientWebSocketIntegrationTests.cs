@@ -167,11 +167,10 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
 
         _service.EnqueueSubmitEvents(threadId, AppServerTestHarness.BuildApprovalEventSequence(threadId));
 
-        var approvalRequests = new List<string>();
+        var approvalRequest = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
         _connection.Wire.ServerRequestHandler = async doc =>
         {
-            var method = doc.RootElement.TryGetProperty("method", out var m) ? m.GetString() : null;
-            approvalRequests.Add(method ?? "unknown");
+            approvalRequest.TrySetResult(doc.RootElement.TryGetProperty("method", out var m) ? m.GetString() : null);
             return new { decision = "accept" };
         };
 
@@ -188,7 +187,9 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
                 methods.Add(m.GetString() ?? string.Empty);
         }
 
-        Assert.Contains(DotCraft.Protocol.AppServer.AppServerMethodNames.ApprovalRequest, approvalRequests);
+        Assert.Equal(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ApprovalRequest,
+            await approvalRequest.Task.WaitAsync(TimeSpan.FromSeconds(5)));
         Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted, methods[^1]);
     }
 

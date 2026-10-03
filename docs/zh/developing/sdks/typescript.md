@@ -168,7 +168,6 @@ Wire 状态包括 `connecting`、`initializing`、`ready`、`disconnected`、`re
 | `TurnInProgressError` | Thread 已有活动 turn。 |
 | `ThreadNotFoundError` / `ThreadNotActiveError` | 目标 thread 不存在或无法运行。 |
 | `TurnFailedError` / `TurnCancelledError` | Buffered run 到达失败或取消终态。 |
-| `ApprovalTimeoutError` | AppServer 报告审批超时。 |
 | `ProtocolViolationError` | 已知消息不符合其 contract。 |
 
 `JsonRpcError` 与 transport 层错误 `TransportError`、`TransportClosed`、`RequestTimeoutError`、`ReconnectQueueFullError` 由 Wire 入口导出。

@@ -508,6 +508,70 @@ describe('trayManager notifications', () => {
     })
   })
 
+  it.each([
+    ['approvalRequested', 'hub.notification.approval_requested.body', 'Needs your approval'],
+    ['inputRequested', 'hub.notification.input_requested.body', 'Has a question for you']
+  ])('shows %s notifications named after the chat only while its workspace is unfocused', async (kind, bodyKey, body) => {
+    workspaceLockMocks.checkWorkspaceLock.mockReturnValue({
+      locked: true,
+      pid: 123,
+      activation: {
+        host: '127.0.0.1',
+        port: 456,
+        token: 'token',
+        protocolVersion: 1
+      }
+    })
+    const { showHubNotificationForSettings } = await import('../trayManager')
+    const event: HubEvent = {
+      kind: 'notification.requested',
+      at: new Date().toISOString(),
+      workspacePath: 'F:/examples/workspace',
+      data: { kind, title: 'Fix login', bodyKey, fallbackBody: body, params: { name: 'Fix login' } }
+    }
+    const settings: AppSettings = { notifications: { taskCompletionMode: 'never' } }
+
+    activationMocks.requestWorkspaceWindowState.mockResolvedValue({
+      ok: true,
+      focused: true,
+      visible: true,
+      minimized: false
+    })
+    expect(await showHubNotificationForSettings(event, settings)).toBe(false)
+    expect(electronMocks.Notification).not.toHaveBeenCalled()
+
+    activationMocks.requestWorkspaceWindowState.mockResolvedValue({
+      ok: true,
+      focused: false,
+      visible: true,
+      minimized: false
+    })
+    expect(await showHubNotificationForSettings(event, settings)).toBe(true)
+    expect(electronMocks.Notification).toHaveBeenCalledOnce()
+    expect(electronMocks.Notification).toHaveBeenCalledWith({
+      title: 'Fix login',
+      body,
+      icon: expect.stringMatching(/[\\/]icon\.png$/)
+    })
+  })
+
+  it.each([
+    ['approvalRequested', { approvalRequests: false }],
+    ['inputRequested', { questions: false }]
+  ])('suppresses %s notifications when that kind is turned off', async (kind, notifications) => {
+    const { showHubNotificationForSettings } = await import('../trayManager')
+
+    const shown = await showHubNotificationForSettings({
+      kind: 'notification.requested',
+      at: new Date().toISOString(),
+      workspacePath: 'F:/examples/workspace',
+      data: { kind, title: 'Fix login', body: 'Waiting' }
+    }, { notifications })
+
+    expect(shown).toBe(false)
+    expect(electronMocks.Notification).not.toHaveBeenCalled()
+  })
+
   it('does not launch Desktop when notification click disables Desktop opening', async () => {
     const { showHubNotification } = await import('../trayManager')
     showHubNotification({

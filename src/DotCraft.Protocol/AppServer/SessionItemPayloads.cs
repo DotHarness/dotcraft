@@ -628,9 +628,6 @@ public sealed class ApprovalRequestPayload : ExtensibleJsonObject
     [JsonPropertyName("reason")]
     public required string Reason { get; init; }
 
-    [JsonPropertyName("expiresAt")]
-    public required DateTimeOffset ExpiresAt { get; init; }
-
     [JsonPropertyName("shell")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ApprovalShellDetails? Shell { get; init; }

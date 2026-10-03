@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.8.1 |
 | **Status** | Living |
-| **Date** | 2026-10-01 |
+| **Date** | 2026-10-03 |
 
-Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services without changing the AppServer Protocol or replacing DotCraft's per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts on other machines: it accepts their outbound connections and relays each session — a tool session to a local AppServer, or a screen view to a local client — as an opaque byte stream.
+Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services without changing the AppServer Protocol or replacing DotCraft's per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts on other machines: it accepts their outbound connections and relays each session — a tool session to a local AppServer, or a screen view to a local client — as an opaque byte stream. Hub is likewise the gateway paired phones use to reach workspace AppServers, relaying each phone connection to a local AppServer without interpreting it.
 
 ## 1. Motivation
 
@@ -24,7 +24,7 @@ Hub solves that by acting like a local container manager:
 
 - Each workspace still has its own AppServer.
 - Hub does not host workspace runtimes.
-- Hub does not proxy normal AppServer Protocol traffic. It does relay Remote Tool Host sessions between a local AppServer and a paired remote machine, as an opaque byte bridge that never interprets the relayed traffic (§6.1).
+- Hub does not proxy the AppServer Protocol traffic of local clients. It does relay Remote Tool Host sessions between a local AppServer and a paired remote machine (§6.1), and the AppServer connections of paired phones (§6.2), as opaque byte bridges that never interpret the relayed traffic.
 - Hub helps local clients find or create the correct AppServer and then gets out of the hot path.
 
 ## 2. Design Principles
@@ -33,7 +33,7 @@ Hub solves that by acting like a local container manager:
 2. **Do not change AppServer Protocol for local coordination.** No workspace routing fields are added to AppServer methods.
 3. **Keep Hub off the conversation hot path.** After bootstrap, clients connect directly to the AppServer WebSocket endpoint.
 4. **Use stdio for supervision, WebSocket for sharing.** Hub uses stdio to supervise managed AppServers; local clients use WebSocket to share the same AppServer.
-5. **Keep Hub local and single-user.** The Hub Local API always binds to loopback on the machine where Hub runs and uses same-user trust assumptions. A client on another machine reaches it only through an SSH local forward authenticated as that same OS user (§9.1). Hub may additionally open a separate, opt-in satellite listener on a LAN address that serves only Remote Tool Host pairing and transport routes; the two listeners are separate applications with separate route tables, and no `/v1/*` endpoint is ever reachable from the satellite listener.
+5. **Keep Hub local and single-user.** The Hub Local API always binds to loopback on the machine where Hub runs and uses same-user trust assumptions. A client on another machine reaches it only through an SSH local forward authenticated as that same OS user (§9.1). Hub may additionally open separate, opt-in listeners on a LAN address: the satellite listener, which serves only Remote Tool Host pairing and transport routes, and the mobile gateway, which serves only phone pairing and relay routes. Each listener is a separate application with its own route table, and no `/v1/*` endpoint is ever reachable from either.
 6. **Keep standalone AppServer valid.** `dotcraft app-server` remains available for explicit remote hosting, CI, bots, and debugging.
 7. **Keep UI ownership in Desktop.** Hub is headless; tray and OS notifications belong to Desktop/Electron.
 8. **Keep product services closed and explicit.** Hub may supervise product-owned local services registered by DotCraft composition, but it is not a native-process extension point for plugins.
@@ -48,6 +48,7 @@ dotcraft hub
   - in-memory product service supervisor
   - lifecycle events
   - satellite peer registry and opt-in satellite listener
+  - mobile device registry and opt-in mobile gateway
 
 dotcraft app-server, one per workspace
   - cwd = workspace root
@@ -133,8 +134,17 @@ Required endpoints:
 | `POST /v1/satellites/invites` | Mint a one-time pairing invitation and start the satellite listener when it is not running. |
 | `DELETE /v1/satellites/{peerId}` | Revoke a pairing and close its live connections. |
 | `GET /v1/satellites/{peerId}/bridge?session=...&kind=...` | WebSocket. Open one relayed session of the given kind with a paired Remote Tool Host: `tools` (the default) for a local AppServer, `screen` for a local client. A paired host without a live control connection is answered `503 satelliteOffline` before any capability check. |
+| `GET /v1/mobile` | Mobile gateway state: `off`, `on`, or `failed` with a reason, the port, advertised addresses, paired phones, and the relay with its connection state. |
+| `POST /v1/mobile/enable` | Turn the mobile gateway on and keep it on across Hub restarts. |
+| `POST /v1/mobile/disable` | Turn the mobile gateway off and close every phone connection. Paired phones are kept. |
+| `POST /v1/mobile/pairings` | Mint a phone pairing code and return its QR payload and expiry. |
+| `DELETE /v1/mobile/devices/{deviceId}` | Revoke a paired phone and close its connections. |
+| `PUT /v1/mobile/relay` | Set the relay URL and token that let phones reach the gateway from other networks. |
+| `DELETE /v1/mobile/relay` | Remove the relay. |
 
-The Hub Local API remains loopback-only; the satellite routes above are for local AppServers and local clients, not for the remote machine.
+`GET /v1/status` reports `capabilities.satellites: true` when Hub serves the `/v1/satellites*` routes and the satellite listener, and `capabilities.mobile: true` when it serves the `/v1/mobile*` routes and the mobile gateway, so a client can tell a Hub without them from a failure. The mutating `/v1/mobile*` routes other than `PUT /v1/mobile/relay` ignore any request body; clients may send `{}`.
+
+The Hub Local API remains loopback-only; the satellite and mobile routes above are for local AppServers and local clients, not for the remote machine or the phone.
 
 Errors use this shape:
 
@@ -150,7 +160,7 @@ Errors use this shape:
 
 Default Chat helpers do not add another Hub endpoint. They resolve and initialize `~/.craft/workspaces/chats`, then call `POST /v1/appservers/ensure` with that concrete `workspacePath`.
 
-Common error codes include `unauthorized`, `workspaceNotFound`, `workspaceLocked`, `appServerStartFailed`, `appServerUnhealthy`, `portUnavailable`, `invalidNotification`, `satelliteNotFound`, `satelliteOffline`, `inviteInvalid`, `sessionConflict`, `sessionKindUnsupported`, `satelliteScreenUnsupported`, and `hubInternalError`.
+Common error codes include `unauthorized`, `workspaceNotFound`, `workspaceLocked`, `appServerStartFailed`, `appServerUnhealthy`, `portUnavailable`, `invalidNotification`, `satelliteNotFound`, `satelliteOffline`, `inviteInvalid`, `sessionConflict`, `sessionKindUnsupported`, `satelliteScreenUnsupported`, `gatewayOff`, `deviceNotFound`, `invalidRequest`, and `hubInternalError`.
 
 ### 6.1 Satellite listener
 
@@ -176,6 +186,14 @@ The satellite listener is a second, opt-in HTTP application that Hub binds to a 
 Hub relays every data connection to the matching `/v1/satellites/{peerId}/bridge` WebSocket frame for frame, preserving message type and fragment boundaries, whatever the session kind and with no size limit of its own. It never parses, rewrites, inspects, logs, or persists the relayed payload and never holds a Remote Tool Host lease. The port is fixed rather than allocated because invitation URLs and stored peer endpoints must survive a Hub restart; when the port is unavailable, minting an invitation fails with `portUnavailable` and Hub does not fall back to another port.
 
 The control channel, its frames, heartbeats, reconnect behavior, and the pairing ceremony are specified by [Remote Tool Host](remote-tool-host.md) §8 and §9.
+
+### 6.2 Mobile gateway
+
+The mobile gateway is a second, opt-in listener that paired phones use to reach workspace AppServers. It serves HTTPS with a self-signed certificate that phones pin, on `Hub.MobileHost` and the fixed port `Hub.MobilePort` (default `47610`), and only `/m/*` routes: pairing, a project list, project ensure, a relayed AppServer WebSocket per project, and a gateway event socket. It refuses sources outside loopback and the private, link-local, shared (100.64/10), and unique-local ranges before the TLS handshake. Turning it on or off is a Hub Local API call (§6), and the choice survives Hub restarts.
+
+When a relay is configured and the gateway is on, Hub also keeps an outbound WebSocket control channel to the user's relay, reconnecting with jittered backoff from 1 to 30 seconds. For each tunnel the relay opens, Hub connects the relay's accept route and a loopback TCP connection to the gateway port and copies bytes both ways without interpreting them, so a relayed phone reaches the gateway from loopback, completes TLS with the pinned certificate, and authenticates as on the local network. The relay runs as `dotcraft relay serve` on a server both sides reach; it is not part of Hub.
+
+Hub emits `mobile.stateChanged`, `mobile.devicePaired`, `mobile.deviceRevoked`, and `mobile.deviceSeen` on SSE. The routes, wire shapes, pairing ceremony, relay protocol, error codes, and event payloads are owned by [DotCraft Mobile](../clients/mobile.md) §5–§7 and §12.
 
 ## 7. Registry, Locks, and State
 
@@ -221,6 +239,18 @@ If Hub restarts and sees an old live workspace lock, it may display or return th
 - pending invitations as the hash of the invite id, its label, and its expiry.
 
 Raw peer credentials and raw invite ids are never written to disk. Online state and open sessions are in-memory and Hub-lifetime scoped.
+
+### Mobile Registry
+
+`~/.craft/hub/mobile.json` stores the mobile gateway state:
+
+- whether the gateway is on, so Hub turns it back on at start.
+- paired phones: device id, display name, platform, OS version, app version, paired and last-seen times, and the hash of the device credential.
+- the current pairing code as its hash, its pairing id, and its expiry.
+- the host id, 128 random bits created when the gateway first turns on, that names this computer on a relay.
+- the relay URL and relay token, when a relay is configured.
+
+`~/.craft/hub/mobile-certificate.pfx` holds the gateway certificate and its private key, readable only by the user where the operating system allows. Raw device credentials and pairing codes are never written to disk. The relay token is stored as given because Hub presents it to the relay, so `mobile.json` is created readable only by the user on Unix-like systems. Connection and relay state are in-memory and Hub-lifetime scoped.
 
 ### Workspace Lock
 
@@ -345,11 +375,22 @@ Notification flow:
 3. Desktop tray receives the event and displays the OS notification with the DotCraft app icon.
 4. Clicking the notification opens the related action URL. Desktop workspace links may activate an existing workspace window before starting a new one.
 
-Desktop task-completion notification settings apply to AppServer-managed turn result notifications (`turnCompleted` and `turnFailed`). `never` suppresses the OS notification, `always` displays it, and `whenUnfocused` displays it only when no focused Desktop window has the related workspace as its foreground workspace. Because tray runs in a separate process, it checks a Desktop workspace activation endpoint using a read-only window-state query; if the window state cannot be queried, the notification is treated as unfocused and remains visible.
+A managed AppServer requests four kinds of turn notification. Each names the chat by its display name:
+
+| Kind | Raised when | Title / body | Desktop setting |
+|------|-------------|--------------|-----------------|
+| `turnCompleted` | A turn completes | "DotCraft task completed" / the chat finished | Task completion: `never`, `always`, or `whenUnfocused` |
+| `turnFailed` | A turn fails | "DotCraft task failed" / the chat failed | Task completion |
+| `approvalRequested` | A turn starts waiting on an approval | The chat name / "Needs your approval" | Approval requests: on or off, shown only when unfocused |
+| `inputRequested` | A turn starts waiting on a question | The chat name / "Has a question for you" | Questions: on or off, shown only when unfocused |
+
+`never` and off suppress the OS notification and `always` displays it. `whenUnfocused`, and the approval and question kinds while they are on, display it only when no focused Desktop window has the related workspace as its foreground workspace. Because tray runs in a separate process, it checks a Desktop workspace activation endpoint using a read-only window-state query; if the window state cannot be queried, the notification is treated as unfocused and remains visible. The approval and question settings are on by default.
+
+`approvalRequested` and `inputRequested` are raised once per request, when the AppServer starts waiting on it. Resolving a request raises nothing, whichever client answers it, and clients that receive or replay a pending request, such as a Desktop window or a phone, do not display an OS notification of their own while this path can deliver it. One request therefore produces at most one notification however many clients watch the thread.
 
 Desktop may connect one window to multiple Hub-managed local AppServers at once. These secondary connections are client connections only: Hub continues to own one AppServer runtime per workspace, and Desktop must not start stopped recent workspaces merely to populate the multi-workspace UI.
 
-Turn-related OS notifications are for user-visible work. AppServer-managed turn notifications must suppress internal-only helper threads, such as threads marked with `dotcraft.internal` metadata or known internal origins used for welcome suggestions and commit-message suggestions. User-visible copy should use the thread display name instead of the internal thread ID.
+Turn-related OS notifications are for user-visible work. AppServer-managed turn notifications of every kind must suppress internal-only helper threads, such as threads marked with `dotcraft.internal` metadata or known internal origins used for welcome suggestions and commit-message suggestions, and SubAgent threads. User-visible copy should use the thread display name instead of the internal thread ID.
 
 For AppServer-managed turn notifications, Desktop-opening actions are allowed only when the thread originated from `dotcraft-desktop`. Other origins may still request a notification, but they must not attach a `dotcraft://workspace/open` action and should set `openDesktopOnClick=false`.
 
@@ -364,7 +405,7 @@ Hub allocates ports for:
 - AppServer WebSocket.
 - Dashboard when enabled.
 
-The satellite listener is the one endpoint that binds a non-loopback address, and it uses a fixed configured port (`Hub.SatellitePort`, default `47600`) instead of an allocated one, because invitation URLs and the endpoints stored by paired Remote Tool Hosts must survive a Hub restart.
+The satellite listener and the mobile gateway are the only endpoints that bind a non-loopback address. Each uses a fixed configured port instead of an allocated one: the satellite listener `Hub.SatellitePort` (default `47600`), because invitation URLs and the endpoints stored by paired Remote Tool Hosts must survive a Hub restart, and the mobile gateway `Hub.MobilePort` (default `47610`), because paired phones store it. Neither falls back to another port when its own is taken. The mobile relay binds nothing on the computer: Hub dials out to the relay and reaches the gateway over loopback.
 
 If optional modules are disabled or unavailable, Hub reports service status as `disabled` or `unavailable` and still starts the AppServer.
 
@@ -383,8 +424,10 @@ Security constraints:
 - Hub API uses bearer token authorization for protected endpoints.
 - Managed AppServer WebSocket endpoints use per-process tokens when available.
 - The satellite listener may bind a non-loopback address. It is disabled by default, serves no `/v1/*` route, and authenticates every connection with a one-time invite id or a per-peer bearer credential of which Hub stores only the hash. Profile v1 uses plain `ws://` and assumes a trusted intranet; invitations are single-use and expire. Screen frames relayed for a peer inherit this profile.
+- The mobile gateway may bind a non-loopback address. It is disabled by default, serves no `/v1/*` route, refuses sources outside loopback and private ranges before TLS, and serves TLS with a self-signed certificate that phones pin by fingerprint. Every route but pairing requires a per-device bearer credential of which Hub stores only the hash; pairing codes are single-use, expire after 10 minutes, and are never stored raw. A paired phone holds the authority of the Hub's OS user, and Hub authenticates the relayed AppServer connection itself, so the phone never receives a Hub or AppServer token.
+- The mobile relay connection is outbound only and authenticates with a relay token the user chooses. The relay sees TLS ciphertext between the phone and the gateway and never a device credential, project, or chat; a relay or token holder can drop or refuse tunnels but cannot impersonate the gateway, because phones pin its certificate.
 - A client on another machine reaches Hub only through an SSH local forward authenticated as the Hub's OS user (§9.1); the Hub token travels over that SSH session and is held only in the client's memory.
-- Multi-user Hub scenarios, and remote access other than satellite pairing and SSH forwarding, require a separate security design.
+- Multi-user Hub scenarios, and remote access other than satellite pairing, the mobile gateway and its relay, and SSH forwarding, require a separate security design.
 
 ## 13. Compatibility
 

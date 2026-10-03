@@ -49,6 +49,13 @@ import type {
   SatelliteThreadRoute,
   SharePcStatus
 } from '../shared/satellites'
+import type {
+  MobileEvent,
+  MobilePairing,
+  MobileResult,
+  MobileStatus,
+  MobileStatusResult
+} from '../shared/mobile'
 import {
   SCREEN_VIEW_ACK_CHANNEL,
   SCREEN_VIEW_CLOSE_CHANNEL,
@@ -453,6 +460,7 @@ ipcRenderer.on('window:visibility-changed', (_event: Electron.IpcRendererEvent, 
 
 let oratorioSubscriptionCount = 0
 let satellitesSubscriptionCount = 0
+let mobileSubscriptionCount = 0
 
 const api = {
   desktopPet,
@@ -1542,6 +1550,8 @@ const api = {
       }
       notifications?: {
         taskCompletionMode?: TaskCompletionNotificationMode
+        approvalRequests?: boolean
+        questions?: boolean
       }
       profile?: {
         githubUsername?: string
@@ -1624,6 +1634,8 @@ const api = {
       }
       notifications?: {
         taskCompletionMode?: TaskCompletionNotificationMode
+        approvalRequests?: boolean
+        questions?: boolean
       }
       profile?: {
         githubUsername?: string
@@ -1828,6 +1840,41 @@ const api = {
       const wrapped = (_event: Electron.IpcRendererEvent, payload: SatelliteJoinLink): void => callback(payload)
       ipcRenderer.on('satellites:join-link', wrapped)
       return () => ipcRenderer.removeListener('satellites:join-link', wrapped)
+    }
+  },
+
+  mobile: {
+    status(): Promise<MobileStatusResult> {
+      return ipcRenderer.invoke('mobile:status')
+    },
+    enable(): Promise<MobileResult<MobileStatus>> {
+      return ipcRenderer.invoke('mobile:enable')
+    },
+    disable(): Promise<MobileResult<MobileStatus>> {
+      return ipcRenderer.invoke('mobile:disable')
+    },
+    createPairing(): Promise<MobileResult<MobilePairing>> {
+      return ipcRenderer.invoke('mobile:create-pairing')
+    },
+    revoke(deviceId: string): Promise<MobileResult<void>> {
+      return ipcRenderer.invoke('mobile:revoke', { deviceId })
+    },
+    setRelay(url: string, token: string): Promise<MobileResult<MobileStatus>> {
+      return ipcRenderer.invoke('mobile:set-relay', { url, token })
+    },
+    clearRelay(): Promise<MobileResult<MobileStatus>> {
+      return ipcRenderer.invoke('mobile:clear-relay')
+    },
+    onEvent(callback: (event: MobileEvent) => void): () => void {
+      const wrapped = (_event: Electron.IpcRendererEvent, payload: MobileEvent): void => callback(payload)
+      mobileSubscriptionCount += 1
+      if (mobileSubscriptionCount === 1) ipcRenderer.send('mobile:subscribe')
+      ipcRenderer.on('mobile:event', wrapped)
+      return () => {
+        ipcRenderer.removeListener('mobile:event', wrapped)
+        mobileSubscriptionCount = Math.max(0, mobileSubscriptionCount - 1)
+        if (mobileSubscriptionCount === 0) ipcRenderer.send('mobile:unsubscribe')
+      }
     }
   },
 
