@@ -343,7 +343,9 @@ public sealed partial class OpenAIClientProvider :
 
     internal static OpenAIClientOptions CreateClientOptions(
         Uri endpoint,
-        int networkTimeoutSeconds)
+        int networkTimeoutSeconds,
+        string? installationId = null,
+        ILogger? logger = null)
     {
         var options = new OpenAIClientOptions
         {
@@ -353,7 +355,7 @@ public sealed partial class OpenAIClientProvider :
         };
         options.AddPolicy(new OpenAIRetryAdvicePipelinePolicy(), PipelinePosition.BeforeTransport);
         options.AddPolicy(new DotCraftUserAgentPipelinePolicy(), PipelinePosition.PerCall);
-        options.AddPolicy(new OpenAIResponsesRequestBodyCanonicalizationPipelinePolicy(), PipelinePosition.PerCall);
+        options.AddPolicy(new OpenAIResponsesRequestBodyCanonicalizationPipelinePolicy(installationId, logger), PipelinePosition.PerCall);
         options.AddPolicy(new LlmHttpCapturePipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new OpenAIResponsesAttemptDiagnosticPipelinePolicy(), PipelinePosition.PerCall);
         return options;

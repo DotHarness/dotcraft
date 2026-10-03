@@ -1,14 +1,19 @@
 using System.ClientModel;
 using System.ClientModel.Primitives;
+using DotCraft.Auth.OpenAI;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Agents;
 
 /// <summary>
-/// Removes duplicate top-level keys emitted by patched OpenAI Responses request options.
+/// Canonicalizes Responses requests and applies OAuth body metadata before transport.
 /// </summary>
-internal sealed class OpenAIResponsesRequestBodyCanonicalizationPipelinePolicy : PipelinePolicy
+internal sealed class OpenAIResponsesRequestBodyCanonicalizationPipelinePolicy(
+    string? installationId = null,
+    ILogger? logger = null) : PipelinePolicy
 {
     private const string ResponsesPathSuffix = "/responses";
+    private int _mismatchWarningLogged;
 
     public override void Process(PipelineMessage message, IReadOnlyList<PipelinePolicy> pipeline, int currentIndex)
     {
@@ -36,7 +41,7 @@ internal sealed class OpenAIResponsesRequestBodyCanonicalizationPipelinePolicy :
         return uri.AbsolutePath.EndsWith(ResponsesPathSuffix, StringComparison.Ordinal);
     }
 
-    private static void RewriteRequestContent(PipelineMessage message)
+    private void RewriteRequestContent(PipelineMessage message)
     {
         if (message.Request.Content == null)
             return;
@@ -46,7 +51,7 @@ internal sealed class OpenAIResponsesRequestBodyCanonicalizationPipelinePolicy :
         RewriteRequestContent(message, stream);
     }
 
-    private static async ValueTask RewriteRequestContentAsync(PipelineMessage message)
+    private async ValueTask RewriteRequestContentAsync(PipelineMessage message)
     {
         if (message.Request.Content == null)
             return;
@@ -56,13 +61,33 @@ internal sealed class OpenAIResponsesRequestBodyCanonicalizationPipelinePolicy :
         RewriteRequestContent(message, stream);
     }
 
-    private static void RewriteRequestContent(PipelineMessage message, MemoryStream stream)
+    private void RewriteRequestContent(PipelineMessage message, MemoryStream stream)
     {
-        var original = BinaryData.FromBytes(stream.ToArray()).ToString();
-        var rewritten = OpenAIResponsesRequestBodyCanonicalizer.Canonicalize(original);
-        if (rewritten == null)
+        var original = stream.GetBuffer().AsMemory(0, (int)stream.Length);
+        ReadOnlyMemory<byte>? rewritten;
+        if (string.IsNullOrWhiteSpace(installationId))
+        {
+            rewritten = OpenAIResponsesRequestBodyCanonicalizer.Canonicalize(original);
+        }
+        else
+        {
+            var snapshot = OpenAIResponsesCodexMetadata.GetOrCreateSnapshot(message, installationId);
+            var result = OpenAIResponsesRequestBodyCanonicalizer.RewriteOAuthRequest(
+                original,
+                OpenAIResponsesCodexMetadata.BuildClientMetadata(snapshot));
+            rewritten = result.Body;
+            if (rewritten != null && result.InstallationIdMismatch
+                && Interlocked.Exchange(ref _mismatchWarningLogged, 1) == 0)
+            {
+                logger?.LogWarning(
+                    "Overwriting mismatched Responses client_metadata {InstallationIdHeader} with the local ChatGPT OAuth installation id.",
+                    OpenAIAuthConstants.InstallationIdHeader);
+            }
+        }
+
+        if (rewritten is not { } bytes)
             return;
 
-        message.Request.Content = BinaryContent.Create(BinaryData.FromString(rewritten));
+        message.Request.Content = BinaryContent.Create(BinaryData.FromBytes(bytes));
     }
 }

@@ -1,4 +1,5 @@
 using System.ClientModel.Primitives;
+using System.Text;
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Tracing;
@@ -39,17 +40,13 @@ public sealed class OpenAIResponsesRequestBodyCanonicalizerTests
                     }
                 });
 
-            var original = SerializeOptions(options);
-
-            Assert.Equal(1, CountTopLevelKeyOccurrences(original, "input"));
-            Assert.Equal(1, CountTopLevelKeyOccurrences(original, "tools"));
-
-            var rewritten = OpenAIResponsesRequestBodyCanonicalizer.Canonicalize(original);
-
-            Assert.Null(rewritten);
-
+            var original = ModelReaderWriter.Write(options).ToMemory();
             using var document = JsonDocument.Parse(original);
             var root = document.RootElement;
+
+            Assert.Equal(1, CountTopLevelKeyOccurrences(root, "input"));
+            Assert.Equal(1, CountTopLevelKeyOccurrences(root, "tools"));
+            Assert.Null(OpenAIResponsesRequestBodyCanonicalizer.Canonicalize(original));
             Assert.False(root.GetProperty("store").GetBoolean());
             Assert.True(root.GetProperty("stream").GetBoolean());
             Assert.Equal("thread-cache-key", root.GetProperty("prompt_cache_key").GetString());
@@ -78,12 +75,12 @@ public sealed class OpenAIResponsesRequestBodyCanonicalizerTests
         const string original =
             """{"model":"gpt-test","input":[{"id":"old"}],"tools":[{"name":"old"}],"input":[{"id":"current"}],"tools":[{"name":"current"}]}""";
 
-        var rewritten = OpenAIResponsesRequestBodyCanonicalizer.Canonicalize(original);
+        var rewritten = OpenAIResponsesRequestBodyCanonicalizer.Canonicalize(Encoding.UTF8.GetBytes(original));
 
         Assert.NotNull(rewritten);
-        Assert.Equal(1, CountTopLevelKeyOccurrences(rewritten!, "input"));
-        Assert.Equal(1, CountTopLevelKeyOccurrences(rewritten!, "tools"));
-        using var document = JsonDocument.Parse(rewritten!);
+        using var document = JsonDocument.Parse(rewritten!.Value);
+        Assert.Equal(1, CountTopLevelKeyOccurrences(document.RootElement, "input"));
+        Assert.Equal(1, CountTopLevelKeyOccurrences(document.RootElement, "tools"));
         Assert.Equal("current", document.RootElement.GetProperty("input")[0].GetProperty("id").GetString());
         Assert.Equal("current", document.RootElement.GetProperty("tools")[0].GetProperty("name").GetString());
     }
@@ -92,23 +89,9 @@ public sealed class OpenAIResponsesRequestBodyCanonicalizerTests
     public void Canonicalize_ReturnsNullWhenTopLevelKeysAreAlreadyUnique()
     {
         var rewritten = OpenAIResponsesRequestBodyCanonicalizer.Canonicalize(
-            """{"model":"gpt-test","input":[],"tools":[],"store":false,"stream":true}""");
+            """{"model":"gpt-test","input":[],"tools":[],"store":false,"stream":true}"""u8.ToArray());
 
         Assert.Null(rewritten);
-    }
-
-    [Fact]
-    public void RemoveTopLevelFields_RemovesUnsupportedFieldAndPreservesOtherFields()
-    {
-        var rewritten = OpenAIResponsesRequestBodyCanonicalizer.RemoveTopLevelFields(
-            """{"model":"gpt-test","max_output_tokens":12000,"input":[],"stream":true}""",
-            "max_output_tokens");
-
-        Assert.NotNull(rewritten);
-        using var document = JsonDocument.Parse(rewritten!);
-        Assert.False(document.RootElement.TryGetProperty("max_output_tokens", out _));
-        Assert.Equal("gpt-test", document.RootElement.GetProperty("model").GetString());
-        Assert.True(document.RootElement.GetProperty("stream").GetBoolean());
     }
 
     [Theory]
@@ -117,16 +100,9 @@ public sealed class OpenAIResponsesRequestBodyCanonicalizerTests
     [InlineData("{not json")]
     public void Canonicalize_ReturnsNullForInvalidOrUnsupportedBodies(string json)
     {
-        Assert.Null(OpenAIResponsesRequestBodyCanonicalizer.Canonicalize(json));
+        Assert.Null(OpenAIResponsesRequestBodyCanonicalizer.Canonicalize(Encoding.UTF8.GetBytes(json)));
     }
 
-    private static string SerializeOptions(CreateResponseOptions options) =>
-        ModelReaderWriter.Write(options).ToString();
-
-    private static int CountTopLevelKeyOccurrences(string json, string key)
-    {
-        using var document = JsonDocument.Parse(json);
-        return document.RootElement.EnumerateObject()
-            .Count(property => string.Equals(property.Name, key, StringComparison.Ordinal));
-    }
+    private static int CountTopLevelKeyOccurrences(JsonElement root, string key) =>
+        root.EnumerateObject().Count(property => string.Equals(property.Name, key, StringComparison.Ordinal));
 }
