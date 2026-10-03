@@ -3774,6 +3774,7 @@ export const MESSAGES_FR = {
   'viewer.disableWordWrap': 'Désactiver le retour à la ligne',
   'viewer.openExplorer': 'Afficher l\'explorateur',
   'viewer.closeExplorer': 'Masquer l\'explorateur',
+  'viewer.filePath': 'Chemin du fichier',
   'viewer.explorerTitle': 'Explorateur',
   'viewer.explorerFilter': 'Filtrer les fichiers…',
   'viewer.explorerChooseRoot': 'Choisir la racine de l’arborescence',

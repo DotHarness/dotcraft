@@ -2,7 +2,7 @@
  * Header bar shown above file viewers. Browser and terminal tabs keep their own
  * chrome and never render this header.
  */
-import { useEffect, useRef, type CSSProperties } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { ChevronRight, Folder, FolderOpen } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
@@ -13,6 +13,7 @@ import { ViewerActionsMenu } from './ViewerActionsMenu'
 import { IconButton } from '../ui/IconButton'
 import { Button } from '../ui/Button'
 import type { FileEditorMode } from '../../stores/fileEditorStore'
+import { PathCrumbMenu } from './PathCrumbMenu'
 
 interface ViewerHeaderProps {
   absolutePath: string
@@ -50,10 +51,15 @@ export function ViewerHeader({
   const t = useT()
   const explorerVisible = useUIStore((s) => s.explorerVisible)
   const toggleExplorer = useUIStore((s) => s.toggleExplorer)
-  const revealInExplorer = useUIStore((s) => s.revealInExplorer)
-  const crumbsRef = useRef<HTMLDivElement>(null)
+  const crumbsRef = useRef<HTMLElement>(null)
+  const [openCrumb, setOpenCrumb] = useState<{ index: number; anchor: HTMLButtonElement } | null>(null)
 
   const { segments, rootFwd } = breadcrumbSegments(absolutePath, relativePath)
+  const segmentPath = (count: number): string => rootFwd + segments.slice(0, count).join('/')
+
+  const closeCrumb = useCallback((): void => { setOpenCrumb(null) }, [])
+
+  useEffect(() => { setOpenCrumb(null) }, [absolutePath])
 
   // Keep the filename (end of the trail) visible by default.
   useEffect(() => {
@@ -63,38 +69,49 @@ export function ViewerHeader({
 
   return (
     <div style={headerStyle}>
-      <div ref={crumbsRef} style={crumbsScrollStyle}>
+      <nav ref={crumbsRef} aria-label={t('viewer.filePath')} style={crumbsScrollStyle}>
         <FileTypeIcon path={relativePath} size={15} style={{ marginRight: 2 }} />
         {segments.map((segment, index) => {
           const isLast = index === segments.length - 1
-          if (isLast) {
-            return (
-              <ActionTooltip key={index} label={relativePath}>
-              <span style={crumbFileStyle}>
-                {segment}
-              </span>
-              </ActionTooltip>
-            )
-          }
-          const segAbs = rootFwd + segments.slice(0, index + 1).join('/')
-          return (
-            <span key={index} style={crumbGroupStyle}>
-              <ActionTooltip label={segment}>
+          const open = openCrumb?.index === index
+          const crumb = rootFwd
+            ? (
               <button
                 type="button"
-                style={crumbFolderStyle}
-                onClick={() => { if (segAbs) revealInExplorer(segAbs) }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)' }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)' }}
+                className="dc-path-crumb"
+                data-current={isLast || undefined}
+                aria-haspopup="tree"
+                aria-expanded={open}
+                onClick={(event) => {
+                  const anchor = event.currentTarget
+                  setOpenCrumb(open ? null : { index, anchor })
+                }}
               >
                 {segment}
               </button>
-              </ActionTooltip>
-              <ChevronRight size={13} aria-hidden style={{ color: 'var(--text-tertiary, var(--text-secondary))', flexShrink: 0, opacity: 0.7 }} />
+            )
+            : <span className="dc-path-crumb" data-current={isLast || undefined}>{segment}</span>
+          return (
+            <span key={index} style={crumbGroupStyle}>
+              {isLast ? <ActionTooltip label={relativePath}>{crumb}</ActionTooltip> : crumb}
+              {!isLast && (
+                <ChevronRight size={13} aria-hidden style={{ color: 'var(--text-tertiary, var(--text-secondary))', flexShrink: 0, opacity: 0.7 }} />
+              )}
             </span>
           )
         })}
-      </div>
+      </nav>
+
+      {openCrumb && (
+        <PathCrumbMenu
+          key={openCrumb.index}
+          anchor={openCrumb.anchor}
+          directoryPath={segmentPath(openCrumb.index).replace(/\/$/, '') || rootFwd}
+          activePath={segmentPath(openCrumb.index + 1)}
+          expandActive={openCrumb.index < segments.length - 1}
+          onClose={closeCrumb}
+        />
+      )}
 
       <div style={actionsStyle}>
         {markdownMode && onToggleMarkdownMode && (
@@ -164,28 +181,6 @@ const crumbGroupStyle: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: '2px',
-  flexShrink: 0
-}
-
-const crumbFolderStyle: CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  padding: '2px 3px',
-  borderRadius: '4px',
-  fontSize: '12px',
-  lineHeight: 1.2,
-  whiteSpace: 'nowrap',
-  transition: 'color 100ms ease'
-}
-
-const crumbFileStyle: CSSProperties = {
-  color: 'var(--text-primary)',
-  fontSize: '12px',
-  fontWeight: 600,
-  padding: '2px 3px',
-  whiteSpace: 'nowrap',
   flexShrink: 0
 }
 

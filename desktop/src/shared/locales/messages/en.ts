@@ -3315,6 +3315,7 @@ export const MESSAGES_EN = {
   'viewer.disableWordWrap': 'Disable word wrap',
   'viewer.openExplorer': 'Show explorer',
   'viewer.closeExplorer': 'Hide explorer',
+  'viewer.filePath': 'File path',
   'viewer.explorerTitle': 'Explorer',
   'viewer.explorerFilter': 'Filter files…',
   'viewer.explorerChooseRoot': 'Choose file tree root',

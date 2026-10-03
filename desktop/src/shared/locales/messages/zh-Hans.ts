@@ -3212,6 +3212,7 @@ export const MESSAGES_ZH_HANS = {
   'viewer.disableWordWrap': '关闭自动换行',
   'viewer.openExplorer': '显示资源浏览器',
   'viewer.closeExplorer': '隐藏资源浏览器',
+  'viewer.filePath': '文件路径',
   'viewer.explorerTitle': '资源浏览器',
   'viewer.explorerFilter': '筛选文件…',
   'viewer.explorerChooseRoot': '选择文件树根目录',

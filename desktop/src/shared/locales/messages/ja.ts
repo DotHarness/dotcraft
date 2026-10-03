@@ -3765,6 +3765,7 @@ export const MESSAGES_JA = {
   'viewer.disableWordWrap': 'ワードラップを無効にする',
   'viewer.openExplorer': 'エクスプローラーを表示する',
   'viewer.closeExplorer': 'エクスプローラーを非表示にする',
+  'viewer.filePath': 'ファイルパス',
   'viewer.explorerTitle': 'エクスプローラー',
   'viewer.explorerFilter': 'ファイルをフィルタリング…',
   'viewer.explorerChooseRoot': 'ファイルツリーのルートを選択',

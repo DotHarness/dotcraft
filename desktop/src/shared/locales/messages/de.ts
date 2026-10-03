@@ -3773,6 +3773,7 @@ export const MESSAGES_DE = {
   'viewer.disableWordWrap': 'Zeilenumbruch deaktivieren',
   'viewer.openExplorer': 'Explorer anzeigen',
   'viewer.closeExplorer': 'Explorer ausblenden',
+  'viewer.filePath': 'Dateipfad',
   'viewer.explorerTitle': 'Entdecker',
   'viewer.explorerFilter': 'Dateien filtern…',
   'viewer.explorerChooseRoot': 'Stammordner der Dateiansicht wählen',

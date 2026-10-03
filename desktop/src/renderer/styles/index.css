@@ -17,6 +17,7 @@
 @import "../components/conversation/styles/agent-builder-edit.css";
 @import "../components/workflow/workflowRuntime.css";
 @import "../components/detail/styles/detail-panel-tabs.css";
+@import "../components/detail/styles/dir-tree.css";
 @import "../components/detail/styles/automation-viewer-tab.css";
 @import "../components/setup/styles/navigation.css";
 @import "../components/setup/styles/wizard.css";

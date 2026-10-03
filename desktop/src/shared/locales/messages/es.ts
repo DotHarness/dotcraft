@@ -3773,6 +3773,7 @@ export const MESSAGES_ES = {
   'viewer.disableWordWrap': 'Deshabilitar el ajuste de palabras',
   'viewer.openExplorer': 'Mostrar explorador',
   'viewer.closeExplorer': 'Ocultar explorador',
+  'viewer.filePath': 'Ruta del archivo',
   'viewer.explorerTitle': 'Explorador',
   'viewer.explorerFilter': 'Filtrar archivos…',
   'viewer.explorerChooseRoot': 'Elegir la raíz del árbol de archivos',

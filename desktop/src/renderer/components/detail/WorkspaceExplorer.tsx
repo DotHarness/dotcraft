@@ -7,36 +7,28 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSPr
 import { Search } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { Input } from '../ui/Input'
-import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
-import { addToast } from '../../stores/toastStore'
-import { FileTypeIcon } from '../ui/FileTypeIcon'
-import { Skeleton } from '../ui/Skeleton'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ReferencePathContextMenu } from '../conversation/ReferencePathContextMenu'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import type { DirEntryWire } from '../../../shared/viewer/types'
 import { containingRoot, viewerRootsFor } from '../../utils/viewerRoots'
 import { ExplorerRootPicker } from './ExplorerRootPicker'
-
-const norm = (p: string): string => p.replace(/\\/g, '/').replace(/\/+$/, '')
+import { DirTreePlaceholder, DirTreeRow, DirTreeSkeleton, dirKey as norm, useDirTree, useOpenDirEntry } from './DirTree'
 
 export function WorkspaceExplorer(): JSX.Element {
   const t = useT()
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const projects = useWorkspaceProjectsStore((s) => s.projects)
-  const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
   const activeFilePath = useViewerTabStore((s) => {
     if (!s.currentThreadId) return null
     const state = s.getThreadState(s.currentThreadId)
     const active = state.tabs.find((tab) => tab.id === state.activeTabId)
     return active?.kind === 'file' ? active.absolutePath : null
   })
-  const openFile = useViewerTabStore((s) => s.openFile)
-  const setActiveViewerTab = useUIStore((s) => s.setActiveViewerTab)
   const explorerRevealPath = useUIStore((s) => s.explorerRevealPath)
   const consumeExplorerReveal = useUIStore((s) => s.consumeExplorerReveal)
 
@@ -58,9 +50,8 @@ export function WorkspaceExplorer(): JSX.Element {
 
   useEffect(() => { setSelectedRoot(null) }, [workspacePath])
 
-  const [childrenCache, setChildrenCache] = useState<Map<string, DirEntryWire[]>>(new Map())
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [errored, setErrored] = useState<Set<string>>(new Set())
+  const { childrenCache, expanded, errored, loadDir, toggleDir, expandDirs, reset } = useDirTree()
+  const openFileEntry = useOpenDirEntry()
   const [filter, setFilter] = useState('')
   const [contextMenu, setContextMenu] = useState<{
     position: ContextMenuPosition
@@ -69,37 +60,13 @@ export function WorkspaceExplorer(): JSX.Element {
   } | null>(null)
   const [scrollTargetKey, setScrollTargetKey] = useState<string | null>(null)
 
-  const loadingRef = useRef<Set<string>>(new Set())
   const scrollRowRef = useRef<HTMLDivElement>(null)
 
-  const loadDir = useCallback(async (absDir: string): Promise<void> => {
-    const key = norm(absDir).replace(/\/+$/, '')
-    if (loadingRef.current.has(key)) return
-    loadingRef.current.add(key)
-    try {
-      const res = await window.api.workspace.viewer.listDir({ dirPath: absDir })
-      setChildrenCache((prev) => new Map(prev).set(key, res.entries))
-      setErrored((prev) => {
-        if (!prev.has(key)) return prev
-        const next = new Set(prev)
-        next.delete(key)
-        return next
-      })
-    } catch {
-      setErrored((prev) => new Set(prev).add(key))
-    } finally {
-      loadingRef.current.delete(key)
-    }
-  }, [])
-
   useEffect(() => {
-    setChildrenCache(new Map())
-    setExpanded(new Set())
-    setErrored(new Set())
+    reset()
     setFilter('')
-    loadingRef.current = new Set()
     if (rootKey) void loadDir(rootKey)
-  }, [rootKey, loadDir])
+  }, [rootKey, loadDir, reset])
 
   useEffect(() => {
     if (!explorerRevealPath || !rootKey) return
@@ -127,11 +94,11 @@ export function WorkspaceExplorer(): JSX.Element {
         await loadDir(dirAbs)
         if (cancelled) return
       }
-      setExpanded((prev) => new Set([...prev, ...toExpand]))
+      expandDirs(toExpand)
       setScrollTargetKey(targetKey)
     })()
     return () => { cancelled = true }
-  }, [explorerRevealPath, rootKey, roots, loadDir, consumeExplorerReveal])
+  }, [explorerRevealPath, rootKey, roots, loadDir, expandDirs, consumeExplorerReveal])
 
   // Scroll the revealed row into view once it has rendered.
   useEffect(() => {
@@ -141,37 +108,6 @@ export function WorkspaceExplorer(): JSX.Element {
     }
   }, [scrollTargetKey, childrenCache, expanded])
 
-  const toggleDir = useCallback((absDir: string): void => {
-    const key = norm(absDir).replace(/\/+$/, '')
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) {
-        next.delete(key)
-      } else {
-        next.add(key)
-        void loadDir(absDir)
-      }
-      return next
-    })
-  }, [loadDir])
-
-  const openFileEntry = useCallback(async (entry: DirEntryWire): Promise<void> => {
-    if (!currentThreadId) return
-    try {
-      const classified = await window.api.workspace.viewer.classify({ absolutePath: entry.absolutePath })
-      const tabId = openFile({
-        threadId: currentThreadId,
-        absolutePath: entry.absolutePath,
-        relativePath: entry.relativePath,
-        contentClass: classified.contentClass,
-        sizeBytes: classified.sizeBytes
-      })
-      setActiveViewerTab(tabId)
-    } catch {
-      addToast(t('viewer.readFailed'), 'warning')
-    }
-  }, [currentThreadId, openFile, setActiveViewerTab, t])
-
   const q = filter.trim().toLowerCase()
 
   const subtreeMatches = useCallback((absKey: string, query: string): boolean => {
@@ -179,7 +115,7 @@ export function WorkspaceExplorer(): JSX.Element {
     if (!kids) return false
     for (const kid of kids) {
       if (kid.name.toLowerCase().includes(query)) return true
-      if (kid.isDir && subtreeMatches(norm(kid.absolutePath).replace(/\/+$/, ''), query)) return true
+      if (kid.isDir && subtreeMatches(norm(kid.absolutePath), query)) return true
     }
     return false
   }, [childrenCache])
@@ -188,30 +124,31 @@ export function WorkspaceExplorer(): JSX.Element {
     const kids = childrenCache.get(dirKey)
     if (kids === undefined) {
       return errored.has(dirKey)
-        ? <Placeholder depth={depth} text={t('viewer.explorerLoadFailed')} />
-        : <TreeSkeleton depth={depth} ariaLabel={t('quickOpen.loading')} />
+        ? <DirTreePlaceholder depth={depth}>{t('viewer.explorerLoadFailed')}</DirTreePlaceholder>
+        : <DirTreeSkeleton depth={depth} ariaLabel={t('quickOpen.loading')} />
     }
     const visible = q
-      ? kids.filter((k) => k.name.toLowerCase().includes(q) || (k.isDir && subtreeMatches(norm(k.absolutePath).replace(/\/+$/, ''), q)))
+      ? kids.filter((k) => k.name.toLowerCase().includes(q) || (k.isDir && subtreeMatches(norm(k.absolutePath), q)))
       : kids
     if (visible.length === 0) {
-      return <Placeholder depth={depth} text={q ? t('viewer.explorerNoMatch') : t('viewer.explorerEmpty')} />
+      return <DirTreePlaceholder depth={depth}>{q ? t('viewer.explorerNoMatch') : t('viewer.explorerEmpty')}</DirTreePlaceholder>
     }
     return <>{visible.map((entry) => renderNode(entry, depth))}</>
   }
 
   const renderNode = (entry: DirEntryWire, depth: number): JSX.Element => {
-    const key = norm(entry.absolutePath).replace(/\/+$/, '')
+    const key = norm(entry.absolutePath)
     const isOpen = entry.isDir && (expanded.has(key) || (q !== '' && subtreeMatches(key, q)))
     const isScrollTarget = scrollTargetKey === key
     return (
       <Fragment key={key}>
         <ActionTooltip label={entry.relativePath} wrapperStyle={{ display: 'block', minWidth: 0, flexShrink: 1 }}>
-        <div
-          ref={isScrollTarget ? scrollRowRef : undefined}
-          role="treeitem"
-          aria-expanded={entry.isDir ? isOpen : undefined}
-          onClick={() => { entry.isDir ? toggleDir(entry.absolutePath) : void openFileEntry(entry) }}
+        <DirTreeRow
+          entry={entry}
+          depth={depth}
+          isOpen={isOpen}
+          rowRef={isScrollTarget ? scrollRowRef : undefined}
+          onActivate={() => { entry.isDir ? toggleDir(entry.absolutePath) : void openFileEntry(entry) }}
           onContextMenu={(event) => {
             event.preventDefault()
             event.stopPropagation()
@@ -221,16 +158,7 @@ export function WorkspaceExplorer(): JSX.Element {
               isDirectory: entry.isDir
             })
           }}
-          style={{ ...rowStyle, paddingLeft: 8 + depth * 14 }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-tertiary)' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
-        >
-          <span style={chevronSlotStyle}>
-            {entry.isDir && <DisclosureChevron expanded={isOpen} />}
-          </span>
-          <FileTypeIcon path={entry.name} size={15} dir={entry.isDir} expanded={isOpen} />
-          <span style={rowLabelStyle}>{entry.name}</span>
-        </div>
+        />
         </ActionTooltip>
         {isOpen && renderChildren(key, depth + 1)}
       </Fragment>
@@ -258,7 +186,7 @@ export function WorkspaceExplorer(): JSX.Element {
 
       <div role="tree" aria-label={t('viewer.explorerTitle')} style={treeStyle}>
         {!rootKey
-          ? <Placeholder depth={0} text={t('viewer.explorerNoWorkspace')} />
+          ? <DirTreePlaceholder depth={0}>{t('viewer.explorerNoWorkspace')}</DirTreePlaceholder>
           : renderChildren(rootKey, 0)}
       </div>
 
@@ -270,32 +198,6 @@ export function WorkspaceExplorer(): JSX.Element {
           onClose={() => setContextMenu(null)}
         />
       )}
-    </div>
-  )
-}
-
-function TreeSkeleton({ depth, ariaLabel }: { depth: number; ariaLabel: string }): JSX.Element {
-  return (
-    <div role="status" aria-busy="true" aria-label={ariaLabel}>
-      {[64, 48, 56].map((width, index) => (
-        <div
-          key={index}
-          aria-hidden="true"
-          style={{ ...rowStyle, cursor: 'default', paddingLeft: 8 + depth * 14 }}
-        >
-          <span style={chevronSlotStyle} />
-          <Skeleton width={15} height={15} radius={4} />
-          <Skeleton width={`${width}%`} height={11} />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function Placeholder({ depth, text }: { depth: number; text: string }): JSX.Element {
-  return (
-    <div style={{ ...placeholderStyle, paddingLeft: 8 + depth * 14 + 17 }}>
-      {text}
     </div>
   )
 }
@@ -348,42 +250,4 @@ const treeStyle: CSSProperties = {
   overflowY: 'auto',
   overflowX: 'hidden',
   padding: '4px 0'
-}
-
-const rowStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '5px',
-  height: '24px',
-  paddingRight: '8px',
-  cursor: 'pointer',
-  fontSize: '13px',
-  color: 'var(--text-primary)',
-  userSelect: 'none',
-  transition: 'background-color 80ms ease'
-}
-
-const chevronSlotStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '14px',
-  flexShrink: 0,
-  color: 'var(--text-secondary)'
-}
-
-const rowLabelStyle: CSSProperties = {
-  minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap'
-}
-
-const placeholderStyle: CSSProperties = {
-  padding: '4px 8px',
-  fontSize: '12px',
-  color: 'var(--text-secondary)',
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis'
 }

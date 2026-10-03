@@ -3766,6 +3766,7 @@ export const MESSAGES_KO = {
   'viewer.disableWordWrap': '단어 줄 바꿈 비활성화',
   'viewer.openExplorer': '탐색기 표시',
   'viewer.closeExplorer': '탐색기 숨기기',
+  'viewer.filePath': '파일 경로',
   'viewer.explorerTitle': '탐험가',
   'viewer.explorerFilter': '파일 필터링…',
   'viewer.explorerChooseRoot': '파일 트리 루트 선택',
