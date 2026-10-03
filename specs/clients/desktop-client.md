@@ -484,7 +484,7 @@ The latest successful Dynamic Workflow launch in a Turn is one such durable resu
 outside the collapsed summary, before the Turn's final assistant message. Failed Workflow launch
 attempts remain ordinary collapsible tool history.
 
-A scripted tool call (`exec`) and its result are not rendered, and the Desktop pet does not report
+A scripted tool call (`CodeMode`) and its result are not rendered, and the Desktop pet does not report
 them as activity. The calls the script makes render as ordinary items in time order; see
 [Code Mode Section 10](../features/code-mode.md#10-session-projection-and-presentation).
 

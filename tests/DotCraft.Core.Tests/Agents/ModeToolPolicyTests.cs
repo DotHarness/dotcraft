@@ -37,6 +37,7 @@ public sealed class ModeToolPolicyTests
     [Theory]
     [InlineData("CreatePlan")]
     [InlineData(ImageGenerationToolSource.ToolName)]
+    [InlineData("exec")]
     public async Task StreamingClient_AllowsPlanModeTool(string toolName)
     {
         var modeManager = new AgentModeManager();

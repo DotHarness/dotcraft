@@ -8,7 +8,7 @@ public sealed record CodeModeNestedTool(string JsName, ToolRegistration Registra
 
 public sealed class CodeModeSurface
 {
-    public static readonly ToolName ExecToolName = new(null, "exec");
+    public static readonly ToolName CodeModeToolName = new(null, "CodeMode");
 
     private readonly Dictionary<string, CodeModeNestedTool> _byJsName;
 
@@ -46,7 +46,7 @@ public sealed class CodeModeSurface
         var candidates = direct.Concat(deferred)
             .Select(entry => (registration: snapshot.Registrations[entry.definition.Name], entry.listed))
             .Where(entry => entry.registration.Exposure is ToolExposure.Direct or ToolExposure.Deferred
-                            && entry.registration.Definition.Name != ExecToolName
+                            && entry.registration.Definition.Name != CodeModeToolName
                             && !EffectiveToolSnapshot.IsDeferredToolSearch(entry.registration)
                             && entry.registration.InvocationAudiences.HasFlag(ToolInvocationAudience.Model))
             .OrderBy(entry => entry.registration.Definition.Name.Namespace, StringComparer.Ordinal)

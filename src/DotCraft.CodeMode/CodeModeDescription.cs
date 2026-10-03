@@ -18,7 +18,7 @@ public static class CodeModeDescription
             "- `text(value)` appends text to the output; non-strings are JSON-stringified.",
             "- `image(value)` appends an image from a base64 `data:` URL or an MCP image content block.",
             "- `exit()` ends the program successfully.",
-            "- `store(key, value)` and `load(key)` keep JSON values across `exec` calls in this conversation; storing `undefined` deletes a key.",
+            "- `store(key, value)` and `load(key)` keep JSON values across `CodeMode` calls in this conversation; storing `undefined` deletes a key.",
             "- `ALL_TOOLS` lists `{ name, description }` for every callable tool; each description ends with the tool's declaration.",
             "Only `text` and `image` produce output; the program's return value is ignored.",
             "",

@@ -258,6 +258,18 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     }
 
     [Fact]
+    public void EvaluateRegistration_PlanModeClassifiesOnlyTheShellExecTool()
+    {
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration { Mode = "plan" }, CreateContext());
+        var script = Registration(new ToolName(null, "exec"), ToolSourceKind.CoreNative, "code-mode");
+        var shell = Registration(new ToolName(null, "Exec"), ToolSourceKind.CoreNative, "core");
+
+        Assert.True(policy.EvaluateRegistration(script, new JsonObject { ["code"] = "return 1;" }).Allowed);
+        Assert.True(policy.EvaluateRegistration(shell, new JsonObject { ["command"] = "git status" }).Allowed);
+        Assert.False(policy.EvaluateRegistration(shell, new JsonObject { ["command"] = "git push" }).Allowed);
+    }
+
+    [Fact]
     public void McpToolsAnswerToTheMcpPolicyRatherThanTheProfileToolLists()
     {
         var config = new ThreadConfiguration

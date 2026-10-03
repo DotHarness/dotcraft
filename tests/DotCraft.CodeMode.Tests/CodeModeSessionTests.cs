@@ -61,12 +61,12 @@ public sealed class CodeModeSessionTests : IDisposable
         {
         }
 
-        Assert.Contains("exec", chatClient.ToolNames);
+        Assert.Contains("CodeMode", chatClient.ToolNames);
         if (mode == AppConfig.CodeModeSetting.Only)
         {
             Assert.DoesNotContain("Echo", chatClient.ToolNames);
             Assert.Contains("declare const tools: {\n  Echo(args: {\n    value?: string;\n  }): Promise<string>;\n};",
-                chatClient.Descriptions["exec"]);
+                chatClient.Descriptions["CodeMode"]);
         }
         else
         {
@@ -76,7 +76,7 @@ public sealed class CodeModeSessionTests : IDisposable
         Assert.True(execResult.Result?.ToString()?.StartsWith("Script completed") == true, execResult.Result?.ToString());
         Assert.Contains("echo:hi", execResult.Result?.ToString());
         var items = (await service.GetThreadAsync(thread.Id)).Turns.Single().Items;
-        var execCall = Assert.Single(items, static item => item.Payload is ToolCallPayload { ToolName: "exec" });
+        var execCall = Assert.Single(items, static item => item.Payload is ToolCallPayload { ToolName: "CodeMode" });
         Assert.Equal("call-exec", execCall.AsToolCall!.CallId);
         Assert.Null(execCall.InvocationOrigin);
         Assert.True(execCall.FreeformCall);
@@ -161,7 +161,7 @@ public sealed class CodeModeSessionTests : IDisposable
                 Descriptions = options?.Tools?.ToDictionary(static tool => tool.Name, static tool => tool.Description)
                                ?? new Dictionary<string, string>();
                 yield return new ChatResponseUpdate(ChatRole.Assistant,
-                    [new FunctionCallContent("call-exec", "exec", new Dictionary<string, object?> { ["code"] = code })]);
+                    [new FunctionCallContent("call-exec", "CodeMode", new Dictionary<string, object?> { ["code"] = code })]);
             }
             else
             {

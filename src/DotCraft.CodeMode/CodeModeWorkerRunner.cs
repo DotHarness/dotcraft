@@ -116,7 +116,7 @@ public static class CodeModeWorkerRunner
             var engine = ScriptEngineFactory.Create(cell.EngineLimits, cell.Token);
             Install(engine, connection, cell);
             engine.Execute(CodeModeWorkerBootstrap.Source);
-            await engine.EvaluateAsync("(async () => {" + cell.Source + "\n})()", "exec").ConfigureAwait(false);
+            await engine.EvaluateAsync("(async () => {" + cell.Source + "\n})()", "CodeMode").ConfigureAwait(false);
         }
         catch (Exception) when (cell.ExitRequested)
         {

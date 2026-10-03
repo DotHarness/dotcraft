@@ -134,7 +134,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         {
             if (ModeToolPolicy.PlanDeniedToolNames.Contains(name))
                 return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, $"Plan mode does not allow {name}.");
-            if (string.Equals(name, "Exec", StringComparison.OrdinalIgnoreCase)
+            if (string.Equals(name, "Exec", StringComparison.Ordinal)
                 && !ReadOnlyCommandClassifier.IsReadOnly(
                     arguments["command"]?.GetValue<string>(),
                     arguments["shell"]?.GetValue<string>(),

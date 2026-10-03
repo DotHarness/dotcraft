@@ -9,7 +9,7 @@ namespace DotCraft.CodeMode;
 
 internal interface ICodeModeToolDeclaration
 {
-    [ToolDeclaration(Name = "exec")]
+    [ToolDeclaration(Name = "CodeMode")]
     [Description("Run a JavaScript program that calls tools.")]
     void Exec(
         [Description("The JavaScript program. An optional first line `// @exec: {...}` sets this call's limits.")] string code);
@@ -67,7 +67,7 @@ internal sealed class CodeModeToolFinalizer(
         var definitionId = new ToolDefinitionId(ToolSourceKind.CoreNative, SourceId, new SourceToolId(declaration.Name));
         var definition = new ToolDefinition(
             definitionId,
-            CodeModeSurface.ExecToolName,
+            CodeModeSurface.CodeModeToolName,
             CodeModeDescription.Build(surface, host.Limits, mode),
             declaration.InputSchema,
             annotations: new Dictionary<string, JsonElement>
@@ -87,7 +87,7 @@ internal sealed class CodeModeToolFinalizer(
             context.DataPath,
             current.Tools.ResultLimits.SpillPreviewLines));
         var binding = new ToolRuntimeBinding(
-            new RuntimeBindingId($"{SourceId}:exec"),
+            new RuntimeBindingId($"{SourceId}:{declaration.Name}"),
             definitionId,
             runtime,
             ToolBindingLeases.AlwaysAvailable,

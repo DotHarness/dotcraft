@@ -98,7 +98,7 @@ Provider 对象字段：
 | `StreamMaxRetries` | 单个 Provider 的流式响应断线重连次数，设为 `0` 可关闭 stream retry | `5` |
 | `StreamIdleTimeoutMs` | 单个 Provider 的流式响应空闲超时时间，单位毫秒 | `300000` |
 | `SupportsImageGeneration` | 该提供商是否支持 OpenAI Images API。省略时，ChatGPT OAuth 和使用官方 OpenAI endpoint 的 API-key 提供商默认按 `true` 处理，其他 endpoint 默认按 `false` 处理。 | 提供商默认值 |
-| `SupportsFreeformTools` | 该提供商在 Responses 协议下是否接受带语法约束的 `custom` 工具。为 `false` 时，代码模式的 `exec` 等工具以普通 function 工具发送。省略时，`chatgptOAuth` 提供商和使用官方 OpenAI endpoint 的 API-key 提供商默认按 `true` 处理，其他 endpoint 默认按 `false` 处理。 | 提供商默认值 |
+| `SupportsFreeformTools` | 该提供商在 Responses 协议下是否接受带语法约束的 `custom` 工具。为 `false` 时，代码模式的 `CodeMode` 等工具以普通 function 工具发送。省略时，`chatgptOAuth` 提供商和使用官方 OpenAI endpoint 的 API-key 提供商默认按 `true` 处理，其他 endpoint 默认按 `false` 处理。 | 提供商默认值 |
 
 Sign in with ChatGPT 示例：
 

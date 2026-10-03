@@ -48,7 +48,7 @@ public sealed class ModeToolPolicy(AgentModeManager modeManager)
         if (PlanDeniedToolNames.Contains(toolName))
             return DenyPlanMode(toolName, $"Plan mode does not allow {toolName}.");
 
-        if (string.Equals(toolName, "Exec", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(toolName, "Exec", StringComparison.Ordinal))
         {
             var command = TryGetStringArgument(context.Arguments, "command");
             var shell = TryGetStringArgument(context.Arguments, "shell");

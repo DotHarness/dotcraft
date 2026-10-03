@@ -4,11 +4,11 @@
 |-------|-------|
 | **Version** | 0.7.10 |
 | **Status** | Draft |
-| **Date** | 2026-10-02 |
+| **Date** | 2026-10-04 |
 | **Parent Specs** | [Tool Architecture](../architecture/tools-architecture.md), [Session Core](../architecture/session-core.md), [Prompt Cache](../architecture/prompt-cache.md), [Dynamic Workflows](dynamic-workflows.md) |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [Shell Command Safety](../architecture/shell-command-safety.md) |
 
-Purpose: define the `exec` tool, which lets the model write one JavaScript program that calls the
+Purpose: define the `CodeMode` tool, which lets the model write one JavaScript program that calls the
 thread's other tools as functions, filters their results, and returns only what the model needs. It
 also defines the shared script host that runs both code mode programs and Dynamic Workflow scripts.
 
@@ -21,7 +21,7 @@ authority, approval, hook, and safety checks as a direct call.
 This specification owns:
 
 - the `Tools.CodeMode` configuration and its Desktop setting;
-- the model-facing `exec` tool, its description, and the nested tool surface;
+- the model-facing `CodeMode` tool, its description, and the nested tool surface;
 - the program runtime contract, nested invocation, output, and per-thread store;
 - the shared script host and its worker process, which Dynamic Workflows also uses;
 - Session projection and Desktop presentation of code mode activity.
@@ -38,7 +38,7 @@ engines other than Jint.
 
 | Term | Meaning |
 |------|---------|
-| Program | The JavaScript source the model passes to one `exec` call. |
+| Program | The JavaScript source the model passes to one `CodeMode` call. |
 | Cell | One execution of one program, from start to its terminal outcome. |
 | Nested call | A tool call a cell makes through `tools.<name>(...)`. |
 | Nested surface | The set of registrations a cell can call. |
@@ -61,9 +61,9 @@ engines other than Jint.
 
 | Mode | Model tool list |
 |------|-----------------|
-| `off` | No `exec`. |
-| `on` | `exec` is added. Every other tool stays directly visible. |
-| `only` | `exec` is added. Registrations on the nested surface are removed from the direct and deferred lists but stay in the snapshot, so nested calls still dispatch; tools that are not on the nested surface stay direct. |
+| `off` | No `CodeMode`. |
+| `on` | `CodeMode` is added. Every other tool stays directly visible. |
+| `only` | `CodeMode` is added. Registrations on the nested surface are removed from the direct and deferred lists but stay in the snapshot, so nested calls still dispatch; tools that are not on the nested surface stay direct. |
 
 The mode is a workspace setting read when a thread's tool snapshot is built. Changing it marks tool
 snapshots dirty; a running Turn keeps its snapshot. AppServer exposes it as the `toolsCodeModeMode`
@@ -77,7 +77,7 @@ workspace config and refreshes it on the `codeMode` change region.
 In `only` mode the deferred-search registration disappears once every deferred registration is on the
 nested surface, because those tools are reached through `ALL_TOOLS` and could not be called directly.
 
-Code mode requires the script worker (§9), which starts lazily. An `exec` call whose worker cannot start
+Code mode requires the script worker (§9), which starts lazily. An `CodeMode` call whose worker cannot start
 fails with `code_mode_unavailable`. A later snapshot build retries the start before applying the mode;
 when it still fails, `on` falls back to direct tools for that snapshot and records one warning for the
 thread, and `only` fails the Turn with a stable `code_mode_unavailable` error rather than silently
@@ -85,11 +85,11 @@ removing tools.
 
 ## 4. Model-Facing Surface
 
-### 4.1 The `exec` tool
+### 4.1 The `CodeMode` tool
 
-`exec` is registered by the code mode module with canonical identity `ToolName(null, "exec")`, the
+`CodeMode` is registered by the code mode module with canonical identity `ToolName(null, "CodeMode")`, the
 standard `ToolCall`/`ToolResult` projection, and exposure `DirectModelOnly`, so a program can never call
-`exec` itself. It is runtime-managed: Agent Profile tool lists do not remove it. Threads that use only
+`CodeMode` itself. It is runtime-managed: Agent Profile tool lists do not remove it. Threads that use only
 their profile's tools do not get it.
 
 Projection depends on the provider protocol and on the provider's `SupportsFreeformTools` capability:
@@ -126,9 +126,9 @@ nor first-use engine warm-up counts against a program's timeout.
 
 ### 4.2 Description
 
-The `exec` description states, in this order:
+The `CodeMode` description states, in this order:
 
-1. what `exec` is for: batching independent calls, chaining dependent calls, and reducing large
+1. what `CodeMode` is for: batching independent calls, chaining dependent calls, and reducing large
    results before they reach the model;
 2. the runtime: raw JavaScript source rather than JSON, a quoted string, or a Markdown code fence, run
    as an async program body with top-level `await` and `return`, and no Node.js, file system, network,
@@ -149,7 +149,7 @@ snapshot. It never contains volatile values such as call ids or timestamps.
 ### 4.3 Nested surface and declarations
 
 The nested surface is computed from the Turn's `EffectiveToolSnapshot`: every `Direct` or `Deferred`
-registration except `DirectModelOnly`, `Hidden`, `exec`, and the deferred-search registration.
+registration except `DirectModelOnly`, `Hidden`, `CodeMode`, and the deferred-search registration.
 
 Each nested registration has a JavaScript name: `namespace__name` when the canonical name has a
 namespace (MCP tools become `mcp__<server>__<tool>`), otherwise the bare name, with every character
@@ -178,7 +178,7 @@ In `on` mode, each direct tool that is on the nested surface gains one line at t
 description naming its call form and result shape, for example
 ``Code mode: `tools.ReadFile(args)` resolves to a string.``
 
-Declarations and these lines are derived only from the snapshot, like the `exec` description.
+Declarations and these lines are derived only from the snapshot, like the `CodeMode` description.
 
 ## 5. Program Runtime Contract
 
@@ -218,7 +218,7 @@ on a limit violation. Nested calls still pending at that point are cancelled and
 
 Every nested call goes through `IToolDispatcher.DispatchAsync` with the Turn's snapshot as it was before
 code mode finalization (so tools hidden from the model in `only` mode stay dispatchable), a call id of
-the form `exec-<uuid>`, audience `Model`, and origin `ToolInvocationOrigin("codeMode", <exec call id>)`.
+the form `exec-<uuid>`, audience `Model`, and origin `ToolInvocationOrigin("codeMode", <CodeMode call id>)`.
 Authority, argument validation, mode guards, `PreToolUse` and post hooks, approval, file access checks,
 the shell command safety kernel, and remote tool routing all apply unchanged. A nested call routed to a
 remote workspace carries the `codeMode` origin kind to the Host, so command execution there returns
@@ -243,7 +243,7 @@ marker and the full value stays in the item.
 
 ## 7. Output
 
-The `exec` result is a header followed by the output items:
+The `CodeMode` result is a header followed by the output items:
 
 ```text
 Script completed
@@ -256,7 +256,7 @@ The first line is `Script completed`, `Script failed`, or `Script timed out`. A 
 `Script error:` with the stack trace, then lists the nested calls that ran before the failure with
 their status under `Tool calls made before the failure:`, because their effects are not undone.
 
-A completed, failed, or timed-out cell is a successful `exec` call, as a nonzero exit code is for a
+A completed, failed, or timed-out cell is a successful `CodeMode` call, as a nonzero exit code is for a
 command. Only an invalid pragma or an unavailable worker fails the call itself.
 
 Text output is limited to `max_output_tokens`, default 10,000, using the common truncation policy:
@@ -270,7 +270,7 @@ start; its writes are merged by key when the cell completes successfully, and di
 `load` returns a copy. Storing `undefined` deletes a key. A value is at most 256 KiB of JSON and the
 map at most 1 MiB; larger writes throw inside the program. The merge re-checks the 1 MiB cap against
 the current map, because concurrent cells start from separate snapshots; a merge that would exceed it
-saves none of the cell's writes, and the `exec` result says so. The map lives in AppServer runtime state
+saves none of the cell's writes, and the `CodeMode` result says so. The map lives in AppServer runtime state
 for the thread and is not persisted across AppServer restarts.
 
 ## 9. Script Host and Worker
@@ -294,7 +294,7 @@ process.
 
 ### 9.2 Code mode worker
 
-The worker starts on the first `exec` call and serves cells from every thread in that AppServer. Each
+The worker starts on the first `CodeMode` call and serves cells from every thread in that AppServer. Each
 cell runs in its own Jint `Engine` on its own thread, so cells share no JavaScript state.
 
 | Direction | Messages |
@@ -304,7 +304,7 @@ cell runs in its own Jint `Engine` on its own thread, so cells share no JavaScri
 
 The host is authoritative for cell state. If the worker exits, exceeds its memory limit, or violates
 the protocol, the host terminates it, fails every running cell with a `Script failed` result that
-names the cause, and starts a new worker on the next `exec`. It never retries a failed cell.
+names the cause, and starts a new worker on the next `CodeMode`. It never retries a failed cell.
 
 ### 9.3 Engine constraints
 
@@ -321,16 +321,16 @@ is a limit violation. The worker as a whole is capped at 1 GiB resident memory.
 
 ## 10. Session Projection and Presentation
 
-`exec` is recorded as a standard `ToolCall` and `ToolResult`, so model history replays it exactly.
+`CodeMode` is recorded as a standard `ToolCall` and `ToolResult`, so model history replays it exactly.
 Each nested call is recorded through its own registration's projection (`ToolCall`/`ToolResult`,
 `McpToolCall`, `CommandExecution`, and so on) with its `exec-` call id. Every item of a nested call
 persists the invocation origin kind `codeMode`; the wire item gains no field.
 
 When model history is rebuilt from items, nested call items are skipped, because the model saw only the
-`exec` result. Compaction works on model history, so nested calls never reach it as model-visible tool
+`CodeMode` result. Compaction works on model history, so nested calls never reach it as model-visible tool
 calls.
 
-Desktop does not render the `exec` call or its result. Nested calls appear as ordinary items in time
+Desktop does not render the `CodeMode` call or its result. Nested calls appear as ordinary items in time
 order, including approval cards and command output. Channels present no tool items and are unaffected.
 
 ## 11. Cancellation and Limits

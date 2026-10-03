@@ -141,7 +141,7 @@ internal sealed class CodeModeExecRuntime(CodeModeExecDependencies dependencies)
         if (text.Length > maxChars)
         {
             text = (string)ToolResultProcessor.Process(
-                "exec",
+                CodeModeSurface.CodeModeToolName.Name,
                 text,
                 maxChars,
                 context.WorkspacePath ?? dependencies.WorkspacePath,

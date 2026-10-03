@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DotCraft.CodeMode;
 
-[DotCraftModule("code-mode", Priority = 59, Description = "Scripted tool calls through the exec tool")]
+[DotCraftModule("code-mode", Priority = 59, Description = "Scripted tool calls through the CodeMode tool")]
 public sealed partial class CodeModeModule : ModuleBase
 {
     public override bool IsEnabled(AppConfig config) => true;

@@ -98,7 +98,7 @@ Provider object fields:
 | `StreamMaxRetries` | Per-provider streaming reconnection attempts for dropped or idle provider streams; `0` disables stream retry | `5` |
 | `StreamIdleTimeoutMs` | Per-provider idle timeout for streaming responses, in milliseconds | `300000` |
 | `SupportsImageGeneration` | Whether this provider serves the OpenAI Images API. When omitted, ChatGPT OAuth and API-key providers on the official OpenAI endpoint default to `true`; other endpoints default to `false`. | Provider default |
-| `SupportsFreeformTools` | Whether this provider accepts grammar-constrained (`custom`) tools on the Responses protocol. When `false`, tools such as code mode's `exec` are sent as ordinary function tools. When omitted, `chatgptOAuth` providers and API-key providers on the official OpenAI endpoint default to `true`; other endpoints default to `false`. | Provider default |
+| `SupportsFreeformTools` | Whether this provider accepts grammar-constrained (`custom`) tools on the Responses protocol. When `false`, tools such as code mode's `CodeMode` are sent as ordinary function tools. When omitted, `chatgptOAuth` providers and API-key providers on the official OpenAI endpoint default to `true`; other endpoints default to `false`. | Provider default |
 
 Sign in with ChatGPT example:
 

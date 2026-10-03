@@ -31,7 +31,7 @@ public sealed class CodeModeNestedDispatchTests
         var finalizer = new CodeModeToolFinalizer(() => config, host, new CodeModeStore(), dispatcher);
         var planning = new ToolPlanningContext("thread_1", null, workspace, Path.Combine(workspace, ".craft"), "agent", null, null, 1);
 
-        var exec = (await finalizer.FinalizeAsync(snapshot, planning)).Registrations.Single(static registration => registration.Definition.Name.Name == "exec");
+        var exec = (await finalizer.FinalizeAsync(snapshot, planning)).Registrations.Single(static registration => registration.Definition.Name.Name == "CodeMode");
         var context = new ToolInvocationContext(
             "thread_1", "turn_1", "call_exec", ToolInvocationAudience.Model, exec.Definition.Name,
             exec.Definition.Id, exec.Binding.Id, 1, DateTimeOffset.UtcNow, WorkspacePath: workspace);

@@ -19,7 +19,7 @@ public sealed class CodeModeSessionHistoryTests
     public void RebuiltHistory_ReplaysTheExecCallButNotItsNestedCalls()
     {
         var turn = Turn(
-            Call("item_1", "call_exec", "exec", null),
+            Call("item_1", "call_exec", "CodeMode", null),
             Call("item_2", "exec-1", "ReadFile", ToolInvocationOrigin.CodeModeKind),
             Result("item_3", "exec-1", "file text", ToolInvocationOrigin.CodeModeKind),
             Result("item_4", "call_exec", "Script completed", null));
@@ -56,7 +56,7 @@ public sealed class CodeModeSessionHistoryTests
     [Fact]
     public void RebuiltHistory_MarksOnlyCallsRecordedAsFreeform()
     {
-        var freeform = Call("item_1", "call_exec", "exec", null);
+        var freeform = Call("item_1", "call_exec", "CodeMode", null);
         freeform.FreeformCall = true;
         var turn = Turn(
             freeform,

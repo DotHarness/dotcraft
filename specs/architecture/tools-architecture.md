@@ -426,7 +426,7 @@ Items MUST record canonical `ToolName`, deterministic `ProviderFlatName`, defini
 
 History reconstruction MUST use the persisted canonical tuple for namespace-capable protocols and the persisted flat alias for flat-only protocols. It MUST NOT consult the current tool inventory, parse a flat alias, or regenerate an alias from current normalization rules. This makes replay independent of reconnects, renamed plugin runtimes, source ordering, and later tool-set changes.
 
-Items of a call dispatched with an invocation origin persist that origin's kind, which is never projected to the wire. History reconstruction MUST skip items whose origin is `codeMode`, because the model saw only the enclosing `exec` result; see [Code Mode](../features/code-mode.md).
+Items of a call dispatched with an invocation origin persist that origin's kind, which is never projected to the wire. History reconstruction MUST skip items whose origin is `codeMode`, because the model saw only the enclosing `CodeMode` result; see [Code Mode](../features/code-mode.md).
 
 Session projection MUST be atomic per Turn, call identifier, and projection shape. Streaming argument observation and dispatcher lifecycle recording MUST upsert the same call item rather than create competing items. A specialized lifecycle item transitions in place from started to exactly one terminal state. A standard projection creates or updates exactly one `ToolCall` and appends exactly one terminal `ToolResult`. Cancellation, timeout, rejection, and execution failure race through the same terminal guard; no path may publish a second terminal result or leave an accepted registered call permanently started.
 
