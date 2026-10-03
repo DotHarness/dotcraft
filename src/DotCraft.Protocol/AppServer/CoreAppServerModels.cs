@@ -5410,10 +5410,6 @@ public sealed class ThreadConfiguration : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ApprovalPolicy { get; init; }
 
-    [JsonPropertyName("approvalTimeoutSeconds")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> ApprovalTimeoutSeconds { get; init; }
-
     [JsonPropertyName("automationTaskDirectory")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> AutomationTaskDirectory { get; init; }

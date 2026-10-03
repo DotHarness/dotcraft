@@ -1,5 +1,7 @@
 using Contract = DotCraft.Protocol.AppServer;
+using Methods = DotCraft.Protocol.AppServer.AppServerMethodNames;
 using DotCraft.Sessions;
+using RequestKey = DotCraft.AppServer.AppServerInteractiveRequestHolders.RequestKey;
 
 namespace DotCraft.AppServer;
 
@@ -12,48 +14,39 @@ internal sealed class AppServerInteractiveRequestSender
     private readonly AppServerConnection _connection;
     private readonly IAppServerTransport _transport;
     private readonly ISessionService _sessionService;
-    private readonly SessionApprovalDecision _defaultApprovalDecision;
     private readonly Func<bool> _transportUnavailable;
     private readonly Action? _markTransportUnavailable;
+    private readonly AppServerInteractiveRequestHolders _holders;
 
     public AppServerInteractiveRequestSender(
         AppServerConnection connection,
         IAppServerTransport transport,
         ISessionService sessionService,
-        SessionApprovalDecision defaultApprovalDecision,
         Func<bool>? transportUnavailable = null,
         Action? markTransportUnavailable = null)
     {
         _connection = connection;
         _transport = transport;
         _sessionService = sessionService;
-        _defaultApprovalDecision = defaultApprovalDecision;
         _transportUnavailable = transportUnavailable ?? (() => false);
         _markTransportUnavailable = markTransportUnavailable;
+        _holders = AppServerInteractiveRequestHolders.For(sessionService);
     }
 
-    public async Task SendApprovalRequestAsync(
+    /// <summary>
+    /// Returns <c>false</c> when this client answered without a valid result and the request is still pending.
+    /// </summary>
+    public async Task<bool> SendApprovalRequestAsync(
         string threadId,
         string turnId,
         string itemId,
-        ApprovalRequestPayload request,
-        CancellationToken ct = default)
+        ApprovalRequestPayload request)
     {
-        if (string.IsNullOrWhiteSpace(turnId))
-            return;
-
-        if (!_connection.SupportsApproval || _transportUnavailable())
+        if (!_connection.SupportsApproval
+            || TryHold(new RequestKey(Methods.ApprovalRequest, threadId, turnId, request.RequestId)) is not { } hold)
         {
-            await ResolveApprovalWithFallbackAsync(threadId, turnId, request.RequestId, CancellationToken.None);
-            return;
+            return true;
         }
-
-        if (!_connection.TryRegisterInteractiveRequest(
-            Protocol.AppServer.AppServerMethodNames.ApprovalRequest,
-            threadId,
-            turnId,
-            request.RequestId))
-            return;
 
         var approvalParams = new Contract.ApprovalRequestParams
         {
@@ -67,73 +60,40 @@ internal sealed class AppServerInteractiveRequestSender
             TargetLabel = request.TargetLabel,
             ScopeKey = request.ScopeKey,
             Reason = request.Reason,
-            ExpiresAt = request.ExpiresAt,
             Shell = ToContract(request.Shell)
         };
 
-        AppServerTypedClientResponse<Contract.ApprovalResponseResult> response;
-        try
-        {
-            response = await _transport.RequestAsync(
+        var response = await AwaitAnswerAsync(
+            hold,
+            ct => _transport.RequestAsync(
                 Contract.AppServerRpc.ApprovalRequest,
                 approvalParams,
-                CancellationToken.None,
-                timeout: RemainingApprovalTimeout(request.ExpiresAt));
-        }
-        catch (OperationCanceledException)
-        {
-            await ResolveApprovalWithFallbackAsync(threadId, turnId, request.RequestId, CancellationToken.None);
-            return;
-        }
-        catch (Exception ex) when (AppServerEventDispatcher.IsTransportUnavailableException(ex))
-        {
-            _markTransportUnavailable?.Invoke();
-            await ResolveApprovalWithFallbackAsync(threadId, turnId, request.RequestId, CancellationToken.None);
-            return;
-        }
+                ct,
+                timeout: Timeout.InfiniteTimeSpan));
+        if (response is null)
+            return true;
+        if (response.Result is not { } result || ParseApprovalDecision(result) is not { } decision)
+            return Unanswered(hold.Key);
 
-        var decision = ParseApprovalDecision(response.Result);
-        await TryResolveApprovalAsync(threadId, turnId, request.RequestId, decision, CancellationToken.None);
+        if (_holders.TryResolve(hold.Key))
+            await TryResolveApprovalAsync(threadId, turnId, request.RequestId, decision);
+        return true;
     }
 
-    internal static Contract.ApprovalShellDetails? ToContract(ShellApprovalDetails? shell) =>
-        shell is null
-            ? null
-            : new Contract.ApprovalShellDetails
-            {
-                Reasons = shell.Reasons,
-                RememberedPrefixes = shell.RememberedPrefixes,
-                RemembersExactCommand = shell.RemembersExactCommand
-            };
-
-    private static TimeSpan RemainingApprovalTimeout(DateTimeOffset expiresAt)
-    {
-        var remaining = expiresAt - DateTimeOffset.UtcNow;
-        return remaining > TimeSpan.Zero ? remaining : TimeSpan.FromMilliseconds(1);
-    }
-
-    public async Task SendUserInputRequestAsync(
+    /// <summary>
+    /// Returns <c>false</c> when this client answered without a valid result and the request is still pending.
+    /// </summary>
+    public async Task<bool> SendUserInputRequestAsync(
         string threadId,
         string turnId,
         string itemId,
-        UserInputRequestPayload request,
-        CancellationToken ct = default)
+        UserInputRequestPayload request)
     {
-        if (string.IsNullOrWhiteSpace(turnId))
-            return;
-
-        if (!_connection.SupportsRequestUserInput || _transportUnavailable())
+        if (!_connection.SupportsRequestUserInput
+            || TryHold(new RequestKey(Methods.UserInputRequest, threadId, turnId, request.RequestId)) is not { } hold)
         {
-            await TryResolveUserInputAsync(threadId, turnId, request.RequestId, new RequestUserInputResponse(), CancellationToken.None);
-            return;
+            return true;
         }
-
-        if (!_connection.TryRegisterInteractiveRequest(
-            Protocol.AppServer.AppServerMethodNames.UserInputRequest,
-            threadId,
-            turnId,
-            request.RequestId))
-            return;
 
         var requestParams = new Contract.UserInputRequestParams
         {
@@ -157,71 +117,143 @@ internal sealed class AppServerInteractiveRequestSender
             }).ToArray()
         };
 
-        AppServerTypedClientResponse<Contract.UserInputResponseResult> response;
-        try
-        {
-            response = await _transport.RequestAsync(
+        var response = await AwaitAnswerAsync(
+            hold,
+            ct => _transport.RequestAsync(
                 Contract.AppServerRpc.UserInputRequest,
                 requestParams,
+                ct,
+                timeout: Timeout.InfiniteTimeSpan));
+        if (response is null)
+            return true;
+        if (response.Result is not { } result || ParseUserInputResponse(result) is not { } answers)
+            return Unanswered(hold.Key);
+
+        if (_holders.TryResolve(hold.Key))
+            await TryResolveUserInputAsync(threadId, turnId, request.RequestId, answers);
+        return true;
+    }
+
+    public async Task ResolveApprovalByPolicyAsync(
+        string threadId,
+        string turnId,
+        string requestId,
+        SessionApprovalDecision defaultDecision)
+    {
+        if (!_holders.TryResolve(new RequestKey(Methods.ApprovalRequest, threadId, turnId, requestId)))
+            return;
+
+        var decision = await ResolveNonInteractiveApprovalDecisionAsync(threadId, defaultDecision);
+        await TryResolveApprovalAsync(threadId, turnId, requestId, decision);
+    }
+
+    public async Task ResolveUserInputWithEmptyAnswersAsync(string threadId, string turnId, string requestId)
+    {
+        if (_holders.TryResolve(new RequestKey(Methods.UserInputRequest, threadId, turnId, requestId)))
+            await TryResolveUserInputAsync(threadId, turnId, requestId, new RequestUserInputResponse());
+    }
+
+    public void ObserveResolution(SessionEvent evt)
+    {
+        RequestKey? key = evt switch
+        {
+            { EventType: SessionEventType.ApprovalResolved, TurnId: { } turnId, ItemPayload.Payload: ApprovalResponsePayload approval } =>
+                new RequestKey(Methods.ApprovalRequest, evt.ThreadId, turnId, approval.RequestId),
+            { EventType: SessionEventType.UserInputResolved, TurnId: { } turnId, ItemPayload.Payload: UserInputResponsePayload userInput } =>
+                new RequestKey(Methods.UserInputRequest, evt.ThreadId, turnId, userInput.RequestId),
+            _ => null
+        };
+        if (key is { } resolved)
+            _holders.TryResolve(resolved);
+    }
+
+    private AppServerInteractiveRequestHolders.Hold? TryHold(RequestKey key) =>
+        !_transportUnavailable()
+        && _connection.TryRegisterInteractiveRequest(key.Method, key.ThreadId, key.TurnId, key.RequestId)
+            ? _holders.TryHold(key)
+            : null;
+
+    private bool Unanswered(RequestKey key)
+    {
+        _connection.ReleaseInteractiveRequest(key.Method, key.ThreadId, key.TurnId, key.RequestId);
+        return false;
+    }
+
+    private async Task<AppServerTypedClientResponse<TResult>?> AwaitAnswerAsync<TResult>(
+        AppServerInteractiveRequestHolders.Hold hold,
+        Func<CancellationToken, Task<AppServerTypedClientResponse<TResult>>> send)
+        where TResult : class
+    {
+        using var resolvedElsewhere = new CancellationTokenSource();
+        try
+        {
+            var request = send(resolvedElsewhere.Token);
+            if (await Task.WhenAny(request, hold.Resolved) == request)
+                return await request;
+
+            resolvedElsewhere.Cancel();
+            _ = request.ContinueWith(
+                static task => _ = task.Exception,
                 CancellationToken.None,
-                timeout: Timeout.InfiniteTimeSpan);
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+            return null;
         }
         catch (OperationCanceledException)
         {
-            await TryResolveUserInputAsync(threadId, turnId, request.RequestId, new RequestUserInputResponse(), CancellationToken.None);
-            return;
+            return null;
         }
         catch (Exception ex) when (AppServerEventDispatcher.IsTransportUnavailableException(ex))
         {
             _markTransportUnavailable?.Invoke();
-            await TryResolveUserInputAsync(threadId, turnId, request.RequestId, new RequestUserInputResponse(), CancellationToken.None);
-            return;
+            return null;
         }
-
-        await TryResolveUserInputAsync(threadId, turnId, request.RequestId, ParseUserInputResponse(response.Result), CancellationToken.None);
+        finally
+        {
+            _holders.Release(hold);
+        }
     }
 
-    public async Task ResolveApprovalWithFallbackAsync(
-        string threadId,
-        string turnId,
-        string requestId,
-        CancellationToken ct)
-    {
-        var fallbackDecision = await ResolveNonInteractiveApprovalDecisionAsync(threadId, ct);
-        await TryResolveApprovalAsync(threadId, turnId, requestId, fallbackDecision, ct);
-    }
+    internal static Contract.ApprovalShellDetails? ToContract(ShellApprovalDetails? shell) =>
+        shell is null
+            ? null
+            : new Contract.ApprovalShellDetails
+            {
+                Reasons = shell.Reasons,
+                RememberedPrefixes = shell.RememberedPrefixes,
+                RemembersExactCommand = shell.RemembersExactCommand
+            };
 
     private async Task TryResolveApprovalAsync(
         string threadId,
         string turnId,
         string requestId,
-        SessionApprovalDecision decision,
-        CancellationToken ct)
+        SessionApprovalDecision decision)
     {
         try
         {
-            await _sessionService.ResolveApprovalAsync(threadId, turnId, requestId, decision, ct);
+            await _sessionService.ResolveApprovalAsync(threadId, turnId, requestId, decision, CancellationToken.None);
         }
         catch (OperationCanceledException) { /* Ignore if session was cancelled */ }
     }
 
     private async Task<SessionApprovalDecision> ResolveNonInteractiveApprovalDecisionAsync(
         string threadId,
-        CancellationToken ct)
+        SessionApprovalDecision defaultDecision)
     {
         try
         {
-            var thread = await _sessionService.GetThreadAsync(threadId, ct);
+            var thread = await _sessionService.GetThreadAsync(threadId, CancellationToken.None);
             return thread.Configuration?.ApprovalPolicy switch
             {
                 ApprovalPolicy.AutoApprove => SessionApprovalDecision.AcceptOnce,
                 ApprovalPolicy.Deny => SessionApprovalDecision.Reject,
-                _ => _defaultApprovalDecision
+                _ => defaultDecision
             };
         }
         catch
         {
-            return _defaultApprovalDecision;
+            return defaultDecision;
         }
     }
 
@@ -229,8 +261,7 @@ internal sealed class AppServerInteractiveRequestSender
         string threadId,
         string turnId,
         string requestId,
-        RequestUserInputResponse response,
-        CancellationToken ct)
+        RequestUserInputResponse response)
     {
         try
         {
@@ -239,45 +270,38 @@ internal sealed class AppServerInteractiveRequestSender
                 turnId,
                 requestId,
                 response,
-                ct);
+                CancellationToken.None);
         }
         catch (OperationCanceledException) { /* Ignore if session was cancelled */ }
     }
 
-    private static SessionApprovalDecision ParseApprovalDecision(Contract.ApprovalResponseResult? result)
+    private static SessionApprovalDecision? ParseApprovalDecision(Contract.ApprovalResponseResult result)
     {
-        return result?.Decision switch
+        return result.Decision switch
         {
             "accept" => SessionApprovalDecision.AcceptOnce,
             "acceptForSession" => SessionApprovalDecision.AcceptForSession,
             "acceptAlways" => SessionApprovalDecision.AcceptAlways,
             "decline" => SessionApprovalDecision.Reject,
             "cancel" => SessionApprovalDecision.CancelTurn,
-            _ => SessionApprovalDecision.Reject
+            _ => null
         };
     }
 
-    private static RequestUserInputResponse ParseUserInputResponse(Contract.UserInputResponseResult? result)
+    private static RequestUserInputResponse? ParseUserInputResponse(Contract.UserInputResponseResult result)
     {
-        if (result is null)
-            return new RequestUserInputResponse();
+        if (result.Answers is not { } answers || answers.Values.Any(static answer => answer?.Answers is null))
+            return null;
 
-        try
+        return new RequestUserInputResponse
         {
-            return new RequestUserInputResponse
-            {
-                Answers = result.Answers.ToDictionary(
-                    static answer => answer.Key,
-                    static answer => new RequestUserInputAnswer
-                    {
-                        Answers = answer.Value.Answers.ToList()
-                    },
-                    StringComparer.Ordinal)
-            };
-        }
-        catch
-        {
-            return new RequestUserInputResponse();
-        }
+            Answers = answers.ToDictionary(
+                static answer => answer.Key,
+                static answer => new RequestUserInputAnswer
+                {
+                    Answers = answer.Value.Answers.ToList()
+                },
+                StringComparer.Ordinal)
+        };
     }
 }

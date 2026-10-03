@@ -620,7 +620,6 @@ export interface AppViewResult {
 
 export interface ApprovalRequestParams {
   approvalType: string;
-  expiresAt: string;
   itemId: string;
   operation: string;
   reason?: string | null;
@@ -636,7 +635,6 @@ export interface ApprovalRequestParams {
 
 export interface ApprovalRequestPayload {
   approvalType: string;
-  expiresAt: string;
   operation: string;
   reason: string;
   requestId: string;
@@ -3862,7 +3860,6 @@ export interface ThreadConfiguration {
   agentProfileSource?: string | null;
   allowedAgentControlTools?: string[] | null;
   approvalPolicy?: string;
-  approvalTimeoutSeconds?: number | null;
   automationTaskDirectory?: string | null;
   customTools?: string[] | null;
   cwd?: string | null;

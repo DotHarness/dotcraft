@@ -28,7 +28,7 @@ DotCraft 是一个开源的 AI Agent，运行在你自己的机器上。用桌�
 
 ## 为什么选择 DotCraft？
 
-- **一个 Agent，多个入口：** Desktop、CLI、IDE 和聊天机器人共用同一个工作区，在一处开始的任务可以在另一处接着做。你还可以通过 SSH 连接服务器上的 DotCraft，或借助卫星让 Agent 在另一台电脑上工作。
+- **一个 Agent，多个入口：** Desktop、CLI、IDE 和聊天机器人共用同一个工作区，在一处开始的任务可以在另一处接着做。你还可以通过 SSH 连接服务器上的 DotCraft，在 Android 手机上跟进并回复聊天，或借助卫星让 Agent 在另一台电脑上工作。
 - **可以在它之上构建：** 把 DotCraft Desktop 背后的运行时嵌入你的 .NET 应用，或通过 SDK 和 App Binding 接入现有产品。.NET 插件可以添加工具、命令和生命周期逻辑，Agent 能自己编写插件，并在宿主运行时直接替换。React 插件可以改造 Desktop 的界面。
 - **部署和成本由你掌控：** 在本地或自己的服务器上运行，选用兼容的模型提供商或 ChatGPT 订阅。提示词前缀保持逐字节稳定，提高缓存复用率。
 - **团队共享模型：** 在一台机器上集中保存 API key 和登录，团队其他机器上的 DotCraft 都通过它调用模型，无需各自保存密钥或直连模型提供商。
@@ -61,7 +61,7 @@ irm https://www.dotcraft.net/install.ps1 | iex
 
 一个工作台：Agent 在你的项目里做计划，把任务拆给子智能体，确认结果没问题后才告诉你完成了。
 
-**获取方式：** [下载](https://github.com/DotHarness/dotcraft/releases)，支持 Windows、macOS 和 Linux。
+**获取方式：** [下载](https://github.com/DotHarness/dotcraft/releases)，支持 Windows、macOS 和 Linux。同一页面还有 Android App，在手机上跟进并回复你的聊天。
 
 <p align="center"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/desktop-strip-light.webp" width="830" alt="依次展示 Desktop 的四项能力：应用内浏览器检查你的应用设置页、电脑操控在另一个 Windows 应用里工作、Agent Builder 配置新 Agent、宠物发现可穿戴的龙之翼。"></p>
 
@@ -77,7 +77,7 @@ irm https://www.dotcraft.net/install.ps1 | iex
 
 **你会得到：** 打开一个项目，输入「先规划一下怎么给应用加上深色模式，然后把它做完。」，确认计划，看着步骤逐项完成。
 
-[Desktop 指南](https://www.dotcraft.net/zh/features/entry-points/desktop) · [子智能体](https://www.dotcraft.net/zh/features/agent-system/subagents) · [Agent Profiles](https://www.dotcraft.net/zh/features/agent-system/agent-profiles) · [Automations](https://www.dotcraft.net/zh/features/agent-system/automations)
+[Desktop 指南](https://www.dotcraft.net/zh/features/entry-points/desktop) · [手机 App](https://www.dotcraft.net/zh/features/entry-points/mobile) · [子智能体](https://www.dotcraft.net/zh/features/agent-system/subagents) · [Agent Profiles](https://www.dotcraft.net/zh/features/agent-system/agent-profiles) · [Automations](https://www.dotcraft.net/zh/features/agent-system/automations)
 
 ## CLI
 

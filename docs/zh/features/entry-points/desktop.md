@@ -46,6 +46,8 @@ Agent 的每一步都摊在窗口里。打开一个会话就能逐条回看它�
 
 远程工具调用让 Agent 在另一台电脑上工作，对话仍留在这里。在**设置 → 连接 → 卫星**中完成配对，再到输入框的**执行位置**中选中它。连接步骤和屏幕查看方式见 [DotCraft 卫星](../agent-system/satellite)。
 
+想在手机上跟进和回复聊天，在**设置 → 连接 → 手机**中配对手机。下载和设置步骤见[手机 App](./mobile)。
+
 ## 跟上新版本
 
 启动时 DotCraft 会检查 [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) 有没有更新的版本。当前平台有安装包时，标题栏会出现下载按钮，点开可以看版本说明、下载并看到进度，下完 DotCraft 退出并打开安装包。

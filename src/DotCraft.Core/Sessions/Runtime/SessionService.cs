@@ -91,7 +91,6 @@ public sealed partial class SessionService(
     HookRunner? hookRunner = null,
     TraceCollector? traceCollector = null,
     TokenUsageStore? tokenUsageStore = null,
-    TimeSpan? approvalTimeout = null,
     ILogger<SessionService>? logger = null,
     ApprovalStore? approvalStore = null,
     IToolProfileRegistry? toolProfileRegistry = null,
@@ -120,8 +119,6 @@ public sealed partial class SessionService(
 
         public int ReferenceCount { get; set; }
     }
-
-    private readonly TimeSpan _approvalTimeout = approvalTimeout ?? TimeSpan.FromMinutes(5);
 
     /// <inheritdoc />
     public event EventHandler<EffectiveToolSnapshotChangedEventArgs>? EffectiveToolSnapshotChanged;
@@ -419,11 +416,6 @@ public sealed partial class SessionService(
 
         return _appConfigMonitor?.Current.Permissions.DefaultApprovalPolicy ?? ApprovalPolicy.Default;
     }
-
-    private TimeSpan ResolveApprovalTimeout(int? approvalTimeoutSeconds) =>
-        approvalTimeoutSeconds.HasValue
-            ? TimeSpan.FromSeconds(approvalTimeoutSeconds.Value)
-            : _approvalTimeout;
 
     /// <inheritdoc />
     private Task RecordGoalUsageAsync(

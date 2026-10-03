@@ -371,8 +371,7 @@ public sealed class AppServerPendingInteractiveReplayTests
                 Operation = "npm test",
                 Target = thread.WorkspacePath,
                 ScopeKey = "shell:npm test",
-                Reason = "Run tests.",
-                ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5)
+                Reason = "Run tests."
             }
         });
     }

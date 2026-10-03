@@ -478,8 +478,6 @@ interface ConversationActions {
   onApprovalResolved(params?: ApprovalResolvedParams): void
   /** Used when another AppServer connection resolved the same approval first. */
   onApprovalNoLongerPending(params: ApprovalNoLongerPendingParams): void
-  /** Called when the approval timeout error (-32020) is received. */
-  onApprovalTimeout(): void
   onUserInputRequest(bridgeId: string, params: Record<string, unknown>): void
   onUserInputResolved(): void
   setWorkspacePath(path: string): void
@@ -3085,28 +3083,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         activeTurnId: !nextPendingApproval && params.nextTurnStatus === 'idle'
           ? null
           : state.activeTurnId
-      }
-    })
-  },
-
-  onApprovalTimeout() {
-    const state = get()
-    const pending = state.pendingApproval
-    if (!pending) return
-
-    set((s) => {
-      const queue = queueWithPendingApproval(s.pendingApprovals, pending)
-      const pendingApprovals = queue.filter((candidate) => !samePendingApproval(candidate, pending))
-      return {
-        turns: s.turns.map((t) => ({
-          ...t,
-          items: t.items.map((i) =>
-            i.id === pending.itemId ? { ...i, approvalState: 'timedOut' as ApprovalState } : i
-          )
-        })),
-        pendingApprovals,
-        pendingApproval: activePendingApproval(pendingApprovals),
-        turnStatus: pendingApprovals.length > 0 ? 'waitingApproval' : s.turnStatus
       }
     })
   },

@@ -1,0 +1,9 @@
+{$RELAY_PUBLIC_HOST} {
+	handle /r/* {
+		reverse_proxy relay:47620
+	}
+
+	handle {
+		respond 404
+	}
+}

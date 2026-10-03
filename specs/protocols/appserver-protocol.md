@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.10 |
+| **Version** | 0.8.1 |
 | **Status** | Living |
-| **Date** | 2026-10-02 |
+| **Date** | 2026-10-03 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md) |
 
@@ -363,7 +363,7 @@ Create a new thread. The server generates a Thread ID and persists initial state
 | `displayName` | string | no | Explicit thread display name. |
 | `spawnedFromThreadId` | string | no | Id of the thread that started this thread on the user's behalf (e.g. the Desktop `CreateThread` tool invoked from another thread). The server records it as a non-subagent origin on the new thread's `ThreadSource` (`kind` stays `"user"`) and mirrors it into thread metadata as `spawnedFromThreadId`, so the new thread stays an ordinary sibling thread (it does not become a subagent and does not enter the SubAgent dock) while its first user message can link back to the source thread. Self-references are ignored. |
 
-When `config.agentProfileId` is set, AppServer resolves the Agent Profile for the normalized workspace and compiles the Markdown profile into a `ThreadConfiguration` template. `agentProfileSource` and `agentProfileFingerprint` are server-resolved provenance outputs; clients must not send either field as a `thread/start` overlay or use a source value to bypass profile precedence. A profile without `providerPreference` starts from the effective workspace/global provider preference. A profile with `providerPreference` materializes its fixed model preset into a complete preference, deriving reasoning output visibility from the selected model catalog's `defaultOutput`. AppServer then applies only the supported runtime overlays (`providerId`, `model`, `reasoning`, `speed`, `approvalTimeoutSeconds`, `developerInstructions`), normalizes the resulting model configuration as one unit, and persists a complete provider/model/reasoning/speed snapshot on the new thread. A provider or model overlay selects a new runtime model and reseeds omitted model options from that provider's effective preference when one exists, otherwise from capability-safe defaults for the explicit model, before explicit option overlays are applied. A complete explicit provider/model configuration does not require a saved workspace `providerPreference`. An explicit reasoning overlay, including output visibility, is applied after Profile materialization. `developerInstructions` carries the starting application's own instructions and is rendered as the final system prompt section after the profile's role instructions, so an application such as a channel host can state the thread's role and delivery contract without touching the profile. Capability or instruction overlays such as tools, MCP, plugins, skills, approval policy, `agentInstructions`, `overrideBasePrompt`, workspace overrides, `agentProfileSource`, and `agentProfileFingerprint` are rejected with `AgentProfileValidationFailed`. Clients should read the structured error `data.detail` and `data.params.diagnostics` fields for the rejected overlay names and stable diagnostic codes.
+When `config.agentProfileId` is set, AppServer resolves the Agent Profile for the normalized workspace and compiles the Markdown profile into a `ThreadConfiguration` template. `agentProfileSource` and `agentProfileFingerprint` are server-resolved provenance outputs; clients must not send either field as a `thread/start` overlay or use a source value to bypass profile precedence. A profile without `providerPreference` starts from the effective workspace/global provider preference. A profile with `providerPreference` materializes its fixed model preset into a complete preference, deriving reasoning output visibility from the selected model catalog's `defaultOutput`. AppServer then applies only the supported runtime overlays (`providerId`, `model`, `reasoning`, `speed`, `developerInstructions`), normalizes the resulting model configuration as one unit, and persists a complete provider/model/reasoning/speed snapshot on the new thread. A provider or model overlay selects a new runtime model and reseeds omitted model options from that provider's effective preference when one exists, otherwise from capability-safe defaults for the explicit model, before explicit option overlays are applied. A complete explicit provider/model configuration does not require a saved workspace `providerPreference`. An explicit reasoning overlay, including output visibility, is applied after Profile materialization. `developerInstructions` carries the starting application's own instructions and is rendered as the final system prompt section after the profile's role instructions, so an application such as a channel host can state the thread's role and delivery contract without touching the profile. Capability or instruction overlays such as tools, MCP, plugins, skills, approval policy, `agentInstructions`, `overrideBasePrompt`, workspace overrides, `agentProfileSource`, and `agentProfileFingerprint` are rejected with `AgentProfileValidationFailed`. Clients should read the structured error `data.detail` and `data.params.diagnostics` fields for the rejected overlay names and stable diagnostic codes.
 
 #### 4.1.0 Runtime Dynamic Tools
 
@@ -486,7 +486,6 @@ Rules:
     "allowManage": false
   },
   "approvalPolicy": "default",
-  "approvalTimeoutSeconds": 1800,
   "automationTaskDirectory": "/path/to/task",
   "reasoning": {
     "enabled": true,
@@ -523,7 +522,6 @@ Fields:
 | `toolAllowList` | string[] | Exact-name tool allow-list. Null or omitted means no allow-list. |
 | `toolDenyList` | string[] | Exact-name tool deny-list. Deny wins over allow. |
 | `toolPolicy` | object | Structured tool policy with `allow`, `deny`, `agentControl`, and `allowedAgentControlTools`. Null or omitted keeps existing runtime defaults. |
-| `approvalTimeoutSeconds` | integer | Optional per-thread approval request timeout in seconds. Omitted uses the server default of 300 seconds. Values must be between 1 and 86400. The resolved value is persisted with the thread and applies to future turns and replayed requests. |
 | `mcpPolicy` | object | Structured MCP policy. `servers` filters by effective MCP server name where available. `tools.allow` and `tools.deny` match canonical tool selectors and may use `*` wildcards: `name` for a top-level tool or `namespace/name` for a namespaced tool. They do not match `providerFlatName`, raw `SourceToolId`, or connection `runtimeName`. |
 | `pluginPolicy` | object | Structured plugin/app policy with source-aware `allow` and `deny` lists where metadata exists, falling back to stable tool-name denial. |
 | `skillsPolicy` | object | Structured skills policy with `preload`, skill name `allow`/`deny`, and `allowManage`. |
@@ -1399,7 +1397,7 @@ Request cancellation of an in-progress turn. The server cancels the agent execut
 
 Shutdown includes stopping foreground external work still owned by the active tool invocation. It does not stop terminal sessions already detached through `runInBackground`; clients use terminal stop or thread terminal cleanup operations for those sessions.
 
-Before emitting `turn/cancelled`, the server finalizes any currently streaming agent/reasoning items with their accumulated text and persists the cancelled turn as canonical history. Future `turn/start` calls on server-managed threads must include the cancelled turn's user input and completed partial assistant output when rebuilding model context.
+Before emitting `turn/cancelled`, the server resolves the turn's pending approvals and user-input requests (§7.6), finalizes any currently streaming agent/reasoning items with their accumulated text, and persists the cancelled turn as canonical history. Future `turn/start` calls on server-managed threads must include the cancelled turn's user input and completed partial assistant output when rebuilding model context.
 
 **Direction**: client → server (request)
 
@@ -2069,7 +2067,7 @@ the completed `toolExecution` and authoritative `toolResult`. Connections withou
 
 #### `item/approval/resolved`
 
-Emitted after the client responds to an approval request and the server processes the decision. This is distinct from `item/completed` for the `approvalResponse` item — `item/approval/resolved` is emitted first, then the regular `item/completed` follows.
+Emitted after an approval request resolves, whether through a client response, the non-interactive fallback (§7.4), or the end of its turn (§7.6). This is distinct from `item/completed` for the `approvalResponse` item — `item/approval/resolved` is emitted first, then the regular `item/completed` follows.
 
 **Params**:
 
@@ -2336,7 +2334,7 @@ Broadcast summary notifications such as `thread/started`, `thread/renamed`, `thr
 
 **Ordering guarantee**: The at-most-once rule does not relax the ordering guarantee. The `turn/start` response still arrives before the first `turn/started` notification.
 
-**Best-effort delivery**: Notifications are best-effort per connection. A transport write failure must stop further writes to that client, but it must not stop the server from draining an already-started persisted turn's event stream. Passive `thread/subscribe` streams remain tied to the connection and are cancelled when that connection closes; active turn execution continues independently. When `turn/start` uses the subscription path, the server's internal active-turn drain must continue after subscription cancellation. Outstanding interactive requests are resolved only through their normal client response, explicit non-interactive fallback for unsupported/unavailable clients, transport disconnect, or a request-specific timeout such as approval timeout; `thread/unsubscribe` alone must not answer them. Reconnected or returning clients recover state through `thread/read`, fresh history head pages, `thread/list`, fresh subscriptions, and server replay of unresolved interactive requests on `thread/subscribe` or `thread/resume`.
+**Best-effort delivery**: Notifications are best-effort per connection. A transport write failure must stop further writes to that client, but it must not stop the server from draining an already-started persisted turn's event stream. Passive `thread/subscribe` streams remain tied to the connection and are cancelled when that connection closes; active turn execution continues independently. When `turn/start` uses the subscription path, the server's internal active-turn drain must continue after subscription cancellation. Outstanding interactive requests belong to their thread and resolve only through a client response, the non-interactive fallback for a turn started by a client without the capability (§7.4, §7.5), or the end of their turn (§7.6); a transport write failure, a disconnect, or `thread/unsubscribe` never answers them. Reconnected or returning clients recover state through `thread/read`, fresh history head pages, `thread/list`, fresh subscriptions, and server replay of unresolved interactive requests on `thread/subscribe` or `thread/resume`.
 
 ## 7. Approval Flow
 
@@ -2369,7 +2367,7 @@ Server                              Client
   |---------------------------------->|
 ```
 
-The turn enters `"waitingApproval"` status while the server waits for the client's response.
+The turn enters `"waitingApproval"` status while the request is pending. The request has no timeout; §7.6 defines how it resolves.
 
 ### 7.2 `item/approval/request`
 
@@ -2389,7 +2387,6 @@ The turn enters `"waitingApproval"` status while the server waits for the client
 | `targetLabel` | string? | Optional display label for `target`, for example an application's display name. |
 | `scopeKey` | string | Session-scoped cache key used when the client returns `acceptForSession`. |
 | `reason` | string | Human-readable explanation of why approval is needed. |
-| `expiresAt` | string | UTC ISO-8601 instant after which the Runtime resolves the request through its safe timeout path. Replayed requests retain the original expiry. |
 | `shell` | object? | Present for `approvalType = "shell"`: `{ reasons: string[], rememberedPrefixes: string[][], remembersExactCommand }` as defined by [Shell Command Safety](../architecture/shell-command-safety.md) Section 9. `scopeKey` is `"shell:" + approvalKey`, so `acceptForSession` covers only this command, shell, and directory. |
 
 **Example**:
@@ -2405,7 +2402,6 @@ The turn enters `"waitingApproval"` status while the server waits for the client
     "target": "/home/dev/myproject",
     "scopeKey": "shell:3f9c1b0e5d2a4c7f8b6e1d0a9c3f5e7b2a4d6c8e0f1a3b5c7d9e2f4a6b8c0d1e",
     "reason": "Agent wants to execute a shell command. rm -f style commands are not permitted without approval.",
-    "expiresAt": "2026-03-16T10:30:00Z",
     "shell": {
       "reasons": ["rm -f style commands are not permitted without approval."],
       "rememberedPrefixes": [],
@@ -2441,16 +2437,16 @@ When approval resolution is persisted or echoed back in a later event, the respo
 
 ### 7.4 Clients Without Approval Support
 
-If a client declared `capabilities.approvalSupport = false` during initialization, the server must not send `item/approval/request`. Instead, the server resolves approvals non-interactively using the same server-owned thread policy model:
+The server never sends `item/approval/request` to a client that declared `capabilities.approvalSupport = false` during initialization.
+
+When such a client started the turn with `turn/start`, nothing can prompt for that turn, so the server resolves each of its approvals immediately and non-interactively from the server-owned thread policy:
 
 - `approvalPolicy = autoApprove` resolves as `accept`.
 - `approvalPolicy = deny` resolves as `decline`; the calling tool receives the rejection and the turn continues.
 - `approvalPolicy = default` first resolves through the workspace default approval policy. If both the thread policy and workspace default are `default` or unset, the server cannot prompt on a non-interactive client, so it falls back to its non-interactive default decision. That fallback is `decline`.
 - `approvalPolicy = prompt` requires the interactive flow; because a non-interactive client cannot prompt, it falls back to the same non-interactive default decision as `default`.
 
-The same non-interactive fallback may also be applied when an approval-capable client disconnects, the approval request cannot be written to the transport, or the request reaches its persisted `expiresAt` before the client replies. The AppServer client-request timeout uses the same expiry and must not introduce a shorter independent deadline. Cancelling a passive `thread/subscribe` subscription is not itself a rejection, timeout, or disconnect; it must not resolve an outstanding approval request.
-
-When a client later resumes or subscribes to a thread that is still waiting for unresolved approvals, the server replays `item/approval/request` with the original `requestId` values so the client can render actionable approval UI again. Multiple replayed approvals are started serially per thread; a later approval's server-to-client reply timeout begins only when that later request is actually sent.
+This is the only non-interactive fallback. An approval in any other turn, including one started by an approval-capable client or by the server itself, stays pending under §7.6 even while no connection holds it.
 
 ### 7.5 Model-Initiated User Input Requests
 
@@ -2514,9 +2510,19 @@ The turn enters `"waitingInput"` status while waiting for the response.
 }
 ```
 
-`isBlocking` is persisted with the `userInputRequest` Item and replayed unchanged. It is not a model parameter and does not alter the server-side wait. A client may automatically return `{ "answers": {} }` for `isBlocking = false`; for `isBlocking = true`, dismissing the UI interrupts the turn rather than fabricating an empty response. If a client did not declare `capabilities.requestUserInputSupport = true`, the server must not send the request and resolves it with empty answers so the turn can continue. Cancelling a passive `thread/subscribe` subscription, for example because the user switched to another thread, must not resolve an outstanding user-input request; the request remains pending until the client responds, the transport becomes unavailable, or the turn is cancelled. `RequestUserInput` does not have a server-side response timeout while the client transport remains available.
+`isBlocking` is persisted with the `userInputRequest` Item and replayed unchanged. It is not a model parameter and does not alter the server-side wait. A client may automatically return `{ "answers": {} }` for `isBlocking = false`; for `isBlocking = true`, dismissing the UI interrupts the turn rather than fabricating an empty response.
 
-When a client later resumes or subscribes to a thread that is still waiting for the same unresolved user-input request, the server replays `item/tool/requestUserInput` with the original `requestId` so the client can render an actionable question composer again.
+The server never sends the request to a client that did not declare `capabilities.requestUserInputSupport = true`. When such a client started the turn with `turn/start`, the server resolves the request immediately with empty answers so the turn can continue. Otherwise the request stays pending under §7.6 with no server-side timeout.
+
+### 7.6 Pending Requests and Multiple Connections
+
+An `item/approval/request` or `item/tool/requestUserInput` raised under the interactive flow belongs to its thread, not to the connection that started the turn. Several connections may watch the same thread, for example a Desktop window and a phone. The server guarantees:
+
+- Every connection subscribed to the thread that declared the matching capability (`approvalSupport`, `requestUserInputSupport`) receives the pending request, live when it is raised or through replay on `thread/subscribe` or `thread/resume`. Replay keeps the original `requestId`, and a connection receives each request at most once unless it answered with an error or without a valid result, which answers nothing and lets its next subscription receive the request again. Replayed approvals of one thread are sent one at a time; the next is sent after the current one resolves.
+- The request stays pending until the first valid response from any connection resolves it, or until its turn completes, fails, or is cancelled, including through `turn/interrupt`. It has no timeout. It is never resolved because no connection holds it: not when no connection is subscribed as it is raised, not when the last connection holding it disconnects, and not when a transport write fails. A connection that subscribes later can still answer it.
+- When a turn ends with requests still pending, the server resolves each one: an approval as `cancel`, so its operation does not run, and a user-input request with empty answers.
+- On every resolution the server stops waiting on all connections, and every subscriber receives `item/approval/resolved` or `item/tool/requestUserInput/resolved` and must dismiss its prompt. A late response to a resolved request is ignored without an error.
+- The only exception is the non-interactive fallback of §7.4 and §7.5 for a turn started by a client without the capability.
 
 ## 8. Error Handling
 
@@ -2566,7 +2572,6 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 | `-32012` | Turn in progress | A turn is already running or waiting for approval on this thread. |
 | `-32013` | Turn not found | The specified `turnId` does not exist on the thread. |
 | `-32014` | Turn not running | `turn/interrupt` called on a turn that is not in progress. |
-| `-32020` | Approval timeout | The client took too long to respond to an approval request. |
 | `-32030` | Channel rejected | The channel adapter name is not registered in server configuration. |
 | `-32031` | Automation not found | The specified automation ID does not exist. |
 | `-32040` | Skill not found | The requested skill name does not exist in any source (workspace, user, or builtin). |
@@ -3367,6 +3372,7 @@ Shared state across all connections on the same server process:
 
 - The `ISessionService` instance (and therefore thread persistence) is shared. A thread started by one connection is visible to other connections that look it up via `thread/list` or `thread/read`.
 - A `thread/subscribe` from Connection A will receive notifications for events triggered by Connection B on the same thread.
+- Approvals and user-input requests on a shared thread follow the multi-connection rules of §7.6.
 
 There is no built-in per-connection identity isolation. Callers with different privilege levels must use separate server processes or implement identity enforcement in the `SessionIdentity` layer.
 
@@ -3385,7 +3391,7 @@ The WebSocket transport does not provide built-in session resumption. When a cli
 - The client must perform the full `initialize` / `initialized` handshake again.
 - Active thread subscriptions are lost and must be re-registered via `thread/subscribe`.
 - Any turn that was in progress when the disconnect occurred continues executing on the server. The client can re-subscribe to the thread to receive subsequent notifications, but events emitted during the disconnection period are not replayed unless `replayRecent = true` is used in `thread/subscribe`.
-- Server-to-client approval requests (`item/approval/request`) that were in flight when the client disconnected will time out according to the approval timeout policy (error code `-32020`), and the turn will fail.
+- Server-to-client interactive requests that were in flight when the client disconnected stay pending until a connection answers them or their turn ends (§7.6). Subscribing again replays any that are still pending.
 
 Client reconnection behavior requirements:
 
@@ -3406,7 +3412,7 @@ The server sends native WebSocket ping frames every 30 seconds to detect stale c
 | Authentication | N/A | Optional token query param |
 | Turn cancellation on disconnect | Turn is cancelled (process exit) | Turn continues; client must re-subscribe |
 | Event replay on reconnect | N/A | Via `thread/subscribe replayRecent: true` |
-| Approval request on disconnect | Turn cancelled (process exit) | Turn fails with `-32020` approval timeout |
+| Approval request on disconnect | Turn cancelled (process exit) | Request stays pending for another or reconnected client |
 | Diagnostic output | stderr | Not available on wire; use server logs |
 
 ## 16. Automation management

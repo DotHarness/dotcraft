@@ -29,7 +29,6 @@ export type {
   UserInputHandler,
 } from "./dotcraft.js";
 export {
-  ApprovalTimeoutError,
   DotCraftError,
   InitializationError,
   ProtocolViolationError,

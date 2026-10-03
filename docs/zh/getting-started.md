@@ -8,6 +8,8 @@
 
 前往 [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) 下载适合当前系统的安装包，装好后打开 DotCraft。
 
+Releases 页面也提供 Android [手机 App](./features/entry-points/mobile)。走完本指南后配对，就能在手机上跟进聊天。
+
 ## 2. 打开项目
 
 选择 **打开工作区**，选中项目所在的文件夹。DotCraft 会打开工作区初始化向导。

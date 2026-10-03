@@ -164,7 +164,6 @@ SDK 异常派生自 `DotCraftException`，并带有稳定的 `Code`。
 | `ThreadNotFoundException` / `ThreadNotActiveException` | 目标 thread 不存在或无法运行。 |
 | `TurnFailedException` / `TurnCancelledException` | Buffered run 到达失败或取消终态。 |
 | `RunDisconnectedException` | Wire session 在活动 run 期间结束。 |
-| `ApprovalTimeoutException` | AppServer 报告审批超时。 |
 | `RequestTimeoutException` | Wire 请求超过超时时间。 |
 | `ReconnectQueueFullException` | 重连队列达到容量上限。 |
 

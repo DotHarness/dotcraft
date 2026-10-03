@@ -15,7 +15,7 @@ namespace DotCraft.Hub;
 /// </summary>
 public sealed class ManagedAppServerRegistry : IAsyncDisposable
 {
-    private static readonly StringComparer WorkspaceComparer =
+    internal static readonly StringComparer WorkspaceComparer =
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
     private readonly ConcurrentDictionary<string, ManagedEntry> _entries;
@@ -253,6 +253,18 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         return responses.Values
             .OrderBy(e => e.CanonicalWorkspacePath, WorkspaceComparer)
             .ToArray();
+    }
+
+    internal IReadOnlyList<HubKnownWorkspace> ListKnown()
+    {
+        var running = List()
+            .Where(response => response.State == HubAppServerStates.Running)
+            .Select(response => response.CanonicalWorkspacePath)
+            .ToHashSet(WorkspaceComparer);
+        return [.. _persisted.Values.Select(record => new HubKnownWorkspace(
+            record.CanonicalWorkspacePath,
+            running.Contains(record.CanonicalWorkspacePath),
+            new[] { record.LastStartedAt, record.LastSeenAt, record.LastExitedAt }.Max()))];
     }
 
     private static bool ShouldListEntry(ManagedEntry entry) =>
@@ -1131,6 +1143,8 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             RecentStderr);
     }
 }
+
+internal sealed record HubKnownWorkspace(string CanonicalWorkspacePath, bool Running, DateTimeOffset? LastActiveAt);
 
 internal interface IManagedAppServerProcess : IAsyncDisposable
 {

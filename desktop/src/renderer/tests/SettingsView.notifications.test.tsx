@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { installDesktopApiMock } from './desktopApiMock'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { SettingsView } from '../components/settings/SettingsView'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -96,5 +96,19 @@ describe('SettingsView notification settings', () => {
       })
     })
     expect(select).toHaveValue('never')
+  })
+
+  it('persists turning off approval request notifications', async () => {
+    renderView()
+
+    fireEvent.click(await screen.findByRole('switch', { name: 'Approval requests' }))
+
+    await waitFor(() => {
+      expect(settingsSet).toHaveBeenCalledWith({
+        notifications: {
+          approvalRequests: false
+        }
+      })
+    })
   })
 })

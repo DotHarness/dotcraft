@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import Icon from './Icon.vue'
 import { useHome } from './home'
 import {
+  assetUrl,
   detectPlatform,
   loadManifest,
   PLATFORMS,
@@ -27,7 +28,7 @@ const mainLabel = computed(() =>
 )
 
 function assetHref(platform: Platform | null): string {
-  return platform && manifest.value ? manifest.value.assets[platform.assetId].url : RELEASES_PAGE
+  return platform && manifest.value ? assetUrl(manifest.value, platform) : RELEASES_PAGE
 }
 
 function download(event: MouseEvent, platform: Platform | null): void {

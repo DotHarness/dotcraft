@@ -40,4 +40,9 @@ public sealed class HubConfig
     /// </summary>
     [ConfigField(Min = 1, Max = 8760)]
     public int InviteTtlHours { get; set; } = 24;
+
+    public string MobileHost { get; set; } = "0.0.0.0";
+
+    [ConfigField(Min = 1, Max = 65535)]
+    public int MobilePort { get; set; } = 47610;
 }

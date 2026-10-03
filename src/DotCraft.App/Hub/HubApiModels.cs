@@ -16,7 +16,8 @@ public sealed record HubCapabilities(
     bool Events,
     bool Notifications,
     bool Tray,
-    bool Satellites);
+    bool Satellites,
+    bool Mobile);
 
 public sealed record HubErrorResponse(HubError Error);
 

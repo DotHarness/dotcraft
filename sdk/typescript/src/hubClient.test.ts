@@ -359,3 +359,119 @@ test("Satellite methods list, invite, and revoke through the authorized Hub API"
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("Mobile methods read, toggle, pair, and revoke through the authorized Hub API", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-mobile-"));
+  const originalFetch = globalThis.fetch;
+  try {
+    await mkdir(join(dir, ".craft", "hub"), { recursive: true });
+    await writeFile(join(dir, ".craft", "hub", "hub.lock"), JSON.stringify({
+      pid: process.pid,
+      apiBaseUrl: "http://127.0.0.1:49130",
+      token: "hub-token",
+    }), "utf8");
+
+    const state = {
+      state: "on",
+      port: 47610,
+      addresses: ["192.168.1.20"],
+      devices: [{
+        deviceId: "dev_001",
+        displayName: "iPhone 16",
+        platform: "ios",
+        osVersion: "18.6",
+        appVersion: "0.8.1",
+        pairedAt: "2026-10-03T08:00:00Z",
+        lastSeenAt: null,
+        connected: false,
+      }],
+    };
+    const calls: Array<{ method?: string; path: string; authorization?: string }> = [];
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      calls.push({ method: init?.method, path: url.pathname, authorization: headers.Authorization });
+      if (url.pathname === "/v1/status") {
+        return new Response(JSON.stringify({ capabilities: {} }), { status: 200 });
+      }
+      if (url.pathname === "/v1/mobile/pairings") {
+        return new Response(JSON.stringify({
+          error: { code: "gatewayOff", message: "Phone access is off.", details: {} },
+        }), { status: 409 });
+      }
+      if (url.pathname.startsWith("/v1/mobile/devices/")) {
+        return new Response(null, { status: 204 });
+      }
+      return new Response(JSON.stringify(state), { status: 200 });
+    }) as typeof fetch;
+
+    const client = new HubClient({ homeDir: dir });
+    assert.equal((await client.getMobile()).devices[0].deviceId, "dev_001");
+    assert.equal((await client.enableMobile()).state, "on");
+    await client.disableMobile();
+    await assert.rejects(
+      client.createMobilePairing(),
+      (error: unknown) => error instanceof HubClientError && error.code === "gatewayOff",
+    );
+    assert.equal(await client.revokeMobileDevice("dev/001"), undefined);
+
+    const mobileCalls = calls.filter((call) => call.path.startsWith("/v1/mobile"));
+    assert.ok(mobileCalls.every((call) => call.authorization === "Bearer hub-token"));
+    assert.deepEqual(
+      mobileCalls.map((call) => [call.method, call.path]),
+      [
+        ["GET", "/v1/mobile"],
+        ["POST", "/v1/mobile/enable"],
+        ["POST", "/v1/mobile/disable"],
+        ["POST", "/v1/mobile/pairings"],
+        ["DELETE", "/v1/mobile/devices/dev%2F001"],
+      ],
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("Mobile relay methods set and clear the relay through the authorized Hub API", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-mobile-relay-"));
+  const originalFetch = globalThis.fetch;
+  try {
+    await mkdir(join(dir, ".craft", "hub"), { recursive: true });
+    await writeFile(join(dir, ".craft", "hub", "hub.lock"), JSON.stringify({
+      pid: process.pid,
+      apiBaseUrl: "http://127.0.0.1:49131",
+      token: "hub-token",
+    }), "utf8");
+
+    const calls: Array<{ method?: string; path: string; authorization?: string; body?: string }> = [];
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      calls.push({
+        method: init?.method,
+        path: url.pathname,
+        authorization: headers.Authorization,
+        body: typeof init?.body === "string" ? init.body : undefined,
+      });
+      const relay = init?.method === "PUT" ? { url: "wss://relay.example.com", state: "connecting" } : null;
+      return new Response(JSON.stringify({ state: "on", port: 47610, addresses: [], devices: [], relay }), { status: 200 });
+    }) as typeof fetch;
+
+    const client = new HubClient({ homeDir: dir });
+    const set = await client.setMobileRelay("wss://relay.example.com", "relay-secret");
+    assert.deepEqual(set.relay, { url: "wss://relay.example.com", state: "connecting" });
+    assert.equal((await client.clearMobileRelay()).relay, null);
+
+    const relayCalls = calls.filter((call) => call.path === "/v1/mobile/relay");
+    assert.ok(relayCalls.every((call) => call.authorization === "Bearer hub-token"));
+    assert.deepEqual(relayCalls.map((call) => call.method), ["PUT", "DELETE"]);
+    assert.deepEqual(JSON.parse(relayCalls[0]?.body ?? "{}"), {
+      url: "wss://relay.example.com",
+      token: "relay-secret",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+    await rm(dir, { recursive: true, force: true });
+  }
+});

@@ -29,7 +29,7 @@ const lucide = [
   'download', 'external-link', 'file-code', 'layers', 'layout-dashboard', 'monitor', 'mouse-pointer-2', 'plug-zap',
   'puzzle', 'server', 'sparkles', 'terminal'
 ]
-const simple = ['apple', 'dotnet', 'github', 'linux', 'npm', 'nuget', 'windows']
+const simple = ['android', 'apple', 'dotnet', 'github', 'linux', 'npm', 'nuget', 'windows']
 
 async function loadAvatars(): Promise<typeof Avatars> {
   const result = await build({

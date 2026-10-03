@@ -1500,7 +1500,7 @@ public sealed class AppServerHost(
                 runtime.Paths.WorkspacePath,
                 spec.Kind,
                 spec.TitleKey,
-                FallbackText.Format(spec.TitleKey),
+                spec.TitleKey is null ? decision.DisplayName : FallbackText.Format(spec.TitleKey),
                 spec.BodyKey,
                 FallbackText.Format(spec.BodyKey, decision.DisplayName),
                 new { name = decision.DisplayName },

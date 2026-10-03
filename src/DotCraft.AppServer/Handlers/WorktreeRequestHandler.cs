@@ -209,9 +209,6 @@ internal sealed class WorktreeRequestHandler(
                 config.Model,
                 config.Reasoning);
         }
-
-        if (config.ApprovalTimeoutSeconds is < 1 or > 86400)
-            throw AppServerErrors.InvalidParams("'config.approvalTimeoutSeconds' must be between 1 and 86400.");
     }
 
     private SessionIdentity NormalizeIdentityWorkspace(SessionIdentity identity)

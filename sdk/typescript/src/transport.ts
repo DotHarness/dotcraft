@@ -4,27 +4,9 @@
 
 import { createInterface } from "node:readline";
 import WebSocket from "ws";
+import { type Transport, TransportClosed, TransportError } from "./transportCore.js";
 
-export class TransportError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "TransportError";
-  }
-}
-
-export class TransportClosed extends TransportError {
-  constructor(message = "Transport closed") {
-    super(message);
-    this.name = "TransportClosed";
-  }
-}
-
-/** Abstract transport that reads/writes JSON-RPC messages. */
-export interface Transport {
-  readMessage(): Promise<Record<string, unknown>>;
-  writeMessage(msg: Record<string, unknown>): Promise<void>;
-  close(): Promise<void>;
-}
+export { type Transport, TransportClosed, TransportError };
 
 /**
  * Newline-delimited JSON (JSONL) on stdin/stdout.

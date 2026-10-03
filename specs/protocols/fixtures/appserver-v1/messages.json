@@ -489,8 +489,7 @@
             "approvalType": "shell",
             "operation": "execute",
             "target": "fixture-command",
-            "scopeKey": "fixture-scope",
-            "expiresAt": "2026-01-01T00:05:00+00:00"
+            "scopeKey": "fixture-scope"
           }
         },
         { "jsonrpc": "2.0", "id": "approval_fixture", "result": { "decision": "decline" } }

@@ -181,6 +181,8 @@ public sealed partial class SessionService
 
             IDisposable? gateLock = null;
             IDisposable? approvalOverride = null;
+            SessionApprovalService? sessionApproval = null;
+            SessionUserInputRequestService? userInputRequestService = null;
             List<ChatMessage>? session = null;
             TokenTracker? tokenTracker = null;
             var itemProjector = new TurnItemProjector(
@@ -1105,11 +1107,11 @@ public sealed partial class SessionService
                         turnApprovalService = new DenyApprovalService();
                         break;
                     default:
-                        var sessionApproval = new SessionApprovalService(
+                        sessionApproval = new SessionApprovalService(
                             eventChannel,
                             turn,
                             NextItemSeq,
-                            ResolveApprovalTimeout(turnContext.Configuration.ApprovalTimeoutSeconds),
+                            executionCt,
                             turnRuntime.Interrupt,
                             approvalStore,
                             ThreadRuntimeSignalForBroadcast,
@@ -1135,11 +1137,11 @@ public sealed partial class SessionService
 
                 approvalOverride = SessionScopedApprovalService.SetOverride(turnApprovalService);
 
-                var userInputRequestService = new SessionUserInputRequestService(
+                userInputRequestService = new SessionUserInputRequestService(
                     eventChannel,
                     turn,
                     NextItemSeq,
-                    cts.Token,
+                    executionCt,
                     ThreadRuntimeSignalForBroadcast);
                 var userInputTurnRuntime = GetOrAddTurnRuntime(turnKey);
                 if (userInputTurnRuntime != null)
@@ -2299,6 +2301,8 @@ public sealed partial class SessionService
             {
                 RecordPromptSuggestionOutcome(thread, turn);
                 turnModelHistory?.AbortPending();
+                sessionApproval?.Close();
+                userInputRequestService?.Close();
                 approvalOverride?.Dispose();
                 gateLock?.Dispose();
                 if (!retiredResourcesReleased)

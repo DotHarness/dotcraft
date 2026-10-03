@@ -109,6 +109,8 @@ export interface ComputerUseSettings {
 
 export interface NotificationSettings {
   taskCompletionMode?: TaskCompletionNotificationMode
+  approvalRequests?: boolean
+  questions?: boolean
 }
 
 export interface ProfileSettings {
@@ -295,7 +297,9 @@ function normalizeNotificationSettings(settings: AppSettings): NotificationSetti
   const raw = settings.notifications
   const source: NotificationSettings = raw != null && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
   return {
-    taskCompletionMode: normalizeTaskCompletionNotificationMode(source.taskCompletionMode)
+    taskCompletionMode: normalizeTaskCompletionNotificationMode(source.taskCompletionMode),
+    approvalRequests: source.approvalRequests !== false,
+    questions: source.questions !== false
   }
 }
 

@@ -28,8 +28,7 @@ public static class SessionServiceFactory
     public static SessionService Create(
         AgentFactory agentFactory,
         ChatClientAgent? agent,
-        IServiceProvider sp,
-        TimeSpan? approvalTimeout = null)
+        IServiceProvider sp)
     {
         var loggerFactory = sp.GetService<ILoggerFactory>();
         var appConfigMonitor = sp.GetService<IAppConfigMonitor>();
@@ -42,7 +41,6 @@ public static class SessionServiceFactory
             sp.GetService<HookRunner>(),
             sp.GetService<TraceCollector>(),
             sp.GetService<TokenUsageStore>(),
-            approvalTimeout,
             logger: loggerFactory?.CreateLogger<SessionService>(),
             approvalStore: sp.GetService<ApprovalStore>(),
             toolProfileRegistry: sp.GetService<IToolProfileRegistry>(),

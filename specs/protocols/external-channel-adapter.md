@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.10 |
+| **Version** | 0.8.1 |
 | **Status** | Living |
-| **Date** | 2026-10-02 |
+| **Date** | 2026-10-03 |
 | **Parent Spec** | [AppServer Protocol](appserver-protocol.md) (Section 15) |
 
 Purpose: Define the architecture, protocol extensions, configuration model, and behavioral contract that allow social channel adapters written in any language to integrate with DotCraft as first-class channels, preserving per-platform capabilities such as the Approval flow.
@@ -188,13 +188,13 @@ The adapter **must** handle the following server-initiated requests:
 | `ext/channel/toolCall` | Execute a previously declared `channelTools` entry after any server-side gating implied by descriptor metadata; return structured success/failure data without mutating the declared tool set. |
 | `ext/channel/heartbeat` | Respond immediately with `{}`. |
 
-The adapter **must not** ignore these requests. Failure to respond causes the server to time out (approval: `-32020` turn failure; heartbeat: connection marked unhealthy).
+The adapter **must not** ignore these requests. An unanswered approval stays pending until a client answers it or its turn ends ([AppServer Protocol](appserver-protocol.md) §7.6); an unanswered heartbeat marks the connection unhealthy.
 
 ### 10.5 Connection Lifecycle (WebSocket Mode)
 
 - The adapter is responsible for reconnecting after a disconnection. It should use exponential backoff.
 - After reconnection, the adapter **must** re-perform the full `initialize` / `initialized` handshake.
-- Any turns that were in progress at disconnection time will have failed on the server (approval timeout or turn cancellation). The adapter should not attempt to resume those turns.
+- Turns that were in progress at disconnection time keep running on the server, and their pending approvals stay pending. The adapter should not attempt to resume those turns; resuming or subscribing to their threads replays any approval still pending.
 - A reconnect replaces the adapter's connection-owned `channelTools` binding. Tool snapshots bound to the previous connection are revoked immediately and are never dispatched through the replacement connection.
 
 ## 11. Approval Flow in External Channels
@@ -210,7 +210,7 @@ The adapter plays the client role in the [AppServer approval flow](appserver-pro
 - The adapter **must** present an approval prompt to the user on the platform using platform-native mechanisms (buttons, reply prompts, etc.).
 - The adapter **must** map the platform's callback identifier to the Wire Protocol `request.id` and send the JSON-RPC response when the user responds.
 - Multiple approval requests may be in flight on different threads simultaneously. The callback-to-request mapping **must** be per-request, not global.
-- If the user does not respond before the server's approval timeout (`-32020`), the turn fails. The adapter should clean up any pending approval UI on timeout.
+- The server has no approval timeout. When a request resolves without the adapter's answer, for example because its turn ended, the adapter receives `item/approval/resolved` and should clean up its pending approval UI.
 - An adapter that collects decisions from plain-text replies accepts each reply keyword with or without a leading `/`. While an approval is pending for a sender in a conversation, that sender's other messages in the conversation are not forwarded; the adapter answers each with a short reminder of the accepted replies. When the adapter's own approval wait expires, it responds `cancel` and tells the approver that the approval timed out.
 
 ### 11.3 Decision Values

@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.10 |
+| **Version** | 0.8.1 |
 | **Status** | Living |
-| **Date** | 2026-10-02 |
+| **Date** | 2026-10-03 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Machines over SSH](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md), [Session Import](../features/session-import.md), [Turn Navigation](../features/turn-navigation.md) |
+| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Machines over SSH](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [DotCraft Mobile](mobile.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md), [Session Import](../features/session-import.md), [Turn Navigation](../features/turn-navigation.md) |
 
 Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a protocol client for DotCraft AppServer. This document specifies user-visible flows, interaction rules, state transitions, and recovery behavior. It does not define frontend implementation details, visual design, or framework choices.
 
@@ -382,7 +382,7 @@ The pipeline applies to threads the server has already created. A conversation s
 
 Pending approval and model-initiated user-input requests are part of the active turn and must survive ordinary Desktop navigation.
 
-- Switching away from a thread is not a decline, cancel, approval timeout, empty user-input answer, or dismissal.
+- Switching away from a thread is not a decline, cancel, empty user-input answer, or dismissal.
 - If `item/approval/request` or `item/tool/requestUserInput` arrives while its source thread is not the active fully-restored thread, while conversation rendering is paused, or while deferred conversation updates have not been reconciled, Desktop parks the request on that source thread instead of presenting it immediately.
 - Desktop activates parked requests only after the current restore generation has completed its header and history head-page hydration. A request that arrives during hydration requires the relevant entity to be reconciled from its notification or a fresh head page before the composer may appear.
 - Replayed requests are matched by logical identity: `method + threadId + turnId + requestId`. A fresh JSON-RPC envelope id is transport state and must not make the prompt a new logical request.
@@ -452,7 +452,7 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
 7. The user may use the free-form `Other` row when provided. `Other` is always a native inline input row with placeholder text; secret questions mask this input. Clicking the `Other` row only selects/focuses the input and does not auto-advance. Switching questions preserves each question's selected option and `Other` text.
 8. The question composer uses the same compact type scale as the normal conversation and plan approval composer: the question text is regular UI heading weight, options are normal UI text, and the input row uses native input sizing.
 9. Desktop sends the JSON-RPC response immediately and acknowledges the answer locally; the server later confirms with `item/tool/requestUserInput/resolved`.
-10. If the user switches threads while a request is pending, Desktop parks the request on the source thread, shows that thread as needing an answer in the sidebar, and may show a native notification when the window is unfocused.
+10. If the user switches threads while a request is pending, Desktop parks the request on the source thread and shows that thread as needing an answer in the sidebar. The OS notification for a pending approval or question follows §6.7 and appears at most once per request.
 11. When the user returns to a thread that is still in `waitingInput` or `waitingApproval`, Desktop restores the active turn state from history/runtime hydration and accepts AppServer's replayed unresolved request even if it arrives before or after history hydration. Switching threads alone must never send an empty answer.
 
 ### 5.8 View Changes, Plans, and Tool Output
@@ -887,7 +887,7 @@ Required behavior:
   - provider testing uses `provider/test` and must not perform hidden chat-completion requests;
   - unsupported model listing remains a recoverable setup state with manual model entry.
 - Settings actions are group-scoped (for example Apply, Restart, or Apply & Restart) based on the tier semantics of that group. There is no page-level Save/Cancel footer.
-- The Connections settings page is one entry with a segmented control that separates connection kinds by direction: **Workspace** (how this Desktop connects to the workspace runtime), **Satellites** (other PCs the user's agent can run tools on, §6.11), **Share this PC** (who may run tools on this PC through the local Satellite runtime, §6.11), and **SSH** (machines this PC reaches over SSH, §6.10). Each segment owns its own model, list, and single primary action; segments never share state or rows. Segments whose backing capability is absent show a setup state rather than disappearing, except that Share this PC may be hidden when no Satellite runtime state exists on the machine.
+- The Connections settings page is one entry with a segmented control that separates connection kinds by direction: **Workspace** (how this Desktop connects to the workspace runtime), **Satellites** (other PCs the user's agent can run tools on, §6.11), **Share this PC** (who may run tools on this PC through the local Satellite runtime, §6.11), **SSH** (machines this PC reaches over SSH, §6.10), and **Phones** (phones that may control this computer, §6.15). Each segment owns its own model, list, and single primary action; segments never share state or rows. Segments whose backing capability is absent show a setup state rather than disappearing, except that Share this PC may be hidden when no Satellite runtime state exists on the machine.
 - The Workspace segment distinguishes lifecycle ownership:
   - Local mode shows Hub-managed AppServer actions, including Apply & Restart when local process settings change.
   - Remote mode uses Apply & Connect for URL/token changes, validates before persisting, and hides or disables local-only AppServer binary and restart controls with explanatory copy.
@@ -902,6 +902,7 @@ Required behavior:
   - When `sourceControl/get.capabilities.perforceChangelist = true`, Desktop replaces the Git branch footer selector with a Perforce changelist selector and changes the Thread Header commit action to `Checkout`.
   - `Checkout` calls `sourceControl/changelist/prepare` and never falls back to a local Git commit; when the description is blank, Desktop first calls `workspace/commitMessage/suggest` with `provider = "perforce"` to generate a changelist description from AppServer-side Perforce context. The Checkout dialog lets users choose the current target, another pending changelist, or `New Changelist`; `New Changelist` sends `target = "default"` so AppServer creates a numbered pending changelist during prepare. The dialog and toast copy must avoid submit/commit semantics. Desktop does not expose Perforce submit or shelve.
   - A successful `Checkout` may move files that are already opened in another pending changelist into the selected target; Desktop treats the selected thread target as the user's explicit prepare intent.
+- Settings → General has a Notifications group with Task completion notifications (`whenUnfocused` by default, `always`, or `never`) and two switches, Approval requests and Questions, both on by default. While a switch is on, the tray shows an OS notification titled with the chat name when a turn starts waiting on an approval ("Needs your approval") or a question ("Has a question for you"), only when no focused Desktop window has that workspace in the foreground; clicking it opens the chat when the chat began in Desktop. These Desktop-local preferences gate the Hub notification kinds in [Hub Architecture §10](../architecture/hub-architecture.md#10-tray-and-notifications). Where Hub cannot deliver them, because the foreground connection is not a Hub-managed local AppServer (Remote mode, SSH and Docker projects) or the tray is not running, the window shows the same notification itself, under the same switches and only while the window is unfocused; clicking it opens the chat. The window notifies when a request first arrives and never again for the same request, so a request replayed after a reconnect or thread switch does not notify twice.
 - Desktop exposes a personal `Pet` tab after Appearance for the default companion's colour, outfit, bag, and exchange (§6.13).
 - Desktop exposes a workspace-level `Personalization` tab with an `Enable personalized welcome suggestions` toggle backed by workspace config rather than client-global preferences.
 - Desktop groups Personalization settings into Conversation, Skills, and Memory cards when the corresponding capabilities are available. Empty groups are hidden.
@@ -1128,6 +1129,21 @@ Packaged Windows builds update themselves from GitHub Releases through `electron
 - A verified download makes the update ready. The title bar shows an update control whose dialog restarts DotCraft into a silent install of the same installation. An update that is ready but not installed survives restarts without downloading again.
 - The Help menu ends with **Check for Updates…**. A manual check reports an up-to-date app or a failed check in a native message box and opens the update dialog when it finds an update. `Settings › General` shows only the app version. Background check failures stay silent.
 - Each release publishes `DotCraft-v<version>-win-<arch>-Setup.exe` with its `.blockmap` for every Windows architecture and one `latest.yml` listing all of them; the updater selects the installer whose name contains the running architecture.
+
+### 6.15 Phones
+
+The **Phones** segment of the Connections settings page (§6.7) lists the phones that may control this computer and turns phone access on and off. The mobile gateway, pairing codes, and device records are defined in [DotCraft Mobile](mobile.md#9-desktop-phones-segment); this section states only the Desktop rules around them.
+
+- The Desktop main process reaches the gateway through the Hub Local API `/v1/mobile*` routes and `mobile.*` Hub SSE events, the same plane as Satellites enrollment (§6.11). The Hub bearer token never crosses into the renderer. The renderer receives the gateway state and device records reduced to the fields it shows, and the QR payload for display only; pairing codes and payloads stay in memory while the dialog is open and are never persisted.
+- The segment shows a setup state when Hub is unavailable or does not report phone access, following the Satellites segment.
+- The access switch maps to enable and disable. A failed start shows a notice above the switch naming the reason from `failureCode`, such as the port being in use; the switch then reads off, and turning it on retries.
+- The phone list stays visible while access is off or failed, so a phone can be removed without turning access on. A row shows the name, "Connected now" while access is on and the phone is connected or "Last seen" with a relative time otherwise, and the platform with the date it was added. Remove sits in the row menu behind a confirmation.
+- **Add phone** is the segment's one primary action. While access is not on it is disabled with a tooltip saying to turn access on, and the empty state that offers it appears only while access is on.
+- The Add phone dialog mints a code when it opens and shows the QR code, rendered by Desktop from the payload, with a countdown to `expiresAt`. Refresh mints a new code, which invalidates the previous one. At zero the dialog shows the expired state with New code, and a failed mint shows the reason with Try again. The dialog moves to its paired state only on `mobile.devicePaired` whose `pairingId` matches the code it minted; access turning off while a code is shown ends that code.
+- **Access from anywhere** sets the relay of [DotCraft Mobile](mobile.md#12-off-network-access) through `PUT` and `DELETE /v1/mobile/relay`, and follows `relay` from the state object and `mobile.stateChanged`. The relay token goes from the renderer to the main process only when saving; it never enters renderer state, and Hub never returns it. Without a relay the group states what it does and offers Set up. With one it shows the address, a status line for `relay.state` (a spinner while connecting, then connected or couldn't connect), and Change and Remove, with Remove behind a confirmation. Set up and Change open one dialog with the address and the token; the token is entered again on every change, and a failed save shows the reason in the dialog. While access is not on, the actions are disabled with a tooltip saying to turn access on, and the status line reads paused. Setting, changing, or removing the relay leaves existing pairings unchanged.
+- In Remote mode (§3.1.1) the segment still manages this Desktop's own Hub, as the Satellites segment does. Phones reach the projects that Hub manages on this computer, never the remote AppServer Desktop is attached to.
+
+Visual treatment follows [Desktop DESIGN.md](../architecture/DESIGN.md).
 
 ## 7. Keyboard Accessibility and Localization
 

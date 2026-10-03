@@ -168,7 +168,6 @@ All SDK errors derive from `DotCraftError` and carry a stable `code`.
 | `TurnInProgressError` | The thread already has an active turn. |
 | `ThreadNotFoundError` / `ThreadNotActiveError` | The target thread is missing or cannot run. |
 | `TurnFailedError` / `TurnCancelledError` | A buffered run reached a failed or cancelled terminal state. |
-| `ApprovalTimeoutError` | AppServer reports approval timeout. |
 | `ProtocolViolationError` | A known message does not match its contract. |
 
 `JsonRpcError` and the transport-level errors `TransportError`, `TransportClosed`, `RequestTimeoutError`, and `ReconnectQueueFullError` are exported from the Wire entry point.

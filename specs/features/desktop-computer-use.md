@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.8.1 |
 | **Status** | Draft |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-03 |
 | **Parent Specs** | [Desktop Node REPL](node-repl.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: define how DotCraft Desktop lets the agent observe and operate native desktop applications on the user's Windows computer through the thread-bound Node REPL.
@@ -90,7 +90,7 @@ Every method that takes `window` or `app` is authorized first (Section 6). `list
 | `computer_use_busy` | Another computer use request is running on this Desktop. The call is not queued. |
 | `computer_use_stopped` | The user stopped computer use for this turn, or the desktop was locked. Every later call in the same turn fails with this code. |
 | `app_blocked` | The target application is blocked (Section 6.1). |
-| `app_not_approved` | The user declined, the approval timed out, or the thread policy denied access. |
+| `app_not_approved` | The user declined, the turn ended before an answer, or the thread policy denied access. |
 | `app_unidentified` | The runtime could not resolve the window's application. |
 | `invalid_key` | A key or modifier name is not supported, or the chord uses a Windows-logo key. |
 | `driver_unavailable` | The driver could not start or stopped unexpectedly. |
@@ -134,7 +134,7 @@ For each gated call, Desktop main:
 - `ext/nodeRepl/requestApproval` is a client-to-server request tied to an in-flight evaluation. It carries the owning thread, turn and evaluation identities.
 - The AppServer uses the approval service of the turn that issued the evaluation. The approval request uses `approvalType = "computerUse"`, `operation = "use"`, `target = <application id>` and `targetLabel = <display name>`; `scopeKey` is derived from the application id.
 - Thread approval policy applies unchanged: `autoApprove` allows, `deny` declines, hooks may decide, and a prior `acceptForSession` for the same application in the thread allows without a new request.
-- While the approval is pending, the evaluate deadline is paused on both the AppServer and Desktop. The approval uses the thread approval timeout; timing out declines.
+- While the approval is pending, the evaluate deadline is paused on both the AppServer and Desktop. The approval has no timeout; it stays pending until answered or until the turn ends, which declines it.
 - When an approval request arrives for the thread and turn that currently own computer use, Desktop brings its main window to the front and shows that thread.
 - The approval UI offers three choices: always allow, allow for this thread, and decline. They map to `acceptAlways`, `acceptForSession` and `decline`.
 

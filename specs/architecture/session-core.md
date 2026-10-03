@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.10 |
+| **Version** | 0.8.1 |
 | **Status** | Living |
-| **Date** | 2026-10-02 |
+| **Date** | 2026-10-03 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -947,7 +947,7 @@ WaitingApproval/WaitingInput ──────────► Cancelled
 
 - `Running`, `WaitingApproval`, or `WaitingInput` → `Cancelled`
 - The adapter requests cancellation (e.g., user sends `/cancel`, channel disconnects).
-- Session Core cancels the agent execution via `CancellationToken`, completes any currently streaming agent/reasoning Items with their accumulated text, and appends partial domain and model history to rollout. A cancellation must not restore pre-compaction tool results or summaries that were no longer model-visible.
+- Session Core resolves the Turn's pending approval and user-input requests (Section 10.2), cancels the agent execution via `CancellationToken`, completes any currently streaming agent/reasoning Items with their accumulated text, and appends partial domain and model history to rollout. A cancellation must not restore pre-compaction tool results or summaries that were no longer model-visible.
 
 **Terminal states**: `Completed`, `Failed`, `Cancelled`. A Turn in a terminal state cannot transition.
 
@@ -1762,9 +1762,11 @@ Approvals are part of the turn model, not an out-of-band concern owned by indivi
 When a tool execution requires approval, Session Core must:
 
 - emit an approval request event tied to the active turn
-- pause the affected execution path until resolution or timeout
+- pause the affected execution path until an adapter resolves the request or the Turn ends; approvals have no timeout
 - record the approval outcome in the turn history
 - resume or reject the operation accordingly
+
+When a Turn is cancelled, completes, or fails with approval or user-input requests still pending, Session Core resolves each one before the Turn's terminal event where it can: an approval as `CancelTurn`, so its operation does not run, and a user-input request with an empty response. Each resolution creates its response Item and emits the resolved event. A later resolution attempt for the same request is ignored, and a request raised after its Turn ended is rejected without prompting.
 
 The adapter is responsible only for presenting the request and returning the decision.
 
@@ -1777,7 +1779,7 @@ The adapter is responsible only for presenting the request and returning the dec
 
 `RequestUserInput` is a model tool that lets the agent ask one to three short structured questions before continuing. It is exposed only to main user threads, not SubAgents, and remains schema-stable across Agent and Plan modes.
 
-Each persisted `UserInputRequest` carries a required `isBlocking` value selected by Session Core from the active mode: `true` in Plan mode and `false` in Agent mode. The flag is client-facing lifecycle metadata, not a model tool argument. It does not change the server-side wait: both modes pause until the adapter resolves the request or the turn is cancelled.
+Each persisted `UserInputRequest` carries a required `isBlocking` value selected by Session Core from the active mode: `true` in Plan mode and `false` in Agent mode. The flag is client-facing lifecycle metadata, not a model tool argument. It does not change the server-side wait: both modes pause until the adapter resolves the request or the turn ends.
 
 When the tool is invoked, Session Core must:
 
@@ -1810,9 +1812,8 @@ Prompt composition describes the choice only when the corresponding tools are av
 | **Provider Rate Limit, Quota, or Overload** | The provider reports throttling, an exhausted plan or balance, or that the selected model is at capacity | Classify each case distinctly. Throttling is retryable and honors a server-advised delay when the provider supplies one. Quota exhaustion and explicit capacity rejection are terminal. The Error Item carries the classification and, when the provider supplies it, the reset time, so clients can offer the correct next action instead of a generic failure. |
 | **Tool Execution Error** | Unified dispatch returns or classifies a tool failure | Native/plugin calls complete `ToolResult` with stable failure fields; MCP and Runtime Dynamic calls complete their specialized lifecycle item as failed. The normalized textual failure is returned to the model, which decides whether to retry or stop. |
 | **Incomplete Historical Tool Pair** | Persisted or in-memory model history contains a `tool_use`/function call without an immediately following `tool_result`/function result | Repair or filter the model request before provider submission so strict providers can accept the history. The repair is request-local and does not silently mutate rollout evidence. |
-| **Approval Timeout** | Adapter does not resolve approval within timeout | Reject the approval. Create Error Item noting timeout. Raise the approval-resolved runtime signal, as a decision would. Tool receives rejection. Agent may continue or fail. |
 | **Turn Timeout** | Turn exceeds configurable time limit | Cancel the `CancellationToken`. Create Error Item. Set Turn status = Failed. |
-| **Cancellation** | Adapter calls `CancelTurn` | Cancel the `CancellationToken`. Set Turn status = Cancelled. Save partial state. |
+| **Cancellation** | Adapter calls `CancelTurn` | Resolve pending approval and user-input requests (Section 10.2). Cancel the `CancellationToken`. Set Turn status = Cancelled. Save partial state. |
 | **Prompt Hook Blocked** | PrePrompt hook returns `Blocked = true` | Create Error Item with block reason. Set Turn status = Failed. No agent invocation occurs. |
 
 #### Thread-Level Failures
@@ -1837,7 +1838,7 @@ Prompt composition describes the choice only when the corresponding tools are av
 | Failure | Trigger | Behavior |
 |---------|---------|----------|
 | **Adapter Disconnects Mid-Turn** | An adapter's transport drops mid-turn | Turn continues to completion. Events are emitted to a dead consumer (buffered and eventually dropped). On reconnect, the adapter can resume the Thread and see the completed Turn's results. |
-| **Adapter Never Resolves Approval** | Channel disconnects while WaitingApproval | Approval timeout fires. Approval is rejected. Turn continues. |
+| **Adapter Never Resolves Approval** | Channel disconnects while WaitingApproval | The approval stays pending. Another adapter may resolve it; otherwise it resolves as `CancelTurn` when the Turn ends. |
 
 ### 11.2 Recovery Strategy
 

@@ -33,19 +33,29 @@ public sealed partial class SessionServiceInterruptionTests
         {
             if (turn?.Status is TurnStatus.WaitingApproval or TurnStatus.WaitingInput) waiting.TrySetResult();
         };
-        var run = Drain(service.SubmitInputAsync(thread.Id, [new TextContent("ask")]));
+        var events = new List<SessionEvent>();
+        var run = Collect(service.SubmitInputAsync(thread.Id, [new TextContent("ask")]), events);
         await waiting.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        if (approval)
-        {
-            var turn = thread.Turns[^1];
-            var request = Assert.Single(turn.Items.Select(item => item.Payload).OfType<ApprovalRequestPayload>());
-            await service.ResolveApprovalAsync(thread.Id, turn.Id, request.RequestId, SessionApprovalDecision.CancelTurn);
-        }
-        else
-            await service.CancelTurnAsync(thread.Id, thread.Turns[^1].Id);
+        await service.CancelTurnAsync(thread.Id, thread.Turns[^1].Id);
         await run.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Equal(TurnStatus.Cancelled, thread.Turns[^1].Status);
+        var turn = thread.Turns[^1];
+        Assert.Equal(TurnStatus.Cancelled, turn.Status);
+        if (approval)
+            Assert.Equal(SessionApprovalDecision.CancelTurn, Assert.Single(turn.Items.Select(item => item.Payload).OfType<ApprovalResponsePayload>()).Decision);
+        else
+            Assert.Empty(Assert.Single(turn.Items.Select(item => item.Payload).OfType<UserInputResponsePayload>()).Response.Answers);
+        var resolved = approval ? SessionEventType.ApprovalResolved : SessionEventType.UserInputResolved;
+        Assert.InRange(
+            events.FindIndex(evt => evt.EventType == resolved),
+            0,
+            events.FindIndex(evt => evt.EventType == SessionEventType.TurnCancelled));
         Assert.Single(await store.LoadModelHistoryAsync(thread.Id), IsMarker);
+    }
+
+    private static async Task Collect(IAsyncEnumerable<SessionEvent> source, List<SessionEvent> events)
+    {
+        await foreach (var evt in source)
+            events.Add(evt);
     }
 
     [Fact]

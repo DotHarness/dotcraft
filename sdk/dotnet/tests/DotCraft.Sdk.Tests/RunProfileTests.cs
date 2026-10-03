@@ -171,7 +171,7 @@ public sealed class RunProfileTests
             jsonrpc = "2.0", id = 42, method = "item/approval/request", @params = new ApprovalRequestParams
             {
                 ThreadId = "thread_1", TurnId = "turn_1", ItemId = "item_1", RequestId = "approval_1",
-                ApprovalType = "shell", Operation = "deploy", Target = "production", ScopeKey = "workspace", ExpiresAt = Now
+                ApprovalType = "shell", Operation = "deploy", Target = "production", ScopeKey = "workspace"
             }
         });
         using (var outbound = await transport.ReadOutboundAsync())

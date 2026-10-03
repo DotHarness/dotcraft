@@ -43,7 +43,6 @@ internal static class ThreadConfigurationCloner
         DeveloperInstructions = source.DeveloperInstructions,
         OverrideBasePrompt = source.OverrideBasePrompt,
         ApprovalPolicy = source.ApprovalPolicy,
-        ApprovalTimeoutSeconds = source.ApprovalTimeoutSeconds,
         AutomationTaskDirectory = source.AutomationTaskDirectory,
         RequireApprovalOutsideWorkspace = source.RequireApprovalOutsideWorkspace
     };

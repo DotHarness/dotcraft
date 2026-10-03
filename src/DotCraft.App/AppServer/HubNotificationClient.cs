@@ -11,7 +11,7 @@ internal static class HubNotificationClient
     public static async Task RequestAsync(
         string workspacePath,
         string kind,
-        string titleKey,
+        string? titleKey,
         string title,
         string? bodyKey,
         string? body,

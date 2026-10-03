@@ -6,7 +6,7 @@ namespace DotCraft.AppServer;
 
 internal sealed record HubTurnNotificationSpec(
     string Kind,
-    string TitleKey,
+    string? TitleKey,
     string BodyKey,
     string Severity);
 
@@ -31,6 +31,16 @@ internal static class HubTurnNotificationPolicy
                 "hub.notification.turn_failed.title",
                 "hub.notification.turn_failed.body",
                 "error"),
+            SessionThreadRuntimeSignal.ApprovalRequested => new HubTurnNotificationSpec(
+                "approvalRequested",
+                null,
+                "hub.notification.approval_requested.body",
+                "info"),
+            SessionThreadRuntimeSignal.UserInputRequested => new HubTurnNotificationSpec(
+                "inputRequested",
+                null,
+                "hub.notification.input_requested.body",
+                "info"),
             _ => null
         };
 

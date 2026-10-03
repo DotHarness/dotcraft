@@ -7,22 +7,22 @@ namespace DotCraft.Sessions;
 /// <summary>
 /// Per-Turn IApprovalService that routes approval requests through the Session event stream.
 /// When a tool requests approval, this service creates an ApprovalRequest Item, emits the
-/// approval/requested event, and suspends tool execution until the adapter calls ResolveApproval.
+/// approval/requested event, and suspends tool execution until the adapter calls ResolveApproval
+/// or the Turn ends.
 /// </summary>
 internal sealed class SessionApprovalService : IApprovalService
 {
     private readonly SessionEventChannel _channel;
     private readonly SessionTurn _turn;
     private readonly Func<int> _nextItemSeq;
-    private readonly TimeSpan _timeout;
     private readonly Action _cancelTurn;
     private readonly ApprovalStore? _store;
     private readonly Action<string, SessionThreadRuntimeSignal, SessionTurn?>? _runtimeSignalForBroadcast;
     private readonly SessionApprovalScopeRegistry _sessionScopes;
+    private readonly Lock _gate = new();
+    private bool _closed;
 
     private readonly ConcurrentDictionary<string, PendingApproval> _pending = new();
-
-    private DateTimeOffset ApprovalExpiry() => DateTimeOffset.UtcNow.Add(_timeout);
 
     private sealed class PendingApproval(
         string scopeKey,
@@ -44,7 +44,7 @@ internal sealed class SessionApprovalService : IApprovalService
         SessionEventChannel channel,
         SessionTurn turn,
         Func<int> nextItemSeq,
-        TimeSpan timeout,
+        CancellationToken turnCancellationToken,
         Action cancelTurn,
         ApprovalStore? store = null,
         Action<string, SessionThreadRuntimeSignal, SessionTurn?>? runtimeSignalForBroadcast = null,
@@ -53,11 +53,11 @@ internal sealed class SessionApprovalService : IApprovalService
         _channel = channel;
         _turn = turn;
         _nextItemSeq = nextItemSeq;
-        _timeout = timeout;
         _cancelTurn = cancelTurn;
         _store = store;
         _runtimeSignalForBroadcast = runtimeSignalForBroadcast;
         _sessionScopes = sessionScopes ?? new SessionApprovalScopeRegistry();
+        turnCancellationToken.Register(Close);
     }
 
     /// <summary>
@@ -79,8 +79,7 @@ internal sealed class SessionApprovalService : IApprovalService
             Target = path,
             RequestId = requestId,
             ScopeKey = scopeKey,
-            Reason = $"Agent wants to perform a '{operation}' file operation on: {path}",
-            ExpiresAt = ApprovalExpiry()
+            Reason = $"Agent wants to perform a '{operation}' file operation on: {path}"
         };
         return RequestApprovalAsync(requestId, scopeKey, payload);
     }
@@ -99,7 +98,6 @@ internal sealed class SessionApprovalService : IApprovalService
             RequestId = requestId,
             ScopeKey = scopeKey,
             Reason = ShellApprovalReason(request),
-            ExpiresAt = ApprovalExpiry(),
             Shell = ShellApprovalDetails.From(request)
         };
         return RequestApprovalAsync(requestId, scopeKey, payload, request);
@@ -135,8 +133,7 @@ internal sealed class SessionApprovalService : IApprovalService
             ScopeKey = scopeKey,
             Reason = string.IsNullOrWhiteSpace(request.TargetLabel)
                 ? $"Agent wants to perform '{request.Operation}' on remote resource: {request.Target}"
-                : $"Agent wants to {request.Operation} {request.TargetLabel}.",
-            ExpiresAt = ApprovalExpiry()
+                : $"Agent wants to {request.Operation} {request.TargetLabel}."
         };
         return RequestApprovalAsync(requestId, scopeKey, payload, persistAcceptAlways: request.PersistAcceptAlways);
     }
@@ -156,6 +153,36 @@ internal sealed class SessionApprovalService : IApprovalService
         if (decision.IsPersistent() && pending.PersistAcceptAlways)
             PersistApproval(pending);
 
+        RecordResolution(requestId, decision);
+
+        if (decision == SessionApprovalDecision.CancelTurn)
+            _cancelTurn();
+
+        pending.Completion.TrySetResult(decision);
+        return true;
+    }
+
+    /// <summary>
+    /// Resolves every pending request as <see cref="SessionApprovalDecision.CancelTurn"/> because the Turn ended,
+    /// and rejects any later request without prompting.
+    /// </summary>
+    public void Close()
+    {
+        lock (_gate)
+            _closed = true;
+
+        foreach (var requestId in _pending.Keys)
+        {
+            if (!_pending.TryRemove(requestId, out var pending))
+                continue;
+
+            RecordResolution(requestId, SessionApprovalDecision.CancelTurn);
+            pending.Completion.TrySetResult(SessionApprovalDecision.CancelTurn);
+        }
+    }
+
+    private void RecordResolution(string requestId, SessionApprovalDecision decision)
+    {
         var responseItem = CreateItem(ItemType.ApprovalResponse, new ApprovalResponsePayload
         {
             RequestId = requestId,
@@ -164,22 +191,14 @@ internal sealed class SessionApprovalService : IApprovalService
         });
         _turn.Items.Add(responseItem);
 
-        // Restore Running status before completing TCS so the Turn status is correct
-        // when agent execution resumes. Parallel tool calls can leave more approvals
-        // pending in the same turn, so keep the turn visibly blocked until the last
-        // one is resolved.
-        _turn.Status = _pending.IsEmpty ? TurnStatus.Running : TurnStatus.WaitingApproval;
+        // Parallel tool calls can leave more approvals pending, so the turn stays blocked until the last one resolves.
+        if (_turn.Status == TurnStatus.WaitingApproval)
+            _turn.Status = _pending.IsEmpty ? TurnStatus.Running : TurnStatus.WaitingApproval;
 
         _channel.EmitItemStarted(responseItem);
         _channel.EmitApprovalResolved(responseItem);
         _channel.EmitItemCompleted(responseItem);
         _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.ApprovalResolved, _turn);
-
-        if (decision == SessionApprovalDecision.CancelTurn)
-            _cancelTurn();
-
-        pending.Completion.TrySetResult(decision);
-        return true;
     }
 
     private async Task<bool> RequestApprovalAsync(
@@ -195,38 +214,22 @@ internal sealed class SessionApprovalService : IApprovalService
         if (persistAcceptAlways && IsPersistedApproval(payload, shellRequest))
             return true;
 
-        var requestItem = CreateItem(ItemType.ApprovalRequest, payload);
-        _turn.Items.Add(requestItem);
-        _turn.Status = TurnStatus.WaitingApproval;
-
-        // Register TCS before emitting the event so there's no race
         var tcs = new TaskCompletionSource<SessionApprovalDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _pending[requestId] = new PendingApproval(scopeKey, payload, tcs, shellRequest, persistAcceptAlways);
-
-        _channel.EmitItemStarted(requestItem);
-        _channel.EmitItemCompleted(requestItem);
-        _channel.EmitApprovalRequested(requestItem);
-        _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.ApprovalRequested, _turn);
-
-        using var cts = new CancellationTokenSource(_timeout);
-        await using var reg = cts.Token.Register(() =>
+        lock (_gate)
         {
-            if (_pending.TryRemove(requestId, out var pending))
-            {
-                var errorItem = CreateItem(ItemType.Error, new ErrorPayload
-                {
-                    Message = $"Approval request '{requestId}' timed out after {_timeout.TotalSeconds:0}s.",
-                    Code = "approval_timeout",
-                    Fatal = false
-                });
-                _turn.Items.Add(errorItem);
-                _turn.Status = _pending.IsEmpty ? TurnStatus.Running : TurnStatus.WaitingApproval;
-                _channel.EmitItemStarted(errorItem);
-                _channel.EmitItemCompleted(errorItem);
-                _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.ApprovalResolved, _turn);
-                pending.Completion.TrySetResult(SessionApprovalDecision.Reject);
-            }
-        });
+            if (_closed)
+                return false;
+
+            var requestItem = CreateItem(ItemType.ApprovalRequest, payload);
+            _turn.Items.Add(requestItem);
+            _turn.Status = TurnStatus.WaitingApproval;
+            _pending[requestId] = new PendingApproval(scopeKey, payload, tcs, shellRequest, persistAcceptAlways);
+
+            _channel.EmitItemStarted(requestItem);
+            _channel.EmitItemCompleted(requestItem);
+            _channel.EmitApprovalRequested(requestItem);
+            _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.ApprovalRequested, _turn);
+        }
 
         var decision = await tcs.Task;
         return decision.IsApproved();

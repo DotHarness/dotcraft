@@ -6,6 +6,8 @@ import {
   type HubEnsureAppServerOptions,
   type HubEvent,
   type HubManagedServiceResponse,
+  type HubMobilePairing,
+  type HubMobileState,
   type HubRuntimeToolsRequest,
   type HubSatellite,
   type HubSatelliteInvite,
@@ -84,6 +86,34 @@ export class DesktopHubClient {
 
   revokeSatellite(peerId: string): Promise<void> {
     return this.run(() => this.inner.revokeSatellite(peerId))
+  }
+
+  getMobile(): Promise<HubMobileState> {
+    return this.run(() => this.inner.getMobile())
+  }
+
+  enableMobile(): Promise<HubMobileState> {
+    return this.run(() => this.inner.enableMobile())
+  }
+
+  disableMobile(): Promise<HubMobileState> {
+    return this.run(() => this.inner.disableMobile())
+  }
+
+  createMobilePairing(): Promise<HubMobilePairing> {
+    return this.run(() => this.inner.createMobilePairing())
+  }
+
+  revokeMobileDevice(deviceId: string): Promise<void> {
+    return this.run(() => this.inner.revokeMobileDevice(deviceId))
+  }
+
+  setMobileRelay(url: string, token: string): Promise<HubMobileState> {
+    return this.run(() => this.inner.setMobileRelay(url, token))
+  }
+
+  clearMobileRelay(): Promise<HubMobileState> {
+    return this.run(() => this.inner.clearMobileRelay())
   }
 
   subscribeEvents(onEvent: (event: HubEvent) => void, signal: AbortSignal): Promise<void> {

@@ -121,6 +121,7 @@ export function FormActions({ saving, onSave }: FormActionsProps): JSX.Element {
 }
 
 interface SecretInputProps {
+  id?: string
   value: string
   placeholder?: string
   ariaLabel?: string
@@ -131,6 +132,7 @@ interface SecretInputProps {
 }
 
 export function SecretInput({
+  id,
   value,
   placeholder,
   ariaLabel,
@@ -144,6 +146,7 @@ export function SecretInput({
   return (
     <div style={{ position: 'relative' }}>
       <Input
+        id={id}
         type={visible ? 'text' : 'password'}
         value={value}
         placeholder={placeholder}

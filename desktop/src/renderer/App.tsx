@@ -1917,16 +1917,10 @@ export function App(): JSX.Element {
             const rawTurn = (p.turn ?? p) as Record<string, unknown>
             const failedThreadId = (rawTurn.threadId as string | undefined) ?? (p.threadId as string | undefined)
             const error = (p.error as string) ?? (p.message as string) ?? 'Unknown error'
-            const errorCode = (p.code as number | undefined)
-              ?? ((p.error as Record<string, unknown> | undefined)?.code as number | undefined)
             if (failedThreadId) {
               void window.api.skillMarket?.cleanupDotCraftInstall?.({ threadId: failedThreadId }).catch(() => {})
             }
-            // -32020 = approval timeout — update the pending approval card
             if (shouldUpdateActiveConversation(failedThreadId)) {
-              if (errorCode === -32020 || error.includes('-32020')) {
-                conv.onApprovalTimeout()
-              }
               conv.onTurnFailed(rawTurn, error)
             }
 

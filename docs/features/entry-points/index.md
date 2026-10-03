@@ -1,14 +1,15 @@
 # Entry points overview
 
-One workspace opens from several surfaces: the desktop app, a terminal, your editor, a bot in a group chat. Whichever you come in through, you're talking to the same agent. It reads the same `.craft/` and shares the same threads and the same memory. All that changes is the surface you talk to it through.
+One workspace opens from several surfaces: the desktop app, a terminal, your editor, your phone, a bot in a group chat. Whichever you come in through, you're talking to the same agent. It reads the same `.craft/` and shares the same threads and the same memory. All that changes is the surface you talk to it through.
 
 ![Desktop, CLI, editors, and chat bots all connecting to one AppServer and a shared session core](/entry-points-topology.svg)
 
-## Four ways in
+## Five ways in
 
 | Entry | Surface | Best for |
 |---|---|---|
 | [Desktop](./desktop) | Graphical desktop app | First-time use, long-running collaboration, reviewing diffs and approvals one by one |
+| [Phone app](./mobile) | Android app paired with your computer | Following chats and answering approvals away from your desk |
 | [CLI](../../getting-started) | One-shot command | Scripts, SSH, CI, lightweight tasks |
 | [IDE / Editors (ACP)](./editors) | Inside JetBrains, Obsidian, Unity, and other editors | Letting the agent read unsaved edits, using the editor's own terminal and diff view |
 | [Channels & Bots](../channels/) | QQ, WeCom, Feishu, Telegram, WeChat | Group chats, knowledge bots, support bots |
@@ -17,7 +18,7 @@ One workspace opens from several surfaces: the desktop app, a terminal, your edi
 
 Start with Desktop the first time. Follow [Getting started](../../getting-started) to install it, choose a workspace, and run your first conversation, then add a second entry when a real need shows up.
 
-On a remote server, in CI, or when you just want one command to return a result, reach for a [command-line task](../../developing/lifecycle/appserver) like `dotcraft exec`. To let the agent see edits you haven't saved yet and approve each change in the editor's own diff view, use ACP. To let a group ask about the project any time, connect a channel bot. To build your own client, write it against the [SDKs](../../developing/sdks/) — it connects to the same workspace.
+On a remote server, in CI, or when you just want one command to return a result, reach for a [command-line task](../../developing/lifecycle/appserver) like `dotcraft exec`. To let the agent see edits you haven't saved yet and approve each change in the editor's own diff view, use ACP. To answer approvals while you're away from your desk, pair the phone app. To let a group ask about the project any time, connect a channel bot. To build your own client, write it against the [SDKs](../../developing/sdks/) — it connects to the same workspace.
 
 ## Switch surfaces, keep your work
 

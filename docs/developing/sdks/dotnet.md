@@ -164,7 +164,6 @@ SDK exceptions derive from `DotCraftException` and carry a stable `Code`.
 | `ThreadNotFoundException` / `ThreadNotActiveException` | The target thread is missing or cannot run. |
 | `TurnFailedException` / `TurnCancelledException` | A buffered run reached a failed or cancelled terminal state. |
 | `RunDisconnectedException` | The Wire session ended during an active run. |
-| `ApprovalTimeoutException` | AppServer reports approval timeout. |
 | `RequestTimeoutException` | A Wire request exceeded its timeout. |
 | `ReconnectQueueFullException` | The reconnect queue reached its capacity. |
 

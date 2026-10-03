@@ -128,7 +128,6 @@ public sealed class AppServerTypedDispatchTests
         ApprovalType = "tool",
         Operation = "execute",
         Target = "test-tool",
-        ScopeKey = "test-tool",
-        ExpiresAt = DateTimeOffset.Parse("2026-01-01T00:00:00Z")
+        ScopeKey = "test-tool"
     };
 }

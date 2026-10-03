@@ -129,6 +129,38 @@ export interface HubCreateSatelliteInviteOptions {
   ttlHours?: number;
 }
 
+export interface HubMobileDevice {
+  deviceId: string;
+  displayName: string;
+  platform: "ios" | "android";
+  osVersion: string;
+  appVersion: string;
+  pairedAt: string;
+  lastSeenAt: string | null;
+  connected: boolean;
+}
+
+export interface HubMobileRelay {
+  url: string;
+  state: "connecting" | "connected" | "failed";
+}
+
+export interface HubMobileState {
+  state: "off" | "on" | "failed";
+  failureCode?: string;
+  failureMessage?: string;
+  port: number;
+  addresses: string[];
+  devices: HubMobileDevice[];
+  relay: HubMobileRelay | null;
+}
+
+export interface HubMobilePairing {
+  pairingId: string;
+  qrPayload: string;
+  expiresAt: string;
+}
+
 export interface HubRuntimeToolsRequest {
   ripgrepPath?: string;
   nodeBin?: string;
@@ -387,6 +419,48 @@ export class HubClient {
     );
   }
 
+  async getMobile(): Promise<HubMobileState> {
+    const hub = await this.ensureHub();
+    return await this.requestJson<HubMobileState>(hub, "/v1/mobile", { method: "GET" });
+  }
+
+  async enableMobile(): Promise<HubMobileState> {
+    const hub = await this.ensureHub();
+    return await this.requestJson<HubMobileState>(hub, "/v1/mobile/enable", { method: "POST", body: "{}" });
+  }
+
+  async disableMobile(): Promise<HubMobileState> {
+    const hub = await this.ensureHub();
+    return await this.requestJson<HubMobileState>(hub, "/v1/mobile/disable", { method: "POST", body: "{}" });
+  }
+
+  async createMobilePairing(): Promise<HubMobilePairing> {
+    const hub = await this.ensureHub();
+    return await this.requestJson<HubMobilePairing>(hub, "/v1/mobile/pairings", { method: "POST", body: "{}" });
+  }
+
+  async revokeMobileDevice(deviceId: string): Promise<void> {
+    const hub = await this.ensureHub();
+    await this.requestJson<void>(
+      hub,
+      `/v1/mobile/devices/${encodeURIComponent(deviceId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async setMobileRelay(url: string, token: string): Promise<HubMobileState> {
+    const hub = await this.ensureHub();
+    return await this.requestJson<HubMobileState>(hub, "/v1/mobile/relay", {
+      method: "PUT",
+      body: JSON.stringify({ url, token }),
+    });
+  }
+
+  async clearMobileRelay(): Promise<HubMobileState> {
+    const hub = await this.ensureHub();
+    return await this.requestJson<HubMobileState>(hub, "/v1/mobile/relay", { method: "DELETE" });
+  }
+
   async ensureDefaultChatAppServer(
     options: HubEnsureAppServerOptions = {},
   ): Promise<HubAppServerResponse> {
@@ -522,6 +596,7 @@ export class HubClient {
 
     if (returnNullOnNotFound && response.status === 404) return null as T;
     if (!response.ok) throw await this.toError(response);
+    if (response.status === 204) return undefined as T;
     return (await response.json()) as T;
   }
 

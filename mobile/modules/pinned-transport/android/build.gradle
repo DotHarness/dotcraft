@@ -1,0 +1,16 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+expoModule {
+  canBePublished = false
+}
+
+android {
+  namespace "com.dotharness.dotcraft.pinnedtransport"
+}
+
+dependencies {
+  implementation 'com.squareup.okhttp3:okhttp:4.9.2'
+}

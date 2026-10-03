@@ -60,7 +60,6 @@ internal static class ThreadConfigurationContractMapper
         DeveloperInstructions = OmitIfNull(value.DeveloperInstructions),
         OverrideBasePrompt = value.OverrideBasePrompt,
         ApprovalPolicy = WireString(value.ApprovalPolicy),
-        ApprovalTimeoutSeconds = OmitIfNull(value.ApprovalTimeoutSeconds),
         AutomationTaskDirectory = OmitIfNull(value.AutomationTaskDirectory),
         RequireApprovalOutsideWorkspace = OmitIfNull(value.RequireApprovalOutsideWorkspace)
     };
@@ -115,7 +114,6 @@ internal static class ThreadConfigurationContractMapper
         DeveloperInstructions = ValueOrDefault(value.DeveloperInstructions),
         OverrideBasePrompt = ValueOrDefault(value.OverrideBasePrompt),
         ApprovalPolicy = ParseEnum(ValueOrDefault(value.ApprovalPolicy), Domain.ApprovalPolicy.Default),
-        ApprovalTimeoutSeconds = ValueOrDefault(value.ApprovalTimeoutSeconds),
         AutomationTaskDirectory = ValueOrDefault(value.AutomationTaskDirectory),
         RequireApprovalOutsideWorkspace = ValueOrDefault(value.RequireApprovalOutsideWorkspace)
     };

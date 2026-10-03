@@ -11,15 +11,10 @@ internal sealed class SessionUserInputRequestService
     private readonly SessionEventChannel _channel;
     private readonly SessionTurn _turn;
     private readonly Func<int> _nextItemSeq;
-    private readonly CancellationToken _turnCancellationToken;
     private readonly Action<string, SessionThreadRuntimeSignal, SessionTurn?>? _runtimeSignalForBroadcast;
-    private readonly ConcurrentDictionary<string, PendingUserInputRequest> _pending = new();
-
-    private sealed class PendingUserInputRequest(
-        TaskCompletionSource<RequestUserInputResponse> completion)
-    {
-        public TaskCompletionSource<RequestUserInputResponse> Completion { get; } = completion;
-    }
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<RequestUserInputResponse>> _pending = new();
+    private readonly Lock _gate = new();
+    private bool _closed;
 
     public SessionUserInputRequestService(
         SessionEventChannel channel,
@@ -31,8 +26,8 @@ internal sealed class SessionUserInputRequestService
         _channel = channel;
         _turn = turn;
         _nextItemSeq = nextItemSeq;
-        _turnCancellationToken = turnCancellationToken;
         _runtimeSignalForBroadcast = runtimeSignalForBroadcast;
+        turnCancellationToken.Register(Close);
     }
 
     public Task<RequestUserInputResponse> RequestAsync(
@@ -51,53 +46,72 @@ internal sealed class SessionUserInputRequestService
 
     public bool TryResolve(string requestId, RequestUserInputResponse response)
     {
-        if (!_pending.TryRemove(requestId, out var pending))
+        if (!_pending.TryRemove(requestId, out var completion))
             return false;
 
+        RecordResolution(requestId, response);
+        completion.TrySetResult(response);
+        return true;
+    }
+
+    /// <summary>
+    /// Resolves every pending request with an empty response because the Turn ended,
+    /// and cancels any later request.
+    /// </summary>
+    public void Close()
+    {
+        lock (_gate)
+            _closed = true;
+
+        foreach (var requestId in _pending.Keys)
+        {
+            if (!_pending.TryRemove(requestId, out var completion))
+                continue;
+
+            RecordResolution(requestId, new RequestUserInputResponse());
+            completion.TrySetCanceled();
+        }
+    }
+
+    private void RecordResolution(string requestId, RequestUserInputResponse response)
+    {
         var responseItem = CreateItem(ItemType.UserInputResponse, new UserInputResponsePayload
         {
             RequestId = requestId,
             Response = response
         });
         _turn.Items.Add(responseItem);
-        _turn.Status = TurnStatus.Running;
+        if (_turn.Status == TurnStatus.WaitingInput)
+            _turn.Status = TurnStatus.Running;
 
         _channel.EmitItemStarted(responseItem);
         _channel.EmitUserInputResolved(responseItem);
         _channel.EmitItemCompleted(responseItem);
         _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.UserInputResolved, _turn);
-
-        pending.Completion.TrySetResult(response);
-        return true;
     }
 
-    private async Task<RequestUserInputResponse> RequestCoreAsync(
+    private Task<RequestUserInputResponse> RequestCoreAsync(
         string requestId,
         UserInputRequestPayload payload)
     {
-        var requestItem = CreateItem(ItemType.UserInputRequest, payload);
-        _turn.Items.Add(requestItem);
-        _turn.Status = TurnStatus.WaitingInput;
-
         var tcs = new TaskCompletionSource<RequestUserInputResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _pending[requestId] = new PendingUserInputRequest(tcs);
-
-        _channel.EmitItemStarted(requestItem);
-        _channel.EmitItemCompleted(requestItem);
-        _channel.EmitUserInputRequested(requestItem);
-        _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.UserInputRequested, _turn);
-
-        await using var reg = _turnCancellationToken.Register(() =>
+        lock (_gate)
         {
-            if (_pending.TryRemove(requestId, out var pending))
-            {
-                _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.UserInputResolved, _turn);
+            if (_closed)
+                return Task.FromCanceled<RequestUserInputResponse>(new CancellationToken(canceled: true));
 
-                pending.Completion.TrySetCanceled(_turnCancellationToken);
-            }
-        });
+            var requestItem = CreateItem(ItemType.UserInputRequest, payload);
+            _turn.Items.Add(requestItem);
+            _turn.Status = TurnStatus.WaitingInput;
+            _pending[requestId] = tcs;
 
-        return await tcs.Task;
+            _channel.EmitItemStarted(requestItem);
+            _channel.EmitItemCompleted(requestItem);
+            _channel.EmitUserInputRequested(requestItem);
+            _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.UserInputRequested, _turn);
+        }
+
+        return tcs.Task;
     }
 
     private static RequestUserInputQuestion NormalizeQuestion(RequestUserInputQuestion question) =>

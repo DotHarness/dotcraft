@@ -106,6 +106,9 @@ to `DotCraft.Agents.Remote`, and the transport contract belongs to Agents. `DotC
 standalone command and file configuration. Embedded hosts provide their own authorization and
 storage.
 
+The mobile relay (`dotcraft relay serve`) forwards phone tunnels for Hub without Session Core,
+workspace tools, or providers. Like Hub, it belongs to `DotCraft.App`.
+
 The official application owns CLI, ACP, AppServer, and Hub entry-point selection. Host factories,
 process policy, web-channel pooling, shared web addresses, logging policy, and exit codes are
 application responsibilities rather than Runtime contracts.

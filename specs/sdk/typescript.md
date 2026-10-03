@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.10 |
+| **Version** | 0.8.1 |
 | **Status** | Living |
-| **Date** | 2026-10-02 |
+| **Date** | 2026-10-03 |
 | **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: Define the TypeScript binding, package contract, Node.js runtime requirements, channel runtime, and compatibility strategy for `@dotcraft/sdk`.
@@ -105,6 +105,8 @@ The top-level package does not expose Wire clients, Hub models, Channel APIs, or
 
 Known operations accept generated Contracts DTOs through generated typed methods. Run reducers and other high-level helpers are not exported here.
 
+Under the `react-native` and `browser` export conditions, `@dotcraft/sdk/wire` resolves to the same surface without `StdioTransport` and `WebSocketTransport`, so a React Native or browser bundle runs `DotCraftWireClient` over its own `Transport` with no Node.js module in the graph. `@dotcraft/sdk/contracts` is I/O-free under every condition.
+
 ### 4.6 Hub Exports
 
 `@dotcraft/sdk/hub` exports:
@@ -163,7 +165,10 @@ Channel packages may depend on platform SDKs such as Telegram, Feishu, QQ, WeCom
 
 ### 5.4 Browser Support
 
-The SDK is a Node.js SDK. Browser runtime support is out of scope.
+The SDK targets Node.js. `@dotcraft/sdk/contracts` and, under the `browser` and `react-native` export
+conditions, `@dotcraft/sdk/wire` also run in browsers and React Native over a caller-supplied
+`Transport` (§4.5). The high-level clients, Hub discovery, and the built-in transports remain
+Node.js-only.
 
 ## 6. Connection Model
 
@@ -278,8 +283,11 @@ interface Transport {
   readMessage(): Promise<Record<string, unknown>>;
   writeMessage(message: Record<string, unknown>): Promise<void>;
   close(): Promise<void>;
+  connect?(): Promise<void>;
 }
 ```
+
+A transport that implements `connect()` is opened by `DotCraftWireClient.connect()` and reopened by its auto-reconnect; a transport without it is used as supplied and is not reconnected by the client.
 
 ### 8.3 Transports
 
@@ -683,7 +691,6 @@ Required typed errors:
 | `ThreadNotActiveError` | Server reports thread cannot accept turns. |
 | `TurnFailedError` | Agent execution failed after `turn/start` succeeded. |
 | `TurnCancelledError` | Turn was cancelled before successful completion. |
-| `ApprovalTimeoutError` | Server reports approval timeout. |
 
 Raw JSON-RPC code constants remain available under `@dotcraft/sdk/wire`.
 

@@ -101,5 +101,4 @@ export const ERR_THREAD_NOT_ACTIVE = -32011;
 export const ERR_TURN_IN_PROGRESS = -32012;
 export const ERR_TURN_NOT_FOUND = -32013;
 export const ERR_TURN_NOT_RUNNING = -32014;
-export const ERR_APPROVAL_TIMEOUT = -32020;
 export const ERR_CHANNEL_REJECTED = -32030;

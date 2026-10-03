@@ -395,7 +395,9 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 
 常见 decision 包括 `accept`、`acceptForSession`、`acceptAlways`、`decline` 和 `cancel`。可用 decision 以实际 request payload 为准。
 
-如果 client 在 `initialize` 中声明 `approvalSupport: false`，server 会按自身策略处理无法交互的审批场景。富 UI client 应保持 `approvalSupport: true`。
+审批请求不会超时，它属于 thread 而不是某一个连接。每个已订阅且支持审批的 client 都会收到待处理的请求，包括请求发出后才订阅的 client。请求会一直等待，直到某个 client 作答或所属 turn 结束，随后每个已订阅的 client 都会收到 `item/approval/resolved`，并应关闭对应的审批 UI。
+
+如果 client 在 `initialize` 中声明 `approvalSupport: false`，server 不会向它发送审批请求，它发起的 turn 中的审批会立即按 thread 的审批策略处理。富 UI client 应保持 `approvalSupport: true`。
 
 ## API 概览
 

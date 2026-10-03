@@ -464,7 +464,6 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
             AgentProfileSource = current.AgentProfileSource,
             AllowedAgentControlTools = current.AllowedAgentControlTools,
             ApprovalPolicy = current.ApprovalPolicy,
-            ApprovalTimeoutSeconds = current.ApprovalTimeoutSeconds,
             AutomationTaskDirectory = current.AutomationTaskDirectory,
             CustomTools = current.CustomTools,
             Cwd = current.Cwd,

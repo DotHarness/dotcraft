@@ -10,10 +10,11 @@ type AssetId =
   | 'desktop-macos-arm64'
   | 'desktop-macos-x64'
   | 'cli-linux-x64'
+  | 'mobile-android'
 
 export interface Platform {
   id: string
-  os: 'windows' | 'apple' | 'linux'
+  os: 'windows' | 'apple' | 'linux' | 'android'
   assetId: AssetId
   label: { en: string; zh: string }
 }
@@ -23,12 +24,13 @@ export const PLATFORMS: Platform[] = [
   { id: 'win-arm64', os: 'windows', assetId: 'desktop-win-arm64', label: { en: 'Windows (ARM64)', zh: 'Windows (ARM64)' } },
   { id: 'mac-arm64', os: 'apple', assetId: 'desktop-macos-arm64', label: { en: 'macOS (Apple Silicon)', zh: 'macOS（Apple 芯片）' } },
   { id: 'mac-x64', os: 'apple', assetId: 'desktop-macos-x64', label: { en: 'macOS (Intel)', zh: 'macOS（Intel）' } },
-  { id: 'linux-x64', os: 'linux', assetId: 'cli-linux-x64', label: { en: 'Linux (x64)', zh: 'Linux (x64)' } }
+  { id: 'linux-x64', os: 'linux', assetId: 'cli-linux-x64', label: { en: 'Linux (x64)', zh: 'Linux (x64)' } },
+  { id: 'android', os: 'android', assetId: 'mobile-android', label: { en: 'Android', zh: 'Android' } }
 ]
 
 export interface ReleaseManifest {
   tag: string
-  assets: Record<AssetId, { fileName: string; url: string }>
+  assets: Partial<Record<AssetId, { fileName: string; url: string }>>
 }
 
 let manifestPromise: Promise<ReleaseManifest> | null = null
@@ -41,24 +43,29 @@ export function loadManifest(): Promise<ReleaseManifest> {
   return manifestPromise
 }
 
+export function assetUrl(manifest: ReleaseManifest, platform: Platform): string {
+  return manifest.assets[platform.assetId]?.url ?? RELEASES_PAGE
+}
+
 export function startDownload(platform: Platform): void {
   void loadManifest()
     .then((manifest) => {
-      window.location.href = manifest.assets[platform.assetId].url
+      window.location.href = assetUrl(manifest, platform)
     })
     .catch(() => {
       window.location.href = RELEASES_PAGE
     })
 }
 
-/** Best-effort platform detection; mobile and unknown platforms use the generic label. */
+/** Best-effort platform detection; iOS and unknown platforms use the generic label. */
 export function detectPlatform(): Platform | null {
   const ua = navigator.userAgent
   const uaData = (navigator as Navigator & { userAgentData?: { platform?: string; mobile?: boolean } }).userAgentData
 
-  if (uaData?.mobile || /Android|iPhone|iPad|iPod/i.test(ua)) return null
-
   const platform = (uaData?.platform ?? '').toLowerCase()
+  if (platform === 'android' || /Android/i.test(ua)) return find('android')
+  if (uaData?.mobile || /iPhone|iPad|iPod/i.test(ua)) return null
+
   const isWindows = platform.includes('windows') || /Windows/i.test(ua)
   const isMac = platform.includes('macos') || platform.includes('mac') || /Macintosh|Mac OS X/i.test(ua)
   const isLinux = platform.includes('linux') || /Linux/i.test(ua)

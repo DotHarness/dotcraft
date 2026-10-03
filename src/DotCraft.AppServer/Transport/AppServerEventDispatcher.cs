@@ -14,11 +14,8 @@ namespace DotCraft.AppServer;
 /// or <see cref="ISessionService.SubscribeThreadAsync"/> and fans each event out as a JSON-RPC
 /// notification to the connected client.
 ///
-/// The approval flow is handled inline: when an <see cref="SessionEventType.ApprovalRequested"/>
-/// event arrives, the dispatcher sends an <c>item/approval/request</c> JSON-RPC request to the
-/// client, awaits the response, then calls <see cref="ISessionService.ResolveApprovalAsync"/>.
-/// User-input requests are sent on a background path so the event stream can keep draining
-/// while the user takes time to answer.
+/// Approval and user-input requests are sent to a capable client on a background path, so the
+/// event stream keeps draining and observes their resolution while the user takes time to answer.
 /// </summary>
 public sealed class AppServerEventDispatcher
 {
@@ -55,18 +52,12 @@ public sealed class AppServerEventDispatcher
     /// is received. The dispatcher waits for this to complete before sending the notification,
     /// ensuring the <c>turn/start</c> response reaches the client before <c>turn/started</c>.
     /// </param>
-    /// <param name="defaultApprovalDecision">
-    /// The fallback decision to apply when non-interactive approval resolution cannot be
-    /// determined from the thread's approval policy.
-    /// Defaults to <see cref="SessionApprovalDecision.Reject"/>.
-    /// </param>
     public AppServerEventDispatcher(
         IAsyncEnumerable<SessionEvent> events,
         AppServerConnection connection,
         IAppServerTransport transport,
         ISessionService sessionService,
         Func<SessionWireTurn, Task>? onTurnStarted = null,
-        SessionApprovalDecision defaultApprovalDecision = SessionApprovalDecision.Reject,
         SessionStreamDebugLogger? streamDebugLogger = null,
         Func<SessionWireThread, SessionWireThread>? enrichThreadWire = null)
     {
@@ -82,7 +73,6 @@ public sealed class AppServerEventDispatcher
             connection,
             transport,
             sessionService,
-            defaultApprovalDecision,
             () => _transportUnavailable,
             MarkTransportUnavailable);
     }
@@ -105,6 +95,8 @@ public sealed class AppServerEventDispatcher
 
     private async Task DispatchEventAsync(SessionEvent evt, CancellationToken ct)
     {
+        _interactiveRequests.ObserveResolution(evt);
+
         // Fix 7: Do not send any server-initiated notifications until the client has
         // sent the `initialized` notification signalling readiness. The TurnStarted
         // case is exempt because it also signals the turn/start response callback.
@@ -129,11 +121,13 @@ public sealed class AppServerEventDispatcher
                 break;
 
             case SessionEventType.ApprovalRequested:
-                await HandleApprovalRequestedAsync(evt, ct);
+                if (evt.TurnId != null && evt.ItemPayload?.Payload is ApprovalRequestPayload approval)
+                    _ = _interactiveRequests.SendApprovalRequestAsync(evt.ThreadId, evt.TurnId, evt.ItemId ?? string.Empty, approval);
                 break;
 
             case SessionEventType.UserInputRequested:
-                await HandleUserInputRequestedAsync(evt, ct);
+                if (evt.TurnId != null && evt.ItemPayload?.Payload is UserInputRequestPayload userInput)
+                    _ = _interactiveRequests.SendUserInputRequestAsync(evt.ThreadId, evt.TurnId, evt.ItemId ?? string.Empty, userInput);
                 break;
 
             case SessionEventType.ItemDelta:
@@ -543,50 +537,6 @@ public sealed class AppServerEventDispatcher
 
     private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
         value is null ? default : Protocol.Optional<T?>.FromValue(value);
-
-    // -------------------------------------------------------------------------
-    // Approval flow (spec Section 7)
-    // -------------------------------------------------------------------------
-
-    private async Task HandleApprovalRequestedAsync(SessionEvent evt, CancellationToken ct)
-    {
-        var item = evt.ItemPayload;
-        if (item?.Payload is not ApprovalRequestPayload req)
-            return;
-
-        if (evt.TurnId == null)
-            return;
-
-        await _interactiveRequests.SendApprovalRequestAsync(
-            evt.ThreadId,
-            evt.TurnId,
-            evt.ItemId ?? string.Empty,
-            req,
-            ct);
-    }
-
-    // -------------------------------------------------------------------------
-    // Model-initiated user input request flow
-    // -------------------------------------------------------------------------
-
-    private Task HandleUserInputRequestedAsync(SessionEvent evt, CancellationToken ct)
-    {
-        var item = evt.ItemPayload;
-        if (item?.Payload is not UserInputRequestPayload req)
-            return Task.CompletedTask;
-
-        if (evt.TurnId == null)
-            return Task.CompletedTask;
-
-        _ = _interactiveRequests.SendUserInputRequestAsync(
-            evt.ThreadId,
-            evt.TurnId,
-            evt.ItemId ?? string.Empty,
-            req,
-            ct);
-
-        return Task.CompletedTask;
-    }
 
     // -------------------------------------------------------------------------
     // Transport helpers

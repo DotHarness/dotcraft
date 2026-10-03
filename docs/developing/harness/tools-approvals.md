@@ -96,7 +96,7 @@ The handler waits for `OnApprovalRequested` and sends its decision back to Sessi
 
 Prefer `AcceptOnce` for unfamiliar or high-impact operations. Offer `AcceptAlways` only where the user understands the scope of a permanent approval.
 
-Approval requests expire. Without a decision within five minutes, Session Core resolves the request as `Reject` and the Turn continues. Adjust the window per Thread with `ThreadConfiguration.ApprovalTimeoutSeconds`.
+Approval requests do not expire. A request waits until a decision arrives or its Turn ends; when the Turn ends first, Session Core resolves the request as `CancelTurn` and the operation does not run.
 
 > [!CAUTION]
 > Do not approve tools automatically based only on their display name. Present the operation, arguments, affected resources, and approval scope to the user.

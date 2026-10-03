@@ -28,7 +28,6 @@ internal sealed partial class ThreadRequestHandler(
     string? hostWorkspacePath,
     string? workspaceCraftPath,
     SessionStreamDebugLogger? streamDebugLogger,
-    SessionApprovalDecision defaultApprovalDecision,
     ILogger<ThreadRequestHandler>? logger) : IAppServerDomainHandler
 {
     private const int ThreadListDefaultPageLimit = 50;
@@ -674,7 +673,6 @@ internal sealed partial class ThreadRequestHandler(
             connection,
             transport,
             sessionService,
-            defaultApprovalDecision: defaultApprovalDecision,
             streamDebugLogger: streamDebugLogger,
             enrichThreadWire: threadProjector.EnrichForNotification);
         _ = dispatcher.RunAsync(subCts.Token)
@@ -760,7 +758,8 @@ internal sealed partial class ThreadRequestHandler(
             {
                 foreach (var (approvalItem, approvalRequest) in FindPendingApprovalRequests(turn).ToArray())
                 {
-                    await ReplayApprovalRequestAsync(sender, thread.Id, turn.Id, approvalItem.Id, approvalRequest);
+                    if (!await ReplayApprovalRequestAsync(sender, thread.Id, turn.Id, approvalItem.Id, approvalRequest))
+                        return;
                 }
             }
             else if (turn.Status == TurnStatus.WaitingInput
@@ -772,13 +771,9 @@ internal sealed partial class ThreadRequestHandler(
     }
 
     private AppServerInteractiveRequestSender CreateInteractiveRequestSender() =>
-        new(
-            connection,
-            transport,
-            sessionService,
-            defaultApprovalDecision);
+        new(connection, transport, sessionService);
 
-    private async Task ReplayApprovalRequestAsync(
+    private async Task<bool> ReplayApprovalRequestAsync(
         AppServerInteractiveRequestSender sender,
         string threadId,
         string turnId,
@@ -787,11 +782,12 @@ internal sealed partial class ThreadRequestHandler(
     {
         try
         {
-            await sender.SendApprovalRequestAsync(threadId, turnId, itemId, request, CancellationToken.None);
+            return await sender.SendApprovalRequestAsync(threadId, turnId, itemId, request);
         }
         catch (Exception ex)
         {
             logger?.LogError(ex, "Pending approval replay failed for thread {ThreadId}", threadId);
+            return true;
         }
     }
 
@@ -804,7 +800,7 @@ internal sealed partial class ThreadRequestHandler(
     {
         try
         {
-            await sender.SendUserInputRequestAsync(threadId, turnId, itemId, request, CancellationToken.None);
+            await sender.SendUserInputRequestAsync(threadId, turnId, itemId, request);
         }
         catch (Exception ex)
         {
@@ -1048,8 +1044,6 @@ internal sealed partial class ThreadRequestHandler(
                 config.Reasoning);
         }
 
-        if (config.ApprovalTimeoutSeconds is < 1 or > 86400)
-            throw AppServerErrors.InvalidParams("'config.approvalTimeoutSeconds' must be between 1 and 86400.");
         if (config.DeveloperInstructions is { Length: > MaxDeveloperInstructionsLength })
             throw AppServerErrors.InvalidParams($"'config.developerInstructions' must be at most {MaxDeveloperInstructionsLength} characters.");
     }

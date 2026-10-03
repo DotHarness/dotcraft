@@ -138,7 +138,7 @@ internal sealed class TurnRequestHandler(
                 ct);
         }
 
-        var events = sessionService.SubmitInputAsync(
+        var events = WithNonInteractiveFallback(sessionService.SubmitInputAsync(
             p.ThreadId,
             content,
             sender,
@@ -151,7 +151,7 @@ internal sealed class TurnRequestHandler(
                 MaterializedInputParts = materializedInput.MaterializedInputParts,
                 DisplayText = materializedInput.DisplayText,
                 SentAsGoal = p.SentAsGoal
-            });
+            }));
 
         if (connection.HasSubscription(p.ThreadId))
         {
@@ -184,7 +184,7 @@ internal sealed class TurnRequestHandler(
                             // The response is best-effort after disconnect; keep draining below.
                         }
 
-                        _ = DrainSubscribedTurnEventsAsync(subscribedEnumerator, connection, CancellationToken.None);
+                        _ = DrainSubscribedTurnEventsAsync(subscribedEnumerator);
                         drainOwnsEnumerator = true;
                         break;
                     }
@@ -205,7 +205,6 @@ internal sealed class TurnRequestHandler(
             transport,
             sessionService,
             OnTurnStarted,
-            defaultApprovalDecision: defaultApprovalDecision,
             streamDebugLogger: streamDebugLogger,
             enrichThreadWire: threadProjector.EnrichForNotification);
 
@@ -227,24 +226,13 @@ internal sealed class TurnRequestHandler(
         return AppServerTypedResult<Contract.TurnStartResult>.Written;
     }
 
-    private async Task DrainSubscribedTurnEventsAsync(
-        IAsyncEnumerator<SessionEvent> events,
-        AppServerConnection owningConnection,
-        CancellationToken ct)
+    private async Task DrainSubscribedTurnEventsAsync(IAsyncEnumerator<SessionEvent> events)
     {
         try
         {
             while (await events.MoveNextAsync())
             {
-                ct.ThrowIfCancellationRequested();
-                var evt = events.Current;
-                if (evt.EventType == SessionEventType.ApprovalRequested)
-                    await ScheduleDisconnectedApprovalFallbackAsync(evt, owningConnection, ct);
             }
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            // Host shutdown or explicit drain cancellation.
         }
         catch (Exception ex)
         {
@@ -256,42 +244,29 @@ internal sealed class TurnRequestHandler(
         }
     }
 
-    private Task ScheduleDisconnectedApprovalFallbackAsync(
-        SessionEvent evt,
-        AppServerConnection owningConnection,
-        CancellationToken ct)
+    private async IAsyncEnumerable<SessionEvent> WithNonInteractiveFallback(IAsyncEnumerable<SessionEvent> events)
     {
-        var item = evt.ItemPayload;
-        if (item?.Payload is not ApprovalRequestPayload req)
-            return Task.CompletedTask;
-        if (evt.TurnId == null)
-            return Task.CompletedTask;
-
-        if (owningConnection.IsClosed)
-            return CreateInteractiveRequestSender().ResolveApprovalWithFallbackAsync(
-                evt.ThreadId,
-                evt.TurnId,
-                req.RequestId,
-                ct);
-
-        _ = Task.Run(async () =>
+        var requests = new AppServerInteractiveRequestSender(connection, transport, sessionService);
+        await foreach (var evt in events)
         {
-            try
+            if (evt.TurnId is { } turnId)
             {
-                await owningConnection.Closed;
-                await CreateInteractiveRequestSender().ResolveApprovalWithFallbackAsync(
-                    evt.ThreadId,
-                    evt.TurnId,
-                    req.RequestId,
-                    CancellationToken.None);
+                if (evt.EventType == SessionEventType.ApprovalRequested
+                    && !connection.SupportsApproval
+                    && evt.ItemPayload?.Payload is ApprovalRequestPayload approval)
+                {
+                    await requests.ResolveApprovalByPolicyAsync(evt.ThreadId, turnId, approval.RequestId, defaultApprovalDecision);
+                }
+                else if (evt.EventType == SessionEventType.UserInputRequested
+                         && !connection.SupportsRequestUserInput
+                         && evt.ItemPayload?.Payload is UserInputRequestPayload userInput)
+                {
+                    await requests.ResolveUserInputWithEmptyAnswersAsync(evt.ThreadId, turnId, userInput.RequestId);
+                }
             }
-            catch (Exception ex)
-            {
-                logger?.LogError(ex, "Disconnected approval fallback failed");
-            }
-        }, CancellationToken.None);
 
-        return Task.CompletedTask;
+            yield return evt;
+        }
     }
 
     private async Task<AppServerTypedResult<Contract.TurnEnqueueResult>> HandleTurnEnqueueAsync(
@@ -548,13 +523,6 @@ internal sealed class TurnRequestHandler(
 
         return ChannelSessionScope.Set(channelScopeInfo);
     }
-
-    private AppServerInteractiveRequestSender CreateInteractiveRequestSender() =>
-        new(
-            connection,
-            transport,
-            sessionService,
-            defaultApprovalDecision);
 
     private sealed class PreparedTurnInput
     {

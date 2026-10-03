@@ -28,7 +28,7 @@ DotCraft is an open-source AI agent that runs on your own machine. Use the deskt
 
 ## Why DotCraft
 
-- **One agent, many doors.** Desktop, the CLI, your IDE and chat bots share one workspace, so a task started in one can be picked up in another. Connect Desktop to DotCraft on a server over SSH, or let the agent work on another computer through Satellite.
+- **One agent, many doors.** Desktop, the CLI, your IDE and chat bots share one workspace, so a task started in one can be picked up in another. Connect Desktop to DotCraft on a server over SSH, follow and answer your chats from an Android phone, or let the agent work on another computer through Satellite.
 - **Yours to build on.** Embed the runtime behind DotCraft Desktop in your .NET app, or connect an existing product through the SDKs and App Binding. .NET plugins add tools, commands and lifecycle logic, and the agent can write one and swap it in while the host keeps running. React plugins reshape Desktop's interface.
 - **Your deployment, your costs.** Run it on your machine or your own server, with any compatible model provider or your ChatGPT subscription. Byte-stable prompt prefixes let providers reuse their cache.
 - **One set of keys for the team.** One machine holds the API keys and sign-ins; DotCraft on everyone else's machine calls models through it, without storing keys or reaching providers directly.
@@ -61,7 +61,7 @@ See [Getting started](https://www.dotcraft.net/getting-started) for the full wal
 
 A workbench where the agent plans in your project, hands parts to subagents, and checks the result before it says done.
 
-**Get it:** [Download](https://github.com/DotHarness/dotcraft/releases) for Windows, macOS or Linux.
+**Get it:** [Download](https://github.com/DotHarness/dotcraft/releases) for Windows, macOS or Linux. The Android app on the same page follows and answers your chats from your phone.
 
 <p align="center"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/desktop-strip-light.webp" width="830" alt="Four Desktop features in turn: the in-app browser checking your app's settings page, Computer Use working in another Windows app, Agent Builder setting up a new agent, and the pet finding Dragon wings to wear."></p>
 
@@ -77,7 +77,7 @@ A workbench where the agent plans in your project, hands parts to subagents, and
 
 **Your first result:** open a project, ask *"Plan how we would ship dark mode, then do it."*, approve the plan, and watch the steps tick off.
 
-[Desktop guide](https://www.dotcraft.net/features/entry-points/desktop) · [Subagents](https://www.dotcraft.net/features/agent-system/subagents) · [Agent profiles](https://www.dotcraft.net/features/agent-system/agent-profiles) · [Automations](https://www.dotcraft.net/features/agent-system/automations)
+[Desktop guide](https://www.dotcraft.net/features/entry-points/desktop) · [Phone app](https://www.dotcraft.net/features/entry-points/mobile) · [Subagents](https://www.dotcraft.net/features/agent-system/subagents) · [Agent profiles](https://www.dotcraft.net/features/agent-system/agent-profiles) · [Automations](https://www.dotcraft.net/features/agent-system/automations)
 
 ## CLI
 

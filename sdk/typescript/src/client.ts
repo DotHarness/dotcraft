@@ -4,7 +4,7 @@
 
 import { JsonRpcMessage } from "./models.js";
 import { ReconnectQueueFullError, RequestTimeoutError, toJsonRpcError } from "./errors.js";
-import { Transport, TransportClosed, WebSocketTransport } from "./transport.js";
+import { type Transport, TransportClosed } from "./transportCore.js";
 import type {
   ChannelToolDescriptor,
   ClientNotificationMethods,
@@ -108,9 +108,7 @@ export class DotCraftWireClient {
 
   async connect(): Promise<void> {
     this.setState("connecting");
-    if (this.transport instanceof WebSocketTransport) {
-      await this.transport.connect();
-    }
+    await this.transport.connect?.();
     this.setState("ready");
   }
 
@@ -428,7 +426,7 @@ export class DotCraftWireClient {
     if (
       this.explicitlyClosed ||
       !this.options.autoReconnect ||
-      !(this.transport instanceof WebSocketTransport) ||
+      !this.transport.connect ||
       !this.initializeOptions
     ) {
       return false;
