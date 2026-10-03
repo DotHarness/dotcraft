@@ -33,7 +33,10 @@ internal sealed class AppServerInteractiveRequestSender
         _holders = AppServerInteractiveRequestHolders.For(sessionService);
     }
 
-    public async Task SendApprovalRequestAsync(
+    /// <summary>
+    /// Returns <c>false</c> when this client answered without a valid result and the request is still pending.
+    /// </summary>
+    public async Task<bool> SendApprovalRequestAsync(
         string threadId,
         string turnId,
         string itemId,
@@ -42,7 +45,7 @@ internal sealed class AppServerInteractiveRequestSender
         if (!_connection.SupportsApproval
             || TryHold(new RequestKey(Methods.ApprovalRequest, threadId, turnId, request.RequestId)) is not { } hold)
         {
-            return;
+            return true;
         }
 
         var approvalParams = new Contract.ApprovalRequestParams
@@ -60,24 +63,27 @@ internal sealed class AppServerInteractiveRequestSender
             Shell = ToContract(request.Shell)
         };
 
-        var result = await AwaitAnswerAsync(
+        var response = await AwaitAnswerAsync(
             hold,
             ct => _transport.RequestAsync(
                 Contract.AppServerRpc.ApprovalRequest,
                 approvalParams,
                 ct,
                 timeout: Timeout.InfiniteTimeSpan));
-        if (result is not null && _holders.TryResolve(hold.Key))
-        {
-            await TryResolveApprovalAsync(
-                threadId,
-                turnId,
-                request.RequestId,
-                ParseApprovalDecision(result));
-        }
+        if (response is null)
+            return true;
+        if (response.Result is not { } result || ParseApprovalDecision(result) is not { } decision)
+            return Unanswered(hold.Key);
+
+        if (_holders.TryResolve(hold.Key))
+            await TryResolveApprovalAsync(threadId, turnId, request.RequestId, decision);
+        return true;
     }
 
-    public async Task SendUserInputRequestAsync(
+    /// <summary>
+    /// Returns <c>false</c> when this client answered without a valid result and the request is still pending.
+    /// </summary>
+    public async Task<bool> SendUserInputRequestAsync(
         string threadId,
         string turnId,
         string itemId,
@@ -86,7 +92,7 @@ internal sealed class AppServerInteractiveRequestSender
         if (!_connection.SupportsRequestUserInput
             || TryHold(new RequestKey(Methods.UserInputRequest, threadId, turnId, request.RequestId)) is not { } hold)
         {
-            return;
+            return true;
         }
 
         var requestParams = new Contract.UserInputRequestParams
@@ -111,21 +117,21 @@ internal sealed class AppServerInteractiveRequestSender
             }).ToArray()
         };
 
-        var result = await AwaitAnswerAsync(
+        var response = await AwaitAnswerAsync(
             hold,
             ct => _transport.RequestAsync(
                 Contract.AppServerRpc.UserInputRequest,
                 requestParams,
                 ct,
                 timeout: Timeout.InfiniteTimeSpan));
-        if (result is not null && _holders.TryResolve(hold.Key))
-        {
-            await TryResolveUserInputAsync(
-                threadId,
-                turnId,
-                request.RequestId,
-                ParseUserInputResponse(result));
-        }
+        if (response is null)
+            return true;
+        if (response.Result is not { } result || ParseUserInputResponse(result) is not { } answers)
+            return Unanswered(hold.Key);
+
+        if (_holders.TryResolve(hold.Key))
+            await TryResolveUserInputAsync(threadId, turnId, request.RequestId, answers);
+        return true;
     }
 
     public async Task ResolveApprovalByPolicyAsync(
@@ -167,7 +173,13 @@ internal sealed class AppServerInteractiveRequestSender
             ? _holders.TryHold(key)
             : null;
 
-    private async Task<TResult?> AwaitAnswerAsync<TResult>(
+    private bool Unanswered(RequestKey key)
+    {
+        _connection.ReleaseInteractiveRequest(key.Method, key.ThreadId, key.TurnId, key.RequestId);
+        return false;
+    }
+
+    private async Task<AppServerTypedClientResponse<TResult>?> AwaitAnswerAsync<TResult>(
         AppServerInteractiveRequestHolders.Hold hold,
         Func<CancellationToken, Task<AppServerTypedClientResponse<TResult>>> send)
         where TResult : class
@@ -177,14 +189,7 @@ internal sealed class AppServerInteractiveRequestSender
         {
             var request = send(resolvedElsewhere.Token);
             if (await Task.WhenAny(request, hold.Resolved) == request)
-            {
-                if ((await request).Result is { } result)
-                    return result;
-
-                var key = hold.Key;
-                _connection.ReleaseInteractiveRequest(key.Method, key.ThreadId, key.TurnId, key.RequestId);
-                return null;
-            }
+                return await request;
 
             resolvedElsewhere.Cancel();
             _ = request.ContinueWith(
@@ -270,7 +275,7 @@ internal sealed class AppServerInteractiveRequestSender
         catch (OperationCanceledException) { /* Ignore if session was cancelled */ }
     }
 
-    private static SessionApprovalDecision ParseApprovalDecision(Contract.ApprovalResponseResult result)
+    private static SessionApprovalDecision? ParseApprovalDecision(Contract.ApprovalResponseResult result)
     {
         return result.Decision switch
         {
@@ -279,28 +284,24 @@ internal sealed class AppServerInteractiveRequestSender
             "acceptAlways" => SessionApprovalDecision.AcceptAlways,
             "decline" => SessionApprovalDecision.Reject,
             "cancel" => SessionApprovalDecision.CancelTurn,
-            _ => SessionApprovalDecision.Reject
+            _ => null
         };
     }
 
-    private static RequestUserInputResponse ParseUserInputResponse(Contract.UserInputResponseResult result)
+    private static RequestUserInputResponse? ParseUserInputResponse(Contract.UserInputResponseResult result)
     {
-        try
+        if (result.Answers is not { } answers || answers.Values.Any(static answer => answer?.Answers is null))
+            return null;
+
+        return new RequestUserInputResponse
         {
-            return new RequestUserInputResponse
-            {
-                Answers = result.Answers.ToDictionary(
-                    static answer => answer.Key,
-                    static answer => new RequestUserInputAnswer
-                    {
-                        Answers = answer.Value.Answers.ToList()
-                    },
-                    StringComparer.Ordinal)
-            };
-        }
-        catch
-        {
-            return new RequestUserInputResponse();
-        }
+            Answers = answers.ToDictionary(
+                static answer => answer.Key,
+                static answer => new RequestUserInputAnswer
+                {
+                    Answers = answer.Value.Answers.ToList()
+                },
+                StringComparer.Ordinal)
+        };
     }
 }

@@ -45,6 +45,7 @@ export interface FakeThread {
   pending: FakePending | null
   stream: string | null
   continuation: string
+  source?: 'user' | 'subagent'
 }
 
 export interface FakeProject {
@@ -272,7 +273,7 @@ export class FakeComputer {
   }
 
   private threadBody(thread: FakeThread): Record<string, unknown> {
-    return { ...this.summary(thread), configuration: { agentProfileId: thread.profileId }, metadata: {}, ephemeral: false, source: { kind: 'user' } }
+    return { ...this.summary(thread), configuration: { agentProfileId: thread.profileId }, metadata: {}, ephemeral: false, source: { kind: thread.source ?? 'user' } }
   }
 
   private runtimeChanged(project: FakeProject, thread: FakeThread): void {

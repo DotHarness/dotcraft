@@ -122,6 +122,33 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Replay_StopsAtAnApprovalAnsweredWithAnUnknownDecision_AndRestartsThereOnTheNextSubscription()
+    {
+        _model.Approvals = 2;
+        var thread = await CreateThreadAsync();
+        var turn = DrainAsync(_service.SubmitInputAsync(thread.Id, [new TextContent("write the notes")]));
+        await WaitForAsync(() => thread.Turns.LastOrDefault()?.Items.Count(item => item.Payload is ApprovalRequestPayload) == 2);
+
+        var phone = await ConnectAsync("dotcraft-mobile");
+        await phone.SubscribeAsync(thread.Id);
+        var first = await phone.NextRequestAsync();
+        first.Answer(new { decision = "maybe" });
+        await Task.Delay(200);
+        Assert.Equal(TurnStatus.WaitingApproval, thread.Turns[^1].Status);
+
+        await phone.SubscribeAsync(thread.Id);
+        var again = await phone.NextRequestAsync();
+        Assert.Equal(first.RequestId, again.RequestId);
+        again.Answer(new { decision = "accept" });
+        var second = await phone.NextRequestAsync();
+        Assert.NotEqual(first.RequestId, second.RequestId);
+        second.Answer(new { decision = "accept" });
+
+        await turn.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(await _model.Approved);
+    }
+
+    [Fact]
     public async Task Interrupt_ResolvesPendingApprovalForEverySubscriber_AndIgnoresALateAnswer()
     {
         var thread = await CreateThreadAsync();
@@ -316,13 +343,17 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
 
         public Task<bool> Approved => _approved.Task;
 
+        public int Approvals { get; set; } = 1;
+
         public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
             IEnumerable<ChatMessage> messages,
             ChatOptions? options = null,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            var approved = await new SessionScopedApprovalService(new AutoApproveApprovalService())
-                .RequestFileApprovalAsync("write", "notes.txt");
+            var approvals = new SessionScopedApprovalService(new AutoApproveApprovalService());
+            var results = await Task.WhenAll(Enumerable.Range(0, Approvals)
+                .Select(index => approvals.RequestFileApprovalAsync("write", $"notes{index}.txt")));
+            var approved = results.All(result => result);
             _approved.TrySetResult(approved);
             cancellationToken.ThrowIfCancellationRequested();
             yield return new ChatResponseUpdate(ChatRole.Assistant, approved ? "Wrote the notes." : "Skipped the notes.");

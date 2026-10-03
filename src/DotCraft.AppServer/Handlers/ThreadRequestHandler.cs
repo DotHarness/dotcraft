@@ -758,7 +758,8 @@ internal sealed partial class ThreadRequestHandler(
             {
                 foreach (var (approvalItem, approvalRequest) in FindPendingApprovalRequests(turn).ToArray())
                 {
-                    await ReplayApprovalRequestAsync(sender, thread.Id, turn.Id, approvalItem.Id, approvalRequest);
+                    if (!await ReplayApprovalRequestAsync(sender, thread.Id, turn.Id, approvalItem.Id, approvalRequest))
+                        return;
                 }
             }
             else if (turn.Status == TurnStatus.WaitingInput
@@ -772,7 +773,7 @@ internal sealed partial class ThreadRequestHandler(
     private AppServerInteractiveRequestSender CreateInteractiveRequestSender() =>
         new(connection, transport, sessionService);
 
-    private async Task ReplayApprovalRequestAsync(
+    private async Task<bool> ReplayApprovalRequestAsync(
         AppServerInteractiveRequestSender sender,
         string threadId,
         string turnId,
@@ -781,11 +782,12 @@ internal sealed partial class ThreadRequestHandler(
     {
         try
         {
-            await sender.SendApprovalRequestAsync(threadId, turnId, itemId, request);
+            return await sender.SendApprovalRequestAsync(threadId, turnId, itemId, request);
         }
         catch (Exception ex)
         {
             logger?.LogError(ex, "Pending approval replay failed for thread {ThreadId}", threadId);
+            return true;
         }
     }
 

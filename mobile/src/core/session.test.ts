@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { FakeComputer } from '../demo/fakeComputer'
+import { FakeComputer, type FakeThread } from '../demo/fakeComputer'
 import { FakeRelay } from '../demo/fakeNetwork'
 import { buildBoxSeed, createStudio, pairingUrl, type StudioOptions } from '../demo/seed'
 import { createHarness, waitFor, type Harness } from '../test/harness'
@@ -65,6 +65,33 @@ describe('connecting', () => {
     const initialize = computer.calls.find((call) => call.method === 'initialize')
     expect(initialize?.params.capabilities).toMatchObject({ approvalSupport: true, requestUserInputSupport: true, streamingSupport: true })
     expect(harness.network.sockets.every((socket) => socket.url.startsWith('wss://') && !socket.url.includes('credential'))).toBe(true)
+  })
+
+  it('shows an older chat that starts waiting after connecting, but never a subagent', async () => {
+    const computer = studio()
+    const harness = setup([computer])
+    const state = await online(harness)
+    const { project } = computer.thread(state.chats[keyOf(state, 'Upgrade Vite to 6.4')].threadId)
+    const now = new Date().toISOString()
+    const unlisted = (id: string, source: FakeThread['source']): FakeThread => ({
+      id,
+      displayName: id,
+      profileId: null,
+      createdAt: now,
+      lastActiveAt: now,
+      turns: [{ id: 'turn_001', threadId: id, status: 'running', startedAt: now }],
+      items: [],
+      pending: null,
+      stream: null,
+      continuation: '',
+      source,
+    })
+    project.threads.push(unlisted('thread_subagent', 'subagent'), unlisted('thread_older', 'user'))
+    for (const id of ['thread_subagent', 'thread_older']) {
+      computer.ask(id, { kind: 'approval', requestId: `request_${id}`, approvalType: 'shell', operation: 'npm test', target: 'npm test', reason: '' })
+    }
+    await waitFor(() => homeLists(harness.state()).waiting.some((chat) => chat.threadId === 'thread_older'))
+    expect(Object.values(harness.state().chats).some((chat) => chat.threadId === 'thread_subagent')).toBe(false)
   })
 })
 

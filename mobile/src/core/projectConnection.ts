@@ -76,6 +76,7 @@ export class ProjectConnection {
   private readonly held = new Map<string, (result: object) => void>()
   private readonly subscribed = new Set<string>()
   private readonly capturing = new Map<string, HistoryEvent[]>()
+  private readonly lookedUp = new Set<string>()
   private profiles: AgentProfileEntry[] | null = null
 
   constructor(private readonly options: ProjectConnectionOptions) {}
@@ -170,6 +171,10 @@ export class ProjectConnection {
 
     client.on('thread/runtimeChanged', ({ threadId, runtime }) => {
       if (!threadId) return
+      if (!this.store.getState().chats[this.key(threadId)]) {
+        this.lookUp(client, threadId)
+        return
+      }
       this.patch(threadId, { runtime: runtime ?? null, updatedAt: now(), ...(runtime?.running ? { lastTurnFailed: false } : {}) })
     })
     client.on('thread/started', ({ thread }) => this.threadSeen(thread))
@@ -205,6 +210,15 @@ export class ProjectConnection {
     }
     client.on('item/approval/resolved', resolved)
     client.on('item/tool/requestUserInput/resolved', resolved)
+  }
+
+  private lookUp(client: DotCraftWireClient, threadId: string): void {
+    if (this.lookedUp.has(threadId)) return
+    this.lookedUp.add(threadId)
+    client.request('thread/read', { threadId }).then(
+      ({ thread }) => this.threadSeen(thread),
+      () => this.lookedUp.delete(threadId),
+    )
   }
 
   private ensureSummary(threadId: string): void {
