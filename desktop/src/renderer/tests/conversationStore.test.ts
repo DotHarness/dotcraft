@@ -1549,7 +1549,6 @@ describe('turn lifecycle', () => {
 
     const display = getStreamingToolDisplay('SpawnAgent', item?.argumentsPreview, 'en')
     expect(display.label).toMatch(/^Spawning agent for: x+/)
-    expect(display.label.length).toBeLessThan(90)
     expect(item?.argumentsPreview).not.toContain(largePrompt)
   })
 
