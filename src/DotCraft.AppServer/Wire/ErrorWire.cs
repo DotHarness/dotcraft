@@ -29,6 +29,8 @@ internal sealed record MarketplaceErrorParams(
 /// <summary>Error parameters identifying a command.</summary>
 internal sealed record CommandErrorParams([property: JsonPropertyName("command")] string Command);
 
+internal sealed record FileSystemErrorParams([property: JsonPropertyName("path")] string Path);
+
 /// <summary>Error parameters identifying a required App Binding version.</summary>
 internal sealed record AppBindingVersionErrorParams(
     [property: JsonPropertyName("requiredVersion")] int RequiredVersion);

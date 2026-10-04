@@ -2415,6 +2415,123 @@
       ]
     },
     {
+      "name": "fs/createDirectory",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/FsCreateDirectoryParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/RpcEmpty.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "fileSystem",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "DirectoryNotFound",
+        "FileNotFound",
+        "FileTooLarge",
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "NotADirectory",
+        "NotAFile",
+        "PathBlocked"
+      ]
+    },
+    {
+      "name": "fs/readFile",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/FsReadFileParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/FsReadFileResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "fileSystem",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "DirectoryNotFound",
+        "FileNotFound",
+        "FileTooLarge",
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "NotADirectory",
+        "NotAFile",
+        "PathBlocked"
+      ]
+    },
+    {
+      "name": "fs/writeFile",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/FsWriteFileParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/RpcEmpty.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "fileSystem",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "DirectoryNotFound",
+        "FileNotFound",
+        "FileTooLarge",
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "NotADirectory",
+        "NotAFile",
+        "PathBlocked"
+      ]
+    },
+    {
       "name": "hooks/list",
       "paramStructure": "by-name",
       "params": [

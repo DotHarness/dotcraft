@@ -7270,6 +7270,92 @@
       "variants": []
     },
     {
+      "id": "core.FsCreateDirectoryParams",
+      "name": "FsCreateDirectoryParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/FsCreateDirectoryParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "recursive",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.FsReadFileParams",
+      "name": "FsReadFileParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/FsReadFileParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.FsReadFileResult",
+      "name": "FsReadFileResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/FsReadFileResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "dataBase64",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.FsWriteFileParams",
+      "name": "FsWriteFileParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/FsWriteFileParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "dataBase64",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.HookErrorInfo",
       "name": "HookErrorInfo",
       "module": "core",
@@ -14951,6 +15037,13 @@
         },
         {
           "name": "externalChannelManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "fileSystem",
           "type": "boolean",
           "required": false,
           "nullable": false,
@@ -27467,6 +27560,84 @@
       ],
       "since": "1",
       "specRef": "specs/protocols/external-channel-adapter.md",
+      "stability": "stable"
+    },
+    {
+      "name": "fs/createDirectory",
+      "descriptorMember": "FsCreateDirectory",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.FsCreateDirectoryParams",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "fileSystem",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "DirectoryNotFound",
+        "FileNotFound",
+        "FileTooLarge",
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "NotADirectory",
+        "NotAFile",
+        "PathBlocked"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "fs/readFile",
+      "descriptorMember": "FsReadFile",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.FsReadFileParams",
+      "resultType": "core.FsReadFileResult",
+      "module": "core",
+      "capability": "fileSystem",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "DirectoryNotFound",
+        "FileNotFound",
+        "FileTooLarge",
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "NotADirectory",
+        "NotAFile",
+        "PathBlocked"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "fs/writeFile",
+      "descriptorMember": "FsWriteFile",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.FsWriteFileParams",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "fileSystem",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "DirectoryNotFound",
+        "FileNotFound",
+        "FileTooLarge",
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "NotADirectory",
+        "NotAFile",
+        "PathBlocked"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"
     },
     {

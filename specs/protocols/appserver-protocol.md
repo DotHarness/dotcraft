@@ -43,6 +43,7 @@ Serialized shapes are defined by the [AppServer JSON Schema](../../src/DotCraft.
 - [24. SubAgent Profile Management Methods](#24-subagent-profile-management-methods)
 - [25. Workspace Config Methods](#25-workspace-config-methods)
 - [25A. Source Control Methods](#25a-source-control-methods)
+- [25B. File System Methods](#25b-file-system-methods)
 - [26. Memory Management Methods](#26-memory-management-methods)
 - [27. Dreams Management Methods](#27-dreams-management-methods)
 - [27A. Usage Telemetry Methods](#27a-usage-telemetry-methods)
@@ -296,6 +297,7 @@ Built-in channels and external adapters share the delivery and tool-call contrac
 | `capabilities.modelCatalogManagement` | boolean | Server supports model catalog methods (`model/list`). |
 | `capabilities.workspaceConfigManagement` | boolean | Server supports workspace configuration methods (`workspace/config/schema`, `workspace/config/update`). |
 | `capabilities.sourceControlManagement` | boolean | Server supports workspace source control binding methods (`sourceControl/get`, `sourceControl/update`, `sourceControl/test`) and source-control provider extensions advertised by `sourceControl/get.capabilities`, such as Perforce pending changelist selection/preparation. |
+| `capabilities.fileSystem` | boolean | Server supports file system methods on the AppServer host (`fs/readFile`, `fs/writeFile`, `fs/createDirectory`). |
 | `capabilities.memoryManagement` | boolean | Server supports workspace memory management methods (`memory/reset`). |
 | `capabilities.dreams` | boolean | Server supports workspace Dreams status, manual/create run requests, review lifecycle, and Dreams settings. |
 | `capabilities.mcpManagement` | boolean | Server supports MCP configuration management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`). |
@@ -2604,6 +2606,7 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 | `-32099` | Plugin configuration | `plugin/config/*`: the plugin declares no settings schema, or the document, scope, or an operation is invalid. Inspect `error.data.code`. |
 | `-32100` | Remote Tool Host unavailable | `remoteToolHost/connect`: the machine is not paired, offline, failed authentication, or speaks an incompatible profile. `error.data.code` carries the Remote Tool Host error code (Section 19B). |
 | `-32101` | Remote workspace busy | `remoteToolHost/connect`: another Agent Host holds the lease on the requested folder. `error.data.params.owner` is `self` or `other`. |
+| `-32103` | File system | `fs/*`: the path is blocked, missing, the wrong kind, or too large. `error.data.code` names the case and `error.data.params.path` the path (§25B). |
 
 Automation task methods (`automation/*`) share this error space and are defined in [automations-lifecycle.md](../features/automations-lifecycle.md), which owns their params, results, and persisted shapes.
 
@@ -6796,6 +6799,34 @@ Codes are stable wire contracts; servers emit `code` plus an English `fallbackTe
 ### 25A.10 Capability Advertisement
 
 Clients must check `capabilities.sourceControlManagement` before calling source control methods. The server advertises it when a workspace `.craft` path is available (same gating as `workspaceConfigManagement`). `sourceControl/get.capabilities.perforceChangelist` gates the Perforce changelist UI and RPCs and is false while Perforce is offline. `sourceControl/update` participates in `workspace/configChanged` via the `sourceControl` region; thread target changes use `thread/updated`.
+
+## 25B. File System Methods
+
+These methods let a client that does not share the AppServer host's file system, such as a paired
+phone, read a file the conversation refers to and place an attachment on the host. Servers advertise
+them with `capabilities.fileSystem = true`.
+
+| Method | Params | Result |
+|---|---|---|
+| `fs/readFile` | `{ path }` | `{ dataBase64 }`: the file's bytes. |
+| `fs/writeFile` | `{ path, dataBase64 }` | `{}`. Creates the file or replaces its contents. |
+| `fs/createDirectory` | `{ path, recursive? }` | `{}`. `recursive` defaults to `true` and also creates missing parents; an existing directory succeeds. |
+
+Rules:
+
+- `path` must be an absolute path on the AppServer host; a relative path is rejected with
+  `InvalidParams` (`-32602`). Paths are not limited to the workspace, because the client already has
+  the authority of the host's user.
+- Failures other than invalid params use error code `-32103`, with the case in `error.data.code` and
+  the resolved path in `error.data.params.path`. A path under `Security.BlacklistedPaths` fails with
+  `PathBlocked` for every method.
+- `fs/readFile` fails with `FileNotFound` when nothing exists at `path`, `NotAFile` when `path` is a
+  directory, and `FileTooLarge` when the file exceeds 8 MiB.
+- `fs/writeFile` does not create parent directories; a missing parent fails with
+  `DirectoryNotFound`. Malformed base64 is rejected with `InvalidParams`. The request must fit the
+  transport's message size limit (§15), so a client keeps each written file to about 2 MiB.
+- `fs/createDirectory` fails with `NotADirectory` when a file already exists at `path`, and with
+  `DirectoryNotFound` when `recursive` is `false` and the parent is missing.
 
 ## 26. Memory Management Methods
 

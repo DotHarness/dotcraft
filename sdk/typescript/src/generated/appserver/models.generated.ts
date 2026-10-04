@@ -1465,6 +1465,28 @@ export interface ExternalChannelUpsertResult {
   [key: string]: unknown;
 }
 
+export interface FsCreateDirectoryParams {
+  path: string;
+  recursive?: boolean;
+  [key: string]: unknown;
+}
+
+export interface FsReadFileParams {
+  path: string;
+  [key: string]: unknown;
+}
+
+export interface FsReadFileResult {
+  dataBase64: string;
+  [key: string]: unknown;
+}
+
+export interface FsWriteFileParams {
+  dataBase64: string;
+  path: string;
+  [key: string]: unknown;
+}
+
 export interface HookErrorInfo {
   message?: string;
   path?: string;
@@ -3015,6 +3037,7 @@ export interface ServerCapabilities {
   dynamicToolRebind?: boolean;
   extensions?: ServerCapabilityExtensions | null;
   externalChannelManagement?: boolean;
+  fileSystem?: boolean;
   gitWorktrees?: boolean;
   hooksManagement?: boolean;
   inlineVisualizations?: boolean;
