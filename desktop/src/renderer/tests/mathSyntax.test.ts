@@ -40,6 +40,12 @@ describe('mathSyntax', () => {
     expect(math('\\\\(not math\\)')).toEqual([])
   })
 
+  it('does not close a formula on the second backslash of a TeX line break', () => {
+    expect(math('\\(x &= 1\\\\)y &= 2\\)')).toEqual([['inlineMath', 'x &= 1\\\\)y &= 2']])
+    expect(math('\\[a\\\\]b\\]')).toEqual([['inlineMath', 'a\\\\]b']])
+    expect(math('\\(a\\\\\\)')).toEqual([['inlineMath', 'a\\\\']])
+  })
+
   it('leaves code and unclosed delimiters untouched', () => {
     expect(math('`\\(x\\)` and\n```\n\\[\ny\n\\]\n```')).toEqual([])
     expect(math('streaming \\(E=\\frac38')).toEqual([])

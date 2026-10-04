@@ -238,6 +238,11 @@ function mathText({ open, close }: Delimiters): Construct {
         return ok(code)
       }
       sequence.type = 'mathTextData'
+      // TeX's `\\` is one command, so its second backslash never starts a closing `\)` or `\]`.
+      if (!runs && size === 1 && code === BACKSLASH) {
+        effects.consume(code)
+        return data
+      }
       return data(code)
     }
   }

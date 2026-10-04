@@ -1,7 +1,9 @@
 import type { ClipboardEvent } from 'react'
 
 const TEX_SOURCE = 'annotation[encoding="application/x-tex"]'
-const BLOCKS = new Set(['P', 'DIV', 'PRE', 'BLOCKQUOTE', 'LI', 'UL', 'OL', 'TABLE', 'TR', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'])
+const PARAGRAPHS = new Set(['P', 'PRE', 'BLOCKQUOTE', 'UL', 'OL', 'TABLE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'])
+const LINES = new Set(['LI', 'TR'])
+const CONTAINERS = new Set(['DIV', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'TABLE', 'THEAD', 'TBODY', 'TR'])
 
 // Rendered KaTeX copies as glyph soup, so a selection that touches a formula copies its TeX.
 export function copySelectionWithMathSource(event: ClipboardEvent<HTMLElement>): void {
@@ -17,7 +19,7 @@ export function copySelectionWithMathSource(event: ClipboardEvent<HTMLElement>):
   const fragment = range.cloneContents()
   if (!fragment.querySelector('.katex')) return
   for (const display of fragment.querySelectorAll('.katex-display')) {
-    const block = document.createElement('div')
+    const block = document.createElement('p')
     block.textContent = `\\[${texSource(display)}\\]`
     display.replaceWith(block)
   }
@@ -27,7 +29,7 @@ export function copySelectionWithMathSource(event: ClipboardEvent<HTMLElement>):
 
   const container = document.createElement('div')
   container.append(fragment)
-  event.clipboardData.setData('text/plain', plainText(container).replace(/\n{3,}/g, '\n\n').trim())
+  event.clipboardData.setData('text/plain', plainText(container))
   event.clipboardData.setData('text/html', container.innerHTML)
   event.preventDefault()
 }
@@ -41,11 +43,39 @@ function texSource(formula: Element): string {
   return formula.querySelector(TEX_SOURCE)?.textContent ?? formula.textContent ?? ''
 }
 
-function plainText(node: Node): string {
-  if (node.nodeType === Node.TEXT_NODE) return (node as Text).data
-  if (!(node instanceof Element)) return ''
-  if (node.tagName === 'BR') return '\n'
-  const text = [...node.childNodes].map(plainText).join('')
-  if (node.tagName === 'TD' || node.tagName === 'TH') return node.nextElementSibling ? `${text}\t` : text
-  return BLOCKS.has(node.tagName) ? `${text}\n` : text
+// Line breaks between blocks take the largest one asked for and never touch the text itself,
+// so code keeps its blank lines.
+function plainText(root: Node): string {
+  let text = ''
+  let breaks = 0
+
+  const write = (value: string): void => {
+    if (value === '') return
+    if (text !== '') text += '\n'.repeat(breaks)
+    breaks = 0
+    text += value
+  }
+
+  const visit = (node: Node): void => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const value = (node as Text).data
+      const parent = node.parentElement
+      if (parent && CONTAINERS.has(parent.tagName) && value.trim() === '') return
+      write(value)
+      return
+    }
+    if (!(node instanceof Element)) return
+    if (node.tagName === 'BR') {
+      write('\n')
+      return
+    }
+    const required = PARAGRAPHS.has(node.tagName) ? 2 : LINES.has(node.tagName) ? 1 : 0
+    breaks = Math.max(breaks, required)
+    node.childNodes.forEach(visit)
+    if ((node.tagName === 'TD' || node.tagName === 'TH') && node.nextElementSibling) write('\t')
+    breaks = Math.max(breaks, required)
+  }
+
+  visit(root)
+  return text
 }

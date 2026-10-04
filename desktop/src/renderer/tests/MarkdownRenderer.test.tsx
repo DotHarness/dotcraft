@@ -505,6 +505,20 @@ describe('MarkdownRenderer', () => {
     expect(setData).toHaveBeenCalledWith('text/plain', 'Weight for \\(n\\) neighbours:\n\n\\[w=\\frac58\\]')
   })
 
+  it('keeps blank lines inside code copied together with a formula', async () => {
+    const { container } = renderWithLocale(['Weight \\(n\\):', '', '```', 'first', '', '', 'last', '```'].join('\n'))
+    await waitFor(() => expect(container.querySelector('.katex')).not.toBeNull())
+
+    const range = document.createRange()
+    range.selectNodeContents(container)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+    const setData = vi.fn()
+    fireEvent.copy(container.querySelector('.katex')!, { clipboardData: { setData } })
+
+    expect(setData).toHaveBeenCalledWith('text/plain', expect.stringContaining('first\n\n\nlast'))
+  })
+
   it('memoizes: does not re-render when content unchanged', () => {
     const { rerender, container } = renderWithLocale('Static text')
     const firstHTML = container.innerHTML
