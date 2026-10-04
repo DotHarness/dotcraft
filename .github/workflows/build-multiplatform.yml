@@ -267,6 +267,11 @@ jobs:
       shell: bash
       run: rm -rf desktop/dist
 
+    - name: Stop Spotlight indexing - macOS
+      if: runner.os == 'macOS'
+      # Spotlight holds the DMG staging volume open, so hdiutil cannot detach it.
+      run: sudo mdutil -a -i off
+
     - name: Build desktop app
       if: runner.os != 'Linux'
       run: npm run dist:package -- ${{ matrix.electron_builder_args }}
