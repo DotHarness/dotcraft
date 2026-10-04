@@ -1,5 +1,4 @@
-import * as Clipboard from 'expo-clipboard'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { workspaceFile } from '../../core/links'
 import { baseName, type ToolIcon, type ToolVerb, type TranscriptEntry } from '../../core/transcript'
@@ -10,6 +9,7 @@ import { Icon, type IconName } from '../icons'
 import { Spinner, Txt } from '../parts'
 import { metrics, type, useTheme } from '../theme'
 import { FileChip, InlineChip, SkillChip } from './Chips'
+import { CopyButton } from './CopyButton'
 import { ImageThumb } from './Images'
 import { Markdown } from './Markdown'
 import { PlanCard } from './PlanCard'
@@ -182,28 +182,6 @@ function GeneratedImage({ entry }: { entry: Extract<TranscriptEntry, { kind: 'im
   )
 }
 
-function CopyButton({ text }: { text: string }) {
-  const { t } = useI18n()
-  const { colors } = useTheme()
-  const [copied, setCopied] = useState(false)
-  useEffect(() => {
-    if (!copied) return
-    const timer = setTimeout(() => setCopied(false), 1500)
-    return () => clearTimeout(timer)
-  }, [copied])
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={copied ? t('common.copied') : t('chat.copy')}
-      hitSlop={6}
-      onPress={() => void Clipboard.setStringAsync(text).then(() => setCopied(true))}
-      style={({ pressed }) => [styles.copy, pressed && { backgroundColor: colors.roundFill }]}
-    >
-      <Icon name={copied ? 'check' : 'copy'} size={16} color={colors.textDimmed} />
-    </Pressable>
-  )
-}
-
 function UserText({ segments, workspacePath }: { segments: UserSegment[]; workspacePath: string | null }) {
   return (
     <>
@@ -264,7 +242,7 @@ export function TranscriptLine({
       return (
         <View accessibilityLiveRegion={entry.streaming ? 'polite' : 'none'}>
           <Markdown text={entry.text} workspacePath={workspacePath} />
-          {entry.streaming ? null : <CopyButton text={entry.text} />}
+          {entry.streaming ? null : <CopyButton text={entry.text} label={t('chat.copy')} style={styles.copy} />}
         </View>
       )
     case 'reasoning':
@@ -336,7 +314,7 @@ const styles = StyleSheet.create({
   generated: { gap: 8 },
   generatedImage: { width: '100%', maxWidth: 320 },
   placeholder: { aspectRatio: 1, borderRadius: 12 },
-  copy: { alignSelf: 'flex-start', marginTop: 4, marginLeft: -6, padding: 6, borderRadius: 8 },
+  copy: { alignSelf: 'flex-start', marginTop: 4, marginLeft: -6 },
   tight: { marginTop: -6 },
   process: { flexDirection: 'row', gap: 6, minWidth: 0 },
   failure: { flexDirection: 'row', gap: 12, padding: 14, borderWidth: 1, borderRadius: metrics.noticeRadius },

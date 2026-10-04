@@ -233,7 +233,7 @@ export function Composer({
                 onPress={() => void switchPlan(false)}
                 style={({ pressed }) => [styles.plan, { backgroundColor: pressed ? colors.roundFillPressed : colors.roundFill }]}
               >
-                <Icon name="listTodo" size={16} color={colors.textPrimary} />
+                <Icon name="listChecks" size={16} color={colors.textPrimary} />
                 <Text style={[type.body, styles.planLabel, { color: colors.textPrimary }]}>{t('composer.plan')}</Text>
                 <Icon name="x" size={14} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>

@@ -22,7 +22,7 @@ import { Composer } from '../chat/Composer'
 import { catalogItem, ComposerControls, defaultModel, type ControlChange } from '../chat/ComposerControls'
 import { ContextRing } from '../chat/ContextRing'
 import type { DecisionActions } from '../chat/DecisionBodies'
-import { DecisionDrawer } from '../chat/DecisionDrawer'
+import { DecisionCard } from '../chat/DecisionCard'
 import { FileSheet } from '../chat/FileSheet'
 import { StatusPopover } from '../chat/StatusPopover'
 import { TranscriptLine } from '../chat/Transcript'
@@ -105,8 +105,8 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const planMode = detail?.config?.mode === 'plan'
   const planTurn = awaitsPlanConfirmation(chat?.runtime ?? null, detail?.config?.mode) ? (detail?.history.turns.at(-1)?.id ?? key) : null
   const decisions = waitingDecisions(pending, planTurn !== dismissedPlan ? planTurn : null)
-  const decision = decisions[0] ?? null
-  const planTitle = useMemo(() => [...transcript].reverse().find((entry) => entry.kind === 'plan')?.title ?? null, [transcript])
+  const decision = live ? (decisions[0] ?? null) : null
+  const insets = useSafeAreaInsets()
   const canPlan = offersPlanMode(detail?.config, chat?.profileId)
   const changes = useMemo(() => (detail ? latestChanges(detail.history, detail.workspacePath) : null), [detail])
   const readFile = useCallback((path: string) => session.readFile(projectId, path), [projectId, session])
@@ -148,7 +148,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
             <ScrollView
               ref={scroller}
               style={styles.fill}
-              contentContainerStyle={[styles.transcript, !live && { paddingBottom: 16 + 34 }]}
+              contentContainerStyle={[styles.transcript, (!live || decision) && { paddingBottom: insets.bottom + 16 }]}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
@@ -158,6 +158,9 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
                 pinned.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 48
               }}
               onContentSizeChange={() => {
+                if (pinned.current) scroller.current?.scrollToEnd({ animated: false })
+              }}
+              onLayout={() => {
                 if (pinned.current) scroller.current?.scrollToEnd({ animated: false })
               }}
             >
@@ -192,6 +195,11 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
                   <TranscriptLine key={entry.id} entry={entry} previous={transcript[index - 1]} workspacePath={workspacePath} />
                 ))}
               </FileViewerContext.Provider>
+              {decision ? (
+                <View style={styles.decision}>
+                  <DecisionCard key={decision.requestId} decision={decision} count={decisions.length} disabled={!ready} actions={actions} />
+                </View>
+              ) : null}
             </ScrollView>
           )}
           <ChatBar
@@ -209,36 +217,23 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
           />
         </View>
 
-        {!catchingUp && live ? (
+        {!catchingUp && live && !decision ? (
           <Dock>
-            {decision ? (
-              <DecisionDrawer
-                key={decision.requestId}
-                decision={decision}
-                count={decisions.length}
-                disabled={!ready}
-                planTitle={planTitle}
-                actions={actions}
-              />
-            ) : (
-              <>
-                {changes ? <ChangesPill changes={changes} onPress={() => setChangesOpen(true)} /> : null}
-                <Composer
-                  key={key}
-                  computer={computer.name}
-                  running={isLive(chatState)}
-                  canSend={ready}
-                  canAttachFiles={models?.fileSystem === true}
-                  canPlan={canPlan}
-                  references={references}
-                  planMode={planMode}
-                  onPlanMode={(on) => session.setMode(key, on ? 'plan' : 'agent')}
-                  controls={<ComposerControls projectId={projectId} controls={controls} models={models} onChange={change} />}
-                  onSend={(draft) => session.send(key, draft)}
-                  onStop={() => void session.stop(key).catch(() => undefined)}
-                />
-              </>
-            )}
+            {changes ? <ChangesPill changes={changes} onPress={() => setChangesOpen(true)} /> : null}
+            <Composer
+              key={key}
+              computer={computer.name}
+              running={isLive(chatState)}
+              canSend={ready}
+              canAttachFiles={models?.fileSystem === true}
+              canPlan={canPlan}
+              references={references}
+              planMode={planMode}
+              onPlanMode={(on) => session.setMode(key, on ? 'plan' : 'agent')}
+              controls={<ComposerControls projectId={projectId} controls={controls} models={models} onChange={change} />}
+              onSend={(draft) => session.send(key, draft)}
+              onStop={() => void session.stop(key).catch(() => undefined)}
+            />
           </Dock>
         ) : null}
       </KeyboardAvoidingView>
@@ -388,5 +383,6 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   transcript: { flexGrow: 1, gap: 14, paddingTop: BAR_HEIGHT + 20, paddingHorizontal: metrics.gutter, paddingBottom: 16 },
   dock: { gap: 10, paddingTop: 8, paddingHorizontal: metrics.gutter },
+  decision: { marginTop: 'auto' },
   emptyBody: { paddingHorizontal: metrics.gutter },
 })

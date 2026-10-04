@@ -192,12 +192,36 @@ const ICONS = {
     ['path', { d: 'M5 12h14' }],
     ['path', { d: 'M12 5v14' }],
   ],
-  listTodo: [
+  lightbulb: [
+    ['path', { d: 'M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5' }],
+    ['path', { d: 'M9 18h6' }],
+    ['path', { d: 'M10 22h4' }],
+  ],
+  circle: [['circle', { cx: 12, cy: 12, r: 10 }]],
+  circleDot: [
+    ['circle', { cx: 12, cy: 12, r: 10 }],
+    ['circle', { cx: 12, cy: 12, r: 1 }],
+  ],
+  circleCheck: [
+    ['circle', { cx: 12, cy: 12, r: 10 }],
+    ['path', { d: 'm9 12 2 2 4-4' }],
+  ],
+  circleX: [
+    ['circle', { cx: 12, cy: 12, r: 10 }],
+    ['path', { d: 'm15 9-6 6' }],
+    ['path', { d: 'm9 9 6 6' }],
+  ],
+  circleAlert: [
+    ['circle', { cx: 12, cy: 12, r: 10 }],
+    ['path', { d: 'M12 8v4' }],
+    ['path', { d: 'M12 16h.01' }],
+  ],
+  listChecks: [
     ['path', { d: 'M13 5h8' }],
     ['path', { d: 'M13 12h8' }],
     ['path', { d: 'M13 19h8' }],
     ['path', { d: 'm3 17 2 2 4-4' }],
-    ['rect', { width: 6, height: 6, x: 3, y: 4, rx: 1 }],
+    ['path', { d: 'm3 7 2 2 4-4' }],
   ],
 } satisfies Record<string, Shape[]>
 

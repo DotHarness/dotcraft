@@ -30,7 +30,7 @@ export function AddMenu({
       <MenuRow icon="image" label={t('composer.photo')} onPress={onPhoto} />
       {canAttachFiles ? <MenuRow icon="file" label={t('composer.file')} onPress={onFile} /> : null}
       {canPlan ? (
-        <MenuRow icon="listTodo" label={t('composer.planMode')} checked={planMode} onPress={() => onPlanMode(!planMode)} />
+        <MenuRow icon="listChecks" label={t('composer.planMode')} checked={planMode} onPress={() => onPlanMode(!planMode)} />
       ) : null}
     </PopoverMenu>
   )

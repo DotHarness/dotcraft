@@ -63,6 +63,7 @@ export function RequestUserInputComposer({
 }: RequestUserInputComposerProps): JSX.Element | null {
   const t = useT()
   const [currentQuestion, setCurrentQuestion] = useState(0)
+  const [editingOther, setEditingOther] = useState(false)
   const [selected, setSelected] = useState<number[]>([])
   const [otherText, setOtherText] = useState<string[]>([])
   const otherInputRef = useRef<HTMLInputElement | null>(null)
@@ -298,7 +299,7 @@ export function RequestUserInputComposer({
           onDragOver={(e) => e.preventDefault()}
           onDragLeave={(e) => e.preventDefault()}
           onDrop={(e) => e.preventDefault()}
-          focused
+          focused={editingOther}
           showMascot
           mascotInteraction={DECISION_MASCOT}
           petSurface="decision"
@@ -364,6 +365,7 @@ export function RequestUserInputComposer({
                     canMoveDown={canMoveDown}
                     inputRef={otherInputRef}
                     onSelect={() => updateSelected(otherIndex)}
+                    onEditingChange={setEditingOther}
                     onChange={updateOther}
                     onSubmit={submit}
                   />
@@ -419,6 +421,7 @@ function OtherRow({
   canMoveDown,
   inputRef,
   onSelect,
+  onEditingChange,
   onChange,
   onSubmit
 }: {
@@ -430,6 +433,7 @@ function OtherRow({
   canMoveDown: boolean
   inputRef: RefObject<HTMLInputElement | null>
   onSelect: () => void
+  onEditingChange: (editing: boolean) => void
   onChange: (value: string) => void
   onSubmit: () => void
 }): JSX.Element {
@@ -474,7 +478,11 @@ function OtherRow({
           bare
           type={secret ? 'password' : 'text'}
           value={value}
-          onFocus={onSelect}
+          onFocus={() => {
+            onSelect()
+            onEditingChange(true)
+          }}
+          onBlur={() => onEditingChange(false)}
           onChange={(event) => onChange(event.currentTarget.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {

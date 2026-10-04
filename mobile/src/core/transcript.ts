@@ -39,9 +39,18 @@ export type TranscriptEntry =
     }
   | { kind: 'notice'; id: string; tone: 'neutral' | 'error'; notice: NoticeKind; detail?: string }
   | { kind: 'image'; id: string; status: 'inProgress' | 'completed' | 'failed'; uri: string | null; dropped: boolean; error?: string }
-  | { kind: 'plan'; id: string; title: string; overview: string; steps: string[]; content: string }
+  | { kind: 'plan'; id: string; title: string; overview: string; todos: PlanTodo[]; content: string }
 
 type ToolEntry = Extract<TranscriptEntry, { kind: 'tool' }>
+
+export interface PlanTodo {
+  content: string
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
+}
+
+function todoStatus(value: unknown): PlanTodo['status'] {
+  return value === 'in_progress' || value === 'completed' || value === 'cancelled' ? value : 'pending'
+}
 
 const SHELL_TOOLS = new Set(['Exec', 'RunCommand', 'BashCommand'])
 const HIDDEN_TOOLS = new Set(['RequestUserInput'])
@@ -182,13 +191,13 @@ function planEntry(item: HistoryItem, results: Map<string, HistoryItem>): Transc
   if (!result || result.payload.success === false || str(result.payload.result).startsWith('Error:')) return null
   const input = args(item.payload)
   const { title, overview, content } = parsePlanMarkdown(str(input.plan))
-  const todos = Array.isArray(input.todos) ? (input.todos as { content?: unknown }[]) : []
+  const todos = Array.isArray(input.todos) ? (input.todos as { content?: unknown; status?: unknown }[]) : []
   return {
     kind: 'plan',
     id: entryId(item),
     title,
     overview,
-    steps: todos.map((todo) => str(todo.content).trim()).filter(Boolean),
+    todos: todos.flatMap((todo) => (str(todo.content).trim() ? [{ content: str(todo.content).trim(), status: todoStatus(todo.status) }] : [])),
     content,
   }
 }

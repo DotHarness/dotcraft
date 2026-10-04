@@ -1362,6 +1362,9 @@ own placeholder and state already say.
   theme has a subtle frame while the dark theme can remain effectively frameless,
   shows a soft brand-gradient glow that gently breathes on focus
   (`--composer-focus-glow`), and lifts slightly on hover.
+- Approval, question, and plan-confirmation composers take the composer's
+  place with the same frame; they show the focus glow only while their own text
+  field is focused, never merely because a decision is waiting.
 - The composer card keeps model, context-window, and send controls in its primary
   action row; project, the machine tools run on (Run on), work location,
   source-control branch or changelist, and provider subscription status form the

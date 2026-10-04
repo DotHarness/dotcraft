@@ -318,14 +318,13 @@ that supports user-input requests and streaming.
 | Pair | Camera scan, the Allow confirmation, and a connected confirmation. |
 | Home | No screen title. The top row centers the computer, with the mascot as its avatar, its name, its status, and a chevron; tapping it opens a menu with **Pair a different computer** and **Settings**, so the row has no other button. It stays in place while the lists scroll. **Needs you** lists every chat waiting on an approval or a question across running projects. **Projects** lists projects, marking those whose runtime is not running; **Recent** lists the other chats of running projects with a trailing state. Search over chat titles, and New chat, which asks for the project with the most recently used one first. |
 | Project | The project's chats, newest first, and New chat. Opening a project whose runtime is not running starts it; Home never starts a project by itself. |
-| Chat | A floating top bar over the transcript: Back, the chat title with its project and computer, the context ring, and a menu. The ring fills with the share of the context window in use; tapping it opens Status. The transcript collapses each tool activity to one line and hides reasoning behind a disclosure; finished replies offer Copy; a created plan shows as a plan card. While an approval, a question, or a plan confirmation waits, the decision drawer takes the composer's place. The composer card names the computer it works on and carries Add (**+**), the approval policy, and the model controls; while a turn runs it adds a message to the turn and a Stop control interrupts it. Above the composer, a changes pill appears once a turn has changed files. |
+| Chat | A floating top bar over the transcript: Back, the chat title with its project and computer, the context ring, and a menu. The ring fills with the share of the context window in use; tapping it opens Status. The transcript collapses each tool activity to one line and hides reasoning behind a disclosure; finished replies offer Copy; a created plan shows as a plan card. While an approval, a question, or a plan confirmation waits, the decision card closes the transcript and the composer is hidden. The composer card names the computer it works on and carries Add (**+**), the approval policy, and the model controls; while a turn runs it adds a message to the turn and a Stop control interrupts it. Above the composer, a changes pill appears once a turn has changed files. |
 | Add menu | **Photo**, **File**, and **Plan mode**, which shows a check while it is on. |
 | Picker | Commands and skills matching what follows `/` or `$` in the composer. |
 | Changes | Every file the turn changed with its additions and deletions; each file expands to its diff. |
 | File | One file from the computer, read-only. |
 | Status | Opened from the context ring: context left, account usage when the chat's provider reports it, the project folder, and the chat ID to copy. |
-| Decision drawer | One drawer for every decision a chat waits on: an approval, a question, or a plan confirmation. It opens expanded, minimizes to a one-line bar that keeps the transcript readable, and expands again from the bar. The composer stays hidden until the decision is made. |
-| Plan | The full plan from a plan card: title, overview, steps, and the plan body. |
+| Decision card | One card for every decision a chat waits on: an approval, a question, or a plan confirmation. It is the last entry of the transcript, held at the bottom of the screen when the chat is short, and scrolls with it, so earlier messages stay one swipe away. Like the composer, it shows the focus border only while its text field is in use. The composer stays hidden until the decision is made. |
 | Settings | The paired computer with Remove, Pair a different computer, and app information. |
 
 Every screen below Home leads with the same framed Back button as the chat's top bar, including
@@ -344,15 +343,18 @@ list shows **failed** only for a chat whose failure the phone has seen.
   project's defaults, and calls `turn/start`.
 - A message sent while a turn runs uses `turn/steer` when the server accepts steering and
   `turn/enqueue` otherwise; Stop calls `turn/interrupt`.
-- The decision drawer shows one request at a time and counts the others waiting in the chat.
-- An approval in the drawer shows its reason, the command or files it covers, and where it runs,
-  then **Allow once**, **Allow for session**, and **Reject** as option rows with Desktop's
-  descriptions. Tapping a row answers `item/approval/request` with `accept`, `acceptForSession`, or
-  `decline` at once. The phone never offers `acceptAlways`, because a permanent grant belongs on the
+- The decision card shows one request at a time and counts the others waiting in the chat. Its
+  options are Desktop's numbered choice rows: a row is selected by tapping it, a selected row answers
+  when tapped again, and **Submit** answers with the selected row. A row's description sits behind
+  its info icon.
+- An approval in the card asks its question over Desktop's detail panel (type, operation, target,
+  reason), then **Allow once**, **Allow for session**, and **Reject** as option rows. **Submit** is
+  named after the selected row and answers `item/approval/request` with `accept`,
+  `acceptForSession`, or `decline`; while another row is selected, **Reject** sits beside it. The phone never offers `acceptAlways`, because a permanent grant belongs on the
   computer. An approval has no dismiss; **Reject** declines it.
-- A question in the drawer follows Desktop's question format: the question, its options as rows
-  with their descriptions, and an **Other** field for typed text. A request with several questions
-  pages through them with **Previous** and **Next**, and **Submit** answers
+- A question in the card follows Desktop's question format: the question, its options as rows, and
+  an **Other** row for typed text. A request with several questions pages through them with
+  **Previous** and **Next** beside the question, and **Submit** answers
   `item/tool/requestUserInput` with every answer. **Dismiss** answers a non-blocking request with no
   answers and interrupts the turn for a blocking one, as Desktop does.
 - The chat menu offers the basic chat actions Desktop's chat menu has: Rename (`thread/rename`),
@@ -384,12 +386,14 @@ list shows **failed** only for a chat whose failure the phone has seen.
   `capabilities.fileSystem`.
 - **Plan mode** in the Add menu turns plan mode on, or off when it is on, with `thread/mode/set` (`plan` or `agent`); New chat in plan mode
   starts the thread with `mode: plan`. While on, the composer shows a Plan chip that turns it off.
-  A successful `CreatePlan` shows in the transcript as a plan card with the plan's title, overview,
-  and steps; it opens Plan. When the server reports a pending plan confirmation, the decision drawer
-  asks **Implement this plan?** with **Yes, implement this plan** and a field to say how to adjust it,
+  A successful `CreatePlan` shows in the transcript as Desktop's plan card: the Plan badge, the
+  title, and the start of the plan body under a fade with **Expand plan**; the card's chevron or
+  **Expand plan** opens the whole body and its to-dos in place, and Copy copies the plan. When the
+  server reports a pending plan confirmation, the decision card
+  asks **Implement this plan?** with **Yes, implement this plan** and a row to say how to adjust it,
   then **Submit**: yes switches the chat to `agent` and sends "Implement the plan.", the same as
   Desktop, and a typed adjustment is sent as feedback and stays in plan mode. **Dismiss** closes the
-  drawer and returns the composer in plan mode. When the switch to `agent` fails, nothing is sent and
+  card and returns the composer in plan mode. When the switch to `agent` fails, nothing is sent and
   the failure is reported. A chat that runs an Agent Profile has no
   **Plan mode** item or Plan chip, because its agent keeps a fixed capability scope, as on Desktop.
 - Typing `/` at the start of a word opens the Picker with custom commands from `command/list` and
@@ -592,10 +596,10 @@ The Phones segment adds **Access from anywhere** with the relay address and toke
   answered from its notification.
 - A photo and a file sent from the phone reach the agent; the file lands under the project's
   `.craft/attachments/`, and a large photo still fits one message.
-- Plan mode on the phone ends in **Implement this plan?** in the decision drawer, and yes continues
+- Plan mode on the phone ends in **Implement this plan?** in the decision card, and yes continues
   the chat in agent mode.
-- Approvals, questions, and plan confirmations all use the decision drawer, never a second copy of
-  the same request; minimizing it leaves the transcript readable and the composer hidden.
+- Approvals, questions, and plan confirmations all use the decision card, never a second copy of
+  the same request; the transcript above it scrolls while the composer stays hidden.
 - Commands and skills chosen in the Picker arrive as `commandRef` and `skillRef`.
 - Changes lists the same files and line counts as Desktop for the same turn, and a file chip opens
   the file's contents.

@@ -226,7 +226,6 @@ export function ApprovalDecisionComposer({
           onDragOver={(e) => e.preventDefault()}
           onDragLeave={(e) => e.preventDefault()}
           onDrop={(e) => e.preventDefault()}
-          focused
           showMascot
           petSurface="approval"
           mascotInteraction={DECISION_MASCOT}
