@@ -40,17 +40,17 @@ internal sealed class ProjectRegistry(HubPaths paths, TimeProvider? timeProvider
 
         lock (_gate)
         {
-            var file = Load();
+            var projects = new List<ProjectRecord>(Load().Projects);
             var now = _time.GetUtcNow();
-            var index = file.Projects.FindIndex(existing => ManagedAppServerRegistry.WorkspaceComparer.Equals(existing.Path, canonical));
+            var index = projects.FindIndex(existing => ManagedAppServerRegistry.WorkspaceComparer.Equals(existing.Path, canonical));
             var project = index < 0
                 ? new ProjectRecord(canonical, now, now)
-                : file.Projects[index] with { LastOpenedAt = now };
+                : projects[index] with { LastOpenedAt = now };
             if (index < 0)
-                file.Projects.Add(project);
+                projects.Add(project);
             else
-                file.Projects[index] = project;
-            Save(file);
+                projects[index] = project;
+            Save(new ProjectRegistryFile { Projects = projects });
             return project;
         }
     }
@@ -60,8 +60,8 @@ internal sealed class ProjectRegistry(HubPaths paths, TimeProvider? timeProvider
         var canonical = Canonicalize(path);
         lock (_gate)
         {
-            var file = Load();
-            if (file.Projects.RemoveAll(existing => ManagedAppServerRegistry.WorkspaceComparer.Equals(existing.Path, canonical)) == 0)
+            var projects = new List<ProjectRecord>(Load().Projects);
+            if (projects.RemoveAll(existing => ManagedAppServerRegistry.WorkspaceComparer.Equals(existing.Path, canonical)) == 0)
             {
                 throw new HubProtocolException(
                     "projectNotFound",
@@ -69,7 +69,7 @@ internal sealed class ProjectRegistry(HubPaths paths, TimeProvider? timeProvider
                     StatusCodes.Status404NotFound,
                     new { workspacePath = canonical });
             }
-            Save(file);
+            Save(new ProjectRegistryFile { Projects = projects });
         }
     }
 
@@ -97,13 +97,13 @@ internal sealed class ProjectRegistry(HubPaths paths, TimeProvider? timeProvider
 
     private void Save(ProjectRegistryFile file)
     {
-        _cache = file;
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_filePath))!);
         var tempPath = _filePath + ".tmp." + Guid.NewGuid().ToString("N");
         try
         {
             File.WriteAllText(tempPath, JsonSerializer.Serialize(file, HubJson.Options));
             File.Move(tempPath, _filePath, overwrite: true);
+            _cache = file;
         }
         finally
         {

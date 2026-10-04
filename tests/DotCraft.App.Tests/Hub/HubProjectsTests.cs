@@ -57,6 +57,22 @@ public sealed class HubProjectsTests : IDisposable
         Assert.Equal(["alpha"], await ListNamesAsync(restarted));
     }
 
+    [Fact]
+    public void Open_WhenTheListCannotBeSaved_LeavesTheListUnchanged()
+    {
+        var paths = HubPaths.Resolve(_userProfile);
+        var registry = new ProjectRegistry(paths);
+        var alpha = CreateFolder("alpha");
+        registry.Open(alpha);
+        File.Delete(paths.ProjectsPath);
+        Directory.CreateDirectory(paths.ProjectsPath);
+
+        Assert.ThrowsAny<Exception>(() => registry.Open(CreateFolder("beta")));
+        Assert.ThrowsAny<Exception>(() => registry.Remove(alpha));
+
+        Assert.Equal([alpha], registry.List().Select(project => project.Path));
+    }
+
     private string CreateFolder(string name)
     {
         var path = Path.Combine(_userProfile, "workspaces", name);

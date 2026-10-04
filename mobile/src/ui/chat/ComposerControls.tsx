@@ -343,7 +343,7 @@ export function ComposerControls({
   const current = catalogItem(models, controls.providerId, controls.model)
   const fast = controls.speed === 'fast' && current?.speed?.supportedModes?.includes('fast') === true
   const effort = controls.reasoning === 'default' ? current?.reasoning?.defaultEffort : controls.reasoning
-  const modelLabel = controls.model
+  const modelLabel = controls.model ?? t('model.title')
   return (
     <>
       <Pressable
@@ -355,10 +355,10 @@ export function ComposerControls({
       >
         <Icon name={POLICY_ICON[controls.approvalPolicy]} size={20} color={auto ? colors.warning : colors.textSecondary} />
       </Pressable>
-      {models.canListModels && modelLabel ? (
+      {models.canListModels ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${t('model.title')}: ${modelLabel}`}
+          accessibilityLabel={controls.model ? `${t('model.title')}: ${controls.model}` : t('model.title')}
           onPress={() => setSheet('model')}
           style={({ pressed }) => [styles.chip, pressed && { backgroundColor: colors.roundFill }]}
         >

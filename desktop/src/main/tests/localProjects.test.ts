@@ -77,6 +77,16 @@ describe('LocalProjectList', () => {
     await expect(list.remove('/work/b')).resolves.toBeUndefined()
   })
 
+  it('rejects an open that Hub refuses and leaves the list unchanged', async () => {
+    const fake = fakeHub([A])
+    fake.hub.openProject.mockRejectedValue(new DesktopHubError('workspaceNotFound', 'Workspace path does not exist.'))
+    const list = new LocalProjectList(() => fake.hub, vi.fn())
+    await list.refresh()
+
+    await expect(list.open('/work/missing')).rejects.toThrow('Workspace path does not exist.')
+    expect(paths(list)).toEqual(['/work/a'])
+  })
+
   it('shows no projects when Hub is unreachable', async () => {
     const unreachable = fakeHub([A])
     unreachable.hub.listProjects.mockRejectedValue(new DesktopHubError('hubUnavailable', 'DotCraft Hub could not be started.'))

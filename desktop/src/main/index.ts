@@ -2690,7 +2690,9 @@ function recordForegroundWorkspace(workspacePath: string, addProject: boolean): 
   } else {
     sharedSettings.lastWorkspacePath = workspacePath
     sharedSettings.lastForegroundEntry = 'workspace'
-    if (addProject && !hasRemoteEndpointArg()) void localProjects.open(workspacePath)
+    if (addProject && !hasRemoteEndpointArg()) {
+      void localProjects.open(workspacePath).catch((error) => console.warn('[desktop] failed to add project to Hub', error))
+    }
   }
   saveSettings(sharedSettings)
 }
@@ -2771,13 +2773,13 @@ function buildCallbacks(): IpcHandlerCallbacks {
       await removeLocalProject(workspacePath)
     },
     saveLocalProject: async (params) => {
+      await localProjects.open(params.primaryFolder.trim())
       const primaryFolder = saveLocalProjectDetails(sharedSettings, params)
       saveSettings(sharedSettings)
       emitWorkspaceProjects()
       if (params.previousPath && !isSameWorkspacePath(params.previousPath, primaryFolder)) {
         await localProjects.remove(params.previousPath)
       }
-      await localProjects.open(primaryFolder)
     },
     clearProjects: async () => {
       for (const project of localProjects.list()) {

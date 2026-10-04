@@ -32,12 +32,7 @@ export class LocalProjectList {
   }
 
   async open(path: string): Promise<void> {
-    try {
-      await this.getHubClient().openProject(path)
-    } catch (error) {
-      console.warn('[desktop] failed to add project to Hub', error)
-      return
-    }
+    await this.getHubClient().openProject(path)
     await this.refresh()
   }
 
