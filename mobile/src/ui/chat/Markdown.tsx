@@ -9,6 +9,7 @@ import { resolveLink } from '../../core/links'
 import { Icon } from '../icons'
 import { metrics, type, useTheme } from '../theme'
 import { FileChip, InlineChip, LinkChip } from './Chips'
+import { ImageThumb, SentImage } from './Images'
 import { mathSyntax } from './mathSyntax'
 
 interface Env {
@@ -80,6 +81,13 @@ function inline(nodes: PhrasingContent[], env: Env, key = ''): ReactNode[] {
   })
 }
 
+function MarkdownImage({ url, alt, env }: { url: string; alt: string; env: Env }) {
+  const target = resolveLink(url, alt, env.workspacePath)
+  if (target.kind === 'file') return <SentImage source={{ path: target.path }} label={alt || target.label} style={styles.image} />
+  if (target.kind === 'web' && /^https?:/i.test(target.url)) return <ImageThumb uri={target.url} label={alt || target.label} style={styles.image} />
+  return <Text style={[type.text, styles.prose, { color: env.colors.textSecondary }]}>{alt}</Text>
+}
+
 function columnWidth(table: Table, column: number): number {
   const longest = Math.max(...table.children.map((row) => plain((row.children[column]?.children ?? []) as PhrasingContent[]).length))
   return Math.min(260, Math.max(72, longest * 7.5 + 24))
@@ -142,12 +150,40 @@ function block(node: RootContent, env: Env, key: number): ReactNode {
   const { colors } = env
   const base = [type.text, styles.prose, { color: colors.textPrimary }]
   switch (node.type) {
-    case 'paragraph':
+    case 'paragraph': {
+      if (!node.children.some((child) => child.type === 'image')) {
+        return (
+          <Text key={key} selectable style={base}>
+            {inline(node.children, env)}
+          </Text>
+        )
+      }
+      const parts: ReactNode[] = []
+      let run: PhrasingContent[] = []
+      const flush = () => {
+        if (plain(run).trim())
+          parts.push(
+            <Text key={parts.length} selectable style={base}>
+              {inline(run, env, `${parts.length}.`)}
+            </Text>,
+          )
+        run = []
+      }
+      for (const child of node.children) {
+        if (child.type !== 'image') {
+          run.push(child)
+          continue
+        }
+        flush()
+        parts.push(<MarkdownImage key={parts.length} url={child.url} alt={child.alt ?? ''} env={env} />)
+      }
+      flush()
       return (
-        <Text key={key} selectable style={base}>
-          {inline(node.children, env)}
-        </Text>
+        <View key={key} style={styles.blocks}>
+          {parts}
+        </View>
       )
+    }
     case 'heading':
       return (
         <Text key={key} accessibilityRole="header" style={[base, HEADING[node.depth] ?? styles.strong]}>
@@ -204,6 +240,7 @@ export const Markdown = memo(function Markdown({ text, workspacePath }: { text: 
 
 const styles = StyleSheet.create({
   blocks: { gap: 10 },
+  image: { width: '100%', maxWidth: 320 },
   prose: { lineHeight: 22 },
   strong: { fontWeight: '700' },
   emphasis: { fontStyle: 'italic' },

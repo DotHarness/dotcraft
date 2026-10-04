@@ -1,0 +1,12 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+expoModule {
+  canBePublished = false
+}
+
+android {
+  namespace "com.dotharness.dotcraft.downloads"
+}

@@ -151,7 +151,7 @@ export function ChangesSheet({
   const files = useFilesLabel()(changes.files.length)
   return (
     <SheetLayer visible={visible} onClose={onClose}>
-      <SheetHeader title={files} onClose={onClose} />
+      <SheetHeader title={files} />
       <Counts added={changes.added} removed={changes.removed} variant="meta" />
       <View style={styles.files}>
         {changes.files.map((file) => (

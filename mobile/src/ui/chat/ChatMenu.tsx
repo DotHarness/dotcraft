@@ -85,7 +85,7 @@ export function ChatMenu({
   }
   return (
     <SheetLayer visible={visible} onClose={close}>
-      <SheetHeader title={renaming ? t('chat.rename') : title} onClose={close} />
+      <SheetHeader title={renaming ? t('chat.rename') : title} />
       {renaming ? (
         <RenameForm
           title={title}

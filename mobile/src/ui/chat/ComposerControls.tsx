@@ -176,7 +176,7 @@ function ApprovalSheet({
   if (confirming) {
     return (
       <SheetLayer visible={visible} onClose={close} alert>
-        <SheetHeader title={t('approval.fullAccess.warningTitle')} onClose={close} />
+        <SheetHeader title={t('approval.fullAccess.warningTitle')} />
         <Txt tone="secondary">{t('approval.fullAccess.warningBody')}</Txt>
         {failed ? <Txt tone="error">{t('controls.failed')}</Txt> : null}
         <View style={styles.decision}>
@@ -192,7 +192,7 @@ function ApprovalSheet({
   }
   return (
     <SheetLayer visible={visible} onClose={close}>
-      <SheetHeader title={t('approval.policy')} onClose={close} />
+      <SheetHeader title={t('approval.policy')} />
       {failed ? <Txt tone="error">{t('controls.failed')}</Txt> : null}
       <View accessibilityRole="radiogroup" style={styles.options}>
         {(['prompt', 'autoApprove'] as const).map((option) => (
@@ -259,7 +259,7 @@ function ModelSheet({
 
   return (
     <SheetLayer visible={visible} onClose={close}>
-      <SheetHeader title={t('model.title')} onClose={close} />
+      <SheetHeader title={t('model.title')} />
       {failed ? <Txt tone="error">{t('controls.failed')}</Txt> : null}
       <View style={styles.options}>
         {models.providers.length > 1 ? (
