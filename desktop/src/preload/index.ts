@@ -1013,17 +1013,12 @@ const api = {
       return ipcRenderer.invoke('workspace:clear-selection')
     },
 
-    /** Capped at the 20 most recent. */
-    getRecent(): Promise<Array<{ path: string; name: string; lastOpenedAt: string }>> {
-      return ipcRenderer.invoke('workspace:get-recent')
-    },
-
     getProjects(): Promise<WorkspaceProjectsPayload> {
       return ipcRenderer.invoke('workspace:get-projects')
     },
 
-    removeRecent(path: string): Promise<void> {
-      return ipcRenderer.invoke('workspace:remove-recent', path)
+    removeProject(path: string): Promise<void> {
+      return ipcRenderer.invoke('workspace:remove-project', path)
     },
 
     disconnectRemote(): Promise<void> {
@@ -1050,8 +1045,8 @@ const api = {
       }
     },
 
-    clearRecent(): Promise<void> {
-      return ipcRenderer.invoke('workspace:clear-recent')
+    clearProjects(): Promise<void> {
+      return ipcRenderer.invoke('workspace:clear-projects')
     },
 
     getStatus(): Promise<WorkspaceStatusPayload> {

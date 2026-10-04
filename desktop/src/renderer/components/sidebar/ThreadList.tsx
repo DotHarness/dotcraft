@@ -934,7 +934,7 @@ function ProjectHeader({
       await useSshMachinesStore.getState().removeProject(sshRef.machineId, sshRef.projectId)
       return
     }
-    await window.api.workspace.removeRecent(project.path)
+    await window.api.workspace.removeProject(project.path)
   }
 
   async function disconnectRemote(): Promise<void> {

@@ -158,7 +158,7 @@ function createIpcCallbacks(overrides: Partial<IpcCallbacks> = {}): IpcCallbacks
     onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
     getSettings: vi.fn(() => ({ locale: 'en' })),
     updateSettings: vi.fn(),
-    getRecentWorkspaces: vi.fn(() => []),
+    getLocalProjectPaths: vi.fn(() => []),
     getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
     getWorkspaceStatus: vi.fn(() => ({ status: 'ready', workspacePath: '/workspace', hasUserConfig: false, providers: [] })),
     ...overrides
@@ -649,15 +649,15 @@ describe('registerIpcHandlers', () => {
     expect(shell.openExternal).toHaveBeenCalledWith('workflow://open/board')
   })
 
-  it('forwards workspace:remove-recent to the main callback', async () => {
-    const removeRecentWorkspace = vi.fn()
+  it('forwards workspace:remove-project to the main callback', async () => {
+    const removeProject = vi.fn().mockResolvedValue(undefined)
     const handlers = registerHandlersForTest('/workspace', () => null, createIpcCallbacks({
-      removeRecentWorkspace
+      removeProject
     }))
 
-    await handlers.get('workspace:remove-recent')?.({}, '/workspace/other')
+    await handlers.get('workspace:remove-project')?.({}, '/workspace/other')
 
-    expect(removeRecentWorkspace).toHaveBeenCalledWith('/workspace/other')
+    expect(removeProject).toHaveBeenCalledWith('/workspace/other')
   })
 
   it('forwards workspace:disconnect-remote to the main callback', async () => {
@@ -996,7 +996,7 @@ describe('registerIpcHandlers', () => {
     expect(fs.readFile).not.toHaveBeenCalled()
   })
 
-  it('git:inspectHead reads the branch of a known recent project', async () => {
+  it('git:inspectHead reads the branch of a known local project', async () => {
     mockGitCommands((args) => {
       if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true\n' }
       if (args[0] === 'branch' && args[1] === '--show-current') return { stdout: 'feature/details-card\n' }
@@ -1006,11 +1006,7 @@ describe('registerIpcHandlers', () => {
       '/workspace',
       () => null,
       createIpcCallbacks({
-        getRecentWorkspaces: vi.fn(() => [{
-          path: '/recent/project',
-          name: 'project',
-          lastOpenedAt: new Date().toISOString()
-        }])
+        getLocalProjectPaths: vi.fn(() => ['/recent/project'])
       })
     )
     const inspectHead = handlers.get('git:inspectHead')!
@@ -1027,7 +1023,7 @@ describe('registerIpcHandlers', () => {
     )
   })
 
-  it('git:inspectHead allows managed worktrees of a recent project only', async () => {
+  it('git:inspectHead allows managed worktrees of a local project only', async () => {
     mockGitCommands((args) => {
       if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true\n' }
       if (args[0] === 'branch' && args[1] === '--show-current') return { stdout: 'feature/recent-worktree\n' }
@@ -1037,11 +1033,7 @@ describe('registerIpcHandlers', () => {
       '/workspace',
       () => null,
       createIpcCallbacks({
-        getRecentWorkspaces: vi.fn(() => [{
-          path: '/recent/project',
-          name: 'project',
-          lastOpenedAt: new Date().toISOString()
-        }])
+        getLocalProjectPaths: vi.fn(() => ['/recent/project'])
       })
     )
     const inspectHead = handlers.get('git:inspectHead')!
@@ -1322,7 +1314,7 @@ describe('registerIpcHandlers', () => {
       onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
       getSettings: vi.fn(() => ({})),
       updateSettings: vi.fn(),
-      getRecentWorkspaces: vi.fn(() => []),
+      getLocalProjectPaths: vi.fn(() => []),
       getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
       getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
     })
@@ -1350,7 +1342,7 @@ describe('registerIpcHandlers', () => {
       onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
       getSettings: vi.fn(() => ({ locale: 'en' })),
       updateSettings: vi.fn(),
-      getRecentWorkspaces: vi.fn(() => []),
+      getLocalProjectPaths: vi.fn(() => []),
       getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
       getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
     })
@@ -1414,7 +1406,7 @@ describe('registerIpcHandlers', () => {
       onRestartManagedAppServer,
       getSettings: vi.fn(() => ({})),
       updateSettings: vi.fn(),
-      getRecentWorkspaces: vi.fn(() => []),
+      getLocalProjectPaths: vi.fn(() => []),
       getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
       getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
     })
@@ -1570,7 +1562,7 @@ describe('registerIpcHandlers', () => {
       onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
       getSettings: vi.fn(() => ({})),
       updateSettings: vi.fn(),
-      getRecentWorkspaces: vi.fn(() => []),
+      getLocalProjectPaths: vi.fn(() => []),
       getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
       getWorkspaceStatus: vi.fn(() => ({
         status: 'ready',
@@ -1738,7 +1730,7 @@ describe('registerIpcHandlers', () => {
       onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
       getSettings: vi.fn(() => ({})),
       updateSettings: vi.fn(),
-      getRecentWorkspaces: vi.fn(() => []),
+      getLocalProjectPaths: vi.fn(() => []),
       getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
       getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
     })
@@ -1768,7 +1760,7 @@ describe('registerIpcHandlers', () => {
       onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
       getSettings: vi.fn(() => ({})),
       updateSettings: vi.fn(),
-      getRecentWorkspaces: vi.fn(() => []),
+      getLocalProjectPaths: vi.fn(() => []),
       getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
       getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
     })
@@ -1795,7 +1787,7 @@ describe('registerIpcHandlers', () => {
       onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
       getSettings: vi.fn(() => ({})),
       updateSettings: vi.fn(),
-      getRecentWorkspaces: vi.fn(() => []),
+      getLocalProjectPaths: vi.fn(() => []),
       getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
       getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
     })
@@ -1839,7 +1831,7 @@ describe('registerIpcHandlers', () => {
       onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
       getSettings: vi.fn(() => ({})),
       updateSettings: vi.fn(),
-      getRecentWorkspaces: vi.fn(() => []),
+      getLocalProjectPaths: vi.fn(() => []),
       getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
       getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
     })
@@ -1882,7 +1874,7 @@ describe('registerIpcHandlers', () => {
       onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
       getSettings: vi.fn(() => ({})),
       updateSettings: vi.fn(),
-      getRecentWorkspaces: vi.fn(() => []),
+      getLocalProjectPaths: vi.fn(() => []),
       getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
       getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
     })
@@ -1936,7 +1928,7 @@ describe('registerIpcHandlers', () => {
       onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
       getSettings: vi.fn(() => ({})),
       updateSettings: vi.fn(),
-      getRecentWorkspaces: vi.fn(() => []),
+      getLocalProjectPaths: vi.fn(() => []),
       getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
       getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
     })
@@ -1979,7 +1971,7 @@ describe('registerIpcHandlers', () => {
       onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
       getSettings: vi.fn(() => ({})),
       updateSettings: vi.fn(),
-      getRecentWorkspaces: vi.fn(() => []),
+      getLocalProjectPaths: vi.fn(() => []),
       getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
       getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
     })
@@ -2014,7 +2006,7 @@ describe('registerIpcHandlers', () => {
       onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
       getSettings: vi.fn(() => ({})),
       updateSettings,
-      getRecentWorkspaces: vi.fn(() => []),
+      getLocalProjectPaths: vi.fn(() => []),
       getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
       getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
     })
@@ -2171,20 +2163,20 @@ describe('unregisterIpcHandlers', () => {
     vi.clearAllMocks()
   })
 
-  it('removes workspace-config:get-core and workspace recent-project handlers during teardown', () => {
+  it('removes workspace-config:get-core and workspace project handlers during teardown', () => {
     unregisterIpcHandlers()
 
     const removedChannels = vi.mocked(ipcMain.removeHandler).mock.calls.map(([channel]) => channel)
     expect(removedChannels).toContain('workspace-config:get-core')
     expect(removedChannels).toContain('workspace:get-projects')
-    expect(removedChannels).toContain('workspace:remove-recent')
+    expect(removedChannels).toContain('workspace:remove-project')
     expect(removedChannels).toContain('workspace:disconnect-remote')
-    expect(removedChannels).toContain('workspace:clear-recent')
+    expect(removedChannels).toContain('workspace:clear-projects')
     expect(removedChannels.filter((channel) => channel === 'workspace-config:get-core')).toHaveLength(1)
     expect(removedChannels.filter((channel) => channel === 'workspace:get-projects')).toHaveLength(1)
-    expect(removedChannels.filter((channel) => channel === 'workspace:remove-recent')).toHaveLength(1)
+    expect(removedChannels.filter((channel) => channel === 'workspace:remove-project')).toHaveLength(1)
     expect(removedChannels.filter((channel) => channel === 'workspace:disconnect-remote')).toHaveLength(1)
-    expect(removedChannels.filter((channel) => channel === 'workspace:clear-recent')).toHaveLength(1)
+    expect(removedChannels.filter((channel) => channel === 'workspace:clear-projects')).toHaveLength(1)
   })
 
   it('removes the new workspace handlers after they are registered', () => {
@@ -2197,8 +2189,8 @@ describe('unregisterIpcHandlers', () => {
       onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
       getSettings: vi.fn(() => ({})),
       updateSettings: vi.fn(),
-      getRecentWorkspaces: vi.fn(() => []),
-      clearRecentWorkspaces: vi.fn(),
+      getLocalProjectPaths: vi.fn(() => []),
+      clearProjects: vi.fn(),
       getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
       getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
     })
@@ -2209,9 +2201,9 @@ describe('unregisterIpcHandlers', () => {
 
     expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace-config:get-core')
     expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:get-projects')
-    expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:remove-recent')
+    expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:remove-project')
     expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:disconnect-remote')
-    expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:clear-recent')
+    expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:clear-projects')
   })
 })
 

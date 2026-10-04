@@ -42,6 +42,7 @@ internal sealed class MobileGateway : IAsyncDisposable
         HubPaths paths,
         HubEventBus events,
         ManagedAppServerRegistry appServers,
+        ProjectRegistry projects,
         ILoggerFactory loggerFactory)
     {
         _registry = registry;
@@ -50,7 +51,7 @@ internal sealed class MobileGateway : IAsyncDisposable
         _events = events;
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<MobileGateway>();
-        Projects = new MobileProjects(appServers, paths);
+        Projects = new MobileProjects(projects, appServers, paths);
     }
 
     public MobileRegistry Registry => _registry;

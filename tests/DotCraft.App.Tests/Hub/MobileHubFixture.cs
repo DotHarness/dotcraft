@@ -51,29 +51,13 @@ internal sealed class MobileHubFixture : IAsyncDisposable
         throw new TimeoutException("Hub did not publish its lock file.");
     }
 
-    public static AppServerWorkspaceLock RunWorkspace(string userProfile, string name, Uri endpoint)
+    public static AppServerWorkspaceLock RunWorkspace(string userProfile, string name, Uri endpoint, bool listed = true)
     {
         var workspace = Path.Combine(userProfile, "workspaces", name);
         var craft = Path.Combine(workspace, ".craft");
         Directory.CreateDirectory(craft);
-        new HubAppServerRegistryStore(HubPaths.Resolve(userProfile).AppServersRegistryPath).Save([
-            new HubAppServerRegistryRecord(
-                WorkspacePath: workspace,
-                CanonicalWorkspacePath: workspace,
-                DisplayName: name,
-                State: HubAppServerStates.Stopped,
-                Pid: null,
-                Endpoints: new Dictionary<string, string>(),
-                ServiceStatus: new Dictionary<string, HubServiceStatus>(),
-                ServerVersion: null,
-                StartedByHub: true,
-                LastStartedAt: null,
-                LastSeenAt: null,
-                LastExitedAt: null,
-                ExitCode: null,
-                LastError: null,
-                RecentStderr: null)
-        ]);
+        if (listed)
+            new ProjectRegistry(HubPaths.Resolve(userProfile)).Open(workspace);
         Assert.True(AppServerWorkspaceLock.TryAcquire(new DotCraftPaths(workspace, craft, userDataPath: null), out var workspaceLock, out _));
         workspaceLock!.Publish(new AppServerLockInfo(
             Pid: Environment.ProcessId,

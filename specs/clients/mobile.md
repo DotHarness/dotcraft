@@ -103,7 +103,7 @@ Bodies are JSON with camelCase fields, and times are ISO-8601 strings.
 |---|---|
 | `POST /m/pair` | Consume a pairing code and return a device credential (§6). |
 | `GET /m/hello` | Computer name, DotCraft version, port, fingerprint, and advertised addresses. Also refreshes the device's last-seen time. |
-| `GET /m/projects` | Known projects, without starting any. |
+| `GET /m/projects` | The computer's projects, without starting any. |
 | `POST /m/projects/{projectId}/ensure` | Start or reuse the project's AppServer through the same path as `POST /v1/appservers/ensure`, as for a remote client: the phone sends no runtime tool hints, and Hub uses the ones it has stored. |
 | `GET /m/projects/{projectId}/appserver` | WebSocket. Relayed AppServer connection for a running project. |
 | `GET /m/events` | WebSocket. Gateway events for this device (§5.3). |
@@ -161,12 +161,12 @@ of `computer` above and `version` the DotCraft version.
 `POST /m/projects/{projectId}/ensure` answers one project object, with `running` true once the
 AppServer is up.
 
-A project is a workspace in Hub's known and live AppServer registry whose `.craft` folder still
-exists. `projectId` is the first 24 hexadecimal digits of the SHA-256 of the normalized workspace
+The projects are Hub's project list (Hub Architecture §7 Projects), the same list Desktop shows, plus
+the default Chat workspace; a project removed on the computer disappears from the phone. A
+`projectId` that is not in that list is answered `404 projectNotFound` by every `/m/projects` route. `projectId` is the first 24 hexadecimal digits of the SHA-256 of the normalized workspace
 path, case-folded on Windows, so it is stable and never reveals the path. `displayName` is the
-folder name; the default Chat workspace is always listed, as `Chats`. `lastActiveAt` is the latest
-time Hub started, saw, or stopped the project's AppServer, or `null`, and projects are ordered by
-it, most recent first.
+folder name; the default Chat workspace is always listed, as `Chats`. `lastActiveAt` is the time the
+project was last opened, or `null` for Chats, and projects are ordered by it, most recent first.
 
 The relay is opaque: Hub opens the AppServer's loopback WebSocket with that process's token and
 copies frames in both directions, preserving message type and fragment boundaries. It never parses,
@@ -339,7 +339,9 @@ list shows **failed** only for a chat whose failure the phone has seen.
   and actions that open things on the computer stay on Desktop.
 - The composer shows the chat's model, reasoning effort, speed, and approval policy (`prompt` or
   `autoApprove`). Changing one sends the whole configuration with `thread/config/update`, which takes
-  effect from the next turn; New chat passes the chosen values in the `thread/start` configuration.
+  effect from the next turn. New chat starts on the model `model/list` marks `isDefault` for the
+  provider, and switching provider selects that provider's `isDefault` model; the `thread/start`
+  configuration carries only the values the user changed, so the workspace preference still applies.
   Models and their reasoning and speed options come from `model/list`, never from rules in the app,
   and each control is hidden when the server lacks its capability. The phone never changes a chat's
   mode or Agent Profile.

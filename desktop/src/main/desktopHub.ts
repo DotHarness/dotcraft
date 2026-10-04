@@ -8,6 +8,7 @@ import {
   type HubManagedServiceResponse,
   type HubMobilePairing,
   type HubMobileState,
+  type HubProject,
   type HubRuntimeToolsRequest,
   type HubSatellite,
   type HubSatelliteInvite,
@@ -16,7 +17,7 @@ import {
 import { resolveBinaryLocation } from './AppServerManager'
 import type { AppSettings, BinarySource } from './settings'
 
-export type { HubAppServerResponse, HubCreateSatelliteInviteOptions, HubEvent, HubManagedServiceResponse, HubRuntimeToolsRequest, HubSatellite, HubSatelliteInvite, HubStatusResponse } from '@dotcraft/sdk/hub'
+export type { HubAppServerResponse, HubCreateSatelliteInviteOptions, HubEvent, HubManagedServiceResponse, HubProject, HubRuntimeToolsRequest, HubSatellite, HubSatelliteInvite, HubStatusResponse } from '@dotcraft/sdk/hub'
 
 export interface DesktopHubPolicyOptions {
   preferDevBuild?: boolean
@@ -70,6 +71,18 @@ export class DesktopHubClient {
 
   stopManagedService(serviceId: string): Promise<HubManagedServiceResponse> {
     return this.run(() => this.inner.stopManagedService(serviceId))
+  }
+
+  listProjects(): Promise<HubProject[]> {
+    return this.run(() => this.inner.listProjects())
+  }
+
+  openProject(path: string): Promise<HubProject> {
+    return this.run(() => this.inner.openProject(path))
+  }
+
+  removeProject(path: string): Promise<void> {
+    return this.run(() => this.inner.removeProject(path))
   }
 
   getStatus(): Promise<HubStatusResponse> {

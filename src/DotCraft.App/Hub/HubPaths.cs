@@ -10,7 +10,7 @@ public sealed record HubPaths(
     string GlobalConfigPath)
 {
     /// <summary>
-    /// Best-effort persisted registry of Hub-known workspace AppServers.
+    /// Best-effort persisted registry of running workspace AppServers.
     /// </summary>
     public string AppServersRegistryPath => Path.Combine(HubStatePath, "appservers.json");
 
@@ -23,6 +23,8 @@ public sealed record HubPaths(
     /// Paired Remote Tool Hosts and pending invitations.
     /// </summary>
     public string SatellitesPath => Path.Combine(HubStatePath, "satellites.json");
+
+    public string ProjectsPath => Path.Combine(HubStatePath, "projects.json");
 
     public string MobilePath => Path.Combine(HubStatePath, "mobile.json");
 

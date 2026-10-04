@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  clearRecentWorkspaces,
+  forgetLocalProject,
   normalizeComputerUseSettings,
   normalizeCreatedSatelliteInviteIds,
   normalizePinnedProjectIds,
@@ -9,8 +9,7 @@ import {
   normalizeSatelliteRouteByThread,
   normalizeShowInMenuBar,
   normalizeTurnBookmarksByThread,
-  normalizeVoiceSettings,
-  removeRecentWorkspace
+  normalizeVoiceSettings
 } from '../settings'
 
 vi.mock('electron', () => ({
@@ -63,26 +62,19 @@ describe('settings normalization', () => {
     })).toBeUndefined()
   })
 
-  it('removes the matching local project pin with a recent project', () => {
+  it('forgets the pin and details of a removed local project', () => {
     const settings = {
-      recentWorkspaces: [{ path: 'C:\\fixtures\\sample-project', name: 'sample-project', lastOpenedAt: '2026-01-01' }],
+      localProjectDetails: {
+        'c:/fixtures/sample-project': { name: 'Sample' },
+        'c:/fixtures/other': { name: 'Other' }
+      },
       pinnedProjectIds: ['c:/fixtures/sample-project/', 'remote:servers:studio:sample-project']
     }
 
-    removeRecentWorkspace(settings, 'C:\\fixtures\\sample-project')
+    forgetLocalProject(settings, 'C:\\fixtures\\sample-project')
 
     expect(settings.pinnedProjectIds).toEqual(['remote:servers:studio:sample-project'])
-  })
-
-  it('keeps remote pins when local recent projects are cleared', () => {
-    const settings = {
-      recentWorkspaces: [{ path: 'C:\\fixtures\\sample-project', name: 'sample-project', lastOpenedAt: '2026-01-01' }],
-      pinnedProjectIds: ['C:\\fixtures\\sample-project', 'remote:servers:studio:sample-project']
-    }
-
-    clearRecentWorkspaces(settings)
-
-    expect(settings.pinnedProjectIds).toEqual(['remote:servers:studio:sample-project'])
+    expect(settings.localProjectDetails).toEqual({ 'c:/fixtures/other': { name: 'Other' } })
   })
 
   it('normalizes pinned thread ids by workspace path', () => {

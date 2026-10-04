@@ -64,6 +64,7 @@ import {
   openExternalHttpUrl,
   type IpcHandlerCallbacks
 } from './ipcBridge'
+import { LocalProjectList } from './localProjects'
 import { UserInputAutoResolutionCoordinator } from './userInputAutoResolution'
 import type {
   ConnectionErrorType,
@@ -72,11 +73,9 @@ import type {
 import {
   loadSettings,
   saveSettings,
-  addRecentWorkspace,
-  clearRecentWorkspaces,
-  getRecentWorkspaces,
-  removeRecentWorkspace,
-  saveLocalProject,
+  forgetLocalProject,
+  getLocalProjectDetails,
+  saveLocalProjectDetails,
   type AppSettings,
   type ConnectionMode
 } from './settings'
@@ -282,6 +281,7 @@ let ipcHandlersRegistered = false
 let finalQuitCleanupDone = false
 let finalQuitCleanupRunning = false
 let hubEventAbortController: AbortController | null = null
+const localProjects = new LocalProjectList(() => createHubClient(sharedSettings), emitWorkspaceProjects)
 let secondaryRefreshTimer: ReturnType<typeof setTimeout> | null = null
 let pendingChromeSettingsDeepLink = process.argv.some(isChromeSettingsDeepLink)
 let pendingWorkspaceOpenThreadId = findWorkspaceOpenDeepLink(process.argv)?.threadId ?? null
@@ -517,35 +517,31 @@ function buildDefaultChatSummary(): WorkspaceProjectSummary | undefined {
 }
 
 function getWorkspaceProjectsPayload(): WorkspaceProjectsPayload {
-  // Order projects by when they were first added (stable), not by most-recently
-  // opened, so switching the active project never reshuffles the sidebar list.
-  const recents = [...getRecentWorkspaces(sharedSettings)].sort((a, b) =>
-    (a.firstOpenedAt ?? a.lastOpenedAt).localeCompare(b.firstOpenedAt ?? b.lastOpenedAt)
-  )
-  const projects = recents.map((recent): WorkspaceProjectSummary => {
-    const entry = getWorkspaceConnection(recent.path)
+  const projects = localProjects.list().map((project): WorkspaceProjectSummary => {
+    const entry = getWorkspaceConnection(project.path)
     let state: WorkspaceProjectState = 'cold'
-    if (isWorkspaceForeground(recent.path)) state = 'foreground'
+    if (isWorkspaceForeground(project.path)) state = 'foreground'
     else if (entry?.connecting) state = 'connecting'
     else if (entry?.errorMessage) state = 'error'
     else if (entry?.connected) state = 'secondary'
-    const projectId = localProjectId(recent.path)
+    const projectId = localProjectId(project.path)
+    const details = getLocalProjectDetails(sharedSettings, project.path)
     return {
       projectId,
       kind: 'local',
-      path: recent.path,
-      identityWorkspacePath: recent.path,
-      name: recent.name || basename(recent.path),
-      lastOpenedAt: recent.lastOpenedAt,
+      path: project.path,
+      identityWorkspacePath: project.path,
+      name: details?.name || project.displayName || basename(project.path),
+      lastOpenedAt: project.lastOpenedAt,
       state,
       running: Boolean(entry?.connected || entry?.connecting || state === 'foreground'),
       loaded: Boolean(entry?.connected),
       threadCount: entry?.threads.length ?? 0,
       threads: entry?.threads ?? [],
-      pinnedThreadIds: getPinnedThreadIdsForWorkspace(recent.path),
+      pinnedThreadIds: getPinnedThreadIdsForWorkspace(project.path),
       pinned: isProjectPinned(projectId),
       // Local Projects may attach extra runtime roots beyond the primary folder.
-      secondaryFolders: recent.secondaryFolders ?? [],
+      secondaryFolders: details?.secondaryFolders ?? [],
       ...(entry?.errorMessage ? { errorMessage: entry.errorMessage } : {})
     }
   })
@@ -2383,13 +2379,13 @@ function isHubAppServerLifecycleEvent(event: HubEvent): boolean {
   return event.kind.startsWith('appserver.')
 }
 
-function isRecentSecondaryWorkspaceEvent(event: HubEvent): boolean {
+function isSecondaryProjectEvent(event: HubEvent): boolean {
   const workspacePath = event.workspacePath?.trim()
   if (!workspacePath || activeRemoteWorkspace || resolveConnectionMode(sharedSettings) !== 'local') {
     return false
   }
   if (isWorkspaceForeground(workspacePath)) return false
-  return getRecentWorkspaces(sharedSettings).some((recent) => isSameWorkspacePath(recent.path, workspacePath))
+  return localProjects.has(workspacePath)
 }
 
 function scheduleSecondaryWorkspaceRefresh(): void {
@@ -2408,7 +2404,7 @@ function startHubEventSubscription(workspacePath: string, hubClient: DesktopHubC
   hubEventAbortController = controller
 
   void hubClient.subscribeEvents((event) => {
-    if (isHubAppServerLifecycleEvent(event) && isRecentSecondaryWorkspaceEvent(event)) {
+    if (isHubAppServerLifecycleEvent(event) && isSecondaryProjectEvent(event)) {
       scheduleSecondaryWorkspaceRefresh()
     }
 
@@ -2637,9 +2633,8 @@ async function refreshSecondaryWorkspaceConnections(): Promise<void> {
     return
   }
   await ensureDefaultChatConnection()
-  const recents = getRecentWorkspaces(sharedSettings)
-    .filter((recent) => recent.path && !isWorkspaceForeground(recent.path))
-  if (recents.length === 0) {
+  const candidates = localProjects.list().filter((project) => !isWorkspaceForeground(project.path))
+  if (candidates.length === 0) {
     emitWorkspaceProjects()
     return
   }
@@ -2665,21 +2660,21 @@ async function refreshSecondaryWorkspaceConnections(): Promise<void> {
   }
 
   const allowedKeys = new Set<string>()
-  for (const recent of recents) {
+  for (const project of candidates) {
     if (allowedKeys.size >= SECONDARY_WORKSPACE_CONNECTION_LIMIT) break
-    const key = normalizeWorkspaceConnectionKey(recent.path)
+    const key = normalizeWorkspaceConnectionKey(project.path)
     const live = liveByKey.get(key)
     const endpoint = live?.endpoints?.appServerWebSocket
     if (endpoint?.trim()) {
       allowedKeys.add(key)
-      createSecondaryWorkspaceConnection(recent.path, endpoint)
+      createSecondaryWorkspaceConnection(project.path, endpoint)
     }
   }
 
   for (const entry of [...workspaceConnections.values()]) {
     if (entry.role !== 'secondary') continue
     // The default Chat connection is managed by ensureDefaultChatConnection, not the
-    // recents-driven secondary set, so it must survive this prune.
+    // project-driven secondary set, so it must survive this prune.
     if (isDefaultChatWorkspace(entry.workspacePath)) continue
     if (!allowedKeys.has(entry.key)) {
       disposeWorkspaceConnection(entry)
@@ -2688,6 +2683,30 @@ async function refreshSecondaryWorkspaceConnections(): Promise<void> {
   emitWorkspaceProjects()
 }
 
+
+function recordForegroundWorkspace(workspacePath: string, addProject: boolean): void {
+  if (isDefaultChatWorkspace(workspacePath)) {
+    sharedSettings.lastForegroundEntry = 'chats'
+  } else {
+    sharedSettings.lastWorkspacePath = workspacePath
+    sharedSettings.lastForegroundEntry = 'workspace'
+    if (addProject && !hasRemoteEndpointArg()) {
+      void localProjects.open(workspacePath).catch((error) => console.warn('[desktop] failed to add project to Hub', error))
+    }
+  }
+  saveSettings(sharedSettings)
+}
+
+async function removeLocalProject(workspacePath: string): Promise<void> {
+  const entry = getWorkspaceConnection(workspacePath)
+  if (entry?.role === 'secondary') {
+    disposeWorkspaceConnection(entry)
+  }
+  await localProjects.remove(workspacePath)
+  forgetLocalProject(sharedSettings, workspacePath)
+  saveSettings(sharedSettings)
+  emitWorkspaceProjects()
+}
 
 function buildCallbacks(): IpcHandlerCallbacks {
   return {
@@ -2699,17 +2718,9 @@ function buildCallbacks(): IpcHandlerCallbacks {
         viewerBrowserManager.destroyAllTabs(mainWindow)
       }
       setViewerWorkspaceRoot(newPath)
-      // The default Chat workspace is surfaced as the `Chats` group, never as a
-      // Project, so opening one of its threads must not add it to recent projects.
-      // Ensure its skeleton first so it never diverts into the setup wizard.
-      if (isDefaultChatWorkspace(newPath)) {
-        ensureDefaultChatWorkspace()
-        sharedSettings.lastForegroundEntry = 'chats'
-        saveSettings(sharedSettings)
-      } else {
-        addRecentWorkspace(sharedSettings, newPath)
-        saveSettings(sharedSettings)
-      }
+      // Ensure the Chat skeleton first so it never diverts into the setup wizard.
+      if (isDefaultChatWorkspace(newPath)) ensureDefaultChatWorkspace()
+      recordForegroundWorkspace(newPath, true)
       emitWorkspaceProjects()
       await connectToAppServer(newPath)
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2753,29 +2764,27 @@ function buildCallbacks(): IpcHandlerCallbacks {
     },
     getHubClient: () => createHubClient(sharedSettings),
     getAppServerWsConfig: () => lastAppServerWsUrl ? { wsUrl: lastAppServerWsUrl } : null,
-    getRecentWorkspaces: () => getRecentWorkspaces(sharedSettings),
+    getLocalProjectPaths: () => localProjects.list().map((project) => project.path),
     getWorkspaceProjects: getWorkspaceProjectsPayload,
-    removeRecentWorkspace: (workspacePath: string) => {
+    removeProject: async (workspacePath: string) => {
       if (isWorkspaceForeground(workspacePath)) {
         throw new Error('Cannot remove the foreground project from Projects.')
       }
-      const entry = getWorkspaceConnection(workspacePath)
-      if (entry?.role === 'secondary') {
-        disposeWorkspaceConnection(entry)
+      await removeLocalProject(workspacePath)
+    },
+    saveLocalProject: async (params) => {
+      await localProjects.open(params.primaryFolder.trim())
+      const primaryFolder = saveLocalProjectDetails(sharedSettings, params)
+      saveSettings(sharedSettings)
+      emitWorkspaceProjects()
+      if (params.previousPath && !isSameWorkspacePath(params.previousPath, primaryFolder)) {
+        await localProjects.remove(params.previousPath)
       }
-      removeRecentWorkspace(sharedSettings, workspacePath)
-      saveSettings(sharedSettings)
-      emitWorkspaceProjects()
     },
-    saveLocalProject: (params) => {
-      saveLocalProject(sharedSettings, params)
-      saveSettings(sharedSettings)
-      emitWorkspaceProjects()
-    },
-    clearRecentWorkspaces: () => {
-      clearRecentWorkspaces(sharedSettings)
-      saveSettings(sharedSettings)
-      emitWorkspaceProjects()
+    clearProjects: async () => {
+      for (const project of localProjects.list()) {
+        if (!isWorkspaceForeground(project.path)) await removeLocalProject(project.path)
+      }
     },
     restartWorkspace: async (workspacePath: string) => {
       const hubClient = createHubClient(sharedSettings)
@@ -3487,13 +3496,7 @@ app.whenReady().then(async () => {
     if (!initialRemoteProject) {
       acquireWorkspaceLock(workspacePath)
     }
-    if (isDefaultChatWorkspace(workspacePath)) {
-      sharedSettings.lastForegroundEntry = 'chats'
-      saveSettings(sharedSettings)
-    } else {
-      addRecentWorkspace(sharedSettings, workspacePath)
-      saveSettings(sharedSettings)
-    }
+    recordForegroundWorkspace(workspacePath, !initialRemoteProject)
   }
   setActiveRemoteProject(initialRemoteProject)
   const initialWorkspaceStatus = getWorkspaceStatusForRenderer(workspacePath)
@@ -3511,10 +3514,9 @@ app.whenReady().then(async () => {
   if (!initialRemoteProject) {
     ensureWorkspaceActivation(workspacePath ?? '')
   }
+  if (!hasRemoteEndpointArg()) localProjects.start()
   setViewerSecondaryRootsResolver((root) =>
-    (sharedSettings.recentWorkspaces ?? [])
-      .find((recent) => sameWorkspaceProjectKey(recent.path, root))
-      ?.secondaryFolders ?? []
+    localProjects.has(root) ? getLocalProjectDetails(sharedSettings, root)?.secondaryFolders ?? [] : []
   )
   setViewerWorkspaceRoot(workspacePath ?? '')
 
@@ -3561,13 +3563,7 @@ app.whenReady().then(async () => {
         if (!remoteProject) {
           acquireWorkspaceLock(wsPath)
         }
-        if (isDefaultChatWorkspace(wsPath)) {
-          sharedSettings.lastForegroundEntry = 'chats'
-          saveSettings(sharedSettings)
-        } else {
-          addRecentWorkspace(sharedSettings, wsPath)
-          saveSettings(sharedSettings)
-        }
+        recordForegroundWorkspace(wsPath, !remoteProject)
       }
       setActiveRemoteProject(remoteProject)
       const workspaceStatus = getWorkspaceStatusForRenderer(wsPath)
@@ -3641,6 +3637,7 @@ app.on('before-quit', (event) => {
     void stopTrayProcess()
   }
   stopChromeSettingsDeepLinkServer()
+  localProjects.stop()
   if (mainWindow && !mainWindow.isDestroyed()) {
     viewerBrowserManager.destroyAllTabs(mainWindow)
   }

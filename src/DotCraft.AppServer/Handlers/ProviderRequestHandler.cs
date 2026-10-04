@@ -261,6 +261,7 @@ internal sealed class ProviderRequestHandler(
             Models = new Protocol.Optional<IReadOnlyList<Contract.ModelCatalogItem>>(
                 result.Models.Select(m => ProviderContractMapper.BuildModelCatalogItem(
                 config,
+                result.ProviderId,
                 result.Protocol,
                 result.EndPoint,
                 m,
@@ -337,6 +338,7 @@ internal sealed class ProviderRequestHandler(
             Models = new Protocol.Optional<IReadOnlyList<Contract.ModelCatalogItem>>(
                 result.Models.Select(m => ProviderContractMapper.BuildModelCatalogItem(
                 config,
+                result.ProviderId,
                 result.Protocol ?? NormalizeProviderProtocol(ValueOrDefault(p.Protocol)),
                 result.EndPoint,
                 m,

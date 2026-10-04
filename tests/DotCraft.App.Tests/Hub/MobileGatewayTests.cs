@@ -141,6 +141,33 @@ public sealed class MobileGatewayTests : IDisposable
         await samePhone.GetJsonAsync("/m/hello");
     }
 
+    [Fact]
+    public async Task Phone_SeesOnlyTheComputersProjectsAndChats_AndAnUnlistedProjectIsNotFound()
+    {
+        await using var appServer = await StubAppServer.StartAsync();
+        using var alpha = MobileHubFixture.RunWorkspace(_userProfile, "alpha", appServer.Endpoint);
+        using var beta = MobileHubFixture.RunWorkspace(_userProfile, "beta", appServer.Endpoint, listed: false);
+        await using var hub = await MobileHubFixture.StartAsync(_userProfile, SatelliteHubFixture.GetAvailablePort());
+        await hub.JsonAsync(HttpMethod.Post, "/v1/mobile/enable");
+        using var phone = await hub.PairPhoneAsync();
+
+        var projects = (await phone.GetJsonAsync("/m/projects")).GetProperty("projects").EnumerateArray().ToArray();
+        Assert.Equal(["alpha", "Chats"], projects.Select(project => project.GetProperty("displayName").GetString()));
+        Assert.Equal(JsonValueKind.Null, projects[1].GetProperty("lastActiveAt").ValueKind);
+
+        var betaId = MobileProjects.ProjectId(Path.Combine(_userProfile, "workspaces", "beta"));
+        await AssertErrorAsync(await phone.Http.PostAsync($"/m/projects/{betaId}/ensure", null), HttpStatusCode.NotFound, "projectNotFound");
+        await AssertErrorAsync(await phone.Http.GetAsync($"/m/projects/{betaId}/appserver"), HttpStatusCode.NotFound, "projectNotFound");
+
+        var alphaId = projects[0].GetProperty("projectId").GetString();
+        await hub.JsonAsync(HttpMethod.Post, "/v1/projects/remove", new { path = Path.Combine(_userProfile, "workspaces", "alpha") });
+        Assert.Equal(
+            ["Chats"],
+            (await phone.GetJsonAsync("/m/projects")).GetProperty("projects").EnumerateArray()
+                .Select(project => project.GetProperty("displayName").GetString()));
+        await AssertErrorAsync(await phone.Http.PostAsync($"/m/projects/{alphaId}/ensure", null), HttpStatusCode.NotFound, "projectNotFound");
+    }
+
     private static async Task<string> ProjectIdAsync(MobilePhone phone, string displayName) =>
         (await phone.GetJsonAsync("/m/projects")).GetProperty("projects").EnumerateArray()
         .Single(project => project.GetProperty("displayName").GetString() == displayName)

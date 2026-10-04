@@ -20,6 +20,12 @@ const initialState = {
   chat: null
 }
 
+export function localProjectsByLastOpened(projects: WorkspaceProjectSummary[]): WorkspaceProjectSummary[] {
+  return projects
+    .filter((project) => project.kind === 'local')
+    .sort((left, right) => (Date.parse(right.lastOpenedAt ?? '') || 0) - (Date.parse(left.lastOpenedAt ?? '') || 0))
+}
+
 export const useWorkspaceProjectsStore = create<WorkspaceProjectsState>((set) => ({
   ...initialState,
 

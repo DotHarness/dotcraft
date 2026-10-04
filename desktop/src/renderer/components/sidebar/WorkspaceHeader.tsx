@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useMemo } from 'react'
 import { stripWorkspaceLockedIpcPrefix } from '../../../shared/workspaceSwitchErrors'
 import { useT } from '../../contexts/LocaleContext'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import type { ContextMenuEntry } from '../ui/ContextMenu'
 import { SectionOptionsMenu } from './SidebarSectionParts'
+import { localProjectsByLastOpened, useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
+import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 
 /** Extracts a clean user-facing message from a workspace switch error. */
 function switchErrorMessage(err: unknown): string {
@@ -13,12 +15,6 @@ function switchErrorMessage(err: unknown): string {
   const match = raw.match(/Error invoking remote method '[^']+': Error: (.+)/)
   const inner = match ? match[1] : raw
   return stripWorkspaceLockedIpcPrefix(inner)
-}
-
-interface RecentWorkspace {
-  path: string
-  name: string
-  lastOpenedAt: string
 }
 
 interface WorkspaceHeaderProps {
@@ -78,16 +74,12 @@ export function WorkspaceOptionsMenu({
 }: WorkspaceOptionsMenuProps): JSX.Element {
   const t = useT()
   const confirm = useConfirmDialog()
-  const [open, setOpen] = useState(false)
-  const [recents, setRecents] = useState<RecentWorkspace[]>([])
+  const projects = useWorkspaceProjectsStore((s) => s.projects)
+  const recents = useMemo(
+    () => localProjectsByLastOpened(projects).filter((project) => !sameWorkspaceProjectKey(project.path, workspacePath)),
+    [projects, workspacePath]
+  )
   const hasWorkspace = workspacePath.trim().length > 0
-
-  useEffect(() => {
-    if (!open || !hasWorkspace) return
-    window.api.workspace.getRecent().then((list) => {
-      setRecents(list.filter((r) => r.path !== workspacePath))
-    }).catch(() => {})
-  }, [open, hasWorkspace, workspacePath])
 
   function openInExplorer(): void {
     if (localActionsDisabled) return
@@ -110,7 +102,7 @@ export function WorkspaceOptionsMenu({
     }
   }
 
-  async function clearRecentWorkspaces(): Promise<void> {
+  async function clearProjects(): Promise<void> {
     const confirmed = await confirm({
       title: t('workspaceHeader.clearRecentConfirmTitle'),
       message: t('workspaceHeader.clearRecentConfirmMessage'),
@@ -120,8 +112,7 @@ export function WorkspaceOptionsMenu({
     })
     if (!confirmed) return
     try {
-      await window.api.workspace.clearRecent()
-      setRecents([])
+      await window.api.workspace.clearProjects()
     } catch (err) {
       window.alert(err instanceof Error ? err.message : String(err))
     }
@@ -150,7 +141,7 @@ export function WorkspaceOptionsMenu({
                 { type: 'separator' },
                 {
                   label: t('workspaceHeader.clearRecentWorkspaces'),
-                  onClick: () => { void clearRecentWorkspaces() }
+                  onClick: () => { void clearProjects() }
                 }
               ]
             : undefined
@@ -165,10 +156,7 @@ export function WorkspaceOptionsMenu({
     <SectionOptionsMenu
       label={t('workspaceHeader.optionsAria')}
       items={items}
-      onOpenChange={(next) => {
-        setOpen(next)
-        onOpenChange?.(next)
-      }}
+      onOpenChange={onOpenChange}
     />
   )
 }

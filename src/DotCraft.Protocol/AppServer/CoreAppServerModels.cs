@@ -2572,6 +2572,10 @@ public sealed class ModelCatalogItem : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Id { get; init; }
 
+    [JsonPropertyName("isDefault")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> IsDefault { get; init; }
+
     [JsonPropertyName("ownedBy")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> OwnedBy { get; init; }

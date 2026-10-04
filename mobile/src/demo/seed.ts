@@ -318,6 +318,7 @@ const PROVIDERS: FakeProvider[] = [
     models: [
       {
         id: 'atlas-2',
+        isDefault: true,
         reasoning: { supportsDisable: true, supportedEfforts: EFFORTS, defaultEffort: 'high', supportedOutputs: ['none', 'summary', 'full'], defaultOutput: 'full' },
         speed: { supportedModes: ['standard', 'fast'], defaultMode: 'standard' },
       },
@@ -328,7 +329,7 @@ const PROVIDERS: FakeProvider[] = [
       { id: 'atlas-1' },
     ],
   },
-  { id: 'local', displayName: 'Local runtime', models: [{ id: 'quill-7b' }, { id: 'quill-14b' }] },
+  { id: 'local', displayName: 'Local runtime', models: [{ id: 'quill-7b' }, { id: 'quill-14b', isDefault: true }] },
 ]
 
 function iso(now: Date, minutesAgo: number, secondsOffset = 0): string {

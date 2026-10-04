@@ -42,7 +42,6 @@ describe('CollapsedSidebar projects rail', () => {
     installDesktopApiMock({
       settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
       workspace: {
-        getRecent: vi.fn().mockResolvedValue([]),
         switch: switchWorkspace
       },
       shell: { openPath: vi.fn().mockResolvedValue(undefined) }

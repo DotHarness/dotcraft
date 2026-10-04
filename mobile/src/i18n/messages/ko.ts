@@ -105,7 +105,6 @@ export const MESSAGES_KO: Catalog = {
   'approval.fullAccess.warningConfirm': '전체 액세스 활성화',
   'model.title': '모델',
   'model.provider': '제공자',
-  'model.default': '기본값',
   'reasoning.heading': '지능',
   'reasoning.off': '끄기',
   'reasoning.low': '낮음',

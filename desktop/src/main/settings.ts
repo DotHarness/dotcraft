@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { join, basename, normalize } from 'path'
+import { join, normalize } from 'path'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { normalizeLocale, type AppLocale } from '../shared/locales'
 import { isValidAppVersion } from '../shared/whatsNew'
@@ -7,7 +7,6 @@ import { normalizeSshMachines, type SshMachine } from '../shared/sshMachines'
 import type { CreatedSatelliteInvite, SatelliteThreadRoute } from '../shared/satellites'
 export type { CreatedSatelliteInvite, SatelliteThreadRoute } from '../shared/satellites'
 import {
-  isRemoteProjectKey,
   normalizeWorkspaceProjectKey,
   sameWorkspaceProjectKey
 } from '../shared/workspaceProjectKey'
@@ -42,19 +41,8 @@ export type {
   TaskCompletionNotificationMode
 } from '../shared/desktopSettings'
 
-export interface RecentWorkspace {
-  path: string
-  name: string
-  lastOpenedAt: string
-  /**
-   * Stable across re-opens, so the sidebar keeps a fixed project order while the
-   * recents array itself stays MRU for the "Recent Workspaces" menu.
-   */
-  firstOpenedAt?: string
-  /**
-   * Absolute normalized runtime roots beyond the primary folder (`path`), which is
-   * the Project identity and never a member of this list.
-   */
+export interface LocalProjectDetails {
+  name?: string
   secondaryFolders?: string[]
 }
 
@@ -171,7 +159,7 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   /** macOS-only preference controlling whether DotCraft appears in the menu bar. */
   showInMenuBar?: boolean
   lastSeenWhatsNewVersion?: string
-  recentWorkspaces?: RecentWorkspace[]
+  localProjectDetails?: Record<string, LocalProjectDetails>
   lastOpenEditorId?: LastOpenEditorId
   browserUse?: BrowserUseSettings
   computerUse?: ComputerUseSettings
@@ -194,8 +182,6 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   /** Omitted while it equals the defaults. */
   pet?: PetSettings
 }
-
-const MAX_RECENT = 20
 
 function normalizeBinarySource(settings: AppSettings): BinarySource {
   const source = settings.binarySource
@@ -600,20 +586,26 @@ function sanitizeSecondaryFolders(folders: unknown, primaryPath: string): string
   return result
 }
 
-function normalizeRecentWorkspaces(settings: AppSettings): RecentWorkspace[] | undefined {
-  const raw = settings.recentWorkspaces
-  if (!Array.isArray(raw)) return undefined
-  return raw.map((recent) => {
-    const secondaryFolders = sanitizeSecondaryFolders(recent.secondaryFolders, recent.path)
-    const entry: RecentWorkspace = {
-      path: recent.path,
-      name: recent.name,
-      lastOpenedAt: recent.lastOpenedAt,
-      ...(recent.firstOpenedAt ? { firstOpenedAt: recent.firstOpenedAt } : {}),
-      ...(secondaryFolders.length > 0 ? { secondaryFolders } : {})
-    }
-    return entry
-  })
+function toLocalProjectDetails(primaryPath: string, name: unknown, secondaryFolders: unknown): LocalProjectDetails | null {
+  const trimmedName = typeof name === 'string' ? name.trim() : ''
+  const folders = sanitizeSecondaryFolders(secondaryFolders, primaryPath)
+  if (!trimmedName && folders.length === 0) return null
+  return {
+    ...(trimmedName ? { name: trimmedName } : {}),
+    ...(folders.length > 0 ? { secondaryFolders: folders } : {})
+  }
+}
+
+function normalizeLocalProjectDetails(settings: AppSettings): Record<string, LocalProjectDetails> | undefined {
+  const raw = settings.localProjectDetails
+  if (!raw || typeof raw !== 'object') return undefined
+  const result: Record<string, LocalProjectDetails> = {}
+  for (const [path, value] of Object.entries(raw)) {
+    const key = normalizeWorkspaceProjectKey(path)
+    const details = key ? toLocalProjectDetails(key, value?.name, value?.secondaryFolders) : null
+    if (details) result[key] = details
+  }
+  return Object.keys(result).length > 0 ? result : undefined
 }
 
 function getSettingsPath(): string {
@@ -655,7 +647,7 @@ export function loadSettings(): AppSettings {
       raw.voice = normalizeVoiceSettings(raw)
       raw.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(raw)
       raw.pinnedProjectIds = normalizePinnedProjectIds(raw)
-      raw.recentWorkspaces = normalizeRecentWorkspaces(raw)
+      raw.localProjectDetails = normalizeLocalProjectDetails(raw)
       raw.remoteHosts = normalizeRemoteHostsSetting(raw)
       raw.satelliteRouteByThread = normalizeSatelliteRouteByThread(raw)
       raw.turnBookmarksByThread = normalizeTurnBookmarksByThread(raw)
@@ -714,7 +706,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.voice = normalizeVoiceSettings(settings)
     settings.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(settings)
     settings.pinnedProjectIds = normalizePinnedProjectIds(settings)
-    settings.recentWorkspaces = normalizeRecentWorkspaces(settings)
+    settings.localProjectDetails = normalizeLocalProjectDetails(settings)
     settings.remoteHosts = normalizeRemoteHostsSetting(settings)
     settings.satelliteRouteByThread = normalizeSatelliteRouteByThread(settings)
     settings.turnBookmarksByThread = normalizeTurnBookmarksByThread(settings)
@@ -728,54 +720,17 @@ export function saveSettings(settings: AppSettings): void {
   }
 }
 
-/** Mutates and returns the settings object. */
-export function addRecentWorkspace(settings: AppSettings, workspacePath: string): AppSettings {
-  const now = new Date().toISOString()
-  const existing = settings.recentWorkspaces ?? []
-  const prior = existing.find((r) => sameWorkspaceProjectKey(r.path, workspacePath))
-  // Preserve a Project's custom name and its configured secondary folders when
-  // re-touching an existing entry (e.g. a later `switch`); only brand-new entries
-  // fall back to the folder basename.
-  const name = prior?.name?.trim() || basename(workspacePath)
-  const secondaryFolders = sanitizeSecondaryFolders(prior?.secondaryFolders, workspacePath)
-  const entry: RecentWorkspace = {
-    path: workspacePath,
-    name,
-    lastOpenedAt: now,
-    // Preserve the original add time so the sidebar order stays stable; backfill
-    // legacy entries from their last-opened time.
-    firstOpenedAt: prior?.firstOpenedAt ?? prior?.lastOpenedAt ?? now,
-    ...(secondaryFolders.length > 0 ? { secondaryFolders } : {})
-  }
-  const filtered = existing.filter((r) => !sameWorkspaceProjectKey(r.path, workspacePath))
-  settings.recentWorkspaces = [entry, ...filtered].slice(0, MAX_RECENT)
-  settings.lastWorkspacePath = workspacePath
-  settings.lastForegroundEntry = 'workspace'
-  return settings
-}
-
-export function getRecentWorkspaces(settings: AppSettings): RecentWorkspace[] {
-  return settings.recentWorkspaces ?? []
-}
-
-/** Mutates and returns the settings object. */
-export function removeRecentWorkspace(settings: AppSettings, workspacePath: string): AppSettings {
-  settings.recentWorkspaces = (settings.recentWorkspaces ?? []).filter((recent) =>
-    !sameWorkspaceProjectKey(recent.path, workspacePath)
-  )
-  settings.pinnedProjectIds = settings.pinnedProjectIds?.filter((projectId) =>
-    !sameWorkspaceProjectKey(projectId, workspacePath)
-  )
-  return settings
+export function getLocalProjectDetails(settings: AppSettings, path: string): LocalProjectDetails | undefined {
+  return settings.localProjectDetails?.[normalizeWorkspaceProjectKey(path)]
 }
 
 /**
- * A `previousPath` whose identity differs from `primaryFolder` reassigns the Project:
- * the previous entry and its pinned state migrate to the new key, while
- * `pinnedThreadIdsByWorkspace` is intentionally left alone because existing threads
- * keep their original workspace. Mutates and returns the settings object.
+ * A `previousPath` whose identity differs from `primaryFolder` moves the Project's
+ * details and pinned, ordered, and collapsed state to the new key, while
+ * `pinnedThreadIdsByWorkspace` is left alone because existing threads keep their
+ * original workspace. Returns the normalized primary folder.
  */
-export function saveLocalProject(
+export function saveLocalProjectDetails(
   settings: AppSettings,
   params: {
     previousPath?: string
@@ -783,58 +738,35 @@ export function saveLocalProject(
     secondaryFolders: string[]
     name?: string
   }
-): AppSettings {
+): string {
   const primaryFolder = normalize(params.primaryFolder.trim())
-  const normalizedSecondaries = (params.secondaryFolders ?? [])
+  const primaryKey = normalizeWorkspaceProjectKey(primaryFolder)
+  const previousKey = normalizeWorkspaceProjectKey(params.previousPath)
+  const allDetails = { ...settings.localProjectDetails }
+
+  if (previousKey && previousKey !== primaryKey) {
+    delete allDetails[previousKey]
+    const rekey = (ids: string[] | undefined): string[] | undefined =>
+      ids?.map((id) => (id === previousKey ? primaryKey : id))
+    settings.pinnedProjectIds = rekey(settings.pinnedProjectIds)
+    settings.projectOrder = rekey(settings.projectOrder)
+    settings.collapsedProjectIds = rekey(settings.collapsedProjectIds)
+  }
+
+  const secondaryFolders = (params.secondaryFolders ?? [])
     .map((folder) => (typeof folder === 'string' ? folder.trim() : ''))
     .filter((folder) => folder.length > 0)
     .map((folder) => normalize(folder))
-  const secondaryFolders = sanitizeSecondaryFolders(normalizedSecondaries, primaryFolder)
-  const displayName = params.name?.trim() || basename(primaryFolder)
-  const now = new Date().toISOString()
-  const primaryKey = normalizeWorkspaceProjectKey(primaryFolder)
-  const previousPath = params.previousPath?.trim()
-
-  if (previousPath && !sameWorkspaceProjectKey(previousPath, primaryFolder)) {
-    const previousKey = normalizeWorkspaceProjectKey(previousPath)
-    settings.recentWorkspaces = (settings.recentWorkspaces ?? []).filter(
-      (recent) => !sameWorkspaceProjectKey(recent.path, previousPath)
-    )
-    if (previousKey) {
-      const rekey = (ids: string[] | undefined): string[] | undefined =>
-        ids?.map((id) => (id === previousKey ? primaryKey : id))
-      settings.pinnedProjectIds = rekey(settings.pinnedProjectIds)
-      settings.projectOrder = rekey(settings.projectOrder)
-      settings.collapsedProjectIds = rekey(settings.collapsedProjectIds)
-    }
-  }
-
-  const existing = settings.recentWorkspaces ?? []
-  const prior = existing.find((recent) => sameWorkspaceProjectKey(recent.path, primaryFolder))
-  const entry: RecentWorkspace = {
-    path: primaryFolder,
-    name: displayName,
-    lastOpenedAt: now,
-    firstOpenedAt: prior?.firstOpenedAt ?? prior?.lastOpenedAt ?? now,
-    ...(secondaryFolders.length > 0 ? { secondaryFolders } : {})
-  }
-
-  if (prior) {
-    // Upsert in place so the stable sidebar order is preserved.
-    settings.recentWorkspaces = existing.map((recent) =>
-      sameWorkspaceProjectKey(recent.path, primaryFolder) ? entry : recent
-    )
-  } else {
-    settings.recentWorkspaces = [entry, ...existing].slice(0, MAX_RECENT)
-  }
-  return settings
+  const details = toLocalProjectDetails(primaryFolder, params.name, secondaryFolders)
+  if (details) allDetails[primaryKey] = details
+  else delete allDetails[primaryKey]
+  settings.localProjectDetails = Object.keys(allDetails).length > 0 ? allDetails : undefined
+  return primaryFolder
 }
 
-/** Mutates and returns the settings object. */
-export function clearRecentWorkspaces(settings: AppSettings): AppSettings {
-  settings.recentWorkspaces = []
-  // Remote identities are not members of the local recent-project list and
-  // remain pinned so reconnecting restores their rail position.
-  settings.pinnedProjectIds = settings.pinnedProjectIds?.filter(isRemoteProjectKey)
-  return settings
+export function forgetLocalProject(settings: AppSettings, path: string): void {
+  const allDetails = { ...settings.localProjectDetails }
+  delete allDetails[normalizeWorkspaceProjectKey(path)]
+  settings.localProjectDetails = Object.keys(allDetails).length > 0 ? allDetails : undefined
+  settings.pinnedProjectIds = settings.pinnedProjectIds?.filter((projectId) => !sameWorkspaceProjectKey(projectId, path))
 }

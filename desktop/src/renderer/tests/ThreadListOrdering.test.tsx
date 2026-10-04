@@ -104,7 +104,7 @@ describe('ThreadList ordering', () => {
     installDesktopApiMock({
       settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }), set: settingsSet },
       appServer: { sendRequest: vi.fn() },
-      workspace: { switch: vi.fn(), getRecent: vi.fn().mockResolvedValue([]) }
+      workspace: { switch: vi.fn() }
     })
     useThreadStore.getState().reset()
     useWorkspaceProjectsStore.getState().reset()

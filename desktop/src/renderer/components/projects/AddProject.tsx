@@ -102,7 +102,7 @@ export function useAddProjectFlow(): AddProjectFlow {
     if (!state?.project) return
     setBusy(true)
     try {
-      await window.api.workspace.removeRecent(state.project.path)
+      await window.api.workspace.removeProject(state.project.path)
       setState(null)
     } catch (err) {
       addToast(t('addProject.openFailed', { error: errorMessage(err) }), 'error')

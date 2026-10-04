@@ -32,7 +32,7 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
   if (!project || !computer) return <Screen>{null}</Screen>
   const starting = needsStart || phase === 'starting'
   const body = starting ? (
-    <MascotTransition inList line={t('project.starting', { project: project.name })} />
+    <MascotTransition line={t('project.starting', { project: project.name })} />
   ) : !project.running ? (
     <MascotNote moment="asleep">{t('project.cantStart', { computer: computer.name, project: project.name })}</MascotNote>
   ) : chats.length === 0 ? (
@@ -69,6 +69,6 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
 }
 
 const styles = StyleSheet.create({
-  section: { marginTop: 26 },
+  section: { flexGrow: 1, marginTop: 26 },
   wide: { flex: 1 },
 })

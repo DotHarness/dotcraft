@@ -9,7 +9,7 @@ const pickFolder = vi.fn()
 const switchWorkspace = vi.fn()
 const createLocalProject = vi.fn()
 const saveLocalProject = vi.fn()
-const removeRecent = vi.fn()
+const removeProject = vi.fn()
 
 const editProject: WorkspaceProjectSummary = {
   path: '/projects/app',
@@ -50,10 +50,10 @@ describe('Create / Edit project flow', () => {
     switchWorkspace.mockResolvedValue(undefined)
     createLocalProject.mockResolvedValue({ path: 'C:/Users/me/Documents/My App', gitInitialized: true })
     saveLocalProject.mockImplementation(async ({ primaryFolder }: { primaryFolder: string }) => ({ path: primaryFolder }))
-    removeRecent.mockResolvedValue(undefined)
+    removeProject.mockResolvedValue(undefined)
     installDesktopApiMock({
       settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }), set: vi.fn() },
-      workspace: { pickFolder, switch: switchWorkspace, createLocalProject, saveLocalProject, removeRecent }
+      workspace: { pickFolder, switch: switchWorkspace, createLocalProject, saveLocalProject, removeProject }
     })
   })
 
@@ -125,6 +125,6 @@ describe('Create / Edit project flow', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Remove project' }))
 
-    await waitFor(() => expect(removeRecent).toHaveBeenCalledWith('/projects/app'))
+    await waitFor(() => expect(removeProject).toHaveBeenCalledWith('/projects/app'))
   })
 })

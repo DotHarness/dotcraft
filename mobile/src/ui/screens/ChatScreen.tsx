@@ -12,12 +12,12 @@ import { useI18n } from '../../i18n'
 import { BAR_HEIGHT, BarButton, ChatBar } from '../chat/ChatBar'
 import { ChatMenu } from '../chat/ChatMenu'
 import { Composer } from '../chat/Composer'
-import { catalogItem, ComposerControls, type ControlChange } from '../chat/ComposerControls'
+import { catalogItem, ComposerControls, defaultModel, type ControlChange } from '../chat/ComposerControls'
 import { ApprovalCard, ApprovalSheet, QuestionCard } from '../chat/RequestCards'
 import { TranscriptLine } from '../chat/Transcript'
 import { Screen } from '../layout'
-import { Mascot, MascotNote, MascotTransition } from '../mascot/Mascot'
-import { Notice, PhoneButton, ReadOnlyNotice, StateMark, Txt } from '../parts'
+import { MascotNote, MascotTransition } from '../mascot/Mascot'
+import { Notice, PhoneButton, ReadOnlyNotice, StateMark } from '../parts'
 import { chatTitle } from '../rows'
 import { metrics, useTheme } from '../theme'
 import { chatHref } from './HomeScreen'
@@ -82,9 +82,9 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const stoppable = live && isLive(chatState)
 
   const change = (next: ControlChange) => {
+    if (next.kind === 'provider') return Promise.resolve()
     if (next.kind !== 'model') return session.updateConfig(key, next)
-    if (!next.model) return Promise.resolve()
-    return session.updateConfig(key, { ...next, model: next.model, catalog: catalogItem(models, next.providerId, next.model) })
+    return session.updateConfig(key, { ...next, catalog: catalogItem(models, next.providerId, next.model) })
   }
 
   return (
@@ -184,7 +184,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
               computer={computer.name}
               running={isLive(chatState)}
               canSend={ready}
-              controls={<ComposerControls projectId={projectId} controls={controls} models={models} allowDefault={false} onChange={change} />}
+              controls={<ComposerControls projectId={projectId} controls={controls} models={models} onChange={change} />}
               onSend={(text) => session.send(key, text)}
               onStop={() => void session.stop(key).catch(() => undefined)}
             />
@@ -231,9 +231,14 @@ const UNTOUCHED: NewChatChoices = {
 function chosen(previous: NewChatChoices, change: ControlChange): NewChatChoices {
   const { touched, controls } = previous
   switch (change.kind) {
+    case 'provider':
+      return {
+        touched: { approval: touched.approval, provider: true },
+        controls: { ...controls, providerId: change.providerId, model: null, reasoning: 'default', speed: 'standard' },
+      }
     case 'model':
       return {
-        touched: { approval: touched.approval, ...(change.model ? { model: true } : {}) },
+        touched: { approval: touched.approval, model: true },
         controls: { ...controls, providerId: change.providerId, model: change.model, reasoning: 'default', speed: 'standard' },
       }
     case 'reasoning':
@@ -258,7 +263,8 @@ export function NewChatScreen({ projectId }: { projectId: string }) {
   const computer = state.computer
   if (!computer || !project) return <Screen>{null}</Screen>
   const status = computerStatus(state)
-  const controls: ChatControls = { ...choices.controls, providerId: choices.controls.providerId ?? models?.defaultProviderId ?? null }
+  const providerId = choices.controls.providerId ?? models?.defaultProviderId ?? null
+  const controls: ChatControls = { ...choices.controls, providerId, model: choices.controls.model ?? defaultModel(models, providerId) }
 
   async function send(text: string) {
     if (!project?.running) setPhase('starting')
@@ -280,14 +286,11 @@ export function NewChatScreen({ projectId }: { projectId: string }) {
           ) : phase === 'cantStart' ? (
             <MascotNote moment="asleep">{t('project.cantStart', { computer: computer.name, project: project.name })}</MascotNote>
           ) : (
-            <View style={styles.greeting}>
-              <Mascot moment="greeting" size={72} />
-              <Txt tone="secondary" style={styles.centered}>
-                {project.running
-                  ? t('newChat.runsOn', { computer: computer.name, project: project.name })
-                  : t('newChat.startsOn', { computer: computer.name, project: project.name })}
-              </Txt>
-            </View>
+            <MascotNote moment="greeting">
+              {project.running
+                ? t('newChat.runsOn', { computer: computer.name, project: project.name })
+                : t('newChat.startsOn', { computer: computer.name, project: project.name })}
+            </MascotNote>
           )}
           <ChatBar title={t('newChat.title')} project={project.name} computer={computer.name} status={status} onBack={() => router.back()} />
         </View>
@@ -302,7 +305,6 @@ export function NewChatScreen({ projectId }: { projectId: string }) {
                 projectId={projectId}
                 controls={controls}
                 models={models}
-                allowDefault
                 onChange={async (change) => setChoices((previous) => chosen(previous, change))}
               />
             }
@@ -317,9 +319,7 @@ export function NewChatScreen({ projectId }: { projectId: string }) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  transcript: { gap: 14, paddingTop: BAR_HEIGHT + 20, paddingHorizontal: metrics.gutter, paddingBottom: 16 },
+  transcript: { flexGrow: 1, gap: 14, paddingTop: BAR_HEIGHT + 20, paddingHorizontal: metrics.gutter, paddingBottom: 16 },
   dock: { gap: 10, paddingTop: 8, paddingHorizontal: metrics.gutter },
-  emptyBody: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: metrics.gutter },
-  greeting: { alignItems: 'center', gap: 14 },
-  centered: { textAlign: 'center', maxWidth: 300 },
+  emptyBody: { paddingHorizontal: metrics.gutter },
 })

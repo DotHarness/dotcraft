@@ -433,6 +433,61 @@ test("Mobile methods read, toggle, pair, and revoke through the authorized Hub A
   }
 });
 
+test("Project methods list, open, and remove projects through the authorized Hub API", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-projects-"));
+  const originalFetch = globalThis.fetch;
+  try {
+    await mkdir(join(dir, ".craft", "hub"), { recursive: true });
+    await writeFile(join(dir, ".craft", "hub", "hub.lock"), JSON.stringify({
+      pid: process.pid,
+      apiBaseUrl: "http://127.0.0.1:49131",
+      token: "hub-token",
+    }), "utf8");
+
+    const project = { path: "/work/app", displayName: "app", addedAt: "2026-10-04T08:00:00Z", lastOpenedAt: "2026-10-04T08:00:00Z", running: false };
+    const calls: Array<{ method?: string; path: string; body?: string; authorization?: string }> = [];
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      calls.push({ method: init?.method, path: url.pathname, body: init?.body as string | undefined, authorization: headers.Authorization });
+      if (url.pathname === "/v1/status") {
+        return new Response(JSON.stringify({ capabilities: {} }), { status: 200 });
+      }
+      if (url.pathname === "/v1/projects") {
+        return new Response(JSON.stringify({ projects: [project] }), { status: 200 });
+      }
+      if (url.pathname === "/v1/projects/remove") {
+        return new Response(JSON.stringify({
+          error: { code: "projectNotFound", message: "Project not found.", details: {} },
+        }), { status: 404 });
+      }
+      return new Response(JSON.stringify(project), { status: 200 });
+    }) as typeof fetch;
+
+    const client = new HubClient({ homeDir: dir });
+    assert.deepEqual(await client.listProjects(), [project]);
+    assert.deepEqual(await client.openProject("/work/app"), project);
+    await assert.rejects(
+      client.removeProject("/work/gone"),
+      (error: unknown) => error instanceof HubClientError && error.code === "projectNotFound",
+    );
+
+    const projectCalls = calls.filter((call) => call.path.startsWith("/v1/projects"));
+    assert.ok(projectCalls.every((call) => call.authorization === "Bearer hub-token"));
+    assert.deepEqual(
+      projectCalls.map((call) => [call.method, call.path, call.body]),
+      [
+        ["GET", "/v1/projects", undefined],
+        ["POST", "/v1/projects/open", JSON.stringify({ path: "/work/app" })],
+        ["POST", "/v1/projects/remove", JSON.stringify({ path: "/work/gone" })],
+      ],
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("Mobile relay methods set and clear the relay through the authorized Hub API", async () => {
   const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-mobile-relay-"));
   const originalFetch = globalThis.fetch;

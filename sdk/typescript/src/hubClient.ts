@@ -161,6 +161,14 @@ export interface HubMobilePairing {
   expiresAt: string;
 }
 
+export interface HubProject {
+  path: string;
+  displayName: string;
+  addedAt: string;
+  lastOpenedAt: string;
+  running: boolean;
+}
+
 export interface HubRuntimeToolsRequest {
   ripgrepPath?: string;
   nodeBin?: string;
@@ -459,6 +467,28 @@ export class HubClient {
   async clearMobileRelay(): Promise<HubMobileState> {
     const hub = await this.ensureHub();
     return await this.requestJson<HubMobileState>(hub, "/v1/mobile/relay", { method: "DELETE" });
+  }
+
+  async listProjects(): Promise<HubProject[]> {
+    const hub = await this.ensureHub();
+    const response = await this.requestJson<{ projects: HubProject[] }>(hub, "/v1/projects", { method: "GET" });
+    return response.projects;
+  }
+
+  async openProject(path: string): Promise<HubProject> {
+    const hub = await this.ensureHub();
+    return await this.requestJson<HubProject>(hub, "/v1/projects/open", {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    });
+  }
+
+  async removeProject(path: string): Promise<void> {
+    const hub = await this.ensureHub();
+    await this.requestJson<unknown>(hub, "/v1/projects/remove", {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    });
   }
 
   async ensureDefaultChatAppServer(

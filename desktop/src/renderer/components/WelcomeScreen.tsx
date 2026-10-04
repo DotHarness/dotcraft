@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type CSSProperties } from 'react'
+import { useState, useEffect, useMemo, useRef, type CSSProperties } from 'react'
 import { isWorkspaceLockedSwitchError } from '../../shared/workspaceSwitchErrors'
 import type { AppLocale } from '../../shared/locales'
 import { useLocale, useSetUiLocale, useT } from '../contexts/LocaleContext'
@@ -7,12 +7,7 @@ import { SegmentedControl } from './settings/ui/SegmentedControl'
 import { DotCraftFullLogo } from './ui/DotCraftLogo'
 import { elementToLaunchLogoRect, type LaunchLogoRect } from './WorkspaceLaunchTransition'
 import { ChevronRight, FolderOpen, MessageCircle } from 'lucide-react'
-
-interface RecentWorkspace {
-  path: string
-  name: string
-  lastOpenedAt: string
-}
+import { localProjectsByLastOpened, useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 
 function isLockError(err: unknown): boolean {
   return isWorkspaceLockedSwitchError(err)
@@ -28,7 +23,8 @@ export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Elem
   const setUiLocale = useSetUiLocale()
   const isMac = window.api.platform === 'darwin'
   const languageSwitcherTop = isMac ? 20 : window.api.titleBarOverlayHeight + 16
-  const [recents, setRecents] = useState<RecentWorkspace[]>([])
+  const projects = useWorkspaceProjectsStore((s) => s.projects)
+  const recents = useMemo(() => localProjectsByLastOpened(projects), [projects])
   const [loading, setLoading] = useState(false)
   const [switchingLocale, setSwitchingLocale] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -42,11 +38,6 @@ export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Elem
 
   useEffect(() => {
     let disposed = false
-    window.api.workspace.getRecent()
-      .then((next) => {
-        if (!disposed) setRecents(next)
-      })
-      .catch(() => {})
     window.api.workspace.getProjects?.()
       .then((payload) => {
         if (!disposed) setChatWorkspacePath(payload?.chat?.path?.trim() || null)

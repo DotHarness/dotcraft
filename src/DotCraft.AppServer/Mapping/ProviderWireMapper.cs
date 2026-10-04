@@ -97,12 +97,17 @@ public static class ProviderContractMapper
 
     public static Contract.ModelCatalogItem BuildModelCatalogItem(
         AppConfig config,
+        string? providerId,
         string? protocol,
         string? endpoint,
         ModelCatalogEntry model,
         bool includeUltra) => new()
         {
             Id = model.Id,
+            IsDefault = string.Equals(
+                model.Id,
+                ModelPreferenceRules.Find(config.ProviderPreferences, providerId)?.Model.Trim(),
+                StringComparison.Ordinal),
             OwnedBy = model.OwnedBy,
             CreatedAt = model.CreatedAt,
             Reasoning = MapReasoningCapability(ModelThinkingAdapterResolver.ResolveReasoningCapability(

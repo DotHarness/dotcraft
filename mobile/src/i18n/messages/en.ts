@@ -103,7 +103,6 @@ export const MESSAGES_EN = {
   'approval.fullAccess.warningConfirm': 'Enable full access',
   'model.title': 'Model',
   'model.provider': 'Provider',
-  'model.default': 'Default',
   'reasoning.heading': 'Intelligence',
   'reasoning.off': 'Off',
   'reasoning.low': 'Low',

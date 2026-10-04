@@ -96,9 +96,9 @@ export function HomeScreen() {
         {status === 'access-off' ? <ReadOnlyNotice status={status} computer={computer.name} style={styles.notice} /> : null}
         <View style={styles.lists}>
           {state.syncing ? (
-            <MascotTransition inList line={t('home.catchingUp', { computer: computer.name })} />
+            <MascotTransition line={t('home.catchingUp', { computer: computer.name })} />
           ) : trimmed ? (
-            <Section title={t('home.results')}>
+            <Section title={t('home.results')} grow>
               {results.length > 0 ? (
                 results.map((chat) => (
                   <ChatRow key={chat.key} chat={chat} live={live} projectName={nameOf(chat.projectId)} onPress={() => openChat(chat.key)} />
@@ -127,7 +127,7 @@ export function HomeScreen() {
                   />
                 ))}
               </Section>
-              <Section title={t('home.recent')}>
+              <Section title={t('home.recent')} grow>
                 {visible.length === 0 ? (
                   <MascotNote moment="content">{t('home.empty', { computer: computer.name })}</MascotNote>
                 ) : (
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   computerText: { flexShrink: 1, minWidth: 0, gap: 1 },
   computerName: { fontWeight: '600' },
   notice: { marginTop: 8 },
-  lists: { marginTop: -12 },
+  lists: { flexGrow: 1, marginTop: -12 },
   search: {
     flex: 1,
     minWidth: 0,

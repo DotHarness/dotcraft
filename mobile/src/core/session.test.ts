@@ -304,6 +304,18 @@ describe('turn control', () => {
     expect(computer.calls.find((call) => call.method === 'thread/start')!.params.config).toEqual({ speed: 'fast' })
   })
 
+  it('starts a new chat that only switched provider on that provider without naming a model', async () => {
+    const computer = studio()
+    const harness = setup([computer])
+    const state = await online(harness)
+    const project = state.projects.find((entry) => entry.name === 'dotcraft')!
+    const controls = { providerId: 'local', model: 'quill-14b', reasoning: 'default', speed: 'standard', approvalPolicy: 'prompt' } as const
+    const key = await harness.session.newChat(project.id, 'tidy the release script', startConfig({ touched: { provider: true }, controls }))
+    expect(computer.calls.find((call) => call.method === 'thread/start')!.params.config).toEqual({ providerId: 'local' })
+    harness.session.openChat(key)
+    await waitFor(() => harness.state().details[key]?.config?.model === 'quill-14b')
+  })
+
   it('forks a chat into a new chat in the same project and archives a chat off the lists', async () => {
     const harness = setup([studio()])
     const key = keyOf(await online(harness), 'Explain the release script')

@@ -112,10 +112,10 @@ export function Mascot({
   )
 }
 
-export function MascotTransition({ line, inList = false }: { line: string; inList?: boolean }) {
+export function MascotTransition({ line }: { line: string }) {
   return (
     <View
-      style={[styles.transition, inList && styles.transitionInList]}
+      style={styles.placeholder}
       accessibilityRole="progressbar"
       accessibilityLabel={line}
       accessibilityLiveRegion="polite"
@@ -130,8 +130,8 @@ export function MascotTransition({ line, inList = false }: { line: string; inLis
 
 export function MascotNote({ moment, profile, children }: { moment: MascotMoment; profile?: string | null; children: string }) {
   return (
-    <View style={styles.note}>
-      <Mascot moment={moment} profile={profile} size={56} />
+    <View style={styles.placeholder}>
+      <Mascot moment={moment} profile={profile} size={72} />
       <Txt tone="secondary" style={styles.centered}>
         {children}
       </Txt>
@@ -141,16 +141,6 @@ export function MascotNote({ moment, profile, children }: { moment: MascotMoment
 
 const styles = StyleSheet.create({
   canvas: { position: 'absolute' },
-  transition: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
-    paddingTop: 24,
-    paddingHorizontal: 16,
-    paddingBottom: 48,
-  },
-  transitionInList: { flex: 0, paddingTop: 56 },
-  note: { alignItems: 'center', gap: 10, paddingTop: 28, paddingHorizontal: 16, paddingBottom: 8 },
+  placeholder: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingVertical: 24, paddingHorizontal: 16 },
   centered: { textAlign: 'center', maxWidth: 300 },
 })

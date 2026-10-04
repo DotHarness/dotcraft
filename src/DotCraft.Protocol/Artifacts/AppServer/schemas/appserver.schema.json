@@ -9012,6 +9012,9 @@
         "id": {
           "type": "string"
         },
+        "isDefault": {
+          "type": "boolean"
+        },
         "ownedBy": {
           "type": "string"
         },

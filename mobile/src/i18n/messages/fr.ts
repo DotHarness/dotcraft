@@ -105,7 +105,6 @@ export const MESSAGES_FR: Catalog = {
   'approval.fullAccess.warningConfirm': 'Activer l\'accès complet',
   'model.title': 'Modèle',
   'model.provider': 'Fournisseur',
-  'model.default': 'Par défaut',
   'reasoning.heading': 'Renseignement',
   'reasoning.off': 'Désactivé',
   'reasoning.low': 'Faible',

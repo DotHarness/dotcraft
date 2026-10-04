@@ -11,16 +11,12 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         "DotCraftManagedRegistry_" + Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public async Task List_HidesPersistedStoppedAndExitedRecordsFromPreviousHubProcess()
+    public async Task List_DropsPersistedRecordWhoseAppServerExitedWhileHubWasDown()
     {
         var registryPath = Path.Combine(_tempDir, "hub", "appservers.json");
-        var stoppedWorkspace = CreateWorkspace("stopped-workspace");
-        var exitedWorkspace = CreateWorkspace("exited-workspace");
+        var workspace = CreateWorkspace("exited-while-down-workspace");
         var store = new HubAppServerRegistryStore(registryPath);
-        store.Save([
-            CreateRegistryRecord(stoppedWorkspace, HubAppServerStates.Stopped),
-            CreateRegistryRecord(exitedWorkspace, HubAppServerStates.Exited)
-        ]);
+        store.Save([CreateRegistryRecord(workspace)]);
 
         await using var registry = new ManagedAppServerRegistry(
             new HubEventBus(),
@@ -29,26 +25,51 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
             registryPath: registryPath);
 
         Assert.Empty(registry.List());
+        Assert.Empty(store.Load());
     }
 
     [Fact]
-    public async Task List_RefreshesPersistedStartingRecordWithoutLiveLockToExited()
+    public async Task Crash_RemovesTheEntryFromTheRegistryFile_AndKeepsDiagnosticsInMemory()
     {
         var registryPath = Path.Combine(_tempDir, "hub", "appservers.json");
-        var workspace = CreateWorkspace("starting-workspace");
-        var store = new HubAppServerRegistryStore(registryPath);
-        store.Save([CreateRegistryRecord(workspace, HubAppServerStates.Starting)]);
+        var workspace = CreateWorkspace("crash-workspace");
+        var process = new FakeManagedAppServerProcess(
+            processId: Environment.ProcessId,
+            exitCode: 3,
+            recentStderr: "fatal: boom");
+        AppServerWorkspaceLock? workspaceLock = null;
 
         await using var registry = new ManagedAppServerRegistry(
             new HubEventBus(),
             "http://127.0.0.1:43000",
             "hub-token",
-            registryPath: registryPath);
+            registryPath: registryPath)
+        {
+            StartAppServerProcessAsync = (_, canonical, _, _) =>
+            {
+                workspaceLock = AcquireWorkspaceLock(canonical, "ws://127.0.0.1:43123/ws?token=x");
+                return Task.FromResult<IManagedAppServerProcess>(process);
+            },
+            ManagedWebSocketProbeAsync = (_, _, _) => Task.CompletedTask
+        };
 
-        Assert.Empty(registry.List());
-        var persisted = Assert.Single(store.Load().Values);
-        Assert.Equal(HubAppServerStates.Exited, persisted.State);
-        Assert.False(persisted.StartedByHub);
+        await registry.EnsureAsync(new EnsureAppServerRequest
+        {
+            WorkspacePath = workspace,
+            StartIfMissing = true
+        }, CancellationToken.None);
+        var store = new HubAppServerRegistryStore(registryPath);
+        Assert.Single(store.Load());
+
+        workspaceLock!.DeleteAfterDispose();
+        process.Exit();
+        process.RaiseCrashed();
+
+        Assert.Empty(store.Load());
+        var inspected = registry.GetByWorkspace(workspace);
+        Assert.Equal(HubAppServerStates.Exited, inspected.State);
+        Assert.Equal(3, inspected.ExitCode);
+        Assert.Equal("fatal: boom", inspected.RecentStderr);
     }
 
     [Fact]
@@ -59,7 +80,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         var wsUrl = "ws://127.0.0.1:43123/ws?token=x";
         using var workspaceLock = AcquireWorkspaceLock(workspace, wsUrl);
         var store = new HubAppServerRegistryStore(registryPath);
-        store.Save([CreateRegistryRecord(workspace, HubAppServerStates.Stopped)]);
+        store.Save([CreateRegistryRecord(workspace)]);
 
         await using var registry = new ManagedAppServerRegistry(
             new HubEventBus(),
@@ -463,29 +484,25 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
     private static object? Detail(HubProtocolException error, string name) =>
         error.Details?.GetType().GetProperty(name)?.GetValue(error.Details);
 
-    private static HubAppServerRegistryRecord CreateRegistryRecord(string workspacePath, string state) => new(
+    private static HubAppServerRegistryRecord CreateRegistryRecord(string workspacePath) => new(
         WorkspacePath: workspacePath,
         CanonicalWorkspacePath: workspacePath,
         DisplayName: Path.GetFileName(workspacePath),
-        State: state,
-        Pid: null,
+        State: HubAppServerStates.Running,
+        Pid: 999999,
         Endpoints: new Dictionary<string, string>(),
         ServiceStatus: new Dictionary<string, HubServiceStatus>(),
         ServerVersion: null,
         StartedByHub: true,
-        LastStartedAt: null,
-        LastSeenAt: DateTimeOffset.UtcNow,
-        LastExitedAt: state is HubAppServerStates.Stopped ? null : DateTimeOffset.UtcNow,
-        ExitCode: null,
-        LastError: null,
-        RecentStderr: null);
+        LastStartedAt: DateTimeOffset.UtcNow,
+        LastSeenAt: DateTimeOffset.UtcNow);
 
     private sealed class FakeManagedAppServerProcess(
         int processId,
         int? exitCode,
         string recentStderr) : IManagedAppServerProcess
     {
-        public bool IsRunning => !Disposed;
+        public bool IsRunning => !Disposed && !_exited;
 
         public int? ExitCode => exitCode;
 
@@ -497,6 +514,8 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
 
         public bool Disposed { get; private set; }
 
+        private bool _exited;
+
         public event Action? OnCrashed;
 
         public ValueTask DisposeAsync()
@@ -504,6 +523,8 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
             Disposed = true;
             return ValueTask.CompletedTask;
         }
+
+        public void Exit() => _exited = true;
 
         public void RaiseCrashed() => OnCrashed?.Invoke();
     }

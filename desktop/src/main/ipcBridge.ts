@@ -8,7 +8,6 @@ import * as path from 'path'
 import type { DesktopAppServerClient } from './DesktopAppServerClient'
 import type {
   AppSettings,
-  RecentWorkspace,
   BinarySource
 } from './settings'
 import { resolveTaskCompletionNotificationMode } from './settings'
@@ -310,13 +309,13 @@ function assertGitWorkspacePath(
 function assertGitInspectionPath(
   requestedPath: string,
   workspacePath: string,
-  recentWorkspaces: RecentWorkspace[],
+  localProjectPaths: string[],
   locale: AppLocale
 ): string {
   try {
     return assertGitWorkspacePath(requestedPath, workspacePath, locale)
   } catch {
-    // Read-only inspection may target a known recent local project without
+    // Read-only inspection may target a known local project without
     // granting that path to commit, checkout, or branch-management handlers.
   }
 
@@ -324,9 +323,9 @@ function assertGitInspectionPath(
     throw new Error(translate(locale, 'ipc.workspacePathMismatch'))
   }
   const resolved = path.resolve(requestedPath)
-  for (const recent of recentWorkspaces) {
-    if (sameWorkspaceProjectKey(recent.path, requestedPath)) return path.resolve(recent.path)
-    const worktreesRoot = path.resolve(recent.path, '.craft', 'worktrees')
+  for (const projectPath of localProjectPaths) {
+    if (sameWorkspaceProjectKey(projectPath, requestedPath)) return path.resolve(projectPath)
+    const worktreesRoot = path.resolve(projectPath, '.craft', 'worktrees')
     if (isSameOrInsidePath(resolved, worktreesRoot) && resolved !== worktreesRoot) return resolved
   }
   throw new Error(translate(locale, 'ipc.workspacePathMismatch'))
@@ -952,9 +951,9 @@ export interface IpcHandlerCallbacks {
   /** Null unless the AppServer is a Hub-managed local one. */
   getAppServerWsConfig?: () => { wsUrl: string; token?: string } | null
   updateSettings: (partial: Partial<AppSettings>) => void | Promise<void>
-  getRecentWorkspaces: () => RecentWorkspace[]
+  getLocalProjectPaths: () => string[]
   getWorkspaceProjects?: () => WorkspaceProjectsPayload
-  removeRecentWorkspace?: (workspacePath: string) => void
+  removeProject?: (workspacePath: string) => Promise<void>
   /** Creates or updates a local multi-folder Project (primary + secondary folders). */
   saveLocalProject?: (params: {
     previousPath?: string
@@ -966,7 +965,7 @@ export interface IpcHandlerCallbacks {
   stopWorkspace?: (workspacePath: string) => void | Promise<void>
   /** Archives a thread in a (possibly non-foreground) workspace connection. */
   archiveThreadInWorkspace?: (workspacePath: string, threadId: string) => void | Promise<void>
-  clearRecentWorkspaces?: () => void
+  clearProjects?: () => Promise<void>
   getConnectionStatus: () => ConnectionStatusPayload
   getWorkspaceStatus: () => WorkspaceStatusPayload
   /** Observes only successful renderer AppServer requests, feeding Desktop-local routing state. */
@@ -1547,7 +1546,7 @@ export function registerIpcHandlers(
     const gitWorkspacePath = assertGitInspectionPath(
       wsPath,
       workspacePath,
-      callbacks?.getRecentWorkspaces() ?? [],
+      callbacks?.getLocalProjectPaths() ?? [],
       locale
     )
     try {
@@ -1640,10 +1639,6 @@ export function registerIpcHandlers(
     await callbacks?.onClearWorkspaceSelection()
   })
 
-  handleSafe('workspace:get-recent', () => {
-    return callbacks?.getRecentWorkspaces() ?? []
-  })
-
   handleSafe('workspace:get-projects', () => {
     return callbacks?.getWorkspaceProjects?.() ?? {
       foregroundWorkspacePath: '',
@@ -1653,8 +1648,8 @@ export function registerIpcHandlers(
     }
   })
 
-  handleSafe('workspace:remove-recent', (_event, workspacePath: string) => {
-    callbacks?.removeRecentWorkspace?.(workspacePath)
+  handleSafe('workspace:remove-project', async (_event, workspacePath: string) => {
+    await callbacks?.removeProject?.(workspacePath)
   })
 
   // A `previousPath` that differs from `primaryFolder` reassigns the Project identity.
@@ -1711,8 +1706,8 @@ export function registerIpcHandlers(
     await callbacks?.onDisconnectRemoteProject?.()
   })
 
-  handleSafe('workspace:clear-recent', () => {
-    callbacks?.clearRecentWorkspaces?.()
+  handleSafe('workspace:clear-projects', async () => {
+    await callbacks?.clearProjects?.()
   })
 
   handleSafe('workspace:get-status', () => {
@@ -2632,15 +2627,14 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('workspace:create-local-project')
   ipcMain.removeHandler('workspace:switch')
   ipcMain.removeHandler('workspace:clear-selection')
-  ipcMain.removeHandler('workspace:get-recent')
   ipcMain.removeHandler('workspace:get-projects')
-  ipcMain.removeHandler('workspace:remove-recent')
+  ipcMain.removeHandler('workspace:remove-project')
   ipcMain.removeHandler('workspace:save-local-project')
   ipcMain.removeHandler('workspace:restart')
   ipcMain.removeHandler('workspace:stop')
   ipcMain.removeHandler('workspace:archive-thread')
   ipcMain.removeHandler('workspace:disconnect-remote')
-  ipcMain.removeHandler('workspace:clear-recent')
+  ipcMain.removeHandler('workspace:clear-projects')
   ipcMain.removeHandler('workspace:get-status')
   ipcMain.removeHandler('workspace:run-setup')
   ipcMain.removeHandler('workspace:list-setup-models')
