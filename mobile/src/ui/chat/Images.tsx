@@ -4,26 +4,35 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { fileContent } from '../../core/fileView'
 import { imageKey, rememberedImage, rememberImage } from '../../core/imageCache'
 import type { ImageSource } from '../../core/userSegments'
+import { baseName } from '../../core/transcript'
 import { useI18n } from '../../i18n'
 import { RoundIconButton } from '../parts'
 import { useTheme } from '../theme'
+import { DownloadButton } from './DownloadButton'
 
-function ImageViewer({ uri, visible, onClose }: { uri: string; visible: boolean; onClose: () => void }) {
+function inlineImage(uri: string): { mimeType: string; data: string } | null {
+  const match = /^data:([^;,]+);base64,/.exec(uri)
+  return match ? { mimeType: match[1], data: uri.slice(match[0].length) } : null
+}
+
+function ImageViewer({ uri, name, visible, onClose }: { uri: string; name: string; visible: boolean; onClose: () => void }) {
   const insets = useSafeAreaInsets()
   const { t } = useI18n()
+  const inline = inlineImage(uri)
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <Pressable accessibilityLabel={t('common.close')} style={styles.viewer} onPress={onClose}>
         <Image source={{ uri }} resizeMode="contain" style={styles.full} />
       </Pressable>
-      <View style={[styles.close, { top: insets.top + 8 }]}>
+      <View style={[styles.bar, { top: insets.top + 8 }]}>
+        {inline ? <DownloadButton name={name} mimeType={inline.mimeType} data={inline.data} tone="camera" /> : null}
         <RoundIconButton label={t('common.close')} icon="x" tone="camera" onPress={onClose} />
       </View>
     </Modal>
   )
 }
 
-export function ImageThumb({ uri, label, style }: { uri: string; label: string; style?: StyleProp<ImageStyle> }) {
+export function ImageThumb({ uri, name = 'image.png', label, style }: { uri: string; name?: string; label: string; style?: StyleProp<ImageStyle> }) {
   const { colors } = useTheme()
   const [open, setOpen] = useState(false)
   const [ratio, setRatio] = useState(1)
@@ -49,7 +58,7 @@ export function ImageThumb({ uri, label, style }: { uri: string; label: string; 
           style={[styles.thumb, { aspectRatio: ratio, borderColor: colors.borderDefault, backgroundColor: colors.bgTertiary }, style]}
         />
       </Pressable>
-      <ImageViewer uri={uri} visible={open} onClose={() => setOpen(false)} />
+      <ImageViewer uri={uri} name={name} visible={open} onClose={() => setOpen(false)} />
     </>
   )
 }
@@ -84,7 +93,7 @@ function ComputerImage({ path, label, style }: { path: string; label: string; st
       current = false
     }
   }, [key, path, read, uri])
-  if (uri) return <ImageThumb uri={uri} label={label} style={style} />
+  if (uri) return <ImageThumb uri={uri} name={baseName(path)} label={label} style={style} />
   return <View style={[styles.thumb, styles.pending, { borderColor: colors.borderDefault, backgroundColor: colors.bgTertiary }, style]} />
 }
 
@@ -95,7 +104,7 @@ export function SentImage({ source, label, style }: { source: ImageSource; label
 const styles = StyleSheet.create({
   viewer: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.92)', alignItems: 'center', justifyContent: 'center' },
   full: { width: '100%', height: '100%' },
-  close: { position: 'absolute', right: 12 },
+  bar: { position: 'absolute', right: 12, flexDirection: 'row', gap: 8 },
   thumb: { borderWidth: 1, borderRadius: 12 },
   pending: { aspectRatio: 1 },
 })

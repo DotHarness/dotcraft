@@ -19,6 +19,10 @@ function extension(path: string): string {
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
 }
 
+export function mediaTypeOf(path: string): string {
+  return IMAGE_TYPES[extension(path)] ?? 'application/octet-stream'
+}
+
 export function fileContent(path: string, dataBase64: string): FileContent {
   const mediaType = IMAGE_TYPES[extension(path)]
   if (mediaType) return { kind: 'image', uri: `data:${mediaType};base64,${dataBase64}` }

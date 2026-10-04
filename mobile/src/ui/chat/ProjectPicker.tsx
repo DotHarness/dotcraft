@@ -10,7 +10,7 @@ export function ProjectPicker({ state, visible, onClose, onPick }: { state: Mobi
   const projects = useMemo(() => projectsByRecentUse(state), [state])
   return (
     <SheetLayer visible={visible} onClose={onClose}>
-      <SheetHeader title={t('picker.title')} onClose={onClose} />
+      <SheetHeader title={t('picker.title')} />
       <View accessibilityLabel={t('picker.label', { computer: state.computer?.name ?? '' })}>
         {projects.map((project, index) => (
           <ProjectRow

@@ -322,7 +322,7 @@ that supports user-input requests and streaming.
 | Add menu | **Photo**, **File**, and **Plan mode**, which shows a check while it is on. |
 | Picker | Commands and skills matching what follows `/` or `$` in the composer. |
 | Changes | Every file the turn changed with its additions and deletions; each file expands to its diff. |
-| File | One file from the computer, read-only. |
+| File | One file from the computer, read-only, with **Download**, which saves it to the phone's `Download/DotCraft/` folder. Images open full screen with the same Download. |
 | Status | Opened from the context ring: context left, account usage when the chat's provider reports it, the project folder, and the chat ID to copy. |
 | Decision card | One card for every decision a chat waits on: an approval, a question, or a plan confirmation. It is the last entry of the transcript, held at the bottom of the screen when the chat is short, and scrolls with it, so earlier messages stay one swipe away. Like the composer, it shows the focus border only while its text field is in use. The composer stays hidden until the decision is made. |
 | Settings | The paired computer with Remove, Pair a different computer, and app information. |
@@ -412,7 +412,11 @@ list shows **failed** only for a chat whose failure the phone has seen.
   without a snapshot shows an empty ring. Status shows the share of the context window left with
   tokens used and the window size. When the chat's provider signs in with ChatGPT,
   it also shows each usage window from `auth/openai/usage` with the share left and its reset time.
-- Replies render Markdown with the same GitHub-flavored rules as Desktop. A link to a local file shows
+- Sheets have no close button: tapping outside a sheet or the system Back closes it. Download
+  writes through Android's shared Downloads collection, so it needs no storage permission; on
+  Android 9 and earlier the phone says saving there is not supported.
+- Replies render Markdown with the same GitHub-flavored rules as Desktop. An image in a reply shows
+  inline: a web image loads directly and an image on the computer is read with `fs/readFile`. A link to a local file shows
   as a file chip with its name that opens File. Web links open the browser. File and skill
   references in user messages show as chips, and photos sent with a message show as thumbnails in
   it, from the moment it is sent. An image a message refers to by `localImage` path, from the phone

@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useI18n } from '../i18n'
-import { nativeDriver, PhoneButton, RoundIconButton, Txt } from './parts'
+import { nativeDriver, PhoneButton, Txt } from './parts'
 import { metrics, type, useTheme } from './theme'
 
 const EXPAND = Easing.bezier(0.23, 1, 0.32, 1)
@@ -19,6 +19,7 @@ export function SheetLayer({
   alert?: boolean
   children: ReactNode
 }) {
+  const { t } = useI18n()
   const { colors } = useTheme()
   const insets = useSafeAreaInsets()
   const [progress] = useState(() => new Animated.Value(0))
@@ -33,7 +34,7 @@ export function SheetLayer({
     <Modal transparent visible={visible} animationType="none" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <View style={styles.layer}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.overlayScrim, opacity: progress }]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.close')} />
         </Animated.View>
         <Animated.View
           accessibilityViewIsModal
@@ -59,14 +60,13 @@ export function SheetLayer({
   )
 }
 
-export function SheetHeader({ title, onClose }: { title: string; onClose: () => void }) {
-  const { t } = useI18n()
+export function SheetHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <View style={styles.head}>
       <Txt accessibilityRole="header" style={[type.sheetTitle, styles.shrink]}>
         {title}
       </Txt>
-      <RoundIconButton label={t('common.close')} icon="x" onPress={onClose} />
+      {action}
     </View>
   )
 }

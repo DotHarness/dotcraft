@@ -55,7 +55,7 @@ export function FilePath({ path, note }: { path: string; note?: string }) {
 function FilePathSheet({ path, visible, onClose }: { path: string; visible: boolean; onClose: () => void }) {
   return (
     <SheetLayer visible={visible} onClose={onClose}>
-      <SheetHeader title={baseName(path)} onClose={onClose} />
+      <SheetHeader title={baseName(path)} />
       <FilePath path={path} />
     </SheetLayer>
   )

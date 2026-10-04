@@ -59,6 +59,8 @@ const RELEASE_REPLY = [
   '',
   '> It stops at the *first* failed step, so a half-published release never happens.',
   '',
+  '![The release banner](docs/release-banner.png)',
+  '',
   '```powershell',
   './scripts/release.ps1 -Version 0.8.1 -Runtime win-x64,linux-x64 -SkipSymbols -OutputDirectory artifacts/release',
   '```',
