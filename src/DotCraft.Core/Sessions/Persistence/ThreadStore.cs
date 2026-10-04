@@ -530,7 +530,8 @@ public sealed partial class ThreadStore : IAsyncDisposable
                     var threadId = Path.GetFileNameWithoutExtension(path);
                     if (projectionStates.TryGetValue(threadId, out var state)
                         && string.Equals(Path.GetFullPath(state.RolloutPath), path, StringComparison.OrdinalIgnoreCase)
-                        && state.ProjectedRolloutOffset == length)
+                        && state.ProjectedRolloutOffset == length
+                        && state.AttachmentIndexVersion == ThreadAttachmentStore.IndexVersion)
                     {
                         continue;
                     }
@@ -695,6 +696,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
         // deliberately advanced only after every attachment reference has succeeded.
         _metadataStore.UpsertThread(connection, transaction, thread, rolloutPath, projectedRolloutOffset: 0);
         var currentPaths = _attachmentStore.ReplaceThreadAttachments(connection, transaction, thread);
+        ThreadMetadataStore.MarkAttachmentsIndexed(connection, transaction, thread.Id, ThreadAttachmentStore.IndexVersion);
         ThreadMetadataStore.UpdateProjectedRolloutOffset(
             connection,
             transaction,

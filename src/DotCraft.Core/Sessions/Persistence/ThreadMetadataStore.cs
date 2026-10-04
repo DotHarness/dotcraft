@@ -150,18 +150,29 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
         command.ExecuteNonQuery();
     }
 
+    public static void MarkAttachmentsIndexed(SqliteConnection connection, SqliteTransaction transaction, string threadId, int version)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "UPDATE threads SET attachment_index_version = $version WHERE thread_id = $thread_id";
+        command.Parameters.AddWithValue("$thread_id", threadId);
+        command.Parameters.AddWithValue("$version", version);
+        command.ExecuteNonQuery();
+    }
+
     public Dictionary<string, ThreadProjectionState> LoadProjectionStates()
     {
         var states = new Dictionary<string, ThreadProjectionState>(StringComparer.Ordinal);
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT thread_id, rollout_path, projected_rollout_offset FROM threads";
+        command.CommandText = "SELECT thread_id, rollout_path, projected_rollout_offset, attachment_index_version FROM threads";
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
             states[reader.GetString(0)] = new ThreadProjectionState(
                 reader.GetString(1),
-                reader.IsDBNull(2) ? 0 : reader.GetInt64(2));
+                reader.IsDBNull(2) ? 0 : reader.GetInt64(2),
+                reader.GetInt32(3));
         }
         return states;
     }
@@ -1044,6 +1055,6 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
         || usage.TotalTokens > 0;
 }
 
-internal sealed record ThreadProjectionState(string RolloutPath, long ProjectedRolloutOffset);
+internal sealed record ThreadProjectionState(string RolloutPath, long ProjectedRolloutOffset, int AttachmentIndexVersion);
 
 internal sealed record ThreadRolloutLocation(string ThreadId, string RolloutPath, ThreadStatus Status);

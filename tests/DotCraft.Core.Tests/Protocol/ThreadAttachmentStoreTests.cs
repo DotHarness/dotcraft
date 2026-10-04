@@ -140,6 +140,35 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
         Assert.True(File.Exists(fresh));
     }
 
+    [Fact]
+    public async Task IndexRepair_RebuildsReferencesFromAnOlderIndexBeforeSweeping()
+    {
+        var folder = Path.Combine(_root, "attachments", "pasted_1");
+        Directory.CreateDirectory(folder);
+        var pasted = Path.Combine(folder, "pasted-text.txt");
+        File.WriteAllText(pasted, "long paste");
+        var thread = CreateThread("thread_pasted_text", CreateAttachment("unused.png"));
+        thread.Turns[0].Input!.Payload = new UserMessagePayload
+        {
+            Text = "Summarize",
+            NativeInputParts = [new SessionInputPart { Type = "contextRef", Context = new SessionInputContext { Id = "paste", Kind = "pastedText", Path = pasted } }]
+        };
+        await _store.SaveThreadAsync(thread);
+        ClearAttachmentRows();
+        using (var connection = new WorkspaceStateDatabase(_root).OpenConnection())
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE threads SET attachment_index_version = 0";
+            command.ExecuteNonQuery();
+        }
+        File.SetLastWriteTimeUtc(pasted, DateTime.UtcNow.AddDays(-2));
+
+        await _store.LoadIndexAsync();
+
+        Assert.True(File.Exists(pasted));
+        Assert.Equal(1, CountAttachmentRows());
+    }
+
     public void Dispose()
     {
         try

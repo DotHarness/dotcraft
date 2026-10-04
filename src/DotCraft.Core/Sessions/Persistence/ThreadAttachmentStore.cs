@@ -7,6 +7,8 @@ namespace DotCraft.Sessions;
 
 internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime, string botPath)
 {
+    public const int IndexVersion = 1;
+
     private readonly string _attachmentsDir = Path.Combine(botPath, "attachments");
     private readonly string _workspaceRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(botPath)))!;
 
@@ -89,7 +91,12 @@ internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime,
             return;
 
         var threshold = DateTimeOffset.UtcNow - minAge;
-        var candidates = Directory.EnumerateFiles(_attachmentsDir, "*", SearchOption.AllDirectories)
+        var candidates = Directory.EnumerateFiles(_attachmentsDir, "*", new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                AttributesToSkip = FileAttributes.ReparsePoint,
+                IgnoreInaccessible = true
+            })
             .Where(path =>
             {
                 try

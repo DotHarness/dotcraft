@@ -325,6 +325,7 @@ internal static class WorkspaceStateSchema
             "message_type",
             "TEXT NOT NULL DEFAULT 'MESSAGE'");
         EnsureColumn(connection, "subagent_mailbox_entries", "parent_turn_id", "TEXT");
+        EnsureColumn(connection, "threads", "attachment_index_version", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn(connection, "dashboard_usage_records", "model", "TEXT");
         EnsureColumn(connection, "dashboard_usage_records", "reasoning_effort", "TEXT");
         EnsureColumn(connection, "dashboard_usage_records", "root_thread_id", "TEXT");
