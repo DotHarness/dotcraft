@@ -93,7 +93,7 @@ public sealed class ExternalSessionReader
             session.Cwd,
             session.UpdatedAt,
             session.Turns.Count,
-            session.Turns[0].UserText);
+            ExternalSessionText.FirstRequest(session.Turns));
 
     private sealed record CachedSummary(DateTimeOffset ModifiedAt, ExternalSessionSummary? Summary);
 }

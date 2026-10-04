@@ -41,6 +41,19 @@ public sealed class ExternalSessionReaderTests : IDisposable
     }
 
     [Fact]
+    public async Task FirstRequestSkipsASlashCommandAndReadsPastedTextWithoutItsTags()
+    {
+        Transcript("compacted",
+            User("compacted", "<command-name>/compact</command-name>\n<command-message>compact</command-message>\n<command-args></command-args>"),
+            User("compacted", "<pasted_content id=\"aa5f\">\nMove the voice feature into Universe\n</pasted_content>"));
+        var reader = new ExternalSessionReader([new ClaudeCodeSessionSource(_root)]);
+
+        var summary = Assert.Single(await reader.ListAsync(Scopes.For(_workspace)));
+
+        Assert.Equal("Move the voice feature into Universe", summary.FirstRequest);
+    }
+
+    [Fact]
     public async Task ReadsOneCandidateAndNothingOutsideTheScope()
     {
         Transcript("mine", User("mine", "Fix the build"), Assistant("mine", "Built."));

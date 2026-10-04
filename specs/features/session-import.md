@@ -185,8 +185,10 @@ Titles are taken in this order, falling back at each empty step:
 - `cursor`: the first user text.
 
 The user-text fallback skips leading tag-wrapped blocks (such as `<system-reminder>`,
-`<ide_selection>`, or attachment blocks), unwraps a leading `<user_query>` block, takes the first
-non-empty line, and truncates to 120 characters. An empty result becomes `Imported session`.
+`<ide_selection>`, attachment blocks, or a slash command's `<command-name>` record), unwraps a leading
+`<user_query>` block, drops `<pasted_content>` tags but keeps their text, ignores unsupported-block
+placeholders, takes the first non-empty line, and truncates to 120 characters. A turn with nothing
+left falls through to the next turn. An empty result becomes `Imported session`.
 
 ## 5. Threads
 
@@ -302,7 +304,9 @@ a session to someone who decides what to do with it. The Harness package exposes
 - It reads the current user's source stores (§3.1) and applies workspace membership (§3.2) and
   exclusions (§3.4) within the window the caller gives (§3.3).
 - Listing returns, for each candidate, its source, source id, title (§4.4), member working directory,
-  modification time, turn count, and first request, converted as in §4.1. A candidate's summary is kept
+  modification time, turn count, and first request, converted as in §4.1. The first request is the
+  user-text fallback of §4.4 without its default, so a session that opens with a slash command shows the
+  request that followed it. A candidate's summary is kept
   for the reader's lifetime and converted again when its file's modification time changes.
 - Reading returns one candidate converted as in §4.1, or nothing when it is no longer a candidate.
 - It writes nothing and consults nothing it did not read from a source: no ledger, thread, setting,

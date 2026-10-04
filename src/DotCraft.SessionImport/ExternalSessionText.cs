@@ -1,10 +1,11 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DotCraft.Sessions;
 
 namespace DotCraft.SessionImport;
 
-internal static class ExternalSessionText
+internal static partial class ExternalSessionText
 {
     private const string FallbackTitle = "Imported session";
     private const int ToolInputMaxLength = 2000;
@@ -194,16 +195,26 @@ internal static class ExternalSessionText
 
     private static string? TitleFromUserText(string text)
     {
-        var remainder = StripLeadingControlWrappers(text);
+        var remainder = PastedContentTag().Replace(StripLeadingControlWrappers(text), string.Empty);
         foreach (var line in remainder.Split('\n'))
         {
-            var trimmed = line.Trim();
+            var trimmed = UnsupportedBlockPlaceholder().Replace(line, string.Empty).Trim();
             if (trimmed.Length > 0)
                 return Truncate(trimmed, TitleMaxLength);
         }
 
         return null;
     }
+
+    public static string FirstRequest(IReadOnlyList<ImportedTurnInput> turns) =>
+        turns.Select(static turn => TitleFromUserText(turn.UserText)).FirstOrDefault(static line => line is not null)
+        ?? string.Empty;
+
+    [GeneratedRegex("</?pasted_content(?:\\s[^>]*)?>")]
+    private static partial Regex PastedContentTag();
+
+    [GeneratedRegex("\\[external unsupported block: [^\\]]*\\]")]
+    private static partial Regex UnsupportedBlockPlaceholder();
 
     public static string SelectTitle(IReadOnlyList<ImportedTurnInput> turns, params string?[] preferred)
     {
