@@ -7,6 +7,7 @@ import { persistable, type MobileState } from './state'
 import { offersPlanMode } from './threadConfig'
 import { buildTranscript } from './transcript'
 import { latestChanges } from './turnChanges'
+import type { ImageSource } from './userSegments'
 
 const harnesses: Harness[] = []
 
@@ -91,11 +92,11 @@ describe('files and usage', () => {
 })
 
 describe('sent photos', () => {
-  it('shows photos in the message from the moment it is sent and after the computer records it', async () => {
+  it('shows a photo as soon as it is sent, then as the file it was uploaded to on the computer', async () => {
     const { harness, state, opened } = await connected()
     const key = await opened('Explain the release script')
     const url = `data:image/png;base64,${MEADOW_PNG}`
-    const echoed: string[][] = []
+    const echoed: ImageSource[][] = []
     const unsubscribe = harness.session.store.subscribe(() => {
       for (const entry of buildTranscript(state().details[key].history)) {
         if (entry.kind === 'user' && entry.id.startsWith('echo-')) echoed.push(entry.images)
@@ -103,21 +104,21 @@ describe('sent photos', () => {
     })
     await harness.session.send(key, { ...EMPTY_DRAFT, text: 'Like this', photos: [{ id: 'p1', dataUrl: url }] })
     unsubscribe()
-    expect(echoed[0]).toEqual([url])
+    expect(echoed[0]).toEqual([{ uri: url }])
 
     await waitFor(() => state().chats[key].runtime?.running === false)
     const sent = buildTranscript(state().details[key].history).filter((entry) => entry.kind === 'user').at(-1)
-    expect(sent).toMatchObject({ kind: 'user', text: 'Like this', images: [url] })
+    expect(sent).toMatchObject({ kind: 'user', text: 'Like this', images: [{ path: expect.stringMatching(/[\/]\.craft[\/]attachments[\/]images[\/][^\/]+\.png$/) }] })
 
     const stored = persistable(state() as MobileState).details[key].history.items.filter((item) => item.type === 'userMessage').at(-1)
-    expect(stored?.payload.nativeInputParts).toEqual([{ type: 'text', text: 'Like this' }])
+    expect(stored?.payload.nativeInputParts).toMatchObject([{ type: 'text', text: 'Like this' }, { type: 'localImage', mimeType: 'image/png' }])
   })
 
   it('reads photos from the history of a reopened chat', async () => {
     const { state, opened } = await connected()
     const key = await opened('Rename the settings segments')
     const [user] = buildTranscript(state().details[key].history)
-    expect(user).toMatchObject({ kind: 'user', images: [`data:image/png;base64,${MEADOW_PNG}`, `data:image/png;base64,${MEADOW_PNG}`] })
+    expect(user).toMatchObject({ kind: 'user', images: [{ uri: `data:image/png;base64,${MEADOW_PNG}` }, { uri: `data:image/png;base64,${MEADOW_PNG}` }] })
   })
 })
 

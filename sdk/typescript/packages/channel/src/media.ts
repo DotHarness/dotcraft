@@ -1,3 +1,4 @@
+export { saveInboundImage } from "./inboundImage.js";
 export {
   MediaSourceError,
   decodeBase64Media,

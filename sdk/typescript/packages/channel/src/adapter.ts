@@ -11,6 +11,7 @@ import {
   type Transport,
 } from "@dotcraft/sdk/wire";
 import { textPart } from "@dotcraft/sdk";
+import { imageFileExtension } from "./inboundImage.js";
 import type { ChannelToolDescriptor } from "./capability.js";
 import type {
   AppBindingRequestGetResult,
@@ -733,20 +734,6 @@ export abstract class ChannelAdapter {
 
   async newThread(userId: string, channelContext = ""): Promise<void> {
     await this.resetIdentityThreads(userId, channelContext);
-  }
-}
-
-function imageFileExtension(mediaType: string): string {
-  switch (mediaType.toLowerCase()) {
-    case "image/jpeg":
-    case "image/jpg":
-      return ".jpg";
-    case "image/webp":
-      return ".webp";
-    case "image/gif":
-      return ".gif";
-    default:
-      return ".png";
   }
 }
 

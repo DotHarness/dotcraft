@@ -38,6 +38,21 @@ public static class SessionInputPartResolver
     internal static AIContent ResolvePersistedImage(string? url) =>
         ResolveInlineImage(url, rejectInvalidImages: false, MaxInlineImageBytes);
 
+    public static List<AIContent> ResolvePersisted(IEnumerable<SessionInputPart> parts)
+    {
+        var result = new List<AIContent>();
+        var localImages = 0;
+        foreach (var part in parts)
+        {
+            if (part.Type == "localImage" && part.Path is { } path)
+                result.AddRange(FrameLocalImage(++localImages, path, ReadLocalImage(path, part.MimeType, part.FileName)));
+            else
+                result.Add(part.ToAIContent());
+        }
+
+        return result;
+    }
+
     private static async Task<List<AIContent>> ResolveAsync(
         IReadOnlyList<SessionInputPart> parts,
         bool rejectInvalidImages,
@@ -45,6 +60,7 @@ public static class SessionInputPartResolver
         CancellationToken ct)
     {
         var result = new List<AIContent>(parts.Count);
+        var localImages = 0;
         foreach (var part in parts)
         {
             if (part.Type == "contextRef")
@@ -52,12 +68,15 @@ public static class SessionInputPartResolver
                 result.AddRange(await ResolveAsync(SessionContextMaterializer.Materialize(SessionContextMaterializer.Validate(part.Context)).ToArray(), rejectInvalidImages, maxInlineImageBytes, ct));
                 continue;
             }
+            if (part.Type == "localImage" && part.Path is { } localPath)
+            {
+                result.AddRange(FrameLocalImage(++localImages, localPath, await ResolveLocalImageAsync(localPath, part.MimeType, part.FileName, ct)));
+                continue;
+            }
+
             AIContent content;
             switch (part.Type)
             {
-                case "localImage" when part.Path is { } path:
-                    content = await ResolveLocalImageAsync(path, part.MimeType, part.FileName, ct);
-                    break;
                 case "image":
                     content = ResolveInlineImage(part.Url, rejectInvalidImages, maxInlineImageBytes);
                     break;
@@ -188,21 +207,42 @@ public static class SessionInputPartResolver
     {
         try
         {
-            var bytes = await File.ReadAllBytesAsync(path, ct);
-            var data = new DataContent(bytes, InferMediaType(path));
-            data.AdditionalProperties ??= new AdditionalPropertiesDictionary();
-            data.AdditionalProperties["localImage.path"] = path;
-            if (!string.IsNullOrWhiteSpace(mimeTypeHint))
-                data.AdditionalProperties["localImage.mimeType"] = mimeTypeHint.Trim();
-            if (!string.IsNullOrWhiteSpace(fileNameHint))
-                data.AdditionalProperties["localImage.fileName"] = fileNameHint.Trim();
-            return data;
+            return LocalImage(await File.ReadAllBytesAsync(path, ct), path, mimeTypeHint, fileNameHint);
         }
         catch
         {
             return new TextContent($"[localImage:{path}]");
         }
     }
+
+    private static AIContent ReadLocalImage(string path, string? mimeTypeHint, string? fileNameHint)
+    {
+        try
+        {
+            return LocalImage(File.ReadAllBytes(path), path, mimeTypeHint, fileNameHint);
+        }
+        catch
+        {
+            return new TextContent($"[localImage:{path}]");
+        }
+    }
+
+    private static DataContent LocalImage(byte[] bytes, string path, string? mimeTypeHint, string? fileNameHint)
+    {
+        var data = new DataContent(bytes, InferMediaType(path));
+        data.AdditionalProperties ??= new AdditionalPropertiesDictionary();
+        data.AdditionalProperties["localImage.path"] = path;
+        if (!string.IsNullOrWhiteSpace(mimeTypeHint))
+            data.AdditionalProperties["localImage.mimeType"] = mimeTypeHint.Trim();
+        if (!string.IsNullOrWhiteSpace(fileNameHint))
+            data.AdditionalProperties["localImage.fileName"] = fileNameHint.Trim();
+        return data;
+    }
+
+    private static IEnumerable<AIContent> FrameLocalImage(int number, string path, AIContent image) =>
+        image is DataContent
+            ? [new TextContent($"<image name=[Image #{number}] path=\"{path}\">"), image, new TextContent("</image>")]
+            : [image];
 
     private static string InferMediaType(string path)
     {

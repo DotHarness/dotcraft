@@ -1,24 +1,61 @@
-import { describe, expect, it } from 'vitest'
-import { MAX_MESSAGE_PHOTO_CHARS, withinPhotoBudget } from './attachments'
-import type { PhotoAttachment } from './draft'
+import { describe, expect, it } from "vitest";
+import { uploadPhotos, type AttachmentFileSystem } from "./attachments";
 
-function photo(id: string, chars: number): PhotoAttachment {
-  return { id, dataUrl: 'x'.repeat(chars) }
+function memory(
+  failing = false,
+): AttachmentFileSystem & { written: Map<string, string>; folders: string[] } {
+  const written = new Map<string, string>();
+  const folders: string[] = [];
+  return {
+    written,
+    folders,
+    async createDirectory(path) {
+      folders.push(path);
+    },
+    async writeFile(path, data) {
+      if (failing) throw new Error("disk full");
+      written.set(path, data);
+    },
+  };
 }
 
-const MB = 1024 * 1024
+describe("photo upload", () => {
+  it("writes photos into the project attachments and keeps their type", async () => {
+    const fs = memory();
+    let id = 0;
+    const photos = await uploadPhotos(
+      fs,
+      "D:/Projects/app",
+      [
+        { id: "a", dataUrl: "data:image/jpeg;base64,AAAA" },
+        { id: "b", dataUrl: "data:image/png;base64,BBBB" },
+      ],
+      () => `p${(id += 1)}`,
+    );
+    expect(fs.folders).toEqual(["D:/Projects/app/.craft/attachments/images"]);
+    expect(photos).toEqual([
+      {
+        path: "D:/Projects/app/.craft/attachments/images/p1.jpg",
+        fileName: "photo-1.jpg",
+        mimeType: "image/jpeg",
+      },
+      {
+        path: "D:/Projects/app/.craft/attachments/images/p2.png",
+        fileName: "photo-2.png",
+        mimeType: "image/png",
+      },
+    ]);
+    expect([...fs.written.values()]).toEqual(["AAAA", "BBBB"]);
+  });
 
-describe('photo budget', () => {
-  it('refuses photos from one selection that would overflow the message', () => {
-    const { accepted, refused } = withinPhotoBudget([], [photo('a', MB), photo('b', MB), photo('c', MB), photo('d', MB)])
-    expect(accepted.map((item) => item.id)).toEqual(['a', 'b', 'c'])
-    expect(refused).toBe(1)
-  })
-
-  it('counts photos already in the draft across later selections', () => {
-    const first = withinPhotoBudget([], [photo('a', 2 * MB)])
-    const second = withinPhotoBudget(first.accepted, [photo('b', 2 * MB), photo('c', MAX_MESSAGE_PHOTO_CHARS - 2 * MB)])
-    expect(second.accepted.map((item) => item.id)).toEqual(['c'])
-    expect(second.refused).toBe(1)
-  })
-})
+  it("names the photo that could not be uploaded", async () => {
+    await expect(
+      uploadPhotos(
+        memory(true),
+        "D:/p",
+        [{ id: "a", dataUrl: "data:image/jpeg;base64,AAAA" }],
+        () => "x",
+      ),
+    ).rejects.toMatchObject({ file: "photo-1.jpg" });
+  });
+});

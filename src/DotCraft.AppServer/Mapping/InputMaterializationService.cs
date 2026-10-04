@@ -151,7 +151,7 @@ internal sealed class InputMaterializationService(
                 yield return new SessionInputPart
                 {
                     Type = "text",
-                    Text = SessionWireMapper.BuildDisplayText([part])
+                    Text = SessionWireMapper.BuildFileRefText(part)
                 };
                 yield break;
             default:

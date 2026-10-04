@@ -102,6 +102,73 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
         Assert.False(File.Exists(imagePath));
     }
 
+    [Fact]
+    public async Task UploadedFile_IsTrackedAndRemovedWithItsFolder()
+    {
+        var folder = Path.Combine(_root, "attachments", "upload_1");
+        Directory.CreateDirectory(folder);
+        var filePath = Path.Combine(folder, "log.txt");
+        File.WriteAllText(filePath, "boot log");
+        var thread = CreateThread("thread_uploaded_file", CreateAttachment("unused.png"));
+        thread.Turns[0].Input!.Payload = new UserMessagePayload
+        {
+            Text = "Read this",
+            NativeInputParts = [new SessionInputPart { Type = "fileRef", Path = filePath, DisplayPath = "log.txt" }]
+        };
+        await _store.SaveThreadAsync(thread);
+        Assert.Equal(1, CountAttachmentRows());
+
+        _store.DeleteThread(thread.Id);
+        Assert.False(Directory.Exists(folder));
+    }
+
+    [Fact]
+    public async Task IndexRepair_RemovesDayOldOrphansAndKeepsReferencedFiles()
+    {
+        var referenced = CreateAttachment("referenced.png");
+        await _store.SaveThreadAsync(CreateThread("thread_with_reference", referenced));
+        var orphan = CreateAttachment("orphan.png");
+        var fresh = CreateAttachment("fresh.png");
+        var dayOld = DateTime.UtcNow.AddDays(-2);
+        File.SetLastWriteTimeUtc(referenced, dayOld);
+        File.SetLastWriteTimeUtc(orphan, dayOld);
+
+        await _store.LoadIndexAsync();
+
+        Assert.True(File.Exists(referenced));
+        Assert.False(File.Exists(orphan));
+        Assert.True(File.Exists(fresh));
+    }
+
+    [Fact]
+    public async Task IndexRepair_RebuildsReferencesFromAnOlderIndexBeforeSweeping()
+    {
+        var folder = Path.Combine(_root, "attachments", "pasted_1");
+        Directory.CreateDirectory(folder);
+        var pasted = Path.Combine(folder, "pasted-text.txt");
+        File.WriteAllText(pasted, "long paste");
+        var thread = CreateThread("thread_pasted_text", CreateAttachment("unused.png"));
+        thread.Turns[0].Input!.Payload = new UserMessagePayload
+        {
+            Text = "Summarize",
+            NativeInputParts = [new SessionInputPart { Type = "contextRef", Context = new SessionInputContext { Id = "paste", Kind = "pastedText", Path = pasted } }]
+        };
+        await _store.SaveThreadAsync(thread);
+        ClearAttachmentRows();
+        using (var connection = new WorkspaceStateDatabase(_root).OpenConnection())
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE threads SET attachment_index_version = 0";
+            command.ExecuteNonQuery();
+        }
+        File.SetLastWriteTimeUtc(pasted, DateTime.UtcNow.AddDays(-2));
+
+        await _store.LoadIndexAsync();
+
+        Assert.True(File.Exists(pasted));
+        Assert.Equal(1, CountAttachmentRows());
+    }
+
     public void Dispose()
     {
         try

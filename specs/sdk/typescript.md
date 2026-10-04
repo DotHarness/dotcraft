@@ -776,6 +776,8 @@ Adapters declare tools through `capabilities.channelAdapter.channelTools` during
 
 `@dotcraft/channel/media` implements the [shared media source contract](sdk.md#47-media-source-handling) in the Node.js process and may materialize temporary files when a platform SDK requires a local path.
 
+`saveInboundImage(craftPath, bytes, mediaType)` persists an inbound platform image as the [workspace-managed attachment](../protocols/external-channel-adapter.md#102-thread-and-turn-management) the adapter submits as a `localImage` part.
+
 A tool that accepts both host paths and non-local sources must expose the host path in a dedicated argument usable as `approval.targetArgument`. An overloaded path/URL argument cannot enforce the server's argument-based file approval.
 
 ## 17. TypeScript Channel Modules

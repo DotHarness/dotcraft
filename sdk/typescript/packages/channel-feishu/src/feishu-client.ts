@@ -1,5 +1,3 @@
-import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import { readFile } from "node:fs/promises";
 
@@ -744,7 +742,7 @@ export class FeishuClient {
     };
   }
 
-  async downloadMessageImage(messageId: string, imageKey: string, downloadDir?: string): Promise<string> {
+  async downloadMessageImage(messageId: string, imageKey: string): Promise<{ bytes: Buffer; mediaType: string }> {
     const response = await this.callSdk(
       () =>
         this.sdk.im.messageResource.get({
@@ -760,12 +758,7 @@ export class FeishuClient {
     );
 
     const { buffer, contentType } = await extractBufferFromResponse(response);
-    const extension = extensionFromContentType(contentType);
-    const dir = downloadDir ? path.resolve(downloadDir) : path.join(os.tmpdir(), "dotcraft-feishu");
-    fs.mkdirSync(dir, { recursive: true });
-    const filePath = path.join(dir, `feishu-${messageId}-${Date.now()}${extension}`);
-    fs.writeFileSync(filePath, buffer);
-    return filePath;
+    return { bytes: buffer, mediaType: contentType?.split(";")[0]?.trim() || "image/jpeg" };
   }
 
   private resolveTarget(rawTarget: string): { receiveId: string; receiveIdType: "chat_id" | "open_id" } {
@@ -1184,21 +1177,6 @@ function findForbiddenV2ColumnsPath(
   }
 
   return null;
-}
-
-function extensionFromContentType(contentType?: string): string {
-  switch (contentType) {
-    case "image/png":
-      return ".png";
-    case "image/gif":
-      return ".gif";
-    case "image/webp":
-      return ".webp";
-    case "image/jpeg":
-    case "image/jpg":
-    default:
-      return ".jpg";
-  }
 }
 
 function resolveApiBaseUrl(brand?: FeishuConfig["feishu"]["brand"]): string {

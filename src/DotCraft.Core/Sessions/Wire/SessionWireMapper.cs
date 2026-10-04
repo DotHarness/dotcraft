@@ -393,9 +393,9 @@ public static class SessionWireMapper
         return string.IsNullOrWhiteSpace(name) ? string.Empty : $"${name}";
     }
 
-    private static string BuildFileRefText(SessionInputPart part)
+    public static string BuildFileRefText(SessionInputPart part)
     {
-        var path = (part.DisplayPath ?? part.Path ?? string.Empty).Trim();
+        var path = (part.Path ?? part.DisplayPath ?? string.Empty).Trim();
         return string.IsNullOrWhiteSpace(path) ? string.Empty : $"@{path}";
     }
 }

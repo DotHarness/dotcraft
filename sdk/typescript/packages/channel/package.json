@@ -31,7 +31,7 @@
   "scripts": {
     "build": "node ../../scripts/clean-dist.mjs . && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "npm run build && node --test dist/adapter.test.js dist/approvalReplies.test.js dist/channelRuntime.test.js dist/moduleAdapter.test.js dist/deliveredFrontier.test.js dist/mediaSource.test.js dist/turnReply.test.js dist/conformance-variant.test.js",
+    "test": "npm run build && node --test dist/adapter.test.js dist/approvalReplies.test.js dist/channelRuntime.test.js dist/moduleAdapter.test.js dist/deliveredFrontier.test.js dist/mediaSource.test.js dist/inboundImage.test.js dist/turnReply.test.js dist/conformance-variant.test.js",
     "pack:verify": "node ../../scripts/verify-private-channel-pack.mjs"
   },
   "dependencies": {

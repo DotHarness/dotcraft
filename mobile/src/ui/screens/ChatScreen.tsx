@@ -24,6 +24,8 @@ import { ContextRing } from '../chat/ContextRing'
 import type { DecisionActions } from '../chat/DecisionBodies'
 import { DecisionCard } from '../chat/DecisionCard'
 import { FileSheet } from '../chat/FileSheet'
+import { imageScope } from '../../core/imageCache'
+import { ImageReaderContext } from '../chat/Images'
 import { ProjectPicker } from '../chat/ProjectPicker'
 import { StatusPopover } from '../chat/StatusPopover'
 import { TranscriptLine } from '../chat/Transcript'
@@ -112,6 +114,12 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const canPlan = offersPlanMode(detail?.config, chat?.profileId)
   const changes = useMemo(() => (detail ? latestChanges(detail.history, detail.workspacePath) : null), [detail])
   const readFile = useCallback((path: string) => session.readFile(projectId, path), [projectId, session])
+  const fingerprint = state.computer?.fingerprint ?? null
+  const reading = ready && models?.fileSystem === true
+  const imageReader = useMemo(
+    () => (fingerprint ? { scope: imageScope(fingerprint, projectId), read: reading ? readFile : null } : null),
+    [fingerprint, projectId, readFile, reading],
+  )
   const openFile = models?.fileSystem === true ? setOpenPath : null
   const workspacePath = detail?.workspacePath ?? null
   const signsIn = models?.providers.find((provider) => provider.id === controls.providerId)?.signsIn === true
@@ -193,9 +201,11 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
                 </MascotNote>
               ) : null}
               <FileViewerContext.Provider value={openFile}>
-                {transcript.map((entry, index) => (
-                  <TranscriptLine key={entry.id} entry={entry} previous={transcript[index - 1]} workspacePath={workspacePath} />
-                ))}
+                <ImageReaderContext.Provider value={imageReader}>
+                  {transcript.map((entry, index) => (
+                    <TranscriptLine key={entry.id} entry={entry} previous={transcript[index - 1]} workspacePath={workspacePath} />
+                  ))}
+                </ImageReaderContext.Provider>
               </FileViewerContext.Provider>
               {decision ? (
                 <View style={styles.decision}>

@@ -1,6 +1,6 @@
 import { isComplete, type ChatHistory, type HistoryItem, type HistoryTurn } from './history'
 import { parsePlanMarkdown } from './planMarkdown'
-import { userImages, userSegments, type UserSegment } from './userSegments'
+import { userImages, userSegments, type ImageSource, type UserSegment } from './userSegments'
 
 export type ToolVerb = 'ran' | 'edited' | 'read' | 'searched' | 'used'
 
@@ -20,7 +20,7 @@ export type NoticeKind =
   | 'turnFailed'
 
 export type TranscriptEntry =
-  | { kind: 'user'; id: string; text: string; segments: UserSegment[]; images: string[]; added: boolean }
+  | { kind: 'user'; id: string; text: string; segments: UserSegment[]; images: ImageSource[]; added: boolean }
   | { kind: 'assistant'; id: string; text: string; streaming: boolean; phase: 'commentary' | 'final' | null; at: string; copy: boolean }
   | { kind: 'reasoning'; id: string; text: string }
   | {

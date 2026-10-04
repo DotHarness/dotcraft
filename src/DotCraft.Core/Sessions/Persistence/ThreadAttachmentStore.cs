@@ -7,7 +7,10 @@ namespace DotCraft.Sessions;
 
 internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime, string botPath)
 {
-    private readonly string _attachmentsImageDir = Path.Combine(botPath, "attachments", "images");
+    public const int IndexVersion = 1;
+
+    private readonly string _attachmentsDir = Path.Combine(botPath, "attachments");
+    private readonly string _workspaceRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(botPath)))!;
 
     public IReadOnlySet<string> ReplaceThreadAttachments(
         SqliteConnection connection,
@@ -75,7 +78,7 @@ internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime,
     {
         var candidatePaths = LoadPathsForThread(threadId);
         if (additionalCandidatePaths != null)
-            candidatePaths.UnionWith(additionalCandidatePaths.Where(IsManagedImagePath));
+            candidatePaths.UnionWith(additionalCandidatePaths.Where(IsManagedPath));
         return candidatePaths;
     }
 
@@ -84,11 +87,16 @@ internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime,
 
     public void CleanupUnreferencedAttachments(TimeSpan minAge)
     {
-        if (!Directory.Exists(_attachmentsImageDir))
+        if (!Directory.Exists(_attachmentsDir))
             return;
 
         var threshold = DateTimeOffset.UtcNow - minAge;
-        var candidates = Directory.EnumerateFiles(_attachmentsImageDir, "*", SearchOption.TopDirectoryOnly)
+        var candidates = Directory.EnumerateFiles(_attachmentsDir, "*", new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                AttributesToSkip = FileAttributes.ReparsePoint,
+                IgnoreInaccessible = true
+            })
             .Where(path =>
             {
                 try
@@ -103,7 +111,7 @@ internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime,
         CleanupUnreferencedPaths(candidates);
     }
 
-    public IReadOnlySet<string> ExtractManagedImagePaths(SessionThread thread) =>
+    public IReadOnlySet<string> ExtractManagedPaths(SessionThread thread) =>
         ExtractReferences(thread)
             .Select(r => r.Path)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -125,19 +133,27 @@ internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime,
     {
         foreach (var path in paths.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            if (!IsManagedImagePath(path) || HasAnyReference(path))
+            if (!IsManagedPath(path) || HasAnyReference(path))
                 continue;
 
             try
             {
                 if (File.Exists(path))
                     File.Delete(path);
+                RemoveEmptyFolder(Path.GetDirectoryName(path));
             }
             catch
             {
                 // Best-effort attachment cleanup must not block thread lifecycle.
             }
         }
+    }
+
+    private void RemoveEmptyFolder(string? folder)
+    {
+        if (folder == null || !IsManagedPath(folder) || Directory.EnumerateFileSystemEntries(folder).Any())
+            return;
+        Directory.Delete(folder);
     }
 
     private bool HasAnyReference(string path)
@@ -158,36 +174,44 @@ internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime,
                 if (item.Type != ItemType.UserMessage || item.AsUserMessage is not { } user)
                     continue;
 
-                foreach (var path in ExtractManagedImagePaths(user.NativeInputParts))
+                foreach (var path in ExtractManagedPaths(user.NativeInputParts))
                     yield return CreateReference(thread.Id, turn.Id, item.Id, path, item.CreatedAt);
-                foreach (var path in ExtractManagedImagePaths(user.MaterializedInputParts))
+                foreach (var path in ExtractManagedPaths(user.MaterializedInputParts))
                     yield return CreateReference(thread.Id, turn.Id, item.Id, path, item.CreatedAt);
             }
         }
 
         foreach (var queued in thread.QueuedInputs)
         {
-            foreach (var path in ExtractManagedImagePaths(queued.NativeInputParts))
+            foreach (var path in ExtractManagedPaths(queued.NativeInputParts))
                 yield return CreateReference(thread.Id, queued.Id, null, path, queued.CreatedAt);
-            foreach (var path in ExtractManagedImagePaths(queued.MaterializedInputParts))
+            foreach (var path in ExtractManagedPaths(queued.MaterializedInputParts))
                 yield return CreateReference(thread.Id, queued.Id, null, path, queued.CreatedAt);
         }
     }
 
-    private IEnumerable<string> ExtractManagedImagePaths(IEnumerable<SessionInputPart>? parts)
+    private IEnumerable<string> ExtractManagedPaths(IEnumerable<SessionInputPart>? parts)
     {
         if (parts == null)
             yield break;
 
         foreach (var part in parts)
         {
-            var imagePath = part.Type == "contextRef" ? part.Context?.Image?.TempPath : part.Type == "localImage" ? part.Path : null;
-            if (string.IsNullOrWhiteSpace(imagePath))
-                continue;
+            string?[] paths = part.Type switch
+            {
+                "contextRef" => [part.Context?.Image?.TempPath, part.Context?.Path],
+                "localImage" or "fileRef" => [part.Path],
+                _ => []
+            };
+            foreach (var path in paths)
+            {
+                if (string.IsNullOrWhiteSpace(path))
+                    continue;
 
-            var fullPath = Path.GetFullPath(imagePath);
-            if (IsManagedImagePath(fullPath))
-                yield return fullPath;
+                var fullPath = Path.GetFullPath(path, _workspaceRoot);
+                if (IsManagedPath(fullPath))
+                    yield return fullPath;
+            }
         }
     }
 
@@ -208,17 +232,17 @@ internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime,
             threadId,
             turnId,
             itemId,
-            "localImage",
+            "attachment",
             bytes,
             createdAt == default ? now : createdAt,
             now);
     }
 
-    private bool IsManagedImagePath(string path)
+    private bool IsManagedPath(string path)
     {
         try
         {
-            var fullRoot = Path.GetFullPath(_attachmentsImageDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var fullRoot = Path.GetFullPath(_attachmentsDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             var fullPath = Path.GetFullPath(path);
             return fullPath.StartsWith(fullRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
                 || fullPath.StartsWith(fullRoot + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);

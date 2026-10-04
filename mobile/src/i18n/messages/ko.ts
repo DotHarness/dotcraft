@@ -178,7 +178,6 @@ export const MESSAGES_KO: Catalog = {
   'composer.photoName': '사진 {{index}}',
   'composer.uploadFailed': '{{file}}을(를) 업로드하지 못했습니다. 메시지는 그대로 남아 있습니다.',
   'composer.fileTooLarge': '{{file}}이(가) 2MB를 넘어 추가되지 않았습니다.',
-  'composer.photosTooLarge': '이 메시지에 들어가지 않는 사진은 추가하지 않았습니다.',
   'composer.attachFailed': '추가하지 못했습니다. 다시 시도하세요.',
   'plan.title': '이 계획을 실행하시겠습니까?',
   'plan.yes': '예, 이 계획을 실행하세요',

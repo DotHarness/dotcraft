@@ -27,7 +27,7 @@ export function AddMenu({
   const insets = useSafeAreaInsets()
   return (
     <PopoverMenu visible={visible} label={t('composer.add')} anchor={{ bottom: insets.bottom + ABOVE_COMPOSER_BAR }} onClose={onClose}>
-      <MenuRow icon="image" label={t('composer.photo')} onPress={onPhoto} />
+      {canAttachFiles ? <MenuRow icon="image" label={t('composer.photo')} onPress={onPhoto} /> : null}
       {canAttachFiles ? <MenuRow icon="file" label={t('composer.file')} onPress={onFile} /> : null}
       {canPlan ? (
         <MenuRow icon="listChecks" label={t('composer.planMode')} checked={planMode} onPress={() => onPlanMode(!planMode)} />
