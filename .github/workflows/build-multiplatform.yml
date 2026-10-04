@@ -375,7 +375,7 @@ jobs:
 
     - name: Build APK
       working-directory: mobile/android
-      run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+      run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
 
     - name: Sign APK
       env:
