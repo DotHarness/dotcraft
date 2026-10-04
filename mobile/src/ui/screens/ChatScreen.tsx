@@ -33,7 +33,7 @@ import { Screen } from '../layout'
 import { MascotNote, MascotTransition } from '../mascot/Mascot'
 import { Icon } from '../icons'
 import { Notice, PhoneButton, ReadOnlyNotice, Section, Txt } from '../parts'
-import { ChatRow, chatTitle } from '../rows'
+import { ChatRow, chatTitle, projectTitle } from '../rows'
 import { metrics, useTheme } from '../theme'
 import { chatHref } from './HomeScreen'
 
@@ -91,6 +91,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const chat = state.chats[key]
   const detail = state.details[key]
   const project = projectById(state, projectId)
+  const projectName = project ? projectTitle(project, t) : ''
   const computer = state.computer
   const status = computerStatus(state)
   const online = isReachable(status)
@@ -191,13 +192,13 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
                   }
                 >
                   {state.phases[projectId] === 'cantStart'
-                    ? t('project.cantStart', { computer: computer.name, project: project.name })
-                    : t('notice.projectStopped', { project: project.name, computer: computer.name })}
+                    ? t('project.cantStart', { computer: computer.name, project: projectName })
+                    : t('notice.projectStopped', { project: projectName, computer: computer.name })}
                 </Notice>
               ) : null}
               {transcript.length === 0 && detail && !detail.loading ? (
                 <MascotNote moment="greeting" profile={profile}>
-                  {t('newChat.runsOn', { computer: computer.name, project: project?.name ?? '' })}
+                  {t('newChat.runsOn', { computer: computer.name, project: projectName })}
                 </MascotNote>
               ) : null}
               <FileViewerContext.Provider value={openFile}>
@@ -216,7 +217,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
           )}
           <ChatBar
             title={title}
-            project={project?.name ?? ''}
+            project={projectName}
             computer={computer.name}
             status={status}
             onBack={() => router.back()}
@@ -325,6 +326,7 @@ export function NewChatScreen({ projectId, focus = false }: { projectId: string;
   const [planMode, setPlanMode] = useState(false)
   const created = useRef<string | null>(null)
   const project = projectById(state, projectId)
+  const projectName = project ? projectTitle(project, t) : ''
   const phase = state.phases[projectId]
   const ready = phase === 'ready'
   const models = useModels(projectId, ready, choices.controls.providerId)
@@ -366,9 +368,9 @@ export function NewChatScreen({ projectId, focus = false }: { projectId: string;
       <KeyboardAvoidingView style={styles.fill} behavior="padding">
         <View style={styles.fill}>
           {starting ? (
-            <MascotTransition line={t('project.starting', { project: project.name })} />
+            <MascotTransition line={t('project.starting', { project: projectName })} />
           ) : cantStart ? (
-            <MascotNote moment="asleep">{t('project.cantStart', { computer: computer.name, project: project.name })}</MascotNote>
+            <MascotNote moment="asleep">{t('project.cantStart', { computer: computer.name, project: projectName })}</MascotNote>
           ) : chats.length > 0 ? (
             <ScrollView style={styles.fill} contentContainerStyle={styles.welcome} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
               <Section title={t('home.recent')} grow>
@@ -381,23 +383,23 @@ export function NewChatScreen({ projectId, focus = false }: { projectId: string;
             <Pressable accessible={false} onPress={Keyboard.dismiss} style={[styles.fill, styles.emptyBody]}>
               <MascotNote moment="greeting">
                 {project.running
-                  ? t('newChat.runsOn', { computer: computer.name, project: project.name })
-                  : t('newChat.startsOn', { computer: computer.name, project: project.name })}
+                  ? t('newChat.runsOn', { computer: computer.name, project: projectName })
+                  : t('newChat.startsOn', { computer: computer.name, project: projectName })}
               </MascotNote>
             </Pressable>
           )}
-          <ChatBar title={t('newChat.title')} project={project.name} computer={computer.name} status={status} onBack={() => router.back()} />
+          <ChatBar title={t('newChat.title')} project={projectName} computer={computer.name} status={status} onBack={() => router.back()} />
         </View>
         <Dock>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${t('picker.title')}: ${project.name}`}
+            accessibilityLabel={`${t('picker.title')}: ${projectName}`}
             onPress={() => setPicking(true)}
             style={({ pressed }) => [styles.projectRow, pressed && { backgroundColor: colors.roundFill }]}
           >
             <Icon name={project.isChats ? 'messagesSquare' : 'folder'} size={18} color={colors.textSecondary} strokeWidth={1.8} />
             <Txt numberOfLines={1} style={styles.projectName}>
-              {project.name}
+              {projectName}
             </Txt>
             <Icon name="chevronDown" size={16} color={colors.textSecondary} strokeWidth={2} />
           </Pressable>

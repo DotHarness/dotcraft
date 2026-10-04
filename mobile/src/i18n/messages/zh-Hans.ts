@@ -27,6 +27,7 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'home.newChat': '新聊天',
   'home.computerMenu': '{{computer}} 选项',
 
+  'project.chats': '聊天',
   'project.notRunning': '未运行',
   'project.starting': '正在启动 {{project}}…',
   'project.cantStart': '{{computer}} 现在无法启动 {{project}}，因此无法查看它的聊天。',

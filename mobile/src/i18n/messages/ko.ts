@@ -27,6 +27,7 @@ export const MESSAGES_KO: Catalog = {
   'home.newChat': '새 채팅',
   'home.computerMenu': '{{computer}} 옵션',
 
+  'project.chats': '채팅',
   'project.notRunning': '실행 중 아님',
   'project.starting': '{{project}} 시작 중…',
   'project.cantStart': '{{computer}}에서 지금 {{project}}을(를) 시작할 수 없어 채팅을 볼 수 없습니다.',

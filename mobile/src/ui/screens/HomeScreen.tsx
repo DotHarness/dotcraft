@@ -19,7 +19,7 @@ import { BottomBar, Screen, ScrollArea } from '../layout'
 import { Mascot, MascotNote, MascotTransition, type MascotMoment } from '../mascot/Mascot'
 import { MenuRow, PopoverMenu } from '../Menu'
 import { ComputerStatusLine, ReadOnlyNotice, RoundIconButton, Section, Txt } from '../parts'
-import { ChatRow, chatTitle, ProjectRow } from '../rows'
+import { ChatRow, chatTitle, ProjectRow, projectTitle } from '../rows'
 import { metrics, type, useTheme } from '../theme'
 import { PairDifferentSheet } from './SettingsScreen'
 
@@ -55,7 +55,10 @@ export function HomeScreen() {
   const trimmed = query.trim().toLowerCase()
   const untitled = t('chat.untitled')
   const results = trimmed ? visible.filter((chat) => chatTitle(chat, untitled).toLowerCase().includes(trimmed)) : []
-  const nameOf = (projectId: string) => projectById(state, projectId)?.name ?? ''
+  const nameOf = (projectId: string) => {
+    const project = projectById(state, projectId)
+    return project ? projectTitle(project, t) : ''
+  }
   const openChat = (key: string) => router.push(chatHref(key))
   const menuLabel = t('home.computerMenu', { computer: computer.name })
   const lastProject = projectsByRecentUse(state)[0]

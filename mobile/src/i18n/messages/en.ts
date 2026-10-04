@@ -25,6 +25,7 @@ export const MESSAGES_EN = {
   'home.newChat': 'New chat',
   'home.computerMenu': 'Options for {{computer}}',
 
+  'project.chats': 'Chats',
   'project.notRunning': 'Not running',
   'project.starting': 'Starting {{project}}…',
   'project.cantStart': '{{computer}} can’t start {{project}} right now, so its chats aren’t available.',

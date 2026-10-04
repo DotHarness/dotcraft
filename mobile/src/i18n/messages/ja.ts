@@ -27,6 +27,7 @@ export const MESSAGES_JA: Catalog = {
   'home.newChat': '新しいチャット',
   'home.computerMenu': '{{computer}} のオプション',
 
+  'project.chats': 'チャット',
   'project.notRunning': '実行されていません',
   'project.starting': '{{project}} を開始しています…',
   'project.cantStart': '{{computer}} は今 {{project}} を開始できないため、チャットを表示できません。',

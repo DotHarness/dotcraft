@@ -27,6 +27,7 @@ export const MESSAGES_ES: Catalog = {
   'home.newChat': 'Nuevo chat',
   'home.computerMenu': 'Opciones de {{computer}}',
 
+  'project.chats': 'Chats',
   'project.notRunning': 'No se está ejecutando',
   'project.starting': 'Iniciando {{project}}…',
   'project.cantStart': '{{computer}} no puede iniciar {{project}} ahora, así que sus chats no están disponibles.',
