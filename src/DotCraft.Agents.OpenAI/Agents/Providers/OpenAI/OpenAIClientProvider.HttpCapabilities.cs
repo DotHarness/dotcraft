@@ -85,14 +85,15 @@ public sealed partial class OpenAIClientProvider
         Uri requestUri,
         EffectiveModelRuntime runtime,
         string json,
-        string turnId,
+        string? turnId,
         bool forceRefresh,
         CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Headers.TryAddWithoutValidation("User-Agent", DotCraftUserAgentPipelinePolicy.UserAgentValue);
-        request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.ImageTurnIdHeader, turnId);
+        if (!string.IsNullOrEmpty(turnId))
+            request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.ImageTurnIdHeader, turnId);
         request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.OriginatorHeader, OpenAIAuthConstants.Originator);
         await ApplyImageAuthHeadersAsync(request, runtime, forceRefresh, cancellationToken).ConfigureAwait(false);
         request.Content = new StringContent(json, Encoding.UTF8, "application/json");

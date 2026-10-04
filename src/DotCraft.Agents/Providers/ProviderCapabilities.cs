@@ -109,7 +109,7 @@ public sealed record ProviderImageRequest(
     string Prompt,
     bool TransparentBackground,
     IReadOnlyList<string> ReferenceImageUrls,
-    string TurnId);
+    string? TurnId);
 
 public sealed record ProviderImageResult(
     byte[] Image,
