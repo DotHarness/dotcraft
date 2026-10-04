@@ -1,6 +1,7 @@
 import type { ListItem, PhrasingContent, Root, RootContent, Table } from 'mdast'
 import { fromMarkdown } from 'mdast-util-from-markdown'
 import { gfmFromMarkdown } from 'mdast-util-gfm'
+import { mathFromMarkdown } from 'mdast-util-math'
 import { gfm } from 'micromark-extension-gfm'
 import { memo, useMemo, type ReactNode } from 'react'
 import { ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native'
@@ -8,6 +9,7 @@ import { resolveLink } from '../../core/links'
 import { Icon } from '../icons'
 import { metrics, type, useTheme } from '../theme'
 import { FileChip, InlineChip, LinkChip } from './Chips'
+import { mathSyntax } from './mathSyntax'
 
 interface Env {
   colors: ReturnType<typeof useTheme>['colors']
@@ -53,6 +55,7 @@ function inline(nodes: PhrasingContent[], env: Env, key = ''): ReactNode[] {
           </Text>
         )
       case 'inlineCode':
+      case 'inlineMath':
         return (
           <Text key={id} style={[type.code, { backgroundColor: colors.bgTertiary }]}>
             {` ${node.value} `}
@@ -165,6 +168,7 @@ function block(node: RootContent, env: Env, trailing: ReactNode, key: number): R
         </View>
       )
     case 'code':
+    case 'math':
       return (
         <View key={key} style={[styles.code, { backgroundColor: colors.bgTertiary }]}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.codeContent}>
@@ -204,7 +208,7 @@ function blocks(nodes: RootContent[], env: Env, trailing: ReactNode): ReactNode 
 }
 
 function parse(text: string): Root {
-  return fromMarkdown(text, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] })
+  return fromMarkdown(text, { extensions: [gfm(), mathSyntax()], mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()] })
 }
 
 export const Markdown = memo(function Markdown({ text, trailing, workspacePath }: { text: string; trailing: ReactNode; workspacePath: string | null }) {

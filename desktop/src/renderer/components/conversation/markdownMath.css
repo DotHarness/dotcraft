@@ -1,0 +1,4 @@
+.markdown-body .katex-display {
+  max-width: 100%;
+  overflow: auto hidden;
+}

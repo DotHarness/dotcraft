@@ -1,9 +1,12 @@
-import { createContext, memo, useContext, useMemo, useState, type ComponentProps } from 'react'
+import { createContext, memo, useContext, useEffect, useMemo, useState, type ComponentProps } from 'react'
 import { Globe, Link2 } from 'lucide-react'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { Components, ExtraProps } from 'react-markdown'
+import type { Extension as FromMarkdownExtension } from 'mdast-util-from-markdown'
+import { mathFromMarkdown } from 'mdast-util-math'
+import type { Extension as MicromarkExtension } from 'micromark-util-types'
+import type { Components, ExtraProps, Options as MarkdownOptions } from 'react-markdown'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
@@ -16,6 +19,8 @@ import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { CodeBlock, HighlightedCode } from './MarkdownCodeBlock'
 import { extractText } from './markdownText'
 import { tableCellMinWidths } from './markdownTable'
+import { mathSyntax } from './mathSyntax'
+import { copySelectionWithMathSource } from './mathCopy'
 
 interface MarkdownRendererProps {
   content: string
@@ -35,6 +40,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
+  const rehypePlugins = useKatexPlugins()
 
   const customComponents = useMemo<Components>(() => ({
     ...baseComponents,
@@ -64,9 +70,11 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
       // Marks this block as one searchable unit for the window-wide find.
       data-find-segment=""
       style={containOverflow ? containedMarkdownContainerStyle : markdownContainerStyle}
+      onCopy={copySelectionWithMathSource}
     >
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={remarkPlugins}
+        rehypePlugins={rehypePlugins}
         components={customComponents}
         urlTransform={markdownUrlTransform}
       >
@@ -75,6 +83,33 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     </div>
   )
 })
+
+type PluggableList = NonNullable<MarkdownOptions['remarkPlugins']>
+
+function remarkMath(this: { data(): unknown }): void {
+  const data = this.data() as { micromarkExtensions?: MicromarkExtension[]; fromMarkdownExtensions?: FromMarkdownExtension[] }
+  ;(data.micromarkExtensions ??= []).push(mathSyntax())
+  ;(data.fromMarkdownExtensions ??= []).push(mathFromMarkdown())
+}
+
+const remarkPlugins: PluggableList = [remarkGfm, remarkMath]
+const noRehypePlugins: PluggableList = []
+let katexPlugins: PluggableList | null = null
+let katexLoading: Promise<PluggableList> | null = null
+
+// Until KaTeX loads, formulas show their source as code.
+function useKatexPlugins(): PluggableList {
+  const [plugins, setPlugins] = useState(katexPlugins)
+  useEffect(() => {
+    if (plugins) return
+    let mounted = true
+    katexLoading ??= Promise.all([import('rehype-katex'), import('katex/dist/katex.min.css'), import('./markdownMath.css')])
+      .then(([{ default: rehypeKatex }]) => (katexPlugins = [rehypeKatex]))
+    void katexLoading.then((loaded) => mounted && setPlugins(loaded))
+    return () => { mounted = false }
+  }, [plugins])
+  return plugins ?? noRehypePlugins
+}
 
 const minorHeadingStyle: React.CSSProperties = {
   margin: '10px 0 6px',

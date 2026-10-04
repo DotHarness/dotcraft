@@ -491,6 +491,20 @@ describe('MarkdownRenderer', () => {
     expect(container.querySelector('em')?.textContent).toContain('italic')
   })
 
+  it('copies a selection with formulas as their TeX source', async () => {
+    const { container } = renderWithLocale(['Weight for \\(n\\) neighbours:', '', '\\[', 'w=\\frac58', '\\]'].join('\n'))
+    await waitFor(() => expect(container.querySelectorAll('.katex')).toHaveLength(2))
+
+    const range = document.createRange()
+    range.selectNodeContents(container)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+    const setData = vi.fn()
+    fireEvent.copy(container.querySelector('.katex')!, { clipboardData: { setData } })
+
+    expect(setData).toHaveBeenCalledWith('text/plain', 'Weight for \\(n\\) neighbours:\n\n\\[w=\\frac58\\]')
+  })
+
   it('memoizes: does not re-render when content unchanged', () => {
     const { rerender, container } = renderWithLocale('Static text')
     const firstHTML = container.innerHTML

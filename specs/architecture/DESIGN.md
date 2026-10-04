@@ -1509,6 +1509,12 @@ Each column takes a minimum width from its longest cell — 4, 6, 8, or 14
 twenty-fourths of the reading width for up to 40, 100, 160, or more characters — and
 a table wider than its column scrolls sideways rather than breaking short words.
 
+### Math
+
+Formulas use KaTeX's own typesetting in the surrounding text colour. A display formula is
+centred on its own line and scrolls sideways when it is wider than the column, never wrapping
+or shrinking.
+
 ### Inline visualization
 
 Assistant inline visualizations are conversation-native media, not tool cards. Their host is
