@@ -3,6 +3,7 @@ import { FakeComputer, type FakeThread } from '../demo/fakeComputer'
 import { FakeRelay } from '../demo/fakeNetwork'
 import { buildBoxSeed, createStudio, pairingUrl, type StudioOptions } from '../demo/seed'
 import { createHarness, waitFor, type Harness } from '../test/harness'
+import { plainMessage } from './draft'
 import { parsePairingUrl } from './pairing'
 import { computerStatus, homeLists, stateOf, type MobileState } from './state'
 import { startConfig } from './threadConfig'
@@ -82,7 +83,7 @@ describe('connecting', () => {
       lastActiveAt: now,
       turns: [{ id: 'turn_001', threadId: id, status: 'running', startedAt: now }],
       items: [],
-      pending: null,
+      pending: [],
       stream: null,
       continuation: '',
       source,
@@ -245,7 +246,7 @@ describe('turn control', () => {
     const key = keyOf(await online(harness), 'Fix the flaky turn-diff test')
     harness.session.openChat(key)
     await waitFor(() => harness.state().details[key]?.loading === false)
-    await harness.session.send(key, 'Also run the lint step.')
+    await harness.session.send(key, plainMessage('Also run the lint step.'))
     expect(methods(computer)).toContain('turn/steer')
     expect(methods(computer)).not.toContain('turn/enqueue')
     await waitFor(() =>
@@ -267,6 +268,7 @@ describe('turn control', () => {
     const chats = state.projects.find((project) => project.name === 'Chats')!
     expect(chats.running).toBe(false)
     const key = await harness.session.newChat(chats.id, 'summarize the open pull requests')
+    await harness.session.send(key, plainMessage('summarize the open pull requests'))
     expect(harness.state().projects.find((project) => project.id === chats.id)?.running).toBe(true)
     const order = methods(computer).filter((method) => ['thread/start', 'thread/subscribe', 'turn/start'].includes(method))
     expect(order.slice(-3)).toEqual(['thread/start', 'thread/subscribe', 'turn/start'])
@@ -366,7 +368,7 @@ describe('reconnect and catch-up', () => {
     const earlier = transcript()
     const reply = 'Sure, here’s more detail.'
 
-    await harness.session.send(key, 'Check the French names too.')
+    await harness.session.send(key, plainMessage('Check the French names too.'))
     await waitFor(
       () => !harness.state().chats[key].runtime?.running && transcript().some((entry) => entry.kind === 'assistant' && entry.text === reply && !entry.streaming),
     )

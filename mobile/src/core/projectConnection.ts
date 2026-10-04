@@ -1,8 +1,10 @@
 import type {
   AgentProfileEntry,
   ApprovalResponseResult,
+  InputPart,
   ItemDeltaNotification,
   ItemNotification,
+  ProviderListResult,
   SessionThread,
   ThreadConfiguration,
   ThreadRuntimeState,
@@ -10,19 +12,23 @@ import type {
   UserInputResponseResult,
 } from '@dotcraft/sdk/contracts'
 import { DotCraftWireClient, ERR_TURN_IN_PROGRESS, JsonRpcError } from '@dotcraft/sdk/wire'
+import { signsInWithAccount, usageWindows } from './accountUsage'
+import { AttachmentUploadError, uploadAttachments } from './attachments'
 import { followUpMethod } from './chatState'
+import { contextUsageOf, systemEventUpdate, usageDeltaUpdate, type ContextUpdate } from './contextUsage'
+import { inputParts, visibleText, type FileAttachment, type MessageDraft, type ReferenceEntry } from './draft'
 import { GatewayError, type GatewayClient } from './gateway'
-import { applyEvent, historyFromPages, restoreEchoes, type HistoryEvent, type HistoryItem } from './history'
+import { applyEvent, emptyHistory, historyFromPages, restoreEchoes, type HistoryEvent, type HistoryItem } from './history'
 import { HTTP_REJECTED } from './pinned'
 import { PinnedSocketTransport, SocketOpenError } from './pinnedSocketTransport'
 import type { PinnedSockets, SocketEnd } from './sockets'
 import { applyChange, type ConfigChange } from './threadConfig'
-import { chatKey, type Action, type ChatSummary, type MobileState, type PendingRequest } from './state'
+import { chatKey, type Action, type ChatSummary, type MobileState, type PendingRequest, type ProjectModels } from './state'
 import type { Store } from './store'
 
 const PHONE_IDENTITY = { channelName: 'dotcraft-desktop', userId: 'local' }
 
-const OPTED_OUT_NOTIFICATIONS = ['turn/diff/updated', 'item/usage/delta', 'item/toolCall/argumentsDelta', 'subagent/progress', 'plan/updated']
+const OPTED_OUT_NOTIFICATIONS = ['item/toolCall/argumentsDelta', 'subagent/progress', 'plan/updated']
 
 export type ApprovalDecision = 'once' | 'session' | 'reject'
 
@@ -71,16 +77,23 @@ function isHidden(thread: SessionThread): boolean {
 
 const now = () => new Date().toISOString()
 
+function providerEntries(result: ProviderListResult): ProjectModels['providers'] {
+  return (result.providers ?? []).flatMap((provider) =>
+    provider.id ? [{ id: provider.id, name: provider.displayName || provider.id, signsIn: signsInWithAccount(provider.authMethod) }] : [],
+  )
+}
+
 export class ProjectConnection {
   private client: DotCraftWireClient | null = null
   private closing = false
   private readyValue = false
-  private readonly held = new Map<string, (result: object) => void>()
+  private readonly held = new Map<string, { resolve: (result: object) => void; reject: (error: Error) => void }>()
   private readonly subscribed = new Set<string>()
   private readonly capturing = new Map<string, HistoryEvent[]>()
   private readonly lookedUp = new Set<string>()
   private profiles: AgentProfileEntry[] | null = null
   private readonly catalogs = new Map<string, Promise<void>>()
+  private references: Promise<void> | null = null
 
   constructor(private readonly options: ProjectConnectionOptions) {}
 
@@ -141,9 +154,15 @@ export class ProjectConnection {
     this.store.dispatch({
       type: 'capabilities',
       projectId: this.projectId,
-      canConfigure: capabilities?.configOverride === true,
-      canListModels: capabilities?.modelCatalogManagement === true,
-      canFork: capabilities?.threadFork === true,
+      capabilities: {
+        canConfigure: capabilities?.configOverride === true,
+        canListModels: capabilities?.modelCatalogManagement === true,
+        canFork: capabilities?.threadFork === true,
+        fileSystem: capabilities?.fileSystem === true,
+        canListCommands: capabilities?.commandManagement === true,
+        canListSkills: capabilities?.skillsManagement === true,
+        canReadUsage: capabilities?.authOpenAiUsage === true,
+      },
     })
     await this.loadThreads(client)
     this.readyValue = true
@@ -177,7 +196,12 @@ export class ProjectConnection {
       }),
     )
     client.registerServerRequestHandler('item/tool/requestUserInput', (_id, params) =>
-      this.hold<UserInputResponseResult>(params.threadId, { kind: 'question', requestId: params.requestId, questions: params.questions }),
+      this.hold<UserInputResponseResult>(params.threadId, {
+        kind: 'question',
+        requestId: params.requestId,
+        isBlocking: params.isBlocking,
+        questions: params.questions,
+      }),
     )
 
     client.on('thread/runtimeChanged', ({ threadId, runtime }) => {
@@ -226,6 +250,16 @@ export class ProjectConnection {
     }
     client.on('item/approval/resolved', resolved)
     client.on('item/tool/requestUserInput/resolved', resolved)
+    client.on('turn/diff/updated', ({ threadId, turnId, diff }) => this.route(threadId, { kind: 'diff', turnId, diff }))
+    client.on('item/usage/delta', (params) => this.contextChanged(params.threadId, usageDeltaUpdate(params)))
+    client.on('system/event', (params) => this.contextChanged(params.threadId, systemEventUpdate(params)))
+    client.on('auth/openai/usageChanged', (params) => this.store.dispatch({ type: 'usage', projectId: this.projectId, windows: usageWindows(params) }))
+  }
+
+  private contextChanged(threadId: string | null | undefined, update: ContextUpdate | null): void {
+    if (threadId && update && (this.subscribed.has(threadId) || this.capturing.has(threadId))) {
+      this.store.dispatch({ type: 'context', key: this.key(threadId), update })
+    }
   }
 
   private lookUp(client: DotCraftWireClient, threadId: string): void {
@@ -273,8 +307,8 @@ export class ProjectConnection {
 
   private hold<R extends object>(threadId: string, request: PendingRequest): Promise<R> {
     this.ensureSummary(threadId)
-    return new Promise<R>((resolve) => {
-      this.held.set(request.requestId, resolve as (result: object) => void)
+    return new Promise<R>((resolve, reject) => {
+      this.held.set(request.requestId, { resolve: resolve as (result: object) => void, reject })
       this.store.dispatch({ type: 'pendingAdded', key: this.key(threadId), request })
     })
   }
@@ -335,6 +369,7 @@ export class ProjectConnection {
         profileName,
         config: thread.configuration ?? null,
         workspacePath: thread.workspacePath || null,
+        context: contextUsageOf(thread.contextUsage),
       })
       this.dropAnswered(key, history.items)
     } catch (error) {
@@ -362,44 +397,66 @@ export class ProjectConnection {
     await this.client?.request('thread/unsubscribe', { threadId }).catch(() => undefined)
   }
 
-  async startThread(text: string, config?: ThreadConfiguration): Promise<string> {
+  async startThread(title: string, config?: ThreadConfiguration): Promise<string> {
     const client = this.requireClient()
     const { thread } = await client.request('thread/start', { identity: PHONE_IDENTITY, ...(config ? { config } : {}) })
     const key = this.key(thread.id)
     this.threadSeen(thread)
-    this.patch(thread.id, { title: thread.displayName ?? titleFrom(text) })
+    this.patch(thread.id, { title: thread.displayName ?? titleFrom(title) })
     this.store.dispatch({
       type: 'detailLoaded',
       key,
-      history: { items: [], turns: [], echoes: [] },
+      history: emptyHistory(),
       profileName: null,
       config: thread.configuration ?? null,
       workspacePath: thread.workspacePath || null,
+      context: contextUsageOf(thread.contextUsage),
     })
     await client.request('thread/subscribe', { threadId: thread.id })
     this.subscribed.add(thread.id)
-    await this.send(thread.id, text)
     return key
   }
 
-  async send(threadId: string, text: string): Promise<void> {
+  async send(threadId: string, draft: MessageDraft): Promise<void> {
     const client = this.requireClient()
+    const files = draft.files.length > 0 ? await this.upload(client, threadId, draft.files) : []
+    const input = inputParts(draft, files)
     try {
-      await this.submit(client, threadId, text, this.store.getState().chats[this.key(threadId)]?.runtime ?? null)
+      await this.submit(client, threadId, input, this.store.getState().chats[this.key(threadId)]?.runtime ?? null)
     } catch (error) {
       if (!(error instanceof JsonRpcError) || error.rpcCode !== ERR_TURN_IN_PROGRESS) throw error
       const { thread } = await client.request('thread/read', { threadId })
       this.patch(threadId, { runtime: thread.runtime })
-      await this.submit(client, threadId, text, thread.runtime)
+      await this.submit(client, threadId, input, thread.runtime)
     }
   }
 
-  private async submit(client: DotCraftWireClient, threadId: string, text: string, runtime: ThreadRuntimeState | null): Promise<void> {
+  private async upload(client: DotCraftWireClient, threadId: string, files: FileAttachment[]): Promise<{ path: string; name: string }[]> {
+    let root = this.store.getState().details[this.key(threadId)]?.workspacePath
+    if (!root) {
+      try {
+        root = (await client.request('thread/read', { threadId })).thread.workspacePath
+      } catch (error) {
+        throw new AttachmentUploadError(files[0].name, error)
+      }
+    }
+    const fileSystem = {
+      createDirectory: async (path: string) => {
+        await client.request('fs/createDirectory', { path, recursive: true })
+      },
+      writeFile: async (path: string, dataBase64: string) => {
+        await client.request('fs/writeFile', { path, dataBase64 })
+      },
+    }
+    return await uploadAttachments(fileSystem, root, files, newId)
+  }
+
+  private async submit(client: DotCraftWireClient, threadId: string, input: InputPart[], runtime: ThreadRuntimeState | null): Promise<void> {
     const key = this.key(threadId)
     const method = followUpMethod(runtime)
     const clientUserMessageId = newId()
-    const input = [{ type: 'text' as const, text }]
-    this.store.dispatch({ type: 'echo', key, echo: { clientId: clientUserMessageId, text, added: method !== 'start' } })
+    const echo = { clientId: clientUserMessageId, text: visibleText(input), parts: input, added: method !== 'start' }
+    this.store.dispatch({ type: 'echo', key, echo })
     try {
       if (method === 'start') {
         await client.request('turn/start', { threadId, input, clientUserMessageId })
@@ -441,13 +498,59 @@ export class ProjectConnection {
         isDefault: providerId === null,
       })
     }
-    if (providers) {
-      this.store.dispatch({
-        type: 'providers',
-        projectId: this.projectId,
-        providers: (providers.providers ?? []).flatMap((provider) => (provider.id ? [{ id: provider.id, name: provider.displayName || provider.id }] : [])),
-      })
-    }
+    if (providers) this.store.dispatch({ type: 'providers', projectId: this.projectId, providers: providerEntries(providers) })
+  }
+
+  async loadUsage(): Promise<void> {
+    const client = this.requireClient()
+    const capabilities = client.initializeResult?.capabilities
+    if (!capabilities?.authOpenAiUsage) return
+    const known = (this.store.getState().models[this.projectId]?.providers.length ?? 0) > 0
+    const [usage, providers] = await Promise.all([
+      client.request('auth/openai/usage', {}),
+      capabilities.providerManagement && !known ? client.request('provider/list', {}) : null,
+    ])
+    if (providers) this.store.dispatch({ type: 'providers', projectId: this.projectId, providers: providerEntries(providers) })
+    this.store.dispatch({ type: 'usage', projectId: this.projectId, windows: usageWindows(usage) })
+  }
+
+  async readFile(path: string): Promise<string> {
+    return (await this.requireClient().request('fs/readFile', { path })).dataBase64
+  }
+
+  loadReferences(): Promise<void> {
+    const client = this.requireClient()
+    this.references ??= this.fetchReferences(client).catch((error: unknown) => {
+      this.references = null
+      throw error
+    })
+    return this.references
+  }
+
+  private async fetchReferences(client: DotCraftWireClient): Promise<void> {
+    const capabilities = client.initializeResult?.capabilities
+    const [commands, skills] = await Promise.all([
+      capabilities?.commandManagement ? client.request('command/list', { includeBuiltins: false }) : null,
+      capabilities?.skillsManagement ? client.request('skills/list', {}) : null,
+    ])
+    const entries: ReferenceEntry[] = [
+      ...(commands?.commands ?? []).flatMap((command): ReferenceEntry[] => {
+        const name = command.name?.replace(/^\//, '')
+        if (!name || command.category === 'builtin') return []
+        return [{ kind: 'command', name, description: command.fallbackDescription || command.description || '' }]
+      }),
+      ...(skills?.skills ?? []).flatMap((skill): ReferenceEntry[] => {
+        if (!skill.name || skill.enabled === false) return []
+        return [{ kind: 'skill', name: skill.name, description: skill.shortDescription || skill.description || '' }]
+      }),
+    ]
+    this.store.dispatch({ type: 'references', projectId: this.projectId, entries })
+  }
+
+  async setMode(threadId: string, mode: 'plan' | 'agent'): Promise<void> {
+    await this.requireClient().request('thread/mode/set', { threadId, mode })
+    const key = this.key(threadId)
+    this.store.dispatch({ type: 'chatConfig', key, config: { ...this.store.getState().details[key]?.config, mode } })
   }
 
   async updateConfig(threadId: string, change: ConfigChange): Promise<void> {
@@ -491,11 +594,19 @@ export class ProjectConnection {
     this.release(threadId, requestId, { answers: mapped })
   }
 
-  private release(threadId: string, requestId: string, result: object): void {
-    const resolve = this.held.get(requestId)
-    if (!resolve) return
+  cancelRequest(threadId: string, requestId: string): void {
+    const held = this.held.get(requestId)
+    if (!held) return
     this.held.delete(requestId)
-    resolve(result)
+    held.reject(new Error('Interactive request was cancelled with its turn.'))
+    this.store.dispatch({ type: 'pendingRemoved', key: this.key(threadId), requestId })
+  }
+
+  private release(threadId: string, requestId: string, result: object): void {
+    const held = this.held.get(requestId)
+    if (!held) return
+    this.held.delete(requestId)
+    held.resolve(result)
     this.store.dispatch({ type: 'pendingRemoved', key: this.key(threadId), requestId })
   }
 }

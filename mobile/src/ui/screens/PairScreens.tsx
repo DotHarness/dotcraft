@@ -111,7 +111,7 @@ export function PairScanScreen({ params }: { params: Record<string, string | str
   return (
     <Screen tone="camera" style={styles.scan}>
       {focused ? <StatusBar style="light" /> : null}
-      <TopBar>{router.canGoBack() ? <BackButton tone="camera" onPress={() => router.back()} /> : null}</TopBar>
+      <TopBar>{router.canGoBack() ? <BackButton onPress={() => router.back()} /> : null}</TopBar>
       {revokedBy ? (
         <Notice icon="info" tone="camera" style={styles.revoked}>
           {t('pair.revoked', { computer: revokedBy })}

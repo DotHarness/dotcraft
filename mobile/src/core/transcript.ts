@@ -1,5 +1,6 @@
 import { isComplete, type ChatHistory, type HistoryItem } from './history'
-import { userSegments, type UserSegment } from './userSegments'
+import { parsePlanMarkdown } from './planMarkdown'
+import { userImages, userSegments, type UserSegment } from './userSegments'
 
 export type ToolVerb = 'ran' | 'edited' | 'read' | 'searched' | 'used'
 
@@ -20,7 +21,7 @@ export type NoticeKind =
   | 'turnFailed'
 
 export type TranscriptEntry =
-  | { kind: 'user'; id: string; text: string; segments: UserSegment[]; added: boolean }
+  | { kind: 'user'; id: string; text: string; segments: UserSegment[]; images: string[]; added: boolean }
   | { kind: 'assistant'; id: string; text: string; streaming: boolean }
   | { kind: 'reasoning'; id: string; text: string; seconds: number | null }
   | {
@@ -38,6 +39,7 @@ export type TranscriptEntry =
     }
   | { kind: 'notice'; id: string; tone: 'neutral' | 'error'; notice: NoticeKind; detail?: string }
   | { kind: 'image'; id: string; status: 'inProgress' | 'completed' | 'failed'; uri: string | null; dropped: boolean; error?: string }
+  | { kind: 'plan'; id: string; title: string; overview: string; steps: string[]; content: string }
 
 type ToolEntry = Extract<TranscriptEntry, { kind: 'tool' }>
 
@@ -174,6 +176,23 @@ function imagesOf(item: HistoryItem | undefined): string[] {
   )
 }
 
+function planEntry(item: HistoryItem, results: Map<string, HistoryItem>): TranscriptEntry | null {
+  if (item.type !== 'toolCall' || str(item.payload.toolName) !== 'CreatePlan') return null
+  const result = results.get(inTurn(item.turnId, str(item.payload.callId)))
+  if (!result || result.payload.success === false || str(result.payload.result).startsWith('Error:')) return null
+  const input = args(item.payload)
+  const { title, overview, content } = parsePlanMarkdown(str(input.plan))
+  const todos = Array.isArray(input.todos) ? (input.todos as { content?: unknown }[]) : []
+  return {
+    kind: 'plan',
+    id: entryId(item),
+    title,
+    overview,
+    steps: todos.map((todo) => str(todo.content).trim()).filter(Boolean),
+    content,
+  }
+}
+
 function toolEntry(item: HistoryItem, results: Map<string, HistoryItem>): ToolEntry | null {
   const toolName = str(item.payload.toolName)
   if (!toolName || HIDDEN_TOOLS.has(toolName) || isCodeModeWrapper(item)) return null
@@ -211,7 +230,7 @@ const DECISION_NOTICE: Record<string, NoticeKind> = {
 function answersOf(payload: Record<string, unknown>): string {
   const response = payload.response as { answers: Record<string, { answers: string[] }> }
   return Object.values(response.answers)
-    .flatMap((entry) => entry.answers)
+    .flatMap((entry) => entry.answers.map((answer) => answer.replace(/^user_note: /, '')))
     .join(', ')
 }
 
@@ -264,8 +283,16 @@ export function buildTranscript(history: ChatHistory): TranscriptEntry[] {
         const mode = str(payload.deliveryMode)
         if (mode === 'subagentMailbox') break
         const value = str(payload.text)
-        if (value) {
-          out.push({ kind: 'user', id: entryId(item), text: value, segments: userSegments(value, payload.nativeInputParts), added: mode === 'guidance' })
+        const images = userImages(payload.nativeInputParts)
+        if (value || images.length > 0) {
+          out.push({
+            kind: 'user',
+            id: entryId(item),
+            text: value,
+            segments: userSegments(value, payload.nativeInputParts),
+            images,
+            added: mode === 'guidance',
+          })
         }
         break
       }
@@ -282,6 +309,11 @@ export function buildTranscript(history: ChatHistory): TranscriptEntry[] {
       case 'toolCall':
       case 'mcpToolCall':
       case 'dynamicToolCall': {
+        const plan = planEntry(item, results)
+        if (plan) {
+          out.push(plan)
+          break
+        }
         const entry = toolEntry(item, results)
         if (entry && !mergeTool(out[out.length - 1], entry)) out.push(entry)
         break
@@ -316,7 +348,11 @@ export function buildTranscript(history: ChatHistory): TranscriptEntry[] {
   }
   if (currentTurn !== null) closeTurn(currentTurn)
   for (const echo of history.echoes) {
-    out.push({ kind: 'user', id: `echo-${echo.clientId}`, text: echo.text, segments: userSegments(echo.text, null), added: echo.added })
+    const segments = userSegments(echo.text, echo.parts ?? null)
+    const images = userImages(echo.parts)
+    if (segments.length > 0 || images.length > 0) {
+      out.push({ kind: 'user', id: `echo-${echo.clientId}`, text: echo.text, segments, images, added: echo.added })
+    }
   }
   return out
 }

@@ -1,5 +1,5 @@
 import * as Clipboard from 'expo-clipboard'
-import { useState, type ReactNode } from 'react'
+import { createContext, useContext, useState, type ReactNode } from 'react'
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useMobileState } from '../../app-state/SessionContext'
 import { baseName } from '../../core/transcript'
@@ -28,15 +28,14 @@ function Chip({ icon, label, onPress, accessibilityLabel }: { icon: IconName; la
   )
 }
 
-function FilePathSheet({ path, visible, onClose }: { path: string; visible: boolean; onClose: () => void }) {
+export function FilePath({ path, note }: { path: string; note?: string }) {
   const { t } = useI18n()
   const { colors } = useTheme()
   const computer = useMobileState().computer?.name ?? ''
   const [copied, setCopied] = useState(false)
   return (
-    <SheetLayer visible={visible} onClose={onClose}>
-      <SheetHeader title={baseName(path)} onClose={onClose} />
-      <Txt tone="secondary">{t('file.onComputer', { computer })}</Txt>
+    <>
+      <Txt tone="secondary">{note ?? t('file.onComputer', { computer })}</Txt>
       <Text selectable style={[type.code, styles.path, { color: colors.textPrimary, backgroundColor: colors.bgTertiary }]}>
         {path}
       </Text>
@@ -49,13 +48,26 @@ function FilePathSheet({ path, visible, onClose }: { path: string; visible: bool
       >
         {copied ? t('common.copied') : t('file.copyPath')}
       </PhoneButton>
+    </>
+  )
+}
+
+function FilePathSheet({ path, visible, onClose }: { path: string; visible: boolean; onClose: () => void }) {
+  return (
+    <SheetLayer visible={visible} onClose={onClose}>
+      <SheetHeader title={baseName(path)} onClose={onClose} />
+      <FilePath path={path} />
     </SheetLayer>
   )
 }
 
+export const FileViewerContext = createContext<((path: string) => void) | null>(null)
+
 export function FileChip({ path, label }: { path: string; label: string }) {
   const { t } = useI18n()
+  const openFile = useContext(FileViewerContext)
   const [open, setOpen] = useState(false)
+  if (openFile) return <Chip icon="file" label={label} accessibilityLabel={t('file.open', { file: label })} onPress={() => openFile(path)} />
   return (
     <>
       <Chip icon="file" label={label} accessibilityLabel={t('file.show', { file: label })} onPress={() => setOpen(true)} />

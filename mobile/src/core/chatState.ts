@@ -22,3 +22,7 @@ export function followUpMethod(runtime: ThreadRuntimeState | null): 'start' | 's
   if (runtime.activeTurnId && !runtime.maintenanceKind) return 'steer'
   return 'enqueue'
 }
+
+export function awaitsPlanConfirmation(runtime: ThreadRuntimeState | null, mode: string | null | undefined): boolean {
+  return mode === 'plan' && runtime?.waitingOnPlanConfirmation === true && !isLive(chatState(runtime, false))
+}

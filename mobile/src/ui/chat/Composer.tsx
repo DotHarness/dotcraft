@@ -1,10 +1,43 @@
-import { useState, type ReactNode } from 'react'
-import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { sendDraft } from '../../core/attachments'
+import {
+  chooseEntry,
+  draftPieces,
+  editText,
+  EMPTY_DRAFT,
+  isEmptyDraft,
+  matchingEntries,
+  referencePicker,
+  referenceToken,
+  type DraftEdit,
+  type MessageDraft,
+  type ReferenceEntry,
+} from '../../core/draft'
 import { useI18n } from '../../i18n'
-import { StopGlyph } from '../icons'
+import { pickFile, pickPhotos } from '../../platform/attachmentPicker'
+import { Icon, StopGlyph } from '../icons'
 import { Txt } from '../parts'
 import { type, useTheme } from '../theme'
-import { SendButton } from './RequestCards'
+import { AddMenu } from './AddMenu'
+import { ComposerAttachments } from './ComposerAttachments'
+import { ReferencePicker } from './ReferencePicker'
+
+function SendButton({ label, disabled, onPress }: { label: string; disabled: boolean; onPress: () => void }) {
+  const { colors } = useTheme()
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.send, { backgroundColor: disabled ? colors.sendDisabled : colors.textPrimary }]}
+    >
+      <Icon name="arrowUp" size={18} color={disabled ? colors.textDimmed : colors.bgPrimary} strokeWidth={2} />
+    </Pressable>
+  )
+}
 
 export function Composer({
   computer,
@@ -12,6 +45,11 @@ export function Composer({
   controls,
   autoFocus = false,
   canSend,
+  canAttachFiles,
+  canPlan,
+  references,
+  planMode,
+  onPlanMode,
   onSend,
   onStop,
 }: {
@@ -20,39 +58,103 @@ export function Composer({
   controls?: ReactNode
   autoFocus?: boolean
   canSend: boolean
-  onSend: (text: string) => Promise<void>
+  canAttachFiles: boolean
+  canPlan: boolean
+  references: ReferenceEntry[]
+  planMode: boolean
+  onPlanMode: (on: boolean) => Promise<void>
+  onSend: (draft: MessageDraft) => Promise<void>
   onStop: () => void
 }) {
   const { t } = useI18n()
   const { colors } = useTheme()
-  const [draft, setDraft] = useState('')
+  const [draft, setDraft] = useState<MessageDraft>(EMPTY_DRAFT)
+  const [cursor, setCursor] = useState<number | null>(null)
+  const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(undefined)
   const [focused, setFocused] = useState(false)
   const [sending, setSending] = useState(false)
-  const [failed, setFailed] = useState(false)
-  const empty = draft.trim().length === 0
+  const [notice, setNotice] = useState<string | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const input = useRef<TextInput>(null)
+  const empty = isEmptyDraft(draft)
+  const match = referencePicker(draft, cursor ?? draft.text.length)
+  const matches = match ? matchingEntries(references, match) : []
+
+  useEffect(() => {
+    const hidden = Keyboard.addListener('keyboardDidHide', () => input.current?.blur())
+    return () => hidden.remove()
+  }, [])
+
+  const update = (next: (current: MessageDraft) => MessageDraft) => {
+    setDraft(next)
+    setNotice(null)
+  }
+
+  const place = ({ draft: next, cursor: at }: DraftEdit) => {
+    update(() => next)
+    setCursor(at)
+    setSelection({ start: at, end: at })
+  }
 
   async function submit() {
-    const text = draft.trim()
+    const submitted = draft
     setSending(true)
-    setFailed(false)
-    setDraft('')
-    try {
-      await onSend(text)
-    } catch {
-      setDraft(text)
-      setFailed(true)
-    } finally {
-      setSending(false)
+    setNotice(null)
+    setDraft(EMPTY_DRAFT)
+    setCursor(null)
+    const failure = await sendDraft(submitted, onSend)
+    if (failure) {
+      setDraft(submitted)
+      setNotice(failure.kind === 'upload' ? t('composer.uploadFailed', { file: failure.file }) : t('composer.failed'))
     }
+    setSending(false)
+  }
+
+  async function attach(pick: () => Promise<void>) {
+    setMenuOpen(false)
+    try {
+      await pick()
+    } catch {
+      setNotice(t('composer.attachFailed'))
+    }
+  }
+
+  const addPhotos = () =>
+    attach(async () => {
+      const photos = await pickPhotos()
+      if (photos.length > 0) update((current) => ({ ...current, photos: [...current.photos, ...photos] }))
+    })
+
+  const addFile = () =>
+    attach(async () => {
+      const picked = await pickFile()
+      if (picked?.kind === 'tooLarge') setNotice(t('composer.fileTooLarge', { file: picked.name }))
+      else if (picked) update((current) => ({ ...current, files: [...current.files, picked.file] }))
+    })
+
+  const switchPlan = async (on: boolean) => {
+    setMenuOpen(false)
+    try {
+      await onPlanMode(on)
+    } catch {
+      setNotice(t('controls.failed'))
+    }
+  }
+
+  const choose = (entry: ReferenceEntry) => {
+    if (!match) return
+    place(chooseEntry(draft, match, entry))
+    input.current?.focus()
   }
 
   return (
     <View style={styles.wrap}>
-      {failed ? (
+      {notice ? (
         <Txt variant="meta" tone="error" accessibilityLiveRegion="polite">
-          {t('composer.failed')}
+          {notice}
         </Txt>
       ) : null}
+      {matches.length > 0 ? <ReferencePicker entries={matches} onChoose={choose} /> : null}
       <View
         style={[
           styles.card,
@@ -63,14 +165,27 @@ export function Composer({
           },
         ]}
       >
+        <ComposerAttachments
+          photos={draft.photos}
+          files={draft.files}
+          onRemovePhoto={(id) => update((current) => ({ ...current, photos: current.photos.filter((photo) => photo.id !== id) }))}
+          onRemoveFile={(id) => update((current) => ({ ...current, files: current.files.filter((file) => file.id !== id) }))}
+        />
         <TextInput
+          ref={input}
           multiline
           numberOfLines={Platform.OS === 'web' ? 2 : undefined}
           autoFocus={autoFocus}
-          value={draft}
+          selection={selection}
           onChangeText={(value) => {
-            setDraft(value)
-            setFailed(false)
+            const edited = editText(draft, value)
+            if (edited.draft.text !== value) return place(edited)
+            update(() => edited.draft)
+            setCursor(null)
+          }}
+          onSelectionChange={({ nativeEvent }) => {
+            setCursor(nativeEvent.selection.end)
+            setSelection(undefined)
           }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -78,9 +193,45 @@ export function Composer({
           placeholderTextColor={colors.composerPlaceholder}
           accessibilityLabel={t('composer.message')}
           style={[type.text, styles.input, { color: colors.textPrimary }]}
-        />
+        >
+          {draftPieces(draft).map((piece, index) =>
+            piece.type === 'text' ? (
+              piece.value
+            ) : (
+              <Text key={index} style={[styles.reference, { backgroundColor: colors.roundFill }]}>
+                {referenceToken(piece.reference)}
+              </Text>
+            ),
+          )}
+        </TextInput>
         <View style={styles.bar}>
-          <View style={styles.controls}>{controls}</View>
+          <View style={styles.controls}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('composer.add')}
+              onPress={() => {
+                Keyboard.dismiss()
+                setMenuOpen(true)
+              }}
+              hitSlop={4}
+              style={({ pressed }) => [styles.round, pressed && { backgroundColor: colors.roundFill }]}
+            >
+              <Icon name="plus" size={22} color={colors.textPrimary} />
+            </Pressable>
+            {planMode && canPlan ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('composer.planOff')}
+                onPress={() => void switchPlan(false)}
+                style={({ pressed }) => [styles.plan, { backgroundColor: pressed ? colors.roundFillPressed : colors.roundFill }]}
+              >
+                <Icon name="listTodo" size={16} color={colors.textPrimary} />
+                <Text style={[type.body, styles.planLabel, { color: colors.textPrimary }]}>{t('composer.plan')}</Text>
+                <Icon name="x" size={14} color={colors.textSecondary} strokeWidth={2} />
+              </Pressable>
+            ) : null}
+            {controls}
+          </View>
           {running && empty ? (
             <Pressable
               accessibilityRole="button"
@@ -96,6 +247,16 @@ export function Composer({
           )}
         </View>
       </View>
+      <AddMenu
+        visible={menuOpen}
+        canAttachFiles={canAttachFiles}
+        canPlan={canPlan}
+        planMode={planMode}
+        onClose={() => setMenuOpen(false)}
+        onPhoto={() => void addPhotos()}
+        onFile={() => void addFile()}
+        onPlanMode={(on) => void switchPlan(on)}
+      />
     </View>
   )
 }
@@ -103,8 +264,13 @@ export function Composer({
 const styles = StyleSheet.create({
   wrap: { gap: 6 },
   card: { borderWidth: 1, borderRadius: 26, paddingTop: 6, paddingBottom: 8, paddingHorizontal: 8 },
+  reference: { fontWeight: '500' },
   input: { minHeight: 40, maxHeight: 140, paddingTop: 8, paddingBottom: 6, paddingHorizontal: 10, outlineWidth: 0 },
   bar: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   controls: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  round: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  plan: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 32, paddingLeft: 9, paddingRight: 8, borderRadius: 16 },
+  planLabel: { fontWeight: '500' },
   stop: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  send: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
 })

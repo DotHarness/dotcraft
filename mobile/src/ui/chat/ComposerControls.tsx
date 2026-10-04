@@ -85,11 +85,46 @@ function OptionRow({
   )
 }
 
-function SectionTitle({ children }: { children: string }) {
+type Section = 'provider' | 'model' | 'reasoning'
+
+function ExpandRow({
+  label,
+  value,
+  expanded,
+  onPress,
+  children,
+}: {
+  label: string
+  value: string
+  expanded: boolean
+  onPress: () => void
+  children: ReactNode
+}) {
+  const { colors } = useTheme()
   return (
-    <Txt variant="meta" tone="secondary" style={styles.sectionTitle}>
-      {children}
-    </Txt>
+    <View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityValue={{ text: value }}
+        accessibilityState={{ expanded }}
+        onPress={onPress}
+        style={({ pressed }) => [styles.option, pressed && { backgroundColor: colors.bgTertiary }]}
+      >
+        <Txt style={[styles.optionLabel, styles.rowLabel]}>{label}</Txt>
+        <Txt numberOfLines={1} tone="secondary" style={styles.rowValue}>
+          {value}
+        </Txt>
+        <View style={{ transform: [{ rotate: expanded ? '90deg' : '0deg' }] }}>
+          <Icon name="chevronRight" size={16} color={colors.textDimmed} />
+        </View>
+      </Pressable>
+      {expanded ? (
+        <View accessibilityRole="radiogroup" style={[styles.choices, { borderLeftColor: colors.borderDefault }]}>
+          {children}
+        </View>
+      ) : null}
+    </View>
   )
 }
 
@@ -194,6 +229,7 @@ function ModelSheet({
   const { t } = useI18n()
   const session = useSession()
   const [picked, setPicked] = useState<string | null>(null)
+  const [open, setOpen] = useState<Section | null>(null)
   const viewing = picked ?? controls.providerId
   const { busy, failed, apply } = useApply(onChange)
   const catalog = viewing ? models.catalogs[viewing] : undefined
@@ -207,98 +243,87 @@ function ModelSheet({
 
   const close = () => {
     setPicked(null)
+    setOpen(null)
     onClose()
   }
+  const toggle = (section: Section) => setOpen((value) => (value === section ? null : section))
+  const choose = async (change: ControlChange) => {
+    if (await apply(change)) setOpen(null)
+  }
   const ids = (catalog ?? []).flatMap((item) => (item.id ? [item.id] : []))
-  if (viewing === controls.providerId && controls.model && catalog && !ids.includes(controls.model)) ids.unshift(controls.model)
+  const sameProvider = viewing === controls.providerId
+  if (sameProvider && controls.model && catalog && !ids.includes(controls.model)) ids.unshift(controls.model)
   const efforts = [...(reasoning?.supportsDisable ? [{ effort: 'off', label: undefined }] : []), ...(reasoning?.supportedEfforts ?? [])]
   const effective = controls.reasoning === 'default' ? reasoning?.defaultEffort : controls.reasoning
+  const provider = models.providers.find((entry) => entry.id === viewing)
 
   return (
     <SheetLayer visible={visible} onClose={close}>
       <SheetHeader title={t('model.title')} onClose={close} />
       {failed ? <Txt tone="error">{t('controls.failed')}</Txt> : null}
-      {models.providers.length > 1 ? (
-        <View>
-          <SectionTitle>{t('model.provider')}</SectionTitle>
-          <View accessibilityRole="radiogroup" style={styles.options}>
-            {models.providers.map((provider) => (
+      <View style={styles.options}>
+        {models.providers.length > 1 ? (
+          <ExpandRow label={t('model.provider')} value={provider?.name ?? viewing ?? ''} expanded={open === 'provider'} onPress={() => toggle('provider')}>
+            {models.providers.map((entry) => (
               <OptionRow
-                key={provider.id}
-                label={provider.name}
-                description={provider.name === provider.id ? undefined : provider.id}
-                selected={provider.id === viewing}
+                key={entry.id}
+                label={entry.name}
+                description={entry.name === entry.id ? undefined : entry.id}
+                selected={entry.id === viewing}
                 onPress={() => {
-                  setPicked(provider.id)
-                  if (provider.id !== controls.providerId) void onChange({ kind: 'provider', providerId: provider.id })
+                  setPicked(entry.id)
+                  if (entry.id === controls.providerId) return setOpen(null)
+                  setOpen('model')
+                  void onChange({ kind: 'provider', providerId: entry.id })
                 }}
               />
             ))}
-          </View>
-        </View>
-      ) : null}
-      <View>
-        {models.providers.length > 1 ? <SectionTitle>{t('model.title')}</SectionTitle> : null}
-        {catalog ? (
-          <View accessibilityRole="radiogroup" style={styles.options}>
-            {ids.length === 0 ? <Txt tone="secondary">{t('model.none')}</Txt> : null}
-            {ids.map((id) => (
-              <OptionRow
-                key={id}
-                label={id}
-                selected={viewing === controls.providerId && id === controls.model}
-                disabled={busy}
-                onPress={() => void apply({ kind: 'model', providerId: viewing, model: id })}
-              />
-            ))}
-          </View>
-        ) : (
-          <View style={styles.loading}>
-            <Spinner size={18} />
-          </View>
-        )}
-      </View>
-      {reasoning && efforts.length > 0 ? (
-        <View>
-          <SectionTitle>{t('reasoning.heading')}</SectionTitle>
-          <View accessibilityRole="radiogroup" style={styles.efforts}>
+          </ExpandRow>
+        ) : null}
+        <ExpandRow label={t('model.title')} value={sameProvider ? (controls.model ?? '') : ''} expanded={open === 'model'} onPress={() => toggle('model')}>
+          {catalog ? (
+            <>
+              {ids.length === 0 ? <Txt tone="secondary">{t('model.none')}</Txt> : null}
+              {ids.map((id) => (
+                <OptionRow
+                  key={id}
+                  label={id}
+                  selected={sameProvider && id === controls.model}
+                  disabled={busy}
+                  onPress={() => void choose({ kind: 'model', providerId: viewing, model: id })}
+                />
+              ))}
+            </>
+          ) : (
+            <View style={styles.loading}>
+              <Spinner size={18} />
+            </View>
+          )}
+        </ExpandRow>
+        {reasoning && efforts.length > 0 ? (
+          <ExpandRow
+            label={t('reasoning.heading')}
+            value={effective ? effortLabel(t, effective) : ''}
+            expanded={open === 'reasoning'}
+            onPress={() => toggle('reasoning')}
+          >
             {efforts.map((option) => {
               const value = option.effort ?? ''
-              const selected = value === effective
               return (
-                <EffortPill
+                <OptionRow
                   key={value}
                   label={effortLabel(t, value, option.label)}
-                  selected={selected}
+                  selected={value === effective}
                   disabled={busy}
-                  onPress={() => void apply({ kind: 'reasoning', value })}
+                  onPress={() => void choose({ kind: 'reasoning', value })}
                 />
               )
             })}
-          </View>
-        </View>
-      ) : null}
-      {fast ? <FastRow value={controls.speed === 'fast'} disabled={busy} onChange={(on) => void apply({ kind: 'speed', speed: on ? 'fast' : 'standard' })} /> : null}
+          </ExpandRow>
+        ) : null}
+        {fast ? <FastRow value={controls.speed === 'fast'} disabled={busy} onChange={(on) => void apply({ kind: 'speed', speed: on ? 'fast' : 'standard' })} /> : null}
+      </View>
     </SheetLayer>
-  )
-}
-
-function EffortPill({ label, selected, disabled, onPress }: { label: string; selected: boolean; disabled: boolean; onPress: () => void }) {
-  const { colors } = useTheme()
-  return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityState={{ checked: selected, disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={[
-        styles.pill,
-        selected ? { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary } : { borderColor: colors.borderDefault },
-        disabled && styles.disabled,
-      ]}
-    >
-      <Text style={[type.body, styles.pillText, { color: selected ? colors.bgPrimary : colors.textPrimary }]}>{label}</Text>
-    </Pressable>
   )
 }
 
@@ -405,12 +430,11 @@ const styles = StyleSheet.create({
   optionIcon: { width: 24, alignItems: 'center' },
   optionText: { flex: 1, minWidth: 0, gap: 1 },
   optionLabel: { fontWeight: '500' },
-  sectionTitle: { marginBottom: 2, fontWeight: '600' },
   loading: { paddingVertical: 14, alignItems: 'center' },
-  efforts: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
-  pill: { height: 34, paddingHorizontal: 14, borderWidth: 1, borderRadius: 17, justifyContent: 'center' },
-  pillText: { fontWeight: '500' },
-  fast: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
+  rowLabel: { flexShrink: 0 },
+  rowValue: { flex: 1, minWidth: 0, textAlign: 'right' },
+  choices: { marginLeft: 8, paddingLeft: 4, borderLeftWidth: 1 },
+  fast: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, paddingHorizontal: 8 },
   decision: { gap: 8, marginTop: 4 },
   disabled: { opacity: 0.45 },
 })

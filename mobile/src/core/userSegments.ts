@@ -54,3 +54,10 @@ export function userSegments(text: string, parts: unknown): UserSegment[] {
     }
   })
 }
+
+export function userImages(parts: unknown): string[] {
+  if (!Array.isArray(parts)) return []
+  return (parts as { type?: string; url?: unknown }[]).flatMap((part) =>
+    part.type === 'image' && typeof part.url === 'string' && part.url.startsWith('data:image/') ? [part.url] : [],
+  )
+}

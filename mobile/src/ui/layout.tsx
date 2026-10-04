@@ -51,7 +51,7 @@ export function Hero({ children }: { children: ReactNode }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  topBar: { flexDirection: 'row', alignItems: 'center', minHeight: 52, paddingVertical: 4, paddingHorizontal: 12 },
+  topBar: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', minHeight: 52, paddingVertical: 4, paddingHorizontal: 12 },
   scroll: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingHorizontal: metrics.gutter },
   bottomBar: { flexDirection: 'row', gap: 10, paddingTop: 10, paddingHorizontal: metrics.gutter },

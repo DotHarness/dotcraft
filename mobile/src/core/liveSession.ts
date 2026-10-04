@@ -190,7 +190,6 @@ export class LiveSession {
     for (const [id, { chat, request }] of pending) {
       if (this.shown.has(id)) continue
       const alert = !this.alerted.has(id) && !this.quiet.has(chat.key)
-      this.quiet.delete(chat.key)
       this.alerted.add(id)
       this.shown.add(id)
       this.notifier.post({ id, kind: 'request', chat, request, alert })
