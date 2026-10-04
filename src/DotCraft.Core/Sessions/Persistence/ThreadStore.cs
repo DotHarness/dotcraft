@@ -38,6 +38,9 @@ public sealed partial class ThreadStore : IAsyncDisposable
     private readonly ThreadAttachmentStore _attachmentStore;
     private readonly ThreadHistoryProjectionStore _historyProjectionStore;
     private readonly SemaphoreSlim _reconcileGate = new(1, 1);
+    private static readonly TimeSpan OrphanAttachmentAge = TimeSpan.FromDays(1);
+    private static readonly TimeSpan OrphanSweepInterval = TimeSpan.FromHours(1);
+    private DateTimeOffset _lastOrphanSweep = DateTimeOffset.MinValue;
 
     public ThreadStore(string botPath)
         : this(botPath, null)
@@ -547,6 +550,12 @@ public sealed partial class ThreadStore : IAsyncDisposable
                     if (thread == null)
                         continue;
                     UpdateThreadProjection(thread, path, length);
+                }
+
+                if (unreadableThreadIds.Count == 0 && DateTimeOffset.UtcNow - _lastOrphanSweep >= OrphanSweepInterval)
+                {
+                    _lastOrphanSweep = DateTimeOffset.UtcNow;
+                    _attachmentStore.CleanupUnreferencedAttachments(OrphanAttachmentAge);
                 }
 
                 return _metadataStore.LoadIndex()

@@ -14,7 +14,7 @@ import type {
 import { DotCraftWireClient, ERR_TURN_IN_PROGRESS, JsonRpcError } from '@dotcraft/sdk/wire'
 import { signsInWithAccount, usageWindows } from './accountUsage'
 import { AttachmentUploadError, uploadAttachments, uploadPhotos, type UploadedPhoto } from './attachments'
-import { rememberImage } from './imageCache'
+import { imageKey, imageScope, rememberImage } from './imageCache'
 import { followUpMethod } from './chatState'
 import { contextUsageOf, systemEventUpdate, usageDeltaUpdate, type ContextUpdate } from './contextUsage'
 import { inputParts, visibleText, type MessageDraft, type ReferenceEntry } from './draft'
@@ -457,7 +457,11 @@ export class ProjectConnection {
     }
     const files = await uploadAttachments(fileSystem, root, draft.files, newId)
     const photos = await uploadPhotos(fileSystem, root, draft.photos, newId)
-    photos.forEach((photo, index) => rememberImage(photo.path, draft.photos[index].dataUrl))
+    const fingerprint = this.store.getState().computer?.fingerprint
+    if (fingerprint) {
+      const scope = imageScope(fingerprint, this.projectId)
+      photos.forEach((photo, index) => rememberImage(imageKey(scope, photo.path), draft.photos[index].dataUrl))
+    }
     return { files, photos }
   }
 

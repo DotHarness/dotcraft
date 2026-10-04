@@ -2,6 +2,7 @@ import type { ThreadConfiguration } from '@dotcraft/sdk/contracts'
 import { Reconnector, systemTimers, type Timers } from './backoff'
 import { plainMessage, type MessageDraft } from './draft'
 import { GatewayClient, GatewayError, GatewayUnreachableError, isUnauthorized } from './gateway'
+import { forgetImages } from './imageCache'
 import { LiveSession, type LiveNotifier } from './liveSession'
 import type { PairingOffer } from './pairing'
 import type { PinnedNative } from './pinned'
@@ -328,6 +329,7 @@ export class MobileSession {
 
   private async forget(revokedBy: string | null): Promise<void> {
     this.halt()
+    forgetImages()
     this.gateway = null
     this.views.clear()
     this.dispatch({ type: 'forgotten', revokedBy })
@@ -563,6 +565,7 @@ export class MobileSession {
     this.reconnector.reset()
     this.views.clear()
     this.gateway = new GatewayClient(this.platform.native, computer, result.credential)
+    forgetImages()
     this.dispatch({ type: 'paired', computer })
     this.dispatch({ type: 'pairing', pairing: { step: 'connected', name: computer.name } })
     this.flushSave()

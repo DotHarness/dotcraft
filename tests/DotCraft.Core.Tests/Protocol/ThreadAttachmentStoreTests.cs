@@ -122,6 +122,24 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
         Assert.False(Directory.Exists(folder));
     }
 
+    [Fact]
+    public async Task IndexRepair_RemovesDayOldOrphansAndKeepsReferencedFiles()
+    {
+        var referenced = CreateAttachment("referenced.png");
+        await _store.SaveThreadAsync(CreateThread("thread_with_reference", referenced));
+        var orphan = CreateAttachment("orphan.png");
+        var fresh = CreateAttachment("fresh.png");
+        var dayOld = DateTime.UtcNow.AddDays(-2);
+        File.SetLastWriteTimeUtc(referenced, dayOld);
+        File.SetLastWriteTimeUtc(orphan, dayOld);
+
+        await _store.LoadIndexAsync();
+
+        Assert.True(File.Exists(referenced));
+        Assert.False(File.Exists(orphan));
+        Assert.True(File.Exists(fresh));
+    }
+
     public void Dispose()
     {
         try

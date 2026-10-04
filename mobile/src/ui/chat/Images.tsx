@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { Image, Modal, Pressable, StyleSheet, View, type ImageStyle, type StyleProp } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { fileContent } from '../../core/fileView'
-import { rememberedImage, rememberImage } from '../../core/imageCache'
+import { imageKey, rememberedImage, rememberImage } from '../../core/imageCache'
 import type { ImageSource } from '../../core/userSegments'
 import { useI18n } from '../../i18n'
 import { RoundIconButton } from '../parts'
@@ -54,28 +54,36 @@ export function ImageThumb({ uri, label, style }: { uri: string; label: string; 
   )
 }
 
-export const ImageReaderContext = createContext<((path: string) => Promise<string>) | null>(null)
+export interface ImageReader {
+  scope: string
+  read: ((path: string) => Promise<string>) | null
+}
+
+export const ImageReaderContext = createContext<ImageReader | null>(null)
 
 function ComputerImage({ path, label, style }: { path: string; label: string; style?: StyleProp<ImageStyle> }) {
-  const read = useContext(ImageReaderContext)
+  const reader = useContext(ImageReaderContext)
   const { colors } = useTheme()
-  const [uri, setUri] = useState(() => rememberedImage(path) ?? null)
+  const key = reader ? imageKey(reader.scope, path) : null
+  const read = reader?.read ?? null
+  const [loaded, setLoaded] = useState<{ key: string; uri: string } | null>(null)
+  const uri = key ? (loaded?.key === key ? loaded.uri : rememberedImage(key)) : undefined
   useEffect(() => {
-    if (uri || !read) return
+    if (uri || !key || !read) return
     let current = true
     read(path).then(
       (data) => {
         const content = fileContent(path, data)
         if (!current || content.kind !== 'image') return
-        rememberImage(path, content.uri)
-        setUri(content.uri)
+        rememberImage(key, content.uri)
+        setLoaded({ key, uri: content.uri })
       },
       () => undefined,
     )
     return () => {
       current = false
     }
-  }, [path, read, uri])
+  }, [key, path, read, uri])
   if (uri) return <ImageThumb uri={uri} label={label} style={style} />
   return <View style={[styles.thumb, styles.pending, { borderColor: colors.borderDefault, backgroundColor: colors.bgTertiary }, style]} />
 }
