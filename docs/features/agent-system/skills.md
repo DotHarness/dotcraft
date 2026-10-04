@@ -57,7 +57,7 @@ Market skills land under the workspace's `.craft/skills/`. If a skill of the sam
 
 A skill installed with **Install with DotCraft** is never rewritten in place. The agent keeps the original and generates a variant tuned to your environment, then prefers the active variant from then on. To go back to what the marketplace published, select **Restore original skill** on the skill's detail page.
 
-![Skill variant](https://github.com/DotHarness/resources/raw/master/dotcraft/skill_variant.gif)
+![Skill variant](https://github.com/DotHarness/resources/raw/master/dotcraft/skill_variant.webp)
 
 You keep what self-learning improved, with a clean way back if it goes wrong.
 

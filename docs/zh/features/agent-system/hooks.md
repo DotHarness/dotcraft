@@ -20,7 +20,7 @@ Hooks 适合做靠近 Agent 工作流的小型 guardrail 和可重复检查。
 
 ## hooks 从哪里来
 
-![插件提供的生命周期 hook 在 DotCraft 对话中运行](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/lifecycle-hooks.gif)
+![插件提供的生命周期 hook 在 DotCraft 对话中运行](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/lifecycle-hooks.webp)
 
 DotCraft 会从你的个人配置、当前 workspace 和已启用的插件里发现 hooks。这样私人偏好留在个人配置里，团队策略放进 workspace，可复用的 hook 则可以随插件一起安装。
 

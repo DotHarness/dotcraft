@@ -16,7 +16,7 @@ Wherever a capability comes from, the agent's tool calls still pass through work
 
 ## Install a plugin
 
-![Browsing a plugin, opening its details, and trying it in a DotCraft conversation](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/plugin-registry.gif)
+![Browsing a plugin, opening its details, and trying it in a DotCraft conversation](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/plugin-registry.webp)
 
 1. Open **Plugins** in DotCraft Desktop.
 2. Search or browse the catalog.

@@ -26,7 +26,7 @@ DotCraft 会把你教给它的东西带进后续会话：你说明过的偏好�
 
 在 Desktop 的 **设置 → 个性化 → 梦境** 中开启。每次运行的结果会先等你审阅，应用后才会被后续会话用到。想让运行结果直接生效，在 **管理** 里打开自动更新。
 
-![梦境审阅流程](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.gif)
+![梦境审阅流程](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.webp)
 
 ## 相关文档
 

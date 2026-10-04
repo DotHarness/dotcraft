@@ -81,7 +81,7 @@ Use `--provider gitlab` for GitLab projects. Every project that can receive disp
 
 ## Connect from Desktop
 
-![Desktop server settings](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/servers.gif)
+![Desktop server settings](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/servers.webp)
 
 The services listen only on the server itself. Desktop reaches them through tunnels opened by your system SSH client, so no port has to face the public internet.
 

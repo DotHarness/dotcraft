@@ -4,7 +4,7 @@ DotCraft 有两种方式让 Agent 在你不盯着的时候继续干活。自动�
 
 ![DotCraft 自动化与目标总览](/automations-goals-overview.svg)
 
-![为一段对话设置目标](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/goal.gif)
+![为一段对话设置目标](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/goal.webp)
 
 ## 自动化
 

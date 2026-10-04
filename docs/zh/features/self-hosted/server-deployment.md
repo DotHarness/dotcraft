@@ -81,7 +81,7 @@ GitLab 项目用 `--provider gitlab`。每个要接受派发的项目都需要�
 
 ## 从 Desktop 连接
 
-![Desktop 服务器设置](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/servers.gif)
+![Desktop 服务器设置](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/servers.webp)
 
 这些服务只监听服务器本机。Desktop 通过系统 SSH 客户端建立隧道访问，不需要把端口开放到公网。
 

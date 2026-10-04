@@ -24,7 +24,7 @@ Subagent 是主 Agent 的委派机制：把一段独立任务交给它，在单�
 
 ## 在 Desktop 中查看 subagent 进度
 
-![在 DotCraft Desktop 中查看多个后台 subagent 及其状态](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/subagents.gif)
+![在 DotCraft Desktop 中查看多个后台 subagent 及其状态](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/subagents.webp)
 
 subagent 工作时，Desktop 中的主对话仍然可用。打开后台 Agent 摘要，可以看到哪些任务还在运行、哪些已经完成。最终结果仍会返回主对话。
 

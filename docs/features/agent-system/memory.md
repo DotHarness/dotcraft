@@ -26,7 +26,7 @@ Dreams reviews recent workspace activity and creates tentative notes for later c
 
 Turn it on in Desktop under **Settings → Personalization → Dreams**. Each run waits for your review, and later conversations use it only once you apply it. To let runs take effect directly, turn on auto-update under **Manage**.
 
-![Reviewing a Dreams run](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.gif)
+![Reviewing a Dreams run](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.webp)
 
 ## Related docs
 

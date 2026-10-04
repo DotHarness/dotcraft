@@ -2,7 +2,7 @@
 
 Install DotCraft Desktop, open your project, finish the setup wizard, and send your first message. Four steps and DotCraft is working inside your project.
 
-![Install DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/setup.gif)
+![Install DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/setup.webp)
 
 ## 1. Install Desktop
 

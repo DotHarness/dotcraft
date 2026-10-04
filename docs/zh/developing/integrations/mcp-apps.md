@@ -4,7 +4,7 @@ MCP Apps 允许 MCP 工具附带交互式结果视图。MCP server 声明 `ui://
 
 [App Binding](./app-binding) 不定义独立 UI 协议。App Binding 应用从自己的 binding-scoped Streamable HTTP MCP server 提供工具和视图。
 
-![MCP App 在 DotCraft 对话中渲染交互式 GitHub Issue 表单](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/mcp-apps.gif)
+![MCP App 在 DotCraft 对话中渲染交互式 GitHub Issue 表单](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/mcp-apps.webp)
 
 ## 声明视图
 

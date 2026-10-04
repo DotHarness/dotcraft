@@ -2,7 +2,7 @@
 
 An Agent Profile saves a purpose-built DotCraft agent so you can reach for it whenever that working style fits. Build one through conversation with Agent Builder, then reuse its role instructions, model defaults, tools, skills, MCP access, and approval behavior.
 
-![DotCraft Agent Profiles](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-profile.gif)
+![DotCraft Agent Profiles](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-profile.webp)
 
 Choose a role for the result you need: Researcher for an evidence-backed answer, Prototyper for a runnable idea, or Task Runner for a local task. Each role is an independent Profile you can choose whenever the work calls for it.
 
@@ -36,7 +36,7 @@ DotCraft includes six starting points for local tasks and concrete deliverables.
 
 ## Agent Builder
 
-![DotCraft Agent Builder](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-builder.gif)
+![DotCraft Agent Builder](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-builder.webp)
 
 Agent Builder lets you customize an agent just by chatting. Start from a built-in profile or describe a new specialist, then refine its instructions, tools, skills, model, and approval style in a guided conversation.
 

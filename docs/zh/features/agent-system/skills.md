@@ -57,7 +57,7 @@ DotCraft 的技能页面同时搜索本地已安装的技能和 SkillHub、ClawH
 
 通过 **让 DotCraft 安装** 装进来的技能不会被直接改写。Agent 保留原版，另外生成一份针对当前环境优化的变体，之后优先使用当前生效的那份。想回到市场上的原始内容，在技能详情里点 **恢复源文件**。
 
-![技能变体](https://github.com/DotHarness/resources/raw/master/dotcraft/skill_variant.gif)
+![技能变体](https://github.com/DotHarness/resources/raw/master/dotcraft/skill_variant.webp)
 
 自学习带来的优化留了下来，出问题也有一条干净的退路。
 

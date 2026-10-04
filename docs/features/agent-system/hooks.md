@@ -20,7 +20,7 @@ Keep the script focused. Once the logic grows, move the complicated part into a 
 
 ## Where hooks come from
 
-![A plugin-provided lifecycle hook running during a DotCraft conversation](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/lifecycle-hooks.gif)
+![A plugin-provided lifecycle hook running during a DotCraft conversation](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/lifecycle-hooks.webp)
 
 DotCraft discovers hooks from your personal config, the current workspace, and enabled plugins. That way private preferences stay in your own config, team policy goes in the workspace, and reusable hooks arrive with a plugin.
 
