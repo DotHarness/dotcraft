@@ -38,15 +38,21 @@ internal sealed class ProjectRegistry(HubPaths paths, TimeProvider? timeProvider
                 StatusCodes.Status400BadRequest);
         }
 
-        var project = new ProjectRecord(canonical, _time.GetUtcNow());
         lock (_gate)
         {
             var file = Load();
-            file.Projects.RemoveAll(existing => ManagedAppServerRegistry.WorkspaceComparer.Equals(existing.Path, canonical));
-            file.Projects.Add(project);
+            var now = _time.GetUtcNow();
+            var index = file.Projects.FindIndex(existing => ManagedAppServerRegistry.WorkspaceComparer.Equals(existing.Path, canonical));
+            var project = index < 0
+                ? new ProjectRecord(canonical, now, now)
+                : file.Projects[index] with { LastOpenedAt = now };
+            if (index < 0)
+                file.Projects.Add(project);
+            else
+                file.Projects[index] = project;
             Save(file);
+            return project;
         }
-        return project;
     }
 
     public void Remove(string path)
@@ -107,7 +113,7 @@ internal sealed class ProjectRegistry(HubPaths paths, TimeProvider? timeProvider
     }
 }
 
-internal sealed record ProjectRecord(string Path, DateTimeOffset LastOpenedAt);
+internal sealed record ProjectRecord(string Path, DateTimeOffset AddedAt, DateTimeOffset LastOpenedAt);
 
 internal sealed class ProjectRegistryFile
 {

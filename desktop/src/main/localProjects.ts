@@ -27,7 +27,7 @@ export class LocalProjectList {
     const generation = ++this.generation
     const next = await this.fetchProjects()
     if (generation !== this.generation) return
-    this.projects = keepPositions(this.projects, next)
+    this.projects = next.sort((left, right) => Date.parse(left.addedAt) - Date.parse(right.addedAt))
     this.onChanged()
   }
 
@@ -84,12 +84,6 @@ export class LocalProjectList {
       if (!signal.aborted) await delay(RESUBSCRIBE_DELAY_MS, signal)
     }
   }
-}
-
-function keepPositions(previous: readonly HubProject[], next: HubProject[]): HubProject[] {
-  const kept = previous.flatMap((known) => next.filter((project) => sameWorkspaceProjectKey(project.path, known.path)))
-  const added = next.filter((project) => !previous.some((known) => sameWorkspaceProjectKey(known.path, project.path)))
-  return [...kept, ...added.reverse()]
 }
 
 function delay(ms: number, signal: AbortSignal): Promise<void> {

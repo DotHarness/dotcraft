@@ -23,11 +23,13 @@ public sealed class HubProjectsTests : IDisposable
         Assert.Equal("alpha", opened.GetProperty("displayName").GetString());
         Assert.False(opened.GetProperty("running").GetBoolean());
         var firstOpenedAt = opened.GetProperty("lastOpenedAt").GetDateTimeOffset();
+        var addedAt = opened.GetProperty("addedAt").GetDateTimeOffset();
         await hub.JsonAsync(HttpMethod.Post, "/v1/projects/open", new { path = beta });
         Assert.Equal(["beta", "alpha"], await ListNamesAsync(hub));
 
         var reopened = await hub.JsonAsync(HttpMethod.Post, "/v1/projects/open", new { path = alpha });
         Assert.True(reopened.GetProperty("lastOpenedAt").GetDateTimeOffset() > firstOpenedAt);
+        Assert.Equal(addedAt, reopened.GetProperty("addedAt").GetDateTimeOffset());
         Assert.Equal(["alpha", "beta"], await ListNamesAsync(hub));
 
         await hub.JsonAsync(HttpMethod.Post, "/v1/projects/remove", new { path = beta });

@@ -164,6 +164,7 @@ export interface HubMobilePairing {
 export interface HubProject {
   path: string;
   displayName: string;
+  addedAt: string;
   lastOpenedAt: string;
   running: boolean;
 }

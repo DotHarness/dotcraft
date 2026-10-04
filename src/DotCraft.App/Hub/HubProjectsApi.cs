@@ -46,6 +46,7 @@ internal static class HubProjectsApi
     private static HubProjectResponse ToResponse(ProjectRecord project, IReadOnlySet<string> running) => new(
         project.Path,
         Path.GetFileName(project.Path),
+        project.AddedAt,
         project.LastOpenedAt,
         running.Contains(project.Path));
 }

@@ -444,7 +444,7 @@ test("Project methods list, open, and remove projects through the authorized Hub
       token: "hub-token",
     }), "utf8");
 
-    const project = { path: "/work/app", displayName: "app", lastOpenedAt: "2026-10-04T08:00:00Z", running: false };
+    const project = { path: "/work/app", displayName: "app", addedAt: "2026-10-04T08:00:00Z", lastOpenedAt: "2026-10-04T08:00:00Z", running: false };
     const calls: Array<{ method?: string; path: string; body?: string; authorization?: string }> = [];
     globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(input instanceof Request ? input.url : String(input));

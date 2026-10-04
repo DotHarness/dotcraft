@@ -23,7 +23,7 @@ public sealed record HubErrorResponse(HubError Error);
 
 public sealed record HubError(string Code, string Message, object? Details);
 
-public sealed record HubProjectResponse(string Path, string DisplayName, DateTimeOffset LastOpenedAt, bool Running);
+public sealed record HubProjectResponse(string Path, string DisplayName, DateTimeOffset AddedAt, DateTimeOffset LastOpenedAt, bool Running);
 
 public sealed record HubProjectListResponse(IReadOnlyList<HubProjectResponse> Projects);
 

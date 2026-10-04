@@ -161,9 +161,10 @@ Errors use this shape:
 }
 ```
 
-`GET /v1/projects` answers `{ "projects": [{ "path", "displayName", "lastOpenedAt", "running" }] }`,
-most recently opened first, where `displayName` is the folder name and `running` reflects the live
-registry. `POST /v1/projects/open` answers the project object. Both mutating routes emit a
+`GET /v1/projects` answers `{ "projects": [{ "path", "displayName", "addedAt", "lastOpenedAt", "running" }] }`,
+most recently opened first, where `displayName` is the folder name, `addedAt` is when the project
+entered the list and never changes on a later open, so a client can keep a stable order, and
+`running` reflects the live registry. `POST /v1/projects/open` answers the project object. Both mutating routes emit a
 `projects.changed` event with no payload; clients re-read the list.
 
 Default Chat helpers do not add another Hub endpoint. They resolve and initialize `~/.craft/workspaces/chats`, then call `POST /v1/appservers/ensure` with that concrete `workspacePath`.
@@ -243,7 +244,7 @@ If Hub restarts and sees an old live workspace lock, it may display or return th
 ### Projects
 
 `~/.craft/hub/projects.json` is the computer's one list of projects: local workspaces a user opened
-in a client and has not removed, each with its path and last-opened time. Every local client shows
+in a client and has not removed, each with its path, the time it was added, and its last-opened time. Every local client shows
 and offers this list, and nothing else: Desktop's Projects, and the phone's projects. A client adds a
 project with `POST /v1/projects/open` when the user opens a workspace, and removes it with
 `POST /v1/projects/remove`. Starting an AppServer never adds a project, so automation, CLI runs,

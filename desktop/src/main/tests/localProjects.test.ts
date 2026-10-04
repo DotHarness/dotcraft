@@ -2,9 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { DesktopHubError, type HubEvent, type HubProject } from '../desktopHub'
 import { LocalProjectList } from '../localProjects'
 
-function project(path: string, lastOpenedAt = '2026-10-04T08:00:00Z'): HubProject {
-  return { path, displayName: path.split('/').pop() ?? path, lastOpenedAt, running: false }
+function project(path: string, addedAt: string, lastOpenedAt = addedAt): HubProject {
+  return { path, displayName: path.split('/').pop() ?? path, addedAt, lastOpenedAt, running: false }
 }
+
+const A = project('/work/a', '2026-10-01T08:00:00Z')
+const B = project('/work/b', '2026-10-02T08:00:00Z')
+const C = project('/work/c', '2026-10-03T08:00:00Z')
 
 function fakeHub(initial: HubProject[]) {
   let projects = initial
@@ -12,7 +16,8 @@ function fakeHub(initial: HubProject[]) {
   const hub = {
     listProjects: vi.fn(async () => projects),
     openProject: vi.fn(async (path: string) => {
-      const opened = project(path, '2026-10-04T09:00:00Z')
+      const existing = projects.find((entry) => entry.path === path)
+      const opened = { ...(existing ?? project(path, '2026-10-04T09:00:00Z')), lastOpenedAt: '2026-10-04T09:00:00Z' }
       projects = [opened, ...projects.filter((entry) => entry.path !== path)]
       return opened
     }),
@@ -38,7 +43,7 @@ const paths = (list: LocalProjectList): string[] => list.list().map((entry) => e
 
 describe('LocalProjectList', () => {
   it('re-reads Hub projects on projects.changed and notifies', async () => {
-    const fake = fakeHub([project('/work/b'), project('/work/a')])
+    const fake = fakeHub([B, A])
     const onChanged = vi.fn()
     const list = new LocalProjectList(() => fake.hub, onChanged)
 
@@ -46,7 +51,7 @@ describe('LocalProjectList', () => {
     await vi.waitFor(() => expect(fake.hub.subscribeEvents).toHaveBeenCalled())
     expect(paths(list)).toEqual(['/work/a', '/work/b'])
 
-    fake.setProjects([project('/work/c'), project('/work/b'), project('/work/a')])
+    fake.setProjects([C, B, A])
     fake.emit('appserver.running')
     fake.emit('projects.changed')
 
@@ -56,8 +61,8 @@ describe('LocalProjectList', () => {
     list.stop()
   })
 
-  it('opens and removes through Hub, keeping positions of known projects', async () => {
-    const fake = fakeHub([project('/work/b'), project('/work/a')])
+  it('opens and removes through Hub, ordered by when each project was added', async () => {
+    const fake = fakeHub([B, A])
     const list = new LocalProjectList(() => fake.hub, vi.fn())
     await list.refresh()
 
@@ -73,7 +78,7 @@ describe('LocalProjectList', () => {
   })
 
   it('shows no projects when Hub is unreachable', async () => {
-    const unreachable = fakeHub([project('/work/a')])
+    const unreachable = fakeHub([A])
     unreachable.hub.listProjects.mockRejectedValue(new DesktopHubError('hubUnavailable', 'DotCraft Hub could not be started.'))
     const list = new LocalProjectList(() => unreachable.hub, vi.fn())
     await list.refresh()
