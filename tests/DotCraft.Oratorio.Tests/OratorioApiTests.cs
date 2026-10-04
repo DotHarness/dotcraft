@@ -6696,25 +6696,7 @@ internal sealed class FakeAppServerClient(
         }
         else if (outcome == FakeAppServerOutcome.SubmitDiscussionReply)
         {
-            _ = Task.Run(async () =>
-            {
-                await Task.Delay(50);
-                if (_dynamicToolHandler is not null)
-                {
-                    var arguments = JsonSerializer.SerializeToElement(new
-                    {
-                        discussionTurnId = ExtractDiscussionTurnId(prompt, _lastResumeRequest?.RuntimeAdditionalContext),
-                        body = "Agent answer from DotCraft."
-                    }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-                    var toolThreadId = useMismatchedToolThreadId() ? "thread-mismatch" : threadId;
-                    var result = await _dynamicToolHandler(CreateCall(toolThreadId, turnId, "call-discussion-1", "oratorio_run", "SubmitDiscussionReply", arguments), CancellationToken.None);
-                    captureToolResult(result);
-                }
-
-                _notifications.Writer.TryWrite(Notification("item/agentMessage/delta", new { delta = "DotCraft discussion reply submitted. " }));
-                _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId, summary = "DotCraft discussion reply submitted." }));
-                _notifications.Writer.TryComplete();
-            });
+            return ReplyBeforeTurnStartReturnsAsync(threadId, turnId, prompt);
         }
         else if (outcome == FakeAppServerOutcome.Fail)
         {
@@ -6732,6 +6714,27 @@ internal sealed class FakeAppServerClient(
         }
 
         return Task.FromResult<string?>(turnId);
+    }
+
+    // The reply arrives before StartTurnAsync returns, so Oratorio has not recorded the turn id yet.
+    private async Task<string?> ReplyBeforeTurnStartReturnsAsync(string threadId, string turnId, string prompt)
+    {
+        if (_dynamicToolHandler is not null)
+        {
+            var arguments = JsonSerializer.SerializeToElement(new
+            {
+                discussionTurnId = ExtractDiscussionTurnId(prompt, _lastResumeRequest?.RuntimeAdditionalContext),
+                body = "Agent answer from DotCraft."
+            }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            var toolThreadId = useMismatchedToolThreadId() ? "thread-mismatch" : threadId;
+            var result = await _dynamicToolHandler(CreateCall(toolThreadId, turnId, "call-discussion-1", "oratorio_run", "SubmitDiscussionReply", arguments), CancellationToken.None);
+            captureToolResult(result);
+        }
+
+        _notifications.Writer.TryWrite(Notification("item/agentMessage/delta", new { delta = "DotCraft discussion reply submitted. " }));
+        _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId, summary = "DotCraft discussion reply submitted." }));
+        _notifications.Writer.TryComplete();
+        return turnId;
     }
 
     public Task<string?> StartTurnAsync(string threadId, IReadOnlyList<TurnInputPartDto> input, string? modelId, CancellationToken ct) =>

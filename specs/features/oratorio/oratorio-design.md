@@ -696,7 +696,8 @@ set remains prompt-cache friendly across later turns. The tool input is:
 `oratorio_run.SubmitDiscussionReply` succeeds only when the call is bound to the current
 thread and turn for a pending or running Discussion Turn. Mismatched thread,
 mismatched turn, unknown turn, completed turn, and empty reply calls must fail
-with stable errors. On success, Oratorio records one agent comment with purpose
+with stable errors. A call that arrives before Oratorio has recorded the turn ID
+binds the Discussion Turn to the call's turn. On success, Oratorio records one agent comment with purpose
 `discussionReply`, links it from the Discussion Turn, marks the Discussion Turn
 succeeded, and publishes a board update so the detail page refreshes.
 

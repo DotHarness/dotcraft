@@ -150,9 +150,8 @@ public sealed class DiscussionTurnService(
             return ToolFailure("InvalidDiscussionTurnBinding", "The tool call thread does not match this Agent Discussion Turn.");
         }
 
-        if (string.IsNullOrWhiteSpace(turn.TurnId) ||
-            string.IsNullOrWhiteSpace(call.TurnId) ||
-            !string.Equals(turn.TurnId, call.TurnId, StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(call.TurnId) ||
+            !string.IsNullOrWhiteSpace(turn.TurnId) && !string.Equals(turn.TurnId, call.TurnId, StringComparison.Ordinal))
         {
             return ToolFailure("InvalidDiscussionTurnBinding", "The tool call turn does not match this Agent Discussion Turn.");
         }
@@ -171,6 +170,7 @@ public sealed class DiscussionTurnService(
         };
 
         db.Comments.Add(reply);
+        turn.TurnId ??= call.TurnId;
         turn.ReplyCommentId = reply.CommentId;
         turn.Status = DiscussionTurnStatus.Succeeded;
         turn.ErrorCode = null;
