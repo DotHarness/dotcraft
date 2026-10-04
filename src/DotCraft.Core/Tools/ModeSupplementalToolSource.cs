@@ -33,4 +33,10 @@ public sealed class ModeSupplementalToolSource(
             yield return GeneratedToolFunctions.RequestUserInputTools_RequestUserInput(userInputTools);
         }
     }
+
+    /// <inheritdoc />
+    protected override ToolExposure GetExposure(AIFunction function, ToolPlanningContext context) =>
+        function.Name == nameof(RequestUserInputTools.RequestUserInput)
+            ? ToolExposure.DirectModelOnly
+            : ToolExposure.Direct;
 }

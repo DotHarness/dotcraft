@@ -36,7 +36,7 @@ public sealed class UserCoordinationToolSource : AIFunctionToolSource
             : null;
 
     protected override ToolExposure GetExposure(AIFunction function, ToolPlanningContext context) =>
-        function.Name == nameof(UserCoordinationTools.SendUserMessageAsync)
+        function.Name is nameof(UserCoordinationTools.SendUserMessageAsync) or nameof(UserCoordinationTools.Sleep)
             ? ToolExposure.DirectModelOnly
             : ToolExposure.Direct;
 
