@@ -67,6 +67,34 @@ public sealed class AppServerFileSystemTests : IDisposable
     }
 
     [Fact]
+    public async Task BlacklistedTargetBehindALink_IsBlockedForEveryMethod()
+    {
+        var blocked = Path.Combine(_root, "secrets");
+        Directory.CreateDirectory(blocked);
+        File.WriteAllText(Path.Combine(blocked, "key.txt"), "secret");
+        var link = Path.Combine(_root, "workspace", "link");
+        Directory.CreateDirectory(Path.GetDirectoryName(link)!);
+        try
+        {
+            Directory.CreateSymbolicLink(link, blocked);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            return;
+        }
+        _harness.Monitor.Current.Security.BlacklistedPaths.Add(blocked);
+        await _harness.InitializeAsync();
+
+        var read = await SendForErrorAsync(Rpc.FsReadFile.Name, new { path = Path.Combine(link, "key.txt") });
+        var write = await SendForErrorAsync(Rpc.FsWriteFile.Name, new { path = Path.Combine(link, "new.txt"), dataBase64 = "AA==" });
+        var create = await SendForErrorAsync(Rpc.FsCreateDirectory.Name, new { path = Path.Combine(link, "sub") });
+
+        Assert.All([read, write, create], error => Assert.Equal("PathBlocked", DataCode(error)));
+        Assert.False(File.Exists(Path.Combine(blocked, "new.txt")));
+        Assert.False(Directory.Exists(Path.Combine(blocked, "sub")));
+    }
+
+    [Fact]
     public async Task ReadFile_ReportsMissingDirectoryAndOversizedTargets()
     {
         var large = Path.Combine(_root, "large.bin");

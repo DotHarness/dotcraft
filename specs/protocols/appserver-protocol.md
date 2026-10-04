@@ -6819,7 +6819,8 @@ Rules:
   the authority of the host's user.
 - Failures other than invalid params use error code `-32103`, with the case in `error.data.code` and
   the resolved path in `error.data.params.path`. A path under `Security.BlacklistedPaths` fails with
-  `PathBlocked` for every method.
+  `PathBlocked` for every method, checked both as given and after resolving symbolic links and
+  junctions; the method then acts on the resolved path.
 - `fs/readFile` fails with `FileNotFound` when nothing exists at `path`, `NotAFile` when `path` is a
   directory, and `FileTooLarge` when the file exceeds 8 MiB.
 - `fs/writeFile` does not create parent directories; a missing parent fails with

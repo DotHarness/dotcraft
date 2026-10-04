@@ -75,10 +75,11 @@ internal sealed class FileSystemRequestHandler(IAppConfigMonitor? appConfigMonit
             throw AppServerErrors.InvalidParams("'path' must be an absolute path.");
 
         var fullPath = Path.GetFullPath(path);
+        var resolvedPath = WorkspaceBoundary.ResolveSymbolicLink(fullPath);
         var blacklist = new PathBlacklist(appConfigMonitor?.Current.Security.BlacklistedPaths ?? []);
-        if (blacklist.IsBlacklisted(fullPath))
+        if (blacklist.IsBlacklisted(fullPath) || blacklist.IsBlacklisted(resolvedPath))
             throw AppServerErrors.FileSystem("PathBlocked", "Access to the path is blocked.", fullPath);
-        return fullPath;
+        return resolvedPath;
     }
 
     private static void RequireParentDirectory(string path)
