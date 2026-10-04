@@ -88,6 +88,17 @@ describe('turn changes', () => {
     ])
   })
 
+  it('keeps files that differ only by case apart unless the computer is Windows', () => {
+    const items = [
+      result('t1', 'r1', [{ path: 'src/Foo.ts', kind: 'update', additions: 1, deletions: 0 }]),
+      result('t1', 'r2', [{ path: 'src/foo.ts', kind: 'update', additions: 2, deletions: 0 }]),
+    ]
+    const rows = (workspacePath: string) =>
+      turnChanges(history(items, ['t1']), 't1', workspacePath)?.files.map((file) => [file.path, file.added])
+    expect(rows('/home/me/app')).toEqual([['src/Foo.ts', 1], ['src/foo.ts', 2]])
+    expect(rows('D:\\Projects\\app')).toEqual([['src/Foo.ts', 3]])
+  })
+
   it('prefers the live turn diff and falls back to recorded changes when it is empty', () => {
     const items = [result('t1', 'r1', [{ path: 'src/store.ts', kind: 'update', diff: UPDATE, additions: 3, deletions: 2 }])]
     expect(turnChanges(history(items, ['t1'], { t1: CREATE }), 't1', null)?.files.map((file) => file.path)).toEqual(['docs/new file.md'])

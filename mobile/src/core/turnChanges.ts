@@ -82,11 +82,16 @@ function withoutSide(name: string): string {
   return /^[ab]\//.test(name) ? name.slice(2) : name
 }
 
+// Windows hosts compare paths without case; other hosts keep files that differ only by case apart.
+function pathKey(path: string, workspacePath: string | null): string {
+  return workspacePath && /^([A-Za-z]:|\\\\)/.test(workspacePath) ? path.toLowerCase() : path
+}
+
 export function displayPath(path: string, workspacePath: string | null): string {
   const normalized = path.replace(/\\/g, '/')
   if (!workspacePath) return normalized
   const root = workspacePath.replace(/\\/g, '/').replace(/\/+$/, '')
-  return normalized.toLowerCase().startsWith(`${root.toLowerCase()}/`) ? normalized.slice(root.length + 1) : normalized
+  return pathKey(normalized, workspacePath).startsWith(pathKey(`${root}/`, workspacePath)) ? normalized.slice(root.length + 1) : normalized
 }
 
 function chunks(text: string): string[][] {
@@ -159,7 +164,7 @@ function mergeByPath(files: FileChange[], workspacePath: string | null): FileCha
   const merged = new Map<string, FileChange>()
   for (const file of files) {
     const path = displayPath(file.path, workspacePath)
-    const key = path.toLowerCase()
+    const key = pathKey(path, workspacePath)
     const existing = merged.get(key)
     merged.set(
       key,
