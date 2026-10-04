@@ -105,7 +105,6 @@ export const MESSAGES_JA: Catalog = {
   'approval.fullAccess.warningConfirm': 'フルアクセスを有効にする',
   'model.title': 'モデル',
   'model.provider': 'プロバイダー',
-  'model.default': 'デフォルト',
   'reasoning.heading': 'インテリジェンス',
   'reasoning.off': 'オフ',
   'reasoning.low': '低い',

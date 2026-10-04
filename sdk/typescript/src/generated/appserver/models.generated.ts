@@ -2245,6 +2245,7 @@ export interface ModelCatalogItem {
   contextWindow?: number;
   createdAt?: string;
   id?: string;
+  isDefault?: boolean;
   ownedBy?: string;
   reasoning?: ModelReasoningCapability | null;
   speed?: ModelSpeedCapability | null;

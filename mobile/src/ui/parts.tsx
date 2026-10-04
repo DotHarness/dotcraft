@@ -284,9 +284,9 @@ export function RowChevron() {
   return <Icon name="chevronRight" size={16} color={colors.textDimmed} />
 }
 
-export function Section({ title, children }: { title: string; children: ReactNode }) {
+export function Section({ title, grow = false, children }: { title: string; grow?: boolean; children: ReactNode }) {
   return (
-    <View style={styles.section}>
+    <View style={[styles.section, grow && styles.grow]}>
       <Txt accessibilityRole="header" style={styles.sectionTitle}>
         {title}
       </Txt>
@@ -343,5 +343,6 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.45 },
   round: { width: 40, height: 40, margin: 2, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   section: { marginTop: 26 },
+  grow: { flexGrow: 1 },
   sectionTitle: { fontWeight: '600', marginBottom: 2 },
 })

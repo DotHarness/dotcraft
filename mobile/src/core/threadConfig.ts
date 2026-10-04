@@ -82,16 +82,14 @@ export function applyChange(config: ThreadConfiguration, change: ConfigChange): 
 }
 
 export interface NewChatChoices {
-  touched: Partial<Record<'model' | 'reasoning' | 'speed' | 'approval', true>>
+  touched: Partial<Record<'provider' | 'model' | 'reasoning' | 'speed' | 'approval', true>>
   controls: ChatControls
 }
 
 export function startConfig({ touched, controls }: NewChatChoices): ThreadConfiguration | undefined {
   const config: ThreadConfiguration = {}
-  if (touched.model && controls.model) {
-    if (controls.providerId) config.providerId = controls.providerId
-    config.model = controls.model
-  }
+  if ((touched.provider || touched.model) && controls.providerId) config.providerId = controls.providerId
+  if (touched.model && controls.model) config.model = controls.model
   if (touched.reasoning) {
     const payload = reasoningPayload(controls.reasoning, null)
     if (payload) config.reasoning = payload

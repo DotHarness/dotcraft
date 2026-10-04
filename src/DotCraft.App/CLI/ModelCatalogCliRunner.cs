@@ -87,6 +87,7 @@ public static class ModelCatalogCliRunner
                     models = result.Models.Select(model =>
                         ProviderContractMapper.BuildModelCatalogItem(
                             config,
+                            result.ProviderId,
                             result.Protocol,
                             result.EndPoint,
                             model,

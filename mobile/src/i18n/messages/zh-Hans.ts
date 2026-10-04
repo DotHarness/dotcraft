@@ -105,7 +105,6 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'approval.fullAccess.warningConfirm': '启用完全访问权限',
   'model.title': '模型',
   'model.provider': '提供商',
-  'model.default': '默认',
   'reasoning.heading': '思考强度',
   'reasoning.off': '关闭',
   'reasoning.low': '低',

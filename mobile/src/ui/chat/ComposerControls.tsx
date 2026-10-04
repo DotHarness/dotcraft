@@ -12,7 +12,8 @@ import { SheetHeader, SheetLayer } from '../Sheet'
 import { type, useTheme } from '../theme'
 
 export type ControlChange =
-  | { kind: 'model'; providerId: string | null; model: string | null }
+  | { kind: 'provider'; providerId: string }
+  | { kind: 'model'; providerId: string | null; model: string }
   | { kind: 'reasoning'; value: ReasoningValue }
   | { kind: 'speed'; speed: Speed }
   | { kind: 'approval'; policy: ApprovalPolicy }
@@ -35,6 +36,11 @@ function effortLabel(t: I18n['t'], value: string, fallback?: string): string {
 export function catalogItem(models: ProjectModels | undefined, providerId: string | null, model: string | null): ModelCatalogItem | undefined {
   if (!models || !providerId || !model) return undefined
   return models.catalogs[providerId]?.find((item) => item.id === model)
+}
+
+export function defaultModel(models: ProjectModels | undefined, providerId: string | null): string | null {
+  if (!models || !providerId) return null
+  return models.catalogs[providerId]?.find((item) => item.isDefault)?.id ?? null
 }
 
 function OptionRow({
@@ -175,7 +181,6 @@ function ModelSheet({
   projectId,
   controls,
   models,
-  allowDefault,
   onClose,
   onChange,
 }: {
@@ -183,7 +188,6 @@ function ModelSheet({
   projectId: string
   controls: ChatControls
   models: ProjectModels
-  allowDefault: boolean
   onClose: () => void
   onChange: (change: ControlChange) => Promise<void>
 }) {
@@ -207,7 +211,6 @@ function ModelSheet({
   }
   const ids = (catalog ?? []).flatMap((item) => (item.id ? [item.id] : []))
   if (viewing === controls.providerId && controls.model && catalog && !ids.includes(controls.model)) ids.unshift(controls.model)
-  const choices: (string | null)[] = allowDefault && viewing === models.defaultProviderId ? [null, ...ids] : ids
   const efforts = [...(reasoning?.supportsDisable ? [{ effort: 'off', label: undefined }] : []), ...(reasoning?.supportedEfforts ?? [])]
   const effective = controls.reasoning === 'default' ? reasoning?.defaultEffort : controls.reasoning
 
@@ -225,7 +228,10 @@ function ModelSheet({
                 label={provider.name}
                 description={provider.name === provider.id ? undefined : provider.id}
                 selected={provider.id === viewing}
-                onPress={() => setPicked(provider.id)}
+                onPress={() => {
+                  setPicked(provider.id)
+                  if (provider.id !== controls.providerId) void onChange({ kind: 'provider', providerId: provider.id })
+                }}
               />
             ))}
           </View>
@@ -235,11 +241,11 @@ function ModelSheet({
         {models.providers.length > 1 ? <SectionTitle>{t('model.title')}</SectionTitle> : null}
         {catalog ? (
           <View accessibilityRole="radiogroup" style={styles.options}>
-            {choices.length === 0 ? <Txt tone="secondary">{t('model.none')}</Txt> : null}
-            {choices.map((id) => (
+            {ids.length === 0 ? <Txt tone="secondary">{t('model.none')}</Txt> : null}
+            {ids.map((id) => (
               <OptionRow
-                key={id ?? ''}
-                label={id ?? t('model.default')}
+                key={id}
+                label={id}
                 selected={viewing === controls.providerId && id === controls.model}
                 disabled={busy}
                 onPress={() => void apply({ kind: 'model', providerId: viewing, model: id })}
@@ -321,13 +327,11 @@ export function ComposerControls({
   projectId,
   controls,
   models,
-  allowDefault,
   onChange,
 }: {
   projectId: string
   controls: ChatControls
   models: ProjectModels | undefined
-  allowDefault: boolean
   onChange: (change: ControlChange) => Promise<void>
 }) {
   const { t } = useI18n()
@@ -339,7 +343,7 @@ export function ComposerControls({
   const current = catalogItem(models, controls.providerId, controls.model)
   const fast = controls.speed === 'fast' && current?.speed?.supportedModes?.includes('fast') === true
   const effort = controls.reasoning === 'default' ? current?.reasoning?.defaultEffort : controls.reasoning
-  const modelLabel = controls.model ?? t('model.default')
+  const modelLabel = controls.model
   return (
     <>
       <Pressable
@@ -351,7 +355,7 @@ export function ComposerControls({
       >
         <Icon name={POLICY_ICON[controls.approvalPolicy]} size={20} color={auto ? colors.warning : colors.textSecondary} />
       </Pressable>
-      {models.canListModels ? (
+      {models.canListModels && modelLabel ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${t('model.title')}: ${modelLabel}`}
@@ -374,7 +378,6 @@ export function ComposerControls({
           projectId={projectId}
           controls={controls}
           models={models}
-          allowDefault={allowDefault}
           onClose={() => setSheet(null)}
           onChange={onChange}
         />

@@ -52,6 +52,7 @@ export interface FakeThread {
 
 export interface FakeModel {
   id: string
+  isDefault?: boolean
   reasoning?: {
     supportsDisable: boolean
     supportedEfforts: { effort: string; label: string }[]
@@ -341,6 +342,7 @@ export class FakeComputer {
         return { result: { success: true, providerId: provider.id, models: provider.models } }
       }
       case 'thread/start': {
+        const overlay = params.config as Record<string, unknown> | undefined
         const thread: FakeThread = {
           id: this.nextId('thread'),
           displayName: null,
@@ -352,7 +354,7 @@ export class FakeComputer {
           pending: null,
           stream: null,
           continuation: 'Picking up from here.',
-          config: { ...this.defaultConfig(), ...(params.config as Record<string, unknown> | undefined) },
+          config: { ...this.defaultConfig(overlay?.providerId as string | undefined), ...overlay },
         }
         project.threads.push(thread)
         return {
@@ -445,9 +447,9 @@ export class FakeComputer {
     }
   }
 
-  private defaultConfig(): Record<string, unknown> {
-    const provider = this.providers[0]
-    const model = provider?.models[0]
+  private defaultConfig(providerId?: string): Record<string, unknown> {
+    const provider = this.providers.find((entry) => entry.id === providerId) ?? this.providers[0]
+    const model = provider?.models.find((entry) => entry.isDefault)
     if (!provider || !model) return {}
     return {
       providerId: provider.id,

@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   topBar: { flexDirection: 'row', alignItems: 'center', minHeight: 52, paddingVertical: 4, paddingHorizontal: 12 },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: metrics.gutter },
+  scrollContent: { flexGrow: 1, paddingHorizontal: metrics.gutter },
   bottomBar: { flexDirection: 'row', gap: 10, paddingTop: 10, paddingHorizontal: metrics.gutter },
   hero: { paddingTop: 2, paddingBottom: 4 },
 })

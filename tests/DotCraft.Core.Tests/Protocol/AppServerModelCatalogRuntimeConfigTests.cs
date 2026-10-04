@@ -89,6 +89,45 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
     }
 
     [Fact]
+    public async Task ModelList_MarksTheWorkspacePreferenceModelAsDefault()
+    {
+        var monitor = new AppConfigMonitor(new AppConfig
+        {
+            GlobalConfigPath = Path.Combine(_tempRoot, "global-default", "config.json"),
+            WorkspaceConfigPath = Path.Combine(_workspaceCraftPath, "config.json"),
+            ProviderId = "openai",
+            ProviderPreferences = new() { ["openai"] = new ModelPreference { Model = "remote-second" } }
+        });
+        monitor.Current.Providers["openai"] = new AppConfig.ModelProviderConfig
+        {
+            Protocol = ModelProviderProtocols.OpenAIResponses,
+            AuthMethod = ModelProviderAuthMethods.ChatGptOAuth,
+            ChatGptAccountId = "acct_test"
+        };
+        var handler = new RecordingHandler((HttpStatusCode.OK, """
+            {
+              "models": [
+                { "slug": "remote-first", "visibility": "list", "priority": 1, "minimal_client_version": "0.98.0" },
+                { "slug": "remote-second", "visibility": "list", "priority": 2, "minimal_client_version": "0.98.0" }
+              ]
+            }
+            """));
+        using var harness = new AppServerTestHarness(
+            workspaceCraftPath: _workspaceCraftPath,
+            appConfigMonitor: monitor,
+            openAIClientProvider: new OpenAIClientProvider(new FakeOpenAIAuthService(), handler));
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ModelList, new { }));
+
+        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        var models = Assert.Single(sent).RootElement.GetProperty("result").GetProperty("models").EnumerateArray().ToArray();
+        Assert.Equal(2, models.Length);
+        var marked = Assert.Single(models, model => model.GetProperty("isDefault").GetBoolean());
+        Assert.Equal("remote-second", marked.GetProperty("id").GetString());
+    }
+
+    [Fact]
     public async Task ModelList_ReturnsFullCatalogCapacityWithClientBudget()
     {
         var monitor = new AppConfigMonitor(new AppConfig

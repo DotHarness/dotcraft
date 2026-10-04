@@ -339,7 +339,9 @@ list shows **failed** only for a chat whose failure the phone has seen.
   and actions that open things on the computer stay on Desktop.
 - The composer shows the chat's model, reasoning effort, speed, and approval policy (`prompt` or
   `autoApprove`). Changing one sends the whole configuration with `thread/config/update`, which takes
-  effect from the next turn; New chat passes the chosen values in the `thread/start` configuration.
+  effect from the next turn. New chat starts on the model `model/list` marks `isDefault` for the
+  provider, and switching provider selects that provider's `isDefault` model; the `thread/start`
+  configuration carries only the values the user changed, so the workspace preference still applies.
   Models and their reasoning and speed options come from `model/list`, never from rules in the app,
   and each control is hidden when the server lacks its capability. The phone never changes a chat's
   mode or Agent Profile.
