@@ -84,14 +84,13 @@ public static class ModelCatalogCliRunner
                 ? new
                 {
                     kind = "success",
-                    models = result.Models.Select(model =>
-                        ProviderContractMapper.BuildModelCatalogItem(
-                            config,
-                            result.ProviderId,
-                            result.Protocol,
-                            result.EndPoint,
-                            model,
-                            includeUltra: false)).ToArray()
+                    models = ProviderContractMapper.BuildModelCatalogItems(
+                        config,
+                        result.ProviderId,
+                        result.Protocol,
+                        result.EndPoint,
+                        result.Models,
+                        includeUltra: false)
                 }
                 : new
                 {

@@ -95,19 +95,31 @@ public static class ProviderContractMapper
             }
             : null;
 
-    public static Contract.ModelCatalogItem BuildModelCatalogItem(
+    public static Contract.ModelCatalogItem[] BuildModelCatalogItems(
         AppConfig config,
         string? providerId,
         string? protocol,
         string? endpoint,
+        IReadOnlyList<ModelCatalogEntry> models,
+        bool includeUltra)
+    {
+        var preferred = ModelPreferenceRules.Find(config.ProviderPreferences, providerId)?.Model.Trim();
+        var defaultId = models.Any(model => string.Equals(model.Id, preferred, StringComparison.Ordinal))
+            ? preferred
+            : models.FirstOrDefault()?.Id;
+        return [.. models.Select(model => BuildModelCatalogItem(config, protocol, endpoint, model, model.Id == defaultId, includeUltra))];
+    }
+
+    private static Contract.ModelCatalogItem BuildModelCatalogItem(
+        AppConfig config,
+        string? protocol,
+        string? endpoint,
         ModelCatalogEntry model,
+        bool isDefault,
         bool includeUltra) => new()
         {
             Id = model.Id,
-            IsDefault = string.Equals(
-                model.Id,
-                ModelPreferenceRules.Find(config.ProviderPreferences, providerId)?.Model.Trim(),
-                StringComparison.Ordinal),
+            IsDefault = isDefault,
             OwnedBy = model.OwnedBy,
             CreatedAt = model.CreatedAt,
             Reasoning = MapReasoningCapability(ModelThinkingAdapterResolver.ResolveReasoningCapability(

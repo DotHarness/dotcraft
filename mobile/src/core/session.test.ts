@@ -294,24 +294,24 @@ describe('turn control', () => {
     expect(harness.state().details[key].config?.approvalPolicy).toBe('autoApprove')
   })
 
-  it('passes only the controls changed for a new chat in the thread/start configuration', async () => {
+  it('names the chosen model for a new chat and passes only the other controls that changed', async () => {
     const computer = studio()
     const harness = setup([computer])
     const state = await online(harness)
     const project = state.projects.find((entry) => entry.name === 'dotcraft')!
     const controls = { providerId: 'studio', model: 'atlas-2', reasoning: 'high', speed: 'fast', approvalPolicy: 'prompt' } as const
     await harness.session.newChat(project.id, 'tidy the release script', startConfig({ touched: { speed: true }, controls }))
-    expect(computer.calls.find((call) => call.method === 'thread/start')!.params.config).toEqual({ speed: 'fast' })
+    expect(computer.calls.find((call) => call.method === 'thread/start')!.params.config).toEqual({ providerId: 'studio', model: 'atlas-2', speed: 'fast' })
   })
 
-  it('starts a new chat that only switched provider on that provider without naming a model', async () => {
+  it('starts a new chat on the model chosen for the switched provider', async () => {
     const computer = studio()
     const harness = setup([computer])
     const state = await online(harness)
     const project = state.projects.find((entry) => entry.name === 'dotcraft')!
     const controls = { providerId: 'local', model: 'quill-14b', reasoning: 'default', speed: 'standard', approvalPolicy: 'prompt' } as const
-    const key = await harness.session.newChat(project.id, 'tidy the release script', startConfig({ touched: { provider: true }, controls }))
-    expect(computer.calls.find((call) => call.method === 'thread/start')!.params.config).toEqual({ providerId: 'local' })
+    const key = await harness.session.newChat(project.id, 'tidy the release script', startConfig({ touched: {}, controls }))
+    expect(computer.calls.find((call) => call.method === 'thread/start')!.params.config).toEqual({ providerId: 'local', model: 'quill-14b' })
     harness.session.openChat(key)
     await waitFor(() => harness.state().details[key]?.config?.model === 'quill-14b')
   })

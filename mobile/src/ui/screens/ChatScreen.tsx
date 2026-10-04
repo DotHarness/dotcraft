@@ -233,12 +233,12 @@ function chosen(previous: NewChatChoices, change: ControlChange): NewChatChoices
   switch (change.kind) {
     case 'provider':
       return {
-        touched: { approval: touched.approval, provider: true },
+        touched: { approval: touched.approval },
         controls: { ...controls, providerId: change.providerId, model: null, reasoning: 'default', speed: 'standard' },
       }
     case 'model':
       return {
-        touched: { approval: touched.approval, model: true },
+        touched: { approval: touched.approval },
         controls: { ...controls, providerId: change.providerId, model: change.model, reasoning: 'default', speed: 'standard' },
       }
     case 'reasoning':

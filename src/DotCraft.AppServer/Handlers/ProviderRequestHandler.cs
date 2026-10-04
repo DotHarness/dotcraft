@@ -259,13 +259,13 @@ internal sealed class ProviderRequestHandler(
             ProviderId = OmitIfNull(result.ProviderId),
             Protocol = result.Protocol,
             Models = new Protocol.Optional<IReadOnlyList<Contract.ModelCatalogItem>>(
-                result.Models.Select(m => ProviderContractMapper.BuildModelCatalogItem(
+                ProviderContractMapper.BuildModelCatalogItems(
                 config,
                 result.ProviderId,
                 result.Protocol,
                 result.EndPoint,
-                m,
-                supportsUltraReasoning)).ToArray()),
+                result.Models,
+                supportsUltraReasoning)),
             ErrorCode = result.Success ? default : OmitIfNull(result.ErrorCode.ToString()),
             ErrorMessage = result.Success
                 ? default
@@ -336,13 +336,13 @@ internal sealed class ProviderRequestHandler(
             ProviderId = OmitIfNull(result.ProviderId),
             Protocol = result.Protocol ?? NormalizeProviderProtocol(ValueOrDefault(p.Protocol)),
             Models = new Protocol.Optional<IReadOnlyList<Contract.ModelCatalogItem>>(
-                result.Models.Select(m => ProviderContractMapper.BuildModelCatalogItem(
+                ProviderContractMapper.BuildModelCatalogItems(
                 config,
                 result.ProviderId,
                 result.Protocol ?? NormalizeProviderProtocol(ValueOrDefault(p.Protocol)),
                 result.EndPoint,
-                m,
-                supportsUltraReasoning)).ToArray()),
+                result.Models,
+                supportsUltraReasoning)),
             ErrorCode = result.Success ? default : OmitIfNull(result.ErrorCode.ToString()),
             ErrorMessage = result.Success
                 ? default

@@ -88,15 +88,18 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
         Assert.Equal("appserver-remote", model.GetProperty("id").GetString());
     }
 
-    [Fact]
-    public async Task ModelList_MarksTheWorkspacePreferenceModelAsDefault()
+    [Theory]
+    [InlineData("remote-second", "remote-second")]
+    [InlineData(null, "remote-first")]
+    [InlineData("retired-model", "remote-first")]
+    public async Task ModelList_MarksThePreferenceModelOrElseTheFirstModelAsDefault(string? preferred, string expected)
     {
         var monitor = new AppConfigMonitor(new AppConfig
         {
             GlobalConfigPath = Path.Combine(_tempRoot, "global-default", "config.json"),
             WorkspaceConfigPath = Path.Combine(_workspaceCraftPath, "config.json"),
             ProviderId = "openai",
-            ProviderPreferences = new() { ["openai"] = new ModelPreference { Model = "remote-second" } }
+            ProviderPreferences = preferred is null ? new() : new() { ["openai"] = new ModelPreference { Model = preferred } }
         });
         monitor.Current.Providers["openai"] = new AppConfig.ModelProviderConfig
         {
@@ -124,7 +127,7 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
         var models = Assert.Single(sent).RootElement.GetProperty("result").GetProperty("models").EnumerateArray().ToArray();
         Assert.Equal(2, models.Length);
         var marked = Assert.Single(models, model => model.GetProperty("isDefault").GetBoolean());
-        Assert.Equal("remote-second", marked.GetProperty("id").GetString());
+        Assert.Equal(expected, marked.GetProperty("id").GetString());
     }
 
     [Fact]

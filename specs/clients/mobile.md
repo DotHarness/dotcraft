@@ -341,7 +341,8 @@ list shows **failed** only for a chat whose failure the phone has seen.
   `autoApprove`). Changing one sends the whole configuration with `thread/config/update`, which takes
   effect from the next turn. New chat starts on the model `model/list` marks `isDefault` for the
   provider, and switching provider selects that provider's `isDefault` model; the `thread/start`
-  configuration carries only the values the user changed, so the workspace preference still applies.
+  configuration names that provider and model, and carries reasoning, speed, and approval policy
+  only when the user changed them, so AppServer fills the rest from the provider's preference.
   Models and their reasoning and speed options come from `model/list`, never from rules in the app,
   and each control is hidden when the server lacks its capability. The phone never changes a chat's
   mode or Agent Profile.

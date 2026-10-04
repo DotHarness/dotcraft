@@ -5035,9 +5035,9 @@ Provider mutations emit `workspace/configChanged` with region `providers`.
 | `reasoning` | object | Optional server-authored reasoning UI capability metadata. Clients must not hardcode model compatibility rules; use this metadata when present. |
 | `speed` | object | Optional server-authored inference-speed capability. Missing means clients must not offer Fast for this model. |
 | `contextWindow` | number | Raw model capacity from the merged models.json catalog, independent of `Compaction.MaxContextWindow`. |
-| `isDefault` | boolean | Whether this is the model a new thread on this provider gets in this workspace when `thread/start` names no model. See below. |
+| `isDefault` | boolean | The model a client offers first for a new thread on this provider. See below. |
 
-`isDefault` is `true` for the item whose `id` equals the model of the effective `ProviderPreferences` record for the listed provider (workspace record over personal record, the same resolution `thread/start` uses). DotCraft catalogs carry no default of their own, and `thread/start` without a model fails when that provider has no preference, so when no preference exists or its model is not in the catalog, every item is `false`. At most one item is `true`. Clients use it to show the model a new thread will start with instead of an abstract "default" choice.
+`isDefault` is `true` for the item whose `id` equals the model of the effective `ProviderPreferences` record for the listed provider (workspace record over personal record, the same resolution `thread/start` uses). When that provider has no preference, or its model is not in the catalog, the first item is the default, the same model a client offers first. Exactly one item is `true` in a non-empty list. Because `thread/start` without a model fails when the provider has no preference, a client that starts a thread on a default it did not read from a preference names that `providerId` and `model` explicitly. Clients use it to show the model a new thread will start with instead of an abstract "default" choice.
 
 `speed` fields:
 
