@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router'
 import { useMemo, useState } from 'react'
 import { Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useMobileState } from '../../app-state/SessionContext'
 import {
   computerStatus,
@@ -17,10 +18,12 @@ import { useI18n } from '../../i18n'
 import { Icon } from '../icons'
 import { BottomBar, Screen, ScrollArea } from '../layout'
 import { Mascot, MascotNote, MascotTransition, type MascotMoment } from '../mascot/Mascot'
-import { ComputerStatusLine, PhoneButton, ReadOnlyNotice, RoundIconButton, Section, Txt } from '../parts'
+import { MenuRow, PopoverMenu } from '../Menu'
+import { ComputerStatusLine, PhoneButton, ReadOnlyNotice, Section, Txt } from '../parts'
 import { ChatRow, chatTitle, ProjectRow } from '../rows'
 import { SheetHeader, SheetLayer } from '../Sheet'
 import { metrics, type, useTheme } from '../theme'
+import { PairDifferentSheet } from './SettingsScreen'
 
 function computerMoment(status: ComputerStatus, waiting: number): MascotMoment {
   if (status === 'offline' || status === 'access-off') return 'asleep'
@@ -63,7 +66,10 @@ export function HomeScreen() {
   const [query, setQuery] = useState('')
   const [focused, setFocused] = useState(false)
   const [picking, setPicking] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [replacing, setReplacing] = useState(false)
+  const [rowHeight, setRowHeight] = useState(0)
+  const insets = useSafeAreaInsets()
   const computer = state.computer
   const status = computerStatus(state)
   const live = isReachable(status)
@@ -76,12 +82,21 @@ export function HomeScreen() {
   const results = trimmed ? visible.filter((chat) => chatTitle(chat, untitled).toLowerCase().includes(trimmed)) : []
   const nameOf = (projectId: string) => projectById(state, projectId)?.name ?? ''
   const openChat = (key: string) => router.push(chatHref(key))
-  const openSettings = () => router.push('/settings')
+  const menuLabel = t('home.computerMenu', { computer: computer.name })
 
   return (
     <Screen>
-      <View style={[styles.top, { backgroundColor: colors.bgPrimary, borderBottomColor: scrolled ? colors.borderDefault : 'transparent' }]}>
-        <Pressable accessibilityRole="button" style={styles.computer} onPress={openSettings}>
+      <View
+        onLayout={({ nativeEvent }) => setRowHeight(nativeEvent.layout.height)}
+        style={[styles.top, { backgroundColor: colors.bgPrimary }]}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={menuLabel}
+          accessibilityState={{ expanded: menuOpen }}
+          style={({ pressed }) => [styles.computer, pressed && { backgroundColor: colors.roundFill }]}
+          onPress={() => setMenuOpen(true)}
+        >
           <Mascot moment={computerMoment(status, waiting.length)} size={40} style={styles.avatar} />
           <View style={styles.computerText}>
             <Txt numberOfLines={1} style={styles.computerName}>
@@ -89,10 +104,10 @@ export function HomeScreen() {
             </Txt>
             <ComputerStatusLine status={status} updatedAt={state.syncedAt} />
           </View>
+          <Icon name="chevronDown" size={16} color={colors.textSecondary} strokeWidth={2} />
         </Pressable>
-        <RoundIconButton label={t('common.settings')} icon="settings" onPress={openSettings} />
       </View>
-      <ScrollArea onScroll={({ nativeEvent }) => setScrolled(nativeEvent.contentOffset.y > 0)}>
+      <ScrollArea>
         {status === 'access-off' ? <ReadOnlyNotice status={status} computer={computer.name} style={styles.notice} /> : null}
         <View style={styles.lists}>
           {state.syncing ? (
@@ -160,6 +175,25 @@ export function HomeScreen() {
           {t('home.newChat')}
         </PhoneButton>
       </BottomBar>
+      <PopoverMenu visible={menuOpen} label={menuLabel} anchor={{ top: insets.top + rowHeight }} onClose={() => setMenuOpen(false)}>
+        <MenuRow
+          icon="arrowLeftRight"
+          label={t('settings.pairDifferent')}
+          onPress={() => {
+            setMenuOpen(false)
+            setReplacing(true)
+          }}
+        />
+        <MenuRow
+          icon="settings"
+          label={t('common.settings')}
+          onPress={() => {
+            setMenuOpen(false)
+            router.push('/settings')
+          }}
+        />
+      </PopoverMenu>
+      <PairDifferentSheet computer={computer.name} visible={replacing} onClose={() => setReplacing(false)} />
       <ProjectPicker
         state={state}
         visible={picking}
@@ -176,14 +210,21 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   top: {
     flexDirection: 'row',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: metrics.gutter,
+  },
+  computer: {
+    flexShrink: 1,
+    minWidth: 0,
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 8,
-    paddingLeft: metrics.gutter,
+    paddingVertical: 4,
+    paddingLeft: 8,
     paddingRight: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderRadius: metrics.heroRadius,
   },
-  computer: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: { marginLeft: -4, transform: [{ translateY: -3 }] },
   computerText: { flexShrink: 1, minWidth: 0, gap: 1 },
   computerName: { fontWeight: '600' },

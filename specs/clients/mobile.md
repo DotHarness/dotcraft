@@ -30,6 +30,10 @@ Phone app ──TLS, pinned certificate──> Hub mobile gateway ──loopback
 - Show what needs the user first: pending approvals and questions across every running project.
 - Read a chat as it streams, answer its approvals and questions, add a message, or stop it.
 - Start a new chat in any project on the computer, including one whose runtime is not running.
+- Compose like on Desktop: attach photos and files, switch to plan mode, and insert commands and
+  skills.
+- See what a chat changed, open a file it refers to, and check how much context and account usage
+  remain.
 - Keep a dropped connection invisible apart from a status line: reconnect, catch up, and replay
   anything still waiting for an answer.
 
@@ -37,7 +41,8 @@ Phone app ──TLS, pinned certificate──> Hub mobile gateway ──loopback
 
 - Running the agent on the phone, or in a cloud service.
 - Editing settings, providers, plugins, skills, automations, or Agent Profiles from the phone.
-- Browsing or editing files, terminals, the in-app browser, or Desktop plugin surfaces.
+- Editing files, browsing the computer's folders, terminals, the in-app browser, or Desktop plugin
+  surfaces.
 - Controlling a computer that belongs to someone else. A pairing grants the phone the authority of
   the computer's signed-in user, and the product says so.
 - iOS in this version. The app ships for Android first; the wire contract stays platform-neutral so
@@ -311,11 +316,20 @@ that supports user-input requests and streaming.
 | Screen | Content |
 |---|---|
 | Pair | Camera scan, the Allow confirmation, and a connected confirmation. |
-| Home | No screen title. A top row shows the computer, with the mascot as its avatar, its name, and its status, and Settings at the end; it stays in place while the lists scroll. **Needs you** lists every chat waiting on an approval or a question across running projects. **Projects** lists projects, marking those whose runtime is not running; **Recent** lists the other chats of running projects with a trailing state. Search over chat titles, and New chat, which asks for the project with the most recently used one first. |
+| Home | No screen title. The top row centers the computer, with the mascot as its avatar, its name, its status, and a chevron; tapping it opens a menu with **Pair a different computer** and **Settings**, so the row has no other button. It stays in place while the lists scroll. **Needs you** lists every chat waiting on an approval or a question across running projects. **Projects** lists projects, marking those whose runtime is not running; **Recent** lists the other chats of running projects with a trailing state. Search over chat titles, and New chat, which asks for the project with the most recently used one first. |
 | Project | The project's chats, newest first, and New chat. Opening a project whose runtime is not running starts it; Home never starts a project by itself. |
-| Chat | A floating top bar over the transcript: Back, the chat title with its project and computer, and a menu; the spinner beside the menu shows only while a turn runs, because a waiting request is already pinned above the composer. The transcript collapses each tool activity to one line and hides reasoning behind a disclosure; finished replies offer Copy. A pending approval or question is pinned above the composer. The composer card names the computer it works on and carries the approval policy and model controls; while a turn runs it adds a message to the turn and a Stop control interrupts it. |
-| Approval | The request's reason and the command or files it covers, with the Desktop decision labels **Allow once**, **Allow for session**, and **Reject**. |
+| Chat | A floating top bar over the transcript: Back, the chat title with its project and computer, the context ring, and a menu. The ring fills with the share of the context window in use; tapping it opens Status. The transcript collapses each tool activity to one line and hides reasoning behind a disclosure; finished replies offer Copy; a created plan shows as a plan card. While an approval, a question, or a plan confirmation waits, the decision drawer takes the composer's place. The composer card names the computer it works on and carries Add (**+**), the approval policy, and the model controls; while a turn runs it adds a message to the turn and a Stop control interrupts it. Above the composer, a changes pill appears once a turn has changed files. |
+| Add menu | **Photo**, **File**, and **Plan mode**, which shows a check while it is on. |
+| Picker | Commands and skills matching what follows `/` or `$` in the composer. |
+| Changes | Every file the turn changed with its additions and deletions; each file expands to its diff. |
+| File | One file from the computer, read-only. |
+| Status | Opened from the context ring: context left, account usage when the chat's provider reports it, the project folder, and the chat ID to copy. |
+| Decision drawer | One drawer for every decision a chat waits on: an approval, a question, or a plan confirmation. It opens expanded, minimizes to a one-line bar that keeps the transcript readable, and expands again from the bar. The composer stays hidden until the decision is made. |
+| Plan | The full plan from a plan card: title, overview, steps, and the plan body. |
 | Settings | The paired computer with Remove, Pair a different computer, and app information. |
+
+Every screen below Home leads with the same framed Back button as the chat's top bar, including
+over the pairing camera.
 
 Chat states use one vocabulary: **running**, **needs approval**, **needs answer**, **done**,
 **failed**. They come from `thread/list` runtime snapshots and `thread/runtimeChanged`. A stopped
@@ -330,13 +344,24 @@ list shows **failed** only for a chat whose failure the phone has seen.
   project's defaults, and calls `turn/start`.
 - A message sent while a turn runs uses `turn/steer` when the server accepts steering and
   `turn/enqueue` otherwise; Stop calls `turn/interrupt`.
-- Approvals answer `item/approval/request` with `accept`, `acceptForSession`, or `decline`. The phone
-  never offers `acceptAlways`, because a permanent grant belongs on the computer.
-- Questions answer `item/tool/requestUserInput` with the chosen option or typed text.
+- The decision drawer shows one request at a time and counts the others waiting in the chat.
+- An approval in the drawer shows its reason, the command or files it covers, and where it runs,
+  then **Allow once**, **Allow for session**, and **Reject** as option rows with Desktop's
+  descriptions. Tapping a row answers `item/approval/request` with `accept`, `acceptForSession`, or
+  `decline` at once. The phone never offers `acceptAlways`, because a permanent grant belongs on the
+  computer. An approval has no dismiss; **Reject** declines it.
+- A question in the drawer follows Desktop's question format: the question, its options as rows
+  with their descriptions, and an **Other** field for typed text. A request with several questions
+  pages through them with **Previous** and **Next**, and **Submit** answers
+  `item/tool/requestUserInput` with every answer. **Dismiss** answers a non-blocking request with no
+  answers and interrupts the turn for a blocking one, as Desktop does.
 - The chat menu offers the basic chat actions Desktop's chat menu has: Rename (`thread/rename`),
   Fork (`thread/fork` into the same project, opening the copy), and Archive (`thread/archive`,
   returning to the list), plus Open project and, while a turn runs, Stop. Worktree forks, pinning,
   and actions that open things on the computer stay on Desktop.
+- The model sheet lists its settings the way Desktop's model picker does: provider, model, and
+  reasoning effort are each one row showing the current value, and tapping a row expands its choices
+  in place and collapses the others; speed stays a Fast switch.
 - The composer shows the chat's model, reasoning effort, speed, and approval policy (`prompt` or
   `autoApprove`). Changing one sends the whole configuration with `thread/config/update`, which takes
   effect from the next turn. New chat starts on the model `model/list` marks `isDefault` for the
@@ -345,10 +370,48 @@ list shows **failed** only for a chat whose failure the phone has seen.
   only when the user changed them, so AppServer fills the rest from the provider's preference.
   Models and their reasoning and speed options come from `model/list`, never from rules in the app,
   and each control is hidden when the server lacks its capability. The phone never changes a chat's
-  mode or Agent Profile.
+  Agent Profile.
+- **+** opens the Add menu. **Photo** picks images from the photo library; the phone scales each to
+  at most 2048 px on its longer side, re-encodes it as JPEG, and sends it as an `image` input part.
+  A message's photos together stay within about 3 MB once encoded, so the turn request fits one
+  AppServer message; photos picked past that budget, in one selection or a later one, are not
+  added and the composer says so.
+  **File** picks any document up to 2 MiB; before the message is sent, the phone creates
+  `<project>/.craft/attachments/<id>/` with `fs/createDirectory`, writes the file there with
+  `fs/writeFile`, and sends a `fileRef` to it. Attachments wait in the composer as removable
+  thumbnails and chips until sent; a failed upload keeps the draft and says which file failed. A
+  file over the limit is refused when picked. **File** is hidden when the server lacks
+  `capabilities.fileSystem`.
+- **Plan mode** in the Add menu turns plan mode on, or off when it is on, with `thread/mode/set` (`plan` or `agent`); New chat in plan mode
+  starts the thread with `mode: plan`. While on, the composer shows a Plan chip that turns it off.
+  A successful `CreatePlan` shows in the transcript as a plan card with the plan's title, overview,
+  and steps; it opens Plan. When the server reports a pending plan confirmation, the decision drawer
+  asks **Implement this plan?** with **Yes, implement this plan** and a field to say how to adjust it,
+  then **Submit**: yes switches the chat to `agent` and sends "Implement the plan.", the same as
+  Desktop, and a typed adjustment is sent as feedback and stays in plan mode. **Dismiss** closes the
+  drawer and returns the composer in plan mode. When the switch to `agent` fails, nothing is sent and
+  the failure is reported. A chat that runs an Agent Profile has no
+  **Plan mode** item or Plan chip, because its agent keeps a fixed capability scope, as on Desktop.
+- Typing `/` at the start of a word opens the Picker with custom commands from `command/list` and
+  enabled skills from `skills/list`; `$` opens it with skills only. Choosing one puts the reference inline in the
+  text at the cursor, as `/name` or `$name` styled as a reference, the way Desktop's composer keeps
+  references in the text; a reference is deleted as a whole and is sent as a `commandRef` or
+  `skillRef` in its place. Built-in commands are not offered.
+- The changes pill summarizes the latest turn that changed files: the number of files and the added
+  and deleted lines. A live turn takes them from `turn/diff/updated`; a reopened chat rebuilds them
+  from the turn's `fileChange` results in history, as Desktop does. Tapping the pill opens Changes.
+- Tapping a file chip, or a file's name in Changes, opens File with `fs/readFile`. Text shows with its
+  syntax and images show as images; another type, or a file over the read limit, shows its name and
+  path to copy. Without `capabilities.fileSystem`, a file chip only shows its path.
+- The context ring starts from the `contextUsage` in `thread/read` and follows the `contextUsage`
+  carried by `item/usage/delta` and by terminal compaction events, as Desktop's ring does; a chat
+  without a snapshot shows an empty ring. Status shows the share of the context window left with
+  tokens used and the window size. When the chat's provider signs in with ChatGPT,
+  it also shows each usage window from `auth/openai/usage` with the share left and its reset time.
 - Replies render Markdown with the same GitHub-flavored rules as Desktop. A link to a local file shows
-  as a file chip with its name; tapping it shows the full path to copy, because the file stays on the
-  computer. Web links open the browser. File and skill references in user messages show as chips.
+  as a file chip with its name that opens File. Web links open the browser. File and skill
+  references in user messages show as chips, and photos sent with a message show as thumbnails in
+  it, from the moment it is sent.
   Math uses Desktop's delimiters; the phone does not typeset it, so a formula shows its TeX source
   styled as inline code, or as a code block for display math.
 - A tool activity line shows the tool kind's icon and fits one line, ending in an ellipsis; tapping it
@@ -527,3 +590,13 @@ The Phones segment adds **Access from anywhere** with the relay address and toke
   relay never sees a credential or plaintext.
 - With work running, the phone keeps a live session in the background, and an approval can be
   answered from its notification.
+- A photo and a file sent from the phone reach the agent; the file lands under the project's
+  `.craft/attachments/`, and a large photo still fits one message.
+- Plan mode on the phone ends in **Implement this plan?** in the decision drawer, and yes continues
+  the chat in agent mode.
+- Approvals, questions, and plan confirmations all use the decision drawer, never a second copy of
+  the same request; minimizing it leaves the transcript readable and the composer hidden.
+- Commands and skills chosen in the Picker arrive as `commandRef` and `skillRef`.
+- Changes lists the same files and line counts as Desktop for the same turn, and a file chip opens
+  the file's contents.
+- Status shows the same context share as Desktop and, for a ChatGPT sign-in, the usage windows.

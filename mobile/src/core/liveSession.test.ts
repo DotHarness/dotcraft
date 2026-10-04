@@ -107,13 +107,13 @@ describe('notifications during a live session', () => {
   it('posts waiting requests quietly, alerts for a new approval, and answers Allow once through the session', async () => {
     const computer = createStudio(new Date())
     const { notifier, state } = await backgrounded(computer)
-    await waitFor(() => notifier.requests().length === 3)
+    await waitFor(() => notifier.requests().length === 4)
     expect(notifier.requests().every((notice) => !notice.alert)).toBe(true)
 
     const key = chatKey(state(), 'Fix the flaky turn-diff test')
     const threadId = state().chats[key].threadId
     computer.ask(threadId, { kind: 'approval', requestId: 'approval_tests', approvalType: 'shell', operation: 'pnpm test', target: 'dotcraft', reason: '' })
-    await waitFor(() => notifier.requests().length === 4)
+    await waitFor(() => notifier.requests().length === 5)
     const notice = notifier.requests().find((entry) => entry.chat.key === key)!
     expect(notice).toMatchObject({ alert: true, request: { requestId: 'approval_tests' } })
     expect(notifier.statuses.at(-1)).toMatchObject({ running: 2, needsYou: 4 })
@@ -130,7 +130,7 @@ describe('notifications during a live session', () => {
     const computer = createStudio(new Date())
     const { notifier, state } = await backgrounded(computer)
     const key = chatKey(state(), 'Audit the dialog headers')
-    await waitFor(() => notifier.requests().length === 3)
+    await waitFor(() => notifier.requests().length === 4)
     computer.endTurn(state().chats[key].threadId, 'failed')
     await waitFor(() => notifier.shown.get(`turn:${key}`)?.kind === 'turnEnded')
     expect(notifier.shown.get(`turn:${key}`)).toMatchObject({ failed: true })
@@ -141,7 +141,7 @@ describe('ending a live session', () => {
   it('ends two minutes after nothing is running or waiting', async () => {
     const computer = createStudio(new Date())
     const { notifier, state, timers } = await backgrounded(computer)
-    await waitFor(() => notifier.requests().length === 3)
+    await waitFor(() => notifier.requests().length === 4)
     for (const chat of live(state())) computer.endTurn(chat.threadId, 'completed')
     await waitFor(() => live(state()).length === 0 && timers.delays().includes(LIVE_END_MS))
     expect(notifier.statuses.at(-1)).toMatchObject({ running: 0, needsYou: 0 })
@@ -179,7 +179,7 @@ describe('ending a live session', () => {
   it('continues on the open connections when the app returns to the foreground', async () => {
     const computer = createStudio(new Date())
     const { notifier, state, session, network } = await backgrounded(computer)
-    await waitFor(() => notifier.requests().length === 3)
+    await waitFor(() => notifier.requests().length === 4)
     const sockets = network.sockets.length
     session.setForeground(true)
     expect(notifier.stopped).toBe(1)

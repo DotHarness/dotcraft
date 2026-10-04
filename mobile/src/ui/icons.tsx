@@ -9,6 +9,7 @@ type Shape =
 const ICONS = {
   chevronLeft: [['path', { d: 'm15 18-6-6 6-6' }]],
   chevronRight: [['path', { d: 'm9 18 6-6-6-6' }]],
+  chevronDown: [['path', { d: 'm6 9 6 6 6-6' }]],
   cloudOff: [
     ['path', { d: 'M10.94 5.274A7 7 0 0 1 15.71 10h1.79a4.5 4.5 0 0 1 4.222 6.057' }],
     ['path', { d: 'M18.796 18.81A4.5 4.5 0 0 1 17.5 19H9A7 7 0 0 1 5.79 5.78' }],
@@ -186,6 +187,17 @@ const ICONS = {
     ['rect', { width: 20, height: 5, x: 2, y: 3, rx: 1 }],
     ['path', { d: 'M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8' }],
     ['path', { d: 'M10 12h4' }],
+  ],
+  plus: [
+    ['path', { d: 'M5 12h14' }],
+    ['path', { d: 'M12 5v14' }],
+  ],
+  listTodo: [
+    ['path', { d: 'M13 5h8' }],
+    ['path', { d: 'M13 12h8' }],
+    ['path', { d: 'M13 19h8' }],
+    ['path', { d: 'm3 17 2 2 4-4' }],
+    ['rect', { width: 6, height: 6, x: 3, y: 4, rx: 1 }],
   ],
 } satisfies Record<string, Shape[]>
 

@@ -8,6 +8,7 @@ import {
   type FakeProvider,
   type FakeThread,
 } from './fakeComputer'
+import { sampleDiff, textBase64 } from './fakeDiffs'
 import { MEADOW_PNG } from './images'
 
 export const STUDIO_FINGERPRINT = '3f9c1b0e5d2a4c7f8b6e1d0a9c3f5e7b2a4d6c8e0f1a3b5c7d9e2f4a6b8c0d1e'
@@ -16,7 +17,7 @@ export const DEMO_CREDENTIAL = 'demo-credential'
 export const DEMO_PORT = 47610
 
 type Line =
-  | { kind: 'user'; text: string }
+  | { kind: 'user'; text: string; photos?: number }
   | { kind: 'assistant'; text: string }
   | { kind: 'reasoning'; seconds: number; text: string }
   | { kind: 'ran'; command: string; output?: string }
@@ -26,6 +27,7 @@ type Line =
   | { kind: 'codeMode'; lines: Line[]; running?: boolean }
   | { kind: 'image'; prompt: string }
   | { kind: 'chart'; text: string }
+  | { kind: 'plan'; plan: string; steps: string[] }
 
 interface ChatSeed {
   id: string
@@ -34,9 +36,12 @@ interface ChatSeed {
   profile?: string
   minutesAgo: number
   lines: Line[]
-  pending?: FakePending
+  pending?: FakePending[]
   stream?: string
   error?: string
+  planned?: boolean
+  context?: number
+  config?: Record<string, unknown>
   continuation: string
 }
 
@@ -47,7 +52,7 @@ const RELEASE_REPLY = [
   '',
   '1. Builds the app with `dotnet publish` for each runtime.',
   '2. Signs the binaries and ~~uploads symbols~~ skips symbols for now.',
-  '3. Fills the notes from [the template](scripts/release-notes.md) inside [release.ps1](D:/Projects/dotcraft/scripts/release.ps1:42).',
+  '3. Fills the notes from [the template](scripts/release-notes.md) inside [release.ps1](D:/Projects/dotcraft/scripts/release.ps1:42) and adds [the banner](docs/release-banner.png).',
   '',
   '- [x] Builds on Windows and Linux',
   '- [ ] Mac signing still needs a certificate',
@@ -65,7 +70,7 @@ const RELEASE_REPLY = [
   '',
   '---',
   '',
-  'The full checklist is in the [publishing guide](https://example.com/docs/publishing).',
+  'The packaged build lands in [app.zip](artifacts/release/app.zip). The full checklist is in the [publishing guide](https://example.com/docs/publishing).',
 ].join('\n')
 
 const PUBLISH_COMMAND =
@@ -79,11 +84,36 @@ const PUBLISH_OUTPUT = [
   'Build succeeded in 182.4s',
 ].join('\n')
 
+const PAIRING_PLAN = [
+  '# Phone pairing flow',
+  '',
+  '## Summary',
+  '',
+  'Pair a phone with one scan: the computer shows a one-time code, the phone scans it, and the person allows it on the phone.',
+  '',
+  '## Implementation changes',
+  '',
+  '- Add a **Phone access** switch to Connections that starts the gateway.',
+  '- **Add phone** shows a QR code that carries the address, port, certificate fingerprint, and a one-time code.',
+  '- The phone pins the fingerprint, sends the code, and stores the credential it gets back.',
+  '- The Phones list shows each phone with **Remove**, which revokes its credential at once.',
+  '',
+  '## Test plan',
+  '',
+  '- Pair, revoke, and pair again without restarting the computer.',
+  '- A reused or expired code is refused.',
+  '',
+  '## Assumptions',
+  '',
+  '- The phone and the computer share a network for the first scan.',
+].join('\n')
+
 const fileList = (prefix: string, count: number) => Array.from({ length: count }, (_, index) => `${prefix}/file-${index + 1}.ts`)
 
 const CHATS: ChatSeed[] = [
   {
     id: 'release-script',
+    context: 0.12,
     title: 'Explain the release script',
     project: 'dotcraft',
     minutesAgo: 4,
@@ -99,6 +129,7 @@ const CHATS: ChatSeed[] = [
   },
   {
     id: 'vite-upgrade',
+    context: 0.86,
     title: 'Upgrade Vite to 6.4',
     project: 'dotcraft',
     minutesAgo: 2,
@@ -113,18 +144,21 @@ const CHATS: ChatSeed[] = [
       { kind: 'searched', pattern: 'vite.config' },
       { kind: 'assistant', text: 'Vite 6.4 needs the matching React plugin, so I’ll install both and then run the desktop build.' },
     ],
-    pending: {
-      kind: 'approval',
-      requestId: 'approval_vite',
-      approvalType: 'shell',
-      operation: 'pnpm add -D vite@6.4.3 @vitejs/plugin-react@4.3.4',
-      target: 'dotcraft/desktop',
-      reason: 'Installs two packages from the network.',
-    },
+    pending: [
+      {
+        kind: 'approval',
+        requestId: 'approval_vite',
+        approvalType: 'shell',
+        operation: 'pnpm add -D vite@6.4.3 @vitejs/plugin-react@4.3.4',
+        target: 'dotcraft/desktop',
+        reason: 'Installs two packages from the network.',
+      },
+    ],
     continuation: 'Both packages are installed. Running `pnpm build` now to check that the desktop bundle still compiles.',
   },
   {
     id: 'docs-build',
+    context: 0.3,
     title: 'Set up the docs site build',
     project: 'dotcraft',
     minutesAgo: 6,
@@ -137,27 +171,42 @@ const CHATS: ChatSeed[] = [
         text: 'The docs folder has both `pnpm-lock.yaml` and `package-lock.json`, so I can’t tell which one CI should trust.',
       },
     ],
-    pending: {
-      kind: 'question',
-      requestId: 'question_docs',
-      questions: [
-        {
-          id: 'package_manager',
-          header: 'Package manager',
-          question: 'Which package manager should the docs build use?',
-          options: [
-            { label: 'pnpm', description: 'Matches the desktop app' },
-            { label: 'npm', description: 'Matches the SDK packages' },
-          ],
-          isOther: true,
-          isSecret: false,
-        },
-      ],
-    },
+    pending: [
+      {
+        kind: 'question',
+        requestId: 'question_docs',
+        isBlocking: true,
+        questions: [
+          {
+            id: 'package_manager',
+            header: 'Package manager',
+            question: 'Which package manager should the docs build use?',
+            options: [
+              { label: 'pnpm', description: 'Matches the desktop app' },
+              { label: 'npm', description: 'Matches the SDK packages' },
+            ],
+            isOther: true,
+            isSecret: false,
+          },
+          {
+            id: 'ci_trigger',
+            header: 'CI trigger',
+            question: 'When should CI build the docs?',
+            options: [
+              { label: 'Every pull request', description: 'Catches broken links before merging' },
+              { label: 'Only on main', description: 'Faster pull requests, later feedback' },
+            ],
+            isOther: true,
+            isSecret: false,
+          },
+        ],
+      },
+    ],
     continuation: 'Thanks. I’ll remove the other lockfile and add a docs job to the CI workflow.',
   },
   {
     id: 'turn-diff-flake',
+    context: 0.61,
     title: 'Fix the flaky turn-diff test',
     project: 'dotcraft',
     minutesAgo: 0,
@@ -190,6 +239,7 @@ const CHATS: ChatSeed[] = [
   },
   {
     id: 'pairing-review',
+    context: 0.45,
     title: 'Review the phone pairing PR',
     project: 'dotcraft',
     profile: 'reviewer',
@@ -208,6 +258,7 @@ const CHATS: ChatSeed[] = [
   },
   {
     id: 'motion-tokens',
+    context: 0.2,
     title: 'Retune the sidebar icon motion',
     project: 'design-lab',
     minutesAgo: 9,
@@ -216,21 +267,42 @@ const CHATS: ChatSeed[] = [
       { kind: 'read', paths: ['tokens/motion.css'] },
       {
         kind: 'assistant',
-        text: 'I’ve drafted slower curves. The motion tokens are marked as protected in this project, so the edit needs your approval.',
+        text: 'I’ve drafted slower curves. The motion tokens are marked as protected in this project, so the edit needs your approval. I also have a question about the phone app.',
       },
     ],
-    pending: {
-      kind: 'approval',
-      requestId: 'approval_motion',
-      approvalType: 'file',
-      operation: 'edit',
-      target: 'tokens/motion.css',
-      reason: 'Changes files this project marks as protected.',
-    },
+    pending: [
+      {
+        kind: 'approval',
+        requestId: 'approval_motion',
+        approvalType: 'file',
+        operation: 'edit',
+        target: 'tokens/motion.css',
+        reason: 'Changes files this project marks as protected.',
+      },
+      {
+        kind: 'question',
+        requestId: 'question_motion',
+        isBlocking: false,
+        questions: [
+          {
+            id: 'motion_scope',
+            header: 'Phone app',
+            question: 'Should the phone app use the slower curves too?',
+            options: [
+              { label: 'Yes, match Desktop', description: 'One set of motion tokens for both' },
+              { label: 'No, keep the phone as it is', description: 'Only the sidebar icons change' },
+            ],
+            isOther: true,
+            isSecret: false,
+          },
+        ],
+      },
+    ],
     continuation: 'The tokens are updated. Rebuilding the motion lab so you can compare the curves.',
   },
   {
     id: 'dialog-audit',
+    context: 0.52,
     title: 'Audit the dialog headers',
     project: 'design-lab',
     minutesAgo: 0.2,
@@ -246,6 +318,7 @@ const CHATS: ChatSeed[] = [
   },
   {
     id: 'release-summary',
+    context: 0.08,
     title: 'Summarize yesterday’s release notes',
     project: 'chats',
     minutesAgo: 60,
@@ -265,6 +338,7 @@ const CHATS: ChatSeed[] = [
   },
   {
     id: 'changelog',
+    context: 0.7,
     title: 'Draft the 0.8.1 changelog',
     project: 'dotcraft',
     minutesAgo: 180,
@@ -277,15 +351,17 @@ const CHATS: ChatSeed[] = [
   },
   {
     id: 'segment-names',
+    context: 0.22,
     title: 'Rename the settings segments',
     project: 'dotcraft',
     minutesAgo: 60 * 26,
     lines: [
-      { kind: 'user', text: 'Shorten the Connections segment names so they fit on one line in German.' },
+      { kind: 'user', text: 'Shorten the Connections segment names so they fit on one line in German.', photos: 2 },
       { kind: 'read', paths: ['locales/de.ts'] },
       { kind: 'edited', files: [{ path: 'locales/de.ts', added: 4, removed: 4 }] },
       { kind: 'assistant', text: 'All four German segment names now fit on one line at the narrowest settings width.' },
     ],
+    config: { providerId: 'local', model: 'quill-14b' },
     continuation: 'Sure, here’s more detail.',
   },
   {
@@ -296,10 +372,16 @@ const CHATS: ChatSeed[] = [
     lines: [
       { kind: 'user', text: 'Sketch the steps for pairing a phone with the computer.' },
       {
+        kind: 'plan',
+        plan: PAIRING_PLAN,
+        steps: ['Turn on phone access in Connections', 'Show a one-time code', 'Scan it and choose Allow', 'List the phone with Remove'],
+      },
+      {
         kind: 'assistant',
         text: 'Four steps:\n- Turn on phone access in Connections.\n- Choose Add phone to show a one-time code.\n- Scan it with the phone and choose Allow.\n- The phone appears in the list, where you can remove it at any time.',
       },
     ],
+    planned: true,
     continuation: 'Sure, here’s more detail.',
   },
 ]
@@ -315,6 +397,7 @@ const PROVIDERS: FakeProvider[] = [
   {
     id: 'studio',
     displayName: 'Studio Gateway',
+    authMethod: 'subscriptionOAuth',
     models: [
       {
         id: 'atlas-2',
@@ -330,6 +413,20 @@ const PROVIDERS: FakeProvider[] = [
     ],
   },
   { id: 'local', displayName: 'Local runtime', models: [{ id: 'quill-7b' }, { id: 'quill-14b', isDefault: true }] },
+]
+
+const COMMANDS: NonNullable<FakeComputerSeed['commands']> = [
+  { name: 'new', description: 'Start a new conversation', category: 'builtin' },
+  { name: 'code-review', description: 'Review changed files and report issues', category: 'custom' },
+  { name: 'release-check', description: 'Check that a release is ready to publish', category: 'custom' },
+  { name: 'triage', description: 'Sort open issues by area and urgency', category: 'custom' },
+]
+
+const SKILLS: NonNullable<FakeComputerSeed['skills']> = [
+  { name: 'release-notes', description: 'Write release notes from merged changes', enabled: true },
+  { name: 'browser', description: 'Open and inspect web pages', enabled: true },
+  { name: 'docs-guide', description: 'Write and review documentation pages', enabled: true },
+  { name: 'spreadsheet', description: 'Read and edit spreadsheets', enabled: false },
 ]
 
 function iso(now: Date, minutesAgo: number, secondsOffset = 0): string {
@@ -359,9 +456,11 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
   }
   const emit = (line: Line) => {
     switch (line.kind) {
-      case 'user':
-        push('userMessage', { text: line.text })
+      case 'user': {
+        const photos = Array.from({ length: line.photos ?? 0 }, () => ({ type: 'image', url: `data:image/png;base64,${MEADOW_PNG}` }))
+        push('userMessage', photos.length > 0 ? { text: line.text, nativeInputParts: [{ type: 'text', text: line.text }, ...photos] } : { text: line.text })
         break
+      }
       case 'assistant':
         push('agentMessage', { text: line.text })
         break
@@ -383,7 +482,7 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
             structuredContent: {
               kind: 'fileChange',
               writeState: 'applied',
-              changes: [{ path: file.path, kind: 'update', additions: file.added, deletions: file.removed }],
+              changes: [{ path: file.path, kind: 'update', diff: sampleDiff(file.path, file.added, file.removed), additions: file.added, deletions: file.removed }],
             },
           })
         }
@@ -404,6 +503,9 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
       case 'image':
         push('imageGeneration', { callId: nextCall(), status: 'completed', revisedPrompt: line.prompt, result: MEADOW_PNG, mediaType: 'image/png' }, 8)
         break
+      case 'plan':
+        tool('CreatePlan', { plan: line.plan, todos: line.steps.map((content, index) => ({ id: `step-${index + 1}`, content })) })
+        break
       case 'chart':
         tool('NodeReplJs', { code: 'renderChart()' }, {
           result: '',
@@ -416,10 +518,7 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
     }
   }
   for (const line of chat.lines) emit(line)
-  if (chat.pending) {
-    const { kind, ...payload } = chat.pending
-    push(kind === 'approval' ? 'approvalRequest' : 'userInputRequest', payload)
-  }
+  for (const { kind, ...payload } of chat.pending ?? []) push(kind === 'approval' ? 'approvalRequest' : 'userInputRequest', payload)
   const status = chat.error ? 'failed' : chat.stream || chat.pending ? 'running' : 'completed'
   const id = `thread_${chat.id.replace(/-/g, '_')}`
   return {
@@ -439,9 +538,56 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
       },
     ],
     items,
-    pending: chat.pending ?? null,
+    pending: chat.pending ?? [],
     stream: chat.stream ?? null,
     continuation: chat.continuation,
+    config: { ...chat.config, ...(chat.planned ? { mode: 'plan' } : {}) },
+    ...(chat.planned ? { planned: true } : {}),
+    ...(chat.context === undefined ? {} : { context: Math.round(chat.context * CONTEXT_TOKENS) }),
+  }
+}
+
+const CONTEXT_TOKENS = 400_000
+
+const RELEASE_SCRIPT = [
+  'param(',
+  '  [Parameter(Mandatory)] [string] $Version,',
+  "  [string[]] $Runtime = @('win-x64', 'linux-x64'),",
+  '  [switch] $SkipSymbols,',
+  "  [string] $OutputDirectory = 'artifacts/release'",
+  ')',
+  '',
+  "$ErrorActionPreference = 'Stop'",
+  '',
+  'foreach ($rid in $Runtime) {',
+  '  Publish-Runtime -Version $Version -Runtime $rid -Output (Join-Path $OutputDirectory $rid)',
+  '  Sign-Binaries -Path (Join-Path $OutputDirectory $rid)',
+  '}',
+  '',
+  'if (-not $SkipSymbols) { Upload-Symbols -Version $Version }',
+  'Write-ReleaseNotes -Version $Version -Template scripts/release-notes.md',
+  '',
+].join('\n')
+
+const RELEASE_NOTES = ['# DotCraft {{version}}', '', '## Highlights', '', '{{highlights}}', '', '## Fixes', '', '{{fixes}}', ''].join('\n')
+
+function studioFiles(): Record<string, string> {
+  return {
+    'D:/Projects/dotcraft/scripts/release.ps1': textBase64(RELEASE_SCRIPT),
+    'D:/Projects/dotcraft/scripts/release-notes.md': textBase64(RELEASE_NOTES),
+    'D:/Projects/dotcraft/docs/release-banner.png': MEADOW_PNG,
+    'D:/Projects/dotcraft/artifacts/release/app.zip': 'UEsDBBQAAAAIAAAAIQA=',
+    'D:/Projects/dotcraft/artifacts/release/publish.log': textBase64('Build succeeded'),
+  }
+}
+
+function accountUsage(now: Date): Record<string, unknown> {
+  const later = (hours: number) => new Date(now.getTime() + hours * 3_600_000).toISOString()
+  return {
+    available: true,
+    planType: 'plus',
+    primary: { usedPercent: 27, windowSeconds: 18_000, resetAt: later(3) },
+    secondary: { usedPercent: 9, windowSeconds: 604_800, resetAt: later(6 * 24) },
   }
 }
 
@@ -476,6 +622,11 @@ function studioSeed(now: Date, options: StudioOptions = {}): FakeComputerSeed {
     pairingCodes: ['demo-code'],
     profiles: [{ id: 'reviewer', name: 'Reviewer' }],
     providers: PROVIDERS,
+    commands: COMMANDS,
+    skills: SKILLS,
+    files: studioFiles(),
+    tooLargeFiles: ['D:/Projects/dotcraft/artifacts/release/publish.log'],
+    accountUsage: accountUsage(now),
   }
 }
 

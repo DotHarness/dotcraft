@@ -1,4 +1,4 @@
-import type { SessionItem, SessionTurn, ThreadItemListEntry } from '@dotcraft/sdk/contracts'
+import type { InputPart, SessionItem, SessionTurn, ThreadItemListEntry } from '@dotcraft/sdk/contracts'
 
 export interface HistoryItem {
   id: string
@@ -20,6 +20,7 @@ export interface HistoryTurn {
 export interface Echo {
   clientId: string
   text: string
+  parts?: InputPart[]
   added: boolean
 }
 
@@ -27,12 +28,14 @@ export interface ChatHistory {
   items: HistoryItem[]
   turns: HistoryTurn[]
   echoes: Echo[]
+  diffs?: Record<string, string>
 }
 
 export type HistoryEvent =
   | { kind: 'item'; item: SessionItem }
   | { kind: 'delta'; itemId: string; turnId: string; itemType: 'agentMessage' | 'reasoningContent'; delta: string }
   | { kind: 'turn'; turn: SessionTurn }
+  | { kind: 'diff'; turnId: string; diff: string }
 
 export function emptyHistory(): ChatHistory {
   return { items: [], turns: [], echoes: [] }
@@ -143,6 +146,8 @@ export function applyEvent(history: ChatHistory, event: HistoryEvent): ChatHisto
         (next, item) => upsertItem(next, itemFromWire(item)),
         upsertTurn(history, turnFromWire(event.turn)),
       )
+    case 'diff':
+      return { ...history, diffs: { ...history.diffs, [event.turnId]: event.diff } }
   }
 }
 

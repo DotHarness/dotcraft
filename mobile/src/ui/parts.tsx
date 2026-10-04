@@ -274,9 +274,22 @@ export function RoundIconButton({
   )
 }
 
-export function BackButton({ onPress, tone }: { onPress: () => void; tone?: 'default' | 'camera' }) {
+export function BackButton({ onPress }: { onPress: () => void }) {
   const { t } = useI18n()
-  return <RoundIconButton label={t('common.back')} icon="chevronLeft" onPress={onPress} tone={tone} />
+  const { colors } = useTheme()
+  return (
+    <View style={[styles.backFrame, { backgroundColor: colors.bgElevated, borderColor: colors.borderDefault, boxShadow: colors.shadow1 }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('common.back')}
+        onPress={onPress}
+        hitSlop={4}
+        style={({ pressed }) => [styles.back, pressed && { backgroundColor: colors.roundFillPressed }]}
+      >
+        <Icon name="chevronLeft" size={22} color={colors.textPrimary} />
+      </Pressable>
+    </View>
+  )
 }
 
 export function RowChevron() {
@@ -293,22 +306,6 @@ export function Section({ title, grow = false, children }: { title: string; grow
       {children}
     </View>
   )
-}
-
-export function Caret() {
-  const { colors } = useTheme()
-  const [opacity] = useState(() => new Animated.Value(1))
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 0, duration: 0, delay: 400, useNativeDriver: nativeDriver }),
-        Animated.timing(opacity, { toValue: 1, duration: 0, delay: 400, useNativeDriver: nativeDriver }),
-      ]),
-    )
-    loop.start()
-    return () => loop.stop()
-  }, [opacity])
-  return <Animated.Text style={{ opacity, color: colors.textPrimary }}>{'▏'}</Animated.Text>
 }
 
 const styles = StyleSheet.create({
@@ -342,6 +339,8 @@ const styles = StyleSheet.create({
   hidden: { opacity: 0 },
   disabled: { opacity: 0.45 },
   round: { width: 40, height: 40, margin: 2, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  backFrame: { width: 48, height: 48, borderWidth: 1, borderRadius: metrics.pill, alignItems: 'center', justifyContent: 'center' },
+  back: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   section: { marginTop: 26 },
   grow: { flexGrow: 1 },
   sectionTitle: { fontWeight: '600', marginBottom: 2 },

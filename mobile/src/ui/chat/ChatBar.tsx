@@ -2,9 +2,8 @@ import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import type { ComputerStatus } from '../../core/state'
-import { useI18n } from '../../i18n'
 import { Icon, type IconName } from '../icons'
-import { Spinner, Txt } from '../parts'
+import { BackButton, Spinner, Txt } from '../parts'
 import { metrics, type, useTheme } from '../theme'
 
 export const BAR_HEIGHT = 48
@@ -22,7 +21,7 @@ export function BarButton({ icon, label, onPress }: { icon: IconName; label: str
   const { colors } = useTheme()
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={4} style={({ pressed }) => [styles.button, pressed && { backgroundColor: colors.roundFillPressed }]}>
-      <Icon name={icon} size={icon === 'chevronLeft' ? 22 : 20} color={colors.textPrimary} />
+      <Icon name={icon} size={20} color={colors.textPrimary} />
     </Pressable>
   )
 }
@@ -48,7 +47,6 @@ export function ChatBar({
   trailing?: ReactNode
   onBack: () => void
 }) {
-  const { t } = useI18n()
   const { colors } = useTheme()
   const meta = [type.caption, styles.meta, { color: colors.textSecondary }]
   return (
@@ -63,9 +61,7 @@ export function ChatBar({
         </Defs>
         <Rect x="0" y="0" width="1" height="1" fill="url(#fade)" />
       </Svg>
-      <Pill style={styles.round}>
-        <BarButton icon="chevronLeft" label={t('common.back')} onPress={onBack} />
-      </Pill>
+      <BackButton onPress={onBack} />
       <Pill style={styles.titlePill}>
         <Txt accessibilityRole="header" numberOfLines={1} style={styles.title}>
           {title}
@@ -101,7 +97,6 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   pill: { height: BAR_HEIGHT, borderWidth: 1, borderRadius: metrics.pill, justifyContent: 'center' },
-  round: { width: BAR_HEIGHT, alignItems: 'center' },
   button: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   titlePill: { flex: 1, minWidth: 0, paddingHorizontal: 16 },
   title: { fontWeight: '600', lineHeight: 19 },

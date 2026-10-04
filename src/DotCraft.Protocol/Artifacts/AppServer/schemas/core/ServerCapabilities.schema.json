@@ -59,6 +59,9 @@
     "externalChannelManagement": {
       "type": "boolean"
     },
+    "fileSystem": {
+      "type": "boolean"
+    },
     "gitWorktrees": {
       "type": "boolean"
     },

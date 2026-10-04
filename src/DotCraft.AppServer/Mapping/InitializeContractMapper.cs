@@ -73,6 +73,7 @@ internal static class InitializeContractMapper
         ProviderManagement = value.ProviderManagement,
         WorkspaceConfigManagement = value.WorkspaceConfigManagement,
         SourceControlManagement = value.SourceControlManagement,
+        FileSystem = value.FileSystem,
         MemoryManagement = value.MemoryManagement,
         Dreams = value.Dreams,
         McpManagement = value.McpManagement,

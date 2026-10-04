@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Image, Modal, Pressable, StyleSheet, View, type ImageStyle, type StyleProp } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useI18n } from '../../i18n'
@@ -24,16 +24,25 @@ export function ImageThumb({ uri, label, style }: { uri: string; label: string; 
   const { colors } = useTheme()
   const [open, setOpen] = useState(false)
   const [ratio, setRatio] = useState(1)
+  useEffect(() => {
+    let current = true
+    Image.getSize(
+      uri,
+      (width, height) => {
+        if (current && width && height) setRatio(width / height)
+      },
+      () => undefined,
+    )
+    return () => {
+      current = false
+    }
+  }, [uri])
   return (
     <>
       <Pressable accessibilityRole="imagebutton" accessibilityLabel={label} onPress={() => setOpen(true)}>
         <Image
           source={{ uri }}
           resizeMode="cover"
-          onLoad={({ nativeEvent }) => {
-            const { width, height } = nativeEvent.source ?? {}
-            if (width && height) setRatio(width / height)
-          }}
           style={[styles.thumb, { aspectRatio: ratio, borderColor: colors.borderDefault, backgroundColor: colors.bgTertiary }, style]}
         />
       </Pressable>

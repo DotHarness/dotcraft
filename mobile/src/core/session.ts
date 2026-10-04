@@ -1,5 +1,6 @@
 import type { ThreadConfiguration } from '@dotcraft/sdk/contracts'
 import { Reconnector, systemTimers, type Timers } from './backoff'
+import { plainMessage, type MessageDraft } from './draft'
 import { GatewayClient, GatewayError, GatewayUnreachableError, isUnauthorized } from './gateway'
 import { LiveSession, type LiveNotifier } from './liveSession'
 import type { PairingOffer } from './pairing'
@@ -14,6 +15,7 @@ import {
   type Action,
   type ComputerRecord,
   type MobileState,
+  type PendingRequest,
   type PersistedState,
 } from './state'
 import { createStore, type Store } from './store'
@@ -397,9 +399,33 @@ export class MobileSession {
     void this.connections.get(projectId)?.unsubscribe(threadId)
   }
 
-  async send(key: string, text: string): Promise<void> {
+  async send(key: string, draft: MessageDraft): Promise<void> {
     const { projectId, threadId } = this.split(key)
-    await this.connection(projectId).send(threadId, text)
+    await this.connection(projectId).send(threadId, draft)
+  }
+
+  async setMode(key: string, mode: 'plan' | 'agent'): Promise<void> {
+    const { projectId, threadId } = this.split(key)
+    await this.connection(projectId).setMode(threadId, mode)
+  }
+
+  async implementPlan(key: string): Promise<void> {
+    await this.setMode(key, 'agent')
+    await this.send(key, plainMessage('Implement the plan.'))
+  }
+
+  async loadUsage(projectId: string): Promise<void> {
+    const connection = this.connections.get(projectId)
+    if (connection?.ready) await connection.loadUsage()
+  }
+
+  async readFile(projectId: string, path: string): Promise<string> {
+    return await this.connection(projectId).readFile(path)
+  }
+
+  async loadReferences(projectId: string): Promise<void> {
+    const connection = this.connections.get(projectId)
+    if (connection?.ready) await connection.loadReferences()
   }
 
   async stop(key: string): Promise<void> {
@@ -442,6 +468,16 @@ export class MobileSession {
     this.connections.get(projectId)?.answer(threadId, requestId, answers)
   }
 
+  async dismissQuestion(key: string, request: Extract<PendingRequest, { kind: 'question' }>): Promise<void> {
+    if (!request.isBlocking) {
+      this.answer(key, request.requestId, {})
+      return
+    }
+    await this.stop(key)
+    const { projectId, threadId } = this.split(key)
+    this.connections.get(projectId)?.cancelRequest(threadId, request.requestId)
+  }
+
   async startProject(projectId: string): Promise<boolean> {
     const gateway = this.gateway
     const generation = this.generation
@@ -467,9 +503,9 @@ export class MobileSession {
     return false
   }
 
-  async newChat(projectId: string, text: string, config?: ThreadConfiguration): Promise<string> {
+  async newChat(projectId: string, title: string, config?: ThreadConfiguration): Promise<string> {
     if (!(await this.startProject(projectId))) throw new CantStartProjectError()
-    return await this.connection(projectId).startThread(text, config)
+    return await this.connection(projectId).startThread(title, config)
   }
 
   async removeComputer(): Promise<void> {

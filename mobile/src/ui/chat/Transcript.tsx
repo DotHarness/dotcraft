@@ -7,11 +7,12 @@ import type { UserSegment } from '../../core/userSegments'
 import { useI18n } from '../../i18n'
 import type { MessageId } from '../../i18n/messages/en'
 import { Icon, type IconName } from '../icons'
-import { Caret, Spinner, Txt } from '../parts'
+import { Spinner, Txt } from '../parts'
 import { metrics, type, useTheme } from '../theme'
 import { FileChip, InlineChip, SkillChip } from './Chips'
 import { ImageThumb } from './Images'
 import { Markdown } from './Markdown'
+import { PlanCard } from './PlanCard'
 
 type ToolEntry = Extract<TranscriptEntry, { kind: 'tool' }>
 
@@ -222,12 +223,10 @@ function UserText({ segments, workspacePath }: { segments: UserSegment[]; worksp
 export function TranscriptLine({
   entry,
   previous,
-  caret,
   workspacePath,
 }: {
   entry: TranscriptEntry
   previous?: TranscriptEntry
-  caret: boolean
   workspacePath: string | null
 }) {
   const { t } = useI18n()
@@ -245,17 +244,26 @@ export function TranscriptLine({
               </Txt>
             </View>
           ) : null}
-          <View style={[styles.bubble, { backgroundColor: colors.userMessageBg }]}>
-            <Txt selectable style={styles.line}>
-              <UserText segments={entry.segments} workspacePath={workspacePath} />
-            </Txt>
-          </View>
+          {entry.images.length > 0 ? (
+            <View style={styles.photos}>
+              {entry.images.map((uri, index) => (
+                <ImageThumb key={index} uri={uri} label={t('image.open')} style={styles.photo} />
+              ))}
+            </View>
+          ) : null}
+          {entry.segments.length > 0 ? (
+            <View style={[styles.bubble, { backgroundColor: colors.userMessageBg }]}>
+              <Txt selectable style={styles.line}>
+                <UserText segments={entry.segments} workspacePath={workspacePath} />
+              </Txt>
+            </View>
+          ) : null}
         </View>
       )
     case 'assistant':
       return (
         <View accessibilityLiveRegion={entry.streaming ? 'polite' : 'none'}>
-          <Markdown text={entry.text} trailing={caret ? <Caret /> : null} workspacePath={workspacePath} />
+          <Markdown text={entry.text} workspacePath={workspacePath} />
           {entry.streaming ? null : <CopyButton text={entry.text} />}
         </View>
       )
@@ -269,6 +277,8 @@ export function TranscriptLine({
       )
     case 'image':
       return <GeneratedImage entry={entry} />
+    case 'plan':
+      return <PlanCard entry={entry} workspacePath={workspacePath} />
     case 'notice':
       if (entry.tone === 'error') {
         return (
@@ -309,6 +319,8 @@ const styles = StyleSheet.create({
   line: { lineHeight: 22 },
   user: { alignItems: 'flex-end', gap: 4 },
   origin: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  photos: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6, maxWidth: '84%' },
+  photo: { width: 112, maxHeight: 160 },
   bubble: { maxWidth: '84%', paddingVertical: 9, paddingHorizontal: 14, borderRadius: 20 },
   reasoningToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
   reasoningText: { marginTop: 6, paddingLeft: 12, borderLeftWidth: 2 },

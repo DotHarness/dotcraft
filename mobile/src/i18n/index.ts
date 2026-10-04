@@ -36,6 +36,7 @@ export interface I18n {
   around: (key: MessageId, slot: string) => [string, string]
   ago: (iso: string | null) => string
   date: (iso: string) => string
+  dateTime: (iso: string) => string
 }
 
 function createI18n(locale: AppLocale): I18n {
@@ -66,6 +67,7 @@ function createI18n(locale: AppLocale): I18n {
       return shortDate(at)
     },
     date: (iso) => shortDate(Date.parse(iso)),
+    dateTime: (iso) => new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(Date.parse(iso)),
   }
 }
 

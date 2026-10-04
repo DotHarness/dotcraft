@@ -3,7 +3,7 @@ import { AppRegistry, PermissionsAndroid, Platform } from 'react-native'
 import LiveSession from '../../modules/live-session'
 import type { LiveNotice, LiveNotifier, LiveStatus } from '../core/liveSession'
 import { deviceI18n, type I18n } from '../i18n'
-import { approvalTitle, subjectOf } from '../ui/chat/RequestCards'
+import { approvalTitle, subjectOf } from '../ui/chat/approvalText'
 import { chatTitle } from '../ui/rows'
 
 // The native live session keeps this task open to run JS timers in the background, and finishes it when the session stops.

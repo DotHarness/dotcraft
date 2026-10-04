@@ -11,6 +11,27 @@ import { Row } from '../rows'
 import { ConfirmSheet } from '../Sheet'
 import { type, useTheme } from '../theme'
 
+export function PairDifferentSheet({ computer, visible, onClose }: { computer: string; visible: boolean; onClose: () => void }) {
+  const session = useSession()
+  const router = useRouter()
+  const { t } = useI18n()
+  return (
+    <ConfirmSheet
+      visible={visible}
+      title={t('replace.title')}
+      text={t('replace.text', { computer })}
+      confirmLabel={t('replace.continue')}
+      danger={false}
+      onCancel={onClose}
+      onConfirm={() => {
+        onClose()
+        session.resetPairing()
+        router.push('/pair')
+      }}
+    />
+  )
+}
+
 export function SettingsScreen() {
   const state = useMobileState()
   const session = useSession()
@@ -75,19 +96,7 @@ export function SettingsScreen() {
           void session.removeComputer()
         }}
       />
-      <ConfirmSheet
-        visible={sheet === 'replace'}
-        title={t('replace.title')}
-        text={t('replace.text', { computer: computer.name })}
-        confirmLabel={t('replace.continue')}
-        danger={false}
-        onCancel={() => setSheet(null)}
-        onConfirm={() => {
-          setSheet(null)
-          session.resetPairing()
-          router.push('/pair')
-        }}
-      />
+      <PairDifferentSheet computer={computer.name} visible={sheet === 'replace'} onClose={() => setSheet(null)} />
     </Screen>
   )
 }

@@ -100,3 +100,7 @@ export function startConfig({ touched, controls }: NewChatChoices): ThreadConfig
   if (touched.approval) config.approvalPolicy = controls.approvalPolicy
   return Object.keys(config).length > 0 ? config : undefined
 }
+
+export function offersPlanMode(config: ThreadConfiguration | null | undefined, profileId: string | null | undefined): boolean {
+  return !config?.agentProfileId && !profileId
+}

@@ -1,5 +1,8 @@
 import type { ModelCatalogItem, ThreadConfiguration, ThreadRuntimeState, UserInputQuestion } from '@dotcraft/sdk/contracts'
+import type { UsageWindow } from './accountUsage'
 import { chatState, needsYou, type ChatState } from './chatState'
+import { applyContext, type ContextUpdate, type ContextUsage } from './contextUsage'
+import type { ReferenceEntry } from './draft'
 import type { RelayInfo } from './gateway'
 import { applyEvent, emptyHistory, type ChatHistory, type Echo, type HistoryEvent, type HistoryItem } from './history'
 import type { PairingOffer } from './pairing'
@@ -43,15 +46,21 @@ export interface ChatDetail {
   profileName: string | null
   config: ThreadConfiguration | null
   workspacePath: string | null
+  context: ContextUsage | null
 }
 
 export interface ProjectModels {
   canConfigure: boolean
   canListModels: boolean
   canFork: boolean
+  fileSystem: boolean
+  canListCommands: boolean
+  canListSkills: boolean
+  canReadUsage: boolean
   defaultProviderId: string | null
-  providers: { id: string; name: string }[]
+  providers: { id: string; name: string; signsIn: boolean }[]
   catalogs: Record<string, ModelCatalogItem[]>
+  usage: UsageWindow[] | null
 }
 
 export type PendingRequest =
@@ -64,7 +73,7 @@ export type PendingRequest =
       targetLabel: string | null
       reason: string
     }
-  | { kind: 'question'; requestId: string; questions: UserInputQuestion[] }
+  | { kind: 'question'; requestId: string; isBlocking: boolean; questions: UserInputQuestion[] }
 
 export type PairingState =
   | { step: 'idle' }
@@ -91,6 +100,7 @@ export interface MobileState {
   details: Record<string, ChatDetail>
   pending: Record<string, PendingRequest[]>
   models: Record<string, ProjectModels>
+  references: Record<string, ReferenceEntry[]>
   pairing: PairingState
 }
 
@@ -128,9 +138,17 @@ export type Action =
       profileName: string | null
       config: ThreadConfiguration | null
       workspacePath: string | null
+      context: ContextUsage | null
     }
   | { type: 'chatConfig'; key: string; config: ThreadConfiguration }
-  | { type: 'capabilities'; projectId: string; canConfigure: boolean; canListModels: boolean; canFork: boolean }
+  | { type: 'context'; key: string; update: ContextUpdate }
+  | {
+      type: 'capabilities'
+      projectId: string
+      capabilities: Pick<ProjectModels, 'canConfigure' | 'canListModels' | 'canFork' | 'fileSystem' | 'canListCommands' | 'canListSkills' | 'canReadUsage'>
+    }
+  | { type: 'usage'; projectId: string; windows: UsageWindow[] }
+  | { type: 'references'; projectId: string; entries: ReferenceEntry[] }
   | { type: 'catalog'; projectId: string; providerId: string; models: ModelCatalogItem[]; isDefault: boolean }
   | { type: 'providers'; projectId: string; providers: ProjectModels['providers'] }
   | { type: 'history'; key: string; event: HistoryEvent }
@@ -157,6 +175,7 @@ export function initialState(): MobileState {
     details: {},
     pending: {},
     models: {},
+    references: {},
     pairing: { step: 'idle' },
   }
 }
@@ -179,6 +198,7 @@ function cleared(state: MobileState): MobileState {
     details: {},
     pending: {},
     models: {},
+    references: {},
   }
 }
 
@@ -190,7 +210,19 @@ function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T
 }
 
 function patchModels(state: MobileState, projectId: string, patch: Partial<ProjectModels>): MobileState {
-  const current = state.models[projectId] ?? { canConfigure: false, canListModels: false, canFork: false, defaultProviderId: null, providers: [], catalogs: {} }
+  const current = state.models[projectId] ?? {
+    canConfigure: false,
+    canListModels: false,
+    canFork: false,
+    fileSystem: false,
+    canListCommands: false,
+    canListSkills: false,
+    canReadUsage: false,
+    defaultProviderId: null,
+    providers: [],
+    catalogs: {},
+    usage: null,
+  }
   return { ...state, models: { ...state.models, [projectId]: { ...current, ...patch } } }
 }
 
@@ -269,7 +301,9 @@ export function reducer(state: MobileState, action: Action): MobileState {
         ...state,
         details: {
           ...state.details,
-          [action.key]: detail ? { ...detail, loading: true } : { loading: true, history: emptyHistory(), profileName: null, config: null, workspacePath: null },
+          [action.key]: detail
+            ? { ...detail, loading: true }
+            : { loading: true, history: emptyHistory(), profileName: null, config: null, workspacePath: null, context: null },
         },
       }
     }
@@ -284,6 +318,7 @@ export function reducer(state: MobileState, action: Action): MobileState {
             profileName: action.profileName,
             config: action.config,
             workspacePath: action.workspacePath,
+            context: action.context,
           },
         },
       }
@@ -291,8 +326,17 @@ export function reducer(state: MobileState, action: Action): MobileState {
       const detail = state.details[action.key]
       return detail ? { ...state, details: { ...state.details, [action.key]: { ...detail, config: action.config } } } : state
     }
+    case 'context': {
+      const detail = state.details[action.key]
+      if (!detail) return state
+      return { ...state, details: { ...state.details, [action.key]: { ...detail, context: applyContext(detail.context ?? null, action.update) } } }
+    }
     case 'capabilities':
-      return patchModels(state, action.projectId, { canConfigure: action.canConfigure, canListModels: action.canListModels, canFork: action.canFork })
+      return patchModels(state, action.projectId, action.capabilities)
+    case 'usage':
+      return patchModels(state, action.projectId, { usage: action.windows })
+    case 'references':
+      return { ...state, references: { ...state.references, [action.projectId]: action.entries } }
     case 'catalog': {
       const current = state.models[action.projectId]
       return patchModels(state, action.projectId, {
@@ -393,6 +437,10 @@ export function projectsByRecentUse(state: Pick<MobileState, 'projects' | 'chats
 
 function withoutImageData(item: HistoryItem): HistoryItem {
   if (item.type === 'imageGeneration') return { ...item, payload: { ...item.payload, result: undefined, imageDropped: true } }
+  const parts = item.payload.nativeInputParts
+  if (item.type === 'userMessage' && Array.isArray(parts)) {
+    return { ...item, payload: { ...item.payload, nativeInputParts: parts.filter((part: { type?: string }) => part.type !== 'image') } }
+  }
   const contentItems = item.payload.contentItems
   if (!Array.isArray(contentItems)) return item
   return { ...item, payload: { ...item.payload, contentItems: contentItems.filter((entry: { type?: string }) => entry.type !== 'image') } }

@@ -64,6 +64,9 @@ export interface ClientRequestMethods {
   "externalChannel/logs": { params: Models.ExternalChannelLogsParams; result: Models.ExternalChannelLogsResult };
   "externalChannel/remove": { params: Models.ExternalChannelRemoveParams; result: Models.ExternalChannelRemoveResult };
   "externalChannel/upsert": { params: Models.ExternalChannelUpsertParams; result: Models.ExternalChannelUpsertResult };
+  "fs/createDirectory": { params: Models.FsCreateDirectoryParams; result: Models.RpcEmpty };
+  "fs/readFile": { params: Models.FsReadFileParams; result: Models.FsReadFileResult };
+  "fs/writeFile": { params: Models.FsWriteFileParams; result: Models.RpcEmpty };
   "hooks/list": { params: Models.HooksListParams; result: Models.HooksListResult };
   "hooks/setState": { params: Models.HooksSetStateParams; result: Models.HooksSetStateResult };
   "hooks/trustPlugin": { params: Models.HooksTrustPluginParams; result: Models.HooksTrustPluginResult };

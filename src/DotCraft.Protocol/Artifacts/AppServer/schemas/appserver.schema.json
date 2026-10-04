@@ -6000,6 +6000,65 @@
       },
       "additionalProperties": true
     },
+    "FsCreateDirectoryParams": {
+      "title": "FsCreateDirectoryParams",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "recursive": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "path"
+      ]
+    },
+    "FsReadFileParams": {
+      "title": "FsReadFileParams",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "path"
+      ]
+    },
+    "FsReadFileResult": {
+      "title": "FsReadFileResult",
+      "type": "object",
+      "properties": {
+        "dataBase64": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "dataBase64"
+      ]
+    },
+    "FsWriteFileParams": {
+      "title": "FsWriteFileParams",
+      "type": "object",
+      "properties": {
+        "dataBase64": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "dataBase64",
+        "path"
+      ]
+    },
     "HookErrorInfo": {
       "title": "HookErrorInfo",
       "type": "object",
@@ -11914,6 +11973,9 @@
           ]
         },
         "externalChannelManagement": {
+          "type": "boolean"
+        },
+        "fileSystem": {
           "type": "boolean"
         },
         "gitWorktrees": {

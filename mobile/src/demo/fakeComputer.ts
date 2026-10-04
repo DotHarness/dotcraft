@@ -1,4 +1,5 @@
 import type { RelayInfo } from '../core/gateway'
+import { FakeFiles } from './fakeFiles'
 
 export interface FakeItem {
   id: string
@@ -24,6 +25,7 @@ export type FakePending =
   | {
       kind: 'question'
       requestId: string
+      isBlocking: boolean
       questions: {
         id: string
         header: string
@@ -42,12 +44,14 @@ export interface FakeThread {
   lastActiveAt: string
   turns: FakeTurn[]
   items: FakeItem[]
-  pending: FakePending | null
+  pending: FakePending[]
   stream: string | null
   continuation: string
   source?: 'user' | 'subagent'
   config?: Record<string, unknown>
   archived?: boolean
+  planned?: boolean
+  context?: number
 }
 
 export interface FakeModel {
@@ -66,6 +70,7 @@ export interface FakeModel {
 export interface FakeProvider {
   id: string
   displayName: string
+  authMethod?: string
   models: FakeModel[]
 }
 
@@ -90,6 +95,11 @@ export interface FakeComputerSeed {
   credentials?: Record<string, string>
   profiles?: { id: string; name: string }[]
   providers?: FakeProvider[]
+  commands?: { name: string; description: string; category: 'builtin' | 'custom' }[]
+  skills?: { name: string; description: string; enabled: boolean }[]
+  files?: Record<string, string>
+  tooLargeFiles?: string[]
+  accountUsage?: Record<string, unknown>
 }
 
 export interface FakeSocketSink {
@@ -109,12 +119,24 @@ interface Connection {
 
 type Outcome = { result?: unknown; error?: { code: number; message: string }; after?: () => void }
 
+const CONTEXT_WINDOW = 400_000
+
 export function sequenceId(prefix: string, sequence: number): string {
   return `${prefix}_${sequence.toString().padStart(3, '0')}`
 }
 
+type FakeInputPart = { type: string; text?: string; name?: string; rawText?: string; path?: string }
+
 function inputText(input: unknown): string {
-  return (input as { text: string }[]).map((part) => part.text).join('')
+  return (input as FakeInputPart[])
+    .map((part) => {
+      if (part.type === 'text') return part.text ?? ''
+      if (part.type === 'commandRef') return part.rawText ?? `/${part.name}`
+      if (part.type === 'skillRef') return `$${part.name}`
+      if (part.type === 'fileRef') return `@${part.path}`
+      return ''
+    })
+    .join('')
 }
 
 export class FakeComputer {
@@ -132,10 +154,15 @@ export class FakeComputer {
   readonly decisions: { requestId: string; decision: string }[] = []
   readonly answers: { requestId: string; answers: unknown }[] = []
   readonly removedDevices: string[] = []
+  readonly failingMethods = new Set<string>()
+  readonly files: FakeFiles
   private readonly credentials: Map<string, string>
   private readonly pairingCodes: Set<string>
   private readonly profiles: { id: string; name: string }[]
   private readonly providers: FakeProvider[]
+  private readonly commands: NonNullable<FakeComputerSeed['commands']>
+  private readonly skills: NonNullable<FakeComputerSeed['skills']>
+  private readonly accountUsage: FakeComputerSeed['accountUsage']
   private readonly connections = new Map<string, Connection>()
   private readonly events = new Map<string, FakeSocketSink>()
   private readonly streams = new Map<string, ReturnType<typeof setTimeout>>()
@@ -152,7 +179,12 @@ export class FakeComputer {
     this.credentials = new Map(Object.entries(seed.credentials ?? {}))
     this.profiles = seed.profiles ?? []
     this.providers = seed.providers ?? []
-    for (const project of this.projects) for (const thread of project.threads) thread.config ??= this.defaultConfig()
+    this.commands = seed.commands ?? []
+    this.skills = seed.skills ?? []
+    this.accountUsage = seed.accountUsage
+    this.files = new FakeFiles(this.projects.flatMap((project) => (project.path ? [project.path] : [])), seed.files)
+    for (const path of seed.tooLargeFiles ?? []) this.files.tooLarge.add(path)
+    for (const project of this.projects) for (const thread of project.threads) thread.config = { ...this.defaultConfig(thread.config?.providerId as string | undefined), ...thread.config }
   }
 
   private nextId(prefix: string): string {
@@ -249,12 +281,16 @@ export class FakeComputer {
     } else if (message.method) {
       const params = message.params ?? {}
       this.calls.push({ method: message.method, params })
-      const { after, ...reply } = this.request(connection, message.method, params)
+      const { after, ...reply } = this.failingMethods.has(message.method)
+        ? { error: { code: -32603, message: `${message.method} failed` } }
+        : this.request(connection, message.method, params)
       this.write(connection, { jsonrpc: '2.0', id: message.id, ...reply })
       after?.()
     } else if (message.id !== undefined) {
       const held = connection.held.get(message.id)
-      if (held) this.resolvePending(held.threadId, held.requestId, message.result as Record<string, unknown>)
+      if (!held) return
+      if (message.result) this.resolvePending(held.threadId, held.requestId, message.result as Record<string, unknown>)
+      else this.dropPending(held.threadId, held.requestId)
     }
   }
 
@@ -291,8 +327,9 @@ export class FakeComputer {
       runtime: {
         running: active !== null,
         busy: active !== null,
-        waitingOnApproval: thread.pending?.kind === 'approval',
-        waitingOnInput: thread.pending?.kind === 'question',
+        waitingOnApproval: thread.pending.some((request) => request.kind === 'approval'),
+        waitingOnInput: thread.pending.some((request) => request.kind === 'question'),
+        waitingOnPlanConfirmation: active === null && thread.planned === true && thread.config?.mode === 'plan',
         activeTurnId: active?.id ?? null,
       },
     }
@@ -303,10 +340,15 @@ export class FakeComputer {
       ...this.summary(thread),
       workspacePath: this.thread(thread.id).project.path ?? '',
       configuration: { ...thread.config, agentProfileId: thread.profileId },
+      ...(thread.context === undefined ? {} : { contextUsage: this.contextUsage(thread.context) }),
       metadata: {},
       ephemeral: false,
       source: { kind: thread.source ?? 'user' },
     }
+  }
+
+  private contextUsage(tokens: number): Record<string, unknown> {
+    return { tokens, contextWindow: CONTEXT_WINDOW, percentLeft: Math.max(0, 1 - tokens / CONTEXT_WINDOW) }
   }
 
   private runtimeChanged(project: FakeProject, thread: FakeThread): void {
@@ -327,6 +369,10 @@ export class FakeComputer {
               configOverride: this.providers.length > 0,
               modelCatalogManagement: this.providers.length > 0,
               providerManagement: this.providers.length > 0,
+              fileSystem: true,
+              commandManagement: this.commands.length > 0,
+              skillsManagement: this.skills.length > 0,
+              authOpenAiUsage: this.accountUsage !== undefined,
             },
           },
         }
@@ -335,12 +381,24 @@ export class FakeComputer {
       case 'agent/profiles/list':
         return { result: { profiles: this.profiles } }
       case 'provider/list':
-        return { result: { providers: this.providers.map(({ id, displayName }) => ({ id, displayName })) } }
+        return { result: { providers: this.providers.map(({ id, displayName, authMethod }) => ({ id, displayName, authMethod: authMethod ?? 'apiKey' })) } }
+      case 'auth/openai/usage':
+        return this.accountUsage ? { result: this.accountUsage } : { error: { code: -32601, message: `Method not found: ${method}` } }
       case 'model/list': {
         const provider = this.providers.find((entry) => entry.id === (params.providerId ?? this.providers[0]?.id))
         if (!provider) return { result: { success: false, providerId: params.providerId ?? null, models: [], errorCode: 'ProviderNotFound' } }
         return { result: { success: true, providerId: provider.id, models: provider.models } }
       }
+      case 'command/list':
+        return {
+          result: {
+            commands: this.commands
+              .filter((command) => params.includeBuiltins !== false || command.category === 'custom')
+              .map((command) => ({ ...command, name: `/${command.name}`, aliases: [], descriptionKey: '', fallbackDescription: command.description, requiresAdmin: false })),
+          },
+        }
+      case 'skills/list':
+        return { result: { skills: this.skills.map((skill) => ({ ...skill, source: 'workspace', path: `${project.path ?? ''}/.craft/skills/${skill.name}/SKILL.md`, metadata: {} })) } }
       case 'thread/start': {
         const overlay = params.config as Record<string, unknown> | undefined
         const thread: FakeThread = {
@@ -351,10 +409,11 @@ export class FakeComputer {
           lastActiveAt: this.stamp(),
           turns: [],
           items: [],
-          pending: null,
+          pending: [],
           stream: null,
           continuation: 'Picking up from here.',
           config: { ...this.defaultConfig(overlay?.providerId as string | undefined), ...overlay },
+          context: 0,
         }
         project.threads.push(thread)
         return {
@@ -363,6 +422,8 @@ export class FakeComputer {
         }
       }
     }
+    const files = this.files.handle(method, params)
+    if (files) return files
     const { thread } = this.thread(params.threadId as string)
     switch (method) {
       case 'thread/read':
@@ -389,7 +450,7 @@ export class FakeComputer {
           lastActiveAt: this.stamp(),
           turns: thread.turns.map((turn) => ({ ...turn, threadId: id, status: turn.status === 'running' ? 'cancelled' : turn.status })),
           items: thread.items.map((item) => ({ ...item, status: 'completed' })),
-          pending: null,
+          pending: [],
           stream: null,
         }
         project.threads.push(fork)
@@ -404,14 +465,22 @@ export class FakeComputer {
         thread.config = config
         return { result: {}, after: () => this.broadcast(project, 'thread/updated', { thread: this.threadBody(thread) }) }
       }
+      case 'thread/mode/set':
+        thread.config = { ...thread.config, mode: params.mode }
+        return { result: {}, after: () => this.broadcast(project, 'thread/updated', { thread: this.threadBody(thread) }) }
       case 'turn/start': {
         if (this.activeTurn(thread)) return { error: { code: -32012, message: 'A turn is already running on this thread.' } }
         const turn: FakeTurn = { id: sequenceId('turn', thread.turns.length + 1), threadId: thread.id, status: 'running', startedAt: this.stamp() }
         thread.turns.push(turn)
+        thread.planned = false
         return {
           result: { turn },
           after: () => {
-            const user = this.addItem(thread, turn.id, 'userMessage', { text: inputText(params.input), clientUserMessageId: params.clientUserMessageId })
+            const user = this.addItem(thread, turn.id, 'userMessage', {
+              text: inputText(params.input),
+              nativeInputParts: params.input,
+              clientUserMessageId: params.clientUserMessageId,
+            })
             this.toSubscribers(project, thread.id, 'turn/started', { turn: { ...turn, items: [user] } })
             this.runtimeChanged(project, thread)
             const reply =
@@ -484,20 +553,29 @@ export class FakeComputer {
 
   private afterSubscribe(connection: Connection, project: FakeProject, thread: FakeThread): void {
     const active = this.activeTurn(thread)
-    const pending = thread.pending
-    if (active && pending) this.deliver(connection, thread, active.id, pending)
-    if (active && thread.stream && !pending) {
+    const diff = active ? this.turnDiff(thread, active.id) : ''
+    if (active && diff) this.write(connection, { jsonrpc: '2.0', method: 'turn/diff/updated', params: { threadId: thread.id, turnId: active.id, diff } })
+    if (active) for (const pending of thread.pending) this.deliver(connection, thread, active.id, pending)
+    if (active && thread.stream && thread.pending.length === 0) {
       const stream = thread.stream
       thread.stream = null
       this.streamReply(project, thread, active, stream, false)
     }
   }
 
+  private turnDiff(thread: FakeThread, turnId: string): string {
+    return thread.items
+      .filter((item) => item.turnId === turnId && item.type === 'toolResult')
+      .flatMap((item) => (item.payload.structuredContent as { changes?: { diff?: string }[] } | undefined)?.changes ?? [])
+      .map((change) => change.diff ?? '')
+      .join('')
+  }
+
   ask(threadId: string, pending: FakePending): void {
     const { project, thread } = this.thread(threadId)
     const active = this.activeTurn(thread)
     if (!active) return
-    thread.pending = pending
+    thread.pending = [...thread.pending, pending]
     for (const connection of this.projectConnections(project)) {
       if (connection.subscribed.has(thread.id)) this.deliver(connection, thread, active.id, pending)
     }
@@ -511,7 +589,7 @@ export class FakeComputer {
   }
 
   answerFromComputer(threadId: string, result: Record<string, unknown>): void {
-    const pending = this.thread(threadId).thread.pending
+    const pending = this.thread(threadId).thread.pending[0]
     if (pending) this.resolvePending(threadId, pending.requestId, result)
   }
 
@@ -523,10 +601,10 @@ export class FakeComputer {
 
   private resolvePending(threadId: string, requestId: string, result: Record<string, unknown>): void {
     const { project, thread } = this.thread(threadId)
-    const pending = thread.pending
+    const pending = thread.pending.find((request) => request.requestId === requestId)
     const active = this.activeTurn(thread)
-    if (pending?.requestId !== requestId || !active) return
-    thread.pending = null
+    if (!pending || !active) return
+    thread.pending = thread.pending.filter((request) => request !== pending)
     this.forgetHeld(requestId)
     let item: FakeItem
     let reply = thread.continuation
@@ -542,7 +620,15 @@ export class FakeComputer {
     const resolved = pending.kind === 'approval' ? 'item/approval/resolved' : 'item/tool/requestUserInput/resolved'
     for (const method of [resolved, 'item/completed']) this.toSubscribers(project, thread.id, method, { threadId: thread.id, turnId: active.id, item })
     this.runtimeChanged(project, thread)
-    this.streamReply(project, thread, active, reply, true)
+    if (thread.pending.length === 0) this.streamReply(project, thread, active, reply, true)
+  }
+
+  private dropPending(threadId: string, requestId: string): void {
+    const { project, thread } = this.thread(threadId)
+    if (!thread.pending.some((request) => request.requestId === requestId)) return
+    thread.pending = thread.pending.filter((request) => request.requestId !== requestId)
+    this.forgetHeld(requestId)
+    this.runtimeChanged(project, thread)
   }
 
   private completeItem(project: FakeProject, thread: FakeThread, item: FakeItem): void {
@@ -567,6 +653,16 @@ export class FakeComputer {
       }
       this.streams.delete(thread.id)
       this.completeItem(project, thread, message)
+      if (thread.context !== undefined) {
+        thread.context += 1200 + text.length * 4
+        this.toSubscribers(project, thread.id, 'item/usage/delta', {
+          threadId: thread.id,
+          turnId: turn.id,
+          inputTokens: thread.context,
+          outputTokens: text.length,
+          contextUsage: this.contextUsage(thread.context),
+        })
+      }
       if (complete) this.finishTurn(project, thread, turn, 'completed')
     }
     this.streams.set(thread.id, setTimeout(step, this.streamDelayMs))
@@ -576,11 +672,12 @@ export class FakeComputer {
     clearTimeout(this.streams.get(thread.id))
     this.streams.delete(thread.id)
     for (const item of thread.items) if (item.turnId === turn.id && item.status === 'started') this.completeItem(project, thread, item)
-    if (thread.pending) this.forgetHeld(thread.pending.requestId)
-    thread.pending = null
+    for (const pending of thread.pending) this.forgetHeld(pending.requestId)
+    thread.pending = []
     thread.stream = null
     turn.status = status
     turn.completedAt = this.stamp()
+    thread.planned = status === 'completed' && thread.config?.mode === 'plan'
     this.toSubscribers(project, thread.id, `turn/${status}`, { turn })
     this.runtimeChanged(project, thread)
   }

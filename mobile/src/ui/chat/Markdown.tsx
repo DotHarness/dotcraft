@@ -117,31 +117,28 @@ function TableBlock({ table, env }: { table: Table; env: Env }) {
   )
 }
 
-function ListBlock({ items, ordered, start, env, trailing }: { items: ListItem[]; ordered: boolean; start: number; env: Env; trailing: ReactNode }) {
+function ListBlock({ items, ordered, start, env }: { items: ListItem[]; ordered: boolean; start: number; env: Env }) {
   const { colors } = env
   const base = [type.text, styles.prose, { color: colors.textPrimary }]
   return (
     <View style={styles.list}>
-      {items.map((item, index) => {
-        const last = index === items.length - 1
-        return (
-          <View key={index} style={styles.listItem}>
-            {item.checked === true || item.checked === false ? (
-              <View style={[styles.task, { borderColor: colors.borderActive }, item.checked && { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary }]}>
-                {item.checked ? <Icon name="check" size={11} color={colors.bgPrimary} strokeWidth={3} /> : null}
-              </View>
-            ) : (
-              <Text style={[base, styles.marker, { color: colors.textSecondary }]}>{ordered ? `${start + index}.` : '•'}</Text>
-            )}
-            <View style={styles.itemBody}>{blocks(item.children, env, last ? trailing : null)}</View>
-          </View>
-        )
-      })}
+      {items.map((item, index) => (
+        <View key={index} style={styles.listItem}>
+          {item.checked === true || item.checked === false ? (
+            <View style={[styles.task, { borderColor: colors.borderActive }, item.checked && { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary }]}>
+              {item.checked ? <Icon name="check" size={11} color={colors.bgPrimary} strokeWidth={3} /> : null}
+            </View>
+          ) : (
+            <Text style={[base, styles.marker, { color: colors.textSecondary }]}>{ordered ? `${start + index}.` : '•'}</Text>
+          )}
+          <View style={styles.itemBody}>{blocks(item.children, env)}</View>
+        </View>
+      ))}
     </View>
   )
 }
 
-function block(node: RootContent, env: Env, trailing: ReactNode, key: number): ReactNode {
+function block(node: RootContent, env: Env, key: number): ReactNode {
   const { colors } = env
   const base = [type.text, styles.prose, { color: colors.textPrimary }]
   switch (node.type) {
@@ -149,22 +146,20 @@ function block(node: RootContent, env: Env, trailing: ReactNode, key: number): R
       return (
         <Text key={key} selectable style={base}>
           {inline(node.children, env)}
-          {trailing}
         </Text>
       )
     case 'heading':
       return (
         <Text key={key} accessibilityRole="header" style={[base, HEADING[node.depth] ?? styles.strong]}>
           {inline(node.children, env)}
-          {trailing}
         </Text>
       )
     case 'list':
-      return <ListBlock key={key} items={node.children} ordered={node.ordered === true} start={node.start ?? 1} env={env} trailing={trailing} />
+      return <ListBlock key={key} items={node.children} ordered={node.ordered === true} start={node.start ?? 1} env={env} />
     case 'blockquote':
       return (
         <View key={key} style={[styles.quote, { borderLeftColor: colors.borderActive }]}>
-          {blocks(node.children, env, trailing)}
+          {blocks(node.children, env)}
         </View>
       )
     case 'code':
@@ -186,7 +181,6 @@ function block(node: RootContent, env: Env, trailing: ReactNode, key: number): R
       return (
         <Text key={key} selectable style={base}>
           {node.value}
-          {trailing}
         </Text>
       )
     default:
@@ -194,27 +188,18 @@ function block(node: RootContent, env: Env, trailing: ReactNode, key: number): R
   }
 }
 
-const TEXT_BLOCKS = new Set(['paragraph', 'heading', 'list', 'blockquote', 'html'])
-
-function blocks(nodes: RootContent[], env: Env, trailing: ReactNode): ReactNode {
-  const last = nodes[nodes.length - 1]
-  const inside = last && TEXT_BLOCKS.has(last.type)
-  return (
-    <>
-      {nodes.map((node, index) => block(node, env, inside && node === last ? trailing : null, index))}
-      {trailing && !inside ? <Text>{trailing}</Text> : null}
-    </>
-  )
+function blocks(nodes: RootContent[], env: Env): ReactNode {
+  return nodes.map((node, index) => block(node, env, index))
 }
 
 function parse(text: string): Root {
   return fromMarkdown(text, { extensions: [gfm(), mathSyntax()], mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()] })
 }
 
-export const Markdown = memo(function Markdown({ text, trailing, workspacePath }: { text: string; trailing: ReactNode; workspacePath: string | null }) {
+export const Markdown = memo(function Markdown({ text, workspacePath }: { text: string; workspacePath: string | null }) {
   const { colors } = useTheme()
   const tree = useMemo(() => parse(text), [text])
-  return <View style={styles.blocks}>{blocks(tree.children, { colors, workspacePath }, trailing)}</View>
+  return <View style={styles.blocks}>{blocks(tree.children, { colors, workspacePath })}</View>
 })
 
 const styles = StyleSheet.create({
