@@ -872,7 +872,7 @@ export function SettingsView({
       enabled: core.workspace.toolsImageGenerationEnabled ?? core.userDefaults.toolsImageGenerationEnabled ?? true,
       providerId: core.workspace.toolsImageGenerationProvider ?? core.userDefaults.toolsImageGenerationProvider ?? ''
     })
-    codeMode.applyMode(core.workspace.toolsCodeModeMode ?? core.userDefaults.toolsCodeModeMode ?? 'off')
+    codeMode.applyMode(core.workspace.toolsCodeModeMode ?? core.userDefaults.toolsCodeModeMode ?? 'only')
 
     if (keepDraftValues) {
       return

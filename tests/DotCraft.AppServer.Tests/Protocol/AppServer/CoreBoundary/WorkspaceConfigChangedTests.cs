@@ -178,7 +178,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         using var cleared = JsonDocument.Parse(await File.ReadAllTextAsync(configPath));
         Assert.False(cleared.RootElement.TryGetProperty("Tools", out _));
-        Assert.Equal(AppConfig.CodeModeSetting.Off, harness.Monitor.Current.Tools.CodeMode.Mode);
+        Assert.Equal(AppConfig.CodeModeSetting.Only, harness.Monitor.Current.Tools.CodeMode.Mode);
         Assert.Equal(2, harness.Service.AgentInvalidationCount);
     }
 

@@ -329,6 +329,7 @@ For Anthropic-compatible providers, `anthropicMessageContent` can declare how Do
 | `Tools.ImageGeneration.Provider` | Provider id that generates images. Empty uses the conversation's provider | Empty |
 | `Tools.ImageGeneration.Model` | Image model used for generation and edits | `gpt-image-2` |
 | `Tools.ImageGeneration.MaxReferenceImages` | Maximum reference images one edit can use, from `1` to `5` | `5` |
+| `Tools.CodeMode.Mode` | Scripted tool calls: `only`, `on`, or `off` | `only` |
 
 Generated images are saved under the Agent data directory at `generated_images/<threadId>/<callId>.png`. When connected to a remote computer, files are saved to the remote workspace’s `.craft/generated_images/<threadId>/<callId>.png` instead. If saving fails, the conversation still displays the generated image and reports the storage failure.
 
@@ -349,6 +350,10 @@ The image provider is the conversation's provider unless `Tools.ImageGeneration.
 ```
 
 If the named provider is missing or cannot generate images, the tool is not offered; DotCraft does not fall back to the conversation's provider.
+
+`Tools.CodeMode.Mode` controls scripted tool calls. The `CodeMode` tool runs one JavaScript program that calls the conversation's other tools and returns only what the model needs, so batches of calls take one model round trip and large intermediate results stay out of context. With `only`, every tool a script can call leaves the model's direct tool list and is reached through `CodeMode`. `on` adds `CodeMode` and keeps every tool directly callable, and `off` removes it. In Desktop, change it under **Settings › General › Tools**.
+
+Scripts run in a worker process started from the DotCraft executable. If the worker cannot start, `on` falls back to direct tools, while `only` fails the turn with `code_mode_unavailable`; use `on` or `off` where the host cannot launch it.
 
 Personal local hardening example:
 

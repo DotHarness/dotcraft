@@ -51,13 +51,13 @@ engines other than Jint.
 {
   "Tools": {
     "CodeMode": {
-      "Mode": "off"
+      "Mode": "only"
     }
   }
 }
 ```
 
-`Mode` is `off`, `on`, or `only`; the default is `off`.
+`Mode` is `off`, `on`, or `only`; the default is `only`.
 
 | Mode | Model tool list |
 |------|-----------------|

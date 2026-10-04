@@ -768,7 +768,7 @@ public sealed partial class AppConfig
     [ConfigSection("Tools.CodeMode", DisplayName = "Tools > Code Mode", Order = 26)]
     public sealed class CodeModeConfig
     {
-        public CodeModeSetting Mode { get; set; } = CodeModeSetting.Off;
+        public CodeModeSetting Mode { get; set; } = CodeModeSetting.Only;
     }
 
     public enum CodeModeSetting

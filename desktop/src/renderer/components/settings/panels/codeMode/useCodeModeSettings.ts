@@ -8,7 +8,7 @@ export type CodeModeSettings = ReturnType<typeof useCodeModeSettings>
 
 export function useCodeModeSettings(reloadWorkspaceCore: () => Promise<void>) {
   const t = useT()
-  const [mode, setMode] = useState<CodeModeMode>('off')
+  const [mode, setMode] = useState<CodeModeMode>('only')
   const [pending, setPending] = useState(false)
   const pendingRef = useRef(false)
 
