@@ -1,7 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { workspaceFile } from '../../core/links'
-import { baseName, type ToolIcon, type ToolVerb, type TranscriptEntry } from '../../core/transcript'
+import {
+  baseName,
+  thinkingStatus,
+  type ToolEntry,
+  type ToolGroupLabel,
+  type ToolIcon,
+  type ToolVerb,
+  type TranscriptEntry,
+} from '../../core/transcript'
 import type { UserSegment } from '../../core/userSegments'
 import { useI18n } from '../../i18n'
 import type { MessageId } from '../../i18n/messages/en'
@@ -13,8 +21,6 @@ import { CopyButton } from './CopyButton'
 import { ImageThumb } from './Images'
 import { Markdown } from './Markdown'
 import { PlanCard } from './PlanCard'
-
-type ToolEntry = Extract<TranscriptEntry, { kind: 'tool' }>
 
 const TOOL_ICON: Record<ToolIcon, IconName> = {
   terminal: 'squareTerminal',
@@ -43,39 +49,119 @@ const TOOL_PENDING_TEXT: Record<Exclude<ToolVerb, 'used'>, MessageId> = {
   searched: 'tool.searching',
 }
 
+const GROUP_TEXT: Record<ToolGroupLabel['kind'], MessageId> = {
+  explored: 'toolGroup.explored',
+  ran: 'toolGroup.ran',
+  created: 'toolGroup.created',
+  modified: 'toolGroup.modified',
+  createdAndModified: 'toolGroup.createdAndModified',
+  webSearched: 'toolGroup.webSearched',
+  webFetched: 'toolGroup.webFetched',
+  webUsed: 'toolGroup.webUsed',
+}
+
 const NOTICE_TEXT = {
   allowedOnce: 'notice.allowedOnce',
   allowedForSession: 'notice.allowedForSession',
   allowedAlways: 'notice.allowedAlways',
   rejected: 'notice.rejected',
   answered: 'notice.answered',
-  stopped: 'notice.stopped',
   turnFailed: 'notice.turnFailed',
 } as const satisfies Record<string, MessageId>
 
-function Reasoning({ text, seconds }: { text: string; seconds: number | null }) {
+function Disclosure({ open }: { open: boolean }) {
+  const { colors } = useTheme()
+  return (
+    <View style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
+      <Icon name="chevronRight" size={14} color={colors.textSecondary} />
+    </View>
+  )
+}
+
+function Reasoning({ text }: { text: string }) {
+  const { t } = useI18n()
+  return (
+    <Txt tone="secondary" numberOfLines={1} accessibilityLiveRegion="polite">
+      {thinkingStatus(text) ?? t('chat.thinking')}
+    </Txt>
+  )
+}
+
+function useNow(ticking: boolean): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!ticking) return
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [ticking])
+  return now
+}
+
+const ACTIVITY_TEXT = {
+  working: ['activity.working', 'activity.workingFor'],
+  worked: ['activity.worked', 'activity.workedFor'],
+  stopped: ['activity.interrupted', 'activity.interruptedAfter'],
+} as const satisfies Record<string, readonly [MessageId, MessageId]>
+
+function Activity({ entry, workspacePath }: { entry: Extract<TranscriptEntry, { kind: 'activity' }>; workspacePath: string | null }) {
+  const { t, duration } = useI18n()
+  const { colors } = useTheme()
+  const [open, setOpen] = useState(false)
+  const working = entry.status === 'working'
+  const now = useNow(working)
+  const elapsed = (working ? now : Date.parse(entry.endedAt ?? '')) - Date.parse(entry.startedAt ?? '')
+  const timed = Number.isFinite(elapsed) && elapsed >= (working ? 1000 : 0)
+  const [plain, withDuration] = ACTIVITY_TEXT[entry.status]
+  const label = timed ? t(withDuration, { duration: duration(elapsed) }) : t(plain)
+  const expandable = entry.children.length > 0
+  return (
+    <View style={styles.activity}>
+      <Pressable
+        accessibilityRole={expandable ? 'button' : undefined}
+        accessibilityState={expandable ? { expanded: open } : undefined}
+        disabled={!expandable}
+        onPress={() => setOpen((value) => !value)}
+        style={styles.activityRow}
+      >
+        <Txt tone="secondary" style={styles.fixed}>
+          {label}
+        </Txt>
+        {expandable ? <Disclosure open={open} /> : null}
+        <View style={[styles.rule, { backgroundColor: colors.borderDefault }]} />
+      </Pressable>
+      {open
+        ? entry.children.map((child, index) => (
+            <TranscriptLine key={child.id} entry={child} previous={entry.children[index - 1]} workspacePath={workspacePath} />
+          ))
+        : null}
+    </View>
+  )
+}
+
+function ToolGroup({ entry }: { entry: Extract<TranscriptEntry, { kind: 'toolGroup' }> }) {
   const { t } = useI18n()
   const { colors } = useTheme()
   const [open, setOpen] = useState(false)
-  const label = seconds === null ? t('chat.thinking') : t('chat.thoughtFor', { seconds })
+  const label =
+    entry.label.kind === 'createdAndModified'
+      ? t(GROUP_TEXT.createdAndModified, { created: entry.label.created, modified: entry.label.modified })
+      : t(GROUP_TEXT[entry.label.kind], { count: entry.label.count })
+  const tone = entry.failed ? colors.errorText : colors.textSecondary
   return (
-    <View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        disabled={!text}
-        onPress={() => setOpen((value) => !value)}
-        style={styles.reasoningToggle}
-      >
-        <Txt tone="secondary">{label}</Txt>
-        {text ? (
-          <View style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
-            <Icon name="chevronRight" size={14} color={colors.textSecondary} />
-          </View>
-        ) : null}
+    <View style={styles.toolBlock}>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((value) => !value)} style={styles.tool}>
+        <Icon name={TOOL_ICON[entry.children[0].icon]} size={16} color={tone} strokeWidth={1.6} />
+        <Text numberOfLines={1} style={[type.text, styles.line, styles.shrink, { color: tone }]}>
+          {label}
+        </Text>
+        <Disclosure open={open} />
       </Pressable>
       {open ? (
-        <Text style={[type.body, styles.reasoningText, { color: colors.textDimmed, borderLeftColor: colors.borderDefault }]}>{text}</Text>
+        <View style={styles.groupChildren}>
+          {entry.children.map((child) => (
+            <ToolLine key={child.id} entry={child} />
+          ))}
+        </View>
       ) : null}
     </View>
   )
@@ -107,11 +193,10 @@ function ToolLine({ entry }: { entry: ToolEntry }) {
   const { t, around } = useI18n()
   const { colors } = useTheme()
   const [open, setOpen] = useState(false)
-  const grouped = entry.subjects.length > 1
   const textStyle = [type.text, styles.line, styles.shrink, { color: colors.textSecondary }]
-  const pending = entry.subjects.length === 0 && entry.verb !== 'used'
-  const subject = grouped ? t('tool.files', { count: entry.subjects.length }) : entry.subjects[0]
-  const code = entry.code && !grouped
+  const pending = entry.subject === null && entry.verb !== 'used'
+  const subject = entry.subject
+  const code = entry.code
   const [before, after] = around(TOOL_TEXT[entry.verb], 'subject')
   return (
     <View style={styles.toolBlock}>
@@ -122,14 +207,12 @@ function ToolLine({ entry }: { entry: ToolEntry }) {
         onPress={() => setOpen((value) => !value)}
         style={styles.tool}
       >
-        {grouped ? null : (
-          <Icon
-            name={TOOL_ICON[entry.icon]}
-            size={16}
-            color={entry.icon === 'declined' ? colors.warningText : colors.textSecondary}
-            strokeWidth={1.6}
-          />
-        )}
+        <Icon
+          name={TOOL_ICON[entry.icon]}
+          size={16}
+          color={entry.icon === 'declined' ? colors.warningText : colors.textSecondary}
+          strokeWidth={1.6}
+        />
         {pending ? (
           <Text numberOfLines={1} style={textStyle}>
             {t(TOOL_PENDING_TEXT[entry.verb as Exclude<ToolVerb, 'used'>])}
@@ -209,7 +292,8 @@ export function TranscriptLine({
 }) {
   const { t } = useI18n()
   const { colors } = useTheme()
-  const tight = entry.kind === 'tool' && previous?.kind === 'tool'
+  const toolish = (value: TranscriptEntry | undefined) => value?.kind === 'tool' || value?.kind === 'toolGroup'
+  const tight = toolish(entry) && toolish(previous)
   switch (entry.kind) {
     case 'user':
       return (
@@ -242,17 +326,25 @@ export function TranscriptLine({
       return (
         <View accessibilityLiveRegion={entry.streaming ? 'polite' : 'none'}>
           <Markdown text={entry.text} workspacePath={workspacePath} />
-          {entry.streaming ? null : <CopyButton text={entry.text} label={t('chat.copy')} style={styles.copy} />}
+          {entry.copy ? <CopyButton text={entry.text} label={t('chat.copy')} style={styles.copy} /> : null}
         </View>
       )
     case 'reasoning':
-      return <Reasoning text={entry.text} seconds={entry.seconds} />
+      return <Reasoning text={entry.text} />
     case 'tool':
       return (
         <View style={tight ? styles.tight : undefined}>
           <ToolLine entry={entry} />
         </View>
       )
+    case 'toolGroup':
+      return (
+        <View style={tight ? styles.tight : undefined}>
+          <ToolGroup entry={entry} />
+        </View>
+      )
+    case 'activity':
+      return <Activity entry={entry} workspacePath={workspacePath} />
     case 'image':
       return <GeneratedImage entry={entry} />
     case 'plan':
@@ -300,8 +392,10 @@ const styles = StyleSheet.create({
   photos: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6, maxWidth: '84%' },
   photo: { width: 112, maxHeight: 160 },
   bubble: { maxWidth: '84%', paddingVertical: 9, paddingHorizontal: 14, borderRadius: 20 },
-  reasoningToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
-  reasoningText: { marginTop: 6, paddingLeft: 12, borderLeftWidth: 2 },
+  activity: { gap: 14 },
+  activityRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rule: { flex: 1, height: StyleSheet.hairlineWidth, marginLeft: 4 },
+  groupChildren: { gap: 8, paddingLeft: 22 },
   toolBlock: { gap: 8 },
   tool: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
   details: { gap: 6 },

@@ -15,6 +15,8 @@ export interface HistoryTurn {
   id: string
   status: string
   error: string | null
+  startedAt?: string | null
+  completedAt?: string | null
 }
 
 export interface Echo {
@@ -67,7 +69,7 @@ function itemFromWire(item: SessionItem): HistoryItem {
 }
 
 function turnFromWire(turn: SessionTurn): HistoryTurn {
-  return { id: turn.id, status: turn.status, error: turn.error ?? null }
+  return { id: turn.id, status: turn.status, error: turn.error ?? null, startedAt: turn.startedAt, completedAt: turn.completedAt ?? null }
 }
 
 function isStreamable(item: HistoryItem): boolean {

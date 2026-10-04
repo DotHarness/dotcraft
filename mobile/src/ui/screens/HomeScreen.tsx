@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router'
 import { useMemo, useState } from 'react'
-import { Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useMobileState } from '../../app-state/SessionContext'
 import {
@@ -12,16 +12,14 @@ import {
   runningChats,
   stateOf,
   type ComputerStatus,
-  type MobileState,
 } from '../../core/state'
 import { useI18n } from '../../i18n'
 import { Icon } from '../icons'
 import { BottomBar, Screen, ScrollArea } from '../layout'
 import { Mascot, MascotNote, MascotTransition, type MascotMoment } from '../mascot/Mascot'
 import { MenuRow, PopoverMenu } from '../Menu'
-import { ComputerStatusLine, PhoneButton, ReadOnlyNotice, Section, Txt } from '../parts'
+import { ComputerStatusLine, ReadOnlyNotice, RoundIconButton, Section, Txt } from '../parts'
 import { ChatRow, chatTitle, ProjectRow } from '../rows'
-import { SheetHeader, SheetLayer } from '../Sheet'
 import { metrics, type, useTheme } from '../theme'
 import { PairDifferentSheet } from './SettingsScreen'
 
@@ -36,36 +34,13 @@ export function chatHref(key: string) {
   return { pathname: '/chat/[projectId]/[threadId]' as const, params: { projectId: key.slice(0, index), threadId: key.slice(index + 1) } }
 }
 
-function ProjectPicker({ state, visible, onClose, onPick }: { state: MobileState; visible: boolean; onClose: () => void; onPick: (id: string) => void }) {
-  const { t } = useI18n()
-  const projects = useMemo(() => projectsByRecentUse(state), [state])
-  return (
-    <SheetLayer visible={visible} onClose={onClose}>
-      <SheetHeader title={t('picker.title')} onClose={onClose} />
-      <View accessibilityLabel={t('picker.label', { computer: state.computer?.name ?? '' })}>
-        {projects.map((project, index) => (
-          <ProjectRow
-            key={project.id}
-            project={project}
-            meta={index === 0 ? t(project.running ? 'picker.lastUsed' : 'picker.lastUsedNotRunning') : undefined}
-            running={false}
-            live
-            onPress={() => onPick(project.id)}
-          />
-        ))}
-      </View>
-    </SheetLayer>
-  )
-}
-
 export function HomeScreen() {
   const state = useMobileState()
   const router = useRouter()
   const { t } = useI18n()
   const { colors } = useTheme()
   const [query, setQuery] = useState('')
-  const [focused, setFocused] = useState(false)
-  const [picking, setPicking] = useState(false)
+  const [searching, setSearching] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [replacing, setReplacing] = useState(false)
   const [rowHeight, setRowHeight] = useState(0)
@@ -83,6 +58,12 @@ export function HomeScreen() {
   const nameOf = (projectId: string) => projectById(state, projectId)?.name ?? ''
   const openChat = (key: string) => router.push(chatHref(key))
   const menuLabel = t('home.computerMenu', { computer: computer.name })
+  const lastProject = projectsByRecentUse(state)[0]
+  const canStart = status === 'online' && Boolean(lastProject)
+  const closeSearch = () => {
+    setSearching(false)
+    setQuery('')
+  }
 
   return (
     <Screen>
@@ -90,22 +71,47 @@ export function HomeScreen() {
         onLayout={({ nativeEvent }) => setRowHeight(nativeEvent.layout.height)}
         style={[styles.top, { backgroundColor: colors.bgPrimary }]}
       >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={menuLabel}
-          accessibilityState={{ expanded: menuOpen }}
-          style={({ pressed }) => [styles.computer, pressed && { backgroundColor: colors.roundFill }]}
-          onPress={() => setMenuOpen(true)}
-        >
-          <Mascot moment={computerMoment(status, waiting.length)} size={40} style={styles.avatar} />
-          <View style={styles.computerText}>
-            <Txt numberOfLines={1} style={styles.computerName}>
-              {computer.name}
-            </Txt>
-            <ComputerStatusLine status={status} updatedAt={state.syncedAt} />
+        {searching ? (
+          <View style={styles.searchRow}>
+            <View style={[styles.search, { borderColor: colors.accent, backgroundColor: colors.bgSecondary }]}>
+              <Icon name="search" size={18} color={colors.textSecondary} />
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                autoFocus
+                placeholder={t('home.search')}
+                placeholderTextColor={colors.textDimmed}
+                accessibilityLabel={t('home.search')}
+                returnKeyType="search"
+                autoCorrect={false}
+                style={[type.text, styles.searchInput, { color: colors.textPrimary }]}
+              />
+            </View>
+            <RoundIconButton label={t('common.close')} icon="x" onPress={closeSearch} />
           </View>
-          <Icon name="chevronDown" size={16} color={colors.textSecondary} strokeWidth={2} />
-        </Pressable>
+        ) : (
+          <>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={menuLabel}
+              accessibilityState={{ expanded: menuOpen }}
+              style={({ pressed }) => [styles.computer, pressed && { backgroundColor: colors.roundFill }]}
+              onPress={() => setMenuOpen(true)}
+            >
+              <Mascot moment={computerMoment(status, waiting.length)} size={40} style={styles.avatar} />
+              <View style={styles.computerText}>
+                <Txt numberOfLines={1} style={styles.computerName}>
+                  {computer.name}
+                </Txt>
+                <ComputerStatusLine status={status} updatedAt={state.syncedAt} />
+              </View>
+              <Icon name="chevronDown" size={16} color={colors.textSecondary} strokeWidth={2} />
+            </Pressable>
+            <View style={styles.searchButton}>
+              <RoundIconButton label={t('home.search')} icon="search" onPress={() => setSearching(true)} />
+            </View>
+          </>
+        )}
       </View>
       <ScrollArea>
         {status === 'access-off' ? <ReadOnlyNotice status={status} computer={computer.name} style={styles.notice} /> : null}
@@ -138,42 +144,41 @@ export function HomeScreen() {
                     project={project}
                     running={visible.some((chat) => chat.projectId === project.id && stateOf(chat) === 'running')}
                     live={live}
-                    onPress={() => router.push({ pathname: '/project/[projectId]', params: { projectId: project.id } })}
+                    onPress={() => router.push({ pathname: '/new/[projectId]', params: { projectId: project.id } })}
                   />
                 ))}
               </Section>
-              <Section title={t('home.recent')} grow>
-                {visible.length === 0 ? (
-                  <MascotNote moment="content">{t('home.empty', { computer: computer.name })}</MascotNote>
-                ) : (
-                  recent.map((chat) => (
+              {recent.length > 0 ? (
+                <Section title={t('home.recent')}>
+                  {recent.map((chat) => (
                     <ChatRow key={chat.key} chat={chat} live={live} projectName={nameOf(chat.projectId)} onPress={() => openChat(chat.key)} />
-                  ))
-                )}
-              </Section>
+                  ))}
+                </Section>
+              ) : null}
             </>
           )}
         </View>
       </ScrollArea>
       <BottomBar>
-        <View style={[styles.search, { borderColor: focused ? colors.accent : colors.borderDefault, backgroundColor: colors.bgSecondary }]}>
-          <Icon name="search" size={18} color={colors.textSecondary} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholder={t('home.search')}
-            placeholderTextColor={colors.textDimmed}
-            accessibilityLabel={t('home.search')}
-            returnKeyType="search"
-            autoCorrect={false}
-            style={[type.text, styles.searchInput, { color: colors.textPrimary }]}
-          />
-        </View>
-        <PhoneButton icon="squarePen" disabled={status !== 'online'} onPress={() => setPicking(true)}>
-          {t('home.newChat')}
-        </PhoneButton>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('home.newChat')}
+          accessibilityState={{ disabled: !canStart }}
+          disabled={!canStart}
+          onPress={() => lastProject && router.push({ pathname: '/new/[projectId]', params: { projectId: lastProject.id, focus: '1' } })}
+          style={({ pressed }) => [
+            styles.composer,
+            { backgroundColor: colors.composerInputBackground, borderColor: pressed ? colors.borderActive : colors.composerInputBorder },
+            !canStart && styles.disabled,
+          ]}
+        >
+          <View style={styles.plus}>
+            <Icon name="plus" size={22} color={colors.textPrimary} />
+          </View>
+          <Text numberOfLines={1} style={[type.text, styles.placeholder, { color: colors.composerPlaceholder }]}>
+            {t('composer.placeholder')}
+          </Text>
+        </Pressable>
       </BottomBar>
       <PopoverMenu visible={menuOpen} label={menuLabel} anchor={{ top: insets.top + rowHeight }} onClose={() => setMenuOpen(false)}>
         <MenuRow
@@ -194,15 +199,6 @@ export function HomeScreen() {
         />
       </PopoverMenu>
       <PairDifferentSheet computer={computer.name} visible={replacing} onClose={() => setReplacing(false)} />
-      <ProjectPicker
-        state={state}
-        visible={picking}
-        onClose={() => setPicking(false)}
-        onPick={(projectId) => {
-          setPicking(false)
-          router.push({ pathname: '/new/[projectId]', params: { projectId } })
-        }}
-      />
     </Screen>
   )
 }
@@ -211,9 +207,13 @@ const styles = StyleSheet.create({
   top: {
     flexDirection: 'row',
     justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 64,
     paddingVertical: 8,
-    paddingHorizontal: metrics.gutter,
+    paddingHorizontal: metrics.gutter + 52,
   },
+  searchButton: { position: 'absolute', right: metrics.gutter },
+  searchRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: -52 },
   computer: {
     flexShrink: 1,
     minWidth: 0,
@@ -242,4 +242,8 @@ const styles = StyleSheet.create({
     borderRadius: metrics.pill,
   },
   searchInput: { flex: 1, minWidth: 0, padding: 0, outlineWidth: 0 },
+  composer: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 56, paddingHorizontal: 8, borderWidth: 1, borderRadius: 26 },
+  plus: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  placeholder: { flex: 1, minWidth: 0 },
+  disabled: { opacity: 0.45 },
 })

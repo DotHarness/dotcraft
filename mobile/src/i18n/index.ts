@@ -37,6 +37,7 @@ export interface I18n {
   ago: (iso: string | null) => string
   date: (iso: string) => string
   dateTime: (iso: string) => string
+  duration: (ms: number) => string
 }
 
 function createI18n(locale: AppLocale): I18n {
@@ -68,6 +69,24 @@ function createI18n(locale: AppLocale): I18n {
     },
     date: (iso) => shortDate(Date.parse(iso)),
     dateTime: (iso) => new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(Date.parse(iso)),
+    duration(ms) {
+      const total = Math.max(0, Math.round(ms / 1000))
+      const parts: [number, 'hour' | 'minute' | 'second', string][] = [
+        [Math.floor(total / 3600), 'hour', 'h'],
+        [Math.floor((total % 3600) / 60), 'minute', 'm'],
+        [total % 60, 'second', 's'],
+      ]
+      const shown = parts.filter(([value], index) => value > 0 || (index === 2 && total === 0))
+      return shown
+        .map(([value, unit, short]) => {
+          try {
+            return new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'narrow' }).format(value)
+          } catch {
+            return `${value}${short}`
+          }
+        })
+        .join(' ')
+    },
   }
 }
 

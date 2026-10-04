@@ -182,7 +182,8 @@ describe('approvals and questions', () => {
     expect(harness.state().pending[key]).toBeUndefined()
     await waitFor(() => stateOf(harness.state().chats[key]) === 'done')
     const transcript = buildTranscript(harness.state().details[key].history)
-    expect(transcript.some((entry) => entry.kind === 'notice' && entry.notice === 'allowedOnce')).toBe(true)
+    const unfolded = transcript.flatMap((entry) => (entry.kind === 'activity' ? entry.children : [entry]))
+    expect(unfolded.some((entry) => entry.kind === 'notice' && entry.notice === 'allowedOnce')).toBe(true)
   })
 
   it('maps Allow for session and Reject to acceptForSession and decline', async () => {
@@ -258,7 +259,7 @@ describe('turn control', () => {
     expect(methods(computer)).toContain('turn/interrupt')
     await waitFor(() => stateOf(harness.state().chats[key]) === 'done')
     const transcript = buildTranscript(harness.state().details[key].history)
-    expect(transcript[transcript.length - 1]).toMatchObject({ kind: 'notice', notice: 'stopped' })
+    expect(transcript.some((entry) => entry.kind === 'activity' && entry.status === 'stopped')).toBe(true)
   })
 
   it('starts a new chat in a stopped project by ensuring it, with project defaults', async () => {
@@ -376,6 +377,7 @@ describe('reconnect and catch-up', () => {
     expect(live.slice(0, earlier.length)).toEqual(earlier)
     expect(live.slice(earlier.length).map((entry) => [entry.kind, 'text' in entry ? entry.text : null])).toEqual([
       ['user', 'Check the French names too.'],
+      ['activity', null],
       ['assistant', reply],
     ])
 

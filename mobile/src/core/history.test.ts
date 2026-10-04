@@ -1,7 +1,9 @@
 import type { JsonValue } from '@dotcraft/sdk/contracts'
 import { describe, expect, it } from 'vitest'
 import { applyEvent, emptyHistory, historyFromPages, restoreEchoes, type ChatHistory } from './history'
-import { buildTranscript } from './transcript'
+import { buildTranscript as layout } from './transcript'
+
+const buildTranscript = (history: ChatHistory) => layout(history).filter((entry) => entry.kind !== 'activity')
 
 const item = (id: string, type: string, payload: { [key: string]: JsonValue }, extra: Record<string, unknown> = {}) => ({
   id,
@@ -45,12 +47,12 @@ describe('history catch-up', () => {
       [turn('t1', 'running')],
     )
     const doubled = apply(pages, { kind: 'delta', itemId: 'm', turnId: 't1', itemType: 'agentMessage', delta: 'Partial' })
-    expect(buildTranscript(doubled)).toEqual([{ kind: 'assistant', id: 't1/m', text: 'Partial', streaming: true }])
+    expect(buildTranscript(doubled)).toMatchObject([{ kind: 'assistant', id: 't1/m', text: 'Partial', streaming: true }])
 
     const missed = apply(emptyHistory(), { kind: 'delta', itemId: 'n', turnId: 't1', itemType: 'agentMessage', delta: 'middle of a sentence' })
     expect(buildTranscript(missed)).toEqual([])
     const done = apply(missed, { kind: 'item', item: item('n', 'agentMessage', { text: 'The start of the middle of a sentence' }) })
-    expect(buildTranscript(done)).toEqual([{ kind: 'assistant', id: 't1/n', text: 'The start of the middle of a sentence', streaming: false }])
+    expect(buildTranscript(done)).toMatchObject([{ kind: 'assistant', id: 't1/n', text: 'The start of the middle of a sentence', streaming: false }])
   })
 
   it('drops an optimistic echo once the server acknowledges its message, live or in reloaded pages', () => {
@@ -91,9 +93,9 @@ describe('turn-scoped item ids', () => {
       ],
     }
     expect(buildTranscript(history)).toMatchObject([
-      { kind: 'tool', id: 't1/item_001', verb: 'edited', subjects: ['a.ts'], code: false, group: 'edit-file', added: 3, removed: 1 },
+      { kind: 'tool', id: 't1/item_001', verb: 'edited', subject: 'a.ts', code: false, added: 3, removed: 1 },
       { kind: 'notice', id: 't1/item_004', tone: 'neutral', notice: 'allowedOnce', detail: 'npm test' },
-      { kind: 'tool', id: 't2/item_001', verb: 'edited', subjects: ['b.ts'], code: false, group: 'edit-file', added: 7, removed: 0 },
+      { kind: 'tool', id: 't2/item_001', verb: 'edited', subject: 'b.ts', code: false, added: 7, removed: 0 },
       { kind: 'notice', id: 't2/item_004', tone: 'neutral', notice: 'rejected', detail: 'npm run lint' },
     ])
   })

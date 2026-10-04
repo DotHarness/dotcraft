@@ -451,8 +451,10 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
   }
   const tool = (toolName: string, args: Record<string, unknown>, result: Record<string, unknown> = {}) => {
     const callId = nextCall()
-    push('toolCall', { toolName, providerFlatName: toolName, callId, arguments: args })
-    push('toolResult', { toolName, providerFlatName: toolName, callId, result: 'ok', success: true, ...result })
+    const presentation = PRESENTATIONS[toolName]
+    const shown = presentation ? { presentation } : {}
+    push('toolCall', { toolName, providerFlatName: toolName, callId, arguments: args, ...shown })
+    push('toolResult', { toolName, providerFlatName: toolName, callId, result: 'ok', success: true, ...shown, ...result })
   }
   const emit = (line: Line) => {
     switch (line.kind) {
@@ -589,6 +591,17 @@ function accountUsage(now: Date): Record<string, unknown> {
     primary: { usedPercent: 27, windowSeconds: 18_000, resetAt: later(3) },
     secondary: { usedPercent: 9, windowSeconds: 604_800, resetAt: later(6 * 24) },
   }
+}
+
+const PRESENTATIONS: Record<string, { presentationId: string; options?: { operation: string } }> = {
+  Exec: { presentationId: 'core.shell' },
+  WriteFile: { presentationId: 'core.file-write', options: { operation: 'write' } },
+  EditFile: { presentationId: 'core.file-write', options: { operation: 'edit' } },
+  WebSearch: { presentationId: 'core.web', options: { operation: 'search' } },
+  WebFetch: { presentationId: 'core.web', options: { operation: 'fetch' } },
+  ReadFile: { presentationId: 'core.read-file' },
+  GrepFiles: { presentationId: 'core.read-file' },
+  FindFiles: { presentationId: 'core.read-file' },
 }
 
 export interface StudioOptions {

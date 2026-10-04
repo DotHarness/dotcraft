@@ -8,7 +8,7 @@ import { usedShare } from '../../core/contextUsage'
 import { waitingDecisions } from '../../core/decisions'
 import { draftTitle, plainMessage, type MessageDraft, type ReferenceEntry } from '../../core/draft'
 import { CantStartProjectError } from '../../core/session'
-import { chatKey, computerStatus, isReachable, projectById, stateOf, type PendingRequest, type ProjectModels } from '../../core/state'
+import { chatKey, computerStatus, isReachable, projectById, projectChats, stateOf, type PendingRequest, type ProjectModels } from '../../core/state'
 import { workspaceFile } from '../../core/links'
 import { controlsOf, offersPlanMode, startConfig, type ChatControls, type NewChatChoices } from '../../core/threadConfig'
 import { buildTranscript } from '../../core/transcript'
@@ -24,12 +24,14 @@ import { ContextRing } from '../chat/ContextRing'
 import type { DecisionActions } from '../chat/DecisionBodies'
 import { DecisionCard } from '../chat/DecisionCard'
 import { FileSheet } from '../chat/FileSheet'
+import { ProjectPicker } from '../chat/ProjectPicker'
 import { StatusPopover } from '../chat/StatusPopover'
 import { TranscriptLine } from '../chat/Transcript'
 import { Screen } from '../layout'
 import { MascotNote, MascotTransition } from '../mascot/Mascot'
-import { Notice, PhoneButton, ReadOnlyNotice } from '../parts'
-import { chatTitle } from '../rows'
+import { Icon } from '../icons'
+import { Notice, PhoneButton, ReadOnlyNotice, Section, Txt } from '../parts'
+import { ChatRow, chatTitle } from '../rows'
 import { metrics, useTheme } from '../theme'
 import { chatHref } from './HomeScreen'
 
@@ -222,7 +224,6 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
             {changes ? <ChangesPill changes={changes} onPress={() => setChangesOpen(true)} /> : null}
             <Composer
               key={key}
-              computer={computer.name}
               running={isLive(chatState)}
               canSend={ready}
               canAttachFiles={models?.fileSystem === true}
@@ -250,7 +251,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
           router.back()
           void session.archive(key).catch(() => undefined)
         }}
-        onOpenProject={() => router.push({ pathname: '/project/[projectId]', params: { projectId } })}
+        onOpenProject={() => router.push({ pathname: '/new/[projectId]', params: { projectId } })}
         onStop={() => void session.stop(key).catch(() => undefined)}
       />
       <StatusPopover
@@ -301,27 +302,41 @@ function chosen(previous: NewChatChoices, change: ControlChange): NewChatChoices
   }
 }
 
-export function NewChatScreen({ projectId }: { projectId: string }) {
+export function NewChatScreen({ projectId, focus = false }: { projectId: string; focus?: boolean }) {
   const state = useMobileState()
   const session = useSession()
   const router = useRouter()
   const { t } = useI18n()
-  const [phase, setPhase] = useState<'idle' | 'starting' | 'cantStart'>('idle')
+  const { colors } = useTheme()
+  const [failed, setFailed] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [picking, setPicking] = useState(false)
   const [choices, setChoices] = useState(UNTOUCHED)
   const [planMode, setPlanMode] = useState(false)
   const created = useRef<string | null>(null)
   const project = projectById(state, projectId)
-  const ready = state.phases[projectId] === 'ready'
+  const phase = state.phases[projectId]
+  const ready = phase === 'ready'
   const models = useModels(projectId, ready, choices.controls.providerId)
   const references = useReferences(projectId, ready)
+  const chats = useMemo(() => projectChats(state, projectId), [state, projectId])
   const computer = state.computer
-  if (!computer || !project) return <Screen>{null}</Screen>
   const status = computerStatus(state)
+  const online = status === 'online'
+  const needsStart = Boolean(project && !project.running && online && phase !== 'cantStart')
+
+  useEffect(() => {
+    if (needsStart && phase !== 'starting') void session.startProject(projectId)
+  }, [needsStart, phase, projectId, session])
+
+  if (!computer || !project) return <Screen>{null}</Screen>
   const providerId = choices.controls.providerId ?? models?.defaultProviderId ?? null
   const controls: ChatControls = { ...choices.controls, providerId, model: choices.controls.model ?? defaultModel(models, providerId) }
+  const starting = sending ? !project.running : needsStart || phase === 'starting'
+  const cantStart = failed || phase === 'cantStart'
 
   async function send(draft: MessageDraft) {
-    if (!project?.running) setPhase('starting')
+    setSending(true)
     try {
       const config = startConfig({ touched: choices.touched, controls })
       const key = created.current ?? (await session.newChat(projectId, draftTitle(draft), planMode ? { ...config, mode: 'plan' } : config))
@@ -329,34 +344,57 @@ export function NewChatScreen({ projectId }: { projectId: string }) {
       await session.send(key, draft)
       router.replace(chatHref(key))
     } catch (error) {
-      setPhase(error instanceof CantStartProjectError ? 'cantStart' : 'idle')
+      setFailed(error instanceof CantStartProjectError)
       throw error
+    } finally {
+      setSending(false)
     }
   }
 
   return (
     <Screen>
       <KeyboardAvoidingView style={styles.fill} behavior="padding">
-        <Pressable accessible={false} onPress={Keyboard.dismiss} style={[styles.fill, styles.emptyBody]}>
-          {phase === 'starting' ? (
+        <View style={styles.fill}>
+          {starting ? (
             <MascotTransition line={t('project.starting', { project: project.name })} />
-          ) : phase === 'cantStart' ? (
+          ) : cantStart ? (
             <MascotNote moment="asleep">{t('project.cantStart', { computer: computer.name, project: project.name })}</MascotNote>
+          ) : chats.length > 0 ? (
+            <ScrollView style={styles.fill} contentContainerStyle={styles.welcome} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+              <Section title={t('home.recent')} grow>
+                {chats.map((chat) => (
+                  <ChatRow key={chat.key} chat={chat} live={online} projectName={null} onPress={() => router.push(chatHref(chat.key))} />
+                ))}
+              </Section>
+            </ScrollView>
           ) : (
-            <MascotNote moment="greeting">
-              {project.running
-                ? t('newChat.runsOn', { computer: computer.name, project: project.name })
-                : t('newChat.startsOn', { computer: computer.name, project: project.name })}
-            </MascotNote>
+            <Pressable accessible={false} onPress={Keyboard.dismiss} style={[styles.fill, styles.emptyBody]}>
+              <MascotNote moment="greeting">
+                {project.running
+                  ? t('newChat.runsOn', { computer: computer.name, project: project.name })
+                  : t('newChat.startsOn', { computer: computer.name, project: project.name })}
+              </MascotNote>
+            </Pressable>
           )}
           <ChatBar title={t('newChat.title')} project={project.name} computer={computer.name} status={status} onBack={() => router.back()} />
-        </Pressable>
+        </View>
         <Dock>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${t('picker.title')}: ${project.name}`}
+            onPress={() => setPicking(true)}
+            style={({ pressed }) => [styles.projectRow, pressed && { backgroundColor: colors.roundFill }]}
+          >
+            <Icon name={project.isChats ? 'messagesSquare' : 'folder'} size={18} color={colors.textSecondary} strokeWidth={1.8} />
+            <Txt numberOfLines={1} style={styles.projectName}>
+              {project.name}
+            </Txt>
+            <Icon name="chevronDown" size={16} color={colors.textSecondary} strokeWidth={2} />
+          </Pressable>
           <Composer
-            computer={computer.name}
             running={false}
-            autoFocus
-            canSend={status === 'online' && phase !== 'starting'}
+            autoFocus={focus}
+            canSend={online && !starting && !cantStart}
             canAttachFiles={models?.fileSystem === true}
             canPlan
             references={references}
@@ -375,6 +413,19 @@ export function NewChatScreen({ projectId }: { projectId: string }) {
           />
         </Dock>
       </KeyboardAvoidingView>
+      <ProjectPicker
+        state={state}
+        visible={picking}
+        onClose={() => setPicking(false)}
+        onPick={(id) => {
+          setPicking(false)
+          if (id === projectId) return
+          setChoices(UNTOUCHED)
+          setFailed(false)
+          created.current = null
+          router.setParams({ projectId: id })
+        }}
+      />
     </Screen>
   )
 }
@@ -385,4 +436,16 @@ const styles = StyleSheet.create({
   dock: { gap: 10, paddingTop: 8, paddingHorizontal: metrics.gutter },
   decision: { marginTop: 'auto' },
   emptyBody: { paddingHorizontal: metrics.gutter },
+  welcome: { flexGrow: 1, paddingTop: BAR_HEIGHT + 20, paddingHorizontal: metrics.gutter, paddingBottom: 16 },
+  projectRow: {
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: metrics.rowRadius,
+  },
+  projectName: { flexShrink: 1, fontWeight: '500' },
 })

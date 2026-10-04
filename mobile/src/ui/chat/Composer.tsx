@@ -40,7 +40,6 @@ function SendButton({ label, disabled, onPress }: { label: string; disabled: boo
 }
 
 export function Composer({
-  computer,
   running,
   controls,
   autoFocus = false,
@@ -53,7 +52,6 @@ export function Composer({
   onSend,
   onStop,
 }: {
-  computer: string
   running: boolean
   controls?: ReactNode
   autoFocus?: boolean
@@ -197,7 +195,7 @@ export function Composer({
           }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder={t('composer.placeholder', { computer })}
+          placeholder={t(planMode && canPlan ? 'composer.placeholderPlan' : 'composer.placeholder')}
           placeholderTextColor={colors.composerPlaceholder}
           accessibilityLabel={t('composer.message')}
           style={[type.text, styles.input, { color: colors.textPrimary }]}
