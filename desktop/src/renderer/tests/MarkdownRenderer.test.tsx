@@ -491,6 +491,36 @@ describe('MarkdownRenderer', () => {
     expect(container.querySelector('em')?.textContent).toContain('italic')
   })
 
+  it('copies a selection with formulas as their TeX source', async () => {
+    const { container } = renderWithLocale(['Weight for \\(n\\) neighbours:', '', '\\[', 'w=\\frac58', '\\]'].join('\n'))
+    await waitFor(() => expect(container.querySelectorAll('.katex')).toHaveLength(2))
+
+    const range = document.createRange()
+    range.selectNodeContents(container)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+    const setData = vi.fn()
+    fireEvent.copy(container.querySelector('.katex')!, { clipboardData: { setData } })
+
+    expect(setData).toHaveBeenCalledWith('text/plain', 'Weight for \\(n\\) neighbours:\n\n\\[w=\\frac58\\]')
+  })
+
+  it('keeps spaces between inline elements and blank lines inside code copied together with a formula', async () => {
+    const { container } = renderWithLocale(['- **a** **b** \\(x\\)', '- c', '', '```', 'first', '', '', 'last', '```'].join('\n'))
+    await waitFor(() => expect(container.querySelector('.katex')).not.toBeNull())
+
+    const range = document.createRange()
+    range.selectNodeContents(container)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+    const setData = vi.fn()
+    fireEvent.copy(container.querySelector('.katex')!, { clipboardData: { setData } })
+
+    const copied = setData.mock.calls.find(([type]) => type === 'text/plain')?.[1]
+    expect(copied).toContain('a b \\(x\\)\nc')
+    expect(copied).toContain('first\n\n\nlast')
+  })
+
   it('memoizes: does not re-render when content unchanged', () => {
     const { rerender, container } = renderWithLocale('Static text')
     const firstHTML = container.innerHTML

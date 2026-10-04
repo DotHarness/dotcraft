@@ -13,7 +13,8 @@ const SKIP_SELECTOR = [
   '[contenteditable="true"]',
   '[data-find-skip]',
   '[data-line-num]',
-  '[data-column-number]'
+  '[data-column-number]',
+  '.katex-mathml'
 ].join(', ')
 
 // jsdom has no highlight registry, so tests exercise the model layer and skip painting.

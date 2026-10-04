@@ -1,6 +1,7 @@
 // Segments are read from the rendered blocks, not from the store: the conversation is
 // not windowed, so the rendered text is the complete text.
 import { useCallback } from 'react'
+import { collectTextNodes } from './decorate'
 import { useFindSurface } from './useFindSurface'
 import type { FindSegment } from './types'
 
@@ -27,7 +28,7 @@ export function ConversationFindSurface({
   const getSegments = useCallback(
     (): FindSegment[] => blocks().map((block, index) => ({
       key: String(index),
-      text: block.textContent ?? ''
+      text: collectTextNodes(block).map((node) => node.data).join('')
     })),
     [blocks]
   )

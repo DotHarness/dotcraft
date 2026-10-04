@@ -218,6 +218,13 @@ requests clear that attribution. Duration uses valid completion minus start time
 and never continues ticking; missing or invalid timestamps omit duration. Raw cancellation
 reasons remain data and are not appended to the conversation text.
 
+Markdown in the conversation renders math with KaTeX. A `$$` or `\[` line, the formula, and a
+closing `$$` or `\]` line form display math; `\(…\)`, `\[…\]` and `$$…$$` within a line are inline
+math. A single `$` stays text, so amounts never become math. Delimiters in code stay literal. An
+unclosed inline delimiter stays text, while display math, like a code fence, runs to the end of a
+streaming reply until its closing line arrives. A formula KaTeX cannot parse shows its source. Copying a selection that includes a formula copies the formula's TeX in `\(…\)` or
+`\[…\]`, and find matches a formula's visible text once.
+
 `Turn.error` is the canonical user-facing Turn failure. If the same failure is also retained as an Error Item, Desktop presents it once. Distinct errors remain independently visible.
 
 While a turn is actively running, the conversation view must always show visible activity. If no live reasoning, non-stalled non-empty streaming assistant text, running tool row, approval wait row, user-input wait row, or system maintenance status row is currently visible, Desktop renders a non-persistent Thinking indicator at the active turn tail until the next visible live item appears. If non-empty assistant text is streaming but no text delta arrives for 2 seconds, Desktop treats that text stream as stalled and shows the same non-persistent Thinking indicator below the current streaming message; the indicator disappears as soon as a new text delta arrives, and the delta continues appending to the same streaming assistant message.

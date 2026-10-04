@@ -349,6 +349,8 @@ list shows **failed** only for a chat whose failure the phone has seen.
 - Replies render Markdown with the same GitHub-flavored rules as Desktop. A link to a local file shows
   as a file chip with its name; tapping it shows the full path to copy, because the file stays on the
   computer. Web links open the browser. File and skill references in user messages show as chips.
+  Math uses Desktop's delimiters; the phone does not typeset it, so a formula shows its TeX source
+  styled as inline code, or as a code block for display math.
 - A tool activity line shows the tool kind's icon and fits one line, ending in an ellipsis; tapping it
   shows the full command or target and its output.
 
