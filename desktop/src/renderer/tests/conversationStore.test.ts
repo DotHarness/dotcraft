@@ -1991,6 +1991,22 @@ describe('system events', () => {
     expect(s().streamRetry).toBeNull()
   })
 
+  it('clears the reissue status once its turn streams again, but not for another turn', () => {
+    s().onTurnStarted(makeTurn())
+    s().onSystemEvent('streamError', {
+      turnId: 'turn-1',
+      messageKey: 'system.streamError',
+      params: { attempt: 2, max: 5 }
+    })
+
+    s().clearStreamRetry('turn-0')
+    expect(s().streamRetry).not.toBeNull()
+
+    s().clearStreamRetry('turn-1')
+    expect(s().streamRetry).toBeNull()
+    expect(s().turnStatus).toBe('running')
+  })
+
   it('clears the reissue status when loading persisted turns', () => {
     s().onTurnStarted(makeTurn())
     s().onSystemEvent('streamError', {

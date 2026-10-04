@@ -434,6 +434,7 @@ interface ConversationActions {
       contextUsage?: ContextUsageSnapshotInput | null
     }
   ): void
+  clearStreamRetry(turnId: string): void
   /** Replace contextUsage from thread/read / thread/started / thread/resumed. */
   setContextUsage(snapshot: {
     tokens: number
@@ -2683,6 +2684,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         contextUsage: nextContextUsage
       }
     })
+  },
+
+  clearStreamRetry(turnId) {
+    if (get().streamRetry?.turnId === turnId) set({ streamRetry: null })
   },
 
   onSystemEvent(kind, params) {

@@ -1688,6 +1688,7 @@ export function App(): JSX.Element {
           return useThreadStore.getState().activeThreadId === threadId
         }
 
+        if (method.startsWith('item/') && typeof p.turnId === 'string') conv.clearStreamRetry(p.turnId)
 
         switch (method as string) {
           case 'thread/started': {
