@@ -51,6 +51,26 @@ describe('Summary feed', () => {
     stop()
   })
 
+  it('counts a to-do list without a plan as progress, leaving out cancelled steps', async () => {
+    const { host, notify } = createHost({ 'thread/read': () => ({ thread: { plan: null } }) })
+    let state: SummaryState | null = null
+    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    await settle()
+
+    notify('plan/updated', {
+      threadId: 'thread-1',
+      title: '',
+      todos: [
+        { id: 'a', content: 'Audit', status: 'completed' },
+        { id: 'b', content: 'Migrate', status: 'in_progress' },
+        { id: 'c', content: 'Rollback', status: 'cancelled' }
+      ]
+    })
+
+    expect(state!.plan).toEqual({ title: '', done: 1, total: 2 })
+    stop()
+  })
+
   it('drops items of turns removed by a rollback when the next turn starts', async () => {
     const { host, notify } = createHost({
       'thread/items/list': () => ({

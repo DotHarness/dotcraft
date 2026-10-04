@@ -189,6 +189,7 @@ public sealed class PlanToolsTests
 
             var plan = await store.LoadStructuredPlanAsync(sessionId);
             Assert.NotNull(plan);
+            Assert.Equal("", plan.Title);
             var todo = Assert.Single(plan.Todos);
             Assert.Equal("cache-metrics", todo.Id);
             Assert.Equal("Expose cache hit rate", todo.Content);

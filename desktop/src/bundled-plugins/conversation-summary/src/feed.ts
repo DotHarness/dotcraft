@@ -10,6 +10,8 @@ export interface SummaryAutomation {
 
 export interface SummaryPlan {
   readonly title: string
+  readonly done: number
+  readonly total: number
 }
 
 export interface SummaryState {
@@ -213,8 +215,8 @@ function toAutomation(value: {
 function toPlan(value: { title?: unknown; todos?: unknown } | null | undefined): SummaryPlan | null {
   if (!value) return null
   const title = typeof value.title === 'string' ? value.title.trim() : ''
-  const hasTodos = Array.isArray(value.todos) && value.todos.some((todo: { content?: unknown }) =>
-    typeof todo?.content === 'string' && todo.content.trim() !== '')
-  if (!title && !hasTodos) return null
-  return { title }
+  const todos = (Array.isArray(value.todos) ? value.todos : []).filter((todo: { content?: unknown; status?: unknown }) =>
+    typeof todo?.content === 'string' && todo.content.trim() !== '' && todo.status !== 'cancelled')
+  if (!title && todos.length === 0) return null
+  return { title, done: todos.filter((todo: { status?: unknown }) => todo.status === 'completed').length, total: todos.length }
 }

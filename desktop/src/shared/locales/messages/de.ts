@@ -3798,6 +3798,7 @@ export const MESSAGES_DE = {
   'find.count': '{{index}} von {{total}}',
   'find.countCapped': '{{index}} von {{total}}+',
   'plan.empty': 'Noch kein Plan.\nDer Plan des Agenten wird hier angezeigt\nwenn es eines schafft.',
+  'plan.progressTitle': 'Fortschritt',
   'plan.streamingDraftBadge': 'Entwurfsplan…',
   'detailPanel.closeTitle': 'Detailbereich schließen (Strg+Umschalt+B)',
   'detailPanel.addTabNewBrowserLater': 'Verfügbar im nächsten Update',

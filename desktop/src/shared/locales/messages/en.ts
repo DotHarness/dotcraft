@@ -3321,6 +3321,7 @@ export const MESSAGES_EN = {
   'find.count': '{{index}} of {{total}}',
   'find.countCapped': '{{index}} of {{total}}+',
   'plan.empty': "No plan yet.\nThe agent's plan will appear here\nwhen it creates one.",
+  'plan.progressTitle': 'Progress',
   'plan.streamingDraftBadge': 'Drafting plan…',
   'detailPanel.closeAria': 'Close detail panel',
   'detailPanel.closeTitle': 'Close detail panel (Ctrl+Shift+B)',

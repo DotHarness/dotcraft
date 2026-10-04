@@ -2247,7 +2247,7 @@ This notification is independent of the Turn event stream. Clients that do not n
 | Field | Type | Description |
 |-------|------|-------------|
 | `threadId` | string | Thread that produced this plan snapshot. |
-| `title` | string | Plan title. |
+| `title` | string | Plan title. Empty when the thread has only a `TodoWrite` to-do list and no plan; clients supply their own label. |
 | `overview` | string | Brief plan overview/description. May be empty. |
 | `content` | string | Full Markdown plan body. May be empty. |
 | `todos` | PlanTodo[] | Complete list of plan tasks. |

@@ -3790,6 +3790,7 @@ export const MESSAGES_JA = {
   'find.count': '{{total}} 件中 {{index}} 件目',
   'find.countCapped': '{{total}}+ 件中 {{index}} 件目',
   'plan.empty': 'まだ計画はありません。\nエージェントのプランがここに表示されます\n作成するとき。',
+  'plan.progressTitle': '進捗',
   'plan.streamingDraftBadge': '計画立案中…',
   'detailPanel.closeTitle': '詳細パネルを閉じる (Ctrl+Shift+B)',
   'detailPanel.addTabNewBrowserLater': '次回のアップデートで利用可能になります',

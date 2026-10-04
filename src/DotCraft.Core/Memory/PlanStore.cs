@@ -97,8 +97,11 @@ public sealed class PlanStore
     public static string RenderPlanMarkdown(StructuredPlan plan)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"# {plan.Title}");
-        sb.AppendLine();
+        if (!string.IsNullOrWhiteSpace(plan.Title))
+        {
+            sb.AppendLine($"# {plan.Title}");
+            sb.AppendLine();
+        }
 
         if (!string.IsNullOrWhiteSpace(plan.Overview))
         {
@@ -134,42 +137,6 @@ public sealed class PlanStore
                 sb.AppendLine($"- {icon} `{todo.Id}` — {todo.Content}{statusTag}");
             }
             sb.AppendLine();
-        }
-
-        return sb.ToString().TrimEnd() + "\n";
-    }
-
-    /// <summary>
-    /// Renders a <see cref="StructuredPlan"/> as plain text (no Markdown) suitable for
-    /// channels that do not support rich formatting (e.g. QQ).
-    /// </summary>
-    public static string RenderPlanPlainText(StructuredPlan plan)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine($"[{plan.Title}]");
-
-        if (plan.Todos.Count == 0)
-        {
-            sb.AppendLine("  (no tasks)");
-            return sb.ToString().TrimEnd() + "\n";
-        }
-
-        foreach (var todo in plan.Todos)
-        {
-            var icon = todo.Status switch
-            {
-                PlanTodoStatus.Completed  => "✓",
-                PlanTodoStatus.InProgress => "●",
-                PlanTodoStatus.Cancelled  => "✗",
-                _                         => "○"
-            };
-            var suffix = todo.Status switch
-            {
-                PlanTodoStatus.InProgress => " (working)",
-                PlanTodoStatus.Cancelled  => " (skipped)",
-                _                         => ""
-            };
-            sb.AppendLine($"  {icon} {todo.Id} — {todo.Content}{suffix}");
         }
 
         return sb.ToString().TrimEnd() + "\n";

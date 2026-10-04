@@ -3791,6 +3791,7 @@ export const MESSAGES_KO = {
   'find.count': '{{total}}개 중 {{index}}번째',
   'find.countCapped': '{{total}}+개 중 {{index}}번째',
   'plan.empty': '아직 계획이 없습니다.\n상담사의 계획이 여기에 표시됩니다.\n하나를 만들 때.',
+  'plan.progressTitle': '진행 상황',
   'plan.streamingDraftBadge': '초안 작성 계획…',
   'detailPanel.closeTitle': '세부정보 패널 닫기(Ctrl+Shift+B)',
   'detailPanel.addTabNewBrowserLater': '다음 업데이트에서 사용 가능',

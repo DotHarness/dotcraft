@@ -243,7 +243,7 @@ public sealed class PlanTools(
 
                 plan = new StructuredPlan
                 {
-                    Title = existing?.Title ?? "Task Tracking",
+                    Title = existing?.Title ?? "",
                     Overview = existing?.Overview ?? "",
                     Content = existing?.Content ?? "",
                     Todos = todoList,

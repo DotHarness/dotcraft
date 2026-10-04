@@ -96,29 +96,25 @@ export function PlanTab(): JSX.Element {
 
   return (
     <div style={planScrollContainerStyle}>
-      {plan.title && (
-        <h2
-          style={{
-            ...planTextContainmentStyle,
-            margin: '0 0 4px',
-            fontSize: '14px',
-            fontWeight: 600,
-            color: 'var(--text-primary)'
-          }}
-        >
-          {plan.title}
-        </h2>
-      )}
+      <h2
+        style={{
+          ...planTextContainmentStyle,
+          margin: '0 0 4px',
+          fontSize: '14px',
+          fontWeight: 600,
+          color: 'var(--text-primary)'
+        }}
+      >
+        {plan.title || t('plan.progressTitle')}
+      </h2>
 
-      {plan.title && (
-        <hr
-          style={{
-            border: 'none',
-            borderTop: '1px solid var(--border-default)',
-            margin: '8px 0'
-          }}
-        />
-      )}
+      <hr
+        style={{
+          border: 'none',
+          borderTop: '1px solid var(--border-default)',
+          margin: '8px 0'
+        }}
+      />
 
       {plan.overview && (
         <PlanOverview content={plan.overview} />

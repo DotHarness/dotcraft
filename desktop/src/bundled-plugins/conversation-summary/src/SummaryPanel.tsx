@@ -202,7 +202,7 @@ export function SummaryPanel({
   if (!state) return <div className="conversation-summary" data-variant={variant}>{header}</div>
 
   const plan = state.plan
-  const planTitle = plan?.title || strings.planUntitled
+  const planLabel = plan ? plan.title || fill(strings.progressCount, { done: plan.done, total: plan.total }) : ''
   const empty = !changed && !plan && state.subagents.length === 0 && state.automations.length === 0 && sources.length === 0
 
   return (
@@ -221,11 +221,11 @@ export function SummaryPanel({
       ) : null}
 
       {plan ? (
-        <Section title={strings.plan}>
+        <Section title={plan.title ? strings.plan : strings.progress}>
           <Row
             leading={<Lightbulb {...GLYPH} />}
-            label={planTitle}
-            title={planTitle}
+            label={planLabel}
+            title={planLabel}
             onClick={() => host.navigation.openDetailPanel('plan')}
           />
         </Section>

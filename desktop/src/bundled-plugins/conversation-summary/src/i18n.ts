@@ -18,7 +18,8 @@ export interface SummaryStrings {
   readonly done: string
   readonly openSubagents: string
   readonly paused: string
-  readonly planUntitled: string
+  readonly progress: string
+  readonly progressCount: string
   readonly viewAll: string
   readonly showLess: string
 }
@@ -40,7 +41,8 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     done: '{count} done',
     openSubagents: 'Open subagents',
     paused: 'Paused',
-    planUntitled: 'Untitled plan',
+    progress: 'Progress',
+    progressCount: '{done} of {total} done',
     viewAll: 'View all',
     showLess: 'Show less'
   },
@@ -60,7 +62,8 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     done: '{count} 个已完成',
     openSubagents: '打开子智能体',
     paused: '已暂停',
-    planUntitled: '未命名计划',
+    progress: '进度',
+    progressCount: '已完成 {done}/{total}',
     viewAll: '查看全部',
     showLess: '收起'
   },
@@ -80,7 +83,8 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     done: '{count} 件完了',
     openSubagents: 'サブエージェントを開く',
     paused: '一時停止中',
-    planUntitled: '無題のプラン',
+    progress: '進捗',
+    progressCount: '{total} 件中 {done} 件完了',
     viewAll: 'すべて表示',
     showLess: '表示を減らす'
   },
@@ -100,7 +104,8 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     done: '{count}개 완료',
     openSubagents: '하위 에이전트 열기',
     paused: '일시 중지됨',
-    planUntitled: '제목 없는 계획',
+    progress: '진행 상황',
+    progressCount: '{total}개 중 {done}개 완료',
     viewAll: '모두 보기',
     showLess: '간단히 보기'
   },
@@ -120,7 +125,8 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     done: '{count} terminados',
     openSubagents: 'Abrir subagentes',
     paused: 'En pausa',
-    planUntitled: 'Plan sin título',
+    progress: 'Progreso',
+    progressCount: '{done} de {total} completadas',
     viewAll: 'Ver todo',
     showLess: 'Mostrar menos'
   },
@@ -140,7 +146,8 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     done: '{count} terminés',
     openSubagents: 'Ouvrir les sous-agents',
     paused: 'En pause',
-    planUntitled: 'Plan sans titre',
+    progress: 'Progression',
+    progressCount: '{done} sur {total} terminées',
     viewAll: 'Tout afficher',
     showLess: 'Afficher moins'
   },
@@ -160,7 +167,8 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     done: '{count} fertig',
     openSubagents: 'Subagenten öffnen',
     paused: 'Pausiert',
-    planUntitled: 'Unbenannter Plan',
+    progress: 'Fortschritt',
+    progressCount: '{done} von {total} erledigt',
     viewAll: 'Alle anzeigen',
     showLess: 'Weniger anzeigen'
   }

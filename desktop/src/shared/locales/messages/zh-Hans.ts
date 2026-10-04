@@ -3220,6 +3220,7 @@ export const MESSAGES_ZH_HANS = {
   'find.count': '第 {{index}} / {{total}} 个',
   'find.countCapped': '第 {{index}} / {{total}}+ 个',
   'plan.empty': '暂无计划。\n智能体创建计划后将显示在此处。',
+  'plan.progressTitle': '进度',
   'plan.streamingDraftBadge': '正在制定计划…',
   'detailPanel.closeAria': '关闭详情面板',
   'detailPanel.closeTitle': '关闭详情面板 (Ctrl+Shift+B)',
