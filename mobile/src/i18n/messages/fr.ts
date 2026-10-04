@@ -164,6 +164,7 @@ export const MESSAGES_FR: Catalog = {
   'composer.photoName': 'Photo {{index}}',
   'composer.uploadFailed': 'Impossible d’envoyer {{file}}. Votre message est toujours là.',
   'composer.fileTooLarge': '{{file}} dépasse 2 Mo, il n’a donc pas été ajouté.',
+  'composer.photosTooLarge': 'Certaines photos ne tiennent pas dans ce message et n’ont pas été ajoutées.',
   'composer.attachFailed': 'Ajout impossible. Réessayez.',
   'plan.title': 'Mettre en œuvre ce plan ?',
   'plan.yes': 'Oui, mettre en œuvre ce plan',

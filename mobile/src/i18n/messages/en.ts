@@ -162,6 +162,7 @@ export const MESSAGES_EN = {
   'composer.photoName': 'Photo {{index}}',
   'composer.uploadFailed': 'Couldn’t upload {{file}}. Your message is still here.',
   'composer.fileTooLarge': '{{file}} is larger than 2 MB, so it wasn’t added.',
+  'composer.photosTooLarge': 'Some photos didn’t fit in this message, so they weren’t added.',
   'composer.attachFailed': 'Couldn’t add that. Try again.',
   'plan.title': 'Implement this plan?',
   'plan.yes': 'Yes, implement this plan',

@@ -164,6 +164,7 @@ export const MESSAGES_JA: Catalog = {
   'composer.photoName': '写真 {{index}}',
   'composer.uploadFailed': '{{file}} をアップロードできませんでした。メッセージはここに残っています。',
   'composer.fileTooLarge': '{{file}} は 2 MB を超えているため、追加されませんでした。',
+  'composer.photosTooLarge': 'このメッセージに収まらない写真は追加されませんでした。',
   'composer.attachFailed': '追加できませんでした。もう一度お試しください。',
   'plan.title': 'この計画を実行しますか?',
   'plan.yes': 'はい、この計画を実行します',

@@ -1,7 +1,24 @@
-import type { FileAttachment, MessageDraft } from './draft'
+import type { FileAttachment, MessageDraft, PhotoAttachment } from './draft'
 
 export const MAX_FILE_BYTES = 2 * 1024 * 1024
 export const MAX_PHOTO_SIDE = 2048
+export const MAX_MESSAGE_PHOTO_CHARS = 3 * 1024 * 1024
+
+// Photos travel inside the turn request, which must fit the AppServer's 4 MB message limit.
+export function withinPhotoBudget(current: PhotoAttachment[], picked: PhotoAttachment[]): { photos: PhotoAttachment[]; refused: number } {
+  const photos = [...current]
+  let used = current.reduce((total, photo) => total + photo.dataUrl.length, 0)
+  let refused = 0
+  for (const photo of picked) {
+    if (used + photo.dataUrl.length > MAX_MESSAGE_PHOTO_CHARS) {
+      refused += 1
+      continue
+    }
+    used += photo.dataUrl.length
+    photos.push(photo)
+  }
+  return { photos, refused }
+}
 
 export interface AttachmentFileSystem {
   createDirectory(path: string): Promise<void>

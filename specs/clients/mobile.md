@@ -373,6 +373,9 @@ list shows **failed** only for a chat whose failure the phone has seen.
   Agent Profile.
 - **+** opens the Add menu. **Photo** picks images from the photo library; the phone scales each to
   at most 2048 px on its longer side, re-encodes it as JPEG, and sends it as an `image` input part.
+  A message's photos together stay within about 3 MB once encoded, so the turn request fits one
+  AppServer message; photos picked past that budget, in one selection or a later one, are not
+  added and the composer says so.
   **File** picks any document up to 2 MiB; before the message is sent, the phone creates
   `<project>/.craft/attachments/<id>/` with `fs/createDirectory`, writes the file there with
   `fs/writeFile`, and sends a `fileRef` to it. Attachments wait in the composer as removable

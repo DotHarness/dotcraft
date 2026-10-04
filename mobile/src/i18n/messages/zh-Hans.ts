@@ -164,6 +164,7 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'composer.photoName': '照片 {{index}}',
   'composer.uploadFailed': '无法上传 {{file}}，你的消息仍保留在这里。',
   'composer.fileTooLarge': '{{file}} 超过 2 MB，未添加。',
+  'composer.photosTooLarge': '这条消息放不下更多照片，部分照片未添加。',
   'composer.attachFailed': '无法添加，请重试。',
   'plan.title': '实施此计划？',
   'plan.yes': '是，实施此计划',

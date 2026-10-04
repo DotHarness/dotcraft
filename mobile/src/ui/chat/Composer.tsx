@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
-import { sendDraft } from '../../core/attachments'
+import { sendDraft, withinPhotoBudget } from '../../core/attachments'
 import {
   chooseEntry,
   draftPieces,
@@ -121,8 +121,11 @@ export function Composer({
 
   const addPhotos = () =>
     attach(async () => {
-      const photos = await pickPhotos()
-      if (photos.length > 0) update((current) => ({ ...current, photos: [...current.photos, ...photos] }))
+      const picked = await pickPhotos()
+      if (picked.length === 0) return
+      const { photos, refused } = withinPhotoBudget(draft.photos, picked)
+      update((current) => ({ ...current, photos }))
+      if (refused > 0) setNotice(t('composer.photosTooLarge'))
     })
 
   const addFile = () =>
