@@ -35,11 +35,8 @@ public sealed partial class SessionImportModule : ModuleBase
         services.TryAddSingleton<ImportedSetupRuntime>();
         services.AddSingleton<ISessionRuntimeRefresher>(sp => sp.GetRequiredService<ImportedSetupRuntime>());
         services.AddSingleton<ISessionServiceConsumer>(sp => sp.GetRequiredService<ImportedSetupRuntime>());
-        services.AddSingleton<ISessionImportSource>(_ => new ClaudeCodeSessionSource(
-            EnvironmentRoot("CLAUDE_CONFIG_DIR") ?? HomeRoot(".claude")));
-        services.AddSingleton<ISessionImportSource>(_ => new CodexSessionSource(
-            EnvironmentRoot("CODEX_HOME") ?? HomeRoot(".codex")));
-        services.AddSingleton<ISessionImportSource>(_ => new CursorSessionSource(HomeRoot(".cursor")));
+        foreach (var source in CurrentUserSources())
+            services.AddSingleton(source);
         services.TryAddSingleton(_ => new SetupImportService(new SetupImportPaths(
             context.Paths.WorkspacePath, context.Paths.Data.RootPath,
             Path.GetDirectoryName(UserConfigPath(context.Config))!,
@@ -58,6 +55,13 @@ public sealed partial class SessionImportModule : ModuleBase
         services.AddSingleton<ISessionServiceConsumer>(sp => sp.GetRequiredService<SessionImportService>());
         services.TryAddSingleton(sp => new SessionImportSyncRuntime(sp.GetRequiredService<SessionImportService>()));
     }
+
+    internal static IReadOnlyList<ISessionImportSource> CurrentUserSources() =>
+    [
+        new ClaudeCodeSessionSource(EnvironmentRoot("CLAUDE_CONFIG_DIR") ?? HomeRoot(".claude")),
+        new CodexSessionSource(EnvironmentRoot("CODEX_HOME") ?? HomeRoot(".codex")),
+        new CursorSessionSource(HomeRoot(".cursor"))
+    ];
 
     private static string? EnvironmentRoot(string variable) =>
         Environment.GetEnvironmentVariable(variable) is { Length: > 0 } value ? value.Trim() : null;

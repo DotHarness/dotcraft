@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.8.1 |
 | **Status** | Draft |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-04 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Runtime Module Boundaries](../architecture/runtime-module-boundaries.md) |
 | **Related Specs** | [External CLI SubAgent](external-cli-subagent.md), [Context Compaction](../architecture/context-compaction.md), [Multi-Folder Projects](multi-folder-projects.md) |
 
@@ -292,3 +292,18 @@ Synchronization uses the `AgentImport` configuration section.
 The session ledger and imported threads retain the persistence contract defined above.
 Detection may rebuild ledger state in memory but never writes it. A completed import pass persists
 recomputed hashes and modification times.
+
+## 7. Reading Without Importing
+
+A host that embeds DotCraft may read candidates without turning them into threads, for example to show
+a session to someone who decides what to do with it. The Harness package exposes this as
+`ExternalSessionReader`.
+
+- It reads the current user's source stores (§3.1) and applies workspace membership (§3.2) and
+  exclusions (§3.4) within the window the caller gives (§3.3).
+- Listing returns, for each candidate, its source, source id, title (§4.4), member working directory,
+  modification time, turn count, and first request, converted as in §4.1. A candidate's summary is kept
+  for the reader's lifetime and converted again when its file's modification time changes.
+- Reading returns one candidate converted as in §4.1, or nothing when it is no longer a candidate.
+- It writes nothing and consults nothing it did not read from a source: no ledger, thread, setting,
+  or import history.
