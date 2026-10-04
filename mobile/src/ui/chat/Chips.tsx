@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard'
 import { createContext, useContext, useState, type ReactNode } from 'react'
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useMobileState } from '../../app-state/SessionContext'
 import { baseName } from '../../core/transcript'
 import { useI18n } from '../../i18n'
@@ -99,6 +99,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   label: { flexShrink: 1, fontWeight: '500' },
-  inline: { paddingHorizontal: 2, transform: [{ translateY: 4 }] },
+  inline: { paddingHorizontal: 2, transform: [{ translateY: Platform.OS === 'web' ? 0 : 4 }] },
   path: { padding: 12, borderRadius: 12, lineHeight: 20, overflow: 'hidden' },
 })
