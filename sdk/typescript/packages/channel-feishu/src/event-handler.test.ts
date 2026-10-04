@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import test from "node:test";
 
 import { FeishuAdapter } from "./feishu-adapter.js";
@@ -57,7 +60,7 @@ function createClientMock(
       this.reactedMessages.push({ messageId, emojiType });
       await onReaction?.(messageId, emojiType);
     },
-    async downloadMessageImage(): Promise<string> {
+    async downloadMessageImage(): Promise<{ bytes: Buffer; mediaType: string }> {
       throw new Error("downloadMessageImage should not be called in text-message tests.");
     },
   };
@@ -104,6 +107,7 @@ function createHandlers(options?: {
   adapter?: MockAdapter;
   bot?: Partial<FeishuBotInfo>;
   config?: Partial<FeishuConfig["feishu"]>;
+  craftPath?: string;
 }) {
   const adapter = options?.adapter ?? createAdapterMock();
   const client = options?.client ?? createClientMock();
@@ -126,6 +130,7 @@ function createHandlers(options?: {
     client: client as unknown as never,
     bot,
     config,
+    craftPath: options?.craftPath ?? "",
   });
 
   return { handlers, adapter, client, bot, config };
@@ -539,57 +544,66 @@ test("Feishu event handler reads flat post content and drops the bot's own menti
 });
 
 test("Feishu event handler preserves metadata for post and image messages", async () => {
+  const craftPath = await mkdtemp(join(tmpdir(), "dotcraft-feishu-image-"));
   const adapter = createAdapterMock();
   const client = {
     ...createClientMock(),
-    async downloadMessageImage(): Promise<string> {
-      return "C:\\temp\\image.jpg";
+    async downloadMessageImage(): Promise<{ bytes: Buffer; mediaType: string }> {
+      return { bytes: Buffer.from("jpeg bytes"), mediaType: "image/jpeg" };
     },
   };
   const { handlers } = createHandlers({
     client,
     adapter,
+    craftPath,
     config: {
       groupMentionRequired: false,
     },
   });
+  try {
+    await handlers.onMessage(
+      createTextEvent({
+        message: {
+          message_id: "om_post_1",
+          chat_id: "oc_group_1",
+          chat_type: "group",
+          message_type: "post",
+          content: JSON.stringify({
+            zh_cn: {
+              content: [[{ tag: "text", text: "hello post" }]],
+            },
+          }),
+        },
+      }),
+    );
+    await handlers.onMessage(
+      createTextEvent({
+        message: {
+          message_id: "om_image_1",
+          chat_id: "oc_group_1",
+          chat_type: "group",
+          message_type: "image",
+          content: JSON.stringify({ image_key: "img_123" }),
+        },
+      }),
+    );
 
-  await handlers.onMessage(
-    createTextEvent({
-      message: {
-        message_id: "om_post_1",
-        chat_id: "oc_group_1",
-        chat_type: "group",
-        message_type: "post",
-        content: JSON.stringify({
-          zh_cn: {
-            content: [[{ tag: "text", text: "hello post" }]],
-          },
-        }),
-      },
-    }),
-  );
-  await handlers.onMessage(
-    createTextEvent({
-      message: {
-        message_id: "om_image_1",
-        chat_id: "oc_group_1",
-        chat_type: "group",
-        message_type: "image",
-        content: JSON.stringify({ image_key: "img_123" }),
-      },
-    }),
-  );
-
-  assert.equal(adapter.handledMessages.length, 2);
-  for (const message of adapter.handledMessages) {
-    assert.equal(message.parentId, "om_parent_123");
-    assert.equal(message.rootId, "om_root_123");
-    assert.deepEqual(message.sender, {
-      openId: "ou_user_123",
-      userId: "user_123",
-      unionId: "union_123",
-    });
-    assert.equal(message.mentions.length, 1);
+    assert.equal(adapter.handledMessages.length, 2);
+    for (const message of adapter.handledMessages) {
+      assert.equal(message.parentId, "om_parent_123");
+      assert.equal(message.rootId, "om_root_123");
+      assert.deepEqual(message.sender, {
+        openId: "ou_user_123",
+        userId: "user_123",
+        unionId: "union_123",
+      });
+      assert.equal(message.mentions.length, 1);
+    }
+    const imagePart = adapter.handledMessages[1]?.parts?.[1];
+    assert.equal(imagePart?.type, "localImage");
+    assert.equal(imagePart?.mimeType, "image/jpeg");
+    assert.equal(dirname(String(imagePart?.path)), join(craftPath, "attachments", "images"));
+  } finally {
+    await rm(craftPath, { recursive: true, force: true });
   }
 });

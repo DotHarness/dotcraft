@@ -221,7 +221,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
         using var writeLock = ThreadRolloutWriteGate.Acquire(_botPath, threadId);
         _rolloutStore.CloseThreadAsync(threadId).GetAwaiter().GetResult();
         var candidatePaths = _rolloutStore.LoadThreadAsync(threadId).GetAwaiter().GetResult() is { } loaded
-            ? _attachmentStore.ExtractManagedImagePaths(loaded)
+            ? _attachmentStore.ExtractManagedPaths(loaded)
             : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var cleanupCandidates = _attachmentStore.LoadCandidatePaths(threadId, candidatePaths);
         _rolloutStore.DeleteThreadAsync(threadId).GetAwaiter().GetResult();
@@ -973,8 +973,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
 
         if (parts is { Count: > 0 })
         {
-            var contents = parts
-                .Select(p => p.ToAIContent())
+            var contents = SessionInputPartResolver.ResolvePersisted(parts)
                 .Where(c => c is not TextContent tc || !string.IsNullOrWhiteSpace(tc.Text))
                 .ToList();
             if (contents.Count > 0)
@@ -997,8 +996,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
         var parts = user.MaterializedInputParts is { Count: > 0 } materialized ? materialized : null;
         if (parts is { Count: > 0 })
         {
-            var contents = parts
-                .Select(p => p.ToAIContent())
+            var contents = SessionInputPartResolver.ResolvePersisted(parts)
                 .Where(c => c is not TextContent tc || !string.IsNullOrWhiteSpace(tc.Text))
                 .ToList();
             if (contents.Count > 0)

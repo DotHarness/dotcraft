@@ -223,7 +223,7 @@ public sealed class AppServerTurnTests : IDisposable
     }
 
     [Fact]
-    public async Task TurnStart_LocalImageMetadata_IsAttachedToDataContent()
+    public async Task TurnStart_LocalImage_ReachesTheModelWithItsPathAndMetadata()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         _h.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
@@ -251,7 +251,11 @@ public sealed class AppServerTurnTests : IDisposable
         var response = await _h.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
 
-        var dataContent = Assert.IsType<DataContent>(_h.Service.LastSubmittedContent.Single());
+        var contents = _h.Service.LastSubmittedContent;
+        Assert.Equal(3, contents.Count);
+        Assert.Equal($"<image name=[Image #1] path=\"{localImagePath}\">", Assert.IsType<TextContent>(contents[0]).Text);
+        Assert.Equal("</image>", Assert.IsType<TextContent>(contents[2]).Text);
+        var dataContent = Assert.IsType<DataContent>(contents[1]);
         Assert.NotNull(dataContent.AdditionalProperties);
         Assert.Equal(localImagePath, dataContent.AdditionalProperties!["localImage.path"]?.ToString());
         Assert.Equal("image/png", dataContent.AdditionalProperties!["localImage.mimeType"]?.ToString());

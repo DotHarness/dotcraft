@@ -18,7 +18,7 @@ import { Spinner, Txt } from '../parts'
 import { metrics, type, useTheme } from '../theme'
 import { FileChip, InlineChip, SkillChip } from './Chips'
 import { CopyButton } from './CopyButton'
-import { ImageThumb } from './Images'
+import { ImageThumb, SentImage } from './Images'
 import { Markdown } from './Markdown'
 import { PlanCard } from './PlanCard'
 
@@ -308,8 +308,8 @@ export function TranscriptLine({
           ) : null}
           {entry.images.length > 0 ? (
             <View style={styles.photos}>
-              {entry.images.map((uri, index) => (
-                <ImageThumb key={index} uri={uri} label={t('image.open')} style={styles.photo} />
+              {entry.images.map((source, index) => (
+                <SentImage key={index} source={source} label={t('image.open')} style={styles.photo} />
               ))}
             </View>
           ) : null}

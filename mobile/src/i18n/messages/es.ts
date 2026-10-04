@@ -178,7 +178,6 @@ export const MESSAGES_ES: Catalog = {
   'composer.photoName': 'Foto {{index}}',
   'composer.uploadFailed': 'No se pudo subir {{file}}. Tu mensaje sigue aquí.',
   'composer.fileTooLarge': '{{file}} pesa más de 2 MB, así que no se añadió.',
-  'composer.photosTooLarge': 'Algunas fotos no caben en este mensaje, así que no se añadieron.',
   'composer.attachFailed': 'No se pudo añadir. Inténtalo de nuevo.',
   'plan.title': '¿Implementar este plan?',
   'plan.yes': 'Sí, implementar este plan',

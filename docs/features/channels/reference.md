@@ -177,7 +177,6 @@ Every TypeScript channel config has a `dotcraft` section and a platform section.
 | `feishu.approvalTimeoutMs` | Approval timeout in milliseconds. | `120000` |
 | `feishu.groupMentionRequired` | Require @mention in Feishu groups. | `true` |
 | `feishu.ackReactionEmoji` | Emoji type used to acknowledge handled messages. | `GLANCE` |
-| `feishu.downloadDir` | Local directory for downloaded attachments. | Workspace temp directory |
 | `feishu.cli.enabled` | Expose the bundled official Feishu CLI to Threads created by this Channel. | `false` |
 | `feishu.cli.userScopes` | Feishu user scopes requested when authorizing an account for read-only personal access. Empty keeps every command on the bot identity. | Empty |
 | `feishu.debug.adapterStream` | Enable adapter stream debug logs. | `false` |

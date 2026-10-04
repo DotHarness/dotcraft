@@ -21,6 +21,7 @@ export function createFeishuEventHandlers(params: {
   client: FeishuClient;
   bot: FeishuBotInfo;
   config: FeishuConfig["feishu"];
+  craftPath: string;
   chatInfo?: FeishuChatInfoCache;
 }) {
   const dedup = new Map<string, number>();
@@ -68,7 +69,7 @@ export function createFeishuEventHandlers(params: {
           params.client,
           event,
           params.bot.openId,
-          params.config.downloadDir,
+          params.craftPath,
           parseOptions,
         );
         if (parsed && await params.adapter.tryHandlePendingUserInputMessage(parsed)) {
@@ -105,7 +106,7 @@ export function createFeishuEventHandlers(params: {
         params.client,
         event,
         params.bot.openId,
-        params.config.downloadDir,
+        params.craftPath,
         parseOptions,
       );
       if (!parsed) return;

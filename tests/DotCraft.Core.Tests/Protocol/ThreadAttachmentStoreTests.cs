@@ -102,6 +102,26 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
         Assert.False(File.Exists(imagePath));
     }
 
+    [Fact]
+    public async Task UploadedFile_IsTrackedAndRemovedWithItsFolder()
+    {
+        var folder = Path.Combine(_root, "attachments", "upload_1");
+        Directory.CreateDirectory(folder);
+        var filePath = Path.Combine(folder, "log.txt");
+        File.WriteAllText(filePath, "boot log");
+        var thread = CreateThread("thread_uploaded_file", CreateAttachment("unused.png"));
+        thread.Turns[0].Input!.Payload = new UserMessagePayload
+        {
+            Text = "Read this",
+            NativeInputParts = [new SessionInputPart { Type = "fileRef", Path = filePath, DisplayPath = "log.txt" }]
+        };
+        await _store.SaveThreadAsync(thread);
+        Assert.Equal(1, CountAttachmentRows());
+
+        _store.DeleteThread(thread.Id);
+        Assert.False(Directory.Exists(folder));
+    }
+
     public void Dispose()
     {
         try

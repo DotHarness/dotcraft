@@ -165,7 +165,11 @@ function bodyParts(draft: MessageDraft): InputPart[] {
   })
 }
 
-export function inputParts(draft: MessageDraft, filePaths: { path: string; name: string }[] = []): InputPart[] {
+export function inputParts(
+  draft: MessageDraft,
+  filePaths: { path: string; name: string }[] = [],
+  photos?: { path: string; fileName: string; mimeType: string }[],
+): InputPart[] {
   const parts: InputPart[] = []
   filePaths.forEach(({ path, name }, index) => {
     parts.push({ type: 'fileRef', path, displayPath: name })
@@ -174,7 +178,8 @@ export function inputParts(draft: MessageDraft, filePaths: { path: string; name:
   const body = bodyParts(draft)
   if (parts.length > 0 && body.length > 0) parts.push({ type: 'text', text: '\n\n' })
   parts.push(...body)
-  for (const photo of draft.photos) parts.push({ type: 'image', url: photo.dataUrl })
+  if (photos) for (const photo of photos) parts.push({ type: 'localImage', path: photo.path, mimeType: photo.mimeType, fileName: photo.fileName })
+  else for (const photo of draft.photos) parts.push({ type: 'image', url: photo.dataUrl })
   return parts
 }
 

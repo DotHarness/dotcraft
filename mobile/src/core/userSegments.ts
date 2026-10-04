@@ -55,9 +55,13 @@ export function userSegments(text: string, parts: unknown): UserSegment[] {
   })
 }
 
-export function userImages(parts: unknown): string[] {
+export type ImageSource = { uri: string } | { path: string }
+
+export function userImages(parts: unknown): ImageSource[] {
   if (!Array.isArray(parts)) return []
-  return (parts as { type?: string; url?: unknown }[]).flatMap((part) =>
-    part.type === 'image' && typeof part.url === 'string' && part.url.startsWith('data:image/') ? [part.url] : [],
-  )
+  return (parts as { type?: string; url?: unknown; path?: unknown }[]).flatMap((part): ImageSource[] => {
+    if (part.type === 'image' && typeof part.url === 'string' && part.url.startsWith('data:image/')) return [{ uri: part.url }]
+    if (part.type === 'localImage' && typeof part.path === 'string' && part.path) return [{ path: part.path }]
+    return []
+  })
 }

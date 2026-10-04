@@ -1,7 +1,5 @@
-import {
-  localImagePart,
-  textPart,
-} from "@dotcraft/channel";
+import { textPart } from "@dotcraft/channel";
+import { saveInboundImage } from "@dotcraft/channel/media";
 import { deriveConversationTarget } from "./conversation-target.js";
 import type { FeishuClient } from "./feishu-client.js";
 import type { FeishuMention, FeishuMessageEvent, ParsedInboundMessage } from "./feishu-types.js";
@@ -16,7 +14,7 @@ export async function parseInboundMessage(
   client: FeishuClient,
   event: FeishuMessageEvent,
   botOpenId: string,
-  downloadDir?: string,
+  craftPath: string,
   options: ParseInboundOptions = {},
 ): Promise<ParsedInboundMessage | null> {
   const senderId = event.sender.sender_id.open_id ?? "";
@@ -87,19 +85,20 @@ export async function parseInboundMessage(
     if (!imageKey) {
       throw new Error("Image message did not include image_key");
     }
-    const localPath = await client.downloadMessageImage(event.message.message_id, imageKey, downloadDir);
+    const { bytes, mediaType } = await client.downloadMessageImage(event.message.message_id, imageKey);
+    const image = await saveInboundImage(craftPath, bytes, mediaType);
     logInfo("parse.image", {
       messageId: shortId(event.message.message_id),
       chatType: event.message.chat_type,
       imageKey: shortId(imageKey),
-      localPath: localPath.split(/[\\/]/).pop() ?? "image",
+      fileName: image.fileName,
     });
     const caption = event.message.chat_type === "group" ? "Group user sent an image." : "User sent an image.";
     return {
       ...base,
       kind: "parts",
       text: caption,
-      parts: [textPart(caption), localImagePart(localPath)],
+      parts: [textPart(caption), image],
     };
   }
 

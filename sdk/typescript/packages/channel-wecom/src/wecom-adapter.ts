@@ -1,14 +1,11 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { randomUUID } from "node:crypto";
 
 import {
   DECISION_CANCEL,
-  localImagePart,
   textPart,
   type InputPart,
   type ChannelTarget,
 } from "@dotcraft/channel";
+import { saveInboundImage } from "@dotcraft/channel/media";
 import {
   WebSocketTransport,
   type Transport,
@@ -110,7 +107,6 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
   });
   private readonly pendingUserInputs = new Map<string, PendingUserInput>();
   private approvalTimeoutMs = 60_000;
-  private tempDir = "";
 
   constructor() {
     super("wecom", "dotcraft-wecom", "0.1.0", [
@@ -174,8 +170,6 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
 
   override async startWithContext(context: WorkspaceContext): Promise<void> {
     this.defaultWorkspacePath = context.workspaceRoot;
-    this.tempDir = join(context.craftPath, "tmp", "wecom-standard");
-    await mkdir(this.tempDir, { recursive: true });
     await super.startWithContext(context);
     if (this.getStatus() !== "ready" || !this.loadedConfig) return;
 
@@ -225,7 +219,6 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     this.server = undefined;
     this.registry = undefined;
     await server?.stop();
-    await this.cleanupTempFiles();
     await super.stop();
   }
 
@@ -420,12 +413,10 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     if (!segmentsWereDelivered && replyText) {
       await this.createPusher(channelContext).pushMarkdown(replyText);
     }
-    await this.cleanupTempFiles();
   }
 
   protected override async onTurnFailed(threadId: string, turnId: string, error: string): Promise<void> {
     console.error(`[wecom] turn ${turnId} failed on thread ${threadId}: ${error}`);
-    await this.cleanupTempFiles();
   }
 
   private async handleTextMessage(parameters: string[], from: WeComFrom, pusher: WeComPusher): Promise<void> {
@@ -528,10 +519,7 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const bytes = Buffer.from(await response.arrayBuffer());
       const mediaType = response.headers.get("content-type")?.split(";")[0]?.trim() || "image/jpeg";
-      const fileName = `${randomUUID()}${mediaTypeToExt(mediaType)}`;
-      const path = join(this.tempDir, fileName);
-      await writeFile(path, bytes);
-      return { ...localImagePart(path), mimeType: mediaType, fileName };
+      return await saveInboundImage(this.context!.craftPath, bytes, mediaType);
     } catch (error) {
       console.warn("[wecom] failed to download image:", error instanceof Error ? error.message : String(error));
       return null;
@@ -583,30 +571,10 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
       this.pendingUserInputs.delete(requestId);
     }
   }
-
-  private async cleanupTempFiles(): Promise<void> {
-    if (!this.tempDir) return;
-    await rm(this.tempDir, { recursive: true, force: true }).catch(() => undefined);
-    await mkdir(this.tempDir, { recursive: true }).catch(() => undefined);
-  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-}
-
-function mediaTypeToExt(mediaType: string): string {
-  switch (mediaType.toLowerCase()) {
-    case "image/png":
-      return ".png";
-    case "image/gif":
-      return ".gif";
-    case "image/webp":
-      return ".webp";
-    case "image/jpeg":
-    default:
-      return ".jpg";
-  }
 }
 
 function parseWeComConversationId(channelContext: string): string | null {

@@ -1,13 +1,9 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { randomUUID } from "node:crypto";
-
 import {
-  localImagePart,
   textPart,
   type InputPart,
   type ChannelTarget,
 } from "@dotcraft/channel";
+import { saveInboundImage } from "@dotcraft/channel/media";
 import {
   WebSocketTransport,
   type Transport,
@@ -105,7 +101,6 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
   private readonly pendingUserInputs = new Map<string, PendingUserInput>();
   private requireMentionInGroups = true;
   private approvalTimeoutMs = 60_000;
-  private tempDir = "";
 
   constructor() {
     super("qq", "dotcraft-qq", "0.1.0", [
@@ -172,8 +167,6 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
 
   override async startWithContext(context: WorkspaceContext): Promise<void> {
     this.defaultWorkspacePath = context.workspaceRoot;
-    this.tempDir = join(context.craftPath, "tmp", "qq-standard");
-    await mkdir(this.tempDir, { recursive: true });
     await super.startWithContext(context);
     if (this.getStatus() !== "ready" || !this.loadedConfig) {
       return;
@@ -399,14 +392,11 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     _threadId: string,
     _turnId: string,
     segmentText: string,
-    isFinal: boolean,
+    _isFinal: boolean,
     channelContext: string,
   ): Promise<void> {
     if (!segmentText.trim()) return;
     await this.onDeliver(channelContext, segmentText, {});
-    if (isFinal) {
-      await this.cleanupTempImages();
-    }
   }
 
   protected override async onTurnCompleted(
@@ -419,12 +409,10 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     if (!segmentsWereDelivered && replyText) {
       await this.onDeliver(channelContext, replyText, {});
     }
-    await this.cleanupTempImages();
   }
 
   protected override async onTurnFailed(threadId: string, turnId: string, error: string): Promise<void> {
     console.error(`[qq] turn ${turnId} failed on thread ${threadId}: ${error}`);
-    await this.cleanupTempImages();
   }
 
   private async handleOneBotMessage(evt: OneBotMessageEvent): Promise<void> {
@@ -528,11 +516,7 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const bytes = Buffer.from(await response.arrayBuffer());
       const mediaType = response.headers.get("content-type")?.split(";")[0]?.trim() || "image/jpeg";
-      const ext = mediaTypeToExt(mediaType);
-      const fileName = `${randomUUID()}${ext}`;
-      const path = join(this.tempDir, fileName);
-      await writeFile(path, bytes);
-      return { ...localImagePart(path), mimeType: mediaType, fileName };
+      return await saveInboundImage(this.context!.craftPath, bytes, mediaType);
     } catch (error) {
       console.warn("[qq] failed to download image:", error instanceof Error ? error.message : String(error));
       return null;
@@ -594,12 +578,6 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     }
   }
 
-  private async cleanupTempImages(): Promise<void> {
-    if (!this.tempDir) return;
-    await rm(this.tempDir, { recursive: true, force: true }).catch(() => undefined);
-    await mkdir(this.tempDir, { recursive: true }).catch(() => undefined);
-  }
-
   private requireOneBot(): OneBotReverseWsServer {
     if (!this.oneBot) throw new Error("OneBot server is not running.");
     return this.oneBot;
@@ -619,18 +597,4 @@ function asIdArray(value: unknown): Array<number | string> | undefined {
     }
     return item;
   });
-}
-
-function mediaTypeToExt(mediaType: string): string {
-  switch (mediaType.toLowerCase()) {
-    case "image/png":
-      return ".png";
-    case "image/gif":
-      return ".gif";
-    case "image/webp":
-      return ".webp";
-    case "image/jpeg":
-    default:
-      return ".jpg";
-  }
 }

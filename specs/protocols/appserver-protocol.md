@@ -1318,7 +1318,7 @@ Clients that intend to render a turn from `thread/subscribe` notifications SHOUL
 - `{ "type": "text", "text": "..." }` — plain text input. `text` parts carry only literal user text; clients should not encode command, skill, or file-reference tags into `text` when a structured tag part exists.
 - `{ "type": "commandRef", "name": "code-review", "argsText": "src/foo.cs", "rawText": "/code-review src/foo.cs" }` — native custom-command reference. The server materializes this reference before agent execution and persists both the native reference and the materialized prompt snapshot.
 - `{ "type": "skillRef", "name": "browser" }` — native skill reference. The server materializes this reference into a model-visible `<skill>` block containing only the effective skill name and path while preserving the original `$skill` form for history rendering. Skill instructions are not inlined into the user input; the agent loads them through `SkillView` when available, or by reading the referenced `SKILL.md` path as a fallback.
-- `{ "type": "fileRef", "path": "src/foo.cs", "displayPath": "src/foo.cs" }` — native file reference. `path` is the canonical referenced path and may be workspace-relative or a local absolute path. `displayPath` is an optional UI-facing path when the server and client canonical forms differ. Referencing an outside-workspace path does not grant implicit access; later file reads still follow the server file-tool approval policy.
+- `{ "type": "fileRef", "path": "src/foo.cs", "displayPath": "src/foo.cs" }` — native file reference. `path` is the canonical referenced path and may be workspace-relative or a local absolute path. `displayPath` is an optional UI-facing path when the server and client canonical forms differ. The model sees the reference as `@` followed by `path`; `displayPath` is used only for history rendering. Referencing an outside-workspace path does not grant implicit access; later file reads still follow the server file-tool approval policy.
 - `{ "type": "image", "url": "data:image/png;base64,..." }` — inline image encoded as a base64 image data URL.
 - `{ "type": "localImage", "path": "/tmp/screenshot.png", "mimeType": "image/png", "fileName": "screenshot.png" }` — local image file path with optional UI metadata.
 
@@ -1339,6 +1339,8 @@ Tag semantics:
 
 - `mimeType` (string, optional): client-observed MIME type for UI rehydration hints.
 - `fileName` (string, optional): original filename from paste/drop context for UI display.
+
+The server reads a `localImage` file and gives the model the image framed by the text `<image name=[Image #N] path="<path>">` before it and `</image>` after it, where `N` numbers the message's local images from 1. The agent can therefore refer to the file by its path, for example to edit it with `referenced_image_paths`. An inline `image` part has no path; the agent reaches it only through the conversation, such as `num_last_images_to_include`.
 
 `QueuedTurnInput` uses the same input snapshot shape:
 

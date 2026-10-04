@@ -13,10 +13,11 @@ import type {
 } from '@dotcraft/sdk/contracts'
 import { DotCraftWireClient, ERR_TURN_IN_PROGRESS, JsonRpcError } from '@dotcraft/sdk/wire'
 import { signsInWithAccount, usageWindows } from './accountUsage'
-import { AttachmentUploadError, uploadAttachments } from './attachments'
+import { AttachmentUploadError, uploadAttachments, uploadPhotos, type UploadedPhoto } from './attachments'
+import { rememberImage } from './imageCache'
 import { followUpMethod } from './chatState'
 import { contextUsageOf, systemEventUpdate, usageDeltaUpdate, type ContextUpdate } from './contextUsage'
-import { inputParts, visibleText, type FileAttachment, type MessageDraft, type ReferenceEntry } from './draft'
+import { inputParts, visibleText, type MessageDraft, type ReferenceEntry } from './draft'
 import { GatewayError, type GatewayClient } from './gateway'
 import { applyEvent, emptyHistory, historyFromPages, restoreEchoes, type HistoryEvent, type HistoryItem } from './history'
 import { HTTP_REJECTED } from './pinned'
@@ -419,25 +420,31 @@ export class ProjectConnection {
 
   async send(threadId: string, draft: MessageDraft): Promise<void> {
     const client = this.requireClient()
-    const files = draft.files.length > 0 ? await this.upload(client, threadId, draft.files) : []
-    const input = inputParts(draft, files)
+    const { files, photos } =
+      draft.files.length + draft.photos.length > 0 ? await this.upload(client, threadId, draft) : { files: [], photos: [] }
+    const input = inputParts(draft, files, photos)
+    const shown = inputParts(draft, files)
     try {
-      await this.submit(client, threadId, input, this.store.getState().chats[this.key(threadId)]?.runtime ?? null)
+      await this.submit(client, threadId, input, shown, this.store.getState().chats[this.key(threadId)]?.runtime ?? null)
     } catch (error) {
       if (!(error instanceof JsonRpcError) || error.rpcCode !== ERR_TURN_IN_PROGRESS) throw error
       const { thread } = await client.request('thread/read', { threadId })
       this.patch(threadId, { runtime: thread.runtime })
-      await this.submit(client, threadId, input, thread.runtime)
+      await this.submit(client, threadId, input, shown, thread.runtime)
     }
   }
 
-  private async upload(client: DotCraftWireClient, threadId: string, files: FileAttachment[]): Promise<{ path: string; name: string }[]> {
+  private async upload(
+    client: DotCraftWireClient,
+    threadId: string,
+    draft: MessageDraft,
+  ): Promise<{ files: { path: string; name: string }[]; photos: UploadedPhoto[] }> {
     let root = this.store.getState().details[this.key(threadId)]?.workspacePath
     if (!root) {
       try {
         root = (await client.request('thread/read', { threadId })).thread.workspacePath
       } catch (error) {
-        throw new AttachmentUploadError(files[0].name, error)
+        throw new AttachmentUploadError(draft.files[0]?.name ?? 'photo', error)
       }
     }
     const fileSystem = {
@@ -448,14 +455,23 @@ export class ProjectConnection {
         await client.request('fs/writeFile', { path, dataBase64 })
       },
     }
-    return await uploadAttachments(fileSystem, root, files, newId)
+    const files = await uploadAttachments(fileSystem, root, draft.files, newId)
+    const photos = await uploadPhotos(fileSystem, root, draft.photos, newId)
+    photos.forEach((photo, index) => rememberImage(photo.path, draft.photos[index].dataUrl))
+    return { files, photos }
   }
 
-  private async submit(client: DotCraftWireClient, threadId: string, input: InputPart[], runtime: ThreadRuntimeState | null): Promise<void> {
+  private async submit(
+    client: DotCraftWireClient,
+    threadId: string,
+    input: InputPart[],
+    shown: InputPart[],
+    runtime: ThreadRuntimeState | null,
+  ): Promise<void> {
     const key = this.key(threadId)
     const method = followUpMethod(runtime)
     const clientUserMessageId = newId()
-    const echo = { clientId: clientUserMessageId, text: visibleText(input), parts: input, added: method !== 'start' }
+    const echo = { clientId: clientUserMessageId, text: visibleText(input), parts: shown, added: method !== 'start' }
     this.store.dispatch({ type: 'echo', key, echo })
     try {
       if (method === 'start') {

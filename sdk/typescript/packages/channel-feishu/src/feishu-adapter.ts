@@ -217,6 +217,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
         client: this.feishu,
         bot: botInfo,
         config: config.feishu,
+        craftPath: context.craftPath,
         chatInfo: new FeishuChatInfoCache(this.feishu),
       });
       this.eventAbortController = new AbortController();

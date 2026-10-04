@@ -243,7 +243,7 @@ Fields:
 
 When a queued input starts a future Turn, Session Core must copy trigger metadata, the queued input id, and any default delivery binding id into the persisted `UserMessagePayload`. When a queued input is promoted into current-turn guidance, the guidance `UserMessage` item must preserve the same trigger metadata. Before guidance is admitted into the active Turn, a client may change the queued input's desired status back to `"queued"` without changing its input payload, metadata, or queue position. Once admission atomically persists the guidance `UserMessage` and removes the queued input, the input is no longer retractable.
 
-Queued-input materialization is a local-only operation. Inline `image` parts contain base64 `data:image/...` URLs and are decoded without network access; `localImage` parts are read from their persisted local paths. Session Core must never dereference HTTP or HTTPS image URLs while starting a queued Turn or admitting current-Turn guidance. A queued snapshot containing such a URL is materialized as the text `image content omitted because remote image URLs are not supported`, while the remaining parts continue normally.
+Queued-input materialization is a local-only operation. Inline `image` parts contain base64 `data:image/...` URLs and are decoded without network access; `localImage` parts are read from their persisted local paths. Rebuilding model-visible history from a Turn's input snapshot (forks, interruption, or a Turn without stored model history) reads `localImage` files the same way and frames them as at Turn start; a file that can no longer be read becomes the text `[localImage:<path>]`. Session Core must never dereference HTTP or HTTPS image URLs while starting a queued Turn or admitting current-Turn guidance. A queued snapshot containing such a URL is materialized as the text `image content omitted because remote image URLs are not supported`, while the remaining parts continue normally.
 
 #### 4.1.1.4 SubAgent Child Threads
 
@@ -1446,7 +1446,7 @@ Thread data is stored under the workspace's `.craft/` directory:
 │   │   ├── thread-{sha256(threadId)}.jsonl # Canonical name when threadId contains invalid file-name characters
 │   │   └── ...
 ├── state.db                     # Classified SQLite state, projections, diagnostics, usage
-├── attachments/images/          # Workspace-managed local image blobs referenced by thread history
+├── attachments/                 # Workspace-managed attachments referenced by thread history: images/ for images, <id>/ for uploaded files and pasted text
 ├── cache/                       # Rebuildable cache files; not part of thread lifecycle
 ```
 
@@ -1489,7 +1489,7 @@ commit succeeds.
 
 Per-thread plans are stored in SQLite `thread_plans`. Plans follow the thread lifecycle: archive/unarchive keeps them, and permanent thread deletion cascades through the database.
 
-Workspace-managed local images referenced by persisted `localImage` input parts are indexed in SQLite `thread_attachments`. The image file is an independent asset: rollout stores its reference but cannot reconstruct its bytes. The file remains available for history rendering while at least one active or archived thread references it. Permanent thread deletion removes that thread's references and best-effort deletes now-unreferenced managed files. Unsent draft images that never enter thread history are cleaned as unreferenced attachments after the configured TTL.
+Workspace-managed attachments under `.craft/attachments/`, referenced by persisted `localImage`, `fileRef`, or `contextRef` input parts, are indexed in SQLite `thread_attachments`. Desktop pastes, phone photos and files, and channel images all land there. An attachment file is an independent asset: rollout stores its reference but cannot reconstruct its bytes. The file remains available for history rendering while at least one active or archived thread references it. Permanent thread deletion removes that thread's references and best-effort deletes now-unreferenced managed files. Unsent draft images that never enter thread history are cleaned as unreferenced attachments after the configured TTL.
 
 #### 9.3.0 Thread Artifact Storage and Maintenance
 

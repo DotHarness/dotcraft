@@ -210,24 +210,6 @@ export const configDescriptors: ConfigDescriptor[] = [
     ],
   },
   {
-    key: "feishu.downloadDir",
-    displayLabel: "Download Directory",
-    description: "Local directory for downloaded message attachments.",
-    localizedDisplayLabel: {
-      en: "Download Directory",
-      "zh-Hans": "下载目录",
-    },
-    localizedDescription: {
-      en: "Local directory for downloaded message attachments.",
-      "zh-Hans": "下载消息附件到本地时使用的目录。",
-    },
-    required: false,
-    dataKind: "path",
-    masked: false,
-    interactiveSetupOnly: false,
-    group: "advanced",
-  },
-  {
     key: "feishu.cli.enabled",
     displayLabel: "Official Feishu CLI",
     description: "Allow this channel to use the official Feishu CLI.",

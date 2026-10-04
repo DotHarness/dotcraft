@@ -24,6 +24,7 @@ import { ContextRing } from '../chat/ContextRing'
 import type { DecisionActions } from '../chat/DecisionBodies'
 import { DecisionCard } from '../chat/DecisionCard'
 import { FileSheet } from '../chat/FileSheet'
+import { ImageReaderContext } from '../chat/Images'
 import { ProjectPicker } from '../chat/ProjectPicker'
 import { StatusPopover } from '../chat/StatusPopover'
 import { TranscriptLine } from '../chat/Transcript'
@@ -193,9 +194,11 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
                 </MascotNote>
               ) : null}
               <FileViewerContext.Provider value={openFile}>
-                {transcript.map((entry, index) => (
-                  <TranscriptLine key={entry.id} entry={entry} previous={transcript[index - 1]} workspacePath={workspacePath} />
-                ))}
+                <ImageReaderContext.Provider value={models?.fileSystem === true ? readFile : null}>
+                  {transcript.map((entry, index) => (
+                    <TranscriptLine key={entry.id} entry={entry} previous={transcript[index - 1]} workspacePath={workspacePath} />
+                  ))}
+                </ImageReaderContext.Provider>
               </FileViewerContext.Provider>
               {decision ? (
                 <View style={styles.decision}>

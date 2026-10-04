@@ -374,16 +374,16 @@ list shows **failed** only for a chat whose failure the phone has seen.
   and each control is hidden when the server lacks its capability. The phone never changes a chat's
   Agent Profile.
 - **+** opens the Add menu. **Photo** picks images from the photo library; the phone scales each to
-  at most 2048 px on its longer side, re-encodes it as JPEG, and sends it as an `image` input part.
-  A message's photos together stay within about 3 MB once encoded, so the turn request fits one
-  AppServer message; photos picked past that budget, in one selection or a later one, are not
-  added and the composer says so.
+  at most 2048 px on its longer side and re-encodes it as JPEG. Before the message is sent, the
+  phone writes each photo to `<project>/.craft/attachments/images/<id>.jpg` with
+  `fs/createDirectory` and `fs/writeFile` and sends it as a `localImage` part, so the agent can
+  reach the file by path in later turns, as it does for images sent from Desktop or a channel.
   **File** picks any document up to 2 MiB; before the message is sent, the phone creates
   `<project>/.craft/attachments/<id>/` with `fs/createDirectory`, writes the file there with
   `fs/writeFile`, and sends a `fileRef` to it. Attachments wait in the composer as removable
   thumbnails and chips until sent; a failed upload keeps the draft and says which file failed. A
-  file over the limit is refused when picked. **File** is hidden when the server lacks
-  `capabilities.fileSystem`.
+  file over the limit is refused when picked. **Photo** and **File** are hidden when the server
+  lacks `capabilities.fileSystem`.
 - **Plan mode** in the Add menu turns plan mode on, or off when it is on, with `thread/mode/set` (`plan` or `agent`); New chat in plan mode
   starts the thread with `mode: plan`. While on, the composer shows a Plan chip that turns it off.
   A successful `CreatePlan` shows in the transcript as Desktop's plan card: the Plan badge, the
@@ -415,7 +415,8 @@ list shows **failed** only for a chat whose failure the phone has seen.
 - Replies render Markdown with the same GitHub-flavored rules as Desktop. A link to a local file shows
   as a file chip with its name that opens File. Web links open the browser. File and skill
   references in user messages show as chips, and photos sent with a message show as thumbnails in
-  it, from the moment it is sent.
+  it, from the moment it is sent. An image a message refers to by `localImage` path, from the phone
+  or any other client, is read with `fs/readFile` to show its thumbnail.
   Math uses Desktop's delimiters; the phone does not typeset it, so a formula shows its TeX source
   styled as inline code, or as a code block for display math.
 - A tool activity line shows the tool kind's icon and fits one line, ending in an ellipsis; tapping it
@@ -594,8 +595,8 @@ The Phones segment adds **Access from anywhere** with the relay address and toke
   relay never sees a credential or plaintext.
 - With work running, the phone keeps a live session in the background, and an approval can be
   answered from its notification.
-- A photo and a file sent from the phone reach the agent; the file lands under the project's
-  `.craft/attachments/`, and a large photo still fits one message.
+- A photo and a file sent from the phone reach the agent and land under the project's
+  `.craft/attachments/`, where the agent can reach them by path after the turn.
 - Plan mode on the phone ends in **Implement this plan?** in the decision card, and yes continues
   the chat in agent mode.
 - Approvals, questions, and plan confirmations all use the decision card, never a second copy of
