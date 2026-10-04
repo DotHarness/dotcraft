@@ -2,7 +2,7 @@
 
 Open the Board and select **Oratorio settings** to manage source connections, project routes, Agent execution, and automation.
 
-![Oratorio settings in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/settings-light.png)
+![Oratorio settings in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/settings.png)
 
 ## Sources and projects
 

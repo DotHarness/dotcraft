@@ -7,13 +7,13 @@ Connect a WeCom group bot to DotCraft as a [channel](./) with the callback setti
 1. Open the target workspace in DotCraft Desktop.
 2. Open **Channels**, select **WeCom**, then select **Connect**.
 
-   ![Connect the WeCom channel from its details page](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/wecom-detail-light.png)
+   ![Connect the WeCom channel from its details page](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/wecom-detail.png)
 
 3. Set the callback listen host, port, and scheme. The default local listener is `0.0.0.0:9000`.
 4. Add a robot entry with a callback path, Token, and EncodingAESKey.
 5. Add at least one admin user, allowed user, or allowed chat.
 
-   ![Configure the WeCom channel in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/wecom-configuration-light.png)
+   ![Configure the WeCom channel in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/wecom-configuration.png)
 
 6. Save the channel and turn it on.
 7. In WeCom, set the group bot callback URL to the public URL that reaches the DotCraft listener.

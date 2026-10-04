@@ -29,7 +29,7 @@ Quick View 显示任务当前的状态、最近活动、草稿和评论，以及
 4. **Decision** — 批准、要求修改或拒绝，以及写回代码托管平台的结果。
 5. **Closed** — 已记录的结果和历史，需要时可以归档、重新打开或再审一次。
 
-![在 DotCraft Desktop 中审阅 Oratorio 任务](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/task-review-light.png)
+![在 DotCraft Desktop 中审阅 Oratorio 任务](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/task-review.png)
 
 ## 交付或继续推进
 

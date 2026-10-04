@@ -2,7 +2,7 @@
 
 Oratorio is DotCraft's built-in project board. Local tasks, GitHub issues and pull requests, and GitLab issues and merge requests all land on the same Board. Hand work to an Agent, follow the run, review the result, and deliver approved changes back to the provider, all without leaving [DotCraft Desktop](./entry-points/desktop).
 
-![Oratorio board in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/board-light.png)
+![Oratorio board in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/board.png)
 
 ## Start with a local task
 
@@ -28,7 +28,7 @@ Connect Oratorio to a conversation to read and move tasks from the chat itself.
 
 1. Install Oratorio, open its plugin details, and select **Connect** to connect the current workspace.
 
-   ![Connect Oratorio from its plugin details](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/app-connection-light.png)
+   ![Connect Oratorio from its plugin details](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/app-connection.png)
 
 2. Start a new conversation. Oratorio is available in it from the first message.
 

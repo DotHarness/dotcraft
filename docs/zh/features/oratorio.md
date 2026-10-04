@@ -2,7 +2,7 @@
 
 Oratorio 是 DotCraft 内置的项目看板。本地任务、GitHub 的 issue 与 pull request、GitLab 的 issue 与 merge request 都汇总到同一块 Board 上。你在这里把工作交给 Agent、跟踪运行、审阅结果，批准之后直接交付回代码托管平台，全程不用离开 [DotCraft Desktop](./entry-points/desktop)。
 
-![DotCraft Desktop 中的 Oratorio 看板](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/board-light.png)
+![DotCraft Desktop 中的 Oratorio 看板](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/board.png)
 
 ## 从一个本地任务开始
 
@@ -28,7 +28,7 @@ Oratorio 默认不向代码托管平台写入任何内容，需要你显式启�
 
 1. 安装 Oratorio，打开插件详情，选择 **Connect** 连接当前工作区。
 
-   ![在插件详情中连接 Oratorio](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/app-connection-light.png)
+   ![在插件详情中连接 Oratorio](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/app-connection.png)
 
 2. 新建一个会话，从第一条消息起就能用上 Oratorio。
 

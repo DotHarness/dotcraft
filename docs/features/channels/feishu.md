@@ -11,11 +11,11 @@ Connect a Feishu or Lark bot to DotCraft as a [channel](./) with a self-built ap
 5. Open the target workspace in DotCraft Desktop.
 6. Open **Channels**, select **Feishu**, then select **Connect**.
 
-   ![Connect the Feishu channel from its details page](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/feishu-detail-light.png)
+   ![Connect the Feishu channel from its details page](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/feishu-detail.png)
 
 7. Paste the App ID and App Secret, then review the platform and group-message settings.
 
-   ![Configure the Feishu bot in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/feishu-configuration-light.png)
+   ![Configure the Feishu bot in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/feishu-configuration.png)
 
 8. Save the channel and turn it on.
 

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { useData } from 'vitepress'
 import Icon from './Icon.vue'
 import { data } from './home.data'
 import { reducedMotion, useHome } from './home'
@@ -8,7 +7,6 @@ import { reducedMotion, useHome } from './home'
 const PERIOD = 9000
 
 const { t, href } = useHome()
-const { isDark } = useData()
 const tour = ref<HTMLElement>()
 const index = ref(0)
 const loaded = reactive(new Set([0]))
@@ -124,7 +122,7 @@ onBeforeUnmount(() => {
           >
             <div class="dc-shot">
               <img
-                :src="loaded.has(at) ? (isDark ? story.media.dark : story.media.light) : undefined"
+                :src="loaded.has(at) ? story.media.src : undefined"
                 :alt="story.media.alt"
                 :width="story.media.width"
                 :height="story.media.height"

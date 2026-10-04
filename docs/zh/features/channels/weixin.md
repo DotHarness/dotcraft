@@ -8,11 +8,11 @@
 2. 在 DotCraft Desktop 打开目标 workspace。
 3. 打开 **Channels**，选择 **微信**，然后选择 **Connect**。
 
-   ![在微信渠道详情页开始连接](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/weixin-detail-light.png)
+   ![在微信渠道详情页开始连接](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/weixin-detail.png)
 
 4. 除非腾讯提供了不同端点，否则保持默认 iLink API 地址。
 
-   ![在 DotCraft Desktop 中检查微信渠道设置](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/weixin-configuration-light.png)
+   ![在 DotCraft Desktop 中检查微信渠道设置](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/weixin-configuration.png)
 
 5. 保存渠道并启用。
 6. 扫描 Desktop 中显示的二维码。

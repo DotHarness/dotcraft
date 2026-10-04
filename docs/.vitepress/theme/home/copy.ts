@@ -16,7 +16,7 @@ export interface Story {
   icon: string
   name: string
   line: string
-  media: { light: string; dark: string; alt: string; width: number; height: number }
+  media: { src: string; alt: string; width: number; height: number }
   links: Link[]
   team?: boolean
 }
@@ -43,7 +43,7 @@ function stories(base: string, text: { name: string; line: string; alt: string; 
     icon: story.icon,
     name: text[index].name,
     line: text[index].line,
-    media: { light: `${base}${story.src}-light.webp`, dark: `${base}${story.src}-dark.webp`, alt: text[index].alt, width: 1600, height: 900 },
+    media: { src: `${base}${story.src}.webp`, alt: text[index].alt, width: 1600, height: 900 },
     links: story.hrefs.map((href, at) => ({ text: text[index].links[at], href })),
     team: story.team
   }))

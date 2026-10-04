@@ -2,7 +2,7 @@
 
 Put DotCraft in the chat tools your team already uses, so a colleague can ask in the group chat instead of opening Desktop. QQ, WeCom, Feishu / Lark, Telegram, and WeChat all connect, and the resulting sessions and memory are shared with every other entry point in the workspace.
 
-![Available channels in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/catalog-light.png)
+![Available channels in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/catalog.png)
 
 ## Connect a channel
 

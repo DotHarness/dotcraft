@@ -2,7 +2,7 @@
 
 打开 Board 并选择 **Oratorio settings**，在这里管理来源连接、项目路由、Agent 执行和自动化。
 
-![DotCraft Desktop 中的 Oratorio 设置](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/settings-light.png)
+![DotCraft Desktop 中的 Oratorio 设置](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/settings.png)
 
 ## 来源与项目
 

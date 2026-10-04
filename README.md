@@ -1,6 +1,6 @@
 <div align="center">
 
-<img alt="DotCraft: an agent runtime you embed and extend. You hand the desktop app a task, it plans the work and ticks it off." src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/hero-light.webp" width="830">
+<img alt="DotCraft: an agent runtime you embed and extend. You hand the desktop app a task, it plans the work and ticks it off." src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/hero.webp" width="830">
 
 [![Release](https://img.shields.io/github/v/release/DotHarness/dotcraft)](https://github.com/DotHarness/dotcraft/releases)
 [![NuGet](https://img.shields.io/nuget/v/DotCraft.Harness?logo=nuget&label=NuGet)](https://www.nuget.org/profiles/DotHarness)
@@ -57,13 +57,13 @@ See [Getting started](https://www.dotcraft.net/getting-started) for the full wal
 
 ## Desktop
 
-<p align="center"><a href="https://www.dotcraft.net/features/entry-points/desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-desktop-light.png" width="830" alt="DotCraft Desktop: the 'Ship dark mode' plan with two steps done, and the Subagents tab with two subagents working on the next steps."></a></p>
+<p align="center"><a href="https://www.dotcraft.net/features/entry-points/desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-desktop.png" width="830" alt="DotCraft Desktop: the 'Ship dark mode' plan with two steps done, and the Subagents tab with two subagents working on the next steps."></a></p>
 
 A workbench where the agent plans in your project, hands parts to subagents, and checks the result before it says done.
 
 **Get it:** [Download](https://github.com/DotHarness/dotcraft/releases) for Windows, macOS or Linux.
 
-<p align="center"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/desktop-strip-light.webp" width="830" alt="Four Desktop features in turn: the in-app browser checking your app's settings page, Computer Use working in another Windows app, Agent Builder setting up a new agent, and the pet finding Dragon wings to wear."></p>
+<p align="center"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/desktop-strip.webp" width="830" alt="Four Desktop features in turn: the in-app browser checking your app's settings page, Computer Use working in another Windows app, Agent Builder setting up a new agent, and the pet finding Dragon wings to wear."></p>
 
 **Ready out of the box**
 
@@ -111,7 +111,7 @@ Let your agent work on another Windows PC. The person sharing it chooses full ac
 
 ## Oratorio
 
-<p align="center"><a href="https://www.dotcraft.net/features/oratorio"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-oratorio-light.png" width="830" alt="The Oratorio board: one issue in progress with the agent working on it, one pull request in review with checks passing."></a></p>
+<p align="center"><a href="https://www.dotcraft.net/features/oratorio"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-oratorio.png" width="830" alt="The Oratorio board: one issue in progress with the agent working on it, one pull request in review with checks passing."></a></p>
 
 Your project board, built into Desktop. Local tasks, GitHub issues and pull requests, and GitLab issues and merge requests land on one board; hand a card to the agent, follow the run, review the result.
 
@@ -121,7 +121,7 @@ Your project board, built into Desktop. Local tasks, GitHub issues and pull requ
 
 ## Chat bots
 
-<p align="center"><a href="https://www.dotcraft.net/features/channels/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-chat-bots-light.png" width="830" alt="The Channels page in Desktop with Feishu, QQ, Telegram and WeCom connected."></a></p>
+<p align="center"><a href="https://www.dotcraft.net/features/channels/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-chat-bots.png" width="830" alt="The Channels page in Desktop with Feishu, QQ, Telegram and WeCom connected."></a></p>
 
 Put DotCraft in the group chat so teammates can ask about the project without opening Desktop. Feishu / Lark, QQ, Telegram, WeCom and WeChat connect, and their conversations share the workspace with every other entry point.
 

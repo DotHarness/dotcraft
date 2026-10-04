@@ -2,7 +2,7 @@
 
 把 DotCraft 接进团队已经在用的聊天工具，同事在群里问一句就能拿到答案，不必打开 Desktop。QQ、企业微信、飞书 / Lark、Telegram 和微信都可以接，聊出来的会话和记忆与工作区的其他入口完全共用。
 
-![DotCraft Desktop 中可用的渠道](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/catalog-light.png)
+![DotCraft Desktop 中可用的渠道](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/catalog.png)
 
 ## 接入渠道
 

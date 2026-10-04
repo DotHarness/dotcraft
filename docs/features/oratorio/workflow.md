@@ -29,7 +29,7 @@ Open a task's full detail and the workflow unfolds in five stages:
 4. **Decision** — approve, request changes, or reject, plus the result of any provider write.
 5. **Closed** — the recorded outcome and history, with archive, reopen, and re-review available when they apply.
 
-![Reviewing an Oratorio task in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/task-review-light.png)
+![Reviewing an Oratorio task in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/task-review.png)
 
 ## Deliver or continue the work
 
