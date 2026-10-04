@@ -3,7 +3,7 @@ import type { ClipboardEvent } from 'react'
 const TEX_SOURCE = 'annotation[encoding="application/x-tex"]'
 const PARAGRAPHS = new Set(['P', 'PRE', 'BLOCKQUOTE', 'UL', 'OL', 'TABLE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'])
 const LINES = new Set(['LI', 'TR'])
-const CONTAINERS = new Set(['DIV', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'TABLE', 'THEAD', 'TBODY', 'TR'])
+const BLOCKS = new Set([...PARAGRAPHS, ...LINES, 'DIV', 'THEAD', 'TBODY', 'TD', 'TH'])
 
 // Rendered KaTeX copies as glyph soup, so a selection that touches a formula copies its TeX.
 export function copySelectionWithMathSource(event: ClipboardEvent<HTMLElement>): void {
@@ -59,8 +59,7 @@ function plainText(root: Node): string {
   const visit = (node: Node): void => {
     if (node.nodeType === Node.TEXT_NODE) {
       const value = (node as Text).data
-      const parent = node.parentElement
-      if (parent && CONTAINERS.has(parent.tagName) && value.trim() === '') return
+      if (value.trim() === '' && betweenBlocks(node)) return
       write(value)
       return
     }
@@ -78,4 +77,13 @@ function plainText(root: Node): string {
 
   visit(root)
   return text
+}
+
+// Markdown puts line breaks between blocks; spaces between inline elements, and code indentation, are text.
+function betweenBlocks(node: Node): boolean {
+  const parent = node.parentElement
+  const isBlock = (element: Element | null): boolean => element === null || BLOCKS.has(element.tagName)
+  const boundary = (sibling: Node | null): boolean =>
+    sibling === null ? isBlock(parent) : sibling instanceof Element && BLOCKS.has(sibling.tagName)
+  return boundary(node.previousSibling) && boundary(node.nextSibling)
 }

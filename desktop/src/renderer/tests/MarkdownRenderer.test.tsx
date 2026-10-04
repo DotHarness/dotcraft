@@ -505,8 +505,8 @@ describe('MarkdownRenderer', () => {
     expect(setData).toHaveBeenCalledWith('text/plain', 'Weight for \\(n\\) neighbours:\n\n\\[w=\\frac58\\]')
   })
 
-  it('keeps blank lines inside code copied together with a formula', async () => {
-    const { container } = renderWithLocale(['Weight \\(n\\):', '', '```', 'first', '', '', 'last', '```'].join('\n'))
+  it('keeps spaces between inline elements and blank lines inside code copied together with a formula', async () => {
+    const { container } = renderWithLocale(['- **a** **b** \\(x\\)', '- c', '', '```', 'first', '', '', 'last', '```'].join('\n'))
     await waitFor(() => expect(container.querySelector('.katex')).not.toBeNull())
 
     const range = document.createRange()
@@ -516,7 +516,9 @@ describe('MarkdownRenderer', () => {
     const setData = vi.fn()
     fireEvent.copy(container.querySelector('.katex')!, { clipboardData: { setData } })
 
-    expect(setData).toHaveBeenCalledWith('text/plain', expect.stringContaining('first\n\n\nlast'))
+    const copied = setData.mock.calls.find(([type]) => type === 'text/plain')?.[1]
+    expect(copied).toContain('a b \\(x\\)\nc')
+    expect(copied).toContain('first\n\n\nlast')
   })
 
   it('memoizes: does not re-render when content unchanged', () => {
