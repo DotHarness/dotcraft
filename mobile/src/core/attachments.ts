@@ -5,19 +5,15 @@ export const MAX_PHOTO_SIDE = 2048
 export const MAX_MESSAGE_PHOTO_CHARS = 3 * 1024 * 1024
 
 // Photos travel inside the turn request, which must fit the AppServer's 4 MB message limit.
-export function withinPhotoBudget(current: PhotoAttachment[], picked: PhotoAttachment[]): { photos: PhotoAttachment[]; refused: number } {
-  const photos = [...current]
+export function withinPhotoBudget(current: PhotoAttachment[], picked: PhotoAttachment[]): { accepted: PhotoAttachment[]; refused: number } {
+  const accepted: PhotoAttachment[] = []
   let used = current.reduce((total, photo) => total + photo.dataUrl.length, 0)
-  let refused = 0
   for (const photo of picked) {
-    if (used + photo.dataUrl.length > MAX_MESSAGE_PHOTO_CHARS) {
-      refused += 1
-      continue
-    }
+    if (used + photo.dataUrl.length > MAX_MESSAGE_PHOTO_CHARS) continue
     used += photo.dataUrl.length
-    photos.push(photo)
+    accepted.push(photo)
   }
-  return { photos, refused }
+  return { accepted, refused: picked.length - accepted.length }
 }
 
 export interface AttachmentFileSystem {

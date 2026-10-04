@@ -76,9 +76,14 @@ export function Composer({
   const [notice, setNotice] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const input = useRef<TextInput>(null)
+  const latest = useRef(draft)
   const empty = isEmptyDraft(draft)
   const match = referencePicker(draft, cursor ?? draft.text.length)
   const matches = match ? matchingEntries(references, match) : []
+
+  useEffect(() => {
+    latest.current = draft
+  }, [draft])
 
   useEffect(() => {
     const hidden = Keyboard.addListener('keyboardDidHide', () => input.current?.blur())
@@ -123,8 +128,8 @@ export function Composer({
     attach(async () => {
       const picked = await pickPhotos()
       if (picked.length === 0) return
-      const { photos, refused } = withinPhotoBudget(draft.photos, picked)
-      update((current) => ({ ...current, photos }))
+      const { accepted, refused } = withinPhotoBudget(latest.current.photos, picked)
+      update((current) => ({ ...current, photos: [...current.photos, ...accepted] }))
       if (refused > 0) setNotice(t('composer.photosTooLarge'))
     })
 
