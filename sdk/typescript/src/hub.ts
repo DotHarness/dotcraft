@@ -30,6 +30,7 @@ export type {
   HubMobilePairing,
   HubMobileRelay,
   HubMobileState,
+  HubProject,
   HubRuntimeToolsRequest,
   HubSatellite,
   HubSatelliteInvite,

@@ -17,10 +17,9 @@ const workspaceSwitch = vi.fn()
 const workspacePickFolder = vi.fn()
 const workspaceSaveLocalProject = vi.fn()
 const workspaceCreateLocalProject = vi.fn()
-const workspaceRemoveRecent = vi.fn()
+const workspaceRemoveProject = vi.fn()
 const workspaceDisconnectRemote = vi.fn()
-const workspaceGetRecent = vi.fn()
-const workspaceClearRecent = vi.fn()
+const workspaceClearProjects = vi.fn()
 const workspaceClearSelection = vi.fn()
 const workspaceStop = vi.fn()
 const workspaceArchiveThread = vi.fn()
@@ -79,10 +78,9 @@ describe('ThreadList project-first layout', () => {
     workspacePickFolder.mockResolvedValue(null)
     workspaceSaveLocalProject.mockImplementation(async ({ primaryFolder }: { primaryFolder: string }) => ({ path: primaryFolder }))
     workspaceCreateLocalProject.mockResolvedValue({ path: '/workspace/new', gitInitialized: true })
-    workspaceRemoveRecent.mockResolvedValue(undefined)
+    workspaceRemoveProject.mockResolvedValue(undefined)
     workspaceDisconnectRemote.mockResolvedValue(undefined)
-    workspaceGetRecent.mockResolvedValue([])
-    workspaceClearRecent.mockResolvedValue(undefined)
+    workspaceClearProjects.mockResolvedValue(undefined)
     workspaceClearSelection.mockResolvedValue(undefined)
     workspaceStop.mockResolvedValue(undefined)
     workspaceArchiveThread.mockResolvedValue(undefined)
@@ -95,10 +93,9 @@ describe('ThreadList project-first layout', () => {
         pickFolder: workspacePickFolder,
         saveLocalProject: workspaceSaveLocalProject,
         createLocalProject: workspaceCreateLocalProject,
-        removeRecent: workspaceRemoveRecent,
+        removeProject: workspaceRemoveProject,
         disconnectRemote: workspaceDisconnectRemote,
-        getRecent: workspaceGetRecent,
-        clearRecent: workspaceClearRecent,
+        clearProjects: workspaceClearProjects,
         clearSelection: workspaceClearSelection,
         stop: workspaceStop,
         archiveThread: workspaceArchiveThread
@@ -544,10 +541,7 @@ describe('ThreadList project-first layout', () => {
     fireEvent.mouseEnter(screen.getByText('Projects').parentElement as HTMLElement)
     fireEvent.click(screen.getByRole('button', { name: 'Workspace options' }))
 
-    await waitFor(() => {
-      expect(workspaceGetRecent).toHaveBeenCalledOnce()
-    })
-    expect(screen.getByText('/workspace/a')).toBeInTheDocument()
+    expect(await screen.findByText('/workspace/a')).toBeInTheDocument()
     expect(screen.getByText('Open in Explorer')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add project' })).toBeInTheDocument()
   })
@@ -1186,17 +1180,17 @@ describe('ThreadList project-first layout', () => {
 
     expect(screen.getByRole('dialog', { name: 'Remove b?' })).toBeInTheDocument()
     expect(screen.getByText("This removes the project from the app. Files on your computer and existing chats won't be deleted.")).toBeInTheDocument()
-    expect(workspaceRemoveRecent).not.toHaveBeenCalled()
+    expect(workspaceRemoveProject).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(workspaceRemoveRecent).not.toHaveBeenCalled()
+    expect(workspaceRemoveProject).not.toHaveBeenCalled()
 
     fireEvent.click(within(projectRow).getByRole('button', { name: 'Project actions' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Remove project' }))
     fireEvent.click(screen.getByRole('button', { name: 'Remove project' }))
 
     await waitFor(() => {
-      expect(workspaceRemoveRecent).toHaveBeenCalledWith('/workspace/b')
+      expect(workspaceRemoveProject).toHaveBeenCalledWith('/workspace/b')
     })
   })
 

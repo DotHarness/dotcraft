@@ -30,7 +30,8 @@ dotcraft hub
 ```text
 ~/.craft/hub/
 ├── hub.lock                  # 当前 Hub 发现信息：API 地址、PID、启动时间、本地 token、版本、binary 路径
-├── appservers.json           # Hub 记录的工作区 AppServer 状态（用于展示和恢复）
+├── appservers.json           # 正在运行的 AppServer，供重启后的 Hub 重新找到它们
+├── projects.json             # 本机的项目列表：路径和最近打开时间
 ├── mobile.json               # 手机访问：开关状态、已配对手机和配对码（只存哈希）、中继地址与 Token
 └── mobile-certificate.pfx    # 已配对手机固定信任的证书
 ```

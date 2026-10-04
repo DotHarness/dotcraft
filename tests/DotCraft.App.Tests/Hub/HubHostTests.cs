@@ -65,6 +65,12 @@ public sealed class HubHostTests : IDisposable
         var appservers = await http.GetAsync($"{info.ApiBaseUrl}/v1/appservers", cts.Token);
         Assert.Equal(HttpStatusCode.Unauthorized, appservers.StatusCode);
 
+        var projects = await http.GetAsync($"{info.ApiBaseUrl}/v1/projects", cts.Token);
+        Assert.Equal(HttpStatusCode.Unauthorized, projects.StatusCode);
+
+        var openProject = await http.PostAsJsonAsync($"{info.ApiBaseUrl}/v1/projects/open", new { path = _userProfile }, cts.Token);
+        Assert.Equal(HttpStatusCode.Unauthorized, openProject.StatusCode);
+
         var service = await http.GetAsync($"{info.ApiBaseUrl}/v1/services/by-id?id=oratorio", cts.Token);
         Assert.Equal(HttpStatusCode.Unauthorized, service.StatusCode);
 
@@ -210,6 +216,13 @@ public sealed class HubHostTests : IDisposable
         Assert.StartsWith("ws://127.0.0.1:", firstRoot.GetProperty("endpoints").GetProperty("appServerWebSocket").GetString());
         Assert.True(File.Exists(paths.AppServersRegistryPath));
 
+        using var projectsRequest = new HttpRequestMessage(HttpMethod.Get, $"{info.ApiBaseUrl}/v1/projects");
+        projectsRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", info.Token);
+        var projectsResponse = await http.SendAsync(projectsRequest, cts.Token);
+        projectsResponse.EnsureSuccessStatusCode();
+        using var projectsDoc = JsonDocument.Parse(await projectsResponse.Content.ReadAsStringAsync(cts.Token));
+        Assert.Empty(projectsDoc.RootElement.GetProperty("projects").EnumerateArray());
+
         using var second = AuthorizedPost(info, $"{info.ApiBaseUrl}/v1/appservers/ensure", new
         {
             workspacePath = workspace.WorkspacePath,
@@ -224,6 +237,7 @@ public sealed class HubHostTests : IDisposable
         var stopResponse = await http.SendAsync(stop, cts.Token);
         stopResponse.EnsureSuccessStatusCode();
         await WaitForFileDeletedAsync(Path.Combine(workspace.BotPath, "appserver.lock"), cts.Token);
+        Assert.Empty(new HubAppServerRegistryStore(paths.AppServersRegistryPath).Load());
 
         using var listRequest = new HttpRequestMessage(HttpMethod.Get, $"{info.ApiBaseUrl}/v1/appservers");
         listRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", info.Token);

@@ -10,7 +10,7 @@ public sealed class HubAppServerRegistryStoreTests : IDisposable
         "DotCraftHubRegistry_" + Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void SaveAndLoad_PreservesKnownAppServerMetadata()
+    public void SaveAndLoad_PreservesRunningAppServerMetadata()
     {
         var path = Path.Combine(_tempDir, "hub", "appservers.json");
         var store = new HubAppServerRegistryStore(path);
@@ -25,11 +25,7 @@ public sealed class HubAppServerRegistryStoreTests : IDisposable
             ServerVersion: "0.1.5",
             StartedByHub: true,
             LastStartedAt: DateTimeOffset.UtcNow.AddMinutes(-5),
-            LastSeenAt: DateTimeOffset.UtcNow,
-            LastExitedAt: null,
-            ExitCode: null,
-            LastError: "probe failed",
-            RecentStderr: "stderr");
+            LastSeenAt: DateTimeOffset.UtcNow);
 
         store.Save([record]);
 
@@ -37,7 +33,7 @@ public sealed class HubAppServerRegistryStoreTests : IDisposable
         var loadedRecord = Assert.Single(loaded.Values);
         Assert.Equal(record.CanonicalWorkspacePath, loadedRecord.CanonicalWorkspacePath);
         Assert.Equal(HubAppServerStates.Unhealthy, loadedRecord.State);
-        Assert.Equal("probe failed", loadedRecord.LastError);
+        Assert.Equal(123, loadedRecord.Pid);
         Assert.Equal("ws://127.0.0.1:43123/ws?token=x", loadedRecord.Endpoints["appServerWebSocket"]);
     }
 
@@ -82,11 +78,7 @@ public sealed class HubAppServerRegistryStoreTests : IDisposable
         ServerVersion: "test",
         StartedByHub: true,
         LastStartedAt: DateTimeOffset.UtcNow,
-        LastSeenAt: DateTimeOffset.UtcNow,
-        LastExitedAt: null,
-        ExitCode: null,
-        LastError: null,
-        RecentStderr: null);
+        LastSeenAt: DateTimeOffset.UtcNow);
 
     public void Dispose()
     {

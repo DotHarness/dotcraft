@@ -30,10 +30,9 @@ describe('Sidebar Agent Builder navigation', () => {
     installDesktopApiMock({
       settings: { get: settingsGet },
       workspace: {
-        getRecent: vi.fn().mockResolvedValue([]),
         clearSelection: vi.fn().mockResolvedValue(undefined),
         switch: vi.fn().mockResolvedValue(undefined),
-        clearRecent: vi.fn().mockResolvedValue(undefined)
+        clearProjects: vi.fn().mockResolvedValue(undefined)
       },
       shell: { openPath: vi.fn().mockResolvedValue(undefined) }
     })

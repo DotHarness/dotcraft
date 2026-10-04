@@ -9,7 +9,6 @@ import {
   type HubEvent
 } from './desktopHub'
 import {
-  getRecentWorkspaces,
   loadSettings,
   normalizeShowInMenuBar,
   resolveTaskCompletionNotificationMode,
@@ -218,9 +217,12 @@ export async function openDesktopWindow(workspacePath?: string | null, threadId?
   spawnDesktopWindow(path || undefined, threadId)
 }
 
-export async function openMostRecentWorkspaceFromTray(settings: AppSettings = loadSettings()): Promise<boolean> {
-  const recentPath = getRecentWorkspaces(settings).find((workspace) => workspace.path.trim())?.path.trim()
-  const workspacePath = recentPath || settings.lastWorkspacePath?.trim()
+export async function openMostRecentWorkspaceFromTray(
+  hubClient: Pick<DesktopHubClient, 'listProjects'>,
+  settings: AppSettings = loadSettings()
+): Promise<boolean> {
+  const projects = await hubClient.listProjects().catch(() => [])
+  const workspacePath = projects[0]?.path.trim() || settings.lastWorkspacePath?.trim()
   if (!workspacePath) return false
 
   await openDesktopWindow(workspacePath)
@@ -525,7 +527,7 @@ export async function runTrayProcess(): Promise<void> {
   tray.on('click', () => {
     if (disposed || openRecentInFlight) return
     openRecentInFlight = true
-    void openMostRecentWorkspaceFromTray(loadSettings()).catch(() => {
+    void openMostRecentWorkspaceFromTray(hubClient, loadSettings()).catch(() => {
       // Non-fatal: tray clicks should not crash the background process.
     }).finally(() => {
       openRecentInFlight = false

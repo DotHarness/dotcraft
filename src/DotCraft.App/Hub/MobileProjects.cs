@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace DotCraft.Hub;
 
-internal sealed class MobileProjects(ManagedAppServerRegistry appServers, HubPaths paths)
+internal sealed class MobileProjects(ProjectRegistry projects, ManagedAppServerRegistry appServers, HubPaths paths)
 {
     private const string ChatsDisplayName = "Chats";
 
@@ -36,10 +36,6 @@ internal sealed class MobileProjects(ManagedAppServerRegistry appServers, HubPat
                 },
                 cancellationToken);
         }
-        catch (HubProtocolException ex) when (ex.Code == "workspaceNotFound")
-        {
-            throw ProjectNotFound();
-        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             throw new HubProtocolException(
@@ -70,30 +66,17 @@ internal sealed class MobileProjects(ManagedAppServerRegistry appServers, HubPat
 
     private IEnumerable<KnownProject> Known()
     {
-        var chats = Path.TrimEndingDirectorySeparator(Path.GetFullPath(paths.DefaultChatWorkspacePath));
-        var projects = new Dictionary<string, KnownProject>(ManagedAppServerRegistry.WorkspaceComparer);
-        foreach (var workspace in appServers.ListKnown())
+        var running = appServers.RunningWorkspaces();
+        var chats = ManagedAppServerRegistry.CanonicalizeWorkspacePath(paths.DefaultChatWorkspacePath);
+        foreach (var project in projects.List())
         {
-            var path = workspace.CanonicalWorkspacePath;
-            var isChats = ManagedAppServerRegistry.WorkspaceComparer.Equals(path, chats);
-            if (!isChats && !Directory.Exists(Path.Combine(path, ".craft")))
-                continue;
-            projects[path] = new KnownProject(
-                path,
-                isChats,
-                new MobileProject(
-                    ProjectId(path),
-                    isChats ? ChatsDisplayName : Path.GetFileName(path),
-                    workspace.Running,
-                    workspace.LastActiveAt));
+            yield return new KnownProject(
+                project.Path,
+                false,
+                new MobileProject(ProjectId(project.Path), Path.GetFileName(project.Path), running.Contains(project.Path), project.LastOpenedAt));
         }
 
-        if (!projects.ContainsKey(chats))
-            projects[chats] = new KnownProject(chats, true, new MobileProject(ProjectId(chats), ChatsDisplayName, false, null));
-
-        return projects.Values
-            .OrderByDescending(project => project.Project.LastActiveAt)
-            .ThenBy(project => project.Project.DisplayName, StringComparer.OrdinalIgnoreCase);
+        yield return new KnownProject(chats, true, new MobileProject(ProjectId(chats), ChatsDisplayName, running.Contains(chats), null));
     }
 
     private static HubProtocolException ProjectNotFound() =>

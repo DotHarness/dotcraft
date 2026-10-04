@@ -4,14 +4,23 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { WorkspaceHeader, WorkspaceOptionsMenu } from '../components/sidebar/WorkspaceHeader'
 import { ConfirmDialogHost } from '../components/ui/ConfirmDialog'
 import { installDesktopApiMock } from './desktopApiMock'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
+import type { WorkspaceProjectSummary } from '../../shared/workspaceProjects'
 
 const settingsGet = vi.fn()
-const workspaceGetRecent = vi.fn()
-const workspaceClearRecent = vi.fn()
+const workspaceClearProjects = vi.fn()
 const workspaceSwitch = vi.fn()
 const workspacePickFolder = vi.fn()
 const workspaceClearSelection = vi.fn()
 const shellOpenPath = vi.fn()
+
+function localProject(path: string, name: string, lastOpenedAt: string): WorkspaceProjectSummary {
+  return { kind: 'local', path, name, lastOpenedAt, state: 'cold', running: false, loaded: false, threadCount: 0, threads: [], pinned: false }
+}
+
+function setLocalProjects(projects: WorkspaceProjectSummary[]): void {
+  useWorkspaceProjectsStore.getState().setPayload({ foregroundWorkspacePath: '', secondaryLimit: 8, projects })
+}
 
 function renderOptionsMenu(): void {
   render(
@@ -36,11 +45,11 @@ describe('WorkspaceHeader', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en' })
-    workspaceGetRecent.mockResolvedValue([
-      { path: 'F:\\workspace-a', name: 'workspace-a', lastOpenedAt: '2026-04-19T00:00:00.000Z' },
-      { path: 'F:\\workspace-b', name: 'workspace-b', lastOpenedAt: '2026-04-19T00:01:00.000Z' }
+    setLocalProjects([
+      localProject('F:\\workspace-a', 'workspace-a', '2026-04-19T00:00:00.000Z'),
+      localProject('F:\\workspace-b', 'workspace-b', '2026-04-19T00:01:00.000Z')
     ])
-    workspaceClearRecent.mockResolvedValue(undefined)
+    workspaceClearProjects.mockResolvedValue(undefined)
     workspaceSwitch.mockResolvedValue(undefined)
     workspacePickFolder.mockResolvedValue(null)
     workspaceClearSelection.mockResolvedValue(undefined)
@@ -52,8 +61,7 @@ describe('WorkspaceHeader', () => {
         get: settingsGet
       },
       workspace: {
-        getRecent: workspaceGetRecent,
-        clearRecent: workspaceClearRecent,
+        clearProjects: workspaceClearProjects,
         switch: workspaceSwitch,
         pickFolder: workspacePickFolder,
         clearSelection: workspaceClearSelection
@@ -68,9 +76,6 @@ describe('WorkspaceHeader', () => {
     renderOptionsMenu()
 
     openWorkspaceMenu()
-    await waitFor(() => {
-      expect(workspaceGetRecent).toHaveBeenCalledOnce()
-    })
 
     await openRecentSubmenu()
 
@@ -81,9 +86,6 @@ describe('WorkspaceHeader', () => {
     renderOptionsMenu()
 
     openWorkspaceMenu()
-    await waitFor(() => {
-      expect(workspaceGetRecent).toHaveBeenCalledOnce()
-    })
 
     fireEvent.click(screen.getByText('Switch Workspace'))
 
@@ -98,9 +100,6 @@ describe('WorkspaceHeader', () => {
     renderOptionsMenu()
 
     openWorkspaceMenu()
-    await waitFor(() => {
-      expect(workspaceGetRecent).toHaveBeenCalledOnce()
-    })
     await openRecentSubmenu()
 
     fireEvent.click(await screen.findByText('workspace-a'))
@@ -116,9 +115,6 @@ describe('WorkspaceHeader', () => {
     renderOptionsMenu()
 
     openWorkspaceMenu()
-    await waitFor(() => {
-      expect(workspaceGetRecent).toHaveBeenCalledOnce()
-    })
     await openRecentSubmenu()
 
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Clear Recently Opened...' }))
@@ -128,16 +124,13 @@ describe('WorkspaceHeader', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
-    expect(workspaceClearRecent).not.toHaveBeenCalled()
+    expect(workspaceClearProjects).not.toHaveBeenCalled()
   })
 
-  it('clears recents after confirmation and updates the submenu', async () => {
+  it('clears projects after confirmation', async () => {
     renderOptionsMenu()
 
     openWorkspaceMenu()
-    await waitFor(() => {
-      expect(workspaceGetRecent).toHaveBeenCalledOnce()
-    })
     await openRecentSubmenu()
 
     expect(await screen.findByText('workspace-a')).toBeInTheDocument()
@@ -146,20 +139,15 @@ describe('WorkspaceHeader', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
 
     await waitFor(() => {
-      expect(workspaceClearRecent).toHaveBeenCalledOnce()
+      expect(workspaceClearProjects).toHaveBeenCalledOnce()
     })
-    expect(screen.queryByText('workspace-a')).not.toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: 'Clear Recently Opened...' })).not.toBeInTheDocument()
   })
 
   it('does not show the clear action when there are no recents', async () => {
-    workspaceGetRecent.mockResolvedValue([])
+    setLocalProjects([])
     renderOptionsMenu()
 
     openWorkspaceMenu()
-    await waitFor(() => {
-      expect(workspaceGetRecent).toHaveBeenCalledOnce()
-    })
 
     expect(screen.queryByRole('menuitem', { name: 'Clear Recently Opened...' })).not.toBeInTheDocument()
   })

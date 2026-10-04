@@ -120,7 +120,7 @@ Required endpoints:
 | `GET /v1/status` | Return Hub metadata and capabilities. |
 | `POST /v1/shutdown` | Stop Hub and Hub-managed AppServers. |
 | `POST /v1/appservers/ensure` | Ensure a workspace AppServer and optional workspace sidecars exist, then return connection metadata. |
-| `GET /v1/appservers` | List live and known AppServer registry entries. |
+| `GET /v1/appservers` | List running AppServers, and those this Hub process started that have since stopped, with their exit diagnostics. |
 | `GET /v1/appservers/by-workspace?path=...` | Inspect one workspace without starting it. |
 | `POST /v1/appservers/stop` | Stop a managed AppServer. |
 | `POST /v1/appservers/restart` | Restart a workspace AppServer through Hub. |
@@ -128,6 +128,9 @@ Required endpoints:
 | `GET /v1/services/by-id?id=...` | Inspect one registered local service without starting it. |
 | `POST /v1/services/stop` | Stop a Hub-managed local service. |
 | `POST /v1/services/restart` | Restart a registered local service. |
+| `GET /v1/projects` | List the computer's projects (§7 Projects). |
+| `POST /v1/projects/open` | Add a project, or mark an existing one as just opened. Body: `{ "path" }`; the folder must exist. |
+| `POST /v1/projects/remove` | Remove a project from the list. Body: `{ "path" }`. Its files, threads, and running AppServer are untouched. |
 | `GET /v1/events` | Stream Hub lifecycle events as SSE. |
 | `POST /v1/notifications/request` | Accept a local notification request and emit a Hub event. |
 | `GET /v1/satellites` | List paired Remote Tool Hosts with their online state, declared capabilities, and last reported workspaces. |
@@ -158,9 +161,14 @@ Errors use this shape:
 }
 ```
 
+`GET /v1/projects` answers `{ "projects": [{ "path", "displayName", "lastOpenedAt", "running" }] }`,
+most recently opened first, where `displayName` is the folder name and `running` reflects the live
+registry. `POST /v1/projects/open` answers the project object. Both mutating routes emit a
+`projects.changed` event with no payload; clients re-read the list.
+
 Default Chat helpers do not add another Hub endpoint. They resolve and initialize `~/.craft/workspaces/chats`, then call `POST /v1/appservers/ensure` with that concrete `workspacePath`.
 
-Common error codes include `unauthorized`, `workspaceNotFound`, `workspaceLocked`, `appServerStartFailed`, `appServerUnhealthy`, `portUnavailable`, `invalidNotification`, `satelliteNotFound`, `satelliteOffline`, `inviteInvalid`, `sessionConflict`, `sessionKindUnsupported`, `satelliteScreenUnsupported`, `gatewayOff`, `deviceNotFound`, `invalidRequest`, and `hubInternalError`.
+Common error codes include `unauthorized`, `workspaceNotFound`, `workspaceLocked`, `appServerStartFailed`, `appServerUnhealthy`, `portUnavailable`, `invalidNotification`, `satelliteNotFound`, `satelliteOffline`, `inviteInvalid`, `sessionConflict`, `sessionKindUnsupported`, `satelliteScreenUnsupported`, `gatewayOff`, `deviceNotFound`, `projectNotFound`, `invalidRequest`, and `hubInternalError`.
 
 ### 6.1 Satellite listener
 
@@ -222,12 +230,25 @@ Clients must verify both process liveness and `/v1/status` before trusting the m
 - pid.
 - endpoints and service status.
 - server version.
-- last started/seen/exited metadata.
-- exit diagnostics and recent stderr.
+- last started/seen metadata.
+
+The registry describes AppServers that are running, so a restarted Hub can find them again. An entry
+leaves the file when its AppServer exits; exit diagnostics and recent stderr are kept in memory for
+the life of the Hub process only. The registry is never a list of past workspaces.
 
 The registry is not the source of truth for workspace ownership. The live OS process and workspace lock are authoritative.
 
 If Hub restarts and sees an old live workspace lock, it may display or return that AppServer as external/known, but it must not silently take over a process handle it did not start.
+
+### Projects
+
+`~/.craft/hub/projects.json` is the computer's one list of projects: local workspaces a user opened
+in a client and has not removed, each with its path and last-opened time. Every local client shows
+and offers this list, and nothing else: Desktop's Projects, and the phone's projects. A client adds a
+project with `POST /v1/projects/open` when the user opens a workspace, and removes it with
+`POST /v1/projects/remove`. Starting an AppServer never adds a project, so automation, CLI runs,
+and tests leave the list alone. The default Chat workspace is not a project; clients show it on their
+own. Projects on other machines belong to the client that connects to them.
 
 ### Satellite Registry
 

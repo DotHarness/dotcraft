@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { WelcomeScreen } from '../components/WelcomeScreen'
 import { installDesktopApiMock } from './desktopApiMock'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
-const workspaceGetRecent = vi.fn()
 const workspaceGetProjects = vi.fn()
 const workspacePickFolder = vi.fn()
 const workspaceSwitch = vi.fn()
@@ -34,7 +34,7 @@ describe('WelcomeScreen', () => {
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en' })
     settingsSet.mockResolvedValue(undefined)
-    workspaceGetRecent.mockResolvedValue([])
+    useWorkspaceProjectsStore.getState().reset()
     workspaceGetProjects.mockResolvedValue({
       foregroundWorkspacePath: '',
       foregroundProjectId: '',
@@ -75,7 +75,6 @@ describe('WelcomeScreen', () => {
         set: settingsSet
       },
       workspace: {
-        getRecent: workspaceGetRecent,
         getProjects: workspaceGetProjects,
         pickFolder: workspacePickFolder,
         switch: workspaceSwitch
@@ -111,9 +110,22 @@ describe('WelcomeScreen', () => {
   })
 
   it('uses the same brand opening state for recent workspaces', async () => {
-    workspaceGetRecent.mockResolvedValue([
-      { path: 'X:\\fixtures\\workspace', name: 'dotcraft', lastOpenedAt: '2026-05-16T00:00:00.000Z' }
-    ])
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '',
+      secondaryLimit: 8,
+      projects: [{
+        kind: 'local',
+        path: 'X:\\fixtures\\workspace',
+        name: 'dotcraft',
+        lastOpenedAt: '2026-05-16T00:00:00.000Z',
+        state: 'cold',
+        running: false,
+        loaded: false,
+        threadCount: 0,
+        threads: [],
+        pinned: false
+      }]
+    })
     renderWelcome()
 
     await act(async () => {

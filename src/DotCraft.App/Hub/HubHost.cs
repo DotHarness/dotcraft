@@ -25,6 +25,7 @@ public sealed class HubHost : IDotCraftHost
     private HubLockFile? _lockFile;
     private HubEventBus? _eventBus;
     private ManagedAppServerRegistry? _registry;
+    private ProjectRegistry? _projects;
     private ManagedLocalServiceRegistry? _serviceRegistry;
     private SatelliteConnectionManager? _satellites;
     private MobileGateway? _mobile;
@@ -91,6 +92,7 @@ public sealed class HubHost : IDotCraftHost
                 _paths.AppServersRegistryPath,
                 _paths.RuntimeToolsPath,
                 _loggerFactory.CreateLogger<ManagedAppServerRegistry>());
+            _projects = new ProjectRegistry(_paths);
             _serviceRegistry = new ManagedLocalServiceRegistry(
                 ManagedLocalServiceDefinitions.CreateBuiltIns(_paths),
                 _loggerFactory.CreateLogger<ManagedLocalServiceRegistry>());
@@ -105,6 +107,7 @@ public sealed class HubHost : IDotCraftHost
                 _paths,
                 _eventBus,
                 _registry,
+                _projects,
                 _loggerFactory);
             _registry.StartHealthChecks();
             _app = BuildApp(apiBaseUrl, token, startedAt, binaryPath, _registry, _serviceRegistry, _eventBus);
@@ -279,6 +282,13 @@ public sealed class HubHost : IDotCraftHost
             app,
             _config,
             _satellites!,
+            events,
+            request => Unauthorized(request, token),
+            ProtectedAsync);
+        HubProjectsApi.Map(
+            app,
+            _projects!,
+            registry,
             events,
             request => Unauthorized(request, token),
             ProtectedAsync);

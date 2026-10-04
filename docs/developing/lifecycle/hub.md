@@ -30,7 +30,8 @@ Hub starts a loopback management API and writes discovery metadata to `~/.craft/
 ```text
 ~/.craft/hub/
 ├── hub.lock                  # current Hub discovery: API URL, PID, start time, local token, version, binary path
-├── appservers.json           # Hub-tracked AppServer state (display & recovery)
+├── appservers.json           # running AppServers, so a restarted Hub can find them again
+├── projects.json             # the computer's projects: path and last-opened time
 ├── mobile.json               # phone access: on or off, paired phones and pairing code (hashes only), relay address and token
 └── mobile-certificate.pfx    # certificate that paired phones pin
 ```

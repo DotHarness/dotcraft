@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace DotCraft.Hub;
 
 /// <summary>
-/// Best-effort persistence for Hub-known AppServer metadata.
+/// Best-effort persistence for running AppServer metadata.
 /// </summary>
 internal sealed class HubAppServerRegistryStore
 {
@@ -89,11 +89,7 @@ internal sealed record HubAppServerRegistryRecord(
     string? ServerVersion,
     bool StartedByHub,
     DateTimeOffset? LastStartedAt,
-    DateTimeOffset? LastSeenAt,
-    DateTimeOffset? LastExitedAt,
-    int? ExitCode,
-    string? LastError,
-    string? RecentStderr)
+    DateTimeOffset? LastSeenAt)
 {
     public HubAppServerResponse ToResponse() => new(
         WorkspacePath,
@@ -104,7 +100,7 @@ internal sealed record HubAppServerRegistryRecord(
         ServiceStatus,
         ServerVersion,
         StartedByHub,
-        ExitCode,
-        LastError,
-        RecentStderr);
+        ExitCode: null,
+        LastError: null,
+        RecentStderr: null);
 }

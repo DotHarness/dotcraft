@@ -23,6 +23,15 @@ public sealed record HubErrorResponse(HubError Error);
 
 public sealed record HubError(string Code, string Message, object? Details);
 
+public sealed record HubProjectResponse(string Path, string DisplayName, DateTimeOffset LastOpenedAt, bool Running);
+
+public sealed record HubProjectListResponse(IReadOnlyList<HubProjectResponse> Projects);
+
+public sealed class ProjectPathRequest
+{
+    public string Path { get; set; } = string.Empty;
+}
+
 /// <summary>One paired Remote Tool Host as seen by local clients.</summary>
 public sealed record HubSatelliteResponse(
     string PeerId,
