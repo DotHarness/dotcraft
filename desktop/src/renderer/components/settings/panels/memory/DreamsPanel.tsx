@@ -153,7 +153,7 @@ export function DreamsPanel({ dreams, memoryEnabled, dashboardUrl, locale, onBac
           </SettingsRow>
         )}
 
-        {!dreams.runsLoading && dreams.runs.map((run) => {
+        {dreams.runs.map((run) => {
           const runTime = run.endedAt ?? run.startedAt
           const statusColor = run.status === 'succeeded'
             ? 'var(--success)'
@@ -179,7 +179,7 @@ export function DreamsPanel({ dreams, memoryEnabled, dashboardUrl, locale, onBac
                     {t(`settings.personalization.dreamsStatus.${run.status}`)}
                   </span>
                   <span aria-hidden>·</span>
-                  <span>{t('settings.dreams.threadCount', { count: run.processedThreadCount })}</span>
+                  <span>{t(run.processedThreadCount === 1 ? 'settings.dreams.threadCount.one' : 'settings.dreams.threadCount.other', { count: run.processedThreadCount })}</span>
                 </span>
               }
               control={
