@@ -20,6 +20,7 @@ interface LivePost {
   channel: 'requests' | 'results'
   title: string
   text: string
+  subText: string
   url: string
   alert: boolean
   key?: string

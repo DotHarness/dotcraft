@@ -110,14 +110,14 @@ export function StateMark({ state, live }: { state: ChatState; live: boolean }) 
   )
 }
 
-export function ComputerStatusLine({ status, updatedAt }: { status: ComputerStatus; updatedAt: string | null }) {
-  const { t, ago } = useI18n()
-  const label =
-    status === 'online'
-      ? t('status.online')
-      : status === 'connecting'
-        ? t('status.connecting')
-        : t(status === 'offline' ? 'status.offline' : 'status.accessOff', { time: ago(updatedAt) })
+export function useStatusLabel(): (status: ComputerStatus) => string {
+  const { t } = useI18n()
+  return (status) =>
+    t(status === 'online' ? 'status.online' : status === 'connecting' ? 'status.connecting' : status === 'offline' ? 'status.offline' : 'status.accessOff')
+}
+
+export function ComputerStatusLine({ status }: { status: ComputerStatus }) {
+  const label = useStatusLabel()(status)
   return (
     <View style={styles.statusLine}>
       <StatusIndicator tone={status === 'online' ? 'success' : status === 'connecting' ? 'pending' : 'neutral'} />

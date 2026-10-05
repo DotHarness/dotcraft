@@ -8,8 +8,8 @@ export const MESSAGES_EN = {
 
   'status.online': 'Online',
   'status.connecting': 'Connecting…',
-  'status.offline': 'Offline · Updated {{time}}',
-  'status.accessOff': 'Phone access off · Updated {{time}}',
+  'status.offline': 'Offline',
+  'status.accessOff': 'Phone access off',
   'notice.offline': '{{computer}} is offline. Showing what was last synced.',
   'notice.accessOff': 'Phone access is off on {{computer}}. Showing what was last synced.',
   'notice.projectStopped': '{{project}} stopped on {{computer}}. Showing what was last synced.',
@@ -18,12 +18,12 @@ export const MESSAGES_EN = {
   'home.catchingUp': 'Catching up with {{computer}}…',
   'home.results': 'Results',
   'home.noResults': 'No chats match “{{query}}”.',
-  'home.needsYou': 'Needs you',
+  'live.channelRequests': 'Needs you',
   'home.projects': 'Projects',
   'home.recent': 'Recent chats',
   'home.search': 'Search chats',
   'home.newChat': 'New chat',
-  'home.computerMenu': 'Options for {{computer}}',
+  'home.menu': 'Options',
 
   'project.chats': 'Chats',
   'project.notRunning': 'Not running',
@@ -206,11 +206,11 @@ export const MESSAGES_EN = {
   'picker.lastUsedNotRunning': 'Last used · Not running',
 
   'settings.title': 'Settings',
-  'settings.computer': 'Computer',
+  'settings.computers': 'Computers',
   'settings.paired': 'Paired {{date}}',
   'settings.computerVersion': 'DotCraft {{version}}',
   'settings.remove': 'Remove',
-  'settings.pairDifferent': 'Pair a different computer',
+  'settings.addComputer': 'Add computer',
   'settings.about': 'About',
   'settings.version': 'Version',
   'settings.appVersion': 'DotCraft {{version}}',
@@ -219,10 +219,6 @@ export const MESSAGES_EN = {
   'remove.title': 'Remove {{computer}}?',
   'remove.text': 'This phone stops controlling {{computer}}. To use it again, pair it with a new code.',
   'remove.confirm': 'Remove',
-  'replace.title': 'Pair a different computer?',
-  'replace.text':
-    'This phone controls one computer at a time, so the new one replaces {{computer}}. {{computer}} stays paired until you allow the new computer.',
-  'replace.continue': 'Continue',
 
   'pair.scanTitle': 'Scan the code',
   'pair.scanNote': 'On your computer, open DotCraft Settings › Connections › Phones and choose Add phone.',
@@ -235,7 +231,7 @@ export const MESSAGES_EN = {
   'pair.reaching': 'Reaching {{computer}}…',
   'pair.allowTitle': 'Allow this phone to control {{computer}}?',
   'pair.allowNote': 'A paired phone can do anything you can do in DotCraft on that computer.',
-  'pair.replaces': 'This replaces {{computer}}.',
+  'pair.replaces': 'This replaces the existing pairing with {{computer}}.',
   'pair.allow': 'Allow',
   'pair.connectedTitle': 'Connected to {{computer}}',
   'pair.connectedNote': 'Your chats keep running on {{computer}}. Follow them and answer what they ask from here.',
@@ -247,7 +243,6 @@ export const MESSAGES_EN = {
   'pair.unreachableNote': 'Make sure this phone is on the same network as {{computer}}, or on the same private network, then try again.',
   'pair.tryAgain': 'Try again',
 
-  'identity.title': '{{computer}}’s identity changed',
   'identity.note':
     'This phone can’t confirm it’s the same computer, so it won’t connect. Remove {{computer}}, then pair again with a new code.',
   'identity.remove': 'Remove {{computer}}',

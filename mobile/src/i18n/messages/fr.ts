@@ -10,8 +10,8 @@ export const MESSAGES_FR: Catalog = {
 
   'status.online': 'En ligne',
   'status.connecting': 'Connexion…',
-  'status.offline': 'Hors ligne · Mis à jour {{time}}',
-  'status.accessOff': 'Accès depuis les téléphones désactivé · Mis à jour {{time}}',
+  'status.offline': 'Hors ligne',
+  'status.accessOff': 'Accès depuis les téléphones désactivé',
   'notice.offline': '{{computer}} est hors ligne. Affichage de la dernière synchronisation.',
   'notice.accessOff': 'L’accès depuis les téléphones est désactivé sur {{computer}}. Affichage de la dernière synchronisation.',
   'notice.projectStopped': '{{project}} s’est arrêté sur {{computer}}. Affichage de la dernière synchronisation.',
@@ -20,12 +20,12 @@ export const MESSAGES_FR: Catalog = {
   'home.catchingUp': 'Synchronisation avec {{computer}}…',
   'home.results': 'Résultats',
   'home.noResults': 'Aucune discussion ne correspond à « {{query}} ».',
-  'home.needsYou': 'Vous attendent',
+  'live.channelRequests': 'Vous attendent',
   'home.projects': 'Projets',
   'home.recent': 'Discussions récentes',
   'home.search': 'Rechercher des discussions',
   'home.newChat': 'Nouvelle discussion',
-  'home.computerMenu': 'Options de {{computer}}',
+  'home.menu': 'Options',
 
   'project.chats': 'Discussions',
   'project.notRunning': 'Arrêté',
@@ -208,11 +208,11 @@ export const MESSAGES_FR: Catalog = {
   'picker.lastUsedNotRunning': 'Dernier utilisé · Arrêté',
 
   'settings.title': 'Paramètres',
-  'settings.computer': 'Ordinateur',
+  'settings.computers': 'Ordinateurs',
   'settings.paired': 'Associé le {{date}}',
   'settings.computerVersion': 'DotCraft {{version}}',
   'settings.remove': 'Supprimer',
-  'settings.pairDifferent': 'Associer un autre ordinateur',
+  'settings.addComputer': 'Ajouter un ordinateur',
   'settings.about': 'À propos',
   'settings.version': 'Version',
   'settings.appVersion': 'DotCraft {{version}}',
@@ -221,10 +221,6 @@ export const MESSAGES_FR: Catalog = {
   'remove.title': 'Supprimer {{computer}} ?',
   'remove.text': 'Ce téléphone ne contrôle plus {{computer}}. Pour l’utiliser à nouveau, associez-le avec un nouveau code.',
   'remove.confirm': 'Supprimer',
-  'replace.title': 'Associer un autre ordinateur ?',
-  'replace.text':
-    'Ce téléphone contrôle un seul ordinateur à la fois : le nouveau remplace donc {{computer}}. {{computer}} reste associé jusqu’à ce que vous autorisiez le nouvel ordinateur.',
-  'replace.continue': 'Continuer',
 
   'pair.scanTitle': 'Scannez le code',
   'pair.scanNote': 'Sur votre ordinateur, ouvrez Paramètres › Connexions › Téléphones dans DotCraft et choisissez Ajouter un téléphone.',
@@ -237,7 +233,7 @@ export const MESSAGES_FR: Catalog = {
   'pair.reaching': 'Connexion à {{computer}}…',
   'pair.allowTitle': 'Autoriser ce téléphone à contrôler {{computer}} ?',
   'pair.allowNote': 'Un téléphone associé peut faire tout ce que vous pouvez faire dans DotCraft sur cet ordinateur.',
-  'pair.replaces': 'Remplace {{computer}}.',
+  'pair.replaces': 'Cela remplace l’association existante avec {{computer}}.',
   'pair.allow': 'Autoriser',
   'pair.connectedTitle': 'Connecté à {{computer}}',
   'pair.connectedNote': 'Vos discussions continuent sur {{computer}}. Suivez-les et répondez à leurs questions d’ici.',
@@ -249,7 +245,6 @@ export const MESSAGES_FR: Catalog = {
   'pair.unreachableNote': 'Vérifiez que ce téléphone est sur le même réseau que {{computer}}, ou sur le même réseau privé, puis réessayez.',
   'pair.tryAgain': 'Réessayer',
 
-  'identity.title': 'L’identité de {{computer}} a changé',
   'identity.note':
     'Ce téléphone ne peut pas confirmer qu’il s’agit du même ordinateur, il ne se connectera donc pas. Supprimez {{computer}}, puis associez-le à nouveau avec un nouveau code.',
   'identity.remove': 'Supprimer {{computer}}',

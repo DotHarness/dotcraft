@@ -10,8 +10,8 @@ export const MESSAGES_ES: Catalog = {
 
   'status.online': 'En línea',
   'status.connecting': 'Conectando…',
-  'status.offline': 'Sin conexión · Actualizado {{time}}',
-  'status.accessOff': 'Acceso desde teléfonos desactivado · Actualizado {{time}}',
+  'status.offline': 'Sin conexión',
+  'status.accessOff': 'Acceso desde teléfonos desactivado',
   'notice.offline': '{{computer}} está sin conexión. Se muestra lo último que se sincronizó.',
   'notice.accessOff': 'El acceso desde teléfonos está desactivado en {{computer}}. Se muestra lo último que se sincronizó.',
   'notice.projectStopped': '{{project}} se detuvo en {{computer}}. Se muestra lo último que se sincronizó.',
@@ -20,12 +20,12 @@ export const MESSAGES_ES: Catalog = {
   'home.catchingUp': 'Poniéndose al día con {{computer}}…',
   'home.results': 'Resultados',
   'home.noResults': 'Ningún chat coincide con «{{query}}».',
-  'home.needsYou': 'Te necesitan',
+  'live.channelRequests': 'Te necesitan',
   'home.projects': 'Proyectos',
   'home.recent': 'Chats recientes',
   'home.search': 'Buscar chats',
   'home.newChat': 'Nuevo chat',
-  'home.computerMenu': 'Opciones de {{computer}}',
+  'home.menu': 'Opciones',
 
   'project.chats': 'Chats',
   'project.notRunning': 'No se está ejecutando',
@@ -208,11 +208,11 @@ export const MESSAGES_ES: Catalog = {
   'picker.lastUsedNotRunning': 'Usado por última vez · No se está ejecutando',
 
   'settings.title': 'Configuración',
-  'settings.computer': 'Equipo',
+  'settings.computers': 'Equipos',
   'settings.paired': 'Vinculado el {{date}}',
   'settings.computerVersion': 'DotCraft {{version}}',
   'settings.remove': 'Eliminar',
-  'settings.pairDifferent': 'Vincular otro equipo',
+  'settings.addComputer': 'Añadir equipo',
   'settings.about': 'Acerca de',
   'settings.version': 'Versión',
   'settings.appVersion': 'DotCraft {{version}}',
@@ -221,10 +221,6 @@ export const MESSAGES_ES: Catalog = {
   'remove.title': '¿Eliminar {{computer}}?',
   'remove.text': 'Este teléfono deja de controlar {{computer}}. Para volver a usarlo, vincúlalo con un código nuevo.',
   'remove.confirm': 'Eliminar',
-  'replace.title': '¿Vincular otro equipo?',
-  'replace.text':
-    'Este teléfono controla un equipo a la vez, así que el nuevo sustituye a {{computer}}. {{computer}} sigue vinculado hasta que permitas el nuevo equipo.',
-  'replace.continue': 'Continuar',
 
   'pair.scanTitle': 'Escanea el código',
   'pair.scanNote': 'En tu equipo, abre Configuración › Conexiones › Teléfonos en DotCraft y elige Añadir teléfono.',
@@ -237,7 +233,7 @@ export const MESSAGES_ES: Catalog = {
   'pair.reaching': 'Conectando con {{computer}}…',
   'pair.allowTitle': '¿Permitir que este teléfono controle {{computer}}?',
   'pair.allowNote': 'Un teléfono vinculado puede hacer todo lo que tú puedes hacer en DotCraft en ese equipo.',
-  'pair.replaces': 'Sustituye a {{computer}}.',
+  'pair.replaces': 'Esto reemplaza la vinculación actual con {{computer}}.',
   'pair.allow': 'Permitir',
   'pair.connectedTitle': 'Conectado a {{computer}}',
   'pair.connectedNote': 'Tus chats siguen ejecutándose en {{computer}}. Síguelos y responde lo que pregunten desde aquí.',
@@ -249,7 +245,6 @@ export const MESSAGES_ES: Catalog = {
   'pair.unreachableNote': 'Comprueba que este teléfono esté en la misma red que {{computer}}, o en la misma red privada, y vuelve a intentarlo.',
   'pair.tryAgain': 'Reintentar',
 
-  'identity.title': 'La identidad de {{computer}} cambió',
   'identity.note':
     'Este teléfono no puede confirmar que sea el mismo equipo, así que no se conectará. Elimina {{computer}} y vuelve a vincularlo con un código nuevo.',
   'identity.remove': 'Eliminar {{computer}}',

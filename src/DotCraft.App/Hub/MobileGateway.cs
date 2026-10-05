@@ -33,6 +33,7 @@ internal sealed class MobileGateway : IAsyncDisposable
     private X509Certificate2? _certificate;
     private GatewayStatus _status = GatewayStatus.Off;
     private string _fingerprint = string.Empty;
+    private string _computerId = string.Empty;
     private bool _accepting;
     private bool _disposed;
 
@@ -143,13 +144,14 @@ internal sealed class MobileGateway : IAsyncDisposable
         var (pairingId, code, expiresAt) = _registry.MintPairing();
         var computer = Computer();
         var payload = "dotcraft://pair?v=1"
+                      + "&id=" + Uri.EscapeDataString(computer.ComputerId)
                       + "&name=" + Uri.EscapeDataString(computer.Name)
                       + "&port=" + computer.Port
                       + "&fp=" + Uri.EscapeDataString(computer.Fingerprint)
                       + "&addr=" + string.Join(',', computer.Addresses.Select(Uri.EscapeDataString))
                       + "&code=" + Uri.EscapeDataString(code);
-        if (_registry.Relay is { } relay && _registry.HostId is { } hostId)
-            payload += "&relay=" + Uri.EscapeDataString(relay.Url) + "&host=" + Uri.EscapeDataString(hostId);
+        if (_registry.Relay is { } relay)
+            payload += "&relay=" + Uri.EscapeDataString(relay.Url);
         return new HubMobilePairing(pairingId, payload, expiresAt);
     }
 
@@ -203,10 +205,15 @@ internal sealed class MobileGateway : IAsyncDisposable
         }
 
         var computer = Computer();
-        var relay = _registry.Relay is { } configured && _registry.HostId is { } hostId
-            ? new MobileHelloRelay(configured.Url, hostId)
-            : null;
-        return new MobileHello(computer.Name, AppVersion.Informational, computer.Port, computer.Fingerprint, computer.Addresses, relay);
+        var relay = _registry.Relay is { } configured ? new MobileHelloRelay(configured.Url) : null;
+        return new MobileHello(
+            computer.ComputerId,
+            computer.Name,
+            AppVersion.Informational,
+            computer.Port,
+            computer.Fingerprint,
+            computer.Addresses,
+            relay);
     }
 
     public Task<HubMobileState> SetRelayAsync(MobileRelayRequest request)
@@ -330,7 +337,7 @@ internal sealed class MobileGateway : IAsyncDisposable
         {
             _certificate ??= MobileCertificate.LoadOrCreate(_paths.MobileCertificatePath);
             _fingerprint = MobileCertificate.Fingerprint(_certificate);
-            _registry.EnsureHostId();
+            _computerId = _registry.EnsureComputerId();
             lock (_connectionsGate)
                 _accepting = true;
             _listener = await HubMobileListener.StartAsync(
@@ -387,9 +394,9 @@ internal sealed class MobileGateway : IAsyncDisposable
 
     private void StartRelay()
     {
-        if (_registry.Relay is not { } relay || _registry.HostId is not { } hostId)
+        if (_registry.Relay is not { } relay)
             return;
-        _relay = new MobileRelayLink(relay, hostId, _listener!.LocalEndPoint, PublishState, _loggerFactory.CreateLogger<MobileRelayLink>());
+        _relay = new MobileRelayLink(relay, _computerId, _listener!.LocalEndPoint, PublishState, _loggerFactory.CreateLogger<MobileRelayLink>());
         _relay.Start();
     }
 
@@ -410,7 +417,7 @@ internal sealed class MobileGateway : IAsyncDisposable
     private void PublishState() => _events.Publish("mobile.stateChanged", data: Snapshot());
 
     private MobileComputer Computer() =>
-        new(Environment.MachineName, _config.MobilePort, _fingerprint, MobileNetwork.AdvertisedAddresses());
+        new(_computerId, Environment.MachineName, _config.MobilePort, _fingerprint, MobileNetwork.AdvertisedAddresses());
 
     private bool IsConnected(string deviceId)
     {

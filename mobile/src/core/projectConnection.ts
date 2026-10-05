@@ -24,7 +24,7 @@ import { HTTP_REJECTED } from './pinned'
 import { PinnedSocketTransport, SocketOpenError } from './pinnedSocketTransport'
 import type { PinnedSockets, SocketEnd } from './sockets'
 import { applyChange, type ConfigChange } from './threadConfig'
-import { chatKey, type Action, type ChatSummary, type MobileState, type PendingRequest, type ProjectModels } from './state'
+import { chatKey, type ChatSummary, type ComputerAction, type ComputerState, type PendingRequest, type ProjectModels } from './state'
 import type { Store } from './store'
 
 const PHONE_IDENTITY = { channelName: 'dotcraft-desktop', userId: 'local' }
@@ -57,7 +57,7 @@ export interface ProjectConnectionOptions {
   projectId: string
   sockets: PinnedSockets
   gateway: GatewayClient
-  store: Store<MobileState, Action>
+  store: Store<ComputerState, ComputerAction>
   appVersion: string
   openThreads(): string[]
   onLost(end: SocketEnd): void
@@ -106,7 +106,7 @@ export class ProjectConnection {
     return this.readyValue
   }
 
-  private get store(): Store<MobileState, Action> {
+  private get store(): Store<ComputerState, ComputerAction> {
     return this.options.store
   }
 
@@ -114,7 +114,7 @@ export class ProjectConnection {
     return chatKey(this.projectId, threadId)
   }
 
-  private patch(threadId: string, patch: Extract<Action, { type: 'chatPatched' }>['patch']): void {
+  private patch(threadId: string, patch: Extract<ComputerAction, { type: 'chatPatched' }>['patch']): void {
     this.store.dispatch({ type: 'chatPatched', key: this.key(threadId), patch })
   }
 

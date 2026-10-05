@@ -2,12 +2,12 @@ import { PIN_MISMATCH, type PinnedNative, type PinnedSocketOptions } from './pin
 
 export interface RelayInfo {
   url: string
-  hostId: string
 }
 
 const RELAY_ROUTE = 'relay'
 
 interface GatewayTarget {
+  id: string
   fingerprint: string
   port: number
   addresses: string[]
@@ -16,6 +16,7 @@ interface GatewayTarget {
 }
 
 interface GatewayHello {
+  computerId: string
   name: string
   version: string
   port: number
@@ -42,7 +43,7 @@ interface PairRequest {
 interface PairResult {
   deviceId: string
   credential: string
-  computer: { name: string; port: number; fingerprint: string; addresses: string[] }
+  computer: { computerId: string; name: string; port: number; fingerprint: string; addresses: string[] }
 }
 
 export class GatewayError extends Error {
@@ -66,9 +67,9 @@ export function isUnauthorized(error: unknown): boolean {
   return error instanceof GatewayError && error.status === 401
 }
 
-export function tunnelUrl(relay: RelayInfo): string {
+export function tunnelUrl(relay: RelayInfo, computerId: string): string {
   const base = relay.url.trim().replace(/\/+$/, '').replace(/^http(s?):\/\//, 'ws$1://')
-  return `${base}/r/connect?host=${encodeURIComponent(relay.hostId)}`
+  return `${base}/r/connect?host=${encodeURIComponent(computerId)}`
 }
 
 export class GatewayClient {
@@ -134,7 +135,7 @@ export class GatewayClient {
 
   private endpoint(route: string, scheme: 'https' | 'wss', path: string): { url: string; tunnel?: string } {
     if (route === RELAY_ROUTE && this.target.relay) {
-      return { url: `${scheme}://127.0.0.1:${this.target.port}${path}`, tunnel: tunnelUrl(this.target.relay) }
+      return { url: `${scheme}://127.0.0.1:${this.target.port}${path}`, tunnel: tunnelUrl(this.target.relay, this.target.id) }
     }
     return { url: `${scheme}://${route}:${this.target.port}${path}` }
   }

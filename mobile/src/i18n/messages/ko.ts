@@ -10,8 +10,8 @@ export const MESSAGES_KO: Catalog = {
 
   'status.online': '온라인',
   'status.connecting': '연결 중…',
-  'status.offline': '오프라인 · {{time}} 업데이트',
-  'status.accessOff': '휴대폰 액세스 꺼짐 · {{time}} 업데이트',
+  'status.offline': '오프라인',
+  'status.accessOff': '휴대폰 액세스 꺼짐',
   'notice.offline': '{{computer}}이(가) 오프라인입니다. 마지막으로 동기화된 내용을 표시합니다.',
   'notice.accessOff': '{{computer}}에서 휴대폰 액세스가 꺼져 있습니다. 마지막으로 동기화된 내용을 표시합니다.',
   'notice.projectStopped': '{{computer}}에서 {{project}}이(가) 중지되었습니다. 마지막으로 동기화된 내용을 표시합니다.',
@@ -20,12 +20,12 @@ export const MESSAGES_KO: Catalog = {
   'home.catchingUp': '{{computer}}와(과) 동기화하는 중…',
   'home.results': '결과',
   'home.noResults': '“{{query}}”와(과) 일치하는 채팅이 없습니다.',
-  'home.needsYou': '확인 필요',
+  'live.channelRequests': '확인 필요',
   'home.projects': '프로젝트',
   'home.recent': '최근 채팅',
   'home.search': '채팅 검색',
   'home.newChat': '새 채팅',
-  'home.computerMenu': '{{computer}} 옵션',
+  'home.menu': '옵션',
 
   'project.chats': '채팅',
   'project.notRunning': '실행 중 아님',
@@ -208,11 +208,11 @@ export const MESSAGES_KO: Catalog = {
   'picker.lastUsedNotRunning': '최근 사용 · 실행 중 아님',
 
   'settings.title': '설정',
-  'settings.computer': '컴퓨터',
+  'settings.computers': '컴퓨터',
   'settings.paired': '{{date}}에 페어링됨',
   'settings.computerVersion': 'DotCraft {{version}}',
   'settings.remove': '제거',
-  'settings.pairDifferent': '다른 컴퓨터와 페어링',
+  'settings.addComputer': '컴퓨터 추가',
   'settings.about': '정보',
   'settings.version': '버전',
   'settings.appVersion': 'DotCraft {{version}}',
@@ -221,10 +221,6 @@ export const MESSAGES_KO: Catalog = {
   'remove.title': '{{computer}}을(를) 제거할까요?',
   'remove.text': '이 휴대폰은 더 이상 {{computer}}을(를) 제어하지 않습니다. 다시 사용하려면 새 코드로 페어링하세요.',
   'remove.confirm': '제거',
-  'replace.title': '다른 컴퓨터와 페어링할까요?',
-  'replace.text':
-    '이 휴대폰은 한 번에 한 대의 컴퓨터만 제어하므로 새 컴퓨터가 {{computer}}을(를) 대체합니다. 새 컴퓨터를 허용할 때까지 {{computer}}와(과)의 페어링은 유지됩니다.',
-  'replace.continue': '계속',
 
   'pair.scanTitle': '코드 스캔',
   'pair.scanNote': '컴퓨터에서 DotCraft 설정 › 연결 › 휴대폰을 열고 휴대폰 추가를 선택하세요.',
@@ -237,7 +233,7 @@ export const MESSAGES_KO: Catalog = {
   'pair.reaching': '{{computer}}에 연결하는 중…',
   'pair.allowTitle': '이 휴대폰이 {{computer}}을(를) 제어하도록 허용할까요?',
   'pair.allowNote': '페어링된 휴대폰은 그 컴퓨터의 DotCraft에서 사용자가 할 수 있는 모든 작업을 할 수 있습니다.',
-  'pair.replaces': '{{computer}}을(를) 대체합니다.',
+  'pair.replaces': '{{computer}}와(과)의 기존 페어링을 대체합니다.',
   'pair.allow': '허용',
   'pair.connectedTitle': '{{computer}}에 연결됨',
   'pair.connectedNote': '채팅은 계속 {{computer}}에서 실행됩니다. 여기에서 진행 상황을 확인하고 질문에 답하세요.',
@@ -249,7 +245,6 @@ export const MESSAGES_KO: Catalog = {
   'pair.unreachableNote': '이 휴대폰이 {{computer}}와(과) 같은 네트워크 또는 같은 사설 네트워크에 있는지 확인한 후 다시 시도하세요.',
   'pair.tryAgain': '다시 시도',
 
-  'identity.title': '{{computer}}의 ID가 변경됨',
   'identity.note':
     '이 휴대폰은 같은 컴퓨터인지 확인할 수 없어 연결하지 않습니다. {{computer}}을(를) 제거한 후 새 코드로 다시 페어링하세요.',
   'identity.remove': '{{computer}} 제거',

@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { FakeComputer } from '../demo/fakeComputer'
 import { createStudio } from '../demo/seed'
 import { createHarness, waitFor, type Harness } from '../test/harness'
-import { isLive } from './chatState'
+import { isLive, needsYou } from './chatState'
 import { LIVE_END_MS, type LiveAction, type LiveNotice, type LiveNotifier, type LiveStatus } from './liveSession'
-import { runningChats, stateOf, type MobileState } from './state'
+import { runningChats, stateOf, type ComputerState } from './state'
 
 class FakeNotifier implements LiveNotifier {
   enabled = true
@@ -64,19 +64,32 @@ async function backgrounded(computer: FakeComputer, notifier = new FakeNotifier(
   computer.streamDelayMs = 1
   const harness = createHarness([computer], { live: notifier })
   harnesses.push(harness)
-  const state = () => harness.session.store.getState()
+  const state = () => harness.computerState()
   await harness.session.boot()
   await waitFor(() => state().link === 'online' && !state().syncing)
   harness.session.setForeground(false)
   return { ...harness, notifier, state }
 }
 
-function chatKey(state: MobileState, title: string): string {
+function chatKey(state: ComputerState, title: string): string {
   return Object.values(state.chats).find((chat) => chat.title === title)!.key
 }
 
-function live(state: MobileState) {
+function live(state: ComputerState) {
   return runningChats(state).filter((chat) => isLive(stateOf(chat)))
+}
+
+async function twoComputers() {
+  const studio = createStudio(new Date())
+  const office = createStudio(new Date(Date.now() + 3_600_000), { id: 'office-pc', name: 'Office PC', addresses: ['192.168.1.30'] })
+  for (const computer of [studio, office]) computer.streamDelayMs = 1
+  const notifier = new FakeNotifier()
+  const harness = createHarness([studio, office], { live: notifier, paired: 2 })
+  harnesses.push(harness)
+  await harness.session.boot()
+  await waitFor(() => [studio, office].every((computer) => harness.computerState(computer.id).link === 'online' && !harness.computerState(computer.id).syncing))
+  harness.session.setForeground(false)
+  return { studio, office, notifier, harness }
 }
 
 describe('starting a live session', () => {
@@ -119,12 +132,48 @@ describe('notifications during a live session', () => {
     expect(notice).toMatchObject({ alert: true, request: { requestId: 'approval_tests' } })
     expect(notifier.statuses.at(-1)).toMatchObject({ running: 2, needsYou: 4 })
 
-    notifier.act({ type: 'allow', key, requestId: 'approval_tests' })
+    notifier.act({ type: 'allow', computerId: computer.id, key, requestId: 'approval_tests' })
     await waitFor(() => computer.decisions.some((entry) => entry.requestId === 'approval_tests'))
     expect(computer.decisions.find((entry) => entry.requestId === 'approval_tests')?.decision).toBe('accept')
     expect(notifier.shown.has(notice.id)).toBe(false)
-    await waitFor(() => notifier.shown.has(`turn:${key}`))
-    expect(notifier.shown.get(`turn:${key}`)).toMatchObject({ kind: 'turnEnded', failed: false })
+    await waitFor(() => notifier.shown.has(`turn:${computer.id}:${key}`))
+    expect(notifier.shown.get(`turn:${computer.id}:${key}`)).toMatchObject({ kind: 'turnEnded', failed: false })
+  })
+
+  it('follows chats on every paired computer and answers an approval on the computer it came from', async () => {
+    const studio = createStudio(new Date())
+    const office = createStudio(new Date(), { id: 'office-pc', name: 'Office PC', addresses: ['192.168.1.30'] })
+    for (const computer of [studio, office]) computer.streamDelayMs = 1
+    const notifier = new FakeNotifier()
+    const harness = createHarness([studio, office], { live: notifier, paired: 2 })
+    harnesses.push(harness)
+    await harness.session.boot()
+    await waitFor(() => [studio, office].every((computer) => harness.computerState(computer.id).link === 'online' && !harness.computerState(computer.id).syncing))
+    harness.session.setForeground(false)
+    await waitFor(() => notifier.requests().length === 8)
+    expect(new Set(notifier.requests().map((notice) => notice.computer))).toEqual(new Set(['Studio PC', 'Office PC']))
+    expect(notifier.statuses.at(-1)).toMatchObject({ running: 6, needsYou: 6 })
+
+    const notice = notifier.requests().find((entry) => entry.computerId === office.id && entry.request.kind === 'approval')!
+    notifier.act({ type: 'allow', computerId: office.id, key: notice.chat.key, requestId: notice.request.requestId })
+    await waitFor(() => office.decisions.some((entry) => entry.requestId === notice.request.requestId))
+    expect(studio.decisions).toEqual([])
+  })
+
+  it('follows the most recent waiting chat across computers, not the first paired one', async () => {
+    const { office, notifier } = await twoComputers()
+    await waitFor(() => notifier.requests().length === 8)
+    expect(notifier.statuses.at(-1)?.focus).toMatchObject({ computerId: office.id, state: expect.stringMatching(/^needs-/) })
+  })
+
+  it('follows the most recent running chat across computers when nothing waits', async () => {
+    const { studio, office, notifier, harness } = await twoComputers()
+    await waitFor(() => notifier.requests().length === 8)
+    for (const computer of [studio, office]) {
+      for (const chat of runningChats(harness.computerState(computer.id)).filter((entry) => needsYou(stateOf(entry)))) computer.endTurn(chat.threadId, 'completed')
+    }
+    await waitFor(() => notifier.statuses.at(-1)?.needsYou === 0)
+    expect(notifier.statuses.at(-1)?.focus).toMatchObject({ computerId: office.id, state: 'running' })
   })
 
   it('posts one notification when a turn fails in the background', async () => {
@@ -133,8 +182,8 @@ describe('notifications during a live session', () => {
     const key = chatKey(state(), 'Audit the dialog headers')
     await waitFor(() => notifier.requests().length === 4)
     computer.endTurn(state().chats[key].threadId, 'failed')
-    await waitFor(() => notifier.shown.get(`turn:${key}`)?.kind === 'turnEnded')
-    expect(notifier.shown.get(`turn:${key}`)).toMatchObject({ failed: true })
+    await waitFor(() => notifier.shown.get(`turn:${computer.id}:${key}`)?.kind === 'turnEnded')
+    expect(notifier.shown.get(`turn:${computer.id}:${key}`)).toMatchObject({ failed: true })
   })
 })
 
@@ -166,15 +215,15 @@ describe('ending a live session', () => {
 
   it('ends two minutes after the computer becomes unreachable', async () => {
     const computer = createStudio(new Date())
-    const { notifier, state, timers, session } = await backgrounded(computer)
+    const { notifier, state, timers, link } = await backgrounded(computer)
     computer.reachable = false
     computer.dropConnections()
-    await waitFor(() => state().link === 'connecting' && session.reconnectPending)
+    await waitFor(() => state().link === 'connecting' && link().reconnectPending)
     expect(notifier.statuses.at(-1)).toMatchObject({ reachable: false })
     timers.fire(LIVE_END_MS)
     expect(notifier.stopped).toBe(1)
     expect(state().link).toBe('idle')
-    expect(session.reconnectPending).toBe(false)
+    expect(link().reconnectPending).toBe(false)
   })
 
   it('continues on the open connections when the app returns to the foreground', async () => {

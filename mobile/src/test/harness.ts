@@ -1,6 +1,8 @@
 import type { Timers } from '../core/backoff'
+import type { ComputerLink } from '../core/computerLink'
 import type { LiveNotifier } from '../core/liveSession'
 import { MobileSession } from '../core/session'
+import type { ComputerState } from '../core/state'
 import type { FakeComputer } from '../demo/fakeComputer'
 import { FakeNetwork } from '../demo/fakeNetwork'
 import { MemoryCredentials, MemoryStorage, pairedRecord } from '../demo/memory'
@@ -41,6 +43,8 @@ export class ManualTimers implements Timers {
 
 export interface Harness {
   session: MobileSession
+  link(computerId?: string): ComputerLink
+  computerState(computerId?: string): ComputerState
   network: FakeNetwork
   timers: ManualTimers
   storage: MemoryStorage
@@ -49,13 +53,14 @@ export interface Harness {
 
 export function createHarness(
   computers: FakeComputer[],
-  options: { paired?: boolean; storage?: MemoryStorage; live?: LiveNotifier } = {},
+  options: { paired?: number; storage?: MemoryStorage; live?: LiveNotifier } = {},
 ): Harness {
   const network = new FakeNetwork(computers)
   const timers = new ManualTimers()
   const storage = options.storage ?? new MemoryStorage()
-  if (options.paired !== false && !options.storage) storage.value = pairedRecord(computers[0], '2026-09-28T10:00:00.000Z')
-  const credentials = new MemoryCredentials(options.paired === false ? null : DEMO_CREDENTIAL)
+  const paired = computers.slice(0, options.paired ?? 1)
+  if (!options.storage) storage.value = paired.length > 0 ? pairedRecord(paired, '2026-09-28T10:00:00.000Z') : null
+  const credentials = new MemoryCredentials(Object.fromEntries(paired.map((computer) => [computer.id, DEMO_CREDENTIAL])))
   const session = new MobileSession({
     native: network,
     credentials,
@@ -65,7 +70,16 @@ export function createHarness(
     timers,
     random: () => 0.5,
   })
-  return { session, network, timers, storage, credentials }
+  const first = computers[0]?.id ?? ''
+  return {
+    session,
+    link: (computerId = first) => session.computer(computerId)!,
+    computerState: (computerId = first) => session.store.getState().computers[computerId],
+    network,
+    timers,
+    storage,
+    credentials,
+  }
 }
 
 export async function waitFor(condition: () => boolean, timeoutMs = 3_000): Promise<void> {

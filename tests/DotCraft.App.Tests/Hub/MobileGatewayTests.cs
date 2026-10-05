@@ -117,17 +117,18 @@ public sealed class MobileGatewayTests : IDisposable
     }
 
     [Fact]
-    public async Task Restart_KeepsPhoneAccessOnDevicesAndCertificate_WithoutStoringTheCredential()
+    public async Task Restart_KeepsPhoneAccessOnDevicesCertificateAndComputerId_WithoutStoringTheCredential()
     {
         var port = SatelliteHubFixture.GetAvailablePort();
         string fingerprint;
+        string computerId;
         string deviceId;
         string credential;
         await using (var hub = await MobileHubFixture.StartAsync(_userProfile, port))
         {
             await hub.JsonAsync(HttpMethod.Post, "/v1/mobile/enable");
             using var phone = await hub.PairPhoneAsync();
-            (fingerprint, deviceId, credential) = (phone.Fingerprint, phone.DeviceId, phone.Credential);
+            (fingerprint, computerId, deviceId, credential) = (phone.Fingerprint, phone.ComputerId, phone.DeviceId, phone.Credential);
         }
         Assert.DoesNotContain(credential, File.ReadAllText(HubPaths.Resolve(_userProfile).MobilePath), StringComparison.Ordinal);
 
@@ -138,7 +139,7 @@ public sealed class MobileGatewayTests : IDisposable
 
         using var samePhone = new MobilePhone(port, fingerprint);
         samePhone.UseCredential(deviceId, credential);
-        await samePhone.GetJsonAsync("/m/hello");
+        Assert.Equal(computerId, (await samePhone.GetJsonAsync("/m/hello")).GetProperty("computerId").GetString());
     }
 
     [Fact]

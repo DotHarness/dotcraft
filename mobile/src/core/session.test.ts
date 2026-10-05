@@ -5,16 +5,17 @@ import { buildBoxSeed, createStudio, pairingUrl, type StudioOptions } from '../d
 import { createHarness, waitFor, type Harness } from '../test/harness'
 import { plainMessage } from './draft'
 import { parsePairingUrl } from './pairing'
-import { computerStatus, homeLists, stateOf, type MobileState } from './state'
+import { needsYou } from './chatState'
+import { computerStatus, runningChats, stateOf, type ComputerState } from './state'
 import { startConfig } from './threadConfig'
 import { buildTranscript } from './transcript'
 
 const harnesses: Harness[] = []
 
-function setup(computers: FakeComputer[], options?: Parameters<typeof createHarness>[1]): Harness & { state: () => MobileState } {
+function setup(computers: FakeComputer[], options?: Parameters<typeof createHarness>[1]): Harness & { state: () => ComputerState } {
   const harness = createHarness(computers, options)
   harnesses.push(harness)
-  return { ...harness, state: () => harness.session.store.getState() }
+  return { ...harness, state: () => harness.computerState() }
 }
 
 afterEach(() => {
@@ -27,13 +28,17 @@ function studio(options?: StudioOptions): FakeComputer {
   return computer
 }
 
-function keyOf(state: MobileState, title: string): string {
+function waiting(state: ComputerState) {
+  return runningChats(state).filter((chat) => needsYou(stateOf(chat)))
+}
+
+function keyOf(state: ComputerState, title: string): string {
   const chat = Object.values(state.chats).find((entry) => entry.title === title)
   if (!chat) throw new Error(`No chat titled ${title}`)
   return chat.key
 }
 
-async function online(harness: ReturnType<typeof setup>): Promise<MobileState> {
+async function online(harness: ReturnType<typeof setup>): Promise<ComputerState> {
   await harness.session.boot()
   await waitFor(() => harness.state().link === 'online' && !harness.state().syncing)
   return harness.state()
@@ -51,7 +56,7 @@ describe('connecting', () => {
   it('shows every waiting approval and question across the running projects', async () => {
     const harness = setup([studio()])
     const state = await online(harness)
-    expect(homeLists(state).waiting.map((chat) => chat.title).sort()).toEqual([
+    expect(waiting(state).map((chat) => chat.title).sort()).toEqual([
       'Retune the sidebar icon motion',
       'Set up the docs site build',
       'Upgrade Vite to 6.4',
@@ -92,17 +97,17 @@ describe('connecting', () => {
     for (const id of ['thread_subagent', 'thread_older']) {
       computer.ask(id, { kind: 'approval', requestId: `request_${id}`, approvalType: 'shell', operation: 'npm test', target: 'npm test', reason: '' })
     }
-    await waitFor(() => homeLists(harness.state()).waiting.some((chat) => chat.threadId === 'thread_older'))
+    await waitFor(() => waiting(harness.state()).some((chat) => chat.threadId === 'thread_older'))
     expect(Object.values(harness.state().chats).some((chat) => chat.threadId === 'thread_subagent')).toBe(false)
   })
 })
 
 describe('relay', () => {
-  const tunnel = 'wss://relay.example.com/r/connect?host=host-1'
+  const tunnel = 'wss://relay.example.com/r/connect?host=studio-pc'
 
   function relayed(computer: FakeComputer): FakeRelay {
     const relay = new FakeRelay('relay.example.com')
-    relay.host(computer, 'host-1')
+    relay.host(computer)
     return relay
   }
 
@@ -113,8 +118,8 @@ describe('relay', () => {
     const harness = setup([computer])
     harness.network.relays = [relay]
     const state = await online(harness)
-    expect(state.computer).toMatchObject({ lastAddress: 'relay', relay: { url: 'https://relay.example.com', hostId: 'host-1' } })
-    expect(homeLists(state).waiting).toHaveLength(3)
+    expect(state.computer).toMatchObject({ lastAddress: 'relay', relay: { url: 'https://relay.example.com' } })
+    expect(waiting(state)).toHaveLength(3)
     expect(harness.network.sockets.length).toBeGreaterThan(1)
     expect(harness.network.sockets.every((socket) => socket.tunnel === tunnel && socket.url.startsWith('wss://127.0.0.1:47610/'))).toBe(true)
   })
@@ -124,11 +129,11 @@ describe('relay', () => {
     const harness = setup([computer])
     harness.network.relays = [relayed(computer)]
     await online(harness)
-    expect(harness.state().computer).toMatchObject({ lastAddress: '192.168.1.20', relay: { hostId: 'host-1' } })
+    expect(harness.state().computer).toMatchObject({ lastAddress: '192.168.1.20', relay: { url: 'https://relay.example.com' } })
 
     computer.reachable = false
     computer.dropConnections()
-    await waitFor(() => harness.state().link === 'connecting' && harness.session.reconnectPending)
+    await waitFor(() => harness.state().link === 'connecting' && harness.link().reconnectPending)
     harness.timers.runAll()
     await waitFor(() => harness.state().link === 'online' && !harness.state().syncing)
     expect(harness.state().computer?.lastAddress).toBe('relay')
@@ -138,12 +143,12 @@ describe('relay', () => {
     const computer = studio()
     const relay = relayed(computer)
     computer.reachable = false
-    const harness = setup([computer], { paired: false })
+    const harness = setup([computer], { paired: 0 })
     harness.network.relays = [relay]
     await harness.session.boot()
     await harness.session.beginPairing(offer(computer, 'demo-code'))
     await harness.session.allow()
-    expect(harness.state().computer).toMatchObject({ lastAddress: 'relay', relay: { url: 'https://relay.example.com', hostId: 'host-1' } })
+    expect(harness.state().computer).toMatchObject({ lastAddress: 'relay', relay: { url: 'https://relay.example.com' } })
     await waitFor(() => harness.state().link === 'online')
   })
 
@@ -163,7 +168,7 @@ describe('relay', () => {
     ])
     expect(harness.state().identityChanged).toBe(false)
     expect(harness.state().computer).not.toBeNull()
-    expect(harness.session.reconnectPending).toBe(true)
+    expect(harness.link().reconnectPending).toBe(true)
   })
 })
 
@@ -172,11 +177,11 @@ describe('approvals and questions', () => {
     const computer = studio()
     const harness = setup([computer])
     const key = keyOf(await online(harness), 'Upgrade Vite to 6.4')
-    harness.session.openChat(key)
+    harness.link().openChat(key)
     await waitFor(() => (harness.state().pending[key]?.length ?? 0) === 1)
     const request = harness.state().pending[key][0]
     expect(request).toMatchObject({ kind: 'approval', approvalType: 'shell', operation: 'pnpm add -D vite@6.4.3 @vitejs/plugin-react@4.3.4' })
-    harness.session.decide(key, request.requestId, 'once')
+    harness.link().decide(key, request.requestId, 'once')
     await waitFor(() => computer.decisions.length === 1)
     expect(computer.decisions[0].decision).toBe('accept')
     expect(harness.state().pending[key]).toBeUndefined()
@@ -192,12 +197,12 @@ describe('approvals and questions', () => {
     const state = await online(harness)
     const vite = keyOf(state, 'Upgrade Vite to 6.4')
     const motion = keyOf(state, 'Retune the sidebar icon motion')
-    harness.session.openChat(vite)
-    harness.session.openChat(motion)
+    harness.link().openChat(vite)
+    harness.link().openChat(motion)
     await waitFor(() => Boolean(harness.state().pending[vite] && harness.state().pending[motion]))
     const pending = harness.state().pending
-    harness.session.decide(vite, pending[vite][0].requestId, 'session')
-    harness.session.decide(motion, pending[motion][0].requestId, 'reject')
+    harness.link().decide(vite, pending[vite][0].requestId, 'session')
+    harness.link().decide(motion, pending[motion][0].requestId, 'reject')
     await waitFor(() => computer.decisions.length === 2)
     expect(computer.decisions.map((entry) => entry.decision).sort()).toEqual(['acceptForSession', 'decline'])
   })
@@ -206,11 +211,11 @@ describe('approvals and questions', () => {
     const computer = studio()
     const harness = setup([computer])
     const key = keyOf(await online(harness), 'Set up the docs site build')
-    harness.session.openChat(key)
+    harness.link().openChat(key)
     await waitFor(() => Boolean(harness.state().pending[key]))
     const request = harness.state().pending[key][0]
     expect(request.kind).toBe('question')
-    harness.session.answer(key, request.requestId, { package_manager: ['pnpm'] })
+    harness.link().answer(key, request.requestId, { package_manager: ['pnpm'] })
     await waitFor(() => computer.answers.length === 1)
     expect(computer.answers[0].answers).toEqual({ package_manager: { answers: ['pnpm'] } })
   })
@@ -219,7 +224,7 @@ describe('approvals and questions', () => {
     const computer = studio()
     const harness = setup([computer])
     const key = keyOf(await online(harness), 'Upgrade Vite to 6.4')
-    harness.session.openChat(key)
+    harness.link().openChat(key)
     await waitFor(() => Boolean(harness.state().pending[key]))
     computer.answerFromComputer(harness.state().chats[key].threadId, { decision: 'accept' })
     await waitFor(() => harness.state().pending[key] === undefined)
@@ -230,12 +235,12 @@ describe('approvals and questions', () => {
     const computer = studio()
     const harness = setup([computer])
     const key = keyOf(await online(harness), 'Upgrade Vite to 6.4')
-    harness.session.openChat(key)
+    harness.link().openChat(key)
     await waitFor(() => Boolean(harness.state().pending[key]))
-    harness.session.closeChat(key)
+    harness.link().closeChat(key)
     await waitFor(() => methods(computer).includes('thread/unsubscribe'))
     computer.answerFromComputer(harness.state().chats[key].threadId, { decision: 'accept' })
-    harness.session.openChat(key)
+    harness.link().openChat(key)
     await waitFor(() => harness.state().pending[key] === undefined)
   })
 })
@@ -245,9 +250,9 @@ describe('turn control', () => {
     const computer = studio()
     const harness = setup([computer])
     const key = keyOf(await online(harness), 'Fix the flaky turn-diff test')
-    harness.session.openChat(key)
+    harness.link().openChat(key)
     await waitFor(() => harness.state().details[key]?.loading === false)
-    await harness.session.send(key, plainMessage('Also run the lint step.'))
+    await harness.link().send(key, plainMessage('Also run the lint step.'))
     expect(methods(computer)).toContain('turn/steer')
     expect(methods(computer)).not.toContain('turn/enqueue')
     await waitFor(() =>
@@ -255,7 +260,7 @@ describe('turn control', () => {
         (entry) => entry.kind === 'user' && entry.added && entry.text === 'Also run the lint step.' && !entry.id.startsWith('echo-'),
       ),
     )
-    await harness.session.stop(key)
+    await harness.link().stop(key)
     expect(methods(computer)).toContain('turn/interrupt')
     await waitFor(() => stateOf(harness.state().chats[key]) === 'done')
     const transcript = buildTranscript(harness.state().details[key].history)
@@ -268,8 +273,8 @@ describe('turn control', () => {
     const state = await online(harness)
     const chats = state.projects.find((project) => project.name === 'Chats')!
     expect(chats.running).toBe(false)
-    const key = await harness.session.newChat(chats.id, 'summarize the open pull requests')
-    await harness.session.send(key, plainMessage('summarize the open pull requests'))
+    const key = await harness.link().newChat(chats.id, 'summarize the open pull requests')
+    await harness.link().send(key, plainMessage('summarize the open pull requests'))
     expect(harness.state().projects.find((project) => project.id === chats.id)?.running).toBe(true)
     const order = methods(computer).filter((method) => ['thread/start', 'thread/subscribe', 'turn/start'].includes(method))
     expect(order.slice(-3)).toEqual(['thread/start', 'thread/subscribe', 'turn/start'])
@@ -282,9 +287,9 @@ describe('turn control', () => {
     const computer = studio()
     const harness = setup([computer])
     const key = keyOf(await online(harness), 'Explain the release script')
-    harness.session.openChat(key)
+    harness.link().openChat(key)
     await waitFor(() => harness.state().details[key]?.loading === false)
-    await harness.session.updateConfig(key, { kind: 'approval', policy: 'autoApprove' })
+    await harness.link().updateConfig(key, { kind: 'approval', policy: 'autoApprove' })
     const update = computer.calls.find((call) => call.method === 'thread/config/update')!
     expect(update.params.config).toEqual({
       providerId: 'studio',
@@ -303,7 +308,7 @@ describe('turn control', () => {
     const state = await online(harness)
     const project = state.projects.find((entry) => entry.name === 'dotcraft')!
     const controls = { providerId: 'studio', model: 'atlas-2', reasoning: 'high', speed: 'fast', approvalPolicy: 'prompt' } as const
-    await harness.session.newChat(project.id, 'tidy the release script', startConfig({ touched: { speed: true }, controls }))
+    await harness.link().newChat(project.id, 'tidy the release script', startConfig({ touched: { speed: true }, controls }))
     expect(computer.calls.find((call) => call.method === 'thread/start')!.params.config).toEqual({ providerId: 'studio', model: 'atlas-2', speed: 'fast' })
   })
 
@@ -313,20 +318,20 @@ describe('turn control', () => {
     const state = await online(harness)
     const project = state.projects.find((entry) => entry.name === 'dotcraft')!
     const controls = { providerId: 'local', model: 'quill-14b', reasoning: 'default', speed: 'standard', approvalPolicy: 'prompt' } as const
-    const key = await harness.session.newChat(project.id, 'tidy the release script', startConfig({ touched: {}, controls }))
+    const key = await harness.link().newChat(project.id, 'tidy the release script', startConfig({ touched: {}, controls }))
     expect(computer.calls.find((call) => call.method === 'thread/start')!.params.config).toEqual({ providerId: 'local', model: 'quill-14b' })
-    harness.session.openChat(key)
+    harness.link().openChat(key)
     await waitFor(() => harness.state().details[key]?.config?.model === 'quill-14b')
   })
 
   it('forks a chat into a new chat in the same project and archives a chat off the lists', async () => {
     const harness = setup([studio()])
     const key = keyOf(await online(harness), 'Explain the release script')
-    const forked = await harness.session.fork(key)
+    const forked = await harness.link().fork(key)
     expect(forked).not.toBe(key)
     expect(harness.state().chats[forked]).toMatchObject({ projectId: harness.state().chats[key].projectId, title: 'Explain the release script' })
 
-    await harness.session.archive(key)
+    await harness.link().archive(key)
     expect(harness.state().chats[key]).toBeUndefined()
     expect(harness.state().chats[forked]).toBeDefined()
   })
@@ -337,12 +342,12 @@ describe('reconnect and catch-up', () => {
     const computer = studio()
     const harness = setup([computer])
     const key = keyOf(await online(harness), 'Upgrade Vite to 6.4')
-    harness.session.openChat(key)
+    harness.link().openChat(key)
     await waitFor(() => Boolean(harness.state().pending[key]))
     const before = harness.state().details[key].history.items.length
 
     computer.dropConnections()
-    await waitFor(() => harness.state().link === 'connecting' && harness.session.reconnectPending)
+    await waitFor(() => harness.state().link === 'connecting' && harness.link().reconnectPending)
     expect(harness.state().pending[key]).toBeUndefined()
     expect(harness.timers.delays().some((ms) => ms >= 1_000 && ms <= 30_000)).toBe(true)
 
@@ -363,13 +368,13 @@ describe('reconnect and catch-up', () => {
     const computer = studio()
     const harness = setup([computer])
     const key = keyOf(await online(harness), 'Rename the settings segments')
-    harness.session.openChat(key)
+    harness.link().openChat(key)
     await waitFor(() => harness.state().details[key]?.loading === false)
     const transcript = () => buildTranscript(harness.state().details[key].history)
     const earlier = transcript()
     const reply = 'Sure, here’s more detail.'
 
-    await harness.session.send(key, plainMessage('Check the French names too.'))
+    await harness.link().send(key, plainMessage('Check the French names too.'))
     await waitFor(
       () => !harness.state().chats[key].runtime?.running && transcript().some((entry) => entry.kind === 'assistant' && entry.text === reply && !entry.streaming),
     )
@@ -382,7 +387,7 @@ describe('reconnect and catch-up', () => {
     ])
 
     computer.dropConnections()
-    await waitFor(() => harness.state().link === 'connecting' && harness.session.reconnectPending)
+    await waitFor(() => harness.state().link === 'connecting' && harness.link().reconnectPending)
     harness.timers.runAll()
     await waitFor(() => harness.state().link === 'online' && !harness.state().syncing)
     await waitFor(() => harness.state().details[key].loading === false)
@@ -394,10 +399,10 @@ describe('reconnect and catch-up', () => {
     computer.reachable = false
     const harness = setup([computer])
     await harness.session.boot()
-    await waitFor(() => harness.state().link === 'offline' && harness.session.reconnectPending)
+    await waitFor(() => harness.state().link === 'offline' && harness.link().reconnectPending)
     harness.timers.runAll()
     expect(harness.state().link).toBe('offline')
-    await waitFor(() => harness.session.reconnectPending)
+    await waitFor(() => harness.link().reconnectPending)
     expect(harness.state().link).toBe('offline')
 
     computer.reachable = true
@@ -406,15 +411,27 @@ describe('reconnect and catch-up', () => {
     await waitFor(() => harness.state().link === 'online' && !harness.state().syncing)
   })
 
+  it('ignores a repeated network report that does not change the network, so an offline computer stays offline', async () => {
+    const computer = studio()
+    computer.reachable = false
+    const harness = setup([computer])
+    await harness.session.boot()
+    await waitFor(() => harness.state().link === 'offline')
+    harness.session.networkChanged('WIFI/true/true')
+    await waitFor(() => harness.state().link === 'offline' && harness.link().reconnectPending)
+    harness.session.networkChanged('WIFI/true/true')
+    expect(harness.state().link).toBe('offline')
+  })
+
   it('reconnects at once on a network change or a return to the foreground, and closes everything in the background', async () => {
     const computer = studio()
     computer.reachable = false
     const harness = setup([computer])
     await harness.session.boot()
     await waitFor(() => harness.state().link === 'offline')
-    expect(harness.session.reconnectPending).toBe(true)
+    expect(harness.link().reconnectPending).toBe(true)
     computer.reachable = true
-    harness.session.networkChanged()
+    harness.session.networkChanged('WIFI/true/true')
     await waitFor(() => harness.state().link === 'online' && !harness.state().syncing)
     expect(computer.connectionCount).toBeGreaterThan(0)
 
@@ -435,15 +452,14 @@ describe('failure states', () => {
     await waitFor(() => computerStatus(harness.state()) === 'access-off')
     expect(Object.keys(harness.state().chats).length).toBeGreaterThan(0)
     harness.session.setForeground(false)
-    expect(harness.storage.value?.accessOff).toBe(true)
+    expect(harness.storage.value?.computers[computer.id].accessOff).toBe(true)
 
     const restarted = setup([computer], { storage: harness.storage })
-    restarted.credentials.value = harness.credentials.value
     await restarted.session.boot()
     await waitFor(() => restarted.state().link === 'offline')
     expect(computerStatus(restarted.state())).toBe('access-off')
     computer.gatewayOn = true
-    restarted.session.networkChanged()
+    restarted.session.networkChanged('WIFI/true/true')
     await waitFor(() => computerStatus(restarted.state()) === 'online')
     expect(restarted.state().accessOff).toBe(false)
   })
@@ -453,10 +469,9 @@ describe('failure states', () => {
     const harness = setup([computer])
     await online(harness)
     computer.revokeAll()
-    await waitFor(() => harness.state().computer === null)
-    expect(harness.state().revokedBy).toBe('Studio PC')
-    expect(harness.state().chats).toEqual({})
-    expect(harness.credentials.value).toBeNull()
+    await waitFor(() => harness.session.store.getState().order.length === 0)
+    expect(harness.session.store.getState().revokedBy).toBe('Studio PC')
+    expect(harness.credentials.values.size).toBe(0)
     expect(harness.storage.value).toBeNull()
   })
 
@@ -466,9 +481,9 @@ describe('failure states', () => {
     computer.certificate = 'b'.repeat(64)
     await harness.session.boot()
     await waitFor(() => harness.state().identityChanged)
-    expect(harness.session.reconnectPending).toBe(false)
-    await harness.session.removeComputer()
-    expect(harness.state().computer).toBeNull()
+    expect(harness.link().reconnectPending).toBe(false)
+    await harness.session.removeComputer(computer.id)
+    expect(harness.session.store.getState().order).toEqual([])
   })
 
   it('makes a stopped project read-only and starts it again on request', async () => {
@@ -479,7 +494,7 @@ describe('failure states', () => {
     computer.stopProject(lab.id)
     await waitFor(() => harness.state().projects.find((project) => project.id === lab.id)?.running === false)
     expect(harness.state().phases[lab.id]).toBeUndefined()
-    expect(await harness.session.startProject(lab.id)).toBe(true)
+    expect(await harness.link().startProject(lab.id)).toBe(true)
     expect(harness.state().phases[lab.id]).toBe('ready')
   })
 
@@ -488,7 +503,7 @@ describe('failure states', () => {
     const harness = setup([computer])
     const state = await online(harness)
     const chats = state.projects.find((project) => project.name === 'Chats')!
-    expect(await harness.session.startProject(chats.id)).toBe(false)
+    expect(await harness.link().startProject(chats.id)).toBe(false)
     expect(harness.state().phases[chats.id]).toBe('cantStart')
   })
 })
@@ -496,39 +511,84 @@ describe('failure states', () => {
 describe('pairing', () => {
   it('pairs after Allow, stores the credential, and connects', async () => {
     const computer = studio()
-    const harness = setup([computer], { paired: false })
+    const harness = setup([computer], { paired: 0 })
     await harness.session.boot()
     await harness.session.beginPairing(offer(computer, 'demo-code'))
-    expect(harness.state().pairing.step).toBe('allow')
+    expect(harness.session.store.getState().pairing.step).toBe('allow')
     await harness.session.allow()
-    expect(harness.state().pairing).toEqual({ step: 'connected', name: 'Studio PC' })
-    expect(harness.credentials.value).toMatch(/^credential_/)
+    expect(harness.session.store.getState().pairing).toEqual({ step: 'connected', name: 'Studio PC' })
+    expect(harness.credentials.values.get(computer.id)).toMatch(/^credential_/)
     await waitFor(() => harness.state().link === 'online')
-    expect(harness.storage.value?.computer?.name).toBe('Studio PC')
+    expect(harness.storage.value?.computers[computer.id].computer.name).toBe('Studio PC')
   })
 
   it('asks for a new code when the pairing code was used', async () => {
     const computer = studio()
-    const harness = setup([computer], { paired: false })
+    const harness = setup([computer], { paired: 0 })
     await harness.session.boot()
     await harness.session.beginPairing(offer(computer, 'used-code'))
     await harness.session.allow()
-    expect(harness.state().pairing.step).toBe('invalid')
-    expect(harness.state().computer).toBeNull()
+    expect(harness.session.store.getState().pairing.step).toBe('invalid')
+    expect(harness.session.store.getState().order).toEqual([])
   })
 
-  it('keeps the current computer until the new one is allowed, then replaces it', async () => {
+  it('adds another computer once it is allowed, selects it, and keeps the first one connected', async () => {
     const current = studio()
     const next = new FakeComputer(buildBoxSeed(new Date()))
     const harness = setup([current, next])
     await online(harness)
     await harness.session.beginPairing(offer(next, 'build-box-code'))
     harness.session.resetPairing()
-    expect(harness.state().computer?.name).toBe('Studio PC')
+    expect(harness.session.store.getState().order).toEqual([current.id])
     await harness.session.beginPairing(offer(next, 'build-box-code'))
     await harness.session.allow()
-    expect(harness.state().computer?.name).toBe('Build Box')
-    await waitFor(() => current.removedDevices.includes('dev_demo'))
-    await waitFor(() => harness.state().link === 'online')
+    expect(harness.session.store.getState()).toMatchObject({ order: [current.id, next.id], selected: next.id })
+    await waitFor(() => harness.computerState(next.id).link === 'online')
+    expect(harness.state().link).toBe('online')
+    expect(current.removedDevices).toEqual([])
+  })
+
+  it('replaces the pairing of a computer scanned again and removes the old device from it', async () => {
+    const computer = studio()
+    const harness = setup([computer])
+    await online(harness)
+    computer.addPairingCode('again')
+    await harness.session.beginPairing(offer(computer, 'again'))
+    await harness.session.allow()
+    expect(harness.session.store.getState().order).toEqual([computer.id])
+    await waitFor(() => computer.removedDevices.includes('dev_demo'))
+    await waitFor(() => harness.state().link === 'online' && !harness.state().syncing)
+  })
+})
+
+describe('several computers', () => {
+  it('keeps every computer connected with its own chats, and one revoking this phone leaves the other working', async () => {
+    const first = studio()
+    const second = studio({ id: 'office-pc', name: 'Office PC', addresses: ['192.168.1.30'] })
+    const harness = setup([first, second], { paired: 2 })
+    await harness.session.boot()
+    await waitFor(() => [first.id, second.id].every((id) => harness.computerState(id).link === 'online' && !harness.computerState(id).syncing))
+    expect(Object.keys(harness.computerState(second.id).chats).length).toBeGreaterThan(0)
+    harness.session.select(second.id)
+    expect(harness.session.store.getState().selected).toBe(second.id)
+
+    second.revokeAll()
+    await waitFor(() => harness.session.store.getState().order.length === 1)
+    expect(harness.session.store.getState()).toMatchObject({ order: [first.id], selected: first.id, revokedBy: 'Office PC' })
+    expect([...harness.credentials.values.keys()]).toEqual([first.id])
+    expect(harness.state().link).toBe('online')
+    expect(first.connectionCount).toBeGreaterThan(0)
+  })
+
+  it('shows an identity change on one computer while the other stays connected', async () => {
+    const first = studio()
+    const second = studio({ id: 'office-pc', name: 'Office PC', addresses: ['192.168.1.30'] })
+    const harness = setup([first, second], { paired: 2 })
+    second.certificate = 'c'.repeat(64)
+    await harness.session.boot()
+    await waitFor(() => harness.computerState(second.id).identityChanged && harness.state().link === 'online')
+    await harness.session.removeComputer(second.id)
+    expect(harness.session.store.getState().order).toEqual([first.id])
+    expect(harness.state().link).toBe('online')
   })
 })

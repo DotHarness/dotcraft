@@ -12,8 +12,8 @@ import { chatTitle } from '../ui/rows'
 // The native live session keeps this task open to run JS timers in the background, and finishes it when the session stops.
 AppRegistry.registerHeadlessTask('DotCraftLiveSession', () => () => new Promise<void>(() => undefined))
 
-function chatUrl({ projectId, threadId }: ChatSummary): string {
-  return `dotcraft://chat/${encodeURIComponent(projectId)}/${encodeURIComponent(threadId)}`
+function chatUrl(computerId: string, { projectId, threadId }: ChatSummary): string {
+  return `dotcraft://chat/${encodeURIComponent(computerId)}/${encodeURIComponent(projectId)}/${encodeURIComponent(threadId)}`
 }
 
 function requestText({ t }: I18n, request: PendingRequest): string {
@@ -48,7 +48,7 @@ function ongoing(i18n: I18n, status: LiveStatus) {
     text,
     subText: status.running + status.needsYou > 1 ? parts.join(' · ') : status.computer,
     chip: !status.reachable ? t('status.connecting') : focus ? t(STATE_LABEL[focus.state]) : '',
-    url: focus ? chatUrl(focus.chat) : '',
+    url: focus ? chatUrl(focus.computerId, focus.chat) : '',
     end: t('live.end'),
   }
 }
@@ -67,21 +67,22 @@ export const liveNotifier: LiveNotifier = {
   },
   start(status) {
     const i18n = deviceI18n()
-    const channels = { session: i18n.t('live.channelSession'), requests: i18n.t('home.needsYou'), results: i18n.t('live.channelResults') }
+    const channels = { session: i18n.t('live.channelSession'), requests: i18n.t('live.channelRequests'), results: i18n.t('live.channelResults') }
     return LiveSession.notificationsEnabled() && LiveSession.start(ongoing(i18n, status), channels)
   },
   update: (status) => LiveSession.update(ongoing(deviceI18n(), status)),
   stop: () => LiveSession.stop(),
   post(notice) {
     const i18n = deviceI18n()
-    const { key } = notice.chat
+    const key = `${notice.computerId}/${notice.chat.key}`
     const approval = notice.kind === 'request' && notice.request.kind === 'approval' ? notice.request : null
     LiveSession.post({
       id: notice.id,
       channel: notice.kind === 'request' ? 'requests' : 'results',
       title: chatTitle(notice.chat, i18n.t('chat.untitled')),
       text: noticeText(i18n, notice),
-      url: chatUrl(notice.chat),
+      subText: notice.computer ?? '',
+      url: chatUrl(notice.computerId, notice.chat),
       alert: notice.kind === 'request' ? notice.alert : true,
       ...(approval ? { key, requestId: approval.requestId, allow: i18n.t('approval.allowOnce'), reject: i18n.t('approval.reject') } : {}),
     })
@@ -90,7 +91,10 @@ export const liveNotifier: LiveNotifier = {
   subscribe(listener) {
     const subscription = LiveSession.addListener('action', ({ action, key, requestId }) => {
       if (action === 'end') listener({ type: 'end' })
-      else if (key && requestId) listener({ type: action, key, requestId })
+      else if (key && requestId) {
+        const index = key.indexOf('/')
+        listener({ type: action, computerId: key.slice(0, index), key: key.slice(index + 1), requestId })
+      }
     })
     return () => subscription.remove()
   },
