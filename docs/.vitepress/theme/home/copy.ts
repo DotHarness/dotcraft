@@ -144,9 +144,9 @@ export const homeCopy = {
       kicker: 'Agent Harness for .NET',
       title: 'Bring a complete agent runtime into any .NET application.',
       points: [
-        { icon: 'cpu', title: 'Runs where .NET runs', text: 'Embed the full runtime directly in desktop, server, CLI, or automation applications. No separate agent service to deploy or operate.' },
-        { icon: 'dotnet', title: 'Built the .NET way', text: 'Use familiar Generic Host and dependency injection patterns. Your application stays in control of configuration, lifecycle, and user experience.' },
-        { icon: 'layers', title: 'More than an agent loop', text: 'Durable sessions, tools, skills, approvals, and model providers are already composed. Start with your product, not the plumbing.' }
+        { icon: 'cpu', title: 'Runs in your process', text: 'No separate agent service to deploy or operate.' },
+        { icon: 'dotnet', title: 'Built the .NET way', text: 'Plugs into the Generic Host and dependency injection.' },
+        { icon: 'layers', title: 'More than an agent loop', text: 'Sessions, tools, skills, approvals and providers come wired.' }
       ],
       overview: { text: 'Harness overview', href: '/developing/harness/' },
       nuget: { text: 'NuGet package', href: '/developing/harness/nuget-package' },
@@ -232,9 +232,9 @@ export const homeCopy = {
       kicker: '面向 .NET 的 Agent Harness',
       title: '将完整的 Agent Runtime 嵌入任何 .NET 应用。',
       points: [
-        { icon: 'cpu', title: '运行在你的 .NET 应用里', text: '将完整 Runtime 直接嵌入桌面、服务端、CLI 或自动化应用。无需额外部署和维护 Agent 服务。' },
-        { icon: 'dotnet', title: '遵循 .NET 的开发方式', text: '沿用熟悉的 Generic Host 与依赖注入模式。配置、生命周期和用户体验始终由你的应用掌控。' },
-        { icon: 'layers', title: '不止一个 Agentic Loop', text: '持久化会话、工具、Skills、审批与模型 Provider 已经组合就绪。从产品能力开始，而不是重复搭建 Agent 基础设施。' }
+        { icon: 'cpu', title: '运行在你的进程里', text: '无需额外部署和维护 Agent 服务。' },
+        { icon: 'dotnet', title: '遵循 .NET 的开发方式', text: '沿用 Generic Host 与依赖注入。' },
+        { icon: 'layers', title: '不止一个 Agentic Loop', text: '会话、工具、Skills、审批与模型 Provider 已组合就绪。' }
       ],
       overview: { text: 'Harness 总览', href: '/developing/harness/' },
       nuget: { text: 'NuGet 包', href: '/developing/harness/nuget-package' },

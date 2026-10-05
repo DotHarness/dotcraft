@@ -15,17 +15,6 @@
 
 DotCraft 是一个开源的 AI Agent，运行在你自己的机器上。用桌面应用写代码、处理日常工作；也可以把同一个 Agent 装进你自己的应用，再用插件扩展它。
 
-## 都有什么
-
-<p align="center"><b>直接用</b></p>
-<p align="center"><a href="#desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-desktop.webp" width="264" alt="Desktop：在你的项目里规划、动手、自己验收。下载安装。"></a> <a href="#手机-app"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-mobile.webp" width="264" alt="手机 App：在手机上跟进和处理你的聊天。下载安装。"></a> <a href="#cli"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-cli.webp" width="264" alt="CLI：一条命令，答案直接回到终端。安装脚本。"></a></p>
-
-<p align="center"><b>接到更多地方</b></p>
-<p align="center"><a href="#卫星"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-satellite.webp" width="264" alt="卫星：你的 Agent 在另一台 Windows 电脑上工作。下载安装。"></a> <a href="#oratorio"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-oratorio.webp" width="264" alt="Oratorio：每个任务从派发到评审，都在一块看板上。已内置。"></a> <a href="#聊天机器人"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-chat-bots.webp" width="264" alt="聊天机器人：在群聊里直接问项目的事。已内置。"></a></p>
-
-<p align="center"><b>拿来开发</b></p>
-<p align="center"><a href="#harness"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-harness.webp" width="264" alt="Harness：整套 Agent 运行时，装进你的 .NET 应用。NuGet。"></a> <a href="#sdk"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-sdks.webp" width="264" alt="SDK：让你的应用成为 DotCraft 客户端。npm 与 NuGet。"></a> <a href="#avatar"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-avatar.webp" width="264" alt="Avatar：给你的 Agent 一张会动、能换装的脸。npm。"></a></p>
-
 ## 为什么选择 DotCraft？
 
 - **一个 Agent，多个入口：** Desktop、CLI、IDE 和聊天机器人共用同一个工作区，在一处开始的任务可以在另一处接着做。你还可以通过 SSH 连接服务器上的 DotCraft，在 Android 手机上跟进并回复聊天，或借助卫星让 Agent 在另一台电脑上工作。

@@ -15,14 +15,14 @@
 }
 
 .dc-harness__title {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .dc-point {
   display: grid;
   grid-template-columns: 36px 1fr;
   gap: 16px;
-  padding: 18px 0;
+  padding: 12px 0;
 }
 
 .dc-point + .dc-point {
@@ -49,7 +49,7 @@
 .dc-harness__links {
   display: flex;
   gap: 6px;
-  margin-top: 18px;
+  margin-top: 14px;
 }
 
 .dc-viewer {
@@ -101,7 +101,7 @@
 
 .dc-viewer__code pre {
   margin: 0;
-  padding: 16px 0;
+  padding: 20px 0;
   overflow-x: auto;
   background: transparent;
   font-size: 12.5px;

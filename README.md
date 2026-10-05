@@ -15,17 +15,6 @@
 
 DotCraft is an open-source AI agent that runs on your own machine. Use the desktop app to code and get work done, or build the same agent into your own apps and extend it with plugins.
 
-## What's in the box
-
-<p align="center"><b>USE IT</b></p>
-<p align="center"><a href="#desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-desktop.webp" width="264" alt="Desktop: plans, builds and checks the work in your projects. Download."></a> <a href="#mobile"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-mobile.webp" width="264" alt="Mobile: follow and answer your chats from your phone. Download."></a> <a href="#cli"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-cli.webp" width="264" alt="CLI: one command, and the answer is in your terminal. Install script."></a></p>
-
-<p align="center"><b>CONNECT IT</b></p>
-<p align="center"><a href="#satellite"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-satellite.webp" width="264" alt="Satellite: your agent works on another Windows PC. Download."></a> <a href="#oratorio"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-oratorio.webp" width="264" alt="Oratorio: every task, from hand-off to review, on one board. Built in."></a> <a href="#chat-bots"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-chat-bots.webp" width="264" alt="Chat bots: ask about your project right in the group chat. Built in."></a></p>
-
-<p align="center"><b>BUILD WITH IT</b></p>
-<p align="center"><a href="#harness"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-harness.webp" width="264" alt="Harness: the whole agent runtime, inside your .NET app. NuGet."></a> <a href="#sdks"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-sdks.webp" width="264" alt="SDKs: make your own app a DotCraft client. npm and NuGet."></a> <a href="#avatar"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/badge-avatar.webp" width="264" alt="Avatar: a face for your agent that moves and dresses up. npm."></a></p>
-
 ## Why DotCraft
 
 - **One agent, many doors.** Desktop, the CLI, your IDE and chat bots share one workspace, so a task started in one can be picked up in another. Connect Desktop to DotCraft on a server over SSH, follow and answer your chats from an Android phone, or let the agent work on another computer through Satellite.
