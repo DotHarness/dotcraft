@@ -337,7 +337,8 @@ public sealed partial class SessionService
                         rootThreadId,
                         agentPath,
                         out var inputActivity);
-                    if (await HasPendingInstantInterruptAsync(thread, turn.Id, waitCt))
+                    if (_runtimeRegistry.IsCurrent(threadId, admittedRuntime)
+                        && await HasPendingInstantInterruptAsync(thread, turn.Id, waitCt))
                         return;
                     await inputActivity.WaitAsync(waitCt).ConfigureAwait(false);
                 }

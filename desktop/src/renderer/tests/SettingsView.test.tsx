@@ -517,6 +517,21 @@ describe('SettingsView', () => {
     })
   })
 
+  it('hides steering right away on a manual remote connection', async () => {
+    settingsGet.mockResolvedValue({
+      locale: 'en',
+      connectionMode: 'remote',
+      remote: { url: 'ws://127.0.0.1:9100/ws' },
+      followUpQueueMode: 'steer'
+    })
+    renderView()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Steer' })).toHaveAttribute('aria-pressed', 'true')
+    })
+    expect(screen.queryByRole('switch', { name: 'Steer right away' })).not.toBeInTheDocument()
+  })
+
   it('disables settings that depend on memory while memory is off', async () => {
     workspaceConfigGetCore.mockImplementation(async () => ({
       workspace: { memoryEnabled: false, welcomeSuggestionsEnabled: true, dreamsEnabled: true },

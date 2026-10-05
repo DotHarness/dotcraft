@@ -45,7 +45,10 @@ public sealed partial class SessionService
         {
             var content = await ThreadQueue.ResolveInputPartsAsync(queued.MaterializedInputParts.ToList(), drainCt);
             if (content.Count == 0)
+            {
+                prepared.Add(new PreparedGuidance(queued, content, string.Empty, new HookResult()));
                 continue;
+            }
 
             var displayText = !string.IsNullOrWhiteSpace(queued.DisplayText)
                 ? queued.DisplayText
@@ -119,10 +122,11 @@ public sealed partial class SessionService
                     && IsPendingGuidance(input, turn.Id)))
                 .ToList();
             var blocked = current.Where(guidance => guidance.Hook.Blocked).ToList();
-            if (blocked.Count > 0)
+            var dropped = current.Where(guidance => guidance.Hook.Blocked || guidance.Content.Count == 0).ToList();
+            if (dropped.Count > 0)
             {
-                var blockedIds = blocked.Select(guidance => guidance.Input.Id).ToHashSet(StringComparer.Ordinal);
-                thread.QueuedInputs = thread.QueuedInputs.Where(input => !blockedIds.Contains(input.Id)).ToList();
+                var droppedIds = dropped.Select(guidance => guidance.Input.Id).ToHashSet(StringComparer.Ordinal);
+                thread.QueuedInputs = thread.QueuedInputs.Where(input => !droppedIds.Contains(input.Id)).ToList();
                 thread.LastActiveAt = DateTimeOffset.UtcNow;
                 await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
                 PublishQueueUpdated(thread.Id, thread.QueuedInputs.ToList());
@@ -139,7 +143,7 @@ public sealed partial class SessionService
                 }
             }
 
-            var admitted = current.Where(guidance => !guidance.Hook.Blocked).ToList();
+            var admitted = current.Except(dropped).ToList();
             if (admitted.Count == 0)
                 return [];
 

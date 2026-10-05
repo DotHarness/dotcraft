@@ -2468,7 +2468,7 @@ export function SettingsView({
 
                 <SettingsGroup title={t('settings.group.composer')}>
                   <FollowUpBehaviorRow />
-                  {workspaceCoreApiAvailable && <InstantInterruptRow settings={instantInterrupt} />}
+                  {workspaceCoreApiAvailable && !manualRemoteConnection && <InstantInterruptRow settings={instantInterrupt} />}
                 </SettingsGroup>
 
                 <CodeModeSettingsGroup settings={codeMode} />

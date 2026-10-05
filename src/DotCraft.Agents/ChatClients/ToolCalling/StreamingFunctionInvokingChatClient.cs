@@ -175,8 +175,6 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
         var hasAnyEffectiveProviderOutput = false;
         var awaitingPostToolContinuation = false;
         StreamingGuidanceBoundary? pendingDrain = null;
-        var interruptDrainPending = false;
-        var instantInterruptSuppressed = false;
 
         var initialInput = await DrainRunningInputAsync(StreamingGuidanceBoundary.TurnStart, cancellationToken);
         if (initialInput.Count > 0)
@@ -216,11 +214,6 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
             {
                 pendingDrain = null;
                 var drained = await DrainRunningInputAsync(boundary, cancellationToken);
-                if (interruptDrainPending)
-                {
-                    interruptDrainPending = false;
-                    instantInterruptSuppressed |= drained.Count == 0;
-                }
                 if (drained.Count == 0 && boundary == StreamingGuidanceBoundary.AnswerBoundary)
                     yield break;
                 if (drained.Count > 0)
@@ -248,7 +241,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
             var reissueAfterStreamFailure = false;
             var interrupted = false;
             using var requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            using var interruptWindow = InstantInterruptWindow.TryOpen(instantInterruptSuppressed, cancellationToken);
+            using var interruptWindow = InstantInterruptWindow.TryOpen(cancellationToken);
             var streamEnumerator = base
                 .GetStreamingResponseAsync(samplingMessages, options, requestCancellation.Token)
                 .GetAsyncEnumerator(requestCancellation.Token);
@@ -438,11 +431,9 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
                         streamFailure!,
                         turnRetryCount,
                         turnRetryBudget,
-                        instantInterruptSuppressed,
                         cancellationToken))
                 {
                     pendingDrain = StreamingGuidanceBoundary.AfterTools;
-                    interruptDrainPending = true;
                 }
                 continue;
             }

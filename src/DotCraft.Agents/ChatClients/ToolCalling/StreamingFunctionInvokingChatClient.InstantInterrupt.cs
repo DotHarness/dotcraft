@@ -32,8 +32,8 @@ public sealed partial class StreamingFunctionInvokingChatClient
 
         public bool HoldsOutput => IsOpen || Interrupted;
 
-        public static InstantInterruptWindow? TryOpen(bool suppressed, CancellationToken cancellationToken) =>
-            !suppressed && StreamingGuidanceRuntimeScope.Current?.WaitForInstantInterruptAsync is { } waitAsync
+        public static InstantInterruptWindow? TryOpen(CancellationToken cancellationToken) =>
+            StreamingGuidanceRuntimeScope.Current?.WaitForInstantInterruptAsync is { } waitAsync
                 ? new InstantInterruptWindow(waitAsync, cancellationToken)
                 : null;
 
