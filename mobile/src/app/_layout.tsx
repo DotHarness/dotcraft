@@ -12,6 +12,9 @@ import { ThemeContext, themes, useTheme } from '../ui/theme'
 
 void SplashScreen.preventAutoHideAsync()
 
+const LAUNCHED_AT = Date.now()
+const SPLASH_MIN_MS = 500
+
 const runtime = createRuntime()
 
 function Gate() {
@@ -22,7 +25,9 @@ function Gate() {
   const top = segments[0] as string | undefined
 
   useEffect(() => {
-    if (state.hydrated) void SplashScreen.hideAsync()
+    if (!state.hydrated) return
+    const timer = setTimeout(() => void SplashScreen.hideAsync(), Math.max(0, SPLASH_MIN_MS - (Date.now() - LAUNCHED_AT)))
+    return () => clearTimeout(timer)
   }, [state.hydrated])
 
   useEffect(() => {
