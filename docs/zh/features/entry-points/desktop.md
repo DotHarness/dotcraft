@@ -14,7 +14,7 @@ Agent 的每一步都摊在窗口里。打开一个会话就能逐条回看它�
 
 ## 探索交互式可视化
 
-![DotCraft 对话中渲染的交互式天气可视化](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/inline-visualizations.webp)
+![DotCraft 对话中渲染的交互式天气可视化](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/inline-visualizations.webp)
 
 让 DotCraft 把对比、解释或结果做成交互式可视化，也可以直接调用 `$visualize`。视图会出现在回复中，不用离开对话就能操作和查看。
 

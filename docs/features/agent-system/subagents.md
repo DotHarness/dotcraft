@@ -24,7 +24,7 @@ You can also use an external coding CLI as the runtime, with built-in support fo
 
 ## Follow subagent progress in Desktop
 
-![Following several background subagents and their status in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/subagents.webp)
+![Following several background subagents and their status in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/subagents.webp)
 
 Desktop keeps the main conversation available while subagents work. Open the background-agent summary to see which tasks are running or complete. The finished result still returns to the main conversation.
 

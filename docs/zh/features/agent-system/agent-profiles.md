@@ -2,7 +2,7 @@
 
 Agent Profile 把一套专门用途的 Agent 设定保存下来，需要时随时取用。通过 Agent Builder 的对话完成定制后，就能复用它的角色指令、默认模型、工具、技能、MCP 访问范围和审批方式。
 
-![DotCraft Agent 预设](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-profile.webp)
+![DotCraft Agent 预设](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/agent-profile.webp)
 
 按需要的结果选择角色：让 Researcher 提供有据可查的结论、Prototyper 构建可运行的原型，或让 Task Runner 完成本地任务。每个角色都是独立的 Profile，需要时按工作选择即可。
 
@@ -36,7 +36,7 @@ DotCraft 提供六个面向本地任务与具体交付的起点。可以直接�
 
 ## Agent Builder
 
-![DotCraft Agent Builder](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-builder.webp)
+![DotCraft Agent Builder](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/agent-builder.webp)
 
 Agent Builder 让你用聊天的方式定制自己的 Agent。可以从内置 Profile 开始，也可以直接描述一个新角色，再在引导式对话里调整它的指令、工具、技能、模型和审批方式。
 

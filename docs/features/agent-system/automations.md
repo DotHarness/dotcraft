@@ -4,7 +4,7 @@ DotCraft has two ways to keep the agent working when you are not driving every t
 
 ![How DotCraft runs Automations and Goals](/automations-goals-overview.svg)
 
-![Setting a goal on a conversation](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/goal.webp)
+![Setting a goal on a conversation](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/goal.webp)
 
 ## Automations
 

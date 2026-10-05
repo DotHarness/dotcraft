@@ -16,7 +16,7 @@
 
 ## 安装插件
 
-![浏览插件、查看详情并在 DotCraft 对话中试用](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/plugin-registry.webp)
+![浏览插件、查看详情并在 DotCraft 对话中试用](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/plugin-registry.webp)
 
 1. 在 DotCraft Desktop 中打开**插件**页面。
 2. 搜索或浏览插件目录。

@@ -14,7 +14,7 @@ Fenced `mermaid` blocks in a reply render as diagrams, falling back to the sourc
 
 ## Explore interactive visualizations
 
-![An interactive weather visualization rendered inside a DotCraft conversation](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/inline-visualizations.webp)
+![An interactive weather visualization rendered inside a DotCraft conversation](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/inline-visualizations.webp)
 
 Ask DotCraft to turn a comparison, explanation, or result into an interactive visualization, or invoke `$visualize` directly. The view appears inside the reply, where you can explore it without leaving the conversation.
 
