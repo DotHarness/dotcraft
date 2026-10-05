@@ -10,8 +10,8 @@ export const MESSAGES_ZH_HANS: Catalog = {
 
   'status.online': '在线',
   'status.connecting': '正在连接…',
-  'status.offline': '离线 · {{time}}更新',
-  'status.accessOff': '手机访问已关闭 · {{time}}更新',
+  'status.offline': '离线',
+  'status.accessOff': '手机访问已关闭',
   'notice.offline': '{{computer}} 已离线，正在显示上次同步的内容。',
   'notice.accessOff': '{{computer}} 已关闭手机访问，正在显示上次同步的内容。',
   'notice.projectStopped': '{{project}} 已在 {{computer}} 上停止，正在显示上次同步的内容。',

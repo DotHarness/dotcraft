@@ -411,6 +411,18 @@ describe('reconnect and catch-up', () => {
     await waitFor(() => harness.state().link === 'online' && !harness.state().syncing)
   })
 
+  it('ignores a repeated network report that does not change the network, so an offline computer stays offline', async () => {
+    const computer = studio()
+    computer.reachable = false
+    const harness = setup([computer])
+    await harness.session.boot()
+    await waitFor(() => harness.state().link === 'offline')
+    harness.session.networkChanged('WIFI/true/true')
+    await waitFor(() => harness.state().link === 'offline' && harness.link().reconnectPending)
+    harness.session.networkChanged('WIFI/true/true')
+    expect(harness.state().link).toBe('offline')
+  })
+
   it('reconnects at once on a network change or a return to the foreground, and closes everything in the background', async () => {
     const computer = studio()
     computer.reachable = false
@@ -419,7 +431,7 @@ describe('reconnect and catch-up', () => {
     await waitFor(() => harness.state().link === 'offline')
     expect(harness.link().reconnectPending).toBe(true)
     computer.reachable = true
-    harness.session.networkChanged()
+    harness.session.networkChanged('WIFI/true/true')
     await waitFor(() => harness.state().link === 'online' && !harness.state().syncing)
     expect(computer.connectionCount).toBeGreaterThan(0)
 
@@ -447,7 +459,7 @@ describe('failure states', () => {
     await waitFor(() => restarted.state().link === 'offline')
     expect(computerStatus(restarted.state())).toBe('access-off')
     computer.gatewayOn = true
-    restarted.session.networkChanged()
+    restarted.session.networkChanged('WIFI/true/true')
     await waitFor(() => computerStatus(restarted.state()) === 'online')
     expect(restarted.state().accessOff).toBe(false)
   })

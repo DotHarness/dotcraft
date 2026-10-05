@@ -15,7 +15,9 @@ export function RuntimeProvider({ runtime, children }: { runtime: AppRuntime; ch
   useEffect(() => {
     void session.boot()
     const appState = AppState.addEventListener('change', (state) => session.setForeground(state === 'active'))
-    const network = Network.addNetworkStateListener(() => session.networkChanged())
+    const network = Network.addNetworkStateListener(({ type, isConnected, isInternetReachable }) =>
+      session.networkChanged(`${type}/${isConnected}/${isInternetReachable}`),
+    )
     return () => {
       appState.remove()
       network.remove()

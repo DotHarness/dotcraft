@@ -27,7 +27,7 @@ function ComputerRow({ computer, onRemove }: { computer: ComputerState; onRemove
   const statusLabel = useStatusLabel()
   const record = computer.computer
   const meta = [
-    statusLabel(computerStatus(computer), computer.syncedAt),
+    statusLabel(computerStatus(computer)),
     record.version ? t('settings.computerVersion', { version: record.version }) : null,
     t('settings.paired', { date: date(record.pairedAt) }),
   ]

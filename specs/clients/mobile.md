@@ -317,11 +317,11 @@ project; otherwise it closes them in the background. Each relayed connection ini
 approval-capable client that supports user-input requests and streaming.
 
 - **Status.** A computer is **online** when a gateway route answers, **connecting** while trying
-  addresses, and **offline** otherwise. Offline shows its last known projects and chats read-only,
-  with the time they were last updated.
+  addresses, and **offline** otherwise. Offline shows its last known projects and chats read-only.
 - **Reconnect.** Each computer reconnects on its own, with exponential backoff and jitter from 1 to
   30 seconds, restarted immediately when the
-  app returns to the foreground or the network changes. Only launch, a return to the foreground, a
+  app returns to the foreground or the phone's network changes; a repeated report of the same network
+  is not a change. Only launch, a return to the foreground, a
   network change, or a dropped connection shows connecting; once the computer is offline, background
   retries keep it offline until one succeeds.
 - **Catching up.** After any reconnect the app follows the AppServer recovery rules: read the thread
@@ -605,7 +605,7 @@ The Phones segment adds **Access from anywhere** with the relay address and toke
 | Device revoked | The phone forgets that computer with a notice that it removed this phone, and selects another paired computer; with none left it returns to Pair with the notice. |
 | Relay requested for a stopped project | `projectNotRunning` before the upgrade; the phone treats the project as stopped. |
 | Project AppServer stops | The relay closes; open chats of that project become read-only with a notice that the project stopped on the computer and a Start action, and the phone reconnects when `/m/events` reports it started. |
-| Computer asleep or unreachable | The computer shows offline with the last update time. |
+| Computer asleep or unreachable | The computer shows offline. |
 | Relay unreachable or wrong token | Hub reports `relay.state` `failed` and keeps retrying; phones on the local network are unaffected. |
 | Gateway turned off | Connections close with `gatewayOff`; the phone keeps the last synced chats read-only and shows that phone access is off on the computer. It remembers that reason until a connection succeeds again, so a restarted app still says access is off rather than offline. |
 | Project cannot start | Opening a project that is not running while the computer is offline or access is off, or when its start fails, says the computer can't start that project right now. |

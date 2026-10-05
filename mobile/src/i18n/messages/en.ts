@@ -8,8 +8,8 @@ export const MESSAGES_EN = {
 
   'status.online': 'Online',
   'status.connecting': 'Connecting…',
-  'status.offline': 'Offline · Updated {{time}}',
-  'status.accessOff': 'Phone access off · Updated {{time}}',
+  'status.offline': 'Offline',
+  'status.accessOff': 'Phone access off',
   'notice.offline': '{{computer}} is offline. Showing what was last synced.',
   'notice.accessOff': 'Phone access is off on {{computer}}. Showing what was last synced.',
   'notice.projectStopped': '{{project}} stopped on {{computer}}. Showing what was last synced.',

@@ -10,8 +10,8 @@ export const MESSAGES_FR: Catalog = {
 
   'status.online': 'En ligne',
   'status.connecting': 'Connexion…',
-  'status.offline': 'Hors ligne · Mis à jour {{time}}',
-  'status.accessOff': 'Accès depuis les téléphones désactivé · Mis à jour {{time}}',
+  'status.offline': 'Hors ligne',
+  'status.accessOff': 'Accès depuis les téléphones désactivé',
   'notice.offline': '{{computer}} est hors ligne. Affichage de la dernière synchronisation.',
   'notice.accessOff': 'L’accès depuis les téléphones est désactivé sur {{computer}}. Affichage de la dernière synchronisation.',
   'notice.projectStopped': '{{project}} s’est arrêté sur {{computer}}. Affichage de la dernière synchronisation.',

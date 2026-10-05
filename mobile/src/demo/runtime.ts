@@ -39,7 +39,7 @@ export function createDemoRuntime(): AppRuntime {
       studio.reachable = true
       studio.gatewayOn = true
       network.latencyMs = LATENCY_MS
-      session.networkChanged()
+      session.networkChanged(`demo/${Date.now()}`)
     },
     stall() {
       studio.dropConnections()

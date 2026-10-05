@@ -48,6 +48,7 @@ export class MobileSession {
   private readonly links = new Map<string, ComputerLink>()
   private pairingGateway: GatewayClient | null = null
   private foreground = true
+  private network: string | null = null
   private saveHandle: unknown = null
   private booted = false
 
@@ -134,7 +135,9 @@ export class MobileSession {
     this.flushSave()
   }
 
-  networkChanged(): void {
+  networkChanged(network: string): void {
+    if (network === this.network) return
+    this.network = network
     for (const link of this.links.values()) link.networkChanged()
   }
 

@@ -210,12 +210,18 @@ function ComputerHome() {
             >
               <Mascot moment={computerMoment(status, waiting)} size={40} style={styles.avatar} />
               <View style={styles.computerText}>
-                <Txt numberOfLines={1} style={styles.computerName}>
-                  DotCraft
-                </Txt>
-                <ComputerStatusLine status={status} updatedAt={state.syncedAt} />
+                <View style={styles.titleRow}>
+                  <Txt numberOfLines={1} style={styles.computerName}>
+                    DotCraft
+                  </Txt>
+                  <Icon name="chevronDown" size={16} color={colors.textSecondary} strokeWidth={2} />
+                </View>
+                <View style={styles.statusSlot}>
+                  <View style={styles.statusFloat}>
+                    <ComputerStatusLine status={status} />
+                  </View>
+                </View>
               </View>
-              <Icon name="chevronDown" size={16} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
             <View style={styles.searchButton}>
               <RoundIconButton
@@ -340,7 +346,10 @@ const styles = StyleSheet.create({
   },
   avatar: { marginLeft: -4, transform: [{ translateY: -3 }] },
   computerText: { flexShrink: 1, minWidth: 0, gap: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   computerName: { fontWeight: '600' },
+  statusSlot: { height: 18 },
+  statusFloat: { position: 'absolute', left: 0, top: 0, width: 220 },
   notice: { marginTop: 8 },
   chipRow: { flexGrow: 0 },
   chips: { gap: 8, paddingHorizontal: metrics.gutter, paddingBottom: 8 },

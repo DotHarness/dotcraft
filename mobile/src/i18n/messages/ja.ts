@@ -10,8 +10,8 @@ export const MESSAGES_JA: Catalog = {
 
   'status.online': 'オンライン',
   'status.connecting': '接続中…',
-  'status.offline': 'オフライン · {{time}}に更新',
-  'status.accessOff': 'スマートフォンのアクセスはオフ · {{time}}に更新',
+  'status.offline': 'オフライン',
+  'status.accessOff': 'スマートフォンのアクセスはオフ',
   'notice.offline': '{{computer}} はオフラインです。最後に同期した内容を表示しています。',
   'notice.accessOff': '{{computer}} ではスマートフォンのアクセスがオフです。最後に同期した内容を表示しています。',
   'notice.projectStopped': '{{project}} は {{computer}} で停止しました。最後に同期した内容を表示しています。',

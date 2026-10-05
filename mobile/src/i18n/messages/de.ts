@@ -10,8 +10,8 @@ export const MESSAGES_DE: Catalog = {
 
   'status.online': 'Online',
   'status.connecting': 'Verbinden…',
-  'status.offline': 'Offline · Aktualisiert {{time}}',
-  'status.accessOff': 'Telefonzugriff aus · Aktualisiert {{time}}',
+  'status.offline': 'Offline',
+  'status.accessOff': 'Telefonzugriff aus',
   'notice.offline': '{{computer}} ist offline. Angezeigt wird der letzte synchronisierte Stand.',
   'notice.accessOff': 'Der Telefonzugriff ist auf {{computer}} ausgeschaltet. Angezeigt wird der letzte synchronisierte Stand.',
   'notice.projectStopped': '{{project}} wurde auf {{computer}} beendet. Angezeigt wird der letzte synchronisierte Stand.',

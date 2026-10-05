@@ -10,8 +10,8 @@ export const MESSAGES_KO: Catalog = {
 
   'status.online': '온라인',
   'status.connecting': '연결 중…',
-  'status.offline': '오프라인 · {{time}} 업데이트',
-  'status.accessOff': '휴대폰 액세스 꺼짐 · {{time}} 업데이트',
+  'status.offline': '오프라인',
+  'status.accessOff': '휴대폰 액세스 꺼짐',
   'notice.offline': '{{computer}}이(가) 오프라인입니다. 마지막으로 동기화된 내용을 표시합니다.',
   'notice.accessOff': '{{computer}}에서 휴대폰 액세스가 꺼져 있습니다. 마지막으로 동기화된 내용을 표시합니다.',
   'notice.projectStopped': '{{computer}}에서 {{project}}이(가) 중지되었습니다. 마지막으로 동기화된 내용을 표시합니다.',
