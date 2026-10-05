@@ -76,6 +76,9 @@ public sealed partial class AppConfig
     [ConfigField(Ignore = true)]
     public bool AgentInterruptMessageEnabled { get; set; } = true;
 
+    [ConfigField(Hint = "Restart a model request with a steer that arrives before any output or during a retry wait", Reload = ReloadBehavior.Hot, HasReload = true)]
+    public bool InstantInterruptEnabled { get; set; } = true;
+
     /// <summary>
     /// Maximum number of pending requests per session.
     /// When exceeded, the oldest waiting request is evicted and the user is notified.

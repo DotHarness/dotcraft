@@ -154,7 +154,7 @@ public sealed partial class SessionServiceRuntimeSignalTests
             Assert.True(first >= 0 && second == first + 1);
             return new TextContent("done");
         });
-        await using var factory = CreateAgentFactory(model);
+        await using var factory = CreateAgentFactory(model, configureConfig: config => config.InstantInterruptEnabled = false);
         service = CreateService(factory, model, useStreamingFunctionInvoker: true);
         thread = await service.CreateThreadAsync(MakeIdentity());
         await service.RefreshThreadAgentAsync(thread.Id);
@@ -295,6 +295,98 @@ public sealed partial class SessionServiceRuntimeSignalTests
 
         Assert.Equal(2, model.Calls);
         Assert.Single(thread.Turns[0].Items, item => item.AsUserMessage?.DeliveryMode == "guidance");
+    }
+
+    [Fact]
+    public async Task RunningInput_UserSteerBeforeOutputReissuesTheRequestWithTheSteer()
+    {
+        var requests = new List<IReadOnlyList<ChatMessage>>();
+        var blocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstCallCancelled = false;
+        using var model = new HistoryBoundaryClient(async (call, messages, ct) =>
+        {
+            requests.Add(messages);
+            if (call > 1)
+                return new TextContent("done");
+            blocked.TrySetResult();
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), ct);
+            }
+            catch (OperationCanceledException)
+            {
+                firstCallCancelled = true;
+                throw;
+            }
+            return new TextContent("not interrupted");
+        });
+        await using var factory = CreateAgentFactory(model);
+        var service = CreateService(factory, model, useStreamingFunctionInvoker: true);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        var run = DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")]));
+        await blocked.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await service.SteerTurnAsync(thread.Id, thread.Turns[0].Id, [new TextContent("instant steer")]);
+        await run.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.True(firstCallCancelled);
+        Assert.Equal(2, model.Calls);
+        Assert.Contains(requests[1], message =>
+            message.Role == ChatRole.User && message.Text.Contains("instant steer", StringComparison.Ordinal));
+        Assert.DoesNotContain(requests[1], message => message.Role == ChatRole.Assistant);
+        Assert.Equal(TurnStatus.Completed, thread.Turns[0].Status);
+        Assert.Contains(thread.Turns[0].Items, item =>
+            item.AsUserMessage is { DeliveryMode: "guidance", Text: "instant steer" });
+        Assert.Empty(thread.QueuedInputs);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RunningInput_SteerThatCannotPreemptWaitsForTheNextBoundary(bool subAgentFollowup)
+    {
+        var requests = new List<IReadOnlyList<ChatMessage>>();
+        var blocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstCallCancelled = false;
+        using var model = new HistoryBoundaryClient(async (call, messages, ct) =>
+        {
+            requests.Add(messages);
+            if (call > 1)
+                return new TextContent("done");
+            blocked.TrySetResult();
+            try
+            {
+                await release.Task.WaitAsync(ct);
+            }
+            catch (OperationCanceledException)
+            {
+                firstCallCancelled = true;
+                throw;
+            }
+            return HistoryBoundaryClient.Tool();
+        });
+        await using var factory = CreateAgentFactory(
+            model,
+            configureConfig: config => config.InstantInterruptEnabled = subAgentFollowup);
+        var service = CreateService(factory, model, useStreamingFunctionInvoker: true);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        var run = DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")]));
+        await blocked.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        using (TurnTriggerScope.Set(new TurnTriggerInfo { Kind = subAgentFollowup ? "subagentFollowupTask" : "test" }))
+            await service.SteerTurnAsync(thread.Id, thread.Turns[0].Id, [new TextContent("late steer")]);
+        await Task.Delay(200);
+        release.TrySetResult();
+        await run.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.False(firstCallCancelled);
+        Assert.Equal(2, model.Calls);
+        Assert.Contains(requests[1], message => message.Text.Contains("late steer", StringComparison.Ordinal));
+        Assert.Contains(thread.Turns[0].Items, item =>
+            item.AsUserMessage is { DeliveryMode: "guidance", Text: "late steer" });
     }
 
     private SessionService CreatePromptHookService(AgentFactory factory, IChatClient model, string command) =>

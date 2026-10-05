@@ -5,11 +5,29 @@ namespace DotCraft.Agents;
 
 public sealed partial class StreamingFunctionInvokingChatClient
 {
-    private static Task NotifyAndWaitForStreamRetryAsync(
-        ProviderFailure failure, Exception exception, int attempt, int budget, CancellationToken ct)
+    private static async Task<bool> NotifyAndWaitForStreamRetryAsync(
+        ProviderFailure failure, Exception exception, int attempt, int budget, bool interruptSuppressed, CancellationToken ct)
     {
         ModelStreamRetryRuntimeScope.Current?.NotifyRetry(new ModelStreamRetryNotification(attempt, budget, exception, failure));
-        return ProviderFailureCapture.WaitForRetryAsync(failure, attempt, ct);
+        using var interruptWindow = InstantInterruptWindow.TryOpen(interruptSuppressed, ct);
+        using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var wait = ProviderFailureCapture.WaitForRetryAsync(failure, attempt, waitCancellation.Token);
+        if (interruptWindow is null || !await interruptWindow.InterruptsAsync(wait).ConfigureAwait(false))
+        {
+            await wait.ConfigureAwait(false);
+            return false;
+        }
+
+        await waitCancellation.CancelAsync().ConfigureAwait(false);
+        try
+        {
+            await wait.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+        }
+
+        return true;
     }
 
     private readonly record struct StreamStep(bool HasNext, Exception? Failure);

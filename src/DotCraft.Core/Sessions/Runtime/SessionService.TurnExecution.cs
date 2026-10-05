@@ -278,13 +278,7 @@ public sealed partial class SessionService
                 await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
                 eventChannel.EmitItemStarted(item);
 
-                var rootThreadId = currentSubAgentSource?.RootThreadId;
-                if (string.IsNullOrWhiteSpace(rootThreadId))
-                    rootThreadId = thread.Id;
-                var agentPath = currentSubAgentSource?.AgentPath;
-                if (string.IsNullOrWhiteSpace(agentPath))
-                    agentPath = AgentPath.Root;
-
+                var (rootThreadId, agentPath) = ResolveInputActivityTarget();
                 var status = "completed";
                 try
                 {
@@ -321,6 +315,32 @@ public sealed partial class SessionService
 
                 var result = await CompleteSleepItemAsync(item, durationMs, startedTicks, status);
                 return result;
+            }
+
+            (string RootThreadId, string AgentPath) ResolveInputActivityTarget()
+            {
+                var rootThreadId = currentSubAgentSource?.RootThreadId;
+                if (string.IsNullOrWhiteSpace(rootThreadId))
+                    rootThreadId = thread.Id;
+                var agentPath = currentSubAgentSource?.AgentPath;
+                if (string.IsNullOrWhiteSpace(agentPath))
+                    agentPath = AgentPath.Root;
+                return (rootThreadId, agentPath);
+            }
+
+            async Task WaitForInstantInterruptAsync(CancellationToken waitCt)
+            {
+                var (rootThreadId, agentPath) = ResolveInputActivityTarget();
+                while (true)
+                {
+                    using var subscription = _subAgentCommunicationRuntime.SubscribeInput(
+                        rootThreadId,
+                        agentPath,
+                        out var inputActivity);
+                    if (await HasPendingInstantInterruptAsync(thread, turn.Id, waitCt))
+                        return;
+                    await inputActivity.WaitAsync(waitCt).ConfigureAwait(false);
+                }
             }
 
             async Task<bool> HasPendingSleepInputAsync(
@@ -1443,6 +1463,7 @@ public sealed partial class SessionService
                                 worldStateCt),
                             drainCt),
                         HasPendingGuidanceAsync = pendingCt => HasPendingGuidanceAsync(thread, turn.Id, pendingCt),
+                        WaitForInstantInterruptAsync = InstantInterruptEnabled ? WaitForInstantInterruptAsync : null,
                         OnToolHandlerFinishedAsync = async (toolName, callId, toolCt) =>
                             await AccountGoalToolCompletionAsync(turnKey, toolName, callId, toolCt)
                     });

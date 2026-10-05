@@ -21,6 +21,15 @@ public sealed partial class SessionService
                 IsPendingGuidance(input, turnId) && !IsLegacyGoalBudgetGuidanceInput(input));
     }
 
+    private async Task<bool> HasPendingInstantInterruptAsync(SessionThread thread, string turnId, CancellationToken ct)
+    {
+        using (await AcquireThreadQueueLockAsync(thread.Id, ct))
+            return thread.QueuedInputs.Any(input =>
+                IsPendingGuidance(input, turnId)
+                && !IsLegacyGoalBudgetGuidanceInput(input)
+                && !string.Equals(input.TriggerKind, SubAgentSessionControl.SubAgentFollowupTriggerKind, StringComparison.Ordinal));
+    }
+
     private async Task<IReadOnlyList<PreparedGuidance>> PrepareGuidanceInputsAsync(
         ThreadRuntime runtime, SessionTurn turn, CancellationToken drainCt)
     {

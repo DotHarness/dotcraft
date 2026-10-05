@@ -674,6 +674,7 @@ const api = {
         toolsImageGenerationEnabled: boolean | null
         toolsImageGenerationProvider: string | null
         toolsCodeModeMode: 'off' | 'on' | 'only' | null
+        instantInterruptEnabled: boolean | null
       }
       userDefaults: {
         providerId: string | null
@@ -690,6 +691,7 @@ const api = {
         toolsImageGenerationEnabled: boolean | null
         toolsImageGenerationProvider: string | null
         toolsCodeModeMode: 'off' | 'on' | 'only' | null
+        instantInterruptEnabled: boolean | null
       }
     }> {
       return ipcRenderer.invoke('workspace-config:get-core')

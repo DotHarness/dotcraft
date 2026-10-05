@@ -25425,6 +25425,13 @@
           "const": null
         },
         {
+          "name": "instantInterruptEnabled",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "memoryEnabled",
           "type": "boolean",
           "required": false,
@@ -25543,6 +25550,13 @@
         {
           "name": "dreamsThreadLookbackCount",
           "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "instantInterruptEnabled",
+          "type": "boolean",
           "required": false,
           "nullable": true,
           "const": null

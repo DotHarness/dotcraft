@@ -7059,6 +7059,10 @@ public sealed class WorkspaceConfigUpdateParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> DreamsThreadLookbackCount { get; init; }
 
+    [JsonPropertyName("instantInterruptEnabled")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool?> InstantInterruptEnabled { get; init; }
+
     [JsonPropertyName("memoryEnabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool?> MemoryEnabled { get; init; }
@@ -7127,6 +7131,10 @@ public sealed class WorkspaceConfigUpdateResult : ExtensibleJsonObject
     [JsonPropertyName("dreamsThreadLookbackCount")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> DreamsThreadLookbackCount { get; init; }
+
+    [JsonPropertyName("instantInterruptEnabled")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool?> InstantInterruptEnabled { get; init; }
 
     [JsonPropertyName("memoryEnabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

@@ -113,6 +113,15 @@ internal sealed class AppServerRuntimeConfigRefresher(
             LoadMergedWorkspaceConfig(useGlobalFallback: true).Tools.CodeMode.Mode;
     }
 
+    public void RefreshCurrentInstantInterruptConfig()
+    {
+        if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
+            return;
+
+        appConfigMonitor.Current.InstantInterruptEnabled =
+            LoadMergedWorkspaceConfig(useGlobalFallback: true).InstantInterruptEnabled;
+    }
+
     public void RefreshCurrentReasoningConfig()
     {
         if (appConfigMonitor == null)

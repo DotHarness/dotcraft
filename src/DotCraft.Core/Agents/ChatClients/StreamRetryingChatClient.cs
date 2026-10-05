@@ -209,7 +209,7 @@ internal sealed class StreamRetryingChatClient(
                     failure)
                 : failure;
 
-            if (!retryDelegated)
+            if (!retryDelegated && !cancellationToken.IsCancellationRequested)
             {
                 // Only the tool loop knows whether a delegated failure is terminal.
                 ModelStreamRetryRuntimeScope.Current?.NotifyFailureClassified?.Invoke(
@@ -218,7 +218,10 @@ internal sealed class StreamRetryingChatClient(
                     ModelStreamRetryRuntimeScope.Current?.NotifyFinalFailure?.Invoke(surfaced);
             }
 
-            providerHistoryAttempt.Complete();
+            if (cancellationToken.IsCancellationRequested && !emittedVisibleUpdate)
+                await providerHistoryAttempt.AbortAsync().ConfigureAwait(false);
+            else
+                providerHistoryAttempt.Complete();
             throw surfaced;
         }
     }

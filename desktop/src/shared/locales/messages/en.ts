@@ -270,6 +270,9 @@ export const MESSAGES_EN = {
   'settings.followUpBehavior.queue': 'Queue',
   'settings.followUpBehavior.steer': 'Steer',
   'settings.followUpBehavior.saveFailed': 'Failed to save follow-up behavior: {{error}}',
+  'settings.followUpBehavior.instantInterrupt.label': 'Steer right away',
+  'settings.followUpBehavior.instantInterrupt.description': "If DotCraft hasn't started replying yet, restart with your message instead of waiting.",
+  'settings.followUpBehavior.instantInterrupt.saveFailed': 'Failed to save Steer right away: {{error}}',
   // App / window
   'app.titleWithWorkspace': 'DotCraft — {{name}}',
   'app.brandSubtitle': 'DotCraft',

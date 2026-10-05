@@ -85,6 +85,8 @@ import { canProviderCreateImages } from './panels/imageGeneration/imageGeneratio
 import { useImageGenerationSettings } from './panels/imageGeneration/useImageGenerationSettings'
 import { CodeModeSettingsGroup } from './panels/codeMode/CodeModeSettingsGroup'
 import { useCodeModeSettings, type CodeModeMode } from './panels/codeMode/useCodeModeSettings'
+import { InstantInterruptRow } from './panels/instantInterrupt/InstantInterruptRow'
+import { useInstantInterruptSettings } from './panels/instantInterrupt/useInstantInterruptSettings'
 import {
   DEFAULT_DREAMS_INTERVAL,
   DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT,
@@ -194,6 +196,7 @@ interface WorkspaceCoreConfig {
   toolsImageGenerationEnabled: boolean | null
   toolsImageGenerationProvider: string | null
   toolsCodeModeMode: CodeModeMode | null
+  instantInterruptEnabled: boolean | null
 }
 
 interface WorkspaceCoreConfigResult {
@@ -216,7 +219,8 @@ const EMPTY_WORKSPACE_CORE_CONFIG: WorkspaceCoreConfig = {
   defaultApprovalPolicy: null,
   toolsImageGenerationEnabled: null,
   toolsImageGenerationProvider: null,
-  toolsCodeModeMode: null
+  toolsCodeModeMode: null,
+  instantInterruptEnabled: null
 }
 
 interface ProviderDraft {
@@ -373,7 +377,9 @@ function normalizeWorkspaceCoreConfig(value: unknown): WorkspaceCoreConfig {
     toolsCodeModeMode:
       source.toolsCodeModeMode === 'off' || source.toolsCodeModeMode === 'on' || source.toolsCodeModeMode === 'only'
         ? source.toolsCodeModeMode
-        : null
+        : null,
+    instantInterruptEnabled:
+      typeof source.instantInterruptEnabled === 'boolean' ? source.instantInterruptEnabled : null
   }
 }
 
@@ -684,7 +690,8 @@ export function SettingsView({
     defaultApprovalPolicy: null,
     toolsImageGenerationEnabled: null,
     toolsImageGenerationProvider: null,
-    toolsCodeModeMode: null
+    toolsCodeModeMode: null,
+    instantInterruptEnabled: null
   })
   const [providersManagedRemotely, setProvidersManagedRemotely] = useState(false)
   const [providers, setProviders] = useState<ProviderInfoWire[]>([])
@@ -777,6 +784,7 @@ export function SettingsView({
   })
   const imageGeneration = useImageGenerationSettings(reloadWorkspaceCore)
   const codeMode = useCodeModeSettings(reloadWorkspaceCore)
+  const instantInterrupt = useInstantInterruptSettings(reloadWorkspaceCore)
   const browserUsePlugin = plugins.find((plugin) => plugin.id === 'browser') ?? null
   const browserUsePluginReady = !pluginManagementEnabled || browserUsePlugin?.installed === true
   const selectedProvider = providers.find((provider) => provider.id === selectedProviderId) ?? null
@@ -873,6 +881,9 @@ export function SettingsView({
       providerId: core.workspace.toolsImageGenerationProvider ?? core.userDefaults.toolsImageGenerationProvider ?? ''
     })
     codeMode.applyMode(core.workspace.toolsCodeModeMode ?? core.userDefaults.toolsCodeModeMode ?? 'only')
+    instantInterrupt.applyEnabled(
+      core.workspace.instantInterruptEnabled ?? core.userDefaults.instantInterruptEnabled ?? true
+    )
 
     if (keepDraftValues) {
       return
@@ -2457,6 +2468,7 @@ export function SettingsView({
 
                 <SettingsGroup title={t('settings.group.composer')}>
                   <FollowUpBehaviorRow />
+                  {workspaceCoreApiAvailable && <InstantInterruptRow settings={instantInterrupt} />}
                 </SettingsGroup>
 
                 <CodeModeSettingsGroup settings={codeMode} />
