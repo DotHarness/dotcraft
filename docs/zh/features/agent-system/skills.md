@@ -39,7 +39,7 @@
 
 DotCraft 的技能页面同时搜索本地已安装的技能和 SkillHub、ClawHub 两个外部市场。来源筛选（全部 / 系统 / 个人 / 市场）只影响浏览结果，不改变启用状态。
 
-![技能页面](https://github.com/DotHarness/resources/raw/master/dotcraft/skills.png)
+![技能页面](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/skills.png)
 
 从市场装一个技能：
 
@@ -47,7 +47,7 @@ DotCraft 的技能页面同时搜索本地已安装的技能和 SkillHub、ClawH
 2. 点击 **让 DotCraft 安装**。
 3. DotCraft 启动一个安装 Agent，它检查你的工作区、系统环境和可用工具，必要时生成一份适配本地环境的版本。
 
-![技能市场搜索结果](https://github.com/DotHarness/resources/raw/master/dotcraft/skill-hub.png)
+![技能市场搜索结果](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/skill-hub.png)
 
 <p class="caption">Desktop 通过 DotCraft 安装市场技能并生成本地变体</p>
 
@@ -57,7 +57,7 @@ DotCraft 的技能页面同时搜索本地已安装的技能和 SkillHub、ClawH
 
 通过 **让 DotCraft 安装** 装进来的技能不会被直接改写。Agent 保留原版，另外生成一份针对当前环境优化的变体，之后优先使用当前生效的那份。想回到市场上的原始内容，在技能详情里点 **恢复源文件**。
 
-![技能变体](https://github.com/DotHarness/resources/raw/master/dotcraft/skill_variant.webp)
+![技能变体](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/skill-variant.webp)
 
 自学习带来的优化留了下来，出问题也有一条干净的退路。
 

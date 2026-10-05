@@ -39,7 +39,7 @@ A one-off answer doesn't need a skill.
 
 The Desktop Skills page searches your installed skills and the SkillHub and ClawHub marketplaces at the same time. The source filter (All / System / Personal / Marketplace) changes what you browse, not what is enabled.
 
-![Skills page](https://github.com/DotHarness/resources/raw/master/dotcraft/skills.png)
+![Skills page](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/skills.png)
 
 To install a skill from a marketplace:
 
@@ -47,7 +47,7 @@ To install a skill from a marketplace:
 2. Select **Install with DotCraft**.
 3. DotCraft starts an install agent that inspects your workspace, system, and available tools, and produces a version tuned to your environment when that helps.
 
-![Skill marketplace results](https://github.com/DotHarness/resources/raw/master/dotcraft/skill-hub.png)
+![Skill marketplace results](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/skill-hub.png)
 
 <p class="caption">Installing a market skill through DotCraft and generating a local variant</p>
 
@@ -57,7 +57,7 @@ Market skills land under the workspace's `.craft/skills/`. If a skill of the sam
 
 A skill installed with **Install with DotCraft** is never rewritten in place. The agent keeps the original and generates a variant tuned to your environment, then prefers the active variant from then on. To go back to what the marketplace published, select **Restore original skill** on the skill's detail page.
 
-![Skill variant](https://github.com/DotHarness/resources/raw/master/dotcraft/skill_variant.webp)
+![Skill variant](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/skill-variant.webp)
 
 You keep what self-learning improved, with a clean way back if it goes wrong.
 

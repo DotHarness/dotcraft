@@ -56,6 +56,12 @@ if errorlevel 1 goto :failure
 cd /d "%~dp0"
 if errorlevel 1 goto :failure
 
+if exist android\gradlew.bat (
+    pushd android
+    call .\gradlew.bat --stop >nul 2>&1
+    popd
+)
+
 echo Installing mobile dependencies...
 call npm ci --prefer-offline
 if errorlevel 1 goto :failure
@@ -75,7 +81,7 @@ cd /d "%~dp0android"
 if errorlevel 1 goto :failure
 
 echo Building Android Release APK...
-call .\gradlew.bat assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+call .\gradlew.bat assembleRelease --no-daemon -Pkotlin.compiler.execution.strategy=out-of-process -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
 if errorlevel 1 goto :failure
 
 if not exist "app\build\outputs\apk\release\app-release.apk" (

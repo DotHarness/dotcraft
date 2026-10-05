@@ -2,7 +2,7 @@
 
 安装 DotCraft Desktop、打开项目、走完初始化向导，然后发起第一次对话。四步做完，DotCraft 就能在你的项目里开始工作。
 
-![安装 DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/setup.webp)
+![安装 DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/setup.webp)
 
 ## 1. 安装 Desktop
 
