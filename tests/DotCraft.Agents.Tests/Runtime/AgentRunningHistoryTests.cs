@@ -17,7 +17,8 @@ public sealed class AgentRunningHistoryTests
         var pending = new Queue<ChatMessage>([new(ChatRole.User, "guidance") { MessageId = "input-1" }]);
         using var guidance = StreamingGuidanceRuntimeScope.Set(new StreamingGuidanceRuntimeContext
         {
-            TryDrainGuidanceMessageAsync = _ => Task.FromResult(pending.TryDequeue(out var message) ? message : null)
+            DrainAsync = (boundary, _) => Task.FromResult<IReadOnlyList<ChatMessage>>(
+                boundary == StreamingGuidanceBoundary.AfterTools && pending.TryDequeue(out var message) ? [message] : [])
         });
         var output = new List<ChatResponseUpdate>();
         await foreach (var update in agent.RunStreamingAsync("initial", history))
@@ -41,7 +42,7 @@ public sealed class AgentRunningHistoryTests
         var history = new List<ChatMessage>();
         using var guidance = StreamingGuidanceRuntimeScope.Set(new StreamingGuidanceRuntimeContext
         {
-            TryDrainGuidanceMessageAsync = _ => Task.FromResult<ChatMessage?>(new(ChatRole.User, "guidance"))
+            DrainAsync = AfterToolsGuidance
         });
         await foreach (var _ in agent.RunStreamingAsync("initial", history, new ChatClientAgentRunOptions { HistoryObserver = observer })) { }
         Assert.Empty(history);
@@ -110,10 +111,13 @@ public sealed class AgentRunningHistoryTests
             new(ChatRole.User, [new TextContent("first"), image]) { MessageId = "one", AdditionalProperties = new() { ["original"] = "metadata" } },
             new(ChatRole.User, "second") { MessageId = "two" }
         ]);
-        Task<ChatMessage?> Drain(CancellationToken _) => Task.FromResult(pending.TryDequeue(out var message) ? message : null);
+        Task<IReadOnlyList<ChatMessage>> Drain(StreamingGuidanceBoundary boundary, CancellationToken _) =>
+            Task.FromResult<IReadOnlyList<ChatMessage>>(
+                boundary != StreamingGuidanceBoundary.TurnStart && pending.TryDequeue(out var message) ? [message] : []);
         using var guidance = StreamingGuidanceRuntimeScope.Set(new StreamingGuidanceRuntimeContext
         {
-            TryDrainGuidanceMessageAsync = Drain, TryDrainAnswerBoundaryMessageAsync = Drain
+            DrainAsync = Drain,
+            HasPendingGuidanceAsync = _ => Task.FromResult(pending.Count > 0)
         });
         await foreach (var _ in agent.RunStreamingAsync("initial", history)) { }
         var first = Assert.Single(history, message => message.MessageId == "one");
@@ -147,7 +151,7 @@ public sealed class AgentRunningHistoryTests
         var history = new List<ChatMessage>();
         using var guidance = StreamingGuidanceRuntimeScope.Set(new StreamingGuidanceRuntimeContext
         {
-            TryDrainGuidanceMessageAsync = _ => Task.FromResult<ChatMessage?>(new(ChatRole.User, "guidance"))
+            DrainAsync = AfterToolsGuidance
         });
         await Assert.ThrowsAsync<IOException>(async () =>
         {
@@ -156,6 +160,10 @@ public sealed class AgentRunningHistoryTests
         });
         Assert.Empty(history);
     }
+
+    private static Task<IReadOnlyList<ChatMessage>> AfterToolsGuidance(StreamingGuidanceBoundary boundary, CancellationToken _) =>
+        Task.FromResult<IReadOnlyList<ChatMessage>>(
+            boundary == StreamingGuidanceBoundary.AfterTools ? [new ChatMessage(ChatRole.User, "guidance")] : []);
 
     private sealed class FailingHistoryObserver : IAgentHistoryObserver
     {

@@ -10,6 +10,8 @@ public sealed record StreamingSamplingPreparation(
 {
     /// <summary>The installed neutral replacement before request-local sanitization, when present.</summary>
     public IReadOnlyList<ChatMessage>? NeutralHistoryReplacement { get; init; }
+
+    public Func<IReadOnlyList<ChatMessage>, CancellationToken, Task>? CaptureRequestAsync { get; init; }
 }
 
 /// <summary>Flows Session Core's compaction preparation into the foundation tool loop.</summary>
@@ -46,13 +48,18 @@ public static class StreamingSamplingRuntimeScope
     }
 }
 
+public enum StreamingGuidanceBoundary
+{
+    TurnStart,
+    AfterTools,
+    AnswerBoundary
+}
+
 /// <summary>Provider-neutral callbacks for steerable model/tool-loop boundaries.</summary>
 public sealed class StreamingGuidanceRuntimeContext
 {
-    public required Func<CancellationToken, Task<ChatMessage?>> TryDrainGuidanceMessageAsync { get; init; }
-    public Func<CancellationToken, Task<ChatMessage?>>? TryDrainMailboxMessageAsync { get; init; }
-    public Func<CancellationToken, Task<ChatMessage?>>? TryDrainAnswerBoundaryMessageAsync { get; init; }
-    public Func<CancellationToken, Task<IReadOnlyList<ChatMessage>>>? TryDrainWorldStateMessagesAsync { get; init; }
+    public required Func<StreamingGuidanceBoundary, CancellationToken, Task<IReadOnlyList<ChatMessage>>> DrainAsync { get; init; }
+    public Func<CancellationToken, Task<bool>>? HasPendingGuidanceAsync { get; init; }
 }
 
 /// <summary>Flows Session Core guidance callbacks into the foundation tool loop.</summary>

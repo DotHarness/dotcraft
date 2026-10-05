@@ -3451,6 +3451,7 @@ export const MESSAGES_ES = {
   'context.limit_reached': 'Se alcanzó el límite de token de contexto, compactando la conversación...',
   'context.compacted': 'Contexto compactado exitosamente.',
   'context.compact_skipped': 'Se omitió la compactación del contexto (historial insuficiente).',
+  'system.guidanceBlocked': 'Mensaje bloqueado por un hook: {{reason}}',
   'hub.notification.thread.default': 'DotCraft está listo para su próximo mensaje.',
   'hub.notification.turn_completed.title': 'Tarea DotCraft completada',
   'hub.notification.turn_completed.body': '"{{name}}" terminó.',

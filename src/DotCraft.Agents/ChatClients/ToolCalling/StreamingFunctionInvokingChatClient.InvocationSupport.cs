@@ -4,62 +4,22 @@ namespace DotCraft.Agents;
 
 public sealed partial class StreamingFunctionInvokingChatClient
 {
-    private async Task<bool> TryAppendGuidanceAsync(List<ChatMessage> history, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<ChatMessage>> DrainRunningInputAsync(
+        StreamingGuidanceBoundary boundary,
+        CancellationToken cancellationToken)
     {
         var context = StreamingGuidanceRuntimeScope.Current;
         if (context is null)
-            return false;
-        var message = await context.TryDrainGuidanceMessageAsync(cancellationToken);
-        if (message is null)
-            return false;
-        await AgentHistoryRuntimeScope.AppendAsync([message], cancellationToken);
-        history.Add(message);
-        return true;
+            return [];
+        var messages = await context.DrainAsync(boundary, cancellationToken);
+        if (messages.Count > 0)
+            await AgentHistoryRuntimeScope.AppendAsync(messages, cancellationToken);
+        return messages;
     }
 
-    private static async Task<bool> TryAppendWorldStateAsync(List<ChatMessage> history, CancellationToken cancellationToken)
-    {
-        var callback = StreamingGuidanceRuntimeScope.Current?.TryDrainWorldStateMessagesAsync;
-        if (callback is null)
-            return false;
-        var messages = await callback(cancellationToken);
-        if (messages.Count == 0)
-            return false;
-        await AgentHistoryRuntimeScope.AppendAsync(messages, cancellationToken);
-        history.AddRange(messages);
-        return true;
-    }
-
-    private static async Task<ChatMessage?> TryDrainMailboxAsync(CancellationToken cancellationToken)
-    {
-        var callback = StreamingGuidanceRuntimeScope.Current?.TryDrainMailboxMessageAsync;
-        return callback is null ? null : await callback(cancellationToken);
-    }
-
-    private static async Task<bool> TryAppendMailboxAsync(List<ChatMessage> history, CancellationToken cancellationToken)
-    {
-        var message = await TryDrainMailboxAsync(cancellationToken);
-        if (message is null)
-            return false;
-        await AgentHistoryRuntimeScope.AppendAsync([message], cancellationToken);
-        history.Add(message);
-        return true;
-    }
-
-    private static async Task<bool> TryAppendAnswerBoundaryMessageAsync(
-        List<ChatMessage> history,
-        CancellationToken cancellationToken)
-    {
-        var callback = StreamingGuidanceRuntimeScope.Current?.TryDrainAnswerBoundaryMessageAsync;
-        if (callback is null)
-            return false;
-        var message = await callback(cancellationToken);
-        if (message is null)
-            return false;
-        await AgentHistoryRuntimeScope.AppendAsync([message], cancellationToken);
-        history.Add(message);
-        return true;
-    }
+    private static async Task<bool> HasPendingGuidanceAsync(CancellationToken cancellationToken) =>
+        StreamingGuidanceRuntimeScope.Current?.HasPendingGuidanceAsync is { } callback
+        && await callback(cancellationToken);
 
     private static IReadOnlyList<ChatMessage> CreateHookFeedbackMessages(IReadOnlyList<FunctionInvocationOutcome> results)
     {
@@ -71,7 +31,7 @@ public sealed partial class StreamingFunctionInvokingChatClient
             : [new ChatMessage(ChatRole.User, BuildHookFeedbackReminder(feedback))];
     }
 
-    private static string BuildHookFeedbackReminder(IReadOnlyList<StreamingToolHookFeedback> feedback)
+    internal static string BuildHookFeedbackReminder(IReadOnlyList<StreamingToolHookFeedback> feedback)
     {
         var sections = new List<string>
         {

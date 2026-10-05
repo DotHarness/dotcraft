@@ -25,10 +25,8 @@ public static class TurnGuidanceRuntimeScope
         CurrentContext.Value = context;
         var foundationScope = StreamingGuidanceRuntimeScope.Set(new StreamingGuidanceRuntimeContext
         {
-            TryDrainGuidanceMessageAsync = context.TryDrainGuidanceMessageAsync,
-            TryDrainMailboxMessageAsync = context.TryDrainMailboxMessageAsync,
-            TryDrainAnswerBoundaryMessageAsync = context.TryDrainAnswerBoundaryMessageAsync,
-            TryDrainWorldStateMessagesAsync = context.TryDrainWorldStateMessagesAsync
+            DrainAsync = context.DrainAsync,
+            HasPendingGuidanceAsync = context.HasPendingGuidanceAsync
         });
         var toolObserverScope = StreamingToolInvocationRuntimeScope.Set(
             new SessionStreamingToolInvocationObserver());
@@ -59,20 +57,9 @@ public sealed class TurnGuidanceRuntimeContext
 
     public required string TurnId { get; init; }
 
-    public required Func<CancellationToken, Task<ChatMessage?>> TryDrainGuidanceMessageAsync { get; init; }
+    public required Func<StreamingGuidanceBoundary, CancellationToken, Task<IReadOnlyList<ChatMessage>>> DrainAsync { get; init; }
 
-    /// <summary>
-    /// Optional callback that drains passive mailbox input at pre-sampling and tool boundaries.
-    /// </summary>
-    public Func<CancellationToken, Task<ChatMessage?>>? TryDrainMailboxMessageAsync { get; init; }
-
-    /// <summary>
-    /// Optional callback used after assistant final output. It returns input only when
-    /// explicit guidance reopens the current turn.
-    /// </summary>
-    public Func<CancellationToken, Task<ChatMessage?>>? TryDrainAnswerBoundaryMessageAsync { get; init; }
-
-    public Func<CancellationToken, Task<IReadOnlyList<ChatMessage>>>? TryDrainWorldStateMessagesAsync { get; init; }
+    public Func<CancellationToken, Task<bool>>? HasPendingGuidanceAsync { get; init; }
 
     /// <summary>
     /// Optional callback invoked after a tool handler has actually run and produced

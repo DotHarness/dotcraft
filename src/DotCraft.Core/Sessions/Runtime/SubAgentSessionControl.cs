@@ -211,7 +211,7 @@ public enum SubAgentFollowupDeliveryMode
 public static partial class SubAgentSessionControl
 {
     private static readonly TimeSpan CloseAgentCancellationWait = TimeSpan.FromSeconds(5);
-    private const string SubAgentFollowupTriggerKind = "subagentFollowupTask";
+    internal const string SubAgentFollowupTriggerKind = "subagentFollowupTask";
     private const string SubAgentInputTriggerKind = "subagentInput";
 
     private sealed class RunningChild(
