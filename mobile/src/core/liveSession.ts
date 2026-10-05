@@ -68,8 +68,14 @@ function entriesOf(state: MobileState, chats: (computer: ComputerState) => ChatS
   })
 }
 
+function updated(entry: Entry): number {
+  return Date.parse(entry.chat.updatedAt ?? '') || 0
+}
+
 function liveEntries(state: MobileState): Entry[] {
-  return entriesOf(state, (computer) => runningChats(computer).filter((chat) => isLive(stateOf(chat))))
+  return entriesOf(state, (computer) => runningChats(computer).filter((chat) => isLive(stateOf(chat)))).sort(
+    (left, right) => updated(right) - updated(left),
+  )
 }
 
 function heldKey({ computerId, chat }: Entry): string {

@@ -1,4 +1,5 @@
 import * as Network from 'expo-network'
+import { useRouter } from 'expo-router'
 import { createContext, useContext, useEffect, useSyncExternalStore, type ReactNode } from 'react'
 import { AppState } from 'react-native'
 import type { ComputerLink } from '../core/computerLink'
@@ -44,6 +45,13 @@ export function useMobileState(): MobileState {
 
 export function ComputerProvider({ computerId, children }: { computerId: string; children: ReactNode }) {
   const state = useMobileState()
+  const router = useRouter()
+  const gone = state.hydrated && !state.computers[computerId]
+  useEffect(() => {
+    if (!gone) return
+    if (router.canDismiss()) router.dismissAll()
+    else router.replace('/')
+  }, [gone, router])
   if (!state.computers[computerId]) return null
   return <ComputerContext.Provider value={computerId}>{children}</ComputerContext.Provider>
 }
