@@ -606,12 +606,16 @@ function MarketSkillItem({ skill, onOpen }: { skill: MarketSkillSummary; onOpen:
         <div style={rowTitle}>{skill.name}</div>
         <div style={rowDesc}>{skill.description || skill.slug}</div>
       </div>
-      <span style={marketAction(skill, active)}>
+      <span style={statusIcon}>
         {skill.updateAvailable
           ? t('skillMarket.updateAvailable')
           : skill.installed
-            ? t('skillMarket.installed')
-            : <Plus size={16} aria-hidden />}
+            ? <Check size={16} aria-label={t('skillMarket.installed')} />
+            : (
+              <span style={marketAction(active)}>
+                <Plus size={16} aria-hidden />
+              </span>
+            )}
       </span>
     </button>
   )
@@ -875,32 +879,18 @@ const rowTitleLine: React.CSSProperties = catalogStyles.rowTitleLine
 const rowDesc: React.CSSProperties = catalogStyles.rowDesc
 const statusIcon: React.CSSProperties = catalogStyles.statusIcon
 
-function marketAction(skill: MarketSkillSummary, rowActive: boolean): React.CSSProperties {
-  if (!skill.installed && !skill.updateAvailable) {
-    return {
-      ...statusIcon,
-      width: 30,
-      height: 30,
-      minWidth: 30,
-      alignItems: 'center',
-      borderRadius: 999,
-      background: rowActive
-        ? 'color-mix(in srgb, var(--text-primary) 9%, var(--bg-tertiary))'
-        : 'var(--bg-tertiary)',
-      color: 'var(--text-primary)',
-      transition: 'background-color 120ms ease'
-    }
-  }
-
+function marketAction(rowActive: boolean): React.CSSProperties {
   return {
     ...statusIcon,
-    minHeight: 28,
-    padding: '0 10px',
+    width: 30,
+    height: 30,
+    minWidth: 30,
+    alignItems: 'center',
     borderRadius: 999,
     background: rowActive
       ? 'color-mix(in srgb, var(--text-primary) 9%, var(--bg-tertiary))'
       : 'var(--bg-tertiary)',
-    color: skill.updateAvailable ? 'var(--warning)' : 'var(--success)',
+    color: 'var(--text-primary)',
     transition: 'background-color 120ms ease'
   }
 }
