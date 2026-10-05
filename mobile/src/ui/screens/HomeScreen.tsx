@@ -53,7 +53,7 @@ function ComputerChips() {
   const state = useMobileState()
   const session = useSession()
   const { colors } = useTheme()
-  if (state.order.length < 2) return null
+  if (state.order.length === 0) return null
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow} contentContainerStyle={styles.chips}>
       {state.order.map((id) => {
@@ -89,7 +89,9 @@ function IdentityChanged() {
   const { computer } = useComputer()
   return (
     <View style={styles.identity}>
-      <MascotNote moment="wary">{t('identity.note', { computer: computer.name })}</MascotNote>
+      <View>
+        <MascotNote moment="wary">{t('identity.note', { computer: computer.name })}</MascotNote>
+      </View>
       <PhoneButton variant="danger" onPress={() => void session.removeComputer(computer.id)}>
         {t('identity.remove', { computer: computer.name })}
       </PhoneButton>
@@ -160,7 +162,7 @@ function ComputerHome() {
     return project ? projectTitle(project, t) : ''
   }
   const openChat = (key: string) => router.push(chatHref(computer.id, key))
-  const menuLabel = t('home.computerMenu', { computer: computer.name })
+  const menuLabel = t('home.menu')
   const lastProject = projectsByRecentUse(state)[0]
   const canStart = status === 'online' && Boolean(lastProject)
   const closeSearch = () => {
@@ -209,7 +211,7 @@ function ComputerHome() {
               <Mascot moment={computerMoment(status, waiting)} size={40} style={styles.avatar} />
               <View style={styles.computerText}>
                 <Txt numberOfLines={1} style={styles.computerName}>
-                  {computer.name}
+                  DotCraft
                 </Txt>
                 <ComputerStatusLine status={status} updatedAt={state.syncedAt} />
               </View>
@@ -353,7 +355,7 @@ const styles = StyleSheet.create({
     borderRadius: metrics.pill,
   },
   dot: { width: 7, height: 7, borderRadius: 4 },
-  identity: { gap: 16, paddingTop: 24 },
+  identity: { flexGrow: 1, justifyContent: 'center', gap: 16, paddingBottom: 48 },
   lists: { flexGrow: 1, marginTop: -12 },
   search: {
     flex: 1,

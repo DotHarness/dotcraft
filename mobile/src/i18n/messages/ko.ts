@@ -25,7 +25,7 @@ export const MESSAGES_KO: Catalog = {
   'home.recent': '최근 채팅',
   'home.search': '채팅 검색',
   'home.newChat': '새 채팅',
-  'home.computerMenu': '{{computer}} 옵션',
+  'home.menu': '옵션',
 
   'project.chats': '채팅',
   'project.notRunning': '실행 중 아님',

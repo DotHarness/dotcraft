@@ -25,7 +25,7 @@ export const MESSAGES_FR: Catalog = {
   'home.recent': 'Discussions récentes',
   'home.search': 'Rechercher des discussions',
   'home.newChat': 'Nouvelle discussion',
-  'home.computerMenu': 'Options de {{computer}}',
+  'home.menu': 'Options',
 
   'project.chats': 'Discussions',
   'project.notRunning': 'Arrêté',

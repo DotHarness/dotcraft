@@ -23,7 +23,7 @@ export const MESSAGES_EN = {
   'home.recent': 'Recent chats',
   'home.search': 'Search chats',
   'home.newChat': 'New chat',
-  'home.computerMenu': 'Options for {{computer}}',
+  'home.menu': 'Options',
 
   'project.chats': 'Chats',
   'project.notRunning': 'Not running',

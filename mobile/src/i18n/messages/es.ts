@@ -25,7 +25,7 @@ export const MESSAGES_ES: Catalog = {
   'home.recent': 'Chats recientes',
   'home.search': 'Buscar chats',
   'home.newChat': 'Nuevo chat',
-  'home.computerMenu': 'Opciones de {{computer}}',
+  'home.menu': 'Opciones',
 
   'project.chats': 'Chats',
   'project.notRunning': 'No se está ejecutando',

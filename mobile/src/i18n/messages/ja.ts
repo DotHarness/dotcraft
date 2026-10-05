@@ -25,7 +25,7 @@ export const MESSAGES_JA: Catalog = {
   'home.recent': '最近のチャット',
   'home.search': 'チャットを検索',
   'home.newChat': '新しいチャット',
-  'home.computerMenu': '{{computer}} のオプション',
+  'home.menu': 'オプション',
 
   'project.chats': 'チャット',
   'project.notRunning': '実行されていません',

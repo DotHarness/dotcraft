@@ -25,7 +25,7 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'home.recent': '最近聊天',
   'home.search': '搜索聊天',
   'home.newChat': '新聊天',
-  'home.computerMenu': '{{computer}} 选项',
+  'home.menu': '选项',
 
   'project.chats': '聊天',
   'project.notRunning': '未运行',
