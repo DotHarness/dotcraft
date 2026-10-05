@@ -261,21 +261,18 @@
 .dc-products {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: 24px 16px;
 }
 
 .dc-product {
   display: flex;
   flex-direction: column;
-  padding: 12px 16px 18px;
-  border: 1px solid var(--border-default);
-  border-radius: 12px;
-  background: var(--bg-secondary);
-  transition: background-color var(--duration-fast) ease;
+  align-items: center;
+  transition: transform var(--duration-fast) ease;
 }
 
 .dc-product:hover {
-  background: var(--bg-hover);
+  transform: translateY(-3px);
 }
 
 .dc-product__art {
@@ -284,39 +281,61 @@
   aspect-ratio: 540 / 470;
 }
 
+.dc-product__label {
+  width: 87.4%;
+  margin-top: -13%;
+  padding: 18px 20px 20px;
+  border-radius: 20px;
+  background: #ffffff;
+  color: #15161b;
+  box-shadow: 0 0 0 4px #ffffff, 0 0 0 5px rgba(16, 22, 40, 0.1), 0 2px 2px rgba(16, 22, 40, 0.14), 0 12px 20px -6px rgba(16, 22, 40, 0.22);
+  font-family: var(--dc-display);
+  transform: rotate(var(--tilt));
+}
+
 .dc-product__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 10px;
 }
 
 .dc-product__name {
-  font-size: var(--type-body-size);
-  font-weight: 600;
-  line-height: 20px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
 }
 
 .dc-product__get {
   flex-shrink: 0;
-  padding: 2px 8px;
+  padding: 4px 10px 5px;
   border-radius: 999px;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  font-size: var(--type-hint-size);
-  line-height: 18px;
+  background: var(--tag);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
   white-space: nowrap;
 }
 
 .dc-product__hint {
-  margin-top: 4px;
-  color: var(--text-secondary);
-  font-size: var(--type-ui-size);
-  line-height: 20px;
+  display: block;
+  margin-top: 8px;
+  color: #474d59;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.35;
+  min-height: 2.7em;
+  text-wrap: pretty;
 }
 
 @media (max-width: 980px) {
+  .dc-products {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .dc-why {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -357,7 +376,9 @@
 
 @media (max-width: 640px) {
   .dc-products {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 360px;
+    margin-inline: auto;
   }
 
   .dc-row {

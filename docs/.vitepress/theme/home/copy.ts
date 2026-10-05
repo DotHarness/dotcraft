@@ -22,6 +22,7 @@ export interface Story {
 }
 
 export interface Product {
+  id: ProductId
   label: string
   hint: string
   get: string
@@ -60,10 +61,10 @@ const productHrefs = {
   sdks: '/developing/sdks/'
 }
 
-type ProductId = 'desktop' | 'mobile' | 'cli' | 'satellite' | 'oratorio' | 'chat-bots' | 'harness' | 'sdks' | 'avatar'
+export type ProductId = 'desktop' | 'mobile' | 'cli' | 'satellite' | 'oratorio' | 'chat-bots' | 'harness' | 'sdks' | 'avatar'
 
 function products(rows: [ProductId, string, string, string, string][]): Product[] {
-  return rows.map(([id, label, hint, get, href]) => ({ label, hint, get, href, art: `${raw}dotcraft/docs/product-${id}.webp` }))
+  return rows.map(([id, label, hint, get, href]) => ({ id, label, hint, get, href, art: `${raw}dotcraft/docs/product-${id}.webp` }))
 }
 
 export const homeCopy = {
