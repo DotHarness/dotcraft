@@ -281,7 +281,6 @@
 .oratorio-native-settings.is-readonly .oratorio-native-settings__content button:not(.ora-sync-action button) { pointer-events: none; opacity: .62; }
 .oratorio-native-settings.is-readonly .ora-sync-action button { pointer-events: auto; opacity: 1; }
 .oratorio-native-settings .production-settings-catalog__settings-shell { height: 100%; min-height: 0; }
-.oratorio-native-settings__content { width: min(100% - 48px, 820px); margin-inline: auto; padding: 28px 0 40px; }
 .oratorio-native-settings__row-control,
 .ora-provider-identity,
 .ora-settings__label { display: inline-flex; align-items: center; gap: 9px; }
@@ -372,7 +371,6 @@
   .ora-stage__copy { width: fit-content; max-width: 100%; min-height: 32px; justify-items: start; }
   .ora-facts { grid-template-columns: 1fr; }
   .ora-facts > div:nth-child(odd) { padding-right: 0; }
-  .oratorio-native-settings__content { width: min(100% - 28px, 820px); padding-block: 20px 32px; }
   .ora-field-control { width: 100%; justify-items: stretch; }
   .ora-field-control__input { width: 100%; justify-content: flex-start; }
   .ora-label-editor,
