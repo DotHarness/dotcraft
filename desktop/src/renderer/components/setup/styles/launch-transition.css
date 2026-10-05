@@ -58,9 +58,12 @@
 }
 
 .workspace-launch-transition--welcome-to-center .workspace-launch-transition__logo,
-.workspace-launch-transition--setup-handoff .workspace-launch-transition__logo,
-.workspace-launch-transition--setup-complete-to-center .workspace-launch-transition__logo {
+.workspace-launch-transition--setup-handoff .workspace-launch-transition__logo {
   animation: logo-handoff-move 620ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.workspace-launch-transition--setup-complete-to-center .workspace-launch-transition__logo {
+  visibility: hidden;
 }
 
 /* The centred rect is always the 96px base size, so `center` rests exactly where `top left` does. */
@@ -121,6 +124,20 @@
   filter: var(--dotcraft-logo-shadow);
 }
 
-.workspace-setup-logo-handoff--move .workspace-setup-logo-handoff__logo {
-  animation: logo-handoff-move 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+.workspace-setup-logo-hop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50001;
+  transform-origin: center bottom;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.workspace-setup-logo-hop__logo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: var(--dotcraft-logo-shadow);
 }

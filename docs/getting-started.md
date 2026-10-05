@@ -14,13 +14,13 @@ Releases also carries the Android [phone app](./features/entry-points/mobile). P
 
 Select **Open Workspace** and choose the folder that holds your project. DotCraft opens the workspace setup wizard.
 
-If this machine already has a Claude Code configuration, the wizard adds a step that imports it. Skip that step if you'd rather start clean.
+If the folder already has Claude Code project instructions nearby, the wizard adds a step that imports them. Choose **Start without instructions** if you'd rather start clean.
 
 ## 3. Configure a model
 
-Choose a model provider and model in the wizard. Enter an API key when the provider requires one, or choose **ChatGPT subscription** and sign in when the wizard asks. To change models later, go back to Settings or ask `$dotcraft-guide` in a conversation to switch for you.
+Under **Model access**, pick a provider you've already saved, or connect a new one: **Sign in with ChatGPT**, an OpenAI or Anthropic API key, or another OpenAI-compatible service. Then pick a model. To change models later, go back to Settings or ask `$dotcraft-guide` in a conversation to switch for you.
 
-Check the summary on the last page, then select **Create Workspace**.
+The outline on the left shows what you've chosen so far, and you can select any finished step to change it. When everything looks right, select **Create workspace**.
 
 ## 4. Start your first conversation
 

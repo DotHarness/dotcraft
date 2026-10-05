@@ -98,9 +98,9 @@ The client exposes four user-visible connection states:
   - optional capability-gated surfaces such as skills, automations, or model catalog
 - If no thread exists, the client presents an empty ready state that clearly allows starting a new conversation.
 
-During first-time workspace setup, provider model discovery uses the DotCraft backend model catalog rather than Desktop-owned model constants or direct provider-specific HTTP parsing. Existing providers are resolved by id; unsaved provider drafts are passed to the backend over stdin so credentials do not enter process arguments or logs. ChatGPT subscription setup completes OAuth in the wizard before requesting the account-scoped catalog. The wizard preserves a user's explicit model selection across refreshes, requires reselection when it disappears, and treats backend cache or bundled results as the only fallback source.
+During first-time workspace setup, provider model discovery uses the DotCraft backend model catalog rather than Desktop-owned model constants or direct provider-specific HTTP parsing. Existing providers are resolved by id; unsaved provider drafts are passed to the backend over stdin so credentials do not enter process arguments or logs. ChatGPT subscription setup completes OAuth in the wizard before requesting the account-scoped catalog. The wizard keeps the selected model when a refreshed catalog still lists it, otherwise selects the personal default model or the first listed model, and treats backend cache or bundled results as the only fallback source.
 
-The setup wizard's future-default choice controls configuration scope. When disabled, the selected provider and complete model preference are persisted as explicit workspace overrides even when they equal the current personal defaults, so later personal-default changes do not affect the workspace. When enabled, setup updates the personal provider and preference defaults and removes equivalent workspace overrides so the workspace inherits them. Provider credentials remain personal in both cases.
+The setup wizard's future-default choice controls configuration scope; it starts enabled for a new connection and disabled for a saved provider. When disabled, the selected provider and complete model preference are persisted as explicit workspace overrides even when they equal the current personal defaults, so later personal-default changes do not affect the workspace. When enabled, setup updates the personal provider and preference defaults and removes equivalent workspace overrides so the workspace inherits them. Provider credentials remain personal in both cases.
 
 ### 3.4 Reconnection
 
@@ -343,9 +343,12 @@ That starting point's heading names the foreground project and offers switching 
 
 - If a selected folder has no `.craft/config.json`, Desktop may show a guided setup flow before connecting to AppServer.
 - The setup flow is local to Desktop and the `dotcraft setup` command; it must not depend on AppServer provider-management RPCs because the workspace is not connected yet.
-- Provider setup offers only the actions needed to initialize a usable workspace: select an existing explicit provider, create a provider from an `OpenAI-Responses` or `Anthropic` template, or create a custom provider.
+- Desktop setup walks through folder and interface language, project instructions (only when a migration source exists), model access, and model. An outline beside the steps shows each choice made so far and reopens any step whose earlier steps are complete; there is no separate review step, and the last step creates the workspace.
+- Model access lists each saved explicit personal provider individually, preselecting the personal default. New connections are Sign in with ChatGPT, an OpenAI API key, an Anthropic API key, or another OpenAI-compatible service. New connections stay collapsed behind one action when saved providers exist.
+- Sign in with ChatGPT completes OAuth before the model step opens and creates a `chatgptOAuth` provider with id `chatgpt`, suffixed when that id is taken. API-key connections require a key; their endpoint, timeout, and provider id sit under an advanced disclosure. Another service requires a name and an http(s) endpoint, keeps the key optional, defaults its API format to `openai-responses`, and derives its provider id from the name unless the user edits it.
+- Model choice uses the shared model picker, including reasoning and speed, and falls back to manual entry when the catalog is unavailable.
 - Desktop guided setup must require a provider and model before creating the workspace. CLI setup may still expose skip-provider behavior for advanced automation scenarios.
-- Desktop provider protocol terminology uses `OpenAI-Responses`, `OpenAI-Legacy`, and `Anthropic`. `OpenAI-Responses` writes `openai-responses`; `OpenAI-Legacy` writes the canonical `openai-chat-completions` value.
+- Settings provider terminology uses `OpenAI-Responses`, `OpenAI-Legacy`, and `Anthropic`. `OpenAI-Responses` writes `openai-responses`; `OpenAI-Legacy` writes the canonical `openai-chat-completions` value.
 - Setup shows only explicit personal providers.
 - Provider credentials and endpoints are saved to personal provider config. Workspace setup writes only provider/model selection overrides for provider-aware setup.
 - Model listing and provider probing are advisory. If listing fails or is unsupported, setup must keep manual model entry available.
@@ -973,8 +976,9 @@ Required behavior:
 
 #### 6.7.3 ChatGPT account controls
 
-The provider editor and setup wizard offer API-key and ChatGPT authentication. OAuth replaces
-key/endpoint fields with sign-in/out controls; pending authorization exposes a copyable URL.
+The provider editor offers API-key and ChatGPT authentication, and workspace setup offers Sign in
+with ChatGPT as its own connection. OAuth replaces key/endpoint fields with sign-in/out controls;
+pending authorization exposes a copyable URL.
 Authenticated providers load the account model catalog, while missing credentials and catalog
 failures offer sign-in and retry. Saving uses host-owned account metadata.
 

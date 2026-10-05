@@ -21,6 +21,7 @@
 @import "../components/detail/styles/automation-viewer-tab.css";
 @import "../components/setup/styles/navigation.css";
 @import "../components/setup/styles/wizard.css";
+@import "../components/setup/styles/workspace-setup.css";
 @import "../components/setup/styles/welcome.css";
 @import "../components/setup/styles/launch-transition.css";
 @import "../components/channels/styles/channel-catalog-item.css";

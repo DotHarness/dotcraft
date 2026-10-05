@@ -4,8 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { WorkspaceSetupInterstitial } from '../components/WorkspaceSetupInterstitial'
 import { WorkspaceSetupWizard } from '../components/WorkspaceSetupWizard'
 import { LocaleProvider } from '../contexts/LocaleContext'
-import type { WorkspaceStatusPayload } from '../../preload/api.d'
-import type { ModelPreference } from '../../shared/modelPreference'
+import type { WorkspaceSetupProviderSummary, WorkspaceStatusPayload } from '../../preload/api.d'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
@@ -13,61 +12,73 @@ const runSetup = vi.fn()
 const listSetupModels = vi.fn()
 const loginSetupChatGpt = vi.fn()
 
-function renderWizard(workspaceStatus: WorkspaceStatusPayload, onChooseDifferentWorkspace = vi.fn()) {
+const anthropicProvider: WorkspaceSetupProviderSummary = {
+  id: 'anthropic',
+  displayName: 'Anthropic',
+  protocol: 'anthropic',
+  hasApiKey: true,
+  endPoint: 'https://api.anthropic.com',
+  networkTimeoutSeconds: null
+}
+
+const openAiProvider: WorkspaceSetupProviderSummary = {
+  id: 'openai',
+  displayName: 'OpenAI',
+  protocol: 'openai-responses',
+  hasApiKey: true,
+  endPoint: 'https://api.openai.com/v1',
+  networkTimeoutSeconds: null
+}
+
+function status(overrides: Partial<WorkspaceStatusPayload> = {}): WorkspaceStatusPayload {
+  return {
+    status: 'needs-setup',
+    workspacePath: 'X:\\fixtures\\workspace',
+    hasUserConfig: false,
+    providers: [],
+    ...overrides
+  }
+}
+
+function renderWizard(
+  workspaceStatus: WorkspaceStatusPayload,
+  props: Partial<Parameters<typeof WorkspaceSetupWizard>[0]> = {}
+) {
   return render(
     <LocaleProvider>
       <WorkspaceSetupWizard
         workspacePath="X:\\fixtures\\workspace"
         workspaceStatus={workspaceStatus}
-        onChooseDifferentWorkspace={onChooseDifferentWorkspace}
-        onCancel={() => {}}
-      />
-    </LocaleProvider>
-  )
-}
-
-function renderInterstitial(isOpening = false, onStart = vi.fn()) {
-  return render(
-    <LocaleProvider>
-      <WorkspaceSetupInterstitial
-        workspacePath="X:\\fixtures\\workspace"
-        isOpening={isOpening}
-        onStart={onStart}
         onChooseDifferentWorkspace={() => {}}
+        onCancel={() => {}}
+        {...props}
       />
     </LocaleProvider>
   )
 }
 
-async function openConfigStep(): Promise<void> {
-  fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-  await waitFor(() => {
-    const control = screen.getByLabelText('Model')
-    expect(['BUTTON', 'INPUT']).toContain(control.tagName)
-  })
+function primary(name: string): HTMLElement {
+  return screen.getByRole('button', { name })
 }
 
-async function findManualModelInput(): Promise<HTMLInputElement> {
+async function continueStep(): Promise<void> {
+  fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+}
+
+async function create(): Promise<void> {
+  const button = await screen.findByRole('button', { name: 'Create workspace' })
+  await waitFor(() => expect(button).not.toBeDisabled())
+  fireEvent.click(button)
+}
+
+function apiKeyInput(): HTMLElement {
+  return screen.getByLabelText('API key', { selector: 'input' })
+}
+
+async function manualModelInput(): Promise<HTMLInputElement> {
   return waitFor(() => {
-    const control = screen.getByLabelText('Model')
-    expect(control.tagName).toBe('INPUT')
+    const control = screen.getByLabelText('Model', { selector: 'input' })
     return control as HTMLInputElement
-  })
-}
-
-function preference(model: string): ModelPreference {
-  return {
-    model,
-    reasoning: { enabled: false, effort: 'medium', output: 'full' },
-    speed: 'standard',
-  }
-}
-
-async function createWorkspace(): Promise<void> {
-  fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Create Workspace' }))
-  await waitFor(() => {
-    expect(runSetup).toHaveBeenCalled()
   })
 }
 
@@ -77,499 +88,233 @@ describe('WorkspaceSetupWizard', () => {
     settingsGet.mockResolvedValue({ locale: 'en' })
     settingsSet.mockResolvedValue(undefined)
     runSetup.mockResolvedValue(undefined)
-    listSetupModels.mockResolvedValue({ kind: 'unsupported' })
+    listSetupModels.mockResolvedValue({ kind: 'success', models: [{ id: 'gpt-5.6' }] })
     loginSetupChatGpt.mockResolvedValue({ kind: 'success' })
 
     installDesktopApiMock({
-      settings: {
-        get: settingsGet,
-        set: settingsSet
-      },
-      workspace: {
-        listSetupModels,
-        loginSetupChatGpt,
-        runSetup
-      }
+      settings: { get: settingsGet, set: settingsSet },
+      workspace: { listSetupModels, loginSetupChatGpt, runSetup }
     })
   })
 
-  it('shows the interstitial as a short setup wizard entry and disables actions while opening', () => {
+  it('starts setup from the interstitial and disables it while opening', () => {
     const onStart = vi.fn()
-    renderInterstitial(false, onStart)
-
-    expect(screen.getByText("This workspace hasn't finished DotCraft setup")).toBeInTheDocument()
-    expect(screen.getByText('Current workspace')).toBeInTheDocument()
+    render(
+      <LocaleProvider>
+        <WorkspaceSetupInterstitial workspacePath="X:\\fixtures\\workspace" isOpening={false} onStart={onStart} onChooseDifferentWorkspace={() => {}} />
+      </LocaleProvider>
+    )
     fireEvent.click(screen.getByRole('button', { name: /Start workspace setup/ }))
     expect(onStart).toHaveBeenCalledTimes(1)
 
-    renderInterstitial(true, onStart)
-    const openingButton = screen.getAllByRole('button', { name: /Start workspace setup/ }).at(-1)!
-    expect(openingButton).toBeDisabled()
-  })
-
-  it('lets the first wizard step change folders from the read-only workspace card', () => {
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'X:\\fixtures\\workspace',
-      hasUserConfig: false,
-      providers: []
-    }
-    const onChooseDifferentWorkspace = vi.fn()
-
-    renderWizard(status, onChooseDifferentWorkspace)
-    fireEvent.click(screen.getByRole('button', { name: 'Change folder' }))
-
-    expect(onChooseDifferentWorkspace).toHaveBeenCalledTimes(1)
-  })
-
-  it('allows returning to completed steps from the stepper but keeps future steps locked', async () => {
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'X:\\fixtures\\workspace',
-      hasUserConfig: false,
-      providers: []
-    }
-
-    renderWizard(status)
-    const currentStep = screen.getByRole('button', { name: 'Confirm workspace' })
-    expect(currentStep).toHaveAttribute('aria-current', 'step')
-    expect(screen.getByText('Step 1 of 3')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Configure model provider' })).toBeDisabled()
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-    const previousStep = screen.getByRole('button', { name: 'Confirm workspace' })
-    expect(previousStep).not.toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Configure model provider' })).toHaveAttribute('aria-current', 'step')
-    expect(screen.getByText('Step 2 of 3')).toBeInTheDocument()
-
-    fireEvent.click(previousStep)
-    expect(screen.getByRole('button', { name: 'Confirm workspace' })).toHaveAttribute('aria-current', 'step')
-  })
-
-  it('selects an existing explicit provider and saves only provider id and model', async () => {
-    listSetupModels.mockResolvedValue({
-      kind: 'success',
-      models: [{ id: 'claude-sonnet-4-5' }]
-    })
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'X:\\fixtures\\workspace',
-      hasUserConfig: true,
-      userConfigDefaults: {
-        providerId: 'anthropic',
-        model: 'claude-opus-4-5'
-      },
-      providers: [
-        {
-          id: 'anthropic',
-          displayName: 'Anthropic',
-          protocol: 'anthropic',
-          hasApiKey: true,
-          endPoint: 'https://api.anthropic.com',
-          networkTimeoutSeconds: null
-        }
-      ]
-    }
-
-    renderWizard(status)
-    await openConfigStep()
-
-    expect(await screen.findByLabelText('Provider')).toHaveValue('anthropic')
-    expect(listSetupModels).toHaveBeenCalledWith({ providerId: 'anthropic' })
-    expect(await screen.findByLabelText('Model')).toHaveValue('claude-sonnet-4-5')
-
-    await createWorkspace()
-
-    expect(runSetup).toHaveBeenCalledWith({
-      model: 'claude-sonnet-4-5',
-      preference: preference('claude-sonnet-4-5'),
-      providerMode: 'existing',
-      providerId: 'anthropic',
-      setAsUserDefault: false
-    })
-  })
-
-  it('offers a detected CLAUDE.md import before provider setup', async () => {
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'X:\\fixtures\\workspace',
-      hasUserConfig: true,
-      userConfigDefaults: {
-        providerId: 'anthropic',
-        model: 'claude-sonnet-4-5'
-      },
-      providers: [
-        {
-          id: 'anthropic',
-          displayName: 'Anthropic',
-          protocol: 'anthropic',
-          hasApiKey: true,
-          endPoint: 'https://api.anthropic.com',
-          networkTimeoutSeconds: null
-        }
-      ],
-      bootstrapImportSources: [
-        {
-          id: 'claude',
-          fileName: 'CLAUDE.md',
-          path: 'X:\\fixtures\\workspace\\CLAUDE.md',
-          relativePath: 'CLAUDE.md'
-        }
-      ]
-    }
-
-    renderWizard(status)
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-    expect(screen.getByRole('radio', { name: /Claude Code/ })).toHaveAttribute('aria-checked', 'true')
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-    await waitFor(() => {
-      expect(screen.queryByText('Loading available models...')).not.toBeInTheDocument()
-    })
-    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-
-    expect(screen.getByText('Imported config')).toBeInTheDocument()
-    expect(screen.getByText('Claude Code - CLAUDE.md')).toBeInTheDocument()
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Create Workspace' }))
-    await waitFor(() => {
-      expect(runSetup).toHaveBeenCalled()
-    })
-    expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({
-      bootstrapImportSourceId: 'claude'
-    }))
-  })
-
-  it('creates an Anthropic template provider with default id anthropic', async () => {
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'X:\\fixtures\\workspace',
-      hasUserConfig: false,
-      providers: []
-    }
-
-    renderWizard(status)
-    await openConfigStep()
-
-    fireEvent.click(screen.getByRole('button', { name: /Anthropic/ }))
-    expect(screen.getByLabelText('API endpoint')).toHaveValue('https://api.anthropic.com')
-
-    const modelInput = await findManualModelInput()
-    expect(modelInput).toHaveValue('')
-    fireEvent.change(modelInput, { target: { value: 'claude-sonnet-4-5' } })
-
-    await createWorkspace()
-
-    expect(runSetup).toHaveBeenCalledWith({
-      model: 'claude-sonnet-4-5',
-      preference: preference('claude-sonnet-4-5'),
-      providerMode: 'create',
-      provider: {
-        id: 'anthropic',
-        displayName: 'Anthropic',
-        protocol: 'anthropic',
-        apiKey: '',
-        endPoint: 'https://api.anthropic.com',
-        networkTimeoutSeconds: null,
-        authMethod: 'apiKey'
-      },
-      setAsUserDefault: true
-    })
-  })
-
-  it('allows an OpenAI-Responses template provider to keep the endpoint blank', async () => {
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'X:\\fixtures\\workspace',
-      hasUserConfig: false,
-      providers: []
-    }
-
-    renderWizard(status)
-    await openConfigStep()
-
-    fireEvent.change(screen.getByLabelText('API endpoint'), { target: { value: '' } })
-    fireEvent.change(await findManualModelInput(), { target: { value: 'gpt-4.1' } })
-    await createWorkspace()
-
-    expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({
-      providerMode: 'create',
-      provider: expect.objectContaining({
-        protocol: 'openai-responses',
-        endPoint: ''
-      })
-    }))
-  })
-
-  it('allows a custom OpenAI-Legacy provider to emit the chat completions protocol', async () => {
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'X:\\fixtures\\workspace',
-      hasUserConfig: false,
-      providers: []
-    }
-
-    renderWizard(status)
-    await openConfigStep()
-
-    fireEvent.click(screen.getByRole('button', { name: /Custom/ }))
-    const protocolSelect = await screen.findByRole('combobox', { name: 'Protocol' })
-    expect(protocolSelect).toHaveTextContent('OpenAI-Responses')
-    fireEvent.click(protocolSelect)
-    fireEvent.click(await screen.findByRole('option', { name: 'OpenAI-Legacy' }))
-    fireEvent.change(await findManualModelInput(), { target: { value: 'gpt-4.1' } })
-
-    await createWorkspace()
-
-    expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({
-      providerMode: 'create',
-      provider: expect.objectContaining({
-        id: 'provider',
-        protocol: 'openai-chat-completions'
-      })
-    }))
-  })
-
-  it('clears chatgptOAuth when a custom provider switches off the Responses protocol', async () => {
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'X:\\fixtures\\workspace',
-      hasUserConfig: false,
-      providers: []
-    }
-
-    renderWizard(status)
-    await openConfigStep()
-
-    fireEvent.click(screen.getByRole('button', { name: /Custom/ }))
-
-    // Pick Sign in with ChatGPT on the (default) Responses protocol.
-    fireEvent.click(await screen.findByRole('radio', { name: /Sign in with ChatGPT/ }))
-
-    // Now move the custom provider off Responses; the OAuth selection must be cleared so the
-    // saved payload stays consistent with the new protocol.
-    const protocolSelect = await screen.findByRole('combobox', { name: 'Protocol' })
-    fireEvent.click(protocolSelect)
-    fireEvent.click(await screen.findByRole('option', { name: 'OpenAI-Legacy' }))
-
-    fireEvent.change(await findManualModelInput(), { target: { value: 'gpt-4.1' } })
-    await createWorkspace()
-
-    expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({
-      provider: expect.objectContaining({
-        protocol: 'openai-chat-completions',
-        authMethod: 'apiKey'
-      })
-    }))
-  })
-
-  it('logs in for ChatGPT setup and reloads the backend model catalog', async () => {
-    let loggedIn = false
-    listSetupModels.mockImplementation(async (request) => {
-      if (request.provider?.authMethod !== 'chatgptOAuth') return { kind: 'unsupported' }
-      return loggedIn
-        ? { kind: 'success', models: [{ id: 'gpt-5.6' }, { id: 'gpt-5.5' }] }
-        : { kind: 'auth-required' }
-    })
-    loginSetupChatGpt.mockImplementation(async () => {
-      loggedIn = true
-      return { kind: 'success' }
-    })
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: '/workspace/demo',
-      hasUserConfig: false,
-      providers: []
-    }
-
-    renderWizard(status)
-    await openConfigStep()
-    fireEvent.click(screen.getByRole('button', { name: /Custom/ }))
-    fireEvent.click(await screen.findByRole('radio', { name: /Sign in with ChatGPT/ }))
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }))
-
-    await waitFor(() => expect(loginSetupChatGpt).toHaveBeenCalledWith('provider'))
-    await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('gpt-5.6'))
-  })
-
-  it('falls back to a suffixed Anthropic id when anthropic already exists', async () => {
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'X:\\fixtures\\workspace',
-      hasUserConfig: true,
-      providers: [
-        {
-          id: 'anthropic',
-          displayName: 'Anthropic Work',
-          protocol: 'anthropic',
-          hasApiKey: true,
-          endPoint: 'https://api.anthropic.com',
-          networkTimeoutSeconds: null
-        }
-      ]
-    }
-
-    renderWizard(status)
-    await openConfigStep()
-
-    fireEvent.click(screen.getByRole('button', { name: /Anthropic/ }))
-    fireEvent.change(await findManualModelInput(), { target: { value: 'claude-sonnet-4-5' } })
-    await createWorkspace()
-
-    expect(runSetup.mock.calls[0][0].provider.id).toBe('anthropic-2')
-  })
-
-  it('requires a model and does not expose skip provider setup', async () => {
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'X:\\fixtures\\workspace',
-      hasUserConfig: false,
-      providers: []
-    }
-
-    renderWizard(status)
-    await openConfigStep()
-
-    expect(screen.queryByRole('button', { name: /Skip for now/ })).not.toBeInTheDocument()
-    expect(screen.queryByText('Skip for now')).not.toBeInTheDocument()
-
-    const nextButton = screen.getByRole('button', { name: 'Next' })
-    expect(nextButton).toBeDisabled()
-
-    fireEvent.change(await findManualModelInput(), { target: { value: 'gpt-4.1' } })
-
-    expect(nextButton).not.toBeDisabled()
-    fireEvent.click(nextButton)
-    expect(screen.getByRole('button', { name: 'Confirm and create' })).toHaveAttribute('aria-current', 'step')
-  })
-
-  it('passes the DotCraft logo to the setup completion handoff', async () => {
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'X:\\fixtures\\workspace',
-      hasUserConfig: false,
-      providers: []
-    }
-    const onRunSetup = vi.fn().mockResolvedValue(undefined)
-
     render(
       <LocaleProvider>
-        <WorkspaceSetupWizard
-          workspacePath="X:\\fixtures\\workspace"
-          workspaceStatus={status}
-          onRunSetup={onRunSetup}
-          onChooseDifferentWorkspace={() => {}}
-          onCancel={() => {}}
-        />
+        <WorkspaceSetupInterstitial workspacePath="X:\\fixtures\\workspace" isOpening onStart={onStart} onChooseDifferentWorkspace={() => {}} />
       </LocaleProvider>
     )
+    expect(screen.getAllByRole('button', { name: /Start workspace setup/ }).at(-1)).toBeDisabled()
+  })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-    await waitFor(() => {
-      expect(screen.queryByText('Loading available models...')).not.toBeInTheDocument()
-    })
-    fireEvent.change(await findManualModelInput(), { target: { value: 'gpt-4.1' } })
-    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Create Workspace' }))
+  it('lets the first section change folders and cancel the wizard', () => {
+    const onChooseDifferentWorkspace = vi.fn()
+    const onCancel = vi.fn()
+    renderWizard(status(), { onChooseDifferentWorkspace, onCancel })
 
-    await waitFor(() => {
-      expect(onRunSetup).toHaveBeenCalled()
-    })
-    expect(onRunSetup.mock.calls[0][0]).toEqual(expect.objectContaining({
+    fireEvent.click(screen.getByRole('button', { name: 'Change folder' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(onChooseDifferentWorkspace).toHaveBeenCalledTimes(1)
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('creates the workspace with a saved provider and keeps the workspace override', async () => {
+    listSetupModels.mockResolvedValue({ kind: 'success', models: [{ id: 'claude-sonnet-4-5' }] })
+    renderWizard(status({
+      hasUserConfig: true,
+      providers: [openAiProvider, anthropicProvider],
+      userConfigDefaults: { providerId: 'anthropic', model: 'claude-opus-4-5' }
+    }))
+
+    await continueStep()
+    expect(screen.getByRole('radio', { name: /^Anthropic/ })).toHaveAttribute('aria-checked', 'true')
+    await continueStep()
+    await create()
+
+    await waitFor(() => expect(runSetup).toHaveBeenCalledOnce())
+    expect(listSetupModels).toHaveBeenCalledWith({ providerId: 'anthropic' })
+    expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({
+      providerMode: 'existing',
+      providerId: 'anthropic',
+      model: 'claude-sonnet-4-5',
+      setAsUserDefault: false
+    }))
+  })
+
+  it('submits another saved provider when it is chosen', async () => {
+    renderWizard(status({ hasUserConfig: true, providers: [openAiProvider, anthropicProvider] }))
+
+    await continueStep()
+    fireEvent.click(screen.getByRole('radio', { name: /^OpenAI/ }))
+    await continueStep()
+    await create()
+
+    await waitFor(() => expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({
+      providerMode: 'existing',
+      providerId: 'openai'
+    })))
+  })
+
+  it('requires an API key before an OpenAI connection can continue and saves it as a new provider', async () => {
+    renderWizard(status())
+
+    await continueStep()
+    fireEvent.click(screen.getByRole('radio', { name: /^OpenAI API key/ }))
+    expect(primary('Continue')).toBeDisabled()
+    fireEvent.change(apiKeyInput(), { target: { value: ' sk-test ' } })
+    await continueStep()
+    await create()
+
+    await waitFor(() => expect(runSetup).toHaveBeenCalledOnce())
+    expect(listSetupModels).toHaveBeenCalledWith({ provider: expect.objectContaining({ id: 'openai', apiKey: 'sk-test' }) })
+    expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({
       providerMode: 'create',
-      model: 'gpt-4.1',
+      model: 'gpt-5.6',
+      setAsUserDefault: true,
       provider: expect.objectContaining({
         id: 'openai',
-        protocol: 'openai-responses'
+        protocol: 'openai-responses',
+        authMethod: 'apiKey',
+        apiKey: 'sk-test',
+        endPoint: 'https://api.openai.com/v1'
       })
     }))
-    expect(decodeURIComponent(onRunSetup.mock.calls[0][1].logoSrc)).toContain("<title id='title'>DotCraft</title>")
-    expect(onRunSetup.mock.calls[0][1].logoRect).toEqual(expect.objectContaining({
-      width: expect.any(Number),
-      height: expect.any(Number)
-    }))
+  })
+
+  it('gives a new Anthropic connection a unique id next to a saved one', async () => {
+    renderWizard(status({ hasUserConfig: true, providers: [anthropicProvider] }))
+
+    await continueStep()
+    fireEvent.click(screen.getByRole('button', { name: 'Connect something else' }))
+    fireEvent.click(screen.getByRole('radio', { name: /^Anthropic API key/ }))
+    fireEvent.change(apiKeyInput(), { target: { value: 'sk-ant-test' } })
+    await continueStep()
+    await create()
+
+    await waitFor(() => expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({
+      providerMode: 'create',
+      provider: expect.objectContaining({ id: 'anthropic-2', protocol: 'anthropic', apiKey: 'sk-ant-test' })
+    })))
+  })
+
+  it('creates another service with a derived id and the Responses format by default', async () => {
+    listSetupModels.mockResolvedValue({ kind: 'unsupported' })
+    renderWizard(status())
+
+    await continueStep()
+    fireEvent.click(screen.getByRole('radio', { name: /^Another service/ }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'My Router' } })
+    fireEvent.change(screen.getByLabelText(/^Endpoint/), { target: { value: 'not a url' } })
+    expect(primary('Continue')).toBeDisabled()
+    fireEvent.change(screen.getByLabelText(/^Endpoint/), { target: { value: 'https://router.example/v1' } })
+    await continueStep()
+    fireEvent.change(await manualModelInput(), { target: { value: 'router-model' } })
+    await create()
+
+    await waitFor(() => expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({
+      providerMode: 'create',
+      model: 'router-model',
+      provider: expect.objectContaining({
+        id: 'my-router',
+        displayName: 'My Router',
+        protocol: 'openai-responses',
+        endPoint: 'https://router.example/v1',
+        apiKey: '',
+        networkTimeoutSeconds: null
+      })
+    })))
+  })
+
+  it('requires a model before the workspace can be created', async () => {
+    listSetupModels.mockResolvedValue({ kind: 'missing-key' })
+    renderWizard(status({ hasUserConfig: true, providers: [openAiProvider] }))
+
+    await continueStep()
+    await continueStep()
+    const input = await manualModelInput()
+    expect(input).toHaveValue('')
+    expect(primary('Create workspace')).toBeDisabled()
+
+    fireEvent.change(input, { target: { value: 'gpt-4.1' } })
+    await create()
+
+    await waitFor(() => expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({ model: 'gpt-4.1' })))
+  })
+
+  it('falls back to manual model entry when the catalog request fails', async () => {
+    listSetupModels.mockRejectedValue(new Error('backend failed'))
+    renderWizard(status({ hasUserConfig: true, providers: [openAiProvider] }))
+
+    await continueStep()
+    await continueStep()
+    fireEvent.change(await manualModelInput(), { target: { value: 'gpt-4.1' } })
+    await create()
+
+    await waitFor(() => expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({ model: 'gpt-4.1' })))
+  })
+
+  it('imports detected project instructions unless the user opts out', async () => {
+    const withImport = status({
+      hasUserConfig: true,
+      providers: [openAiProvider],
+      bootstrapImportSources: [{ id: 'claude', fileName: 'CLAUDE.md', path: 'X:\\fixtures\\CLAUDE.md', relativePath: '../CLAUDE.md' }]
+    })
+    const { unmount } = renderWizard(withImport)
+    await continueStep()
+    await continueStep()
+    await continueStep()
+    await create()
+    await waitFor(() => expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({ bootstrapImportSourceId: 'claude' })))
+    unmount()
+
+    runSetup.mockClear()
+    renderWizard(withImport)
+    await continueStep()
+    fireEvent.click(screen.getByRole('radio', { name: /^Start without instructions/ }))
+    await continueStep()
+    await continueStep()
+    await create()
+    await waitFor(() => expect(runSetup).toHaveBeenCalledOnce())
+    expect(runSetup.mock.calls[0][0]).not.toHaveProperty('bootstrapImportSourceId')
+  })
+
+  it('hands the logo position and image to the completion handler', async () => {
+    const onRunSetup = vi.fn().mockResolvedValue(undefined)
+    renderWizard(status({ hasUserConfig: true, providers: [openAiProvider] }), { onRunSetup })
+
+    await continueStep()
+    await continueStep()
+    await create()
+
+    await waitFor(() => expect(onRunSetup).toHaveBeenCalledOnce())
+    expect(onRunSetup.mock.calls[0][1]).toEqual({
+      logoRect: expect.objectContaining({ width: expect.any(Number), height: expect.any(Number) }),
+      logoSrc: expect.any(String)
+    })
     expect(runSetup).not.toHaveBeenCalled()
   })
 
-  it('keeps manual model entry available when model list is unavailable', async () => {
-    listSetupModels.mockResolvedValue({ kind: 'missing-key' })
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'X:\\fixtures\\workspace',
-      hasUserConfig: false,
-      providers: []
-    }
+  it('shows a setup failure and lets the user try again', async () => {
+    const onRunSetup = vi.fn()
+      .mockRejectedValueOnce(new Error('config is read-only'))
+      .mockResolvedValueOnce(undefined)
+    renderWizard(status({ hasUserConfig: true, providers: [openAiProvider] }), { onRunSetup })
 
-    renderWizard(status)
-    await openConfigStep()
+    await continueStep()
+    await continueStep()
+    await create()
 
-    const modelControl = await waitFor(() => {
-      const control = screen.getByLabelText('Model')
-      expect(control.tagName).toBe('INPUT')
-      return control
-    })
-    expect(modelControl).toHaveValue('')
-    expect(screen.getByText('Model list unavailable. Enter a model manually.')).toBeInTheDocument()
-  })
-
-  it('ends loading after a model catalog rejection and retries successfully', async () => {
-    listSetupModels
-      .mockRejectedValueOnce(new Error('backend failed'))
-      .mockResolvedValueOnce({ kind: 'success', models: [{ id: 'gpt-5.6' }, { id: 'gpt-5.5' }] })
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: '/workspace/demo',
-      hasUserConfig: false,
-      providers: []
-    }
-
-    renderWizard(status)
-    await openConfigStep()
-
-    expect(screen.getByLabelText('Model')).toBeInTheDocument()
-    expect(screen.queryByText('Loading available models...')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-
-    await waitFor(() => expect(listSetupModels).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('gpt-5.6'))
-  })
-
-  it('ignores a rejected model request after switching providers', async () => {
-    let rejectExisting!: (error: Error) => void
-    listSetupModels.mockImplementation((request) => {
-      if ('providerId' in request) {
-        return new Promise((_resolve, reject) => {
-          rejectExisting = reject
-        })
-      }
-      return Promise.resolve({ kind: 'success', models: [{ id: 'claude-sonnet-4-5' }] })
-    })
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: '/workspace/demo',
-      hasUserConfig: true,
-      providers: [{
-        id: 'existing-provider',
-        displayName: 'Existing Provider',
-        protocol: 'openai-responses',
-        hasApiKey: true,
-        endPoint: 'https://example.invalid/v1',
-        networkTimeoutSeconds: null
-      }]
-    }
-
-    renderWizard(status)
-    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-    await waitFor(() => expect(listSetupModels).toHaveBeenCalledWith({ providerId: 'existing-provider' }))
-
-    fireEvent.click(screen.getByRole('button', { name: /Anthropic/ }))
-    await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('claude-sonnet-4-5'))
-    rejectExisting(new Error('stale request failed'))
-
-    await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('claude-sonnet-4-5'))
-    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('config is read-only')
+    await create()
+    await waitFor(() => expect(onRunSetup).toHaveBeenCalledTimes(2))
   })
 })

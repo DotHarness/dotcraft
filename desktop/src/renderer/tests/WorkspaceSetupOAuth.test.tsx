@@ -10,21 +10,25 @@ const runSetup = vi.fn()
 const provider = { id: 'subscription', displayName: 'Subscription', protocol: 'openai-responses',
   authMethod: 'chatgptOAuth', endPoint: '', hasApiKey: false, networkTimeoutSeconds: null } as const
 
-async function mount(existing = true) {
+function mount(existing: boolean) {
   render(<LocaleProvider><WorkspaceSetupWizard workspacePath="C:/test-workspace"
     workspaceStatus={{ status: 'needs-setup', workspacePath: 'C:/test-workspace', hasUserConfig: existing,
       providers: existing ? [provider] : [] }} onChooseDifferentWorkspace={() => {}} onCancel={() => {}} />
   </LocaleProvider>)
-  fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-  await screen.findByLabelText('Model')
 }
-async function submit() {
-  fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Create Workspace' }))
+
+async function continueStep() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Continue' }))
+}
+
+async function create() {
+  const button = await screen.findByRole('button', { name: 'Create workspace' })
+  await waitFor(() => expect(button).not.toBeDisabled())
+  fireEvent.click(button)
   await waitFor(() => expect(runSetup).toHaveBeenCalledOnce())
 }
 
-describe('Setup ChatGPT subscription', () => {
+describe('Setup ChatGPT sign-in', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     listSetupModels.mockResolvedValue({ kind: 'success', models: [{ id: 'account-model' }] })
@@ -34,37 +38,61 @@ describe('Setup ChatGPT subscription', () => {
       workspace: { listSetupModels, loginSetupChatGpt, runSetup } })
   })
 
-  it('uses an authenticated existing provider without another login and submits its model', async () => {
-    await mount()
-    await waitFor(() => expect(screen.getByLabelText('Model').tagName).toBe('BUTTON'))
+  it('uses an authenticated saved provider without another sign-in', async () => {
+    mount(true)
+    await continueStep()
+    await continueStep()
     expect(screen.queryByRole('button', { name: 'Sign in' })).not.toBeInTheDocument()
-    await submit()
+    await create()
     expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({ providerMode: 'existing', providerId: 'subscription', model: 'account-model' }))
     expect(loginSetupChatGpt).not.toHaveBeenCalled()
   })
 
-  it('logs in a new draft, shows the model picker, and saves only on final submission', async () => {
-    let authenticated = false
-    listSetupModels.mockImplementation(async (request) => request.provider?.authMethod === 'chatgptOAuth'
-      ? authenticated ? { kind: 'success', models: [{ id: 'account-model' }] } : { kind: 'auth-required' }
-      : { kind: 'unsupported' })
-    loginSetupChatGpt.mockImplementation(async () => { authenticated = true; return { kind: 'success' } })
-    await mount(false)
-    fireEvent.click(await screen.findByRole('button', { name: /Custom/ }))
-    fireEvent.click(await screen.findByRole('radio', { name: /Sign in with ChatGPT/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }))
-    await waitFor(() => expect(screen.getByLabelText('Model').tagName).toBe('BUTTON'))
+  it('signs a new ChatGPT connection in before the model step and saves it only on create', async () => {
+    mount(false)
+    await continueStep()
+    expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    await waitFor(() => expect(loginSetupChatGpt).toHaveBeenCalledWith('chatgpt'))
+    await waitFor(() => expect(listSetupModels).toHaveBeenCalledWith({
+      provider: expect.objectContaining({ id: 'chatgpt', authMethod: 'chatgptOAuth' })
+    }))
     expect(runSetup).not.toHaveBeenCalled()
-    await submit()
-    expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({ providerMode: 'create', model: 'account-model', provider: expect.objectContaining({ authMethod: 'chatgptOAuth' }) }))
+    await create()
+    expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({
+      providerMode: 'create',
+      model: 'account-model',
+      setAsUserDefault: true,
+      provider: expect.objectContaining({ id: 'chatgpt', protocol: 'openai-responses', authMethod: 'chatgptOAuth', apiKey: '' })
+    }))
   })
 
-  it('keeps sign-in retry available and reports authorization failure separately', async () => {
-    listSetupModels.mockResolvedValue({ kind: 'auth-required' })
+  it('reports a failed sign-in and keeps sign-in available', async () => {
     loginSetupChatGpt.mockResolvedValue({ kind: 'error', errorMessage: 'Authorization cancelled' })
-    await mount()
-    fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }))
+    mount(false)
+    await continueStep()
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+
     expect(await screen.findByRole('alert')).toHaveTextContent('Authorization cancelled')
     expect(screen.getByRole('button', { name: 'Sign in' })).not.toBeDisabled()
+    expect(listSetupModels).not.toHaveBeenCalled()
+  })
+
+  it('signs a saved provider in again when its catalog needs authorization', async () => {
+    let authenticated = false
+    listSetupModels.mockImplementation(async () => authenticated
+      ? { kind: 'success', models: [{ id: 'account-model' }] }
+      : { kind: 'auth-required' })
+    loginSetupChatGpt.mockImplementation(async () => { authenticated = true; return { kind: 'success' } })
+    mount(true)
+    await continueStep()
+    await continueStep()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }))
+
+    await waitFor(() => expect(loginSetupChatGpt).toHaveBeenCalledWith('subscription'))
+    await create()
+    expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({ providerMode: 'existing', providerId: 'subscription', model: 'account-model' }))
   })
 })

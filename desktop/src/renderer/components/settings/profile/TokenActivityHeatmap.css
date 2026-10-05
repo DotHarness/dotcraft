@@ -69,11 +69,8 @@
   }
 
   .setup-interstitial--opening .setup-interstitial-content,
-  .setup-wizard-logo-anchor,
   .setup-stepper-row,
   .setup-wizard-step-panel,
-  .workspace-setup-nav-button--back,
-  .workspace-setup-nav-button--next,
   .welcome-screen--opening .welcome-language-switcher,
   .welcome-screen--opening .welcome-screen-background,
   .workspace-launch-transition__scrim,
@@ -86,11 +83,6 @@
   .welcome-screen--opening .welcome-screen-background,
   .setup-interstitial--opening .setup-interstitial-content {
     opacity: 0;
-    transform: none;
-  }
-
-  .workspace-setup-nav-button--back,
-  .workspace-setup-nav-button--next {
     transform: none;
   }
 

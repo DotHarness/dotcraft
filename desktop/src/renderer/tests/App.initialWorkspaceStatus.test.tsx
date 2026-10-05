@@ -86,11 +86,36 @@ vi.mock('../components/WelcomeScreen', () => ({
 }))
 
 vi.mock('../components/WorkspaceSetupInterstitial', () => ({
-  WorkspaceSetupInterstitial: () => <div data-testid="setup-interstitial" />
+  WorkspaceSetupInterstitial: ({ onStart, logoAnchorRef }: {
+    onStart: () => void
+    logoAnchorRef?: (node: HTMLDivElement | null) => void
+  }) => (
+    <div data-testid="setup-interstitial" ref={logoAnchorRef}>
+      <button type="button" onClick={onStart}>Start setup</button>
+    </div>
+  )
 }))
 
 vi.mock('../components/WorkspaceSetupWizard', () => ({
-  WorkspaceSetupWizard: () => <div data-testid="setup-wizard" />
+  WorkspaceSetupWizard: ({ deferContent, logoAnchorRef, onRunSetup }: {
+    deferContent?: boolean
+    logoAnchorRef?: (node: HTMLDivElement | null) => void
+    onRunSetup?: (request: unknown, context: unknown) => Promise<unknown>
+  }) => (
+    <div data-testid="setup-wizard" data-defer={deferContent ? 'true' : 'false'} ref={logoAnchorRef}>
+      <button
+        type="button"
+        onClick={() => {
+          void onRunSetup?.(
+            { model: 'gpt-5.6', providerMode: 'existing', providerId: 'openai', setAsUserDefault: false },
+            { logoRect: { left: 40, top: 40, width: 48, height: 48 }, logoSrc: 'logo.svg' }
+          )
+        }}
+      >
+        Create workspace
+      </button>
+    </div>
+  )
 }))
 
 vi.mock('../components/ErrorScreen', () => ({
@@ -560,6 +585,42 @@ describe('App initial workspace status bootstrap', () => {
     const { getByTestId } = renderApp()
 
     expect(getByTestId('setup-interstitial')).toBeInTheDocument()
+  })
+
+  it('reveals the setup wizard while the logo hops into it', async () => {
+    installApi(needsSetupWorkspaceStatus, {
+      workspaceGetStatus: vi.fn().mockResolvedValue(needsSetupWorkspaceStatus)
+    })
+
+    const { container } = renderApp()
+    fireEvent.click(screen.getByRole('button', { name: 'Start setup' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('setup-wizard')).toHaveAttribute('data-defer', 'false')
+      expect(container.querySelector('.workspace-setup-logo-hop')).toBeInTheDocument()
+    })
+    await waitFor(() => {
+      expect(container.querySelector('.workspace-setup-logo-hop')).not.toBeInTheDocument()
+    }, { timeout: 2000 })
+    expect(screen.getByTestId('setup-wizard')).toHaveAttribute('data-defer', 'false')
+  })
+
+  it('moves to preparing once the completion hop lands', async () => {
+    installApi(needsSetupWorkspaceStatus, {
+      workspaceGetStatus: vi.fn().mockResolvedValue(needsSetupWorkspaceStatus)
+    })
+
+    const { container } = renderApp()
+    fireEvent.click(screen.getByRole('button', { name: 'Start setup' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Create workspace' }))
+
+    expect(container.querySelector('.workspace-launch-transition--setup-complete-to-center')).toBeInTheDocument()
+    expect(container.querySelector('.workspace-setup-logo-hop')).toBeInTheDocument()
+    expect(window.api.workspace.runSetup).toHaveBeenCalledWith(expect.objectContaining({ providerId: 'openai' }))
+    await waitFor(() => {
+      expect(container.querySelector('.workspace-launch-transition--preparing')).toBeInTheDocument()
+    }, { timeout: 5000 })
+    expect(container.querySelector('.workspace-setup-logo-hop')).not.toBeInTheDocument()
   })
 
   it('renders the connecting launch transition on the first render for a restored ready workspace', () => {
