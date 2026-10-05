@@ -314,11 +314,6 @@ public sealed record TurnDiffUpdatedPayload
 /// </summary>
 public sealed record SystemEventPayload
 {
-    /// <summary>
-    /// System event kind. One of: "compactWarning", "compactError",
-    /// "compacting", "compacted", "compactSkipped", "compactFailed",
-    /// "streamError".
-    /// </summary>
     public required string Kind { get; init; }
 
     /// <summary>

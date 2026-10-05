@@ -55,12 +55,12 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         {
             ThreadId = "thread_1",
             TurnId = "turn_1",
-            TryDrainGuidanceMessageAsync = _ =>
+            DrainAsync = (boundary, _) =>
             {
-                if (drained)
-                    return Task.FromResult<ChatMessage?>(null);
+                if (drained || boundary != StreamingGuidanceBoundary.AfterTools)
+                    return NoRunningInput();
                 drained = true;
-                return Task.FromResult<ChatMessage?>(new ChatMessage(ChatRole.User, "guidance text"));
+                return RunningInput(new ChatMessage(ChatRole.User, "guidance text"));
             }
         });
 
@@ -202,7 +202,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         {
             ThreadId = "thread_1",
             TurnId = "turn_1",
-            TryDrainGuidanceMessageAsync = _ => Task.FromResult<ChatMessage?>(null),
+            DrainAsync = (_, _) => NoRunningInput(),
             OnToolHandlerFinishedAsync = (toolName, callId, _) =>
             {
                 callbacks.Add((toolName, callId));
@@ -234,7 +234,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         {
             ThreadId = "thread_1",
             TurnId = "turn_1",
-            TryDrainGuidanceMessageAsync = _ => Task.FromResult<ChatMessage?>(null),
+            DrainAsync = (_, _) => NoRunningInput(),
             OnToolHandlerFinishedAsync = (_, _, _) =>
             {
                 callbacks++;
@@ -263,7 +263,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         {
             ThreadId = "thread_1",
             TurnId = "turn_1",
-            TryDrainGuidanceMessageAsync = _ => Task.FromResult<ChatMessage?>(null),
+            DrainAsync = (_, _) => NoRunningInput(),
             OnToolHandlerFinishedAsync = (_, _, _) =>
             {
                 callbacks++;
@@ -299,13 +299,12 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         {
             ThreadId = "thread_1",
             TurnId = "turn_1",
-            TryDrainGuidanceMessageAsync = _ => Task.FromResult<ChatMessage?>(null),
-            TryDrainMailboxMessageAsync = _ =>
+            DrainAsync = (boundary, _) =>
             {
-                if (drained)
-                    return Task.FromResult<ChatMessage?>(null);
+                if (drained || boundary != StreamingGuidanceBoundary.TurnStart)
+                    return NoRunningInput();
                 drained = true;
-                return Task.FromResult<ChatMessage?>(new ChatMessage(ChatRole.User, notification));
+                return RunningInput(new ChatMessage(ChatRole.User, notification));
             }
         });
 
@@ -323,23 +322,25 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     {
         var inner = new SingleReplyFakeChatClient();
         var client = new StreamingFunctionInvokingChatClient(inner);
-        var mailboxChecks = 0;
+        var boundaries = new List<StreamingGuidanceBoundary>();
 
         using var scope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
         {
             ThreadId = "thread_1",
             TurnId = "turn_1",
-            TryDrainGuidanceMessageAsync = _ => Task.FromResult<ChatMessage?>(null),
-            TryDrainMailboxMessageAsync = _ =>
+            DrainAsync = (boundary, _) =>
             {
-                mailboxChecks++;
-                return Task.FromResult<ChatMessage?>(null);
-            }
+                boundaries.Add(boundary);
+                return boundary == StreamingGuidanceBoundary.TurnStart
+                    ? NoRunningInput()
+                    : RunningInput(new ChatMessage(ChatRole.User, "late mail"));
+            },
+            HasPendingGuidanceAsync = _ => Task.FromResult(false)
         });
 
         await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
 
-        Assert.Equal(1, mailboxChecks);
+        Assert.Equal([StreamingGuidanceBoundary.TurnStart], boundaries);
         Assert.Single(inner.Calls);
     }
 
@@ -354,14 +355,14 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         {
             ThreadId = "thread_1",
             TurnId = "turn_1",
-            TryDrainGuidanceMessageAsync = _ => Task.FromResult<ChatMessage?>(null),
-            TryDrainAnswerBoundaryMessageAsync = _ =>
+            DrainAsync = (boundary, _) =>
             {
-                if (reopened)
-                    return Task.FromResult<ChatMessage?>(null);
+                if (reopened || boundary != StreamingGuidanceBoundary.AnswerBoundary)
+                    return NoRunningInput();
                 reopened = true;
-                return Task.FromResult<ChatMessage?>(new ChatMessage(ChatRole.User, "explicit guidance and pending mail"));
-            }
+                return RunningInput(new ChatMessage(ChatRole.User, "explicit guidance and pending mail"));
+            },
+            HasPendingGuidanceAsync = _ => Task.FromResult(!reopened)
         });
 
         await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
@@ -598,18 +599,20 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             MaximumGuidanceContinuationsPerRequest = 2
         };
         var drains = 0;
-        Task<ChatMessage?> DrainGuidance(CancellationToken _)
+        Task<IReadOnlyList<ChatMessage>> DrainGuidance(StreamingGuidanceBoundary boundary, CancellationToken _)
         {
+            if (boundary == StreamingGuidanceBoundary.TurnStart)
+                return NoRunningInput();
             drains++;
-            return Task.FromResult<ChatMessage?>(new ChatMessage(ChatRole.User, $"guidance {drains}"));
+            return RunningInput(new ChatMessage(ChatRole.User, $"guidance {drains}"));
         }
 
         using var scope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
         {
             ThreadId = "thread_1",
             TurnId = "turn_1",
-            TryDrainGuidanceMessageAsync = DrainGuidance,
-            TryDrainAnswerBoundaryMessageAsync = DrainGuidance
+            DrainAsync = DrainGuidance,
+            HasPendingGuidanceAsync = _ => Task.FromResult(true)
         });
 
         await foreach (var _ in client.GetStreamingResponseAsync(
@@ -1186,6 +1189,12 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             Item = item
         });
     }
+
+    private static Task<IReadOnlyList<ChatMessage>> NoRunningInput() =>
+        Task.FromResult<IReadOnlyList<ChatMessage>>([]);
+
+    private static Task<IReadOnlyList<ChatMessage>> RunningInput(params ChatMessage[] messages) =>
+        Task.FromResult<IReadOnlyList<ChatMessage>>(messages);
 
     private static async Task<List<ChatResponseUpdate>> CollectAsync(IAsyncEnumerable<ChatResponseUpdate> updates)
     {

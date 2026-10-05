@@ -2723,6 +2723,7 @@ export const MESSAGES_ZH_HANS = {
   'context.limit_reached': '上下文 token 已达到限制，正在压缩会话...',
   'context.compacted': '上下文压缩完成。',
   'context.compact_skipped': '上下文压缩已跳过（历史记录不足）。',
+  'system.guidanceBlocked': '消息已被 hook 拦截：{{reason}}',
   'hub.notification.thread.default': 'DotCraft 已准备好接收下一条消息。',
   'hub.notification.turn_completed.title': 'DotCraft 任务已完成',
   'hub.notification.turn_completed.body': '“{{name}}” 已完成。',

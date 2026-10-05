@@ -231,10 +231,36 @@ public sealed class SessionServiceNativeCompactionTests : IDisposable
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("check status")]));
         Assert.Single(_provider.Compactions);
         Assert.Contains("tool-result-tail", JsonSerializer.Serialize(_provider.Compactions.Single().Input));
-        AssertContainsOnce(JsonSerializer.Serialize(_provider.Compactions.Single().Input), "steered-user-tail");
+        Assert.DoesNotContain("steered-user-tail", JsonSerializer.Serialize(_provider.Compactions.Single().Input));
         Assert.Single(_provider.CompactHistories.Single(), AgentInstructionsHistory.IsInstructions);
         Assert.Contains("encrypted-test", _provider.Requests[^1]);
         Assert.DoesNotContain("tool-result-tail", _provider.Requests[^1]);
+        AssertContainsOnce(_provider.Requests[^1], "steered-user-tail");
+    }
+
+    [Fact]
+    public async Task ReactiveCompaction_CoversSteerAdmittedBeforeTheRejectedRequest()
+    {
+        await using var factory = CreateFactory();
+        SessionService? service = null;
+        const string threadId = "reactive-guidance";
+        var agent = factory.CreateAgentWithTools(
+            [AIFunctionFactory.Create(async () =>
+            {
+                await service!.SteerTurnAsync(threadId, "turn_001", [new TextContent("steered-before-overflow")]);
+                _provider.OverflowNextRequest = true;
+                return "tool-result";
+            }, name: "GetStatus")], null, factory.RuntimeContext, "Use the status tool.");
+        service = new SessionService(factory, agent,
+            new SessionPersistenceService(new ThreadStore(_workspace)), new SessionGate());
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
+        }, threadId: threadId);
+        _provider.ToolNextResponse = true;
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("check status")]));
+        Assert.Single(_provider.Compactions);
+        AssertContainsOnce(JsonSerializer.Serialize(_provider.Compactions.Single().Input), "steered-before-overflow");
     }
 
     [Fact]

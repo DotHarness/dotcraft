@@ -1,3 +1,5 @@
+using DotCraft.Agents;
+using DotCraft.Hooks;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions.Wire;
 
@@ -5,48 +7,171 @@ namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {
-    private async Task<ChatMessage?> AdmitGuidanceInputAsync(
-        SessionThread thread, SessionTurn turn, SessionEventChannel eventChannel,
+    private sealed record PreparedGuidance(
+        QueuedTurnInput Input, IList<AIContent> Content, string DisplayText, HookResult Hook);
+
+    private static bool IsPendingGuidance(QueuedTurnInput input, string turnId) =>
+        string.Equals(input.Status, "guidancePending", StringComparison.Ordinal)
+        && string.Equals(input.ReadyAfterTurnId, turnId, StringComparison.Ordinal);
+
+    private async Task<bool> HasPendingGuidanceAsync(SessionThread thread, string turnId, CancellationToken ct)
+    {
+        using (await AcquireThreadQueueLockAsync(thread.Id, ct))
+            return thread.QueuedInputs.Any(input =>
+                IsPendingGuidance(input, turnId) && !IsLegacyGoalBudgetGuidanceInput(input));
+    }
+
+    private async Task<IReadOnlyList<ChatMessage>> AdmitGuidanceInputsAsync(
+        ThreadRuntime runtime, SessionTurn turn, SessionEventChannel eventChannel,
         Func<int> nextItemSeq, Action finalizeStreamingAgentMessage, Action finalizeStreamingReasoning,
         TurnModelHistory turnModelHistory, CancellationToken drainCt)
     {
-        QueuedTurnInput? queued;
+        var thread = runtime.Thread;
+        if (!_runtimeRegistry.IsCurrent(thread.Id, runtime))
+            return [];
+
+        var pending = await runtime.Commands.InvokeAsync(
+            commandCt => ListPendingGuidanceAsync(thread, turn.Id, commandCt),
+            drainCt);
+        var prepared = new List<PreparedGuidance>();
+        foreach (var queued in pending)
+        {
+            var content = await ThreadQueue.ResolveInputPartsAsync(queued.MaterializedInputParts.ToList(), drainCt);
+            if (content.Count == 0)
+                continue;
+
+            var displayText = !string.IsNullOrWhiteSpace(queued.DisplayText)
+                ? queued.DisplayText
+                : SessionWireMapper.BuildDisplayText(queued.NativeInputParts);
+            var hook = await RunPromptLifecycleHookAsync(
+                HookEvent.UserPromptSubmit,
+                thread.Id,
+                turn.Id,
+                thread.WorkspacePath,
+                displayText,
+                string.Equals(queued.TriggerKind, "hook", StringComparison.Ordinal),
+                drainCt);
+            prepared.Add(new PreparedGuidance(queued, content, displayText, hook));
+        }
+
+        if (prepared.Count == 0 || !_runtimeRegistry.IsCurrent(thread.Id, runtime))
+            return [];
+
+        return await runtime.Commands.InvokeAsync(
+            _ => StageGuidanceInputsAsync(thread, turn, eventChannel, nextItemSeq,
+                finalizeStreamingAgentMessage, finalizeStreamingReasoning, turnModelHistory, prepared),
+            drainCt);
+    }
+
+    private async Task<IReadOnlyList<QueuedTurnInput>> ListPendingGuidanceAsync(
+        SessionThread thread, string turnId, CancellationToken ct)
+    {
+        List<QueuedTurnInput> pending;
         IReadOnlyList<QueuedTurnInput>? cleanupSnapshot = null;
-        using (await AcquireThreadQueueLockAsync(thread.Id, drainCt))
+        using (await AcquireThreadQueueLockAsync(thread.Id, ct))
         {
             var queue = thread.QueuedInputs.ToList();
             if (queue.RemoveAll(IsLegacyGoalBudgetGuidanceInput) > 0)
             {
                 thread.QueuedInputs = queue;
                 thread.LastActiveAt = DateTimeOffset.UtcNow;
-                await PersistThreadWithMaterializationAsync(thread, drainCt);
+                await PersistThreadWithMaterializationAsync(thread, ct);
                 cleanupSnapshot = queue.ToList();
             }
 
-            var queueIndex = queue.FindIndex(q =>
-                string.Equals(q.Status, "guidancePending", StringComparison.Ordinal) &&
-                string.Equals(q.ReadyAfterTurnId, turn.Id, StringComparison.Ordinal));
-            queued = queueIndex < 0 ? null : queue[queueIndex];
+            pending = queue.Where(input => IsPendingGuidance(input, turnId)).ToList();
         }
         if (cleanupSnapshot != null)
             PublishQueueUpdated(thread.Id, cleanupSnapshot);
-        if (queued == null)
-            return null;
+        return pending;
+    }
 
-        var contentParts = await ThreadQueue.ResolveInputPartsAsync(queued.MaterializedInputParts.ToList(), drainCt);
-        if (contentParts.Count == 0)
-            return null;
-
-        var nativeParts = queued.NativeInputParts.ToList();
-        var materializedParts = queued.MaterializedInputParts.ToList();
-        var displayText = !string.IsNullOrWhiteSpace(queued.DisplayText)
-            ? queued.DisplayText
-            : SessionWireMapper.BuildDisplayText(nativeParts);
-        var images = ExtractUserMessageImages(contentParts);
-
-        var item = new SessionItem
+    private async Task<IReadOnlyList<ChatMessage>> StageGuidanceInputsAsync(
+        SessionThread thread, SessionTurn turn, SessionEventChannel eventChannel,
+        Func<int> nextItemSeq, Action finalizeStreamingAgentMessage, Action finalizeStreamingReasoning,
+        TurnModelHistory turnModelHistory, IReadOnlyList<PreparedGuidance> prepared)
+    {
+        var queueLease = await AcquireThreadQueueLockAsync(thread.Id, CancellationToken.None);
+        var staged = false;
+        try
         {
-            Id = SessionIdGenerator.NewItemId(nextItemSeq()),
+            var current = prepared
+                .Where(guidance => thread.QueuedInputs.Any(input =>
+                    string.Equals(input.Id, guidance.Input.Id, StringComparison.Ordinal)
+                    && IsPendingGuidance(input, turn.Id)))
+                .ToList();
+            var blocked = current.Where(guidance => guidance.Hook.Blocked).ToList();
+            if (blocked.Count > 0)
+            {
+                var blockedIds = blocked.Select(guidance => guidance.Input.Id).ToHashSet(StringComparer.Ordinal);
+                thread.QueuedInputs = thread.QueuedInputs.Where(input => !blockedIds.Contains(input.Id)).ToList();
+                thread.LastActiveAt = DateTimeOffset.UtcNow;
+                await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+                PublishQueueUpdated(thread.Id, thread.QueuedInputs.ToList());
+                foreach (var guidance in blocked)
+                {
+                    var reason = string.IsNullOrWhiteSpace(guidance.Hook.BlockReason)
+                        ? "no reason given"
+                        : guidance.Hook.BlockReason;
+                    eventChannel.EmitSystemEvent(
+                        "guidanceBlocked",
+                        $"Message blocked by hook: {reason}",
+                        messageKey: "system.guidanceBlocked",
+                        parameters: new Dictionary<string, object?> { ["reason"] = reason });
+                }
+            }
+
+            var admitted = current.Where(guidance => !guidance.Hook.Blocked).ToList();
+            if (admitted.Count == 0)
+                return [];
+
+            finalizeStreamingAgentMessage();
+            finalizeStreamingReasoning();
+
+            var messages = new List<ChatMessage>();
+            var inputs = new List<TurnModelHistory.StagedInput>();
+            var items = new List<SessionItem>();
+            foreach (var guidance in admitted)
+            {
+                var item = CreateGuidanceItem(turn, guidance, nextItemSeq());
+                var message = new ChatMessage(ChatRole.User, guidance.Content);
+                items.Add(item);
+                inputs.Add(new TurnModelHistory.StagedInput(message, item.Id, [guidance.Input.Id]));
+                messages.Add(message);
+                if (ExtractHookContext(guidance.Hook) is { } hookContext)
+                {
+                    messages.Add(new ChatMessage(ChatRole.User, StreamingFunctionInvokingChatClient.BuildHookFeedbackReminder(
+                        [new StreamingToolHookFeedback(nameof(HookEvent.UserPromptSubmit), hookContext.Trim(), false)])));
+                }
+            }
+
+            var admittedIds = admitted.Select(guidance => guidance.Input.Id).ToHashSet(StringComparer.Ordinal);
+            turnModelHistory.Stage(inputs, async () =>
+            {
+                turn.Items.AddRange(items);
+                thread.QueuedInputs = thread.QueuedInputs.Where(input => !admittedIds.Contains(input.Id)).ToList();
+                thread.LastActiveAt = DateTimeOffset.UtcNow;
+                await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+                foreach (var item in items)
+                {
+                    eventChannel.EmitItemStarted(item);
+                    eventChannel.EmitItemCompleted(item);
+                }
+                PublishQueueUpdated(thread.Id, thread.QueuedInputs.ToList());
+            }, queueLease);
+            staged = true;
+            return messages;
+        }
+        finally { if (!staged) queueLease.Dispose(); }
+    }
+
+    private static SessionItem CreateGuidanceItem(SessionTurn turn, PreparedGuidance guidance, int itemSeq)
+    {
+        var queued = guidance.Input;
+        var images = ExtractUserMessageImages(guidance.Content);
+        return new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(itemSeq),
             TurnId = turn.Id,
             Type = ItemType.UserMessage,
             Status = ItemStatus.Completed,
@@ -54,11 +179,11 @@ public sealed partial class SessionService
             CompletedAt = DateTimeOffset.UtcNow,
             Payload = new UserMessagePayload
             {
-                Text = displayText,
+                Text = guidance.DisplayText,
                 DeliveryMode = "guidance",
                 ClientUserMessageId = queued.ClientUserMessageId,
-                NativeInputParts = nativeParts,
-                MaterializedInputParts = materializedParts,
+                NativeInputParts = queued.NativeInputParts.ToList(),
+                MaterializedInputParts = queued.MaterializedInputParts.ToList(),
                 SenderId = queued.Sender?.SenderId,
                 SenderName = queued.Sender?.SenderName,
                 SenderRole = queued.Sender?.SenderRole,
@@ -73,38 +198,6 @@ public sealed partial class SessionService
                 DeliveryBindingId = queued.DeliveryBindingId
             }
         };
-
-        var queueLease = await AcquireThreadQueueLockAsync(thread.Id, CancellationToken.None);
-        var staged = false;
-        try
-        {
-            var queue = thread.QueuedInputs.ToList();
-            var queueIndex = queue.FindIndex(q =>
-                string.Equals(q.Id, queued.Id, StringComparison.Ordinal) &&
-                string.Equals(q.Status, "guidancePending", StringComparison.Ordinal) &&
-                string.Equals(q.ReadyAfterTurnId, turn.Id, StringComparison.Ordinal));
-            if (queueIndex < 0)
-                return null;
-
-            finalizeStreamingAgentMessage();
-            finalizeStreamingReasoning();
-
-            var message = new ChatMessage(ChatRole.User, contentParts);
-            turnModelHistory.Stage(message, item.Id, [queued.Id], async () =>
-            {
-                turn.Items.Add(item);
-                queue.RemoveAt(queueIndex);
-                thread.QueuedInputs = queue;
-                thread.LastActiveAt = DateTimeOffset.UtcNow;
-                await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
-                eventChannel.EmitItemStarted(item);
-                eventChannel.EmitItemCompleted(item);
-                PublishQueueUpdated(thread.Id, queue.ToList());
-            }, queueLease);
-            staged = true;
-            return message;
-        }
-        finally { if (!staged) queueLease.Dispose(); }
     }
 
     private static string BuildSubAgentMailboxModelText(IReadOnlyList<SubAgentMailboxEntry> entries)

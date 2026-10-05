@@ -3452,6 +3452,7 @@ export const MESSAGES_KO = {
   'context.limit_reached': '컨텍스트 토큰 한도에 도달하여 대화를 압축하는 중...',
   'context.compacted': '컨텍스트가 성공적으로 압축되었습니다.',
   'context.compact_skipped': '컨텍스트 압축을 건너뛰었습니다(기록 부족).',
+  'system.guidanceBlocked': 'Hook에 의해 메시지가 차단됨: {{reason}}',
   'hub.notification.thread.default': 'DotCraft가 다음 메시지를 받을 준비가 되었습니다.',
   'hub.notification.turn_completed.title': 'DotCraft 작업 완료',
   'hub.notification.turn_completed.body': '"{{name}}"이(가) 완료되었습니다.',

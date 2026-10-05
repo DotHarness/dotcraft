@@ -2,6 +2,7 @@ using System.ClientModel.Primitives;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DotCraft.Agents;
+using DotCraft.Hooks;
 using DotCraft.Sessions;
 using Microsoft.Extensions.AI;
 using Xunit;
@@ -132,6 +133,136 @@ public sealed partial class SessionServiceRuntimeSignalTests
         Assert.Equal(0, model.Calls);
         await cold.ResumeThreadAsync(thread.Id);
         Assert.Single(await persistence.LoadModelHistoryAsync(thread.Id));
+    }
+
+    [Fact]
+    public async Task RunningInput_AdmitsEveryPendingSteerAtTheNextBoundaryInQueueOrder()
+    {
+        SessionService service = null!;
+        SessionThread thread = null!;
+        using var model = new HistoryBoundaryClient(async (call, messages, ct) =>
+        {
+            if (call == 1)
+            {
+                await service.SteerTurnAsync(thread.Id, thread.Turns[0].Id, [new TextContent("first steer")], ct: ct);
+                await service.SteerTurnAsync(thread.Id, thread.Turns[0].Id, [new TextContent("second steer")], ct: ct);
+                return HistoryBoundaryClient.Tool();
+            }
+            var users = messages.Where(message => message.Role == ChatRole.User).Select(message => message.Text).ToList();
+            var first = users.FindIndex(text => text.Contains("first steer", StringComparison.Ordinal));
+            var second = users.FindIndex(text => text.Contains("second steer", StringComparison.Ordinal));
+            Assert.True(first >= 0 && second == first + 1);
+            return new TextContent("done");
+        });
+        await using var factory = CreateAgentFactory(model);
+        service = CreateService(factory, model, useStreamingFunctionInvoker: true);
+        thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")]));
+
+        Assert.Equal(2, model.Calls);
+        var guidance = thread.Turns[0].Items
+            .Select(item => item.AsUserMessage)
+            .Where(message => message?.DeliveryMode == "guidance")
+            .Select(message => message!.Text)
+            .ToArray();
+        Assert.Equal(["first steer", "second steer"], guidance);
+        Assert.Empty(thread.QueuedInputs);
+    }
+
+    [Fact]
+    public async Task RunningInput_BlockingUserPromptSubmitHookDropsTheSteer()
+    {
+        var marker = Path.Combine(_tempDir, "prompt-hook-ran");
+        SessionService service = null!;
+        SessionThread thread = null!;
+        using var model = new HistoryBoundaryClient(async (call, messages, ct) =>
+        {
+            if (call == 1)
+            {
+                await service.SteerTurnAsync(thread.Id, thread.Turns[0].Id, [new TextContent("blocked steer")], ct: ct);
+                return HistoryBoundaryClient.Tool();
+            }
+            Assert.DoesNotContain(messages, message => message.Text.Contains("blocked steer", StringComparison.Ordinal));
+            return new TextContent("done");
+        });
+        await using var factory = CreateAgentFactory(model);
+        service = CreatePromptHookService(factory, model, BlockAfterFirstRunCommand(marker, "steer denied"));
+        thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        var events = await CollectAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")]));
+
+        Assert.Equal(2, model.Calls);
+        Assert.Equal(TurnStatus.Completed, thread.Turns[0].Status);
+        Assert.DoesNotContain(thread.Turns[0].Items, item => item.AsUserMessage?.DeliveryMode == "guidance");
+        Assert.Empty(thread.QueuedInputs);
+        var blocked = Assert.Single(events, evt => evt.SystemEventPayload?.Kind == "guidanceBlocked").SystemEventPayload!;
+        Assert.Equal("system.guidanceBlocked", blocked.MessageKey);
+        Assert.Contains("steer denied", blocked.Params!["reason"]?.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunningInput_UserPromptSubmitContextFollowsTheSteer()
+    {
+        SessionService service = null!;
+        SessionThread thread = null!;
+        using var model = new HistoryBoundaryClient(async (call, messages, ct) =>
+        {
+            if (call == 1)
+            {
+                await service.SteerTurnAsync(thread.Id, thread.Turns[0].Id, [new TextContent("steer with context")], ct: ct);
+                return HistoryBoundaryClient.Tool();
+            }
+            var steer = Array.FindIndex(messages.ToArray(), message => message.Text.Contains("steer with context", StringComparison.Ordinal));
+            Assert.True(steer >= 0 && steer + 1 < messages.Count);
+            Assert.Equal(ChatRole.User, messages[steer + 1].Role);
+            Assert.Contains("STEER_HOOK_CONTEXT", messages[steer + 1].Text, StringComparison.Ordinal);
+            return new TextContent("done");
+        });
+        await using var factory = CreateAgentFactory(model);
+        service = CreatePromptHookService(factory, model, AdditionalContextCommand("STEER_HOOK_CONTEXT"));
+        thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")]));
+
+        Assert.Equal(2, model.Calls);
+        Assert.Single(thread.Turns[0].Items, item => item.AsUserMessage?.DeliveryMode == "guidance");
+    }
+
+    private SessionService CreatePromptHookService(AgentFactory factory, IChatClient model, string command) =>
+        new(
+            factory,
+            new StreamingFunctionInvokingChatClient(model).AsAIAgent(),
+            new SessionPersistenceService(new ThreadStore(_tempDir)),
+            new SessionGate(),
+            hookRunner: new HookRunner(new HooksFileConfig
+            {
+                Hooks =
+                {
+                    [nameof(HookEvent.UserPromptSubmit)] =
+                    [
+                        new HookMatcherGroup
+                        {
+                            Hooks = [new HookEntry { Type = "command", Command = command, Timeout = 10 }]
+                        }
+                    ]
+                }
+            }, _tempDir));
+
+    private static string BlockAfterFirstRunCommand(string markerPath, string reason) =>
+        OperatingSystem.IsWindows()
+            ? $"if (Test-Path '{markerPath}') {{ [Console]::Error.WriteLine('{reason}'); exit 2 }} else {{ New-Item -ItemType File '{markerPath}' | Out-Null }}"
+            : $"if [ -f '{markerPath}' ]; then printf '%s\\n' '{reason}' >&2; exit 2; else touch '{markerPath}'; fi";
+
+    private static string AdditionalContextCommand(string context)
+    {
+        var json = "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"" + context + "\"}}";
+        return OperatingSystem.IsWindows()
+            ? $"Write-Output '{json}'"
+            : $"printf '%s\\n' '{json}'";
     }
 
     private static void AssertResponsesUserMessageIds(IReadOnlyList<ChatMessage> messages)

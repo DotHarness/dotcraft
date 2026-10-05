@@ -222,6 +222,55 @@ public sealed class SessionServiceGoalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_DeliversBudgetSteeringAndUserGuidanceAtOneBoundary()
+    {
+        var chatClient = new ScriptedStreamingChatClient(
+            [
+                UsageUpdate(input: 9, output: 3),
+                new ChatResponseUpdate(ChatRole.Assistant, [
+                    new FunctionCallContent("call-noop", "NoopTool", new Dictionary<string, object?>())
+                ])
+            ],
+            [
+                new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("wrapped")])
+            ]);
+        await using var agentFactory = CreateAgentFactory(chatClient, config =>
+            config.Goals = new AppConfig.GoalsConfig { AutoContinueEnabled = false });
+        SessionService service = null!;
+        SessionThread thread = null!;
+        service = CreateStreamingService(
+            agentFactory,
+            chatClient,
+            [AIFunctionFactory.Create(async () =>
+            {
+                await service.SteerTurnAsync(thread.Id, thread.Turns.Single().Id, [new TextContent("also update the changelog")]);
+                return "tool ok";
+            }, name: "NoopTool")]);
+        thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "user1",
+            WorkspacePath = _tempDir
+        });
+        await service.SetThreadGoalAsync(
+            thread.Id,
+            new ThreadGoalUpdate { Objective = "Stay in budget", TokenBudget = 10, HasTokenBudget = true });
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("work")]));
+
+        Assert.Equal(2, chatClient.CapturedRequests.Count);
+        var request = chatClient.CapturedRequests[1];
+        var steering = request.FindIndex(message =>
+            message.Role == ChatRole.System
+            && MessageText(message).Contains("budget_limited", StringComparison.Ordinal));
+        var guidance = request.FindIndex(message =>
+            message.Role == ChatRole.User
+            && MessageText(message).Contains("also update the changelog", StringComparison.Ordinal));
+        Assert.True(steering >= 0);
+        Assert.True(guidance > steering);
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_ParallelToolCompletionAccountsBudgetUsageOnce()
     {
         var chatClient = new ScriptedStreamingChatClient(

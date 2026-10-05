@@ -3453,6 +3453,7 @@ export const MESSAGES_DE = {
   'context.limit_reached': 'Limit für Kontext-Token erreicht, Konversation wird komprimiert...',
   'context.compacted': 'Der Kontext wurde erfolgreich komprimiert.',
   'context.compact_skipped': 'Die Kontextkomprimierung wurde übersprungen (unzureichender Verlauf).',
+  'system.guidanceBlocked': 'Nachricht durch Hook blockiert: {{reason}}',
   'hub.notification.thread.default': 'DotCraft ist bereit für Ihre nächste Nachricht.',
   'hub.notification.turn_completed.title': 'DotCraft-Aufgabe abgeschlossen',
   'hub.notification.turn_completed.body': '„{{name}}“ beendet.',

@@ -2773,6 +2773,7 @@ export const MESSAGES_EN = {
   'context.limit_reached': 'Context token limit reached, compacting conversation...',
   'context.compacted': 'Context compacted successfully.',
   'context.compact_skipped': 'Context compaction skipped (insufficient history).',
+  'system.guidanceBlocked': 'Message blocked by hook: {{reason}}',
   'hub.notification.thread.default': 'DotCraft is ready for your next message.',
   'hub.notification.turn_completed.title': 'DotCraft task completed',
   'hub.notification.turn_completed.body': '"{{name}}" finished.',

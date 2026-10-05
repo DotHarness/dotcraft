@@ -2096,6 +2096,9 @@ export function App(): JSX.Element {
               p.fallbackText,
               p.message
             )
+            if (kind === 'guidanceBlocked' && serverMessage) {
+              addToast(serverMessage, 'warning')
+            }
             conv.onSystemEvent(kind, {
               turnId: typeof p.turnId === 'string' ? (p.turnId as string) : null,
               message: serverMessage,

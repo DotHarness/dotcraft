@@ -48,12 +48,15 @@ public sealed partial class SessionService
             }
         }
 
-        public void Stage(ChatMessage message, string itemId, IReadOnlyList<string> ids, Func<Task> commit, IDisposable lease)
+        public void Stage(IReadOnlyList<StagedInput> inputs, Func<Task> commit, IDisposable lease)
         {
-            message.AdditionalProperties ??= new();
-            message.AdditionalProperties[InputsKey] = JsonSerializer.SerializeToElement(
-                ids.Select(id => new InputIdentity(id, itemId, turnId)).ToArray());
-            _admissions.Add(new Admission(ids, commit, lease));
+            foreach (var input in inputs)
+            {
+                input.Message.AdditionalProperties ??= new();
+                input.Message.AdditionalProperties[InputsKey] = JsonSerializer.SerializeToElement(
+                    input.Ids.Select(id => new InputIdentity(id, input.ItemId, turnId)).ToArray());
+            }
+            _admissions.Add(new Admission(inputs.SelectMany(input => input.Ids).ToArray(), commit, lease));
         }
 
         public void AbortPending()
@@ -62,15 +65,6 @@ public sealed partial class SessionService
             _admissions.Clear();
         }
 
-        public static ChatMessage Combine(ChatMessage first, ChatMessage second) => new(
-            ChatRole.User, first.Contents.Concat(second.Contents).ToList())
-        {
-            AdditionalProperties = new AdditionalPropertiesDictionary
-            {
-                [InputsKey] = JsonSerializer.SerializeToElement(Inputs(first).Concat(Inputs(second)).ToArray())
-            }
-        };
-
         public static IReadOnlyList<InputIdentity> Inputs(ChatMessage message)
         {
             if (message.AdditionalProperties?.TryGetValue(InputsKey, out var value) != true) return [];
@@ -78,6 +72,7 @@ public sealed partial class SessionService
         }
 
         internal sealed record InputIdentity(string InputId, string ItemId, string TurnId);
+        internal sealed record StagedInput(ChatMessage Message, string ItemId, IReadOnlyList<string> Ids);
         private sealed record Admission(IReadOnlyList<string> Ids, Func<Task> Commit, IDisposable Lease);
     }
 }

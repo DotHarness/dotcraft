@@ -328,15 +328,8 @@ public sealed partial class SessionService
                 string agentPath,
                 CancellationToken pendingCt)
             {
-                using (await AcquireThreadQueueLockAsync(threadId, pendingCt))
-                {
-                    if (thread.QueuedInputs.Any(input =>
-                        string.Equals(input.Status, "guidancePending", StringComparison.Ordinal)
-                        && string.Equals(input.ReadyAfterTurnId, turn.Id, StringComparison.Ordinal)))
-                    {
-                        return true;
-                    }
-                }
+                if (await HasPendingGuidanceAsync(thread, turn.Id, pendingCt))
+                    return true;
 
                 var pendingMailbox = await ListPendingSubAgentMailboxAsync(
                     rootThreadId,
@@ -366,26 +359,31 @@ public sealed partial class SessionService
                 return new UserCoordinationSleepResult(actualDurationMs, status);
             }
 
-            async Task<ChatMessage?> TryDrainTurnContextMessageAsync(CancellationToken drainCt)
+            async Task<IReadOnlyList<ChatMessage>> DrainRunningInputAsync(
+                StreamingGuidanceBoundary boundary,
+                Func<CancellationToken, Task<IReadOnlyList<ChatMessage>>> drainWorldStateAsync,
+                CancellationToken drainCt)
             {
-                var goalSteeringMessage = TryDrainGoalSteeringMessage();
-                if (goalSteeringMessage != null)
-                    return goalSteeringMessage;
+                if (boundary == StreamingGuidanceBoundary.TurnStart)
+                {
+                    return await TryDrainSubAgentMailboxMessageAsync(drainCt) is { } initialMailbox
+                        ? [initialMailbox]
+                        : [];
+                }
 
-                return await TryDrainGuidanceMessageAsync(drainCt);
-            }
+                var guidance = await AdmitGuidanceInputsAsync(admittedRuntime, turn, eventChannel, NextItemSeq,
+                    FinalizeStreamingAgentMessage, FinalizeStreamingReasoning, turnModelHistory!, drainCt);
+                if (boundary == StreamingGuidanceBoundary.AnswerBoundary && guidance.Count == 0)
+                    return [];
 
-            async Task<ChatMessage?> TryDrainAnswerBoundaryMessageAsync(CancellationToken drainCt)
-            {
-                var guidanceMessage = await TryDrainGuidanceMessageAsync(drainCt);
-                if (guidanceMessage == null)
-                    return null;
-
-                var mailboxMessage = await TryDrainSubAgentMailboxMessageAsync(drainCt);
-                if (mailboxMessage == null)
-                    return guidanceMessage;
-
-                return TurnModelHistory.Combine(guidanceMessage, mailboxMessage);
+                var messages = new List<ChatMessage>();
+                if (TryDrainGoalSteeringMessage() is { } goalSteering)
+                    messages.Add(goalSteering);
+                messages.AddRange(guidance);
+                if (await TryDrainSubAgentMailboxMessageAsync(drainCt) is { } mailbox)
+                    messages.Add(mailbox);
+                messages.AddRange(await drainWorldStateAsync(drainCt));
+                return messages;
             }
 
             ChatMessage? TryDrainGoalSteeringMessage()
@@ -456,7 +454,8 @@ public sealed partial class SessionService
                     FinalizeStreamingReasoning();
 
                     var message = new ChatMessage(ChatRole.User, (IList<AIContent>)[new TextContent(materializedText)]);
-                    turnModelHistory!.Stage(message, item.Id, pending.Select(entry => $"mailbox:{entry.Id}").ToArray(), async () =>
+                    turnModelHistory!.Stage([new TurnModelHistory.StagedInput(message, item.Id,
+                        pending.Select(entry => $"mailbox:{entry.Id}").ToArray())], async () =>
                     {
                         turn.Items.Add(item);
                         thread.LastActiveAt = DateTimeOffset.UtcNow;
@@ -471,20 +470,6 @@ public sealed partial class SessionService
                 }
                 finally { if (!staged) inboxLease.Dispose(); }
             }
-
-            async Task<ChatMessage?> TryDrainGuidanceMessageAsync(CancellationToken drainCt)
-            {
-                if (!_runtimeRegistry.IsCurrent(threadId, admittedRuntime))
-                    return null;
-
-                return await admittedRuntime.Commands.InvokeAsync(
-                    DrainGuidanceCoreAsync,
-                    drainCt);
-            }
-
-            Task<ChatMessage?> DrainGuidanceCoreAsync(CancellationToken drainCt) =>
-                AdmitGuidanceInputAsync(thread, turn, eventChannel, NextItemSeq, FinalizeStreamingAgentMessage,
-                    FinalizeStreamingReasoning, turnModelHistory!, drainCt);
 
             async Task RestoreUndrainedGuidanceAsync(Action? terminalTransition = null)
             {
@@ -1422,17 +1407,18 @@ public sealed partial class SessionService
                     {
                         ThreadId = threadId,
                         TurnId = turn.Id,
-                        TryDrainGuidanceMessageAsync = TryDrainTurnContextMessageAsync,
-                        TryDrainMailboxMessageAsync = TryDrainSubAgentMailboxMessageAsync,
-                        TryDrainAnswerBoundaryMessageAsync = TryDrainAnswerBoundaryMessageAsync,
-                        TryDrainWorldStateMessagesAsync = drainCt => DrainWorldStateMessagesAsync(
-                            thread,
-                            turn.Id,
-                            session,
-                            threadContextCarrier,
-                            runtimeModeManager,
-                            lifecycleHookContext,
+                        DrainAsync = (boundary, drainCt) => DrainRunningInputAsync(
+                            boundary,
+                            worldStateCt => DrainWorldStateMessagesAsync(
+                                thread,
+                                turn.Id,
+                                session,
+                                threadContextCarrier,
+                                runtimeModeManager,
+                                lifecycleHookContext,
+                                worldStateCt),
                             drainCt),
+                        HasPendingGuidanceAsync = pendingCt => HasPendingGuidanceAsync(thread, turn.Id, pendingCt),
                         OnToolHandlerFinishedAsync = async (toolName, callId, toolCt) =>
                             await AccountGoalToolCompletionAsync(turnKey, toolName, callId, toolCt)
                     });

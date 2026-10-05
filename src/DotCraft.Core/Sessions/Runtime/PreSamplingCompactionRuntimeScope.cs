@@ -68,25 +68,25 @@ internal static class PreSamplingCompactionRuntimeScope
         var neutralReplacement = execution?.Replacement as CompactionReplacement.Neutral;
         var preparedMessages = ModelRequestHistorySanitizer.Sanitize(
             neutralReplacement?.Messages ?? messages);
-        if (compaction.CaptureSnapshotAsync is { } capture)
-        {
-            var snapshot = PromptRequestSnapshot.Capture(
-                preparedMessages,
-                options,
-                compaction.ProviderId,
-                compaction.Mode,
-                compaction.ThreadId,
-                compaction.TurnId,
-                compaction.EstimatedInputTokens);
-            await capture(snapshot, cancellationToken);
-        }
 
         return new StreamingSamplingPreparation(
             preparedMessages,
             NeutralHistoryWasReplaced: neutralReplacement != null,
             HistoryWasReplaced: execution?.Replacement != null)
         {
-            NeutralHistoryReplacement = neutralReplacement?.Messages
+            NeutralHistoryReplacement = neutralReplacement?.Messages,
+            CaptureRequestAsync = compaction.CaptureSnapshotAsync is { } capture
+                ? (requestMessages, captureCt) => capture(
+                    PromptRequestSnapshot.Capture(
+                        requestMessages,
+                        options,
+                        compaction.ProviderId,
+                        compaction.Mode,
+                        compaction.ThreadId,
+                        compaction.TurnId,
+                        compaction.EstimatedInputTokens),
+                    captureCt)
+                : null
         };
     }
 

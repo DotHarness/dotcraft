@@ -1471,7 +1471,7 @@ Add user input to an active regular Turn without creating another Turn. The serv
 
 **Result**: `{ "turnId": string }`
 
-The method succeeds only when `expectedTurnId` matches the active regular Turn and that Turn still accepts guidance. It rejects missing or mismatched active Turns, maintenance Turns, Internal threads, and SubAgent child threads. Success does not create a Turn and does not emit `turn/started`. At the next model/tool safe boundary, Session Core materializes a `userMessage` Item with `deliveryMode = "guidance"` and removes the pending queue record under the same lock.
+The method succeeds only when `expectedTurnId` matches the active regular Turn and that Turn still accepts guidance. It rejects missing or mismatched active Turns, maintenance Turns, Internal threads, and SubAgent child threads. Success does not create a Turn and does not emit `turn/started`. Before the next model sample that follows a tool round or a final answer, after any context compaction, Session Core admits every pending guidance input for the Turn in queue order. Each input first runs the `UserPromptSubmit` hook; an admitted input becomes a `userMessage` Item with `deliveryMode = "guidance"` and its pending queue record is removed under the same lock. A blocked input is removed without an Item and reported through `system/event` with `kind = "guidanceBlocked"`.
 
 An `expectedTurnId` mismatch is terminal for that request. Clients must preserve the draft and report the failure rather than enqueueing it or sending it to a different Turn.
 
@@ -1522,7 +1522,7 @@ Set a queued input's desired delivery status. This operation is the reversible p
 
 **Result**: `{ "queuedInputs": QueuedTurnInput[] }`
 
-For `status = "guidancePending"`, the server requires an active regular Turn matching `expectedTurnId`, changes the queue item under the per-thread queue lock, and broadcasts `thread/queue/updated`. Setting the same pending status for the same Turn is an idempotent success. At the next safe model/tool boundary, the server resolves the queued snapshot and then reacquires the same lock to recheck its status and target Turn. It atomically appends a `userMessage` item with `deliveryMode = "guidance"`, removes the queued input, persists the thread, and broadcasts the updated queue.
+For `status = "guidancePending"`, the server requires an active regular Turn matching `expectedTurnId`, changes the queue item under the per-thread queue lock, and broadcasts `thread/queue/updated`. Setting the same pending status for the same Turn is an idempotent success. Before the next model sample that follows a tool round or a final answer, the server resolves every pending snapshot for the Turn, runs the `UserPromptSubmit` hook for each, and then reacquires the same lock to recheck each status and target Turn. For each admitted input it atomically appends a `userMessage` item with `deliveryMode = "guidance"`, removes the queued input, persists the thread, and broadcasts the updated queue.
 
 For `status = "queued"`, an item already in that status is an idempotent success. A `guidancePending` item returns to its existing queue position when its bound Turn matches `expectedTurnId`; the target Turn is not required to remain active. If cancellation wins the queue lock, subsequent guidance admission observes the changed status and stops. If admission wins, the queued input has already been removed and the update fails with not-found. Input already admitted into model history is never retracted. If the Turn ends before admission, the server also restores its pending items to `queued`.
 
@@ -2205,7 +2205,7 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
 |-------|------|-------------|
 | `threadId` | string | Parent thread. |
 | `turnId` | string? | Active turn. May be null for thread-scoped maintenance events, such as those of manual compaction. |
-| `kind` | string | Event kind. One of: `"compactWarning"`, `"compactError"`, `"compacting"`, `"compacted"`, `"compactSkipped"`, `"compactFailed"`, `"compactCancelled"`, `"streamError"`. |
+| `kind` | string | Event kind. One of: `"compactWarning"`, `"compactError"`, `"compacting"`, `"compacted"`, `"compactSkipped"`, `"compactFailed"`, `"compactCancelled"`, `"streamError"`, `"guidanceBlocked"`. |
 | `messageKey` | string? | Stable client-localization key. May be null when no key exists. |
 | `params` | object? | Optional interpolation params for `messageKey`. User text, model output, and raw tool output MUST NOT be translated by the server. |
 | `fallbackText` | string? | English fallback text suitable for display when the client has no translation. |
@@ -2226,6 +2226,7 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
 | `compactFailed` | Compaction attempted but failed (backend error, provider timeout, invalid replacement, or persistence failure). Repeated failures trip that backend's circuit breaker. |
 | `compactCancelled` | Thread-scoped manual compaction was interrupted by the user. |
 | `streamError` | A provider stream disconnected or timed out while idle before the sampling request completed. The server is retrying. `params` carry the one-based `attempt`, the `max` budget, the classified `providerError`, and the upstream `httpStatus` when known; `fallbackText` uses `Reconnecting... x/y`. |
+| `guidanceBlocked` | A `UserPromptSubmit` hook blocked a steering input before admission. The input was removed from the queue without a `userMessage` Item. `messageKey` is `system.guidanceBlocked`, `params.reason` carries the hook reason, and `fallbackText` uses `Message blocked by hook: <reason>`. |
 
 **Emission rules**:
 

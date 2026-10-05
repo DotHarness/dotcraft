@@ -174,12 +174,12 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
         var toolMessageId = Guid.NewGuid().ToString("N");
         var hasAnyEffectiveProviderOutput = false;
         var awaitingPostToolContinuation = false;
+        StreamingGuidanceBoundary? pendingDrain = null;
 
-        var initialMailbox = await TryDrainMailboxAsync(cancellationToken);
-        if (initialMailbox != null)
+        var initialInput = await DrainRunningInputAsync(StreamingGuidanceBoundary.TurnStart, cancellationToken);
+        if (initialInput.Count > 0)
         {
-            await AgentHistoryRuntimeScope.AppendAsync([initialMailbox], cancellationToken);
-            originalMessages.Add(initialMailbox);
+            originalMessages.AddRange(initialInput);
             currentMessages = originalMessages;
         }
 
@@ -210,6 +210,23 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
                 ResetProviderContinuationAfterHistoryReplacement(ref options);
             }
             var samplingMessages = preparedMessages;
+            if (pendingDrain is { } boundary)
+            {
+                pendingDrain = null;
+                var drained = await DrainRunningInputAsync(boundary, cancellationToken);
+                if (drained.Count == 0 && boundary == StreamingGuidanceBoundary.AnswerBoundary)
+                    yield break;
+                if (drained.Count > 0)
+                {
+                    var drainedHistory = augmentedHistory
+                        ?? throw new InvalidOperationException("Augmented history was not initialized.");
+                    drainedHistory.AddRange(drained);
+                    currentMessages = drainedHistory;
+                    samplingMessages = drainedHistory;
+                }
+            }
+            if (preparation.CaptureRequestAsync is { } captureRequest)
+                await captureRequest(samplingMessages, cancellationToken);
 
             var updates = new List<ChatResponseUpdate>();
             var functionCalls = new List<FunctionCallContent>();
@@ -450,9 +467,10 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
                 }
 
                 if (guidanceContinuationCount < MaximumGuidanceContinuationsPerRequest &&
-                    await TryAppendAnswerBoundaryMessageAsync(history, cancellationToken))
+                    await HasPendingGuidanceAsync(cancellationToken))
                 {
                     guidanceContinuationCount++;
+                    pendingDrain = StreamingGuidanceBoundary.AnswerBoundary;
                     currentMessages = history;
                     UpdateOptionsForNextIteration(ref options, response.ConversationId);
                     continue;
@@ -510,9 +528,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
             if (anyTerminated)
                 yield break;
 
-            await TryAppendMailboxAsync(nextHistory, cancellationToken);
-            await TryAppendGuidanceAsync(nextHistory, cancellationToken);
-            await TryAppendWorldStateAsync(nextHistory, cancellationToken);
+            pendingDrain = StreamingGuidanceBoundary.AfterTools;
             UpdateOptionsForNextIteration(ref options, response.ConversationId);
             currentMessages = nextHistory;
             awaitingPostToolContinuation = toolMessages.Messages.Count > 0;

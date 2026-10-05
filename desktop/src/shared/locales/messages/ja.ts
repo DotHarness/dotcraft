@@ -3450,6 +3450,7 @@ export const MESSAGES_JA = {
   'context.limit_reached': 'コンテキスト トークンの制限に達しました。会話を圧縮しています...',
   'context.compacted': 'コンテキストは正常に圧縮されました。',
   'context.compact_skipped': 'コンテキストの圧縮がスキップされました (履歴が不十分です)。',
+  'system.guidanceBlocked': 'メッセージは Hook によってブロックされました: {{reason}}',
   'hub.notification.thread.default': 'DotCraft は次のメッセージを受け取る準備ができています。',
   'hub.notification.turn_completed.title': 'DotCraftタスクが完了しました',
   'hub.notification.turn_completed.body': '「{{name}}」終了しました。',
