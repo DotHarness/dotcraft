@@ -101,7 +101,7 @@ export const homeCopy = {
           rows: [
             { icon: 'sparkles', label: 'Ready out of the box', hint: 'Plan, subagents, automations and the in-app browser, built in.', href: '/features/agent-system/' },
             { icon: 'app-window', label: 'Works in your apps', hint: 'Agents operate the Windows apps you allow.', href: '/features/entry-points/desktop' },
-            { icon: 'layers', label: 'Pick up anywhere', hint: 'Desktop, CLI, editors and chat bots share one workspace.', href: '/features/entry-points/' },
+            { icon: 'layers', label: 'Pick up anywhere', hint: 'Desktop, CLI, editors, your phone and chat bots share one workspace.', href: '/features/entry-points/' },
             { icon: 'server', label: 'Your models, your costs', hint: 'Any compatible provider or ChatGPT, with keys kept on one machine.', href: '/features/self-hosted/server-deployment' }
           ]
         },
@@ -189,7 +189,7 @@ export const homeCopy = {
           rows: [
             { icon: 'sparkles', label: '开箱即用', hint: '计划、子智能体、自动化和应用内浏览器都已内置。', href: '/features/agent-system/' },
             { icon: 'app-window', label: '操作你的应用', hint: 'Agent 可以操作你允许的 Windows 应用。', href: '/features/entry-points/desktop' },
-            { icon: 'layers', label: '随处接着做', hint: 'Desktop、CLI、编辑器和聊天机器人共用一个工作区。', href: '/features/entry-points/' },
+            { icon: 'layers', label: '随处接着做', hint: 'Desktop、CLI、编辑器、手机和聊天机器人共用一个工作区。', href: '/features/entry-points/' },
             { icon: 'server', label: '模型和成本由你掌控', hint: '任选兼容的模型服务或 ChatGPT 订阅，密钥可由一台机器统一保管。', href: '/features/self-hosted/server-deployment' }
           ]
         },

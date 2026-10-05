@@ -12,11 +12,11 @@
 
 </div>
 
-DotCraft is an open-source AI agent that runs on your own machine. Use the desktop app to code and get work done, or build the same agent into your own apps and extend it with plugins.
+DotCraft is an open-source AI agent that runs on your own machine. Use the desktop app to code and get work done, keep up with it from your phone, or build the same agent into your own apps and extend it with plugins.
 
 ## Why DotCraft
 
-- **One agent, many doors.** Desktop, the CLI, your IDE and chat bots share one workspace, so a task started in one can be picked up in another. Connect Desktop to DotCraft on a server over SSH, follow and answer your chats from an Android phone, or let the agent work on another computer through Satellite.
+- **One agent, many doors.** Desktop, the CLI, your IDE, your phone and chat bots share one workspace, so a task started in one can be picked up in another. Connect Desktop to DotCraft on a server over SSH, or let the agent work on another computer through Satellite.
 - **Yours to build on.** Embed the runtime behind DotCraft Desktop in your .NET app, or connect an existing product through the SDKs and App Binding. .NET plugins add tools, commands and lifecycle logic, and the agent can write one and swap it in while the host keeps running. React plugins reshape Desktop's interface.
 - **Your deployment, your costs.** Run it on your machine or your own server, with any compatible model provider or your ChatGPT subscription. Byte-stable prompt prefixes let providers reuse their cache.
 - **One set of keys for the team.** One machine holds the API keys and sign-ins; DotCraft on everyone else's machine calls models through it, without storing keys or reaching providers directly.
