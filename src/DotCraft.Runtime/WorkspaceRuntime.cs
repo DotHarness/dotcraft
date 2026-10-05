@@ -41,7 +41,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         DreamsService dreamsService,
         DotNetPluginRuntimeManager pluginRuntime,
         IReadOnlyList<ConfigSchemaSection> configSchema,
-        IContextPageManager contextPageManager)
+        IContextPageManager contextPageManager,
+        ConfigurationService configuration)
     {
         public AgentFactory AgentFactory { get; } = agentFactory;
 
@@ -65,6 +66,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         public IReadOnlyList<ConfigSchemaSection> ConfigSchema { get; } = configSchema;
 
         public IContextPageManager ContextPageManager { get; } = contextPageManager;
+
+        public ConfigurationService Configuration { get; } = configuration;
 
     }
 
@@ -137,11 +140,13 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
     public IContextPageManager ContextPageManager => EnsureStarted().ContextPageManager;
 
+    public ConfigurationService Configuration => EnsureStarted().Configuration;
+
     public PlanStore? PlanStore => EnsureStarted().AgentFactory.PlanStore;
 
     public IRemoteToolHostClient? RemoteToolHostClient => EnsureStarted().AgentFactory.RemoteToolHostClient;
 
-    public event Action<AppConfigChangedEventArgs>? WorkspaceConfigChanged;
+    public event Action<AppConfigChangedEventArgs>? ConfigChanged;
 
     public event Action<McpServerStatusChangedEventArgs>? McpStatusChanged;
 
@@ -369,6 +374,24 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                         ?.CreateLogger<DreamsService>());
                 await dreamsService.StartAsync(ct);
 
+                var descriptors = Services.GetService<IConfigDescriptorRegistry>()
+                    ?? throw new InvalidOperationException(
+                        "IConfigDescriptorRegistry is not registered. Hosts that use WorkspaceRuntime must register the generated ConfigSchemaRegistrations.CreateDescriptorRegistry() instance.");
+                var configuration = new ConfigurationService(
+                    descriptors,
+                    _appConfigMonitor,
+                    _appConfigMonitor.Current.GlobalConfigPath
+                        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft", "config.json"),
+                    Path.Combine(Paths.Data.RootPath, "config.json"));
+                ConfigurationSubsystems.Register(
+                    configuration,
+                    _appConfigMonitor,
+                    sessionService as IThreadAgentRefreshService,
+                    SkillsLoader,
+                    LspServerManager,
+                    dreamsService,
+                    contextPageManager);
+
                 pluginRuntime = Services.GetRequiredService<DotNetPluginRuntimeManager>();
                 await pluginRuntime.StartAsync(ct);
                 pluginRuntimeStarted = true;
@@ -383,7 +406,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     dreamsService,
                     pluginRuntime,
                     configSchema,
-                    contextPageManager);
+                    contextPageManager,
+                    configuration);
 
                 _appConfigMonitor.Changed += OnAppConfigChanged;
                 McpClientManager.StatusChanged += OnMcpStatusChanged;
@@ -583,13 +607,11 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
     {
         _ = sender;
         if (_started?.SessionService is IThreadAgentRefreshService refreshService
-            && (e.Regions.Contains(ConfigChangeRegions.ProviderRegistry)
-                || e.Regions.Contains(ConfigChangeRegions.WorkspaceProvider)
-                || e.Regions.Contains(ConfigChangeRegions.WorkspaceProviderPreferences)))
+            && e.Regions.Contains(ConfigChangeRegions.ProviderRegistry))
         {
             refreshService.InvalidateThreadAgents();
         }
-        WorkspaceConfigChanged?.Invoke(e);
+        ConfigChanged?.Invoke(e);
     }
 
     private void OnMcpStatusChanged(object? sender, McpServerStatusChangedEventArgs e)

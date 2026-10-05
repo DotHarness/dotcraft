@@ -1508,36 +1508,6 @@ body {
   pointer-events: none;
 }
 
-/* Setup mode tab switcher */
-.settings-tabs {
-  display: flex;
-  gap: 2px;
-  margin-bottom: 16px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 3px;
-}
-.settings-tab {
-  flex: 1;
-  padding: 7px 16px;
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: 5px;
-  border: none;
-  background: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition);
-  font-family: var(--font-sans);
-}
-.settings-tab.active {
-  background: var(--bg-card);
-  color: var(--text-primary);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-}
-.settings-tab:hover:not(.active) { color: var(--text-primary); }
-
 /* Custom accordion */
 .sf-accordion {
   border: 1px solid var(--border);
@@ -1712,36 +1682,6 @@ body {
 .sf-source-global { background: var(--info-dim); color: var(--info); }
 .sf-source-default { background: var(--bg-hover); color: var(--text-muted); }
 
-/* Read-only display values */
-.settings-label-readonly {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.settings-label-readonly .sf-display-name { color: var(--text-secondary); }
-.settings-value-readonly {
-  font-size: 12px;
-  color: var(--text-muted);
-  padding: 6px 10px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-family: var(--font-mono);
-  word-break: break-all;
-  opacity: 0.7;
-}
-.settings-value-default {
-  font-size: 12px;
-  color: var(--text-muted);
-  padding: 6px 10px;
-  background: var(--bg-tertiary);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  font-family: var(--font-mono);
-  word-break: break-all;
-  opacity: 0.45;
-  font-style: italic;
-}
 
 /* Inputs */
 .settings-input {
@@ -2290,21 +2230,6 @@ body {
           </div>
         </div>
         <div class="panel-body">
-          <!-- Setup mode banner -->
-          <div id="setupBanner" class="message message-info" style="display:none;margin-bottom:16px">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <div>
-              <div style="font-weight:600">Setup Mode</div>
-              <div style="font-size:13px;color:var(--text-secondary);margin-top:2px">Configure your API key and basic settings below, then restart DotCraft to continue.</div>
-            </div>
-          </div>
-
-          <!-- Setup mode tab switcher -->
-          <div id="settingsTabSwitcher" class="settings-tabs" style="display:none">
-            <button class="settings-tab active" id="tabWorkspace" onclick="switchSettingsTab('workspace')">Workspace Config</button>
-            <button class="settings-tab" id="tabGlobal" onclick="switchSettingsTab('global')">Global Config</button>
-          </div>
-
           <!-- Config file path -->
           <div id="settingsActivePath" class="settings-config-path" style="display:none"></div>
 
@@ -2316,9 +2241,6 @@ body {
 
           <!-- Form containers -->
           <div id="settingsFormContainer">
-            <div class="empty-state"><p>Loading...</p></div>
-          </div>
-          <div id="settingsGlobalBody" style="display:none">
             <div class="empty-state"><p>Loading...</p></div>
           </div>
         </div>
@@ -4302,10 +4224,7 @@ async function loadConfigSchema() {
 
 let settingsGlobalConfig = null;
 let settingsWorkspaceConfig = null;
-let settingsSetupMode = false;
-let settingsHasApiKey = true;
 let settingsDirty = false;
-let settingsActiveTab = 'workspace'; // 'workspace' | 'global' (setup mode only)
 let settingsDynamicModelOptions = null;
 let settingsDynamicModelError = '';
 
@@ -4493,53 +4412,6 @@ function renderSectionAccordion(section, sectionIdx, fieldsHtml, valueCount, isO
   </div>`;
 }
 
-// Render the global panel (read-only) using new accordion style
-function renderGlobalPanel(globalData) {
-  let html = '';
-  CONFIG_SCHEMA.forEach((section, sectionIdx) => {
-    const setCount = countSectionWorkspaceValues(section, globalData);
-    let sectionHtml = '';
-    if (isObjectListSection(section)) {
-      sectionHtml = renderReadonlyObjectListSection(section, globalData);
-      sectionHtml += renderObjectListRawToggle(sectionIdx, 'global', getObjectListArray(globalData, section));
-    } else {
-      for (const field of section.fields) {
-        const rawVal = schemaGetValue(globalData, section, field.key);
-        sectionHtml += renderReadonlyFieldDirect(field, rawVal);
-      }
-    }
-    html += renderSectionAccordion(section, sectionIdx, sectionHtml, setCount, setCount > 0);
-  });
-  document.getElementById('settingsGlobalBody').innerHTML =
-    html || '<div class="settings-hint" style="padding:16px">No global config found.</div>';
-}
-
-function renderReadonlyObjectListSection(section, data) {
-  const arr = getObjectListArray(data, section);
-  if (!arr.length) {
-    return '<div class="settings-hint">No entries configured.</div>';
-  }
-  let html = '<div class="ol-wrap">';
-  arr.forEach((item, i) => {
-    const name = String(ciGet(item, 'Name') || `Entry ${i + 1}`);
-    const transport = String(ciGet(item, 'Transport') || 'stdio');
-    const en = ciGet(item, 'Enabled');
-    const enabled = en !== false && en !== 'false';
-    html += `<div class="ol-card"><div class="ol-card-header">
-      <span class="ol-card-title">${escapeHtml(name)}</span>
-      <span class="badge badge-info">${escapeHtml(transport)}</span>
-      <span class="badge ${enabled ? 'badge-success' : 'badge-warning'}">${enabled ? 'enabled' : 'disabled'}</span>
-    </div><div class="ol-card-body">`;
-    for (const field of section.itemFields) {
-      const rawVal = ciGet(item, field.key);
-      html += renderReadonlyFieldDirect(field, rawVal);
-    }
-    html += '</div></div>';
-  });
-  html += '</div>';
-  return html;
-}
-
 function renderObjectListRawToggle(sectionIdx, scope, arr) {
   const section = CONFIG_SCHEMA[sectionIdx];
   const json = JSON.stringify(serializeObjectListForSection(section, arr), null, 2);
@@ -4550,18 +4422,18 @@ function renderObjectListRawToggle(sectionIdx, scope, arr) {
   </div>`;
 }
 
-function renderObjectListSection(section, sectionIdx, formData, scope, isWorkspace) {
+function renderObjectListSection(section, sectionIdx, formData, scope) {
   const arr = getObjectListArray(formData, section);
   let html = `<div class="ol-wrap" data-section-idx="${sectionIdx}" data-scope="${scope}">`;
   html += `<button type="button" class="btn btn-accent ol-add" onclick="olAddObjectListCard(this)">Add entry</button>`;
   (arr.length ? arr : []).forEach((item, itemIdx) => {
-    html += renderObjectListCard(section, sectionIdx, itemIdx, item, scope, isWorkspace);
+    html += renderObjectListCard(section, sectionIdx, itemIdx, item, scope);
   });
   html += '</div>';
   return html;
 }
 
-function renderObjectListCard(section, sectionIdx, itemIdx, item, scope, isWorkspace) {
+function renderObjectListCard(section, sectionIdx, itemIdx, item, scope) {
   const title = String(ciGet(item, 'Name') || 'New entry');
   const transportField = (section.itemFields || []).find(f => f.key === 'Transport');
   const defaultTransport = transportField?.defaultValue || (transportField?.options && transportField.options[0]) || '';
@@ -4579,11 +4451,11 @@ function renderObjectListCard(section, sectionIdx, itemIdx, item, scope, isWorks
         body += `<div class="ol-group-${group} ol-group-transport" data-group="${group}" style="display:${isObjectListGroupVisible(group, transport) ? '' : 'none'}"><div class="ol-group-label">${group}</div>`;
         openGroup = group;
       }
-      body += renderObjectListField(section, sectionIdx, itemIdx, field, item, scope, isWorkspace);
+      body += renderObjectListField(section, sectionIdx, itemIdx, field, item, scope);
       continue;
     }
     if (openGroup) { body += '</div>'; openGroup = null; }
-    body += renderObjectListField(section, sectionIdx, itemIdx, field, item, scope, isWorkspace);
+    body += renderObjectListField(section, sectionIdx, itemIdx, field, item, scope);
   }
   if (openGroup) body += '</div>';
 
@@ -4596,7 +4468,7 @@ function renderObjectListCard(section, sectionIdx, itemIdx, item, scope, isWorks
   </div>`;
 }
 
-function renderObjectListField(section, sectionIdx, itemIdx, field, item, scope, isWorkspace) {
+function renderObjectListField(section, sectionIdx, itemIdx, field, item, scope) {
   const id = oliId(scope, sectionIdx, itemIdx, field.key);
   const rawVal = ciGet(item, field.key);
   const hint = field.hint ? `<div class="settings-hint">${escapeHtml(field.hint)}</div>` : '';
@@ -4732,7 +4604,7 @@ function olAddObjectListCard(btn) {
   });
   const newIdx = maxIdx + 1;
   const empty = createEmptyObjectListItem(section);
-  const html = renderObjectListCard(section, sectionIdx, newIdx, empty, scope, scope === 'workspace');
+  const html = renderObjectListCard(section, sectionIdx, newIdx, empty, scope);
   btn.insertAdjacentHTML('afterend', html);
   const cards = wrap.querySelectorAll('.ol-card');
   const card = cards[cards.length - 1];
@@ -4824,78 +4696,46 @@ function collectObjectListForSection(section, sectionIdx, scope) {
   return out;
 }
 
-function renderReadonlyFieldDirect(field, rawVal) {
-  const isExplicit = rawVal !== undefined;
-  let display, valueClass;
-  if (isExplicit) {
-    if (rawVal === null) display = '(null)';
-    else if (field.sensitive) display = '***';
-    else if (typeof rawVal === 'object') display = JSON.stringify(rawVal);
-    else if (field.type === 'select' && typeof rawVal === 'number')
-      display = (field.options && field.options[rawVal] !== undefined) ? field.options[rawVal] : String(rawVal);
-    else display = String(rawVal);
-    valueClass = 'settings-value-readonly';
-  } else {
-    const defVal = field.defaultValue;
-    display = (defVal !== undefined && defVal !== null && defVal !== '') ? `${formatDefaultValue(defVal)} (default)` : '(not set)';
-    valueClass = 'settings-value-default';
-  }
-  return `<div class="settings-field">
-    <div class="settings-label-readonly">
-      <span class="sf-display-name">${escapeHtml(fieldDisplayName(field))}</span>
-      <span class="sf-key">${escapeHtml(field.key)}</span>
-    </div>
-    <div class="${valueClass}">${escapeHtml(display)}</div>
-  </div>`;
-}
-
-// Render the unified editable form (workspace or global in setup mode)
-// In workspace scope, shows source badges for inherited/default values
+// Render the editable workspace form with source badges for inherited/default values
 function renderEditableForm(containerId, formData, scope) {
-  const isWorkspace = scope === 'workspace';
   let html = '';
 
   CONFIG_SCHEMA.forEach((section, sectionIdx) => {
     const valueCount = countSectionWorkspaceValues(section, formData);
-    const shouldOpen = valueCount > 0 || (settingsSetupMode && sectionIdx === 0);
 
     let fieldsHtml = '';
     if (isObjectListSection(section)) {
-      let sourceBadge = '';
-      if (isWorkspace) {
-        const wa = getObjectListArray(formData, section);
-        const ga = getObjectListArray(settingsGlobalConfig, section);
-        if (wa.length) sourceBadge = `<span class="sf-source sf-source-workspace">workspace</span>`;
-        else if (ga.length) sourceBadge = `<span class="sf-source sf-source-global">from global</span>`;
-        else sourceBadge = `<span class="sf-source sf-source-default">not set</span>`;
-      }
-      fieldsHtml = `<div class="settings-field" style="margin-bottom:12px">${sourceBadge ? `<div class="sf-field-header"><span></span>${sourceBadge}</div>` : ''}</div>`;
-      fieldsHtml += renderObjectListSection(section, sectionIdx, formData, scope, isWorkspace);
+      let sourceBadge;
+      const wa = getObjectListArray(formData, section);
+      const ga = getObjectListArray(settingsGlobalConfig, section);
+      if (wa.length) sourceBadge = `<span class="sf-source sf-source-workspace">workspace</span>`;
+      else if (ga.length) sourceBadge = `<span class="sf-source sf-source-global">from global</span>`;
+      else sourceBadge = `<span class="sf-source sf-source-default">not set</span>`;
+      fieldsHtml = `<div class="settings-field" style="margin-bottom:12px"><div class="sf-field-header"><span></span>${sourceBadge}</div></div>`;
+      fieldsHtml += renderObjectListSection(section, sectionIdx, formData, scope);
       fieldsHtml += renderObjectListRawToggle(sectionIdx, scope, getObjectListArray(formData, section));
     } else {
       for (const field of section.fields) {
         const id = sfId(scope, sectionIdx, field.key);
         const rawVal = schemaGetValue(formData, section, field.key);
 
-        let sourceBadge = '';
-        if (isWorkspace) {
-          const globalVal = schemaGetValue(settingsGlobalConfig, section, field.key);
-          if (rawVal !== undefined && rawVal !== null) {
-            sourceBadge = `<span class="sf-source sf-source-workspace">workspace</span>`;
-          } else if (globalVal !== undefined && globalVal !== null) {
-            sourceBadge = `<span class="sf-source sf-source-global">from global</span>`;
-          } else if (field.defaultValue !== undefined && field.defaultValue !== null) {
-            sourceBadge = `<span class="sf-source sf-source-default">default</span>`;
-          } else {
-            sourceBadge = `<span class="sf-source sf-source-default">not set</span>`;
-          }
+        let sourceBadge;
+        const globalVal = schemaGetValue(settingsGlobalConfig, section, field.key);
+        if (rawVal !== undefined && rawVal !== null) {
+          sourceBadge = `<span class="sf-source sf-source-workspace">workspace</span>`;
+        } else if (globalVal !== undefined && globalVal !== null) {
+          sourceBadge = `<span class="sf-source sf-source-global">from global</span>`;
+        } else if (field.defaultValue !== undefined && field.defaultValue !== null) {
+          sourceBadge = `<span class="sf-source sf-source-default">default</span>`;
+        } else {
+          sourceBadge = `<span class="sf-source sf-source-default">not set</span>`;
         }
 
-        fieldsHtml += renderFormField(id, field, rawVal, scope, section, sourceBadge);
+        fieldsHtml += renderFormField(id, field, rawVal, section, sourceBadge);
       }
     }
 
-    html += renderSectionAccordion(section, sectionIdx, fieldsHtml, valueCount, shouldOpen);
+    html += renderSectionAccordion(section, sectionIdx, fieldsHtml, valueCount, valueCount > 0);
   });
 
   const container = document.getElementById(containerId);
@@ -4953,12 +4793,7 @@ function boolOnOffLabel(value) {
   return '';
 }
 
-function inheritedBoolLabel(field, section, scope) {
-  if (scope === 'global') {
-    const defaultLabel = boolOnOffLabel(field.defaultValue);
-    return defaultLabel ? `Default: ${defaultLabel}` : 'Default';
-  }
-
+function inheritedBoolLabel(field, section) {
   const globalVal = (settingsGlobalConfig && section)
     ? schemaGetValue(settingsGlobalConfig, section, field.key)
     : undefined;
@@ -4971,26 +4806,20 @@ function inheritedBoolLabel(field, section, scope) {
   return 'Inherit';
 }
 
-function renderFormField(id, field, rawVal, scope, section, sourceBadge = '') {
-  const hintText = formatFieldHint(field, scope);
-  const hint = hintText ? `<div class="settings-hint">${escapeHtml(hintText)}</div>` : '';
+function renderFormField(id, field, rawVal, section, sourceBadge = '') {
+  const hint = field.hint ? `<div class="settings-hint">${escapeHtml(field.hint)}</div>` : '';
   const defaultLabel = formatDefaultValue(field.defaultValue);
-  const isGlobalScope = scope === 'global';
 
-  // Placeholder: in workspace scope show the inherited/default value if known
+  // Placeholder: show the inherited/default value if known
   let emptyText;
-  if (isGlobalScope) {
-    emptyText = defaultLabel ? `default: ${defaultLabel}` : '(not set)';
+  const globalVal = (settingsGlobalConfig && section) ? schemaGetValue(settingsGlobalConfig, section, field.key) : undefined;
+  if (globalVal !== undefined && globalVal !== null) {
+    const display = field.sensitive ? '(set in global)' : (typeof globalVal === 'object' ? JSON.stringify(globalVal) : String(globalVal));
+    emptyText = `inherit: ${display}`;
+  } else if (defaultLabel) {
+    emptyText = `default: ${defaultLabel}`;
   } else {
-    const globalVal = (settingsGlobalConfig && section) ? schemaGetValue(settingsGlobalConfig, section, field.key) : undefined;
-    if (globalVal !== undefined && globalVal !== null) {
-      const display = field.sensitive ? '(set in global)' : (typeof globalVal === 'object' ? JSON.stringify(globalVal) : String(globalVal));
-      emptyText = `inherit: ${display}`;
-    } else if (defaultLabel) {
-      emptyText = `default: ${defaultLabel}`;
-    } else {
-      emptyText = '(not set)';
-    }
+    emptyText = '(not set)';
   }
 
   const headerHtml = `<div class="sf-field-header">
@@ -5026,7 +4855,7 @@ function renderFormField(id, field, rawVal, scope, section, sourceBadge = '') {
 
   if (field.type === 'bool') {
     const state = normalizeBoolState(rawVal);
-    const inheritLabel = inheritedBoolLabel(field, section, scope);
+    const inheritLabel = inheritedBoolLabel(field, section);
     return `<div class="settings-field" data-field-key="${escapeHtml(field.key)}">
       ${headerHtml}
       <div class="sf-tristate" id="${id}" data-value="${state}">
@@ -5092,7 +4921,7 @@ function renderFormField(id, field, rawVal, scope, section, sourceBadge = '') {
     return `<div class="settings-field" data-field-key="${escapeHtml(field.key)}">
       ${headerHtml}
       <textarea class="settings-input settings-json-input" id="${id}" rows="3"
-        placeholder="${escapeHtml(isGlobalScope ? (defaultLabel ? `default: ${defaultLabel} (enter valid JSON)` : '(not set, enter valid JSON)') : '(inherit from global, enter valid JSON)')}"
+        placeholder="(inherit from global, enter valid JSON)"
         spellcheck="false">${escapeHtml(val)}</textarea>
       <div class="settings-json-error" id="${id}-err"></div>${hint}
     </div>`;
@@ -5146,30 +4975,6 @@ function formatDefaultValue(value) {
   return String(value);
 }
 
-function formatFieldHint(field, scope) {
-  const isGlobalScope = scope === 'global';
-  if (!field.hint) {
-    if (isGlobalScope && field.sensitive && field.defaultValue === undefined) {
-      return 'Leave blank if you do not want to set this value yet.';
-    }
-    return '';
-  }
-
-  if (!isGlobalScope) return field.hint;
-
-  if (field.hint === 'Leave blank to inherit from global') {
-    return field.defaultValue !== undefined
-      ? `Leave blank to use the default value (${formatDefaultValue(field.defaultValue)}).`
-      : 'Leave blank if you do not want to set this value yet.';
-  }
-
-  if (field.hint.includes('inherit from global')) {
-    return field.hint.replaceAll('inherit from global', 'use the default value');
-  }
-
-  return field.hint;
-}
-
 function tristateSet(id, val) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -5183,9 +4988,7 @@ function tristateSet(id, val) {
 // ─── SETTINGS SEARCH FILTER ───────────────────────────────────────────────────
 function filterSettings(query) {
   const q = query.trim().toLowerCase();
-  const container = document.getElementById(
-    settingsActiveTab === 'global' ? 'settingsGlobalBody' : 'settingsFormContainer'
-  );
+  const container = document.getElementById('settingsFormContainer');
   if (!container) return;
 
   container.querySelectorAll('.sf-accordion').forEach(accordion => {
@@ -5203,31 +5006,6 @@ function filterSettings(query) {
   });
 }
 
-// ─── SETTINGS TAB SWITCHER (setup mode) ──────────────────────────────────────
-function switchSettingsTab(tab) {
-  settingsActiveTab = tab;
-  document.getElementById('tabWorkspace').classList.toggle('active', tab === 'workspace');
-  document.getElementById('tabGlobal').classList.toggle('active', tab === 'global');
-  document.getElementById('settingsFormContainer').style.display = tab === 'workspace' ? '' : 'none';
-  document.getElementById('settingsGlobalBody').style.display = tab === 'global' ? '' : 'none';
-
-  const pathEl = document.getElementById('settingsActivePath');
-  if (tab === 'workspace') {
-    pathEl.textContent = settingsWorkspacePath || '';
-  } else {
-    pathEl.textContent = settingsGlobalPath || '';
-  }
-
-  // Update save button
-  document.getElementById('settingsSaveBtn').innerHTML =
-    `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>` +
-    (settingsSetupMode ? 'Save Global + Workspace' : 'Save Workspace');
-
-  // Clear search
-  const search = document.getElementById('settingsSearch');
-  if (search) { search.value = ''; filterSettings(''); }
-}
-
 // ─── COLLECT EDITABLE FORM ────────────────────────────────────────────────────
 function collectForm(scope) {
   const result = {};
@@ -5237,15 +5015,11 @@ function collectForm(scope) {
     if (isObjectListSection(section) && section.rootKey) {
       const arr = collectObjectListForSection(section, sectionIdx, scope);
       const serialized = serializeObjectListForSection(section, arr);
-      if (scope === 'global') {
+      // Workspace file replaces its JSON entirely; omit rootKey when empty and the workspace
+      // never defined it so global servers are not accidentally cleared on save.
+      const hadWorkspaceKey = ciGet(settingsWorkspaceConfig, section.rootKey) !== undefined;
+      if (Object.keys(serialized).length > 0 || hadWorkspaceKey) {
         result[section.rootKey] = serialized;
-      } else {
-        // Workspace file replaces its JSON entirely; omit rootKey when empty and the workspace
-        // never defined it so global servers are not accidentally cleared on save.
-        const hadWorkspaceKey = ciGet(settingsWorkspaceConfig, section.rootKey) !== undefined;
-        if (Object.keys(serialized).length > 0 || hadWorkspaceKey) {
-          result[section.rootKey] = serialized;
-        }
       }
       return;
     }
@@ -5297,8 +5071,7 @@ function collectForm(scope) {
     }
   });
 
-  const sourceConfig = scope === 'global' ? settingsGlobalConfig : settingsWorkspaceConfig;
-  preserveUnmanagedTopLevelKeys(result, sourceConfig);
+  preserveUnmanagedTopLevelKeys(result, settingsWorkspaceConfig);
 
   if (hasJsonError) return null; // signal validation error
   return result;
@@ -5354,24 +5127,17 @@ function setNestedValue(result, section, fieldKey, value) {
   obj[fieldKey] = value;
 }
 
-// Stored paths for the tab switcher display
-let settingsGlobalPath = '';
-let settingsWorkspacePath = '';
-
 // ─── REFRESH SETTINGS ─────────────────────────────────────────────────────────
 async function refreshSettings() {
   if (!dashboardCapability('settings')) {
     document.getElementById('settingsFormContainer').innerHTML =
       '<div class="empty-state"><p>Settings are disabled in read-only mode.</p></div>';
-    document.getElementById('settingsGlobalBody').innerHTML = '';
     applyRuntimeUi();
-    return null;
+    return;
   }
   await loadDynamicModelOptions();
   const data = await fetchJson('/config/edit');
   if (!data) {
-    document.getElementById('settingsGlobalBody').innerHTML =
-      '<div class="empty-state"><p>Failed to load config.</p></div>';
     document.getElementById('settingsFormContainer').innerHTML =
       '<div class="empty-state"><p>Failed to load config.</p></div>';
     return;
@@ -5379,45 +5145,21 @@ async function refreshSettings() {
 
   settingsGlobalConfig = data.global || {};
   settingsWorkspaceConfig = data.workspace || {};
-  settingsSetupMode = !!data.setupMode;
-  settingsHasApiKey = data.hasApiKey !== false;
-  settingsGlobalPath = data.globalPath || '';
-  settingsWorkspacePath = data.workspacePath || '';
 
   // Update path display
   const pathEl = document.getElementById('settingsActivePath');
   if (pathEl) {
-    pathEl.textContent = settingsActiveTab === 'global' ? settingsGlobalPath : settingsWorkspacePath;
+    pathEl.textContent = data.workspacePath || '';
     pathEl.style.display = '';
   }
 
-  // Setup mode: show tab switcher and make global editable
-  const tabSwitcher = document.getElementById('settingsTabSwitcher');
-  if (tabSwitcher) tabSwitcher.style.display = settingsSetupMode ? 'flex' : 'none';
-
-  // Update save button label
-  const saveBtn = document.getElementById('settingsSaveBtn');
-  const saveSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>';
-  saveBtn.innerHTML = saveSvg + (settingsSetupMode ? 'Save Global + Workspace' : 'Save Workspace');
-
-  document.getElementById('setupBanner').style.display = settingsSetupMode ? '' : 'none';
-
-  // Render forms
-  if (settingsSetupMode) {
-    renderEditableForm('settingsGlobalBody', settingsGlobalConfig, 'global');
-    // Default to workspace tab in setup mode
-    settingsActiveTab = 'workspace';
-    document.getElementById('settingsGlobalBody').style.display = 'none';
-    document.getElementById('settingsFormContainer').style.display = '';
-  } else {
-    renderGlobalPanel(settingsGlobalConfig);
-    document.getElementById('settingsGlobalBody').style.display = 'none';
-    document.getElementById('settingsFormContainer').style.display = '';
-  }
   renderEditableForm('settingsFormContainer', settingsWorkspaceConfig, 'workspace');
   clearSettingsDirty();
-  applySetupModeUi();
-  return data;
+  if (!dashboardRuntime.readOnly) {
+    document.getElementById('statusText').textContent = 'Connected';
+    document.getElementById('liveDot').style.display = '';
+  }
+  applyRuntimeUi();
 }
 
 // ─── SAVE ─────────────────────────────────────────────────────────────────────
@@ -5427,9 +5169,8 @@ async function saveSettings() {
     return;
   }
   const workspaceData = collectForm('workspace');
-  const globalData = settingsSetupMode ? collectForm('global') : null;
 
-  if (workspaceData === null || (settingsSetupMode && globalData === null)) {
+  if (workspaceData === null) {
     showToast('Fix JSON errors before saving.', 'error');
     return;
   }
@@ -5438,19 +5179,6 @@ async function saveSettings() {
   saveBtn.disabled = true;
 
   try {
-    if (settingsSetupMode) {
-      const globalRes = await fetch(API + '/config/global', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(globalData)
-      });
-      if (!globalRes.ok) {
-        const err = await globalRes.json().catch(() => ({}));
-        showToast('Global save failed: ' + (err.error || globalRes.status), 'error');
-        return;
-      }
-    }
-
     const workspaceRes = await fetch(API + '/config/workspace', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -5458,11 +5186,7 @@ async function saveSettings() {
     });
 
     if (workspaceRes.ok) {
-      const msg = settingsSetupMode
-        ? 'Saved. Please restart DotCraft to apply changes.'
-        : 'Workspace config saved. Please restart DotCraft to apply.';
-      showToast(msg, 'success');
-      settingsGlobalConfig = globalData ?? settingsGlobalConfig;
+      showToast('Workspace config saved. Settings that need a restart apply after DotCraft restarts.', 'success');
       settingsWorkspaceConfig = workspaceData;
       await refreshSettings();
     } else {
@@ -5478,39 +5202,10 @@ async function saveSettings() {
 
 function cancelSettings() {
   if (!dashboardCapability('settings')) return;
-  if (settingsSetupMode && settingsGlobalConfig !== null) {
-    renderEditableForm('settingsGlobalBody', settingsGlobalConfig, 'global');
-  }
   if (settingsWorkspaceConfig !== null) {
     renderEditableForm('settingsFormContainer', settingsWorkspaceConfig, 'workspace');
   }
   clearSettingsDirty();
-}
-
-function applySetupModeUi() {
-  const navTabs = document.querySelectorAll('.nav-tab');
-  if (!settingsSetupMode) {
-    navTabs.forEach(tab => tab.style.display = '');
-    applyAutomationsNavState();
-    applyDreamsNavState();
-    if (dashboardRuntime.readOnly) {
-      document.getElementById('statusText').textContent = 'Read-only';
-      document.getElementById('liveDot').style.display = 'none';
-    } else {
-      document.getElementById('statusText').textContent = 'Connected';
-      document.getElementById('liveDot').style.display = '';
-    }
-    applyRuntimeUi();
-    return;
-  }
-
-  navTabs.forEach(tab => {
-    tab.style.display = tab.dataset.panel === 'settings' ? '' : 'none';
-  });
-  document.getElementById('statusText').textContent = 'Setup Mode';
-  document.getElementById('liveDot').style.display = 'none';
-  if (currentPanel !== 'settings')
-    switchPanel('settings');
 }
 
 function togglePasswordVisibility(inputId, btn) {
@@ -6289,27 +5984,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) logoutBtn.innerHTML = iconSvg('logout', 15);
   installSessionCardDelegation();
-  let settingsData = null;
   if (dashboardCapability('settings')) {
     await loadConfigSchema();
-    settingsData = await refreshSettings();
+    await refreshSettings();
   }
-  if (!settingsSetupMode) {
-    refreshDashboard();
-    connectSSE();
-    checkAuthEnabled();
-    if (dashboardCapability('dreams')) await probeDreams();
-    else applyDreamsNavState();
-    if (dreamsAvailable) {
-      handleDashboardHash();
-    }
-    if (dashboardCapability('automations')) {
-      probeAutomations().then(() => { if (automationsAvailable) refreshAutomations(); });
-    } else {
-      applyAutomationsNavState();
-    }
-  } else if (settingsData && !settingsHasApiKey) {
-    switchPanel('settings');
+  refreshDashboard();
+  connectSSE();
+  checkAuthEnabled();
+  if (dashboardCapability('dreams')) await probeDreams();
+  else applyDreamsNavState();
+  if (dreamsAvailable) {
+    handleDashboardHash();
+  }
+  if (dashboardCapability('automations')) {
+    probeAutomations().then(() => { if (automationsAvailable) refreshAutomations(); });
+  } else {
+    applyAutomationsNavState();
   }
   window.addEventListener('hashchange', handleDashboardHash);
   document.getElementById('traceBody').addEventListener('scroll', handleTraceScroll);

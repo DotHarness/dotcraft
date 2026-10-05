@@ -4647,6 +4647,187 @@
         "backend"
       ]
     },
+    "ConfigBatchWriteParams": {
+      "title": "ConfigBatchWriteParams",
+      "type": "object",
+      "properties": {
+        "edits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ConfigEdit"
+          }
+        },
+        "expectedVersion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "filePath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "edits"
+      ]
+    },
+    "ConfigChangedParams": {
+      "title": "ConfigChangedParams",
+      "type": "object",
+      "properties": {
+        "changedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "regions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ConfigEdit": {
+      "title": "ConfigEdit",
+      "type": "object",
+      "properties": {
+        "keyPath": {
+          "type": "string"
+        },
+        "mergeStrategy": {
+          "type": "string"
+        },
+        "value": {}
+      },
+      "additionalProperties": true,
+      "required": [
+        "keyPath",
+        "mergeStrategy",
+        "value"
+      ]
+    },
+    "ConfigLayer": {
+      "title": "ConfigLayer",
+      "type": "object",
+      "properties": {
+        "config": {},
+        "name": {
+          "$ref": "#/$defs/ConfigLayerName"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "config",
+        "name",
+        "version"
+      ]
+    },
+    "ConfigLayerMetadata": {
+      "title": "ConfigLayerMetadata",
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/ConfigLayerName"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "name",
+        "version"
+      ]
+    },
+    "ConfigLayerName": {
+      "title": "ConfigLayerName",
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "file",
+        "type"
+      ]
+    },
+    "ConfigOverriddenMetadata": {
+      "title": "ConfigOverriddenMetadata",
+      "type": "object",
+      "properties": {
+        "effectiveValue": {},
+        "message": {
+          "type": "string"
+        },
+        "overridingLayer": {
+          "$ref": "#/$defs/ConfigLayerMetadata"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "effectiveValue",
+        "message",
+        "overridingLayer"
+      ]
+    },
+    "ConfigReadParams": {
+      "title": "ConfigReadParams",
+      "type": "object",
+      "properties": {
+        "includeLayers": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ConfigReadResult": {
+      "title": "ConfigReadResult",
+      "type": "object",
+      "properties": {
+        "config": {},
+        "layers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ConfigLayer"
+          }
+        },
+        "origins": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ConfigLayerMetadata"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "config",
+        "origins"
+      ]
+    },
     "ConfigSchemaField": {
       "title": "ConfigSchemaField",
       "type": "object",
@@ -4734,6 +4915,25 @@
         "type"
       ]
     },
+    "ConfigSchemaParams": {
+      "title": "ConfigSchemaParams",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": true
+    },
+    "ConfigSchemaResult": {
+      "title": "ConfigSchemaResult",
+      "type": "object",
+      "properties": {
+        "sections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ConfigSchemaSection"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
     "ConfigSchemaSection": {
       "title": "ConfigSchemaSection",
       "type": "object",
@@ -4791,6 +4991,76 @@
       "required": [
         "fields",
         "section"
+      ]
+    },
+    "ConfigValueWriteParams": {
+      "title": "ConfigValueWriteParams",
+      "type": "object",
+      "properties": {
+        "expectedVersion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "filePath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "keyPath": {
+          "type": "string"
+        },
+        "mergeStrategy": {
+          "type": "string"
+        },
+        "value": {}
+      },
+      "additionalProperties": true,
+      "required": [
+        "keyPath",
+        "mergeStrategy",
+        "value"
+      ]
+    },
+    "ConfigWriteResult": {
+      "title": "ConfigWriteResult",
+      "type": "object",
+      "properties": {
+        "filePath": {
+          "type": "string"
+        },
+        "overriddenMetadata": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConfigOverriddenMetadata"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "filePath",
+        "status",
+        "version"
       ]
     },
     "ContextImage": {
@@ -20638,405 +20908,6 @@
       "properties": {
         "message": {
           "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "WorkspaceConfigChangedParams": {
-      "title": "WorkspaceConfigChangedParams",
-      "type": "object",
-      "properties": {
-        "changedAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "regions": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "source": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "WorkspaceConfigSchemaParams": {
-      "title": "WorkspaceConfigSchemaParams",
-      "type": "object",
-      "properties": {},
-      "additionalProperties": true
-    },
-    "WorkspaceConfigSchemaResult": {
-      "title": "WorkspaceConfigSchemaResult",
-      "type": "object",
-      "properties": {
-        "sections": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ConfigSchemaSection"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "WorkspaceConfigUpdateParams": {
-      "title": "WorkspaceConfigUpdateParams",
-      "type": "object",
-      "properties": {
-        "defaultApprovalPolicy": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "dreamsAutoApply": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "dreamsEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "dreamsInterval": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "dreamsThreadLookbackCount": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "instantInterruptEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "memoryEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "promptSuggestionsEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "providerId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "providerPreferences": {
-          "anyOf": [
-            {
-              "type": "object",
-              "additionalProperties": {
-                "$ref": "#/$defs/ModelPreference"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "skillsIncludeSharedSkills": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "skillsSelfLearningEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "toolsCodeModeMode": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "toolsImageGenerationEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "toolsImageGenerationProvider": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "toolsLspEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "welcomeSuggestionsEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "WorkspaceConfigUpdateResult": {
-      "title": "WorkspaceConfigUpdateResult",
-      "type": "object",
-      "properties": {
-        "defaultApprovalPolicy": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "dreamsAutoApply": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "dreamsEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "dreamsInterval": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "dreamsThreadLookbackCount": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "instantInterruptEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "memoryEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "promptSuggestionsEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "providerId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "providerPreferences": {
-          "anyOf": [
-            {
-              "type": "object",
-              "additionalProperties": {
-                "$ref": "#/$defs/ModelPreference"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "skillsIncludeSharedSkills": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "skillsSelfLearningEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "toolsCodeModeMode": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "toolsImageGenerationEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "toolsImageGenerationProvider": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "toolsLspEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "welcomeSuggestionsEnabled": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "additionalProperties": true

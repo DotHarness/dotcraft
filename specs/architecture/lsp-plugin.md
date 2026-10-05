@@ -107,7 +107,7 @@ Rules:
 - Plugin-origin LSP servers are never persisted by workspace config update paths.
 - `Tools.Lsp.Enabled = false` disables the built-in model-facing `LSP` tool and prevents LSP server manager startup, even when plugin LSP declarations exist.
 
-Plugin lifecycle changes that affect effective LSP runtime state must emit `workspace/configChanged` with `regions` including `"plugins"` and `"lsp"`. When the same operation also changes skill or MCP state, existing regions such as `"skills"` and `"mcp"` are preserved.
+Plugin lifecycle changes that affect effective LSP runtime state must emit `config/changed` with `regions` including `"plugins"` and `"lsp"`. When the same operation also changes skill or MCP state, existing regions such as `"skills"` and `"mcp"` are preserved.
 
 ## 8. Path and Variable Resolution
 
@@ -152,7 +152,7 @@ LSP status is exposed through plugin detail metadata; there is no standalone LSP
 Minimum AppServer impact:
 
 - `PluginInfo` gains `lspServers: PluginLspServerInfo[]`.
-- `workspace/configChanged.regions` accepts `"lsp"`.
+- `config/changed.regions` accepts `"lsp"`.
 - Plugin lifecycle methods include `"lsp"` in changed regions when effective LSP state may have changed.
 
 `PluginLspServerInfo` fields:

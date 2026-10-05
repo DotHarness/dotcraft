@@ -82,6 +82,7 @@ public sealed class AppServerHostResolutionTests
         var services = new ServiceCollection()
             .AddSingleton(registry)
             .AddSingleton<IConfigSchemaProvider>(ConfigSchemaRegistrations.CreateSchemaProvider())
+            .AddSingleton<IConfigDescriptorRegistry>(ConfigSchemaRegistrations.CreateDescriptorRegistry())
             .AddDotCraftRuntime(new DotCraftRuntimeOptions
             {
                 Config = config,
@@ -124,6 +125,7 @@ public sealed class AppServerHostResolutionTests
             .AddSingleton(registry)
             .AddSingleton<IWorkspaceRuntimeAppServerFeatureFactory>(feature)
             .AddSingleton<IConfigSchemaProvider>(ConfigSchemaRegistrations.CreateSchemaProvider())
+            .AddSingleton<IConfigDescriptorRegistry>(ConfigSchemaRegistrations.CreateDescriptorRegistry())
             .AddOpenAIModelProvider()
             .AddDotCraftRuntime(new DotCraftRuntimeOptions
             {

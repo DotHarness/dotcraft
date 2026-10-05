@@ -136,30 +136,10 @@ internal sealed class HookRequestHandler(
     private void WriteHookStates(Action<JsonObject> mutateState)
     {
         var configPath = workspaceConfig.RequirePersonalConfigPath("user hook trust persistence");
-        AtomicConfigDocument.Update(configPath, root => mutateState(GetOrCreateHooksState(root)));
+        AtomicConfigDocument.Update(configPath, root =>
+            mutateState(AtomicConfigDocument.Object(AtomicConfigDocument.Object(root, "Hooks"), "State")));
         AtomicConfigDocument.Update(Path.Combine(Path.GetDirectoryName(configPath)!, "imports", "revision.json"),
             root => root["revision"] = Guid.NewGuid().ToString("N"));
-    }
-
-    private static JsonObject GetOrCreateHooksState(JsonObject root)
-    {
-        var hooksKey = WorkspaceConfigEditor.FindCaseInsensitiveKey(root, "Hooks") ?? "Hooks";
-        var hooksObj = root[hooksKey] as JsonObject;
-        if (hooksObj == null)
-        {
-            hooksObj = new JsonObject();
-            root[hooksKey] = hooksObj;
-        }
-
-        var stateKey = WorkspaceConfigEditor.FindCaseInsensitiveKey(hooksObj, "State") ?? "State";
-        var stateObj = hooksObj[stateKey] as JsonObject;
-        if (stateObj == null)
-        {
-            stateObj = new JsonObject();
-            hooksObj[stateKey] = stateObj;
-        }
-
-        return stateObj;
     }
 
     private static JsonObject GetOrCreateState(JsonObject stateObj, string hookKey)

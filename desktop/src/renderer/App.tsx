@@ -27,6 +27,7 @@ import { ThreePanel } from './components/layout/ThreePanel'
 import { useAutomationsStore } from './stores/automationsStore'
 import type { AutomationDefinition, AutomationRun } from './stores/automationsStore'
 import { useModelCatalogStore } from './stores/modelCatalogStore'
+import { useConfigStore } from './stores/configStore'
 import { useProvidersStore } from './stores/providersStore'
 import { useMcpStore, type McpServerStatusWire } from './stores/mcpStore'
 import { useSkillsStore } from './stores/skillsStore'
@@ -114,9 +115,10 @@ import {
   useDesktopPluginRegistry
 } from './plugins/desktopPluginRegistry'
 import {
-  resolveWorkspaceConfigChangedPayload,
-  type WorkspaceConfigChangedPayload
-} from './utils/workspaceConfigChanged'
+  hasConfigKeyPathChange,
+  resolveConfigChangedPayload,
+  type ConfigChangedPayload
+} from './utils/configChanged'
 import {
   compareAppVersions,
   getLatestWhatsNewVersion,
@@ -410,6 +412,7 @@ function resetWorkspaceScopedRendererState(): void {
   useThreadStore.getState().reset()
   useConversationStore.getState().reset()
   useModelCatalogStore.getState().reset()
+  useConfigStore.getState().reset()
   useProvidersStore.getState().reset()
   useMcpStore.getState().reset()
   usePluginStore.getState().resetForWorkspaceChange()
@@ -608,7 +611,7 @@ export function App(): JSX.Element {
   const [workspacePath, setWorkspacePath] = useState(initialWorkspacePath)
   const [protocolWorkspacePath, setProtocolWorkspacePath] = useState(initialProtocolWorkspacePath)
   const [workspaceName, setWorkspaceName] = useState(resolveWorkspaceDisplayName(initialWorkspaceStatus))
-  const [workspaceConfigChange, setWorkspaceConfigChange] = useState<WorkspaceConfigChangedPayload | null>(null)
+  const [workspaceConfigChange, setWorkspaceConfigChange] = useState<ConfigChangedPayload | null>(null)
   const [workspaceConfigChangeSeq, setWorkspaceConfigChangeSeq] = useState(0)
   const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatusPayload>(initialWorkspaceStatus)
   const [showSetupWizard, setShowSetupWizard] = useState(false)
@@ -710,7 +713,7 @@ export function App(): JSX.Element {
     initialWorkspaceStatus.status === 'needs-setup' ? initialWorkspaceStatus : null
   )
   const workspaceStatusHydratedRef = useRef(hasPreloadedWorkspaceStatusRef.current)
-  const workspaceConfigChangedDedupeRef = useRef<Map<string, number>>(new Map())
+  const configChangedDedupeRef = useRef<Map<string, number>>(new Map())
   const moduleConnectedSnapshotRef = useRef<Map<string, boolean>>(new Map())
   const moduleConnectedSnapshotReadyRef = useRef(false)
   const moduleDisplayNameByIdRef = useRef<Map<string, string>>(new Map())
@@ -2240,19 +2243,20 @@ export function App(): JSX.Element {
             break
           }
 
-          // A runtime-only plugin transition emits no workspace/configChanged, so this is its only signal.
+          // A runtime-only plugin transition emits no config/changed, so this is its only signal.
           case 'plugin/snapshot/updated': {
             usePluginStore.getState().handleSnapshotUpdated(p.snapshotRevision)
             break
           }
 
-          case 'workspace/configChanged': {
-            const event = resolveWorkspaceConfigChangedPayload(
+          case 'config/changed': {
+            const event = resolveConfigChangedPayload(
               payload,
-              workspaceConfigChangedDedupeRef.current
+              configChangedDedupeRef.current
             )
             if (!event) break
 
+            useConfigStore.getState().handleConfigChanged(event.regions)
             if (event.regions.includes('skills')) {
               void useSkillsStore.getState().fetchSkills()
             }
@@ -2265,7 +2269,7 @@ export function App(): JSX.Element {
             if (useConnectionStore.getState().capabilities?.modelCatalogManagement === true) {
               void useModelCatalogStore.getState().handleConfigChanged(event.regions)
             }
-            if (event.regions.includes('providers') || event.regions.includes('workspace.provider')) {
+            if (event.regions.includes('providers') || hasConfigKeyPathChange(event.regions, 'ProviderId')) {
               if (useConnectionStore.getState().capabilities?.providerManagement === true) {
                 void useProvidersStore.getState().reload()
               }
@@ -3614,8 +3618,6 @@ export function App(): JSX.Element {
                   identityWorkspacePath={protocolWorkspacePath || workspacePath}
                   projectKey={activeProjectKey}
                   remoteWorkspace={remoteWorkspaceActive}
-                  workspaceConfigChange={workspaceConfigChange}
-                  workspaceConfigChangeSeq={workspaceConfigChangeSeq}
                   onInteractionResponseAccepted={scheduleActiveThreadSnapshotReconcile}
                 />
               )}

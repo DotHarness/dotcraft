@@ -114,17 +114,13 @@ const voiceApi = {
   onSessionEvent: unsubscribe
 } satisfies VoiceApi
 
-const workspaceCoreConfigSide = {
-  providerId: DEMO_PROVIDER_ID,
-  model: DEMO_MODEL,
-  welcomeSuggestionsEnabled: false,
-  skillsSelfLearningEnabled: null,
-  memoryEnabled: null,
-  dreamsEnabled: null,
-  dreamsInterval: null,
-  dreamsThreadLookbackCount: null,
-  dreamsAutoApply: null,
-  defaultApprovalPolicy: 'default' as const
+const workspaceConfig = {
+  ProviderId: DEMO_PROVIDER_ID,
+  ProviderPreferences: {
+    [DEMO_PROVIDER_ID]: { Model: DEMO_MODEL, Reasoning: DEMO_REASONING, Speed: 'standard' }
+  },
+  WelcomeSuggestions: { Enabled: false },
+  Permissions: { DefaultApprovalPolicy: 'default' }
 }
 
 function handleAppServerRequest(method: string, params?: { threadId?: string; config?: Record<string, unknown> }): unknown {
@@ -133,6 +129,8 @@ function handleAppServerRequest(method: string, params?: { threadId?: string; co
       return modelListPayload
     case 'provider/list':
       return providerListPayload
+    case 'config/read':
+      return { config: workspaceConfig, origins: {} }
     case 'thread/read':
       return { thread: { id: params?.threadId, configuration: threadConfigurations.get(params?.threadId ?? '') ?? {} } }
     case 'thread/config/update':
@@ -167,7 +165,6 @@ const explicitApi = {
     sendRequest: async (method: string, params?: { threadId?: string; config?: Record<string, unknown> }) =>
       handleAppServerRequest(method, params),
     listModels: async () => modelListPayload,
-    requestWorkspaceConfigSchema: async () => null,
     getConnectionStatus: async () => connectionStatusPayload,
     getResolvedBinary: async () => ({ source: 'bundled' as const, path: null }),
     pickBinary: async () => null,
@@ -177,12 +174,6 @@ const explicitApi = {
     onConnectionStatus: unsubscribe,
     onServerRequest: unsubscribe,
     sendServerResponse: noop
-  },
-  workspaceConfig: {
-    getCore: async () => ({
-      workspace: workspaceCoreConfigSide,
-      userDefaults: workspaceCoreConfigSide
-    })
   },
   window: {
     setTitle: noop,

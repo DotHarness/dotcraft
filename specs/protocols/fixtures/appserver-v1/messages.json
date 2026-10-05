@@ -666,13 +666,13 @@
         { "jsonrpc": "2.0", "id": 34, "result": {} },
         { "jsonrpc": "2.0", "id": 35, "method": "usage/summary", "params": {} },
         { "jsonrpc": "2.0", "id": 35, "result": {} },
-        { "jsonrpc": "2.0", "id": 36, "method": "workspace/config/schema", "params": {} },
+        { "jsonrpc": "2.0", "id": 36, "method": "config/schema", "params": {} },
         { "jsonrpc": "2.0", "id": 36, "result": {} },
         { "jsonrpc": "2.0", "id": 37, "method": "worktree/list", "params": {} },
         { "jsonrpc": "2.0", "id": 37, "result": {} },
         {
           "jsonrpc": "2.0",
-          "method": "workspace/configChanged",
+          "method": "config/changed",
           "params": { "source": "workspace", "regions": ["providers"], "changedAt": "2026-01-01T00:00:00+00:00" }
         },
         {

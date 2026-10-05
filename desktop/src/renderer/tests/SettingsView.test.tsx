@@ -5,6 +5,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { SettingsView } from '../components/settings/SettingsView'
 import { SettingsSidebar } from '../components/layout/SettingsSidebar'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useConfigStore } from '../stores/configStore'
 import { chooseSelectValue, chooseValueIn } from './selectHarness'
 import { usePendingRestartStore } from '../stores/pendingRestartStore'
 import { useToastStore } from '../stores/toastStore'
@@ -13,7 +14,6 @@ import type { ModelPreference } from '../../shared/modelPreference'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
-const workspaceConfigGetCore = vi.fn()
 const appServerSendRequest = vi.fn()
 const appServerRestartManaged = vi.fn()
 const appServerApplyConnectionSettings = vi.fn()
@@ -68,6 +68,32 @@ function preferences(models: Record<string, string>): Record<string, ModelPrefer
   return Object.fromEntries(
     Object.entries(models).map(([providerId, model]) => [providerId, preference(model)])
   )
+}
+
+let serverConfig: Record<string, any> = {}
+
+function writeServerConfig(keyPath: string, value: unknown): void {
+  const segments = keyPath.split('.')
+  let target = serverConfig
+  for (const segment of segments.slice(0, -1)) {
+    target[segment] = { ...(target[segment] ?? {}) }
+    target = target[segment]
+  }
+  target[segments[segments.length - 1]] = value
+}
+
+function expectWrite(keyPath: string, value: unknown): void {
+  expect(appServerSendRequest).toHaveBeenCalledWith(
+    'config/value/write',
+    { keyPath, value, mergeStrategy: 'replace' },
+    20_000
+  )
+}
+
+function expectBatchWrite(edits: Record<string, unknown>): void {
+  expect(appServerSendRequest).toHaveBeenCalledWith('config/batchWrite', {
+    edits: Object.entries(edits).map(([keyPath, value]) => ({ keyPath, value, mergeStrategy: 'replace' }))
+  }, 20_000)
 }
 
 async function chooseModelPickerValue(label: string, model: string): Promise<void> {
@@ -152,36 +178,19 @@ describe('SettingsView', () => {
     useUIStore.getState().setShowThinkingContent(true)
     delete (window as Window & { __confirmDialog?: unknown }).__confirmDialog
 
-    const core: any = {
-      workspace: {
-        providerId: null,
-        providerPreferences: {},
-        apiKey: null,
-        endPoint: null,
-        welcomeSuggestionsEnabled: null,
-        skillsSelfLearningEnabled: false,
-        memoryEnabled: null,
-        dreamsEnabled: null,
-        dreamsInterval: null,
-        dreamsThreadLookbackCount: null,
-        dreamsAutoApply: null,
-        defaultApprovalPolicy: 'default'
-      },
-      userDefaults: {
-        providerId: null,
-        providerPreferences: {},
-        apiKey: null,
-        endPoint: null,
-        welcomeSuggestionsEnabled: null,
-        skillsSelfLearningEnabled: null,
-        memoryEnabled: null,
-        dreamsEnabled: null,
-        dreamsInterval: null,
-        dreamsThreadLookbackCount: null,
-        dreamsAutoApply: null,
-        defaultApprovalPolicy: null
-      }
+    serverConfig = {
+      ProviderId: 'openai',
+      ProviderPreferences: {},
+      InstantInterruptEnabled: true,
+      WelcomeSuggestions: { Enabled: true },
+      PromptSuggestions: { Enabled: true },
+      Memory: { Enabled: true },
+      Skills: { SelfLearning: { Enabled: false }, IncludeSharedSkills: true },
+      Dreams: { Enabled: true, Interval: '1.00:00:00', ThreadLookbackCount: 20, AutoApply: false },
+      Permissions: { DefaultApprovalPolicy: 'default' },
+      Tools: { CodeMode: { Mode: 'Only' }, ImageGeneration: { Enabled: true, Provider: null } }
     }
+    useConfigStore.getState().reset()
     const dreamsStatus = {
       enabled: true,
       interval: '24:00:00',
@@ -197,50 +206,16 @@ describe('SettingsView', () => {
 
     settingsGet.mockResolvedValue({ locale: 'en', connectionMode: 'stdio' })
     settingsSet.mockResolvedValue(undefined)
-    workspaceConfigGetCore.mockImplementation(async () => core)
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
-      if (method === 'workspace/config/update') {
-        if (params?.providerPreferences && typeof params.providerPreferences === 'object') {
-          core.workspace.providerPreferences = params.providerPreferences
-        }
-        if (typeof params?.providerId === 'string' || params?.providerId === null) {
-          core.workspace.providerId = params.providerId
-          return { providerId: core.workspace.providerId }
-        }
-        if (typeof params?.defaultApprovalPolicy === 'string') {
-          core.workspace.defaultApprovalPolicy = params.defaultApprovalPolicy
-          return { defaultApprovalPolicy: core.workspace.defaultApprovalPolicy }
-        }
-        if (typeof params?.memoryEnabled === 'boolean') {
-          core.workspace.memoryEnabled = params.memoryEnabled
-          return { memoryEnabled: core.workspace.memoryEnabled }
-        }
-        if (typeof params?.instantInterruptEnabled === 'boolean') {
-          core.workspace.instantInterruptEnabled = params.instantInterruptEnabled
-          return { instantInterruptEnabled: core.workspace.instantInterruptEnabled }
-        }
-        if (typeof params?.dreamsEnabled === 'boolean') {
-          core.workspace.dreamsEnabled = params.dreamsEnabled
-          dreamsStatus.enabled = params.dreamsEnabled
-          return { dreamsEnabled: core.workspace.dreamsEnabled }
-        }
-        if (typeof params?.dreamsInterval === 'string') {
-          core.workspace.dreamsInterval = params.dreamsInterval
-          dreamsStatus.interval = params.dreamsInterval
-          return { dreamsInterval: core.workspace.dreamsInterval }
-        }
-        if (typeof params?.dreamsThreadLookbackCount === 'number') {
-          core.workspace.dreamsThreadLookbackCount = params.dreamsThreadLookbackCount
-          dreamsStatus.threadLookbackCount = params.dreamsThreadLookbackCount
-          return { dreamsThreadLookbackCount: core.workspace.dreamsThreadLookbackCount }
-        }
-        if (typeof params?.dreamsAutoApply === 'boolean') {
-          core.workspace.dreamsAutoApply = params.dreamsAutoApply
-          dreamsStatus.autoApply = params.dreamsAutoApply
-          return { dreamsAutoApply: core.workspace.dreamsAutoApply }
-        }
-        core.workspace.skillsSelfLearningEnabled = params?.skillsSelfLearningEnabled === true
-        return { skillsSelfLearningEnabled: core.workspace.skillsSelfLearningEnabled }
+      if (method === 'config/read') {
+        return { config: structuredClone(serverConfig), origins: {} }
+      }
+      if (method === 'config/value/write' || method === 'config/batchWrite') {
+        const edits = method === 'config/batchWrite'
+          ? params?.edits as Array<{ keyPath: string; value: unknown }>
+          : [params as { keyPath: string; value: unknown }]
+        for (const edit of edits) writeServerConfig(edit.keyPath, edit.value)
+        return { status: 'ok', version: 'sha256:test', filePath: 'C:\\sample\\workspace\\.craft\\config.json' }
       }
       if (method === 'dreams/status') {
         return { ...dreamsStatus }
@@ -345,7 +320,6 @@ describe('SettingsView', () => {
     installDesktopApiMock({
       platform: 'win32',
       settings: { get: settingsGet, set: settingsSet },
-      workspaceConfig: { getCore: workspaceConfigGetCore },
       appServer: {
         sendRequest: appServerSendRequest,
         restartManaged: appServerRestartManaged,
@@ -376,14 +350,12 @@ describe('SettingsView', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
     const toggle = await screen.findByRole('switch', { name: 'Enable self-learning' })
-    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'))
 
     fireEvent.click(toggle)
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        skillsSelfLearningEnabled: true
-      })
+      expectWrite('Skills.SelfLearning.Enabled', true)
     })
     expect(await screen.findByText('Changes require a service restart to take effect')).toBeInTheDocument()
 
@@ -395,34 +367,6 @@ describe('SettingsView', () => {
     await waitFor(() => {
       expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
     })
-  })
-
-  it('defaults self-learning on when workspace and user defaults are unset', async () => {
-    workspaceConfigGetCore.mockResolvedValueOnce({
-      workspace: {
-        apiKey: null,
-        endPoint: null,
-        welcomeSuggestionsEnabled: null,
-        skillsSelfLearningEnabled: null,
-        memoryEnabled: null,
-        defaultApprovalPolicy: null
-      },
-      userDefaults: {
-        apiKey: null,
-        endPoint: null,
-        welcomeSuggestionsEnabled: null,
-        skillsSelfLearningEnabled: null,
-        memoryEnabled: null,
-        defaultApprovalPolicy: null
-      }
-    })
-
-    renderView()
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
-    const toggle = await screen.findByRole('switch', { name: 'Enable self-learning' })
-
-    expect(toggle).toHaveAttribute('aria-checked', 'true')
   })
 
   it('defaults thinking content display off when the setting is absent', async () => {
@@ -483,14 +427,12 @@ describe('SettingsView', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
     const toggle = await screen.findByRole('switch', { name: 'Enable memories' })
-    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'))
 
     fireEvent.click(toggle)
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        memoryEnabled: false
-      })
+      expectWrite('Memory.Enabled', false)
     })
     expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
   })
@@ -506,38 +448,41 @@ describe('SettingsView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Steer' }))
     const toggle = await screen.findByRole('switch', { name: 'Steer right away' })
-    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'))
 
     fireEvent.click(toggle)
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        instantInterruptEnabled: false
-      })
+      expectWrite('InstantInterruptEnabled', false)
     })
   })
 
-  it('hides steering right away on a manual remote connection', async () => {
+  it('shows and changes the remote server value of steering right away on a manual remote connection', async () => {
     settingsGet.mockResolvedValue({
       locale: 'en',
       connectionMode: 'remote',
       remote: { url: 'ws://127.0.0.1:9100/ws' },
       followUpQueueMode: 'steer'
     })
+    serverConfig.InstantInterruptEnabled = false
     renderView()
 
+    const toggle = await screen.findByRole('switch', { name: 'Steer right away' })
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'))
+
+    fireEvent.click(toggle)
+
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Steer' })).toHaveAttribute('aria-pressed', 'true')
+      expectWrite('InstantInterruptEnabled', true)
     })
-    expect(screen.queryByRole('switch', { name: 'Steer right away' })).not.toBeInTheDocument()
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
   })
 
   it('disables settings that depend on memory while memory is off', async () => {
-    workspaceConfigGetCore.mockImplementation(async () => ({
-      workspace: { memoryEnabled: false, welcomeSuggestionsEnabled: true, dreamsEnabled: true },
-      userDefaults: {}
-    }))
-    appServerSendRequest.mockImplementation(async (method: string) => {
+    serverConfig.Memory = { Enabled: false }
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'config/read') return defaultSendRequest?.(method, params)
       if (method === 'dreams/status') {
         return { enabled: true, interval: '24:00:00', threadLookbackCount: 20, autoApply: false, running: false, lastRun: null }
       }
@@ -650,15 +595,9 @@ describe('SettingsView', () => {
         title: 'Auto-update Dreams?',
         danger: true
       }))
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        dreamsAutoApply: true
-      })
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        dreamsInterval: '12:00:00'
-      })
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        dreamsThreadLookbackCount: 50
-      })
+      expectWrite('Dreams.AutoApply', true)
+      expectWrite('Dreams.Interval', '12:00:00')
+      expectWrite('Dreams.ThreadLookbackCount', 50)
     })
   })
 
@@ -1124,10 +1063,10 @@ describe('SettingsView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use provider Anthropic' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        providerId: 'anthropic-main',
-        providerPreferences: preferences({ 'anthropic-main': 'claude-sonnet-4-5' })
-      }, 20_000)
+      expectBatchWrite({
+        ProviderId: 'anthropic-main',
+        'ProviderPreferences.anthropic-main': preference('claude-sonnet-4-5')
+      })
     })
     expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
   })
@@ -1138,42 +1077,14 @@ describe('SettingsView', () => {
       connectionMode: 'remote',
       activeRemoteStack: { hostId: 'host-1', stackId: 'stack-1' },
     })
-    workspaceConfigGetCore.mockResolvedValue({
-      workspace: {
-        providerId: 'codex',
-        providerPreferences: preferences({ codex: 'gpt-5.5' }),
-        apiKey: null,
-        endPoint: null,
-        welcomeSuggestionsEnabled: null,
-        skillsSelfLearningEnabled: null,
-        memoryEnabled: null,
-        dreamsEnabled: null,
-        dreamsInterval: null,
-        dreamsThreadLookbackCount: null,
-        dreamsAutoApply: null,
-        defaultApprovalPolicy: null
-      },
-      userDefaults: {
-        providerId: null,
-        providerPreferences: {},
-        apiKey: null,
-        endPoint: null,
-        welcomeSuggestionsEnabled: null,
-        skillsSelfLearningEnabled: null,
-        memoryEnabled: null,
-        dreamsEnabled: null,
-        dreamsInterval: null,
-        dreamsThreadLookbackCount: null,
-        dreamsAutoApply: null,
-        defaultApprovalPolicy: null
-      }
-    })
+    serverConfig.ProviderId = 'retired'
+    serverConfig.ProviderPreferences = preferences({ retired: 'gpt-5.5' })
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
-      if (method === 'model/list' && params?.providerId === 'codex') {
+      if (method === 'model/list' && params?.providerId === 'retired') {
         return {
           success: false,
-          errorMessage: "Model provider 'codex' is not configured."
+          errorMessage: "Model provider 'retired' is not configured."
         }
       }
       return defaultSendRequest?.(method, params)
@@ -1182,20 +1093,17 @@ describe('SettingsView', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
-    expect(await screen.findByText(/Workspace provider "codex" is not configured/)).toBeInTheDocument()
+    expect(await screen.findByText(/Workspace provider "retired" is not configured/)).toBeInTheDocument()
     const anthropicRow = await screen.findByRole('button', { name: 'Use provider Anthropic' })
     appServerSendRequest.mockClear()
 
     fireEvent.click(anthropicRow)
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        providerId: 'anthropic-main',
-        providerPreferences: preferences({
-          codex: 'gpt-5.5',
-          'anthropic-main': 'claude-sonnet-4-5'
-        })
-      }, 20_000)
+      expectBatchWrite({
+        ProviderId: 'anthropic-main',
+        'ProviderPreferences.anthropic-main': preference('claude-sonnet-4-5')
+      })
     })
   })
 
@@ -1207,22 +1115,17 @@ describe('SettingsView', () => {
     await chooseModelPickerValue('Main model', 'deepseek-v4-pro')
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        providerPreferences: preferences({ openai: 'deepseek-v4-pro' })
-      }, 20_000)
+      expectWrite('ProviderPreferences.openai', preference('deepseek-v4-pro'))
     })
     appServerSendRequest.mockClear()
 
     fireEvent.click(screen.getByRole('button', { name: 'Use provider Anthropic' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        providerId: 'anthropic-main',
-        providerPreferences: preferences({
-          openai: 'deepseek-v4-pro',
-          'anthropic-main': 'claude-sonnet-4-5'
-        })
-      }, 20_000)
+      expectBatchWrite({
+        ProviderId: 'anthropic-main',
+        'ProviderPreferences.anthropic-main': preference('claude-sonnet-4-5')
+      })
     })
   })
 
@@ -1247,22 +1150,17 @@ describe('SettingsView', () => {
     await chooseModelPickerValue('Main model', 'deepseek-v4-pro')
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        providerPreferences: preferences({ openai: 'deepseek-v4-pro' })
-      }, 20_000)
+      expectWrite('ProviderPreferences.openai', preference('deepseek-v4-pro'))
     })
     appServerSendRequest.mockClear()
 
     fireEvent.click(screen.getByRole('button', { name: 'Use provider Anthropic' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        providerId: 'anthropic-main',
-        providerPreferences: preferences({
-          openai: 'deepseek-v4-pro',
-          'anthropic-main': 'claude-sonnet-4-5'
-        })
-      }, 20_000)
+      expectBatchWrite({
+        ProviderId: 'anthropic-main',
+        'ProviderPreferences.anthropic-main': preference('claude-sonnet-4-5')
+      })
     })
   })
 
@@ -1274,35 +1172,27 @@ describe('SettingsView', () => {
 
     await chooseModelPickerValue('Main model', 'deepseek-v4-pro')
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        providerPreferences: preferences({ openai: 'deepseek-v4-pro' })
-      }, 20_000)
+      expectWrite('ProviderPreferences.openai', preference('deepseek-v4-pro'))
     })
 
     // Switch to Anthropic: its model is not deepseek, so it falls back to the first listed model.
     appServerSendRequest.mockClear()
     fireEvent.click(screen.getByRole('button', { name: 'Use provider Anthropic' }))
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        providerId: 'anthropic-main',
-        providerPreferences: preferences({
-          openai: 'deepseek-v4-pro',
-          'anthropic-main': 'claude-sonnet-4-5'
-        })
-      }, 20_000)
+      expectBatchWrite({
+        ProviderId: 'anthropic-main',
+        'ProviderPreferences.anthropic-main': preference('claude-sonnet-4-5')
+      })
     })
 
     // Switch back to OpenAI: its previously chosen model is restored instead of being discarded.
     appServerSendRequest.mockClear()
     fireEvent.click(screen.getByRole('button', { name: 'Use provider OpenAI' }))
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        providerId: 'openai',
-        providerPreferences: preferences({
-          openai: 'deepseek-v4-pro',
-          'anthropic-main': 'claude-sonnet-4-5'
-        })
-      }, 20_000)
+      expectBatchWrite({
+        ProviderId: 'openai',
+        'ProviderPreferences.openai': preference('deepseek-v4-pro')
+      })
     })
   })
 
@@ -1352,15 +1242,9 @@ describe('SettingsView', () => {
 
   it('restores each provider remembered native subagent model when switching providers', async () => {
     enableProviderAndSubAgentManagement(false)
-    workspaceConfigGetCore.mockResolvedValue({
-      workspace: {
-        providerId: 'openai',
-        providerPreferences: preferences({
-          openai: 'deepseek-v4-pro',
-          'anthropic-main': 'claude-sonnet-4-5'
-        })
-      },
-      userDefaults: { providerPreferences: {} }
+    serverConfig.ProviderPreferences = preferences({
+      openai: 'deepseek-v4-pro',
+      'anthropic-main': 'claude-sonnet-4-5'
     })
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     const subAgentSettings = {
@@ -1409,9 +1293,7 @@ describe('SettingsView', () => {
     await chooseModelPickerValue('Main model', 'deepseek-v4-pro')
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        providerPreferences: preferences({ openai: 'deepseek-v4-pro' })
-      }, 20_000)
+      expectWrite('ProviderPreferences.openai', preference('deepseek-v4-pro'))
     })
     expect(screen.queryByText('Choose a listed model or type one manually.')).not.toBeInTheDocument()
     expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
@@ -1427,7 +1309,8 @@ describe('SettingsView', () => {
           errorMessage: 'Endpoint does not support model listing.'
         }
       }
-      if (method === 'workspace/config/update') return params
+      if (method === 'config/read') return { config: structuredClone(serverConfig), origins: {} }
+      if (method === 'config/value/write') return { status: 'ok', version: 'sha256:test', filePath: '' }
       if (method === 'channel/list') return { channels: [] }
       return {}
     })
@@ -1444,9 +1327,7 @@ describe('SettingsView', () => {
     fireEvent.keyDown(modelInput, { key: 'Enter' })
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        providerPreferences: preferences({ openai: 'manual-model' })
-      }, 20_000)
+      expectWrite('ProviderPreferences.openai', preference('manual-model'))
     })
     expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
   })
@@ -1532,15 +1413,13 @@ describe('SettingsView', () => {
     renderView()
 
     const approvalSelect = await screen.findByRole('combobox', { name: 'Default permissions' }) as HTMLSelectElement
-    expect(approvalSelect.value).toBe('default')
+    await waitFor(() => expect(approvalSelect.value).toBe('default'))
 
     await chooseValueIn(approvalSelect, 'autoApprove')
 
     await waitFor(() => {
       expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ danger: true }))
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        defaultApprovalPolicy: 'autoApprove'
-      })
+      expectWrite('Permissions.DefaultApprovalPolicy', 'autoApprove')
     })
   })
 
@@ -1551,16 +1430,14 @@ describe('SettingsView', () => {
     renderView()
 
     const approvalSelect = await screen.findByRole('combobox', { name: 'Default permissions' }) as HTMLSelectElement
-    expect(approvalSelect.value).toBe('default')
+    await waitFor(() => expect(approvalSelect.value).toBe('default'))
 
     await chooseValueIn(approvalSelect, 'autoApprove')
 
     await waitFor(() => {
       expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ danger: true }))
     })
-    expect(appServerSendRequest).not.toHaveBeenCalledWith('workspace/config/update', {
-      defaultApprovalPolicy: 'autoApprove'
-    })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('config/value/write', expect.anything(), expect.anything())
     expect(approvalSelect.value).toBe('default')
   })
 })

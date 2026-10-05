@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePromptSuggestion } from '../components/conversation/usePromptSuggestion'
+import { useConfigStore } from '../stores/configStore'
+import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { generatePromptSuggestion } from '../utils/promptSuggestion'
@@ -18,19 +20,14 @@ beforeEach(() => {
     turnStatus: 'running',
     turns: [{ id: 'turn-1', threadId: 'thread-1', status: 'running', startedAt: '2026-09-27T00:00:00Z', items: [] }]
   })
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      workspaceConfig: { getCore: async () => ({ workspace: { promptSuggestionsEnabled: true }, userDefaults: {} }) },
-      appServer: { onNotification: () => () => {} }
-    }
-  })
+  useConnectionStore.setState({ status: 'connected', capabilities: { workspaceConfigManagement: true } })
+  useConfigStore.setState({ config: { PromptSuggestions: { Enabled: true } } })
 })
 
 describe('conversation prompt suggestion lifecycle', () => {
   it('generates once after a successful turn and offers editable text', async () => {
     const { result } = renderHook(() => usePromptSuggestion({
-      threadId: 'thread-1', workspacePath: 'workspace', canSuggest: true
+      threadId: 'thread-1', canSuggest: true
     }))
     await act(async () => { await Promise.resolve() })
 
@@ -53,7 +50,7 @@ describe('conversation prompt suggestion lifecycle', () => {
       return await new Promise<string | null>(() => {})
     })
     const { rerender } = renderHook(({ canSuggest }) => usePromptSuggestion({
-      threadId: 'thread-1', workspacePath: 'workspace', canSuggest
+      threadId: 'thread-1', canSuggest
     }), { initialProps: { canSuggest: true } })
     await act(async () => { await Promise.resolve() })
 

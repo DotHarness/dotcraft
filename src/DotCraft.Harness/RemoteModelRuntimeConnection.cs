@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Agents.Remote;
 using DotCraft.Configuration;
@@ -13,6 +14,7 @@ public sealed class RemoteModelRuntimeConnection(
 {
     private readonly CancellationTokenSource _stop = new();
     private Task? _refreshLoop;
+    private string? _appliedCatalog;
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
@@ -29,8 +31,12 @@ public sealed class RemoteModelRuntimeConnection(
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(10));
             var catalog = await transport.GetCatalogAsync(timeout.Token).ConfigureAwait(false);
+            var snapshot = JsonSerializer.Serialize(catalog);
+            if (snapshot == _appliedCatalog)
+                return;
             RemoteModelConfiguration.Apply(config, catalog);
-            monitor.NotifyChanged("model-service", ["Providers"]);
+            _appliedCatalog = snapshot;
+            monitor.NotifyChanged("model-service", [ConfigChangeRegions.ProviderRegistry]);
         }
         catch (Exception ex) when (ex is HttpRequestException || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
         {

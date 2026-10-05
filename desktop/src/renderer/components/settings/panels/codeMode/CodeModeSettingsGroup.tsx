@@ -1,13 +1,15 @@
 import type { JSX } from 'react'
 import { useT } from '../../../../contexts/LocaleContext'
+import { useConfigSetting } from '../../../../stores/configStore'
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { SettingsSelect } from '../../ui/SettingsSelect'
-import type { CodeModeMode, CodeModeSettings } from './useCodeModeSettings'
 
 const SELECT_ID = 'settings-code-mode'
 
-export function CodeModeSettingsGroup({ settings }: { settings: CodeModeSettings }): JSX.Element {
+export function CodeModeSettingsGroup(): JSX.Element {
   const t = useT()
+  const setting = useConfigSetting('Tools.CodeMode.Mode', (error) => t('settings.codeMode.saveFailed', { error }))
+  const mode = typeof setting.value === 'string' ? setting.value.toLowerCase() : ''
   return (
     <SettingsGroup title={t('settings.group.tools')}>
       <SettingsRow
@@ -17,11 +19,13 @@ export function CodeModeSettingsGroup({ settings }: { settings: CodeModeSettings
         control={
           <SettingsSelect
             id={SELECT_ID}
-            value={settings.mode}
-            disabled={settings.pending}
+            value={mode}
+            disabled={setting.pending}
             ariaLabel={t('settings.codeMode.label')}
             style={{ width: '240px' }}
-            onValueChange={(next) => void settings.setMode(next as CodeModeMode)}
+            onValueChange={(next) => {
+              if (next !== mode) void setting.set(next)
+            }}
             options={[
               {
                 value: 'off',

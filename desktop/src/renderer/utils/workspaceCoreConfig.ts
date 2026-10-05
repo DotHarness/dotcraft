@@ -2,27 +2,11 @@ export type WorkspaceDefaultApprovalPolicy = 'default' | 'autoApprove'
 export type ConcreteApprovalPolicy = 'prompt' | 'autoApprove'
 import {
   findProviderPreference,
-  mergeProviderPreferences,
   readProviderPreferences,
-  type ProviderPreferences
+  toContractModelPreference,
+  type ModelPreference
 } from '../../shared/modelPreference'
-
-export interface WorkspaceCoreConfigLike {
-  workspace?: {
-    providerId?: string | null
-    providerPreferences?: ProviderPreferences | null
-    welcomeSuggestionsEnabled?: boolean | null
-    promptSuggestionsEnabled?: boolean | null
-    defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
-  } | null
-  userDefaults?: {
-    providerId?: string | null
-    providerPreferences?: ProviderPreferences | null
-    welcomeSuggestionsEnabled?: boolean | null
-    promptSuggestionsEnabled?: boolean | null
-    defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
-  } | null
-}
+import type { ConfigEdit } from '../stores/configStore'
 
 function normalizeOptionalModel(value: unknown): string | null {
   if (typeof value !== 'string') return null
@@ -89,38 +73,6 @@ export function resolveConcreteApprovalPolicyFromConfig(config: Record<string, u
   return resolveConcreteApprovalPolicyFromWorkspaceDefault(raw)
 }
 
-export function configObjectFromWorkspaceCore(core: WorkspaceCoreConfigLike): Record<string, unknown> {
-  const config: Record<string, unknown> = {}
-  const providerId = normalizeOptionalString(core.workspace?.providerId ?? core.userDefaults?.providerId)
-  if (providerId) {
-    config.ProviderId = providerId
-  }
-
-  const providerPreferences = mergeProviderPreferences(
-    core.userDefaults?.providerPreferences,
-    core.workspace?.providerPreferences
-  )
-  if (Object.keys(providerPreferences).length > 0) {
-    config.ProviderPreferences = providerPreferences
-  }
-
-  const welcomeSuggestionsEnabled =
-    core.workspace?.welcomeSuggestionsEnabled ?? core.userDefaults?.welcomeSuggestionsEnabled
-  if (typeof welcomeSuggestionsEnabled === 'boolean') {
-    config.WelcomeSuggestions = { Enabled: welcomeSuggestionsEnabled }
-  }
-
-  const promptSuggestionsEnabled =
-    core.workspace?.promptSuggestionsEnabled ?? core.userDefaults?.promptSuggestionsEnabled
-  if (typeof promptSuggestionsEnabled === 'boolean') {
-    config.PromptSuggestions = { Enabled: promptSuggestionsEnabled }
-  }
-
-  const defaultApprovalPolicy =
-    core.workspace?.defaultApprovalPolicy ?? core.userDefaults?.defaultApprovalPolicy
-  if (defaultApprovalPolicy === 'default' || defaultApprovalPolicy === 'autoApprove') {
-    config.Permissions = { DefaultApprovalPolicy: defaultApprovalPolicy }
-  }
-
-  return config
+export function providerPreferenceEdit(providerId: string, preference: ModelPreference): ConfigEdit {
+  return { keyPath: `ProviderPreferences.${providerId}`, value: toContractModelPreference(preference) }
 }

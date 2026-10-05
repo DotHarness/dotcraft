@@ -23,10 +23,7 @@ export function DetachedAgentBuilderChat({
   onSubmit: (payload: InputComposerSubmitPayload, config: ThreadConfigurationWire) => Promise<void> | void
 }): JSX.Element {
   const t = useT()
-  const modelControls = useComposerModelControls({
-    workspacePath,
-    mode: 'detached'
-  })
+  const modelControls = useComposerModelControls({ mode: 'detached' })
 
   return (
     <div className="agent-builder-detached-chat">

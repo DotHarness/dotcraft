@@ -3,10 +3,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ApprovalPolicyPicker } from '../components/conversation/ApprovalPolicyPicker'
 import { useThreadStore } from '../stores/threadStore'
+import { useConfigStore } from '../stores/configStore'
+import { useConnectionStore } from '../stores/connectionStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const appServerSendRequest = vi.fn()
-const workspaceConfigGetCore = vi.fn()
+let workspaceApprovalDefault = 'autoApprove'
 
 function renderPicker(disabled = false): void {
   render(
@@ -34,11 +36,13 @@ describe('ApprovalPolicyPicker', () => {
       configuration: { approvalPolicy: 'default' },
       turns: []
     })
-    workspaceConfigGetCore.mockResolvedValue({
-      workspace: { defaultApprovalPolicy: 'autoApprove' },
-      userDefaults: { defaultApprovalPolicy: null }
-    })
+    workspaceApprovalDefault = 'autoApprove'
+    useConfigStore.getState().reset()
+    useConnectionStore.setState({ status: 'connected', capabilities: { workspaceConfigManagement: true } })
     appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'config/read') {
+        return { config: { Permissions: { DefaultApprovalPolicy: workspaceApprovalDefault } }, origins: {} }
+      }
       if (method === 'thread/read') {
         return { thread: { configuration: { mode: 'agent' } } }
       }
@@ -49,7 +53,6 @@ describe('ApprovalPolicyPicker', () => {
       settings: {
         get: vi.fn().mockResolvedValue({ locale: 'en' })
       },
-      workspaceConfig: { getCore: workspaceConfigGetCore },
       appServer: { sendRequest: appServerSendRequest }
     })
   })
@@ -70,10 +73,7 @@ describe('ApprovalPolicyPicker', () => {
   })
 
   it('renders ask-for-approval when the workspace default is unset or ask', async () => {
-    workspaceConfigGetCore.mockResolvedValue({
-      workspace: { defaultApprovalPolicy: 'default' },
-      userDefaults: { defaultApprovalPolicy: null }
-    })
+    workspaceApprovalDefault = 'default'
 
     renderPicker()
 
@@ -112,10 +112,7 @@ describe('ApprovalPolicyPicker', () => {
   it('warns before enabling full access and merges thread config update', async () => {
     const confirm = vi.fn().mockResolvedValue(true)
     ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = confirm
-    workspaceConfigGetCore.mockResolvedValue({
-      workspace: { defaultApprovalPolicy: 'default' },
-      userDefaults: { defaultApprovalPolicy: null }
-    })
+    workspaceApprovalDefault = 'default'
 
     renderPicker()
 
@@ -141,10 +138,7 @@ describe('ApprovalPolicyPicker', () => {
 
   it('does not update when the warning is cancelled', async () => {
     ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = vi.fn().mockResolvedValue(false)
-    workspaceConfigGetCore.mockResolvedValue({
-      workspace: { defaultApprovalPolicy: 'default' },
-      userDefaults: { defaultApprovalPolicy: null }
-    })
+    workspaceApprovalDefault = 'default'
 
     renderPicker()
 

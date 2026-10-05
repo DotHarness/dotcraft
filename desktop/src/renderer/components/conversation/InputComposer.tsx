@@ -1566,7 +1566,6 @@ function InputComposerCore({
     && images.length === 0 && files.length === 0 && contexts.length === 0 && pastedText.pending === 0
   const promptSuggestion = usePromptSuggestion({
     threadId,
-    workspacePath,
     canSuggest: composerEmpty && !hasSubmitOverride && !isWaitingApproval && !isWaitingInput
       && !modelLoading && !voiceRecording && !voiceProcessing
   })

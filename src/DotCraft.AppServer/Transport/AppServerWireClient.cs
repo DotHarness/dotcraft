@@ -2,11 +2,9 @@ using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions.Wire;
-using ModelPreference = DotCraft.Configuration.ModelPreference;
 
 namespace DotCraft.AppServer;
 
@@ -335,45 +333,6 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
                    ErrorCode = "Unknown",
                    ErrorMessage = "Server returned an empty provider test payload."
                };
-    }
-
-    /// <summary>
-    /// Updates workspace provider and provider-specific MainAgent model preferences.
-    /// Null values are sent as explicit removals.
-    /// </summary>
-    public Task<Contract.WorkspaceConfigUpdateResult> WorkspaceConfigUpdateAsync(
-        string? providerId,
-        IReadOnlyDictionary<string, ModelPreference>? providerPreferences,
-        CancellationToken ct = default)
-    {
-        var payload = new JsonObject
-        {
-            ["providerId"] = providerId == null ? null : JsonValue.Create(providerId),
-            ["providerPreferences"] = providerPreferences == null
-                ? null
-                : JsonSerializer.SerializeToNode(providerPreferences, SessionWireJsonOptions.Default)
-        };
-        return WorkspaceConfigUpdateAsync(payload, ct);
-    }
-
-    /// <summary>
-    /// Updates workspace config using an explicit JSON object payload.
-    /// Include a property with a null value when the server should remove that setting.
-    /// </summary>
-    public async Task<Contract.WorkspaceConfigUpdateResult> WorkspaceConfigUpdateAsync(JsonObject payload, CancellationToken ct = default)
-    {
-        var doc = await SendRequestAsync(
-            Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
-            payload,
-            ct: ct);
-
-        ThrowIfError(doc, "workspace/config/update");
-
-        var result = doc.RootElement.GetProperty("result");
-        return JsonSerializer.Deserialize<Contract.WorkspaceConfigUpdateResult>(
-                   result.GetRawText(),
-                   Protocol.AppServerContractJson.Options)
-               ?? new Contract.WorkspaceConfigUpdateResult();
     }
 
     /// <summary>

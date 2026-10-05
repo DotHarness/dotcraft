@@ -1,5 +1,3 @@
-using System.Text;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 
@@ -37,42 +35,6 @@ internal sealed class WorkspaceConfigEditor(IAppConfigMonitor? appConfigMonitor,
         }
 
         return appConfigMonitor?.Current ?? new AppConfig();
-    }
-
-    public static JsonObject LoadObject(string configPath)
-    {
-        if (!File.Exists(configPath))
-            return new JsonObject();
-
-        try
-        {
-            var node = JsonNode.Parse(File.ReadAllText(configPath));
-            return node as JsonObject ?? new JsonObject();
-        }
-        catch
-        {
-            return new JsonObject();
-        }
-    }
-
-    public static void WriteObject(string configPath, JsonObject root)
-    {
-        var directory = Path.GetDirectoryName(configPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-            Directory.CreateDirectory(directory);
-        var json = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(configPath, $"{json}{Environment.NewLine}", new UTF8Encoding(false));
-    }
-
-    public static string? FindCaseInsensitiveKey(JsonObject obj, string expectedKey)
-    {
-        foreach (var kv in obj)
-        {
-            if (string.Equals(kv.Key, expectedKey, StringComparison.OrdinalIgnoreCase))
-                return kv.Key;
-        }
-
-        return null;
     }
 
     public static void UpsertOrRemoveValue(

@@ -55,16 +55,8 @@ public static class InitHelper
         return JsonNode.Parse(File.ReadAllText(path, Encoding.UTF8)) as JsonObject ?? [];
     }
 
-    private static void SaveJsonObject(string path, JsonObject node)
-    {
-        var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        File.WriteAllText(path, node.ToJsonString(JsonOptions), Encoding.UTF8);
-    }
+    private static void SaveJsonObject(string path, JsonObject node) =>
+        AtomicConfigDocument.WithLock(path, () => AtomicConfigDocument.Write(path, node.ToJsonString(JsonOptions)));
 
     private static void EnsureWorkspaceStructure(string craftPath, List<(string Status, string Path)>? createdItems = null)
     {

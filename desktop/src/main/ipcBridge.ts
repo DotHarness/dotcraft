@@ -3,7 +3,6 @@ import { showReplyTextContextMenu } from './replyTextContextMenu'
 import type { TextContextMenuRequest } from '../shared/textContextMenu'
 import { app, ipcMain, BrowserWindow, dialog, Notification, shell, session, type OpenDialogOptions } from 'electron'
 import { promises as fs, existsSync } from 'fs'
-import * as os from 'os'
 import * as path from 'path'
 import type { DesktopAppServerClient } from './DesktopAppServerClient'
 import type {
@@ -17,10 +16,6 @@ import { runGitCommand } from './gitCommand'
 import { applyGitPatch } from './gitApplyPatch'
 import { sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import type { InlineVisualizationCaptureRect } from '../shared/inlineVisualization'
-import {
-  readProviderPreferences,
-  type ProviderPreferences
-} from '../shared/modelPreference'
 import { copyInlineVisualizationImage } from './inlineVisualizationCapture'
 import { resolveBinaryLocation } from './AppServerManager'
 import { openDesktopServiceHandoff } from './desktopServiceHandoff'
@@ -638,203 +633,6 @@ function ensureObjectConfig(config: unknown): Record<string, unknown> {
   return config as Record<string, unknown>
 }
 
-function normalizeOptionalStringValue(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const trimmed = value.trim()
-  return trimmed === '' ? null : trimmed
-}
-
-interface WorkspaceCoreConfigSnapshot {
-  providerId: string | null
-  providerPreferences: ProviderPreferences
-  welcomeSuggestionsEnabled: boolean | null
-  promptSuggestionsEnabled: boolean | null
-  skillsSelfLearningEnabled: boolean | null
-  skillsIncludeSharedSkills: boolean | null
-  memoryEnabled: boolean | null
-  dreamsEnabled: boolean | null
-  dreamsInterval: string | null
-  dreamsThreadLookbackCount: number | null
-  dreamsAutoApply: boolean | null
-  defaultApprovalPolicy: 'default' | 'autoApprove' | null
-  toolsImageGenerationEnabled: boolean | null
-  toolsImageGenerationProvider: string | null
-  toolsCodeModeMode: CodeModeMode | null
-  instantInterruptEnabled: boolean | null
-}
-
-type CodeModeMode = 'off' | 'on' | 'only'
-
-function getCaseInsensitiveRecordValue(
-  record: Record<string, unknown>,
-  key: string
-): unknown {
-  const expected = key.toLowerCase()
-  for (const [candidate, value] of Object.entries(record)) {
-    if (candidate.toLowerCase() === expected) {
-      return value
-    }
-  }
-  return undefined
-}
-
-function readNestedBoolean(
-  record: Record<string, unknown>,
-  sectionKey: string,
-  fieldKey: string
-): boolean | null {
-  const section = getCaseInsensitiveRecordValue(record, sectionKey)
-  if (section == null || typeof section !== 'object' || Array.isArray(section)) {
-    return null
-  }
-  const raw = getCaseInsensitiveRecordValue(section as Record<string, unknown>, fieldKey)
-  return typeof raw === 'boolean' ? raw : null
-}
-
-function readTopLevelBoolean(record: Record<string, unknown>, key: string): boolean | null {
-  const raw = getCaseInsensitiveRecordValue(record, key)
-  return typeof raw === 'boolean' ? raw : null
-}
-
-function readNestedString(
-  record: Record<string, unknown>,
-  sectionKey: string,
-  fieldKey: string
-): string | null {
-  const section = getCaseInsensitiveRecordValue(record, sectionKey)
-  if (section == null || typeof section !== 'object' || Array.isArray(section)) {
-    return null
-  }
-  return normalizeOptionalStringValue(getCaseInsensitiveRecordValue(section as Record<string, unknown>, fieldKey))
-}
-
-function readNestedInteger(
-  record: Record<string, unknown>,
-  sectionKey: string,
-  fieldKey: string
-): number | null {
-  const section = getCaseInsensitiveRecordValue(record, sectionKey)
-  if (section == null || typeof section !== 'object' || Array.isArray(section)) {
-    return null
-  }
-  const raw = getCaseInsensitiveRecordValue(section as Record<string, unknown>, fieldKey)
-  return typeof raw === 'number' && Number.isInteger(raw) ? raw : null
-}
-
-function readSkillsSelfLearningEnabled(record: Record<string, unknown>): boolean | null {
-  const skills = getCaseInsensitiveRecordValue(record, 'Skills')
-  if (skills == null || typeof skills !== 'object' || Array.isArray(skills)) {
-    return null
-  }
-  return readNestedBoolean(skills as Record<string, unknown>, 'SelfLearning', 'Enabled')
-}
-
-function readDefaultApprovalPolicy(record: Record<string, unknown>): 'default' | 'autoApprove' | null {
-  const permissions = getCaseInsensitiveRecordValue(record, 'Permissions')
-  if (permissions == null || typeof permissions !== 'object' || Array.isArray(permissions)) {
-    return null
-  }
-  const raw = getCaseInsensitiveRecordValue(permissions as Record<string, unknown>, 'DefaultApprovalPolicy')
-  return raw === 'default' || raw === 'autoApprove' ? raw : null
-}
-
-function readToolsSection(record: Record<string, unknown>): Record<string, unknown> {
-  const tools = getCaseInsensitiveRecordValue(record, 'Tools')
-  return tools == null || typeof tools !== 'object' || Array.isArray(tools)
-    ? {}
-    : tools as Record<string, unknown>
-}
-
-function readCodeModeMode(tools: Record<string, unknown>): CodeModeMode | null {
-  const raw = readNestedString(tools, 'CodeMode', 'Mode')?.toLowerCase()
-  return raw === 'off' || raw === 'on' || raw === 'only' ? raw : null
-}
-
-function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
-  return {
-    providerId: null,
-    providerPreferences: {},
-    welcomeSuggestionsEnabled: null,
-    promptSuggestionsEnabled: null,
-    skillsSelfLearningEnabled: null,
-    skillsIncludeSharedSkills: null,
-    memoryEnabled: null,
-    dreamsEnabled: null,
-    dreamsInterval: null,
-    dreamsThreadLookbackCount: null,
-    dreamsAutoApply: null,
-    defaultApprovalPolicy: null,
-    toolsImageGenerationEnabled: null,
-    toolsImageGenerationProvider: null,
-    toolsCodeModeMode: null,
-    instantInterruptEnabled: null
-  }
-}
-
-function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapshot {
-  if (!raw.trim()) return createEmptyCoreConfigSnapshot()
-  const parsed = parseJsonObjectConfig(raw)
-  const tools = readToolsSection(parsed)
-  return {
-    providerId: normalizeOptionalStringValue(parsed.ProviderId ?? parsed.providerId),
-    providerPreferences: readProviderPreferences(
-      getCaseInsensitiveRecordValue(parsed, 'ProviderPreferences')
-    ),
-    welcomeSuggestionsEnabled: readNestedBoolean(parsed, 'WelcomeSuggestions', 'Enabled'),
-    promptSuggestionsEnabled: readNestedBoolean(parsed, 'PromptSuggestions', 'Enabled'),
-    skillsSelfLearningEnabled: readSkillsSelfLearningEnabled(parsed),
-    skillsIncludeSharedSkills: readNestedBoolean(parsed, 'Skills', 'IncludeSharedSkills'),
-    memoryEnabled: readNestedBoolean(parsed, 'Memory', 'Enabled'),
-    dreamsEnabled: readNestedBoolean(parsed, 'Dreams', 'Enabled'),
-    dreamsInterval: readNestedString(parsed, 'Dreams', 'Interval'),
-    dreamsThreadLookbackCount: readNestedInteger(parsed, 'Dreams', 'ThreadLookbackCount'),
-    dreamsAutoApply: readNestedBoolean(parsed, 'Dreams', 'AutoApply'),
-    defaultApprovalPolicy: readDefaultApprovalPolicy(parsed),
-    toolsImageGenerationEnabled: readNestedBoolean(tools, 'ImageGeneration', 'Enabled'),
-    toolsImageGenerationProvider: readNestedString(tools, 'ImageGeneration', 'Provider'),
-    toolsCodeModeMode: readCodeModeMode(tools),
-    instantInterruptEnabled: readTopLevelBoolean(parsed, 'InstantInterruptEnabled')
-  }
-}
-
-async function readCoreConfigSnapshot(configPath: string): Promise<WorkspaceCoreConfigSnapshot> {
-  try {
-    const raw = await fs.readFile(configPath, 'utf8')
-    return readCoreConfigSnapshotFromText(raw)
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException | undefined)?.code
-    if (code === 'ENOENT') {
-      return createEmptyCoreConfigSnapshot()
-    }
-    throw error
-  }
-}
-
-async function readActiveRemoteCoreConfigSnapshot(
-  callbacks?: IpcHandlerCallbacks
-): Promise<{ workspace: WorkspaceCoreConfigSnapshot; userDefaults: WorkspaceCoreConfigSnapshot } | null> {
-  const settings = callbacks?.getSettings()
-  const manager = callbacks?.getSshMachinesManager?.()
-  if (!settings || !manager || settings.connectionMode !== 'remote') return null
-
-  let raw: { workspaceRaw: string; userDefaultsRaw: string } | null = null
-  const stackRef = settings.activeRemoteStack
-  const projectRef = settings.activeRemoteProject
-  if (stackRef?.hostId && stackRef.stackId) {
-    const machine = manager.list().machines.find((candidate) => candidate.id === stackRef.hostId)
-    const stack = machine?.stacks.find((candidate) => candidate.id === stackRef.stackId)
-    if (!machine || !stack) return null
-    raw = await manager.docker.readCoreConfig(machine, stack)
-  } else if (projectRef?.machineId && projectRef.projectId) {
-    raw = await manager.readProjectConfig(projectRef.machineId, projectRef.projectId)
-  }
-  if (!raw) return null
-  return {
-    workspace: readCoreConfigSnapshotFromText(raw.workspaceRaw),
-    userDefaults: readCoreConfigSnapshotFromText(raw.userDefaultsRaw)
-  }
-}
-
 function resolveConnectionMode(settings: AppSettings): 'stdio' | 'websocket' | 'stdioAndWebSocket' | 'remote' {
   const mode = settings.connectionMode
   return mode === 'remote' ? 'remote' : 'stdioAndWebSocket'
@@ -1219,43 +1017,6 @@ export function registerIpcHandlers(
       normalizedProviderId ? { providerId: normalizedProviderId } : {},
       20_000
     )
-  })
-
-  handleSafe('appserver:workspace-config-schema', async () => {
-    const client = getWireClient()
-    if (!client) {
-      throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
-    }
-
-    try {
-      return await client.sendRequest('workspace/config/schema', {}, 20_000)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (message.toLowerCase().includes('method not found')) {
-        return null
-      }
-      throw error
-    }
-  })
-
-  handleSafe('workspace-config:get-core', async () => {
-    const remoteCore = await readActiveRemoteCoreConfigSnapshot(callbacks)
-    if (remoteCore) {
-      return remoteCore
-    }
-
-    const localWorkspacePath = workspacePath.trim()
-    if (!localWorkspacePath) {
-      return {
-        workspace: createEmptyCoreConfigSnapshot(),
-        userDefaults: await readCoreConfigSnapshot(path.join(os.homedir(), '.craft', 'config.json'))
-      }
-    }
-
-    return {
-      workspace: await readCoreConfigSnapshot(path.join(localWorkspacePath, '.craft', 'config.json')),
-      userDefaults: await readCoreConfigSnapshot(path.join(os.homedir(), '.craft', 'config.json'))
-    }
   })
 
   handleSafe('appserver:get-connection-status', () => {
@@ -2589,8 +2350,6 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('appserver:send-request-raw')
   ipcMain.removeHandler('visualization:copy-image')
   ipcMain.removeHandler('appserver:model-list')
-  ipcMain.removeHandler('appserver:workspace-config-schema')
-  ipcMain.removeHandler('workspace-config:get-core')
   ipcMain.removeHandler('appserver:get-connection-status')
   ipcMain.removeHandler('appserver:has-desktop-thread-tools')
   ipcMain.removeHandler('appserver:resolved-binary')

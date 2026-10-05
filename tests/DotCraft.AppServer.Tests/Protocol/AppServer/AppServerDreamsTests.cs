@@ -236,8 +236,9 @@ public sealed class AppServerDreamsTests : IDisposable
     }
 
     [Fact]
-    public async Task WorkspaceConfigUpdate_DreamsFields_WriteConfigUpdateMonitorAndEmitMemoryRegion()
+    public async Task ConfigBatchWrite_DreamsFields_UpdateMonitorAndReportKeyPaths()
     {
+        await File.WriteAllTextAsync(Path.Combine(_craft, "config.json"), """{ "Dreams": { "Enabled": true } }""");
         var config = CreateConfig();
         var changes = new List<AppConfigChangedEventArgs>();
         var monitor = new AppConfigMonitor(config);
@@ -249,26 +250,30 @@ public sealed class AppServerDreamsTests : IDisposable
             dreamsService: dreamsService);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
-        {
-            dreamsEnabled = false,
-            dreamsInterval = "12:00:00",
-            dreamsThreadLookbackCount = 50,
-            dreamsAutoApply = true
-        }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigBatchWrite,
+            System.Text.Json.Nodes.JsonNode.Parse(
+                """
+                {
+                  "edits": [
+                    { "keyPath": "Dreams.Enabled", "value": false, "mergeStrategy": "replace" },
+                    { "keyPath": "Dreams.Interval", "value": "12:00:00", "mergeStrategy": "replace" },
+                    { "keyPath": "Dreams.ThreadLookbackCount", "value": 50, "mergeStrategy": "replace" },
+                    { "keyPath": "Dreams.AutoApply", "value": true, "mergeStrategy": "replace" }
+                  ]
+                }
+                """)));
 
         var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
-        var result = response.RootElement.GetProperty("result");
-        Assert.False(result.GetProperty("dreamsEnabled").GetBoolean());
-        Assert.Equal("12:00:00", result.GetProperty("dreamsInterval").GetString());
-        Assert.Equal(50, result.GetProperty("dreamsThreadLookbackCount").GetInt32());
-        Assert.True(result.GetProperty("dreamsAutoApply").GetBoolean());
         Assert.False(monitor.Current.Dreams.Enabled);
         Assert.Equal(TimeSpan.FromHours(12), monitor.Current.Dreams.Interval);
         Assert.Equal(50, monitor.Current.Dreams.ThreadLookbackCount);
         Assert.True(monitor.Current.Dreams.AutoApply);
-        Assert.Contains(changes, change => change.Regions.Contains(ConfigChangeRegions.Memory));
+        var change = Assert.Single(changes);
+        Assert.Equal(
+            ["Dreams.AutoApply", "Dreams.Enabled", "Dreams.Interval", "Dreams.ThreadLookbackCount"],
+            change.Regions.Order(StringComparer.Ordinal));
 
         using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(_craft, "config.json")));
         var dreams = doc.RootElement.GetProperty("Dreams");
@@ -276,6 +281,27 @@ public sealed class AppServerDreamsTests : IDisposable
         Assert.Equal("12:00:00", dreams.GetProperty("Interval").GetString());
         Assert.Equal(50, dreams.GetProperty("ThreadLookbackCount").GetInt32());
         Assert.True(dreams.GetProperty("AutoApply").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ConfigValueWrite_EnablingDreams_StartsTheScheduler()
+    {
+        var config = CreateConfig(minCompletedTurns: 1);
+        config.Dreams.Enabled = false;
+        await using var dreamsService = CreateDreamsService(config, new FakeRunner());
+        using var harness = new AppServerTestHarness(
+            workspaceCraftPath: _craft,
+            appConfigMonitor: new AppConfigMonitor(config),
+            dreamsService: dreamsService);
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigValueWrite,
+            new { keyPath = "Dreams.Enabled", value = true, mergeStrategy = "replace" }));
+
+        AppServerTestHarness.AssertIsSuccessResponse(await harness.Transport.ReadNextSentAsync());
+        await WaitForStateAsync(DreamsRunStatuses.Skipped);
+        Assert.Equal(DreamsConstants.TriggerScheduled, _stateStore.Load()!.Trigger);
     }
 
     [Fact]
@@ -307,9 +333,9 @@ public sealed class AppServerDreamsTests : IDisposable
     }
 
     [Theory]
-    [InlineData("dreamsInterval", "00:00:00")]
-    [InlineData("dreamsThreadLookbackCount", 0)]
-    public async Task WorkspaceConfigUpdate_InvalidDreamsFields_ReturnsInvalidParams(string field, object value)
+    [InlineData("Dreams.Interval", "\"00:00:00\"")]
+    [InlineData("Dreams.ThreadLookbackCount", "0")]
+    public async Task ConfigValueWrite_InvalidDreamsFields_ReturnsValidationError(string keyPath, string valueJson)
     {
         var config = CreateConfig();
         await using var dreamsService = CreateDreamsService(config, new FakeRunner());
@@ -320,11 +346,16 @@ public sealed class AppServerDreamsTests : IDisposable
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
-            new Dictionary<string, object> { [field] = value }));
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigValueWrite,
+            new System.Text.Json.Nodes.JsonObject
+            {
+                ["keyPath"] = keyPath,
+                ["value"] = System.Text.Json.Nodes.JsonNode.Parse(valueJson),
+                ["mergeStrategy"] = "replace"
+            }));
 
-        var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        AppServerTestHarness.AssertConfigWriteError(await harness.Transport.ReadNextSentAsync(), "configValidationError");
+        Assert.False(File.Exists(Path.Combine(_craft, "config.json")));
     }
 
     private DreamsService CreateDreamsService(AppConfig config, FakeRunner runner)

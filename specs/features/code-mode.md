@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.10 |
+| **Version** | 0.8.3 |
 | **Status** | Draft |
-| **Date** | 2026-10-04 |
+| **Date** | 2026-10-06 |
 | **Parent Specs** | [Tool Architecture](../architecture/tools-architecture.md), [Session Core](../architecture/session-core.md), [Prompt Cache](../architecture/prompt-cache.md), [Dynamic Workflows](dynamic-workflows.md) |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [Shell Command Safety](../architecture/shell-command-safety.md) |
 
@@ -65,14 +65,15 @@ engines other than Jint.
 | `on` | `CodeMode` is added. Every other tool stays directly visible. |
 | `only` | `CodeMode` is added. Registrations on the nested surface are removed from the direct and deferred lists but stay in the snapshot, so nested calls still dispatch; tools that are not on the nested surface stay direct. |
 
-The mode is a workspace setting read when a thread's tool snapshot is built. Changing it marks tool
-snapshots dirty; a running Turn keeps its snapshot. AppServer exposes it as the `toolsCodeModeMode`
-field of `workspace/config/update`, and the change notification uses the `codeMode` region.
+The mode is the `Tools.CodeMode.Mode` configuration field, read when a thread's tool snapshot is built.
+Values are case-insensitive. Changing it marks tool snapshots dirty; a running Turn keeps its snapshot.
+Clients read and write it through the configuration methods, and the change notification lists the
+`Tools.CodeMode.Mode` key path.
 
 Desktop presents the setting as one row in the Tools group of Settings › General, with three choices
 labelled by outcome rather than by mechanism: off, scripts alongside tools, and scripts only. The setting
 describes what the agent can do, not the engine behind it. Desktop reads the current value from the
-workspace config and refreshes it on the `codeMode` change region.
+workspace config and refreshes it when a change notification lists `Tools.CodeMode.Mode`.
 
 In `only` mode the deferred-search registration disappears once every deferred registration is on the
 nested surface, because those tools are reached through `ALL_TOOLS` and could not be called directly.

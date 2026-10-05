@@ -1153,6 +1153,65 @@ export interface ComputerUseCapability {
   [key: string]: unknown;
 }
 
+export interface ConfigBatchWriteParams {
+  edits: ConfigEdit[];
+  expectedVersion?: string | null;
+  filePath?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ConfigChangedParams {
+  changedAt?: string;
+  regions?: string[];
+  source?: string;
+  [key: string]: unknown;
+}
+
+export interface ConfigEdit {
+  keyPath: string;
+  mergeStrategy: string;
+  value: JsonValue;
+  [key: string]: unknown;
+}
+
+export interface ConfigLayer {
+  config: JsonValue;
+  name: ConfigLayerName;
+  version: string;
+  [key: string]: unknown;
+}
+
+export interface ConfigLayerMetadata {
+  name: ConfigLayerName;
+  version: string;
+  [key: string]: unknown;
+}
+
+export interface ConfigLayerName {
+  file: string;
+  type: string;
+  [key: string]: unknown;
+}
+
+export interface ConfigOverriddenMetadata {
+  effectiveValue: JsonValue;
+  message: string;
+  overridingLayer: ConfigLayerMetadata;
+  [key: string]: unknown;
+}
+
+export interface ConfigReadParams {
+  includeLayers?: boolean;
+  [key: string]: unknown;
+}
+
+export interface ConfigReadResult {
+  config: JsonValue;
+  layers?: ConfigLayer[];
+  origins: Record<string, ConfigLayerMetadata>;
+  [key: string]: unknown;
+}
+
 export interface ConfigSchemaField {
   defaultValue?: JsonValue;
   displayName?: string | null;
@@ -1168,6 +1227,15 @@ export interface ConfigSchemaField {
   [key: string]: unknown;
 }
 
+export interface ConfigSchemaParams {
+  [key: string]: unknown;
+}
+
+export interface ConfigSchemaResult {
+  sections?: ConfigSchemaSection[];
+  [key: string]: unknown;
+}
+
 export interface ConfigSchemaSection {
   fields: ConfigSchemaField[];
   itemFields?: ConfigSchemaField[] | null;
@@ -1175,6 +1243,23 @@ export interface ConfigSchemaSection {
   path?: string[] | null;
   rootKey?: string | null;
   section: string;
+  [key: string]: unknown;
+}
+
+export interface ConfigValueWriteParams {
+  expectedVersion?: string | null;
+  filePath?: string | null;
+  keyPath: string;
+  mergeStrategy: string;
+  value: JsonValue;
+  [key: string]: unknown;
+}
+
+export interface ConfigWriteResult {
+  filePath: string;
+  overriddenMetadata?: ConfigOverriddenMetadata | null;
+  status: string;
+  version: string;
   [key: string]: unknown;
 }
 
@@ -5049,64 +5134,6 @@ export interface WorkspaceCommitMessageSuggestParams {
 
 export interface WorkspaceCommitMessageSuggestResult {
   message?: string;
-  [key: string]: unknown;
-}
-
-export interface WorkspaceConfigChangedParams {
-  changedAt?: string;
-  regions?: string[];
-  source?: string;
-  [key: string]: unknown;
-}
-
-export interface WorkspaceConfigSchemaParams {
-  [key: string]: unknown;
-}
-
-export interface WorkspaceConfigSchemaResult {
-  sections?: ConfigSchemaSection[];
-  [key: string]: unknown;
-}
-
-export interface WorkspaceConfigUpdateParams {
-  defaultApprovalPolicy?: string | null;
-  dreamsAutoApply?: boolean | null;
-  dreamsEnabled?: boolean | null;
-  dreamsInterval?: string | null;
-  dreamsThreadLookbackCount?: number | null;
-  instantInterruptEnabled?: boolean | null;
-  memoryEnabled?: boolean | null;
-  promptSuggestionsEnabled?: boolean | null;
-  providerId?: string | null;
-  providerPreferences?: Record<string, ModelPreference> | null;
-  skillsIncludeSharedSkills?: boolean | null;
-  skillsSelfLearningEnabled?: boolean | null;
-  toolsCodeModeMode?: string | null;
-  toolsImageGenerationEnabled?: boolean | null;
-  toolsImageGenerationProvider?: string | null;
-  toolsLspEnabled?: boolean | null;
-  welcomeSuggestionsEnabled?: boolean | null;
-  [key: string]: unknown;
-}
-
-export interface WorkspaceConfigUpdateResult {
-  defaultApprovalPolicy?: string | null;
-  dreamsAutoApply?: boolean | null;
-  dreamsEnabled?: boolean | null;
-  dreamsInterval?: string | null;
-  dreamsThreadLookbackCount?: number | null;
-  instantInterruptEnabled?: boolean | null;
-  memoryEnabled?: boolean | null;
-  promptSuggestionsEnabled?: boolean | null;
-  providerId?: string | null;
-  providerPreferences?: Record<string, ModelPreference> | null;
-  skillsIncludeSharedSkills?: boolean | null;
-  skillsSelfLearningEnabled?: boolean | null;
-  toolsCodeModeMode?: string | null;
-  toolsImageGenerationEnabled?: boolean | null;
-  toolsImageGenerationProvider?: string | null;
-  toolsLspEnabled?: boolean | null;
-  welcomeSuggestionsEnabled?: boolean | null;
   [key: string]: unknown;
 }
 

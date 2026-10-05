@@ -49,5 +49,5 @@ Desktop 按照改动如何变成运行态，把设置分成三层：
 ## 相关文档
 
 - [配置参考](../configuration) — 这些层级涉及的全部字段
-- [AppServer 协议](../protocols/appserver-protocol) — 客户端据以感知配置变更的 `workspace/configChanged` 事件
+- [AppServer 协议](../protocols/appserver-protocol) — 客户端据以感知配置变更的 `config/changed` 事件
 - [AppServer 模式](./appserver) — 远程与多客户端连接的传输与认证

@@ -108,7 +108,7 @@ public sealed class WorkspaceRuntimeTests
             WorkspacePath = root,
             DataPath = Path.Combine(root, ".craft")
         });
-        builder.Services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider());
+        builder.Services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider()).AddSingleton<IConfigDescriptorRegistry>(new TestConfigSchemaProvider());
 
         using (var host = builder.Build())
         {
@@ -137,7 +137,7 @@ public sealed class WorkspaceRuntimeTests
             WorkspacePath = root,
             DataPath = Path.Combine(root, ".craft")
         });
-        builder.Services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider());
+        builder.Services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider()).AddSingleton<IConfigDescriptorRegistry>(new TestConfigSchemaProvider());
 
         using (var host = builder.Build())
         {
@@ -167,7 +167,7 @@ public sealed class WorkspaceRuntimeTests
             WorkspacePath = root,
             DataPath = Path.Combine(root, ".craft")
         });
-        builder.Services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider());
+        builder.Services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider()).AddSingleton<IConfigDescriptorRegistry>(new TestConfigSchemaProvider());
 
         using (var host = builder.Build())
         {
@@ -198,7 +198,7 @@ public sealed class WorkspaceRuntimeTests
             WorkspacePath = root,
             DataPath = Path.Combine(root, ".craft")
         });
-        builder.Services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider());
+        builder.Services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider()).AddSingleton<IConfigDescriptorRegistry>(new TestConfigSchemaProvider());
 
         using (var host = builder.Build())
         {
@@ -207,10 +207,7 @@ public sealed class WorkspaceRuntimeTests
             var monitor = host.Services.GetRequiredService<IAppConfigMonitor>();
 
             ConfigureProvider(monitor.Current, "key-a");
-            monitor.NotifyChanged("test/provider-added", [
-                ConfigChangeRegions.ProviderRegistry,
-                ConfigChangeRegions.WorkspaceProviderPreferences
-            ]);
+            monitor.NotifyChanged("test/provider-added", [ConfigChangeRegions.ProviderRegistry]);
 
             var thread = await runtime.Sessions.CreateThreadAsync(CreateIdentity(root));
             var firstTurnEvents = await DrainAsync(
@@ -313,7 +310,7 @@ public sealed class WorkspaceRuntimeTests
             WorkspacePath = workspacePath,
             DataPath = craftPath
         });
-        services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider());
+        services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider()).AddSingleton<IConfigDescriptorRegistry>(new TestConfigSchemaProvider());
     }
 
     private static AppConfig CreateConfig()
@@ -342,9 +339,11 @@ public sealed class WorkspaceRuntimeTests
         };
     }
 
-    private sealed class TestConfigSchemaProvider : IConfigSchemaProvider
+    private sealed class TestConfigSchemaProvider : IConfigSchemaProvider, IConfigDescriptorRegistry
     {
         public IReadOnlyList<ConfigSchemaSection> GetConfigSchema() => [];
+
+        public IReadOnlyList<ConfigFieldDescriptor> Fields => [];
     }
 
     private sealed class RecordingModelProvider : IModelProvider

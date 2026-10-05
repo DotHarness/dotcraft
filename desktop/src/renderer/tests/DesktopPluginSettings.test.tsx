@@ -124,7 +124,7 @@ function installSettingsApi() {
     release: (index: number) => held[index]!(),
     notify(regions: string[] = ['plugins.config']) {
       const payload: RawNotificationPayload = {
-        method: 'workspace/configChanged',
+        method: 'config/changed',
         params: { source: 'plugin/config/mutate', regions, changedAt: new Date().toISOString() }
       }
       for (const notifier of [...notifiers]) notifier(payload)
@@ -158,7 +158,7 @@ describe('host.settings.onChange', () => {
     await activate((host) => host.settings.onChange(listener))
     await waitFor(() => expect(api.reads()).toBe(1))
 
-    api.notify(['workspace.defaultApprovalPolicy'])
+    api.notify(['Permissions.DefaultApprovalPolicy'])
     expect(api.reads()).toBe(1)
 
     api.notify()

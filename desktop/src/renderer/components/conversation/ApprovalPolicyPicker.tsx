@@ -3,6 +3,7 @@ import { Check, Hand, OctagonAlert } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useConfigValue } from '../../stores/configStore'
 import { addToast } from '../../stores/toastStore'
 import type { ApprovalPolicyWire, ThreadConfigurationWire } from '../../types/thread'
 import {
@@ -30,15 +31,6 @@ interface ApprovalPolicyPickerProps {
   onChange?: (next: VisibleApprovalPolicy) => void
   disabled?: boolean
   workspaceDefault?: WorkspaceDefaultApprovalPolicy
-}
-
-interface WorkspaceCoreConfigWithApproval {
-  workspace?: {
-    defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
-  }
-  userDefaults?: {
-    defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
-  }
 }
 
 function setCaseInsensitiveField(target: Record<string, unknown>, key: string, value: unknown): void {
@@ -71,7 +63,8 @@ export function ApprovalPolicyPicker({
   const [highlight, setHighlight] = useState(0)
   const [saving, setSaving] = useState(false)
   const [triggerActive, setTriggerActive] = useState(false)
-  const [workspaceDefault, setWorkspaceDefault] = useState<VisibleApprovalPolicy>('prompt')
+  const configuredDefault = useConfigValue('Permissions.DefaultApprovalPolicy')
+  const workspaceDefault = resolveConcreteApprovalPolicyFromWorkspaceDefault(workspaceDefaultOverride ?? configuredDefault)
   const wrapRef = useRef<HTMLDivElement>(null)
   const popupRef = useRef<HTMLDivElement>(null)
   const listId = useId()
@@ -93,30 +86,6 @@ export function ApprovalPolicyPicker({
   useEffect(() => {
     setHighlight(selectedIndex)
   }, [selectedIndex])
-
-  useEffect(() => {
-    if (workspaceDefaultOverride != null) {
-      setWorkspaceDefault(resolveConcreteApprovalPolicyFromWorkspaceDefault(workspaceDefaultOverride))
-      return
-    }
-
-    let disposed = false
-    const loadWorkspaceDefault = async (): Promise<void> => {
-      try {
-        const result = await window.api.workspaceConfig.getCore() as WorkspaceCoreConfigWithApproval
-        if (disposed) return
-        const workspacePolicy = result.workspace?.defaultApprovalPolicy
-        const userPolicy = result.userDefaults?.defaultApprovalPolicy
-        setWorkspaceDefault(resolveConcreteApprovalPolicyFromWorkspaceDefault(workspacePolicy ?? userPolicy))
-      } catch {
-        if (!disposed) setWorkspaceDefault('prompt')
-      }
-    }
-    void loadWorkspaceDefault()
-    return () => {
-      disposed = true
-    }
-  }, [workspaceDefaultOverride])
 
   useEffect(() => {
     if (!open) return

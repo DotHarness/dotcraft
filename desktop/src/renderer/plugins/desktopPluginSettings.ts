@@ -72,7 +72,7 @@ function createEntry(pluginId: string): PluginSettingsEntry {
 function startWatching(): void {
   if (stopWatching) return
   stopWatching = window.api.appServer.onNotificationRaw((notification) => {
-    if (notification.method !== 'workspace/configChanged') return
+    if (notification.method !== 'config/changed') return
     const regions = (notification.params as { regions?: unknown } | null | undefined)?.regions
     if (!Array.isArray(regions) || !regions.includes(PLUGIN_CONFIG_REGION)) return
     for (const [pluginId, entry] of entries) refresh(pluginId, entry)

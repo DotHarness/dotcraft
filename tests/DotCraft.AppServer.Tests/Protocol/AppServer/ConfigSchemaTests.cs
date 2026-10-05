@@ -6,7 +6,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
-public sealed class WorkspaceConfigSchemaTests : IDisposable
+public sealed class ConfigSchemaTests : IDisposable
 {
     private readonly string _workspaceCraftPath = Path.Combine(Path.GetTempPath(), $"workspace_schema_{Guid.NewGuid():N}");
 
@@ -36,14 +36,14 @@ public sealed class WorkspaceConfigSchemaTests : IDisposable
     }
 
     [Fact]
-    public async Task WorkspaceConfigSchema_ReturnsSchemaSections()
+    public async Task ConfigSchema_ReturnsSchemaSections()
     {
         using var harness = new AppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
             configSchema: CreateTestSchema());
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigSchema, new { });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigSchema, new { });
         await harness.ExecuteRequestAsync(msg);
         var doc = await harness.Transport.ReadNextSentAsync();
 
@@ -54,12 +54,12 @@ public sealed class WorkspaceConfigSchemaTests : IDisposable
     }
 
     [Fact]
-    public async Task WorkspaceConfigSchema_WithoutSchema_ReturnsMethodNotFound()
+    public async Task ConfigSchema_WithoutSchema_ReturnsMethodNotFound()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigSchema, new { });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigSchema, new { });
         await harness.ExecuteRequestAsync(msg);
         var doc = await harness.Transport.ReadNextSentAsync();
 

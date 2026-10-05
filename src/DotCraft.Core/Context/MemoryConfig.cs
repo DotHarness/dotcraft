@@ -8,6 +8,6 @@ namespace DotCraft.Context;
 [ConfigSection("Memory", DisplayName = "Memory", Order = 13)]
 public sealed class MemoryConfig
 {
-    [ConfigField(Hint = "Let new sessions use and maintain workspace memory.", Reload = ReloadBehavior.Hot, HasReload = true)]
+    [ConfigField(Hint = "Let new sessions use and maintain workspace memory.", Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.Dreams)]
     public bool Enabled { get; set; } = true;
 }

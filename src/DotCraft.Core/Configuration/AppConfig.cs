@@ -25,11 +25,11 @@ public sealed partial class AppConfig
     /// <summary>
     /// Workspace-selected provider id. Empty means no model provider is selected.
     /// </summary>
-    [ConfigField(Reload = ReloadBehavior.ProcessRestart, HasReload = true)]
+    [ConfigField(Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.ThreadAgents)]
     public string ProviderId { get; set; } = string.Empty;
 
     /// <summary>Complete MainAgent model preference keyed by provider id.</summary>
-    [ConfigField(Ignore = true)]
+    [ConfigField(Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.ThreadAgents)]
     public Dictionary<string, ModelPreference> ProviderPreferences { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -402,7 +402,7 @@ public sealed partial class AppConfig
             Environment.GetEnvironmentVariable(m.Groups[1].Value) ?? m.Value);
     }
 
-    private static JsonNode MergeNodes(JsonNode baseNode, JsonNode overrideNode)
+    internal static JsonNode MergeNodes(JsonNode baseNode, JsonNode overrideNode)
     {
         if (overrideNode is JsonObject overrideObj && baseNode is JsonObject baseObj)
         {
@@ -410,9 +410,7 @@ public sealed partial class AppConfig
 
             foreach (var property in overrideObj)
             {
-                var existingKey = result
-                    .Select(candidate => candidate.Key)
-                    .FirstOrDefault(key => string.Equals(key, property.Key, StringComparison.OrdinalIgnoreCase));
+                var existingKey = AtomicConfigDocument.Key(result, property.Key);
                 if (existingKey is not null
                     && string.Equals(property.Key, "ProviderPreferences", StringComparison.OrdinalIgnoreCase)
                     && result[existingKey] is JsonObject basePreferences
@@ -707,6 +705,7 @@ public sealed partial class AppConfig
         /// <summary>
         /// Enables the built-in LSP tool.
         /// </summary>
+        [ConfigField(Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.Lsp)]
         public bool Enabled { get; set; } = false;
 
         /// <summary>
@@ -716,7 +715,7 @@ public sealed partial class AppConfig
         public int MaxFileSize { get; set; } = 10 * 1024 * 1024;
     }
 
-    [ConfigSection("Tools.ImageGeneration", DisplayName = "Tools > Image Generation", Order = 25)]
+    [ConfigSection("Tools.ImageGeneration", DisplayName = "Tools > Image Generation", Order = 25, DefaultReload = ReloadBehavior.SubsystemRestart, HasDefaultReload = true, DefaultSubsystemKey = ConfigurationSubsystems.ThreadAgents)]
     public sealed class ImageGenerationToolsConfig
     {
         public bool Enabled { get; set; } = true;
@@ -768,7 +767,7 @@ public sealed partial class AppConfig
         Native
     }
 
-    [ConfigSection("Tools.CodeMode", DisplayName = "Tools > Code Mode", Order = 26)]
+    [ConfigSection("Tools.CodeMode", DisplayName = "Tools > Code Mode", Order = 26, DefaultReload = ReloadBehavior.SubsystemRestart, HasDefaultReload = true, DefaultSubsystemKey = ConfigurationSubsystems.ThreadAgents)]
     public sealed class CodeModeConfig
     {
         public CodeModeSetting Mode { get; set; } = CodeModeSetting.Only;
@@ -922,7 +921,7 @@ public sealed partial class AppConfig
     [ConfigSection("Permissions", DisplayName = "Permissions", Order = 25)]
     public sealed class PermissionsConfig
     {
-        [ConfigField(Hint = "Workspace default approval policy for threads using the default policy. One of: default, autoApprove.")]
+        [ConfigField(Hint = "Workspace default approval policy for threads using the default policy. One of: default, autoApprove.", Options = ["default", "autoApprove"], Reload = ReloadBehavior.Hot, HasReload = true)]
         [JsonConverter(typeof(ApprovalPolicyJsonConverter))]
         public ApprovalPolicy DefaultApprovalPolicy { get; set; } = ApprovalPolicy.Default;
     }
@@ -947,7 +946,7 @@ public sealed partial class AppConfig
         /// <summary>
         /// Skill directory names disabled for this workspace (not injected into agent context).
         /// </summary>
-        [ConfigField(Hint = "JSON array of skill names to disable for this workspace", Reload = ReloadBehavior.Hot, HasReload = true)]
+        [ConfigField(Hint = "JSON array of skill names to disable for this workspace", Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.Skills)]
         public List<string> DisabledSkills { get; set; } = [];
 
         [ConfigField(Hint = "Discover skills from the shared ~/.agents/skills directory", Reload = ReloadBehavior.ProcessRestart, HasReload = false)]
@@ -969,7 +968,7 @@ public sealed partial class AppConfig
         /// <summary>
         /// Master switch. When disabled, no skill mutation tools are exposed.
         /// </summary>
-        [ConfigField(Hint = "Allow the agent to create and update workspace skills", Reload = ReloadBehavior.ProcessRestart, HasReload = false)]
+        [ConfigField(Hint = "Allow the agent to create and update workspace skills", Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.Skills)]
         public bool Enabled { get; set; } = true;
 
         /// <summary>

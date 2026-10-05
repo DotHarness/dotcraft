@@ -108,9 +108,9 @@ describe('PluginsView details', () => {
       const plugin = lspEnabled ? activeLspPlugin : lspOnlyPlugin
       if (method === 'plugin/list') return { plugins: [plugin], diagnostics: [], snapshotRevision: 1 }
       if (method === 'plugin/view') return { plugin, snapshotRevision: 1 }
-      if (method === 'workspace/config/update') {
+      if (method === 'config/value/write') {
         lspEnabled = true
-        return { toolsLspEnabled: true }
+        return { status: 'ok', version: 'sha256:1', filePath: '/workspace/.craft/config.json' }
       }
       return {}
     })
@@ -121,7 +121,11 @@ describe('PluginsView details', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Enable LSP' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', { toolsLspEnabled: true })
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'config/value/write',
+        { keyPath: 'Tools.Lsp.Enabled', value: true, mergeStrategy: 'replace' },
+        20_000
+      )
     })
     expect(await screen.findByText('STDIO · Active · .cs')).toBeInTheDocument()
   })

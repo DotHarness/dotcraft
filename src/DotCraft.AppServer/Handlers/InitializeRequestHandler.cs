@@ -59,7 +59,7 @@ internal sealed class InitializeRequestHandler(
             ChannelStatus = services.ChannelStatusProvider != null,
             ProviderManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             ModelCatalogManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
-            WorkspaceConfigManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
+            WorkspaceConfigManagement = services.Configuration != null,
             SourceControlManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             FileSystem = true,
             MemoryManagement = services.MemoryStore != null,

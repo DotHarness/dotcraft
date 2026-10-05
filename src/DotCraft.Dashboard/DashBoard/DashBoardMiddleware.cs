@@ -24,13 +24,13 @@ namespace DotCraft.DashBoard;
 
 public static class DashBoardMiddleware
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    internal static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
-    private static readonly JsonSerializerOptions RawJsonOptions = new()
+    internal static readonly JsonSerializerOptions RawJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
         WriteIndented = true,
@@ -42,7 +42,6 @@ public static class DashBoardMiddleware
         TraceStore traceStore,
         DotCraftPaths paths,
         TokenUsageStore? tokenUsageStore = null,
-        bool setupMode = false,
         IEnumerable<IOrchestratorSnapshotProvider>? orchestratorProviders = null,
         IReadOnlyList<ConfigSchemaSection>? configSchema = null,
         SessionPersistenceService? persistence = null,
@@ -51,17 +50,19 @@ public static class DashBoardMiddleware
         bool refreshTraceFromDiskBeforeRead = false,
         DreamStore? dreamStore = null,
         DreamsService? dreamsService = null,
-        DashBoardRuntimeOptions? runtimeOptions = null)
+        DashBoardRuntimeOptions? runtimeOptions = null,
+        ConfigurationService? configuration = null)
     {
         var logger = endpoints.ServiceProvider.GetService<ILoggerFactory>()?.CreateLogger("DashBoard");
         var runtime = runtimeOptions ?? DashBoardRuntimeOptions.Interactive();
         var capturedOrchestrators = orchestratorProviders?.ToList();
+        var settingsConfiguration = runtime.Capabilities.Settings ? configuration : null;
         var dreamsAvailable = runtime.Capabilities.Dreams && dreamStore != null && dreamsService != null;
         var automationsAvailable = runtime.Capabilities.Automations && capturedOrchestrators is { Count: > 0 };
         var threadOperationStore = new DashBoardThreadOperationStore(paths.Data.RootPath);
         var runtimeCapabilities = new
         {
-            settings = runtime.Capabilities.Settings,
+            settings = settingsConfiguration != null,
             dreams = dreamsAvailable,
             automations = automationsAvailable,
             sessionDeletion = runtime.Capabilities.SessionDeletion
@@ -93,11 +94,6 @@ public static class DashBoardMiddleware
         if (automationsAvailable)
             MapOrchestratorEndpoints(endpoints, capturedOrchestrators);
 
-        // Build schema and derive sensitive paths from it at startup
-        var schema = runtime.Capabilities.Settings && configSchema != null
-            ? configSchema
-            : [];
-        var sensitivePaths = ConfigSchemaUtilities.BuildSensitivePaths(schema);
         endpoints.MapGet("/dashboard/", ctx =>
         {
             ctx.Response.ContentType = "text/html; charset=utf-8";
@@ -111,15 +107,6 @@ public static class DashBoardMiddleware
             workspacePath = paths.WorkspacePath,
             capabilities = runtimeCapabilities
         }, JsonOptions));
-
-        if (runtime.Capabilities.Settings)
-        {
-        // Config schema endpoint: returns the full dashboard config schema derived from
-        // [ConfigSection] / [ConfigField] attributes on config classes across all modules.
-        var capturedSchema = schema;
-        endpoints.MapGet("/dashboard/api/config/schema", () =>
-            Results.Json(capturedSchema, JsonOptions));
-        }
 
         endpoints.MapGet("/dashboard/api/summary", () =>
         {
@@ -316,106 +303,9 @@ public static class DashBoardMiddleware
             return Results.Json(new { tools }, JsonOptions);
         });
 
-        if (runtime.Capabilities.Settings)
-        {
-            // Config edit endpoints
-            endpoints.MapGet("/dashboard/api/config/edit", () =>
-        {
-            var globalConfigPath = paths.UserData.ResolveOrNull("config.json");
-            var workspaceConfigPath = Path.Combine(paths.Data.RootPath, "config.json");
+        if (settingsConfiguration != null)
+            DashBoardSettingsEndpoints.Map(endpoints, settingsConfiguration, configSchema ?? [], paths, logger);
 
-            var globalRaw = globalConfigPath is not null && File.Exists(globalConfigPath)
-                ? File.ReadAllText(globalConfigPath) : "{}";
-            var workspaceRaw = File.Exists(workspaceConfigPath)
-                ? File.ReadAllText(workspaceConfigPath) : "{}";
-
-            var globalObj = (JsonObject)(JsonNode.Parse(globalRaw) ?? new JsonObject());
-            var workspaceObj = (JsonObject)(JsonNode.Parse(workspaceRaw) ?? new JsonObject());
-
-            // Compute merged result before masking
-            var mergedObj = (JsonObject)MergeNodes(
-                JsonNode.Parse(globalRaw) ?? new JsonObject(),
-                JsonNode.Parse(workspaceRaw) ?? new JsonObject());
-
-            bool hasApiKey = false;
-            var apiKeyKey = FindKey(mergedObj, "ApiKey");
-            if (apiKeyKey != null && mergedObj[apiKeyKey] is JsonValue apiKeyVal)
-                hasApiKey = !string.IsNullOrWhiteSpace(apiKeyVal.ToString());
-
-            // Mask all sensitive fields in all three views
-            ConfigSchemaUtilities.MaskSensitiveValues(globalObj, sensitivePaths);
-            ConfigSchemaUtilities.MaskSensitiveValues(workspaceObj, sensitivePaths);
-            ConfigSchemaUtilities.MaskSensitiveValues(mergedObj, sensitivePaths);
-
-            // Check if authentication is enabled (Username and Password configured)
-            bool authEnabled = false;
-            if (mergedObj.TryGetPropertyValue("DashBoard", out var dashBoardNode) && dashBoardNode is JsonObject dashBoardObj)
-            {
-                var usernameKey = FindKey(dashBoardObj, "Username");
-                var passwordKey = FindKey(dashBoardObj, "Password");
-                authEnabled = usernameKey != null && passwordKey != null &&
-                              dashBoardObj[usernameKey] is JsonValue usernameVal && usernameVal.ToString().Length > 0 &&
-                              dashBoardObj[passwordKey] is JsonValue passwordVal && passwordVal.ToString().Length > 0;
-            }
-
-            return Results.Json(new
-            {
-                global = globalObj,
-                workspace = workspaceObj,
-                merged = mergedObj,
-                globalPath = globalConfigPath,
-                workspacePath = workspaceConfigPath,
-                authEnabled,
-                setupMode,
-                hasApiKey,
-                canEditGlobal = setupMode && globalConfigPath is not null
-            }, RawJsonOptions);
-        });
-
-            var editableGlobalConfigPath = paths.UserData.ResolveOrNull("config.json");
-            if (setupMode && editableGlobalConfigPath is not null)
-            {
-                endpoints.MapPost("/dashboard/api/config/global", async ctx =>
-            {
-                await SaveConfigAsync(ctx, editableGlobalConfigPath, sensitivePaths, logger);
-            });
-            }
-
-            endpoints.MapPost("/dashboard/api/config/workspace", async ctx =>
-        {
-            var workspaceConfigPath = Path.Combine(paths.Data.RootPath, "config.json");
-            await SaveConfigAsync(ctx, workspaceConfigPath, sensitivePaths, logger);
-        });
-
-            endpoints.MapGet("/dashboard/api/config/models", async (HttpContext ctx) =>
-        {
-            var workspaceConfigPath = Path.Combine(paths.Data.RootPath, "config.json");
-            var config = ctx.RequestServices.GetService<IAppConfigMonitor>()?.Current
-                ?? AppConfig.LoadWithGlobalFallback(workspaceConfigPath);
-            var providers = ctx.RequestServices.GetRequiredService<ModelProviderRegistry>();
-            var result = await ModelProviderCatalog.FetchAsync(
-                config,
-                providers,
-                cancellationToken: ctx.RequestAborted);
-
-            if (!result.Success)
-            {
-                return Results.Json(new
-                {
-                    success = false,
-                    errorCode = result.ErrorCode.ToString(),
-                    errorMessage = result.ErrorMessage,
-                    models = Array.Empty<ModelCatalogEntry>()
-                }, RawJsonOptions, statusCode: MapModelCatalogStatusCode(result.ErrorCode));
-            }
-
-            return Results.Json(new
-            {
-                success = true,
-                models = result.Models
-            }, RawJsonOptions);
-        });
-        }
 
         if (tokenUsageStore != null)
         {
@@ -549,100 +439,6 @@ public static class DashBoardMiddleware
     {
         var value = http.Request.Query[name].ToString();
         return int.TryParse(value, out var parsed) ? parsed : defaultValue;
-    }
-
-    private static JsonNode MergeNodes(JsonNode baseNode, JsonNode overrideNode)
-    {
-        if (overrideNode is JsonObject overrideObj && baseNode is JsonObject baseObj)
-        {
-            var result = JsonSerializer.Deserialize<JsonObject>(baseObj.ToJsonString()) ?? [];
-            foreach (var property in overrideObj)
-            {
-                if (result.TryGetPropertyValue(property.Key, out var existingValue))
-                    result[property.Key] = MergeNodes(existingValue ?? new JsonObject(), property.Value ?? new JsonObject());
-                else
-                    result[property.Key] = property.Value?.DeepClone();
-            }
-            return result;
-        }
-        return overrideNode.DeepClone();
-    }
-
-    private static async Task SaveConfigAsync(
-        HttpContext ctx,
-        string targetPath,
-        string[][] sensitivePaths,
-        ILogger? logger)
-    {
-        var dir = Path.GetDirectoryName(targetPath);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
-        using var reader = new StreamReader(ctx.Request.Body);
-        var body = await reader.ReadToEndAsync();
-
-        JsonObject postedObj;
-        try
-        {
-            postedObj = (JsonObject)(JsonNode.Parse(body) ?? new JsonObject());
-        }
-        catch (Exception ex)
-        {
-            logger?.LogWarning(ex, "Dashboard config save rejected: invalid JSON body");
-            ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await ctx.Response.WriteAsJsonAsync(new { success = false, error = "Invalid JSON" });
-            return;
-        }
-
-        var existingObj = File.Exists(targetPath)
-            ? (JsonObject)(JsonNode.Parse(await File.ReadAllTextAsync(targetPath)) ?? new JsonObject())
-            : new JsonObject();
-
-        RestoreSentinels(postedObj, existingObj, sensitivePaths);
-
-        var output = postedObj.ToJsonString(RawJsonOptions);
-        await File.WriteAllTextAsync(targetPath, output);
-        logger?.LogInformation("Dashboard config saved to {Path}", targetPath);
-        await ctx.Response.WriteAsJsonAsync(new { success = true, path = targetPath });
-    }
-
-    // Case-insensitive key lookup for JsonObject (config files may use camelCase or PascalCase)
-    private static string? FindKey(JsonObject obj, string key) =>
-        obj.FirstOrDefault(kv => string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase)).Key;
-
-    // For each sensitive path: if posted value is "***", restore from existing (or remove)
-    private static void RestoreSentinels(JsonObject posted, JsonObject existing, string[][] sensitivePaths)
-    {
-        foreach (var path in sensitivePaths)
-            RestoreAtPath(posted, existing, path, 0);
-    }
-
-    private static void RestoreAtPath(JsonObject posted, JsonObject existing, string[] path, int depth)
-    {
-        var postedKey = FindKey(posted, path[depth]);
-        if (postedKey == null) return;
-
-        if (depth == path.Length - 1)
-        {
-            if (posted[postedKey] is JsonValue val && val.ToString() == "***")
-            {
-                // Restore from existing, or remove the key if not present
-                var existingKey = FindKey(existing, path[depth]);
-                if (existingKey != null && existing[existingKey] is JsonNode existingVal)
-                    posted[postedKey] = existingVal.DeepClone();
-                else
-                    posted.Remove(postedKey);
-            }
-        }
-        else
-        {
-            if (posted[postedKey] is JsonObject postedNested)
-            {
-                var existingKey = FindKey(existing, path[depth]);
-                var existingNested = (existingKey != null ? existing[existingKey] : null) as JsonObject ?? new JsonObject();
-                RestoreAtPath(postedNested, existingNested, path, depth + 1);
-            }
-        }
     }
 
     private static void MapDreamsEndpoints(
@@ -1028,16 +824,4 @@ public static class DashBoardMiddleware
             });
         }
     }
-
-    private static int MapModelCatalogStatusCode(ModelCatalogErrorCode code) => code switch
-    {
-        ModelCatalogErrorCode.MissingApiKey => StatusCodes.Status400BadRequest,
-        ModelCatalogErrorCode.InvalidEndpoint => StatusCodes.Status400BadRequest,
-        ModelCatalogErrorCode.Unauthorized => StatusCodes.Status401Unauthorized,
-        ModelCatalogErrorCode.Forbidden => StatusCodes.Status403Forbidden,
-        ModelCatalogErrorCode.EndpointNotSupported => StatusCodes.Status404NotFound,
-        ModelCatalogErrorCode.Timeout => StatusCodes.Status504GatewayTimeout,
-        ModelCatalogErrorCode.Network => StatusCodes.Status502BadGateway,
-        _ => StatusCodes.Status500InternalServerError
-    };
 }

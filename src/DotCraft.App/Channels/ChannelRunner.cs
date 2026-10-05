@@ -11,6 +11,7 @@ using DotCraft.ExternalChannel;
 using DotCraft.Hosting;
 using DotCraft.Logging;
 using DotCraft.Modules;
+using DotCraft.Runtime;
 using DotCraft.Security;
 using DotCraft.Tracing;
 using Microsoft.Extensions.DependencyInjection;
@@ -269,7 +270,8 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
                 sessionHandler: new DelegateDashBoardSessionHandler(id => capturedSvc.DeleteThreadPermanentlyAsync(id)),
                 refreshTraceFromDiskBeforeRead: true,
                 dreamStore: dreamStore,
-                dreamsService: _dreamsService);
+                dreamsService: _dreamsService,
+                configuration: _sp.GetRequiredService<WorkspaceRuntime>().Configuration);
 
             var baseUrl = $"http://{_config.DashBoard.Host}:{_config.DashBoard.Port}";
             DashBoardUrl = $"{baseUrl}/dashboard";

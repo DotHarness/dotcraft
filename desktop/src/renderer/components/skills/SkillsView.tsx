@@ -6,6 +6,7 @@ import { useSkillMarketStore, type SkillMarketProviderFilter } from '../../store
 import { useConnectionStore, type ServerCapabilities } from '../../stores/connectionStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
+import { useConfigValue } from '../../stores/configStore'
 import type { MarketDotCraftInstallPreparation, MarketSkillDetail, MarketSkillSummary } from '../../../shared/skillMarket'
 import { SkillAvatar } from './SkillAvatar'
 import { SkillDetailDialog } from './SkillDetailDialog'
@@ -73,7 +74,7 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
   const [mode, setMode] = useState<ViewMode>('browse')
   const [query, setQuery] = useState('')
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
-  const [selfLearningEnabled, setSelfLearningEnabled] = useState(true)
+  const selfLearningEnabled = useConfigValue('Skills.SelfLearning.Enabled') !== false
 
   useEffect(() => {
     void fetchSkills()
@@ -92,26 +93,6 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
     const timer = window.setTimeout(() => void search(), 350)
     return () => window.clearTimeout(timer)
   }, [marketQuery, search])
-
-  useEffect(() => {
-    let disposed = false
-    window.api.workspaceConfig
-      .getCore()
-      .then((core) => {
-        if (disposed) return
-        setSelfLearningEnabled(
-          core.workspace.skillsSelfLearningEnabled ??
-          core.userDefaults.skillsSelfLearningEnabled ??
-          true
-        )
-      })
-      .catch(() => {
-        if (!disposed) setSelfLearningEnabled(true)
-      })
-    return () => {
-      disposed = true
-    }
-  }, [])
 
   const filteredSkills = useMemo(() => filterLocalSkills(skills, query, sourceFilter), [skills, query, sourceFilter])
   const manageSkills = useMemo(() => filterLocalSkills(skills, query, 'all'), [skills, query])

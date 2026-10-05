@@ -1512,208 +1512,6 @@ describe('registerIpcHandlers', () => {
     expect(onDisconnectDockerDeployment).toHaveBeenCalledWith('h1', 's1')
   })
 
-  it('workspace-config:get-core reads nested Skills.SelfLearning.Enabled, Tools.CodeMode.Mode and InstantInterruptEnabled values', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
-    vi.mocked(fs.readFile).mockImplementation(async (filePath) => {
-      const pathText = String(filePath)
-      if (pathText.includes('sample-project')) {
-        return JSON.stringify({
-          InstantInterruptEnabled: false,
-          Memory: {
-            Enabled: true
-          },
-          Skills: {
-            SelfLearning: {
-              Enabled: true
-            }
-          },
-          Tools: {
-            CodeMode: {
-              Mode: 'only'
-            }
-          }
-        })
-      }
-      return JSON.stringify({
-        Memory: {
-          Enabled: false
-        },
-        Skills: {
-          SelfLearning: {
-            Enabled: false
-          }
-        },
-        Tools: {
-          CodeMode: {
-            Mode: 'sometimes'
-          }
-        }
-      })
-    })
-
-    registerIpcHandlers(null, () => null, path.join('/workspace', 'sample-project'), {
-      onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
-      onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
-      onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
-      onListSetupModels: vi.fn().mockResolvedValue({ kind: 'unsupported' }),
-      onOpenNewWindow: vi.fn(),
-      onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
-      getSettings: vi.fn(() => ({})),
-      updateSettings: vi.fn(),
-      getLocalProjectPaths: vi.fn(() => []),
-      getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
-      getWorkspaceStatus: vi.fn(() => ({
-        status: 'ready',
-        workspacePath: 'C:\\sample\\workspace',
-        hasUserConfig: true,
-        providers: []
-      }))
-    })
-
-    const result = await handlers.get('workspace-config:get-core')?.({})
-    expect(result).toMatchObject({
-      workspace: { skillsSelfLearningEnabled: true, memoryEnabled: true, toolsCodeModeMode: 'only', instantInterruptEnabled: false },
-      userDefaults: { skillsSelfLearningEnabled: false, memoryEnabled: false, toolsCodeModeMode: null, instantInterruptEnabled: null }
-    })
-  })
-
-  it('workspace-config:get-core reads the active remote stack config over SSH instead of local files', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
-    const host = {
-      id: 'h1',
-      name: 'Remote Lab',
-      sshTarget: 'remote-test-host',
-      stacks: [{
-        id: 's1',
-        name: 'ChatOps',
-        composeDir: '/srv/dotcraft/chatops/deploy',
-        workspaceDir: '/srv/dotcraft/chatops/deploy/workspace',
-        appServerPort: 9100,
-        dashboardPort: 8080,
-      }]
-    }
-    const manager = machinesManagerFor([host])
-    const readCoreConfig = vi.spyOn(manager.docker, 'readCoreConfig').mockResolvedValue({
-      workspaceRaw: JSON.stringify({
-        ProviderId: 'anthropic-main',
-        ProviderPreferences: {
-          'anthropic-main': {
-            Model: 'claude-sonnet-4-5',
-            Reasoning: { Enabled: false, Effort: 'Medium', Output: 'Full' },
-            Speed: 'Standard'
-          }
-        },
-        Permissions: { DefaultApprovalPolicy: 'autoApprove' }
-      }),
-      userDefaultsRaw: JSON.stringify({
-        ProviderId: 'openai',
-        ProviderPreferences: {
-          openai: {
-            Model: 'gpt-5',
-            Reasoning: { Enabled: false, Effort: 'Medium', Output: 'Full' },
-            Speed: 'Standard'
-          }
-        }
-      })
-    })
-
-    try {
-      registerIpcHandlers(null, () => null, '/local/workspace', createIpcCallbacks({
-        getSettings: vi.fn(() => ({
-          locale: 'en',
-          connectionMode: 'remote',
-          activeRemoteStack: { hostId: 'h1', stackId: 's1' },
-          remoteHosts: normalizeSshMachines([host])
-        })),
-        getSshMachinesManager: () => manager,
-        getWorkspaceStatus: vi.fn(() => ({
-          status: 'ready',
-          workspacePath: '/local/workspace',
-          hasUserConfig: true,
-          providers: [],
-          remote: {
-            hostId: 'h1',
-            stackId: 's1',
-            serverName: 'Remote Lab',
-            stackName: 'ChatOps',
-            workspaceDir: '/srv/dotcraft/chatops/deploy/workspace',
-            appServerWorkspacePath: '/workspace',
-            composeDir: '/srv/dotcraft/chatops/deploy',
-            projectName: 'deploy'
-          }
-        }))
-      }))
-
-      const result = await handlers.get('workspace-config:get-core')?.({})
-
-      expect(readCoreConfig).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'h1' }),
-        expect.objectContaining({ id: 's1' })
-      )
-      expect(fs.readFile).not.toHaveBeenCalled()
-      expect(result).toMatchObject({
-        workspace: {
-          providerId: 'anthropic-main',
-          providerPreferences: {
-            'anthropic-main': {
-              model: 'claude-sonnet-4-5',
-              reasoning: { enabled: false, effort: 'medium', output: 'full' },
-              speed: 'standard'
-            }
-          },
-          defaultApprovalPolicy: 'autoApprove'
-        },
-        userDefaults: {
-          providerId: 'openai',
-          providerPreferences: {
-            openai: {
-              model: 'gpt-5',
-              reasoning: { enabled: false, effort: 'medium', output: 'full' },
-              speed: 'standard'
-            }
-          }
-        }
-      })
-    } finally {
-      readCoreConfig.mockRestore()
-    }
-  })
-
-  it('workspace-config:get-core reads the active SSH remote project config over SSH', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
-    const machine = { id: 'm1', source: 'sshConfig', alias: 'lab', projects: [{ id: 'p1', path: '/home/dev/src' }] }
-    const manager = machinesManagerFor([machine])
-    const readProjectConfig = vi.spyOn(manager, 'readProjectConfig').mockResolvedValue({
-      workspaceRaw: JSON.stringify({ ProviderId: 'anthropic' }),
-      userDefaultsRaw: ''
-    })
-
-    registerIpcHandlers(null, () => null, '/local/workspace', createIpcCallbacks({
-      getSettings: vi.fn(() => ({
-        locale: 'en',
-        connectionMode: 'remote',
-        activeRemoteProject: { machineId: 'm1', projectId: 'p1' },
-        remoteHosts: normalizeSshMachines([machine])
-      })),
-      getSshMachinesManager: () => manager
-    }))
-
-    const result = await handlers.get('workspace-config:get-core')?.({})
-
-    expect(readProjectConfig).toHaveBeenCalledWith('m1', 'p1')
-    expect(fs.readFile).not.toHaveBeenCalled()
-    expect(result).toMatchObject({ workspace: { providerId: 'anthropic' } })
-  })
-
   it('registers workspace:list-setup-models and forwards to callback', async () => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>()
     vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
@@ -2164,16 +1962,14 @@ describe('unregisterIpcHandlers', () => {
     vi.clearAllMocks()
   })
 
-  it('removes workspace-config:get-core and workspace project handlers during teardown', () => {
+  it('removes workspace project handlers during teardown', () => {
     unregisterIpcHandlers()
 
     const removedChannels = vi.mocked(ipcMain.removeHandler).mock.calls.map(([channel]) => channel)
-    expect(removedChannels).toContain('workspace-config:get-core')
     expect(removedChannels).toContain('workspace:get-projects')
     expect(removedChannels).toContain('workspace:remove-project')
     expect(removedChannels).toContain('workspace:disconnect-remote')
     expect(removedChannels).toContain('workspace:clear-projects')
-    expect(removedChannels.filter((channel) => channel === 'workspace-config:get-core')).toHaveLength(1)
     expect(removedChannels.filter((channel) => channel === 'workspace:get-projects')).toHaveLength(1)
     expect(removedChannels.filter((channel) => channel === 'workspace:remove-project')).toHaveLength(1)
     expect(removedChannels.filter((channel) => channel === 'workspace:disconnect-remote')).toHaveLength(1)
@@ -2200,7 +1996,6 @@ describe('unregisterIpcHandlers', () => {
 
     unregisterIpcHandlers()
 
-    expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace-config:get-core')
     expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:get-projects')
     expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:remove-project')
     expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:disconnect-remote')

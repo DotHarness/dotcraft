@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
@@ -11,8 +10,6 @@ namespace DotCraft.Auth.OpenAI;
 /// </summary>
 public static class OpenAIAuthBindingPersistence
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-
     /// <summary>
     /// Marks the provider with <paramref name="providerId"/> as using ChatGPT OAuth and records the
     /// account id / plan tier returned by login. Creates the provider entry if absent.
@@ -29,38 +26,35 @@ public static class OpenAIAuthBindingPersistence
         ArgumentNullException.ThrowIfNull(status);
 
         ArgumentException.ThrowIfNullOrWhiteSpace(globalConfigPath);
-        var path = Path.GetFullPath(globalConfigPath);
-        var root = LoadOrCreate(path);
-        var providers = GetOrCreateObject(root, "Providers");
-        var (canonicalKey, providerNode) = GetOrCreateProvider(providers, providerId);
-
-        providerNode["AuthMethod"] = ModelProviderAuthMethods.ChatGptOAuth;
-        providerNode["Protocol"] = ModelProviderProtocols.OpenAIResponses;
-        if (!string.IsNullOrEmpty(status.AccountId))
-            providerNode["ChatGptAccountId"] = status.AccountId;
-        else
-            providerNode.Remove("ChatGptAccountId");
-        if (!string.IsNullOrEmpty(status.PlanType))
-            providerNode["ChatGptPlanType"] = status.PlanType;
-        else
-            providerNode.Remove("ChatGptPlanType");
-
-        // Make this provider the default if no provider is configured yet.
-        if (string.IsNullOrWhiteSpace(GetStringValue(root, "ProviderId")))
-            root["ProviderId"] = canonicalKey;
-        var providerPreferences = GetOrCreateObject(root, "ProviderPreferences");
-        var preferenceMatch = providerPreferences
-            .FirstOrDefault(p => string.Equals(p.Key, canonicalKey, StringComparison.OrdinalIgnoreCase));
-        var preference = preferenceMatch.Value as JsonObject;
-        var existingModel = preference == null ? null : GetStringValue(preference, "Model");
-        if (string.IsNullOrWhiteSpace(existingModel))
+        AtomicConfigDocument.Update(Path.GetFullPath(globalConfigPath), root =>
         {
-            providerPreferences[preferenceMatch.Key ?? canonicalKey] = JsonSerializer.SerializeToNode(
-                ModelPreferenceRules.CreateManual(defaultModel),
-                AppConfig.SerializerOptions);
-        }
+            var providers = AtomicConfigDocument.Object(root, "Providers");
+            var (canonicalKey, providerNode) = GetOrCreateProvider(providers, providerId);
 
-        Save(path, root);
+            providerNode["AuthMethod"] = ModelProviderAuthMethods.ChatGptOAuth;
+            providerNode["Protocol"] = ModelProviderProtocols.OpenAIResponses;
+            if (!string.IsNullOrEmpty(status.AccountId))
+                providerNode["ChatGptAccountId"] = status.AccountId;
+            else
+                providerNode.Remove("ChatGptAccountId");
+            if (!string.IsNullOrEmpty(status.PlanType))
+                providerNode["ChatGptPlanType"] = status.PlanType;
+            else
+                providerNode.Remove("ChatGptPlanType");
+
+            if (string.IsNullOrWhiteSpace(GetStringValue(root, "ProviderId")))
+                root["ProviderId"] = canonicalKey;
+            var providerPreferences = AtomicConfigDocument.Object(root, "ProviderPreferences");
+            var preferenceKey = AtomicConfigDocument.Key(providerPreferences, canonicalKey);
+            var preference = preferenceKey == null ? null : providerPreferences[preferenceKey] as JsonObject;
+            var existingModel = preference == null ? null : GetStringValue(preference, "Model");
+            if (string.IsNullOrWhiteSpace(existingModel))
+            {
+                providerPreferences[preferenceKey ?? canonicalKey] = JsonSerializer.SerializeToNode(
+                    ModelPreferenceRules.CreateManual(defaultModel),
+                    AppConfig.SerializerOptions);
+            }
+        });
     }
 
     /// <summary>Reverts the provider to API-key auth and clears account metadata.</summary>
@@ -69,52 +63,24 @@ public static class OpenAIAuthBindingPersistence
         ArgumentException.ThrowIfNullOrWhiteSpace(providerId);
 
         ArgumentException.ThrowIfNullOrWhiteSpace(globalConfigPath);
-        var path = Path.GetFullPath(globalConfigPath);
-        if (!File.Exists(path))
-            return;
+        AtomicConfigDocument.Update(Path.GetFullPath(globalConfigPath), root =>
+        {
+            if (AtomicConfigDocument.Value(root, "Providers") is not JsonObject providers
+                || AtomicConfigDocument.Value(providers, providerId) is not JsonObject providerNode)
+            {
+                return;
+            }
 
-        var root = LoadOrCreate(path);
-        if (root["Providers"] is not JsonObject providers)
-            return;
-
-        var matched = providers.FirstOrDefault(p => string.Equals(p.Key, providerId, StringComparison.OrdinalIgnoreCase));
-        if (matched.Value is not JsonObject providerNode)
-            return;
-
-        providerNode["AuthMethod"] = ModelProviderAuthMethods.ApiKey;
-        providerNode.Remove("ChatGptAccountId");
-        providerNode.Remove("ChatGptPlanType");
-        Save(path, root);
-    }
-
-    private static JsonObject LoadOrCreate(string path) =>
-        File.Exists(path)
-            ? JsonNode.Parse(File.ReadAllText(path, Encoding.UTF8)) as JsonObject ?? new JsonObject()
-            : new JsonObject();
-
-    private static void Save(string path, JsonObject root)
-    {
-        var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrWhiteSpace(directory))
-            Directory.CreateDirectory(directory);
-        File.WriteAllText(path, root.ToJsonString(JsonOptions), Encoding.UTF8);
-    }
-
-    private static JsonObject GetOrCreateObject(JsonObject parent, string key)
-    {
-        var matched = parent.FirstOrDefault(p => string.Equals(p.Key, key, StringComparison.OrdinalIgnoreCase));
-        if (matched.Value is JsonObject existing)
-            return existing;
-        var created = new JsonObject();
-        parent[key] = created;
-        return created;
+            providerNode["AuthMethod"] = ModelProviderAuthMethods.ApiKey;
+            providerNode.Remove("ChatGptAccountId");
+            providerNode.Remove("ChatGptPlanType");
+        });
     }
 
     private static (string CanonicalKey, JsonObject Node) GetOrCreateProvider(JsonObject providers, string providerId)
     {
-        var matched = providers.FirstOrDefault(p => string.Equals(p.Key, providerId, StringComparison.OrdinalIgnoreCase));
-        if (matched.Value is JsonObject existing)
-            return (matched.Key, existing);
+        if (AtomicConfigDocument.Key(providers, providerId) is { } key && providers[key] is JsonObject existing)
+            return (key, existing);
 
         var node = new JsonObject
         {
@@ -125,12 +91,6 @@ public static class OpenAIAuthBindingPersistence
         return (providerId, node);
     }
 
-    private static string? GetStringValue(JsonObject node, string key)
-    {
-        var matched = node.FirstOrDefault(p => string.Equals(p.Key, key, StringComparison.OrdinalIgnoreCase));
-        if (matched.Value is null)
-            return null;
-        return matched.Value is JsonValue value && value.TryGetValue<string>(out var str) ? str : null;
-    }
-
+    private static string? GetStringValue(JsonObject node, string key) =>
+        AtomicConfigDocument.Value(node, key) is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
 }

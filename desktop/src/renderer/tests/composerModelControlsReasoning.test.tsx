@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
+import { useConfigStore } from '../stores/configStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useProvidersStore } from '../stores/providersStore'
@@ -34,7 +35,6 @@ function mountControls(mode: 'thread' | 'detached' = 'thread') {
     const activeThread = useThreadStore((s) => s.activeThread)
     const activeThreadId = useThreadStore((s) => s.activeThreadId)
     return useComposerModelControls({
-      workspacePath: 'C:\\ws',
       mode,
       activeThread: mode === 'thread' ? activeThread : null,
       activeThreadId: mode === 'thread' ? activeThreadId : null
@@ -50,6 +50,7 @@ describe('composer reasoning persistence', () => {
     configurations.set('thread-2', structuredClone(initialConfig))
     useModelCatalogStore.getState().reset()
     useProvidersStore.getState().reset()
+    useConfigStore.getState().reset()
     selectThread('thread-1')
     useConnectionStore.setState({
       status: 'connected',
@@ -57,6 +58,15 @@ describe('composer reasoning persistence', () => {
     })
     sendRequest.mockImplementation(async (method: string, params: { threadId: string; config?: ThreadConfigurationWire }) => {
       if (method === 'provider/list') return { providers: [] }
+      if (method === 'config/read') {
+        return {
+          config: {
+            ProviderId: 'openai',
+            ProviderPreferences: { openai: { model: 'gpt-5.4', reasoning: initialConfig.reasoning, speed: 'standard' } }
+          },
+          origins: {}
+        }
+      }
       if (method === 'thread/read') return { thread: { configuration: structuredClone(configurations.get(params.threadId)) } }
       if (method === 'thread/config/update') configurations.set(params.threadId, structuredClone(params.config!))
       return {}
@@ -66,14 +76,6 @@ describe('composer reasoning persistence', () => {
         sendRequest,
         listModels: async () => ({ success: false, providerId: 'openai', errorCode: 'EndpointNotSupported' }),
         onNotification: () => () => undefined
-      },
-      workspaceConfig: {
-        getCore: async () => ({
-          workspace: { providerId: 'openai', providerPreferences: { openai: {
-            model: 'gpt-5.4', reasoning: initialConfig.reasoning, speed: 'standard'
-          } } },
-          userDefaults: {}
-        })
       },
       settings: { get: async () => null, set: async () => undefined }
     })

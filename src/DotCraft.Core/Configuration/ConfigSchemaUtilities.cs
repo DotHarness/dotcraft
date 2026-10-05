@@ -9,40 +9,6 @@ namespace DotCraft.Configuration;
 public static class ConfigSchemaUtilities
 {
     /// <summary>
-    /// Derives sensitive-field paths from a generated configuration schema.
-    /// </summary>
-    public static string[][] BuildSensitivePaths(IEnumerable<ConfigSchemaSection> schema)
-    {
-        var paths = new List<string[]>();
-        foreach (var section in schema)
-        {
-            var itemFields = section.ItemFields;
-            if (itemFields is { Count: > 0 })
-            {
-                foreach (var field in itemFields.Where(f => f.Sensitive))
-                    AddSensitivePath(paths, section, field);
-
-                continue;
-            }
-
-            foreach (var field in section.Fields.Where(f => f.Sensitive))
-                AddSensitivePath(paths, section, field);
-        }
-
-        return paths.ToArray();
-    }
-
-    /// <summary>
-    /// Replaces every non-empty value at <paramref name="sensitivePaths"/> with <c>***</c>, in place.
-    /// Config files may use either casing, so each path segment is matched case-insensitively.
-    /// </summary>
-    public static void MaskSensitiveValues(JsonObject root, string[][] sensitivePaths)
-    {
-        foreach (var path in sensitivePaths)
-            MaskAtPath(root, path, 0);
-    }
-
-    /// <summary>
     /// Collects every field key the schema marks sensitive, in any section.
     /// </summary>
     public static IReadOnlySet<string> BuildSensitiveKeys(IEnumerable<ConfigSchemaSection> schema)
@@ -153,48 +119,6 @@ public static class ConfigSchemaUtilities
         finally
         {
             (enumerator as IDisposable)?.Dispose();
-        }
-    }
-
-    private static void MaskAtPath(JsonObject obj, string[] path, int depth)
-    {
-        var actualKey = FindCaseInsensitiveKey(obj, path[depth]);
-        if (actualKey == null)
-            return;
-
-        if (depth == path.Length - 1)
-        {
-            if (obj[actualKey] is JsonValue value && value.ToString().Length > 0)
-                obj[actualKey] = "***";
-        }
-        else if (obj[actualKey] is JsonObject nested)
-        {
-            MaskAtPath(nested, path, depth + 1);
-        }
-    }
-
-    private static string? FindCaseInsensitiveKey(JsonObject obj, string key) =>
-        obj.FirstOrDefault(kv => string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase)).Key;
-
-    private static void AddSensitivePath(
-        List<string[]> paths,
-        ConfigSchemaSection section,
-        ConfigSchemaField field)
-    {
-        if (section.RootKey != null)
-        {
-            paths.Add([section.RootKey, field.Key]);
-        }
-        else if (section.Path is { Length: > 0 })
-        {
-            var path = new string[section.Path.Length + 1];
-            section.Path.CopyTo(path, 0);
-            path[^1] = field.Key;
-            paths.Add(path);
-        }
-        else
-        {
-            paths.Add([field.Key]);
         }
     }
 }

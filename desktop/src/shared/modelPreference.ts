@@ -14,18 +14,19 @@ export interface ModelPreference {
 
 export type ProviderPreferences = Record<string, ModelPreference>
 
+export function toContractModelPreference(preference: ModelPreference): ContractModelPreference {
+  return {
+    model: preference.model,
+    reasoning: { ...preference.reasoning },
+    speed: preference.speed,
+  }
+}
+
 export function toContractProviderPreferences(
   preferences: ProviderPreferences
 ): Record<string, ContractModelPreference> {
   return Object.fromEntries(
-    Object.entries(preferences).map(([providerId, preference]) => [
-      providerId,
-      {
-        model: preference.model,
-        reasoning: { ...preference.reasoning },
-        speed: preference.speed,
-      }
-    ])
+    Object.entries(preferences).map(([providerId, preference]) => [providerId, toContractModelPreference(preference)])
   )
 }
 
@@ -105,20 +106,6 @@ export function setProviderPreference(
   if (existing) delete result[existing]
   if (preference && providerId.trim()) {
     result[providerId.trim()] = cloneModelPreference(preference)
-  }
-  return result
-}
-
-export function mergeProviderPreferences(
-  userDefaults: unknown,
-  workspace: unknown
-): ProviderPreferences {
-  let result: ProviderPreferences = {}
-  for (const [providerId, preference] of Object.entries(readProviderPreferences(userDefaults))) {
-    result = setProviderPreference(result, providerId, preference)
-  }
-  for (const [providerId, preference] of Object.entries(readProviderPreferences(workspace))) {
-    result = setProviderPreference(result, providerId, preference)
   }
   return result
 }

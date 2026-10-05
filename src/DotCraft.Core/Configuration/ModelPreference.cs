@@ -96,6 +96,36 @@ public static class ModelPreferenceRules
         return normalized;
     }
 
+    public static string? ValidateReasoning(
+        AppConfig config,
+        string? providerId,
+        string? model,
+        AppConfig.ReasoningConfig reasoning)
+    {
+        EffectiveModelRuntime runtime;
+        try
+        {
+            runtime = ModelProviderResolver.ResolveMain(config, providerId, model);
+        }
+        catch (Exception ex) when (ex is ArgumentException or ModelProviderConfigurationException)
+        {
+            return null;
+        }
+
+        var capability = ModelThinkingAdapterResolver.ResolveReasoningCapability(
+            config,
+            runtime.Protocol,
+            runtime.EndPoint,
+            runtime.Model);
+        if (capability == null)
+            return null;
+        if (!reasoning.Enabled)
+            return capability.SupportsDisable ? null : $"Model '{runtime.Model}' does not support disabling reasoning.";
+        return capability.SupportedEfforts.Any(option => option.Effort == reasoning.Effort.ToProviderEffort())
+            ? null
+            : $"Model '{runtime.Model}' does not support reasoning effort '{reasoning.Effort}'.";
+    }
+
     /// <summary>Returns a deep copy of a preference.</summary>
     public static ModelPreference Clone(ModelPreference preference)
     {

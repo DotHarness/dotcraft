@@ -124,6 +124,14 @@ fingerprint 同时覆盖内容和有序来源。等价快照会去重。该诊�
 
 返回 Dashboard Settings 页面使用的配置 schema。
 
+### `GET /dashboard/api/config/edit`
+
+返回用户层（`global`）、工作区层（`workspace`）和生效配置（`merged`），其中敏感值遮蔽为 `***`，并附带每层的文件路径。
+
+### `POST /dashboard/api/config/workspace`
+
+用提交的 JSON 对象替换工作区配置文件。值为 `***` 的位置会保留已存储的密钥。文档必须能加载为有效配置，每个变更字段都要满足其类型、范围和可选值。通过校验的保存会应用到正在运行的 AppServer，并通过 `config/changed` 广播变更的 key path。无效文档返回 `400` 和英文 `error`，文件保持不变。
+
 ### `GET /dashboard/api/dreams/status`
 
 返回当前工作区 Dreams 配置、运行状态、active store 和最近一次运行。

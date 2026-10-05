@@ -360,7 +360,7 @@ public sealed class AppServerConnection
         _clientCapabilities?.BackgroundTerminals == true;
 
     /// <summary>
-    /// Returns <c>true</c> if the client wants workspace/configChanged notifications.
+    /// Returns <c>true</c> if the client wants config/changed notifications.
     /// Defaults to true when not specified by the client.
     /// </summary>
     public bool SupportsConfigChange =>

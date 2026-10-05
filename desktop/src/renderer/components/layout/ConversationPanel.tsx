@@ -18,7 +18,6 @@ import { useComposerDraftStore } from '../../stores/composerDraftStore'
 import type { ComposerDraftSnapshot } from '../../utils/composerHistory'
 import { mergeRestoredComposerDraft } from '../../utils/composerSubmission'
 import type { Thread } from '../../types/thread'
-import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
 import { useComposerModelControls } from '../conversation/useComposerModelControls'
 import { AgentBuilderChatEmptyState } from '../agents/AgentBuilderChatEmptyState'
 import { resolveComposerMascotEffectState } from '../conversation/composerMascotEffectState'
@@ -35,8 +34,6 @@ interface ConversationPanelProps {
   identityWorkspacePath?: string
   projectKey?: string
   remoteWorkspace?: boolean
-  workspaceConfigChange?: WorkspaceConfigChangedPayload | null
-  workspaceConfigChangeSeq?: number
   onInteractionResponseAccepted?: () => void
   /** Render the composer with minimal chrome (no workspace/branch footer, permissions, or subscription badge). */
   minimalComposer?: boolean
@@ -56,8 +53,6 @@ export function ConversationPanel({
   identityWorkspacePath,
   projectKey,
   remoteWorkspace = false,
-  workspaceConfigChange = null,
-  workspaceConfigChangeSeq = 0,
   onInteractionResponseAccepted,
   minimalComposer = false,
   mascotName,
@@ -111,12 +106,8 @@ export function ConversationPanel({
       }
     : null
   const modelControls = useComposerModelControls({
-    workspacePath,
-    remoteWorkspace,
     activeThread: activeThread ?? creatingThread,
-    activeThreadId,
-    workspaceConfigChange,
-    workspaceConfigChangeSeq
+    activeThreadId
   })
   const mascotEffectState = resolveComposerMascotEffectState({
     modelName: modelControls.modelName,
@@ -181,8 +172,6 @@ export function ConversationPanel({
         identityWorkspacePath={protocolWorkspacePath}
         projectKey={projectKey}
         remoteWorkspace={remoteWorkspace}
-        workspaceConfigChange={workspaceConfigChange}
-        workspaceConfigChangeSeq={workspaceConfigChangeSeq}
       />
     )
   }

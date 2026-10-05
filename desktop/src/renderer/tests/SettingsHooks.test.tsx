@@ -140,26 +140,6 @@ describe('Settings Hooks', () => {
 
     installDesktopApiMock({
       settings: { get: settingsGet, set: settingsSet },
-      workspaceConfig: {
-        getCore: vi.fn().mockResolvedValue({
-          workspace: {
-            apiKey: null,
-            endPoint: null,
-            welcomeSuggestionsEnabled: null,
-            skillsSelfLearningEnabled: null,
-            memoryEnabled: null,
-            defaultApprovalPolicy: null
-          },
-          userDefaults: {
-            apiKey: null,
-            endPoint: null,
-            welcomeSuggestionsEnabled: null,
-            skillsSelfLearningEnabled: null,
-            memoryEnabled: null,
-            defaultApprovalPolicy: null
-          }
-        })
-      },
       appServer: {
         sendRequest: appServerSendRequest,
         restartManaged: vi.fn(),

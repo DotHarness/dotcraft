@@ -7,6 +7,7 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>false</IsTestProject>
     <RootNamespace>DotCraft.Tests.Sessions.Protocol.AppServer</RootNamespace>
+    <DotCraftGenerateConfigSchemaRegistrations>true</DotCraftGenerateConfigSchemaRegistrations>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,6 +20,11 @@
     <ProjectReference Include="..\..\src\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" />
     <ProjectReference Include="..\DotCraft.Session.TestSupport\DotCraft.Session.TestSupport.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <CompilerVisibleProperty Include="DotCraftGenerateConfigSchemaRegistrations" />
   </ItemGroup>
 
   <ItemGroup>

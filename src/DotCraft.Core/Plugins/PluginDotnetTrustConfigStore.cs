@@ -48,7 +48,7 @@ internal sealed class PluginDotnetTrustConfigStore : IPluginDotnetTrustStore, IP
     {
         var result = new Dictionary<string, IReadOnlySet<string>>(StringComparer.OrdinalIgnoreCase);
         if (TryLoadRoot() is not { } root
-            || FindValue(root, GrantsKey) is not JsonObject grants)
+            || AtomicConfigDocument.Value(root, GrantsKey) is not JsonObject grants)
         {
             return result;
         }
@@ -93,15 +93,15 @@ internal sealed class PluginDotnetTrustConfigStore : IPluginDotnetTrustStore, IP
             }
 
             var root = LoadRootForWrite();
-            root[FindKey(root, VersionKey) ?? VersionKey] = 1;
-            var grantsKey = FindKey(root, GrantsKey) ?? GrantsKey;
+            root[AtomicConfigDocument.Key(root, VersionKey) ?? VersionKey] = 1;
+            var grantsKey = AtomicConfigDocument.Key(root, GrantsKey) ?? GrantsKey;
             if (root[grantsKey] is not JsonObject grants)
             {
                 grants = new JsonObject();
                 root[grantsKey] = grants;
             }
 
-            var existingKey = FindKey(grants, pluginId) ?? pluginId;
+            var existingKey = AtomicConfigDocument.Key(grants, pluginId) ?? pluginId;
             var fingerprints = grants[existingKey] is JsonArray existing
                 ? existing
                     .Where(static value => value?.GetValueKind() == JsonValueKind.String)
@@ -204,19 +204,6 @@ internal sealed class PluginDotnetTrustConfigStore : IPluginDotnetTrustStore, IP
             {
             }
         }
-    }
-
-    private static JsonNode? FindValue(JsonObject parent, string key) =>
-        FindKey(parent, key) is { } actualKey ? parent[actualKey] : null;
-
-    private static string? FindKey(JsonObject parent, string key)
-    {
-        foreach (var pair in parent)
-        {
-            if (string.Equals(pair.Key, key, StringComparison.OrdinalIgnoreCase))
-                return pair.Key;
-        }
-        return null;
     }
 
     private void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);

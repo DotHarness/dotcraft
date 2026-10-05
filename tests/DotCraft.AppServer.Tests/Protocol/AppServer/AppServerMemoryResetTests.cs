@@ -151,14 +151,14 @@ public sealed class AppServerMemoryResetTests : IDisposable
     {
         void OnChanged(object? sender, AppConfigChangedEventArgs change)
         {
-            if (!harness.Connection.SupportsConfigChange || !harness.Connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigChanged))
+            if (!harness.Connection.SupportsConfigChange || !harness.Connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigChanged))
                 return;
 
             var notification = new
             {
                 jsonrpc = "2.0",
-                method = DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigChanged,
-                @params = new DotCraft.Protocol.AppServer.WorkspaceConfigChangedParams
+                method = DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigChanged,
+                @params = new DotCraft.Protocol.AppServer.ConfigChangedParams
                 {
                     Source = change.Source,
                     Regions = change.Regions.ToArray(),
@@ -180,7 +180,7 @@ public sealed class AppServerMemoryResetTests : IDisposable
         var notifications = sent
             .Where(d =>
                 d.RootElement.TryGetProperty("method", out var method)
-                && string.Equals(method.GetString(), DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigChanged, StringComparison.Ordinal))
+                && string.Equals(method.GetString(), DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigChanged, StringComparison.Ordinal))
             .ToList();
         Assert.Single(notifications);
 

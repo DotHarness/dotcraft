@@ -48,7 +48,11 @@ export interface ClientRequestMethods {
   "channel/status": { params: Models.RpcEmpty; result: Models.ChannelStatusResult };
   "command/execute": { params: Models.CommandExecuteParams; result: Models.CommandExecuteResult };
   "command/list": { params: Models.CommandListParams; result: Models.CommandListResult };
+  "config/batchWrite": { params: Models.ConfigBatchWriteParams; result: Models.ConfigWriteResult };
   "config/mcpServer/reload": { params: Models.RpcEmpty; result: Models.McpServerReloadResult };
+  "config/read": { params: Models.ConfigReadParams; result: Models.ConfigReadResult };
+  "config/schema": { params: Models.ConfigSchemaParams; result: Models.ConfigSchemaResult };
+  "config/value/write": { params: Models.ConfigValueWriteParams; result: Models.ConfigWriteResult };
   "dreams/apply": { params: Models.DreamsRunIdParams; result: Models.DreamsRunResult };
   "dreams/archive": { params: Models.DreamsRunIdParams; result: Models.DreamsRunResult };
   "dreams/cancel": { params: Models.DreamsRunIdParams; result: Models.DreamsRunResult };
@@ -200,8 +204,6 @@ export interface ClientRequestMethods {
   "workflow/run/resume": { params: Models.WorkflowRunResumeParams; result: Models.WorkflowRunResumeResult };
   "workflow/run/stop": { params: Models.WorkflowRunParams; result: Models.WorkflowRunReadResult };
   "workspace/commitMessage/suggest": { params: Models.WorkspaceCommitMessageSuggestParams; result: Models.WorkspaceCommitMessageSuggestResult };
-  "workspace/config/schema": { params: Models.WorkspaceConfigSchemaParams; result: Models.WorkspaceConfigSchemaResult };
-  "workspace/config/update": { params: Models.WorkspaceConfigUpdateParams; result: Models.WorkspaceConfigUpdateResult };
   "worktree/createAndFork": { params: Models.WorktreeCreateAndForkParams; result: Models.WorktreeCreateAndForkResult };
   "worktree/createAndStart": { params: Models.WorktreeCreateAndStartParams; result: Models.WorktreeCreateAndStartResult };
   "worktree/list": { params: Models.WorktreeListParams; result: Models.WorktreeListResult };

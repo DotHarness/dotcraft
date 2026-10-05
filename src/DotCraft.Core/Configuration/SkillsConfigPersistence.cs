@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace DotCraft.Configuration;
@@ -15,29 +14,11 @@ public static class SkillsConfigPersistence
     /// <param name="disabledSkills">Skill names to persist as disabled.</param>
     public static void WriteWorkspaceDisabledSkills(string craftPath, IReadOnlyList<string> disabledSkills)
     {
-        var path = Path.Combine(craftPath, "config.json");
-        JsonObject root;
-        if (File.Exists(path))
+        AtomicConfigDocument.Update(Path.Combine(craftPath, "config.json"), root =>
         {
-            var text = File.ReadAllText(path);
-            root = (JsonObject)(JsonNode.Parse(text) ?? new JsonObject());
-        }
-        else
-        {
-            root = new JsonObject();
-        }
-
-        var skillsObj = root["Skills"] as JsonObject ?? new JsonObject();
-        var arr = new JsonArray();
-        foreach (var s in disabledSkills)
-            arr.Add(s);
-        skillsObj["DisabledSkills"] = arr;
-        root["Skills"] = skillsObj;
-
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
-        File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            var skills = AtomicConfigDocument.Object(root, "Skills");
+            skills[AtomicConfigDocument.Key(skills, "DisabledSkills") ?? "DisabledSkills"] =
+                new JsonArray(disabledSkills.Select(name => (JsonNode?)JsonValue.Create(name)).ToArray());
+        });
     }
 }

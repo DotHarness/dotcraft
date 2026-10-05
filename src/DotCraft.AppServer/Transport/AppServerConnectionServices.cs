@@ -88,6 +88,7 @@ public sealed record AppServerConnectionServices
     public SessionStreamDebugLogger? StreamDebugLogger { get; init; }
     public ILoggerFactory? LoggerFactory { get; init; }
     public IReadOnlyList<ConfigSchemaSection>? ConfigSchema { get; init; }
+    public ConfigurationService? Configuration { get; init; }
     public IAppConfigMonitor? AppConfigMonitor { get; init; }
     public ChatClientRegistry? ChatClientRegistry { get; init; }
     public ModelProviderRegistry? ModelProviderRegistry { get; init; }

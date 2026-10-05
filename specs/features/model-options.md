@@ -132,7 +132,7 @@ Profile consumers materialize a complete `ModelPreference` before starting a thr
 Clients recompute effective model options when:
 
 - `thread/read` or `thread/resume` returns a configuration
-- `workspace/configChanged` reports the corresponding workspace option, model, or provider region
+- `config/changed` lists a `ProviderId` or `ProviderPreferences` key path, or the `providers` domain tag
 - model catalog data reloads for another provider
 
 ## 3. Reasoning

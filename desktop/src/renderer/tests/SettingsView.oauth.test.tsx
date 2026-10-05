@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { SettingsView } from '../components/settings/SettingsView'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useConfigStore } from '../stores/configStore'
 import { useUIStore } from '../stores/uiStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
@@ -15,15 +16,16 @@ describe('Settings OAuth editor', () => {
     vi.resetAllMocks()
     useUIStore.setState({ activeMainView: 'settings', activeSettingsTab: 'llmService' })
     useConnectionStore.setState({ status: 'connected', capabilities: { workspaceConfigManagement: true, providerManagement: true, modelCatalogManagement: true } })
+    useConfigStore.getState().reset()
     let saved = false
     sendRequest.mockImplementation(async (method) => {
       if (method === 'provider/list') return { providers: saved ? [existing, { ...existing, id: 'openai', displayName: 'OpenAI (ChatGPT)', chatGptAccountId: 'new-account' }] : [existing] }
       if (method === 'auth/openai/login') { saved = true; return { loggedIn: true, providerId: 'openai' } }
       if (method === 'model/list') return { success: true, models: [{ id: 'account-model' }] }
+      if (method === 'config/read') return { config: { ProviderId: 'existing', ProviderPreferences: {} }, origins: {} }
       return {}
     })
     installDesktopApiMock({ platform: 'win32', settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }), set: vi.fn() },
-      workspaceConfig: { getCore: vi.fn().mockResolvedValue({ workspace: { providerId: 'existing', providerPreferences: {} }, userDefaults: { providerPreferences: {} } }) },
       appServer: { sendRequest, onNotification: () => () => {}, getResolvedBinary: vi.fn().mockResolvedValue({ path: null }) },
       modules: { list: vi.fn().mockResolvedValue([]) } })
   })
@@ -47,7 +49,8 @@ describe('Settings OAuth editor', () => {
     expect(await screen.findByRole('button', { name: 'Update provider' })).toBeInTheDocument()
     await waitFor(() => expect(screen.getByLabelText('Provider id')).toHaveValue('openai'))
     expect(await screen.findByRole('button', { name: /Sign out/ })).toBeInTheDocument()
-    expect(sendRequest).not.toHaveBeenCalledWith('workspace/config/update', expect.objectContaining({ providerId: 'openai' }), expect.anything())
+    expect(sendRequest).not.toHaveBeenCalledWith('config/value/write', expect.objectContaining({ keyPath: 'ProviderId' }), expect.anything())
+    expect(sendRequest).not.toHaveBeenCalledWith('config/batchWrite', expect.anything(), expect.anything())
     expect(sendRequest).not.toHaveBeenCalledWith('provider/create', expect.anything(), expect.anything())
   })
 })

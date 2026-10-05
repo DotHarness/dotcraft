@@ -16,6 +16,14 @@ dotcraft config show --json
 
 `--section` 接受配置节的显示名或 JSON 路径。`--json` 输出机器可读的格式，`config show` 无论是否加 `--json` 都是缩进的 JSON。`config show` 默认读取当前目录的工作区，用 `--workspace` 指定其他目录。
 
+## 从客户端修改配置
+
+AppServer 客户端按 key path 修改设置，而不是直接编辑文件。`config/read` 返回遮蔽了敏感值的生效配置，也可以同时返回用户层和工作区层。`config/value/write` 修改一个 key path，例如 `Tools.CodeMode.Mode`，`config/batchWrite` 一次把多处修改写入同一层。写入默认落在工作区层，指定用户层的文件路径时才写入用户层。凭据不走这条路径，由 Provider 相关方法负责。参数和错误码见 [AppServer 协议](./protocols/appserver-protocol)。
+
+服务端在保存前校验写入：结果必须仍能加载为配置，每个变更字段都要满足其类型、范围和可选值。被拒绝的写入不会改动文件。通过校验的写入会按各字段的重载方式更新正在运行的 AppServer，并通过 `config/changed` 广播变更的 key path。
+
+Dashboard 设置页通过同一路径保存整层配置文件，因此它的保存同样会被校验、应用和广播。保存的文档中被遮蔽为 `***` 的值会保留已存储的密钥。
+
 ## 基础模型与 Provider
 
 | 配置项 | 说明 | 默认值 |

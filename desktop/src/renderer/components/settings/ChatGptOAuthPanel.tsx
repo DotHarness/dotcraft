@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'
+import { useConfigStore } from '../../stores/configStore'
 import { addToast } from '../../stores/toastStore'
 import { Button } from '../ui/Button'
 
@@ -76,11 +77,7 @@ export function ChatGptOAuthPanel({
       let activated = false
       if (shouldActivate && selectedProviderId !== savedId) {
         try {
-          await window.api.appServer.sendRequest(
-            'workspace/config/update',
-            { providerId: savedId },
-            20_000
-          )
+          await useConfigStore.getState().write([{ keyPath: 'ProviderId', value: savedId }])
           activated = true
           onProviderActivated?.(savedId)
         } catch (activateErr) {

@@ -320,12 +320,6 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<WorkspaceCommitMessageSuggestParams, WorkspaceCommitMessageSuggestResult> WorkspaceCommitMessageSuggest = new("workspace/commitMessage/suggest", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: CommonErrors);
 
-    public static readonly RpcRequest<WorkspaceConfigSchemaParams, WorkspaceConfigSchemaResult> WorkspaceConfigSchema = new("workspace/config/schema", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: CommonErrors);
-
-    public static readonly RpcRequest<WorkspaceConfigUpdateParams, WorkspaceConfigUpdateResult> WorkspaceConfigUpdate = new("workspace/config/update", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: CommonErrors);
-
-    public static readonly RpcNotification<WorkspaceConfigChangedParams> WorkspaceConfigChanged = new("workspace/configChanged", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", capability: "configChange", notificationOptOut: true);
-
     public static readonly RpcRequest<WorktreeCreateAndForkParams, WorktreeCreateAndForkResult> WorktreeCreateAndFork = new("worktree/createAndFork", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: CommonErrors);
 
     public static readonly RpcRequest<WorktreeCreateAndStartParams, WorktreeCreateAndStartResult> WorktreeCreateAndStart = new("worktree/createAndStart", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: CommonErrors);

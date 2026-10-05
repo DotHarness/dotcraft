@@ -86,7 +86,7 @@ public sealed class ClientConnectionCapabilities
     public List<string>? OptOutNotificationMethods { get; set; }
 
     /// <summary>
-    /// Whether the client wants to receive <c>workspace/configChanged</c> notifications.
+    /// Whether the client wants to receive <c>config/changed</c> notifications.
     /// Default true when omitted.
     /// </summary>
     public bool? ConfigChange { get; set; }
@@ -337,9 +337,6 @@ public sealed class ServerCapabilitySnapshot
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ProviderManagement { get; set; }
 
-    /// <summary>
-    /// Server supports workspace config write methods (<c>workspace/config/update</c>).
-    /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool WorkspaceConfigManagement { get; set; }
 

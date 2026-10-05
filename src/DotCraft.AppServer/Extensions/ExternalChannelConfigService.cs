@@ -27,11 +27,6 @@ internal sealed class ExternalChannelConfigService(
     public void SaveWorkspaceChannels(IReadOnlyCollection<ExternalChannelEntry> channels)
     {
         EnsureManagementAvailable();
-        var configPath = Path.Combine(workspaceCraftPath!, "config.json");
-        Directory.CreateDirectory(workspaceCraftPath!);
-        var root = WorkspaceConfigEditor.LoadObject(configPath);
-
-        var key = WorkspaceConfigEditor.FindCaseInsensitiveKey(root, "ExternalChannels") ?? "ExternalChannels";
         var channelObject = new JsonObject();
         foreach (var channel in channels.Where(c => !string.IsNullOrWhiteSpace(c.Name))
                      .OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase))
@@ -39,8 +34,8 @@ internal sealed class ExternalChannelConfigService(
             channelObject[channel.Name] = BuildExternalChannelNode(channel);
         }
 
-        root[key] = channelObject;
-        WorkspaceConfigEditor.WriteObject(configPath, root);
+        AtomicConfigDocument.Update(Path.Combine(workspaceCraftPath!, "config.json"), root =>
+            root[AtomicConfigDocument.Key(root, "ExternalChannels") ?? "ExternalChannels"] = channelObject);
     }
 
     public void EnsureNameAvailable(string name)

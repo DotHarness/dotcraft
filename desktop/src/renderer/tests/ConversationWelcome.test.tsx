@@ -7,6 +7,7 @@ import { ConversationWelcome } from '../components/conversation/ConversationWelc
 import { ConversationPanel } from '../components/layout/ConversationPanel'
 import { COMMAND_REF_CLASS, FILE_REF_CLASS, SKILL_REF_CLASS } from '../components/conversation/richInputConstants'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useConfigStore } from '../stores/configStore'
 import { normalizeGitPathKey, useGitStore } from '../stores/gitStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useProvidersStore } from '../stores/providersStore'
@@ -21,7 +22,6 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
 import { useVoiceStore } from '../voice/voiceStore'
 import type { ThreadGoal } from '../types/thread'
-import type { WorkspaceConfigChangedPayload } from '../utils/workspaceConfigChanged'
 import type { ModelPreference } from '../../shared/modelPreference'
 import { appendVoiceTranscript, isAvailableComposerVoiceOrigin } from '../voice/composerDraftBridge'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -32,7 +32,7 @@ import {
 
 const fileReadFile = vi.fn()
 const appServerSendRequest = vi.fn()
-const workspaceConfigGetCore = vi.fn()
+let serverConfig: Record<string, unknown> = {}
 const saveImageToTemp = vi.fn()
 const getPathForFile = vi.fn((file: File) => file.name === 'notes.txt' ? 'C:\\temp\\notes.txt' : '')
 const settingsGet = vi.fn()
@@ -138,13 +138,9 @@ function setTextboxCaret(textbox: HTMLElement, offset: number): void {
 }
 
 function renderWelcome({
-  workspaceConfigChange = null,
-  workspaceConfigChangeSeq = 0,
   remoteWorkspace = false,
   projectKey
 }: {
-  workspaceConfigChange?: WorkspaceConfigChangedPayload | null
-  workspaceConfigChangeSeq?: number
   remoteWorkspace?: boolean
   projectKey?: string
 } = {}) {
@@ -154,8 +150,6 @@ function renderWelcome({
         workspacePath={'X:\\fixtures\\workspace'}
         projectKey={projectKey}
         remoteWorkspace={remoteWorkspace}
-        workspaceConfigChange={workspaceConfigChange}
-        workspaceConfigChangeSeq={workspaceConfigChangeSeq}
       />
     </LocaleProvider>
   )
@@ -227,25 +221,6 @@ function workspacePreferenceConfig(
   }
 }
 
-function configValue(config: Record<string, unknown>, key: string): unknown {
-  const expected = key.toLowerCase()
-  return Object.entries(config).find(([candidate]) => candidate.toLowerCase() === expected)?.[1]
-}
-
-function coreSnapshotFromConfig(config: Record<string, unknown>): Record<string, unknown> {
-  const providerId = configValue(config, 'ProviderId')
-  const providerPreferences = configValue(config, 'ProviderPreferences')
-  return {
-    providerId: typeof providerId === 'string' ? providerId : null,
-    providerPreferences:
-      providerPreferences != null && typeof providerPreferences === 'object' && !Array.isArray(providerPreferences)
-        ? providerPreferences
-        : {},
-    welcomeSuggestionsEnabled: null,
-    defaultApprovalPolicy: null
-  }
-}
-
 describe('ConversationWelcome composer', () => {
   beforeEach(() => {
     clearDesktopPluginRegistry()
@@ -253,6 +228,13 @@ describe('ConversationWelcome composer', () => {
     delete (window as Window & { __confirmDialog?: unknown }).__confirmDialog
 
     useConnectionStore.getState().reset()
+    useConfigStore.getState().reset()
+    serverConfig = {
+      ProviderId: '',
+      ProviderPreferences: {},
+      WelcomeSuggestions: { Enabled: true },
+      Permissions: { DefaultApprovalPolicy: 'default' }
+    }
     useComposerDraftStore.setState({ draftsByThread: {} })
     useVoiceStore.setState({
       initialized: false,
@@ -349,14 +331,6 @@ describe('ConversationWelcome composer', () => {
     })
 
     fileReadFile.mockResolvedValue('{}')
-    workspaceConfigGetCore.mockImplementation(async () => {
-      const raw = await fileReadFile()
-      const config = typeof raw === 'string' && raw.trim() ? JSON.parse(raw) as Record<string, unknown> : {}
-      return {
-        workspace: coreSnapshotFromConfig(config),
-        userDefaults: coreSnapshotFromConfig({})
-      }
-    })
     settingsGet.mockResolvedValue({ locale: 'en' })
     shellOpenExternal.mockResolvedValue(undefined)
     shellOpenAppHandoff.mockResolvedValue(undefined)
@@ -426,11 +400,10 @@ describe('ConversationWelcome composer', () => {
           get: settingsGet
         },
         appServer: {
-          sendRequest: appServerSendRequest,
+          sendRequest: (method: string, ...rest: unknown[]) => method === 'config/read'
+            ? Promise.resolve({ config: structuredClone(serverConfig), origins: {} })
+            : appServerSendRequest(method, ...rest),
           onNotification: undefined
-        },
-        workspaceConfig: {
-          getCore: workspaceConfigGetCore
         },
         file: {
           readFile: fileReadFile
@@ -762,7 +735,7 @@ describe('ConversationWelcome composer', () => {
       }],
       modelListUnsupportedEndpoint: false
     })
-    fileReadFile.mockResolvedValue(JSON.stringify(workspacePreferenceConfig('openai', 'gpt-5.5')))
+    serverConfig = { ...serverConfig, ...workspacePreferenceConfig('openai', 'gpt-5.5') }
 
     renderWelcome()
     await waitFor(() => expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('gpt-5.5'))
@@ -770,12 +743,12 @@ describe('ConversationWelcome composer', () => {
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Select model' })).getByRole('button', { name: 'Fast' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        providerId: 'openai',
-        providerPreferences: {
-          openai: preference('gpt-5.5', { speed: 'fast' })
-        }
-      })
+      expect(appServerSendRequest).toHaveBeenCalledWith('config/batchWrite', {
+        edits: [
+          { keyPath: 'ProviderId', value: 'openai', mergeStrategy: 'replace' },
+          { keyPath: 'ProviderPreferences.openai', value: preference('gpt-5.5', { speed: 'fast' }), mergeStrategy: 'replace' }
+        ]
+      }, 20_000)
     })
     expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/start', expect.anything())
   })
@@ -877,10 +850,7 @@ describe('ConversationWelcome composer', () => {
     useConnectionStore.setState((state) => ({
       capabilities: { ...state.capabilities, providerManagement: true }
     }))
-    let workspaceConfig: Record<string, unknown> = {
-      ...workspacePreferenceConfig('provider-a', 'model-a-v1')
-    }
-    fileReadFile.mockImplementation(async () => JSON.stringify(workspaceConfig))
+    serverConfig = { ...serverConfig, ...workspacePreferenceConfig('provider-a', 'model-a-v1') }
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
       if (method === 'provider/list') {
@@ -900,7 +870,7 @@ describe('ConversationWelcome composer', () => {
       return defaultSendRequest?.(method, params)
     })
 
-    const view = renderWelcome()
+    renderWelcome()
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('model-a-v1')
     })
@@ -909,27 +879,15 @@ describe('ConversationWelcome composer', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     fireEvent.keyDown(document, { key: 'Escape' })
 
-    const change: WorkspaceConfigChangedPayload = {
-      source: 'workspace/config/update',
-      regions: ['workspace.provider'],
-      changedAt: '2026-05-26T00:00:00.000Z'
-    }
-    workspaceConfig = {
+    serverConfig = {
+      ...serverConfig,
       ProviderId: 'provider-b',
       ProviderPreferences: {
         'provider-a': preference('model-a-v1'),
         'provider-b': preference('model-b-v1')
       }
     }
-    view.rerender(
-      <LocaleProvider>
-        <ConversationWelcome
-          workspacePath={'X:\\fixtures\\workspace'}
-          workspaceConfigChange={change}
-          workspaceConfigChangeSeq={1}
-        />
-      </LocaleProvider>
-    )
+    act(() => useConfigStore.getState().handleConfigChanged(['ProviderId', 'ProviderPreferences']))
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('model-b-v1')
@@ -942,9 +900,9 @@ describe('ConversationWelcome composer', () => {
     useConnectionStore.setState((state) => ({
       capabilities: { ...state.capabilities, providerManagement: true }
     }))
-    fileReadFile.mockResolvedValue(JSON.stringify({
+    serverConfig = { ...serverConfig, ...{
       ...workspacePreferenceConfig('provider-b', 'model-b-v2')
-    }))
+    } }
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
       if (method === 'provider/list') {
@@ -996,28 +954,18 @@ describe('ConversationWelcome composer', () => {
     useUIStore.setState({ welcomeDraft: null, welcomeDraftsByWorkspace: {} })
   })
 
-  it('loads the workspace model from remote-aware core config without reading local files', async () => {
-    workspaceConfigGetCore.mockResolvedValue({
-      workspace: {
-        providerId: 'anthropic',
-        providerPreferences: { anthropic: preference('claude-sonnet-4-5') },
-        welcomeSuggestionsEnabled: null,
-        defaultApprovalPolicy: null
-      },
-      userDefaults: {
-        providerId: 'openai',
-        providerPreferences: { openai: preference('gpt-5') },
-        welcomeSuggestionsEnabled: null,
-        defaultApprovalPolicy: null
-      }
-    })
+  it('loads the workspace model from the server configuration without reading local files', async () => {
+    serverConfig = {
+      ...serverConfig,
+      ProviderId: 'anthropic',
+      ProviderPreferences: { openai: preference('gpt-5'), anthropic: preference('claude-sonnet-4-5') }
+    }
 
     renderWelcome({ remoteWorkspace: true })
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('claude-sonnet-4-5')
     })
-    expect(workspaceConfigGetCore).toHaveBeenCalled()
     expect(fileReadFile).not.toHaveBeenCalled()
   })
 
@@ -1025,20 +973,7 @@ describe('ConversationWelcome composer', () => {
     useConnectionStore.setState((state) => ({
       capabilities: { ...state.capabilities, providerManagement: true }
     }))
-    workspaceConfigGetCore.mockResolvedValue({
-      workspace: {
-        providerId: null,
-        providerPreferences: {},
-        welcomeSuggestionsEnabled: null,
-        defaultApprovalPolicy: null
-      },
-      userDefaults: {
-        providerId: 'openai',
-        providerPreferences: { openai: preference('gpt-5.6-sol') },
-        welcomeSuggestionsEnabled: null,
-        defaultApprovalPolicy: null
-      }
-    })
+    serverConfig = { ...serverConfig, ...workspacePreferenceConfig('openai', 'gpt-5.6-sol') }
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
       if (method === 'provider/list') {
@@ -1061,30 +996,22 @@ describe('ConversationWelcome composer', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
     expect(within(openModelMenu('gpt-5.6-sol')).getByRole('menuitem', { name: /Provider.*OpenAI/ })).toBeInTheDocument()
-    expect(appServerSendRequest).not.toHaveBeenCalledWith('workspace/config/update', expect.anything())
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('config/value/write', expect.anything(), expect.anything())
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('config/batchWrite', expect.anything(), expect.anything())
   })
 
   it('uses an inherited personal preference when switching providers and persists only the workspace override', async () => {
     useConnectionStore.setState((state) => ({
       capabilities: { ...state.capabilities, providerManagement: true }
     }))
-    workspaceConfigGetCore.mockResolvedValue({
-      workspace: {
-        providerId: null,
-        providerPreferences: {},
-        welcomeSuggestionsEnabled: null,
-        defaultApprovalPolicy: null
-      },
-      userDefaults: {
-        providerId: 'openai',
-        providerPreferences: {
-          openai: preference('gpt-5.6-sol'),
-          anthropic: preference('claude-sonnet-4-5')
-        },
-        welcomeSuggestionsEnabled: null,
-        defaultApprovalPolicy: null
+    serverConfig = {
+      ...serverConfig,
+      ProviderId: 'openai',
+      ProviderPreferences: {
+        openai: preference('gpt-5.6-sol'),
+        anthropic: preference('claude-sonnet-4-5')
       }
-    })
+    }
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
       if (method === 'provider/list') {
@@ -1112,12 +1039,12 @@ describe('ConversationWelcome composer', () => {
     fireEvent.click(within(screen.getByRole('listbox', { name: 'Provider' })).getByRole('option', { name: /Anthropic/ }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        providerId: 'anthropic',
-        providerPreferences: {
-          anthropic: preference('claude-sonnet-4-5')
-        }
-      })
+      expect(appServerSendRequest).toHaveBeenCalledWith('config/batchWrite', {
+        edits: [
+          { keyPath: 'ProviderId', value: 'anthropic', mergeStrategy: 'replace' },
+          { keyPath: 'ProviderPreferences.anthropic', value: preference('claude-sonnet-4-5'), mergeStrategy: 'replace' }
+        ]
+      }, 20_000)
     })
   })
 
@@ -1348,11 +1275,11 @@ describe('ConversationWelcome composer', () => {
   })
 
   it('keeps the full-access workspace default inherited on the created thread', async () => {
-    fileReadFile.mockResolvedValue(JSON.stringify({
+    serverConfig = { ...serverConfig, ...{
       Permissions: {
         DefaultApprovalPolicy: 'autoApprove'
       }
-    }))
+    } }
 
     renderWelcome()
 
@@ -1377,11 +1304,11 @@ describe('ConversationWelcome composer', () => {
   })
 
   it('writes an explicit approval override in thread/start', async () => {
-    fileReadFile.mockResolvedValue(JSON.stringify({
+    serverConfig = { ...serverConfig, ...{
       Permissions: {
         DefaultApprovalPolicy: 'autoApprove'
       }
-    }))
+    } }
 
     renderWelcome()
 
@@ -1431,11 +1358,11 @@ describe('ConversationWelcome composer', () => {
       model: 'Default',
       approvalPolicy: 'default'
     })
-    fileReadFile.mockResolvedValue(JSON.stringify({
+    serverConfig = { ...serverConfig, ...{
       Permissions: {
         DefaultApprovalPolicy: 'autoApprove'
       }
-    }))
+    } }
 
     renderWelcome()
 
@@ -1504,7 +1431,7 @@ describe('ConversationWelcome composer', () => {
   })
 
   it('creates the first welcome thread in a new worktree when selected from the footer', async () => {
-    fileReadFile.mockResolvedValue(JSON.stringify(workspacePreferenceConfig('openai', 'gpt-5.4')))
+    serverConfig = { ...serverConfig, ...workspacePreferenceConfig('openai', 'gpt-5.4') }
     useConnectionStore.setState({
       capabilities: {
         commandManagement: true,
@@ -2095,13 +2022,11 @@ describe('ConversationWelcome composer', () => {
   })
 
   it('does not request welcome suggestions when the workspace config disables them', async () => {
-    fileReadFile.mockResolvedValue(
-      JSON.stringify({
+    serverConfig = { ...serverConfig, ...{
         WelcomeSuggestions: {
           Enabled: false
         }
-      })
-    )
+      } }
 
     renderWelcome()
 

@@ -34,9 +34,9 @@ import {
 import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import type { ThreadConfigurationWire } from '../../types/thread'
 import {
-  resolveConcreteApprovalPolicyFromWorkspaceDefault,
+  resolveConcreteApprovalPolicyFromConfig,
   resolveVisibleApprovalPolicy,
-  type ConcreteApprovalPolicy
+  resolveWorkspaceProviderFromConfig
 } from '../../utils/workspaceCoreConfig'
 import { AgentBuilderToolbar } from './AgentBuilderToolbar'
 import {
@@ -57,10 +57,10 @@ import { RobotAvatar } from './RobotAvatar'
 import { useAgentProfileNameStore } from '../../stores/agentProfileNameStore'
 import {
   findProviderPreference,
-  mergeProviderPreferences,
-  type ModelPreference,
-  type ProviderPreferences
+  readProviderPreferences,
+  type ModelPreference
 } from '../../../shared/modelPreference'
+import { readConfigValue, useConfig } from '../../stores/configStore'
 import {
   APPROVAL_OPTIONS,
   DENY_APPROVAL_LABEL_KEY,
@@ -850,27 +850,20 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
   const toolOptions = useMemo(() => toolCatalog.map(toolOption), [toolCatalog])
   const skillOptions = useMemo(() => skillCatalog.map((skill) => skillOption(skill, t)), [skillCatalog, t])
   const mcpOptions = useMemo(() => mcpServers.map((server) => mcpOption(server, pluginsById, t)), [mcpServers, pluginsById, t])
-  const [workspaceDefaultPreference, setWorkspaceDefaultPreference] = useState<AgentProviderPreference | null>(null)
-  const [workspaceProviderPreferences, setWorkspaceProviderPreferences] = useState<ProviderPreferences>({})
-  const [workspaceApprovalDefault, setWorkspaceApprovalDefault] = useState<ConcreteApprovalPolicy>('prompt')
+  const workspaceConfig = useConfig()
+  const workspaceProviderPreferences = useMemo(
+    () => readProviderPreferences(readConfigValue(workspaceConfig, 'ProviderPreferences')),
+    [workspaceConfig]
+  )
+  const workspaceDefaultPreference = useMemo(() => {
+    const providerId = resolveWorkspaceProviderFromConfig(workspaceConfig ?? {})
+    const preference = findProviderPreference(workspaceProviderPreferences, providerId)
+    return preference ? toAgentProviderPreference(providerId, preference) : null
+  }, [workspaceConfig, workspaceProviderPreferences])
+  const workspaceApprovalDefault = resolveConcreteApprovalPolicyFromConfig(workspaceConfig ?? {})
 
   useEffect(() => {
     void useProvidersStore.getState().reload()
-    const getCore = window.api.workspaceConfig?.getCore
-    if (typeof getCore !== 'function') return
-    void getCore().then((core) => {
-      const providerId = (core.workspace.providerId ?? core.userDefaults.providerId ?? '').trim()
-      const preferences = mergeProviderPreferences(
-        core.userDefaults.providerPreferences,
-        core.workspace.providerPreferences
-      )
-      const preference = findProviderPreference(preferences, providerId)
-      setWorkspaceProviderPreferences(preferences)
-      setWorkspaceDefaultPreference(preference ? toAgentProviderPreference(providerId, preference) : null)
-      setWorkspaceApprovalDefault(resolveConcreteApprovalPolicyFromWorkspaceDefault(
-        core.workspace.defaultApprovalPolicy ?? core.userDefaults.defaultApprovalPolicy
-      ))
-    }).catch(() => undefined)
   }, [])
 
   const authoredApprovalPolicy = draft.permissions.approvalPolicy

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { hasConfigKeyPathChange } from '../utils/configChanged'
 
 export type ModelCatalogStatus = 'idle' | 'loading' | 'ready' | 'error'
 export type ReasoningEffortWire = 'low' | 'medium' | 'high' | 'extraHigh' | 'max' | 'ultra'
@@ -254,7 +255,7 @@ export const useModelCatalogStore = create<ModelCatalogStore>((set, get) => ({
       const providerId = get().requestedProviderId
       get().reset()
       await get().loadIfNeeded(false, providerId)
-    } else if (regions.includes('workspace.provider')) {
+    } else if (hasConfigKeyPathChange(regions, 'ProviderId')) {
       catalogs.delete(null)
       inFlightLoads.delete(null)
       if (get().requestedProviderId === null) set({ ...initialState })

@@ -265,10 +265,10 @@ AppServer exposes `capabilities.hooksManagement` and the methods:
 
 `hooks/list` returns metadata, warnings, and errors for all discovered hooks.
 `hooks/setState` writes per-user enable/trust state, refreshes the runtime
-snapshot, and emits `workspace/configChanged` with region `hooks`.
+snapshot, and emits `config/changed` with region `hooks`.
 `hooks/trustPlugin` writes the current hash for every discovered hook from one
 enabled plugin into the same per-hook state map, refreshes the runtime snapshot,
-and emits `workspace/configChanged` with region `hooks`.
+and emits `config/changed` with region `hooks`.
 
 Clients should display hooks grouped by source and event, show trust state and
 condition/execution metadata. User and workspace hooks may expose per-hook

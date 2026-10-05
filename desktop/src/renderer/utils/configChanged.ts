@@ -1,19 +1,23 @@
-export interface WorkspaceConfigChangedPayload {
+export interface ConfigChangedPayload {
   source: string
   regions: string[]
   changedAt: string
 }
 
-export const WORKSPACE_CONFIG_CHANGED_DEDUPE_WINDOW_MS = 1000
-export const WORKSPACE_DEFAULT_APPROVAL_POLICY_REGION = 'workspace.defaultApprovalPolicy'
+export const CONFIG_CHANGED_DEDUPE_WINDOW_MS = 1000
 
-export function normalizeWorkspaceConfigChangedPayload(
+export function hasConfigKeyPathChange(regions: readonly string[], ...keyPaths: string[]): boolean {
+  return regions.some((region) =>
+    keyPaths.some((keyPath) => region === keyPath || region.startsWith(`${keyPath}.`)))
+}
+
+export function normalizeConfigChangedPayload(
   payload: { method: string; params: unknown },
   getNow: () => string = () => new Date().toISOString()
-): WorkspaceConfigChangedPayload | null {
-  if (payload.method !== 'workspace/configChanged') return null
+): ConfigChangedPayload | null {
+  if (payload.method !== 'config/changed') return null
 
-  const raw = (payload.params ?? {}) as Partial<WorkspaceConfigChangedPayload>
+  const raw = (payload.params ?? {}) as Partial<ConfigChangedPayload>
   const source = typeof raw.source === 'string' ? raw.source : ''
   const regions = Array.isArray(raw.regions) ? raw.regions.filter((region): region is string => typeof region === 'string') : []
 
@@ -26,10 +30,10 @@ export function normalizeWorkspaceConfigChangedPayload(
   }
 }
 
-export function filterWorkspaceConfigChangedRegions(
-  event: WorkspaceConfigChangedPayload,
+export function filterConfigChangedRegions(
+  event: ConfigChangedPayload,
   dedupeBySourceRegion: Map<string, number>
-): WorkspaceConfigChangedPayload | null {
+): ConfigChangedPayload | null {
   const changedAtMs = Date.parse(event.changedAt)
   const regions = event.regions.filter((region) => {
     const dedupeKey = `${event.source}:${region}`
@@ -38,7 +42,7 @@ export function filterWorkspaceConfigChangedRegions(
     if (
       previous != null &&
       Number.isFinite(changedAtMs) &&
-      changedAtMs - previous <= WORKSPACE_CONFIG_CHANGED_DEDUPE_WINDOW_MS
+      changedAtMs - previous <= CONFIG_CHANGED_DEDUPE_WINDOW_MS
     ) {
       return false
     }
@@ -54,12 +58,12 @@ export function filterWorkspaceConfigChangedRegions(
   return { ...event, regions }
 }
 
-export function resolveWorkspaceConfigChangedPayload(
+export function resolveConfigChangedPayload(
   payload: { method: string; params: unknown },
   dedupeBySourceRegion: Map<string, number>,
   getNow?: () => string
-): WorkspaceConfigChangedPayload | null {
-  const event = normalizeWorkspaceConfigChangedPayload(payload, getNow)
+): ConfigChangedPayload | null {
+  const event = normalizeConfigChangedPayload(payload, getNow)
   if (!event) return null
-  return filterWorkspaceConfigChangedRegions(event, dedupeBySourceRegion)
+  return filterConfigChangedRegions(event, dedupeBySourceRegion)
 }

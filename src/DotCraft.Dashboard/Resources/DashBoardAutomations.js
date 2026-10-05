@@ -56,7 +56,7 @@ function renderAutomations(data) {
   }
 }
 
-/** Enables or disables the Automations nav tab based on /orchestrators/automations/state (must run after applySetupModeUi resets tab display). */
+/** Enables or disables the Automations nav tab based on /orchestrators/automations/state. */
 function applyAutomationsNavState() {
   const tab = document.getElementById('navTabAutomations');
   if (!tab) return;
