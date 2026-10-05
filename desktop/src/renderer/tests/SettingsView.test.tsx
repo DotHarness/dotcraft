@@ -139,7 +139,7 @@ function enableProviderAndSubAgentManagement(modelCatalogManagement = true): voi
   })
 }
 
-describe('SettingsView self-learning settings', () => {
+describe('SettingsView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     usePendingRestartStore.getState().clear()
@@ -214,6 +214,10 @@ describe('SettingsView self-learning settings', () => {
         if (typeof params?.memoryEnabled === 'boolean') {
           core.workspace.memoryEnabled = params.memoryEnabled
           return { memoryEnabled: core.workspace.memoryEnabled }
+        }
+        if (typeof params?.instantInterruptEnabled === 'boolean') {
+          core.workspace.instantInterruptEnabled = params.instantInterruptEnabled
+          return { instantInterruptEnabled: core.workspace.instantInterruptEnabled }
         }
         if (typeof params?.dreamsEnabled === 'boolean') {
           core.workspace.dreamsEnabled = params.dreamsEnabled
@@ -456,7 +460,7 @@ describe('SettingsView self-learning settings', () => {
       ...window.api,
       platform: 'darwin'
     })
-    settingsGet.mockResolvedValueOnce({
+    settingsGet.mockResolvedValue({
       locale: 'en',
       connectionMode: 'stdio',
       showInMenuBar: false
@@ -489,6 +493,43 @@ describe('SettingsView self-learning settings', () => {
       })
     })
     expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
+  })
+
+  it('offers steering right away only in Steer mode and saves it to the workspace', async () => {
+    settingsGet.mockResolvedValue({ locale: 'en', connectionMode: 'stdio', followUpQueueMode: 'queue' })
+    renderView()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Queue' })).toHaveAttribute('aria-pressed', 'true')
+    })
+    expect(screen.queryByRole('switch', { name: 'Steer right away' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Steer' }))
+    const toggle = await screen.findByRole('switch', { name: 'Steer right away' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.click(toggle)
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
+        instantInterruptEnabled: false
+      })
+    })
+  })
+
+  it('hides steering right away on a manual remote connection', async () => {
+    settingsGet.mockResolvedValue({
+      locale: 'en',
+      connectionMode: 'remote',
+      remote: { url: 'ws://127.0.0.1:9100/ws' },
+      followUpQueueMode: 'steer'
+    })
+    renderView()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Steer' })).toHaveAttribute('aria-pressed', 'true')
+    })
+    expect(screen.queryByRole('switch', { name: 'Steer right away' })).not.toBeInTheDocument()
   })
 
   it('disables settings that depend on memory while memory is off', async () => {
@@ -1447,7 +1488,7 @@ describe('SettingsView self-learning settings', () => {
   })
 
   it('keeps an SSH-opened remote project out of the manual connection form', async () => {
-    settingsGet.mockResolvedValueOnce({
+    settingsGet.mockResolvedValue({
       locale: 'en',
       connectionMode: 'remote',
       activeRemoteProject: { machineId: 'machine-1', projectId: 'project-1' },

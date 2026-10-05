@@ -1471,7 +1471,7 @@ Add user input to an active regular Turn without creating another Turn. The serv
 
 **Result**: `{ "turnId": string }`
 
-The method succeeds only when `expectedTurnId` matches the active regular Turn and that Turn still accepts guidance. It rejects missing or mismatched active Turns, maintenance Turns, Internal threads, and SubAgent child threads. Success does not create a Turn and does not emit `turn/started`. Before the next model sample that follows a tool round or a final answer, after any context compaction, Session Core admits every pending guidance input for the Turn in queue order. Each input first runs the `UserPromptSubmit` hook; an admitted input becomes a `userMessage` Item with `deliveryMode = "guidance"` and its pending queue record is removed under the same lock. A blocked input is removed without an Item and reported through `system/event` with `kind = "guidanceBlocked"`.
+The method succeeds only when `expectedTurnId` matches the active regular Turn and that Turn still accepts guidance. It rejects missing or mismatched active Turns, maintenance Turns, Internal threads, and SubAgent child threads. Success does not create a Turn and does not emit `turn/started`. Before the next model sample that follows a tool round or a final answer, after any context compaction, Session Core admits every pending guidance input for the Turn in queue order. Each input first runs the `UserPromptSubmit` hook; an admitted input becomes a `userMessage` Item with `deliveryMode = "guidance"` and its pending queue record is removed under the same lock. A blocked input is removed without an Item and reported through `system/event` with `kind = "guidanceBlocked"`. When `InstantInterruptEnabled` is on (the default), a steer that arrives before the current model request has produced output, or while the server waits to retry a failed stream, makes the server abandon that request and reissue it with the steer admitted.
 
 An `expectedTurnId` mismatch is terminal for that request. Clients must preserve the draft and report the failure rather than enqueueing it or sending it to a different Turn.
 
@@ -6424,6 +6424,7 @@ Update workspace-level config values.
 | `toolsImageGenerationEnabled` | boolean \| null | no | Workspace-level override for `Tools.ImageGeneration.Enabled`. `true` offers the image generation tool when an eligible image provider exists, `false` withholds it, and `null` removes the explicit override so server defaults apply (`true` by default). Applies to threads whose agents are rebuilt after the change. |
 | `toolsImageGenerationProvider` | string \| null | no | Workspace-level override for `Tools.ImageGeneration.Provider`, the provider id that serves image generation. `null` or empty removes the override so image generation uses the conversation's provider. Applies to threads whose agents are rebuilt after the change. |
 | `toolsCodeModeMode` | string \| null | no | Workspace-level override for `Tools.CodeMode.Mode`: `off`, `on` (scripted tool calls are added) or `only` (tools reachable from scripts are called only through them). Values are case-insensitive and returned in lowercase; `null` removes the override so the server default applies (`only`). Applies from the next Turn of each thread; a running Turn keeps its tools. See [Code Mode](../features/code-mode.md). |
+| `instantInterruptEnabled` | boolean \| null | no | Workspace-level override for the top-level `InstantInterruptEnabled`. `true` lets a steer that arrives before the current model request produced any output, or while a stream retry is waiting, restart that request with the steer; `false` makes steers wait for the next step; `null` removes the override so the server default applies (`true`). Applies from the next Turn of each thread; a running Turn keeps the value it started with. |
 
 **Result**:
 
@@ -6454,7 +6455,8 @@ Update workspace-level config values.
   "toolsLspEnabled": true,
   "toolsImageGenerationEnabled": true,
   "toolsImageGenerationProvider": "openai",
-  "toolsCodeModeMode": "on"
+  "toolsCodeModeMode": "on",
+  "instantInterruptEnabled": true
 }
 ```
 
@@ -6463,12 +6465,12 @@ Update workspace-level config values.
 - This method updates **workspace default** only, not any active thread state.
 - Clients that need immediate effect in a running thread should additionally call `thread/config/update`.
 - Server preserves unrelated configuration state.
-- At least one of `providerId`, `providerPreferences`, `welcomeSuggestionsEnabled`, `promptSuggestionsEnabled`, `skillsSelfLearningEnabled`, `skillsIncludeSharedSkills`, `memoryEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, `toolsLspEnabled`, `toolsImageGenerationEnabled`, `toolsImageGenerationProvider`, or `toolsCodeModeMode` must be provided.
+- At least one of `providerId`, `providerPreferences`, `welcomeSuggestionsEnabled`, `promptSuggestionsEnabled`, `skillsSelfLearningEnabled`, `skillsIncludeSharedSkills`, `memoryEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, `toolsLspEnabled`, `toolsImageGenerationEnabled`, `toolsImageGenerationProvider`, `toolsCodeModeMode`, or `instantInterruptEnabled` must be provided.
 - `providerPreferences` replaces the complete workspace map. Each workspace record atomically overrides the personal record for the same provider; fields are never merged across scopes.
 - Provider-aware saves persist `ProviderId` and `ProviderPreferences` while preserving unrelated configuration state. Credentials and endpoints are changed through `provider/create` and `provider/update`.
 - A supplied field is stored as the workspace override for that setting. Setting a field to `null` removes the override, and a subsequent read reports the server default.
 - Each preference must contain a non-empty model and valid enum values. Unsupported reasoning selections are repaired to catalog defaults, unsupported `max` is reset to `default`, and `fast` may remain stored even when the selected model executes it as `standard`.
-- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "workspace/config/update"` and one or more regions from `workspace.provider`, `workspace.providerPreferences`, `providers`, `welcomeSuggestions`, `promptSuggestions`, `skills`, `memory`, `workspace.defaultApprovalPolicy`, `lsp`, `imageGeneration`, or `codeMode`.
+- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "workspace/config/update"` and one or more regions from `workspace.provider`, `workspace.providerPreferences`, `providers`, `welcomeSuggestions`, `promptSuggestions`, `skills`, `memory`, `workspace.defaultApprovalPolicy`, `lsp`, `imageGeneration`, `codeMode`, or `instantInterrupt`.
 
 ### 25.4 Capability Advertisement
 
@@ -6498,7 +6500,7 @@ Server notification emitted after a successful workspace configuration write.
 | `regions` | string[] | Coarse region tags describing what changed. |
 | `changedAt` | string (ISO-8601) | Server-side UTC timestamp when the change event was emitted. |
 
-Defined region tags: `providers`, `workspace.provider`, `workspace.providerPreferences`, `workspace.defaultApprovalPolicy`, `welcomeSuggestions`, `skills`, `plugins`, `plugins.config`, `memory`, `lsp`, `imageGeneration`, `codeMode`, `mcp`, `hooks`, `externalChannel`, `subagent`, and `sourceControl`.
+Defined region tags: `providers`, `workspace.provider`, `workspace.providerPreferences`, `workspace.defaultApprovalPolicy`, `welcomeSuggestions`, `skills`, `plugins`, `plugins.config`, `memory`, `lsp`, `imageGeneration`, `codeMode`, `instantInterrupt`, `mcp`, `hooks`, `externalChannel`, `subagent`, and `sourceControl`.
 
 Semantics:
 

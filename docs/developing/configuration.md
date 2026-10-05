@@ -26,6 +26,7 @@ dotcraft config show --json
 | `Providers` | Personal model provider dictionary, usually stored in `~/.craft/config.json` | Empty |
 | `SubagentMaxConcurrency` | Maximum concurrent subagents | `3` |
 | `AgentInterruptMessageEnabled` | Tell the model when a turn is intentionally interrupted, including an active-turn fork | `true` |
+| `InstantInterruptEnabled` | Restart the current model request with a mid-turn message that arrives before the request produces output or while it waits to retry | `true` |
 | `MaxSessionQueueSize` | Maximum queued requests per session; `0` means unlimited | `3` |
 | `ConsolidationModel` | Model for Dreams runs. Empty uses the main model | Empty |
 | `DebugMode` | Prints untruncated tool arguments in the console | `false` |

@@ -26,7 +26,8 @@ public static class TurnGuidanceRuntimeScope
         var foundationScope = StreamingGuidanceRuntimeScope.Set(new StreamingGuidanceRuntimeContext
         {
             DrainAsync = context.DrainAsync,
-            HasPendingGuidanceAsync = context.HasPendingGuidanceAsync
+            HasPendingGuidanceAsync = context.HasPendingGuidanceAsync,
+            WaitForInstantInterruptAsync = context.WaitForInstantInterruptAsync
         });
         var toolObserverScope = StreamingToolInvocationRuntimeScope.Set(
             new SessionStreamingToolInvocationObserver());
@@ -60,6 +61,8 @@ public sealed class TurnGuidanceRuntimeContext
     public required Func<StreamingGuidanceBoundary, CancellationToken, Task<IReadOnlyList<ChatMessage>>> DrainAsync { get; init; }
 
     public Func<CancellationToken, Task<bool>>? HasPendingGuidanceAsync { get; init; }
+
+    public Func<CancellationToken, Task>? WaitForInstantInterruptAsync { get; init; }
 
     /// <summary>
     /// Optional callback invoked after a tool handler has actually run and produced

@@ -26,6 +26,7 @@ dotcraft config show --json
 | `Providers` | 个人模型 Provider 字典，通常写在 `~/.craft/config.json` | 空 |
 | `SubagentMaxConcurrency` | 最大并发 subagent 数量 | `3` |
 | `AgentInterruptMessageEnabled` | 向模型说明 turn 被主动中断，包括从运行中的 turn 分叉 | `true` |
+| `InstantInterruptEnabled` | 运行中的 turn 收到消息时，如果当前模型请求尚未产生输出或正在等待重试，立即带上该消息重新发起请求 | `true` |
 | `MaxSessionQueueSize` | 每个 Session 最大排队请求数，`0` 表示无限制 | `3` |
 | `ConsolidationModel` | 梦境运行使用的模型，空值使用主模型 | 空 |
 | `DebugMode` | 控制台不截断工具调用参数输出 | `false` |

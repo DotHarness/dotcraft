@@ -8,6 +8,9 @@ public sealed partial class SessionService
     private bool InterruptMessageEnabled =>
         (_appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config).AgentInterruptMessageEnabled;
 
+    private bool InstantInterruptEnabled =>
+        (_appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config).InstantInterruptEnabled;
+
     private async Task CommitInterruptedTurnAsync(
         SessionThread thread,
         SessionTurn turn,

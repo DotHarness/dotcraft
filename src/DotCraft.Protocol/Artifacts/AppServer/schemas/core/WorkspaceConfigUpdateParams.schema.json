@@ -54,6 +54,16 @@
         }
       ]
     },
+    "instantInterruptEnabled": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "memoryEnabled": {
       "anyOf": [
         {

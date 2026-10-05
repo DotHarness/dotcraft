@@ -1,4 +1,5 @@
 using System.Net;
+using System.Runtime.CompilerServices;
 using DotCraft.Agents;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
@@ -633,5 +634,74 @@ public sealed class StreamRetryingChatClientTests
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetStreamingResponseAsync_CallerCancellationKeepsProviderOutputOnlyAfterVisibleOutput(bool visibleOutput)
+    {
+        var blocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = visibleOutput
+            ? new ChatResponseUpdate(ChatRole.Assistant, "partial")
+            : new ChatResponseUpdate(ChatRole.Assistant, [new TextReasoningContent("") { ProtectedData = "encrypted" }]);
+        var inner = new SequenceChatClient(ct => BlockAfter(first, blocked, ct));
+        var history = new AttemptRecorder();
+        var identity = new ProviderConversationIdentity(
+            "thread", "thread", null, null, "turn", "window", ProviderRequestKind.Turn, 0, "user", null);
+        using var request = ProviderRequestContextScope.Push(new ProviderRequestContext(identity, History: history));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
+        using var cancellation = new CancellationTokenSource();
+
+        var run = CollectAsync(client.GetStreamingResponseAsync(
+            [new ChatMessage(ChatRole.User, "hi")],
+            cancellationToken: cancellation.Token));
+        await blocked.Task.WaitAsync(HangingStreamCompletionTimeout);
+        await cancellation.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(HangingStreamCompletionTimeout));
+
+        Assert.Equal([visibleOutput ? "end:attempt-1" : "abort:attempt-1"], history.Events);
+    }
+
+    private static async IAsyncEnumerable<ChatResponseUpdate> BlockAfter(
+        ChatResponseUpdate update,
+        TaskCompletionSource blocked,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        yield return update;
+        blocked.TrySetResult();
+        await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+    }
+
+    private sealed class AttemptRecorder : IProviderConversationHistory
+    {
+        public List<string> Events { get; } = [];
+
+        public ValueTask AppendLocalInputAsync(IReadOnlyList<ChatMessage> messages, CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
+
+        public ValueTask HistoryReplacedAsync(
+            IReadOnlyList<ChatMessage> messages,
+            ChatOptions? options,
+            string reason,
+            CancellationToken cancellationToken,
+            string? coveredThroughTurnId = null) =>
+            ValueTask.CompletedTask;
+
+        public void MarkProjectionCovered(IReadOnlyList<ChatMessage> samplingMessages)
+        {
+        }
+
+        public string? BeginAttempt() => "attempt-1";
+
+        public ValueTask AbortAttemptAsync(string? attemptId, CancellationToken cancellationToken)
+        {
+            Events.Add($"abort:{attemptId}");
+            return ValueTask.CompletedTask;
+        }
+
+        public void EndAttempt(string? attemptId) => Events.Add($"end:{attemptId}");
+
+        public OpaqueProviderHistorySnapshot CaptureOpaqueSnapshot() => throw new NotSupportedException();
     }
 }

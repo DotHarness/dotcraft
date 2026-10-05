@@ -199,6 +199,50 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
     }
 
     [Fact]
+    public async Task WorkspaceConfigUpdate_InstantInterrupt_PersistsAppliesAndClearsToDefault()
+    {
+        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+            new { instantInterruptEnabled = false }));
+
+        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.InstantInterrupt);
+        var result = Assert.Single(sent, d => d.RootElement.TryGetProperty("result", out _)).RootElement.GetProperty("result");
+        Assert.False(result.GetProperty("instantInterruptEnabled").GetBoolean());
+        Assert.False(harness.Monitor.Current.InstantInterruptEnabled);
+        using (var config = JsonDocument.Parse(await File.ReadAllTextAsync(configPath)))
+            Assert.False(config.RootElement.GetProperty("InstantInterruptEnabled").GetBoolean());
+
+        using var clearRequest = JsonDocument.Parse(
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 2,
+              "method": "workspace/config/update",
+              "params": { "instantInterruptEnabled": null }
+            }
+            """);
+        await harness.ExecuteRequestAsync(new AppServerIncomingMessage
+        {
+            JsonRpc = "2.0",
+            Id = clearRequest.RootElement.GetProperty("id").Clone(),
+            Method = DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+            Params = clearRequest.RootElement.GetProperty("params").Clone()
+        });
+
+        var cleared = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        AssertSingleConfigChanged(cleared, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.InstantInterrupt);
+        using (var config = JsonDocument.Parse(await File.ReadAllTextAsync(configPath)))
+            Assert.False(config.RootElement.TryGetProperty("InstantInterruptEnabled", out _));
+        Assert.True(harness.Monitor.Current.InstantInterruptEnabled);
+    }
+
+    [Fact]
     public async Task WorkspaceConfigUpdate_SkillsSelfLearningOnly_WritesConfigAndEmitsSkillsRegion()
     {
         var configPath = Path.Combine(_workspaceCraftPath, "config.json");

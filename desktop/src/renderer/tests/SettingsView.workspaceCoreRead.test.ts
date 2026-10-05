@@ -22,7 +22,8 @@ describe('SettingsView workspace core readers', () => {
         defaultApprovalPolicy: null,
         toolsImageGenerationEnabled: null,
         toolsImageGenerationProvider: null,
-        toolsCodeModeMode: null
+        toolsCodeModeMode: null,
+        instantInterruptEnabled: null
       },
       userDefaults: {
         providerId: null,
@@ -39,7 +40,8 @@ describe('SettingsView workspace core readers', () => {
         defaultApprovalPolicy: null,
         toolsImageGenerationEnabled: null,
         toolsImageGenerationProvider: null,
-        toolsCodeModeMode: null
+        toolsCodeModeMode: null,
+        instantInterruptEnabled: null
       }
     })
   })
@@ -70,7 +72,8 @@ describe('SettingsView workspace core readers', () => {
         dreamsThreadLookbackCount: 50,
         dreamsAutoApply: true,
         defaultApprovalPolicy: 'autoApprove',
-        toolsCodeModeMode: 'only'
+        toolsCodeModeMode: 'only',
+        instantInterruptEnabled: false
       },
       userDefaults: {
         skillsSelfLearningEnabled: false,
@@ -104,7 +107,8 @@ describe('SettingsView workspace core readers', () => {
         defaultApprovalPolicy: 'autoApprove',
         toolsImageGenerationEnabled: null,
         toolsImageGenerationProvider: null,
-        toolsCodeModeMode: 'only'
+        toolsCodeModeMode: 'only',
+        instantInterruptEnabled: false
       },
       userDefaults: {
         providerId: null,
@@ -121,7 +125,8 @@ describe('SettingsView workspace core readers', () => {
         defaultApprovalPolicy: 'default',
         toolsImageGenerationEnabled: null,
         toolsImageGenerationProvider: null,
-        toolsCodeModeMode: null
+        toolsCodeModeMode: null,
+        instantInterruptEnabled: null
       }
     })
   })

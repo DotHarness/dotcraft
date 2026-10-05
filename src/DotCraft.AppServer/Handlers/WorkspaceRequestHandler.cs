@@ -124,7 +124,8 @@ internal sealed partial class WorkspaceRequestHandler(
             "'skillsSelfLearningEnabled', 'skillsIncludeSharedSkills', 'memoryEnabled', " +
             "'dreamsEnabled', 'dreamsInterval', " +
             "'dreamsThreadLookbackCount', 'dreamsAutoApply', 'defaultApprovalPolicy', 'toolsLspEnabled', " +
-            "'toolsImageGenerationEnabled', 'toolsImageGenerationProvider', 'toolsCodeModeMode' " +
+            "'toolsImageGenerationEnabled', 'toolsImageGenerationProvider', 'toolsCodeModeMode', " +
+            "'instantInterruptEnabled' " +
             "is required.";
 
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
@@ -184,6 +185,7 @@ internal sealed partial class WorkspaceRequestHandler(
             out var toolsLspEnabledEl);
         var imageGeneration = ParseImageGenerationConfigUpdate(paramsElement);
         var codeMode = ParseCodeModeConfigUpdate(paramsElement);
+        var instantInterrupt = ParseInstantInterruptConfigUpdate(paramsElement);
         if (!hasProviderId
             && !hasProviderPreferences
             && !hasWelcomeSuggestionsEnabled
@@ -198,7 +200,8 @@ internal sealed partial class WorkspaceRequestHandler(
             && !hasDefaultApprovalPolicy
             && !hasToolsLspEnabled
             && !imageGeneration.HasAny
-            && !codeMode.HasMode)
+            && !codeMode.HasMode
+            && !instantInterrupt.HasEnabled)
         {
             throw AppServerErrors.InvalidParams(requiredFieldMessage);
         }
@@ -277,7 +280,8 @@ internal sealed partial class WorkspaceRequestHandler(
             hasDefaultApprovalPolicy,
             hasToolsLspEnabled,
             imageGeneration,
-            codeMode);
+            codeMode,
+            instantInterrupt);
 
         var changedRegions = new List<string>();
         if (saveResult.ProviderIdChanged)
@@ -340,6 +344,11 @@ internal sealed partial class WorkspaceRequestHandler(
             runtimeConfig.RefreshCurrentCodeModeConfig();
             runtimeConfig.InvalidateThreadAgents();
         }
+        if (saveResult.InstantInterrupt.Changed)
+        {
+            changedRegions.Add(ConfigChangeRegions.InstantInterrupt);
+            runtimeConfig.RefreshCurrentInstantInterruptConfig();
+        }
         if (changedRegions.Count > 0)
         {
             appConfigMonitor?.NotifyChanged(
@@ -370,7 +379,8 @@ internal sealed partial class WorkspaceRequestHandler(
             ToolsLspEnabled = saveResult.ToolsLspEnabled,
             ToolsImageGenerationEnabled = saveResult.ImageGeneration.Enabled,
             ToolsImageGenerationProvider = saveResult.ImageGeneration.Provider,
-            ToolsCodeModeMode = saveResult.CodeMode.Mode
+            ToolsCodeModeMode = saveResult.CodeMode.Mode,
+            InstantInterruptEnabled = saveResult.InstantInterrupt.Enabled
         };
     }
 
@@ -628,7 +638,8 @@ internal sealed partial class WorkspaceRequestHandler(
         bool updateDefaultApprovalPolicy,
         bool updateToolsLspEnabled,
         ImageGenerationConfigUpdate imageGeneration,
-        CodeModeConfigUpdate codeMode)
+        CodeModeConfigUpdate codeMode,
+        InstantInterruptConfigUpdate instantInterrupt)
     {
         var configPath = Path.Combine(workspaceCraftPath, "config.json");
         Directory.CreateDirectory(workspaceCraftPath);
@@ -793,6 +804,7 @@ internal sealed partial class WorkspaceRequestHandler(
         }
         var imageGenerationResult = ApplyImageGenerationConfigUpdate(root, imageGeneration);
         var codeModeResult = ApplyCodeModeConfigUpdate(root, codeMode);
+        var instantInterruptResult = ApplyInstantInterruptConfigUpdate(root, instantInterrupt);
         if (providerIdChanged
             || providerPreferencesChanged
             || welcomeSuggestionsChanged
@@ -807,7 +819,8 @@ internal sealed partial class WorkspaceRequestHandler(
             || defaultApprovalPolicyChanged
             || toolsLspEnabledChanged
             || imageGenerationResult.Changed
-            || codeModeResult.Changed)
+            || codeModeResult.Changed
+            || instantInterruptResult.Changed)
         {
             WriteConfigObject(configPath, root);
         }
@@ -865,7 +878,8 @@ internal sealed partial class WorkspaceRequestHandler(
             DefaultApprovalPolicyChanged = defaultApprovalPolicyChanged,
             ToolsLspEnabledChanged = toolsLspEnabledChanged,
             ImageGeneration = imageGenerationResult,
-            CodeMode = codeModeResult
+            CodeMode = codeModeResult,
+            InstantInterrupt = instantInterruptResult
         };
     }
 
@@ -1139,5 +1153,7 @@ internal sealed partial class WorkspaceRequestHandler(
         public required ImageGenerationConfigSaveResult ImageGeneration { get; init; }
 
         public required CodeModeConfigSaveResult CodeMode { get; init; }
+
+        public required InstantInterruptConfigSaveResult InstantInterrupt { get; init; }
     }
 }

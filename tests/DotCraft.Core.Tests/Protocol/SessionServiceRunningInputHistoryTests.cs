@@ -154,7 +154,7 @@ public sealed partial class SessionServiceRuntimeSignalTests
             Assert.True(first >= 0 && second == first + 1);
             return new TextContent("done");
         });
-        await using var factory = CreateAgentFactory(model);
+        await using var factory = CreateAgentFactory(model, configureConfig: config => config.InstantInterruptEnabled = false);
         service = CreateService(factory, model, useStreamingFunctionInvoker: true);
         thread = await service.CreateThreadAsync(MakeIdentity());
         await service.RefreshThreadAgentAsync(thread.Id);
@@ -297,6 +297,142 @@ public sealed partial class SessionServiceRuntimeSignalTests
         Assert.Single(thread.Turns[0].Items, item => item.AsUserMessage?.DeliveryMode == "guidance");
     }
 
+    [Fact]
+    public async Task RunningInput_UserSteerBeforeOutputReissuesTheRequestWithTheSteer()
+    {
+        var requests = new List<IReadOnlyList<ChatMessage>>();
+        var blocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstCallCancelled = false;
+        using var model = new HistoryBoundaryClient(async (call, messages, ct) =>
+        {
+            requests.Add(messages);
+            if (call > 1)
+                return new TextContent("done");
+            blocked.TrySetResult();
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), ct);
+            }
+            catch (OperationCanceledException)
+            {
+                firstCallCancelled = true;
+                throw;
+            }
+            return new TextContent("not interrupted");
+        });
+        await using var factory = CreateAgentFactory(model);
+        var service = CreateService(factory, model, useStreamingFunctionInvoker: true);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        var run = DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")]));
+        await blocked.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await service.SteerTurnAsync(thread.Id, thread.Turns[0].Id, [new TextContent("instant steer")]);
+        await run.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.True(firstCallCancelled);
+        Assert.Equal(2, model.Calls);
+        Assert.Contains(requests[1], message =>
+            message.Role == ChatRole.User && message.Text.Contains("instant steer", StringComparison.Ordinal));
+        Assert.DoesNotContain(requests[1], message => message.Role == ChatRole.Assistant);
+        Assert.Equal(TurnStatus.Completed, thread.Turns[0].Status);
+        Assert.Contains(thread.Turns[0].Items, item =>
+            item.AsUserMessage is { DeliveryMode: "guidance", Text: "instant steer" });
+        Assert.Empty(thread.QueuedInputs);
+    }
+
+    [Fact]
+    public async Task RunningInput_BlockedSteerDoesNotStopALaterSteerFromPreempting()
+    {
+        var requests = new List<IReadOnlyList<ChatMessage>>();
+        var firstWaiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondWaiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancelledCalls = new List<int>();
+        using var model = new HistoryBoundaryClient(async (call, messages, ct) =>
+        {
+            requests.Add(messages);
+            if (call > 2)
+                return new TextContent("done");
+            (call == 1 ? firstWaiting : secondWaiting).TrySetResult();
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(20), ct);
+            }
+            catch (OperationCanceledException)
+            {
+                cancelledCalls.Add(call);
+                throw;
+            }
+            return new TextContent("not interrupted");
+        });
+        await using var factory = CreateAgentFactory(model);
+        var service = CreatePromptHookService(factory, model, BlockSecondRunCommand(_tempDir, "steer denied"));
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        var run = DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")]));
+        await firstWaiting.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        await service.SteerTurnAsync(thread.Id, thread.Turns[0].Id, [new TextContent("blocked steer")]);
+        await secondWaiting.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        await service.SteerTurnAsync(thread.Id, thread.Turns[0].Id, [new TextContent("accepted steer")]);
+        await run.WaitAsync(TimeSpan.FromSeconds(15));
+
+        Assert.Equal([1, 2], cancelledCalls);
+        Assert.Equal(3, model.Calls);
+        Assert.Contains(requests[2], message => message.Text.Contains("accepted steer", StringComparison.Ordinal));
+        Assert.DoesNotContain(requests[2], message => message.Text.Contains("blocked steer", StringComparison.Ordinal));
+        Assert.Contains(thread.Turns[0].Items, item =>
+            item.AsUserMessage is { DeliveryMode: "guidance", Text: "accepted steer" });
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RunningInput_SteerThatCannotPreemptWaitsForTheNextBoundary(bool subAgentFollowup)
+    {
+        var requests = new List<IReadOnlyList<ChatMessage>>();
+        var blocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstCallCancelled = false;
+        using var model = new HistoryBoundaryClient(async (call, messages, ct) =>
+        {
+            requests.Add(messages);
+            if (call > 1)
+                return new TextContent("done");
+            blocked.TrySetResult();
+            try
+            {
+                await release.Task.WaitAsync(ct);
+            }
+            catch (OperationCanceledException)
+            {
+                firstCallCancelled = true;
+                throw;
+            }
+            return HistoryBoundaryClient.Tool();
+        });
+        await using var factory = CreateAgentFactory(
+            model,
+            configureConfig: config => config.InstantInterruptEnabled = subAgentFollowup);
+        var service = CreateService(factory, model, useStreamingFunctionInvoker: true);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        var run = DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")]));
+        await blocked.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        using (TurnTriggerScope.Set(new TurnTriggerInfo { Kind = subAgentFollowup ? "subagentFollowupTask" : "test" }))
+            await service.SteerTurnAsync(thread.Id, thread.Turns[0].Id, [new TextContent("late steer")]);
+        await Task.Delay(200);
+        release.TrySetResult();
+        await run.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.False(firstCallCancelled);
+        Assert.Equal(2, model.Calls);
+        Assert.Contains(requests[1], message => message.Text.Contains("late steer", StringComparison.Ordinal));
+        Assert.Contains(thread.Turns[0].Items, item =>
+            item.AsUserMessage is { DeliveryMode: "guidance", Text: "late steer" });
+    }
+
     private SessionService CreatePromptHookService(AgentFactory factory, IChatClient model, string command) =>
         new(
             factory,
@@ -321,6 +457,15 @@ public sealed partial class SessionServiceRuntimeSignalTests
         OperatingSystem.IsWindows()
             ? $"if (Test-Path '{markerPath}') {{ [Console]::Error.WriteLine('{reason}'); exit 2 }} else {{ New-Item -ItemType File '{markerPath}' | Out-Null }}"
             : $"if [ -f '{markerPath}' ]; then printf '%s\\n' '{reason}' >&2; exit 2; else touch '{markerPath}'; fi";
+
+    private static string BlockSecondRunCommand(string directory, string reason)
+    {
+        var first = Path.Combine(directory, "prompt-hook-first");
+        var second = Path.Combine(directory, "prompt-hook-second");
+        return OperatingSystem.IsWindows()
+            ? $"if (Test-Path '{second}') {{ }} elseif (Test-Path '{first}') {{ New-Item -ItemType File '{second}' | Out-Null; [Console]::Error.WriteLine('{reason}'); exit 2 }} else {{ New-Item -ItemType File '{first}' | Out-Null }}"
+            : $"if [ -f '{second}' ]; then :; elif [ -f '{first}' ]; then touch '{second}'; printf '%s\\n' '{reason}' >&2; exit 2; else touch '{first}'; fi";
+    }
 
     private static string AdditionalContextCommand(string context)
     {

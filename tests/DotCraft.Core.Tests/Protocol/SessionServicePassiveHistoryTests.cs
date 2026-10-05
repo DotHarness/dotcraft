@@ -42,7 +42,7 @@ public sealed partial class SessionServiceRuntimeSignalTests
             AssertResponsesUserMessageIds(history);
             return new TextContent("done");
         });
-        await using var factory = CreateAgentFactory(model);
+        await using var factory = CreateAgentFactory(model, configureConfig: config => config.InstantInterruptEnabled = false);
         service = CreateService(factory, model, useStreamingFunctionInvoker: true);
         thread = await service.CreateThreadAsync(MakeIdentity());
         await service.RefreshThreadAgentAsync(thread.Id);

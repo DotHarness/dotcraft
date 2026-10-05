@@ -45,6 +45,7 @@ export function useSettingsWorkspaceConfigChangeEffects({
       changedRegions.has('memory') ||
       changedRegions.has('imageGeneration') ||
       changedRegions.has('codeMode') ||
+      changedRegions.has('instantInterrupt') ||
       changedRegions.has(WORKSPACE_DEFAULT_APPROVAL_POLICY_REGION)
 
     if (workspaceCoreChanged) {

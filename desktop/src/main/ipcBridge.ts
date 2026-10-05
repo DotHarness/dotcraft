@@ -660,6 +660,7 @@ interface WorkspaceCoreConfigSnapshot {
   toolsImageGenerationEnabled: boolean | null
   toolsImageGenerationProvider: string | null
   toolsCodeModeMode: CodeModeMode | null
+  instantInterruptEnabled: boolean | null
 }
 
 type CodeModeMode = 'off' | 'on' | 'only'
@@ -687,6 +688,11 @@ function readNestedBoolean(
     return null
   }
   const raw = getCaseInsensitiveRecordValue(section as Record<string, unknown>, fieldKey)
+  return typeof raw === 'boolean' ? raw : null
+}
+
+function readTopLevelBoolean(record: Record<string, unknown>, key: string): boolean | null {
+  const raw = getCaseInsensitiveRecordValue(record, key)
   return typeof raw === 'boolean' ? raw : null
 }
 
@@ -760,7 +766,8 @@ function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
     defaultApprovalPolicy: null,
     toolsImageGenerationEnabled: null,
     toolsImageGenerationProvider: null,
-    toolsCodeModeMode: null
+    toolsCodeModeMode: null,
+    instantInterruptEnabled: null
   }
 }
 
@@ -785,7 +792,8 @@ function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapsho
     defaultApprovalPolicy: readDefaultApprovalPolicy(parsed),
     toolsImageGenerationEnabled: readNestedBoolean(tools, 'ImageGeneration', 'Enabled'),
     toolsImageGenerationProvider: readNestedString(tools, 'ImageGeneration', 'Provider'),
-    toolsCodeModeMode: readCodeModeMode(tools)
+    toolsCodeModeMode: readCodeModeMode(tools),
+    instantInterruptEnabled: readTopLevelBoolean(parsed, 'InstantInterruptEnabled')
   }
 }
 

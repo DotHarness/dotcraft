@@ -20735,6 +20735,16 @@
             }
           ]
         },
+        "instantInterruptEnabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "memoryEnabled": {
           "anyOf": [
             {
@@ -20899,6 +20909,16 @@
           "anyOf": [
             {
               "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "instantInterruptEnabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
             },
             {
               "type": "null"

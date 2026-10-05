@@ -1512,7 +1512,7 @@ describe('registerIpcHandlers', () => {
     expect(onDisconnectDockerDeployment).toHaveBeenCalledWith('h1', 's1')
   })
 
-  it('workspace-config:get-core reads nested Skills.SelfLearning.Enabled and Tools.CodeMode.Mode values', async () => {
+  it('workspace-config:get-core reads nested Skills.SelfLearning.Enabled, Tools.CodeMode.Mode and InstantInterruptEnabled values', async () => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>()
     vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
       handlers.set(channel, handler as (...args: unknown[]) => unknown)
@@ -1521,6 +1521,7 @@ describe('registerIpcHandlers', () => {
       const pathText = String(filePath)
       if (pathText.includes('sample-project')) {
         return JSON.stringify({
+          InstantInterruptEnabled: false,
           Memory: {
             Enabled: true
           },
@@ -1574,8 +1575,8 @@ describe('registerIpcHandlers', () => {
 
     const result = await handlers.get('workspace-config:get-core')?.({})
     expect(result).toMatchObject({
-      workspace: { skillsSelfLearningEnabled: true, memoryEnabled: true, toolsCodeModeMode: 'only' },
-      userDefaults: { skillsSelfLearningEnabled: false, memoryEnabled: false, toolsCodeModeMode: null }
+      workspace: { skillsSelfLearningEnabled: true, memoryEnabled: true, toolsCodeModeMode: 'only', instantInterruptEnabled: false },
+      userDefaults: { skillsSelfLearningEnabled: false, memoryEnabled: false, toolsCodeModeMode: null, instantInterruptEnabled: null }
     })
   })
 

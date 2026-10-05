@@ -239,15 +239,19 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
             Exception? streamFailure = null;
             ProviderFailure? classifiedStreamFailure = null;
             var reissueAfterStreamFailure = false;
+            var interrupted = false;
+            using var requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            using var interruptWindow = InstantInterruptWindow.TryOpen(cancellationToken);
             var streamEnumerator = base
-                .GetStreamingResponseAsync(samplingMessages, options, cancellationToken)
-                .GetAsyncEnumerator(cancellationToken);
+                .GetStreamingResponseAsync(samplingMessages, options, requestCancellation.Token)
+                .GetAsyncEnumerator(requestCancellation.Token);
             try
             {
                 using var promptCacheRequestIndexScope = PromptCacheRequestShapeTraceScope.UseRequestIndex(iteration + 1);
                 while (true)
                 {
-                    var step = await MoveNextCapturingAsync(streamEnumerator).ConfigureAwait(false);
+                    var step = await MoveNextOrInterruptAsync(streamEnumerator, interruptWindow, requestCancellation)
+                        .ConfigureAwait(false);
                     if (step.Failure is not null)
                     {
                         streamFailure = step.Failure;
@@ -273,16 +277,35 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
                     NormalizeFunctionCallArguments(update.Contents);
                     updates.Add(update);
                     CopyFunctionCalls(update.Contents, functionCalls);
+                    if (interruptWindow is { IsOpen: true } && HasEffectiveProviderOutput([update]))
+                        interruptWindow.Close();
 
-                    if (functionCalls.Count == 0)
+                    if (functionCalls.Count == 0 && interruptWindow?.HoldsOutput != true)
                     {
-                        lastYieldedUpdateIndex++;
-                        yield return update;
-                        RemoveToolCallArgumentPreviews(update, addedPreviewContents);
+                        for (; lastYieldedUpdateIndex < updates.Count; lastYieldedUpdateIndex++)
+                        {
+                            var pending = updates[lastYieldedUpdateIndex];
+                            IReadOnlyList<ToolCallArgumentsDeltaContent>? pendingPreviews = null;
+                            previewContentsByUpdate?.TryGetValue(pending, out pendingPreviews);
+                            yield return pending;
+                            RemoveToolCallArgumentPreviews(pending, pendingPreviews);
+                        }
                     }
                 }
 
-                if (streamFailure is not null)
+                interruptWindow?.Close();
+                interrupted = interruptWindow?.Interrupted == true
+                    && !cancellationToken.IsCancellationRequested
+                    && (streamFailure is not null || !HasEffectiveProviderOutput(updates));
+                if (interrupted)
+                {
+                    if (!HasEffectiveProviderOutput(updates))
+                    {
+                        updates.Clear();
+                        functionCalls.Clear();
+                    }
+                }
+                else if (streamFailure is not null)
                 {
                     classifiedStreamFailure = streamFailureClassifier.ClassifyCaptured(streamFailure);
                     reissueAfterStreamFailure = !cancellationToken.IsCancellationRequested
@@ -290,7 +313,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
                         && classifiedStreamFailure.GetRetryDelay(turnRetryCount + 1) is not null;
                 }
 
-                if (streamFailure is null || reissueAfterStreamFailure)
+                if (streamFailure is null || reissueAfterStreamFailure || interrupted)
                 {
                     MarkServerHandledFunctionCalls(updates, functionCalls);
 
@@ -316,9 +339,9 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
                 }
             }
 
-            if (streamFailure is not null)
+            if (streamFailure is not null || interrupted)
             {
-                if (!reissueAfterStreamFailure)
+                if (!interrupted && !reissueAfterStreamFailure)
                 {
                     RemoveRemainingToolCallArgumentPreviews(updates, previewContentsByUpdate);
                     if (updates.Count > 0 && invocationHistory is not null)
@@ -326,11 +349,12 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
                     ModelStreamRetryRuntimeScope.Current?.NotifyFailureClassified?.Invoke(
                         classifiedStreamFailure!);
                     if (turnRetryCount > 0)
-                        ModelStreamRetryRuntimeScope.Current?.NotifyFinalFailure?.Invoke(streamFailure);
-                    ExceptionDispatchInfo.Capture(streamFailure).Throw();
+                        ModelStreamRetryRuntimeScope.Current?.NotifyFinalFailure?.Invoke(streamFailure!);
+                    ExceptionDispatchInfo.Capture(streamFailure!).Throw();
                 }
 
-                turnRetryCount++;
+                if (!interrupted)
+                    turnRetryCount++;
                 var truncated = updates.ToAgentResponse();
                 if (truncated.Messages.Count > 0)
                 {
@@ -402,7 +426,15 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
 
                 currentMessages = reissueHistory;
                 UpdateOptionsForNextIteration(ref options, options?.ConversationId);
-                await NotifyAndWaitForStreamRetryAsync(classifiedStreamFailure!, streamFailure, turnRetryCount, turnRetryBudget, cancellationToken);
+                if (interrupted || await NotifyAndWaitForStreamRetryAsync(
+                        classifiedStreamFailure!,
+                        streamFailure!,
+                        turnRetryCount,
+                        turnRetryBudget,
+                        cancellationToken))
+                {
+                    pendingDrain = StreamingGuidanceBoundary.AfterTools;
+                }
                 continue;
             }
 

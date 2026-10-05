@@ -5074,6 +5074,7 @@ export interface WorkspaceConfigUpdateParams {
   dreamsEnabled?: boolean | null;
   dreamsInterval?: string | null;
   dreamsThreadLookbackCount?: number | null;
+  instantInterruptEnabled?: boolean | null;
   memoryEnabled?: boolean | null;
   promptSuggestionsEnabled?: boolean | null;
   providerId?: string | null;
@@ -5094,6 +5095,7 @@ export interface WorkspaceConfigUpdateResult {
   dreamsEnabled?: boolean | null;
   dreamsInterval?: string | null;
   dreamsThreadLookbackCount?: number | null;
+  instantInterruptEnabled?: boolean | null;
   memoryEnabled?: boolean | null;
   promptSuggestionsEnabled?: boolean | null;
   providerId?: string | null;
