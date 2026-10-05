@@ -1,6 +1,7 @@
 import type { RelayInfo } from './gateway'
 
 export interface PairingOffer {
+  id: string
   name: string
   port: number
   fingerprint: string
@@ -14,10 +15,10 @@ export function parsePairingParams(params: Record<string, string | string[] | un
     const value = params[key]
     return (Array.isArray(value) ? value[0] : value) ?? ''
   }
-  const [name, code, fingerprint, addr] = [read('name'), read('code'), read('fp'), read('addr')]
-  const [port, relay, hostId] = [Number(read('port')), read('relay'), read('host')]
-  if (read('v') !== '1' || !name || !code || !fingerprint || !addr || !port) return null
-  return { name, port, fingerprint, addresses: addr.split(','), code, relay: relay && hostId ? { url: relay, hostId } : null }
+  const [id, name, code, fingerprint, addr] = [read('id'), read('name'), read('code'), read('fp'), read('addr')]
+  const [port, relay] = [Number(read('port')), read('relay')]
+  if (read('v') !== '1' || !id || !name || !code || !fingerprint || !addr || !port) return null
+  return { id, name, port, fingerprint, addresses: addr.split(','), code, relay: relay ? { url: relay } : null }
 }
 
 export function parsePairingUrl(url: string): PairingOffer | null {

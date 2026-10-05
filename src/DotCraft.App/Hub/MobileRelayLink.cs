@@ -19,7 +19,7 @@ internal sealed class MobileRelayLink : IAsyncDisposable
     private static readonly TimeSpan MaxBackoff = TimeSpan.FromSeconds(30);
 
     private readonly MobileRelayRecord _relay;
-    private readonly string _hostId;
+    private readonly string _computerId;
     private readonly IPEndPoint _gateway;
     private readonly Action _stateChanged;
     private readonly ILogger _logger;
@@ -27,10 +27,10 @@ internal sealed class MobileRelayLink : IAsyncDisposable
     private Task _run = Task.CompletedTask;
     private string _state = Connecting;
 
-    public MobileRelayLink(MobileRelayRecord relay, string hostId, IPEndPoint gateway, Action stateChanged, ILogger logger)
+    public MobileRelayLink(MobileRelayRecord relay, string computerId, IPEndPoint gateway, Action stateChanged, ILogger logger)
     {
         _relay = relay;
-        _hostId = hostId;
+        _computerId = computerId;
         _gateway = gateway;
         _stateChanged = stateChanged;
         _logger = logger;
@@ -63,7 +63,7 @@ internal sealed class MobileRelayLink : IAsyncDisposable
                 ClientWebSocket control;
                 try
                 {
-                    control = await ConnectAsync("/r/host", "host", _hostId, cancellationToken);
+                    control = await ConnectAsync("/r/host", "host", _computerId, cancellationToken);
                 }
                 catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
                 {

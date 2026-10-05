@@ -34,15 +34,6 @@ internal sealed class MobileRegistry(string filePath, TimeProvider? timeProvider
         }
     }
 
-    public string? HostId
-    {
-        get
-        {
-            lock (_gate)
-                return Load().HostId;
-        }
-    }
-
     public MobileRelayRecord? Relay
     {
         get
@@ -52,17 +43,17 @@ internal sealed class MobileRegistry(string filePath, TimeProvider? timeProvider
         }
     }
 
-    public string EnsureHostId()
+    public string EnsureComputerId()
     {
         lock (_gate)
         {
             var file = Load();
-            if (file.HostId is null)
+            if (file.ComputerId is null)
             {
-                file.HostId = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16));
+                file.ComputerId = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16));
                 Save(file);
             }
-            return file.HostId;
+            return file.ComputerId;
         }
     }
 
@@ -236,6 +227,6 @@ internal sealed class MobileRegistryFile
     public bool Enabled { get; set; }
     public List<MobileDeviceRecord> Devices { get; init; } = [];
     public MobilePairingRecord? Pairing { get; set; }
-    public string? HostId { get; set; }
+    public string? ComputerId { get; set; }
     public MobileRelayRecord? Relay { get; set; }
 }

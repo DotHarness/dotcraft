@@ -2,32 +2,47 @@ import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { useMobileState, useSession } from '../../app-state/SessionContext'
+import { computerStatus, type ComputerState } from '../../core/state'
 import { appBuild, appVersion } from '../../platform/device'
 import { useI18n } from '../../i18n'
 import { Icon } from '../icons'
 import { Hero, Screen, ScrollArea, TopBar } from '../layout'
-import { BackButton, PhoneButton, RowChevron, Section, Txt } from '../parts'
+import { BackButton, PhoneButton, RowChevron, Section, Txt, useStatusLabel } from '../parts'
 import { Row } from '../rows'
 import { ConfirmSheet } from '../Sheet'
 import { type, useTheme } from '../theme'
 
-export function PairDifferentSheet({ computer, visible, onClose }: { computer: string; visible: boolean; onClose: () => void }) {
+export function useAddComputer(): () => void {
   const session = useSession()
   const router = useRouter()
-  const { t } = useI18n()
+  return () => {
+    session.resetPairing()
+    router.push('/pair')
+  }
+}
+
+function ComputerRow({ computer, onRemove }: { computer: ComputerState; onRemove: () => void }) {
+  const { t, date } = useI18n()
+  const { colors } = useTheme()
+  const statusLabel = useStatusLabel()
+  const record = computer.computer
+  const meta = [
+    statusLabel(computerStatus(computer), computer.syncedAt),
+    record.version ? t('settings.computerVersion', { version: record.version }) : null,
+    t('settings.paired', { date: date(record.pairedAt) }),
+  ]
+    .filter(Boolean)
+    .join(' · ')
   return (
-    <ConfirmSheet
-      visible={visible}
-      title={t('replace.title')}
-      text={t('replace.text', { computer })}
-      confirmLabel={t('replace.continue')}
-      danger={false}
-      onCancel={onClose}
-      onConfirm={() => {
-        onClose()
-        session.resetPairing()
-        router.push('/pair')
-      }}
+    <Row
+      lead={<Icon name="monitor" size={20} color={colors.textSecondary} strokeWidth={1.7} />}
+      title={record.name}
+      meta={meta}
+      trail={
+        <PhoneButton variant="danger" compact onPress={onRemove}>
+          {t('settings.remove')}
+        </PhoneButton>
+      }
     />
   )
 }
@@ -36,15 +51,11 @@ export function SettingsScreen() {
   const state = useMobileState()
   const session = useSession()
   const router = useRouter()
-  const { t, date } = useI18n()
+  const { t } = useI18n()
   const { colors } = useTheme()
-  const [sheet, setSheet] = useState<'remove' | 'replace' | null>(null)
-  const computer = state.computer
-  if (!computer) return <Screen>{null}</Screen>
-
-  const meta = [computer.version ? t('settings.computerVersion', { version: computer.version }) : null, t('settings.paired', { date: date(computer.pairedAt) })]
-    .filter(Boolean)
-    .join(' · ')
+  const addComputer = useAddComputer()
+  const [removing, setRemoving] = useState<string | null>(null)
+  const target = removing ? state.computers[removing]?.computer : undefined
   const version = appBuild ? t('settings.appVersionBuild', { version: appVersion, build: appBuild }) : t('settings.appVersion', { version: appVersion })
 
   return (
@@ -58,22 +69,15 @@ export function SettingsScreen() {
             {t('settings.title')}
           </Txt>
         </Hero>
-        <Section title={t('settings.computer')}>
-          <Row
-            lead={<Icon name="monitor" size={20} color={colors.textSecondary} strokeWidth={1.7} />}
-            title={computer.name}
-            meta={meta}
-            trail={
-              <PhoneButton variant="danger" compact onPress={() => setSheet('remove')}>
-                {t('settings.remove')}
-              </PhoneButton>
-            }
-          />
+        <Section title={t('settings.computers')}>
+          {state.order.map((id) => (
+            <ComputerRow key={id} computer={state.computers[id]} onRemove={() => setRemoving(id)} />
+          ))}
           <Row
             single
-            onPress={() => setSheet('replace')}
-            lead={<Icon name="arrowLeftRight" size={20} color={colors.textSecondary} strokeWidth={1.7} />}
-            title={t('settings.pairDifferent')}
+            onPress={addComputer}
+            lead={<Icon name="plus" size={20} color={colors.textSecondary} strokeWidth={1.7} />}
+            title={t('settings.addComputer')}
             trail={<RowChevron />}
           />
         </Section>
@@ -85,18 +89,17 @@ export function SettingsScreen() {
         </Section>
       </ScrollArea>
       <ConfirmSheet
-        visible={sheet === 'remove'}
-        title={t('remove.title', { computer: computer.name })}
-        text={t('remove.text', { computer: computer.name })}
+        visible={Boolean(target)}
+        title={t('remove.title', { computer: target?.name ?? '' })}
+        text={t('remove.text', { computer: target?.name ?? '' })}
         confirmLabel={t('remove.confirm')}
         danger
-        onCancel={() => setSheet(null)}
+        onCancel={() => setRemoving(null)}
         onConfirm={() => {
-          setSheet(null)
-          void session.removeComputer()
+          setRemoving(null)
+          if (removing) void session.removeComputer(removing)
         }}
       />
-      <PairDifferentSheet computer={computer.name} visible={sheet === 'replace'} onClose={() => setSheet(null)} />
     </Screen>
   )
 }

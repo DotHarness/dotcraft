@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router'
 import { useCallback, useMemo, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
-import { useMobileState } from '../../app-state/SessionContext'
+import { useComputer } from '../../app-state/SessionContext'
 import { EMPTY_DRAFT } from '../../core/draft'
 import { computerStatus, projectById, projectChats } from '../../core/state'
 import { useI18n } from '../../i18n'
@@ -15,7 +15,7 @@ import { metrics } from '../theme'
 import { chatHref } from './HomeScreen'
 
 export function ProjectScreen({ projectId, compose = false }: { projectId: string; compose?: boolean }) {
-  const state = useMobileState()
+  const state = useComputer()
   const router = useRouter()
   const { t } = useI18n()
   const [composing, setComposing] = useState(compose)
@@ -32,7 +32,7 @@ export function ProjectScreen({ projectId, compose = false }: { projectId: strin
     setComposing(false)
   }, [])
 
-  if (!computer || !project) return <Screen>{null}</Screen>
+  if (!project) return <Screen>{null}</Screen>
   const projectName = projectTitle(project, t)
   const bar = (
     <ChatBar title={projectName} computer={computer.name} status={status} onBack={composing ? collapse : () => router.back()} />
@@ -49,7 +49,7 @@ export function ProjectScreen({ projectId, compose = false }: { projectId: strin
           onDraft={setDraft}
           onPickProject={(id) => router.setParams({ projectId: id })}
           onCollapse={collapse}
-          onCreated={(key) => router.replace(chatHref(key))}
+          onCreated={(key) => router.replace(chatHref(computer.id, key))}
         />
       </Screen>
     )
@@ -66,7 +66,7 @@ export function ProjectScreen({ projectId, compose = false }: { projectId: strin
           <ScrollView style={styles.fill} contentContainerStyle={styles.list}>
             <Section title={t('home.recent')} grow>
               {chats.map((chat) => (
-                <ChatRow key={chat.key} chat={chat} live={online} projectName={null} onPress={() => router.push(chatHref(chat.key))} />
+                <ChatRow key={chat.key} chat={chat} live={online} projectName={null} onPress={() => router.push(chatHref(computer.id, chat.key))} />
               ))}
             </Section>
           </ScrollView>

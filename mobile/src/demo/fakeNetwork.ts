@@ -15,9 +15,9 @@ export class FakeRelay {
 
   constructor(readonly address: string) {}
 
-  host(computer: FakeComputer, hostId: string): void {
-    computer.relay = { url: `https://${this.address}`, hostId }
-    this.hosts.set(hostId, computer)
+  host(computer: FakeComputer): void {
+    computer.relay = { url: `https://${this.address}` }
+    this.hosts.set(computer.id, computer)
   }
 
   route(tunnel: string): FakeComputer | undefined {

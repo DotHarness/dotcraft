@@ -31,11 +31,12 @@ public sealed class MobileRelayHubTests : IDisposable
         Assert.Equal(relay.Url, state.GetProperty("relay").GetProperty("url").GetString());
         Assert.DoesNotContain(RelayFixture.Token, state.GetRawText(), StringComparison.Ordinal);
         await WaitForRelayStateAsync(hub, "connected");
-        var hostId = (await phone.GetJsonAsync("/m/hello")).GetProperty("relay").GetProperty("hostId").GetString()!;
+        var hostId = phone.ComputerId;
+        Assert.Equal(relay.Url, (await phone.GetJsonAsync("/m/hello")).GetProperty("relay").GetProperty("url").GetString());
         var pairing = QueryHelpers.ParseQuery(new Uri(
             (await hub.JsonAsync(HttpMethod.Post, "/v1/mobile/pairings")).GetProperty("qrPayload").GetString()!).Query);
         Assert.Equal(relay.Url, pairing["relay"].ToString());
-        Assert.Equal(hostId, pairing["host"].ToString());
+        Assert.Equal(hostId, pairing["id"].ToString());
 
         await relay.WaitForHostAsync(hostId);
         using var tunneled = ThroughRelay(relay, hostId, phone);
@@ -62,7 +63,7 @@ public sealed class MobileRelayHubTests : IDisposable
         using var phone = await hub.PairPhoneAsync();
         await hub.JsonAsync(HttpMethod.Put, "/v1/mobile/relay", new { url = relay.Url, token = RelayFixture.Token });
         await WaitForRelayStateAsync(hub, "connected");
-        var hostId = (await phone.GetJsonAsync("/m/hello")).GetProperty("relay").GetProperty("hostId").GetString()!;
+        var hostId = phone.ComputerId;
 
         await relay.DisposeAsync();
         await WaitForRelayStateAsync(hub, "connecting", "failed");

@@ -1,16 +1,18 @@
 import { useRouter } from 'expo-router'
 import { useCallback, useMemo, useState } from 'react'
-import { Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useMobileState } from '../../app-state/SessionContext'
+import { ComputerProvider, useComputer, useMobileState, useSession } from '../../app-state/SessionContext'
+import { needsYou } from '../../core/chatState'
 import { EMPTY_DRAFT } from '../../core/draft'
 import {
   computerStatus,
-  homeLists,
   isReachable,
   projectById,
   projectsByRecentUse,
+  recentChats,
   runningChats,
+  stateOf,
   type ComputerStatus,
 } from '../../core/state'
 import { useI18n } from '../../i18n'
@@ -19,10 +21,10 @@ import { animateLayout, CompactComposer, NewChatPane, useProjectStart } from '..
 import { Screen, ScrollArea } from '../layout'
 import { Mascot, MascotNote, MascotTransition, type MascotMoment } from '../mascot/Mascot'
 import { MenuRow, PopoverMenu } from '../Menu'
-import { ComputerStatusLine, ReadOnlyNotice, RoundIconButton, Section, Txt } from '../parts'
+import { ComputerStatusLine, Notice, PhoneButton, ReadOnlyNotice, RoundIconButton, Section, Txt } from '../parts'
 import { ChatRow, chatTitle, ProjectRow, projectTitle } from '../rows'
 import { metrics, type, useTheme } from '../theme'
-import { PairDifferentSheet } from './SettingsScreen'
+import { useAddComputer } from './SettingsScreen'
 
 function computerMoment(status: ComputerStatus, waiting: number): MascotMoment {
   if (status === 'offline' || status === 'access-off') return 'asleep'
@@ -30,35 +32,125 @@ function computerMoment(status: ComputerStatus, waiting: number): MascotMoment {
   return waiting > 0 ? 'question' : 'idle'
 }
 
-export function chatHref(key: string) {
+export function chatHref(computerId: string, key: string) {
   const index = key.indexOf(':')
-  return { pathname: '/chat/[projectId]/[threadId]' as const, params: { projectId: key.slice(0, index), threadId: key.slice(index + 1) } }
+  return {
+    pathname: '/chat/[computerId]/[projectId]/[threadId]' as const,
+    params: { computerId, projectId: key.slice(0, index), threadId: key.slice(index + 1) },
+  }
+}
+
+export function projectHref(computerId: string, projectId: string) {
+  return { pathname: '/project/[computerId]/[projectId]' as const, params: { computerId, projectId } }
+}
+
+function statusTone(status: ComputerStatus, colors: ReturnType<typeof useTheme>['colors']): string {
+  if (status === 'online') return colors.success
+  return status === 'connecting' ? colors.accent : colors.textDimmed
+}
+
+function ComputerChips() {
+  const state = useMobileState()
+  const session = useSession()
+  const { colors } = useTheme()
+  if (state.order.length < 2) return null
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow} contentContainerStyle={styles.chips}>
+      {state.order.map((id) => {
+        const computer = state.computers[id]
+        const selected = id === state.selected
+        return (
+          <Pressable
+            key={id}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            onPress={() => session.select(id)}
+            style={({ pressed }) => [
+              styles.chip,
+              selected && { backgroundColor: colors.bgSecondary, borderColor: colors.borderDefault },
+              pressed && { backgroundColor: colors.roundFill },
+            ]}
+          >
+            <View style={[styles.dot, { backgroundColor: statusTone(computerStatus(computer), colors) }]} />
+            <Icon name="monitor" size={14} color={colors.textSecondary} strokeWidth={2} />
+            <Txt numberOfLines={1} tone={selected ? undefined : 'secondary'}>
+              {computer.computer.name}
+            </Txt>
+          </Pressable>
+        )
+      })}
+    </ScrollView>
+  )
+}
+
+function IdentityChanged() {
+  const session = useSession()
+  const { t } = useI18n()
+  const { computer } = useComputer()
+  return (
+    <View style={styles.identity}>
+      <MascotNote moment="wary">{t('identity.note', { computer: computer.name })}</MascotNote>
+      <PhoneButton variant="danger" onPress={() => void session.removeComputer(computer.id)}>
+        {t('identity.remove', { computer: computer.name })}
+      </PhoneButton>
+    </View>
+  )
+}
+
+function RevokedNotice() {
+  const state = useMobileState()
+  const session = useSession()
+  const { t } = useI18n()
+  if (!state.revokedBy) return null
+  return (
+    <Notice
+      icon="info"
+      style={styles.notice}
+      action={
+        <PhoneButton variant="outline" compact onPress={() => session.acknowledgeRevoked()}>
+          {t('common.close')}
+        </PhoneButton>
+      }
+    >
+      {t('pair.revoked', { computer: state.revokedBy })}
+    </Notice>
+  )
 }
 
 export function HomeScreen() {
-  const state = useMobileState()
+  const selected = useMobileState().selected
+  if (!selected) return <Screen>{null}</Screen>
+  return (
+    <ComputerProvider key={selected} computerId={selected}>
+      <ComputerHome />
+    </ComputerProvider>
+  )
+}
+
+function ComputerHome() {
+  const state = useComputer()
   const router = useRouter()
   const { t } = useI18n()
   const { colors } = useTheme()
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [replacing, setReplacing] = useState(false)
   const [rowHeight, setRowHeight] = useState(0)
   const [composing, setComposing] = useState<string | null>(null)
   const [draft, setDraft] = useState(EMPTY_DRAFT)
   const insets = useSafeAreaInsets()
+  const addComputer = useAddComputer()
   const computer = state.computer
   const status = computerStatus(state)
   const live = isReachable(status)
-  const { waiting, recent } = useMemo(() => homeLists(state), [state])
+  const recent = useMemo(() => recentChats(state), [state])
   const visible = useMemo(() => runningChats(state), [state])
+  const waiting = visible.filter((chat) => needsYou(stateOf(chat))).length
   const collapse = useCallback(() => {
     animateLayout()
     setComposing(null)
   }, [])
   useProjectStart(composing)
-  if (!computer) return <Screen>{null}</Screen>
 
   const trimmed = query.trim().toLowerCase()
   const untitled = t('chat.untitled')
@@ -67,7 +159,7 @@ export function HomeScreen() {
     const project = projectById(state, projectId)
     return project ? projectTitle(project, t) : ''
   }
-  const openChat = (key: string) => router.push(chatHref(key))
+  const openChat = (key: string) => router.push(chatHref(computer.id, key))
   const menuLabel = t('home.computerMenu', { computer: computer.name })
   const lastProject = projectsByRecentUse(state)[0]
   const canStart = status === 'online' && Boolean(lastProject)
@@ -114,7 +206,7 @@ export function HomeScreen() {
               style={({ pressed }) => [styles.computer, pressed && { backgroundColor: colors.roundFill }]}
               onPress={() => setMenuOpen(true)}
             >
-              <Mascot moment={computerMoment(status, waiting.length)} size={40} style={styles.avatar} />
+              <Mascot moment={computerMoment(status, waiting)} size={40} style={styles.avatar} />
               <View style={styles.computerText}>
                 <Txt numberOfLines={1} style={styles.computerName}>
                   {computer.name}
@@ -136,6 +228,7 @@ export function HomeScreen() {
           </>
         )}
       </View>
+      {searching || composing ? null : <ComputerChips />}
       {composing ? (
         <NewChatPane
           key={composing}
@@ -152,9 +245,12 @@ export function HomeScreen() {
       ) : (
         <>
           <ScrollArea>
+            <RevokedNotice />
             {status === 'access-off' ? <ReadOnlyNotice status={status} computer={computer.name} style={styles.notice} /> : null}
             <View style={styles.lists}>
-              {state.syncing ? (
+              {state.identityChanged ? (
+                <IdentityChanged />
+              ) : state.syncing ? (
                 <MascotTransition line={t('home.catchingUp', { computer: computer.name })} />
               ) : trimmed ? (
                 <Section title={t('home.results')} grow>
@@ -168,20 +264,9 @@ export function HomeScreen() {
                 </Section>
               ) : (
                 <>
-                  {waiting.length > 0 ? (
-                    <Section title={t('home.needsYou')}>
-                      {waiting.map((chat) => (
-                        <ChatRow key={chat.key} chat={chat} live={live} projectName={nameOf(chat.projectId)} onPress={() => openChat(chat.key)} />
-                      ))}
-                    </Section>
-                  ) : null}
                   <Section title={t('home.projects')}>
                     {state.projects.map((project) => (
-                      <ProjectRow
-                        key={project.id}
-                        project={project}
-                        onPress={() => router.push({ pathname: '/project/[projectId]', params: { projectId: project.id } })}
-                      />
+                      <ProjectRow key={project.id} project={project} onPress={() => router.push(projectHref(computer.id, project.id))} />
                     ))}
                   </Section>
                   {recent.length > 0 ? (
@@ -208,11 +293,11 @@ export function HomeScreen() {
       )}
       <PopoverMenu visible={menuOpen} label={menuLabel} anchor={{ top: insets.top + rowHeight }} onClose={() => setMenuOpen(false)}>
         <MenuRow
-          icon="arrowLeftRight"
-          label={t('settings.pairDifferent')}
+          icon="plus"
+          label={t('settings.addComputer')}
           onPress={() => {
             setMenuOpen(false)
-            setReplacing(true)
+            addComputer()
           }}
         />
         <MenuRow
@@ -224,7 +309,6 @@ export function HomeScreen() {
           }}
         />
       </PopoverMenu>
-      <PairDifferentSheet computer={computer.name} visible={replacing} onClose={() => setReplacing(false)} />
     </Screen>
   )
 }
@@ -256,6 +340,20 @@ const styles = StyleSheet.create({
   computerText: { flexShrink: 1, minWidth: 0, gap: 1 },
   computerName: { fontWeight: '600' },
   notice: { marginTop: 8 },
+  chipRow: { flexGrow: 0 },
+  chips: { gap: 8, paddingHorizontal: metrics.gutter, paddingBottom: 8 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 36,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    borderRadius: metrics.pill,
+  },
+  dot: { width: 7, height: 7, borderRadius: 4 },
+  identity: { gap: 16, paddingTop: 24 },
   lists: { flexGrow: 1, marginTop: -12 },
   search: {
     flex: 1,

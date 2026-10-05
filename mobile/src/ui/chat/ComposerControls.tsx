@@ -1,7 +1,7 @@
 import type { ModelCatalogItem } from '@dotcraft/sdk/contracts'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native'
-import { useSession } from '../../app-state/SessionContext'
+import { useComputerLink } from '../../app-state/SessionContext'
 import type { ProjectModels } from '../../core/state'
 import type { ApprovalPolicy, ChatControls, ReasoningValue, Speed } from '../../core/threadConfig'
 import { useI18n, type I18n } from '../../i18n'
@@ -227,7 +227,7 @@ function ModelSheet({
   onChange: (change: ControlChange) => Promise<void>
 }) {
   const { t } = useI18n()
-  const session = useSession()
+  const session = useComputerLink()
   const [picked, setPicked] = useState<string | null>(null)
   const [open, setOpen] = useState<Section | null>(null)
   const viewing = picked ?? controls.providerId

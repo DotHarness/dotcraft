@@ -1,7 +1,7 @@
 import * as Clipboard from 'expo-clipboard'
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
-import { useMobileState } from '../../app-state/SessionContext'
+import { useComputer } from '../../app-state/SessionContext'
 import { baseName } from '../../core/transcript'
 import { useI18n } from '../../i18n'
 import { Icon, type IconName } from '../icons'
@@ -31,7 +31,7 @@ function Chip({ icon, label, onPress, accessibilityLabel }: { icon: IconName; la
 export function FilePath({ path, note }: { path: string; note?: string }) {
   const { t } = useI18n()
   const { colors } = useTheme()
-  const computer = useMobileState().computer?.name ?? ''
+  const computer = useComputer().computer.name ?? ''
   const [copied, setCopied] = useState(false)
   return (
     <>

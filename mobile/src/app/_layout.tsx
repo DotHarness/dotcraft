@@ -26,20 +26,10 @@ function Gate() {
   }, [state.hydrated])
 
   useEffect(() => {
-    if (!state.hydrated) return
-    if (state.computer && state.identityChanged) {
-      if (top !== 'identity') router.replace('/identity')
-      return
-    }
-    if (!state.computer) {
-      if (top !== 'pair') {
-        if (router.canDismiss()) router.dismissAll()
-        router.replace('/pair')
-      }
-      return
-    }
-    if (top === 'identity') router.replace('/')
-  }, [router, state.computer, state.hydrated, state.identityChanged, top])
+    if (!state.hydrated || state.order.length > 0 || top === 'pair') return
+    if (router.canDismiss()) router.dismissAll()
+    router.replace('/pair')
+  }, [router, state.hydrated, state.order.length, top])
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.bgPrimary }]}>

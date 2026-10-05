@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { BackHandler, Keyboard, KeyboardAvoidingView, LayoutAnimation, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { useMobileState, useSession } from '../../app-state/SessionContext'
+import { useComputer, useComputerLink } from '../../app-state/SessionContext'
 import { draftTitle, isEmptyDraft, type MessageDraft, type ReferenceEntry } from '../../core/draft'
 import { CantStartProjectError } from '../../core/session'
-import { computerStatus, projectById, type MobileState, type ProjectModels } from '../../core/state'
+import { computerStatus, projectById, type ComputerState, type ProjectModels } from '../../core/state'
 import { startConfig, type ChatControls, type NewChatChoices } from '../../core/threadConfig'
 import { useI18n } from '../../i18n'
 import { Icon } from '../icons'
@@ -65,8 +65,8 @@ export function Dock({
 }
 
 export function useModels(projectId: string, ready: boolean, providerId: string | null): ProjectModels | undefined {
-  const session = useSession()
-  const models = useMobileState().models[projectId]
+  const session = useComputerLink()
+  const models = useComputer().models[projectId]
   const listable = ready && models?.canListModels === true
   const loaded = providerId ? Boolean(models?.catalogs[providerId]) : false
   useEffect(() => {
@@ -80,8 +80,8 @@ export function useModels(projectId: string, ready: boolean, providerId: string 
 const NO_REFERENCES: ReferenceEntry[] = []
 
 export function useReferences(projectId: string, ready: boolean): ReferenceEntry[] {
-  const session = useSession()
-  const state = useMobileState()
+  const session = useComputerLink()
+  const state = useComputer()
   const models = state.models[projectId]
   const listable = ready && (models?.canListCommands === true || models?.canListSkills === true)
   useEffect(() => {
@@ -90,14 +90,14 @@ export function useReferences(projectId: string, ready: boolean): ReferenceEntry
   return state.references[projectId] ?? NO_REFERENCES
 }
 
-function needsStartOf(state: MobileState, projectId: string): boolean {
+function needsStartOf(state: ComputerState, projectId: string): boolean {
   const project = projectById(state, projectId)
   return Boolean(project && !project.running && computerStatus(state) === 'online' && state.phases[projectId] !== 'cantStart')
 }
 
 export function useProjectStart(projectId: string | null) {
-  const state = useMobileState()
-  const session = useSession()
+  const state = useComputer()
+  const session = useComputerLink()
   const phase = projectId ? state.phases[projectId] : undefined
   const needsStart = projectId ? needsStartOf(state, projectId) : false
   useEffect(() => {
@@ -184,8 +184,8 @@ export function NewChatPane({
   onCollapse: () => void
   onCreated: (key: string) => void
 }) {
-  const state = useMobileState()
-  const session = useSession()
+  const state = useComputer()
+  const session = useComputerLink()
   const { t } = useI18n()
   const { colors } = useTheme()
   const [failed, setFailed] = useState(false)
@@ -212,7 +212,7 @@ export function NewChatPane({
     return () => subscription.remove()
   }, [onCollapse])
 
-  if (!computer || !project) return null
+  if (!project) return null
   const projectName = projectTitle(project, t)
   const providerId = choices.controls.providerId ?? models?.defaultProviderId ?? null
   const controls: ChatControls = { ...choices.controls, providerId, model: choices.controls.model ?? defaultModel(models, providerId) }

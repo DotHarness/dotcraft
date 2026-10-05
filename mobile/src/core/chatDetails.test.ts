@@ -3,7 +3,7 @@ import { MEADOW_PNG } from '../demo/images'
 import { createStudio } from '../demo/seed'
 import { createHarness, waitFor, type Harness } from '../test/harness'
 import { EMPTY_DRAFT, plainMessage } from './draft'
-import { persistable, type MobileState } from './state'
+import { persistable } from './state'
 import { offersPlanMode } from './threadConfig'
 import { buildTranscript } from './transcript'
 import { latestChanges } from './turnChanges'
@@ -20,12 +20,12 @@ async function connected() {
   computer.streamDelayMs = 1
   const harness = createHarness([computer])
   harnesses.push(harness)
-  const state = () => harness.session.store.getState()
+  const state = () => harness.computerState()
   await harness.session.boot()
   await waitFor(() => state().link === 'online' && !state().syncing)
   const opened = async (title: string) => {
     const key = Object.values(state().chats).find((chat) => chat.title === title)!.key
-    harness.session.openChat(key)
+    harness.link().openChat(key)
     await waitFor(() => state().details[key]?.loading === false)
     return key
   }
@@ -43,7 +43,7 @@ describe('context ring', () => {
 
     const release = await opened('Explain the release script')
     const before = state().details[release].context!.tokens
-    await harness.session.send(release, plainMessage('More detail, please.'))
+    await harness.link().send(release, plainMessage('More detail, please.'))
     await waitFor(() => (state().details[release].context?.tokens ?? 0) > before)
     expect(state().details[release].context!.percentLeft).toBeCloseTo(1 - state().details[release].context!.tokens / 400_000, 6)
   })
@@ -69,8 +69,8 @@ describe('files and usage', () => {
   it('reads a file from the computer and reports a file over the read limit', async () => {
     const { harness, projectId } = await connected()
     const project = projectId('dotcraft')
-    expect(atob(await harness.session.readFile(project, 'D:/Projects/dotcraft/scripts/release.ps1'))).toMatch(/^param\(/)
-    await expect(harness.session.readFile(project, 'D:/Projects/dotcraft/artifacts/release/publish.log')).rejects.toMatchObject({
+    expect(atob(await harness.link().readFile(project, 'D:/Projects/dotcraft/scripts/release.ps1'))).toMatch(/^param\(/)
+    await expect(harness.link().readFile(project, 'D:/Projects/dotcraft/artifacts/release/publish.log')).rejects.toMatchObject({
       data: { code: 'FileTooLarge' },
     })
   })
@@ -78,7 +78,7 @@ describe('files and usage', () => {
   it('loads account usage windows and which providers sign in with an account', async () => {
     const { harness, state, projectId } = await connected()
     const project = projectId('dotcraft')
-    await harness.session.loadUsage(project)
+    await harness.link().loadUsage(project)
     const models = state().models[project]
     expect(models.usage?.map((window) => [window.seconds, window.percentLeft])).toEqual([
       [18_000, 73],
@@ -102,7 +102,7 @@ describe('sent photos', () => {
         if (entry.kind === 'user' && entry.id.startsWith('echo-')) echoed.push(entry.images)
       }
     })
-    await harness.session.send(key, { ...EMPTY_DRAFT, text: 'Like this', photos: [{ id: 'p1', dataUrl: url }] })
+    await harness.link().send(key, { ...EMPTY_DRAFT, text: 'Like this', photos: [{ id: 'p1', dataUrl: url }] })
     unsubscribe()
     expect(echoed[0]).toEqual([{ uri: url }])
 
@@ -110,7 +110,7 @@ describe('sent photos', () => {
     const sent = buildTranscript(state().details[key].history).filter((entry) => entry.kind === 'user').at(-1)
     expect(sent).toMatchObject({ kind: 'user', text: 'Like this', images: [{ path: expect.stringMatching(/[\/]\.craft[\/]attachments[\/]images[\/][^\/]+\.png$/) }] })
 
-    const stored = persistable(state() as MobileState).details[key].history.items.filter((item) => item.type === 'userMessage').at(-1)
+    const stored = persistable(harness.session.store.getState()).computers[harness.computerState().computer.id].details[key].history.items.filter((item) => item.type === 'userMessage').at(-1)
     expect(stored?.payload.nativeInputParts).toMatchObject([{ type: 'text', text: 'Like this' }, { type: 'localImage', mimeType: 'image/png' }])
   })
 

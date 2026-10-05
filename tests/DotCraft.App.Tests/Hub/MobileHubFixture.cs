@@ -98,6 +98,8 @@ internal sealed class MobileHubFixture : IAsyncDisposable
         var body = await response.Content.ReadAsStringAsync();
         Assert.True(response.IsSuccessStatusCode, body);
         var paired = JsonDocument.Parse(body).RootElement;
+        phone.ComputerId = paired.GetProperty("computer").GetProperty("computerId").GetString()!;
+        Assert.Equal(query["id"].ToString(), phone.ComputerId);
         phone.UseCredential(paired.GetProperty("deviceId").GetString()!, paired.GetProperty("credential").GetString()!);
         return phone;
     }
@@ -127,6 +129,8 @@ internal sealed class MobilePhone : IDisposable
 
     public string Fingerprint { get; }
     public HttpClient Http { get; }
+    public string ComputerId { get; set; } = string.Empty;
+
     public string DeviceId { get; private set; } = string.Empty;
     public string Credential { get; private set; } = string.Empty;
 

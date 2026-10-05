@@ -85,6 +85,7 @@ export interface FakeProject {
 }
 
 export interface FakeComputerSeed {
+  id: string
   name: string
   version: string
   port: number
@@ -140,6 +141,7 @@ function inputText(input: unknown): string {
 }
 
 export class FakeComputer {
+  readonly id: string
   readonly name: string
   readonly version: string
   readonly port: number
@@ -169,6 +171,7 @@ export class FakeComputer {
   private counter = 0
 
   constructor(seed: FakeComputerSeed) {
+    this.id = seed.id
     this.name = seed.name
     this.version = seed.version
     this.port = seed.port
@@ -222,7 +225,7 @@ export class FakeComputer {
 
   http(method: string, path: string, headers: Record<string, string>, body: string | undefined): { status: number; body: unknown } {
     const error = (status: number, code: string) => ({ status, body: { error: { code, message: code } } })
-    const computer = { name: this.name, port: this.port, fingerprint: this.certificate, addresses: this.addresses }
+    const computer = { computerId: this.id, name: this.name, port: this.port, fingerprint: this.certificate, addresses: this.addresses }
     if (method === 'POST' && path === '/m/pair') {
       if (!this.pairingCodes.delete((JSON.parse(body ?? '{}') as { code: string }).code)) return error(400, 'pairingCodeInvalid')
       const credential = this.nextId('credential')

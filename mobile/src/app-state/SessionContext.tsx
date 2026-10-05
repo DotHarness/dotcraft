@@ -1,11 +1,13 @@
 import * as Network from 'expo-network'
 import { createContext, useContext, useEffect, useSyncExternalStore, type ReactNode } from 'react'
 import { AppState } from 'react-native'
+import type { ComputerLink } from '../core/computerLink'
 import type { MobileSession } from '../core/session'
-import type { MobileState } from '../core/state'
+import type { ComputerState, MobileState } from '../core/state'
 import type { AppRuntime, DemoHooks } from './runtime'
 
 const RuntimeContext = createContext<AppRuntime | null>(null)
+const ComputerContext = createContext<string | null>(null)
 
 export function RuntimeProvider({ runtime, children }: { runtime: AppRuntime; children: ReactNode }) {
   const { session } = runtime
@@ -38,4 +40,24 @@ export function useDemo(): DemoHooks | null {
 export function useMobileState(): MobileState {
   const { store } = useRuntime().session
   return useSyncExternalStore(store.subscribe, store.getState, store.getState)
+}
+
+export function ComputerProvider({ computerId, children }: { computerId: string; children: ReactNode }) {
+  const state = useMobileState()
+  if (!state.computers[computerId]) return null
+  return <ComputerContext.Provider value={computerId}>{children}</ComputerContext.Provider>
+}
+
+function useComputerId(): string {
+  const computerId = useContext(ComputerContext)
+  if (!computerId) throw new Error('ComputerProvider is missing')
+  return computerId
+}
+
+export function useComputer(): ComputerState {
+  return useMobileState().computers[useComputerId()]
+}
+
+export function useComputerLink(): ComputerLink {
+  return useSession().computer(useComputerId())!
 }

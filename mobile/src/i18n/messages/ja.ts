@@ -20,7 +20,7 @@ export const MESSAGES_JA: Catalog = {
   'home.catchingUp': '{{computer}} と同期しています…',
   'home.results': '結果',
   'home.noResults': '「{{query}}」に一致するチャットはありません。',
-  'home.needsYou': '対応が必要',
+  'live.channelRequests': '対応が必要',
   'home.projects': 'プロジェクト',
   'home.recent': '最近のチャット',
   'home.search': 'チャットを検索',
@@ -208,11 +208,11 @@ export const MESSAGES_JA: Catalog = {
   'picker.lastUsedNotRunning': '最近使用 · 実行されていません',
 
   'settings.title': '設定',
-  'settings.computer': 'コンピューター',
+  'settings.computers': 'コンピューター',
   'settings.paired': '{{date}} にペアリング',
   'settings.computerVersion': 'DotCraft {{version}}',
   'settings.remove': '削除',
-  'settings.pairDifferent': '別のコンピューターとペアリング',
+  'settings.addComputer': 'コンピューターを追加',
   'settings.about': '情報',
   'settings.version': 'バージョン',
   'settings.appVersion': 'DotCraft {{version}}',
@@ -221,10 +221,6 @@ export const MESSAGES_JA: Catalog = {
   'remove.title': '{{computer}} を削除しますか？',
   'remove.text': 'このスマートフォンは {{computer}} を操作できなくなります。再び使うには、新しいコードでペアリングしてください。',
   'remove.confirm': '削除',
-  'replace.title': '別のコンピューターとペアリングしますか？',
-  'replace.text':
-    'このスマートフォンが操作できるコンピューターは一度に 1 台のため、新しいコンピューターが {{computer}} に置き換わります。新しいコンピューターを許可するまで、{{computer}} とのペアリングは維持されます。',
-  'replace.continue': '続行',
 
   'pair.scanTitle': 'コードをスキャン',
   'pair.scanNote': 'コンピューターで DotCraft の 設定 › 接続 › スマートフォン を開き、「スマートフォンを追加」を選びます。',
@@ -237,7 +233,7 @@ export const MESSAGES_JA: Catalog = {
   'pair.reaching': '{{computer}} に接続しています…',
   'pair.allowTitle': 'このスマートフォンに {{computer}} の操作を許可しますか？',
   'pair.allowNote': 'ペアリングしたスマートフォンは、そのコンピューターの DotCraft であなたができることをすべて行えます。',
-  'pair.replaces': '{{computer}} と置き換わります。',
+  'pair.replaces': '{{computer}} との既存のペアリングを置き換えます。',
   'pair.allow': '許可',
   'pair.connectedTitle': '{{computer}} に接続しました',
   'pair.connectedNote': 'チャットは {{computer}} で実行され続けます。ここから進捗を確認し、質問に答えられます。',
@@ -249,7 +245,6 @@ export const MESSAGES_JA: Catalog = {
   'pair.unreachableNote': 'このスマートフォンが {{computer}} と同じネットワーク、または同じプライベートネットワークにあることを確認してから、もう一度お試しください。',
   'pair.tryAgain': '再試行',
 
-  'identity.title': '{{computer}} の ID が変わりました',
   'identity.note':
     'このスマートフォンは同じコンピューターであることを確認できないため、接続しません。{{computer}} を削除してから、新しいコードで再度ペアリングしてください。',
   'identity.remove': '{{computer}} を削除',

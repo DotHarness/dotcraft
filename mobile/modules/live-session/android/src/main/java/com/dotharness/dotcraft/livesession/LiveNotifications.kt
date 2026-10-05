@@ -66,6 +66,7 @@ internal object LiveNotifications {
       .setSmallIcon(R.drawable.live_session_icon)
       .setContentTitle(notice.title)
       .setContentText(notice.text)
+      .setSubText(notice.subText.ifEmpty { null })
       .setStyle(NotificationCompat.BigTextStyle().bigText(notice.text))
       .setPriority(if (requests) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
       .setDefaults(NotificationCompat.DEFAULT_SOUND)

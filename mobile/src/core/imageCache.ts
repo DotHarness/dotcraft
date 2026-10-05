@@ -5,8 +5,8 @@ export function imageKey(scope: string, path: string): string {
   return `${scope}\n${path}`
 }
 
-export function imageScope(fingerprint: string, projectId: string): string {
-  return `${fingerprint}\n${projectId}`
+export function imageScope(computerId: string, projectId: string): string {
+  return `${computerId}\n${projectId}`
 }
 
 export function rememberImage(key: string, uri: string): void {
@@ -19,6 +19,6 @@ export function rememberedImage(key: string): string | undefined {
   return images.get(key)
 }
 
-export function forgetImages(): void {
-  images.clear()
+export function forgetImages(computerId: string): void {
+  for (const key of [...images.keys()]) if (key.startsWith(`${computerId}\n`)) images.delete(key)
 }

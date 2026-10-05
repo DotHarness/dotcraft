@@ -269,7 +269,7 @@ Raw peer credentials and raw invite ids are never written to disk. Online state 
 - whether the gateway is on, so Hub turns it back on at start.
 - paired phones: device id, display name, platform, OS version, app version, paired and last-seen times, and the hash of the device credential.
 - the current pairing code as its hash, its pairing id, and its expiry.
-- the host id, 128 random bits created when the gateway first turns on, that names this computer on a relay.
+- the computer id, 128 random bits created when the gateway first turns on, that names this computer to phones and on a relay.
 - the relay URL and relay token, when a relay is configured.
 
 `~/.craft/hub/mobile-certificate.pfx` holds the gateway certificate and its private key, readable only by the user where the operating system allows. Raw device credentials and pairing codes are never written to disk. The relay token is stored as given because Hub presents it to the relay, so `mobile.json` is created readable only by the user on Unix-like systems. Connection and relay state are in-memory and Hub-lifetime scoped.

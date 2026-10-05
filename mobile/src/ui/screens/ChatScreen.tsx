@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useMobileState, useSession } from '../../app-state/SessionContext'
+import { useComputer, useComputerLink } from '../../app-state/SessionContext'
 import { awaitsPlanConfirmation, isLive, type ChatState } from '../../core/chatState'
 import { usedShare } from '../../core/contextUsage'
 import { waitingDecisions } from '../../core/decisions'
@@ -38,8 +38,8 @@ import { chatHref } from './HomeScreen'
 
 export function ChatScreen({ projectId, threadId }: { projectId: string; threadId: string }) {
   const key = chatKey(projectId, threadId)
-  const state = useMobileState()
-  const session = useSession()
+  const state = useComputer()
+  const session = useComputerLink()
   const router = useRouter()
   const { t } = useI18n()
   const [dismissedPlan, setDismissedPlan] = useState<string | null>(null)
@@ -84,11 +84,11 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const canPlan = offersPlanMode(detail?.config, chat?.profileId)
   const changes = useMemo(() => (detail ? latestChanges(detail.history, detail.workspacePath) : null), [detail])
   const readFile = useCallback((path: string) => session.readFile(projectId, path), [projectId, session])
-  const fingerprint = state.computer?.fingerprint ?? null
+  const computerId = state.computer.id
   const reading = ready && models?.fileSystem === true
   const imageReader = useMemo(
-    () => (fingerprint ? { scope: imageScope(fingerprint, projectId), read: reading ? readFile : null } : null),
-    [fingerprint, projectId, readFile, reading],
+    () => ({ scope: imageScope(computerId, projectId), read: reading ? readFile : null }),
+    [computerId, projectId, readFile, reading],
   )
   const openFile = models?.fileSystem === true ? setOpenPath : null
   const workspacePath = detail?.workspacePath ?? null
@@ -96,7 +96,6 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const inset = docked ? dockHeight : insets.bottom
   const signsIn = models?.providers.find((provider) => provider.id === controls.providerId)?.signsIn === true
 
-  if (!computer) return <Screen>{null}</Screen>
   const title = chat ? chatTitle(chat, t('chat.untitled')) : t('chat.untitled')
 
   const openStatus = () => {
@@ -238,7 +237,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
         canFork={models?.canFork === true}
         onClose={() => setMenuOpen(false)}
         onRename={(name) => void session.rename(key, name).catch(() => undefined)}
-        onFork={() => void session.fork(key).then((forked) => router.replace(chatHref(forked)), () => undefined)}
+        onFork={() => void session.fork(key).then((forked) => router.replace(chatHref(computer.id, forked)), () => undefined)}
         onArchive={() => {
           router.back()
           void session.archive(key).catch(() => undefined)

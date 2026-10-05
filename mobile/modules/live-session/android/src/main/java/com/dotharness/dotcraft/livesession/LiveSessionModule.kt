@@ -63,6 +63,9 @@ class LivePost : Record {
   val text: String = ""
 
   @Field
+  val subText: String = ""
+
+  @Field
   val url: String = ""
 
   @Field

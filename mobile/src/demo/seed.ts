@@ -607,6 +607,9 @@ const PRESENTATIONS: Record<string, { presentationId: string; options?: { operat
 }
 
 export interface StudioOptions {
+  id?: string
+  name?: string
+  addresses?: string[]
   chats?: boolean
   cantStart?: string[]
 }
@@ -623,11 +626,12 @@ function studioSeed(now: Date, options: StudioOptions = {}): FakeComputerSeed {
     threads: chats.filter((entry) => entry.chat.project === id).map((entry) => entry.thread),
   })
   return {
-    name: 'Studio PC',
+    name: options.name ?? 'Studio PC',
     version: '0.8.0',
     port: DEMO_PORT,
+    id: options.id ?? 'studio-pc',
     fingerprint: STUDIO_FINGERPRINT,
-    addresses: STUDIO_ADDRESSES,
+    addresses: options.addresses ?? STUDIO_ADDRESSES,
     projects: [
       project('dotcraft', 'dotcraft', true, 0),
       project('design-lab', 'design-lab', true, 1),
@@ -647,6 +651,7 @@ function studioSeed(now: Date, options: StudioOptions = {}): FakeComputerSeed {
 
 export function buildBoxSeed(now: Date): FakeComputerSeed {
   return {
+    id: 'build-box',
     name: 'Build Box',
     version: '0.8.0',
     port: DEMO_PORT,
@@ -657,13 +662,14 @@ export function buildBoxSeed(now: Date): FakeComputerSeed {
       { id: 'chats0000000000000000000', name: 'Chats', running: false, cantStart: false, lastActiveAt: iso(now, 90), threads: [] },
     ],
     pairingCodes: ['build-box-code'],
+    credentials: { [DEMO_CREDENTIAL]: 'dev_demo' },
   }
 }
 
 export function pairingUrl(computer: FakeComputer, code: string): string {
-  const relay = computer.relay ? `&relay=${encodeURIComponent(computer.relay.url)}&host=${computer.relay.hostId}` : ''
+  const relay = computer.relay ? `&relay=${encodeURIComponent(computer.relay.url)}` : ''
   return (
-    `dotcraft://pair?v=1&name=${encodeURIComponent(computer.name)}&port=${computer.port}&fp=${computer.certificate}` +
+    `dotcraft://pair?v=1&id=${computer.id}&name=${encodeURIComponent(computer.name)}&port=${computer.port}&fp=${computer.certificate}` +
     `&addr=${computer.addresses.join(',')}&code=${encodeURIComponent(code)}${relay}`
   )
 }

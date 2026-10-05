@@ -45,11 +45,12 @@ public sealed class MobilePairRequest
     public string? AppVersion { get; set; }
 }
 
-public sealed record MobileComputer(string Name, int Port, string Fingerprint, IReadOnlyList<string> Addresses);
+public sealed record MobileComputer(string ComputerId, string Name, int Port, string Fingerprint, IReadOnlyList<string> Addresses);
 
 public sealed record MobilePairResponse(string DeviceId, string Credential, MobileComputer Computer);
 
 public sealed record MobileHello(
+    string ComputerId,
     string Name,
     string Version,
     int Port,
@@ -57,7 +58,7 @@ public sealed record MobileHello(
     IReadOnlyList<string> Addresses,
     MobileHelloRelay? Relay);
 
-public sealed record MobileHelloRelay(string Url, string HostId);
+public sealed record MobileHelloRelay(string Url);
 
 public sealed record MobileProject(string ProjectId, string DisplayName, bool Running, DateTimeOffset? LastActiveAt);
 

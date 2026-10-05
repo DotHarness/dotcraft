@@ -237,8 +237,7 @@ export function PairAllowScreen() {
     )
   }
   if (pairing.step !== 'allow') return <Screen>{null}</Screen>
-  const current = state.computer
-  const replacing = current && current.name !== pairing.offer.name ? current.name : undefined
+  const replacing = state.computers[pairing.offer.id]?.computer.name
   return (
     <Outcome
       mascot="question"
@@ -260,7 +259,7 @@ export function PairConnectedScreen() {
   const session = useSession()
   const router = useRouter()
   const { t } = useI18n()
-  const name = state.pairing.step === 'connected' ? state.pairing.name : (state.computer?.name ?? '')
+  const name = state.pairing.step === 'connected' ? state.pairing.name : ''
   return (
     <Outcome
       mascot="celebrate"
@@ -298,25 +297,6 @@ export function PairInvalidScreen() {
           }}
         >
           {t('pair.scanNew')}
-        </PhoneButton>
-      }
-    />
-  )
-}
-
-export function IdentityChangedScreen() {
-  const state = useMobileState()
-  const session = useSession()
-  const { t } = useI18n()
-  const name = state.computer?.name ?? ''
-  return (
-    <Outcome
-      mascot="wary"
-      title={t('identity.title', { computer: name })}
-      note={t('identity.note', { computer: name })}
-      actions={
-        <PhoneButton variant="danger" onPress={() => void session.removeComputer()}>
-          {t('identity.remove', { computer: name })}
         </PhoneButton>
       }
     />

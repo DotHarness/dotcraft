@@ -4,7 +4,7 @@ import { createStudio } from '../demo/seed'
 import { createHarness, waitFor, type Harness } from '../test/harness'
 import { sendDraft } from './attachments'
 import { EMPTY_DRAFT, plainMessage, type MessageDraft } from './draft'
-import type { MobileState } from './state'
+import type { ComputerState } from './state'
 
 const harnesses: Harness[] = []
 
@@ -12,20 +12,20 @@ afterEach(() => {
   for (const harness of harnesses.splice(0)) harness.session.dispose()
 })
 
-async function connected(): Promise<{ computer: FakeComputer; harness: Harness; state: () => MobileState }> {
+async function connected(): Promise<{ computer: FakeComputer; harness: Harness; state: () => ComputerState }> {
   const computer = createStudio(new Date())
   computer.streamDelayMs = 1
   const harness = createHarness([computer])
   harnesses.push(harness)
-  const state = () => harness.session.store.getState()
+  const state = () => harness.computerState()
   await harness.session.boot()
   await waitFor(() => state().link === 'online' && !state().syncing)
   return { computer, harness, state }
 }
 
-async function opened(harness: Harness, state: () => MobileState, title: string): Promise<string> {
+async function opened(harness: Harness, state: () => ComputerState, title: string): Promise<string> {
   const key = Object.values(state().chats).find((chat) => chat.title === title)!.key
-  harness.session.openChat(key)
+  harness.link().openChat(key)
   await waitFor(() => state().details[key]?.loading === false)
   return key
 }
@@ -47,7 +47,7 @@ describe('file attachments', () => {
   it('creates a folder and writes each file under the project before sending references to them', async () => {
     const { computer, harness, state } = await connected()
     const key = await opened(harness, state, 'Explain the release script')
-    await harness.session.send(key, FILES)
+    await harness.link().send(key, FILES)
 
     const sequence = calls(computer, 'fs/createDirectory', 'fs/writeFile', 'turn/start')
     expect(sequence.map((call) => call.method)).toEqual(['fs/createDirectory', 'fs/writeFile', 'fs/createDirectory', 'fs/writeFile', 'turn/start'])
@@ -71,7 +71,7 @@ describe('file attachments', () => {
     const key = await opened(harness, state, 'Explain the release script')
     computer.files.blockedNames.add('notes.md')
 
-    expect(await sendDraft(FILES, (draft) => harness.session.send(key, draft))).toEqual({ kind: 'upload', file: 'notes.md' })
+    expect(await sendDraft(FILES, (draft) => harness.link().send(key, draft))).toEqual({ kind: 'upload', file: 'notes.md' })
     expect(calls(computer, 'turn/start')).toHaveLength(0)
     expect(state().details[key].history.echoes).toHaveLength(0)
   })
@@ -81,7 +81,7 @@ describe('commands and skills', () => {
   it('lists custom commands and enabled skills only', async () => {
     const { computer, harness, state } = await connected()
     const projectId = state().projects.find((project) => project.name === 'dotcraft')!.id
-    await harness.session.loadReferences(projectId)
+    await harness.link().loadReferences(projectId)
     expect(calls(computer, 'command/list')[0].params).toEqual({ includeBuiltins: false })
     expect(state().references[projectId].map((entry) => `${entry.kind}:${entry.name}`)).toEqual([
       'command:code-review',
@@ -98,7 +98,7 @@ describe('plan mode', () => {
   it('switches the chat mode with thread/mode/set', async () => {
     const { computer, harness, state } = await connected()
     const key = await opened(harness, state, 'Explain the release script')
-    await harness.session.setMode(key, 'plan')
+    await harness.link().setMode(key, 'plan')
     expect(calls(computer, 'thread/mode/set').map((call) => call.params.mode)).toEqual(['plan'])
     expect(state().details[key].config?.mode).toBe('plan')
   })
@@ -108,7 +108,7 @@ describe('plan mode', () => {
     const key = await opened(harness, state, 'Plan the phone pairing flow')
     expect(state().chats[key].runtime?.waitingOnPlanConfirmation).toBe(true)
 
-    await harness.session.implementPlan(key)
+    await harness.link().implementPlan(key)
     const sequence = calls(computer, 'thread/mode/set', 'turn/start')
     expect(sequence.map((call) => [call.method, call.params.mode ?? call.params.input])).toEqual([
       ['thread/mode/set', 'agent'],
@@ -121,7 +121,7 @@ describe('plan mode', () => {
   it('sends typed feedback in plan mode without leaving it', async () => {
     const { computer, harness, state } = await connected()
     const key = await opened(harness, state, 'Plan the phone pairing flow')
-    await harness.session.send(key, plainMessage('Add a step for revoking a lost phone.'))
+    await harness.link().send(key, plainMessage('Add a step for revoking a lost phone.'))
     expect(calls(computer, 'thread/mode/set')).toHaveLength(0)
     await waitFor(() => state().chats[key].runtime?.running === false)
     expect(state().details[key].config?.mode).toBe('plan')

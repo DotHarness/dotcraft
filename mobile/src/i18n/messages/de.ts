@@ -20,7 +20,7 @@ export const MESSAGES_DE: Catalog = {
   'home.catchingUp': 'Abgleich mit {{computer}}…',
   'home.results': 'Ergebnisse',
   'home.noResults': 'Keine Chats passen zu „{{query}}“.',
-  'home.needsYou': 'Wartet auf Sie',
+  'live.channelRequests': 'Wartet auf Sie',
   'home.projects': 'Projekte',
   'home.recent': 'Letzte Chats',
   'home.search': 'Chats suchen',
@@ -208,11 +208,11 @@ export const MESSAGES_DE: Catalog = {
   'picker.lastUsedNotRunning': 'Zuletzt verwendet · Läuft nicht',
 
   'settings.title': 'Einstellungen',
-  'settings.computer': 'Computer',
+  'settings.computers': 'Computer',
   'settings.paired': 'Gekoppelt am {{date}}',
   'settings.computerVersion': 'DotCraft {{version}}',
   'settings.remove': 'Entfernen',
-  'settings.pairDifferent': 'Anderen Computer koppeln',
+  'settings.addComputer': 'Computer hinzufügen',
   'settings.about': 'Info',
   'settings.version': 'Version',
   'settings.appVersion': 'DotCraft {{version}}',
@@ -221,10 +221,6 @@ export const MESSAGES_DE: Catalog = {
   'remove.title': '{{computer}} entfernen?',
   'remove.text': 'Dieses Telefon steuert {{computer}} nicht mehr. Um es wieder zu verwenden, koppeln Sie es mit einem neuen Code.',
   'remove.confirm': 'Entfernen',
-  'replace.title': 'Anderen Computer koppeln?',
-  'replace.text':
-    'Dieses Telefon steuert jeweils einen Computer, daher ersetzt der neue {{computer}}. {{computer}} bleibt gekoppelt, bis Sie den neuen Computer zulassen.',
-  'replace.continue': 'Weiter',
 
   'pair.scanTitle': 'Code scannen',
   'pair.scanNote': 'Öffnen Sie auf Ihrem Computer in DotCraft Einstellungen › Verbindungen › Telefone und wählen Sie Telefon hinzufügen.',
@@ -237,7 +233,7 @@ export const MESSAGES_DE: Catalog = {
   'pair.reaching': 'Verbindung zu {{computer}}…',
   'pair.allowTitle': 'Diesem Telefon erlauben, {{computer}} zu steuern?',
   'pair.allowNote': 'Ein gekoppeltes Telefon kann alles tun, was Sie in DotCraft auf diesem Computer tun können.',
-  'pair.replaces': 'Ersetzt {{computer}}.',
+  'pair.replaces': 'Dies ersetzt die bestehende Kopplung mit {{computer}}.',
   'pair.allow': 'Zulassen',
   'pair.connectedTitle': 'Mit {{computer}} verbunden',
   'pair.connectedNote': 'Ihre Chats laufen auf {{computer}} weiter. Verfolgen Sie sie hier und beantworten Sie ihre Fragen.',
@@ -249,7 +245,6 @@ export const MESSAGES_DE: Catalog = {
   'pair.unreachableNote': 'Stellen Sie sicher, dass dieses Telefon im selben Netzwerk wie {{computer}} oder im selben privaten Netzwerk ist, und versuchen Sie es erneut.',
   'pair.tryAgain': 'Erneut versuchen',
 
-  'identity.title': 'Die Identität von {{computer}} hat sich geändert',
   'identity.note':
     'Dieses Telefon kann nicht bestätigen, dass es derselbe Computer ist, und verbindet sich daher nicht. Entfernen Sie {{computer}} und koppeln Sie es dann mit einem neuen Code.',
   'identity.remove': '{{computer}} entfernen',
