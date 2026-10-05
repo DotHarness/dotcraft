@@ -367,15 +367,17 @@ function MessageStreamContent(): JSX.Element {
 
       <ConversationAsides scrollRef={scrollRef} />
 
-      <RunningTurnChangesPill bottomPx={dockHeightPx + CHANGES_PILL_BOTTOM_GAP_PX} />
+      <div className="dc-conversation-column-controls">
+        <RunningTurnChangesPill bottomPx={dockHeightPx + CHANGES_PILL_BOTTOM_GAP_PX} />
 
-      {showScrollButton && (
-        <ScrollToBottomButton
-          onClick={scrollToBottom}
-          bottomOffsetPx={scrollButtonBottomOffsetPx}
-          working={turnStatus === 'running'}
-        />
-      )}
+        {showScrollButton && (
+          <ScrollToBottomButton
+            onClick={scrollToBottom}
+            bottomOffsetPx={scrollButtonBottomOffsetPx}
+            working={turnStatus === 'running'}
+          />
+        )}
+      </div>
     </div>
   )
 }

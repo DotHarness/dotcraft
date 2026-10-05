@@ -2,12 +2,16 @@ import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { stateOf, type ChatSummary, type ProjectInfo } from '../core/state'
 import { useI18n, type I18n } from '../i18n'
-import { Icon } from './icons'
+import { Icon, type IconName } from './icons'
 import { StateMark, STATE_LABEL, Txt } from './parts'
 import { metrics, useTheme } from './theme'
 
 export function projectTitle(project: ProjectInfo, t: I18n['t']): string {
   return project.isChats ? t('project.chats') : project.name
+}
+
+export function projectIcon(project: ProjectInfo): IconName {
+  return project.isChats ? 'messagesSquare' : 'folder'
 }
 
 export function Row({
@@ -88,7 +92,7 @@ export function ProjectRow({ project, meta, onPress }: { project: ProjectInfo; m
     <Row
       onPress={onPress}
       single={!note}
-      lead={<Icon name={project.isChats ? 'messagesSquare' : 'folder'} size={20} color={colors.textSecondary} strokeWidth={1.7} />}
+      lead={<Icon name={projectIcon(project)} size={20} color={colors.textSecondary} strokeWidth={1.7} />}
       title={projectTitle(project, t)}
       meta={note}
     />

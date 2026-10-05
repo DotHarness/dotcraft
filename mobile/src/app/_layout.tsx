@@ -17,6 +17,10 @@ const SPLASH_MIN_MS = 500
 
 const runtime = createRuntime()
 
+function justSent(params: object | undefined): boolean {
+  return (params as { sent?: string } | undefined)?.sent === '1'
+}
+
 function Gate() {
   const state = useMobileState()
   const router = useRouter()
@@ -38,7 +42,18 @@ function Gate() {
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.bgPrimary }]}>
-      <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: colors.bgPrimary } }} />
+      <Stack
+        screenOptions={({ route }) => ({
+          headerShown: false,
+          animation: justSent(route.params) ? 'none' : 'slide_from_right',
+          contentStyle: { backgroundColor: colors.bgPrimary },
+        })}
+        screenListeners={({ navigation, route }) => ({
+          transitionEnd: () => {
+            if (justSent(route.params)) navigation.setParams({ sent: undefined })
+          },
+        })}
+      />
       {state.hydrated ? null : <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.bgPrimary }]} />}
     </View>
   )

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
 import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
-import { sendDraft } from '../../core/attachments'
+import { sendDraft, type SendFailure } from '../../core/attachments'
 import {
   chooseEntry,
   draftPieces,
@@ -17,24 +17,30 @@ import {
 import { useI18n } from '../../i18n'
 import { pickFile, pickPhotos } from '../../platform/attachmentPicker'
 import { Icon, StopGlyph } from '../icons'
-import { Txt } from '../parts'
+import { Spinner, Txt } from '../parts'
 import { type, useTheme } from '../theme'
 import { AddMenu } from './AddMenu'
 import { ComposerAttachments } from './ComposerAttachments'
 import { ReferencePicker } from './ReferencePicker'
 
-function SendButton({ label, disabled, onPress }: { label: string; disabled: boolean; onPress: () => void }) {
+export interface PendingSend {
+  draft: MessageDraft
+  sent: Promise<void>
+}
+
+function SendButton({ label, disabled, busy, onPress }: { label: string; disabled: boolean; busy: boolean; onPress: () => void }) {
   const { colors } = useTheme()
+  const filled = busy || !disabled
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
+      accessibilityState={{ disabled: disabled || busy, busy }}
+      disabled={disabled || busy}
       onPress={onPress}
-      style={[styles.send, { backgroundColor: disabled ? colors.sendDisabled : colors.textPrimary }]}
+      style={[styles.send, { backgroundColor: filled ? colors.textPrimary : colors.sendDisabled }]}
     >
-      <Icon name="arrowUp" size={18} color={disabled ? colors.textDimmed : colors.bgPrimary} strokeWidth={2} />
+      {busy ? <Spinner size={18} color={colors.bgPrimary} /> : <Icon name="arrowUp" size={18} color={filled ? colors.bgPrimary : colors.textDimmed} strokeWidth={2} />}
     </Pressable>
   )
 }
@@ -44,6 +50,9 @@ export function Composer({
   controls,
   autoFocus = false,
   initialDraft = EMPTY_DRAFT,
+  clearOnSend = true,
+  pendingSend,
+  onPendingSettled,
   onDraftChange,
   canSend,
   canAttachFiles,
@@ -58,6 +67,9 @@ export function Composer({
   controls?: ReactNode
   autoFocus?: boolean
   initialDraft?: MessageDraft
+  clearOnSend?: boolean
+  pendingSend?: PendingSend
+  onPendingSettled?: () => void
   onDraftChange?: (draft: MessageDraft) => void
   canSend: boolean
   canAttachFiles: boolean
@@ -74,7 +86,7 @@ export function Composer({
   const [cursor, setCursor] = useState<number | null>(null)
   const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(undefined)
   const [focused, setFocused] = useState(false)
-  const [sending, setSending] = useState(false)
+  const [sending, setSending] = useState(pendingSend !== undefined)
   const [notice, setNotice] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const input = useRef<TextInput>(null)
@@ -102,18 +114,41 @@ export function Composer({
     setSelection({ start: at, end: at })
   }
 
+  const settle = (submitted: MessageDraft, failure: SendFailure | null) => {
+    if (failure) {
+      setDraft(submitted)
+      setNotice(failure.kind === 'upload' ? t('composer.uploadFailed', { file: failure.file }) : t('composer.failed'))
+    } else if (!clearOnSend) {
+      setDraft(EMPTY_DRAFT)
+    }
+    setSending(false)
+  }
+
+  const settlePending = useEffectEvent((submitted: MessageDraft, failure: SendFailure | null) => {
+    settle(submitted, failure)
+    onPendingSettled?.()
+  })
+
+  useEffect(() => {
+    if (!pendingSend) return
+    let current = true
+    void sendDraft(pendingSend.draft, () => pendingSend.sent).then((failure) => {
+      if (current) settlePending(pendingSend.draft, failure)
+    })
+    return () => {
+      current = false
+    }
+  }, [pendingSend])
+
   async function submit() {
     const submitted = draft
     setSending(true)
     setNotice(null)
-    setDraft(EMPTY_DRAFT)
-    setCursor(null)
-    const failure = await sendDraft(submitted, onSend)
-    if (failure) {
-      setDraft(submitted)
-      setNotice(failure.kind === 'upload' ? t('composer.uploadFailed', { file: failure.file }) : t('composer.failed'))
+    if (clearOnSend) {
+      setDraft(EMPTY_DRAFT)
+      setCursor(null)
     }
-    setSending(false)
+    settle(submitted, await sendDraft(submitted, onSend))
   }
 
   async function attach(pick: () => Promise<void>) {
@@ -249,7 +284,7 @@ export function Composer({
               <StopGlyph size={13} color={canSend ? colors.bgPrimary : colors.textDimmed} />
             </Pressable>
           ) : (
-            <SendButton label={t('composer.send')} disabled={empty || !canSend || sending} onPress={() => void submit()} />
+            <SendButton label={t('composer.send')} disabled={empty || !canSend} busy={sending} onPress={() => void submit()} />
           )}
         </View>
       </View>

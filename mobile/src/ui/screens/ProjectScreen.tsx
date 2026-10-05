@@ -49,7 +49,7 @@ export function ProjectScreen({ projectId, compose = false }: { projectId: strin
           onDraft={setDraft}
           onPickProject={(id) => router.setParams({ projectId: id })}
           onCollapse={collapse}
-          onCreated={(key) => router.replace(chatHref(computer.id, key))}
+          onCreated={(key) => router.replace(chatHref(computer.id, key, true))}
         />
       </Screen>
     )

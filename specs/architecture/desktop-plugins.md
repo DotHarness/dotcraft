@@ -232,7 +232,7 @@ Layout belongs to the Host and depends only on width. The side space is half the
 - `shift`: the side space is from 180 up to, but not including, 400 logical pixels.
 - `gutter`: the side space is 400 logical pixels or more.
 
-A trailing contribution calls `pin` while it shows a panel beside the conversation and disposes the handle when it stops. In `shift`, while any trailing pin is live, the reading column moves 153 logical pixels toward the leading edge, and the Composer moves with it. In `gutter`, the column stays centered. In `overlay`, a pin has no effect on layout. A contribution keeps its pin and shows a compact or popover form instead of a panel.
+A trailing contribution calls `pin` while it shows a panel beside the conversation and disposes the handle when it stops. In `shift`, while any trailing pin is live, the reading column moves 153 logical pixels toward the leading edge. The Composer and the controls docked above it, the running turn's changes strip and the scroll-to-bottom button, move with it. In `gutter`, the column stays centered. In `overlay`, a pin has no effect on layout. A contribution keeps its pin and shows a compact or popover form instead of a panel.
 
 `width` is the seat's current width in logical pixels. That is the side space, plus the shift for the trailing seat, or minus the shift for the leading seat. `conversation.aside.leading` never pins. While the [turn navigation rail](../features/turn-navigation.md) is shown, the rail keeps the outermost lane, and the leading seat starts after it. Layout changes, including the column shift, animate unless reduced motion is requested. They never remount contributions.
 

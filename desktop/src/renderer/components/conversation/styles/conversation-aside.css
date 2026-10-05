@@ -4,6 +4,15 @@
   transition: left 260ms var(--ease-standard);
 }
 
+.dc-conversation-column-controls {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 10;
+  translate: calc(-1 * var(--conversation-column-shift, 0px)) 0;
+  transition: translate 260ms var(--ease-standard);
+}
+
 .dc-conversation-asides {
   position: absolute;
   inset: 0;
@@ -30,12 +39,14 @@
 }
 
 html[data-reduce-motion='on'] .dc-conversation-column,
+html[data-reduce-motion='on'] .dc-conversation-column-controls,
 html[data-reduce-motion='on'] .dc-conversation-aside {
   transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
   html:not([data-reduce-motion='off']) .dc-conversation-column,
+  html:not([data-reduce-motion='off']) .dc-conversation-column-controls,
   html:not([data-reduce-motion='off']) .dc-conversation-aside {
     transition: none;
   }

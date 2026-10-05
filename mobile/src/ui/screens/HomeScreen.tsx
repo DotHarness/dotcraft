@@ -32,11 +32,12 @@ function computerMoment(status: ComputerStatus, waiting: number): MascotMoment {
   return waiting > 0 ? 'question' : 'idle'
 }
 
-export function chatHref(computerId: string, key: string) {
+export function chatHref(computerId: string, key: string, sent = false) {
   const index = key.indexOf(':')
+  const params = { computerId, projectId: key.slice(0, index), threadId: key.slice(index + 1) }
   return {
     pathname: '/chat/[computerId]/[projectId]/[threadId]' as const,
-    params: { computerId, projectId: key.slice(0, index), threadId: key.slice(index + 1) },
+    params: sent ? { ...params, sent: '1' } : params,
   }
 }
 
@@ -247,7 +248,7 @@ function ComputerHome() {
           onCollapse={collapse}
           onCreated={(key) => {
             setComposing(null)
-            openChat(key)
+            router.push(chatHref(computer.id, key, true))
           }}
         />
       ) : (

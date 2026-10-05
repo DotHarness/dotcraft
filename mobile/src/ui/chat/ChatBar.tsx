@@ -41,7 +41,7 @@ export function ChatBar({
   onBack,
 }: {
   title: string
-  project?: string
+  project?: { title: string; icon: IconName }
   computer: string
   status: ComputerStatus
   trailing?: ReactNode
@@ -69,9 +69,9 @@ export function ChatBar({
         <View style={styles.metaRow}>
           {project ? (
             <>
-              <Icon name="folder" size={12} color={colors.textSecondary} strokeWidth={2} />
+              <Icon name={project.icon} size={12} color={colors.textSecondary} strokeWidth={2} />
               <Text numberOfLines={1} style={[...meta, styles.project]}>
-                {project}
+                {project.title}
               </Text>
             </>
           ) : null}
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   title: { fontWeight: '600', lineHeight: 19 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0 },
   meta: { flexShrink: 1 },
-  project: { marginRight: 4, maxWidth: '50%' },
+  project: { marginRight: 4 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   trailing: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 4 },
 })

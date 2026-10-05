@@ -18,7 +18,7 @@ import { BAR_HEIGHT, BarButton, ChatBar } from '../chat/ChatBar'
 import { ChatMenu } from '../chat/ChatMenu'
 import { FileViewerContext } from '../chat/Chips'
 import { Composer } from '../chat/Composer'
-import { Dock, useModels, useReferences } from '../chat/NewChat'
+import { Dock, pendingSends, useModels, useReferences } from '../chat/NewChat'
 import { catalogItem, ComposerControls, type ControlChange } from '../chat/ComposerControls'
 import { ContextRing } from '../chat/ContextRing'
 import type { DecisionActions } from '../chat/DecisionBodies'
@@ -32,7 +32,7 @@ import { TranscriptLine } from '../chat/Transcript'
 import { Screen } from '../layout'
 import { MascotNote, MascotTransition } from '../mascot/Mascot'
 import { Notice, PhoneButton, ReadOnlyNotice } from '../parts'
-import { chatTitle, projectTitle } from '../rows'
+import { chatTitle, projectIcon, projectTitle } from '../rows'
 import { metrics } from '../theme'
 import { chatHref } from './HomeScreen'
 
@@ -53,6 +53,11 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const jumping = useRef(false)
   const [away, setAway] = useState(false)
   const [dockHeight, setDockHeight] = useState(0)
+  const [pendingSend, setPendingSend] = useState(() => pendingSends.get(key))
+
+  useEffect(() => {
+    pendingSends.delete(key)
+  }, [key])
 
   useEffect(() => {
     session.openChat(key)
@@ -213,7 +218,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
           )}
           <ChatBar
             title={title}
-            project={projectName}
+            project={project ? { title: projectName, icon: projectIcon(project) } : undefined}
             computer={computer.name}
             status={status}
             onBack={() => router.back()}
@@ -232,6 +237,9 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
             >
               <Composer
                 key={key}
+                autoFocus={pendingSend !== undefined}
+                pendingSend={pendingSend}
+                onPendingSettled={() => setPendingSend(undefined)}
                 running={isLive(chatState)}
                 canSend={ready}
                 canAttachFiles={models?.fileSystem === true}

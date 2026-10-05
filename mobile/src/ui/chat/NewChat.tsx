@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { BackHandler, Keyboard, KeyboardAvoidingView, LayoutAnimation, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { useComputer, useComputerLink } from '../../app-state/SessionContext'
-import { draftTitle, isEmptyDraft, type MessageDraft, type ReferenceEntry } from '../../core/draft'
+import { draftTitle, EMPTY_DRAFT, isEmptyDraft, type MessageDraft, type ReferenceEntry } from '../../core/draft'
 import { CantStartProjectError } from '../../core/session'
 import { computerStatus, projectById, type ComputerState, type ProjectModels } from '../../core/state'
 import { startConfig, type ChatControls, type NewChatChoices } from '../../core/threadConfig'
@@ -11,11 +11,13 @@ import { useI18n } from '../../i18n'
 import { Icon } from '../icons'
 import { MascotNote, MascotTransition } from '../mascot/Mascot'
 import { Txt } from '../parts'
-import { projectTitle } from '../rows'
+import { projectIcon, projectTitle } from '../rows'
 import { metrics, type, useTheme } from '../theme'
-import { Composer } from './Composer'
+import { Composer, type PendingSend } from './Composer'
 import { ComposerControls, defaultModel, type ControlChange } from './ComposerControls'
 import { ProjectPicker } from './ProjectPicker'
+
+export const pendingSends = new Map<string, PendingSend>()
 
 const FADE = 96
 const SEAM = 24
@@ -195,7 +197,6 @@ export function NewChatPane({
   const [picking, setPicking] = useState(false)
   const [choices, setChoices] = useState(UNTOUCHED)
   const [planMode, setPlanMode] = useState(false)
-  const created = useRef<string | null>(null)
   const project = projectById(state, projectId)
   const phase = state.phases[projectId]
   const ready = phase === 'ready'
@@ -225,9 +226,9 @@ export function NewChatPane({
     setSending(true)
     try {
       const config = startConfig({ touched: choices.touched, controls })
-      const key = created.current ?? (await session.newChat(projectId, draftTitle(message), planMode ? { ...config, mode: 'plan' } : config))
-      created.current = key
-      await session.send(key, message)
+      const key = await session.newChat(projectId, draftTitle(message), planMode ? { ...config, mode: 'plan' } : config)
+      pendingSends.set(key, { draft: message, sent: session.send(key, message) })
+      onDraft(EMPTY_DRAFT)
       onCreated(key)
     } catch (error) {
       setFailed(error instanceof CantStartProjectError)
@@ -257,7 +258,7 @@ export function NewChatPane({
             onPress={() => setPicking(true)}
             style={({ pressed }) => [styles.projectRow, pressed && { backgroundColor: colors.roundFill }]}
           >
-            <Icon name={project.isChats ? 'messagesSquare' : 'folder'} size={18} color={colors.textSecondary} strokeWidth={1.8} />
+            <Icon name={projectIcon(project)} size={18} color={colors.textSecondary} strokeWidth={1.8} />
             <Txt numberOfLines={1} style={styles.projectName}>
               {projectName}
             </Txt>
@@ -267,6 +268,7 @@ export function NewChatPane({
             running={false}
             autoFocus
             initialDraft={draft}
+            clearOnSend={false}
             onDraftChange={onDraft}
             canSend={online && !starting && !cantStart}
             canAttachFiles={models?.fileSystem === true}
