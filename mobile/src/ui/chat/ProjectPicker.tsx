@@ -17,8 +17,6 @@ export function ProjectPicker({ state, visible, onClose, onPick }: { state: Mobi
             key={project.id}
             project={project}
             meta={index === 0 ? t(project.running ? 'picker.lastUsed' : 'picker.lastUsedNotRunning') : undefined}
-            running={false}
-            live
             onPress={() => onPick(project.id)}
           />
         ))}

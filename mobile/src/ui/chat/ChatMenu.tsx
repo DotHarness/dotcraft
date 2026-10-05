@@ -1,23 +1,13 @@
+import * as Clipboard from 'expo-clipboard'
 import { useState } from 'react'
-import { StyleSheet, TextInput, View } from 'react-native'
+import { StyleSheet, TextInput } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useI18n } from '../../i18n'
-import type { IconName } from '../icons'
+import { MenuRow, PopoverMenu } from '../Menu'
 import { PhoneButton } from '../parts'
 import { SheetHeader, SheetLayer } from '../Sheet'
 import { metrics, type, useTheme } from '../theme'
-
-function MenuRow({ icon, label, disabled, onPress }: { icon: IconName; label: string; disabled?: boolean; onPress: () => void }) {
-  return (
-    <PhoneButton variant="ghost" icon={icon} disabled={disabled} onPress={onPress} style={styles.row}>
-      {label}
-    </PhoneButton>
-  )
-}
-
-function Separator() {
-  const { colors } = useTheme()
-  return <View style={[styles.separator, { backgroundColor: colors.borderDefault }]} />
-}
+import { BAR_HEIGHT } from './ChatBar'
 
 function RenameForm({ title, onSave }: { title: string; onSave: (title: string) => void }) {
   const { t } = useI18n()
@@ -51,66 +41,62 @@ function RenameForm({ title, onSave }: { title: string; onSave: (title: string) 
 export function ChatMenu({
   visible,
   title,
+  chatId,
   ready,
   canFork,
-  stoppable,
   onClose,
   onRename,
   onFork,
   onArchive,
-  onOpenProject,
-  onStop,
 }: {
   visible: boolean
   title: string
+  chatId: string
   ready: boolean
   canFork: boolean
-  stoppable: boolean
   onClose: () => void
   onRename: (title: string) => void
   onFork: () => void
   onArchive: () => void
-  onOpenProject: () => void
-  onStop: () => void
 }) {
   const { t } = useI18n()
+  const insets = useSafeAreaInsets()
   const [renaming, setRenaming] = useState(false)
-  const close = () => {
-    setRenaming(false)
-    onClose()
-  }
   const pick = (action: () => void) => () => {
-    close()
+    onClose()
     action()
   }
   return (
-    <SheetLayer visible={visible} onClose={close}>
-      <SheetHeader title={renaming ? t('chat.rename') : title} />
-      {renaming ? (
-        <RenameForm
-          title={title}
-          onSave={(name) => {
-            close()
-            onRename(name)
-          }}
-        />
-      ) : (
-        <View style={styles.menu}>
-          <MenuRow icon="pencil" label={t('chat.rename')} disabled={!ready} onPress={() => setRenaming(true)} />
-          {canFork ? <MenuRow icon="gitFork" label={t('chat.fork')} disabled={!ready} onPress={pick(onFork)} /> : null}
-          <MenuRow icon="archive" label={t('chat.archive')} disabled={!ready} onPress={pick(onArchive)} />
-          <Separator />
-          <MenuRow icon="folder" label={t('chat.openProject')} onPress={pick(onOpenProject)} />
-          {stoppable ? <MenuRow icon="circleStop" label={t('composer.stop')} onPress={pick(onStop)} /> : null}
-        </View>
-      )}
-    </SheetLayer>
+    <>
+      <PopoverMenu
+        visible={visible}
+        label={t('chat.menu')}
+        title={title}
+        anchor={{ top: insets.top + BAR_HEIGHT + 12 }}
+        align="end"
+        onClose={onClose}
+      >
+        <MenuRow icon="copy" label={t('chat.copyId')} onPress={pick(() => void Clipboard.setStringAsync(chatId))} />
+        <MenuRow icon="pencil" label={t('chat.rename')} disabled={!ready} onPress={pick(() => setRenaming(true))} />
+        {canFork ? <MenuRow icon="gitFork" label={t('chat.fork')} disabled={!ready} onPress={pick(onFork)} /> : null}
+        <MenuRow icon="archive" label={t('chat.archive')} danger disabled={!ready} onPress={pick(onArchive)} />
+      </PopoverMenu>
+      <SheetLayer visible={renaming} onClose={() => setRenaming(false)}>
+        <SheetHeader title={t('chat.rename')} />
+        {renaming ? (
+          <RenameForm
+            title={title}
+            onSave={(name) => {
+              setRenaming(false)
+              onRename(name)
+            }}
+          />
+        ) : null}
+      </SheetLayer>
+    </>
   )
 }
 
 const styles = StyleSheet.create({
-  menu: { marginHorizontal: -8 },
-  row: { alignItems: 'flex-start', borderRadius: metrics.rowRadius, paddingHorizontal: 12 },
-  separator: { height: StyleSheet.hairlineWidth, marginVertical: 4, marginHorizontal: 12 },
   input: { height: metrics.touch, paddingHorizontal: 16, borderWidth: 1, borderRadius: metrics.pill, outlineWidth: 0 },
 })

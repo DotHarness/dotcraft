@@ -56,10 +56,11 @@ export const MESSAGES_EN = {
   'toolGroup.webUsed': 'Used the web {{count}} times',
   'chat.copy': 'Copy',
   'chat.menu': 'More',
+  'chat.copyId': 'Copy session ID',
+  'chat.scrollToBottom': 'Scroll to bottom',
   'chat.rename': 'Rename',
   'chat.fork': 'Fork',
   'chat.archive': 'Archive',
-  'chat.openProject': 'Open project',
 
   'tool.ran': 'Ran {{subject}}',
   'tool.edited': 'Edited {{subject}}',
@@ -257,7 +258,8 @@ export const MESSAGES_EN = {
   'live.needsYouOne': '{{count}} needs you',
   'live.needsYouMany': '{{count}} need you',
   'live.idle': 'Nothing running',
-  'live.end': 'End',
+  'live.replying': 'Replying…',
+  'live.end': 'Disconnect',
 
   'time.justNow': 'just now',
   'time.minutes': '{{count}} min ago',

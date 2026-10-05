@@ -364,6 +364,7 @@ function MessageStreamContent(): JSX.Element {
         <ScrollToBottomButton
           onClick={scrollToBottom}
           bottomOffsetPx={scrollButtonBottomOffsetPx}
+          working={turnStatus === 'running'}
         />
       )}
     </div>

@@ -43,6 +43,8 @@ export function Composer({
   running,
   controls,
   autoFocus = false,
+  initialDraft = EMPTY_DRAFT,
+  onDraftChange,
   canSend,
   canAttachFiles,
   canPlan,
@@ -55,6 +57,8 @@ export function Composer({
   running: boolean
   controls?: ReactNode
   autoFocus?: boolean
+  initialDraft?: MessageDraft
+  onDraftChange?: (draft: MessageDraft) => void
   canSend: boolean
   canAttachFiles: boolean
   canPlan: boolean
@@ -66,7 +70,7 @@ export function Composer({
 }) {
   const { t } = useI18n()
   const { colors } = useTheme()
-  const [draft, setDraft] = useState<MessageDraft>(EMPTY_DRAFT)
+  const [draft, setDraft] = useState<MessageDraft>(initialDraft)
   const [cursor, setCursor] = useState<number | null>(null)
   const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(undefined)
   const [focused, setFocused] = useState(false)
@@ -77,6 +81,10 @@ export function Composer({
   const empty = isEmptyDraft(draft)
   const match = referencePicker(draft, cursor ?? draft.text.length)
   const matches = match ? matchingEntries(references, match) : []
+
+  useEffect(() => {
+    onDraftChange?.(draft)
+  }, [draft, onDraftChange])
 
   useEffect(() => {
     const hidden = Keyboard.addListener('keyboardDidHide', () => input.current?.blur())

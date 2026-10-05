@@ -41,7 +41,7 @@ export function ChatBar({
   onBack,
 }: {
   title: string
-  project: string
+  project?: string
   computer: string
   status: ComputerStatus
   trailing?: ReactNode
@@ -67,10 +67,14 @@ export function ChatBar({
           {title}
         </Txt>
         <View style={styles.metaRow}>
-          <Icon name="folder" size={12} color={colors.textSecondary} strokeWidth={2} />
-          <Text numberOfLines={1} style={[...meta, styles.project]}>
-            {project}
-          </Text>
+          {project ? (
+            <>
+              <Icon name="folder" size={12} color={colors.textSecondary} strokeWidth={2} />
+              <Text numberOfLines={1} style={[...meta, styles.project]}>
+                {project}
+              </Text>
+            </>
+          ) : null}
           <Icon name="monitor" size={12} color={colors.textSecondary} strokeWidth={2} />
           <StatusDot status={status} />
           <Text numberOfLines={1} style={meta}>

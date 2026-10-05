@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { stateOf, type ChatSummary, type ProjectInfo } from '../core/state'
 import { useI18n, type I18n } from '../i18n'
 import { Icon } from './icons'
-import { RowChevron, StateMark, STATE_LABEL, Txt } from './parts'
+import { StateMark, STATE_LABEL, Txt } from './parts'
 import { metrics, useTheme } from './theme'
 
 export function projectTitle(project: ProjectInfo, t: I18n['t']): string {
@@ -80,19 +80,7 @@ export function ChatRow({
   )
 }
 
-export function ProjectRow({
-  project,
-  meta,
-  running,
-  live,
-  onPress,
-}: {
-  project: ProjectInfo
-  meta?: string
-  running: boolean
-  live: boolean
-  onPress: () => void
-}) {
+export function ProjectRow({ project, meta, onPress }: { project: ProjectInfo; meta?: string; onPress: () => void }) {
   const { t } = useI18n()
   const { colors } = useTheme()
   const note = meta ?? (project.running ? undefined : t('project.notRunning'))
@@ -103,12 +91,6 @@ export function ProjectRow({
       lead={<Icon name={project.isChats ? 'messagesSquare' : 'folder'} size={20} color={colors.textSecondary} strokeWidth={1.7} />}
       title={projectTitle(project, t)}
       meta={note}
-      trail={
-        <>
-          {running ? <StateMark state="running" live={live} /> : null}
-          <RowChevron />
-        </>
-      }
     />
   )
 }

@@ -11,7 +11,7 @@ import {
   type TranscriptEntry,
 } from '../../core/transcript'
 import type { UserSegment } from '../../core/userSegments'
-import { useI18n } from '../../i18n'
+import { useI18n, type I18n } from '../../i18n'
 import type { MessageId } from '../../i18n/messages/en'
 import { Icon, type IconName } from '../icons'
 import { Spinner, Txt } from '../parts'
@@ -47,6 +47,11 @@ const TOOL_PENDING_TEXT: Record<Exclude<ToolVerb, 'used'>, MessageId> = {
   edited: 'tool.editing',
   read: 'tool.reading',
   searched: 'tool.searching',
+}
+
+export function toolText(verb: ToolVerb, subject: string | null, t: I18n['t']): string {
+  if (subject === null && verb !== 'used') return t(TOOL_PENDING_TEXT[verb])
+  return t(TOOL_TEXT[verb], { subject: subject ?? '' })
 }
 
 const GROUP_TEXT: Record<ToolGroupLabel['kind'], MessageId> = {

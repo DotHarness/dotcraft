@@ -33,16 +33,22 @@ internal object LiveNotifications {
   }
 
   fun ongoing(context: Context): Notification {
-    val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+    val open = if (ongoing.url.isEmpty()) {
+      context.packageManager.getLaunchIntentForPackage(context.packageName)
+    } else {
+      Intent(Intent.ACTION_VIEW, Uri.parse(ongoing.url)).setPackage(context.packageName)
+    }
     return NotificationCompat.Builder(context, SESSION_CHANNEL)
       .setSmallIcon(R.drawable.live_session_icon)
       .setContentTitle(ongoing.title)
       .setContentText(ongoing.text)
+      .setSubText(ongoing.subText.ifEmpty { null })
+      .setShortCriticalText(ongoing.chip.ifEmpty { null })
       .setOngoing(true)
       .setOnlyAlertOnce(true)
       .setRequestPromotedOngoing(true)
       .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-      .setContentIntent(launch?.let { PendingIntent.getActivity(context, 0, it, FLAGS) })
+      .setContentIntent(open?.let { PendingIntent.getActivity(context, 0, it, FLAGS) })
       .addAction(0, ongoing.end, action(context, "ongoing", "end", null, null))
       .build()
   }

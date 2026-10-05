@@ -3,6 +3,9 @@ import { NativeModule, requireNativeModule } from 'expo'
 interface LiveOngoing {
   title: string
   text: string
+  subText: string
+  chip: string
+  url: string
   end: string
 }
 

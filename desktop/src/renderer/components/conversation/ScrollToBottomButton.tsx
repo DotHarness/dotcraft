@@ -1,12 +1,14 @@
 import { ArrowDown } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import styles from './ScrollToBottomButton.module.css'
 
 interface ScrollToBottomButtonProps {
   onClick: () => void
   bottomOffsetPx?: number
+  working?: boolean
 }
 
-export function ScrollToBottomButton({ onClick, bottomOffsetPx = 10 }: ScrollToBottomButtonProps): JSX.Element {
+export function ScrollToBottomButton({ onClick, bottomOffsetPx = 10, working = false }: ScrollToBottomButtonProps): JSX.Element {
   return (
     <ActionTooltip
       label="Scroll to bottom"
@@ -40,7 +42,15 @@ export function ScrollToBottomButton({ onClick, bottomOffsetPx = 10 }: ScrollToB
           transition: 'background-color 100ms ease, color 100ms ease, transform 100ms ease'
         }}
       >
-        <ArrowDown size={18} strokeWidth={1.9} aria-hidden="true" />
+        {working ? (
+          <span className={styles.dots} aria-hidden="true">
+            <span className={styles.dot} />
+            <span className={styles.dot} />
+            <span className={styles.dot} />
+          </span>
+        ) : (
+          <ArrowDown size={18} strokeWidth={1.9} aria-hidden="true" />
+        )}
       </button>
     </ActionTooltip>
   )

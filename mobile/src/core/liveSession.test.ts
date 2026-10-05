@@ -84,7 +84,8 @@ describe('starting a live session', () => {
     const computer = createStudio(new Date())
     const { notifier, state } = await backgrounded(computer)
     expect(notifier.prepared).toBe(1)
-    expect(notifier.statuses[0]).toEqual({ computer: 'Studio PC', running: 3, needsYou: 3, reachable: true })
+    expect(notifier.statuses[0]).toMatchObject({ computer: 'Studio PC', running: 3, needsYou: 3, reachable: true })
+    await waitFor(() => notifier.statuses.at(-1)?.focus?.request != null)
     expect(state().link).toBe('online')
     expect(computer.connectionCount).toBeGreaterThan(0)
   })
@@ -168,7 +169,7 @@ describe('ending a live session', () => {
     const { notifier, state, timers, session } = await backgrounded(computer)
     computer.reachable = false
     computer.dropConnections()
-    await waitFor(() => state().link === 'offline')
+    await waitFor(() => state().link === 'connecting' && session.reconnectPending)
     expect(notifier.statuses.at(-1)).toMatchObject({ reachable: false })
     timers.fire(LIVE_END_MS)
     expect(notifier.stopped).toBe(1)

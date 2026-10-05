@@ -58,10 +58,11 @@ export const MESSAGES_KO: Catalog = {
   'toolGroup.webUsed': '웹을 {{count}}회 사용함',
   'chat.copy': '복사',
   'chat.menu': '더 보기',
+  'chat.copyId': '세션 ID 복사',
+  'chat.scrollToBottom': '맨 아래로 스크롤',
   'chat.rename': '이름 바꾸기',
   'chat.fork': 'Fork',
   'chat.archive': '보관',
-  'chat.openProject': '프로젝트 열기',
 
   'tool.ran': '{{subject}} 실행함',
   'tool.edited': '{{subject}} 편집함',
@@ -259,7 +260,8 @@ export const MESSAGES_KO: Catalog = {
   'live.needsYouOne': '{{count}}개 확인 필요',
   'live.needsYouMany': '{{count}}개 확인 필요',
   'live.idle': '실행 중인 채팅 없음',
-  'live.end': '종료',
+  'live.replying': '답변 중…',
+  'live.end': '연결 끊기',
 
   'time.justNow': '방금',
   'time.minutes': '{{count}}분 전',

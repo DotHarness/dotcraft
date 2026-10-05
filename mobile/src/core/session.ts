@@ -79,7 +79,7 @@ export class MobileSession {
   constructor(private readonly platform: SessionPlatform) {
     this.sockets = new PinnedSockets(platform.native)
     this.timers = platform.timers ?? systemTimers
-    this.reconnector = new Reconnector(() => void this.connect(), this.timers, platform.random)
+    this.reconnector = new Reconnector(() => void this.connect(true), this.timers, platform.random)
     this.store.subscribe(() => this.scheduleSave())
     this.live = platform.live
       ? new LiveSession(platform.live, {
@@ -127,12 +127,12 @@ export class MobileSession {
     return generation !== this.generation
   }
 
-  async connect(): Promise<void> {
+  async connect(quiet = false): Promise<void> {
     const gateway = this.gateway
     if (!gateway || !this.awake || this.state.identityChanged) return
     this.halt()
     const generation = this.generation
-    this.dispatch({ type: 'link', link: 'connecting' })
+    if (!quiet) this.dispatch({ type: 'link', link: 'connecting' })
     try {
       const hello = await gateway.hello()
       if (this.stale(generation)) return
@@ -192,9 +192,10 @@ export class MobileSession {
   }
 
   private lose(): void {
+    const dropped = this.state.link === 'online'
     this.halt()
     this.dispatch({ type: 'syncing', value: false })
-    this.dispatch({ type: 'link', link: 'offline' })
+    this.dispatch({ type: 'link', link: dropped ? 'connecting' : 'offline' })
     this.reconnector.schedule()
   }
 
@@ -361,8 +362,9 @@ export class MobileSession {
 
   networkChanged(): void {
     if (!this.awake || !this.state.computer || this.state.identityChanged) return
-    if (this.state.link === 'online' || this.state.link === 'connecting') return
-    this.reconnector.now()
+    if (this.state.link === 'online' || (this.state.link === 'connecting' && !this.reconnector.pending)) return
+    this.reconnector.reset()
+    void this.connect()
   }
 
   private openThreads(projectId: string): string[] {

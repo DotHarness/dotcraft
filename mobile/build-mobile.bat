@@ -75,7 +75,7 @@ cd /d "%~dp0android"
 if errorlevel 1 goto :failure
 
 echo Building Android Release APK...
-call gradlew.bat assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+call .\gradlew.bat assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
 if errorlevel 1 goto :failure
 
 if not exist "app\build\outputs\apk\release\app-release.apk" (

@@ -58,10 +58,11 @@ export const MESSAGES_DE: Catalog = {
   'toolGroup.webUsed': '{{count}}-mal das Web genutzt',
   'chat.copy': 'Kopieren',
   'chat.menu': 'Mehr',
+  'chat.copyId': 'Sitzungs-ID kopieren',
+  'chat.scrollToBottom': 'Nach unten scrollen',
   'chat.rename': 'Umbenennen',
   'chat.fork': 'Fork',
   'chat.archive': 'Archivieren',
-  'chat.openProject': 'Projekt öffnen',
 
   'tool.ran': '{{subject}} ausgeführt',
   'tool.edited': '{{subject}} bearbeitet',
@@ -259,7 +260,8 @@ export const MESSAGES_DE: Catalog = {
   'live.needsYouOne': '{{count}} wartet auf Sie',
   'live.needsYouMany': '{{count}} warten auf Sie',
   'live.idle': 'Nichts läuft',
-  'live.end': 'Beenden',
+  'live.replying': 'Antwortet…',
+  'live.end': 'Trennen',
 
   'time.justNow': 'gerade eben',
   'time.minutes': 'vor {{count}} Min.',

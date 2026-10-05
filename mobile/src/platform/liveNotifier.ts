@@ -1,27 +1,61 @@
 import { File, Paths } from 'expo-file-system'
 import { AppRegistry, PermissionsAndroid, Platform } from 'react-native'
 import LiveSession from '../../modules/live-session'
-import type { LiveNotice, LiveNotifier, LiveStatus } from '../core/liveSession'
+import type { LiveFocus, LiveNotice, LiveNotifier, LiveStatus } from '../core/liveSession'
+import type { ChatSummary, PendingRequest } from '../core/state'
 import { deviceI18n, type I18n } from '../i18n'
 import { approvalTitle, subjectOf } from '../ui/chat/approvalText'
+import { toolText } from '../ui/chat/Transcript'
+import { STATE_LABEL } from '../ui/parts'
 import { chatTitle } from '../ui/rows'
 
 // The native live session keeps this task open to run JS timers in the background, and finishes it when the session stops.
 AppRegistry.registerHeadlessTask('DotCraftLiveSession', () => () => new Promise<void>(() => undefined))
 
-function ongoing({ t }: I18n, status: LiveStatus) {
+function chatUrl({ projectId, threadId }: ChatSummary): string {
+  return `dotcraft://chat/${encodeURIComponent(projectId)}/${encodeURIComponent(threadId)}`
+}
+
+function requestText({ t }: I18n, request: PendingRequest): string {
+  if (request.kind === 'question') return request.questions[0]?.question || t('state.needsAnswer')
+  return `${approvalTitle(request, t)} ${subjectOf(request)}`
+}
+
+function focusText(i18n: I18n, focus: LiveFocus): string {
+  const { t } = i18n
+  if (focus.request) return requestText(i18n, focus.request)
+  switch (focus.activity?.kind) {
+    case 'tool':
+      return toolText(focus.activity.verb, focus.activity.subject, t)
+    case 'thinking':
+      return t('chat.thinking')
+    case 'replying':
+      return t('live.replying')
+    default:
+      return t(STATE_LABEL[focus.state])
+  }
+}
+
+function ongoing(i18n: I18n, status: LiveStatus) {
+  const { t } = i18n
+  const { focus } = status
   const parts: string[] = []
   if (status.running > 0) parts.push(t('live.running', { count: status.running }))
   if (status.needsYou > 0) parts.push(t(status.needsYou === 1 ? 'live.needsYouOne' : 'live.needsYouMany', { count: status.needsYou }))
-  const text = !status.reachable ? t('status.connecting') : parts.length > 0 ? parts.join(' · ') : t('live.idle')
-  return { title: status.computer, text, end: t('live.end') }
+  const text = !status.reachable ? t('status.connecting') : focus ? focusText(i18n, focus) : t('live.idle')
+  return {
+    title: focus ? chatTitle(focus.chat, t('chat.untitled')) : status.computer,
+    text,
+    subText: status.running + status.needsYou > 1 ? parts.join(' · ') : status.computer,
+    chip: !status.reachable ? t('status.connecting') : focus ? t(STATE_LABEL[focus.state]) : '',
+    url: focus ? chatUrl(focus.chat) : '',
+    end: t('live.end'),
+  }
 }
 
-function noticeText({ t }: I18n, notice: LiveNotice): string {
-  if (notice.kind === 'turnEnded') return t(notice.failed ? 'state.failed' : 'state.done')
-  const { request } = notice
-  if (request.kind === 'question') return request.questions[0]?.question || t('state.needsAnswer')
-  return `${approvalTitle(request, t)} ${subjectOf(request)}`
+function noticeText(i18n: I18n, notice: LiveNotice): string {
+  if (notice.kind === 'turnEnded') return i18n.t(notice.failed ? 'state.failed' : 'state.done')
+  return requestText(i18n, notice.request)
 }
 
 export const liveNotifier: LiveNotifier = {
@@ -40,14 +74,14 @@ export const liveNotifier: LiveNotifier = {
   stop: () => LiveSession.stop(),
   post(notice) {
     const i18n = deviceI18n()
-    const { key, projectId, threadId } = notice.chat
+    const { key } = notice.chat
     const approval = notice.kind === 'request' && notice.request.kind === 'approval' ? notice.request : null
     LiveSession.post({
       id: notice.id,
       channel: notice.kind === 'request' ? 'requests' : 'results',
       title: chatTitle(notice.chat, i18n.t('chat.untitled')),
       text: noticeText(i18n, notice),
-      url: `dotcraft://chat/${encodeURIComponent(projectId)}/${encodeURIComponent(threadId)}`,
+      url: chatUrl(notice.chat),
       alert: notice.kind === 'request' ? notice.alert : true,
       ...(approval ? { key, requestId: approval.requestId, allow: i18n.t('approval.allowOnce'), reject: i18n.t('approval.reject') } : {}),
     })

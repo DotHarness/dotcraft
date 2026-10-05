@@ -1,16 +1,15 @@
 import { useRouter } from 'expo-router'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Keyboard, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useMobileState, useSession } from '../../app-state/SessionContext'
 import { awaitsPlanConfirmation, isLive, type ChatState } from '../../core/chatState'
 import { usedShare } from '../../core/contextUsage'
 import { waitingDecisions } from '../../core/decisions'
-import { draftTitle, plainMessage, type MessageDraft, type ReferenceEntry } from '../../core/draft'
-import { CantStartProjectError } from '../../core/session'
-import { chatKey, computerStatus, isReachable, projectById, projectChats, stateOf, type PendingRequest, type ProjectModels } from '../../core/state'
+import { plainMessage } from '../../core/draft'
+import { chatKey, computerStatus, isReachable, projectById, stateOf, type PendingRequest } from '../../core/state'
 import { workspaceFile } from '../../core/links'
-import { controlsOf, offersPlanMode, startConfig, type ChatControls, type NewChatChoices } from '../../core/threadConfig'
+import { controlsOf, offersPlanMode, type ChatControls } from '../../core/threadConfig'
 import { buildTranscript } from '../../core/transcript'
 import { latestChanges } from '../../core/turnChanges'
 import { useI18n } from '../../i18n'
@@ -19,55 +18,23 @@ import { BAR_HEIGHT, BarButton, ChatBar } from '../chat/ChatBar'
 import { ChatMenu } from '../chat/ChatMenu'
 import { FileViewerContext } from '../chat/Chips'
 import { Composer } from '../chat/Composer'
-import { catalogItem, ComposerControls, defaultModel, type ControlChange } from '../chat/ComposerControls'
+import { Dock, useModels, useReferences } from '../chat/NewChat'
+import { catalogItem, ComposerControls, type ControlChange } from '../chat/ComposerControls'
 import { ContextRing } from '../chat/ContextRing'
 import type { DecisionActions } from '../chat/DecisionBodies'
 import { DecisionCard } from '../chat/DecisionCard'
 import { FileSheet } from '../chat/FileSheet'
 import { imageScope } from '../../core/imageCache'
 import { ImageReaderContext } from '../chat/Images'
-import { ProjectPicker } from '../chat/ProjectPicker'
+import { ScrollToBottom } from '../chat/ScrollToBottom'
 import { StatusPopover } from '../chat/StatusPopover'
 import { TranscriptLine } from '../chat/Transcript'
 import { Screen } from '../layout'
 import { MascotNote, MascotTransition } from '../mascot/Mascot'
-import { Icon } from '../icons'
-import { Notice, PhoneButton, ReadOnlyNotice, Section, Txt } from '../parts'
-import { ChatRow, chatTitle, projectTitle } from '../rows'
-import { metrics, useTheme } from '../theme'
+import { Notice, PhoneButton, ReadOnlyNotice } from '../parts'
+import { chatTitle, projectTitle } from '../rows'
+import { metrics } from '../theme'
 import { chatHref } from './HomeScreen'
-
-function Dock({ children }: { children: ReactNode }) {
-  const { colors } = useTheme()
-  const insets = useSafeAreaInsets()
-  return <View style={[styles.dock, { paddingBottom: insets.bottom + 6, backgroundColor: colors.bgPrimary }]}>{children}</View>
-}
-
-function useModels(projectId: string, ready: boolean, providerId: string | null): ProjectModels | undefined {
-  const session = useSession()
-  const models = useMobileState().models[projectId]
-  const listable = ready && models?.canListModels === true
-  const loaded = providerId ? Boolean(models?.catalogs[providerId]) : false
-  useEffect(() => {
-    if (!listable) return
-    void session.loadModels(projectId).catch(() => undefined)
-    if (providerId && !loaded) void session.loadModels(projectId, providerId).catch(() => undefined)
-  }, [listable, loaded, projectId, providerId, session])
-  return models
-}
-
-const NO_REFERENCES: ReferenceEntry[] = []
-
-function useReferences(projectId: string, ready: boolean): ReferenceEntry[] {
-  const session = useSession()
-  const state = useMobileState()
-  const models = state.models[projectId]
-  const listable = ready && (models?.canListCommands === true || models?.canListSkills === true)
-  useEffect(() => {
-    if (listable) void session.loadReferences(projectId).catch(() => undefined)
-  }, [listable, projectId, session])
-  return state.references[projectId] ?? NO_REFERENCES
-}
 
 export function ChatScreen({ projectId, threadId }: { projectId: string; threadId: string }) {
   const key = chatKey(projectId, threadId)
@@ -82,6 +49,8 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const [openPath, setOpenPath] = useState<string | null>(null)
   const scroller = useRef<ScrollView>(null)
   const pinned = useRef(true)
+  const [away, setAway] = useState(false)
+  const [dockHeight, setDockHeight] = useState(0)
 
   useEffect(() => {
     session.openChat(key)
@@ -123,11 +92,12 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   )
   const openFile = models?.fileSystem === true ? setOpenPath : null
   const workspacePath = detail?.workspacePath ?? null
+  const docked = !catchingUp && live && !decision
+  const inset = docked ? dockHeight : insets.bottom
   const signsIn = models?.providers.find((provider) => provider.id === controls.providerId)?.signsIn === true
 
   if (!computer) return <Screen>{null}</Screen>
   const title = chat ? chatTitle(chat, t('chat.untitled')) : t('chat.untitled')
-  const stoppable = live && isLive(chatState)
 
   const openStatus = () => {
     setStatusOpen(true)
@@ -159,7 +129,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
             <ScrollView
               ref={scroller}
               style={styles.fill}
-              contentContainerStyle={[styles.transcript, (!live || decision) && { paddingBottom: insets.bottom + 16 }]}
+              contentContainerStyle={[styles.transcript, { paddingBottom: inset + (docked ? 32 : 16) }]}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
@@ -167,6 +137,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
               onScroll={({ nativeEvent }) => {
                 const { contentSize, contentOffset, layoutMeasurement } = nativeEvent
                 pinned.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 48
+                setAway(!pinned.current)
               }}
               onContentSizeChange={() => {
                 if (pinned.current) scroller.current?.scrollToEnd({ animated: false })
@@ -228,33 +199,43 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
               </>
             }
           />
-        </View>
-
-        {!catchingUp && live && !decision ? (
-          <Dock>
-            {changes ? <ChangesPill changes={changes} onPress={() => setChangesOpen(true)} /> : null}
-            <Composer
-              key={key}
-              running={isLive(chatState)}
-              canSend={ready}
-              canAttachFiles={models?.fileSystem === true}
-              canPlan={canPlan}
-              references={references}
-              planMode={planMode}
-              onPlanMode={(on) => session.setMode(key, on ? 'plan' : 'agent')}
-              controls={<ComposerControls projectId={projectId} controls={controls} models={models} onChange={change} />}
-              onSend={(draft) => session.send(key, draft)}
-              onStop={() => void session.stop(key).catch(() => undefined)}
+          {docked ? (
+            <Dock
+              floating
+              above={changes ? <ChangesPill changes={changes} onPress={() => setChangesOpen(true)} /> : null}
+              onLayout={({ nativeEvent }) => setDockHeight(nativeEvent.layout.height)}
+            >
+              <Composer
+                key={key}
+                running={isLive(chatState)}
+                canSend={ready}
+                canAttachFiles={models?.fileSystem === true}
+                canPlan={canPlan}
+                references={references}
+                planMode={planMode}
+                onPlanMode={(on) => session.setMode(key, on ? 'plan' : 'agent')}
+                controls={<ComposerControls projectId={projectId} controls={controls} models={models} onChange={change} />}
+                onSend={(draft) => session.send(key, draft)}
+                onStop={() => void session.stop(key).catch(() => undefined)}
+              />
+            </Dock>
+          ) : null}
+          {catchingUp ? null : (
+            <ScrollToBottom
+              visible={away}
+              working={isLive(chatState)}
+              bottom={inset + 16}
+              onPress={() => scroller.current?.scrollToEnd({ animated: true })}
             />
-          </Dock>
-        ) : null}
+          )}
+        </View>
       </KeyboardAvoidingView>
       <ChatMenu
         visible={menuOpen}
         title={title}
+        chatId={threadId}
         ready={live && ready}
         canFork={models?.canFork === true}
-        stoppable={stoppable}
         onClose={() => setMenuOpen(false)}
         onRename={(name) => void session.rename(key, name).catch(() => undefined)}
         onFork={() => void session.fork(key).then((forked) => router.replace(chatHref(forked)), () => undefined)}
@@ -262,8 +243,6 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
           router.back()
           void session.archive(key).catch(() => undefined)
         }}
-        onOpenProject={() => router.push({ pathname: '/new/[projectId]', params: { projectId } })}
-        onStop={() => void session.stop(key).catch(() => undefined)}
       />
       <StatusPopover
         visible={statusOpen}
@@ -286,178 +265,8 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   )
 }
 
-const UNTOUCHED: NewChatChoices = {
-  touched: {},
-  controls: { providerId: null, model: null, reasoning: 'default', speed: 'standard', approvalPolicy: 'prompt' },
-}
-
-function chosen(previous: NewChatChoices, change: ControlChange): NewChatChoices {
-  const { touched, controls } = previous
-  switch (change.kind) {
-    case 'provider':
-      return {
-        touched: { approval: touched.approval },
-        controls: { ...controls, providerId: change.providerId, model: null, reasoning: 'default', speed: 'standard' },
-      }
-    case 'model':
-      return {
-        touched: { approval: touched.approval },
-        controls: { ...controls, providerId: change.providerId, model: change.model, reasoning: 'default', speed: 'standard' },
-      }
-    case 'reasoning':
-      return { touched: { ...touched, reasoning: true }, controls: { ...controls, reasoning: change.value } }
-    case 'speed':
-      return { touched: { ...touched, speed: true }, controls: { ...controls, speed: change.speed } }
-    case 'approval':
-      return { touched: { ...touched, approval: true }, controls: { ...controls, approvalPolicy: change.policy } }
-  }
-}
-
-export function NewChatScreen({ projectId, focus = false }: { projectId: string; focus?: boolean }) {
-  const state = useMobileState()
-  const session = useSession()
-  const router = useRouter()
-  const { t } = useI18n()
-  const { colors } = useTheme()
-  const [failed, setFailed] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [picking, setPicking] = useState(false)
-  const [choices, setChoices] = useState(UNTOUCHED)
-  const [planMode, setPlanMode] = useState(false)
-  const created = useRef<string | null>(null)
-  const project = projectById(state, projectId)
-  const projectName = project ? projectTitle(project, t) : ''
-  const phase = state.phases[projectId]
-  const ready = phase === 'ready'
-  const models = useModels(projectId, ready, choices.controls.providerId)
-  const references = useReferences(projectId, ready)
-  const chats = useMemo(() => projectChats(state, projectId), [state, projectId])
-  const computer = state.computer
-  const status = computerStatus(state)
-  const online = status === 'online'
-  const needsStart = Boolean(project && !project.running && online && phase !== 'cantStart')
-
-  useEffect(() => {
-    if (needsStart && phase !== 'starting') void session.startProject(projectId)
-  }, [needsStart, phase, projectId, session])
-
-  if (!computer || !project) return <Screen>{null}</Screen>
-  const providerId = choices.controls.providerId ?? models?.defaultProviderId ?? null
-  const controls: ChatControls = { ...choices.controls, providerId, model: choices.controls.model ?? defaultModel(models, providerId) }
-  const starting = sending ? !project.running : needsStart || phase === 'starting'
-  const cantStart = failed || phase === 'cantStart'
-
-  async function send(draft: MessageDraft) {
-    setSending(true)
-    try {
-      const config = startConfig({ touched: choices.touched, controls })
-      const key = created.current ?? (await session.newChat(projectId, draftTitle(draft), planMode ? { ...config, mode: 'plan' } : config))
-      created.current = key
-      await session.send(key, draft)
-      router.replace(chatHref(key))
-    } catch (error) {
-      setFailed(error instanceof CantStartProjectError)
-      throw error
-    } finally {
-      setSending(false)
-    }
-  }
-
-  return (
-    <Screen>
-      <KeyboardAvoidingView style={styles.fill} behavior="padding">
-        <View style={styles.fill}>
-          {starting ? (
-            <MascotTransition line={t('project.starting', { project: projectName })} />
-          ) : cantStart ? (
-            <MascotNote moment="asleep">{t('project.cantStart', { computer: computer.name, project: projectName })}</MascotNote>
-          ) : chats.length > 0 ? (
-            <ScrollView style={styles.fill} contentContainerStyle={styles.welcome} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-              <Section title={t('home.recent')} grow>
-                {chats.map((chat) => (
-                  <ChatRow key={chat.key} chat={chat} live={online} projectName={null} onPress={() => router.push(chatHref(chat.key))} />
-                ))}
-              </Section>
-            </ScrollView>
-          ) : (
-            <Pressable accessible={false} onPress={Keyboard.dismiss} style={[styles.fill, styles.emptyBody]}>
-              <MascotNote moment="greeting">
-                {project.running
-                  ? t('newChat.runsOn', { computer: computer.name, project: projectName })
-                  : t('newChat.startsOn', { computer: computer.name, project: projectName })}
-              </MascotNote>
-            </Pressable>
-          )}
-          <ChatBar title={t('newChat.title')} project={projectName} computer={computer.name} status={status} onBack={() => router.back()} />
-        </View>
-        <Dock>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${t('picker.title')}: ${projectName}`}
-            onPress={() => setPicking(true)}
-            style={({ pressed }) => [styles.projectRow, pressed && { backgroundColor: colors.roundFill }]}
-          >
-            <Icon name={project.isChats ? 'messagesSquare' : 'folder'} size={18} color={colors.textSecondary} strokeWidth={1.8} />
-            <Txt numberOfLines={1} style={styles.projectName}>
-              {projectName}
-            </Txt>
-            <Icon name="chevronDown" size={16} color={colors.textSecondary} strokeWidth={2} />
-          </Pressable>
-          <Composer
-            running={false}
-            autoFocus={focus}
-            canSend={online && !starting && !cantStart}
-            canAttachFiles={models?.fileSystem === true}
-            canPlan
-            references={references}
-            planMode={planMode}
-            onPlanMode={async (on) => setPlanMode(on)}
-            controls={
-              <ComposerControls
-                projectId={projectId}
-                controls={controls}
-                models={models}
-                onChange={async (change) => setChoices((previous) => chosen(previous, change))}
-              />
-            }
-            onSend={send}
-            onStop={() => undefined}
-          />
-        </Dock>
-      </KeyboardAvoidingView>
-      <ProjectPicker
-        state={state}
-        visible={picking}
-        onClose={() => setPicking(false)}
-        onPick={(id) => {
-          setPicking(false)
-          if (id === projectId) return
-          setChoices(UNTOUCHED)
-          setFailed(false)
-          created.current = null
-          router.setParams({ projectId: id })
-        }}
-      />
-    </Screen>
-  )
-}
-
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   transcript: { flexGrow: 1, gap: 14, paddingTop: BAR_HEIGHT + 20, paddingHorizontal: metrics.gutter, paddingBottom: 16 },
-  dock: { gap: 10, paddingTop: 8, paddingHorizontal: metrics.gutter },
   decision: { marginTop: 'auto' },
-  emptyBody: { paddingHorizontal: metrics.gutter },
-  welcome: { flexGrow: 1, paddingTop: BAR_HEIGHT + 20, paddingHorizontal: metrics.gutter, paddingBottom: 16 },
-  projectRow: {
-    alignSelf: 'flex-start',
-    maxWidth: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: metrics.rowRadius,
-  },
-  projectName: { flexShrink: 1, fontWeight: '500' },
 })

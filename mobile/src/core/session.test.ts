@@ -128,7 +128,7 @@ describe('relay', () => {
 
     computer.reachable = false
     computer.dropConnections()
-    await waitFor(() => harness.state().link === 'offline')
+    await waitFor(() => harness.state().link === 'connecting' && harness.session.reconnectPending)
     harness.timers.runAll()
     await waitFor(() => harness.state().link === 'online' && !harness.state().syncing)
     expect(harness.state().computer?.lastAddress).toBe('relay')
@@ -342,7 +342,7 @@ describe('reconnect and catch-up', () => {
     const before = harness.state().details[key].history.items.length
 
     computer.dropConnections()
-    await waitFor(() => harness.state().link === 'offline')
+    await waitFor(() => harness.state().link === 'connecting' && harness.session.reconnectPending)
     expect(harness.state().pending[key]).toBeUndefined()
     expect(harness.timers.delays().some((ms) => ms >= 1_000 && ms <= 30_000)).toBe(true)
 
@@ -382,11 +382,28 @@ describe('reconnect and catch-up', () => {
     ])
 
     computer.dropConnections()
-    await waitFor(() => harness.state().link === 'offline')
+    await waitFor(() => harness.state().link === 'connecting' && harness.session.reconnectPending)
     harness.timers.runAll()
     await waitFor(() => harness.state().link === 'online' && !harness.state().syncing)
     await waitFor(() => harness.state().details[key].loading === false)
     expect(transcript()).toEqual(live)
+  })
+
+  it('keeps an unreachable computer offline while it retries in the background', async () => {
+    const computer = studio()
+    computer.reachable = false
+    const harness = setup([computer])
+    await harness.session.boot()
+    await waitFor(() => harness.state().link === 'offline' && harness.session.reconnectPending)
+    harness.timers.runAll()
+    expect(harness.state().link).toBe('offline')
+    await waitFor(() => harness.session.reconnectPending)
+    expect(harness.state().link).toBe('offline')
+
+    computer.reachable = true
+    harness.timers.runAll()
+    expect(harness.state().link).toBe('offline')
+    await waitFor(() => harness.state().link === 'online' && !harness.state().syncing)
   })
 
   it('reconnects at once on a network change or a return to the foreground, and closes everything in the background', async () => {

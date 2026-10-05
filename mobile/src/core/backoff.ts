@@ -37,11 +37,6 @@ export class Reconnector {
     }, delay)
   }
 
-  now(): void {
-    this.reset()
-    this.run()
-  }
-
   reset(): void {
     this.cancel()
     this.attempt = 0

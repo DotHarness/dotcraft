@@ -141,7 +141,7 @@ function SubagentTranscript({
           </ConversationImagesContext.Provider>
         )}
       </div>
-      {showScrollButton && <ScrollToBottomButton onClick={scrollToBottom} />}
+      {showScrollButton && <ScrollToBottomButton onClick={scrollToBottom} working={running} />}
     </div>
   )
 }

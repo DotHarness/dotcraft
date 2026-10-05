@@ -9,6 +9,7 @@
   flex-direction: column;
   gap: var(--conversation-block-gap);
   scrollbar-gutter: stable both-edges;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
 }
 
 .dc-conversation-column-stack {

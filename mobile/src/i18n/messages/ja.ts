@@ -58,10 +58,11 @@ export const MESSAGES_JA: Catalog = {
   'toolGroup.webUsed': 'ウェブを {{count}} 回使用しました',
   'chat.copy': 'コピー',
   'chat.menu': 'その他',
+  'chat.copyId': 'セッション ID をコピー',
+  'chat.scrollToBottom': '一番下までスクロール',
   'chat.rename': '名前の変更',
   'chat.fork': 'Fork',
   'chat.archive': 'アーカイブ',
-  'chat.openProject': 'プロジェクトを開く',
 
   'tool.ran': '{{subject}} を実行しました',
   'tool.edited': '{{subject}} を編集しました',
@@ -259,7 +260,8 @@ export const MESSAGES_JA: Catalog = {
   'live.needsYouOne': '{{count}} 件対応が必要',
   'live.needsYouMany': '{{count}} 件対応が必要',
   'live.idle': '実行中のチャットはありません',
-  'live.end': '終了',
+  'live.replying': '返信中…',
+  'live.end': '切断',
 
   'time.justNow': 'たった今',
   'time.minutes': '{{count}} 分前',

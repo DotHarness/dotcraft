@@ -26,6 +26,15 @@ class LiveOngoing : Record {
   val text: String = ""
 
   @Field
+  val subText: String = ""
+
+  @Field
+  val chip: String = ""
+
+  @Field
+  val url: String = ""
+
+  @Field
   val end: String = ""
 }
 

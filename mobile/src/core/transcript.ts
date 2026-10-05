@@ -411,6 +411,35 @@ function layoutTurn(turnId: string, turn: HistoryTurn | undefined, entries: Tran
   ]
 }
 
+export type LatestActivity = { kind: 'tool'; verb: ToolVerb; subject: string | null } | { kind: 'thinking' } | { kind: 'replying' }
+
+function latestIn(entries: TranscriptEntry[]): LatestActivity | null {
+  for (let index = entries.length - 1; index >= 0; index--) {
+    const entry = entries[index]
+    switch (entry.kind) {
+      case 'user':
+        return null
+      case 'tool':
+        return { kind: 'tool', verb: entry.verb, subject: entry.subject }
+      case 'reasoning':
+        return { kind: 'thinking' }
+      case 'assistant':
+        if (entry.streaming) return { kind: 'replying' }
+        break
+      case 'toolGroup':
+      case 'activity': {
+        const found = latestIn(entry.children)
+        if (found) return found
+      }
+    }
+  }
+  return null
+}
+
+export function latestActivity(history: ChatHistory): LatestActivity | null {
+  return latestIn(buildTranscript(history))
+}
+
 export function thinkingStatus(reasoning: string): string | null {
   const line = reasoning
     .split(/\r?\n/)

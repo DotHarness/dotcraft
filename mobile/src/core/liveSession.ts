@@ -1,15 +1,25 @@
 import type { Timers } from './backoff'
 import { isLive, needsYou, type ChatState } from './chatState'
+import type { ChatHistory } from './history'
 import { runningChats, stateOf, type Action, type ChatSummary, type MobileState, type PendingRequest } from './state'
 import type { Store } from './store'
+import { latestActivity, type LatestActivity } from './transcript'
 
 export const LIVE_END_MS = 120_000
+
+export interface LiveFocus {
+  chat: ChatSummary
+  state: ChatState
+  request: PendingRequest | null
+  activity: LatestActivity | null
+}
 
 export interface LiveStatus {
   computer: string
   running: number
   needsYou: number
   reachable: boolean
+  focus: LiveFocus | null
 }
 
 export type LiveNotice =
@@ -41,15 +51,6 @@ function liveChats(state: MobileState): ChatSummary[] {
   return runningChats(state).filter((chat) => isLive(stateOf(chat)))
 }
 
-function statusOf(state: MobileState): LiveStatus {
-  const live = liveChats(state).map(stateOf)
-  return {
-    computer: state.computer?.name ?? '',
-    running: live.filter((chat) => chat === 'running').length,
-    needsYou: live.filter(needsYou).length,
-    reachable: state.link === 'online',
-  }
-}
 
 export class LiveSession {
   private foreground = true
@@ -66,6 +67,7 @@ export class LiveSession {
   private readonly shown = new Set<string>()
   private readonly alerted = new Set<string>()
   private readonly quiet = new Set<string>()
+  private activity: { history: ChatHistory; latest: LatestActivity | null } | null = null
 
   constructor(
     private readonly notifier: LiveNotifier,
@@ -83,7 +85,7 @@ export class LiveSession {
     this.foreground = false
     const state = this.host.store.getState()
     if (state.link !== 'online' || liveChats(state).length === 0) return false
-    const status = statusOf(state)
+    const status = this.statusOf(state)
     if (!this.notifier.start(status)) return false
     this.active = true
     this.status = JSON.stringify(status)
@@ -119,6 +121,33 @@ export class LiveSession {
     this.unreachable = this.arm(this.unreachable, false)
     for (const set of [this.held, this.tracked, this.shown, this.alerted, this.quiet]) set.clear()
     this.ended.clear()
+    this.activity = null
+  }
+
+  private statusOf(state: MobileState): LiveStatus {
+    const live = liveChats(state)
+    const states = live.map(stateOf)
+    const chat = live.find((candidate) => needsYou(stateOf(candidate))) ?? live[0]
+    return {
+      computer: state.computer?.name ?? '',
+      running: states.filter((value) => value === 'running').length,
+      needsYou: states.filter(needsYou).length,
+      reachable: state.link === 'online',
+      focus: chat
+        ? {
+            chat,
+            state: stateOf(chat),
+            request: state.pending[chat.key]?.[0] ?? null,
+            activity: this.latestOf(state.details[chat.key]?.history),
+          }
+        : null,
+    }
+  }
+
+  private latestOf(history: ChatHistory | undefined): LatestActivity | null {
+    if (!history) return null
+    if (this.activity?.history !== history) this.activity = { history, latest: latestActivity(history) }
+    return this.activity.latest
   }
 
   private changed(): void {
@@ -154,7 +183,7 @@ export class LiveSession {
     this.hold(new Set(live.map((chat) => chat.key)))
     this.notifyRequests(state)
     this.notifyTurnEnds(state)
-    const status = statusOf(state)
+    const status = this.statusOf(state)
     if (JSON.stringify(status) !== this.status) {
       this.status = JSON.stringify(status)
       this.notifier.update(status)

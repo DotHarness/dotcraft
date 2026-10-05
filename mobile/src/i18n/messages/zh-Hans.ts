@@ -58,10 +58,11 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'toolGroup.webUsed': '已使用网页工具 {{count}} 次',
   'chat.copy': '复制',
   'chat.menu': '更多',
+  'chat.copyId': '复制会话 ID',
+  'chat.scrollToBottom': '滚动到底部',
   'chat.rename': '重命名',
   'chat.fork': 'Fork',
   'chat.archive': '归档',
-  'chat.openProject': '打开项目',
 
   'tool.ran': '运行了 {{subject}}',
   'tool.edited': '编辑了 {{subject}}',
@@ -257,7 +258,8 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'live.needsYouOne': '{{count}} 个需要你处理',
   'live.needsYouMany': '{{count}} 个需要你处理',
   'live.idle': '没有运行中的聊天',
-  'live.end': '结束',
+  'live.replying': '正在回复…',
+  'live.end': '断开连接',
 
   'time.justNow': '刚刚',
   'time.minutes': '{{count}} 分钟前',
