@@ -6,7 +6,7 @@ import { EMPTY_DRAFT, plainMessage } from './draft'
 import { persistable } from './state'
 import { offersPlanMode } from './threadConfig'
 import { buildTranscript } from './transcript'
-import { latestChanges } from './turnChanges'
+import { runningTurnChanges } from './turnChanges'
 import type { ImageSource } from './userSegments'
 
 const harnesses: Harness[] = []
@@ -50,16 +50,20 @@ describe('context ring', () => {
 })
 
 describe('changes', () => {
-  it('rebuilds a reopened chat from recorded file changes and takes a running turn from its live diff', async () => {
+  it('rebuilds a reopened finished turn from recorded file changes and takes a running turn from its live diff', async () => {
     const { state, opened } = await connected()
     const done = await opened('Rename the settings segments')
     expect(state().details[done].history.diffs).toBeUndefined()
-    const reopened = latestChanges(state().details[done].history, state().details[done].workspacePath)
-    expect(reopened?.files.map((file) => [file.path, file.added, file.removed])).toEqual([['locales/de.ts', 4, 4]])
+    expect(runningTurnChanges(state().details[done].history, state().details[done].workspacePath)).toBeNull()
+    const reply = buildTranscript(state().details[done].history, state().details[done].workspacePath).at(-1)
+    expect(reply?.kind === 'assistant' && reply.changes?.files.map((file) => [file.path, file.added, file.removed])).toEqual([
+      ['locales/de.ts', 4, 4],
+      ['src/settings/SegmentedControl.tsx', 6, 2],
+    ])
 
     const running = await opened('Fix the flaky turn-diff test')
     await waitFor(() => Object.keys(state().details[running].history.diffs ?? {}).length > 0)
-    const live = latestChanges(state().details[running].history, state().details[running].workspacePath)
+    const live = runningTurnChanges(state().details[running].history, state().details[running].workspacePath)
     expect(live).toMatchObject({ added: 42, removed: 8 })
     expect(live?.files.map((file) => file.path)).toEqual(['src/turnDiffStore.ts', 'src/turnDiff.test.ts', 'src/snapshotWriter.ts'])
   })

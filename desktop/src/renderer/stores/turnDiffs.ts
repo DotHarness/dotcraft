@@ -206,6 +206,18 @@ export function turnPatchTotals(
   }
 }
 
+const NO_FILES: TurnFileChange[] = []
+
+export function runningTurnFiles(state: {
+  turnStatus: string
+  activeTurnId: string | null
+  genericApproval: unknown
+  turnDiffs: ReadonlyMap<string, TurnDiff>
+}): TurnFileChange[] {
+  if (state.turnStatus !== 'running' || !state.activeTurnId || state.genericApproval) return NO_FILES
+  return state.turnDiffs.get(state.activeTurnId)?.files ?? NO_FILES
+}
+
 export function turnWrittenFiles(map: ReadonlyMap<string, TurnDiff>, turnId: string): TurnFileChange[] {
   const byPath = new Map<string, TurnFileChange>()
   for (const row of map.get(turnId)?.files ?? []) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptyHistory, type ChatHistory, type HistoryItem } from './history'
-import { latestChanges, parseUnifiedDiff, turnChanges } from './turnChanges'
+import { parseUnifiedDiff, runningTurnChanges, turnChanges } from './turnChanges'
 
 const UPDATE = [
   'diff --git a/src/store.ts b/src/store.ts',
@@ -105,10 +105,14 @@ describe('turn changes', () => {
     expect(turnChanges(history(items, ['t1'], { t1: '' }), 't1', null)?.files.map((file) => file.path)).toEqual(['src/store.ts'])
   })
 
-  it('summarizes the latest turn that changed files', () => {
+  it('summarizes only the running turn, never an earlier finished one', () => {
     const items = [result('t1', 'r1', [{ path: 'a.ts', kind: 'add', diff: CREATE, additions: 2, deletions: 0 }])]
-    expect(latestChanges(history(items, ['t1', 't2']), null)?.turnId).toBe('t1')
-    expect(latestChanges(history(items, ['t1', 't2'], { t3: UPDATE }), null)).toMatchObject({ turnId: 't3', added: 3, removed: 2 })
-    expect(latestChanges(history([], ['t1']), null)).toBeNull()
+    const running = (diffs?: Record<string, string>): ChatHistory => {
+      const base = history(items, ['t1', 't2'], diffs)
+      return { ...base, turns: [base.turns[0], { id: 't2', status: 'running', error: null }] }
+    }
+    expect(runningTurnChanges(running(), null)).toBeNull()
+    expect(runningTurnChanges(running({ t2: UPDATE }), null)).toMatchObject({ turnId: 't2', added: 3, removed: 2 })
+    expect(runningTurnChanges(history(items, ['t1']), null)).toBeNull()
   })
 })

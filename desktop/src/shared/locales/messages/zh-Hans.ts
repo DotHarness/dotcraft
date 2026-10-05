@@ -3998,6 +3998,8 @@ export const MESSAGES_ZH_HANS = {
   'turnChanges.showMoreFiles.one': '显示另外 {{count}} 个文件',
   'turnChanges.showMoreFiles.other': '显示另外 {{count}} 个文件',
   'turnChanges.collapseFiles': '收起文件',
+  'turnChanges.filesChanged.one': '已更改 {{count}} 个文件',
+  'turnChanges.filesChanged.other': '已更改 {{count}} 个文件',
   'turnChanges.toast.reverted': '已撤销更改',
   'turnChanges.toast.reapplied': '已重新应用更改',
   'turnChanges.toast.revertPartial': '已撤销部分更改',

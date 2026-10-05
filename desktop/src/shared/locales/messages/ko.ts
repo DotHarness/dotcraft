@@ -3741,6 +3741,8 @@ export const MESSAGES_KO = {
   'turnChanges.showMoreFiles.one': '파일 {{count}}개 더 보기',
   'turnChanges.showMoreFiles.other': '파일 {{count}}개 더 보기',
   'turnChanges.collapseFiles': '파일 접기',
+  'turnChanges.filesChanged.one': '파일 {{count}}개 변경됨',
+  'turnChanges.filesChanged.other': '파일 {{count}}개 변경됨',
   'turnChanges.toast.reverted': '변경 사항을 되돌렸습니다',
   'turnChanges.toast.reapplied': '변경 사항을 다시 적용했습니다',
   'turnChanges.toast.revertPartial': '일부 변경 사항을 되돌렸습니다',

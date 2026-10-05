@@ -3743,6 +3743,8 @@ export const MESSAGES_DE = {
   'turnChanges.showMoreFiles.one': '{{count}} weitere Datei anzeigen',
   'turnChanges.showMoreFiles.other': '{{count}} weitere Dateien anzeigen',
   'turnChanges.collapseFiles': 'Dateien einklappen',
+  'turnChanges.filesChanged.one': '{{count}} Datei geändert',
+  'turnChanges.filesChanged.other': '{{count}} Dateien geändert',
   'turnChanges.toast.reverted': 'Änderungen rückgängig gemacht',
   'turnChanges.toast.reapplied': 'Änderungen erneut angewendet',
   'turnChanges.toast.revertPartial': 'Einige Änderungen rückgängig gemacht',

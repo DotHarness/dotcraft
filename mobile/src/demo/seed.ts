@@ -360,7 +360,13 @@ const CHATS: ChatSeed[] = [
     lines: [
       { kind: 'user', text: 'Shorten the Connections segment names so they fit on one line in German.', photos: 2 },
       { kind: 'read', paths: ['locales/de.ts'] },
-      { kind: 'edited', files: [{ path: 'locales/de.ts', added: 4, removed: 4 }] },
+      {
+        kind: 'edited',
+        files: [
+          { path: 'locales/de.ts', added: 4, removed: 4 },
+          { path: 'src/settings/SegmentedControl.tsx', added: 6, removed: 2 },
+        ],
+      },
       { kind: 'assistant', text: 'All four German segment names now fit on one line at the narrowest settings width.' },
     ],
     config: { providerId: 'local', model: 'quill-14b' },

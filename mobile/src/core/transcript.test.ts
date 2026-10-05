@@ -77,6 +77,31 @@ describe('turn layout', () => {
   })
 })
 
+function edit(path: string, callId: string): HistoryItem[] {
+  const structuredContent = { kind: 'fileChange', changes: [{ path, kind: 'update', additions: 2, deletions: 1 }] }
+  return [
+    item('toolCall', { toolName: 'EditFile', callId, arguments: { path } }),
+    item('toolResult', { toolName: 'EditFile', callId, result: 'ok', structuredContent }),
+  ]
+}
+
+describe('turn changes', () => {
+  it('ends a completed turn that changed files with its changes on the final reply, outside Worked for', () => {
+    const items = [item('userMessage', { text: 'Fix it' }), ...edit('a.ts', 'c1'), ...edit('b.ts', 'c2'), item('agentMessage', { text: 'Fixed.' })]
+    const transcript = buildTranscript(history(items, 'completed'))
+    expect(transcript.map((entry) => entry.kind)).toEqual(['user', 'activity', 'assistant'])
+    expect(transcript[2]).toMatchObject({ copy: true, changes: { turnId: 't1', added: 4, removed: 2 } })
+  })
+
+  it('gives a completed turn without a reply its own changes entry, and a stopped or failed turn none', () => {
+    const items = [item('userMessage', { text: 'Fix it' }), ...edit('a.ts', 'c1')]
+    expect(buildTranscript(history(items, 'completed')).at(-1)).toMatchObject({ kind: 'changes', changes: { turnId: 't1' } })
+    for (const status of ['cancelled', 'failed', 'running']) {
+      expect(buildTranscript(history(items, status)).some((entry) => entry.kind === 'changes')).toBe(false)
+    }
+  })
+})
+
 describe('thinking status', () => {
   it('reads the last line of streaming reasoning without its emphasis', () => {
     expect(thinkingStatus('Plan first.\n\n**Checking the lockfile**\n<!-- note -->')).toBe('Checking the lockfile')

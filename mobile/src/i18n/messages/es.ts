@@ -164,6 +164,8 @@ export const MESSAGES_ES: Catalog = {
   'changes.filesMany': '{{count}} archivos cambiados',
   'changes.diffOf': 'Diferencias de {{file}}',
   'changes.noDiff': 'Estas diferencias son demasiado grandes para mostrarlas.',
+  'changes.editedFile': 'Se editó {{file}}',
+  'changes.editedFiles': 'Se editaron {{count}} archivos',
   'file.open': 'Abrir {{file}}',
   'file.tooLarge': 'Este archivo supera los 8 MB, así que no se puede mostrar aquí.',
   'file.unsupported': 'Este tipo de archivo no se puede mostrar aquí.',

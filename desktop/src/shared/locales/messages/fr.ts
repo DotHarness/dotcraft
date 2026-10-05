@@ -3742,6 +3742,8 @@ export const MESSAGES_FR = {
   'turnChanges.showMoreFiles.one': 'Afficher {{count}} fichier de plus',
   'turnChanges.showMoreFiles.other': 'Afficher {{count}} fichiers de plus',
   'turnChanges.collapseFiles': 'Réduire les fichiers',
+  'turnChanges.filesChanged.one': '{{count}} fichier modifié',
+  'turnChanges.filesChanged.other': '{{count}} fichiers modifiés',
   'turnChanges.toast.reverted': 'Modifications annulées',
   'turnChanges.toast.reapplied': 'Modifications réappliquées',
   'turnChanges.toast.revertPartial': 'Certaines modifications ont été annulées',

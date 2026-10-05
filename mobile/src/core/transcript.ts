@@ -1,5 +1,6 @@
 import { isComplete, type ChatHistory, type HistoryItem, type HistoryTurn } from './history'
 import { parsePlanMarkdown } from './planMarkdown'
+import { turnChanges, type TurnChanges } from './turnChanges'
 import { userImages, userSegments, type ImageSource, type UserSegment } from './userSegments'
 
 export type ToolVerb = 'ran' | 'edited' | 'read' | 'searched' | 'used'
@@ -21,7 +22,16 @@ export type NoticeKind =
 
 export type TranscriptEntry =
   | { kind: 'user'; id: string; text: string; segments: UserSegment[]; images: ImageSource[]; added: boolean }
-  | { kind: 'assistant'; id: string; text: string; streaming: boolean; phase: 'commentary' | 'final' | null; at: string; copy: boolean }
+  | {
+      kind: 'assistant'
+      id: string
+      text: string
+      streaming: boolean
+      phase: 'commentary' | 'final' | null
+      at: string
+      copy: boolean
+      changes: TurnChanges | null
+    }
   | { kind: 'reasoning'; id: string; text: string }
   | {
       kind: 'tool'
@@ -53,6 +63,7 @@ export type TranscriptEntry =
   | { kind: 'notice'; id: string; tone: 'neutral' | 'error'; notice: NoticeKind; detail?: string }
   | { kind: 'image'; id: string; status: 'inProgress' | 'completed' | 'failed'; uri: string | null; dropped: boolean; error?: string }
   | { kind: 'plan'; id: string; title: string; overview: string; todos: PlanTodo[]; content: string }
+  | { kind: 'changes'; id: string; changes: TurnChanges }
 
 export type ToolEntry = Extract<TranscriptEntry, { kind: 'tool' }>
 
@@ -369,7 +380,13 @@ function lastIndex(entries: TranscriptEntry[], test: (entry: TranscriptEntry) =>
   return -1
 }
 
-function layoutTurn(turnId: string, turn: HistoryTurn | undefined, entries: TranscriptEntry[], running: boolean): TranscriptEntry[] {
+function layoutTurn(
+  turnId: string,
+  turn: HistoryTurn | undefined,
+  entries: TranscriptEntry[],
+  running: boolean,
+  changes: TurnChanges | null,
+): TranscriptEntry[] {
   let start = 0
   while (start < entries.length && entries[start].kind === 'user' && !(entries[start] as { added: boolean }).added) start += 1
   const opening = entries.slice(0, start)
@@ -384,7 +401,8 @@ function layoutTurn(turnId: string, turn: HistoryTurn | undefined, entries: Tran
       : lastIndex(body, (entry) => entry.kind === 'assistant' && (entry.phase === 'final' || (completed && entry.phase === null)))
   if (completed) {
     const footer = lastIndex(body, (entry) => entry.kind === 'assistant')
-    if (footer >= 0) body[footer] = { ...(body[footer] as Extract<TranscriptEntry, { kind: 'assistant' }>), copy: true }
+    if (footer >= 0) body[footer] = { ...(body[footer] as Extract<TranscriptEntry, { kind: 'assistant' }>), copy: true, changes }
+    else if (changes) body.push({ kind: 'changes', id: `changes-${turnId}`, changes })
   }
   if (!turn) return [...opening, ...body]
   const status: Extract<TranscriptEntry, { kind: 'activity' }>['status'] | null =
@@ -454,7 +472,7 @@ export function thinkingStatus(reasoning: string): string | null {
   return text || null
 }
 
-export function buildTranscript(history: ChatHistory): TranscriptEntry[] {
+export function buildTranscript(history: ChatHistory, workspacePath: string | null = null): TranscriptEntry[] {
   const approvals = new Map<string, HistoryItem>()
   const results = new Map<string, HistoryItem>()
   const turnErrors = new Map<string, string>()
@@ -474,7 +492,8 @@ export function buildTranscript(history: ChatHistory): TranscriptEntry[] {
       const detail = turn.error ?? turnErrors.get(turnId)
       out.push({ kind: 'notice', id: `turn-${turnId}`, tone: 'error', notice: 'turnFailed', ...(detail ? { detail } : {}) })
     }
-    result.push(...layoutTurn(turnId, turn, out, turn ? !DONE.has(turn.status) : live))
+    const changes = turn?.status === 'completed' ? turnChanges(history, turnId, workspacePath) : null
+    result.push(...layoutTurn(turnId, turn, out, turn ? !DONE.has(turn.status) : live, changes))
     out = []
     live = false
   }
@@ -515,6 +534,7 @@ export function buildTranscript(history: ChatHistory): TranscriptEntry[] {
             phase: phase === 'commentary' || phase === 'final' ? phase : null,
             at: item.createdAt,
             copy: false,
+            changes: null,
           })
         }
         break

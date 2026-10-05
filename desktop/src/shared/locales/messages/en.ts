@@ -3265,6 +3265,8 @@ export const MESSAGES_EN = {
   'turnChanges.showMoreFiles.one': 'Show {{count}} more file',
   'turnChanges.showMoreFiles.other': 'Show {{count}} more files',
   'turnChanges.collapseFiles': 'Collapse files',
+  'turnChanges.filesChanged.one': '{{count}} file changed',
+  'turnChanges.filesChanged.other': '{{count}} files changed',
   'turnChanges.toast.reverted': 'Changes reverted',
   'turnChanges.toast.reapplied': 'Changes reapplied',
   'turnChanges.toast.revertPartial': 'Some changes reverted',

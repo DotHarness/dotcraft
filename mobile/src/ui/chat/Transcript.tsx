@@ -16,6 +16,7 @@ import type { MessageId } from '../../i18n/messages/en'
 import { Icon, type IconName } from '../icons'
 import { Spinner, Txt } from '../parts'
 import { metrics, type, useTheme } from '../theme'
+import { TurnChangesCard } from './Changes'
 import { FileChip, InlineChip, SkillChip } from './Chips'
 import { CopyButton } from './CopyButton'
 import { ImageThumb, SentImage } from './Images'
@@ -331,6 +332,11 @@ export function TranscriptLine({
       return (
         <View accessibilityLiveRegion={entry.streaming ? 'polite' : 'none'}>
           <Markdown text={entry.text} workspacePath={workspacePath} />
+          {entry.changes ? (
+            <View style={styles.changes}>
+              <TurnChangesCard changes={entry.changes} />
+            </View>
+          ) : null}
           {entry.copy ? <CopyButton text={entry.text} label={t('chat.copy')} style={styles.copy} /> : null}
         </View>
       )
@@ -354,6 +360,8 @@ export function TranscriptLine({
       return <GeneratedImage entry={entry} />
     case 'plan':
       return <PlanCard entry={entry} workspacePath={workspacePath} />
+    case 'changes':
+      return <TurnChangesCard changes={entry.changes} />
     case 'notice':
       if (entry.tone === 'error') {
         return (
@@ -413,6 +421,7 @@ const styles = StyleSheet.create({
   generated: { gap: 8 },
   generatedImage: { width: '100%', maxWidth: 320 },
   placeholder: { aspectRatio: 1, borderRadius: 12 },
+  changes: { marginTop: 10 },
   copy: { alignSelf: 'flex-start', marginTop: 4, marginLeft: -6 },
   tight: { marginTop: -6 },
   process: { flexDirection: 'row', gap: 6, minWidth: 0 },

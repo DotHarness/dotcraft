@@ -164,6 +164,8 @@ export const MESSAGES_KO: Catalog = {
   'changes.filesMany': '파일 {{count}}개 변경됨',
   'changes.diffOf': '{{file}}의 차이',
   'changes.noDiff': '차이가 너무 커서 표시할 수 없습니다.',
+  'changes.editedFile': '{{file}} 편집함',
+  'changes.editedFiles': '파일 {{count}}개 편집함',
   'file.open': '{{file}} 열기',
   'file.tooLarge': '이 파일은 8MB보다 커서 여기에 표시할 수 없습니다.',
   'file.unsupported': '이 유형의 파일은 여기에 표시할 수 없습니다.',

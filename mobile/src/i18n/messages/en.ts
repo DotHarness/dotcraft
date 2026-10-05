@@ -162,6 +162,8 @@ export const MESSAGES_EN = {
   'changes.filesMany': '{{count}} files changed',
   'changes.diffOf': 'Diff of {{file}}',
   'changes.noDiff': 'This diff is too large to show.',
+  'changes.editedFile': 'Edited {{file}}',
+  'changes.editedFiles': 'Edited {{count}} files',
   'file.open': 'Open {{file}}',
   'file.tooLarge': 'This file is larger than 8 MB, so it can’t be shown here.',
   'file.unsupported': 'This type of file can’t be shown here.',

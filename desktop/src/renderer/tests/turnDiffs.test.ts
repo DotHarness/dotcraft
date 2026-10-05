@@ -4,6 +4,7 @@ import {
   deriveItemDiffs,
   foldHistoryTurnDiffs,
   latestTurnDiff,
+  runningTurnFiles,
   setTurnFileStatus,
   threadFileSummaries,
   turnPatchTotals,
@@ -231,5 +232,22 @@ describe('selectors', () => {
 
     expect(turnWrittenFiles(next, 't1').map((row) => row.key)).toEqual(['t1::b'])
     expect(turnWrittenFiles(next, 't2')).toEqual([])
+  })
+})
+
+describe('runningTurnFiles', () => {
+  const turnDiffs = fold([twoEditsOfA])
+  const running = { turnStatus: 'running', activeTurnId: 't1', genericApproval: null, turnDiffs }
+
+  it('lists the files of the running turn', () => {
+    expect(runningTurnFiles(running)).toBe(turnDiffs.get('t1')!.files)
+  })
+
+  it('is empty when the turn is not running, waits on the user, or has no changes', () => {
+    expect(runningTurnFiles({ ...running, turnStatus: 'idle', activeTurnId: null })).toEqual([])
+    expect(runningTurnFiles({ ...running, turnStatus: 'waitingApproval' })).toEqual([])
+    expect(runningTurnFiles({ ...running, turnStatus: 'waitingInput' })).toEqual([])
+    expect(runningTurnFiles({ ...running, genericApproval: { bridgeId: 'b' } })).toEqual([])
+    expect(runningTurnFiles({ ...running, activeTurnId: 't2' })).toEqual([])
   })
 })

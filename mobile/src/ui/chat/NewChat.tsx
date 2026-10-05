@@ -18,6 +18,7 @@ import { ComposerControls, defaultModel, type ControlChange } from './ComposerCo
 import { ProjectPicker } from './ProjectPicker'
 
 const FADE = 96
+const SEAM = 24
 
 export function Dock({
   floating = false,
@@ -50,7 +51,8 @@ export function Dock({
             <Defs>
               <LinearGradient id="dockFade" x1="0" y1="0" x2="0" y2="1">
                 <Stop offset="0" stopColor={colors.bgPrimary} stopOpacity={0} />
-                <Stop offset="0.5" stopColor={colors.bgPrimary} stopOpacity={0.15} />
+                <Stop offset={FADE / 2 / (FADE + SEAM)} stopColor={colors.bgPrimary} stopOpacity={0.15} />
+                <Stop offset={FADE / (FADE + SEAM)} stopColor={colors.bgPrimary} stopOpacity={0.75} />
                 <Stop offset="1" stopColor={colors.bgPrimary} stopOpacity={0.75} />
               </LinearGradient>
             </Defs>
@@ -303,8 +305,8 @@ const styles = StyleSheet.create({
   dock: { gap: 10, paddingTop: 8, paddingHorizontal: metrics.gutter },
   floating: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   above: { zIndex: 1 },
-  fade: { position: 'absolute', left: -metrics.gutter, right: -metrics.gutter, top: -FADE, height: FADE },
-  solid: { position: 'absolute', left: -metrics.gutter, right: -metrics.gutter, top: 24 },
+  fade: { position: 'absolute', left: -metrics.gutter, right: -metrics.gutter, top: -FADE, height: FADE + SEAM },
+  solid: { position: 'absolute', left: -metrics.gutter, right: -metrics.gutter, top: SEAM },
   compactBar: { paddingTop: 10, paddingHorizontal: metrics.gutter },
   compact: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 56, paddingHorizontal: 8, borderWidth: 1, borderRadius: 26 },
   plus: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },

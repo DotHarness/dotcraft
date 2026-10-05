@@ -164,6 +164,8 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'changes.filesMany': '{{count}} 个文件已更改',
   'changes.diffOf': '{{file}} 的差异',
   'changes.noDiff': '差异过大，无法显示。',
+  'changes.editedFile': '已编辑 {{file}}',
+  'changes.editedFiles': '已编辑 {{count}} 个文件',
   'file.open': '打开 {{file}}',
   'file.tooLarge': '此文件超过 8 MB，无法在这里显示。',
   'file.unsupported': '无法在这里显示此类型的文件。',

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.1 |
+| **Version** | 0.8.3 |
 | **Status** | Living |
-| **Date** | 2026-10-03 |
+| **Date** | 2026-10-05 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Machines over SSH](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [DotCraft Mobile](mobile.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md), [Session Import](../features/session-import.md), [Turn Navigation](../features/turn-navigation.md) |
 
@@ -472,6 +472,7 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
 - A completed turn that changed files ends with a card titled with the edited file's name, or the number of edited files, above the turn's line totals. When more than one file changed, the card lists up to three and can show the rest; each listed file expands to its diff, and its name opens the Changes panel. Review opens the Changes panel.
 - The card's Undo reverts the turn's recorded diff through the workspace's Git repository, newest edit first, without asking for confirmation, and then becomes Reapply. Files too large to render are left as they are. Success, partial success, and failure are each reported; a failed file stays as it was and stops the remaining ones.
 - Outside a Git repository, Undo explains that it needs one and changes nothing. Undo works through the Git repository on this computer, so it cannot change a remote workspace's files; the attempt fails and is reported.
+- While a running turn has changed files and nothing waits on the user, a strip centred above the composer reads "N files changed" with the turn's line totals. Hovering it lists each file with its counts; the strip or a listed file opens the Changes panel. It leaves when the turn ends or an approval or question takes the composer, and the completed turn's card takes over.
 - Threads recorded before per-edit diffs were persisted show no entries in Changes; their tool cards show text only.
 - Commit and changelist actions use the files still applied across the loaded turns.
 - Plan updates remain associated with the active thread and reflect the latest complete plan snapshot. While a `CreatePlan` tool call is still streaming its arguments, the dedicated plan surface renders a live draft (title, overview, and any fully-formed todo entries) so the user sees the plan taking shape in real time; the draft is replaced by the finalized snapshot once `plan/updated` is received. The overview renders Markdown in both draft and finalized snapshots, including inline code and links. A to-do list without a plan has an empty title, and both the plan surface and the conversation summary label it Progress.

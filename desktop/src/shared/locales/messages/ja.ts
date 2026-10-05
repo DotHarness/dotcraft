@@ -3739,6 +3739,8 @@ export const MESSAGES_JA = {
   'turnChanges.showMoreFiles.one': 'さらに {{count}} 個のファイルを表示',
   'turnChanges.showMoreFiles.other': 'さらに {{count}} 個のファイルを表示',
   'turnChanges.collapseFiles': 'ファイルを折りたたむ',
+  'turnChanges.filesChanged.one': '{{count}} 個のファイルを変更',
+  'turnChanges.filesChanged.other': '{{count}} 個のファイルを変更',
   'turnChanges.toast.reverted': '変更を元に戻しました',
   'turnChanges.toast.reapplied': '変更を再適用しました',
   'turnChanges.toast.revertPartial': '一部の変更を元に戻しました',

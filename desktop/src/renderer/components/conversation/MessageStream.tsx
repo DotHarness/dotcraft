@@ -3,6 +3,7 @@ import { collectConversationImages, ConversationImagesContext, type GalleryImage
 import { useHistoryGapLoading } from '../../hooks/useHistoryGapLoading'
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConversationStore } from '../../stores/conversationStore'
+import { runningTurnFiles } from '../../stores/turnDiffs'
 import { useThreadStore } from '../../stores/threadStore'
 import { restartThreadHistory, useThreadHistoryStore, type HistoryGap } from '../../stores/threadHistoryStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -13,6 +14,7 @@ import { useAutoScroll } from '../../hooks/useAutoScroll'
 import { UserMessageBlock } from './UserMessageBlock'
 import { AgentResponseBlock, type HistoricalToolContentMode } from './AgentResponseBlock'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
+import { RunningTurnChangesPill } from './RunningTurnChangesPill'
 import { StreamRetryNotice } from './StreamRetryNotice'
 import { ChannelBindingCodeCard } from './ChannelBindingCodeCard'
 import { SystemStatusDivider } from './SystemStatusDivider'
@@ -34,6 +36,8 @@ const scrollPositionCache = new Map<string, number>()
 const NEAR_BOTTOM_THRESHOLD = 50
 const SCROLL_BUTTON_BASE_BOTTOM_PX = 10
 const SCROLL_BUTTON_DOCK_GAP_PX = 10
+const CHANGES_PILL_CELL_PX = 32
+const CHANGES_PILL_BOTTOM_GAP_PX = 4
 /** Resting gap reserved below the last message so it never sits flush against the
  *  composer (and clears the dock's top edge when a dock is present). */
 export const MESSAGE_STREAM_BOTTOM_BASE_PX = 40
@@ -126,6 +130,7 @@ function MessageStreamContent(): JSX.Element {
     return { refId: parentId, label: parent?.displayName?.trim() || undefined }
   }, [threadList, activeThreadId])
   const queuedInputCount = useConversationStore((s) => s.queuedInputs.length)
+  const changesPillVisible = useConversationStore((s) => runningTurnFiles(s).length > 0)
   const [editing, setEditing] = useState<InlineEditState | null>(null)
   const prevThreadIdRef = useRef<string | null>(null)
   const columnRef = useRef<HTMLDivElement | null>(null)
@@ -148,7 +153,9 @@ function MessageStreamContent(): JSX.Element {
   // below the last message and the scroll-to-bottom button is lifted by the same amount.
   const dockHeightPx = estimateQueuedInputDockHeightPx(queuedInputCount)
   const scrollButtonBottomOffsetPx =
-    SCROLL_BUTTON_BASE_BOTTOM_PX + (dockHeightPx > 0 ? dockHeightPx + SCROLL_BUTTON_DOCK_GAP_PX : 0)
+    SCROLL_BUTTON_BASE_BOTTOM_PX
+    + (dockHeightPx > 0 ? dockHeightPx + SCROLL_BUTTON_DOCK_GAP_PX : 0)
+    + (changesPillVisible ? CHANGES_PILL_CELL_PX : 0)
   const bottomClearancePx = MESSAGE_STREAM_BOTTOM_BASE_PX + dockHeightPx
 
   useEffect(() => {
@@ -359,6 +366,8 @@ function MessageStreamContent(): JSX.Element {
       <TurnNavigation scrollRef={scrollRef} columnRef={columnRef} />
 
       <ConversationAsides scrollRef={scrollRef} />
+
+      <RunningTurnChangesPill bottomPx={dockHeightPx + CHANGES_PILL_BOTTOM_GAP_PX} />
 
       {showScrollButton && (
         <ScrollToBottomButton

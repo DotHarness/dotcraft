@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { createContext, useContext, useState } from 'react'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { baseName } from '../../core/transcript'
 import type { DiffHunk, FileChange, TurnChanges } from '../../core/turnChanges'
 import { useI18n } from '../../i18n'
 import { Icon } from '../icons'
@@ -44,13 +45,40 @@ export function ChangesPill({ changes, onPress }: { changes: TurnChanges; onPres
   )
 }
 
+export const ChangesOpenerContext = createContext<((turnId: string) => void) | null>(null)
+
+export function TurnChangesCard({ changes }: { changes: TurnChanges }) {
+  const { t } = useI18n()
+  const { colors } = useTheme()
+  const open = useContext(ChangesOpenerContext)
+  const title =
+    changes.files.length === 1 ? t('changes.editedFile', { file: baseName(changes.files[0].path) }) : t('changes.editedFiles', { count: changes.files.length })
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${title}, +${changes.added} −${changes.removed}`}
+      disabled={!open}
+      onPress={() => open?.(changes.turnId)}
+      style={({ pressed }) => [styles.card, { borderColor: colors.borderDefault, backgroundColor: pressed ? colors.bgTertiary : colors.bgSecondary }]}
+    >
+      <View style={styles.cardText}>
+        <Txt numberOfLines={1} style={styles.name}>
+          {title}
+        </Txt>
+        <Counts added={changes.added} removed={changes.removed} variant="meta" />
+      </View>
+      <Icon name="chevronRight" size={16} color={colors.textSecondary} />
+    </Pressable>
+  )
+}
+
 function Hunk({ hunk }: { hunk: DiffHunk }) {
   const { colors } = useTheme()
   const code = [type.code, styles.code]
   return (
     <>
       <View style={[styles.line, { backgroundColor: colors.roundFill }]}>
-        <Text style={[...code, { color: colors.textDimmed }]}>{hunk.header}</Text>
+        <Text style={[...code, styles.text, { color: colors.textDimmed }]}>{hunk.header}</Text>
       </View>
       {hunk.lines.map((line, index) => {
         const tint = line.kind === 'add' ? colors.success : line.kind === 'remove' ? colors.error : null
@@ -62,7 +90,7 @@ function Hunk({ hunk }: { hunk: DiffHunk }) {
             <Text style={[...code, styles.marker, { color: tint ? (line.kind === 'add' ? colors.successText : colors.errorText) : colors.textDimmed }]}>
               {marker}
             </Text>
-            <Text style={[...code, { color: colors.textPrimary }]}>{line.text}</Text>
+            <Text style={[...code, styles.text, { color: colors.textPrimary }]}>{line.text}</Text>
           </View>
         )
       })}
@@ -81,14 +109,10 @@ function DiffView({ file }: { file: FileChange }) {
     )
   }
   return (
-    <View style={[styles.diff, { backgroundColor: colors.bgTertiary }]}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.diffContent}>
-        <View style={styles.lines}>
-          {file.hunks.map((hunk, index) => (
-            <Hunk key={index} hunk={hunk} />
-          ))}
-        </View>
-      </ScrollView>
+    <View style={[styles.diff, { borderColor: colors.borderDefault }]}>
+      {file.hunks.map((hunk, index) => (
+        <Hunk key={index} hunk={hunk} />
+      ))}
     </View>
   )
 }
@@ -101,7 +125,7 @@ function FileRow({ file, onOpen }: { file: FileChange; onOpen: ((path: string) =
   const name = file.path.slice(slash + 1)
   const folder = slash > 0 ? file.path.slice(0, slash) : ''
   return (
-    <View style={styles.file}>
+    <View style={[styles.file, open && { backgroundColor: colors.bgTertiary }]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t('changes.diffOf', { file: name })}
@@ -109,9 +133,6 @@ function FileRow({ file, onOpen }: { file: FileChange; onOpen: ((path: string) =
         onPress={() => setOpen((value) => !value)}
         style={({ pressed }) => [styles.fileRow, pressed && { backgroundColor: colors.roundFill }]}
       >
-        <View style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
-          <Icon name="chevronRight" size={16} color={colors.textSecondary} />
-        </View>
         <View style={styles.fileName}>
           {onOpen ? (
             <Pressable accessibilityRole="link" accessibilityLabel={t('file.open', { file: name })} hitSlop={4} onPress={() => onOpen(file.path)}>
@@ -131,6 +152,9 @@ function FileRow({ file, onOpen }: { file: FileChange; onOpen: ((path: string) =
           ) : null}
         </View>
         <Counts added={file.added} removed={file.removed} variant="meta" />
+        <View style={[styles.chevron, open && styles.turned]}>
+          <Icon name="chevronRight" size={16} color={colors.textSecondary} />
+        </View>
       </Pressable>
       {open ? <DiffView file={file} /> : null}
     </View>
@@ -177,18 +201,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: metrics.pill,
   },
-  files: { marginHorizontal: -8, gap: 2 },
-  file: { gap: 6 },
-  fileRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: metrics.touch, paddingHorizontal: 8, borderRadius: metrics.rowRadius },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
+  cardText: { flex: 1, minWidth: 0, gap: 2 },
+  files: { marginHorizontal: -12, gap: 2 },
+  file: { borderRadius: metrics.rowRadius, overflow: 'hidden' },
+  fileRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: metrics.touch, paddingVertical: 8, paddingHorizontal: 12 },
   fileName: { flex: 1, minWidth: 0 },
   name: { fontWeight: '500' },
-  diff: { marginHorizontal: 8, borderRadius: 10, overflow: 'hidden' },
-  diffContent: { minWidth: '100%', paddingVertical: 6 },
-  lines: { flexGrow: 1 },
-  line: { flexDirection: 'row', paddingHorizontal: 10 },
+  chevron: { width: 16, alignItems: 'center' },
+  turned: { transform: [{ rotate: '90deg' }] },
+  diff: { paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth },
+  line: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 12 },
   tint: { opacity: 0.14 },
   code: { lineHeight: 19 },
-  number: { minWidth: 30, marginRight: 8, textAlign: 'right' },
+  number: { width: 32, marginRight: 8, textAlign: 'right' },
   marker: { width: 14 },
-  noDiff: { paddingHorizontal: 8 },
+  text: { flex: 1, minWidth: 0 },
+  noDiff: { paddingHorizontal: 12, paddingBottom: 10 },
 })

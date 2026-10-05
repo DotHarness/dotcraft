@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native'
+import { KeyboardAvoidingView, ScrollView, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useComputer, useComputerLink } from '../../app-state/SessionContext'
 import { awaitsPlanConfirmation, isLive, type ChatState } from '../../core/chatState'
@@ -11,9 +11,9 @@ import { chatKey, computerStatus, isReachable, projectById, stateOf, type Pendin
 import { workspaceFile } from '../../core/links'
 import { controlsOf, offersPlanMode, type ChatControls } from '../../core/threadConfig'
 import { buildTranscript } from '../../core/transcript'
-import { latestChanges } from '../../core/turnChanges'
+import { runningTurnChanges, turnChanges } from '../../core/turnChanges'
 import { useI18n } from '../../i18n'
-import { ChangesPill, ChangesSheet } from '../chat/Changes'
+import { ChangesOpenerContext, ChangesPill, ChangesSheet } from '../chat/Changes'
 import { BAR_HEIGHT, BarButton, ChatBar } from '../chat/ChatBar'
 import { ChatMenu } from '../chat/ChatMenu'
 import { FileViewerContext } from '../chat/Chips'
@@ -46,9 +46,11 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const [menuOpen, setMenuOpen] = useState(false)
   const [statusOpen, setStatusOpen] = useState(false)
   const [changesOpen, setChangesOpen] = useState(false)
+  const [changesTurn, setChangesTurn] = useState<string | null>(null)
   const [openPath, setOpenPath] = useState<string | null>(null)
   const scroller = useRef<ScrollView>(null)
   const pinned = useRef(true)
+  const jumping = useRef(false)
   const [away, setAway] = useState(false)
   const [dockHeight, setDockHeight] = useState(0)
 
@@ -69,7 +71,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const ready = state.phases[projectId] === 'ready'
   const chatState: ChatState = chat ? stateOf(chat) : 'done'
   const pending: PendingRequest[] = state.pending[key] ?? []
-  const transcript = useMemo(() => (detail ? buildTranscript(detail.history) : []), [detail])
+  const transcript = useMemo(() => (detail ? buildTranscript(detail.history, detail.workspacePath) : []), [detail])
   const catchingUp = live && (detail ? detail.loading && detail.history.items.length === 0 : true)
   const profile = chat?.profileId ? (detail?.profileName ?? chat.profileId) : null
   const configured = controlsOf(detail?.config)
@@ -82,7 +84,12 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const decision = live ? (decisions[0] ?? null) : null
   const insets = useSafeAreaInsets()
   const canPlan = offersPlanMode(detail?.config, chat?.profileId)
-  const changes = useMemo(() => (detail ? latestChanges(detail.history, detail.workspacePath) : null), [detail])
+  const runningChanges = useMemo(() => (detail && isLive(chatState) ? runningTurnChanges(detail.history, detail.workspacePath) : null), [detail, chatState])
+  const changes = useMemo(() => (detail && changesTurn ? turnChanges(detail.history, changesTurn, detail.workspacePath) : null), [detail, changesTurn])
+  const openChanges = useCallback((turnId: string) => {
+    setChangesTurn(turnId)
+    setChangesOpen(true)
+  }, [])
   const readFile = useCallback((path: string) => session.readFile(projectId, path), [projectId, session])
   const computerId = state.computer.id
   const reading = ready && models?.fileSystem === true
@@ -97,6 +104,22 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const signsIn = models?.providers.find((provider) => provider.id === controls.providerId)?.signsIn === true
 
   const title = chat ? chatTitle(chat, t('chat.untitled')) : t('chat.untitled')
+
+  const track = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentSize, contentOffset, layoutMeasurement } = nativeEvent
+    const atEnd = contentSize.height - contentOffset.y - layoutMeasurement.height < 48
+    if (jumping.current && !atEnd) return
+    jumping.current = false
+    pinned.current = atEnd
+    setAway(!atEnd)
+  }
+
+  const jumpToEnd = () => {
+    jumping.current = true
+    pinned.current = true
+    setAway(false)
+    scroller.current?.scrollToEnd({ animated: true })
+  }
 
   const openStatus = () => {
     setStatusOpen(true)
@@ -133,11 +156,12 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
               keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
               scrollEventThrottle={64}
-              onScroll={({ nativeEvent }) => {
-                const { contentSize, contentOffset, layoutMeasurement } = nativeEvent
-                pinned.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 48
-                setAway(!pinned.current)
+              onScroll={track}
+              onScrollBeginDrag={() => {
+                jumping.current = false
               }}
+              onScrollEndDrag={track}
+              onMomentumScrollEnd={track}
               onContentSizeChange={() => {
                 if (pinned.current) scroller.current?.scrollToEnd({ animated: false })
               }}
@@ -173,9 +197,11 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
               ) : null}
               <FileViewerContext.Provider value={openFile}>
                 <ImageReaderContext.Provider value={imageReader}>
-                  {transcript.map((entry, index) => (
-                    <TranscriptLine key={entry.id} entry={entry} previous={transcript[index - 1]} workspacePath={workspacePath} />
-                  ))}
+                  <ChangesOpenerContext.Provider value={openChanges}>
+                    {transcript.map((entry, index) => (
+                      <TranscriptLine key={entry.id} entry={entry} previous={transcript[index - 1]} workspacePath={workspacePath} />
+                    ))}
+                  </ChangesOpenerContext.Provider>
                 </ImageReaderContext.Provider>
               </FileViewerContext.Provider>
               {decision ? (
@@ -201,7 +227,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
           {docked ? (
             <Dock
               floating
-              above={changes ? <ChangesPill changes={changes} onPress={() => setChangesOpen(true)} /> : null}
+              above={runningChanges ? <ChangesPill changes={runningChanges} onPress={() => openChanges(runningChanges.turnId)} /> : null}
               onLayout={({ nativeEvent }) => setDockHeight(nativeEvent.layout.height)}
             >
               <Composer
@@ -224,7 +250,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
               visible={away}
               working={isLive(chatState)}
               bottom={inset + 16}
-              onPress={() => scroller.current?.scrollToEnd({ animated: true })}
+              onPress={jumpToEnd}
             />
           )}
         </View>

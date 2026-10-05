@@ -164,6 +164,8 @@ export const MESSAGES_JA: Catalog = {
   'changes.filesMany': '{{count}} 個のファイルを変更',
   'changes.diffOf': '{{file}} の差分',
   'changes.noDiff': '差分が大きすぎるため表示できません。',
+  'changes.editedFile': '{{file}} を編集しました',
+  'changes.editedFiles': '{{count}} 個のファイルを編集しました',
   'file.open': '{{file}} を開く',
   'file.tooLarge': 'このファイルは 8 MB を超えているため、ここでは表示できません。',
   'file.unsupported': 'この種類のファイルはここでは表示できません。',

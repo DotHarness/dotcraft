@@ -1,4 +1,4 @@
-import type { ChatHistory } from './history'
+import { isComplete, type ChatHistory } from './history'
 import { decodeUtf8, encodeUtf8 } from './utf8'
 
 export interface DiffLine {
@@ -223,17 +223,7 @@ export function turnChanges(history: ChatHistory, turnId: string, workspacePath:
   }
 }
 
-export function latestChanges(history: ChatHistory, workspacePath: string | null): TurnChanges | null {
-  const order = history.turns.map((turn) => turn.id)
-  const known = new Set(order)
-  for (const turnId of [...history.items.map((item) => item.turnId), ...Object.keys(history.diffs ?? {})]) {
-    if (known.has(turnId)) continue
-    known.add(turnId)
-    order.push(turnId)
-  }
-  for (let index = order.length - 1; index >= 0; index -= 1) {
-    const changes = turnChanges(history, order[index], workspacePath)
-    if (changes) return changes
-  }
-  return null
+export function runningTurnChanges(history: ChatHistory, workspacePath: string | null): TurnChanges | null {
+  const turn = history.turns.at(-1)
+  return turn && !isComplete(turn) ? turnChanges(history, turn.id, workspacePath) : null
 }
