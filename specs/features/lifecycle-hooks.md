@@ -65,7 +65,7 @@ DotCraft recognizes these event names:
 | Event | Trigger | Blocking | Context output |
 |-------|---------|----------|----------------|
 | `SessionStart` | First usable turn for a thread/session. | No | Yes |
-| `UserPromptSubmit` | A user prompt is submitted, before prompt assembly and model execution; also each steering input before it is admitted into the running turn. Blocking a steering input drops only that input. | Yes | Yes |
+| `UserPromptSubmit` | A user prompt is submitted, before prompt assembly and model execution; also each user steering input before it is admitted into the running turn (SubAgent follow-up tasks are not user prompts and skip it). Blocking a steering input drops only that input. | Yes | Yes |
 | `PrePrompt` | DotCraft-native compatibility event before the assembled user prompt is sent. | Yes | Yes |
 | `PreToolUse` | Before a tool executes. | Yes | Yes |
 | `PermissionRequest` | Before a permission prompt is shown. | Yes | No |

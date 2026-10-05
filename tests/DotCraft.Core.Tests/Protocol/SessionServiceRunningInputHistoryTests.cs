@@ -172,6 +172,43 @@ public sealed partial class SessionServiceRuntimeSignalTests
     }
 
     [Fact]
+    public async Task RunningInput_DrainDoesNotDeadlockWithEnqueueHoldingTheInbox()
+    {
+        SessionService service = null!;
+        SessionThread thread = null!;
+        Task enqueueWhileHoldingInbox = Task.CompletedTask;
+        using var model = new HistoryBoundaryClient(async (call, _, ct) =>
+        {
+            if (call != 1)
+                return new TextContent("done");
+            await service.SteerTurnAsync(thread.Id, thread.Turns[0].Id, [new TextContent("pending steer")], ct: ct);
+            var inboxHeld = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            enqueueWhileHoldingInbox = Task.Run(async () =>
+            {
+                using (await SubAgentCommunicationRuntime.For(service).AcquireInboxAsync(thread.Id, AgentPath.Root, CancellationToken.None))
+                {
+                    inboxHeld.SetResult();
+                    await Task.Delay(300);
+                    await service.EnqueueTurnInputAsync(thread.Id, [new TextContent("queued while draining")]);
+                }
+            });
+            await inboxHeld.Task;
+            return HistoryBoundaryClient.Tool();
+        });
+        await using var factory = CreateAgentFactory(model);
+        service = CreateService(factory, model, useStreamingFunctionInvoker: true);
+        thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        var turn = DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")]));
+        await Task.WhenAny(Task.WhenAll(turn, enqueueWhileHoldingInbox), Task.Delay(TimeSpan.FromSeconds(15)));
+
+        Assert.True(turn.IsCompleted && enqueueWhileHoldingInbox.IsCompleted);
+        Assert.Contains(thread.Turns[0].Items, item =>
+            item.AsUserMessage is { DeliveryMode: "guidance", Text: "pending steer" });
+    }
+
+    [Fact]
     public async Task RunningInput_BlockingUserPromptSubmitHookDropsTheSteer()
     {
         var marker = Path.Combine(_tempDir, "prompt-hook-ran");
@@ -201,6 +238,34 @@ public sealed partial class SessionServiceRuntimeSignalTests
         var blocked = Assert.Single(events, evt => evt.SystemEventPayload?.Kind == "guidanceBlocked").SystemEventPayload!;
         Assert.Equal("system.guidanceBlocked", blocked.MessageKey);
         Assert.Contains("steer denied", blocked.Params!["reason"]?.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunningInput_SubAgentFollowupSteerSkipsUserPromptSubmitHook()
+    {
+        var marker = Path.Combine(_tempDir, "followup-hook-ran");
+        SessionService service = null!;
+        SessionThread thread = null!;
+        using var model = new HistoryBoundaryClient(async (call, _, ct) =>
+        {
+            if (call == 1)
+            {
+                using (TurnTriggerScope.Set(new TurnTriggerInfo { Kind = "subagentFollowupTask", Label = "worker" }))
+                    await service.SteerTurnAsync(thread.Id, thread.Turns[0].Id, [new TextContent("follow-up task")], ct: ct);
+                return HistoryBoundaryClient.Tool();
+            }
+            return new TextContent("done");
+        });
+        await using var factory = CreateAgentFactory(model);
+        service = CreatePromptHookService(factory, model, BlockAfterFirstRunCommand(marker, "steer denied"));
+        thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        var events = await CollectAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")]));
+
+        Assert.Contains(thread.Turns[0].Items, item =>
+            item.AsUserMessage is { DeliveryMode: "guidance", Text: "follow-up task" });
+        Assert.DoesNotContain(events, evt => evt.SystemEventPayload?.Kind == "guidanceBlocked");
     }
 
     [Fact]

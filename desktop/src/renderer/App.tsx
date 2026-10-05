@@ -2087,7 +2087,6 @@ export function App(): JSX.Element {
 
           case 'system/event': {
             const tid = (p.threadId as string | undefined) ?? ''
-            if (!shouldUpdateActiveConversation(tid)) break
             const kind = (p.kind as string) ?? ''
             const serverMessage = serverFallbackText(
               localeRef.current,
@@ -2099,6 +2098,7 @@ export function App(): JSX.Element {
             if (kind === 'guidanceBlocked' && serverMessage) {
               addToast(serverMessage, 'warning')
             }
+            if (!shouldUpdateActiveConversation(tid)) break
             conv.onSystemEvent(kind, {
               turnId: typeof p.turnId === 'string' ? (p.turnId as string) : null,
               message: serverMessage,

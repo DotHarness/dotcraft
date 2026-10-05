@@ -21,10 +21,8 @@ public sealed partial class SessionService
                 IsPendingGuidance(input, turnId) && !IsLegacyGoalBudgetGuidanceInput(input));
     }
 
-    private async Task<IReadOnlyList<ChatMessage>> AdmitGuidanceInputsAsync(
-        ThreadRuntime runtime, SessionTurn turn, SessionEventChannel eventChannel,
-        Func<int> nextItemSeq, Action finalizeStreamingAgentMessage, Action finalizeStreamingReasoning,
-        TurnModelHistory turnModelHistory, CancellationToken drainCt)
+    private async Task<IReadOnlyList<PreparedGuidance>> PrepareGuidanceInputsAsync(
+        ThreadRuntime runtime, SessionTurn turn, CancellationToken drainCt)
     {
         var thread = runtime.Thread;
         if (!_runtimeRegistry.IsCurrent(thread.Id, runtime))
@@ -43,17 +41,28 @@ public sealed partial class SessionService
             var displayText = !string.IsNullOrWhiteSpace(queued.DisplayText)
                 ? queued.DisplayText
                 : SessionWireMapper.BuildDisplayText(queued.NativeInputParts);
-            var hook = await RunPromptLifecycleHookAsync(
-                HookEvent.UserPromptSubmit,
-                thread.Id,
-                turn.Id,
-                thread.WorkspacePath,
-                displayText,
-                string.Equals(queued.TriggerKind, "hook", StringComparison.Ordinal),
-                drainCt);
+            var hook = string.Equals(queued.TriggerKind, SubAgentSessionControl.SubAgentFollowupTriggerKind, StringComparison.Ordinal)
+                ? new HookResult()
+                : await RunPromptLifecycleHookAsync(
+                    HookEvent.UserPromptSubmit,
+                    thread.Id,
+                    turn.Id,
+                    thread.WorkspacePath,
+                    displayText,
+                    string.Equals(queued.TriggerKind, "hook", StringComparison.Ordinal),
+                    drainCt);
             prepared.Add(new PreparedGuidance(queued, content, displayText, hook));
         }
 
+        return prepared;
+    }
+
+    private async Task<IReadOnlyList<ChatMessage>> AdmitGuidanceInputsAsync(
+        ThreadRuntime runtime, SessionTurn turn, SessionEventChannel eventChannel,
+        Func<int> nextItemSeq, Action finalizeStreamingAgentMessage, Action finalizeStreamingReasoning,
+        TurnModelHistory turnModelHistory, IReadOnlyList<PreparedGuidance> prepared, CancellationToken drainCt)
+    {
+        var thread = runtime.Thread;
         if (prepared.Count == 0 || !_runtimeRegistry.IsCurrent(thread.Id, runtime))
             return [];
 

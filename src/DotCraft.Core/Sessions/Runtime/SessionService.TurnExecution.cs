@@ -366,21 +366,36 @@ public sealed partial class SessionService
             {
                 if (boundary == StreamingGuidanceBoundary.TurnStart)
                 {
-                    return await TryDrainSubAgentMailboxMessageAsync(drainCt) is { } initialMailbox
-                        ? [initialMailbox]
-                        : [];
+                    return await AcquireMailboxInboxAsync(drainCt) is { } startInbox
+                        && await TryDrainSubAgentMailboxMessageAsync(startInbox, drainCt) is { } initialMailbox
+                            ? [initialMailbox]
+                            : [];
                 }
 
-                var guidance = await AdmitGuidanceInputsAsync(admittedRuntime, turn, eventChannel, NextItemSeq,
-                    FinalizeStreamingAgentMessage, FinalizeStreamingReasoning, turnModelHistory!, drainCt);
+                var prepared = await PrepareGuidanceInputsAsync(admittedRuntime, turn, drainCt);
+                var inbox = await AcquireMailboxInboxAsync(drainCt);
+                IReadOnlyList<ChatMessage> guidance;
+                try
+                {
+                    guidance = await AdmitGuidanceInputsAsync(admittedRuntime, turn, eventChannel, NextItemSeq,
+                        FinalizeStreamingAgentMessage, FinalizeStreamingReasoning, turnModelHistory!, prepared, drainCt);
+                }
+                catch
+                {
+                    inbox?.Lease.Dispose();
+                    throw;
+                }
                 if (boundary == StreamingGuidanceBoundary.AnswerBoundary && guidance.Count == 0)
+                {
+                    inbox?.Lease.Dispose();
                     return [];
+                }
 
                 var messages = new List<ChatMessage>();
                 if (TryDrainGoalSteeringMessage() is { } goalSteering)
                     messages.Add(goalSteering);
                 messages.AddRange(guidance);
-                if (await TryDrainSubAgentMailboxMessageAsync(drainCt) is { } mailbox)
+                if (inbox is { } heldInbox && await TryDrainSubAgentMailboxMessageAsync(heldInbox, drainCt) is { } mailbox)
                     messages.Add(mailbox);
                 messages.AddRange(await drainWorldStateAsync(drainCt));
                 return messages;
@@ -394,7 +409,8 @@ public sealed partial class SessionService
                     : new ChatMessage(ChatRole.System, text);
             }
 
-            async Task<ChatMessage?> TryDrainSubAgentMailboxMessageAsync(CancellationToken drainCt)
+            async Task<(IDisposable Lease, string RootThreadId, string AgentPath)?> AcquireMailboxInboxAsync(
+                CancellationToken drainCt)
             {
                 var rootThreadId = currentSubAgentSource?.RootThreadId;
                 if (string.IsNullOrWhiteSpace(rootThreadId))
@@ -406,16 +422,24 @@ public sealed partial class SessionService
                 if (!AgentPath.TryParse(currentPathValue, out var currentPath))
                     return null;
 
-                var inboxLease = await _subAgentCommunicationRuntime.AcquireInboxAsync(
+                var lease = await _subAgentCommunicationRuntime.AcquireInboxAsync(
                     rootThreadId,
                     currentPath.Value,
                     drainCt);
+                return (lease, rootThreadId, currentPath.Value);
+            }
+
+            async Task<ChatMessage?> TryDrainSubAgentMailboxMessageAsync(
+                (IDisposable Lease, string RootThreadId, string AgentPath) inbox,
+                CancellationToken drainCt)
+            {
+                var (inboxLease, rootThreadId, agentPath) = inbox;
                 var staged = false;
                 try
                 {
                     var pending = await ListPendingSubAgentMailboxAsync(
                         rootThreadId,
-                        currentPath.Value,
+                        agentPath,
                         drainCt);
                     if (pending.Count == 0)
                         return null;
@@ -446,7 +470,7 @@ public sealed partial class SessionService
                             GroupId = turn.Initiator?.GroupId,
                             TriggerKind = SubAgentMailboxDelivery.DeliveryMode,
                             TriggerLabel = pending.Count == 1 ? pending[0].SenderAgentPath : $"{pending.Count} messages",
-                            TriggerRefId = currentPath.Value
+                            TriggerRefId = agentPath
                         }
                     };
 
