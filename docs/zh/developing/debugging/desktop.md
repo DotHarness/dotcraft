@@ -6,7 +6,7 @@ Chrome DevTools Protocol（CDP）让 Agent 可以检查和操作 DotCraft Deskto
 
 ## 安装调试工作流
 
-`$dotcraft-desktop-debugging` 技能随官方 `dotcraft` 插件提供。开始调试任务前，先把这个插件安装到当前工作区：
+`$dotcraft-desktop-debugging` 技能随官方 `dotcraft` 插件提供。开始调试任务前，先安装这个插件：
 
 1. 在 DotCraft Desktop 中打开**插件**页面。
 2. 找到由 DotHarness 发布的 **DotCraft**，点击**安装**。

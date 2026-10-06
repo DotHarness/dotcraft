@@ -14,7 +14,7 @@ Everything DotCraft keeps on disk. Confirm a path exists before quoting it; a wo
 | `model-thinking-adapters.json` | user-editable | Model reasoning-adapter overrides |
 | `qq.json` `wecom.json` `feishu.json` `telegram.json` `weixin.json` | prefer the UI | One per bundled channel adapter. Configure these through Desktop > Channels, which validates credentials and restarts the adapter |
 | `skills/` | mixed | Installed and built-in skills. A `.builtin` marker file means the directory was deployed by the product |
-| `plugins/` | mixed | Installed plugins, each with `.craft-plugin/plugin.json`. Install and enable through Desktop > Plugins |
+| `plugins/` | user-editable | Plugins that come with this workspace, each with `.craft-plugin/plugin.json`. Desktop never installs here |
 | `agents/` | user-editable | Subagent definitions |
 | `automations/` | user-editable | Saved automations |
 | `memory/MEMORY.md` | user-editable | Preferences and corrections the user taught, loaded into new sessions while memory is enabled |
@@ -34,7 +34,7 @@ Hard rules: never hand-edit `state.db`, `threads/*.jsonl`, or anything under `ru
 | `config.json` | user-editable | Personal defaults, including the `Providers` registry |
 | `hooks.json` | user-editable | Personal hooks, applied before workspace hooks |
 | `skills/` | user-editable | User-global skills, available in every workspace |
-| `plugins/` | mixed | User-global plugin container |
+| `plugins/` | mixed | Installed plugins, available in every workspace. Install through Desktop > Plugins |
 | `auth.json` `mcp-auth.json` | never touch | OAuth tokens written by `dotcraft auth openai login` and the MCP OAuth flow |
 | `bin/` | runtime-owned | Default install directory of the `dotcraft` CLI from the install script |
 | `hub/` | runtime-owned | Hub state: `hub.lock`, the AppServer registry, and runtime tool paths |
@@ -58,5 +58,5 @@ Built-in skills redeploy only when the product version changes. To pick up an ed
 
 - Config and hooks: edit the file, then say "restart to apply", or send the user to the matching Desktop Settings panel, which applies the change at once unless the field's reload tier is `processRestart`.
 - Skills: `$skill-authoring` and `$skill-installer`. Never edit an installed skill's source directory by hand.
-- Plugins: `$plugin-creator` to author, Desktop > Plugins to install and enable.
+- Plugins: `$plugin-creator` to author, Desktop > Plugins to install, and Desktop > Plugins > Manage to turn one off in this workspace.
 - Channels: Desktop > Channels rather than the `<channel>.json` file.

@@ -4,6 +4,7 @@ using DotCraft.Hooks;
 using DotCraft.Mcp;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using DotCraft.Protocol.AppServer;
+using DotCraft.Skills;
 using DotCraft.Workspaces;
 
 namespace DotCraft.SessionImport.Tests;
@@ -73,6 +74,38 @@ public sealed class SetupImportConcurrencyTests : IDisposable
             Assert.Equal("user", Assert.Single(monitor.Current.McpServers).Origin.Kind);
             Assert.Equal(1, notifications);
         }
+    }
+
+    [Fact]
+    public async Task UserRevisionRediscoversInstalledAndRemovedUserGlobalPlugins()
+    {
+        var user = _temp.CreateDirectory("home", ".craft");
+        var data = _temp.CreateDirectory("other", ".craft");
+        var skills = new SkillsLoader(data);
+        var monitor = new AppConfigMonitor(new AppConfig { GlobalConfigPath = Path.Combine(user, "config.json") });
+        var runtime = new ImportedSetupRuntime(DotCraftPaths.CreateForExecutionHost(Path.GetDirectoryName(data)!, data, user), monitor, skills);
+        var plugin = Path.Combine(user, "plugins", "demo-plugin");
+        Directory.CreateDirectory(Path.Combine(plugin, ".craft-plugin"));
+        Directory.CreateDirectory(Path.Combine(plugin, "skills", "demo-skill"));
+        File.WriteAllText(Path.Combine(plugin, "skills", "demo-skill", "SKILL.md"), """
+            ---
+            name: demo-skill
+            description: Demo
+            ---
+            # Demo
+            """);
+        File.WriteAllText(Path.Combine(plugin, ".craft-plugin", "plugin.json"), """
+            {"schemaVersion":1,"id":"demo-plugin","version":"1.0.0","displayName":"Demo","description":"Demo","capabilities":["skill"],"skills":"./skills/"}
+            """);
+
+        AtomicConfigDocument.Update(Path.Combine(user, "imports", "revision.json"), root => root["revision"] = "installed");
+        await runtime.RefreshAsync(default);
+        Assert.Contains(skills.ListSkills(), skill => skill.Name == "demo-skill");
+
+        Directory.Delete(plugin, recursive: true);
+        AtomicConfigDocument.Update(Path.Combine(user, "imports", "revision.json"), root => root["revision"] = "removed");
+        await runtime.RefreshAsync(default);
+        Assert.DoesNotContain(skills.ListSkills(), skill => skill.Name == "demo-skill");
     }
 
     [Fact]

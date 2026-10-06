@@ -2764,7 +2764,6 @@ export interface PluginInfo {
 
 export interface PluginInstallLocalParams {
   path?: string;
-  scope: string;
   [key: string]: unknown;
 }
 

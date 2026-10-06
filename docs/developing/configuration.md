@@ -672,8 +672,7 @@ Platform connections, allowlists, and approval timeouts live in adapter-specific
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `Plugins.EnabledPlugins` | Plugin ids explicitly enabled for this workspace | `[]` |
-| `Plugins.DisabledPlugins` | Plugin ids explicitly disabled for this workspace. A disabled entry wins over an enabled entry and over the plugin's default state | `[]` |
+| `Plugins.DisabledPlugins` | Plugin ids turned off in this workspace | `[]` |
 | `Plugins.PluginRoots` | Extra plugin root directories maintained outside `.craft/plugins/` | `[]` |
 | `Plugins.PluginRegistries` | Plugin marketplace sources available for catalog discovery | `[]` |
 | `Plugins.DisableDefaultPluginRegistry` | Ignore the host-provided default official plugin registry | `false` |

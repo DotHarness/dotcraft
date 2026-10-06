@@ -14,7 +14,7 @@ For other plugin contributions, use the local bundle workflow below.
 
 ## Quick Start
 
-Default to a workspace-local plugin under `<workspace>/.craft/plugins/<plugin-id>`:
+Default to a workspace-local plugin under `<workspace>/.craft/plugins/<plugin-id>`, which comes with this workspace:
 
 ```powershell
 python .craft/skills/plugin-creator/scripts/create_basic_plugin.py "My Plugin"
@@ -26,7 +26,7 @@ If reading the skill from the source tree instead of a deployed workspace skill,
 python src/DotCraft.Core/Skills/BuiltIn/plugin-creator/scripts/create_basic_plugin.py "My Plugin"
 ```
 
-Use `--path` when the user asks for another parent directory, such as a user-global plugin container:
+Use `--path` when the user asks for another parent directory, such as `~/.craft/plugins` for a plugin available in every workspace:
 
 ```powershell
 python .craft/skills/plugin-creator/scripts/create_basic_plugin.py "My Plugin" --path "$HOME/.craft/plugins"

@@ -639,14 +639,11 @@ public sealed partial class AgentProfileStore
 
     private IReadOnlyList<AgentProfileEntry> ReadPluginProfiles()
     {
-        if (_workspaceCraftPath == null)
-            return [];
-
-        var pluginRoot = Path.Combine(_workspaceCraftPath, "plugins");
-        if (!Directory.Exists(pluginRoot))
-            return [];
-
         var entries = new List<AgentProfileEntry>();
+        foreach (var pluginRoot in new[] { _workspaceCraftPath, _userDotCraftPath }
+                     .OfType<string>()
+                     .Select(root => Path.Combine(root, "plugins"))
+                     .Where(Directory.Exists))
         foreach (var profileDirectory in Directory.EnumerateDirectories(pluginRoot, "agent-profiles", SearchOption.AllDirectories))
         {
             var pluginId = ResolvePluginId(pluginRoot, profileDirectory);

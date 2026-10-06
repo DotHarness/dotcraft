@@ -294,7 +294,7 @@ internal sealed partial class PluginRequestHandler
                               && plugin.Enabled
                               && (skill?.Enabled
                               ?? (!string.Equals(manifest.Id, PluginIds.Browser, StringComparison.OrdinalIgnoreCase)
-                                  || (appConfigMonitor?.Current ?? new AppConfig()).Plugins.IsPluginEnabled(PluginIds.Browser, true)))
+                                  || (appConfigMonitor?.Current ?? new AppConfig()).Plugins.IsPluginEnabled(PluginIds.Browser)))
                 };
             })
             .ToList();

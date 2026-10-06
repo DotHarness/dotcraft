@@ -16,12 +16,14 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), $"plugin_management_{Guid.NewGuid():N}");
     private readonly string _workspaceCraftPath;
+    private readonly string _userDataPath;
     private readonly string _bundledPluginSourceRoot;
 
     public AppServerPluginManagementTests()
     {
         _workspaceCraftPath = Path.Combine(_tempRoot, ".craft");
         Directory.CreateDirectory(_workspaceCraftPath);
+        _userDataPath = Path.Combine(_tempRoot, "user-data");
         _bundledPluginSourceRoot = Path.Combine(_tempRoot, "bundled-plugins");
         WriteBundledPluginFixtures(_bundledPluginSourceRoot);
     }
@@ -47,6 +49,7 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
         IPluginDotnetRuntimeCoordinator? pluginDotnetRuntimeCoordinator = null)
     {
         config ??= new AppConfig();
+        config.GlobalConfigPath ??= Path.Combine(_userDataPath, "config.json");
         loader ??= CreateSkillsLoader(config, includeBundledRoots);
         return new AppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
@@ -57,7 +60,7 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
             pluginConfigStore: new PluginConfigStore(new DotCraftPaths(
                 _tempRoot,
                 _workspaceCraftPath,
-                Path.Combine(_tempRoot, "user-data"))),
+                _userDataPath)),
             builtInPluginSourceRoots: includeBundledRoots ? [_bundledPluginSourceRoot] : []);
     }
 

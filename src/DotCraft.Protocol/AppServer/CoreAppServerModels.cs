@@ -3128,8 +3128,6 @@ public sealed class PluginWorkflowInfo : ExtensibleJsonObject
 /// <summary>Executable wire contract for PluginInstallLocalParams.</summary>
 public sealed class PluginInstallLocalParams : ExtensibleJsonObject
 {
-    [JsonPropertyName("scope")] public required string Scope { get; init; }
-
     [JsonPropertyName("path")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Path { get; init; }

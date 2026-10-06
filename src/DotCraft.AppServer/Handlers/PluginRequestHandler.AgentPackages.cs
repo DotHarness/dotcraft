@@ -333,7 +333,7 @@ internal sealed partial class PluginRequestHandler
                 if (entry.Kind == AgentPackageKinds.Skill)
                     await InstallAgentImportSkillAsync(import, entry, staging, scope, commitToken).ConfigureAwait(false);
                 else
-                    installedPlugins.Add(InstallAgentImportPlugin(staging, scope));
+                    installedPlugins.Add(InstallAgentImportPlugin(staging));
             }
             finally
             {
@@ -374,9 +374,9 @@ internal sealed partial class PluginRequestHandler
             throw AgentPackageError(AgentPackageException.InvalidCode, string.Join(" ", result.Errors));
     }
 
-    private string InstallAgentImportPlugin(string directory, string scope)
+    private string InstallAgentImportPlugin(string directory)
     {
-        var install = new LocalPluginInstaller(Path.Combine(PluginDataPath(scope), "plugins")).Install(directory);
+        var install = new LocalPluginInstaller(Path.Combine(PluginDataPath("user"), "plugins")).Install(directory);
         PluginDiagnosticsLogger.Write(install.Diagnostics, logger);
         return install.PluginId
                ?? throw AppServerErrors.InvalidParams(
@@ -388,14 +388,16 @@ internal sealed partial class PluginRequestHandler
         IReadOnlyList<string> pluginIds,
         CancellationToken commitToken)
     {
-        var current = appConfigMonitor?.Current ?? new AppConfig();
         var installed = RefreshPluginRuntime();
         var affected = new List<string>();
         foreach (var pluginId in pluginIds)
         {
             if (installed.Plugins.FirstOrDefault(plugin => plugin.Installed && PluginIds.EqualsCanonical(plugin.Manifest.Id, pluginId)) is { } plugin)
-                SetScopedPluginEnabled(plugin, true);
-            current.Plugins.EnabledPlugins.RemoveAll(id => PluginIds.EqualsCanonical(id, pluginId));
+            {
+                PublishPluginRevision(PluginDataPath(PluginScope(plugin)));
+                if (!plugin.Enabled)
+                    SetWorkspacePluginEnabled(plugin.Manifest.Id, true);
+            }
             if (dotnetRuntime != null)
                 affected.AddRange((await dotnetRuntime.ReconcileAfterMutationAsync(pluginId, commitToken).ConfigureAwait(false)).AffectedPluginIds);
         }

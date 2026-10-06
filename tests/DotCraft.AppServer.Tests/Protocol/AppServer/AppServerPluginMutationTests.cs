@@ -133,7 +133,10 @@ public sealed partial class AppServerPluginManagementTests
         Assert.True(plugin.GetProperty("installed").GetBoolean());
         Assert.True(plugin.GetProperty("enabled").GetBoolean());
         Assert.True(plugin.GetProperty("removable").GetBoolean());
-        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "plugins", "browser", ".builtin")));
+        Assert.Equal("userglobal", plugin.GetProperty("source").GetString());
+        Assert.True(File.Exists(Path.Combine(_userDataPath, "plugins", "browser", ".builtin")));
+        Assert.False(Directory.Exists(Path.Combine(_workspaceCraftPath, "plugins")));
+        Assert.True(File.Exists(Path.Combine(_userDataPath, "imports", "revision.json")));
         Assert.Contains(loader.ListSkills(), skill => skill.Name == "browser");
     }
 
@@ -147,7 +150,7 @@ public sealed partial class AppServerPluginManagementTests
         var source = Path.Combine(_tempRoot, "source-plugin");
         WriteSkillOnlyPlugin(source);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source, scope = "workspace" });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -158,7 +161,7 @@ public sealed partial class AppServerPluginManagementTests
         Assert.True(plugin.GetProperty("enabled").GetBoolean());
         Assert.True(plugin.GetProperty("removable").GetBoolean());
 
-        var installed = Path.Combine(_workspaceCraftPath, "plugins", "demo-plugin");
+        var installed = Path.Combine(_userDataPath, "plugins", "demo-plugin");
         Assert.True(File.Exists(Path.Combine(installed, ".craft-plugin", "plugin.json")));
         // Local installs are user-owned: no .builtin marker is written, yet the plugin is removable.
         Assert.False(File.Exists(Path.Combine(installed, ".builtin")));
@@ -174,16 +177,16 @@ public sealed partial class AppServerPluginManagementTests
         var source = Path.Combine(_tempRoot, "not-a-plugin");
         Directory.CreateDirectory(source);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source, scope = "workspace" });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
-        Assert.False(Directory.Exists(Path.Combine(_workspaceCraftPath, "plugins", "demo-plugin")));
+        Assert.False(Directory.Exists(Path.Combine(_userDataPath, "plugins", "demo-plugin")));
     }
 
     [Fact]
-    public async Task PluginInstallLocal_RejectsRelativePathWithoutWritingWorkspacePlugin()
+    public async Task PluginInstallLocal_RejectsRelativePathWithoutWritingPlugin()
     {
         using var harness = CreateHarness();
         await harness.InitializeAsync(configChange: true);
@@ -195,12 +198,12 @@ public sealed partial class AppServerPluginManagementTests
         {
             WriteSkillOnlyPlugin(source);
 
-            var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = relativeSource, scope = "workspace" });
+            var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = relativeSource });
             await harness.ExecuteRequestAsync(msg);
 
             using var response = await harness.Transport.ReadNextSentAsync();
             AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
-            Assert.False(Directory.Exists(Path.Combine(_workspaceCraftPath, "plugins")));
+            Assert.False(Directory.Exists(Path.Combine(_userDataPath, "plugins")));
         }
         finally
         {
@@ -227,7 +230,7 @@ public sealed partial class AppServerPluginManagementTests
         Assert.Equal("registry-app", plugin.GetProperty("id").GetString());
         Assert.True(plugin.GetProperty("installed").GetBoolean());
         Assert.True(plugin.GetProperty("enabled").GetBoolean());
-        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "plugins", "registry-app", ".builtin")));
+        Assert.True(File.Exists(Path.Combine(_userDataPath, "plugins", "registry-app", ".builtin")));
         Assert.Contains(loader.ListSkills(), skill => skill.Name == "registry-app");
 
         var app = Assert.Single(plugin.GetProperty("apps").EnumerateArray());
@@ -252,7 +255,7 @@ public sealed partial class AppServerPluginManagementTests
         var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
         Assert.Equal("registry-app", plugin.GetProperty("id").GetString());
         Assert.True(plugin.GetProperty("installed").GetBoolean());
-        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "plugins", "registry-app", ".builtin")));
+        Assert.True(File.Exists(Path.Combine(_userDataPath, "plugins", "registry-app", ".builtin")));
     }
 
     [Fact]
@@ -279,7 +282,7 @@ public sealed partial class AppServerPluginManagementTests
     }
 
     [Fact]
-    public async Task PluginSetEnabled_DisablesBrowserAndWritesCanonicalId()
+    public async Task PluginSetEnabled_DisablesUserGlobalPluginInWorkspaceLayerOnly()
     {
         var loader = CreateSkillsLoader(new AppConfig());
         using var harness = CreateHarness(loader: loader);
@@ -296,6 +299,8 @@ public sealed partial class AppServerPluginManagementTests
         var configJson = await File.ReadAllTextAsync(Path.Combine(_workspaceCraftPath, "config.json"));
         Assert.Contains("browser", configJson, StringComparison.Ordinal);
         Assert.DoesNotContain("node-repl", configJson, StringComparison.Ordinal);
+        var userConfigPath = Path.Combine(_userDataPath, "config.json");
+        Assert.False(File.Exists(userConfigPath) && File.ReadAllText(userConfigPath).Contains("DisabledPlugins", StringComparison.Ordinal));
         Assert.DoesNotContain(loader.ListSkills(), skill => skill.Name == "browser");
     }
 
@@ -384,7 +389,7 @@ public sealed partial class AppServerPluginManagementTests
         var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
         Assert.False(plugin.GetProperty("installed").GetBoolean());
         Assert.False(plugin.GetProperty("enabled").GetBoolean());
-        Assert.False(Directory.Exists(Path.Combine(_workspaceCraftPath, "plugins", "browser")));
+        Assert.False(Directory.Exists(Path.Combine(_userDataPath, "plugins", "browser")));
         Assert.DoesNotContain(loader.ListSkills(), skill => skill.Name == "browser");
     }
 

@@ -1,18 +1,17 @@
 namespace DotCraft.Plugins;
 
 /// <summary>
-/// Installs a plugin from a user-selected local directory into a workspace's
-/// <c>.craft/plugins</c> directory as a user-owned plugin. Unlike
-/// <see cref="BuiltInPluginDeployer"/>, the copy carries no <c>.builtin</c> marker,
-/// so the plugin is discovered as a removable workspace plugin.
+/// Installs a plugin from a user-selected local directory into a plugin root as a
+/// user-owned plugin. Unlike <see cref="BuiltInPluginDeployer"/>, the copy carries no
+/// <c>.builtin</c> marker.
 /// </summary>
-public sealed class LocalPluginInstaller(string workspacePluginsPath)
+public sealed class LocalPluginInstaller(string pluginsPath)
 {
     private static readonly Lock InstallLock = new();
 
     /// <summary>
     /// Validates the plugin directory at <paramref name="sourcePath"/> and, when valid,
-    /// copies it into the workspace plugins directory. On success the result carries the
+    /// copies it into the plugin root. On success the result carries the
     /// installed plugin id; on failure it carries diagnostics with at least one error and
     /// nothing is written.
     /// </summary>
@@ -82,7 +81,7 @@ public sealed class LocalPluginInstaller(string workspacePluginsPath)
         }
 
         var pluginId = PluginIds.Canonicalize(parse.Manifest.Id);
-        var fullTarget = Path.GetFullPath(Path.Combine(workspacePluginsPath, pluginId));
+        var fullTarget = Path.GetFullPath(Path.Combine(pluginsPath, pluginId));
 
         lock (InstallLock)
         {
@@ -106,7 +105,7 @@ public sealed class LocalPluginInstaller(string workspacePluginsPath)
                 return new LocalPluginInstallResult(null, diagnostics);
             }
 
-            Directory.CreateDirectory(workspacePluginsPath);
+            Directory.CreateDirectory(pluginsPath);
             CopyDirectoryAtomic(fullSource, fullTarget);
         }
 

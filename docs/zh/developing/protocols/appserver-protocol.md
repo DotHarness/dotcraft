@@ -442,17 +442,17 @@ worktree 创建失败会显示为运行失败。使用该次运行的线程调�
 
 插件生命周期把安装状态和启用状态分开：
 
-- `plugin/install`：把可安装目录中的插件安装到当前工作区，并默认启用。目录项可来自 Desktop 或已配置的市场。
-- `plugin/installLocal`：把有效的本地插件目录复制到必填的 `scope`（`workspace` 或 `user`），并默认启用。
-- `plugin/setEnabled`：只切换已安装插件是否进入 Agent 上下文，不安装也不删除目录。
+- `plugin/install`：把可安装目录中的插件安装到 `<craft-home>/plugins/<id>`，所有工作区都可用，并默认启用。目录项可来自 Desktop 或已配置的市场。
+- `plugin/installLocal`：把有效的本地插件目录复制到 `<craft-home>/plugins/<id>`，并默认启用。
+- `plugin/setEnabled`：只切换已安装插件在当前工作区是否进入 Agent 上下文。它写入工作区的 `Plugins.DisabledPlugins`，不安装也不删除目录。
 - `plugin/setTrusted`：授予或撤销 server 已接受的 plugin id 与 .NET fingerprint 的执行信任。Client 选择插件，而不能任意指定 fingerprint。
-- `plugin/remove`：移除 `.craft/plugins/<id>/` 下的工作区插件目录，包括 DotCraft 管理的内置插件，以及通过 `plugin/installLocal` 安装的用户本地插件。用户级已安装插件也可在其所属作用域移除。不会删除显式配置的外部插件 root。
+- `plugin/remove`：移除 `<craft-home>/plugins/<id>/` 下的插件目录，即从所有工作区移除，或移除工作区 `.craft/plugins/<id>/` 下的插件目录。不会删除显式配置的外部插件 root。
 
 插件安装、移除、启用状态或 trust 变化会通过 `config/changed` 广播受影响的 `plugins`、`skills`、`mcp`、`lsp` 与 `hooks` regions。插件贡献的 tools 使用标准 `toolCall` / `toolResult` 生命周期，并在这些 item 上保留插件来源信息。面向用户的插件模型见 [插件与工具](../../features/agent-system/plugins-tools)。
 
 ### 插件市场
 
-Marketplace 方法管理插件目录来源。添加市场不会安装其中的插件。Client 通过 `plugin/install` 把目录项安装到当前工作区。
+Marketplace 方法管理插件目录来源。添加市场不会安装其中的插件。Client 通过 `plugin/install` 安装目录项。
 
 #### `marketplace/add`
 
@@ -483,7 +483,7 @@ Marketplace 方法管理插件目录来源。添加市场不会安装其中的�
 
 传入 `{ "name": "example-marketplace" }`。结果包含 `name`。当 DotCraft 删除了 materialized checkout 时，还会包含 `removedRoot`。
 
-移除市场不会卸载已经复制到工作区的插件。移除成功后会发送 `config/changed`，`regions: ["plugins"]`。
+移除市场不会卸载已经安装的插件。移除成功后会发送 `config/changed`，`regions: ["plugins"]`。
 
 #### 市场元数据
 

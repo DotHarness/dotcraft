@@ -1082,7 +1082,7 @@ public sealed class PluginDiscoveryTests
         var root = NewTempDir();
         var workspace = Path.Combine(root, "workspace");
         var botPath = Path.Combine(workspace, ".craft");
-        var pluginRoot = Path.Combine(botPath, "plugins", "chrome");
+        var pluginRoot = Path.Combine(root, "global", "chrome");
         WriteInterfaceOnlyPlugin(pluginRoot, id: "chrome", displayName: "Stale Chrome");
         File.WriteAllText(Path.Combine(pluginRoot, BuiltInPluginDeployer.MarkerFile), "0.0.0.0");
 
@@ -1105,7 +1105,7 @@ public sealed class PluginDiscoveryTests
         var botPath = Path.Combine(workspace, ".craft");
         foreach (var id in new[] { "browser", "chrome", "dotcraft" })
         {
-            var pluginRoot = Path.Combine(botPath, "plugins", id);
+            var pluginRoot = Path.Combine(root, "global", id);
             WriteInterfaceOnlyPlugin(pluginRoot, id: id);
             File.WriteAllText(Path.Combine(pluginRoot, BuiltInPluginDeployer.MarkerFile), "0.0.0.0");
         }
@@ -1134,7 +1134,7 @@ public sealed class PluginDiscoveryTests
         var root = NewTempDir();
         var workspace = Path.Combine(root, "workspace");
         var botPath = Path.Combine(workspace, ".craft");
-        var pluginRoot = Path.Combine(botPath, "plugins", "chrome");
+        var pluginRoot = Path.Combine(root, "global", "chrome");
         WriteInterfaceOnlyPlugin(
             pluginRoot,
             id: "chrome",
@@ -1160,7 +1160,7 @@ public sealed class PluginDiscoveryTests
         var registryRoot = Path.Combine(root, "registry");
         var workspace = Path.Combine(root, "workspace");
         var botPath = Path.Combine(workspace, ".craft");
-        var pluginRoot = Path.Combine(botPath, "plugins", "registry-archive");
+        var pluginRoot = Path.Combine(userDataPath, "plugins", "registry-archive");
         WriteRegistryMarketplace(registryRoot, "registry-archive");
         WriteSkillOnlyPlugin(
             Path.Combine(registryRoot, "plugins", "registry-archive"),
@@ -1174,7 +1174,7 @@ public sealed class PluginDiscoveryTests
         WriteSkillOnlyPlugin(pluginRoot, id: "registry-archive", displayName: "Stale Registry Archive");
         File.WriteAllText(Path.Combine(pluginRoot, BuiltInPluginDeployer.MarkerFile), "stale");
 
-        var result = new PluginDiscoveryService(null, [], userDataPath)
+        var result = new PluginDiscoveryService(Path.Combine(userDataPath, "plugins"), [], userDataPath)
             .DiscoverAll(config, workspace, botPath);
 
         Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "BuiltInPluginNotFound");

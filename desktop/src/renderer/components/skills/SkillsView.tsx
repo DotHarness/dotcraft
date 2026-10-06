@@ -560,11 +560,13 @@ function LocalSkillItem({ skill, onOpen }: { skill: SkillEntry; onOpen: () => vo
         </div>
         <div style={rowDesc}>{skillSubtitle(skill, t)}</div>
       </div>
-      <ActionTooltip label={skill.enabled ? t('skillCard.on') : t('skillCard.disabledBadge')}>
-        <span style={statusIcon}>
-          {skill.enabled ? <Check size={16} aria-hidden /> : t('skillCard.disabledBadge')}
-        </span>
-      </ActionTooltip>
+      {skill.enabled ? (
+        <ActionTooltip label={t('skillCard.on')}>
+          <span style={statusIcon}>
+            <Check size={16} aria-hidden />
+          </span>
+        </ActionTooltip>
+      ) : null}
     </button>
   )
 }

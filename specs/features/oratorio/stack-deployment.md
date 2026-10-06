@@ -27,11 +27,11 @@ Repository-owned container assets are separated by image ownership:
 
 Both images use the repository root as their Docker build context.
 
-Both primary containers mount the host Workspace as `/workspace`. Managed Worktrees live under `/workspace/.craft/oratorio/worktrees`. Oratorio state and its writable configuration live under the deployment's `state/oratorio` directory and mount as `/data/oratorio`. DotCraft user configuration and marketplace cache live under `state/dotcraft` and mount as `/root/.craft`; Workspace-installed plugins remain under `workspace/.craft/plugins`.
+Both primary containers mount the host Workspace as `/workspace`. Managed Worktrees live under `/workspace/.craft/oratorio/worktrees`. Oratorio state and its writable configuration live under the deployment's `state/oratorio` directory and mount as `/data/oratorio`. DotCraft user configuration, marketplace cache, and installed plugins live under `state/dotcraft` and mount as `/root/.craft`.
 
 ## Plugin catalog
 
-The DotCraft image contains every repository-owned bundled plugin source under `/opt/dotcraft/plugins` and sets `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` to that container. Bundling makes plugins visible as installable catalog entries; it does not install them. `plugin/install` copies only the selected plugin into `/workspace/.craft/plugins/<pluginId>`.
+The DotCraft image contains every repository-owned bundled plugin source under `/opt/dotcraft/plugins` and sets `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` to that container. Bundling makes plugins visible as installable catalog entries; it does not install them. `plugin/install` copies only the selected plugin into `/root/.craft/plugins/<pluginId>`.
 
 The image supplies the official plugin marketplace through `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL`. Users may disable the default or add marketplaces through the existing plugin configuration and marketplace APIs. Marketplace configuration and cached snapshots use the persisted `/root/.craft` mount, so replacing the DotCraft container does not remove them.
 

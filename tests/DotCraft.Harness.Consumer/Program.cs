@@ -121,7 +121,6 @@ static AppConfig CreateConfig(string root, string binaryRoot)
         }
     };
     config.Plugins.PluginRoots.Add(binaryRoot);
-    config.Plugins.EnabledPlugins.Add("package.binary");
     config.Plugins.DisableDefaultPluginRegistry = true;
     config.Tools.DeferredLoading.Strategy = AppConfig.DeferredLoadingStrategy.Off;
     config.Permissions.DefaultApprovalPolicy = ApprovalPolicy.AutoApprove;

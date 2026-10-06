@@ -93,7 +93,7 @@ public static class PluginRuntimeConfigurator
             AddSkillDirectoryNames(disabled, plugin.Manifest.SkillsPath);
         }
 
-        if (!config.Plugins.IsPluginEnabled(PluginIds.Browser, defaultEnabled: true))
+        if (!config.Plugins.IsPluginEnabled(PluginIds.Browser))
             disabled.Add("browser");
 
         return disabled.ToArray();

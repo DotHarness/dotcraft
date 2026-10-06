@@ -65,7 +65,7 @@ Plugins must declare at least one supported contribution: a plugin-contained `sk
 `commands` is a manifest-relative directory containing Markdown custom commands. Enabled plugins
 contribute commands under `<pluginId>:<relative-command-name>`. Commands are a supported contribution
 on their own. Workspace and user commands retain precedence. Removing or disabling a plugin removes
-its commands. User-global installed plugins can be disabled or removed in their own scope.
+its commands.
 
 `settings` is an optional manifest-relative path to a plugin settings schema, for example
 `"./settings.schema.json"`. It does not count as a runtime contribution. The schema document has a
@@ -222,9 +222,9 @@ An installed `dotnet` plugin runs with the host process's full authority and req
 
 DotCraft discovers plugin roots from:
 
-1. Workspace-local root: `<workspace>/.craft/plugins`
+1. Workspace-local root: `<workspace>/.craft/plugins`, for plugins that come with the workspace. DotCraft never installs into it.
 2. Explicit roots in `Plugins.PluginRoots` order
-3. User-global root: `<craft-home>/plugins`
+3. User-global root: `<craft-home>/plugins`, where every install lands.
 4. Desktop-bundled built-in catalog roots from `DOTCRAFT_BUILTIN_PLUGIN_ROOTS`
 5. Configured plugin registry snapshots
 
@@ -267,21 +267,21 @@ Equal declared names are disambiguated through the shared identity normalization
 
 ## 6. Built-In Plugin Lifecycle
 
-Built-in plugin manifests are host-bundled filesystem plugins exposed through a built-in catalog. Desktop bundles the source-of-truth plugin container under `resources/plugins/dotcraft-bundled/plugins`; the official Docker image bundles the same container under `/opt/dotcraft/plugins`. Each host launches AppServer with `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` pointing at its bundled container. Registry plugin manifests are discovered from configured source registry snapshots. Catalog entries are visible to clients before installation, but they are not active until installed into workspace `.craft/plugins/<pluginId>`.
+Built-in plugin manifests are host-bundled filesystem plugins exposed through a built-in catalog. Desktop bundles the source-of-truth plugin container under `resources/plugins/dotcraft-bundled/plugins`; the official Docker image bundles the same container under `/opt/dotcraft/plugins`. Each host launches AppServer with `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` pointing at its bundled container. Registry plugin manifests are discovered from configured source registry snapshots. Catalog entries are visible to clients before installation, but they are not active until installed into the user-global root `<craft-home>/plugins/<pluginId>`.
 
-`DOTCRAFT_BUILTIN_PLUGIN_ROOTS` is a platform path-list. Each entry may be a plugin container directory or a direct plugin root. Entries must be absolute; missing or invalid entries produce non-fatal plugin diagnostics. When the variable is absent or empty, AppServer exposes no uninstalled built-in catalog entries, but already-installed workspace plugins remain discoverable.
+`DOTCRAFT_BUILTIN_PLUGIN_ROOTS` is a platform path-list. Each entry may be a plugin container directory or a direct plugin root. Entries must be absolute; missing or invalid entries produce non-fatal plugin diagnostics. When the variable is absent or empty, AppServer exposes no uninstalled built-in catalog entries, but already-installed plugins remain discoverable.
 
-Official hosts provide the default DotCraft plugin registry through `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL`. Docker persists the effective Craft home separately from the Workspace so user-added marketplace configuration and materialized registry snapshots survive container replacement. Registry availability does not install plugins automatically; `plugin/install` remains the only operation that copies a selected catalog plugin into the Workspace.
+Official hosts provide the default DotCraft plugin registry through `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL`. Docker persists the effective Craft home separately from the Workspace so user-added marketplace configuration and materialized registry snapshots survive container replacement. Registry availability does not install plugins automatically; `plugin/install` remains the only operation that copies a selected catalog plugin into the user-global root.
 
 Installed built-ins carry a `.builtin` marker:
 
-- `plugin/install` copies the selected desktop-bundled source directory into `.craft/plugins/<pluginId>` and enables the plugin by default.
+- `plugin/install` copies the selected desktop-bundled source directory into `<craft-home>/plugins/<pluginId>` and the plugin is enabled by default in every workspace.
 - `.builtin` stores a fingerprint of the source directory. Directories with `.builtin` are owned by DotCraft and can be refreshed or removed by DotCraft lifecycle operations.
 - Directories without `.builtin` are treated as user-owned and are not overwritten or removed by DotCraft.
 
-`plugin/remove` removes an installed workspace plugin directory under `<DataPath>/plugins/<pluginId>` when that directory is controlled by the current workspace plugin manager. It first renames the directory into `<DataPath>/tmp` on the same volume, then cleans up the moved directory on a best-effort basis. A failure before the rename leaves the installed directory intact. Managed built-ins and registry-installed plugins carry `.builtin` so DotCraft can refresh them and can distinguish them from user-owned local plugins, but workspace-local user plugins may also be removed explicitly through `plugin/remove`. Removing a plugin is distinct from disabling it: removed built-ins and registry plugins are absent from runtime discovery but remain visible in the installable catalog when their source is configured, while disabled installed plugins remain on disk and can be re-enabled.
+`plugin/remove` removes an installed plugin directory from the user-global root, which removes it from every workspace, or from the workspace-local root. It first renames the directory into `<DataPath>/tmp` on the same volume, then cleans up the moved directory on a best-effort basis. A failure before the rename leaves the installed directory intact. Managed built-ins and registry-installed plugins carry `.builtin` so DotCraft can refresh them and can distinguish them from user-owned local plugins, but user-owned plugins in either root may also be removed explicitly through `plugin/remove`. Removing a plugin is distinct from disabling it: removed built-ins and registry plugins are absent from runtime discovery but remain visible in the installable catalog when their source is configured, while disabled installed plugins remain on disk and can be re-enabled.
 
-Registry catalog entries are source paths inside a registry snapshot. `plugin/install` validates the marketplace entry, validates the target plugin manifest id, then copies the registry plugin directory into `.craft/plugins/<pluginId>` with a managed marker. DotCraft never executes code directly from a registry URL; Desktop loads only the locally installed extension bundle.
+Registry catalog entries are source paths inside a registry snapshot. `plugin/install` validates the marketplace entry, validates the target plugin manifest id, then copies the registry plugin directory into `<craft-home>/plugins/<pluginId>` with a managed marker. DotCraft never executes code directly from a registry URL; Desktop loads only the locally installed extension bundle.
 
 ## 7. TypeScript External Channel Modules
 
@@ -315,14 +315,15 @@ Localized `interface` maps use the same locale keys as other module display meta
 The `Plugins` config section contains:
 
 - `PluginRoots`: additional local plugin roots or plugin container directories. Relative paths resolve against the workspace root.
-- `EnabledPlugins`: plugin ids explicitly enabled for the workspace.
-- `DisabledPlugins`: plugin ids explicitly disabled for the workspace. Disabled entries override enabled/default entries.
+- `DisabledPlugins`: plugin ids turned off in the workspace. DotCraft writes it only to the workspace layer; turning a plugin back on removes its id.
 - `PluginRegistries`: additional plugin marketplace sources. Each source declares its kind, source value, optional reference and sparse paths, and may override the marketplace path.
 - `DisableDefaultPluginRegistry`: disables the host-provided default official plugin marketplace.
 
-Marketplace sources are recorded in user-global configuration so one added source is available in every workspace. Plugin installation stays per workspace: installing a marketplace plugin copies it into that workspace's `.craft/plugins/<pluginId>`.
+Marketplace sources are recorded in user-global configuration so one added source is available in every workspace. Installation is per user: `plugin/install` and `plugin/installLocal` copy the plugin into `<craft-home>/plugins/<pluginId>`, so it is available in every workspace that user opens on that machine, and each workspace can turn it off. For a remote workspace that root is on the remote machine.
 
-Installed built-in plugins and local manifest plugins are enabled by default unless disabled. Built-ins that are visible only through the catalog are installable but not enabled and do not contribute tools or skills to agent context.
+Installing, removing, or turning a plugin on or off publishes the revision of the layer it wrote, so every other AppServer of the same user rediscovers plugins and refreshes their contributions without a restart.
+
+Installed built-in plugins and local manifest plugins are enabled by default unless the workspace turns them off. Built-ins that are visible only through the catalog are installable but not enabled and do not contribute tools or skills to agent context.
 
 Workspace-level MCP configuration continues to use `McpServers`. Plugin-bundled MCP servers are contributed by enabled plugins and merged into the effective MCP runtime configuration as read-only runtime entries. Desktop and other clients should show plugin MCP alongside workspace MCP in runtime settings, but edits and deletes apply only to workspace-origin entries.
 

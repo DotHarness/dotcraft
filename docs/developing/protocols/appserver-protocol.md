@@ -443,17 +443,17 @@ Check `capabilities.skillsManagement` before calling `skills/*`, `capabilities.p
 
 Plugin lifecycle separates installation from enablement:
 
-- `plugin/install`: installs an installable catalog plugin into the current workspace and enables it by default. Catalog entries can come from Desktop or a configured marketplace.
-- `plugin/installLocal`: copies a valid local plugin directory into the required `scope` (`workspace` or `user`) and enables it by default.
-- `plugin/setEnabled`: only controls whether an installed plugin enters the Agent context. It does not install or delete plugin files.
+- `plugin/install`: installs an installable catalog plugin into `<craft-home>/plugins/<id>`, so it is available in every workspace, and enables it by default. Catalog entries can come from Desktop or a configured marketplace.
+- `plugin/installLocal`: copies a valid local plugin directory into `<craft-home>/plugins/<id>` and enables it by default.
+- `plugin/setEnabled`: only controls whether an installed plugin enters the Agent context in the current workspace. It writes the workspace's `Plugins.DisabledPlugins` and does not install or delete plugin files.
 - `plugin/setTrusted`: grants or revokes execution trust for the server-accepted id and .NET fingerprint. The client selects the plugin, not an arbitrary fingerprint.
-- `plugin/remove`: removes workspace plugin directories under `.craft/plugins/<id>/`, including DotCraft-managed built-ins and user-owned plugins installed with `plugin/installLocal`. User-global installed plugins can also be removed from their own scope. Explicit external plugin roots are not deleted.
+- `plugin/remove`: removes a plugin directory under `<craft-home>/plugins/<id>/`, which removes it from every workspace, or under the workspace's `.craft/plugins/<id>/`. Explicit external plugin roots are not deleted.
 
 Plugin install, remove, enablement, and trust changes broadcast `config/changed` for the affected `plugins`, `skills`, `mcp`, `lsp`, and `hooks` regions. Tools contributed by plugins use the standard `toolCall` / `toolResult` lifecycle and retain plugin provenance on those items. For the user-facing plugin model, see [Plugins & Tools](../../features/agent-system/plugins-tools).
 
 ### Plugin marketplaces
 
-Marketplace methods manage catalog sources. Adding a marketplace does not install its plugins; clients use `plugin/install` to install a catalog entry into the current workspace.
+Marketplace methods manage catalog sources. Adding a marketplace does not install its plugins; clients use `plugin/install` to install a catalog entry.
 
 #### `marketplace/add`
 
@@ -484,7 +484,7 @@ The result contains `marketplaces: MarketplaceInfo[]` and `errors`. Each error h
 
 Pass `{ "name": "example-marketplace" }`. The result contains `name` and may include `removedRoot` when DotCraft deleted a materialized checkout.
 
-Removing a marketplace does not uninstall plugins already copied into a workspace. A successful removal emits `config/changed` with `regions: ["plugins"]`.
+Removing a marketplace does not uninstall plugins already installed. A successful removal emits `config/changed` with `regions: ["plugins"]`.
 
 #### Marketplace metadata
 

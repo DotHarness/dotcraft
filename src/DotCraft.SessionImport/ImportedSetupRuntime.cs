@@ -1,5 +1,6 @@
 using DotCraft.Configuration;
 using DotCraft.Hooks;
+using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Plugins;
 using DotCraft.Sessions;
@@ -9,7 +10,7 @@ using DotCraft.Workspaces;
 namespace DotCraft.SessionImport;
 
 public sealed class ImportedSetupRuntime(DotCraftPaths paths, IAppConfigMonitor monitor,
-    SkillsLoader? skills = null, HookRunner? hooks = null, McpClientManager? mcp = null)
+    SkillsLoader? skills = null, HookRunner? hooks = null, McpClientManager? mcp = null, LspServerManager? lsp = null)
     : ISessionRuntimeRefresher, ISessionServiceConsumer
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -44,8 +45,9 @@ public sealed class ImportedSetupRuntime(DotCraftPaths paths, IAppConfigMonitor 
                 var servers = PluginMcpServerResolver.LoadEffectiveServers(current, paths, out _);
                 await mcp.ConnectAsync(servers, cancellationToken).ConfigureAwait(false);
             }
+            if (lsp != null) await lsp.InitializeAsync(cancellationToken).ConfigureAwait(false);
             if (_sessions is IThreadAgentRefreshService agents) agents.InvalidateThreadAgents();
-            monitor.NotifyChanged("import/completed", [ConfigChangeRegions.Skills, ConfigChangeRegions.Plugins, ConfigChangeRegions.Hooks, ConfigChangeRegions.Mcp]);
+            monitor.NotifyChanged("import/completed", [ConfigChangeRegions.Skills, ConfigChangeRegions.Plugins, ConfigChangeRegions.Hooks, ConfigChangeRegions.Mcp, ConfigChangeRegions.Lsp]);
             _revision = revision;
         }
         finally { _gate.Release(); }

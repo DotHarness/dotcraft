@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { execFile } from 'child_process'
 import { existsSync, promises as fsPromises, readFileSync } from 'fs'
-import { tmpdir } from 'os'
+import { homedir, tmpdir } from 'os'
 import { join } from 'path'
 import net from 'net'
 import type { ChromeSetupCheckStatus, ChromeSetupStatus } from '../shared/chromeSetup'
@@ -23,6 +23,9 @@ export function resolveChromePluginRoot(workspacePath?: string): string {
   if (workspace) {
     const installed = join(workspace, '.craft', 'plugins', 'chrome')
     if (existsSync(installed)) return installed
+
+    const userInstalled = join(homedir(), '.craft', 'plugins', 'chrome')
+    if (existsSync(userInstalled)) return userInstalled
 
     const bundled = resolveBundledChromePluginRoot()
     if (existsSync(bundled)) return bundled

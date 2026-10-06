@@ -26,8 +26,8 @@ internal sealed class ExternalChannelToolProvider(
         if (!registry.TryGet(thread.OriginChannel, out var runtime) || runtime == null)
             return [];
 
-        if (config?.Plugins.IsPluginEnabled(PluginId, defaultEnabled: true) == false
-            || config?.Plugins.IsPluginEnabled(PluginIdPrefix + runtime.Name, defaultEnabled: true) == false)
+        if (config?.Plugins.IsPluginEnabled(PluginId) == false
+            || config?.Plugins.IsPluginEnabled(PluginIdPrefix + runtime.Name) == false)
         {
             return [];
         }
@@ -183,8 +183,8 @@ internal sealed class ExternalChannelToolProvider(
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var enabled = config?.Plugins.IsPluginEnabled(PluginId, defaultEnabled: true) != false
-                && config?.Plugins.IsPluginEnabled(pluginId, defaultEnabled: true) != false;
+            var enabled = config?.Plugins.IsPluginEnabled(PluginId) != false
+                && config?.Plugins.IsPluginEnabled(pluginId) != false;
             var available = enabled
                 && registry.TryGet(runtime.Name, out var current)
                 && ReferenceEquals(current, runtime)
