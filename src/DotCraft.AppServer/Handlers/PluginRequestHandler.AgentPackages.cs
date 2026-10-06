@@ -4,6 +4,7 @@ using DotCraft.Configuration;
 using DotCraft.Plugins;
 using DotCraft.Plugins.Marketplaces;
 using DotCraft.Skills;
+using DotCraft.Tools;
 using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.AppServer;
@@ -194,7 +195,7 @@ internal sealed partial class PluginRequestHandler
             candidates.Add(new AgentExportCandidate(
                 entry,
                 reference == null ? plugin.Manifest.RootPath : null,
-                AgentPackageOffer.From(entry).Reasons(references),
+                AgentPackageOffer.From(entry, PluginToolNames(plugin)).Reasons(references),
                 reference == null ? AgentPackageWriter.DirectoryBytes(plugin.Manifest.RootPath) : 0,
                 reference == null ? null : reference.DisplayName ?? reference.Name));
         }
@@ -405,6 +406,16 @@ internal sealed partial class PluginRequestHandler
         if (pluginIds.Count > 0)
             AdvancePluginSnapshotRevision();
         return (discovery, affected);
+    }
+
+    private IReadOnlyList<string> PluginToolNames(DiscoveredPlugin plugin)
+    {
+        var tools = dotnetRuntime?.Snapshot.Plugins
+            .FirstOrDefault(candidate => PluginIds.EqualsCanonical(candidate.PluginId, plugin.Manifest.Id))?.Tools;
+        if (tools is null)
+            return [];
+        var names = tools.Select(tool => new ToolName(tool.Namespace, tool.Name)).Distinct().ToList();
+        return ProviderToolProjector.Project(names).Values.ToList();
     }
 
     private AgentProfileStore CreateAgentProfileStore() => new(workspaceCraftPath, workspaceConfig.UserDataPath);

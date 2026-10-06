@@ -35,10 +35,10 @@ Export is available for created user and workspace profiles. Built-in, plugin, a
 
 - The document is the stored profile file.
 - The offered packages are the skills of the user and workspace skill roots and the installed plugins, each once by kind and name. Built-in skills, plugin skills, and plugins that the installation's bundled or host-provided plugin sources offer are not offered, because every installation has them.
-- A package starts included when the document relies on it: a skill the document preloads or allows, a plugin providing such a skill, a plugin whose MCP server the document names (`<pluginId>:<server>`), a plugin the document's plugin policy names, or the namespace of a tool it allows. The user may include or leave out any package.
+- A package starts included when the document relies on it: a skill the document preloads or allows, a plugin providing such a skill, a plugin whose MCP server the document names (`<pluginId>:<server>`), a plugin the document's plugin policy allows, or a plugin that registers a tool the document allows by its model-visible name. The user may include or leave out any package.
 - A plugin that a configured git or archive marketplace offers under the same id travels as that marketplace reference. Every other included package travels as its zip.
 - MCP servers configured in settings never travel, because their configuration can hold credentials. The import lists the names the document uses that nothing provides.
-- An export whose embedded packages exceed the bound is refused with the bound, and the user can leave a package out.
+- An export whose file exceeds the bound, or that the import rules would refuse, is refused, and the user can leave a package out. Every written file is read back with the import rules before it is returned.
 - Exporting changes nothing in the installation.
 
 ## Import
@@ -63,7 +63,7 @@ Methods belong to the `agent/profiles` group.
 
 | Method | Purpose |
 |---|---|
-| `agent/profiles/export/plan` | `{id, source}` → the file name, the bound, and each offered package with its kind, name, display name, version, `.NET` flag, embedded size, marketplace name, and the reasons the document relies on it. |
+| `agent/profiles/export/plan` | `{id, source}` → the file name, the bound, and each offered package with its kind, name, display name, version, `.NET` flag, expanded size, marketplace name, and the reasons the document relies on it. |
 | `agent/profiles/export/read` | `{id, source, packages, offset}` → `{totalBytes, dataBase64}`. Offset `0` writes the package for the chosen `{kind, name}` list and returns the first chunk; later offsets continue it; a negative offset discards it. Chunks are at most 1 MiB. |
 | `agent/profiles/import/upload` | `{importId?, fileName, totalBytes, offset, dataBase64}` → `{importId, receivedBytes, preview?}`. The first chunk omits `importId`. The preview is returned with the last chunk. Chunks are at most 1 MiB. |
 | `agent/profiles/import/commit` | `{importId, name, description?, source, packages}` → the created profile entry. |
@@ -76,7 +76,7 @@ Errors are invalid-params errors whose `data.code` is one of the stable codes `a
 - The Agents page toolbar carries Import beside New agent. Import opens a dialog that accepts a dropped or chosen `.zip` or `.md`, states the bound, and warns that a shared Agent can carry skills and plugins that run on this machine.
 - The preview step shows the name-derived avatar with the editable name, the description, the save location, the packages with one switch per installable package and the state of the others, and one warning line for unresolved names. Import stays disabled while the name is empty or taken or the document has errors. Choose another file discards the staged import.
 - Success closes the dialog and opens the imported profile in the editor. Each installed plugin that carries .NET code then opens its plugin dialog at the trust step, one after another.
-- The editor's More actions menu carries Export… for created user and workspace profiles. Export opens a dialog listing the offered packages with switches, the embedded size, and a note that MCP server settings are not included. Export writes the file through the system save dialog.
+- The editor's More actions menu carries Export… for created user and workspace profiles. Export opens a dialog listing the offered packages with switches and their sizes, and a note that MCP server settings are not included. The server enforces the bound when it writes the file. Export writes the file through the system save dialog.
 
 ## Acceptance scenarios
 

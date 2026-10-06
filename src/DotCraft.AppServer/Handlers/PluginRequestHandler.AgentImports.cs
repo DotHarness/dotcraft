@@ -154,7 +154,7 @@ internal sealed partial class PluginRequestHandler
         var offers = skills
             .Select(skill => new AgentPackageOffer(AgentPackageKinds.Skill, skill.Name, [skill.Name], []))
             .Concat(discovery.Plugins.Where(plugin => plugin.Installed).Select(plugin => AgentPackageOffer.From(PluginPackageEntry(plugin))))
-            .Concat(content.Manifest.Packages.Select(AgentPackageOffer.From))
+            .Concat(content.Manifest.Packages.Select(entry => AgentPackageOffer.From(entry)))
             .ToList();
         var unresolved = AgentPackageOffer.Unresolved(
             AgentProfileReferences.Read(content.Document),

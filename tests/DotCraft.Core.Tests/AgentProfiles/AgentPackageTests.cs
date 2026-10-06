@@ -167,6 +167,28 @@ public sealed class AgentPackageTests : IDisposable
         Assert.Equal("New: name", AgentPackageDocument.ReadName(rewritten));
     }
 
+    [Fact]
+    public void Reasons_SelectThePluginThatRegistersAnAllowedTool()
+    {
+        var references = AgentProfileReferences.Read(
+            "---\nname: Reviewer\ndescription: Reviews.\ntools:\n  allow: [review__summarize]\nplugins:\n  deny: [acme.other]\n---\n\nReview.\n");
+        var owner = AgentPackageOffer.From(Entry(AgentPackageKinds.Plugin, "acme.review-core"), ["review__summarize"]);
+        var other = AgentPackageOffer.From(Entry(AgentPackageKinds.Plugin, "acme.other"));
+
+        Assert.Equal(["tool review__summarize"], owner.Reasons(references));
+        Assert.Empty(other.Reasons(references));
+    }
+
+    [Fact]
+    public void Write_RefusesAFileTheReaderWouldRefuse()
+    {
+        var document = "---\nname: Big\ndescription: Too long.\n---\n\n" + new string('x', AgentPackageLimits.MaximumDocumentBytes) + "\n";
+        var path = Path.Combine(_root, "big.agent.zip");
+
+        Assert.Throws<AgentPackageException>(() => AgentPackageWriter.Write(
+            path, "Big", "Too long.", document, [], Path.Combine(_root, "staging"), DateTimeOffset.UnixEpoch));
+    }
+
     private static AgentPackageEntry Entry(string kind, string name) =>
         new(kind, name, name, null, string.Empty, false, kind == AgentPackageKinds.Skill ? [name] : [], [], null, null);
 

@@ -4094,8 +4094,6 @@ export const MESSAGES_JA = {
   'agentBuilder.export.used': "このエージェントが使用",
   'agentBuilder.export.reference': "{{marketplace}} へのリンク",
   'agentBuilder.export.mcpNote': "MCP サーバーの設定には認証情報が含まれる場合があるため、エクスポートされません。",
-  'agentBuilder.export.size': "{{size}} / {{limit}}",
-  'agentBuilder.export.tooLarge': "ファイルが 64 MB を超えます。スキルかプラグインを外してください。",
   'agentBuilder.export.confirm': "エクスポート",
   'agentBuilder.export.done': "エージェントをエクスポートしました",
   'agentBuilder.export.failed': "このエージェントをエクスポートできませんでした。{{error}}",

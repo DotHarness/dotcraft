@@ -4097,8 +4097,6 @@ export const MESSAGES_FR = {
   'agentBuilder.export.used': "Utilisé par cet agent",
   'agentBuilder.export.reference': "Lien vers {{marketplace}}",
   'agentBuilder.export.mcpNote': "Les paramètres des serveurs MCP ne sont pas inclus, car ils peuvent contenir des identifiants.",
-  'agentBuilder.export.size': "{{size}} sur {{limit}}",
-  'agentBuilder.export.tooLarge': "Le fichier dépasserait 64 Mo. Retirez une compétence ou un plugin.",
   'agentBuilder.export.confirm': "Exporter",
   'agentBuilder.export.done': "Agent exporté",
   'agentBuilder.export.failed': "Impossible d’exporter cet agent. {{error}}",

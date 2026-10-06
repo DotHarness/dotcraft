@@ -4096,8 +4096,6 @@ export const MESSAGES_KO = {
   'agentBuilder.export.used': "이 에이전트가 사용함",
   'agentBuilder.export.reference': "{{marketplace}} 링크",
   'agentBuilder.export.mcpNote': "MCP 서버 설정은 자격 증명을 포함할 수 있어 내보내지 않습니다.",
-  'agentBuilder.export.size': "{{size}} / {{limit}}",
-  'agentBuilder.export.tooLarge': "파일이 64MB를 초과합니다. 스킬이나 플러그인을 제외하세요.",
   'agentBuilder.export.confirm': "내보내기",
   'agentBuilder.export.done': "에이전트를 내보냈습니다",
   'agentBuilder.export.failed': "이 에이전트를 내보낼 수 없습니다. {{error}}",

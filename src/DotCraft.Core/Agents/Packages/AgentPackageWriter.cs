@@ -72,6 +72,7 @@ public static class AgentPackageWriter
 
         if (new FileInfo(path).Length > AgentPackageLimits.MaximumBytes)
             throw TooLarge();
+        _ = AgentPackageReader.Read(path);
     }
 
     public static long DirectoryBytes(string directory) =>

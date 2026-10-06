@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type JSX } from 'react'
+import { useEffect, useId, useRef, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { Box, Download, Plug } from 'lucide-react'
 import { LayerBoundary } from '../../contexts/LayerContext'
@@ -48,14 +48,8 @@ export function AgentExportDialog({ id, source, onClose }: AgentExportDialogProp
     return () => { cancelled = true }
   }, [id, source, t])
 
-  const embeddedBytes = useMemo(
-    () => plan?.packages.filter((pkg) => !pkg.marketplaceName && selected.has(packageKey(pkg))).reduce((sum, pkg) => sum + pkg.bytes, 0) ?? 0,
-    [plan, selected]
-  )
-  const tooLarge = plan != null && embeddedBytes > plan.maximumBytes
-
   async function confirm(): Promise<void> {
-    if (!plan || tooLarge) return
+    if (!plan) return
     setBusy(true)
     setError(null)
     try {
@@ -119,21 +113,18 @@ export function AgentExportDialog({ id, source, onClose }: AgentExportDialogProp
               </div>
             </div>
           )}
-          {plan != null && <p className={styles.note}>{t('agentBuilder.export.mcpNote')}</p>}
         </div>
 
-        {(error || tooLarge) && (
-          <p role="alert" className={styles.error}>{error ?? t('agentBuilder.export.tooLarge')}</p>
-        )}
+        {error && <p role="alert" className={styles.error}>{error}</p>}
 
         <div className={styles.footer}>
           <span className={styles.footerNote}>
-            {plan != null && t('agentBuilder.export.size', { size: formatBytes(embeddedBytes), limit: formatBytes(plan.maximumBytes) })}
+            {plan != null && t('agentBuilder.export.mcpNote')}
           </span>
           <Button variant="secondary" disabled={busy} onClick={onClose}>
             {t('common.cancel')}
           </Button>
-          <Button variant="primary" loading={busy} disabled={plan == null || tooLarge} onClick={() => void confirm()}>
+          <Button variant="primary" loading={busy} disabled={plan == null} onClick={() => void confirm()}>
             {t('agentBuilder.export.confirm')}
           </Button>
         </div>

@@ -446,7 +446,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
   }, [loadProfiles])
 
   // Load the selector catalogs once. Failures degrade gracefully (free-text fallback).
-  useEffect(() => {
+  const loadCatalogs = useCallback((): void => {
     void rpc<{ tools?: ToolInfo[] }>('tool/list', {})
       .then((res) => setToolCatalog(Array.isArray(res.tools) ? res.tools : []))
       .catch(() => setToolCatalog([]))
@@ -457,6 +457,10 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
       .then((res) => setMcpServers(Array.isArray(res.servers) ? res.servers.filter((server) => Boolean(server?.name)) : []))
       .catch(() => setMcpServers([]))
   }, [])
+
+  useEffect(() => {
+    loadCatalogs()
+  }, [loadCatalogs])
 
   const setDraft: Dispatch<SetStateAction<ProfileDraft>> = useCallback((updater) => {
     setRoute((r) => {
@@ -671,7 +675,10 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
   }, [profiles, query, t])
 
   const pluginTrust = trustPluginIds.length > 0
-    ? <ImportedPluginTrust pluginIds={trustPluginIds} onDone={() => setTrustPluginIds([])} />
+    ? <ImportedPluginTrust pluginIds={trustPluginIds} onDone={() => {
+        setTrustPluginIds([])
+        loadCatalogs()
+      }} />
     : null
 
   if (route.name === 'builder') {
@@ -703,7 +710,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
             onBack={leaveBuilder}
             onDelete={removeProfile}
             onCreate={() => setCreateDialogOpen(true)}
-            onExport={route.created && route.id && (route.source === 'user' || route.source === 'workspace') ? () => setExportDialogOpen(true) : undefined}
+            onExport={route.created && route.id && (route.source === 'user' || route.source === 'workspace') && toMarkdown(route.draft) === lastSavedMdRef.current && route.saveTarget === lastSavedSourceRef.current ? () => setExportDialogOpen(true) : undefined}
           />
         </div>
         <aside className="agent-builder-chatpane" style={builderChatpaneStyle}>
@@ -847,6 +854,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
           onImported={(profile, dotnetPluginIds) => {
             setImportDialogOpen(false)
             setTrustPluginIds(dotnetPluginIds)
+            loadCatalogs()
             void loadProfiles()
             void openProfile({ id: profile.id, source: profile.source })
           }}

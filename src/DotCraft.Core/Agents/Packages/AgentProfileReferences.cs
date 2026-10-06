@@ -4,7 +4,7 @@ public sealed record AgentProfileReferences(
     IReadOnlyList<string> Skills,
     IReadOnlyList<string> McpServers,
     IReadOnlyList<string> Plugins,
-    IReadOnlyList<string> ToolNamespaces)
+    IReadOnlyList<string> Tools)
 {
     public static readonly AgentProfileReferences None = new([], [], [], []);
 
@@ -16,12 +16,8 @@ public sealed record AgentProfileReferences(
         return new AgentProfileReferences(
             Names(Child(values, "skills", "preload")).Concat(Names(Child(values, "skills", "allow"))).Distinct(StringComparer.Ordinal).ToArray(),
             Names(Child(values, "mcp", "servers")).Distinct(StringComparer.Ordinal).ToArray(),
-            Names(values.TryGetValue("plugins", out var plugins) ? plugins : null).Distinct(StringComparer.Ordinal).ToArray(),
-            Names(Child(values, "tools", "allow"))
-                .Select(tool => tool.IndexOf('.') is > 0 and var dot ? tool[..dot] : null)
-                .OfType<string>()
-                .Distinct(StringComparer.Ordinal)
-                .ToArray());
+            Names(Child(values, "plugins", "allow")).Distinct(StringComparer.Ordinal).ToArray(),
+            Names(Child(values, "tools", "allow")).Distinct(StringComparer.Ordinal).ToArray());
     }
 
     private static object? Child(Dictionary<object, object> values, string group, string key) =>
@@ -38,13 +34,19 @@ public sealed record AgentProfileReferences(
     };
 }
 
-public sealed record AgentPackageOffer(string Kind, string Name, IReadOnlyList<string> Skills, IReadOnlyList<string> McpServers)
+public sealed record AgentPackageOffer(
+    string Kind,
+    string Name,
+    IReadOnlyList<string> Skills,
+    IReadOnlyList<string> McpServers,
+    IReadOnlyList<string>? Tools = null)
 {
-    public static AgentPackageOffer From(AgentPackageEntry entry) => new(
+    public static AgentPackageOffer From(AgentPackageEntry entry, IReadOnlyList<string>? tools = null) => new(
         entry.Kind,
         entry.Name,
         entry.Kind == AgentPackageKinds.Skill ? [entry.Name] : entry.Skills,
-        entry.McpServers);
+        entry.McpServers,
+        tools);
 
     public bool ProvidesSkill(string name) => Skills.Contains(name, StringComparer.OrdinalIgnoreCase);
 
@@ -62,8 +64,7 @@ public sealed record AgentPackageOffer(string Kind, string Name, IReadOnlyList<s
         reasons.AddRange(references.McpServers.Where(ProvidesMcpServer).Select(name => $"MCP server {name}"));
         if (references.Plugins.Any(IsPlugin))
             reasons.Add($"plugin {Name}");
-        if (references.ToolNamespaces.Any(IsPlugin))
-            reasons.Add($"{Name} tools");
+        reasons.AddRange(references.Tools.Where(tool => Tools?.Contains(tool, StringComparer.Ordinal) == true).Select(tool => $"tool {tool}"));
         return reasons;
     }
 

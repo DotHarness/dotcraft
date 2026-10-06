@@ -4231,8 +4231,6 @@ export const MESSAGES_EN = {
   'agentBuilder.export.used': "Used by this agent",
   'agentBuilder.export.reference': "Links to {{marketplace}}",
   'agentBuilder.export.mcpNote': "MCP server settings aren't included because they can hold credentials.",
-  'agentBuilder.export.size': "{{size}} of {{limit}}",
-  'agentBuilder.export.tooLarge': "The file would be larger than 64 MB. Leave out a skill or plugin.",
   'agentBuilder.export.confirm': "Export",
   'agentBuilder.export.done': "Agent exported",
   'agentBuilder.export.failed': "Couldn't export this agent. {{error}}",

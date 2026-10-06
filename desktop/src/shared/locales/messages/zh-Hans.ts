@@ -4168,8 +4168,6 @@ export const MESSAGES_ZH_HANS = {
   'agentBuilder.export.used': "这个智能体用到了它",
   'agentBuilder.export.reference': "链接到 {{marketplace}}",
   'agentBuilder.export.mcpNote': "MCP 服务器设置不会导出，因为其中可能包含凭据。",
-  'agentBuilder.export.size': "{{size}} / {{limit}}",
-  'agentBuilder.export.tooLarge': "文件会超过 64 MB，请去掉一些技能或插件。",
   'agentBuilder.export.confirm': "导出",
   'agentBuilder.export.done': "智能体已导出",
   'agentBuilder.export.failed': "无法导出这个智能体。{{error}}",

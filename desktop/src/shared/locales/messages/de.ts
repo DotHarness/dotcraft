@@ -4098,8 +4098,6 @@ export const MESSAGES_DE = {
   'agentBuilder.export.used': "Von diesem Agenten verwendet",
   'agentBuilder.export.reference': "Verweist auf {{marketplace}}",
   'agentBuilder.export.mcpNote': "Einstellungen von MCP-Servern werden nicht exportiert, da sie Zugangsdaten enthalten können.",
-  'agentBuilder.export.size': "{{size}} von {{limit}}",
-  'agentBuilder.export.tooLarge': "Die Datei wäre größer als 64 MB. Lass einen Skill oder ein Plugin weg.",
   'agentBuilder.export.confirm': "Exportieren",
   'agentBuilder.export.done': "Agent exportiert",
   'agentBuilder.export.failed': "Dieser Agent konnte nicht exportiert werden. {{error}}",
