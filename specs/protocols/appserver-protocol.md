@@ -6462,7 +6462,7 @@ Write one key path to one layer.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `keyPath` | string | yes | Dot-joined on-disk property names from the root, for example `Tools.CodeMode.Mode`. A path inside an object-valued field, such as `ProviderPreferences.openai`, is also accepted. |
+| `keyPath` | string | yes | Dot-joined on-disk property names from the root, for example `Tools.CodeMode.Mode`. A path inside an object-valued field, such as `ProviderPreferences.openai`, is also accepted. A segment that contains `.`, `"` or `\` is written in double quotes with `\` escaping, for example `ProviderPreferences."openai.personal"`. |
 | `value` | any JSON | yes | The new value. `null` removes the key from the target layer and prunes parent objects left empty. |
 | `mergeStrategy` | string | yes | `replace` sets the value; `upsert` deep-merges an object value into the existing object. |
 | `filePath` | string \| null | no | A layer `file` from `config/read`. Omitted or `null` targets the workspace layer. |

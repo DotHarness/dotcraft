@@ -206,7 +206,16 @@ public sealed class ConfigurationService
 
     private string[] ResolveEditPath(ConfigEdit edit)
     {
-        var path = ConfigJsonPath.Split(edit.KeyPath);
+        string[] path;
+        try
+        {
+            path = ConfigJsonPath.Split(edit.KeyPath);
+        }
+        catch (FormatException ex)
+        {
+            throw new ConfigWriteException(ConfigWriteErrorCode.ConfigSchemaUnknownKey, ex.Message);
+        }
+
         if (_fieldsByKeyPath.TryGetValue(edit.KeyPath, out var field))
         {
             if (field.Sensitive)

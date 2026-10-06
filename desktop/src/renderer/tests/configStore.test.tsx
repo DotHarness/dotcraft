@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { InstantInterruptRow } from '../components/settings/panels/instantInterrupt/InstantInterruptRow'
 import { useComposerPreferencesStore } from '../stores/composerPreferencesStore'
-import { useConfigStore } from '../stores/configStore'
+import { configKeyPath, readConfigValue, useConfigStore } from '../stores/configStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useToastStore } from '../stores/toastStore'
 
@@ -102,11 +102,39 @@ describe('configuration client', () => {
     expect(configReads()).toBe(2)
   })
 
-  it('ignores domain tags', async () => {
+  it('ignores regions outside the configuration it holds', async () => {
     await useConfigStore.getState().ensureLoaded()
 
     useConfigStore.getState().handleConfigChanged(['providers', 'skills', 'plugins.config', 'memory'])
 
     expect(configReads()).toBe(1)
+  })
+
+  it('loads the configuration when a setting changes during the initial read', async () => {
+    let releaseInitialRead!: () => void
+    sendRequest.mockImplementation(async (method: string) => {
+      if (method === 'config/read') {
+        if (configReads() === 1) await new Promise<void>((resolve) => { releaseInitialRead = resolve })
+        return { config: serverConfig, origins: {} }
+      }
+      return { status: 'ok', version: 'sha256:1', filePath: '/remote/.craft/config.json' }
+    })
+
+    const initialRead = useConfigStore.getState().ensureLoaded()
+    await useConfigStore.getState().write([{ keyPath: 'InstantInterruptEnabled', value: true }])
+    releaseInitialRead()
+    await initialRead
+
+    expect(useConfigStore.getState().config).toEqual(serverConfig)
+  })
+
+  it('quotes key path segments that contain dots', async () => {
+    serverConfig = { ProviderPreferences: { 'openai.personal': { model: 'gpt-5' } } }
+    await useConfigStore.getState().ensureLoaded()
+
+    const keyPath = configKeyPath('ProviderPreferences', 'openai.personal')
+
+    expect(keyPath).toBe('ProviderPreferences."openai.personal"')
+    expect(readConfigValue(useConfigStore.getState().config, `${keyPath}.model`)).toBe('gpt-5')
   })
 })

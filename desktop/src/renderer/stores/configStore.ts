@@ -35,9 +35,38 @@ function findKey(record: ConfigObject, segment: string): string | undefined {
   return Object.keys(record).find((key) => key.toLowerCase() === expected)
 }
 
+export function splitConfigKeyPath(keyPath: string): string[] {
+  const segments: string[] = []
+  let segment = ''
+  let quoted = false
+  for (let i = 0; i < keyPath.length; i++) {
+    const char = keyPath[i]
+    if (quoted) {
+      if (char === '\\' && i + 1 < keyPath.length) segment += keyPath[++i]
+      else if (char === '"') quoted = false
+      else segment += char
+    } else if (char === '.') {
+      segments.push(segment)
+      segment = ''
+    } else if (char === '"') {
+      quoted = true
+    } else {
+      segment += char
+    }
+  }
+  segments.push(segment)
+  return segments
+}
+
+export function configKeyPath(...segments: string[]): string {
+  return segments
+    .map((segment) => (/["\\.]/.test(segment) ? `"${segment.replace(/["\\]/g, (char) => `\\${char}`)}"` : segment))
+    .join('.')
+}
+
 export function readConfigValue(config: ConfigObject | null | undefined, keyPath: string): unknown {
   let current: unknown = config
-  for (const segment of keyPath.split('.')) {
+  for (const segment of splitConfigKeyPath(keyPath)) {
     if (!isRecord(current)) return undefined
     const key = findKey(current, segment)
     if (key === undefined) return undefined
@@ -57,7 +86,7 @@ function withConfigValue(config: ConfigObject, segments: string[], value: unknow
 }
 
 function applyEdits(config: ConfigObject, edits: ConfigEdit[]): ConfigObject {
-  return edits.reduce((next, edit) => withConfigValue(next, edit.keyPath.split('.'), edit.value), config)
+  return edits.reduce((next, edit) => withConfigValue(next, splitConfigKeyPath(edit.keyPath), edit.value), config)
 }
 
 function removePending(pending: string[], keyPaths: string[]): string[] {
@@ -123,6 +152,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     } finally {
       if (writeScope === scope) {
         set((state) => ({ pendingKeyPaths: removePending(state.pendingKeyPaths, keyPaths) }))
+        await get().refresh()
       }
     }
   },

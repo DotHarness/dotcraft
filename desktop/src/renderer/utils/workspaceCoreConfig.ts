@@ -6,7 +6,7 @@ import {
   toContractModelPreference,
   type ModelPreference
 } from '../../shared/modelPreference'
-import type { ConfigEdit } from '../stores/configStore'
+import { configKeyPath, type ConfigEdit } from '../stores/configStore'
 
 function normalizeOptionalModel(value: unknown): string | null {
   if (typeof value !== 'string') return null
@@ -74,5 +74,5 @@ export function resolveConcreteApprovalPolicyFromConfig(config: Record<string, u
 }
 
 export function providerPreferenceEdit(providerId: string, preference: ModelPreference): ConfigEdit {
-  return { keyPath: `ProviderPreferences.${providerId}`, value: toContractModelPreference(preference) }
+  return { keyPath: configKeyPath('ProviderPreferences', providerId), value: toContractModelPreference(preference) }
 }

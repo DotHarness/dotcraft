@@ -7,7 +7,49 @@ namespace DotCraft.Configuration;
 
 internal static class ConfigJsonPath
 {
-    public static string[] Split(string keyPath) => keyPath.Split('.');
+    public static string[] Split(string keyPath)
+    {
+        var segments = new List<string>();
+        var segment = new StringBuilder();
+        var quoted = false;
+        var closed = false;
+        for (var i = 0; i < keyPath.Length; i++)
+        {
+            var c = keyPath[i];
+            if (quoted)
+            {
+                if (c == '\\' && i + 1 < keyPath.Length)
+                    segment.Append(keyPath[++i]);
+                else if (c == '"')
+                    (quoted, closed) = (false, true);
+                else
+                    segment.Append(c);
+            }
+            else if (c == '.')
+            {
+                segments.Add(segment.ToString());
+                segment.Clear();
+                closed = false;
+            }
+            else if (closed || (c == '"' && segment.Length > 0))
+            {
+                throw new FormatException($"'{keyPath}' is not a valid key path.");
+            }
+            else if (c == '"')
+            {
+                quoted = true;
+            }
+            else
+            {
+                segment.Append(c);
+            }
+        }
+
+        if (quoted)
+            throw new FormatException($"'{keyPath}' is not a valid key path.");
+        segments.Add(segment.ToString());
+        return segments.ToArray();
+    }
 
     public static bool TryGet(JsonObject root, IReadOnlyList<string> path, out JsonNode? value)
     {

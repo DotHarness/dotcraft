@@ -23,6 +23,18 @@ public sealed class ConfigurationServiceWriteTests
     }
 
     [Fact]
+    public async Task Write_QuotedSegment_AddressesAKeyContainingDots()
+    {
+        using var fixture = new ConfigurationServiceFixture(workspace: ExistingWorkspace);
+
+        await fixture.WriteAsync("ProviderPreferences.\"openai.personal\"", "{ \"Model\": \"gpt-5\" }");
+
+        var preferences = ConfigurationServiceFixture.ReadFile(fixture.WorkspacePath)["ProviderPreferences"]!.AsObject();
+        Assert.Equal("gpt-5", preferences["openai.personal"]!["Model"]!.GetValue<string>());
+        Assert.Single(preferences);
+    }
+
+    [Fact]
     public async Task Write_KeepsNonAsciiTextReadableInTheFile()
     {
         using var fixture = new ConfigurationServiceFixture(workspace: ExistingWorkspace);
@@ -38,6 +50,7 @@ public sealed class ConfigurationServiceWriteTests
     [InlineData("Tools.Lsp.Missing", "true", null, null, ConfigWriteErrorCode.ConfigSchemaUnknownKey)]
     [InlineData("Tools.Lsp", "{}", null, null, ConfigWriteErrorCode.ConfigSchemaUnknownKey)]
     [InlineData("ProviderPreferences.", "{}", null, null, ConfigWriteErrorCode.ConfigSchemaUnknownKey)]
+    [InlineData("ProviderPreferences.\"open", "{}", null, null, ConfigWriteErrorCode.ConfigSchemaUnknownKey)]
     [InlineData("DashBoard.Password", "\"secret\"", null, null, ConfigWriteErrorCode.ConfigValidationError)]
     [InlineData("InstantInterruptEnabled", "\"yes\"", null, null, ConfigWriteErrorCode.ConfigValidationError)]
     [InlineData("Tools.Web.SearchMaxResults", "50", null, null, ConfigWriteErrorCode.ConfigValidationError)]

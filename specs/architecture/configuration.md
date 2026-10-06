@@ -124,7 +124,7 @@ A layer `name` is `{ "type": "user", "file": <path> }` or `{ "type": "workspace"
 
 ### 6.2 `config/value/write`
 
-Params: `keyPath` (string), `value` (any JSON, `null` removes), `mergeStrategy` (`replace` or `upsert`), `filePath` (string or `null`; a layer `file` from `config/read`, defaulting to the workspace layer), `expectedVersion` (string or `null`).
+Params: `keyPath` (string; a segment that contains `.`, `"` or `\` is written in double quotes with `\` escaping, for example `ProviderPreferences."openai.personal"`), `value` (any JSON, `null` removes), `mergeStrategy` (`replace` or `upsert`), `filePath` (string or `null`; a layer `file` from `config/read`, defaulting to the workspace layer), `expectedVersion` (string or `null`).
 
 Result: `status` (`ok` or `okOverridden`), `version`, `filePath`, and `overriddenMetadata` (`{ message, overridingLayer, effectiveValue }`) when overridden.
 
