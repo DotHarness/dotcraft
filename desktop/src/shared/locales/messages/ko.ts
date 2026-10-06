@@ -2798,6 +2798,7 @@ export const MESSAGES_KO = {
   'plugins.lsp.enableSuccess': 'LSP 활성화됨',
   'plugins.lsp.enabling': '활성화 중...',
   'plugins.manage': '관리',
+  'plugins.manage.toggleLabel': '이 작업 공간에서 {{name}} 사용',
   'plugins.manage.count.plugins': '플러그인 {{count}}',
   'plugins.manage.count.skills': '스킬 {{count}}',
   'plugins.manage.searchPlaceholder': '설치된 플러그인 검색',

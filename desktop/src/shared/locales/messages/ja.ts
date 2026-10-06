@@ -2794,6 +2794,7 @@ export const MESSAGES_JA = {
   'plugins.lsp.enableSuccess': 'LSP が有効になりました',
   'plugins.lsp.enabling': '有効にする...',
   'plugins.manage': '管理',
+  'plugins.manage.toggleLabel': 'このワークスペースで {{name}} を使用',
   'plugins.manage.count.plugins': 'プラグイン {{count}}',
   'plugins.manage.count.skills': 'スキル {{count}}',
   'plugins.manage.searchPlaceholder': 'インストールされているプラグインを検索する',

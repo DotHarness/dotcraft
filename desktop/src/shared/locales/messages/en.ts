@@ -2192,6 +2192,7 @@ export const MESSAGES_EN = {
   'plugins.searchPlaceholder': 'Search plugins',
   'plugins.manage.searchPlaceholder': 'Search installed plugins',
   'plugins.manage': 'Manage',
+  'plugins.manage.toggleLabel': 'Use {{name}} in this workspace',
   'plugins.refresh': 'Refresh',
   'plugins.installLocal.menu': 'Install from disk',
   'plugins.installLocal.pickTitle': 'Select plugin folder',

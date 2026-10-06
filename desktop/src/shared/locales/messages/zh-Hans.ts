@@ -2153,6 +2153,7 @@ export const MESSAGES_ZH_HANS = {
   'plugins.searchPlaceholder': '搜索插件',
   'plugins.manage.searchPlaceholder': '搜索已安装插件',
   'plugins.manage': '管理',
+  'plugins.manage.toggleLabel': '在此工作区使用 {{name}}',
   'plugins.refresh': '刷新',
   'plugins.installLocal.menu': '从磁盘安装',
   'plugins.installLocal.pickTitle': '选择插件文件夹',

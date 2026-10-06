@@ -2795,6 +2795,7 @@ export const MESSAGES_ES = {
   'plugins.lsp.enableSuccess': 'LSP habilitado',
   'plugins.lsp.enabling': 'Habilitando...',
   'plugins.manage': 'Administrar',
+  'plugins.manage.toggleLabel': 'Usar {{name}} en este espacio de trabajo',
   'plugins.manage.count.plugins': 'Complementos {{count}}',
   'plugins.manage.count.skills': 'Habilidades {{count}}',
   'plugins.manage.searchPlaceholder': 'Buscar complementos instalados',
