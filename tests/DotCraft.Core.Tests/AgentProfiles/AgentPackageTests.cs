@@ -127,7 +127,7 @@ public sealed class AgentPackageTests : IDisposable
     }
 
     [Fact]
-    public void Read_AcceptsAPackageWrittenInUniverseLayout()
+    public void Read_UnpacksAnEmbeddedPluginWithItsSkills()
     {
         var path = Zip(new Dictionary<string, byte[]>
         {

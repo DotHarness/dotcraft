@@ -7,7 +7,7 @@
 | Date | 2026-10-06 |
 | Parent spec | [Agent Profiles](agent-profiles.md) |
 
-This specification owns how an Agent Profile leaves one DotCraft installation as a file and arrives in another: the file an export writes, what an import reads from it, and what the receiving installation installs before the profile exists. [Agent Profiles](agent-profiles.md) owns the profile document and its sources. Universe reads and writes the same file, so an Agent moves between DotCraft and Universe in either direction.
+This specification owns how an Agent Profile leaves one DotCraft installation as a file and arrives in another: the file an export writes, what an import reads from it, and what the receiving installation installs before the profile exists. [Agent Profiles](agent-profiles.md) owns the profile document and its sources.
 
 ## Scope
 
@@ -85,4 +85,3 @@ Errors are invalid-params errors whose `data.code` is one of the stable codes `a
 - A Profile document alone imports under the chosen name and lists the skills it names that nobody provides.
 - A zip with an entry outside it is refused and creates nothing.
 - A .NET plugin in an import installs untrusted and its plugin dialog asks for trust after the import; an expired import is refused.
-- A file exported by Universe imports into DotCraft, and a file exported by DotCraft imports into Universe.
