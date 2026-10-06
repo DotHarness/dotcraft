@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.8.3 |
 | **Status** | Draft |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-06 |
 | **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Session Core](../architecture/session-core.md) |
 
 Purpose: define Agent Profiles as reusable agent configuration templates. A profile gives a thread a role, default runtime preferences, and enforceable capability policy without replacing DotCraft's generated base instructions.
@@ -226,6 +226,11 @@ Profile management uses Markdown as the primary authoring format.
 | `agent/profiles/refreshThread` | Explicitly refresh a profile-backed thread from the current resolved profile. |
 | `agent/profiles/builderDraft/read` | Read the transient working draft for a bound conversational builder thread. |
 | `agent/profiles/builderDraft/update` | Replace the transient working draft for a bound conversational builder thread without persisting a profile file. |
+| `agent/profiles/export/plan` | List what an export of a user or workspace profile can carry. See [Agent packages](agent-packages.md). |
+| `agent/profiles/export/read` | Write the Agent package for the chosen skills and plugins and read it in chunks. See [Agent packages](agent-packages.md). |
+| `agent/profiles/import/upload` | Upload an Agent package or Profile document in chunks and return its preview. See [Agent packages](agent-packages.md). |
+| `agent/profiles/import/commit` | Install the chosen packages and create the profile from an uploaded import. See [Agent packages](agent-packages.md). |
+| `agent/profiles/import/discard` | Discard an uploaded import. See [Agent packages](agent-packages.md). |
 
 Rules:
 

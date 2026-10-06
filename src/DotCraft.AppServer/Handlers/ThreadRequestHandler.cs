@@ -152,7 +152,7 @@ internal sealed partial class ThreadRequestHandler(
 
         try
         {
-            var store = new AgentProfileStore(ResolveAgentProfileWorkspaceDataPath());
+            var store = new AgentProfileStore(ResolveAgentProfileWorkspaceDataPath(), workspaceConfig.UserDataPath);
             var currentConfig = appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig();
             var resolved = store.ResolveThreadStartConfiguration(config, currentConfig, TryGetConfigElement(msg));
             AppServerRuntimeRequestValidator.NormalizeCompleteModelConfiguration(currentConfig, resolved);

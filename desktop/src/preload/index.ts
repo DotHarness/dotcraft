@@ -783,8 +783,8 @@ const api = {
       return ipcRenderer.invoke('shell:show-item-in-folder', path)
     },
 
-    saveImageAs(request: { data: Uint8Array; suggestedName: string }): Promise<{ saved: boolean }> {
-      return ipcRenderer.invoke('shell:save-image-as', request)
+    saveFileAs(request: { data: Uint8Array; suggestedName: string }): Promise<{ saved: boolean }> {
+      return ipcRenderer.invoke('shell:save-file-as', request)
     }
   },
 

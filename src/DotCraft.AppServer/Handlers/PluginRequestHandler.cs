@@ -39,6 +39,7 @@ internal sealed partial class PluginRequestHandler(
     public void RegisterMethods(AppServerMethodTable table)
     {
         _ = CloseDesktopArtifactsAsync();
+        _ = CloseAgentPackagesAsync();
         table.Map(Protocol.AppServer.AppServerRpc.PluginDesktopRead, HandleDesktopReadAsync);
         MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginList, HandlePluginListAsync);
         MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginView, HandlePluginViewAsync);
@@ -53,6 +54,11 @@ internal sealed partial class PluginRequestHandler(
         MapMutation(table, Protocol.AppServer.AppServerRpc.MarketplaceAdd, HandleMarketplaceAddAsync);
         MapMutation(table, Protocol.AppServer.AppServerRpc.MarketplaceRemove, HandleMarketplaceRemoveAsync);
         MapMutation(table, Protocol.AppServer.AppServerRpc.MarketplaceRefresh, HandleMarketplaceRefreshAsync);
+        MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.AgentProfileExportPlan, HandleAgentExportPlanAsync);
+        MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.AgentProfileExportRead, HandleAgentExportReadAsync);
+        MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.AgentProfileImportUpload, HandleAgentImportUploadAsync);
+        MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.AgentProfileImportDiscard, HandleAgentImportDiscardAsync);
+        MapMutation(table, Protocol.AppServer.AppServerRpc.AgentProfileImportCommit, HandleAgentImportCommitAsync);
     }
 
     private Task<AppServerTypedResult<Contract.PluginListResult>> HandlePluginListAsync(
@@ -217,7 +223,7 @@ internal sealed partial class PluginRequestHandler(
         return await WriteWithLifecycleNotificationsAsync(
             request.Message,
             result,
-            appListUpdate,
+            [appListUpdate],
             offlineBindings,
             [pluginId, .. affected],
             ct);
@@ -242,17 +248,7 @@ internal sealed partial class PluginRequestHandler(
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' is not installable.");
         var commitToken = EnterMutationCommit(ct);
 
-        var deployDiagnostics = new BuiltInPluginDeployer(
-                Path.Combine(workspaceCraftPath, "plugins"),
-                builtInPluginSourceRoots,
-                appConfigMonitor?.Current.Plugins ?? new AppConfig.PluginsConfig(),
-                workspaceConfig.PersonalConfigPath is { } personalConfigPath
-                    ? Path.GetDirectoryName(personalConfigPath)
-                    : null)
-            .DeployPlugin(pluginId);
-        PluginDiagnosticsLogger.Write(deployDiagnostics, logger);
-        if (deployDiagnostics.Any(d => IsBlockingDeployDiagnosticForPlugin(d, pluginId)))
-            throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' could not be installed.");
+        DeployCatalogPlugin(pluginId);
 
         return await FinalizeInstalledPluginAsync(
             pluginId,
@@ -261,6 +257,19 @@ internal sealed partial class PluginRequestHandler(
             request.Message,
             commitToken,
             ct);
+    }
+
+    private void DeployCatalogPlugin(string pluginId)
+    {
+        var deployDiagnostics = new BuiltInPluginDeployer(
+                Path.Combine(workspaceCraftPath!, "plugins"),
+                builtInPluginSourceRoots,
+                appConfigMonitor?.Current.Plugins ?? new AppConfig.PluginsConfig(),
+                workspaceConfig.UserDataPath)
+            .DeployPlugin(pluginId);
+        PluginDiagnosticsLogger.Write(deployDiagnostics, logger);
+        if (deployDiagnostics.Any(d => IsBlockingDeployDiagnosticForPlugin(d, pluginId)))
+            throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' could not be installed.");
     }
 
     private static bool IsBlockingDeployDiagnosticForPlugin(PluginDiagnostic diagnostic, string pluginId) =>
@@ -330,7 +339,7 @@ internal sealed partial class PluginRequestHandler(
         return await WriteWithLifecycleNotificationsAsync(
             msg,
             result,
-            TryBuildAppListUpdatedNotification(discovery, pluginId, appListReason),
+            [TryBuildAppListUpdatedNotification(discovery, pluginId, appListReason)],
             [],
             [pluginId, .. (runtimeMutation?.AffectedPluginIds ?? [])],
             deliveryToken);
@@ -469,7 +478,7 @@ internal sealed partial class PluginRequestHandler(
         return await WriteWithLifecycleNotificationsAsync(
             request.Message,
             result,
-            appListUpdate,
+            [appListUpdate],
             offlineBindings,
             [pluginId, .. (runtimeMutation?.AffectedPluginIds ?? quiesce?.AffectedPluginIds ?? [])],
             ct);
@@ -512,7 +521,7 @@ internal sealed partial class PluginRequestHandler(
     private async Task<AppServerTypedResult<TResult>> WriteWithLifecycleNotificationsAsync<TResult>(
         AppServerIncomingMessage msg,
         TResult result,
-        Contract.AppListUpdatedNotification? appListUpdatedParams,
+        IReadOnlyList<Contract.AppListUpdatedNotification?> appListUpdates,
         IReadOnlyList<AppBindingSnapshot> offlineBindings,
         IReadOnlyList<string> pluginSnapshotIds,
         CancellationToken ct)
@@ -536,11 +545,11 @@ internal sealed partial class PluginRequestHandler(
         {
             try
             {
-                if (appListUpdatedParams != null)
+                foreach (var appListUpdate in appListUpdates.OfType<Contract.AppListUpdatedNotification>())
                 {
                     await transport.NotifyContractAsync(
                         Protocol.AppServer.AppServerRpc.AppListUpdated,
-                        appListUpdatedParams,
+                        appListUpdate,
                         ct).ConfigureAwait(false);
                 }
 

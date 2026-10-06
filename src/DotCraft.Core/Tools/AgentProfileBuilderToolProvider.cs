@@ -28,7 +28,8 @@ internal enum AgentApprovalPolicy { Prompt, AutoApprove }
 public sealed class AgentProfileBuilderToolSource(
     SkillsLoader? skillsLoader,
     McpClientManager? mcpClientManager,
-    string dataPath) : AIFunctionToolSource
+    string dataPath,
+    string? userDataPath) : AIFunctionToolSource
 {
     /// <inheritdoc />
     public override string SourceId => "agent-profile-builder";
@@ -55,7 +56,7 @@ public sealed class AgentProfileBuilderToolSource(
             threadId,
             targetId,
             targetSource,
-            SeedMarkdown(threadId, dataPath, targetId, targetSource));
+            SeedMarkdown(threadId, dataPath, userDataPath, targetId, targetSource));
 
         var methods = new AgentProfileBuilderToolMethods(
             threadId,
@@ -80,6 +81,7 @@ public sealed class AgentProfileBuilderToolSource(
     private static string SeedMarkdown(
         string threadId,
         string dataPath,
+        string? userDataPath,
         string targetId,
         string targetSource)
     {
@@ -90,7 +92,7 @@ public sealed class AgentProfileBuilderToolSource(
 
         try
         {
-            var entry = new AgentProfileStore(dataPath).Read(targetId, targetSource);
+            var entry = new AgentProfileStore(dataPath, userDataPath).Read(targetId, targetSource);
             return entry.RawContent ?? string.Empty;
         }
         catch

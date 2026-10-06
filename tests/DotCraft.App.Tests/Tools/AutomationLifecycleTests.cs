@@ -316,6 +316,7 @@ public sealed class AutomationLifecycleTests : IDisposable
     private sealed class Sessions : IAutomationSessionClient
     {
         public string DataPath => "unused";
+        public string? UserDataPath => null;
         public int Submissions;
         public bool Fail;
         public Action<string>? DuringTurn;
@@ -341,6 +342,7 @@ public sealed class AutomationLifecycleTests : IDisposable
     private sealed class BlockingSessions : IAutomationSessionClient
     {
         public string DataPath => "unused";
+        public string? UserDataPath => null;
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

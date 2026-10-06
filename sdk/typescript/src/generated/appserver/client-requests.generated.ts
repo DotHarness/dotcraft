@@ -5,6 +5,11 @@ import type * as Models from "./models.generated.js";
 export interface ClientRequestMethods {
   "agent/profiles/builderDraft/read": { params: Models.AgentProfileBuilderDraftReadParams; result: Models.AgentProfileBuilderDraftResult };
   "agent/profiles/builderDraft/update": { params: Models.AgentProfileBuilderDraftUpdateParams; result: Models.AgentProfileBuilderDraftResult };
+  "agent/profiles/export/plan": { params: Models.AgentExportPlanParams; result: Models.AgentExportPlanResult };
+  "agent/profiles/export/read": { params: Models.AgentExportReadParams; result: Models.AgentExportReadResult };
+  "agent/profiles/import/commit": { params: Models.AgentImportCommitParams; result: Models.AgentProfileUpsertResult };
+  "agent/profiles/import/discard": { params: Models.AgentImportDiscardParams; result: Models.RpcEmpty };
+  "agent/profiles/import/upload": { params: Models.AgentImportUploadParams; result: Models.AgentImportUploadResult };
   "agent/profiles/list": { params: Models.AgentProfileListParams; result: Models.AgentProfileListResult };
   "agent/profiles/read": { params: Models.AgentProfileReadParams; result: Models.AgentProfileReadResult };
   "agent/profiles/refreshThread": { params: Models.AgentProfileRefreshThreadParams; result: Models.AgentProfileRefreshThreadResult };

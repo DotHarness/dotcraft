@@ -80,15 +80,122 @@ export interface AcpTerminalWaitForExitParams {
   [key: string]: unknown;
 }
 
+export interface AgentExportPackage {
+  bytes: number;
+  displayName: string;
+  dotnet: boolean;
+  kind: string;
+  marketplaceName?: string | null;
+  name: string;
+  reasons: string[];
+  version?: string | null;
+  [key: string]: unknown;
+}
+
+export interface AgentExportPlanParams {
+  id: string;
+  source: string;
+  [key: string]: unknown;
+}
+
+export interface AgentExportPlanResult {
+  fileName: string;
+  maximumBytes: number;
+  packages: AgentExportPackage[];
+  [key: string]: unknown;
+}
+
+export interface AgentExportReadParams {
+  id: string;
+  offset: number;
+  packages: AgentPackageRef[];
+  source: string;
+  [key: string]: unknown;
+}
+
+export interface AgentExportReadResult {
+  dataBase64: string;
+  totalBytes: number;
+  [key: string]: unknown;
+}
+
 export interface AgentImportCapabilities {
   sources: string[];
   version: number;
   [key: string]: unknown;
 }
 
+export interface AgentImportCommitParams {
+  description?: string | null;
+  importId: string;
+  name: string;
+  packages: AgentPackageRef[];
+  source: string;
+  [key: string]: unknown;
+}
+
+export interface AgentImportDiscardParams {
+  importId: string;
+  [key: string]: unknown;
+}
+
+export interface AgentImportPackage {
+  displayName: string;
+  dotnet: boolean;
+  installedVersion?: string | null;
+  kind: string;
+  marketplaceName?: string | null;
+  name: string;
+  reason?: string | null;
+  state: string;
+  version?: string | null;
+  [key: string]: unknown;
+}
+
+export interface AgentImportPreview {
+  description?: string | null;
+  importId: string;
+  kind: string;
+  name: string;
+  nameTaken: boolean;
+  packages: AgentImportPackage[];
+  problems: string[];
+  unresolved: AgentImportUnresolved;
+  [key: string]: unknown;
+}
+
+export interface AgentImportUnresolved {
+  mcpServers: string[];
+  plugins: string[];
+  skills: string[];
+  [key: string]: unknown;
+}
+
+export interface AgentImportUploadParams {
+  dataBase64: string;
+  fileName: string;
+  importId?: string | null;
+  offset: number;
+  totalBytes: number;
+  [key: string]: unknown;
+}
+
+export interface AgentImportUploadResult {
+  importId: string;
+  preview?: AgentImportPreview | null;
+  receivedBytes: number;
+  [key: string]: unknown;
+}
+
 export interface AgentMessagePayload {
   deliveryMode?: string | null;
   text: string;
+  [key: string]: unknown;
+}
+
+export interface AgentPackageRef {
+  kind: string;
+  name: string;
   [key: string]: unknown;
 }
 

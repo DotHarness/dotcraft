@@ -2,19 +2,19 @@ import { app, BrowserWindow, dialog, type SaveDialogOptions, type WebContents } 
 import fs from 'fs/promises'
 import path from 'path'
 
-export interface SaveImageAsRequest {
+export interface SaveFileAsRequest {
   data: Uint8Array
   suggestedName: string
 }
 
-export async function saveImageAs(
+export async function saveFileAs(
   sender: WebContents,
-  request: SaveImageAsRequest
+  request: SaveFileAsRequest
 ): Promise<{ saved: boolean }> {
   if (!(request?.data instanceof Uint8Array) || request.data.byteLength === 0) {
-    throw new Error('Image data is missing.')
+    throw new Error('File data is missing.')
   }
-  const name = sanitizeImageFileName(request.suggestedName)
+  const name = sanitizeFileName(request.suggestedName)
   const ext = path.extname(name).slice(1)
   const options: SaveDialogOptions = {
     defaultPath: path.join(app.getPath('downloads'), name),
@@ -29,9 +29,9 @@ export async function saveImageAs(
   return { saved: true }
 }
 
-function sanitizeImageFileName(name: string): string {
+function sanitizeFileName(name: string): string {
   const cleaned = String(name ?? '')
     .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '-')
     .trim()
-  return cleaned || 'image.png'
+  return cleaned || 'file'
 }

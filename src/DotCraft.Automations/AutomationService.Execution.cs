@@ -63,7 +63,7 @@ public sealed partial class AutomationService
                 var threadConfig = new ThreadConfiguration();
                 if (!string.IsNullOrWhiteSpace(definition.AgentProfileId))
                 {
-                    var profiles = new AgentProfileStore(client.DataPath);
+                    var profiles = new AgentProfileStore(client.DataPath, client.UserDataPath);
                     var profile = profiles.Read(definition.AgentProfileId);
                     threadConfig = profile.ProviderPreference == null
                         ? profiles.ResolveProfileConfiguration(definition.AgentProfileId)

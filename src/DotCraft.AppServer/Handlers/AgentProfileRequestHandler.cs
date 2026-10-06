@@ -11,6 +11,7 @@ namespace DotCraft.AppServer;
 internal sealed class AgentProfileRequestHandler(
     ISessionService sessionService,
     string? workspaceCraftPath,
+    string? userCraftPath,
     string? hostWorkspacePath,
     IAppConfigMonitor? appConfigMonitor) : IAppServerDomainHandler
 {
@@ -36,7 +37,7 @@ internal sealed class AgentProfileRequestHandler(
             var store = CreateStore();
             var profiles = store
                 .List(ValueOrDefault(p.Source), ValueOrDefault(p.IncludeInvalid) ?? true)
-                .Select(profile => ToContract(profile))
+                .Select(profile => ToContract(profile, appConfigMonitor?.Current))
                 .ToList();
             await AnnotateStaleThreadsAsync(store, profiles, ct);
             return new Contract.AgentProfileListResult
@@ -61,7 +62,7 @@ internal sealed class AgentProfileRequestHandler(
 
         try
         {
-            var profile = ToContract(CreateStore().Read(id, ValueOrDefault(p.Source)), includeRawContent: true, includeCompiledConfig: true);
+            var profile = ToContract(CreateStore().Read(id, ValueOrDefault(p.Source)), appConfigMonitor?.Current, includeRawContent: true, includeCompiledConfig: true);
             await AnnotateStaleThreadsAsync(CreateStore(), [profile], ct);
             return new Contract.AgentProfileReadResult
             {
@@ -92,7 +93,8 @@ internal sealed class AgentProfileRequestHandler(
                 Valid = validation.Valid,
                 Diagnostics = ToContractDiagnostics(
                     validation.Diagnostics,
-                    validation.ProviderPreference),
+                    validation.ProviderPreference,
+                    appConfigMonitor?.Current),
                 Summary = new Contract.AgentProfileSummary
                 {
                     Id = OmitIfNull(validation.Id),
@@ -137,7 +139,7 @@ internal sealed class AgentProfileRequestHandler(
             var profile = CreateStore().Upsert(id, source, rawContent, ValueOrDefault(p.PreviousName));
             return Task.FromResult<object?>(new Contract.AgentProfileUpsertResult
             {
-                Profile = ToContract(profile, includeRawContent: true, includeCompiledConfig: true)
+                Profile = ToContract(profile, appConfigMonitor?.Current, includeRawContent: true, includeCompiledConfig: true)
             });
         }
         catch (AgentProfileException ex)
@@ -230,7 +232,7 @@ internal sealed class AgentProfileRequestHandler(
             return new Contract.AgentProfileRefreshThreadResult
             {
                 ThreadId = thread.Id,
-                Profile = ToContract(profile, includeRawContent: true, includeCompiledConfig: true),
+                Profile = ToContract(profile, appConfigMonitor?.Current, includeRawContent: true, includeCompiledConfig: true),
                 Config = ThreadConfigurationContractMapper.ToContract(refreshed),
                 WasStale = !string.Equals(beforeFingerprint, profile.Fingerprint, StringComparison.Ordinal),
                 Audit = ToContract(audit)
@@ -304,7 +306,7 @@ internal sealed class AgentProfileRequestHandler(
     }
 
     private AgentProfileStore CreateStore() =>
-        new(ResolveWorkspaceDataPath());
+        new(ResolveWorkspaceDataPath(), userCraftPath);
 
     private async Task<(string ThreadId, string TargetId, string TargetSource)> RequireBuilderThreadAsync(
         string? threadId,
@@ -356,8 +358,9 @@ internal sealed class AgentProfileRequestHandler(
     private string? ResolveWorkspaceDataPath() =>
         string.IsNullOrWhiteSpace(workspaceCraftPath) ? null : workspaceCraftPath;
 
-    private Contract.AgentProfileEntry ToContract(
+    internal static Contract.AgentProfileEntry ToContract(
         AgentProfileEntry profile,
+        AppConfig? currentConfig,
         bool includeRawContent = false,
         bool includeCompiledConfig = false) => new()
         {
@@ -379,7 +382,7 @@ internal sealed class AgentProfileRequestHandler(
             RestrictedFields = profile.RestrictedFields,
             TrustRestricted = profile.TrustRestricted,
             StaleThreadIds = new List<string>(),
-            Diagnostics = ToContractDiagnostics(profile.Diagnostics, profile.ProviderPreference),
+            Diagnostics = ToContractDiagnostics(profile.Diagnostics, profile.ProviderPreference, currentConfig),
             ProviderPreference = profile.ProviderPreference is null
                 ? default
                 : new Protocol.Optional<Contract.AgentProfileProviderPreference?>(
@@ -391,12 +394,12 @@ internal sealed class AgentProfileRequestHandler(
                 : default
         };
 
-    private List<Contract.AgentProfileDiagnostic> ToContractDiagnostics(
+    private static List<Contract.AgentProfileDiagnostic> ToContractDiagnostics(
         IEnumerable<AgentProfileDiagnostic> diagnostics,
-        AgentProfileProviderPreference? providerPreference)
+        AgentProfileProviderPreference? providerPreference,
+        AppConfig? currentConfig)
     {
         var result = diagnostics.Select(ToContract).ToList();
-        var currentConfig = appConfigMonitor?.Current;
         if (providerPreference == null
             || string.IsNullOrWhiteSpace(providerPreference.ProviderId)
             || currentConfig == null)
