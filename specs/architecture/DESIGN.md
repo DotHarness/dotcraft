@@ -1020,11 +1020,13 @@ animation; the pulse itself is the running signal.
 
 The workspace launch transition is the one wait with no shape to match, because the
 workspace it is opening does not exist on screen yet. It has no caption: the brand mark
-alone is the running signal. Its body gradient flows with the Composer mascot's medium
-reasoning-effort energy, a slow six-second lift that leaves the face colours alone. The
-mark itself holds still: it never changes size or moves its face while it waits. The loop
-rests on the plain mark at its ends, so the handoff from the Welcome logo never pops and
-the reduced-motion collapse leaves the mark still.
+alone is the running signal. Light rises up its body gradient as one wave every 3.6
+seconds and leaves the face colours alone. The mark itself holds still: it never changes
+size or moves its face while it waits. The wave animates opacity only, by fading tinted
+copies of the mark over the plain one, because the window is busiest while it waits and a
+repainted gradient would stall. The loop rests on the plain mark at its ends, so the
+handoff from the Welcome logo never pops and the reduced-motion collapse leaves the mark
+still.
 
 ## Overlays
 

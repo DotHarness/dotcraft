@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { DEFAULT_MASCOT_PALETTE } from '@dotcraft/avatar'
 import { PET_RETURN_DURATION, samplePetReturn } from '../../shared/desktopPetMotion'
 import { DotCraftFullLogo } from './ui/DotCraftLogo'
@@ -44,6 +44,36 @@ const LAUNCH_MARK_PAINT = {
   '--mascot-body-mid': DEFAULT_MASCOT_PALETTE.bodyM,
   '--mascot-body-light': DEFAULT_MASCOT_PALETTE.bodyL
 } as CSSProperties
+const LAUNCH_ENERGY = ['dark', 'mid', 'light'] as const
+const LAUNCH_BODY_MASK =
+  '<g fill="#fff" stroke="#fff" stroke-width="32" stroke-linejoin="round">' +
+  '<rect x="243" y="408" width="538" height="426" rx="113"/>' +
+  '<rect x="188" y="514" width="90" height="171" rx="19"/>' +
+  '<rect x="746" y="514" width="90" height="171" rx="19"/>' +
+  '<rect x="479" y="337" width="66" height="119" rx="6"/>' +
+  '</g>'
+
+function scopedLaunchMark(prefix: string): string {
+  return dotCraftMark
+    .replace(/\s*<title[^>]*>[\s\S]*?<\/title>|\s*<desc[^>]*>[\s\S]*?<\/desc>/g, '')
+    .replace(/ role="img" aria-labelledby="title desc"/, '')
+    .replace(/id="([^"]+)"/g, `id="${prefix}-$1"`)
+    .replace(/url\(#([^)]+)\)/g, `url(#${prefix}-$1)`)
+}
+
+function energizedLaunchMark(prefix: string, peak: number): string {
+  let stop = -1
+  return scopedLaunchMark(prefix)
+    .replace(/<linearGradient id="[^"]+-blue"[\s\S]*?<\/linearGradient>/, (gradient) =>
+      gradient.replace(/<stop offset="([^"]+)" stop-color="[^"]+"\/>/g, (_, offset: string) => {
+        stop += 1
+        const tone = stop === peak ? 'peak' : 'rest'
+        return `<stop offset="${offset}" class="workspace-launch-transition__${tone}--${LAUNCH_ENERGY[stop]}"/>`
+      })
+    )
+    .replace('</defs>', `<mask id="${prefix}-body" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">${LAUNCH_BODY_MASK}</mask></defs>`)
+    .replace(/<g transform="([^"]+)">/, `<g transform="$1" mask="url(#${prefix}-body)">`)
+}
 
 export function elementToLaunchLogoRect(node: HTMLElement | null): LaunchLogoRect | null {
   if (!node) return null
@@ -73,6 +103,14 @@ export function WorkspaceLaunchTransition({
   to
 }: WorkspaceLaunchTransitionProps): JSX.Element {
   const [centerRect, setCenterRect] = useState(() => centeredLaunchLogoRect())
+  const markId = `launch-mark-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const layers = useMemo(
+    () => [
+      scopedLaunchMark(markId),
+      ...LAUNCH_ENERGY.map((tone, stop) => energizedLaunchMark(`${markId}-${tone}`, stop))
+    ],
+    [markId]
+  )
 
   useEffect(() => {
     const updateCenterRect = (): void => {
@@ -110,11 +148,19 @@ export function WorkspaceLaunchTransition({
       style={style}
     >
       <div className="workspace-launch-transition__scrim" />
-      <span
-        className="workspace-launch-transition__logo"
-        style={LAUNCH_MARK_PAINT}
-        dangerouslySetInnerHTML={{ __html: dotCraftMark }}
-      />
+      <span className="workspace-launch-transition__logo" style={LAUNCH_MARK_PAINT}>
+        {layers.map((markup, index) => (
+          <span
+            key={index}
+            className={
+              index === 0
+                ? 'workspace-launch-transition__layer'
+                : `workspace-launch-transition__layer workspace-launch-transition__energy workspace-launch-transition__energy--${LAUNCH_ENERGY[index - 1]}`
+            }
+            dangerouslySetInnerHTML={{ __html: markup }}
+          />
+        ))}
+      </span>
     </div>
   )
 }

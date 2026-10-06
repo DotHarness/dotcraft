@@ -78,22 +78,65 @@
   animation: logo-handoff-fade 360ms ease-out both;
 }
 
-.workspace-launch-transition__logo > svg {
+.workspace-launch-transition__layer {
+  position: absolute;
+  inset: 0;
+}
+
+.workspace-launch-transition__layer > svg {
   display: block;
   width: 100%;
   height: 100%;
 }
 
-.workspace-launch-transition__logo #blue stop:nth-child(1) {
-  animation: composer-mascot-energy-medium-dark 6s ease-in-out infinite;
+.workspace-launch-transition__energy {
+  opacity: 0;
+  will-change: opacity;
+  animation: 3.6s ease-in-out infinite;
 }
 
-.workspace-launch-transition__logo #blue stop:nth-child(2) {
-  animation: composer-mascot-energy-medium-mid 6s ease-in-out infinite;
+.workspace-launch-transition__energy--dark { animation-name: launch-energy-dark; }
+.workspace-launch-transition__energy--mid { animation-name: launch-energy-mid; }
+.workspace-launch-transition__energy--light { animation-name: launch-energy-light; }
+
+.workspace-launch-transition__rest--dark { stop-color: var(--mascot-body-dark); }
+.workspace-launch-transition__rest--mid { stop-color: var(--mascot-body-mid); }
+.workspace-launch-transition__rest--light { stop-color: var(--mascot-body-light); }
+
+.workspace-launch-transition__peak--dark {
+  stop-color: oklch(from var(--mascot-body-dark)
+    clamp(0.28, calc(l + 0.12), 0.96)
+    clamp(0, calc(c * 0.85), 0.3)
+    calc(h - 1));
 }
 
-.workspace-launch-transition__logo #blue stop:nth-child(3) {
-  animation: composer-mascot-energy-medium-light 6s ease-in-out infinite;
+.workspace-launch-transition__peak--mid {
+  stop-color: oklch(from var(--mascot-body-mid)
+    clamp(0.28, calc(l + 0.15), 0.96)
+    clamp(0, calc(c * 0.72), 0.3)
+    calc(h - 2));
+}
+
+.workspace-launch-transition__peak--light {
+  stop-color: oklch(from var(--mascot-body-light)
+    clamp(0.28, calc(l + 0.17), 0.96)
+    clamp(0, calc(c * 0.45), 0.3)
+    calc(h + 2));
+}
+
+@keyframes launch-energy-dark {
+  0%, 36%, 100% { opacity: 0; }
+  16% { opacity: 1; }
+}
+
+@keyframes launch-energy-mid {
+  0%, 14%, 54%, 100% { opacity: 0; }
+  34% { opacity: 1; }
+}
+
+@keyframes launch-energy-light {
+  0%, 32%, 72%, 100% { opacity: 0; }
+  52% { opacity: 1; }
 }
 
 .workspace-setup-logo-handoff {
