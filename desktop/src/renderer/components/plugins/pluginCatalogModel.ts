@@ -120,9 +120,7 @@ export function buildSections(
   }
 
   const fromWorkspace = plugins.filter((plugin) => plugin.installed && pluginInstallScope(plugin) === 'workspace')
-  const installed = plugins.filter((plugin) => plugin.installed
-    && pluginInstallScope(plugin) !== 'workspace'
-    && plugin.source.toLowerCase() !== 'builtin')
+  const installed = plugins.filter((plugin) => plugin.installed && pluginInstallScope(plugin) === 'user')
   const seen = new Set([...installed, ...fromWorkspace].map((plugin) => plugin.id))
   const sections: PluginSection[] = []
   if (installed.length > 0) {

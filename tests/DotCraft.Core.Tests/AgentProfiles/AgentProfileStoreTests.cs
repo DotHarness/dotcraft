@@ -663,6 +663,23 @@ Plugin instructions.
         Assert.Equal(ApprovalPolicy.Default, config.ApprovalPolicy);
     }
 
+    [Fact]
+    public void PluginProfiles_WorkspacePluginShadowsTheGlobalCopy()
+    {
+        foreach (var (craftPath, description) in new[] { (_workspaceCraftPath, "Workspace copy"), (_userCraftPath, "Global copy") })
+        {
+            var profileDir = Path.Combine(craftPath, "plugins", "sample-plugin", "agent-profiles");
+            Directory.CreateDirectory(profileDir);
+            File.WriteAllText(Path.Combine(profileDir, "plugin-worker.md"), ValidProfile("plugin-worker", description));
+        }
+
+        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
+        var entry = Assert.Single(store.List(), candidate => candidate.Id == "plugin-worker");
+
+        Assert.Equal("Workspace copy", entry.Description);
+        Assert.True(entry.Valid);
+    }
+
     private static string ValidProfile(string id, string description) =>
         $"""
 ---

@@ -321,7 +321,7 @@ The `Plugins` config section contains:
 
 Marketplace sources are recorded in user-global configuration so one added source is available in every workspace. Installation is per user: `plugin/install` and `plugin/installLocal` copy the plugin into `<craft-home>/plugins/<pluginId>`, so it is available in every workspace that user opens on that machine, and each workspace can turn it off. For a remote workspace that root is on the remote machine.
 
-Installing, removing, or turning a plugin on or off publishes the revision of the layer it wrote, so every other AppServer of the same user rediscovers plugins and refreshes their contributions without a restart.
+Installing, removing, or turning a plugin on or off publishes the revision of the layer it wrote, so every other AppServer of the same user rediscovers plugins and refreshes their contributions without a restart, including stopping or adopting a .NET plugin whose installed bundle was removed, added, or changed.
 
 Installed built-in plugins and local manifest plugins are enabled by default unless the workspace turns them off. Built-ins that are visible only through the catalog are installable but not enabled and do not contribute tools or skills to agent context.
 

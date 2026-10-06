@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using CorePlugins = DotCraft.Plugins;
 using DotCraft.Configuration;
 using DotCraft.Hooks;
 using DotCraft.Mcp;
@@ -106,6 +107,54 @@ public sealed class SetupImportConcurrencyTests : IDisposable
         AtomicConfigDocument.Update(Path.Combine(user, "imports", "revision.json"), root => root["revision"] = "removed");
         await runtime.RefreshAsync(default);
         Assert.DoesNotContain(skills.ListSkills(), skill => skill.Name == "demo-skill");
+    }
+
+    [Fact]
+    public async Task UserRevisionStopsADotnetPluginRemovedByAnotherProcess()
+    {
+        var user = _temp.CreateDirectory("home", ".craft");
+        var data = _temp.CreateDirectory("other", ".craft");
+        var dotnet = new RecordingDotnetRuntime("removed-plugin");
+        var monitor = new AppConfigMonitor(new AppConfig { GlobalConfigPath = Path.Combine(user, "config.json") });
+        var runtime = new ImportedSetupRuntime(
+            DotCraftPaths.CreateForExecutionHost(Path.GetDirectoryName(data)!, data, user), monitor, new SkillsLoader(data), dotnet: dotnet);
+
+        AtomicConfigDocument.Update(Path.Combine(user, "imports", "revision.json"), root => root["revision"] = "removed");
+        await runtime.RefreshAsync(default);
+
+        Assert.Equal(["quiesce:removed-plugin", "reconcile:removed-plugin"], dotnet.Calls);
+    }
+
+    private sealed class RecordingDotnetRuntime(params string[] running) : CorePlugins.IPluginDotnetRuntimeCoordinator
+    {
+        public List<string> Calls { get; } = [];
+
+        public CorePlugins.PluginRuntimeSnapshot Snapshot { get; } = new(
+            1,
+            running.Select(id => new CorePlugins.PluginDotnetRuntimeInfo(id, "1.0.0", default, null, [])).ToArray(),
+            []);
+
+        public event EventHandler<CorePlugins.PluginRuntimeSnapshotChangedEventArgs>? SnapshotChanged { add { } remove { } }
+
+        public Task SetEnabledAsync(string pluginId, bool enabled, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<CorePlugins.PluginRuntimeMutationResult> QuiesceForMutationAsync(string pluginId, CancellationToken cancellationToken = default) =>
+            Record("quiesce", pluginId);
+
+        public Task<CorePlugins.PluginRuntimeMutationResult> ReconcileAfterMutationAsync(string pluginId, CancellationToken cancellationToken = default) =>
+            Record("reconcile", pluginId);
+
+        public Task<CorePlugins.PluginRuntimeMutationResult> TrustAsync(string pluginId, CancellationToken cancellationToken = default) =>
+            Record("trust", pluginId);
+
+        public Task<CorePlugins.PluginRuntimeMutationResult> RevokeTrustAsync(string pluginId, CancellationToken cancellationToken = default) =>
+            Record("revoke", pluginId);
+
+        private Task<CorePlugins.PluginRuntimeMutationResult> Record(string action, string pluginId)
+        {
+            Calls.Add($"{action}:{pluginId}");
+            return Task.FromResult(new CorePlugins.PluginRuntimeMutationResult(CorePlugins.PluginRuntimeMutationOutcome.Applied, [], []));
+        }
     }
 
     [Fact]

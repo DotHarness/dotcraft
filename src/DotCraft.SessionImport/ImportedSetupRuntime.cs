@@ -10,7 +10,8 @@ using DotCraft.Workspaces;
 namespace DotCraft.SessionImport;
 
 public sealed class ImportedSetupRuntime(DotCraftPaths paths, IAppConfigMonitor monitor,
-    SkillsLoader? skills = null, HookRunner? hooks = null, McpClientManager? mcp = null, LspServerManager? lsp = null)
+    SkillsLoader? skills = null, HookRunner? hooks = null, McpClientManager? mcp = null, LspServerManager? lsp = null,
+    IPluginDotnetRuntimeCoordinator? dotnet = null)
     : ISessionRuntimeRefresher, ISessionServiceConsumer
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -46,10 +47,28 @@ public sealed class ImportedSetupRuntime(DotCraftPaths paths, IAppConfigMonitor 
                 await mcp.ConnectAsync(servers, cancellationToken).ConfigureAwait(false);
             }
             if (lsp != null) await lsp.InitializeAsync(cancellationToken).ConfigureAwait(false);
+            if (dotnet != null) await ConvergeDotnetPluginsAsync(dotnet, current, cancellationToken).ConfigureAwait(false);
             if (_sessions is IThreadAgentRefreshService agents) agents.InvalidateThreadAgents();
             monitor.NotifyChanged("import/completed", [ConfigChangeRegions.Skills, ConfigChangeRegions.Plugins, ConfigChangeRegions.Hooks, ConfigChangeRegions.Mcp, ConfigChangeRegions.Lsp]);
             _revision = revision;
         }
         finally { _gate.Release(); }
+    }
+
+    private async Task ConvergeDotnetPluginsAsync(IPluginDotnetRuntimeCoordinator runtime, AppConfig config, CancellationToken cancellationToken)
+    {
+        var installed = new PluginDiscoveryService(paths).Discover(config, paths.WorkspacePath, paths.Data.RootPath).Plugins
+            .Where(plugin => plugin.Installed && plugin.Manifest.Dotnet != null)
+            .ToDictionary(plugin => PluginIds.Canonicalize(plugin.Manifest.Id), plugin => plugin.Manifest.Version ?? "", StringComparer.OrdinalIgnoreCase);
+        var running = runtime.Snapshot.Plugins
+            .ToDictionary(plugin => PluginIds.Canonicalize(plugin.PluginId), plugin => plugin.Version, StringComparer.OrdinalIgnoreCase);
+        foreach (var pluginId in installed.Keys.Union(running.Keys, StringComparer.OrdinalIgnoreCase).ToArray())
+        {
+            if (installed.TryGetValue(pluginId, out var version) && running.TryGetValue(pluginId, out var current) && version == current)
+                continue;
+            var quiesce = await runtime.QuiesceForMutationAsync(pluginId, cancellationToken).ConfigureAwait(false);
+            if (quiesce.Outcome != PluginRuntimeMutationOutcome.NotApplied)
+                await runtime.ReconcileAfterMutationAsync(pluginId, cancellationToken).ConfigureAwait(false);
+        }
     }
 }
