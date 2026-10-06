@@ -1733,6 +1733,11 @@ export function App(): JSX.Element {
             break
           }
 
+          case 'thread/resumed': {
+            doUpdateStatus((p as { thread: ThreadSummary }).thread.id, 'active')
+            break
+          }
+
           case 'thread/unarchived':
           case 'thread/paused': {
             doUpdateStatus((p as { threadId: string }).threadId, method === 'thread/paused' ? 'paused' : 'active')
