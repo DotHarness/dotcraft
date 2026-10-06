@@ -96,16 +96,6 @@
   animation: composer-mascot-energy-medium-light 6s ease-in-out infinite;
 }
 
-.workspace-launch-transition__logo path {
-  animation: launch-mark-glance 4.8s ease-in-out infinite;
-}
-
-@keyframes launch-mark-glance {
-  0%, 16%, 84%, 100% { transform: translateX(0); }
-  26%, 42% { transform: translateX(-34px); }
-  58%, 74% { transform: translateX(34px); }
-}
-
 .workspace-setup-logo-handoff {
   position: absolute;
   inset: 0;
