@@ -373,6 +373,194 @@
       "variants": []
     },
     {
+      "id": "core.AgentExportPackage",
+      "name": "AgentExportPackage",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/AgentExportPackage.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "bytes",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "dotnet",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "marketplaceName",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "reasons",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "version",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.AgentExportPlanParams",
+      "name": "AgentExportPlanParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/AgentExportPlanParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.AgentExportPlanResult",
+      "name": "AgentExportPlanResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/AgentExportPlanResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "fileName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "maximumBytes",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "packages",
+          "type": "array<core.AgentExportPackage>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.AgentExportReadParams",
+      "name": "AgentExportReadParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/AgentExportReadParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "offset",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "packages",
+          "type": "array<core.AgentPackageRef>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.AgentExportReadResult",
+      "name": "AgentExportReadResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/AgentExportReadResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "dataBase64",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "totalBytes",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.AgentImportCapabilities",
       "name": "AgentImportCapabilities",
       "module": "core",
@@ -398,6 +586,321 @@
       "variants": []
     },
     {
+      "id": "core.AgentImportCommitParams",
+      "name": "AgentImportCommitParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/AgentImportCommitParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "importId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "packages",
+          "type": "array<core.AgentPackageRef>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.AgentImportDiscardParams",
+      "name": "AgentImportDiscardParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/AgentImportDiscardParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "importId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.AgentImportPackage",
+      "name": "AgentImportPackage",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/AgentImportPackage.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "displayName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "dotnet",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "installedVersion",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "marketplaceName",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "state",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "version",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.AgentImportPreview",
+      "name": "AgentImportPreview",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/AgentImportPreview.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "importId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "nameTaken",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "packages",
+          "type": "array<core.AgentImportPackage>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "problems",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "unresolved",
+          "type": "core.AgentImportUnresolved",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.AgentImportUnresolved",
+      "name": "AgentImportUnresolved",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/AgentImportUnresolved.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "mcpServers",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "plugins",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "skills",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.AgentImportUploadParams",
+      "name": "AgentImportUploadParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/AgentImportUploadParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "dataBase64",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "fileName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "importId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "offset",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "totalBytes",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.AgentImportUploadResult",
+      "name": "AgentImportUploadResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/AgentImportUploadResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "importId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "preview",
+          "type": "core.AgentImportPreview",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "receivedBytes",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.AgentMessagePayload",
       "name": "AgentMessagePayload",
       "module": "core",
@@ -414,6 +917,31 @@
         },
         {
           "name": "text",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.AgentPackageRef",
+      "name": "AgentPackageRef",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/AgentPackageRef.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "kind",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
           "type": "string",
           "required": true,
           "nullable": false,
@@ -26081,6 +26609,86 @@
       ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "agent/profiles/export/plan",
+      "descriptorMember": "AgentProfileExportPlan",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.AgentExportPlanParams",
+      "resultType": "core.AgentExportPlanResult",
+      "module": "core",
+      "capability": null,
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/features/agent-packages.md",
+      "stability": "stable"
+    },
+    {
+      "name": "agent/profiles/export/read",
+      "descriptorMember": "AgentProfileExportRead",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.AgentExportReadParams",
+      "resultType": "core.AgentExportReadResult",
+      "module": "core",
+      "capability": null,
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/features/agent-packages.md",
+      "stability": "stable"
+    },
+    {
+      "name": "agent/profiles/import/commit",
+      "descriptorMember": "AgentProfileImportCommit",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.AgentImportCommitParams",
+      "resultType": "core.AgentProfileUpsertResult",
+      "module": "core",
+      "capability": null,
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/features/agent-packages.md",
+      "stability": "stable"
+    },
+    {
+      "name": "agent/profiles/import/discard",
+      "descriptorMember": "AgentProfileImportDiscard",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.AgentImportDiscardParams",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": null,
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/features/agent-packages.md",
+      "stability": "stable"
+    },
+    {
+      "name": "agent/profiles/import/upload",
+      "descriptorMember": "AgentProfileImportUpload",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.AgentImportUploadParams",
+      "resultType": "core.AgentImportUploadResult",
+      "module": "core",
+      "capability": null,
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/features/agent-packages.md",
       "stability": "stable"
     },
     {

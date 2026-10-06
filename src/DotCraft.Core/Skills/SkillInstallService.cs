@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 namespace DotCraft.Skills;
 
 /// <summary>
-/// Verifies candidate skill bundles and publishes them into the workspace skill source root.
+/// Verifies candidate skill bundles and publishes them into a skill source root.
 /// </summary>
 public sealed partial class SkillInstallService(SkillsLoader skillsLoader)
 {
@@ -73,7 +73,7 @@ public sealed partial class SkillInstallService(SkillsLoader skillsLoader)
     }
 
     /// <summary>
-    /// Verifies and installs a candidate skill bundle into the workspace skill source root.
+    /// Verifies and installs a candidate skill bundle into the requested skill source root, the workspace one by default.
     /// </summary>
     public async Task<SkillInstallResult> InstallAsync(
         SkillInstallRequest request,
@@ -104,7 +104,8 @@ public sealed partial class SkillInstallService(SkillsLoader skillsLoader)
                 [$"A skill named '{skillName}' already exists at {existing.Path}. Use --overwrite to replace the workspace source."]);
         }
 
-        var targetDir = skillsLoader.ResolveWorkspaceSkillDir(skillName);
+        var skillsRoot = request.TargetRoot ?? skillsLoader.WorkspaceSkillsPath;
+        var targetDir = Path.Combine(skillsRoot, skillName);
         var targetIsBuiltIn = File.Exists(Path.Combine(targetDir, ".builtin"));
         if (targetIsBuiltIn)
         {
@@ -114,7 +115,6 @@ public sealed partial class SkillInstallService(SkillsLoader skillsLoader)
                 [$"Skill '{skillName}' is a built-in skill and cannot be overwritten."]);
         }
 
-        var skillsRoot = skillsLoader.WorkspaceSkillsPath;
         Directory.CreateDirectory(skillsRoot);
         var stagingDir = Path.Combine(skillsRoot, $".install-{skillName}-{Guid.NewGuid():N}");
         var backupDir = Path.Combine(skillsRoot, $".backup-{skillName}-{Guid.NewGuid():N}");
@@ -384,14 +384,15 @@ public sealed record SkillInstallVerificationResult(
 }
 
 /// <summary>
-/// Request for publishing a candidate skill into the workspace source root.
+/// Request for publishing a candidate skill into a skill source root.
 /// </summary>
 public sealed record SkillInstallRequest(
     string CandidatePath,
     string? ExpectedName = null,
     bool Overwrite = false,
     string? Source = null,
-    int MaxSkillContentChars = SkillFrontmatter.DefaultMaxSkillContentChars);
+    int MaxSkillContentChars = SkillFrontmatter.DefaultMaxSkillContentChars,
+    string? TargetRoot = null);
 
 /// <summary>
 /// Result of publishing a candidate skill.

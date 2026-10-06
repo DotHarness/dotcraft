@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, Eye, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Download, Eye, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { formatRelativeTime } from '../../utils/relativeTime'
 import { Button } from '../ui/Button'
@@ -17,10 +17,11 @@ interface AgentBuilderToolbarProps {
   onBack: () => void
   onDelete: () => void
   onCreate: () => void
+  onExport?: () => void
   onTogglePreview: () => void
 }
 
-export function AgentBuilderToolbar({ created, updatedAt, autoSaveState, preview, nameMissing, onBack, onDelete, onCreate, onTogglePreview }: AgentBuilderToolbarProps) {
+export function AgentBuilderToolbar({ created, updatedAt, autoSaveState, preview, nameMissing, onBack, onDelete, onCreate, onExport, onTogglePreview }: AgentBuilderToolbarProps) {
   const locale = useLocale()
   const t = useT()
   const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
@@ -48,6 +49,7 @@ export function AgentBuilderToolbar({ created, updatedAt, autoSaveState, preview
           setMenuPosition({ x: rect.right - 160, y: rect.bottom + 4 })
         }} />
         {menuPosition && <ContextMenu position={menuPosition} onClose={() => setMenuPosition(null)} items={[
+          ...(onExport ? [{ label: t('agentBuilder.toolbar.export'), icon: <Download size={15} />, onClick: () => { setMenuPosition(null); onExport() } }] : []),
           { label: t('agentBuilder.toolbar.delete'), icon: <Trash2 size={15} />, danger: true, onClick: () => { setMenuPosition(null); onDelete() } }
         ]} />}
       </> : <Button size="toolbar" variant="primary" iconLeft={<Plus size={14} />} disabled={nameMissing} onClick={onCreate}>{t('agentBuilder.toolbar.create')}</Button>}

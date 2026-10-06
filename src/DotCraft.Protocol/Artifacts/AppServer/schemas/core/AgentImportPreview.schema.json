@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/AgentImportPreview.schema.json",
+  "title": "AgentImportPreview",
+  "type": "object",
+  "properties": {
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "importId": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "nameTaken": {
+      "type": "boolean"
+    },
+    "packages": {
+      "type": "array",
+      "items": {
+        "$ref": "./AgentImportPackage.schema.json"
+      }
+    },
+    "problems": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unresolved": {
+      "$ref": "./AgentImportUnresolved.schema.json"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "importId",
+    "kind",
+    "name",
+    "nameTaken",
+    "packages",
+    "problems",
+    "unresolved"
+  ]
+}

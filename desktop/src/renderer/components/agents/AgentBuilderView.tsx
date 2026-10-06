@@ -13,7 +13,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
-import { Box, CircleHelp, Clock, FileText, Globe, ListChecks, Pencil, Plus, Search, Server, Wrench, X, type LucideIcon } from 'lucide-react'
+import { Box, CircleHelp, Clock, FileText, Globe, ListChecks, Pencil, Plus, Search, Server, Upload, Wrench, X, type LucideIcon } from 'lucide-react'
 import { showToast } from '../../stores/toastStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useProvidersStore } from '../../stores/providersStore'
@@ -76,6 +76,9 @@ import {
 import { applyBuilderChange, isBuilderField, type BuilderField, type BuilderToolResult } from './agentBuilderDraftSync'
 import { useAgentBuilderConversation } from './useAgentBuilderConversation'
 import { AgentSaveTargetDialog } from './AgentSaveTargetDialog'
+import { AgentImportDialog } from './AgentImportDialog'
+import { AgentExportDialog } from './AgentExportDialog'
+import { ImportedPluginTrust } from './ImportedPluginTrust'
 import { DetachedAgentBuilderChat } from './DetachedAgentBuilderChat'
 import { localizeAgentProfile } from '../../utils/builtInAgentProfiles'
 import { AgentEditingCursor, FieldAnchor, type AgentEditingPhase } from './AgentEditingCursor'
@@ -276,6 +279,9 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
   const [builderChatDividerActive, setBuilderChatDividerActive] = useState(false)
   const [builderChatResizing, setBuilderChatResizing] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const [trustPluginIds, setTrustPluginIds] = useState<string[]>([])
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const builderTurnStatus = useConversationStore((s) => s.turnStatus)
   const agentBuilderChatWidth = useUIStore((s) => s.agentBuilderChatWidth)
@@ -664,6 +670,10 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
     })
   }, [profiles, query, t])
 
+  const pluginTrust = trustPluginIds.length > 0
+    ? <ImportedPluginTrust pluginIds={trustPluginIds} onDone={() => setTrustPluginIds([])} />
+    : null
+
   if (route.name === 'builder') {
     const agentDriving = builderConversation.threadId !== null && (builderTurnStatus === 'running' || editingField !== null)
     const effectiveBuilderChatWidth = resolveAgentBuilderChatWidth(
@@ -693,6 +703,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
             onBack={leaveBuilder}
             onDelete={removeProfile}
             onCreate={() => setCreateDialogOpen(true)}
+            onExport={route.created && route.id && (route.source === 'user' || route.source === 'workspace') ? () => setExportDialogOpen(true) : undefined}
           />
         </div>
         <aside className="agent-builder-chatpane" style={builderChatpaneStyle}>
@@ -741,6 +752,10 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
             onCancel={() => setCreateDialogOpen(false)}
           />
         )}
+        {exportDialogOpen && route.id && route.source && (
+          <AgentExportDialog id={route.id} source={route.source} onClose={() => setExportDialogOpen(false)} />
+        )}
+        {pluginTrust}
       </div>
     )
   }
@@ -764,6 +779,14 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
               onClick={() => void loadProfiles()}
               icon={<RefreshIcon size={15} />}
             />
+            <Button
+              variant="secondary"
+              size="toolbar"
+              onClick={() => setImportDialogOpen(true)}
+              iconLeft={<Upload size={14} aria-hidden />}
+            >
+              {t('agentBuilder.import.action')}
+            </Button>
             <Button
               variant="primary"
               size="toolbar"
@@ -818,6 +841,18 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
           ))
         )}
       </CatalogScrollArea>
+      {importDialogOpen && (
+        <AgentImportDialog
+          onClose={() => setImportDialogOpen(false)}
+          onImported={(profile, dotnetPluginIds) => {
+            setImportDialogOpen(false)
+            setTrustPluginIds(dotnetPluginIds)
+            void loadProfiles()
+            void openProfile({ id: profile.id, source: profile.source })
+          }}
+        />
+      )}
+      {pluginTrust}
     </div>
   )
 }
@@ -836,9 +871,10 @@ interface BuilderViewProps {
   onBack: () => void
   onDelete: () => void
   onCreate: () => void
+  onExport?: () => void
 }
 
-function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, cursor, agentDriving, onBack, onDelete, onCreate }: BuilderViewProps): JSX.Element {
+function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, cursor, agentDriving, onBack, onDelete, onCreate, onExport }: BuilderViewProps): JSX.Element {
   const t = useT()
   const { draft } = route
   const nameMissing = !draft.name.trim()
@@ -959,7 +995,7 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
   return (
     <div className="agent-builder">
       <AgentBuilderToolbar created={route.created} updatedAt={route.updatedAt} autoSaveState={autoSaveState}
-        preview={preview} nameMissing={nameMissing} onBack={onBack} onDelete={onDelete} onCreate={onCreate}
+        preview={preview} nameMissing={nameMissing} onBack={onBack} onDelete={onDelete} onCreate={onCreate} onExport={onExport}
         onTogglePreview={() => setViewMode(preview ? 'edit' : 'preview')} />
 
       <div className="agent-builder-scroll dc-scrollbar-stable">

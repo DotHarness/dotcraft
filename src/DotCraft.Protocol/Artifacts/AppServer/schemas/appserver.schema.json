@@ -271,6 +271,148 @@
       },
       "additionalProperties": true
     },
+    "AgentExportPackage": {
+      "title": "AgentExportPackage",
+      "type": "object",
+      "properties": {
+        "bytes": {
+          "type": "integer"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "dotnet": {
+          "type": "boolean"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "marketplaceName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "bytes",
+        "displayName",
+        "dotnet",
+        "kind",
+        "name",
+        "reasons"
+      ]
+    },
+    "AgentExportPlanParams": {
+      "title": "AgentExportPlanParams",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "source"
+      ]
+    },
+    "AgentExportPlanResult": {
+      "title": "AgentExportPlanResult",
+      "type": "object",
+      "properties": {
+        "fileName": {
+          "type": "string"
+        },
+        "maximumBytes": {
+          "type": "integer"
+        },
+        "packages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentExportPackage"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "fileName",
+        "maximumBytes",
+        "packages"
+      ]
+    },
+    "AgentExportReadParams": {
+      "title": "AgentExportReadParams",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "packages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentPackageRef"
+          }
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "offset",
+        "packages",
+        "source"
+      ]
+    },
+    "AgentExportReadResult": {
+      "title": "AgentExportReadResult",
+      "type": "object",
+      "properties": {
+        "dataBase64": {
+          "type": "string"
+        },
+        "totalBytes": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "dataBase64",
+        "totalBytes"
+      ]
+    },
     "AgentImportCapabilities": {
       "title": "AgentImportCapabilities",
       "type": "object",
@@ -289,6 +431,271 @@
       "required": [
         "sources",
         "version"
+      ]
+    },
+    "AgentImportCommitParams": {
+      "title": "AgentImportCommitParams",
+      "type": "object",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "importId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "packages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentPackageRef"
+          }
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "importId",
+        "name",
+        "packages",
+        "source"
+      ]
+    },
+    "AgentImportDiscardParams": {
+      "title": "AgentImportDiscardParams",
+      "type": "object",
+      "properties": {
+        "importId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "importId"
+      ]
+    },
+    "AgentImportPackage": {
+      "title": "AgentImportPackage",
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string"
+        },
+        "dotnet": {
+          "type": "boolean"
+        },
+        "installedVersion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "marketplaceName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "displayName",
+        "dotnet",
+        "kind",
+        "name",
+        "state"
+      ]
+    },
+    "AgentImportPreview": {
+      "title": "AgentImportPreview",
+      "type": "object",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "importId": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nameTaken": {
+          "type": "boolean"
+        },
+        "packages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentImportPackage"
+          }
+        },
+        "problems": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unresolved": {
+          "$ref": "#/$defs/AgentImportUnresolved"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "importId",
+        "kind",
+        "name",
+        "nameTaken",
+        "packages",
+        "problems",
+        "unresolved"
+      ]
+    },
+    "AgentImportUnresolved": {
+      "title": "AgentImportUnresolved",
+      "type": "object",
+      "properties": {
+        "mcpServers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "plugins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "mcpServers",
+        "plugins",
+        "skills"
+      ]
+    },
+    "AgentImportUploadParams": {
+      "title": "AgentImportUploadParams",
+      "type": "object",
+      "properties": {
+        "dataBase64": {
+          "type": "string"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "importId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "totalBytes": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "dataBase64",
+        "fileName",
+        "offset",
+        "totalBytes"
+      ]
+    },
+    "AgentImportUploadResult": {
+      "title": "AgentImportUploadResult",
+      "type": "object",
+      "properties": {
+        "importId": {
+          "type": "string"
+        },
+        "preview": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentImportPreview"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "receivedBytes": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "importId",
+        "receivedBytes"
       ]
     },
     "AgentMessagePayload": {
@@ -312,6 +719,23 @@
       "additionalProperties": true,
       "required": [
         "text"
+      ]
+    },
+    "AgentPackageRef": {
+      "title": "AgentPackageRef",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "kind",
+        "name"
       ]
     },
     "AgentProfileAudit": {

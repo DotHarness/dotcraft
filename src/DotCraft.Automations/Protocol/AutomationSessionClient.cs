@@ -14,6 +14,7 @@ public sealed class AutomationSessionClient(ISessionService sessionService, DotC
     public string ProjectWorkspacePath => paths.WorkspacePath;
 
     public string DataPath => paths.Data.RootPath;
+    public string? UserDataPath => paths.UserData.RootPath;
 
     public string GetRunWorktreeBranchName(string runId) =>
         "dotcraft/automation-" + SanitizeRunIdForWorktree(runId);

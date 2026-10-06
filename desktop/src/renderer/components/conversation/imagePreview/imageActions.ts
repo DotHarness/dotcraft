@@ -80,7 +80,7 @@ export async function downloadImage(image: GalleryImage, t: Translate, locale: s
       second: '2-digit'
     }).format(new Date())
     const suggestedName = `${t('conversation.image.downloadFileName', { formattedDate })}.${imageExtension(blob.type)}`
-    await window.api.shell.saveImageAs({ data: new Uint8Array(await blob.arrayBuffer()), suggestedName })
+    await window.api.shell.saveFileAs({ data: new Uint8Array(await blob.arrayBuffer()), suggestedName })
   } catch {
     addToast(t('conversation.image.downloadFailed'), 'error')
   }

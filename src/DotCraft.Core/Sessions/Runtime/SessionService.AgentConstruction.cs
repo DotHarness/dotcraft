@@ -422,7 +422,8 @@ public sealed partial class SessionService
             snapshotSources.Add(new AgentProfileBuilderToolSource(
                 toolContext.SkillsLoader,
                 toolContext.McpClientManager,
-                toolContext.BotPath));
+                toolContext.BotPath,
+                dotCraftPaths?.UserData.RootPath));
         }
         if (!string.IsNullOrEmpty(config.ToolProfile))
         {

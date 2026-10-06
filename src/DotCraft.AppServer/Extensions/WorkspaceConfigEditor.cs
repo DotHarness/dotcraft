@@ -17,6 +17,9 @@ internal sealed class WorkspaceConfigEditor(IAppConfigMonitor? appConfigMonitor,
             ? appConfigMonitor.Current.GlobalConfigPath!
             : null;
 
+    public string? UserDataPath =>
+        PersonalConfigPath is { } path ? Path.GetDirectoryName(Path.GetFullPath(path)) : null;
+
     public string RequirePersonalConfigPath(string operation) =>
         PersonalConfigPath ?? throw new InvalidOperationException(
             $"UserDataPath is required for {operation}.");

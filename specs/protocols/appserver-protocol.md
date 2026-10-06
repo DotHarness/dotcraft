@@ -306,7 +306,7 @@ Built-in channels and external adapters share the delivery and tool-call contrac
 | `capabilities.inlineVisualizations` | boolean | Server supports the connection-scoped `visualization/view/*` methods. A client must also advertise this capability before using them. |
 | `capabilities.mcpServerOrigins` | boolean | Server annotates MCP config/status DTOs with `origin` and `readOnly` so clients can show plugin-bundled MCP servers as read-only runtime entries. |
 | `capabilities.externalChannelManagement` | boolean | Server supports external channel configuration and diagnostic methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`, `externalChannel/logs`). |
-| `capabilities.agentProfileManagement` | boolean | Server supports Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/refreshThread`, `agent/profiles/builderDraft/read`, `agent/profiles/builderDraft/update`). |
+| `capabilities.agentProfileManagement` | boolean | Server supports Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/refreshThread`, `agent/profiles/builderDraft/read`, `agent/profiles/builderDraft/update`, and the Agent package methods in Section 23A.8A). |
 | `capabilities.subAgentManagement` | boolean | Server supports SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
 | `capabilities.subAgentSessions` | boolean | Server exposes profile-backed SubAgents as child threads with the `subagent/children/list`, `subagent/sendMessage`, `subagent/followupTask`, and `subagent/close` methods (Section 24.10). |
 | `capabilities.mcpStatus` | boolean | Server supports `mcp/test`. Runtime status is provided by `capabilities.mcpRuntime` and `mcpServerStatus/list`. |
@@ -5975,6 +5975,20 @@ Replaces the server-side working draft for a bound builder thread. Clients use t
 ```
 
 **Result**: same shape as `builderDraft/read`.
+
+### 23A.8A Agent Packages
+
+These methods move a user or workspace profile between installations as one file. [Agent packages](../features/agent-packages.md) owns the file format, the preview states, and what an import installs.
+
+| Method | Purpose |
+|--------|---------|
+| `agent/profiles/export/plan` | Return the file name, the size bound, and the skills and plugins an export can carry, with the reasons the profile relies on each. |
+| `agent/profiles/export/read` | Write the Agent package for the chosen packages at offset `0` and return it in chunks of at most 1 MiB; a negative offset discards it. |
+| `agent/profiles/import/upload` | Receive an Agent package or Profile document in chunks of at most 1 MiB; the last chunk returns the preview. |
+| `agent/profiles/import/commit` | Install the chosen packages, create the profile under the chosen name and source, and return it shaped like `agent/profiles/read`. |
+| `agent/profiles/import/discard` | Discard an uploaded import. |
+
+Uploads and exports are held for the requesting connection for at most one hour and are discarded when it closes. Failures specific to these methods are `-32602` (`InvalidParams`) with the case in `error.data.code`: `agentPackageInvalid`, `agentPackageTooLarge`, `importExpired`, `agentNameTaken`, or `packageNotFound`. Profile failures use the codes below.
 
 ### 23A.9 Error Codes
 

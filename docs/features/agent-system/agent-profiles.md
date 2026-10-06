@@ -42,6 +42,12 @@ Agent Builder lets you customize an agent just by chatting. Start from a built-i
 
 You can still edit the structured profile directly when you need precision. Agent Builder and the editor work on the same draft, so the conversation stays grounded in the definition you'll actually save.
 
+## Share an agent
+
+To share an agent, open it in **Agents** and choose **⋯ → Export…**. The file it saves (`<name>.agent.zip`) carries the profile and the skills and plugins it uses. A plugin from a configured marketplace travels as a link to that marketplace. MCP server settings stay behind because they can hold credentials.
+
+To bring one in, choose **Agents → Import** and drop the `.zip`, or a single profile `.md`. Review the name, where to save it, and which skills and plugins to install, then choose **Import**. A plugin that runs .NET code installs untrusted and opens its own dialog so you can trust it. Universe reads and writes the same file, so agents move between DotCraft and Universe in either direction.
+
 ## Related docs
 
 - [Automations & Goals](./automations) — run a scheduled task as a saved agent

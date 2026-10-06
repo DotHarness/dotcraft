@@ -66,7 +66,7 @@ import { clearDesktopPluginModuleRoutes } from './pluginFileProtocol'
 import { registerDesktopPluginModuleIpc, unregisterDesktopPluginModuleIpc } from './desktopPluginModuleIpc'
 import { partitionForWorkspace, viewerBrowserManager } from './viewerBrowser'
 import { BROWSER_FEEDBACK_CHANNELS, registerBrowserFeedbackIpc } from './browserFeedbackIpc'
-import { saveImageAs, type SaveImageAsRequest } from './imageSaveAs'
+import { saveFileAs, type SaveFileAsRequest } from './fileSaveAs'
 import { viewerTerminalManager } from './viewerTerminal'
 import { browserUseManager } from './browserUseManager'
 import type { BrowserUseApprovalResponsePayload } from '../shared/viewer/types'
@@ -1229,8 +1229,8 @@ export function registerIpcHandlers(
     shell.showItemInFolder(resolved)
   })
 
-  handleSafe('shell:save-image-as', async (event, request: SaveImageAsRequest) => {
-    return saveImageAs(event.sender, request)
+  handleSafe('shell:save-file-as', async (event, request: SaveFileAsRequest) => {
+    return saveFileAs(event.sender, request)
   })
 
   handleSafe('shell:show-item-in-folder', async (_event, targetPath: string) => {
@@ -2379,7 +2379,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('editors:launch-local-path')
   ipcMain.removeHandler('shell:open-local-path')
   ipcMain.removeHandler('shell:reveal-local-path')
-  ipcMain.removeHandler('shell:save-image-as')
+  ipcMain.removeHandler('shell:save-file-as')
   ipcMain.removeHandler('file:write')
   ipcMain.removeHandler('file:read')
   ipcMain.removeHandler('file:exists')
