@@ -2,7 +2,7 @@
 
 A plugin marketplace is a catalog you add yourself. Once it's added, its plugins show up on the Plugins page and you browse and install them like any other.
 
-![A marketplace makes plugins available to install in each workspace](/plugin-marketplace-flow.svg)
+![A plugin installed once from a marketplace is available in every workspace](/plugin-marketplace-flow.svg)
 
 A marketplace is added to DotCraft once, and a plugin you install from it is available in every workspace.
 
