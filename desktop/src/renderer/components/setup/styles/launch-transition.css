@@ -66,16 +66,6 @@
   visibility: hidden;
 }
 
-/* The centred rect is always the 96px base size, so `center` rests exactly where `top left` does. */
-.workspace-launch-transition--connecting .workspace-launch-transition__logo,
-.workspace-launch-transition--preparing .workspace-launch-transition__logo {
-  transform:
-    translate3d(var(--launch-logo-to-x, 0), var(--launch-logo-to-y, 0), 0)
-    scale(var(--launch-logo-to-scale, 1));
-  transform-origin: center;
-  animation: launch-logo-breathe 4s ease-in-out infinite;
-}
-
 .workspace-launch-transition--main-reveal .workspace-launch-transition__logo,
 .workspace-launch-transition--error-reveal .workspace-launch-transition__logo {
   transform:

@@ -1022,10 +1022,11 @@ The workspace launch transition is the one wait with no shape to match, because 
 workspace it is opening does not exist on screen yet. It has no caption: the brand mark
 alone is the running signal. Its body gradient flows with the Composer mascot's medium
 reasoning-effort energy, a slow six-second lift that leaves the face colours alone, and
-its `>_` face glances left and right on a slow loop. While it connects or prepares, the mark also breathes on a
-four-second loop, peaking three percent above rest and scaled about its own centre so it
-never drifts. Every loop rests on the plain mark at its ends, so the handoff from the
-Welcome logo never pops and the reduced-motion collapse leaves the mark still.
+its `>_` face glances left and right on a slow loop. The mark never changes size while it
+waits. The window's first frame already shows the plain mark at the same centre and size,
+fading in, so the transition takes over without a blank frame. Every loop rests on the
+plain mark at its ends, so the handoff from the Welcome logo never pops and the
+reduced-motion collapse leaves the mark still.
 
 ## Overlays
 
