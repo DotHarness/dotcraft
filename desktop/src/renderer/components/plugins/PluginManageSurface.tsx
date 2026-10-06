@@ -298,7 +298,7 @@ function PluginManageItem({
             aria-busy={pending}
             onChange={onToggle}
             size="sm"
-            aria-label={`${pluginTitle(plugin)} enabled`}
+            aria-label={t('plugins.manage.toggleLabel', { name: pluginTitle(plugin) })}
           />
         ) : (
           <Button size="sm" onClick={onInstall}>{t('plugins.install')}</Button>

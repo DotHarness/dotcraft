@@ -17,7 +17,7 @@ import {
 describe('PluginsView catalog', () => {
   beforeEach(setupPluginsViewTest)
 
-  it('shows workspace plugins by default under Installed locally', async () => {
+  it('shows installed and catalog plugins by default', async () => {
     appServerSendRequest.mockResolvedValue({
       plugins: [browserUsePlugin, localPlugin],
       diagnostics: [], snapshotRevision: 1
@@ -25,8 +25,7 @@ describe('PluginsView catalog', () => {
 
     renderPluginsView()
 
-    expect(await screen.findByText('Installed locally')).toBeInTheDocument()
-    expect(screen.getByText('External Process Echo')).toBeInTheDocument()
+    expect(await screen.findByText('External Process Echo')).toBeInTheDocument()
     expect(screen.getByText('Browser')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Filter plugins' })).toBeInTheDocument()
   })
@@ -51,7 +50,7 @@ describe('PluginsView catalog', () => {
 
     await waitFor(() => {
       expect(workspacePickFolder).toHaveBeenCalledWith({ title: 'Select plugin folder' })
-      expect(appServerSendRequest).toHaveBeenCalledWith('plugin/installLocal', { path: '/disk/my-plugin', scope: 'workspace' })
+      expect(appServerSendRequest).toHaveBeenCalledWith('plugin/installLocal', { path: '/disk/my-plugin' })
     })
   })
 

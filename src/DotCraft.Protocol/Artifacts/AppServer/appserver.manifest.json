@@ -13603,13 +13603,6 @@
           "required": false,
           "nullable": false,
           "const": null
-        },
-        {
-          "name": "scope",
-          "type": "string",
-          "required": true,
-          "nullable": false,
-          "const": null
         }
       ],
       "variants": []

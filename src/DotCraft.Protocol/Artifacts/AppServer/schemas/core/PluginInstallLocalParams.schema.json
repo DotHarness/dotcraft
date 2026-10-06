@@ -6,13 +6,7 @@
   "properties": {
     "path": {
       "type": "string"
-    },
-    "scope": {
-      "type": "string"
     }
   },
-  "additionalProperties": true,
-  "required": [
-    "scope"
-  ]
+  "additionalProperties": true
 }

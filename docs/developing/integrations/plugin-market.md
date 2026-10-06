@@ -97,7 +97,7 @@ DotCraft rejects `file://` sources and web URLs with embedded credentials. Git o
 
 ## Configuration
 
-Marketplace sources are stored in the global configuration by default. Plugin installation remains workspace-specific.
+Marketplace sources are stored in the global configuration by default.
 
 ```json
 {
@@ -135,11 +135,11 @@ Discovery reads only sources already available on disk. Listing plugins does not
 
 ### Install
 
-Installing copies the selected plugin into the current workspace and validates its manifest. DotCraft loads enabled contributions through the normal plugin lifecycle. Catalog entries that are not installed, and installed plugins that are disabled, contribute no skills, tools, apps, servers, hooks, or Desktop Plugin UI.
+Installing copies the selected plugin into `~/.craft/plugins/<id>`, where every workspace of that user discovers it, and validates its manifest. DotCraft loads enabled contributions through the normal plugin lifecycle. Catalog entries that are not installed, and installed plugins that are disabled, contribute no skills, tools, apps, servers, hooks, or Desktop Plugin UI.
 
 ### Remove
 
-Removing a marketplace removes its configured source. Plugins already installed in workspaces remain installed.
+Removing a marketplace removes its configured source. Plugins already installed remain installed.
 
 ## AppServer operations
 
@@ -159,7 +159,7 @@ See [AppServer Protocol](../protocols/appserver-protocol#plugin-marketplaces) fo
 - Adding a marketplace trusts its catalog source; it does not execute plugin code.
 - A marketplace path cannot escape its marketplace root.
 - DotCraft does not store source credentials.
-- A plugin contributes runtime behavior only after it is installed and enabled in a workspace.
+- A plugin contributes runtime behavior only after it is installed, and only in workspaces that have not turned it off.
 - Tools, apps, and hooks retain their normal runtime checks. Enabling a Desktop Plugin executes its trusted renderer code and is the trust decision for that module.
 - Installing or enabling a [.NET plugin](./dotnet-plugin-reference) does not grant it managed execution trust. Its accepted plugin id and fingerprint need an explicit grant before any managed code loads.
 

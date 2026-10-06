@@ -6,26 +6,24 @@ using DotCraft.Configuration;
 namespace DotCraft.Plugins;
 
 /// <summary>
-/// Copies desktop-bundled built-in plugin directories into a workspace.
+/// Copies catalog plugin directories into a plugin root.
 /// </summary>
 public sealed class BuiltInPluginDeployer(
-    string workspacePluginsPath,
+    string pluginsPath,
     IReadOnlyList<string>? sourceRoots = null,
     AppConfig.PluginsConfig? pluginsConfig = null,
     string? userDataPath = null)
 {
-    private static readonly Lock DeploymentLock = new();
-
     public const string MarkerFile = ".builtin";
 
     /// <summary>
-    /// Deploys configured built-in plugins into the workspace plugin directory.
+    /// Deploys configured built-in plugins into the plugin root.
     /// </summary>
     public IReadOnlyList<PluginDiagnostic> Deploy()
         => DeployCore(targetPluginIds: null);
 
     /// <summary>
-    /// Deploys one configured built-in plugin into the workspace plugin directory.
+    /// Deploys one configured built-in plugin into the plugin root.
     /// </summary>
     public IReadOnlyList<PluginDiagnostic> DeployPlugin(string pluginId)
         => DeployPlugins([pluginId]);
@@ -46,9 +44,18 @@ public sealed class BuiltInPluginDeployer(
 
     private IReadOnlyList<PluginDiagnostic> DeployCore(IReadOnlySet<string>? targetPluginIds)
     {
-        lock (DeploymentLock)
+        var identity = Path.GetFullPath(pluginsPath);
+        if (OperatingSystem.IsWindows()) identity = identity.ToUpperInvariant();
+        using var mutex = new Mutex(false, "DotCraft.PluginDeploy." + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity))));
+        try { mutex.WaitOne(); }
+        catch (AbandonedMutexException) { }
+        try
         {
             return DeployCoreLocked(targetPluginIds);
+        }
+        finally
+        {
+            mutex.ReleaseMutex();
         }
     }
 
@@ -64,14 +71,14 @@ public sealed class BuiltInPluginDeployer(
             ? null
             : new HashSet<string>(targetPluginIds, StringComparer.OrdinalIgnoreCase);
 
-        Directory.CreateDirectory(workspacePluginsPath);
+        Directory.CreateDirectory(pluginsPath);
         foreach (var source in sources)
         {
             if (pending != null && !pending.Remove(PluginIds.Canonicalize(source.Manifest.Id)))
                 continue;
 
             var pluginId = source.Manifest.Id;
-            var pluginDir = Path.Combine(workspacePluginsPath, pluginId);
+            var pluginDir = Path.Combine(pluginsPath, pluginId);
             var markerPath = Path.Combine(pluginDir, MarkerFile);
             if (Directory.Exists(pluginDir) && !File.Exists(markerPath))
             {

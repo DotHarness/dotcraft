@@ -91,7 +91,8 @@ export function buildSections(
   t: ReturnType<typeof useT>,
   marketplaces: MarketplaceEntry[],
   marketplaceNotices: ReadonlyMap<string, string>,
-  workspaceName: string | null
+  workspaceName: string,
+  machineName: string | null
 ): PluginSection[] {
   // Grouping by marketplace answers only "where did this come from": no
   // installed-state group, though the category filter still narrows each group.
@@ -118,14 +119,24 @@ export function buildSections(
     return plugins.length > 0 ? [{ key: categoryFilter, title: categoryLabel(categoryFilter, t), plugins }] : []
   }
 
-  const local = plugins.filter(isLocalInstalledPlugin)
-  const seen = new Set(local.map((plugin) => plugin.id))
+  const fromWorkspace = plugins.filter((plugin) => plugin.installed && pluginInstallScope(plugin) === 'workspace')
+  const installed = plugins.filter((plugin) => plugin.installed && pluginInstallScope(plugin) === 'user')
+  const seen = new Set([...installed, ...fromWorkspace].map((plugin) => plugin.id))
   const sections: PluginSection[] = []
-  if (local.length > 0) {
+  if (installed.length > 0) {
     sections.push({
-      key: 'local',
-      title: workspaceName ? t('plugins.section.installedIn', { name: workspaceName }) : t('plugins.section.local'),
-      plugins: local
+      key: 'installed',
+      title: machineName
+        ? t('plugins.section.installedOnMachine', { machine: machineName })
+        : t('plugins.section.installed'),
+      plugins: installed
+    })
+  }
+  if (fromWorkspace.length > 0) {
+    sections.push({
+      key: 'workspace',
+      title: t('plugins.section.installedInWorkspace', { name: workspaceName }),
+      plugins: fromWorkspace
     })
   }
 
@@ -157,8 +168,11 @@ export function displayCategory(category: string | null | undefined, t: ReturnTy
   return categoryLabel(normalizeCategory(category), t)
 }
 
-function isLocalInstalledPlugin(plugin: PluginEntry): boolean {
-  return plugin.installed && plugin.source.toLowerCase() !== 'builtin'
+export function pluginInstallScope(plugin: PluginEntry): 'user' | 'workspace' | null {
+  const source = plugin.source.toLowerCase()
+  if (source === 'userglobal') return 'user'
+  if (source === 'workspace') return 'workspace'
+  return null
 }
 
 function isDotHarnessPlugin(plugin: PluginEntry): boolean {

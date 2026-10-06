@@ -639,39 +639,43 @@ public sealed partial class AgentProfileStore
 
     private IReadOnlyList<AgentProfileEntry> ReadPluginProfiles()
     {
-        if (_workspaceCraftPath == null)
-            return [];
-
-        var pluginRoot = Path.Combine(_workspaceCraftPath, "plugins");
-        if (!Directory.Exists(pluginRoot))
-            return [];
-
         var entries = new List<AgentProfileEntry>();
-        foreach (var profileDirectory in Directory.EnumerateDirectories(pluginRoot, "agent-profiles", SearchOption.AllDirectories))
+        var shadowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pluginRoot in new[] { _workspaceCraftPath, _userDotCraftPath }
+                     .OfType<string>()
+                     .Select(root => Path.Combine(root, "plugins"))
+                     .Where(Directory.Exists))
         {
-            var pluginId = ResolvePluginId(pluginRoot, profileDirectory);
-            foreach (var path in Directory.EnumerateFiles(profileDirectory, "*.md", SearchOption.TopDirectoryOnly))
+            foreach (var profileDirectory in Directory.EnumerateDirectories(pluginRoot, "agent-profiles", SearchOption.AllDirectories))
             {
-                try
+                var pluginId = ResolvePluginId(pluginRoot, profileDirectory);
+                if (pluginId != null && shadowed.Contains(pluginId))
+                    continue;
+                foreach (var path in Directory.EnumerateFiles(profileDirectory, "*.md", SearchOption.TopDirectoryOnly))
                 {
-                    entries.Add(BuildEntryFromContent(AgentProfileSources.Plugin, path, File.ReadAllText(path), pluginId));
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                {
-                    entries.Add(new AgentProfileEntry
+                    try
                     {
-                        Source = AgentProfileSources.Plugin,
-                        PluginId = pluginId,
-                        Path = path,
-                        Valid = false,
-                        ReadOnly = true,
-                        Diagnostics =
-                        [
-                            Error("ProfileReadFailed", $"Agent profile file could not be read: {ex.Message}")
-                        ]
-                    });
+                        entries.Add(BuildEntryFromContent(AgentProfileSources.Plugin, path, File.ReadAllText(path), pluginId));
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        entries.Add(new AgentProfileEntry
+                        {
+                            Source = AgentProfileSources.Plugin,
+                            PluginId = pluginId,
+                            Path = path,
+                            Valid = false,
+                            ReadOnly = true,
+                            Diagnostics =
+                            [
+                                Error("ProfileReadFailed", $"Agent profile file could not be read: {ex.Message}")
+                            ]
+                        });
+                    }
                 }
             }
+
+            shadowed.UnionWith(Directory.EnumerateDirectories(pluginRoot).Select(Path.GetFileName).OfType<string>());
         }
 
         return entries;

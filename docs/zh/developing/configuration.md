@@ -665,8 +665,7 @@ Desktop 托管的内置 TypeScript 渠道：
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
-| `Plugins.EnabledPlugins` | 当前工作区显式启用的插件 id 列表 | `[]` |
-| `Plugins.DisabledPlugins` | 当前工作区显式禁用的插件 id 列表。禁用条目优先于启用条目，也优先于插件自身的默认状态 | `[]` |
+| `Plugins.DisabledPlugins` | 在当前工作区关闭的插件 id 列表 | `[]` |
 | `Plugins.PluginRoots` | `.craft/plugins/` 之外额外维护的 plugin root 目录 | `[]` |
 | `Plugins.PluginRegistries` | 用于发现插件目录的 plugin marketplace 来源 | `[]` |
 | `Plugins.DisableDefaultPluginRegistry` | 忽略宿主提供的默认官方 plugin registry | `false` |

@@ -806,15 +806,9 @@ public sealed partial class AppConfig
     public sealed class PluginsConfig
     {
         /// <summary>
-        /// Plugin ids explicitly enabled for this workspace.
+        /// Plugin ids turned off in this workspace.
         /// </summary>
         [ConfigField(Hint = "JSON array of plugin ids. Built-in ids include browser and external-channel.")]
-        public List<string> EnabledPlugins { get; set; } = [];
-
-        /// <summary>
-        /// Plugin ids explicitly disabled for this workspace.
-        /// </summary>
-        [ConfigField(Hint = "JSON array of plugin ids. Disabled entries override enabled/default entries.")]
         public List<string> DisabledPlugins { get; set; } = [];
 
         /// <summary>
@@ -836,16 +830,10 @@ public sealed partial class AppConfig
         [ConfigField(Hint = "When true, DotCraft ignores the default official plugin registry URL supplied by the host.")]
         public bool DisableDefaultPluginRegistry { get; set; }
 
-        public bool IsPluginEnabled(string pluginId, bool defaultEnabled)
+        public bool IsPluginEnabled(string pluginId)
         {
             var canonicalPluginId = PluginIds.Canonicalize(pluginId);
-            if (DisabledPlugins.Any(id => PluginIds.EqualsCanonical(id, canonicalPluginId)))
-                return false;
-
-            if (EnabledPlugins.Any(id => PluginIds.EqualsCanonical(id, canonicalPluginId)))
-                return true;
-
-            return defaultEnabled;
+            return !DisabledPlugins.Any(id => PluginIds.EqualsCanonical(id, canonicalPluginId));
         }
     }
 

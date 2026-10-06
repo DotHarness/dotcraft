@@ -299,7 +299,7 @@ describe('PluginsView installation', () => {
     renderPluginsView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
-    fireEvent.click(await screen.findByRole('switch', { name: 'Review Core enabled' }))
+    fireEvent.click(await screen.findByRole('switch', { name: 'Use Review Core in this workspace' }))
 
     expect(await screen.findByText('Security authorization')).toBeInTheDocument()
     expect(appServerSendRequest).not.toHaveBeenCalledWith('plugin/setEnabled', expect.anything())

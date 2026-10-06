@@ -74,7 +74,7 @@ public sealed class PluginDiscoveryService(
     public PluginDiscoveryResult DiscoverAll(AppConfig config, string workspacePath, string botPath)
     {
         var diagnostics = new List<PluginDiagnostic>();
-        RefreshManagedBuiltInPlugins(config, Path.Combine(botPath, "plugins"), diagnostics);
+        RefreshManagedBuiltInPlugins(config, diagnostics);
         var candidates = EnumerateCandidates(config, workspacePath, botPath, diagnostics);
         var discovered = new List<DiscoveredPlugin>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -107,12 +107,7 @@ public sealed class PluginDiscoveryService(
                 continue;
             }
 
-            var enabled = config.Plugins.IsPluginEnabled(manifest.Id, defaultEnabled: true);
-            if (candidate.SourceKind == PluginDiscoverySourceKind.UserGlobal && userGlobalPluginsPath != null)
-            {
-                var userConfig = AppConfig.Load(Path.Combine(Path.GetDirectoryName(userGlobalPluginsPath)!, "config.json"));
-                enabled &= userConfig.Plugins.IsPluginEnabled(manifest.Id, defaultEnabled: true);
-            }
+            var enabled = config.Plugins.IsPluginEnabled(manifest.Id);
             if (!enabled)
             {
                 diagnostics.Add(PluginDiagnostic.Info(
@@ -151,14 +146,13 @@ public sealed class PluginDiscoveryService(
 
     private void RefreshManagedBuiltInPlugins(
         AppConfig config,
-        string workspacePluginsRoot,
         List<PluginDiagnostic> diagnostics)
     {
-        if (!Directory.Exists(workspacePluginsRoot))
+        if (userGlobalPluginsPath == null || !Directory.Exists(userGlobalPluginsPath))
             return;
 
         var managed = new List<string>();
-        foreach (var pluginRoot in Directory.GetDirectories(workspacePluginsRoot))
+        foreach (var pluginRoot in Directory.GetDirectories(userGlobalPluginsPath))
         {
             if (!BuiltInPluginDeployer.IsManagedBuiltInPluginRoot(pluginRoot))
                 continue;
@@ -177,7 +171,7 @@ public sealed class PluginDiscoveryService(
         }
 
         diagnostics.AddRange(new BuiltInPluginDeployer(
-                workspacePluginsRoot,
+                userGlobalPluginsPath,
                 builtInPluginSourceRoots,
                 config.Plugins,
                 craftHome)

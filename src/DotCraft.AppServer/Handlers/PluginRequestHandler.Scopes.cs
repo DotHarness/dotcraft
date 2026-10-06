@@ -15,19 +15,22 @@ internal sealed partial class PluginRequestHandler
 
     private string PluginScope(DiscoveredPlugin plugin) => plugin.SourceKind == PluginDiscoverySourceKind.UserGlobal ? "user" : "workspace";
 
-    private void SetScopedPluginEnabled(DiscoveredPlugin plugin, bool enabled)
+    private void SetWorkspacePluginEnabled(string pluginId, bool enabled)
     {
-        var data = PluginDataPath(PluginScope(plugin));
+        var data = PluginDataPath("workspace");
         AtomicConfigDocument.Update(Path.Combine(data, "config.json"), root =>
         {
             var plugins = AtomicConfigDocument.Object(root, "Plugins");
             var key = AtomicConfigDocument.Key(plugins, "DisabledPlugins") ?? "DisabledPlugins";
             var values = plugins[key] as JsonArray ?? new JsonArray();
-            var disabled = values.Select(v => v!.GetValue<string>()).Where(id => !PluginIds.EqualsCanonical(id, plugin.Manifest.Id)).ToList();
-            if (!enabled) disabled.Add(plugin.Manifest.Id);
+            var disabled = values.Select(v => v!.GetValue<string>()).Where(id => !PluginIds.EqualsCanonical(id, pluginId)).ToList();
+            if (!enabled) disabled.Add(pluginId);
             plugins[key] = new JsonArray(disabled.Select(id => (JsonNode?)JsonValue.Create(id)).ToArray());
         });
         if (appConfigMonitor != null) appConfigMonitor.Current.Plugins = workspaceConfig.LoadCurrentMergedConfig().Plugins;
-        AtomicConfigDocument.Update(Path.Combine(data, "imports", "revision.json"), root => root["revision"] = Guid.NewGuid().ToString("N"));
+        PublishPluginRevision(data);
     }
+
+    private static void PublishPluginRevision(string dataPath) =>
+        AtomicConfigDocument.Update(Path.Combine(dataPath, "imports", "revision.json"), root => root["revision"] = Guid.NewGuid().ToString("N"));
 }

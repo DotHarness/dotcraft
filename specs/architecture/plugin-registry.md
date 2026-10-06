@@ -18,9 +18,9 @@ A DotCraft plugin marketplace is a curated source repository. It contains:
 
 The index controls discovery and ordering, while each plugin directory remains the source bundle that DotCraft installs. Marketplace entries do not define plugin runtime contributions. Skills, app descriptors, MCP/LSP descriptors, Desktop modules, assets, and path metadata are read from the plugin's `.craft-plugin/plugin.json` and referenced files.
 
-Installing a marketplace plugin copies the verified plugin directory into the workspace at `.craft/plugins/<pluginName>`. DotCraft loads plugin contributions only after local installation.
+Installing a marketplace plugin copies the verified plugin directory into the user-global root at `<craft-home>/plugins/<pluginName>`. DotCraft loads plugin contributions only after local installation.
 
-Marketplace sources are recorded once for the user and are then available in every workspace. Plugin installation stays per workspace.
+Marketplace sources and installed plugins are recorded once for the user and are then available in every workspace.
 
 ## 2. Goals
 
@@ -153,7 +153,7 @@ Refresh also covers the host-provided default registry, which is supplied by the
 
 ### 7.4 Remove
 
-Removing a marketplace deletes its configuration entry and, for materialized kinds, deletes its installed root. Removal does not uninstall plugins that were already installed into a workspace: those are workspace-owned copies under `.craft/plugins/<id>` and remain until removed through the ordinary plugin removal flow.
+Removing a marketplace deletes its configuration entry and, for materialized kinds, deletes its installed root. Removal does not uninstall plugins that were already installed: those are copies under `<craft-home>/plugins/<id>` and remain until removed through the ordinary plugin removal flow.
 
 ### 7.5 Discovery never fetches
 
@@ -169,7 +169,7 @@ An archive refresh must extract into a temporary directory, validate the marketp
 
 Each activated snapshot stores internal cache metadata containing a schema version, marketplace identity, source key, marketplace path, and update time. Existing snapshots without metadata remain readable: DotCraft derives their identity from the marketplace document, writes metadata when possible, and applies the same single-version pruning rule. Cache operations also remove interrupted archive staging directories older than ten minutes while leaving newer staging directories and unrelated files untouched.
 
-The cache root must be derived from the effective Craft home supplied to the runtime or development resolver. Tests and alternate Craft homes must not write into the default user's cache. These cache mechanics do not apply to Git marketplace roots, local marketplaces, or plugins already installed into a workspace.
+The cache root must be derived from the effective Craft home supplied to the runtime or development resolver. Tests and alternate Craft homes must not write into the default user's cache. These cache mechanics do not apply to Git marketplace roots, local marketplaces, or installed plugins.
 
 ### 7.7 Archive download and retry
 
@@ -205,11 +205,11 @@ Installing a marketplace plugin must:
 
 - resolve the marketplace entry to a marketplace-local plugin directory;
 - validate the plugin manifest id against the marketplace entry name;
-- copy the plugin directory to the workspace at `.craft/plugins/<pluginName>`;
+- copy the plugin directory to the user-global root at `<craft-home>/plugins/<pluginName>`;
 - write a managed marker for DotCraft-owned refresh/removal behavior;
 - refresh plugin-contributed skills, apps, MCP/LSP servers, and Desktop module metadata through the normal plugin runtime.
 
-User-owned workspace plugins without a managed marker must not be overwritten by marketplace install or refresh behavior.
+User-owned plugins without a managed marker must not be overwritten by marketplace install or refresh behavior.
 
 ## 10. Security and Trust Boundaries
 

@@ -2,14 +2,14 @@ namespace DotCraft.Plugins;
 
 public static class PluginDirectoryDeleter
 {
-    public static void Delete(string pluginRoot, string workspaceTempPath)
+    public static void Delete(string pluginRoot, string temporaryPath)
     {
         if (!Directory.Exists(pluginRoot))
             return;
 
-        Directory.CreateDirectory(workspaceTempPath);
+        Directory.CreateDirectory(temporaryPath);
         var tombstone = Path.Combine(
-            workspaceTempPath,
+            temporaryPath,
             $"plugin-remove.{Path.GetFileName(pluginRoot)}.{Guid.NewGuid():N}.removed");
 
         // The same-volume rename is the removal commit; tombstone cleanup is not part of it.

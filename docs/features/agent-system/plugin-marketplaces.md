@@ -2,9 +2,9 @@
 
 A plugin marketplace is a catalog you add yourself. Once it's added, its plugins show up on the Plugins page and you browse and install them like any other.
 
-![A marketplace makes plugins available to install in each workspace](/plugin-marketplace-flow.svg)
+![A plugin installed once from a marketplace is available in every workspace](/plugin-marketplace-flow.svg)
 
-A marketplace is added to DotCraft once, and its plugins are installed per workspace. Every project keeps only the capabilities it needs.
+A marketplace is added to DotCraft once, and a plugin you install from it is available in every workspace.
 
 ## Add a marketplace
 
@@ -31,13 +31,11 @@ To build and distribute a marketplace of your own, see the [Plugin Market guide]
 
 Installing works the same as any other plugin: choose **Marketplaces** in the publisher filter on the Plugins page, open the plugin you want, select **Install**, and confirm with **Add to DotCraft**. The full walkthrough is in [Plugins and tools](./plugins-tools).
 
-A plugin installs into the current workspace only. Use **Manage** to enable or disable installed plugins without uninstalling them.
-
 ## Refresh and remove
 
 When a publisher adds or updates plugins, choose **Marketplaces** in the publisher filter, find the marketplace heading, open **Marketplace actions**, and select **Refresh**. The catalog updates in place.
 
-**Remove**, in the same **Marketplace actions** menu, drops the marketplace. Its catalog disappears from DotCraft, and plugins already installed in your workspaces stay until you uninstall them.
+**Remove**, in the same **Marketplace actions** menu, drops the marketplace. Its catalog disappears from DotCraft, and plugins you already installed stay until you uninstall them.
 
 > [!CAUTION]
 > Add marketplaces only from sources you trust. Check a plugin's publisher, the permissions it asks for, and its links before installing it.

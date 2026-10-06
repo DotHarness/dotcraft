@@ -17,7 +17,8 @@ import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
 import { stripYamlFrontmatter } from '../../utils/skillMarkdown'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
-import { projectLabel, useWorkspaceProjectChoices } from '../conversation/workspaceProjectMenu'
+import { projectLabel, useWorkspaceProjectChoices, workspaceSlug } from '../conversation/workspaceProjectMenu'
+import { sshProjectRef, useSshProjectMachine } from '../sidebar/sshRemoteProject'
 import { SkillsView, filterLocalSkills } from '../skills/SkillsView'
 import { SkillDetailDialog } from '../skills/SkillDetailDialog'
 import { stageSkillTryInChat } from '../skills/skillDraft'
@@ -36,6 +37,7 @@ import {
   filterPlugins,
   findPluginSkill,
   marketplaceTitle,
+  pluginInstallScope,
   type CategoryFilter,
   type PublisherFilter
 } from './pluginCatalogModel'
@@ -61,7 +63,13 @@ export function PluginsView(): JSX.Element {
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
   const { selectedProject, foregroundIsChat } = useWorkspaceProjectChoices(foregroundWorkspacePath)
-  const workspaceName = !foregroundIsChat && selectedProject ? projectLabel(selectedProject) : null
+  const workspaceName = !foregroundIsChat && selectedProject
+    ? projectLabel(selectedProject)
+    : workspaceSlug(foregroundWorkspacePath)
+  const sshMachine = useSshProjectMachine(selectedProject ? sshProjectRef(selectedProject) : null)
+  const machineName = remoteWorkspaceActive
+    ? sshMachine?.name ?? selectedProject?.remote?.serverName ?? null
+    : null
   const {
     plugins,
     marketplaces,
@@ -144,8 +152,8 @@ export function PluginsView(): JSX.Element {
   const selectedSkillBody = skillContent != null ? stripYamlFrontmatter(skillContent) : ''
   const categoryOptions = useMemo(() => buildCategoryOptions(plugins, t), [plugins, t])
   const sections = useMemo(
-    () => buildSections(browsePlugins, categoryFilter, publisherFilter, t, marketplaces, marketplaceNotices, workspaceName),
-    [browsePlugins, categoryFilter, marketplaceNotices, marketplaces, publisherFilter, t, workspaceName]
+    () => buildSections(browsePlugins, categoryFilter, publisherFilter, t, marketplaces, marketplaceNotices, workspaceName, machineName),
+    [browsePlugins, categoryFilter, machineName, marketplaceNotices, marketplaces, publisherFilter, t, workspaceName]
   )
   // The dialog owns installed/app state for its own session and takes the live trust state from
   // the store, so completing the trust step advances the dialog without reopening it.
@@ -307,7 +315,7 @@ export function PluginsView(): JSX.Element {
       if (installed?.dotnet) setInstallTarget(installed)
       if (installed) {
         showPluginInstalledToast(installed, {
-          message: t('plugins.installLocal.success', { name: pluginTitle(installed) }),
+          message: t('plugins.installSuccess', { name: pluginTitle(installed) }),
           ...(installed.dotnet ? {} : { tryLabel: t('plugins.tryNow') })
         })
       }
@@ -327,7 +335,11 @@ export function PluginsView(): JSX.Element {
     if (togglingPluginIds.has(plugin.id)) return
     setTogglingPluginIds((current) => new Set(current).add(plugin.id))
     try {
-      await togglePluginEnabled(plugin.id, enabled)
+      const result = await togglePluginEnabled(plugin.id, enabled)
+      if (result.outcome === 'notApplied') {
+        addToast(operationFailureMessage(result) ?? t('plugins.updateFailed'), 'error')
+        return
+      }
       await fetchSkills()
     } catch {
       addToast(t('plugins.updateFailed'), 'error')
@@ -388,7 +400,7 @@ export function PluginsView(): JSX.Element {
     }
   }
 
-  // Every way of getting a plugin into the workspace lives in one menu. The first entry
+  // Every way of getting a plugin lives in one menu. The first entry
   // is also the principal action, so a single available entry degrades to a plain button.
   const createActions: SplitButtonItem[] = [
     {
@@ -442,10 +454,11 @@ export function PluginsView(): JSX.Element {
             const pluginName = pluginTitle(selectedPlugin)
             const ok = await confirm({
               title: t('plugins.uninstallConfirm.title', { name: pluginName }),
-              message: t('plugins.uninstallConfirm.message', {
-                name: pluginName,
-                path: selectedPlugin.rootPath || `.craft/plugins/${selectedPlugin.id}`
-              }),
+              message: pluginInstallScope(selectedPlugin) === 'workspace'
+                ? t('plugins.uninstallConfirm.workspaceMessage', { name: pluginName, workspace: workspaceName })
+                : machineName
+                  ? t('plugins.uninstallConfirm.machineMessage', { name: pluginName, machine: machineName })
+                  : t('plugins.uninstallConfirm.message', { name: pluginName }),
               confirmLabel: t('plugins.uninstall'),
               cancelLabel: t('common.cancel'),
               danger: true

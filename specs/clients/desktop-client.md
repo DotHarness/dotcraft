@@ -727,7 +727,7 @@ The plugin browse top bar carries icon-only Refresh and Manage actions plus one
 compound Create control, which is the bar's only labelled action and follows the
 compound-trigger treatment in [Desktop DESIGN.md](../architecture/DESIGN.md#compound-triggers).
 Its principal segment starts a plugin authoring conversation; its menu
-gathers every way of getting a plugin into the workspace — authoring one, adding a
+gathers every way of getting a plugin — authoring one, adding a
 marketplace, and installing from a local folder — so the surface needs no separate
 overflow menu. When only one of those is available the control collapses to a plain
 button. The Skills browse top bar carries the same icon-only Refresh and Manage
@@ -772,8 +772,13 @@ Required behavior:
   by another source cannot be toggled from this plugin. It and uninstalled catalog
   Skills open read-only package-source previews; an effective installed Skill
   opens its runtime view. Skill preview dialogs do not contain switches.
-- Removing a marketplace does not remove plugins already installed into a
-  workspace. The client says so before confirming.
+- Removing a marketplace does not remove plugins already installed. The client
+  says so before confirming.
+- Installing a plugin, from a catalog or a local folder, installs it for every
+  workspace; there is no workspace-only install. The Manage row switch turns a
+  plugin off or on for the active workspace alone, and plugin detail offers Enable
+  when it is off there. Uninstalling a user-global plugin removes it from every
+  workspace, and the confirmation says so.
 - Marketplace controls are hidden when `capabilities.pluginMarketplaces` is
   absent, and marketplace add and local-directory selection are unavailable for
   remote workspaces.

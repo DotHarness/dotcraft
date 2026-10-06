@@ -29,6 +29,7 @@ Cite only `www.dotcraft.net` and `github.com/DotHarness/dotcraft`. Never invent 
 | A personal default, credentials, or endpoints | `~/.craft/config.json` |
 | A custom model's context window or Fast capability | `<workspace>/.craft/models.json`, or `~/.craft/models.json` for every workspace |
 | A skill or tool turned off here | `Skills` or `EnabledTools` in the workspace config, or Desktop > Plugins > Skills to take effect at once |
+| A plugin turned off here | `Plugins.DisabledPlugins` in the workspace config, or Desktop > Plugins > Manage to take effect at once |
 | A procedure worth repeating | A skill — `$skill-authoring` to write one, `$skill-installer` to install one |
 | A bundle of skills, tools, hooks, MCP servers, or UI | A plugin — `$plugin-creator` |
 | External data or actions from another program | `McpServers` |

@@ -3256,8 +3256,7 @@ Detection is read-only. Execution revalidates identities and fingerprints and re
 cancel other items. Initialized trusted clients receive progress and completion notifications.
 
 MCP `upsert` and `remove` use an explicit user/workspace `scope`; listing retains the effective
-origin. User-origin entries remain editable in their own scope. `plugin/installLocal` also accepts
-scope, and remove/enable operate on the installed plugin's reported source.
+origin. User-origin entries remain editable in their own scope.
 
 ## 12. Versioning and Compatibility
 
@@ -3789,8 +3788,8 @@ Returns one plugin by id.
 | Field | Type | Presence | Description |
 |-------|------|----------|-------------|
 | `installed` | boolean | required | True when the plugin exists in a discovered local plugin root and can contribute runtime behavior. |
-| `installable` | boolean | required | True for known bundled or registry catalog entries that are not installed in the workspace. |
-| `removable` | boolean | required | True for workspace plugin directories under `.craft/plugins/<id>` that DotCraft can remove. |
+| `installable` | boolean | required | True for known bundled or registry catalog entries that are not installed. |
+| `removable` | boolean | required | True for plugin directories under `<craft-home>/plugins/<id>` or the workspace's `.craft/plugins/<id>` that DotCraft can remove. |
 | `functions` | `PluginFunctionInfo[]` | required | Host-owned metadata for the in-process Tools published by the plugin's current active .NET generation; empty in every other state and for plugins without a `dotnet` contribution. |
 | `skills` | `PluginSkillInfo[]` | required | Plugin-contained skills declared by the bundle. |
 | `workflows` | `PluginWorkflowInfo[]` | required | Safe Dynamic Workflow summaries (`name`, namespaced `command`, `description`, optional `whenToUse`). Script source and paths are never exposed. |
@@ -4071,7 +4070,7 @@ rejected with `-32602` (Invalid params) carrying an English fallback message.
 
 #### `plugin/install`
 
-Installs a known catalog plugin into the workspace. Uninstalled bundled plugins are installable when the host was started with bundled plugin source roots configured. Uninstalled registry plugins are installable when a configured registry source can be loaded from cache or source.
+Installs a known catalog plugin for the user, so it is available in every workspace. Uninstalled bundled plugins are installable when the host was started with bundled plugin source roots configured. Uninstalled registry plugins are installable when a configured registry source can be loaded from cache or source.
 
 **Params**:
 
@@ -4081,7 +4080,7 @@ Installs a known catalog plugin into the workspace. Uninstalled bundled plugins 
 
 **Result**: `PluginOperationResult`
 
-If the id is already installed, the operation returns `noChange` and writes nothing. Otherwise the server copies the selected catalog plugin source to `.craft/plugins/<id>`, writes a `.builtin` source fingerprint marker, clears any disabled-state record for that id, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `config/changed` with `source: "plugin/install"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+If the id is already installed, the operation returns `noChange` and writes nothing. Otherwise the server copies the selected catalog plugin source to `<craft-home>/plugins/<id>`, writes a `.builtin` source fingerprint marker, clears the workspace's disabled-state record for that id, publishes the user-global revision, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `config/changed` with `source: "plugin/install"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
 Install never installs, enables, updates, or fetches a dependency, and never grants trust. A newly
 installed `dotnet` plugin therefore returns `applied` with its runtime `blocked` on `PluginUntrusted`
@@ -4089,7 +4088,7 @@ until the user confirms trust through `plugin/setTrusted`.
 
 #### `plugin/installLocal`
 
-Installs a plugin from a local directory the client points at, for example a plugin checked out on disk. This lets users add plugins to workspaces that are not browsed as projects, such as the default Chat workspace. The directory must be a plugin root containing `.craft-plugin/plugin.json`.
+Installs a plugin from a local directory the client points at, for example a plugin checked out on disk, for the user, so it is available in every workspace. The directory must be a plugin root containing `.craft-plugin/plugin.json`.
 
 **Params**:
 
@@ -4099,13 +4098,13 @@ Installs a plugin from a local directory the client points at, for example a plu
 
 **Result**: `PluginOperationResult`
 
-Before copying anything, the server validates the directory by parsing `.craft-plugin/plugin.json` with the standard plugin manifest validator. If the directory is missing, is not a plugin root, or the manifest has errors, the request is rejected with `InvalidParams` carrying the validation message and nothing is written. The server also rejects a directory whose canonical plugin id is already installed in the workspace; the client must remove the existing plugin before reinstalling.
+Before copying anything, the server validates the directory by parsing `.craft-plugin/plugin.json` with the standard plugin manifest validator. If the directory is missing, is not a plugin root, or the manifest has errors, the request is rejected with `InvalidParams` carrying the validation message and nothing is written. The server also rejects a directory whose canonical plugin id is already installed in the user-global root; the client must remove the existing plugin before reinstalling.
 
-On success, the server copies the directory to `.craft/plugins/<id>` as a user-owned workspace plugin — no `.builtin` marker is written, so the plugin is installed, enabled, and removable via `plugin/remove`. The server clears any disabled-state record for that id, refreshes plugin-contributed skill sources, reconciles effective MCP, LSP, and hooks runtime state, and emits `config/changed` with `source: "plugin/installLocal"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+On success, the server copies the directory to `<craft-home>/plugins/<id>` as a user-owned plugin — no `.builtin` marker is written, so the plugin is installed, enabled, and removable via `plugin/remove`. The server clears the workspace's disabled-state record for that id, publishes the user-global revision, refreshes plugin-contributed skill sources, reconciles effective MCP, LSP, and hooks runtime state, and emits `config/changed` with `source: "plugin/installLocal"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
 #### `plugin/remove`
 
-Removes a removable workspace plugin from the workspace.
+Removes an installed plugin from the user-global root, which removes it from every workspace, or from the workspace-local root.
 
 **Params**:
 
@@ -4115,7 +4114,7 @@ Removes a removable workspace plugin from the workspace.
 
 **Result**: `PluginOperationResult`
 
-The server deletes only removable workspace plugin directories that are inside `.craft/plugins`. This includes DotCraft-managed built-in installs and user-owned plugins installed with `plugin/installLocal`; explicit external plugin roots and user-global plugin directories are rejected. A known catalog entry that is already uninstalled returns `noChange`. On success, the server refreshes plugin-contributed skill sources, reconciles effective MCP, LSP, and hooks runtime state, and emits `config/changed` with `source: "plugin/remove"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+The server deletes only removable plugin directories inside `<craft-home>/plugins` or the workspace's `.craft/plugins`. This includes DotCraft-managed built-in installs and user-owned plugins installed with `plugin/installLocal`; explicit external plugin roots are rejected. A known catalog entry that is already uninstalled returns `noChange`. On success, the server publishes the revision of the root it removed from, refreshes plugin-contributed skill sources, reconciles effective MCP, LSP, and hooks runtime state, and emits `config/changed` with `source: "plugin/remove"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
 Before touching the directory the server passes the bundle mutation gate: it quiesces the plugin's
 in-process generation and the consumers that depend on it, consumers first, then quiesces the
@@ -4127,7 +4126,7 @@ is left as it was, the runtime is reconciled back, and the result is `notApplied
 
 #### `plugin/setEnabled`
 
-Enables or disables an installed plugin for the workspace.
+Turns an installed plugin on or off for the active workspace.
 
 **Params**:
 
@@ -4138,7 +4137,7 @@ Enables or disables an installed plugin for the workspace.
 
 **Result**: `PluginOperationResult`
 
-`plugin/setEnabled` does not install a built-in catalog entry. If the plugin is not installed, the server rejects the request. Repeating the configured value returns `noChange` and writes nothing. On success, the server persists the enablement intent, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `config/changed` with `source: "plugin/setEnabled"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+`plugin/setEnabled` does not install a built-in catalog entry. If the plugin is not installed, the server rejects the request. Repeating the configured value returns `noChange` and writes nothing. On success, the server writes the workspace layer's `Plugins.DisabledPlugins`, publishes the workspace revision, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `config/changed` with `source: "plugin/setEnabled"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
 Enabling a `dotnet` plugin activates it only when every other precondition holds; it does not grant
 trust, so an untrusted plugin returns `applied` with runtime state `blocked`. Disabling persists the
@@ -4365,7 +4364,7 @@ Removes a configured marketplace.
 
 `removedRoot` is present only when a materialized root was deleted. The server deletes the configuration entry and, for materialized source kinds, the installed root. Local marketplaces are unlinked without touching the user's directory.
 
-Removal does not uninstall plugins already installed into a workspace: those are workspace-owned copies under `.craft/plugins/<id>` and remain until removed with `plugin/remove`. The host-provided default marketplace is not removable; it is controlled with `Plugins.DisableDefaultPluginRegistry`.
+Removal does not uninstall plugins already installed: those are copies under `<craft-home>/plugins/<id>` and remain until removed with `plugin/remove`. The host-provided default marketplace is not removable; it is controlled with `Plugins.DisableDefaultPluginRegistry`.
 
 On success the server emits `config/changed` with `source: "marketplace/remove"` and `regions: ["plugins"]`.
 
@@ -5740,7 +5739,7 @@ Clients should check `capabilities.agentProfileManagement` before calling any `a
 Profile sources:
 
 - `builtIn`: read-only profiles shipped by DotCraft.
-- `plugin`: read-only profiles shipped by installed plugins under `.craft/plugins/{pluginId}/agent-profiles/*.md`.
+- `plugin`: read-only profiles shipped by installed plugins under `{pluginId}/agent-profiles/*.md` in the workspace-local or user-global plugin root.
 - `user`: user DotCraft config home, under `agents/`.
 - `workspace`: workspace `.craft/agents/{id}.md`.
 - `managed`: read-only managed profiles under `.craft/managed/agent-profiles/*.md`.

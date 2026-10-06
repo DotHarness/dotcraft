@@ -1,9 +1,11 @@
 using System.Text.Json.Nodes;
+using CorePlugins = DotCraft.Plugins;
 using DotCraft.Configuration;
 using DotCraft.Hooks;
 using DotCraft.Mcp;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using DotCraft.Protocol.AppServer;
+using DotCraft.Skills;
 using DotCraft.Workspaces;
 
 namespace DotCraft.SessionImport.Tests;
@@ -72,6 +74,117 @@ public sealed class SetupImportConcurrencyTests : IDisposable
             await runtime.RefreshAsync(default);
             Assert.Equal("user", Assert.Single(monitor.Current.McpServers).Origin.Kind);
             Assert.Equal(1, notifications);
+        }
+    }
+
+    [Fact]
+    public async Task UserRevisionRediscoversInstalledAndRemovedUserGlobalPlugins()
+    {
+        var user = _temp.CreateDirectory("home", ".craft");
+        var data = _temp.CreateDirectory("other", ".craft");
+        var skills = new SkillsLoader(data);
+        var monitor = new AppConfigMonitor(new AppConfig { GlobalConfigPath = Path.Combine(user, "config.json") });
+        var runtime = new ImportedSetupRuntime(DotCraftPaths.CreateForExecutionHost(Path.GetDirectoryName(data)!, data, user), monitor, skills);
+        var plugin = Path.Combine(user, "plugins", "demo-plugin");
+        Directory.CreateDirectory(Path.Combine(plugin, ".craft-plugin"));
+        Directory.CreateDirectory(Path.Combine(plugin, "skills", "demo-skill"));
+        File.WriteAllText(Path.Combine(plugin, "skills", "demo-skill", "SKILL.md"), """
+            ---
+            name: demo-skill
+            description: Demo
+            ---
+            # Demo
+            """);
+        File.WriteAllText(Path.Combine(plugin, ".craft-plugin", "plugin.json"), """
+            {"schemaVersion":1,"id":"demo-plugin","version":"1.0.0","displayName":"Demo","description":"Demo","capabilities":["skill"],"skills":"./skills/"}
+            """);
+
+        AtomicConfigDocument.Update(Path.Combine(user, "imports", "revision.json"), root => root["revision"] = "installed");
+        await runtime.RefreshAsync(default);
+        Assert.Contains(skills.ListSkills(), skill => skill.Name == "demo-skill");
+
+        Directory.Delete(plugin, recursive: true);
+        AtomicConfigDocument.Update(Path.Combine(user, "imports", "revision.json"), root => root["revision"] = "removed");
+        await runtime.RefreshAsync(default);
+        Assert.DoesNotContain(skills.ListSkills(), skill => skill.Name == "demo-skill");
+    }
+
+    [Fact]
+    public async Task UserRevisionStopsADotnetPluginRemovedByAnotherProcess()
+    {
+        var user = _temp.CreateDirectory("home", ".craft");
+        var data = _temp.CreateDirectory("other", ".craft");
+        var dotnet = new RecordingDotnetRuntime("removed-plugin");
+        var monitor = new AppConfigMonitor(new AppConfig { GlobalConfigPath = Path.Combine(user, "config.json") });
+        var runtime = new ImportedSetupRuntime(
+            DotCraftPaths.CreateForExecutionHost(Path.GetDirectoryName(data)!, data, user), monitor, new SkillsLoader(data), dotnet: dotnet);
+
+        AtomicConfigDocument.Update(Path.Combine(user, "imports", "revision.json"), root => root["revision"] = "removed");
+        await runtime.RefreshAsync(default);
+
+        Assert.Equal(["quiesce:removed-plugin", "reconcile:removed-plugin"], dotnet.Calls);
+    }
+
+    [Fact]
+    public void DotnetConvergenceSyncsEnablementWithoutReadmittingUnchangedBundles()
+    {
+        var installed = new Dictionary<string, DotnetPluginState>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["turned-off"] = new("1.0.0", false),
+            ["turned-on"] = new("1.0.0", true),
+            ["unchanged"] = new("1.0.0", true),
+            ["updated"] = new("2.0.0", true),
+            ["added"] = new("1.0.0", true)
+        };
+        var running = new Dictionary<string, DotnetPluginState>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["turned-off"] = new("1.0.0", true),
+            ["turned-on"] = new("1.0.0", false),
+            ["unchanged"] = new("1.0.0", true),
+            ["updated"] = new("1.0.0", true),
+            ["removed"] = new("1.0.0", true)
+        };
+
+        Assert.Equal(
+            [
+                ("added", DotnetConvergence.Readmit),
+                ("removed", DotnetConvergence.Readmit),
+                ("turned-off", DotnetConvergence.Disable),
+                ("turned-on", DotnetConvergence.Enable),
+                ("updated", DotnetConvergence.Readmit)
+            ],
+            ImportedSetupRuntime.PlanDotnetConvergence(installed, running));
+    }
+
+    private sealed class RecordingDotnetRuntime(params string[] running) : CorePlugins.IPluginDotnetRuntimeCoordinator
+    {
+        public List<string> Calls { get; } = [];
+
+        public CorePlugins.PluginRuntimeSnapshot Snapshot { get; } = new(
+            1,
+            running.Select(id => new CorePlugins.PluginDotnetRuntimeInfo(id, "1.0.0", default, null, [])).ToArray(),
+            []);
+
+        public event EventHandler<CorePlugins.PluginRuntimeSnapshotChangedEventArgs>? SnapshotChanged { add { } remove { } }
+
+        public Task SetEnabledAsync(string pluginId, bool enabled, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<CorePlugins.PluginRuntimeMutationResult> QuiesceForMutationAsync(string pluginId, CancellationToken cancellationToken = default) =>
+            Record("quiesce", pluginId);
+
+        public Task<CorePlugins.PluginRuntimeMutationResult> ReconcileAfterMutationAsync(string pluginId, CancellationToken cancellationToken = default) =>
+            Record("reconcile", pluginId);
+
+        public Task<CorePlugins.PluginRuntimeMutationResult> TrustAsync(string pluginId, CancellationToken cancellationToken = default) =>
+            Record("trust", pluginId);
+
+        public Task<CorePlugins.PluginRuntimeMutationResult> RevokeTrustAsync(string pluginId, CancellationToken cancellationToken = default) =>
+            Record("revoke", pluginId);
+
+        private Task<CorePlugins.PluginRuntimeMutationResult> Record(string action, string pluginId)
+        {
+            Calls.Add($"{action}:{pluginId}");
+            return Task.FromResult(new CorePlugins.PluginRuntimeMutationResult(CorePlugins.PluginRuntimeMutationOutcome.Applied, [], []));
         }
     }
 

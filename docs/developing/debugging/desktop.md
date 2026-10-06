@@ -6,7 +6,7 @@ Chrome DevTools Protocol (CDP) lets an agent inspect and exercise the DotCraft D
 
 ## Install the debugging workflow
 
-The `$dotcraft-desktop-debugging` skill ships with the official `dotcraft` plugin. Install that plugin into the workspace before starting a debugging task:
+The `$dotcraft-desktop-debugging` skill ships with the official `dotcraft` plugin. Install that plugin before starting a debugging task:
 
 1. Open **Plugins** in DotCraft Desktop.
 2. Find **DotCraft**, published by DotHarness, and select **Install**.

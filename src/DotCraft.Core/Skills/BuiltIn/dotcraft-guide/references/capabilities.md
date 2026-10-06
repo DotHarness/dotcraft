@@ -8,9 +8,9 @@
 |---|---|
 | What can you do right now | Your own tool list, and the `<skills>` catalog in your system prompt |
 | Which skills are available | The `<skills>` catalog. Each entry's `<location>` is the real directory on disk |
-| Which MCP servers are configured | `McpServers` in `dotcraft config show --json`, plus `.mcp.json` under each directory in `<workspace>/.craft/plugins/` |
+| Which MCP servers are configured | `McpServers` in `dotcraft config show --json`, plus `.mcp.json` under each plugin directory in `~/.craft/plugins/` and `<workspace>/.craft/plugins/` |
 | Which MCP tools you can actually call | Your own tool list. A server can be configured but not connected |
-| Which plugins are installed | `<workspace>/.craft/plugins/` and `~/.craft/plugins/`, and `Plugins.DisabledPlugins` in the merged config |
+| Which plugins are installed | `~/.craft/plugins/` for plugins installed in every workspace, `<workspace>/.craft/plugins/` for plugins that come with this workspace, and `Plugins.DisabledPlugins` in the workspace config for the ones turned off here |
 | Which model is in use | `dotcraft config show --json`: `ProviderId` and the matching `ProviderPreferences` entry |
 
 State the difference when configuration and reality disagree — a server listed in `McpServers` whose tools are absent is worth reporting, not glossing over.

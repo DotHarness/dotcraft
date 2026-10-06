@@ -30,7 +30,9 @@ To install plugins from another catalog, see [Plugin marketplaces](./plugin-mark
 
 ## Manage installed plugins
 
-Open **Plugins**, then select **Manage**. Turning a plugin off keeps its files but takes its capabilities away from the agent, and you can turn it back on whenever you need it. To remove it for good, open the plugin and select **Uninstall**.
+A plugin you install is available in every workspace. To keep it out of the current workspace, turn it off in **Manage**. Its files stay, and you can turn it back on whenever you need it. To remove it from every workspace, open the plugin and select **Uninstall**.
+
+Plugins in a project's `.craft/plugins` folder come with that project and appear under **From** followed by the project name.
 
 If a plugin includes an app, **App Settings** manages its account connection, and the app picker in a conversation decides whether that conversation can use it. See [Connected Apps](./connected-apps).
 
@@ -51,7 +53,7 @@ Install straight from a folder when you're developing a plugin or someone sent y
 3. Choose the plugin folder.
 4. Review the plugin, then verify it with **Try in chat**.
 
-DotCraft copies the plugin into the current workspace, and uninstalling removes that copy.
+DotCraft keeps its own copy of the plugin for every workspace, and uninstalling removes that copy.
 
 ## Create a plugin
 

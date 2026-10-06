@@ -59,7 +59,7 @@ public sealed class NodeReplPluginToolSource(
             .. proxy.IsComputerUseAvailable ? ComputerPluginIds : []
         ];
         var runtimePluginId = candidates.FirstOrDefault(pluginId =>
-            config.Plugins.IsPluginEnabled(pluginId, defaultEnabled: true)
+            config.Plugins.IsPluginEnabled(pluginId)
             && (isPluginInstalled?.Invoke(context.WorkspacePath, pluginId)
                 ?? PluginRuntimeConfigurator.IsPluginInstalledAndEnabled(
                     config,
@@ -172,7 +172,7 @@ public sealed class NodeReplPluginToolSource(
         {
             cancellationToken.ThrowIfCancellationRequested();
             var available = proxy.IsAvailable
-                && config.Plugins.IsPluginEnabled(pluginId, defaultEnabled: true);
+                && config.Plugins.IsPluginEnabled(pluginId);
             return ValueTask.FromResult(available
                 ? ToolBindingLeaseResult.Available
                 : ToolBindingLeaseResult.Unavailable("The Node REPL plugin runtime is disconnected or disabled."));

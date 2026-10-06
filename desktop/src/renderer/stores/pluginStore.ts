@@ -355,7 +355,7 @@ export const usePluginStore = create<PluginState>((set, get) => ({
 
   async installLocalPlugin(path: string) {
     try {
-      const result = (await window.api.appServer.sendRequest('plugin/installLocal', { path, scope: 'workspace' })) as PluginOperationResult
+      const result = (await window.api.appServer.sendRequest('plugin/installLocal', { path })) as PluginOperationResult
       const updated = result.plugin ? normalizePlugin(result.plugin) : undefined
       set((state) => operationResultPatch(state, result))
       if (!updated) await get().fetchPlugins()

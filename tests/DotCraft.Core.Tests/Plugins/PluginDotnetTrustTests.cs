@@ -70,7 +70,7 @@ public sealed class PluginDotnetTrustTests : IDisposable
             configPath,
             """
             {
-              "Plugins": { "EnabledPlugins": ["sample"] },
+              "Plugins": { "DisabledPlugins": ["other"] },
               "Hooks": { "Enabled": true }
             }
             """);

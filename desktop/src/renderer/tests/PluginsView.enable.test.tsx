@@ -113,7 +113,7 @@ describe('PluginsView detail activation', () => {
 
     renderPluginsView()
     fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
-    const toggle = await screen.findByRole('switch', { name: 'Browser enabled' })
+    const toggle = await screen.findByRole('switch', { name: 'Use Browser in this workspace' })
     fireEvent.click(toggle)
 
     expect(toggle).toBeDisabled()
@@ -133,6 +133,6 @@ describe('PluginsView detail activation', () => {
     finishToggle?.(disabledResult)
     finishRefresh?.({ plugins: [disabledPlugin], diagnostics: [], snapshotRevision: 2 })
 
-    await waitFor(() => expect(screen.getByRole('switch', { name: 'Browser enabled' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Use Browser in this workspace' })).toBeEnabled())
   })
 })
