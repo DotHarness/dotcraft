@@ -77,6 +77,7 @@ import { applyBuilderChange, isBuilderField, type BuilderField, type BuilderTool
 import { useAgentBuilderConversation } from './useAgentBuilderConversation'
 import { AgentSaveTargetDialog } from './AgentSaveTargetDialog'
 import { DetachedAgentBuilderChat } from './DetachedAgentBuilderChat'
+import { localizeAgentProfile } from '../../utils/builtInAgentProfiles'
 import { AgentEditingCursor, FieldAnchor, type AgentEditingPhase } from './AgentEditingCursor'
 import './AgentBuilderView.css'
 
@@ -462,7 +463,9 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
   const openProfile = useCallback(async (entry: ProfileEntry): Promise<void> => {
     try {
       const res = await rpc<{ profile?: ProfileEntry }>('agent/profiles/read', { id: entry.id, source: entry.source })
-      const draft = parseProfile(res.profile?.rawContent)
+      const parsed = parseProfile(res.profile?.rawContent)
+      const { name, description } = localizeAgentProfile({ ...parsed, id: entry.id, source: entry.source }, t)
+      const draft = { ...parsed, name, description }
       const readOnly = entry.readOnly === true || entry.source === 'builtIn' || entry.source === 'plugin'
       if (!draft.name) draft.name = entry.id
       // Seed the auto-save baseline so opening a profile doesn't immediately re-save it.
@@ -492,7 +495,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
     } catch (err) {
       showToast({ message: `Could not open: ${errorText(err)}`, type: 'error' })
     }
-  }, [])
+  }, [t])
 
   const startDraft = useCallback((
     draft: ProfileDraft,
@@ -654,12 +657,12 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return profiles.filter((p) => {
+    return profiles.map((p) => localizeAgentProfile(p, t)).filter((p) => {
       if (p.shadowed) return false
       if (!q) return true
-      return p.id.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q)
+      return [p.id, p.name, p.description].some((text) => (text || '').toLowerCase().includes(q))
     })
-  }, [profiles, query])
+  }, [profiles, query, t])
 
   if (route.name === 'builder') {
     const agentDriving = builderConversation.threadId !== null && (builderTurnStatus === 'running' || editingField !== null)

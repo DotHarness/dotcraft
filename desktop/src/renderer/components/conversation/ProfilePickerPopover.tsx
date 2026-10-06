@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { RobotAvatar } from '../agents/RobotAvatar'
+import { localizeAgentProfile } from '../../utils/builtInAgentProfiles'
 import { IconButton } from '../ui/IconButton'
 
 interface ProfileEntry {
@@ -78,7 +79,7 @@ export function ProfilePickerPopover({ visible, activeProfileId, onPick, onDismi
           ) : profiles.length === 0 ? (
             <div style={STATE_STYLE}>{t('composer.profile.empty')}</div>
           ) : (
-            profiles.map((profile) => (
+            profiles.map((entry) => localizeAgentProfile(entry, t)).map((profile) => (
               <button
                 key={`${profile.source}:${profile.id}`}
                 type="button"

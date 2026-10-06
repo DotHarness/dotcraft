@@ -3,6 +3,7 @@ import { Bot } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { MenuHeading, MenuOption, PillDropdown } from '../ui/PillDropdown'
 import { RobotAvatar } from '../agents/RobotAvatar'
+import { localizeAgentProfile } from '../../utils/builtInAgentProfiles'
 
 interface ProfileEntry {
   id: string
@@ -53,7 +54,8 @@ export function AgentProfileDropdown({ value, onChange }: AgentProfileDropdownPr
     }
   }, [])
 
-  const selected = value ? profiles.find((p) => p.id === value) : undefined
+  const localizedProfiles = profiles.map((profile) => localizeAgentProfile(profile, t))
+  const selected = value ? localizedProfiles.find((p) => p.id === value) : undefined
 
   const label = value ? (selected?.name || selected?.id || value) : t('auto.newTask.agentDefault')
   const icon =
@@ -88,7 +90,7 @@ export function AgentProfileDropdown({ value, onChange }: AgentProfileDropdownPr
           {loading && profiles.length === 0 && (
             <div style={STATE_STYLE}>{t('composer.profile.loading')}</div>
           )}
-          {profiles.map((profile) => (
+          {localizedProfiles.map((profile) => (
             <MenuOption
               key={`${profile.source}:${profile.id}`}
               selected={profile.id === value}

@@ -1,13 +1,16 @@
 import { useEffect } from 'react'
 import { create } from 'zustand'
+import { useT } from '../contexts/LocaleContext'
+import { localizeAgentProfile } from '../utils/builtInAgentProfiles'
 
 interface ProfileListEntry {
   id: string
   name?: string
+  source?: string
 }
 
 interface AgentProfileNameState {
-  byId: Record<string, string>
+  byId: Record<string, ProfileListEntry>
   loadedWorkspace: string | null
   loading: boolean
   reqSeq: number
@@ -16,8 +19,8 @@ interface AgentProfileNameState {
   setFromList(workspacePath: string, profiles: ProfileListEntry[]): void
 }
 
-function buildById(profiles: ProfileListEntry[]): Record<string, string> {
-  return Object.fromEntries(profiles.map((profile) => [profile.id, profile.name?.trim() || profile.id]))
+function buildById(profiles: ProfileListEntry[]): Record<string, ProfileListEntry> {
+  return Object.fromEntries(profiles.map((profile) => [profile.id, profile]))
 }
 
 export const useAgentProfileNameStore = create<AgentProfileNameState>((set, get) => ({
@@ -44,8 +47,11 @@ export const useAgentProfileNameStore = create<AgentProfileNameState>((set, get)
 export function useResolvedProfileName(profileId: string | undefined, workspacePath: string): string | undefined {
   const byId = useAgentProfileNameStore((state) => state.byId)
   const ensureFor = useAgentProfileNameStore((state) => state.ensureFor)
+  const t = useT()
   useEffect(() => {
     if (profileId) void ensureFor(workspacePath)
   }, [profileId, workspacePath, ensureFor])
-  return profileId ? (byId[profileId] ?? profileId) : undefined
+  if (!profileId) return undefined
+  const entry = byId[profileId]
+  return (entry && localizeAgentProfile(entry, t).name?.trim()) || profileId
 }
