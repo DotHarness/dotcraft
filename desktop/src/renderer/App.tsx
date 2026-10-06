@@ -1600,9 +1600,6 @@ export function App(): JSX.Element {
       if (caps?.modelCatalogManagement) {
         void useModelCatalogStore.getState().loadIfNeeded(true)
       }
-      if (caps?.providerManagement) {
-        void useProvidersStore.getState().reload()
-      }
     }
     if (status === 'disconnected' || status === 'error') {
       threadListReloadGenerationRef.current += 1
@@ -1619,6 +1616,11 @@ export function App(): JSX.Element {
     lastPluginCatalogConnectionEpochRef.current = connectionEpoch
     void usePluginStore.getState().fetchPlugins()
   }, [capabilities?.pluginManagement, connectionEpoch, status])
+
+  useEffect(() => {
+    if (status !== 'connected' || capabilities?.providerManagement !== true) return
+    void useProvidersStore.getState().reload()
+  }, [capabilities?.providerManagement, connectionEpoch, status])
 
   useEffect(() => {
     if (!isDesktopPluginMainView(activeMainView) || activeDesktopPluginView) return

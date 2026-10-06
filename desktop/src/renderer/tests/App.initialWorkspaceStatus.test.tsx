@@ -15,6 +15,7 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useGitStore, type GitBranchListSnapshot } from '../stores/gitStore'
 import { usePluginStore, type PluginEntry } from '../stores/pluginStore'
+import { useProvidersStore } from '../stores/providersStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
@@ -1037,6 +1038,54 @@ describe('App initial workspace status bootstrap', () => {
       expect(usePluginStore.getState().plugins.map((entry) => entry.id)).toEqual(['example-desktop'])
     })
     expect(appServerSendRequest.mock.calls.filter((call) => call[0] === 'plugin/list')).toHaveLength(3)
+  })
+
+  it('reloads the provider list for a promoted foreground connection', async () => {
+    const workspaceBStatus: WorkspaceStatusPayload = {
+      ...readyWorkspaceStatus,
+      workspacePath: 'C:\\sample\\workspace-b'
+    }
+    let emitStatus: ((payload: WorkspaceStatusPayload) => void) | null = null
+    const appServerSendRequest = vi.fn(async (method: string) => {
+      if (method === 'thread/list') return { data: [] }
+      if (method === 'provider/list') {
+        return { providers: [{ id: 'chatgpt', displayName: 'ChatGPT', authMethod: 'chatgptOAuth' }] }
+      }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({}),
+      settingsGet: vi.fn().mockResolvedValue({}),
+      onWorkspaceStatusChange: vi.fn((callback: (payload: WorkspaceStatusPayload) => void) => {
+        emitStatus = callback
+        return vi.fn()
+      }),
+      workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'))
+    })
+    useConnectionStore.getState().setStatus({
+      status: 'connected',
+      capabilities: { providerManagement: true }
+    })
+
+    renderApp()
+    await waitFor(() => {
+      expect(useProvidersStore.getState().providers.map((provider) => provider.id)).toEqual(['chatgpt'])
+    })
+
+    act(() => emitStatus?.(workspaceBStatus))
+    await waitFor(() => expect(useProvidersStore.getState().providers).toEqual([]))
+    act(() => {
+      useConnectionStore.getState().setStatus({
+        status: 'connected',
+        capabilities: { providerManagement: true }
+      })
+    })
+
+    await waitFor(() => {
+      expect(useProvidersStore.getState().providers.map((provider) => provider.id)).toEqual(['chatgpt'])
+    })
   })
 
   it('reloads when workspace status changes before the projects payload settles', async () => {
