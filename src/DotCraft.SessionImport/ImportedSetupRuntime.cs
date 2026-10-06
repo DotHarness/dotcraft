@@ -57,18 +57,51 @@ public sealed class ImportedSetupRuntime(DotCraftPaths paths, IAppConfigMonitor 
 
     private async Task ConvergeDotnetPluginsAsync(IPluginDotnetRuntimeCoordinator runtime, AppConfig config, CancellationToken cancellationToken)
     {
-        var installed = new PluginDiscoveryService(paths).Discover(config, paths.WorkspacePath, paths.Data.RootPath).Plugins
+        var installed = new PluginDiscoveryService(paths).DiscoverAll(config, paths.WorkspacePath, paths.Data.RootPath).Plugins
             .Where(plugin => plugin.Installed && plugin.Manifest.Dotnet != null)
-            .ToDictionary(plugin => PluginIds.Canonicalize(plugin.Manifest.Id), plugin => plugin.Manifest.Version ?? "", StringComparer.OrdinalIgnoreCase);
-        var running = runtime.Snapshot.Plugins
-            .ToDictionary(plugin => PluginIds.Canonicalize(plugin.PluginId), plugin => plugin.Version, StringComparer.OrdinalIgnoreCase);
-        foreach (var pluginId in installed.Keys.Union(running.Keys, StringComparer.OrdinalIgnoreCase).ToArray())
+            .ToDictionary(
+                plugin => PluginIds.Canonicalize(plugin.Manifest.Id),
+                plugin => new DotnetPluginState(plugin.Manifest.Version ?? "", plugin.Enabled),
+                StringComparer.OrdinalIgnoreCase);
+        foreach (var (pluginId, _) in PlanDotnetConvergence(installed, RunningDotnetPlugins(runtime))
+                     .Where(step => step.Action == DotnetConvergence.Readmit))
         {
-            if (installed.TryGetValue(pluginId, out var version) && running.TryGetValue(pluginId, out var current) && version == current)
-                continue;
             var quiesce = await runtime.QuiesceForMutationAsync(pluginId, cancellationToken).ConfigureAwait(false);
             if (quiesce.Outcome != PluginRuntimeMutationOutcome.NotApplied)
                 await runtime.ReconcileAfterMutationAsync(pluginId, cancellationToken).ConfigureAwait(false);
         }
+        foreach (var (pluginId, action) in PlanDotnetConvergence(installed, RunningDotnetPlugins(runtime))
+                     .Where(step => step.Action != DotnetConvergence.Readmit))
+            await runtime.SetEnabledAsync(pluginId, action == DotnetConvergence.Enable, cancellationToken).ConfigureAwait(false);
     }
+
+    private static Dictionary<string, DotnetPluginState> RunningDotnetPlugins(IPluginDotnetRuntimeCoordinator runtime) =>
+        runtime.Snapshot.Plugins.ToDictionary(
+            plugin => PluginIds.Canonicalize(plugin.PluginId),
+            plugin => new DotnetPluginState(plugin.Version, plugin.Enabled),
+            StringComparer.OrdinalIgnoreCase);
+
+    internal static IEnumerable<(string PluginId, DotnetConvergence Action)> PlanDotnetConvergence(
+        IReadOnlyDictionary<string, DotnetPluginState> installed,
+        IReadOnlyDictionary<string, DotnetPluginState> running)
+    {
+        foreach (var pluginId in installed.Keys.Union(running.Keys, StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!installed.TryGetValue(pluginId, out var onDisk)
+                || !running.TryGetValue(pluginId, out var current)
+                || onDisk.Version != current.Version)
+                yield return (pluginId, DotnetConvergence.Readmit);
+            else if (onDisk.Enabled != current.Enabled)
+                yield return (pluginId, onDisk.Enabled ? DotnetConvergence.Enable : DotnetConvergence.Disable);
+        }
+    }
+}
+
+internal readonly record struct DotnetPluginState(string Version, bool Enabled);
+
+internal enum DotnetConvergence
+{
+    Readmit,
+    Enable,
+    Disable
 }

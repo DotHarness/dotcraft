@@ -52,7 +52,8 @@ public sealed record PluginDotnetRuntimeInfo(
     int LeakedGenerations = 0,
     bool RestartRecommended = false,
     PluginDotnetTrustStatus TrustStatus = PluginDotnetTrustStatus.Untrusted,
-    IReadOnlyList<PluginDependencyObservation>? DependencyObservations = null);
+    IReadOnlyList<PluginDependencyObservation>? DependencyObservations = null,
+    bool Enabled = true);
 
 /// <summary>Monotonically revised immutable .NET plugin runtime snapshot.</summary>
 public sealed record PluginRuntimeSnapshot(

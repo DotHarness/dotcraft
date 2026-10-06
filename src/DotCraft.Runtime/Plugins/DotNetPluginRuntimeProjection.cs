@@ -34,7 +34,8 @@ internal sealed partial class DotNetPluginRuntimeManager
                     leaked,
                     leaked >= _options.LeakedGenerationRestartThreshold,
                     TrustStatusOf(node),
-                    ProjectDependencyObservations(node));
+                    ProjectDependencyObservations(node),
+                    node.Enabled);
             })
             .ToArray();
         var diagnostics = _nodes.Values

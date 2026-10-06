@@ -125,6 +125,37 @@ public sealed class SetupImportConcurrencyTests : IDisposable
         Assert.Equal(["quiesce:removed-plugin", "reconcile:removed-plugin"], dotnet.Calls);
     }
 
+    [Fact]
+    public void DotnetConvergenceSyncsEnablementWithoutReadmittingUnchangedBundles()
+    {
+        var installed = new Dictionary<string, DotnetPluginState>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["turned-off"] = new("1.0.0", false),
+            ["turned-on"] = new("1.0.0", true),
+            ["unchanged"] = new("1.0.0", true),
+            ["updated"] = new("2.0.0", true),
+            ["added"] = new("1.0.0", true)
+        };
+        var running = new Dictionary<string, DotnetPluginState>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["turned-off"] = new("1.0.0", true),
+            ["turned-on"] = new("1.0.0", false),
+            ["unchanged"] = new("1.0.0", true),
+            ["updated"] = new("1.0.0", true),
+            ["removed"] = new("1.0.0", true)
+        };
+
+        Assert.Equal(
+            [
+                ("added", DotnetConvergence.Readmit),
+                ("removed", DotnetConvergence.Readmit),
+                ("turned-off", DotnetConvergence.Disable),
+                ("turned-on", DotnetConvergence.Enable),
+                ("updated", DotnetConvergence.Readmit)
+            ],
+            ImportedSetupRuntime.PlanDotnetConvergence(installed, running));
+    }
+
     private sealed class RecordingDotnetRuntime(params string[] running) : CorePlugins.IPluginDotnetRuntimeCoordinator
     {
         public List<string> Calls { get; } = [];
