@@ -177,7 +177,7 @@ export function ConversationPanel({
     )
   }
 
-  const threadName = thread.displayName ?? 'New conversation'
+  const threadName = thread.displayName ?? t('sidebar.newConversation')
   const hasContent = turns.length > 0 || turnStatus === 'running' || hasPendingChannelBinding
   const selectedConversationView = !isAgentBuilder && selectedConversationViewKey
     ? conversationViews.find((view) => view.contributionKey === selectedConversationViewKey) ?? null
@@ -232,7 +232,7 @@ export function ConversationPanel({
           }}
         >
           <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--error)', flexShrink: 0, animation: 'pulse 1.5s ease-in-out infinite' }} />
-          {connectionErrorMessage || 'Connection lost. Reconnecting...'}
+          {connectionErrorMessage || t('main.status.reconnecting')}
         </div>
       )}
 
@@ -252,7 +252,7 @@ export function ConversationPanel({
             flexShrink: 0
           }}
         >
-          This thread has been archived.
+          {t('conversation.archivedNotice')}
         </div>
       )}
 
@@ -280,11 +280,7 @@ export function ConversationPanel({
           }}
         />
       ) : (
-        <div style={centeredStyle}>
-          <p style={{ fontSize: '14px', color: 'var(--text-dimmed)', margin: 0, textAlign: 'center' }}>
-            Type a message below to get started.
-          </p>
-        </div>
+        <div style={centeredStyle} />
       )}
 
       {composerApproval ? (

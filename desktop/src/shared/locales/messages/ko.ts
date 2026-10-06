@@ -3030,6 +3030,7 @@ export const MESSAGES_KO = {
   'toast.attachmentMessage': '첨부파일 메시지',
   'conversation.loadingThread': '스레드 여는 중',
   'conversation.startingBuilder': '빌더 시작 중',
+  'conversation.archivedNotice': '이 대화는 보관되었습니다.',
   'conversation.thinking.streaming': '생각하다',
   'conversation.thinking.completed': '{{seconds}}s 생각',
   'conversation.thinking.expandTooltip': '추론을 확장하려면 클릭하세요.',

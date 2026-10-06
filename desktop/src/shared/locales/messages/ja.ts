@@ -3028,6 +3028,7 @@ export const MESSAGES_JA = {
   'toast.attachmentMessage': '添付メッセージ',
   'conversation.loadingThread': 'スレッドを読み込み中',
   'conversation.startingBuilder': 'ビルダーを起動中',
+  'conversation.archivedNotice': 'この会話はアーカイブされています。',
   'conversation.thinking.streaming': '考え中',
   'conversation.thinking.completed': '{{seconds}}s と考えました',
   'conversation.thinking.expandTooltip': 'クリックして推論を展開します',

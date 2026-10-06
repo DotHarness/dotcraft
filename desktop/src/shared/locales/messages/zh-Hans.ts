@@ -1960,6 +1960,7 @@ export const MESSAGES_ZH_HANS = {
   'toast.attachmentMessage': '附件消息',
   'conversation.loadingThread': '正在打开会话',
   'conversation.startingBuilder': '正在启动构建器',
+  'conversation.archivedNotice': '此会话已归档。',
   'conversation.thinking.streaming': '正在思考',
   'conversation.thinking.completed': '思考 {{seconds}} 秒',
   'conversation.thinking.expandTooltip': '点击展开思考内容',

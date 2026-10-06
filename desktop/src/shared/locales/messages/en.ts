@@ -1994,6 +1994,7 @@ export const MESSAGES_EN = {
   'toast.attachmentMessage': 'Attachment message',
   'conversation.loadingThread': 'Loading thread',
   'conversation.startingBuilder': 'Starting builder',
+  'conversation.archivedNotice': 'This conversation is archived.',
   'conversation.thinking.streaming': 'Thinking',
   'conversation.thinking.completed': 'Thought {{seconds}}s',
   'conversation.thinking.expandTooltip': 'Click to expand reasoning',

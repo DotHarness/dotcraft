@@ -3031,6 +3031,7 @@ export const MESSAGES_DE = {
   'toast.attachmentMessage': 'Anhangsnachricht',
   'conversation.loadingThread': 'Unterhaltung wird geladen',
   'conversation.startingBuilder': 'Builder wird gestartet',
+  'conversation.archivedNotice': 'Diese Unterhaltung ist archiviert.',
   'conversation.thinking.streaming': 'Denken',
   'conversation.thinking.completed': 'Dachte {{seconds}}s',
   'conversation.thinking.expandTooltip': 'Klicken Sie, um die Begründung zu erweitern',

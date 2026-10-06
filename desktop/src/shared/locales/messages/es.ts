@@ -3029,6 +3029,7 @@ export const MESSAGES_ES = {
   'toast.attachmentMessage': 'mensaje adjunto',
   'conversation.loadingThread': 'Cargando conversación',
   'conversation.startingBuilder': 'Iniciando el generador',
+  'conversation.archivedNotice': 'Esta conversación está archivada.',
   'conversation.thinking.streaming': 'Pensando',
   'conversation.thinking.completed': 'Pensamiento {{seconds}}s',
   'conversation.thinking.expandTooltip': 'Haga clic para ampliar el razonamiento',
