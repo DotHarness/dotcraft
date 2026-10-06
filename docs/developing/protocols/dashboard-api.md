@@ -128,6 +128,14 @@ Requests an Automations state refresh.
 
 Returns the configuration schema used by the Dashboard Settings page.
 
+### `GET /dashboard/api/config/edit`
+
+Returns the user layer as `global`, the workspace layer as `workspace`, and the effective configuration as `merged`, with sensitive values masked as `***`, plus each layer's file path.
+
+### `POST /dashboard/api/config/workspace`
+
+Replaces the workspace configuration file with the posted JSON object. A `***` value keeps the stored secret at that path. The document must load as a valid configuration and every changed field must satisfy its type, range, and allowed values. An accepted save is applied to the running AppServer and announced through `config/changed` with the changed key paths. An invalid document returns `400` with an English `error` and leaves the file unchanged.
+
 ### `GET /dashboard/api/dreams/status`
 
 Returns current workspace Dreams config, run status, active store, and latest run.

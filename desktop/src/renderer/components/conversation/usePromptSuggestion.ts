@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useConfigValue } from '../../stores/configStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { generatePromptSuggestion, logPromptSuggestion, type PromptSuggestionDiagnostic } from '../../utils/promptSuggestion'
 
 interface PromptSuggestionOptions {
   threadId: string
-  workspacePath: string
   canSuggest: boolean
 }
 
-export function usePromptSuggestion({ threadId, workspacePath, canSuggest }: PromptSuggestionOptions): {
+export function usePromptSuggestion({ threadId, canSuggest }: PromptSuggestionOptions): {
   suggestion: string | null
   dismiss: () => void
   accept: () => string | null
 } {
-  const [enabled, setEnabled] = useState(false)
+  const enabled = useConfigValue('PromptSuggestions.Enabled') === true
   const [suggestion, setSuggestion] = useState<string | null>(null)
   const turns = useConversationStore((state) => state.turns)
   const turnStatus = useConversationStore((state) => state.turnStatus)
@@ -36,35 +36,6 @@ export function usePromptSuggestion({ threadId, workspacePath, canSuggest }: Pro
     dismiss()
     return value
   }, [dismiss, suggestion])
-
-  useEffect(() => {
-    let disposed = false
-    const readEnabled = async (): Promise<void> => {
-      try {
-        const core = await window.api.workspaceConfig?.getCore()
-        if (!disposed) {
-          setEnabled(core?.workspace.promptSuggestionsEnabled
-            ?? core?.userDefaults.promptSuggestionsEnabled
-            ?? true)
-        }
-      } catch {
-        if (!disposed) setEnabled(false)
-      }
-    }
-    void readEnabled()
-    const subscribe = window.api.appServer.onNotification
-    const unsubscribe = typeof subscribe === 'function'
-      ? subscribe((event) => {
-        if (event.method !== 'workspace/configChanged') return
-        const regions = (event.params as { regions?: string[] }).regions
-        if (regions?.includes('promptSuggestions')) void readEnabled()
-      })
-      : () => {}
-    return () => {
-      disposed = true
-      unsubscribe()
-    }
-  }, [workspacePath])
 
   useEffect(() => {
     if (!enabled || !canSuggest || activeThreadId !== threadId || queuedCount > 0 || turnStatus !== 'idle') {

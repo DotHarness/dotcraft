@@ -1,6 +1,7 @@
 import type { JSX } from 'react'
 import { TriangleAlert } from 'lucide-react'
 import { useT } from '../../../../contexts/LocaleContext'
+import { useConfigSetting } from '../../../../stores/configStore'
 import { ActionTooltip } from '../../../ui/ActionTooltip'
 import { PillSwitch } from '../../../ui/PillSwitch'
 import { ProviderMark } from '../../../ui/ProviderMark'
@@ -9,13 +10,11 @@ import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { SettingsSelect, type SettingsSelectOption } from '../../ui/SettingsSelect'
 import { getProviderProtocolMarkKind } from '../ProviderProtocolIcon'
 import { canProviderCreateImages, resolveImageGenerationTrouble } from './imageGenerationModel'
-import type { ImageGenerationSettings } from './useImageGenerationSettings'
 import styles from './ImageGenerationSettingsGroup.module.css'
 
 const SELECT_ID = 'settings-image-generation-provider'
 
 interface ImageGenerationSettingsGroupProps {
-  settings: ImageGenerationSettings
   providers: ProviderInfoWire[]
   providersLoading: boolean
   workspaceProviderId: string
@@ -24,7 +23,6 @@ interface ImageGenerationSettingsGroupProps {
 }
 
 export function ImageGenerationSettingsGroup({
-  settings,
   providers,
   providersLoading,
   workspaceProviderId,
@@ -32,7 +30,14 @@ export function ImageGenerationSettingsGroup({
   onAddProvider
 }: ImageGenerationSettingsGroupProps): JSX.Element {
   const t = useT()
-  const { config, pending } = settings
+  const failureMessage = (error: string): string => t('settings.llm.imageGeneration.saveFailed', { error })
+  const enabledSetting = useConfigSetting('Tools.ImageGeneration.Enabled', failureMessage)
+  const providerSetting = useConfigSetting('Tools.ImageGeneration.Provider', failureMessage)
+  const pending = enabledSetting.pending || providerSetting.pending
+  const config = {
+    enabled: enabledSetting.value === true,
+    providerId: typeof providerSetting.value === 'string' ? providerSetting.value : ''
+  }
   const anyEligible = providers.some(canProviderCreateImages)
   const trouble = providersLoading ? null : resolveImageGenerationTrouble(config, providers, workspaceProviderId)
   const workspaceProvider = providers.find((provider) => provider.id === workspaceProviderId)
@@ -77,7 +82,7 @@ export function ImageGenerationSettingsGroup({
             disabled={pending}
             aria-busy={pending || undefined}
             aria-label={t('settings.llm.imageGeneration.enabled')}
-            onChange={(enabled) => void settings.setEnabled(enabled)}
+            onChange={(enabled) => void enabledSetting.set(enabled)}
           />
         }
       />
@@ -97,7 +102,7 @@ export function ImageGenerationSettingsGroup({
               disabled={!config.enabled || pending || (!providersLoading && !anyEligible)}
               ariaLabel={t('settings.llm.imageGeneration.provider')}
               style={{ width: '240px' }}
-              onValueChange={(providerId) => void settings.setProvider(providerId)}
+              onValueChange={(providerId) => void providerSetting.set(providerId || null)}
             />
           </ActionTooltip>
         }

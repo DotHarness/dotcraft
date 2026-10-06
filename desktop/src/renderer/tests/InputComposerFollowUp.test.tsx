@@ -10,6 +10,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { useComposerPreferencesStore } from '../stores/composerPreferencesStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useConfigStore } from '../stores/configStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useProvidersStore } from '../stores/providersStore'
 import { useSubAgentStore } from '../stores/subAgentStore'
@@ -70,6 +71,7 @@ describe('InputComposer follow-up routing', () => {
     })
     useConversationStore.getState().reset()
     useConnectionStore.getState().reset()
+    useConfigStore.getState().reset()
     useModelCatalogStore.getState().reset()
     useProvidersStore.getState().reset()
     useSubAgentStore.getState().reset()
@@ -87,12 +89,13 @@ describe('InputComposer follow-up routing', () => {
   it('offers an unfocused suggestion and accepts it with the caret at the end', async () => {
     installDesktopApiMock({
       settings: { get: async () => ({ locale: 'en' }), set: settingsSet },
-      workspaceConfig: { getCore: async () => ({ workspace: { promptSuggestionsEnabled: true }, userDefaults: {} }) },
       appServer: { sendRequest, onNotification: () => () => {} },
       git: { listBranches: async () => ({ current: 'main', detachedHead: null, branches: [] }) },
       voice: undefined
     })
     vi.mocked(generatePromptSuggestion).mockResolvedValue('Continue with the plan')
+    useConnectionStore.setState({ status: 'connected', capabilities: { workspaceConfigManagement: true } })
+    useConfigStore.setState({ config: { PromptSuggestions: { Enabled: true } } })
     useThreadStore.setState({ activeThreadId: 'thread-1' })
     renderComposer()
     const textbox = screen.getByRole('textbox')

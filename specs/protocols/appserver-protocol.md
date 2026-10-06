@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.1 |
+| **Version** | 0.8.3 |
 | **Status** | Living |
-| **Date** | 2026-10-03 |
+| **Date** | 2026-10-06 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md) |
 
@@ -159,7 +159,7 @@ Client                              Server
 | `capabilities.commandExecutionStreaming` | boolean | no | Whether the client can consume `commandExecution` items and `item/commandExecution/outputDelta` fallback notifications. Default `false`. |
 | `capabilities.toolExecutionLifecycle` | boolean | no | Whether the client can consume `toolExecution` lifecycle items and `item/toolExecution/progress` notifications. Default `false`. |
 | `capabilities.backgroundTerminals` | boolean | no | Whether the client can consume `terminal/*` terminal notifications for server-managed shell processes. Default `false`. |
-| `capabilities.configChange` | boolean | no | Whether the client wants `workspace/configChanged` notifications. Default `true`. |
+| `capabilities.configChange` | boolean | no | Whether the client wants `config/changed` notifications. Default `true`. |
 | `capabilities.mcpApps` | boolean | no | Whether this connection hosts stable MCP Apps views and accepts the opaque `mcpApp/view/*` contract. Default `false`. |
 | `capabilities.inlineVisualizations` | boolean | no | Whether this connection can host assistant inline visualization views. Default `false`. |
 | `capabilities.mcpElicitation` | boolean | no | Whether the client can answer `mcpServer/elicitation/request` form and URL requests. Default `false`; servers fail the MCP request with a client-unavailable result when no capable client owns the thread. |
@@ -170,7 +170,7 @@ Client                              Server
 | `capabilities.browserUse` | object | no | Browser automation capability. When present with `nodeRepl`, the Node REPL is backed by one or more client browser backends such as Desktop embedded browser tabs or the Chrome extension backend. Default omitted (no browser automation support). |
 | `capabilities.computerUse` | object | no | Desktop application automation capability. When present with `nodeRepl`, the client accepts computer automation through its declared backend. Default omitted (no computer use support). |
 
-`capabilities.configChange` is an opt-out capability. When omitted, the server treats it as `true` and may push `workspace/configChanged` notifications. Modern clients should declare it explicitly for clarity, even when using the default behavior.
+`capabilities.configChange` is an opt-out capability. When omitted, the server treats it as `true` and may push `config/changed` notifications. Modern clients should declare it explicitly for clarity, even when using the default behavior.
 
 **`acpExtensions` object** (when present):
 
@@ -295,7 +295,7 @@ Built-in channels and external adapters share the delivery and tool-call contrac
 | `capabilities.channelStatus` | boolean | Server supports the channel runtime status method (`channel/status`). |
 | `capabilities.providerManagement` | boolean | Server supports personal model provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`). |
 | `capabilities.modelCatalogManagement` | boolean | Server supports model catalog methods (`model/list`). |
-| `capabilities.workspaceConfigManagement` | boolean | Server supports workspace configuration methods (`workspace/config/schema`, `workspace/config/update`). |
+| `capabilities.workspaceConfigManagement` | boolean | Server supports configuration methods (`config/schema`, `config/read`, `config/value/write`, `config/batchWrite`). |
 | `capabilities.sourceControlManagement` | boolean | Server supports workspace source control binding methods (`sourceControl/get`, `sourceControl/update`, `sourceControl/test`) and source-control provider extensions advertised by `sourceControl/get.capabilities`, such as Perforce pending changelist selection/preparation. |
 | `capabilities.fileSystem` | boolean | Server supports file system methods on the AppServer host (`fs/readFile`, `fs/writeFile`, `fs/createDirectory`). |
 | `capabilities.memoryManagement` | boolean | Server supports workspace memory management methods (`memory/reset`). |
@@ -3598,7 +3598,7 @@ Enable or disable a skill. Disabled skills remain on disk but are excluded from 
 
 **Result**: `{ "skill": SkillInfo }` — the updated skill reflecting the new `enabled` state.
 
-On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "skills/setEnabled"` and `regions: ["skills"]`.
+On success, the server emits `config/changed` (see [Section 25.5](#255-configchanged)) with `source: "skills/setEnabled"` and `regions: ["skills"]`.
 
 **Errors**:
 
@@ -3632,7 +3632,7 @@ Uninstall a user-managed source skill.
 | `removedSourcePath` | string | Absolute directory path that was removed. |
 | `removedVariantCount` | number | Number of associated workspace variants removed. |
 
-On success, the server clears any disabled-state record for the skill, deletes associated variants for that source skill, and emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "skills/uninstall"` and `regions: ["skills"]`.
+On success, the server clears any disabled-state record for the skill, deletes associated variants for that source skill, and emits `config/changed` (see [Section 25.5](#255-configchanged)) with `source: "skills/uninstall"` and `regions: ["skills"]`.
 
 **Errors**:
 
@@ -4091,7 +4091,7 @@ Installs a known catalog plugin into the workspace. Uninstalled bundled plugins 
 
 **Result**: `PluginOperationResult`
 
-If the id is already installed, the operation returns `noChange` and writes nothing. Otherwise the server copies the selected catalog plugin source to `.craft/plugins/<id>`, writes a `.builtin` source fingerprint marker, clears any disabled-state record for that id, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/install"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+If the id is already installed, the operation returns `noChange` and writes nothing. Otherwise the server copies the selected catalog plugin source to `.craft/plugins/<id>`, writes a `.builtin` source fingerprint marker, clears any disabled-state record for that id, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `config/changed` with `source: "plugin/install"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
 Install never installs, enables, updates, or fetches a dependency, and never grants trust. A newly
 installed `dotnet` plugin therefore returns `applied` with its runtime `blocked` on `PluginUntrusted`
@@ -4111,7 +4111,7 @@ Installs a plugin from a local directory the client points at, for example a plu
 
 Before copying anything, the server validates the directory by parsing `.craft-plugin/plugin.json` with the standard plugin manifest validator. If the directory is missing, is not a plugin root, or the manifest has errors, the request is rejected with `InvalidParams` carrying the validation message and nothing is written. The server also rejects a directory whose canonical plugin id is already installed in the workspace; the client must remove the existing plugin before reinstalling.
 
-On success, the server copies the directory to `.craft/plugins/<id>` as a user-owned workspace plugin — no `.builtin` marker is written, so the plugin is installed, enabled, and removable via `plugin/remove`. The server clears any disabled-state record for that id, refreshes plugin-contributed skill sources, reconciles effective MCP, LSP, and hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/installLocal"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+On success, the server copies the directory to `.craft/plugins/<id>` as a user-owned workspace plugin — no `.builtin` marker is written, so the plugin is installed, enabled, and removable via `plugin/remove`. The server clears any disabled-state record for that id, refreshes plugin-contributed skill sources, reconciles effective MCP, LSP, and hooks runtime state, and emits `config/changed` with `source: "plugin/installLocal"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
 #### `plugin/remove`
 
@@ -4125,7 +4125,7 @@ Removes a removable workspace plugin from the workspace.
 
 **Result**: `PluginOperationResult`
 
-The server deletes only removable workspace plugin directories that are inside `.craft/plugins`. This includes DotCraft-managed built-in installs and user-owned plugins installed with `plugin/installLocal`; explicit external plugin roots and user-global plugin directories are rejected. A known catalog entry that is already uninstalled returns `noChange`. On success, the server refreshes plugin-contributed skill sources, reconciles effective MCP, LSP, and hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/remove"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+The server deletes only removable workspace plugin directories that are inside `.craft/plugins`. This includes DotCraft-managed built-in installs and user-owned plugins installed with `plugin/installLocal`; explicit external plugin roots and user-global plugin directories are rejected. A known catalog entry that is already uninstalled returns `noChange`. On success, the server refreshes plugin-contributed skill sources, reconciles effective MCP, LSP, and hooks runtime state, and emits `config/changed` with `source: "plugin/remove"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
 Before touching the directory the server passes the bundle mutation gate: it quiesces the plugin's
 in-process generation and the consumers that depend on it, consumers first, then quiesces the
@@ -4148,7 +4148,7 @@ Enables or disables an installed plugin for the workspace.
 
 **Result**: `PluginOperationResult`
 
-`plugin/setEnabled` does not install a built-in catalog entry. If the plugin is not installed, the server rejects the request. Repeating the configured value returns `noChange` and writes nothing. On success, the server persists the enablement intent, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/setEnabled"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+`plugin/setEnabled` does not install a built-in catalog entry. If the plugin is not installed, the server rejects the request. Repeating the configured value returns `noChange` and writes nothing. On success, the server persists the enablement intent, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `config/changed` with `source: "plugin/setEnabled"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
 Enabling a `dotnet` plugin activates it only when every other precondition holds; it does not grant
 trust, so an untrusted plugin returns `applied` with runtime state `blocked`. Disabling persists the
@@ -4196,7 +4196,7 @@ to `blocked` rather than leaving it active until restart. Consumers of a revoked
 
 Trust state for a plugin the runtime has not accepted returns `notApplied` with
 `PluginRuntimeNotDeclared`. Repeating the current trust state returns `noChange`.
-`plugin/setTrusted` does not change configured enablement and emits no `workspace/configChanged`;
+`plugin/setTrusted` does not change configured enablement and emits no `config/changed`;
 it advances `snapshotRevision` and emits `plugin/snapshot/updated`.
 
 #### `plugin/snapshot/updated`
@@ -4230,7 +4230,7 @@ recovers with an unfiltered `plugin/list`; `plugin/view` cannot prove that a del
 Notifications are best-effort — reconnects and revision gaps are recovered the same way — and
 clients may coalesce pending invalidations or suppress the notification through
 `optOutNotificationMethods`. A .NET runtime-only transition advances the revision and emits this
-notification without emitting `workspace/configChanged`.
+notification without emitting `config/changed`.
 
 ### 18B.2 Plugin Configuration Methods
 
@@ -4300,7 +4300,7 @@ namespace must validate before the file is replaced.
 
 The server serializes the mutation with plugin lifecycle changes. For a plugin with an active .NET
 closure it quiesces the plugin and dependants before writing, reconciles after success, and restores
-the prior generation if the write fails. A successful mutation emits `workspace/configChanged`
+the prior generation if the write fails. A successful mutation emits `config/changed`
 with `source: "plugin/config/mutate"` and `regions: ["plugins.config"]`. There is no configuration
 notification or subscription API beyond this coarse invalidation.
 
@@ -4325,7 +4325,7 @@ Clients must check `capabilities.pluginMarketplaces` before calling any `marketp
 
 Any committed marketplace change visible in an unfiltered `plugin/list` advances its
 `snapshotRevision` and emits `plugin/snapshot/updated` under 18B.1, in addition to the
-operation-specific `workspace/configChanged` notification below.
+operation-specific `config/changed` notification below.
 
 Marketplace sources are recorded in user-global configuration and are therefore available in every workspace. Adding a marketplace never installs a plugin: its entries become installable catalog items, and installation stays per workspace through `plugin/install`.
 
@@ -4357,7 +4357,7 @@ Adds a plugin marketplace from a repository source or a local directory.
 
 `marketplace` is a `MarketplaceInfo` as returned by `plugin/list`. `alreadyAdded` is true when a configured marketplace already matches the same source kind, source, reference, and sparse paths and its root still contains a valid marketplace document; in that case the server records the entry and returns without fetching.
 
-The server parses the source, fetches it into a staging directory when the source kind requires materialization, validates the marketplace document, reads the marketplace name from that document rather than from client input, atomically replaces the installed root, records the entry in user-global configuration, and refreshes plugin discovery. On success it emits `workspace/configChanged` with `source: "marketplace/add"` and `regions: ["plugins"]`.
+The server parses the source, fetches it into a staging directory when the source kind requires materialization, validates the marketplace document, reads the marketplace name from that document rather than from client input, atomically replaces the installed root, records the entry in user-global configuration, and refreshes plugin discovery. On success it emits `config/changed` with `source: "marketplace/add"` and `regions: ["plugins"]`.
 
 Nothing is written when the request fails.
 
@@ -4377,7 +4377,7 @@ Removes a configured marketplace.
 
 Removal does not uninstall plugins already installed into a workspace: those are workspace-owned copies under `.craft/plugins/<id>` and remain until removed with `plugin/remove`. The host-provided default marketplace is not removable; it is controlled with `Plugins.DisableDefaultPluginRegistry`.
 
-On success the server emits `workspace/configChanged` with `source: "marketplace/remove"` and `regions: ["plugins"]`.
+On success the server emits `config/changed` with `source: "marketplace/remove"` and `regions: ["plugins"]`.
 
 #### `marketplace/refresh`
 
@@ -4398,7 +4398,7 @@ Re-fetches one marketplace, or every configured marketplace when `name` is omitt
 }
 ```
 
-A failure for one marketplace is reported in `errors` and does not fail the others. The request itself fails only when a named marketplace does not exist. On success the server emits `workspace/configChanged` with `source: "marketplace/refresh"` and `regions: ["plugins"]`.
+A failure for one marketplace is reported in `errors` and does not fail the others. The request itself fails only when a named marketplace does not exist. On success the server emits `config/changed` with `source: "marketplace/refresh"` and `regions: ["plugins"]`.
 
 ### 18B.4 Error Codes
 
@@ -5004,7 +5004,7 @@ The result shape mirrors model-list success and error handling:
 
 `EndpointNotSupported` is a normal setup outcome. Clients must still allow saving the provider and manually entering a model id. Provider test responses must not include raw credentials.
 
-Provider mutations emit `workspace/configChanged` with region `providers`.
+Provider mutations emit `config/changed` with region `providers`.
 
 ### 21.4 `ModelCatalogItem` Wire DTO
 
@@ -5239,13 +5239,13 @@ Creates or replaces one workspace-origin MCP server definition. Clients MUST NOT
 - Upsert replaces the full logical server entry.
 - Persistence shape and storage location are server-defined, but only workspace-origin servers are persisted to workspace config.
 - If the target name currently resolves to a plugin-origin server, the server returns `McpServerReadOnly`.
-- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "mcp/upsert"` and `regions: ["mcp"]`.
+- On success, the server emits `config/changed` (see [Section 25.5](#255-configchanged)) with `source: "mcp/upsert"` and `regions: ["mcp"]`.
 
 ### 22.6 `mcp/remove`
 
 Removes one workspace-origin MCP server definition by name. Removing a plugin-origin server returns `McpServerReadOnly`; plugin-bundled MCP is controlled through plugin install/enable/remove lifecycle, not MCP settings persistence.
 
-On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "mcp/remove"` and `regions: ["mcp"]`.
+On success, the server emits `config/changed` (see [Section 25.5](#255-configchanged)) with `source: "mcp/remove"` and `regions: ["mcp"]`.
 
 ### 22.7 Runtime identity and origin
 
@@ -5578,7 +5578,7 @@ Writes user-global hook state to `~/.craft/config.json` under `Hooks.State`. Thi
 
 - `hooks/setState` rebuilds the runtime hook snapshot immediately.
 - If the effective tool-hook set changes, existing thread agent caches are invalidated so future turns rebind tool wrappers.
-- On success, the server emits `workspace/configChanged` with `source: "hooks/setState"` and `regions: ["hooks"]`.
+- On success, the server emits `config/changed` with `source: "hooks/setState"` and `regions: ["hooks"]`.
 - Trust is hash-based. A modified hook returns `trustStatus: "modified"` and does not run until the client writes the new hash.
 
 ### 22A.5 `hooks/trustPlugin`
@@ -5599,7 +5599,7 @@ Trusts all current hooks declared by one enabled plugin. The server writes each 
 - `hooks/trustPlugin` does not change per-hook `enabled` state.
 - The method rebuilds the runtime hook snapshot immediately.
 - If the effective tool-hook set changes, existing thread agent caches are invalidated so future turns rebind tool wrappers.
-- On success, the server emits `workspace/configChanged` with `source: "hooks/trustPlugin"` and `regions: ["hooks"]`.
+- On success, the server emits `config/changed` with `source: "hooks/trustPlugin"` and `regions: ["hooks"]`.
 - Trust is hash-based. If a plugin changes its hooks later, affected hooks return `trustStatus: "modified"` until `hooks/trustPlugin` writes the new hashes.
 
 ## 23. External Channel Management Methods
@@ -5697,13 +5697,13 @@ Creates or replaces one external channel definition.
 - Upsert replaces the full logical channel entry.
 - Upsert is an explicit configuration mutation. When the entry is active, replacement may stop the current host and create a new one; clients must not use this method to restore display state after reconnecting to AppServer.
 - Persistence shape and storage location are server-defined.
-- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "externalChannel/upsert"` and `regions: ["externalChannel"]`.
+- On success, the server emits `config/changed` (see [Section 25.5](#255-configchanged)) with `source: "externalChannel/upsert"` and `regions: ["externalChannel"]`.
 
 ### 23.6 `externalChannel/remove`
 
 Removes one external channel definition by name.
 
-On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "externalChannel/remove"` and `regions: ["externalChannel"]`.
+On success, the server emits `config/changed` (see [Section 25.5](#255-configchanged)) with `source: "externalChannel/remove"` and `regions: ["externalChannel"]`.
 
 ### 23.7 `externalChannel/logs`
 
@@ -6149,7 +6149,7 @@ Update workspace-level SubAgent settings.
 - each `*WaitTimeoutMs` value must be between `0` and `3600000`, and the resulting triple must satisfy `min <= default <= max`
 - the resume toggle affects only profiles whose effective definition has `supportsResume=true`
 - clearing or changing these settings does not delete existing saved external session ids
-- on success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "subagent/settings/update"` and `regions: ["subagent"]`
+- on success, the server emits `config/changed` (see [Section 25.5](#255-configchanged)) with `source: "subagent/settings/update"` and `regions: ["subagent"]`
 
 ### 24.6 `subagent/profiles/setEnabled`
 
@@ -6168,7 +6168,7 @@ Enable or disable one profile for the current workspace.
 
 - returns the updated `SubAgentProfileEntry`
 - `native` is protected and cannot be disabled
-- on success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "subagent/profiles/setEnabled"` and `regions: ["subagent"]`
+- on success, the server emits `config/changed` (see [Section 25.5](#255-configchanged)) with `source: "subagent/profiles/setEnabled"` and `regions: ["subagent"]`
 
 ### 24.7 `subagent/profiles/upsert`
 
@@ -6194,7 +6194,7 @@ Create or replace one workspace profile definition.
 - builtin name creates or replaces a workspace override
 - non-builtin name creates or replaces a custom workspace profile
 - the workspace persists the full expanded definition
-- on success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "subagent/profiles/upsert"` and `regions: ["subagent"]`
+- on success, the server emits `config/changed` (see [Section 25.5](#255-configchanged)) with `source: "subagent/profiles/upsert"` and `regions: ["subagent"]`
 
 ### 24.8 `subagent/profiles/remove`
 
@@ -6211,7 +6211,7 @@ Remove one workspace-managed SubAgent definition.
 - builtin name removes only the workspace override and restores builtin defaults
 - custom name removes the workspace profile entirely
 - removing a builtin profile that has no workspace override fails
-- on success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "subagent/profiles/remove"` and `regions: ["subagent"]`
+- on success, the server emits `config/changed` (see [Section 25.5](#255-configchanged)) with `source: "subagent/profiles/remove"` and `regions: ["subagent"]`
 
 **Result**:
 
@@ -6353,19 +6353,19 @@ Params:
 
 `subagent/close` resolves `target`, rejects `/root` and self-targets, cancels any active child turn when the server still owns the running task, marks the parent/child edge closed, and archives the target child subtree. The result shape is unchanged; the closed edge remains available only to callers that explicitly request closed edges, while default child listing no longer returns the closed child.
 
-## 25. Workspace Config Methods
+## 25. Configuration Methods
 
 ### 25.1 Scope
 
-These methods provide a server-authoritative write path for workspace-level configuration values.
+These methods read and change the configuration of the server the client is connected to, addressing fields by key path. The configuration model — layers, descriptors, validation, and how a change takes effect — is defined in [Configuration](../architecture/configuration.md). Per-thread overrides stay in `thread/config/update`. Domain operations that persist configuration as a side effect (`provider/*`, skills, plugins, MCP, hooks, external channels, SubAgent settings, source control) keep their own methods.
 
-This surface standardizes workspace model persistence; per-thread overrides stay in `thread/config/update`.
+Clients must check `capabilities.workspaceConfigManagement` in `initialize` before calling `config/schema`, `config/read`, `config/value/write`, or `config/batchWrite`. If absent or `false`, the server returns `-32601` (Method not found).
 
-Clients must check `capabilities.workspaceConfigManagement` in `initialize` before calling workspace configuration methods (`workspace/config/schema`, `workspace/config/update`). If absent or `false`, the server returns `-32601` (Method not found).
+Clients may set `capabilities.configChange = false` during `initialize` to suppress server-initiated `config/changed` notifications for that connection. When omitted, the server treats it as `true`.
 
-### 25.2 `workspace/config/schema`
+### 25.2 `config/schema`
 
-Return the server-derived workspace config schema, including per-field reload metadata.
+Return the server-derived configuration schema, including per-field reload metadata.
 
 **Direction**: client → server (request)
 
@@ -6384,7 +6384,8 @@ Return the server-derived workspace config schema, including per-field reload me
         {
           "key": "ProviderId",
           "type": "string",
-          "reload": "processRestart"
+          "reload": "subsystemRestart",
+          "subsystemKey": "threadAgents"
         }
       ]
     }
@@ -6398,9 +6399,9 @@ Return the server-derived workspace config schema, including per-field reload me
 - `reload` uses the `ReloadBehavior` enum names serialized as camelCase strings.
 - `subsystemKey` is present only when `reload` is `subsystemRestart`.
 
-### 25.3 `workspace/config/update`
+### 25.3 `config/read`
 
-Update workspace-level config values.
+Return the effective configuration, the layer each configured field comes from, and optionally each layer's own content.
 
 **Direction**: client → server (request)
 
@@ -6408,79 +6409,130 @@ Update workspace-level config values.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `providerId` | string \| null | no | Workspace-selected personal provider id. `null` or empty removes the workspace `ProviderId` key; runtime then has no selected provider unless a managed runtime override supplies one. |
-| `providerPreferences` | object \| null | no | Complete provider-keyed MainAgent preferences. Each record contains `model`, `reasoning` and `speed`; `null` or an empty object clears the map. |
-| `welcomeSuggestionsEnabled` | boolean \| null | no | Workspace-level override for personalized welcome suggestions. `true` enables, `false` disables, and `null` removes the explicit override so server defaults apply. |
-| `promptSuggestionsEnabled` | boolean \| null | no | Workspace-level override for conversation prompt suggestions. Defaults to `true` and is independent of memory and welcome suggestions. `null` removes the override. |
-| `skillsSelfLearningEnabled` | boolean \| null | no | Workspace-level override for `Skills.SelfLearning.Enabled`. `true` enables the SkillManage tool surface and skill-authoring built-in skill, `false` disables, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect on next AppServer restart (`Skills.SelfLearning.Enabled` is a `ProcessRestart` field). |
-| `skillsIncludeSharedSkills` | boolean \| null | no | Workspace-level override for `Skills.IncludeSharedSkills`, which discovers user skills from the shared `~/.agents/skills` root. `true` enables discovery, `false` disables it, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect on next AppServer restart (`Skills.IncludeSharedSkills` is a `ProcessRestart` field). |
-| `memoryEnabled` | boolean \| null | no | Workspace-level override for `Memory.Enabled`. `true` lets new threads use and maintain memory, `false` disables memory and the features that depend on it, and `null` removes the explicit override so server defaults apply (`true` by default). Existing threads keep the value they captured at creation. |
-| `dreamsEnabled` | boolean \| null | no | Workspace-level override for `Dreams.Enabled`. `true` enables scheduled Dreams, `false` disables scheduled Dreams, and `null` removes the explicit override so server defaults apply (`false` by default). |
-| `dreamsInterval` | string \| null | no | Workspace-level override for `Dreams.Interval` as a positive `TimeSpan` string. `null` removes the explicit override. |
-| `dreamsThreadLookbackCount` | number \| null | no | Workspace-level override for `Dreams.ThreadLookbackCount`, which limits how many eligible candidate threads are listed in each Dreams source manifest. Must be a positive integer when provided; `null` removes the explicit override. |
-| `dreamsAutoApply` | boolean \| null | no | Workspace-level override for `Dreams.AutoApply`. `true` makes future successful Dreams runs active immediately, `false` keeps them pending for Dashboard review, and `null` removes the explicit override. |
-| `defaultApprovalPolicy` | string \| null | no | Workspace default approval policy for threads whose `ThreadConfiguration.approvalPolicy` is `default` or unset. Supported values are `default` and `autoApprove`; `null` removes the explicit workspace override so server defaults apply. |
-| `toolsLspEnabled` | boolean \| null | no | Workspace-level override for `Tools.Lsp.Enabled`. `true` enables the built-in LSP tool, `false` disables it, and `null` removes the explicit override so server defaults apply. |
-| `toolsImageGenerationEnabled` | boolean \| null | no | Workspace-level override for `Tools.ImageGeneration.Enabled`. `true` offers the image generation tool when an eligible image provider exists, `false` withholds it, and `null` removes the explicit override so server defaults apply (`true` by default). Applies to threads whose agents are rebuilt after the change. |
-| `toolsImageGenerationProvider` | string \| null | no | Workspace-level override for `Tools.ImageGeneration.Provider`, the provider id that serves image generation. `null` or empty removes the override so image generation uses the conversation's provider. Applies to threads whose agents are rebuilt after the change. |
-| `toolsCodeModeMode` | string \| null | no | Workspace-level override for `Tools.CodeMode.Mode`: `off`, `on` (scripted tool calls are added) or `only` (tools reachable from scripts are called only through them). Values are case-insensitive and returned in lowercase; `null` removes the override so the server default applies (`only`). Applies from the next Turn of each thread; a running Turn keeps its tools. See [Code Mode](../features/code-mode.md). |
-| `instantInterruptEnabled` | boolean \| null | no | Workspace-level override for the top-level `InstantInterruptEnabled`. `true` lets a steer that arrives before the current model request produced any output, or while a stream retry is waiting, restart that request with the steer; `false` makes steers wait for the next step; `null` removes the override so the server default applies (`true`). Applies from the next Turn of each thread; a running Turn keeps the value it started with. |
+| `includeLayers` | boolean | no | When `true`, the result includes `layers`. Default `false`. |
 
 **Result**:
 
 ```json
 {
-  "providerId": "anthropic",
-  "providerPreferences": {
-    "anthropic": {
-      "model": "claude-sonnet-4-5",
-      "reasoning": {
-        "enabled": true,
-        "effort": "high",
-        "output": "full"
-      },
-      "speed": "fast"
+  "config": {
+    "InstantInterruptEnabled": false,
+    "DashBoard": { "Password": "***" }
+  },
+  "origins": {
+    "InstantInterruptEnabled": {
+      "name": { "type": "workspace", "file": "/projects/app/.craft/config.json" },
+      "version": "sha256:4f1c…"
     }
   },
-  "welcomeSuggestionsEnabled": true,
-  "promptSuggestionsEnabled": false,
-  "skillsSelfLearningEnabled": true,
-  "skillsIncludeSharedSkills": true,
-  "memoryEnabled": true,
-  "dreamsEnabled": true,
-  "dreamsInterval": "24:00:00",
-  "dreamsThreadLookbackCount": 20,
-  "dreamsAutoApply": false,
-  "defaultApprovalPolicy": "default",
-  "toolsLspEnabled": true,
-  "toolsImageGenerationEnabled": true,
-  "toolsImageGenerationProvider": "openai",
-  "toolsCodeModeMode": "on",
-  "instantInterruptEnabled": true
+  "layers": [
+    {
+      "name": { "type": "user", "file": "/home/alice/.craft/config.json" },
+      "version": "sha256:9a02…",
+      "config": {}
+    },
+    {
+      "name": { "type": "workspace", "file": "/projects/app/.craft/config.json" },
+      "version": "sha256:4f1c…",
+      "config": { "InstantInterruptEnabled": false }
+    }
+  ]
 }
 ```
 
-**Semantics**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `config` | object | Effective configuration keyed by on-disk property names: descriptor defaults overlaid by the user layer, then the workspace layer. |
+| `origins` | object | Maps each key path whose value comes from a file layer to `{ name, version }`. Fields at their defaults are absent. |
+| `layers` | array | Present only when `includeLayers` is `true`: the `user` layer, then the `workspace` layer, each `{ name, version, config }`. |
 
-- This method updates **workspace default** only, not any active thread state.
-- Clients that need immediate effect in a running thread should additionally call `thread/config/update`.
-- Server preserves unrelated configuration state.
-- At least one of `providerId`, `providerPreferences`, `welcomeSuggestionsEnabled`, `promptSuggestionsEnabled`, `skillsSelfLearningEnabled`, `skillsIncludeSharedSkills`, `memoryEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, `toolsLspEnabled`, `toolsImageGenerationEnabled`, `toolsImageGenerationProvider`, `toolsCodeModeMode`, or `instantInterruptEnabled` must be provided.
-- `providerPreferences` replaces the complete workspace map. Each workspace record atomically overrides the personal record for the same provider; fields are never merged across scopes.
-- Provider-aware saves persist `ProviderId` and `ProviderPreferences` while preserving unrelated configuration state. Credentials and endpoints are changed through `provider/create` and `provider/update`.
-- A supplied field is stored as the workspace override for that setting. Setting a field to `null` removes the override, and a subsequent read reports the server default.
-- Each preference must contain a non-empty model and valid enum values. Unsupported reasoning selections are repaired to catalog defaults, unsupported `max` is reset to `default`, and `fast` may remain stored even when the selected model executes it as `standard`.
-- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "workspace/config/update"` and one or more regions from `workspace.provider`, `workspace.providerPreferences`, `providers`, `welcomeSuggestions`, `promptSuggestions`, `skills`, `memory`, `workspace.defaultApprovalPolicy`, `lsp`, `imageGeneration`, `codeMode`, or `instantInterrupt`.
+A layer `name` is `{ "type": "user" | "workspace", "file": <absolute path> }`. A layer `version` is `sha256:` followed by the hex digest of the layer's JSON with sorted keys; a missing file has the version of an empty object.
 
-### 25.4 Capability Advertisement
+Values of sensitive fields are masked as `"***"` in `config` and in every layer.
 
-Clients must check `capabilities.workspaceConfigManagement` before calling workspace configuration methods (`workspace/config/schema`, `workspace/config/update`).
+### 25.4 Configuration Writes
 
-Clients may set `capabilities.configChange = false` during `initialize` to suppress server-initiated `workspace/configChanged` notifications for that connection. When omitted, the server treats it as `true`.
+#### `config/value/write`
 
-### 25.5 `workspace/configChanged`
+Write one key path to one layer.
 
-Server notification emitted after a successful workspace configuration write.
+**Direction**: client → server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `keyPath` | string | yes | Dot-joined on-disk property names from the root, for example `Tools.CodeMode.Mode`. A path inside an object-valued field, such as `ProviderPreferences.openai`, is also accepted. A segment that contains `.`, `"` or `\` is written in double quotes with `\` escaping, for example `ProviderPreferences."openai.personal"`. |
+| `value` | any JSON | yes | The new value. `null` removes the key from the target layer and prunes parent objects left empty. |
+| `mergeStrategy` | string | yes | `replace` sets the value; `upsert` deep-merges an object value into the existing object. |
+| `filePath` | string \| null | no | A layer `file` from `config/read`. Omitted or `null` targets the workspace layer. |
+| `expectedVersion` | string \| null | no | When set, the write fails unless the target layer still has this version. |
+
+**Result**:
+
+```json
+{
+  "status": "okOverridden",
+  "version": "sha256:77b0…",
+  "filePath": "/home/alice/.craft/config.json",
+  "overriddenMetadata": {
+    "message": "'InstantInterruptEnabled' is overridden by the workspace configuration.",
+    "overridingLayer": {
+      "name": { "type": "workspace", "file": "/projects/app/.craft/config.json" },
+      "version": "sha256:4f1c…"
+    },
+    "effectiveValue": false
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | `ok`, or `okOverridden` when a higher-precedence layer still determines an edited field's effective value. |
+| `version` | string | The target layer's version after the write. |
+| `filePath` | string | The target layer's file. |
+| `overriddenMetadata` | object | Present only with `okOverridden`: an English `message`, the `overridingLayer`, and the masked `effectiveValue`. |
+
+#### `config/batchWrite`
+
+Apply several edits to one layer atomically.
+
+**Direction**: client → server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `edits` | array | yes | Edits of the form `{ keyPath, value, mergeStrategy }`, applied in order. |
+| `filePath` | string \| null | no | As in `config/value/write`. |
+| `expectedVersion` | string \| null | no | As in `config/value/write`. |
+
+**Result**: the same shape as `config/value/write`.
+
+#### Write Semantics
+
+- A write updates the in-process configuration before the response, so a following `config/read` and later Turns observe it. How each changed field takes effect follows its `reload` metadata from `config/schema`.
+- Only fields whose effective value changes are checked against their bounds and options; an existing invalid value elsewhere does not block an unrelated write. The whole configuration must still deserialize.
+- Sensitive fields cannot be written through these methods; they are changed through their domain methods, for example `provider/update`.
+- The server preserves unrelated content of the target file.
+- A write that changes at least one effective value emits `config/changed` (see [Section 25.5](#255-configchanged)) with `source` set to the method name and `regions` listing the changed key paths. A write that changes no effective value emits nothing.
+
+#### Write Errors
+
+A rejected write leaves the file unchanged and returns a JSON-RPC `-32600` (Invalid request) error whose `data.configWriteErrorCode` is:
+
+| `configWriteErrorCode` | Cause |
+|------------------------|-------|
+| `configLayerReadonly` | `filePath` is not the user or workspace layer file. |
+| `configVersionConflict` | `expectedVersion` differs from the target layer's current version. |
+| `configValidationError` | The candidate configuration does not deserialize, a changed field violates its type, bounds, or options, a semantic rule for an edited key path fails, or the key path names a sensitive field. |
+| `configSchemaUnknownKey` | The key path names no configuration field and is not inside an object-valued field. |
+
+The error `message` is English fallback text. An unknown `mergeStrategy` returns `-32602` (Invalid params).
+
+### 25.5 `config/changed`
+
+Server notification emitted after a successful configuration change.
 
 **Direction**: server → client (notification, no `id`)
 
@@ -6488,25 +6540,25 @@ Server notification emitted after a successful workspace configuration write.
 
 ```json
 {
-  "source": "skills/setEnabled",
-  "regions": ["skills"],
-  "changedAt": "2026-04-19T10:15:03Z"
+  "source": "config/batchWrite",
+  "regions": ["Tools.CodeMode.Mode", "Tools.ImageGeneration.Enabled"],
+  "changedAt": "2026-10-06T10:15:03Z"
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `source` | string | Name of the RPC method that triggered the mutation. Each method's own section states the `source` and `regions` values it emits. |
-| `regions` | string[] | Coarse region tags describing what changed. |
+| `source` | string | Name of the RPC method or runtime operation that caused the change. Each method's own section states the `source` and `regions` values it emits. |
+| `regions` | string[] | For `config/value/write` and `config/batchWrite`, the changed configuration key paths. For domain operations, coarse domain tags. |
 | `changedAt` | string (ISO-8601) | Server-side UTC timestamp when the change event was emitted. |
 
-Defined region tags: `providers`, `workspace.provider`, `workspace.providerPreferences`, `workspace.defaultApprovalPolicy`, `welcomeSuggestions`, `skills`, `plugins`, `plugins.config`, `memory`, `lsp`, `imageGeneration`, `codeMode`, `instantInterrupt`, `mcp`, `hooks`, `externalChannel`, `subagent`, and `sourceControl`.
+Domain tags: `providers`, `skills`, `plugins`, `plugins.config`, `memory`, `lsp`, `mcp`, `hooks`, `externalChannel`, `subagent`, and `sourceControl`.
 
 Semantics:
 
 - Notification is emitted after write completion and in-process state update.
-- Payload is intentionally coarse; clients should re-read relevant state (`skills/list`, `mcp/list`, etc.) when needed.
-- Unknown region tags are forward-compatible and must be ignored by clients that do not recognize them.
+- Key paths match the canonical key paths from `config/schema` ordinally. Clients refresh a configuration view when a key path under a prefix it displays appears, and refresh domain state (`skills/list`, `mcp/list`, and so on) when the matching domain tag appears.
+- Unknown regions are forward-compatible and must be ignored by clients that do not recognize them.
 
 ## 25A. Source Control Methods
 
@@ -6595,7 +6647,7 @@ Persist the workspace source control binding (non-sensitive fields only).
 - Writes only non-sensitive values to the workspace `.craft/config.json` `SourceControl` section, preserving unrelated configuration and key casing.
 - A `password` (or any `P4PASSWD`-equivalent) field in params is rejected with `-32602` (Invalid params). Passwords are never persisted.
 - Binding is allowed regardless of test outcome (a workspace may be bound while `status` is `notTested` or `offline`); clients surface "Not verified" / offline state rather than blocking offline/VPN scenarios. Clients may save an unverified Perforce binding with `perforce.online = false` until `sourceControl/test` succeeds.
-- On success the server emits `workspace/configChanged` with `source: "sourceControl/update"` and region `sourceControl`.
+- On success the server emits `config/changed` with `source: "sourceControl/update"` and region `sourceControl`.
 
 ### 25A.4 `sourceControl/test`
 
@@ -6803,7 +6855,7 @@ Codes are stable wire contracts; servers emit `code` plus an English `fallbackTe
 
 ### 25A.10 Capability Advertisement
 
-Clients must check `capabilities.sourceControlManagement` before calling source control methods. The server advertises it when a workspace `.craft` path is available (same gating as `workspaceConfigManagement`). `sourceControl/get.capabilities.perforceChangelist` gates the Perforce changelist UI and RPCs and is false while Perforce is offline. `sourceControl/update` participates in `workspace/configChanged` via the `sourceControl` region; thread target changes use `thread/updated`.
+Clients must check `capabilities.sourceControlManagement` before calling source control methods. The server advertises it when a workspace `.craft` path is available (same gating as `workspaceConfigManagement`). `sourceControl/get.capabilities.perforceChangelist` gates the Perforce changelist UI and RPCs and is false while Perforce is offline. `sourceControl/update` participates in `config/changed` via the `sourceControl` region; thread target changes use `thread/updated`.
 
 ## 25B. File System Methods
 
@@ -6860,7 +6912,7 @@ Clear the current workspace's durable memory artifacts.
 - The operation does not delete sessions, archived sessions, thread history, skills, plugins, automation tasks, or configuration.
 - The operation preserves `Memory.Enabled`; later threads may save new memory according to the current configuration.
 - The server clears memory-derived welcome suggestion caches so clients do not continue displaying suggestions generated from deleted memory.
-- On success, the server emits `workspace/configChanged` with `source: "memory/reset"` and `regions: ["memory"]`.
+- On success, the server emits `config/changed` with `source: "memory/reset"` and `regions: ["memory"]`.
 
 ### 26.2 Capability Advertisement
 

@@ -788,7 +788,6 @@ public sealed class AcpBridgePipeIntegrationTests
                         new Contract.ModelCatalogItem { Id = "gpt-beta" }
                     ])
                 },
-                DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate => new Contract.WorkspaceConfigUpdateResult(),
                 DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead => new
                 {
                     thread = new

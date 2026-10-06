@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -7,6 +8,12 @@ namespace DotCraft.Configuration;
 
 public static class AtomicConfigDocument
 {
+    private static readonly JsonSerializerOptions WriteOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
     public static JsonObject Read(string path)
     {
         RejectLinks(path);
@@ -19,8 +26,10 @@ public static class AtomicConfigDocument
     public static void Update(string path, Action<JsonObject> edit) => WithLock(path, () =>
     {
         var root = Read(path);
+        var original = root.DeepClone();
         edit(root);
-        Write(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + "\n");
+        if (!JsonNode.DeepEquals(original, root))
+            Write(path, root);
     });
 
     public static void WithLock(string path, Action action)
@@ -53,8 +62,13 @@ public static class AtomicConfigDocument
         finally { if (File.Exists(temp)) File.Delete(temp); }
     }
 
+    public static void Write(string path, JsonObject root) =>
+        Write(path, root.ToJsonString(WriteOptions) + "\n");
+
     public static string? Key(JsonObject root, string key) =>
         root.Select(p => p.Key).FirstOrDefault(k => string.Equals(k, key, StringComparison.OrdinalIgnoreCase));
+
+    public static JsonNode? Value(JsonObject root, string key) => Key(root, key) is { } actual ? root[actual] : null;
 
     public static JsonObject Object(JsonObject root, string key)
     {

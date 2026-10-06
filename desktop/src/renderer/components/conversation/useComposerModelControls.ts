@@ -1,5 +1,6 @@
 import { buildReasoningPayload, readReasoningObject, DEFAULT_REASONING_CONFIG, type ResolvedReasoningConfig } from './modelReasoning'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useConfig } from '../../stores/configStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import {
   useModelCatalogStore,
@@ -10,13 +11,9 @@ import { addToast } from '../../stores/toastStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useProvidersStore, type ProviderSummary } from '../../stores/providersStore'
 import type { Thread, ThreadConfigurationWire } from '../../types/thread'
-import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
-import { parseJsonConfig } from '../../../shared/jsonConfig'
 import {
-  configObjectFromWorkspaceCore,
   resolveWorkspaceModelFromConfig,
-  resolveWorkspaceProviderFromConfig,
-  type WorkspaceCoreConfigLike
+  resolveWorkspaceProviderFromConfig
 } from '../../utils/workspaceCoreConfig'
 import type { ReasoningQuickValue } from './ModelPicker'
 import { useT } from '../../contexts/LocaleContext'
@@ -49,29 +46,22 @@ export interface ComposerModelControls {
 }
 
 interface UseComposerModelControlsOptions {
-  workspacePath: string
-  remoteWorkspace?: boolean
   activeThread?: Thread | null
   activeThreadId?: string | null
-  workspaceConfigChange?: WorkspaceConfigChangedPayload | null
-  workspaceConfigChangeSeq?: number
   mode?: 'thread' | 'detached'
 }
 
 
 export function useComposerModelControls({
-  workspacePath,
-  remoteWorkspace = false,
   activeThread = null,
   activeThreadId = null,
-  workspaceConfigChange = null,
-  workspaceConfigChangeSeq = 0,
   mode = 'thread'
 }: UseComposerModelControlsOptions): ComposerModelControls {
   const t = useT()
   const detached = mode === 'detached'
   const connectionStatus = useConnectionStore((s) => s.status)
   const capabilities = useConnectionStore((s) => s.capabilities)
+  const workspaceConfig = useConfig()
   const modelCatalog = useModelCatalogStore((s) => s.models)
   const modelOptions = useModelCatalogStore((s) => s.modelOptions)
   const modelCatalogStatus = useModelCatalogStore((s) => s.status)
@@ -102,34 +92,6 @@ export function useComposerModelControls({
     connectionStatus === 'connected' &&
     (detached || Boolean(activeThreadId))
   const modelLoading = modelApiAvailable && modelCatalogStatus === 'loading'
-
-  const workspaceConfigPath = useMemo(() => {
-    if (!workspacePath) return ''
-    const normalized = workspacePath.replace(/[\\/]+$/, '')
-    const sep = normalized.includes('\\') ? '\\' : '/'
-    return `${normalized}${sep}.craft${sep}config.json`
-  }, [workspacePath])
-
-  const readWorkspaceConfig = useCallback(async (): Promise<Record<string, unknown>> => {
-    if (remoteWorkspace) {
-      const getCore = window.api.workspaceConfig?.getCore
-      if (typeof getCore !== 'function') return {}
-      return configObjectFromWorkspaceCore(await getCore() as WorkspaceCoreConfigLike)
-    }
-    if (!workspaceConfigPath) return {}
-    const readFile = window.api.file?.readFile
-    if (typeof readFile !== 'function') return {}
-    const raw = await readFile(workspaceConfigPath)
-    return parseJsonConfig<Record<string, unknown>>(raw, {})
-  }, [remoteWorkspace, workspaceConfigPath])
-
-  const readEffectiveWorkspaceConfig = useCallback(async (): Promise<Record<string, unknown>> => {
-    const getCore = window.api.workspaceConfig?.getCore
-    if (typeof getCore === 'function') {
-      return configObjectFromWorkspaceCore(await getCore() as WorkspaceCoreConfigLike)
-    }
-    return readWorkspaceConfig()
-  }, [readWorkspaceConfig])
 
   const setCaseInsensitiveField = useCallback(
     (target: Record<string, unknown>, key: string, value: unknown): void => {
@@ -202,47 +164,18 @@ export function useComposerModelControls({
   }, [modelApiAvailable, reloadProviders])
 
   useEffect(() => {
-    let disposed = false
-    const loadEffectiveModel = async (): Promise<void> => {
-      try {
-        const workspaceCfg = await readEffectiveWorkspaceConfig()
-        if (disposed) return
-        const effectiveProviderId = resolveEffectiveProvider(activeThread, workspaceCfg)
-        setProviderId(effectiveProviderId)
-        if (effectiveProviderId) void loadModels(false, effectiveProviderId)
-        if (!detached || !detachedModelTouched) {
-          setModelName(resolveEffectiveModel(activeThread, workspaceCfg, effectiveProviderId))
-        }
-        if (!detached || !detachedReasoningTouched) {
-          setReasoningConfig(resolveEffectiveReasoning(activeThread, workspaceCfg, effectiveProviderId))
-        }
-        if (!detached || !detachedSpeedTouched) {
-          setSpeedValue(resolveEffectiveSpeed(activeThread, workspaceCfg, effectiveProviderId))
-        }
-      } catch {
-        if (disposed) return
-        if (!detached || !detachedModelTouched) {
-          const modelFromThread = activeThread?.configuration?.model ?? activeThread?.configuration?.Model
-          const mt = typeof modelFromThread === 'string' ? modelFromThread.trim() : ''
-          setModelName(mt.length > 0 && mt !== 'Default' ? mt : 'Default')
-        }
-        const providerFromThread = activeThread?.configuration?.providerId ?? activeThread?.configuration?.ProviderId
-        setProviderId(typeof providerFromThread === 'string' ? providerFromThread.trim() : '')
-        if (!detached || !detachedReasoningTouched) {
-          setReasoningConfig(
-            readReasoningObject(activeThread?.configuration?.reasoning ?? activeThread?.configuration?.Reasoning)
-              ?? DEFAULT_REASONING_CONFIG
-          )
-        }
-        if (!detached || !detachedSpeedTouched) {
-          setSpeedValue(resolveEffectiveSpeed(activeThread, {}, ''))
-        }
-      }
+    const workspaceCfg = workspaceConfig ?? {}
+    const effectiveProviderId = resolveEffectiveProvider(activeThread, workspaceCfg)
+    setProviderId(effectiveProviderId)
+    if (effectiveProviderId) void loadModels(false, effectiveProviderId)
+    if (!detached || !detachedModelTouched) {
+      setModelName(resolveEffectiveModel(activeThread, workspaceCfg, effectiveProviderId))
     }
-
-    void loadEffectiveModel()
-    return () => {
-      disposed = true
+    if (!detached || !detachedReasoningTouched) {
+      setReasoningConfig(resolveEffectiveReasoning(activeThread, workspaceCfg, effectiveProviderId))
+    }
+    if (!detached || !detachedSpeedTouched) {
+      setSpeedValue(resolveEffectiveSpeed(activeThread, workspaceCfg, effectiveProviderId))
     }
   }, [
     activeThreadId,
@@ -251,13 +184,11 @@ export function useComposerModelControls({
     detachedModelTouched,
     detachedReasoningTouched,
     detachedSpeedTouched,
-    readEffectiveWorkspaceConfig,
     resolveEffectiveModel,
     resolveEffectiveProvider,
     resolveEffectiveReasoning,
     resolveEffectiveSpeed,
-    workspaceConfigChange,
-    workspaceConfigChangeSeq
+    workspaceConfig
   ])
 
   const handleModelChange = useCallback(
@@ -319,7 +250,7 @@ export function useComposerModelControls({
     if (!nextProviderId || nextProviderId === providerId || detached || !activeThread) return
     setModelApplying(true)
     try {
-      const workspaceCfg = await readEffectiveWorkspaceConfig()
+      const workspaceCfg = workspaceConfig ?? {}
       await loadModels(false, nextProviderId)
       const catalogState = useModelCatalogStore.getState()
       const remembered = readWorkspacePreference(workspaceCfg, nextProviderId)
@@ -364,7 +295,7 @@ export function useComposerModelControls({
     } finally {
       setModelApplying(false)
     }
-  }, [activeThread, detached, loadModels, providerId, readEffectiveWorkspaceConfig, setCaseInsensitiveField, t])
+  }, [activeThread, detached, loadModels, providerId, setCaseInsensitiveField, t, workspaceConfig])
 
   const handleReasoningChange = useCallback(
     async (nextReasoning: ReasoningQuickValue): Promise<void> => {

@@ -45,44 +45,8 @@ internal static class AppServerRuntimeRequestValidator
         string? model,
         AppConfig.ReasoningConfig reasoning)
     {
-        EffectiveModelRuntime runtime;
-        try
-        {
-            runtime = ModelProviderResolver.ResolveMain(config, providerId, model);
-        }
-        catch (ArgumentException)
-        {
-            return;
-        }
-        catch (ModelProviderConfigurationException)
-        {
-            return;
-        }
-
-        var capability = ModelThinkingAdapterResolver.ResolveReasoningCapability(
-            config,
-            runtime.Protocol,
-            runtime.EndPoint,
-            runtime.Model);
-        if (capability == null)
-            return;
-
-        if (!reasoning.Enabled)
-        {
-            if (!capability.SupportsDisable)
-            {
-                throw AppServerErrors.InvalidParams(
-                    $"Model '{runtime.Model}' does not support disabling reasoning.");
-            }
-
-            return;
-        }
-
-        if (capability.SupportedEfforts.All(option => option.Effort != reasoning.Effort.ToProviderEffort()))
-        {
-            throw AppServerErrors.InvalidParams(
-                $"Model '{runtime.Model}' does not support reasoning effort '{reasoning.Effort}'.");
-        }
+        if (ModelPreferenceRules.ValidateReasoning(config, providerId, model, reasoning) is { } error)
+            throw AppServerErrors.InvalidParams(error);
     }
 
 }

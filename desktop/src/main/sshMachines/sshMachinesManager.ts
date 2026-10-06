@@ -25,7 +25,6 @@ import {
 import {
   buildEnsureProjectWorkspaceCommand,
   buildListFoldersCommand,
-  buildReadConfigFilesCommand,
   classifyProbe,
   CONNECT_RETRY_DELAYS_MS,
   eventEndpointPort,
@@ -33,7 +32,6 @@ import {
   isEndpointChangeEvent,
   minimumDotCraftVersion,
   missingInstallTools,
-  parseConfigFilesOutput,
   parseFolderListing,
   parseLoopbackEndpoint,
   resolveInstallVersion,
@@ -48,8 +46,7 @@ import {
   isValidRemoteFolderPath,
   normalizeRemoteFolderPath,
   redactSecrets,
-  remoteBaseName,
-  remoteChildPath
+  remoteBaseName
 } from '../../shared/sshShell'
 import { DockerDeploymentsManager } from './dockerDeploymentsManager'
 import { discoverSshHosts, type SshProcessRunner } from './localSshConfig'
@@ -367,20 +364,6 @@ export class SshMachinesManager {
   closeProjectForward(id: string, projectId: string): void {
     this.projectRemotePorts.delete(projectKey(id, projectId))
     this.ctx.tunnels.closeOne(id, projectSlot(projectId))
-  }
-
-  async readProjectConfig(id: string, projectId: string): Promise<{ workspaceRaw: string; userDefaultsRaw: string }> {
-    const machine = this.getMachine(id)
-    const project = this.getProject(machine, projectId)
-    const res = await this.ctx.runner(
-      machineSshTarget(machine),
-      buildReadConfigFilesCommand(remoteChildPath(project.path, '.craft/config.json')),
-      { timeoutMs: 20_000, connectTimeoutSec: 8 }
-    )
-    if (res.timedOut) throw new Error('Remote workspace config read timed out.')
-    const parsed = res.code === 0 ? parseConfigFilesOutput(res.stdout) : null
-    if (!parsed) throw new Error(redactSecrets(firstLine(res.stderr)) || 'Remote workspace config read failed.')
-    return parsed
   }
 
   dispose(): void {

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.8.3 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-06 |
 | **Related Specs** | [Session Core](../architecture/session-core.md), [Memory](memory.md), [Automations Lifecycle](automations-lifecycle.md) |
 
 Purpose: Define **Dreams**, DotCraft's workspace-level background memory maintenance product and runtime capability. Dreams gives each workspace an offline memory management loop that can run from AppServer without an active client or conversation session.
@@ -388,24 +388,18 @@ Semantics:
 
 Successful runs follow §6.5–6.7: pending output has no prompt effect; apply switches the active store; discard/archive retain stores; cancellation is best-effort. Responses identify the affected run and active store.
 
-### 9.4 Workspace Config Fields
+### 9.4 Dreams Settings
 
-Workspace config read/update surfaces expose Dreams using user-facing wire field names while persisting internal `Dreams.*` keys.
+Dreams settings are configuration fields read and written through the configuration methods (`config/read`, `config/value/write`, `config/batchWrite`) defined in [Configuration](../architecture/configuration.md).
 
-| Wire field | Config field | Type | Meaning |
-|------------|--------------|------|---------|
-| `dreamsEnabled` | `Dreams.Enabled` | boolean \| null | Enables/disables scheduled Dreams; `null` removes workspace override. |
-| `dreamsInterval` | `Dreams.Interval` | string \| null | Positive `TimeSpan` string for scheduled interval; `null` removes workspace override. |
-| `dreamsThreadLookbackCount` | `Dreams.ThreadLookbackCount` | number \| null | Maximum recent eligible candidate threads listed in a Dream Run manifest; `null` removes workspace override. |
-| `dreamsAutoApply` | `Dreams.AutoApply` | boolean \| null | Automatically applies future successful Dream Runs; `null` removes workspace override. |
+| Key path | Type | Meaning |
+|----------|------|---------|
+| `Dreams.Enabled` | boolean | Enables scheduled Dreams. |
+| `Dreams.Interval` | `TimeSpan` string | Scheduled interval; must be positive. |
+| `Dreams.ThreadLookbackCount` | integer | Maximum recent eligible candidate threads listed in a Dream Run manifest; must be positive. |
+| `Dreams.AutoApply` | boolean | Automatically applies future successful Dream Runs. |
 
-Validation:
-
-- `dreamsInterval` must parse as a positive `TimeSpan`.
-- `dreamsThreadLookbackCount` must be a positive integer.
-- Invalid fields return the same invalid-params style as other workspace config updates.
-
-Successful Dreams setting changes emit `workspace/configChanged` with `regions: ["memory"]`.
+Changing `Memory.Enabled` or any `Dreams.*` field starts the scheduler when both Dreams and memory are enabled and stops it otherwise. The change notification lists the changed key paths.
 
 ### 9.5 Memory Reset
 
@@ -431,7 +425,7 @@ Required UX behavior:
 - While memory is disabled, show the Dreams toggle disabled with its stored value and a tooltip asking the user to enable memories.
 - Load `dreams/status` when entering the personalization settings surface or the Dreams page.
 - Refresh status after saving Dreams settings.
-- Refresh Dreams status when receiving `workspace/configChanged` with `regions: ["memory"]`.
+- Refresh Dreams status when receiving `config/changed` with `regions` containing `memory` or a `Dreams.*` or `Memory.Enabled` key path.
 - Disable "Run now" while `running = true`.
 - Poll `dreams/status` after `dreams/run` until the run completes or the client times out.
 - Load `dreams/list` in the management surface.

@@ -4,7 +4,7 @@ import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 
 import { useT } from '../../../contexts/LocaleContext'
 import type { MessageKey } from '../../../../shared/locales'
-import { normalizeWorkspaceConfigChangedPayload } from '../../../utils/workspaceConfigChanged'
+import { normalizeConfigChangedPayload } from '../../../utils/configChanged'
 import { SettingsPanelShell } from '../SettingsPanelShell'
 import { SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { settingsDescriptionStyle, settingsPlaceholderStyle } from '../settingsTypography'
@@ -225,7 +225,7 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
   // Live-refresh when another surface changes this workspace's source control binding.
   useEffect(() => {
     const unsubscribe = window.api.appServer.onNotification((payload) => {
-      const event = normalizeWorkspaceConfigChangedPayload(payload as { method: string; params: unknown })
+      const event = normalizeConfigChangedPayload(payload as { method: string; params: unknown })
       if (event?.regions.includes('sourceControl') && !dirtyRef.current) {
         void refreshSilently()
       }

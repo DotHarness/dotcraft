@@ -1,12 +1,12 @@
 import { create } from 'zustand'
 
 import { useConnectionStore } from './connectionStore'
-import { normalizeWorkspaceConfigChangedPayload } from '../utils/workspaceConfigChanged'
+import { normalizeConfigChangedPayload } from '../utils/configChanged'
 
 /**
  * `sourceControl/get` always targets the connected (foreground) workspace, so this
  * cache must be refreshed on workspace-path changes, connection epoch changes, and
- * `workspace/configChanged` notifications carrying the `sourceControl` region.
+ * `config/changed` notifications carrying the `sourceControl` region.
  */
 interface SourceControlState {
   workspacePath: string | null
@@ -28,7 +28,7 @@ function ensureSubscriptions(): void {
   if (typeof window === 'undefined') return
   if (!notificationUnsubscribe && window.api?.appServer?.onNotification) {
     notificationUnsubscribe = window.api.appServer.onNotification((payload) => {
-      const event = normalizeWorkspaceConfigChangedPayload(payload as { method: string; params: unknown })
+      const event = normalizeConfigChangedPayload(payload as { method: string; params: unknown })
       if (!event?.regions.includes('sourceControl')) return
       const { workspacePath, refresh } = useSourceControlStore.getState()
       if (workspacePath) void refresh(workspacePath, true)

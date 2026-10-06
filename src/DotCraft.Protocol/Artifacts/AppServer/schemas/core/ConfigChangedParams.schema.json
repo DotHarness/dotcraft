@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/WorkspaceConfigChangedParams.schema.json",
-  "title": "WorkspaceConfigChangedParams",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ConfigChangedParams.schema.json",
+  "title": "ConfigChangedParams",
   "type": "object",
   "properties": {
     "changedAt": {

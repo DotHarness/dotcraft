@@ -28,10 +28,9 @@ export function SettingsSidebar(): JSX.Element {
   const setActiveSettingsTab = useUIStore((s) => s.setActiveSettingsTab)
   const requestCloseSettings = useUIStore((s) => s.requestCloseSettings)
 
-  const workspaceCoreApiAvailable = typeof window.api.workspaceConfig?.getCore === 'function'
-  const memoryManagementEnabled = capabilities?.memoryManagement === true
-  const dreamsCapabilityEnabled = capabilities?.dreams === true
-  const personalizationAvailable = workspaceCoreApiAvailable || memoryManagementEnabled || dreamsCapabilityEnabled
+  const personalizationAvailable = capabilities?.workspaceConfigManagement === true
+    || capabilities?.memoryManagement === true
+    || capabilities?.dreams === true
   const tabs = buildSettingsTabs(t, {
     personalizationAvailable,
     sourceControlEnabled: capabilities?.sourceControlManagement === true,

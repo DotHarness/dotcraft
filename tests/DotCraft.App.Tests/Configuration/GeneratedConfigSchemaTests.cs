@@ -15,14 +15,12 @@ public sealed class GeneratedConfigSchemaTests
 
         Assert.DoesNotContain("AgentInterruptMessageEnabled", fields.Keys);
 
-        Assert.Equal(ReloadBehavior.ProcessRestart, fields["ProviderId"].Reload);
         Assert.Equal("number", fields["NetworkTimeoutSeconds"].Type);
         Assert.Equal(1, fields["NetworkTimeoutSeconds"].Min);
 
         var skills = Assert.Single(schema, s => s.Path is ["Skills"]);
         var disabledSkills = Assert.Single(skills.Fields, f => f.Key == "DisabledSkills");
         Assert.Equal("stringList", disabledSkills.Type);
-        Assert.Equal(ReloadBehavior.Hot, disabledSkills.Reload);
     }
 
     [Fact]
@@ -69,7 +67,6 @@ public sealed class GeneratedConfigSchemaTests
         var toolsLspFields = toolsLsp.Fields.ToDictionary(f => f.Key, f => f);
         Assert.Equal("bool", toolsLspFields["Enabled"].Type);
         Assert.Equal("number", toolsLspFields["MaxFileSize"].Type);
-        Assert.Equal(ReloadBehavior.ProcessRestart, toolsLspFields["Enabled"].Reload);
     }
 
     [Fact]
@@ -112,17 +109,5 @@ public sealed class GeneratedConfigSchemaTests
         Assert.Contains("stdin", profileFields["InputMode"].Options!);
         Assert.Equal("keyValueMap", profileFields["PermissionModeMapping"].Type);
         Assert.Equal("json", profileFields["SanitizationRules"].Type);
-    }
-
-    [Fact]
-    public void GeneratedConfigSchema_BuildsSensitivePathsWithoutReflection()
-    {
-        var paths = ConfigSchemaUtilities
-            .BuildSensitivePaths(ConfigSchemaRegistrations.GetConfigSchema())
-            .Select(path => string.Join(".", path))
-            .ToHashSet(StringComparer.Ordinal);
-
-        Assert.Contains("DashBoard.Password", paths);
-        Assert.Contains("AppServer.WebSocket.Token", paths);
     }
 }

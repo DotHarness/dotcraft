@@ -49,6 +49,8 @@ public sealed class AppServerTestHarness : IDisposable
     public AppServerRequestHandler Handler { get; }
     public IAppConfigMonitor Monitor { get; }
 
+    public ConfigurationService? Configuration { get; }
+
     /// <summary>
     /// Default <see cref="SessionIdentity"/> using the harness temp workspace.
     /// </summary>
@@ -113,6 +115,22 @@ public sealed class AppServerTestHarness : IDisposable
             [openAIClientProvider ?? new OpenAIClientProvider(), new AnthropicClientProvider()]);
         Monitor = appConfigMonitor ?? new AppConfigMonitor(defaultConfig);
         Monitor.Current.GlobalConfigPath ??= Path.Combine(_tempDir, "user-data", "config.json");
+        if (!string.IsNullOrWhiteSpace(workspaceCraftPath))
+        {
+            Configuration = new ConfigurationService(
+                ConfigSchemaRegistrations.CreateDescriptorRegistry(),
+                Monitor,
+                Monitor.Current.GlobalConfigPath,
+                Path.Combine(workspaceCraftPath, "config.json"));
+            ConfigurationSubsystems.Register(
+                Configuration,
+                Monitor,
+                Service,
+                skillsLoader,
+                lspServerManager,
+                dreamsService,
+                contextPageManager);
+        }
         Handler = new AppServerRequestHandler(
             Service, Connection, Transport,
             channelListContributor ?? new ModuleRegistryChannelListContributor(new ModuleRegistry()),
@@ -140,6 +158,7 @@ public sealed class AppServerTestHarness : IDisposable
                 OnExternalChannelUpserted = onExternalChannelUpserted,
                 OnExternalChannelRemoved = onExternalChannelRemoved,
                 ConfigSchema = configSchema,
+                Configuration = Configuration,
                 AppConfigMonitor = Monitor,
                 SkillsLoader = skillsLoader,
                 McpClientManager = mcpClientManager,
@@ -577,6 +596,14 @@ public sealed class AppServerTestHarness : IDisposable
         Assert.Equal("2.0", root.GetProperty("jsonrpc").GetString());
         Assert.True(root.TryGetProperty("error", out var errorEl), "Expected 'error' property in error response");
         Assert.Equal(expectedCode, errorEl.GetProperty("code").GetInt32());
+    }
+
+    public static void AssertConfigWriteError(JsonDocument doc, string expectedCode)
+    {
+        AssertIsErrorResponse(doc, AppServerErrors.InvalidRequestCode);
+        Assert.Equal(
+            expectedCode,
+            doc.RootElement.GetProperty("error").GetProperty("data").GetProperty("configWriteErrorCode").GetString());
     }
 
     public static void AssertIsNotification(JsonDocument doc, string expectedMethod)

@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
+import { useConfigStore } from '../stores/configStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useProvidersStore } from '../stores/providersStore'
@@ -13,14 +14,13 @@ import type { Thread, ThreadConfigurationWire } from '../types/thread'
 
 const listModels = vi.fn()
 const sendRequest = vi.fn()
-const getCore = vi.fn()
 
 let controls: ComposerModelControls | null = null
 
 function Probe(): JSX.Element {
   const activeThread = useThreadStore((s) => s.activeThread)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
-  controls = useComposerModelControls({ workspacePath: 'C:\\ws', activeThread, activeThreadId })
+  controls = useComposerModelControls({ activeThread, activeThreadId })
   return <div>{controls.modelName}</div>
 }
 
@@ -50,6 +50,7 @@ describe('useComposerModelControls catalog loading', () => {
     vi.clearAllMocks()
     useModelCatalogStore.getState().reset()
     useProvidersStore.getState().reset()
+    useConfigStore.getState().reset()
     useThreadStore.setState({
       activeThreadId: 'thread-1',
       activeThread: threadWith({ providerId: 'openai', model: 'gpt-5.4' })
@@ -65,15 +66,14 @@ describe('useComposerModelControls catalog loading', () => {
       errorCode: 'EndpointNotSupported',
       errorMessage: 'Endpoint does not support model listing.'
     })
-    getCore.mockResolvedValue({ workspace: { providerId: 'openai', providerPreferences: {} }, userDefaults: {} })
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/read') return { thread: { configuration: { providerId: 'openai', model: 'gpt-5.4' } } }
       if (method === 'provider/list') return { providers: [] }
+      if (method === 'config/read') return { config: { ProviderId: 'openai', ProviderPreferences: {} }, origins: {} }
       return {}
     })
     installDesktopApiMock({
       appServer: { listModels, sendRequest, onNotification: () => () => undefined },
-      workspaceConfig: { getCore },
       settings: { get: async () => null, set: async () => undefined }
     })
   })

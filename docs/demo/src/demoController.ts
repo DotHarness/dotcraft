@@ -111,7 +111,8 @@ export function bootstrapDemo(): void {
         running: true,
         loaded: true,
         threadCount: demoThreads.length,
-        threads: []
+        threads: [],
+        pinned: false
       }
     ]
   })
@@ -121,7 +122,7 @@ export function bootstrapDemo(): void {
 
   // The demo only models the conversation surface; keep nav clicks
   // (Channels / Plugins / Settings) from switching to unpopulated views.
-  useUIStore.setState({ setActiveMainView: () => {} } as Parameters<typeof useUIStore.setState>[0])
+  useUIStore.setState({ setActiveMainView: () => {} })
 
   const threadStore = useThreadStore.getState()
   threadStore.setThreadList(demoThreads.map(toSummary), DEMO_WORKSPACE_PATH)

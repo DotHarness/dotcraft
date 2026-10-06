@@ -16,7 +16,7 @@ import { useUIStore } from '../stores/uiStore'
 import type { ContextUsageSnapshotWire, ThreadSummary } from '../types/thread'
 import type { ApprovalDecision, InputPart } from '../types/conversation'
 import type { SubAgentEntry } from '../types/toolCall'
-import { resolveWorkspaceConfigChangedPayload } from '../utils/workspaceConfigChanged'
+import { resolveConfigChangedPayload } from '../utils/configChanged'
 import { buildComposerInputParts } from '../utils/composeInputParts'
 import { installDesktopApiMock } from './desktopApiMock'
 
@@ -68,8 +68,8 @@ function dispatch(payload: { method: string; params: unknown }): void {
   }
 
   switch (method) {
-    case 'workspace/configChanged': {
-      const event = resolveWorkspaceConfigChangedPayload(payload, workspaceConfigChangedDedupe)
+    case 'config/changed': {
+      const event = resolveConfigChangedPayload(payload, configChangedDedupe)
       if (event?.regions.includes('skills')) {
         void useSkillsStore.getState().fetchSkills()
       }
@@ -365,7 +365,7 @@ function dispatchThreadLifecycle(
 const s = () => useConversationStore.getState()
 
 const NOW = new Date().toISOString()
-const workspaceConfigChangedDedupe = new Map<string, number>()
+const configChangedDedupe = new Map<string, number>()
 const TURN_DIFF = [
   'diff --git a/a.txt b/a.txt',
   '--- a/a.txt',
@@ -454,7 +454,7 @@ beforeEach(() => {
     selectedTaskId: null,
     statusFilter: 'all'
   })
-  workspaceConfigChangedDedupe.clear()
+  configChangedDedupe.clear()
 })
 
 afterEach(() => {
@@ -462,7 +462,7 @@ afterEach(() => {
 })
 
 describe('notification dispatch payload format', () => {
-  it('dispatches skills refresh for workspace/configChanged notifications', () => {
+  it('dispatches skills refresh for config/changed notifications', () => {
     let fetchSkillsCalls = 0
     useSkillsStore.setState({
       fetchSkills: async () => {
@@ -471,7 +471,7 @@ describe('notification dispatch payload format', () => {
     })
 
     dispatch({
-      method: 'workspace/configChanged',
+      method: 'config/changed',
       params: {
         source: 'skills/setEnabled',
         regions: ['skills'],
@@ -482,7 +482,7 @@ describe('notification dispatch payload format', () => {
     expect(fetchSkillsCalls).toBe(1)
   })
 
-  it('does not refresh skills for unrelated workspace/configChanged regions', () => {
+  it('does not refresh skills for unrelated config/changed regions', () => {
     let fetchSkillsCalls = 0
     useSkillsStore.setState({
       fetchSkills: async () => {
@@ -491,9 +491,9 @@ describe('notification dispatch payload format', () => {
     })
 
     dispatch({
-      method: 'workspace/configChanged',
+      method: 'config/changed',
       params: {
-        source: 'workspace/config/update',
+        source: 'mcp/upsert',
         regions: ['mcp', 'externalChannel'],
         changedAt: NOW
       }

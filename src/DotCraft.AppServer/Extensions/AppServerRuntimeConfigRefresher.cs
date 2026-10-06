@@ -1,6 +1,4 @@
 using DotCraft.Configuration;
-using DotCraft.Context;
-using DotCraft.Dreams;
 using DotCraft.Sessions;
 
 namespace DotCraft.AppServer;
@@ -32,127 +30,12 @@ internal sealed class AppServerRuntimeConfigRefresher(
             StringComparer.OrdinalIgnoreCase);
     }
 
-    public void RefreshCurrentPermissionsConfig(string? defaultApprovalPolicy)
-    {
-        if (appConfigMonitor == null)
-            return;
-
-        appConfigMonitor.Current.Permissions = new AppConfig.PermissionsConfig
-        {
-            DefaultApprovalPolicy = ToApprovalPolicy(defaultApprovalPolicy)
-        };
-    }
-
-    public void RefreshCurrentMemoryConfig()
-    {
-        if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
-            return;
-
-        var mergedConfig = LoadMergedWorkspaceConfig(useGlobalFallback: true);
-        appConfigMonitor.Current.Memory = new MemoryConfig
-        {
-            Enabled = mergedConfig.Memory.Enabled
-        };
-    }
-
-    public void RefreshCurrentDreamsConfig()
-    {
-        if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
-            return;
-
-        var mergedConfig = LoadMergedWorkspaceConfig(useGlobalFallback: false);
-        appConfigMonitor.Current.Dreams = new DreamsConfig
-        {
-            Enabled = mergedConfig.Dreams.Enabled,
-            Interval = mergedConfig.Dreams.Interval,
-            StartupDelay = mergedConfig.Dreams.StartupDelay,
-            ThreadLookbackCount = mergedConfig.Dreams.ThreadLookbackCount,
-            AutoApply = mergedConfig.Dreams.AutoApply,
-            MinCompletedTurnsSinceLastRun = mergedConfig.Dreams.MinCompletedTurnsSinceLastRun
-        };
-    }
-
-    public void RefreshCurrentLspConfig(bool? toolsLspEnabled)
-    {
-        if (appConfigMonitor == null)
-            return;
-
-        if (toolsLspEnabled.HasValue)
-        {
-            appConfigMonitor.Current.Tools.Lsp.Enabled = toolsLspEnabled.Value;
-            return;
-        }
-
-        if (!string.IsNullOrWhiteSpace(workspaceCraftPath))
-        {
-            var mergedConfig = LoadMergedWorkspaceConfig(useGlobalFallback: true);
-            appConfigMonitor.Current.Tools.Lsp = mergedConfig.Tools.Lsp;
-            return;
-        }
-
-        appConfigMonitor.Current.Tools.Lsp.Enabled = false;
-    }
-
-    public void RefreshCurrentImageGenerationConfig()
-    {
-        if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
-            return;
-
-        var merged = LoadMergedWorkspaceConfig(useGlobalFallback: true).Tools.ImageGeneration;
-        var current = appConfigMonitor.Current.Tools.ImageGeneration;
-        current.Enabled = merged.Enabled;
-        current.Provider = merged.Provider;
-    }
-
-    public void RefreshCurrentCodeModeConfig()
-    {
-        if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
-            return;
-
-        appConfigMonitor.Current.Tools.CodeMode.Mode =
-            LoadMergedWorkspaceConfig(useGlobalFallback: true).Tools.CodeMode.Mode;
-    }
-
-    public void RefreshCurrentInstantInterruptConfig()
-    {
-        if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
-            return;
-
-        appConfigMonitor.Current.InstantInterruptEnabled =
-            LoadMergedWorkspaceConfig(useGlobalFallback: true).InstantInterruptEnabled;
-    }
-
-    public void RefreshCurrentReasoningConfig()
-    {
-        if (appConfigMonitor == null)
-            return;
-
-        if (!string.IsNullOrWhiteSpace(workspaceCraftPath))
-        {
-            var mergedConfig = LoadMergedWorkspaceConfig(useGlobalFallback: true);
-            appConfigMonitor.Current.Reasoning = CloneReasoningConfig(mergedConfig.Reasoning);
-            return;
-        }
-
-        appConfigMonitor.Current.Reasoning = new AppConfig.ReasoningConfig();
-    }
-
-    public void RefreshCurrentSpeedConfig()
-    {
-        if (appConfigMonitor == null)
-            return;
-
-        appConfigMonitor.Current.Speed = !string.IsNullOrWhiteSpace(workspaceCraftPath)
-            ? LoadMergedWorkspaceConfig(useGlobalFallback: true).Speed
-            : InferenceSpeed.Standard;
-    }
-
     public void RefreshCurrentSubAgentConfig()
     {
         if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
             return;
 
-        var mergedConfig = LoadMergedWorkspaceConfig(useGlobalFallback: true);
+        var mergedConfig = LoadMergedWorkspaceConfig();
         appConfigMonitor.Current.SubAgent = new AppConfig.SubAgentConfig
         {
             DisabledProfiles = [.. mergedConfig.SubAgent.DisabledProfiles],
@@ -181,7 +64,7 @@ internal sealed class AppServerRuntimeConfigRefresher(
 
         if (!string.IsNullOrWhiteSpace(workspaceCraftPath))
         {
-            var mergedConfig = LoadMergedWorkspaceConfig(useGlobalFallback: true);
+            var mergedConfig = LoadMergedWorkspaceConfig();
             appConfigMonitor.Current.Hooks = mergedConfig.Hooks;
             return;
         }
@@ -195,27 +78,8 @@ internal sealed class AppServerRuntimeConfigRefresher(
             refreshService.InvalidateThreadAgents();
     }
 
-    private AppConfig LoadMergedWorkspaceConfig(bool useGlobalFallback)
-    {
-        var configPath = Path.Combine(workspaceCraftPath!, "config.json");
-        return useGlobalFallback
-            ? AppConfig.LoadWithGlobalFallback(configPath, workspaceConfig.EffectiveGlobalConfigPath)
-            : AppConfig.LoadWithGlobalFallback(configPath);
-    }
-
-    private static ApprovalPolicy ToApprovalPolicy(string? rawPolicy)
-    {
-        return rawPolicy switch
-        {
-            "autoApprove" => ApprovalPolicy.AutoApprove,
-            _ => ApprovalPolicy.Default
-        };
-    }
-
-    private static AppConfig.ReasoningConfig CloneReasoningConfig(AppConfig.ReasoningConfig source) => new()
-    {
-        Enabled = source.Enabled,
-        Effort = source.Effort,
-        Output = source.Output
-    };
+    private AppConfig LoadMergedWorkspaceConfig() =>
+        AppConfig.LoadWithGlobalFallback(
+            Path.Combine(workspaceCraftPath!, "config.json"),
+            workspaceConfig.EffectiveGlobalConfigPath);
 }

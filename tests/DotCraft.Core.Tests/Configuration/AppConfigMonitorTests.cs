@@ -44,7 +44,7 @@ public sealed class AppConfigMonitorTests
         monitor.Changed += (_, _) => invoked++;
 
         var ex = Record.Exception(() =>
-            monitor.NotifyChanged("workspace/config/update", [ConfigChangeRegions.WorkspaceProviderPreferences]));
+            monitor.NotifyChanged("config/value/write", ["ProviderId"]));
 
         Assert.Null(ex);
         Assert.Equal(1, invoked);

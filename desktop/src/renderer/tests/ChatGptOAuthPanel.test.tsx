@@ -24,7 +24,7 @@ describe('ChatGPT provider login completion', () => {
 
   it('also opens the saved editor if workspace activation fails', async () => {
     sendRequest.mockImplementation(async (method) => {
-      if (method === 'workspace/config/update') throw new Error('activation failed')
+      if (method === 'config/value/write') throw new Error('activation failed')
       return { providerId: 'subscription' }
     })
     mount(false)

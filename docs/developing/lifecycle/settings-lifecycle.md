@@ -49,5 +49,5 @@ Notes:
 ## Related docs
 
 - [Configuration reference](../configuration) — every field these tiers cover
-- [AppServer Protocol](../protocols/appserver-protocol) — the `workspace/configChanged` event clients watch for config changes
+- [AppServer Protocol](../protocols/appserver-protocol) — the `config/changed` event clients watch for config changes
 - [AppServer mode](./appserver) — transport and authentication for remote and multi-client connections

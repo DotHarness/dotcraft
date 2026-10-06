@@ -268,6 +268,7 @@ internal static class DotCraftApplication
                     .AddSingleton(moduleRegistry)
                     .AddSingleton(cliArgs)
                     .AddSingleton<IConfigSchemaProvider>(ConfigSchemaRegistrations.CreateSchemaProvider())
+                    .AddSingleton<IConfigDescriptorRegistry>(ConfigSchemaRegistrations.CreateDescriptorRegistry())
                     .AddDotCraftHarness(config, options =>
                     {
                         options.WorkspacePath = workspacePath;

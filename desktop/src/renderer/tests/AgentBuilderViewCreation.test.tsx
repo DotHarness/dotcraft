@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { AgentBuilderView } from '../components/agents/AgentBuilderView'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useConfigStore } from '../stores/configStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useProvidersStore } from '../stores/providersStore'
@@ -103,11 +104,25 @@ function emitBuilderToolStarted(callId: string, toolName: string): void {
   })
 }
 
+let serverConfig: Record<string, unknown> = {}
+
 describe('AgentBuilderView creation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     notificationHandlers = []
+    serverConfig = {
+      ProviderId: 'openai',
+      ProviderPreferences: {
+        openai: {
+          model: 'gpt-5.5',
+          reasoning: { enabled: true, effort: 'high', output: 'full' },
+          speed: 'fast',
+        }
+      }
+    }
+    useConfigStore.getState().reset()
     appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'config/read') return { config: serverConfig, origins: {} }
       if (method === 'agent/profiles/list') return { profiles: [] }
       if (method === 'tool/list') return { tools: toolCatalog }
       if (method === 'skills/list') return { skills: [] }
@@ -129,21 +144,6 @@ describe('AgentBuilderView creation', () => {
         workspace: {
           saveImageToTemp: vi.fn(),
           getPathForFile: vi.fn()
-        },
-        workspaceConfig: {
-          getCore: vi.fn(async () => ({
-            workspace: {
-              providerId: 'openai',
-              providerPreferences: {
-                openai: {
-                  model: 'gpt-5.5',
-                  reasoning: { enabled: true, effort: 'high', output: 'full' },
-                  speed: 'fast',
-                }
-              }
-            },
-            userDefaults: { providerId: null, providerPreferences: {} }
-          }))
         },
         file: {
           readFile: vi.fn(async () => '{}')
@@ -252,7 +252,7 @@ describe('AgentBuilderView creation', () => {
       })
     }))
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'thread/config/update')).toBe(false)
-    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'workspace/config/update')).toBe(false)
+    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'config/value/write' || method === 'config/batchWrite')).toBe(false)
     expect(appServerSendRequest.mock.calls.some(([method, params]) =>
       method === 'turn/start' && Object.prototype.hasOwnProperty.call(params as Record<string, unknown>, 'text')
     )).toBe(false)
@@ -260,22 +260,16 @@ describe('AgentBuilderView creation', () => {
   })
 
   it('starts a detached builder thread with an inherited personal provider preference', async () => {
-    vi.mocked(window.api.workspaceConfig.getCore).mockResolvedValue({
-      workspace: {
-        providerId: null,
-        providerPreferences: {}
-      },
-      userDefaults: {
-        providerId: 'provider-a',
-        providerPreferences: {
-          'provider-a': {
-            model: 'provider-model',
-            reasoning: { enabled: false, effort: 'medium', output: 'full' },
-            speed: 'standard',
-          }
+    serverConfig = {
+      ProviderId: 'provider-a',
+      ProviderPreferences: {
+        'provider-a': {
+          model: 'provider-model',
+          reasoning: { enabled: false, effort: 'medium', output: 'full' },
+          speed: 'standard',
         }
       }
-    } as unknown as Awaited<ReturnType<typeof window.api.workspaceConfig.getCore>>)
+    }
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
       if (method === 'model/list') {

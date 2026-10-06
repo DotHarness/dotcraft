@@ -10,7 +10,7 @@ using Microsoft.CodeAnalysis.Text;
 namespace DotCraft.Generators;
 
 [Generator]
-public sealed class ModuleDiscoveryGenerator : IIncrementalGenerator
+public sealed partial class ModuleDiscoveryGenerator : IIncrementalGenerator
 {
     private const string ModuleAttributeFqn = "DotCraft.Modules.DotCraftModuleAttribute";
     private const string HostFactoryAttributeFqn = "DotCraft.Hosting.HostFactoryAttribute";
@@ -349,6 +349,8 @@ partial class {{module.ClassNameOnly}}
 
         for (var i = 0; i < schemaTypes.Count; i++)
             GenerateConfigSchemaSectionFactory(sb, schemaTypes[i], i);
+
+        GenerateConfigDescriptors(sb, schemaTypes);
 
         sb.AppendLine("}");
 

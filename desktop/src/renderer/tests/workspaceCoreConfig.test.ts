@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  configObjectFromWorkspaceCore,
   resolveWorkspaceModelFromConfig,
   resolveWorkspaceProviderFromConfig
 } from '../utils/workspaceCoreConfig'
@@ -34,38 +33,5 @@ describe('workspace core model resolution', () => {
 
   it('falls back to Default when the provider has no preference', () => {
     expect(resolveWorkspaceModelFromConfig({}, 'provider-b')).toBe('Default')
-  })
-
-  it('merges remote provider defaults with case-insensitive workspace overrides', () => {
-    const config = configObjectFromWorkspaceCore({
-      userDefaults: {
-        providerId: 'provider-a',
-        providerPreferences: {
-          'provider-a': preference('user-model-a', 'fast'),
-          'provider-b': preference('user-model-b'),
-          'provider-c': preference('user-model-c')
-        }
-      },
-      workspace: {
-        providerId: ' Provider-B ',
-        providerPreferences: {
-          'PROVIDER-A': preference('workspace-model-a'),
-          'provider-b': preference('workspace-model-b')
-        }
-      }
-    })
-
-    expect(config).toMatchObject({
-      ProviderId: 'Provider-B',
-      ProviderPreferences: {
-        'PROVIDER-A': preference('workspace-model-a'),
-        'provider-b': preference('workspace-model-b')
-      }
-    })
-    expect(config.ProviderPreferences).toHaveProperty('provider-c')
-    expect(config.ProviderPreferences).not.toHaveProperty('PROVIDER-C')
-    expect(resolveWorkspaceModelFromConfig(config, 'provider-a')).toBe('workspace-model-a')
-    expect(resolveWorkspaceModelFromConfig(config, 'PROVIDER-B')).toBe('workspace-model-b')
-    expect(resolveWorkspaceModelFromConfig(config, 'provider-c')).toBe('user-model-c')
   })
 })

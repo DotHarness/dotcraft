@@ -16,6 +16,14 @@ dotcraft config show --json
 
 `--section` accepts a section's display name or its JSON path. `--json` writes machine-readable output, and `config show` is indented JSON either way. `config show` reads the workspace in the current directory; pass `--workspace` for another one.
 
+## Change configuration from a client
+
+AppServer clients change settings by key path instead of editing files. `config/read` returns the effective configuration with sensitive values masked, and can include the user and workspace layers. `config/value/write` changes one key path, such as `Tools.CodeMode.Mode`, and `config/batchWrite` applies several edits to one layer at once. A write targets the workspace layer unless it names the user layer's file. Credentials are not written this way; the provider methods own them. The [AppServer protocol](./protocols/appserver-protocol) lists the parameters and error codes.
+
+The server validates a write before saving it: the result must still load as a configuration, and every changed field must satisfy its type, range, and allowed values. A rejected write leaves the file untouched. An accepted write updates the running AppServer according to each field's reload behavior and is announced through `config/changed` with the changed key paths.
+
+The Dashboard Settings page saves a whole layer file through the same path, so its saves are validated, applied, and announced the same way. A masked `***` value in a saved document keeps the stored secret.
+
 ## Basic model and provider
 
 | Field | Description | Default |

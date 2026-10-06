@@ -56,7 +56,7 @@ Built-in skills redeploy only when the product version changes. To pick up an ed
 
 ## Where writes should go
 
-- Config and hooks: edit the file, then say "restart to apply", or send the user to the matching Desktop Settings panel for an immediate effect.
+- Config and hooks: edit the file, then say "restart to apply", or send the user to the matching Desktop Settings panel, which applies the change at once unless the field's reload tier is `processRestart`.
 - Skills: `$skill-authoring` and `$skill-installer`. Never edit an installed skill's source directory by hand.
 - Plugins: `$plugin-creator` to author, Desktop > Plugins to install and enable.
 - Channels: Desktop > Channels rather than the `<channel>.json` file.

@@ -1,32 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useT } from '../../../../contexts/LocaleContext'
+import { readConfigValue, useConfig, writeConfig } from '../../../../stores/configStore'
 import { addToast } from '../../../../stores/toastStore'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import {
-  DEFAULT_DREAMS_INTERVAL,
-  DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT,
   DREAMS_INTERVAL_OPTIONS,
   DREAMS_THREAD_LOOKBACK_OPTIONS,
   delay,
+  formatDreamsIntervalForConfig,
+  normalizeDreamsInterval,
   normalizeDreamsRunList,
   normalizeDreamsStatus,
   type DreamsRunState,
   type DreamsStatus
 } from './dreamsModel'
 
-export interface DreamsConfigValues {
-  enabled: boolean
-  interval: string
-  threadLookbackCount: number
-  autoApply: boolean
-}
-
 interface UseDreamsSettingsOptions {
   available: boolean
   personalizationActive: boolean
   dreamsPageActive: boolean
   dashboardUrl: string | null | undefined
-  reloadWorkspaceCore: () => Promise<void>
 }
 
 export type DreamsSettings = ReturnType<typeof useDreamsSettings>
@@ -35,15 +28,16 @@ export function useDreamsSettings({
   available,
   personalizationActive,
   dreamsPageActive,
-  dashboardUrl,
-  reloadWorkspaceCore
+  dashboardUrl
 }: UseDreamsSettingsOptions) {
   const t = useT()
   const confirm = useConfirmDialog()
-  const [enabled, setEnabled] = useState(false)
-  const [runInterval, setRunInterval] = useState(DEFAULT_DREAMS_INTERVAL)
-  const [threadLookbackCount, setThreadLookbackCount] = useState(DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT)
-  const [autoApply, setAutoApply] = useState(false)
+  const config = useConfig()
+  const enabled = readConfigValue(config, 'Dreams.Enabled') === true
+  const runInterval = normalizeDreamsInterval(readConfigValue(config, 'Dreams.Interval')) ?? ''
+  const lookback = readConfigValue(config, 'Dreams.ThreadLookbackCount')
+  const threadLookbackCount = typeof lookback === 'number' ? lookback : null
+  const autoApply = readConfigValue(config, 'Dreams.AutoApply') === true
   const [status, setStatus] = useState<DreamsStatus | null>(null)
   const [runs, setRuns] = useState<DreamsRunState[]>([])
   const [runsLoading, setRunsLoading] = useState(false)
@@ -51,18 +45,6 @@ export function useDreamsSettings({
   const [archivingAll, setArchivingAll] = useState(false)
   const [applying, setApplying] = useState(false)
   const [running, setRunning] = useState(false)
-
-  const applyConfig = useCallback((values: DreamsConfigValues): void => {
-    setEnabled(values.enabled)
-    setRunInterval(values.interval)
-    setThreadLookbackCount(values.threadLookbackCount)
-    setAutoApply(values.autoApply)
-  }, [])
-
-  const applyStatusSnapshot = useCallback((next: DreamsStatus): void => {
-    setStatus(next)
-    applyConfig(next)
-  }, [applyConfig])
 
   const reloadStatus = useCallback(async (): Promise<void> => {
     if (!available) {
@@ -72,13 +54,13 @@ export function useDreamsSettings({
 
     try {
       const result = await window.api.appServer.sendRequest('dreams/status', {}, 20_000)
-      applyStatusSnapshot(normalizeDreamsStatus(result))
+      setStatus(normalizeDreamsStatus(result))
     } catch (err) {
       addToast(t('settings.personalization.dreamsStatusFailed', {
         error: err instanceof Error ? err.message : String(err)
       }), 'error')
     }
-  }, [applyStatusSnapshot, available, t])
+  }, [available, t])
 
   const reloadRuns = useCallback(async (): Promise<void> => {
     if (!available) {
@@ -111,34 +93,20 @@ export function useDreamsSettings({
     }
   }, [available, dreamsPageActive, reloadRuns])
 
-  const updateConfig = useCallback(
-    async <T,>(
-      params: Record<string, unknown>,
-      previous: T,
-      set: (value: T) => void,
-      reloadCore = false
-    ): Promise<void> => {
-      setApplying(true)
-      try {
-        await window.api.appServer.sendRequest('workspace/config/update', params)
-        if (reloadCore) await reloadWorkspaceCore()
-        await reloadStatus()
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        set(previous)
-        addToast(t('settings.personalization.dreamsSaveFailed', { error: msg }), 'error')
-      } finally {
-        setApplying(false)
-      }
-    },
-    [reloadStatus, reloadWorkspaceCore, t]
-  )
+  const updateConfig = useCallback(async (keyPath: string, value: unknown): Promise<void> => {
+    setApplying(true)
+    try {
+      const saved = await writeConfig([{ keyPath, value }], (error) =>
+        t('settings.personalization.dreamsSaveFailed', { error }))
+      if (saved) await reloadStatus()
+    } finally {
+      setApplying(false)
+    }
+  }, [reloadStatus, t])
 
   const toggleEnabled = useCallback(async (checked: boolean): Promise<void> => {
-    const previous = enabled
-    setEnabled(checked)
-    await updateConfig({ dreamsEnabled: checked }, previous, setEnabled)
-  }, [enabled, updateConfig])
+    await updateConfig('Dreams.Enabled', checked)
+  }, [updateConfig])
 
   const toggleAutoApply = useCallback(async (checked: boolean): Promise<void> => {
     if (checked && !autoApply) {
@@ -152,22 +120,16 @@ export function useDreamsSettings({
       if (!confirmed) return
     }
 
-    const previous = autoApply
-    setAutoApply(checked)
-    await updateConfig({ dreamsAutoApply: checked }, previous, setAutoApply, true)
+    await updateConfig('Dreams.AutoApply', checked)
   }, [autoApply, confirm, t, updateConfig])
 
   const changeInterval = useCallback(async (next: string): Promise<void> => {
-    const previous = runInterval
-    setRunInterval(next)
-    await updateConfig({ dreamsInterval: next }, previous, setRunInterval)
-  }, [runInterval, updateConfig])
+    await updateConfig('Dreams.Interval', formatDreamsIntervalForConfig(next))
+  }, [updateConfig])
 
   const changeThreadLookback = useCallback(async (next: number): Promise<void> => {
-    const previous = threadLookbackCount
-    setThreadLookbackCount(next)
-    await updateConfig({ dreamsThreadLookbackCount: next }, previous, setThreadLookbackCount)
-  }, [threadLookbackCount, updateConfig])
+    await updateConfig('Dreams.ThreadLookbackCount', next)
+  }, [updateConfig])
 
   const runNow = useCallback(async (): Promise<void> => {
     if (running) return
@@ -176,11 +138,11 @@ export function useDreamsSettings({
     try {
       const result = await window.api.appServer.sendRequest('dreams/run', {}, 20_000)
       let next = normalizeDreamsStatus(result)
-      applyStatusSnapshot(next)
+      setStatus(next)
       for (let attempt = 0; next.running && attempt < 12; attempt++) {
         await delay(1500)
         next = normalizeDreamsStatus(await window.api.appServer.sendRequest('dreams/status', {}, 20_000))
-        applyStatusSnapshot(next)
+        setStatus(next)
       }
       if (next.lastRun?.status === 'failed') {
         addToast(t('settings.personalization.dreamsRunFailed', {
@@ -198,7 +160,7 @@ export function useDreamsSettings({
     } finally {
       setRunning(false)
     }
-  }, [applyStatusSnapshot, reloadRuns, running, t])
+  }, [reloadRuns, running, t])
 
   const openReview = useCallback(async (runId: string): Promise<void> => {
     if (!dashboardUrl) return
@@ -281,13 +243,14 @@ export function useDreamsSettings({
   }, [archiveAllDisabled, confirm, reloadRuns, runs, t])
 
   const intervalOptions = useMemo(() => {
-    return DREAMS_INTERVAL_OPTIONS.includes(runInterval as typeof DREAMS_INTERVAL_OPTIONS[number])
+    return !runInterval || DREAMS_INTERVAL_OPTIONS.includes(runInterval as typeof DREAMS_INTERVAL_OPTIONS[number])
       ? [...DREAMS_INTERVAL_OPTIONS]
       : [runInterval, ...DREAMS_INTERVAL_OPTIONS]
   }, [runInterval])
 
   const threadLookbackOptions = useMemo(() => {
-    return DREAMS_THREAD_LOOKBACK_OPTIONS.includes(threadLookbackCount as typeof DREAMS_THREAD_LOOKBACK_OPTIONS[number])
+    return threadLookbackCount == null
+      || DREAMS_THREAD_LOOKBACK_OPTIONS.includes(threadLookbackCount as typeof DREAMS_THREAD_LOOKBACK_OPTIONS[number])
       ? [...DREAMS_THREAD_LOOKBACK_OPTIONS]
       : [threadLookbackCount, ...DREAMS_THREAD_LOOKBACK_OPTIONS]
   }, [threadLookbackCount])
@@ -306,7 +269,6 @@ export function useDreamsSettings({
     archiveAllDisabled,
     intervalOptions,
     threadLookbackOptions,
-    applyConfig,
     reloadStatus,
     reloadRuns,
     toggleEnabled,

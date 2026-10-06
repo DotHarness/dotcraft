@@ -1,20 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  filterWorkspaceConfigChangedRegions,
-  normalizeWorkspaceConfigChangedPayload,
-  resolveWorkspaceConfigChangedPayload
-} from '../utils/workspaceConfigChanged'
+  filterConfigChangedRegions,
+  normalizeConfigChangedPayload,
+  resolveConfigChangedPayload
+} from '../utils/configChanged'
 
-describe('workspaceConfigChanged utils', () => {
-  it('normalizes workspace/configChanged payloads', () => {
+describe('configChanged utils', () => {
+  it('normalizes config/changed payloads', () => {
     const getNow = vi.fn(() => '2026-04-19T10:15:03.000Z')
 
     expect(
-      normalizeWorkspaceConfigChangedPayload(
+      normalizeConfigChangedPayload(
         {
-          method: 'workspace/configChanged',
+          method: 'config/changed',
           params: {
-            source: 'workspace/config/update',
+            source: 'config/batchWrite',
             regions: ['skills', 'mcp', 123, null],
             changedAt: undefined
           }
@@ -22,7 +22,7 @@ describe('workspaceConfigChanged utils', () => {
         getNow
       )
     ).toEqual({
-      source: 'workspace/config/update',
+      source: 'config/batchWrite',
       regions: ['skills', 'mcp'],
       changedAt: '2026-04-19T10:15:03.000Z'
     })
@@ -30,15 +30,15 @@ describe('workspaceConfigChanged utils', () => {
 
   it('returns null for unrelated payloads or empty regions', () => {
     expect(
-      normalizeWorkspaceConfigChangedPayload({
+      normalizeConfigChangedPayload({
         method: 'turn/started',
         params: {}
       })
     ).toBeNull()
 
     expect(
-      normalizeWorkspaceConfigChangedPayload({
-        method: 'workspace/configChanged',
+      normalizeConfigChangedPayload({
+        method: 'config/changed',
         params: { regions: [] }
       })
     ).toBeNull()
@@ -47,9 +47,9 @@ describe('workspaceConfigChanged utils', () => {
   it('deduplicates repeated source and region pairs within the short window', () => {
     const dedupe = new Map<string, number>()
 
-    const first = resolveWorkspaceConfigChangedPayload(
+    const first = resolveConfigChangedPayload(
       {
-        method: 'workspace/configChanged',
+        method: 'config/changed',
         params: {
           source: 'skills/setEnabled',
           regions: ['skills'],
@@ -58,9 +58,9 @@ describe('workspaceConfigChanged utils', () => {
       },
       dedupe
     )
-    const second = resolveWorkspaceConfigChangedPayload(
+    const second = resolveConfigChangedPayload(
       {
-        method: 'workspace/configChanged',
+        method: 'config/changed',
         params: {
           source: 'skills/setEnabled',
           regions: ['skills'],
@@ -75,11 +75,11 @@ describe('workspaceConfigChanged utils', () => {
   })
 
   it('keeps non-duplicated regions when only part of the event is deduped', () => {
-    const dedupe = new Map<string, number>([['workspace/config/update:skills', Date.parse('2026-04-19T10:15:03.000Z')]])
+    const dedupe = new Map<string, number>([['config/batchWrite:skills', Date.parse('2026-04-19T10:15:03.000Z')]])
 
-    const event = filterWorkspaceConfigChangedRegions(
+    const event = filterConfigChangedRegions(
       {
-        source: 'workspace/config/update',
+        source: 'config/batchWrite',
         regions: ['skills', 'mcp', 'externalChannel'],
         changedAt: '2026-04-19T10:15:03.500Z'
       },
@@ -87,7 +87,7 @@ describe('workspaceConfigChanged utils', () => {
     )
 
     expect(event).toEqual({
-      source: 'workspace/config/update',
+      source: 'config/batchWrite',
       regions: ['mcp', 'externalChannel'],
       changedAt: '2026-04-19T10:15:03.500Z'
     })

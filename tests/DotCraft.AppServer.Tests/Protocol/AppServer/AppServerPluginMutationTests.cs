@@ -279,34 +279,6 @@ public sealed partial class AppServerPluginManagementTests
     }
 
     [Fact]
-    public async Task WorkspaceConfigUpdate_TogglesToolsLspEnabledAndEmitsLspRegion()
-    {
-        var config = new AppConfig();
-        config.Tools.Lsp.Enabled = false;
-        var changes = new List<AppConfigChangedEventArgs>();
-        using var harness = CreateHarness(config);
-        harness.Monitor.Changed += OnChanged;
-        await harness.InitializeAsync();
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new { toolsLspEnabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        Assert.True(response.RootElement.GetProperty("result").GetProperty("toolsLspEnabled").GetBoolean());
-        Assert.True(config.Tools.Lsp.Enabled);
-        var change = Assert.Single(changes);
-        Assert.Contains(ConfigChangeRegions.Lsp, change.Regions);
-        var configJson = await File.ReadAllTextAsync(Path.Combine(_workspaceCraftPath, "config.json"));
-        Assert.Contains("\"Tools\"", configJson, StringComparison.Ordinal);
-        Assert.Contains("\"Lsp\"", configJson, StringComparison.Ordinal);
-        Assert.Contains("\"Enabled\": true", configJson, StringComparison.Ordinal);
-
-        harness.Monitor.Changed -= OnChanged;
-        void OnChanged(object? sender, AppConfigChangedEventArgs args) => changes.Add(args);
-    }
-
-    [Fact]
     public async Task PluginSetEnabled_DisablesBrowserAndWritesCanonicalId()
     {
         var loader = CreateSkillsLoader(new AppConfig());

@@ -51,7 +51,7 @@ describe('PluginsView catalog', () => {
 
     await waitFor(() => {
       expect(workspacePickFolder).toHaveBeenCalledWith({ title: 'Select plugin folder' })
-      expect(appServerSendRequest).toHaveBeenCalledWith('plugin/installLocal', { path: '/disk/my-plugin' })
+      expect(appServerSendRequest).toHaveBeenCalledWith('plugin/installLocal', { path: '/disk/my-plugin', scope: 'workspace' })
     })
   })
 

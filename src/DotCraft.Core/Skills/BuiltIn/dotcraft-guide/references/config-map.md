@@ -22,9 +22,9 @@ Workspace values win. Neither file has to exist.
 
 ## File edits need a restart
 
-The running host does not watch these files. `AppConfig` is a snapshot taken at startup. A file edit takes effect at the next AppServer restart, and the Desktop settings pages do not pick it up in the meantime. Say "restart to apply" after every file edit, and never describe a file edit as already live.
+The running host does not watch these files. A hand edit takes effect at the next AppServer restart; Desktop Settings may show the edited value before then while the runtime still uses the old one. Say "restart to apply" after every file edit, and never describe a file edit as already live.
 
-The `hot` reload tier reported by `dotcraft config schema` describes changes made through Desktop Settings or the AppServer RPC surface. It does not apply to a hand-edited file. When the user wants a setting live now, point them at the matching Desktop Settings panel instead of editing the file.
+The reload tier reported by `dotcraft config schema` describes changes made through Desktop Settings or the AppServer configuration methods: `hot` fields take effect on their next use, `subsystemRestart` fields restart the affected subsystem automatically, and `processRestart` fields wait for an AppServer restart. None of this applies to a hand-edited file. When the user wants a setting live now, point them at the matching Desktop Settings panel instead of editing the file.
 
 ## Sections
 

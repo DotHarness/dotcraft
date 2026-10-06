@@ -243,7 +243,7 @@ public sealed class AppServerHost(
 
     private void SubscribeRuntimeEvents()
     {
-        runtime.WorkspaceConfigChanged += BroadcastWorkspaceConfigChanged;
+        runtime.ConfigChanged += BroadcastConfigChanged;
         runtime.McpStatusChanged += OnRuntimeMcpStatusChanged;
         runtime.PlanUpdated += BroadcastPlanUpdated;
         runtime.ThreadStarted += BroadcastThreadStarted;
@@ -280,7 +280,7 @@ public sealed class AppServerHost(
 
     private void UnsubscribeRuntimeEvents()
     {
-        runtime.WorkspaceConfigChanged -= BroadcastWorkspaceConfigChanged;
+        runtime.ConfigChanged -= BroadcastConfigChanged;
         runtime.McpStatusChanged -= OnRuntimeMcpStatusChanged;
         runtime.PlanUpdated -= BroadcastPlanUpdated;
         runtime.ThreadStarted -= BroadcastThreadStarted;
@@ -366,6 +366,7 @@ public sealed class AppServerHost(
                 StreamDebugLogger = _services.GetService<SessionStreamDebugLogger>(),
                 LoggerFactory = _services.GetService<Microsoft.Extensions.Logging.ILoggerFactory>(),
                 ConfigSchema = runtime.ConfigSchema,
+                Configuration = runtime.Configuration,
                 AppConfigMonitor = _services.GetRequiredService<IAppConfigMonitor>(),
                 RuntimeRefreshers = _services.GetServices<ISessionRuntimeRefresher>().ToArray(),
                 ChatClientRegistry = _services.GetRequiredService<ChatClientRegistry>(),
@@ -1186,9 +1187,9 @@ public sealed class AppServerHost(
         }
     }
 
-    private void BroadcastWorkspaceConfigChanged(AppConfigChangedEventArgs change)
+    private void BroadcastConfigChanged(AppConfigChangedEventArgs change)
     {
-        var parameters = new Contract.WorkspaceConfigChangedParams
+        var parameters = new Contract.ConfigChangedParams
         {
             Source = change.Source,
             Regions = change.Regions.ToArray(),
@@ -1197,14 +1198,14 @@ public sealed class AppServerHost(
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.SupportsConfigChange || !connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigChanged))
+            if (!connection.SupportsConfigChange || !connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigChanged))
                 continue;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await transport.NotifyContractAsync(Contract.AppServerRpc.WorkspaceConfigChanged, parameters, CancellationToken.None);
+                    await transport.NotifyContractAsync(Contract.AppServerRpc.ConfigChanged, parameters, CancellationToken.None);
                 }
                 catch
                 {

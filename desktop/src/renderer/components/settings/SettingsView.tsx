@@ -33,6 +33,13 @@ import {
 } from '../../../shared/providerProtocols'
 import { useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
+import {
+  readConfigValue,
+  useConfig,
+  useConfigSetting,
+  useConfigStore,
+  type ConfigSetting
+} from '../../stores/configStore'
 import { usePluginStore } from '../../stores/pluginStore'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { usePendingRestartStore } from '../../stores/pendingRestartStore'
@@ -82,16 +89,8 @@ import { MemorySettingsGroup } from './panels/memory/MemorySettingsGroup'
 import { useDreamsSettings } from './panels/memory/useDreamsSettings'
 import { ImageGenerationSettingsGroup } from './panels/imageGeneration/ImageGenerationSettingsGroup'
 import { canProviderCreateImages } from './panels/imageGeneration/imageGenerationModel'
-import { useImageGenerationSettings } from './panels/imageGeneration/useImageGenerationSettings'
 import { CodeModeSettingsGroup } from './panels/codeMode/CodeModeSettingsGroup'
-import { useCodeModeSettings, type CodeModeMode } from './panels/codeMode/useCodeModeSettings'
 import { InstantInterruptRow } from './panels/instantInterrupt/InstantInterruptRow'
-import { useInstantInterruptSettings } from './panels/instantInterrupt/useInstantInterruptSettings'
-import {
-  DEFAULT_DREAMS_INTERVAL,
-  DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT,
-  normalizeDreamsInterval
-} from './panels/memory/dreamsModel'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { GeneralPanel } from './panels/GeneralPanel'
 import { FollowUpBehaviorRow } from './panels/FollowUpBehaviorRow'
@@ -127,10 +126,11 @@ import type {
   BrowserUseApprovalMode,
   ConnectionMode
 } from '../../../preload/api'
-import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
+import type { ConfigChangedPayload } from '../../utils/configChanged'
 import { slugProviderId, uniqueProviderId } from '../../utils/providerId'
 import { formatPlanLabel } from '../../utils/chatgptPlan'
 import { isSessionImportAvailable } from '../../utils/sessionImport'
+import { providerPreferenceEdit, resolveWorkspaceProviderFromConfig } from '../../utils/workspaceCoreConfig'
 import {
   cloneModelPreference,
   createManualModelPreference,
@@ -168,7 +168,7 @@ interface SettingsViewProps {
   workspacePath?: string
   identityWorkspacePath?: string
   onThreadListRefreshRequested?: () => void
-  workspaceConfigChange?: WorkspaceConfigChangedPayload | null
+  workspaceConfigChange?: ConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
   openChromeSettingsSeq?: number
 }
@@ -178,49 +178,6 @@ interface McpTestResultWire {
   errorCode?: string
   errorMessage?: string
   toolCount?: number
-}
-
-interface WorkspaceCoreConfig {
-  providerId: string | null
-  providerPreferences: ProviderPreferences
-  welcomeSuggestionsEnabled: boolean | null
-  promptSuggestionsEnabled: boolean | null
-  skillsSelfLearningEnabled: boolean | null
-  skillsIncludeSharedSkills: boolean | null
-  memoryEnabled: boolean | null
-  dreamsEnabled: boolean | null
-  dreamsInterval: string | null
-  dreamsThreadLookbackCount: number | null
-  dreamsAutoApply: boolean | null
-  defaultApprovalPolicy: VisibleApprovalPolicy | null
-  toolsImageGenerationEnabled: boolean | null
-  toolsImageGenerationProvider: string | null
-  toolsCodeModeMode: CodeModeMode | null
-  instantInterruptEnabled: boolean | null
-}
-
-interface WorkspaceCoreConfigResult {
-  workspace: WorkspaceCoreConfig
-  userDefaults: WorkspaceCoreConfig
-}
-
-const EMPTY_WORKSPACE_CORE_CONFIG: WorkspaceCoreConfig = {
-  providerId: null,
-  providerPreferences: {},
-  welcomeSuggestionsEnabled: null,
-  promptSuggestionsEnabled: null,
-  skillsSelfLearningEnabled: null,
-  skillsIncludeSharedSkills: null,
-  memoryEnabled: null,
-  dreamsEnabled: null,
-  dreamsInterval: null,
-  dreamsThreadLookbackCount: null,
-  dreamsAutoApply: null,
-  defaultApprovalPolicy: null,
-  toolsImageGenerationEnabled: null,
-  toolsImageGenerationProvider: null,
-  toolsCodeModeMode: null,
-  instantInterruptEnabled: null
 }
 
 interface ProviderDraft {
@@ -317,127 +274,6 @@ function isOfficialOpenAIEndpoint(endpoint: string): boolean {
 
 type VisibleApprovalPolicy = 'default' | 'autoApprove'
 const SETTINGS_SELECT_WIDTH = '240px'
-
-function normalizeVisibleApprovalPolicy(value: unknown): VisibleApprovalPolicy | null {
-  return value === 'default' || value === 'autoApprove' ? value : null
-}
-
-function resolveEffectiveProviderPreference(
-  workspaceProviderPreferences: ProviderPreferences,
-  userProviderPreferences: ProviderPreferences,
-  providerId: string
-): ModelPreference | null {
-  return findProviderPreference(workspaceProviderPreferences, providerId)
-    ?? findProviderPreference(userProviderPreferences, providerId)
-}
-
-function normalizeWorkspaceCoreConfig(value: unknown): WorkspaceCoreConfig {
-  const source = value != null && typeof value === 'object' ? value as Partial<WorkspaceCoreConfig> : {}
-  return {
-    providerId: typeof source.providerId === 'string' ? source.providerId : null,
-    providerPreferences: readProviderPreferences(source.providerPreferences),
-    welcomeSuggestionsEnabled:
-      typeof source.welcomeSuggestionsEnabled === 'boolean'
-        ? source.welcomeSuggestionsEnabled
-        : null,
-    promptSuggestionsEnabled:
-      typeof source.promptSuggestionsEnabled === 'boolean'
-        ? source.promptSuggestionsEnabled
-        : null,
-    skillsSelfLearningEnabled:
-      typeof source.skillsSelfLearningEnabled === 'boolean'
-        ? source.skillsSelfLearningEnabled
-        : null,
-    skillsIncludeSharedSkills:
-      typeof source.skillsIncludeSharedSkills === 'boolean'
-        ? source.skillsIncludeSharedSkills
-        : null,
-    memoryEnabled:
-      typeof source.memoryEnabled === 'boolean'
-        ? source.memoryEnabled
-        : null,
-    dreamsEnabled:
-      typeof source.dreamsEnabled === 'boolean'
-        ? source.dreamsEnabled
-        : null,
-    dreamsInterval: normalizeDreamsInterval(source.dreamsInterval),
-    dreamsThreadLookbackCount:
-      typeof source.dreamsThreadLookbackCount === 'number' && Number.isInteger(source.dreamsThreadLookbackCount) && source.dreamsThreadLookbackCount > 0
-        ? source.dreamsThreadLookbackCount
-        : null,
-    dreamsAutoApply:
-      typeof source.dreamsAutoApply === 'boolean'
-        ? source.dreamsAutoApply
-        : null,
-    defaultApprovalPolicy: normalizeVisibleApprovalPolicy(source.defaultApprovalPolicy),
-    toolsImageGenerationEnabled:
-      typeof source.toolsImageGenerationEnabled === 'boolean' ? source.toolsImageGenerationEnabled : null,
-    toolsImageGenerationProvider:
-      typeof source.toolsImageGenerationProvider === 'string' ? source.toolsImageGenerationProvider : null,
-    toolsCodeModeMode:
-      source.toolsCodeModeMode === 'off' || source.toolsCodeModeMode === 'on' || source.toolsCodeModeMode === 'only'
-        ? source.toolsCodeModeMode
-        : null,
-    instantInterruptEnabled:
-      typeof source.instantInterruptEnabled === 'boolean' ? source.instantInterruptEnabled : null
-  }
-}
-
-function createEmptyWorkspaceCoreResult(): WorkspaceCoreConfigResult {
-  return {
-    workspace: { ...EMPTY_WORKSPACE_CORE_CONFIG },
-    userDefaults: { ...EMPTY_WORKSPACE_CORE_CONFIG }
-  }
-}
-
-function normalizeWorkspaceCoreResult(value: unknown): WorkspaceCoreConfigResult {
-  if (value == null || typeof value !== 'object') {
-    return createEmptyWorkspaceCoreResult()
-  }
-
-  const source = value as Partial<WorkspaceCoreConfigResult>
-  return {
-    workspace: normalizeWorkspaceCoreConfig(source.workspace),
-    userDefaults: normalizeWorkspaceCoreConfig(source.userDefaults)
-  }
-}
-
-type WorkspaceCoreReadApi = {
-  workspaceConfig?: {
-    getCore?: (() => Promise<unknown>) | undefined
-  } | undefined
-} | undefined
-
-function getWorkspaceCoreReader(api: WorkspaceCoreReadApi): (() => Promise<unknown>) | null {
-  const getCore = api?.workspaceConfig?.getCore
-  return typeof getCore === 'function' ? getCore : null
-}
-
-export async function readWorkspaceCoreSafeFromApi(
-  api: WorkspaceCoreReadApi
-): Promise<WorkspaceCoreConfigResult> {
-  const getCore = getWorkspaceCoreReader(api)
-  if (!getCore) {
-    return createEmptyWorkspaceCoreResult()
-  }
-
-  try {
-    return normalizeWorkspaceCoreResult(await getCore())
-  } catch {
-    return createEmptyWorkspaceCoreResult()
-  }
-}
-
-export async function readWorkspaceCoreStrictFromApi(
-  api: WorkspaceCoreReadApi
-): Promise<WorkspaceCoreConfigResult> {
-  const getCore = getWorkspaceCoreReader(api)
-  if (!getCore) {
-    throw new Error('Workspace core API is unavailable')
-  }
-
-  return normalizeWorkspaceCoreResult(await getCore())
-}
 
 const DEFAULT_WS_HOST = '127.0.0.1'
 const DEFAULT_WS_PORT = 9100
@@ -675,24 +511,6 @@ export function SettingsView({
     remoteUrl: string
     remoteToken: string
   } | null>(null)
-  const [userDefaultCore, setUserDefaultCore] = useState<WorkspaceCoreConfig>({
-    providerId: null,
-    providerPreferences: {},
-    welcomeSuggestionsEnabled: null,
-    promptSuggestionsEnabled: null,
-    skillsSelfLearningEnabled: null,
-    skillsIncludeSharedSkills: null,
-    memoryEnabled: null,
-    dreamsEnabled: null,
-    dreamsInterval: null,
-    dreamsThreadLookbackCount: null,
-    dreamsAutoApply: null,
-    defaultApprovalPolicy: null,
-    toolsImageGenerationEnabled: null,
-    toolsImageGenerationProvider: null,
-    toolsCodeModeMode: null,
-    instantInterruptEnabled: null
-  })
   const [providersManagedRemotely, setProvidersManagedRemotely] = useState(false)
   const [providers, setProviders] = useState<ProviderInfoWire[]>([])
   const [providersLoading, setProvidersLoading] = useState(false)
@@ -709,7 +527,6 @@ export function SettingsView({
   const [workspacePreference, setWorkspacePreference] = useState<ModelPreference>(
     () => createManualModelPreference('')
   )
-  const [providerPreferences, setProviderPreferences] = useState<ProviderPreferences>({})
   const [providerTestResult, setProviderTestResult] = useState<ProviderTestResultWire | null>(null)
   const [testingProvider, setTestingProvider] = useState(false)
   const [savingProvider, setSavingProvider] = useState(false)
@@ -726,23 +543,39 @@ export function SettingsView({
   const [subAgentProviderPreferences, setSubAgentProviderPreferences] = useState<ProviderPreferences>({})
   const subAgentProviderPreferencesRef = useRef<ProviderPreferences>({})
   const [applyingSubAgentModel, setApplyingSubAgentModel] = useState(false)
-  const [welcomeSuggestionsEnabled, setWelcomeSuggestionsEnabled] = useState(true)
-  const [applyingWelcomeSuggestions, setApplyingWelcomeSuggestions] = useState(false)
-  const [promptSuggestionsEnabled, setPromptSuggestionsEnabled] = useState(true)
-  const [applyingPromptSuggestions, setApplyingPromptSuggestions] = useState(false)
-  const [selfLearningEnabled, setSelfLearningEnabled] = useState(true)
-  const [applyingSelfLearning, setApplyingSelfLearning] = useState(false)
-  const [includeSharedSkills, setIncludeSharedSkills] = useState(true)
-  const [applyingIncludeSharedSkills, setApplyingIncludeSharedSkills] = useState(false)
   const [skillsRestartPending, setSkillsRestartPending] = useState(false)
-  const [memoryEnabled, setMemoryEnabled] = useState(true)
-  const [applyingMemory, setApplyingMemory] = useState(false)
   const [resettingMemory, setResettingMemory] = useState(false)
-  const [defaultApprovalPolicy, setDefaultApprovalPolicy] = useState<VisibleApprovalPolicy>('default')
-  const [applyingDefaultApprovalPolicy, setApplyingDefaultApprovalPolicy] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const settingsCloseRequestSeqRef = useRef(settingsCloseRequestSeq)
-  const workspaceCoreApiAvailable = getWorkspaceCoreReader(window.api) != null
+  const workspaceConfig = useConfig()
+  const configProviderPreferences = useMemo(
+    () => readProviderPreferences(readConfigValue(workspaceConfig, 'ProviderPreferences')),
+    [workspaceConfig]
+  )
+  const configProviderId = resolveWorkspaceProviderFromConfig(workspaceConfig ?? {})
+  const configLlmKey = workspaceConfig == null
+    ? null
+    : JSON.stringify([configProviderId, findProviderPreference(configProviderPreferences, configProviderId)])
+  const configLlm = useMemo(
+    () => configLlmKey == null ? null : JSON.parse(configLlmKey) as [string, ModelPreference | null],
+    [configLlmKey]
+  )
+  const welcomeSuggestions = useConfigSetting('WelcomeSuggestions.Enabled', (error) =>
+    t('settings.personalization.welcomeSuggestionsSaveFailed', { error }))
+  const promptSuggestions = useConfigSetting('PromptSuggestions.Enabled', (error) =>
+    t('settings.personalization.promptSuggestionsSaveFailed', { error }))
+  const selfLearning = useConfigSetting('Skills.SelfLearning.Enabled', (error) =>
+    t('settings.personalization.selfLearningSaveFailed', { error }))
+  const sharedSkills = useConfigSetting('Skills.IncludeSharedSkills', (error) =>
+    t('settings.personalization.sharedSkillsSaveFailed', { error }))
+  const memory = useConfigSetting('Memory.Enabled', (error) =>
+    t('settings.personalization.memory.saveFailed', { error }))
+  const defaultApproval = useConfigSetting('Permissions.DefaultApprovalPolicy', (error) =>
+    t('settings.permissions.saveFailed', { error }))
+  const selfLearningEnabled = selfLearning.value === true
+  const includeSharedSkills = sharedSkills.value === true
+  const memoryEnabled = memory.value === true
+  const defaultApprovalPolicy = typeof defaultApproval.value === 'string' ? defaultApproval.value : ''
 
   const [mcpServers, setMcpServers] = useState<McpServerConfigWire[]>([])
   const [mcpLoading, setMcpLoading] = useState(false)
@@ -774,17 +607,14 @@ export function SettingsView({
   const memoryManagementEnabled = capabilities?.memoryManagement === true
   const dreamsCapabilityEnabled = capabilities?.dreams === true
   const sessionImportEnabled = isSessionImportAvailable(capabilities)
-  const personalizationAvailable = workspaceCoreApiAvailable || memoryManagementEnabled || dreamsCapabilityEnabled
+  const configManagementEnabled = capabilities?.workspaceConfigManagement === true
+  const personalizationAvailable = configManagementEnabled || memoryManagementEnabled || dreamsCapabilityEnabled
   const dreams = useDreamsSettings({
     available: dreamsCapabilityEnabled,
     personalizationActive: activeSettingsTab === 'personalization',
     dreamsPageActive: activeSettingsTab === 'dreams',
-    dashboardUrl,
-    reloadWorkspaceCore
+    dashboardUrl
   })
-  const imageGeneration = useImageGenerationSettings(reloadWorkspaceCore)
-  const codeMode = useCodeModeSettings(reloadWorkspaceCore)
-  const instantInterrupt = useInstantInterruptSettings(reloadWorkspaceCore)
   const browserUsePlugin = plugins.find((plugin) => plugin.id === 'browser') ?? null
   const browserUsePluginReady = !pluginManagementEnabled || browserUsePlugin?.installed === true
   const selectedProvider = providers.find((provider) => provider.id === selectedProviderId) ?? null
@@ -827,82 +657,15 @@ export function SettingsView({
       : null,
     [manualRemoteConnection, remoteToken, remoteUrl]
   )
-  function applyWorkspaceCoreBaseline(core: WorkspaceCoreConfigResult, keepDraftValues: boolean): void {
-    setUserDefaultCore(core.userDefaults)
-    if (!keepDraftValues) {
-      const resolvedProviderId = core.workspace.providerId ?? core.userDefaults.providerId ?? 'openai'
-      selectedProviderIdRef.current = resolvedProviderId
-      setSelectedProviderId(resolvedProviderId)
-      const resolvedPreference = resolveEffectiveProviderPreference(
-        core.workspace.providerPreferences,
-        core.userDefaults.providerPreferences,
-        resolvedProviderId
-      ) ?? createManualModelPreference('')
-      setWorkspacePreference(resolvedPreference)
-      setWorkspaceManualModelDraft(resolvedPreference.model)
-      setProviderPreferences({ ...core.workspace.providerPreferences })
-    }
-
-    const resolvedWelcomeSuggestionsEnabled =
-      core.workspace.welcomeSuggestionsEnabled ??
-      core.userDefaults.welcomeSuggestionsEnabled ??
-      true
-    setWelcomeSuggestionsEnabled(resolvedWelcomeSuggestionsEnabled)
-    setPromptSuggestionsEnabled(
-      core.workspace.promptSuggestionsEnabled ?? core.userDefaults.promptSuggestionsEnabled ?? true
-    )
-    const resolvedSelfLearningEnabled =
-      core.workspace.skillsSelfLearningEnabled ??
-      core.userDefaults.skillsSelfLearningEnabled ??
-      true
-    setSelfLearningEnabled(resolvedSelfLearningEnabled)
-    const resolvedIncludeSharedSkills =
-      core.workspace.skillsIncludeSharedSkills ??
-      core.userDefaults.skillsIncludeSharedSkills ??
-      true
-    setIncludeSharedSkills(resolvedIncludeSharedSkills)
-    setMemoryEnabled(core.workspace.memoryEnabled ?? core.userDefaults.memoryEnabled ?? true)
-    dreams.applyConfig({
-      enabled: core.workspace.dreamsEnabled ?? core.userDefaults.dreamsEnabled ?? false,
-      interval: core.workspace.dreamsInterval ?? core.userDefaults.dreamsInterval ?? DEFAULT_DREAMS_INTERVAL,
-      threadLookbackCount:
-        core.workspace.dreamsThreadLookbackCount
-        ?? core.userDefaults.dreamsThreadLookbackCount
-        ?? DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT,
-      autoApply: core.workspace.dreamsAutoApply ?? core.userDefaults.dreamsAutoApply ?? false
-    })
-    const resolvedDefaultApprovalPolicy =
-      core.workspace.defaultApprovalPolicy ??
-      core.userDefaults.defaultApprovalPolicy ??
-      'default'
-    setDefaultApprovalPolicy(resolvedDefaultApprovalPolicy)
-    imageGeneration.applyConfig({
-      enabled: core.workspace.toolsImageGenerationEnabled ?? core.userDefaults.toolsImageGenerationEnabled ?? true,
-      providerId: core.workspace.toolsImageGenerationProvider ?? core.userDefaults.toolsImageGenerationProvider ?? ''
-    })
-    codeMode.applyMode(core.workspace.toolsCodeModeMode ?? core.userDefaults.toolsCodeModeMode ?? 'only')
-    instantInterrupt.applyEnabled(
-      core.workspace.instantInterruptEnabled ?? core.userDefaults.instantInterruptEnabled ?? true
-    )
-
-    if (keepDraftValues) {
-      return
-    }
-
-  }
-
-  async function readWorkspaceCoreSafe(): Promise<WorkspaceCoreConfigResult> {
-    return readWorkspaceCoreSafeFromApi(window.api)
-  }
-
-  async function readWorkspaceCoreStrict(): Promise<WorkspaceCoreConfigResult> {
-    return readWorkspaceCoreStrictFromApi(window.api)
-  }
-
-  async function reloadWorkspaceCore(): Promise<void> {
-    const core = await readWorkspaceCoreSafe()
-    applyWorkspaceCoreBaseline(core, false)
-  }
+  useEffect(() => {
+    if (!configLlm) return
+    const [providerId, preference] = configLlm
+    selectedProviderIdRef.current = providerId
+    setSelectedProviderId(providerId)
+    const resolvedPreference = preference ?? createManualModelPreference('')
+    setWorkspacePreference(resolvedPreference)
+    setWorkspaceManualModelDraft(resolvedPreference.model)
+  }, [configLlm])
 
   async function reloadProviders(): Promise<boolean> {
     if (!providerManagementEnabled) {
@@ -1132,11 +895,7 @@ export function SettingsView({
     setProviderModelError('')
     try {
       const listedModels = await fetchWorkspaceProviderModelOptions(normalized)
-      const rememberedPreference = resolveEffectiveProviderPreference(
-        providerPreferences,
-        userDefaultCore.providerPreferences,
-        normalized
-      )
+      const rememberedPreference = findProviderPreference(configProviderPreferences, normalized)
       const listedRemembered = rememberedPreference == null
         ? undefined
         : listedModels?.find((model) => model.id === rememberedPreference.model)
@@ -1149,26 +908,16 @@ export function SettingsView({
         Object.assign(nextPreference, createCatalogDefaultPreference(listedModels[0], listedModels[0].id))
       }
 
-      const nextProviderPreferences = nextPreference.model
-        ? setProviderPreference(providerPreferences, normalized, nextPreference)
-        : providerPreferences
-
-      const updatePayload: { providerId: string; providerPreferences: ProviderPreferences } = {
-        providerId: normalized,
-        providerPreferences: nextProviderPreferences
-      }
-
-      await window.api.appServer.sendRequest('workspace/config/update', {
-        ...updatePayload,
-        providerPreferences: toContractProviderPreferences(updatePayload.providerPreferences)
-      }, 20_000)
+      await useConfigStore.getState().write([
+        { keyPath: 'ProviderId', value: normalized },
+        ...(nextPreference.model ? [providerPreferenceEdit(normalized, nextPreference)] : [])
+      ])
       selectedProviderIdRef.current = normalized
       setSelectedProviderId(normalized)
       if (listedModels != null) {
         setProviderModelCatalog(listedModels)
         setProviderModelError('')
       }
-      setProviderPreferences(nextProviderPreferences)
       setWorkspacePreference(nextPreference)
       setWorkspaceManualModelDraft(nextPreference.model)
 
@@ -1203,15 +952,7 @@ export function SettingsView({
       if (!activeProviderId || !nextPreference.model.trim()) return
       const normalized = cloneModelPreference(nextPreference)
       normalized.model = normalized.model.trim()
-      const nextProviderPreferences = setProviderPreference(
-        providerPreferences,
-        activeProviderId,
-        normalized
-      )
-      await window.api.appServer.sendRequest('workspace/config/update', {
-        providerPreferences: toContractProviderPreferences(nextProviderPreferences)
-      }, 20_000)
-      setProviderPreferences(nextProviderPreferences)
+      await useConfigStore.getState().write([providerPreferenceEdit(activeProviderId, normalized)])
       setWorkspacePreference(normalized)
       setWorkspaceManualModelDraft(normalized.model)
     } catch (err) {
@@ -1313,7 +1054,7 @@ export function SettingsView({
 
   async function handleWorkspaceManualModelCommit(): Promise<void> {
     const normalized = workspaceManualModelDraft.trim()
-    const persistedPreference = findProviderPreference(providerPreferences, selectedProviderId)
+    const persistedPreference = findProviderPreference(configProviderPreferences, selectedProviderId)
     if (normalized === (persistedPreference?.model ?? '') || applyingWorkspaceModel) {
       setWorkspaceManualModelDraft(persistedPreference?.model ?? '')
       return
@@ -1448,130 +1189,9 @@ export function SettingsView({
     }
   }
 
-  const handleWelcomeSuggestionsToggle = useCallback(
-    async (checked: boolean): Promise<void> => {
-      const previous = welcomeSuggestionsEnabled
-      setWelcomeSuggestionsEnabled(checked)
-      setApplyingWelcomeSuggestions(true)
-      try {
-        const result = await window.api.appServer.sendRequest('workspace/config/update', {
-          welcomeSuggestionsEnabled: checked
-        }) as { welcomeSuggestionsEnabled?: boolean | null }
-        const persisted = typeof result?.welcomeSuggestionsEnabled === 'boolean'
-          ? result.welcomeSuggestionsEnabled
-          : checked
-        setWelcomeSuggestionsEnabled(persisted)
-        await reloadWorkspaceCore()
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        setWelcomeSuggestionsEnabled(previous)
-        addToast(t('settings.personalization.welcomeSuggestionsSaveFailed', { error: msg }), 'error')
-      } finally {
-        setApplyingWelcomeSuggestions(false)
-      }
-    },
-    [reloadWorkspaceCore, t, welcomeSuggestionsEnabled]
-  )
-
-  const handlePromptSuggestionsToggle = useCallback(
-    async (checked: boolean): Promise<void> => {
-      const previous = promptSuggestionsEnabled
-      setPromptSuggestionsEnabled(checked)
-      setApplyingPromptSuggestions(true)
-      try {
-        const result = await window.api.appServer.sendRequest('workspace/config/update', {
-          promptSuggestionsEnabled: checked
-        }) as { promptSuggestionsEnabled?: boolean | null }
-        setPromptSuggestionsEnabled(result?.promptSuggestionsEnabled ?? checked)
-        await reloadWorkspaceCore()
-      } catch (err) {
-        setPromptSuggestionsEnabled(previous)
-        addToast(t('settings.personalization.promptSuggestionsSaveFailed', {
-          error: err instanceof Error ? err.message : String(err)
-        }), 'error')
-      } finally {
-        setApplyingPromptSuggestions(false)
-      }
-    },
-    [promptSuggestionsEnabled, reloadWorkspaceCore, t]
-  )
-
-  const handleSelfLearningToggle = useCallback(
-    async (checked: boolean): Promise<void> => {
-      const previous = selfLearningEnabled
-      setSelfLearningEnabled(checked)
-      setApplyingSelfLearning(true)
-      try {
-        const result = await window.api.appServer.sendRequest('workspace/config/update', {
-          skillsSelfLearningEnabled: checked
-        }) as { skillsSelfLearningEnabled?: boolean | null }
-        const persisted = typeof result?.skillsSelfLearningEnabled === 'boolean'
-          ? result.skillsSelfLearningEnabled
-          : checked
-        setSelfLearningEnabled(persisted)
-        setSkillsRestartPending(true)
-        await reloadWorkspaceCore()
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        setSelfLearningEnabled(previous)
-        addToast(t('settings.personalization.selfLearningSaveFailed', { error: msg }), 'error')
-      } finally {
-        setApplyingSelfLearning(false)
-      }
-    },
-    [reloadWorkspaceCore, selfLearningEnabled, t]
-  )
-
-  const handleIncludeSharedSkillsToggle = useCallback(
-    async (checked: boolean): Promise<void> => {
-      const previous = includeSharedSkills
-      setIncludeSharedSkills(checked)
-      setApplyingIncludeSharedSkills(true)
-      try {
-        const result = await window.api.appServer.sendRequest('workspace/config/update', {
-          skillsIncludeSharedSkills: checked
-        }) as { skillsIncludeSharedSkills?: boolean | null }
-        const persisted = typeof result?.skillsIncludeSharedSkills === 'boolean'
-          ? result.skillsIncludeSharedSkills
-          : checked
-        setIncludeSharedSkills(persisted)
-        setSkillsRestartPending(true)
-        await reloadWorkspaceCore()
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        setIncludeSharedSkills(previous)
-        addToast(t('settings.personalization.sharedSkillsSaveFailed', { error: msg }), 'error')
-      } finally {
-        setApplyingIncludeSharedSkills(false)
-      }
-    },
-    [includeSharedSkills, reloadWorkspaceCore, t]
-  )
-
-  const handleMemoryToggle = useCallback(
-    async (checked: boolean): Promise<void> => {
-      const previous = memoryEnabled
-      setMemoryEnabled(checked)
-      setApplyingMemory(true)
-      try {
-        const result = await window.api.appServer.sendRequest('workspace/config/update', {
-          memoryEnabled: checked
-        }) as { memoryEnabled?: boolean | null }
-        const persisted = typeof result?.memoryEnabled === 'boolean'
-          ? result.memoryEnabled
-          : checked
-        setMemoryEnabled(persisted)
-        await reloadWorkspaceCore()
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        setMemoryEnabled(previous)
-        addToast(t('settings.personalization.memory.saveFailed', { error: msg }), 'error')
-      } finally {
-        setApplyingMemory(false)
-      }
-    },
-    [memoryEnabled, reloadWorkspaceCore, t]
-  )
+  async function handleSkillsToggle(setting: ConfigSetting, checked: boolean): Promise<void> {
+    if (await setting.set(checked)) setSkillsRestartPending(true)
+  }
 
   const handleResetMemory = useCallback(
     async (): Promise<void> => {
@@ -1637,50 +1257,28 @@ export function SettingsView({
     [showInMenuBar, t]
   )
 
-  const handleDefaultApprovalPolicyChange = useCallback(
-    async (nextPolicy: VisibleApprovalPolicy): Promise<boolean> => {
-      if (nextPolicy === defaultApprovalPolicy || applyingDefaultApprovalPolicy) return false
+  async function handleDefaultApprovalPolicyChange(nextPolicy: VisibleApprovalPolicy): Promise<boolean> {
+    if (nextPolicy === defaultApprovalPolicy || defaultApproval.pending) return false
 
-      if (nextPolicy === 'autoApprove') {
-        const confirmed = await confirm({
-          title: t('settings.permissions.fullAccess.warningTitle'),
-          message: t('settings.permissions.fullAccess.warningBody'),
-          confirmLabel: t('settings.permissions.fullAccess.warningConfirm'),
-          cancelLabel: t('common.cancel'),
-          danger: true
-        })
-        if (!confirmed) return false
-      }
+    if (nextPolicy === 'autoApprove') {
+      const confirmed = await confirm({
+        title: t('settings.permissions.fullAccess.warningTitle'),
+        message: t('settings.permissions.fullAccess.warningBody'),
+        confirmLabel: t('settings.permissions.fullAccess.warningConfirm'),
+        cancelLabel: t('common.cancel'),
+        danger: true
+      })
+      if (!confirmed) return false
+    }
 
-      const previous = defaultApprovalPolicy
-      setDefaultApprovalPolicy(nextPolicy)
-      setApplyingDefaultApprovalPolicy(true)
-      try {
-        const result = await window.api.appServer.sendRequest('workspace/config/update', {
-          defaultApprovalPolicy: nextPolicy
-        }) as { defaultApprovalPolicy?: string | null }
-        const persisted = normalizeVisibleApprovalPolicy(result?.defaultApprovalPolicy) ?? nextPolicy
-        setDefaultApprovalPolicy(persisted)
-        await reloadWorkspaceCore()
-        return true
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        setDefaultApprovalPolicy(previous)
-        addToast(t('settings.permissions.saveFailed', { error: msg }), 'error')
-        return false
-      } finally {
-        setApplyingDefaultApprovalPolicy(false)
-      }
-    },
-    [applyingDefaultApprovalPolicy, confirm, defaultApprovalPolicy, reloadWorkspaceCore, t]
-  )
+    return defaultApproval.set(nextPolicy)
+  }
 
   useSettingsWorkspaceConfigChangeEffects({
     change: workspaceConfigChange,
     changeSeq: workspaceConfigChangeSeq,
     mcpEnabled,
     subAgentEnabled,
-    reloadWorkspaceCore,
     reloadDreamsStatus: dreams.reloadStatus,
     reloadMcpData: async () => {
       await Promise.all([reloadMcpServers(), reloadMcpStatuses()])
@@ -1750,11 +1348,6 @@ export function SettingsView({
       })
       .catch(() => {})
     setVersion(typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.1.0')
-    readWorkspaceCoreSafe()
-      .then((core) => {
-        applyWorkspaceCoreBaseline(core, false)
-      })
-    // `readWorkspaceCoreSafe` already normalizes missing bridge / failed reads.
   }, [isMac])
 
   useEffect(() => {
@@ -2266,7 +1859,6 @@ export function SettingsView({
     let needsAppServerRestart = skillsRestartPending && !targetIsRemote
     let appServerRestartAttempted = false
     let connectionApplied = false
-    let latestCore: WorkspaceCoreConfigResult | null = null
     setSaving(true)
     setRestartingAppServer(connectionDirty || needsAppServerRestart)
     try {
@@ -2284,10 +1876,6 @@ export function SettingsView({
         appServerRestartAttempted = true
         setExpectedRestart(true)
         await window.api.appServer.restartManaged()
-        if (!latestCore) {
-          latestCore = await readWorkspaceCoreStrict()
-        }
-        applyWorkspaceCoreBaseline(latestCore, false)
         setSkillsRestartPending(false)
         addToast(t('settings.restartAppServerSuccess'), 'success')
       } else if (connectionApplied) {
@@ -2468,10 +2056,10 @@ export function SettingsView({
 
                 <SettingsGroup title={t('settings.group.composer')}>
                   <FollowUpBehaviorRow />
-                  {workspaceCoreApiAvailable && !manualRemoteConnection && <InstantInterruptRow settings={instantInterrupt} />}
+                  <InstantInterruptRow />
                 </SettingsGroup>
 
-                <CodeModeSettingsGroup settings={codeMode} />
+                {configManagementEnabled && <CodeModeSettingsGroup />}
 
                 <SettingsGroup title={t('settings.group.permissions')}>
                   <SettingsRow
@@ -2482,7 +2070,7 @@ export function SettingsView({
                       <SettingsSelect
                         id="settings-default-approval-policy"
                         value={defaultApprovalPolicy}
-                        disabled={applyingDefaultApprovalPolicy}
+                        disabled={defaultApproval.pending}
                         ariaLabel={t('settings.permissions.workspaceDefault.label')}
                         onValueChange={(nextPolicy) => {
                           return handleDefaultApprovalPolicyChange(nextPolicy as VisibleApprovalPolicy)
@@ -2667,7 +2255,6 @@ export function SettingsView({
                     </SettingsGroup>
 
                     <ImageGenerationSettingsGroup
-                      settings={imageGeneration}
                       providers={providers}
                       providersLoading={providersLoading}
                       workspaceProviderId={selectedProviderId}
@@ -2711,11 +2298,7 @@ export function SettingsView({
                           const active = provider.id === selectedProviderId
                           const rememberedMainAgentPreference = active
                             ? workspacePreference
-                            : resolveEffectiveProviderPreference(
-                              providerPreferences,
-                              userDefaultCore.providerPreferences,
-                              provider.id
-                            )
+                            : findProviderPreference(configProviderPreferences, provider.id)
                           const rememberedSubAgentPreference = active
                             ? subAgentPreference
                             : findProviderPreference(subAgentProviderPreferences, provider.id)
@@ -3191,7 +2774,7 @@ export function SettingsView({
                 <SettingsGroup
                   title={t('settings.personalization.group.conversation')}
                 >
-                  {workspaceCoreApiAvailable && (
+                  {configManagementEnabled && (
                     <SettingsRow
                       label={t('settings.personalization.welcomeSuggestions')}
                       description={t('settings.personalization.welcomeSuggestionsHint')}
@@ -3201,27 +2784,27 @@ export function SettingsView({
                           disabledReason={memoryEnabled ? undefined : t('settings.personalization.memory.requiredForSuggestions')}
                         >
                           <PillSwitch
-                            checked={welcomeSuggestionsEnabled}
-                            disabled={applyingWelcomeSuggestions || !memoryEnabled}
+                            checked={welcomeSuggestions.value === true}
+                            disabled={welcomeSuggestions.pending || !memoryEnabled}
                             aria-label={t('settings.personalization.welcomeSuggestions')}
                             onChange={(checked) => {
-                              void handleWelcomeSuggestionsToggle(checked)
+                              void welcomeSuggestions.set(checked)
                             }}
                           />
                         </ActionTooltip>
                       }
                     />
                   )}
-                  {workspaceCoreApiAvailable && (
+                  {configManagementEnabled && (
                     <SettingsRow
                       label={t('settings.personalization.promptSuggestions')}
                       description={t('settings.personalization.promptSuggestionsHint')}
                       control={
                         <PillSwitch
-                          checked={promptSuggestionsEnabled}
-                          disabled={applyingPromptSuggestions}
+                          checked={promptSuggestions.value === true}
+                          disabled={promptSuggestions.pending}
                           aria-label={t('settings.personalization.promptSuggestions')}
-                          onChange={(checked) => { void handlePromptSuggestionsToggle(checked) }}
+                          onChange={(checked) => { void promptSuggestions.set(checked) }}
                         />
                       }
                     />
@@ -3240,7 +2823,7 @@ export function SettingsView({
                     }
                   />
                 </SettingsGroup>
-                {workspaceCoreApiAvailable && (
+                {configManagementEnabled && (
                   <SettingsGroup
                     title={t('settings.personalization.group.skills')}
                   >
@@ -3250,10 +2833,10 @@ export function SettingsView({
                       control={
                         <PillSwitch
                           checked={selfLearningEnabled}
-                          disabled={applyingSelfLearning}
+                          disabled={selfLearning.pending}
                           aria-label={t('settings.personalization.selfLearning')}
                           onChange={(checked) => {
-                            void handleSelfLearningToggle(checked)
+                            void handleSkillsToggle(selfLearning, checked)
                           }}
                         />
                       }
@@ -3264,24 +2847,24 @@ export function SettingsView({
                       control={
                         <PillSwitch
                           checked={includeSharedSkills}
-                          disabled={applyingIncludeSharedSkills}
+                          disabled={sharedSkills.pending}
                           aria-label={t('settings.personalization.sharedSkills')}
                           onChange={(checked) => {
-                            void handleIncludeSharedSkillsToggle(checked)
+                            void handleSkillsToggle(sharedSkills, checked)
                           }}
                         />
                       }
                     />
                   </SettingsGroup>
                 )}
-                {(workspaceCoreApiAvailable || memoryManagementEnabled || dreamsCapabilityEnabled) && (
+                {personalizationAvailable && (
                   <MemorySettingsGroup
-                    memoryToggle={workspaceCoreApiAvailable
+                    memoryToggle={configManagementEnabled
                       ? {
                           enabled: memoryEnabled,
-                          applying: applyingMemory,
+                          applying: memory.pending,
                           onToggle: (checked) => {
-                            void handleMemoryToggle(checked)
+                            void memory.set(checked)
                           }
                         }
                       : null}

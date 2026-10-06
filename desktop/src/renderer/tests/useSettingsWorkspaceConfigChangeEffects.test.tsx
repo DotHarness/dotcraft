@@ -1,14 +1,14 @@
 import { render, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSettingsWorkspaceConfigChangeEffects } from '../hooks/useSettingsWorkspaceConfigChangeEffects'
-import type { WorkspaceConfigChangedPayload } from '../utils/workspaceConfigChanged'
+import { useConfigStore } from '../stores/configStore'
+import type { ConfigChangedPayload } from '../utils/configChanged'
 
 function HookHost(props: {
-  change: WorkspaceConfigChangedPayload | null
+  change: ConfigChangedPayload | null
   changeSeq: number
   mcpEnabled?: boolean
   subAgentEnabled?: boolean
-  reloadWorkspaceCore?: () => Promise<void> | void
   reloadDreamsStatus?: () => Promise<void> | void
   reloadMcpData?: () => Promise<void> | void
   reloadSubAgentData?: () => Promise<void> | void
@@ -18,7 +18,6 @@ function HookHost(props: {
     changeSeq: props.changeSeq,
     mcpEnabled: props.mcpEnabled ?? false,
     subAgentEnabled: props.subAgentEnabled ?? false,
-    reloadWorkspaceCore: props.reloadWorkspaceCore ?? vi.fn(),
     reloadDreamsStatus: props.reloadDreamsStatus,
     reloadMcpData: props.reloadMcpData ?? vi.fn(),
     reloadSubAgentData: props.reloadSubAgentData ?? vi.fn()
@@ -27,23 +26,31 @@ function HookHost(props: {
   return <div />
 }
 
+const refreshConfig = vi.fn()
+
+beforeEach(() => {
+  refreshConfig.mockReset()
+  useConfigStore.setState({ refresh: refreshConfig })
+})
+
 describe('useSettingsWorkspaceConfigChangeEffects', () => {
   it('does not replay an already-seen event on initial mount', () => {
-    const reloadWorkspaceCore = vi.fn()
+    const reloadDreamsStatus = vi.fn()
 
     render(
       <HookHost
         change={{
-          source: 'workspace/config/update',
-          regions: ['workspace.model'],
+          source: 'config/value/write',
+          regions: ['Dreams.Enabled'],
           changedAt: '2026-04-19T10:15:03Z'
         }}
         changeSeq={1}
-        reloadWorkspaceCore={reloadWorkspaceCore}
+        reloadDreamsStatus={reloadDreamsStatus}
       />
     )
 
-    expect(reloadWorkspaceCore).not.toHaveBeenCalled()
+    expect(reloadDreamsStatus).not.toHaveBeenCalled()
+    expect(refreshConfig).not.toHaveBeenCalled()
   })
 
   it('refreshes MCP data from incoming config events', async () => {
@@ -60,7 +67,7 @@ describe('useSettingsWorkspaceConfigChangeEffects', () => {
     rerender(
       <HookHost
         change={{
-          source: 'workspace/config/update',
+          source: 'mcp/upsert',
           regions: ['mcp', 'externalChannel'],
           changedAt: '2026-04-19T10:15:03Z'
         }}
@@ -104,115 +111,61 @@ describe('useSettingsWorkspaceConfigChangeEffects', () => {
     })
   })
 
-  it('reloads workspace core when welcome suggestions config changes', async () => {
-    const reloadWorkspaceCore = vi.fn()
-    const { rerender } = render(
-      <HookHost
-        change={null}
-        changeSeq={0}
-        reloadWorkspaceCore={reloadWorkspaceCore}
-      />
-    )
+  it('refreshes configuration when providers change', async () => {
+    const { rerender } = render(<HookHost change={null} changeSeq={0} />)
 
     rerender(
       <HookHost
-        change={{
-          source: 'workspace/config/update',
-          regions: ['welcomeSuggestions'],
-          changedAt: '2026-04-19T10:15:03Z'
-        }}
+        change={{ source: 'provider/update', regions: ['providers'], changedAt: '2026-04-19T10:15:03Z' }}
         changeSeq={1}
-        reloadWorkspaceCore={reloadWorkspaceCore}
       />
     )
 
     await waitFor(() => {
-      expect(reloadWorkspaceCore).toHaveBeenCalledTimes(1)
+      expect(refreshConfig).toHaveBeenCalledTimes(1)
     })
   })
 
-  it('reloads workspace core when image generation config changes', async () => {
-    const reloadWorkspaceCore = vi.fn()
-    const { rerender } = render(
-      <HookHost
-        change={null}
-        changeSeq={0}
-        reloadWorkspaceCore={reloadWorkspaceCore}
-      />
-    )
-
-    rerender(
-      <HookHost
-        change={{
-          source: 'workspace/config/update',
-          regions: ['imageGeneration'],
-          changedAt: '2026-04-19T10:15:03Z'
-        }}
-        changeSeq={1}
-        reloadWorkspaceCore={reloadWorkspaceCore}
-      />
-    )
-
-    await waitFor(() => {
-      expect(reloadWorkspaceCore).toHaveBeenCalledTimes(1)
-    })
-  })
-
-  it('reloads workspace core and Dreams status when memory config changes', async () => {
-    const reloadWorkspaceCore = vi.fn()
+  it('reloads Dreams status when a Dreams or memory key path changes', async () => {
     const reloadDreamsStatus = vi.fn()
-    const { rerender } = render(
-      <HookHost
-        change={null}
-        changeSeq={0}
-        reloadWorkspaceCore={reloadWorkspaceCore}
-        reloadDreamsStatus={reloadDreamsStatus}
-      />
-    )
+    const { rerender } = render(<HookHost change={null} changeSeq={0} reloadDreamsStatus={reloadDreamsStatus} />)
 
     rerender(
       <HookHost
-        change={{
-          source: 'workspace/config/update',
-          regions: ['memory'],
-          changedAt: '2026-04-19T10:15:03Z'
-        }}
+        change={{ source: 'config/value/write', regions: ['Dreams.Interval'], changedAt: '2026-04-19T10:15:03Z' }}
         changeSeq={1}
-        reloadWorkspaceCore={reloadWorkspaceCore}
+        reloadDreamsStatus={reloadDreamsStatus}
+      />
+    )
+    rerender(
+      <HookHost
+        change={{ source: 'config/value/write', regions: ['Memory.Enabled'], changedAt: '2026-04-19T10:15:04Z' }}
+        changeSeq={2}
         reloadDreamsStatus={reloadDreamsStatus}
       />
     )
 
     await waitFor(() => {
-      expect(reloadWorkspaceCore).toHaveBeenCalledTimes(1)
-      expect(reloadDreamsStatus).toHaveBeenCalledTimes(1)
+      expect(reloadDreamsStatus).toHaveBeenCalledTimes(2)
     })
+    expect(refreshConfig).not.toHaveBeenCalled()
   })
 
-  it('reloads workspace core when default approval policy changes', async () => {
-    const reloadWorkspaceCore = vi.fn()
-    const { rerender } = render(
-      <HookHost
-        change={null}
-        changeSeq={0}
-        reloadWorkspaceCore={reloadWorkspaceCore}
-      />
-    )
+  it('refreshes configuration and Dreams status on the memory domain tag', async () => {
+    const reloadDreamsStatus = vi.fn()
+    const { rerender } = render(<HookHost change={null} changeSeq={0} reloadDreamsStatus={reloadDreamsStatus} />)
 
     rerender(
       <HookHost
-        change={{
-          source: 'workspace/config/update',
-          regions: ['workspace.defaultApprovalPolicy'],
-          changedAt: '2026-04-19T10:15:03Z'
-        }}
+        change={{ source: 'memory/reset', regions: ['memory'], changedAt: '2026-04-19T10:15:03Z' }}
         changeSeq={1}
-        reloadWorkspaceCore={reloadWorkspaceCore}
+        reloadDreamsStatus={reloadDreamsStatus}
       />
     )
 
     await waitFor(() => {
-      expect(reloadWorkspaceCore).toHaveBeenCalledTimes(1)
+      expect(refreshConfig).toHaveBeenCalledTimes(1)
+      expect(reloadDreamsStatus).toHaveBeenCalledTimes(1)
     })
   })
 })

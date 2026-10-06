@@ -104,7 +104,7 @@ export function DreamsPanel({ dreams, memoryEnabled, dashboardUrl, locale, onBac
           control={
             <SettingsSelect
               ariaLabel={t('settings.personalization.dreamsThreadLookback')}
-              value={String(dreams.threadLookbackCount)}
+              value={dreams.threadLookbackCount == null ? '' : String(dreams.threadLookbackCount)}
               disabled={settingsDisabled}
               onValueChange={(next) => {
                 void dreams.changeThreadLookback(Number(next))

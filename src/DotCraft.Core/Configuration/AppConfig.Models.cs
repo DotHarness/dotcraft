@@ -5,6 +5,7 @@ namespace DotCraft.Configuration;
 
 public sealed partial class AppConfig
 {
+    [ConfigField(Ignore = true)]
     public ModelServiceConfig? ModelService { get; set; }
 
     public sealed class ModelServiceConfig

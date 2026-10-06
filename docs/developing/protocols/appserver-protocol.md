@@ -419,7 +419,7 @@ The table below covers common method families used by AppServer clients.
 | Subagents | `subagent/profiles/list`, `subagent/profiles/upsert` | Subagent profile management. |
 | Automations | `automation/list`, `automation/create`, `automation/runs/list` | Local task lifecycle, binding, and managed worktree cleanup. |
 | Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff` | Managed Git worktree status and handoff. |
-| Workspace config | `workspace/config/update` | Workspace configuration updates. |
+| Configuration | `config/schema`, `config/read`, `config/value/write`, `config/batchWrite` | Read and change user and workspace configuration by key path. |
 | App Binding | `app/connection/authenticate`, `app/binding/activate`, `app/threadInput/enqueue` | Extension module for external apps, gated by `capabilities.appBindingVersion`. |
 
 Use `capabilities` from the `initialize` response before showing feature-specific UI.
@@ -440,7 +440,7 @@ Use the run's thread with `worktree/status` to inspect changes and
 
 Check `capabilities.skillsManagement` before calling `skills/*`, `capabilities.pluginManagement` before calling `plugin/*`, and `capabilities.pluginMarketplaces` before calling `marketplace/*`.
 
-`skills/uninstall` deletes removable workspace or personal skills only. System skills cannot be uninstalled; plugin-contained skills are managed by the plugin lifecycle and are not uninstalled separately. If the removed source skill has associated variants, the server also removes those workspace-local variants and broadcasts `workspace/configChanged` with `regions: ["skills"]`.
+`skills/uninstall` deletes removable workspace or personal skills only. System skills cannot be uninstalled; plugin-contained skills are managed by the plugin lifecycle and are not uninstalled separately. If the removed source skill has associated variants, the server also removes those workspace-local variants and broadcasts `config/changed` with `regions: ["skills"]`.
 
 Plugin lifecycle separates installation from enablement:
 
@@ -450,7 +450,7 @@ Plugin lifecycle separates installation from enablement:
 - `plugin/setTrusted`: grants or revokes execution trust for the server-accepted id and .NET fingerprint. The client selects the plugin, not an arbitrary fingerprint.
 - `plugin/remove`: removes workspace plugin directories under `.craft/plugins/<id>/`, including DotCraft-managed built-ins and user-owned plugins installed with `plugin/installLocal`. User-global installed plugins can also be removed from their own scope. Explicit external plugin roots are not deleted.
 
-Plugin install, remove, enablement, and trust changes broadcast `workspace/configChanged` for the affected `plugins`, `skills`, `mcp`, `lsp`, and `hooks` regions. Tools contributed by plugins use the standard `toolCall` / `toolResult` lifecycle and retain plugin provenance on those items. For the user-facing plugin model, see [Plugins & Tools](../../features/agent-system/plugins-tools).
+Plugin install, remove, enablement, and trust changes broadcast `config/changed` for the affected `plugins`, `skills`, `mcp`, `lsp`, and `hooks` regions. Tools contributed by plugins use the standard `toolCall` / `toolResult` lifecycle and retain plugin provenance on those items. For the user-facing plugin model, see [Plugins & Tools](../../features/agent-system/plugins-tools).
 
 ### Plugin marketplaces
 
@@ -473,7 +473,7 @@ Marketplace methods manage catalog sources. Adding a marketplace does not instal
 | `sparsePaths` | string[]? | no | Repository-relative paths included in a Git checkout |
 | `marketplacePath` | string? | no | Catalog path; defaults to `.craft/plugins/marketplace.json` |
 
-The result contains `marketplace: MarketplaceInfo` and `alreadyAdded`. A successful add emits `workspace/configChanged` with `regions: ["plugins"]`.
+The result contains `marketplace: MarketplaceInfo` and `alreadyAdded`. A successful add emits `config/changed` with `regions: ["plugins"]`.
 
 #### `marketplace/refresh`
 
@@ -485,7 +485,7 @@ The result contains `marketplaces: MarketplaceInfo[]` and `errors`. Each error h
 
 Pass `{ "name": "example-marketplace" }`. The result contains `name` and may include `removedRoot` when DotCraft deleted a materialized checkout.
 
-Removing a marketplace does not uninstall plugins already copied into a workspace. A successful removal emits `workspace/configChanged` with `regions: ["plugins"]`.
+Removing a marketplace does not uninstall plugins already copied into a workspace. A successful removal emits `config/changed` with `regions: ["plugins"]`.
 
 #### Marketplace metadata
 

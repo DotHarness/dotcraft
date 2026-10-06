@@ -8,6 +8,7 @@ import {
   type PluginEntry,
   type PluginSkillInfo
 } from '../../stores/pluginStore'
+import { useConfigStore } from '../../stores/configStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
@@ -473,7 +474,7 @@ export function PluginsView(): JSX.Element {
           onEnableLsp={async () => {
             try {
               setEnablingLspId(selectedPlugin.id)
-              await window.api.appServer.sendRequest('workspace/config/update', { toolsLspEnabled: true })
+              await useConfigStore.getState().write([{ keyPath: 'Tools.Lsp.Enabled', value: true }])
               await fetchPlugins()
               await selectPlugin(selectedPlugin.id)
               addToast(t('plugins.lsp.enableSuccess'), 'success')

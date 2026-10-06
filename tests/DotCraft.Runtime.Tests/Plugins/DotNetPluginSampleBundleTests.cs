@@ -147,7 +147,7 @@ public sealed class DotNetPluginSampleBundleTests : IDisposable
             DataPath = ".craft",
             UserDataPath = Path.Combine(_harness.Root, "user-data")
         });
-        builder.Services.AddSingleton<IConfigSchemaProvider>(new EmptyConfigSchemaProvider());
+        builder.Services.AddSingleton<IConfigSchemaProvider>(new EmptyConfigSchemaProvider()).AddSingleton<IConfigDescriptorRegistry>(new EmptyConfigSchemaProvider());
 
         using var host = builder.Build();
         await host.StartAsync();
@@ -327,9 +327,11 @@ public sealed class DotNetPluginSampleBundleTests : IDisposable
     private static string[] Names(IEnumerable<Type> types) =>
         [.. types.Select(static type => type.Name).Order(StringComparer.Ordinal)];
 
-    private sealed class EmptyConfigSchemaProvider : IConfigSchemaProvider
+    private sealed class EmptyConfigSchemaProvider : IConfigSchemaProvider, IConfigDescriptorRegistry
     {
         public IReadOnlyList<ConfigSchemaSection> GetConfigSchema() => [];
+
+        public IReadOnlyList<ConfigFieldDescriptor> Fields => [];
     }
 
     private sealed class CapturingModelProvider : IModelProvider

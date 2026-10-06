@@ -376,14 +376,11 @@ internal sealed class SourceControlRequestHandler(
 
     private void Persist(SourceControlConfig config)
     {
-        var configPath = Path.Combine(workspaceCraftPath!, "config.json");
-        Directory.CreateDirectory(workspaceCraftPath!);
-        var root = WorkspaceConfigEditor.LoadObject(configPath);
-        var key = WorkspaceConfigEditor.FindCaseInsensitiveKey(root, "SourceControl") ?? "SourceControl";
         var node = JsonSerializer.SerializeToNode(config, AppConfig.SerializerOptions);
-        if (node != null)
-            root[key] = node;
-        WorkspaceConfigEditor.WriteObject(configPath, root);
+        if (node == null)
+            return;
+        AtomicConfigDocument.Update(Path.Combine(workspaceCraftPath!, "config.json"), root =>
+            root[AtomicConfigDocument.Key(root, "SourceControl") ?? "SourceControl"] = node);
     }
 
     private string ResolveHostWorkspacePath() =>

@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\DotCraft.RemoteTools\DotCraft.RemoteTools.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.Agents.Remote\DotCraft.Agents.Remote.csproj" />
   </ItemGroup>
 
 </Project>

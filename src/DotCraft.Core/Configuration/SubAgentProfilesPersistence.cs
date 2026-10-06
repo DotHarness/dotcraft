@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -35,18 +34,14 @@ public static class SubAgentProfilesPersistence
         IReadOnlyCollection<SubAgentProfile> profiles,
         IReadOnlyDictionary<string, ModelPreference>? providerPreferences = null)
     {
-        var configPath = Path.Combine(craftPath, "config.json");
-        Directory.CreateDirectory(craftPath);
-        var root = LoadWorkspaceConfigObject(configPath);
-
-        WriteDisabledProfiles(root, disabledProfiles);
-        WriteEnableExternalCliSessionResume(root, enableExternalCliSessionResume);
-        WriteWaitAgentTimeouts(root, waitAgentTimeouts);
-        WriteProfiles(root, profiles);
-        WriteProviderPreferences(root, providerPreferences);
-
-        var json = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(configPath, $"{json}{Environment.NewLine}", new UTF8Encoding(false));
+        AtomicConfigDocument.Update(Path.Combine(craftPath, "config.json"), root =>
+        {
+            WriteDisabledProfiles(root, disabledProfiles);
+            WriteEnableExternalCliSessionResume(root, enableExternalCliSessionResume);
+            WriteWaitAgentTimeouts(root, waitAgentTimeouts);
+            WriteProfiles(root, profiles);
+            WriteProviderPreferences(root, providerPreferences);
+        });
     }
 
     private static void WriteDisabledProfiles(JsonObject root, IReadOnlyCollection<string> disabledProfiles)
@@ -57,11 +52,11 @@ public static class SubAgentProfilesPersistence
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var section = GetOrCreateConfigSection(root, "SubAgent", createIfMissing: normalized.Length > 0);
+        var section = SubAgentSection(root, create: normalized.Length > 0);
         if (section == null)
             return;
 
-        var disabledKey = FindCaseInsensitiveKey(section, "DisabledProfiles");
+        var disabledKey = AtomicConfigDocument.Key(section, "DisabledProfiles");
         if (normalized.Length == 0)
         {
             if (disabledKey != null)
@@ -79,11 +74,11 @@ public static class SubAgentProfilesPersistence
 
     private static void WriteEnableExternalCliSessionResume(JsonObject root, bool enabled)
     {
-        var section = GetOrCreateConfigSection(root, "SubAgent", createIfMissing: enabled);
+        var section = SubAgentSection(root, create: enabled);
         if (section == null)
             return;
 
-        var key = FindCaseInsensitiveKey(section, "EnableExternalCliSessionResume");
+        var key = AtomicConfigDocument.Key(section, "EnableExternalCliSessionResume");
         if (!enabled)
         {
             if (key != null)
@@ -107,11 +102,11 @@ public static class SubAgentProfilesPersistence
             return;
 
         var normalized = NormalizeProviderPreferences(providerPreferences);
-        var section = GetOrCreateConfigSection(root, "SubAgent", createIfMissing: normalized.Count > 0);
+        var section = SubAgentSection(root, create: normalized.Count > 0);
         if (section == null)
             return;
 
-        var key = FindCaseInsensitiveKey(section, "ProviderPreferences");
+        var key = AtomicConfigDocument.Key(section, "ProviderPreferences");
         if (normalized.Count == 0)
         {
             if (key != null)
@@ -137,7 +132,7 @@ public static class SubAgentProfilesPersistence
             waitAgentTimeouts.MinTimeoutMs != SubAgentWaitAgentTimeoutOptions.BuiltInMinTimeoutMs
             || waitAgentTimeouts.DefaultTimeoutMs != SubAgentWaitAgentTimeoutOptions.BuiltInDefaultTimeoutMs
             || waitAgentTimeouts.MaxTimeoutMs != SubAgentWaitAgentTimeoutOptions.BuiltInMaxTimeoutMs;
-        var section = GetOrCreateConfigSection(root, "SubAgent", createIfMissing: shouldWrite);
+        var section = SubAgentSection(root, create: shouldWrite);
         if (section == null)
             return;
 
@@ -161,7 +156,7 @@ public static class SubAgentProfilesPersistence
 
     private static void UpsertOrRemoveDefaultInt(JsonObject section, string canonicalKey, int value, int defaultValue)
     {
-        var key = FindCaseInsensitiveKey(section, canonicalKey);
+        var key = AtomicConfigDocument.Key(section, canonicalKey);
         if (value == defaultValue)
         {
             if (key != null)
@@ -179,7 +174,7 @@ public static class SubAgentProfilesPersistence
             .OrderBy(profile => profile.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var profilesKey = FindCaseInsensitiveKey(root, "SubAgentProfiles");
+        var profilesKey = AtomicConfigDocument.Key(root, "SubAgentProfiles");
         if (normalized.Length == 0)
         {
             if (profilesKey != null)
@@ -196,21 +191,6 @@ public static class SubAgentProfilesPersistence
         }
 
         root[profilesKey ?? "SubAgentProfiles"] = objectNode;
-    }
-
-    private static JsonObject LoadWorkspaceConfigObject(string configPath)
-    {
-        if (!File.Exists(configPath))
-            return new JsonObject();
-
-        try
-        {
-            return JsonNode.Parse(File.ReadAllText(configPath)) as JsonObject ?? new JsonObject();
-        }
-        catch
-        {
-            return new JsonObject();
-        }
     }
 
     /// <summary>
@@ -237,44 +217,14 @@ public static class SubAgentProfilesPersistence
         return result;
     }
 
-    private static string? FindCaseInsensitiveKey(JsonObject obj, string expectedKey)
-    {
-        foreach (var kvp in obj)
-        {
-            if (string.Equals(kvp.Key, expectedKey, StringComparison.OrdinalIgnoreCase))
-                return kvp.Key;
-        }
-
-        return null;
-    }
-
-    private static JsonObject? GetOrCreateConfigSection(JsonObject root, string canonicalKey, bool createIfMissing)
-    {
-        var existingKey = FindCaseInsensitiveKey(root, canonicalKey);
-        if (existingKey != null)
-        {
-            if (root[existingKey] is JsonObject existingSection)
-                return existingSection;
-
-            if (!createIfMissing)
-                return null;
-
-            var replacement = new JsonObject();
-            root[existingKey] = replacement;
-            return replacement;
-        }
-
-        if (!createIfMissing)
-            return null;
-
-        var section = new JsonObject();
-        root[canonicalKey] = section;
-        return section;
-    }
+    private static JsonObject? SubAgentSection(JsonObject root, bool create) =>
+        create
+            ? AtomicConfigDocument.Object(root, "SubAgent")
+            : AtomicConfigDocument.Value(root, "SubAgent") as JsonObject;
 
     private static void RemoveConfigSectionIfEmpty(JsonObject root, string canonicalKey)
     {
-        var existingKey = FindCaseInsensitiveKey(root, canonicalKey);
+        var existingKey = AtomicConfigDocument.Key(root, canonicalKey);
         if (existingKey == null)
             return;
 

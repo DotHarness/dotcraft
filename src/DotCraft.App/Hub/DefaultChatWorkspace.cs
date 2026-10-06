@@ -1,3 +1,5 @@
+using DotCraft.Configuration;
+
 namespace DotCraft.Hub;
 
 /// <summary>
@@ -24,8 +26,11 @@ internal static class DefaultChatWorkspace
         Directory.CreateDirectory(Path.Combine(craftPath, "security"));
 
         var configPath = Path.Combine(craftPath, "config.json");
-        if (!File.Exists(configPath))
-            File.WriteAllText(configPath, "{}" + Environment.NewLine);
+        AtomicConfigDocument.WithLock(configPath, () =>
+        {
+            if (!File.Exists(configPath))
+                AtomicConfigDocument.Write(configPath, "{}" + Environment.NewLine);
+        });
 
         return fullPath;
     }

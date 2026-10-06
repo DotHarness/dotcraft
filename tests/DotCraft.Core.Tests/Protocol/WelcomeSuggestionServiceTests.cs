@@ -606,8 +606,8 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
                                     },
                                     new JsonObject
                                     {
-                                        ["title"] = "Audit workspace/config/update flow",
-                                        ["prompt"] = "Audit workspace/config/update handling for WelcomeSuggestions.Enabled and list the notification flow."
+                                        ["title"] = "Audit the welcome suggestion settings",
+                                        ["prompt"] = "Audit how WelcomeSuggestions.Enabled is saved and list the notification flow."
                                     }
                                 }
                             }
@@ -754,8 +754,8 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         },
         new JsonObject
         {
-            ["title"] = "Audit workspace/config/update flow",
-            ["prompt"] = "Audit workspace/config/update handling for WelcomeSuggestions.Enabled and list the notification flow."
+            ["title"] = "Audit the welcome suggestion settings",
+            ["prompt"] = "Audit how WelcomeSuggestions.Enabled is saved and list the notification flow."
         }
     ];
 
@@ -793,8 +793,8 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
                     },
                     new WelcomeSuggestion
                     {
-                        Title = "Audit workspace/config/update flow",
-                        Prompt = "Audit workspace/config/update handling for WelcomeSuggestions.Enabled and list the notification flow."
+                        Title = "Audit the welcome suggestion settings",
+                        Prompt = "Audit how WelcomeSuggestions.Enabled is saved and list the notification flow."
                     }
                 ]
             }

@@ -46,6 +46,8 @@ internal sealed class CoreAppServerTestHarness : IDisposable
     public AppServerRequestHandler Handler { get; }
     public IAppConfigMonitor Monitor { get; }
 
+    public ConfigurationService? Configuration { get; }
+
     /// <summary>
     /// Default <see cref="SessionIdentity"/> using the harness temp workspace.
     /// </summary>
@@ -101,6 +103,22 @@ internal sealed class CoreAppServerTestHarness : IDisposable
         defaultConfig.GlobalConfigPath = Path.Combine(_tempDir, "global", "config.json");
         defaultConfig.WorkspaceConfigPath = workspaceCraftPath == null ? null : Path.Combine(workspaceCraftPath, "config.json");
         Monitor = appConfigMonitor ?? new AppConfigMonitor(defaultConfig);
+        if (!string.IsNullOrWhiteSpace(workspaceCraftPath))
+        {
+            Configuration = new ConfigurationService(
+                ConfigSchemaRegistrations.CreateDescriptorRegistry(),
+                Monitor,
+                Monitor.Current.GlobalConfigPath ?? Path.Combine(_tempDir, "global", "config.json"),
+                Path.Combine(workspaceCraftPath, "config.json"));
+            ConfigurationSubsystems.Register(
+                Configuration,
+                Monitor,
+                Service,
+                skillsLoader,
+                null,
+                dreamsService,
+                contextPageManager);
+        }
         Handler = new AppServerRequestHandler(
             Service, Connection, Transport,
             channelListContributor ?? new ModuleRegistryChannelListContributor(new ModuleRegistry()),
@@ -123,6 +141,7 @@ internal sealed class CoreAppServerTestHarness : IDisposable
                 OnExternalChannelUpserted = onExternalChannelUpserted,
                 OnExternalChannelRemoved = onExternalChannelRemoved,
                 ConfigSchema = configSchema,
+                Configuration = Configuration,
                 AppConfigMonitor = Monitor,
                 SkillsLoader = skillsLoader,
                 McpClientManager = mcpClientManager,

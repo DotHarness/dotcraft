@@ -14,7 +14,6 @@ import {
   buildReadOratorioTokenCommand,
   buildTunnelWsUrl,
   buildDashboardUrl,
-  effectiveWorkspaceDir,
   updateChangedFromOutput,
   DEFAULT_LOG_TAIL,
   type RemoteStack,
@@ -23,9 +22,8 @@ import {
   type RemoteStackAction,
   type DiscoveredStack
 } from '../../shared/dockerDeployments'
-import { buildReadConfigFilesCommand, parseConfigFilesOutput } from '../../shared/sshMachineRemote'
 import { machineSshTarget, type SshMachine } from '../../shared/sshMachines'
-import { firstLine, redactSecrets, remoteChildPath } from '../../shared/sshShell'
+import { firstLine, redactSecrets } from '../../shared/sshShell'
 import { runSshCommand, type SshRunner } from './sshExecutor'
 import { TunnelManager, type Tunnels } from './tunnelManager'
 
@@ -61,11 +59,6 @@ export interface OratorioTunnelResult {
   endpoint: string
   /** Returned only to the Main-process provider and never exposed over IPC. */
   token: string
-}
-
-export interface RemoteCoreConfigResult {
-  workspaceRaw: string
-  userDefaultsRaw: string
 }
 
 function errorStatus(stackId: string, error: string): RemoteStackStatus {
@@ -205,18 +198,6 @@ export class DockerDeploymentsManager {
       throw new Error(redactSecrets(firstLine(res.stderr) || 'Remote Oratorio service token was not found for this stack.'))
     }
     return res.stdout.trim()
-  }
-
-  async readCoreConfig(machine: SshMachine, stack: RemoteStack): Promise<RemoteCoreConfigResult> {
-    const configPath = remoteChildPath(effectiveWorkspaceDir(stack), '.craft/config.json')
-    const res = await this.runner(machineSshTarget(machine), buildReadConfigFilesCommand(configPath), {
-      timeoutMs: 20_000,
-      connectTimeoutSec: 8
-    })
-    if (res.timedOut) throw new Error('Remote workspace config read timed out.')
-    const parsed = res.code === 0 ? parseConfigFilesOutput(res.stdout) : null
-    if (!parsed) throw new Error(redactSecrets(firstLine(res.stderr) || 'Remote workspace config read failed.'))
-    return parsed
   }
 
   async openAppServerTunnel(

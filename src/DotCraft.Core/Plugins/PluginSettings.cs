@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotCraft.Configuration;
 using DotCraft.Workspaces;
 
 namespace DotCraft.Plugins;
@@ -130,7 +131,7 @@ public sealed class PluginConfigStore
         WithDocumentLock(path, () =>
         {
             var root = ReadRootForWrite(path);
-            var namespaceKey = FindKey(root, manifest.Id) ?? manifest.Id;
+            var namespaceKey = AtomicConfigDocument.Key(root, manifest.Id) ?? manifest.Id;
             var namespaceExists = root.TryGetPropertyValue(namespaceKey, out var namespaceNode);
             var target = (namespaceExists, namespaceNode) switch
             {
@@ -148,7 +149,7 @@ public sealed class PluginConfigStore
                     throw new PluginConfigException(
                         MutationInvalid,
                         $"Plugin setting '{operation.Key}' is not declared by '{manifest.Id}'.");
-                var existingKey = FindKey(target, field.Key);
+                var existingKey = AtomicConfigDocument.Key(target, field.Key);
                 switch (operation.Op)
                 {
                     case "set":
@@ -202,7 +203,7 @@ public sealed class PluginConfigStore
         if (!File.Exists(path))
             return EmptyObject.Clone();
         var root = ReadRoot(path);
-        var key = FindKey(root, pluginId);
+        var key = AtomicConfigDocument.Key(root, pluginId);
         if (key == null)
             return EmptyObject.Clone();
         if (root[key] is not JsonObject value)
@@ -270,7 +271,7 @@ public sealed class PluginConfigStore
     {
         foreach (var property in upper)
         {
-            var existingKey = FindKey(lower, property.Key);
+            var existingKey = AtomicConfigDocument.Key(lower, property.Key);
             if (existingKey != null
                 && lower[existingKey] is JsonObject lowerObject
                 && property.Value is JsonObject upperObject)
@@ -341,16 +342,6 @@ public sealed class PluginConfigStore
             {
             }
         }
-    }
-
-    private static string? FindKey(JsonObject parent, string key)
-    {
-        foreach (var property in parent)
-        {
-            if (string.Equals(property.Key, key, StringComparison.OrdinalIgnoreCase))
-                return property.Key;
-        }
-        return null;
     }
 
     private static JsonElement ToElement(JsonNode node) =>

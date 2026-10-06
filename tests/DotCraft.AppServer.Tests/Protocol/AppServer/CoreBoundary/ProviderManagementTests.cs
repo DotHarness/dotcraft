@@ -5,7 +5,6 @@ using System.Net.Sockets;
 using System.Text;
 using DotCraft.Configuration;
 using DotCraft.AppServer;
-using ModelPreference = DotCraft.Configuration.ModelPreference;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -343,7 +342,7 @@ public sealed class ProviderManagementTests : IDisposable
     }
 
     [Fact]
-    public async Task WorkspaceConfigUpdate_SelectsProviderModelWithoutChangingProviderCredentials()
+    public async Task ConfigBatchWrite_SelectsProviderModelWithoutChangingProviderCredentials()
     {
         await File.WriteAllTextAsync(
             Path.Combine(_workspaceCraftPath, "config.json"),
@@ -367,21 +366,20 @@ public sealed class ProviderManagementTests : IDisposable
             """);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
-        {
-            providerId = "anthropic-main",
-            providerPreferences = new Dictionary<string, ModelPreference>
-            {
-                ["anthropic-main"] = ModelPreferenceRules.CreateManual("claude-sonnet-4-5")
-            }
-        }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigBatchWrite,
+            System.Text.Json.Nodes.JsonNode.Parse(
+                """
+                {
+                  "edits": [
+                    { "keyPath": "ProviderId", "value": "anthropic-main", "mergeStrategy": "replace" },
+                    { "keyPath": "ProviderPreferences.anthropic-main", "value": { "Model": "claude-sonnet-4-5" }, "mergeStrategy": "replace" }
+                  ]
+                }
+                """)));
 
         var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        var result = response.RootElement.GetProperty("result");
-        Assert.Equal("anthropic-main", result.GetProperty("providerId").GetString());
-        Assert.Equal("claude-sonnet-4-5", result.GetProperty("providerPreferences").GetProperty("anthropic-main").GetProperty("model").GetString());
-        Assert.False(result.TryGetProperty("apiKey", out _));
-        Assert.False(result.TryGetProperty("endPoint", out _));
+        Assert.Equal("ok", response.RootElement.GetProperty("result").GetProperty("status").GetString());
 
         var workspace = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(_workspaceCraftPath, "config.json")));
         Assert.Equal("anthropic-main", workspace.RootElement.GetProperty("ProviderId").GetString());

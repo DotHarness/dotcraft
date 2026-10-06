@@ -10,7 +10,6 @@ import { useUIStore } from '../stores/uiStore'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
-const workspaceConfigGetCore = vi.fn()
 const appServerSendRequest = vi.fn()
 
 function renderView(): void {
@@ -29,24 +28,6 @@ describe('SettingsView plugin MCP servers', () => {
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en', connectionMode: 'stdio' })
     settingsSet.mockResolvedValue(undefined)
-    workspaceConfigGetCore.mockResolvedValue({
-      workspace: {
-        apiKey: null,
-        endPoint: null,
-        welcomeSuggestionsEnabled: null,
-        skillsSelfLearningEnabled: null,
-        memoryEnabled: null,
-        defaultApprovalPolicy: null
-      },
-      userDefaults: {
-        apiKey: null,
-        endPoint: null,
-        welcomeSuggestionsEnabled: null,
-        skillsSelfLearningEnabled: null,
-        memoryEnabled: null,
-        defaultApprovalPolicy: null
-      }
-    })
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'channel/list') return { channels: [] }
       if (method === 'mcp/list') {
@@ -142,7 +123,6 @@ describe('SettingsView plugin MCP servers', () => {
 
     installDesktopApiMock({
       settings: { get: settingsGet, set: settingsSet },
-      workspaceConfig: { getCore: workspaceConfigGetCore },
       appServer: {
         sendRequest: appServerSendRequest,
         restartManaged: vi.fn(),

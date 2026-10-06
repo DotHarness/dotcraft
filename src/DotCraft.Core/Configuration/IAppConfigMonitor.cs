@@ -40,21 +40,13 @@ public sealed class AppConfigChangedEventArgs : EventArgs
 /// </summary>
 public static class ConfigChangeRegions
 {
-    public const string WorkspaceProviderPreferences = "workspace.providerPreferences";
-    public const string WorkspaceProvider = "workspace.provider";
     public const string ProviderRegistry = "providers";
-    public const string WelcomeSuggestions = "welcomeSuggestions";
-    public const string PromptSuggestions = "promptSuggestions";
     public const string Memory = "memory";
     public const string Skills = "skills";
     public const string Plugins = "plugins";
     public const string PluginConfiguration = "plugins.config";
-    public const string WorkspaceDefaultApprovalPolicy = "workspace.defaultApprovalPolicy";
     public const string Mcp = "mcp";
     public const string Lsp = "lsp";
-    public const string ImageGeneration = "imageGeneration";
-    public const string CodeMode = "codeMode";
-    public const string InstantInterrupt = "instantInterrupt";
     public const string Hooks = "hooks";
     public const string ExternalChannel = "externalChannel";
     public const string SubAgent = "subagent";

@@ -10,6 +10,7 @@ export interface ServerNotificationMethods {
   "auth/openai/usageChanged": { params: Models.AuthOpenAiUsageResult; result: Models.RpcEmpty };
   "automation/run/updated": { params: Models.AutomationRunUpdatedNotification; result: Models.RpcEmpty };
   "automation/updated": { params: Models.AutomationUpdatedNotification; result: Models.RpcEmpty };
+  "config/changed": { params: Models.ConfigChangedParams; result: Models.RpcEmpty };
   "import/completed": { params: Models.ImportCompletedNotification; result: Models.RpcEmpty };
   "import/progress": { params: Models.ImportProgressNotification; result: Models.RpcEmpty };
   "item/agentMessage/delta": { params: Models.ItemDeltaNotification; result: Models.RpcEmpty };
@@ -54,7 +55,6 @@ export interface ServerNotificationMethods {
   "turn/failed": { params: Models.TurnNotification; result: Models.RpcEmpty };
   "turn/started": { params: Models.TurnNotification; result: Models.RpcEmpty };
   "workflow/run/updated": { params: Models.WorkflowRunUpdatedNotification; result: Models.RpcEmpty };
-  "workspace/configChanged": { params: Models.WorkspaceConfigChangedParams; result: Models.RpcEmpty };
 }
 
 export type ServerNotificationMethod = keyof ServerNotificationMethods;

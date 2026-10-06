@@ -34,26 +34,6 @@ describe('SettingsView notification settings', () => {
 
     installDesktopApiMock({
       settings: { get: settingsGet, set: settingsSet },
-      workspaceConfig: {
-        getCore: vi.fn().mockResolvedValue({
-          workspace: {
-            apiKey: null,
-            endPoint: null,
-            welcomeSuggestionsEnabled: null,
-            skillsSelfLearningEnabled: null,
-            memoryEnabled: null,
-            defaultApprovalPolicy: 'default'
-          },
-          userDefaults: {
-            apiKey: null,
-            endPoint: null,
-            welcomeSuggestionsEnabled: null,
-            skillsSelfLearningEnabled: null,
-            memoryEnabled: null,
-            defaultApprovalPolicy: null
-          }
-        })
-      },
       appServer: {
         sendRequest: vi.fn(async (method: string) => {
           if (method === 'channel/list') return { channels: [] }

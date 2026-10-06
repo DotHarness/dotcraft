@@ -7,7 +7,6 @@ using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.AppServer;
-using ModelPreference = DotCraft.Configuration.ModelPreference;
 using Xunit;
 using DotCraft.Tools;
 
@@ -81,6 +80,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
                 HostWorkspacePath = _tempDir,
                 MemoryStore = new MemoryStore(_tempDir),
                 AppConfigMonitor = monitor,
+                Configuration = CreateConfiguration(monitor, service),
                 SkillsLoader = new SkillsLoader(_tempDir),
             });
 
@@ -94,14 +94,11 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             expectedSpeed: "fast");
 
         var update = InMemoryTransport.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
-            new
-            {
-                providerPreferences = new Dictionary<string, ModelPreference>
-                {
-                    ["openai"] = ModelPreferenceRules.CreateManual("model-b")
-                }
-            },
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigValueWrite,
+            System.Text.Json.Nodes.JsonNode.Parse(
+                """
+                { "keyPath": "ProviderPreferences.openai", "value": { "Model": "model-b" }, "mergeStrategy": "replace" }
+                """),
             id: 11);
         await ExecuteRequestAsync(handler, transport, update);
         await ReadResponseForIdAsync(transport, 11);
@@ -189,6 +186,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
                 HostWorkspacePath = _tempDir,
                 MemoryStore = new MemoryStore(_tempDir),
                 AppConfigMonitor = monitor,
+                Configuration = CreateConfiguration(monitor, service),
                 SkillsLoader = new SkillsLoader(_tempDir),
             });
 
@@ -202,16 +200,16 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             expectedProviderId: "anthropic-main");
 
         var update = InMemoryTransport.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
-            new
-            {
-                providerId = "openrouter",
-                providerPreferences = new Dictionary<string, ModelPreference>
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigBatchWrite,
+            System.Text.Json.Nodes.JsonNode.Parse(
+                """
                 {
-                    ["anthropic-main"] = ModelPreferenceRules.CreateManual("claude-sonnet-4-5"),
-                    ["openrouter"] = ModelPreferenceRules.CreateManual("openrouter-model")
+                  "edits": [
+                    { "keyPath": "ProviderId", "value": "openrouter", "mergeStrategy": "replace" },
+                    { "keyPath": "ProviderPreferences.openrouter", "value": { "Model": "openrouter-model" }, "mergeStrategy": "replace" }
+                  ]
                 }
-            },
+                """),
             id: 21);
         await ExecuteRequestAsync(handler, transport, update);
         await ReadResponseForIdAsync(transport, 21);
@@ -308,6 +306,17 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
         Assert.Equal(
             "WriteFile",
             profileConfiguration.GetProperty("toolPolicy").GetProperty("deny")[0].GetString());
+    }
+
+    private ConfigurationService CreateConfiguration(IAppConfigMonitor monitor, SessionService service)
+    {
+        var configuration = new ConfigurationService(
+            ConfigSchemaRegistrations.CreateDescriptorRegistry(),
+            monitor,
+            monitor.Current.GlobalConfigPath!,
+            Path.Combine(_craftPath, "config.json"));
+        ConfigurationSubsystems.Register(configuration, monitor, service, null, null, null, null);
+        return configuration;
     }
 
     private AgentFactory CreateAgentFactory(AppConfig config)

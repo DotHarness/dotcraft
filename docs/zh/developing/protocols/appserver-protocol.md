@@ -419,7 +419,7 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 | Subagents | `subagent/profiles/list`, `subagent/profiles/upsert` | subagent profile 管理。 |
 | Automations | `automation/list`, `automation/create`, `automation/runs/list` | 本地任务生命周期、绑定和受管 worktree 清理。 |
 | Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff` | 受管 Git worktree 状态和交接。 |
-| Workspace config | `workspace/config/update` | 工作区配置更新。 |
+| 配置 | `config/schema`、`config/read`、`config/value/write`、`config/batchWrite` | 按 key path 读取和修改用户级与工作区配置。 |
 | App Binding | `app/connection/authenticate`、`app/binding/activate`、`app/threadInput/enqueue` | 面向外部应用的扩展模块，由 `capabilities.appBindingVersion` 门控。 |
 
 展示功能相关的 UI 之前，先读 `initialize` 响应中的 `capabilities`。
@@ -439,7 +439,7 @@ worktree 创建失败会显示为运行失败。使用该次运行的线程调�
 
 调用 `skills/*` 前检查 `capabilities.skillsManagement`，调用 `plugin/*` 前检查 `capabilities.pluginManagement`，调用 `marketplace/*` 前检查 `capabilities.pluginMarketplaces`。
 
-`skills/uninstall` 只用于删除可卸载的工作区或个人 skill。系统 skill 不能卸载。plugin-contained skill 由插件生命周期管理，不能单独卸载。若卸载的 source skill 有关联变体，server 会同时清理该 source skill 的 workspace-local variants，并广播 `workspace/configChanged`，`regions: ["skills"]`。
+`skills/uninstall` 只用于删除可卸载的工作区或个人 skill。系统 skill 不能卸载。plugin-contained skill 由插件生命周期管理，不能单独卸载。若卸载的 source skill 有关联变体，server 会同时清理该 source skill 的 workspace-local variants，并广播 `config/changed`，`regions: ["skills"]`。
 
 插件生命周期把安装状态和启用状态分开：
 
@@ -449,7 +449,7 @@ worktree 创建失败会显示为运行失败。使用该次运行的线程调�
 - `plugin/setTrusted`：授予或撤销 server 已接受的 plugin id 与 .NET fingerprint 的执行信任。Client 选择插件，而不能任意指定 fingerprint。
 - `plugin/remove`：移除 `.craft/plugins/<id>/` 下的工作区插件目录，包括 DotCraft 管理的内置插件，以及通过 `plugin/installLocal` 安装的用户本地插件。用户级已安装插件也可在其所属作用域移除。不会删除显式配置的外部插件 root。
 
-插件安装、移除、启用状态或 trust 变化会通过 `workspace/configChanged` 广播受影响的 `plugins`、`skills`、`mcp`、`lsp` 与 `hooks` regions。插件贡献的 tools 使用标准 `toolCall` / `toolResult` 生命周期，并在这些 item 上保留插件来源信息。面向用户的插件模型见 [插件与工具](../../features/agent-system/plugins-tools)。
+插件安装、移除、启用状态或 trust 变化会通过 `config/changed` 广播受影响的 `plugins`、`skills`、`mcp`、`lsp` 与 `hooks` regions。插件贡献的 tools 使用标准 `toolCall` / `toolResult` 生命周期，并在这些 item 上保留插件来源信息。面向用户的插件模型见 [插件与工具](../../features/agent-system/plugins-tools)。
 
 ### 插件市场
 
@@ -472,7 +472,7 @@ Marketplace 方法管理插件目录来源。添加市场不会安装其中的�
 | `sparsePaths` | string[]? | 否 | Git checkout 中包含的仓库内相对路径 |
 | `marketplacePath` | string? | 否 | 目录文档路径。默认为 `.craft/plugins/marketplace.json` |
 
-结果包含 `marketplace: MarketplaceInfo` 和 `alreadyAdded`。添加成功后会发送 `workspace/configChanged`，`regions: ["plugins"]`。
+结果包含 `marketplace: MarketplaceInfo` 和 `alreadyAdded`。添加成功后会发送 `config/changed`，`regions: ["plugins"]`。
 
 #### `marketplace/refresh`
 
@@ -484,7 +484,7 @@ Marketplace 方法管理插件目录来源。添加市场不会安装其中的�
 
 传入 `{ "name": "example-marketplace" }`。结果包含 `name`。当 DotCraft 删除了 materialized checkout 时，还会包含 `removedRoot`。
 
-移除市场不会卸载已经复制到工作区的插件。移除成功后会发送 `workspace/configChanged`，`regions: ["plugins"]`。
+移除市场不会卸载已经复制到工作区的插件。移除成功后会发送 `config/changed`，`regions: ["plugins"]`。
 
 #### 市场元数据
 

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using DotCraft.Sessions;
 using DotCraft.Tools;
@@ -38,6 +39,12 @@ public sealed class AppServerErrorData
     [JsonPropertyName("detail")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Detail { get; init; }
+}
+
+public sealed class ConfigWriteErrorData
+{
+    [JsonPropertyName("configWriteErrorCode")]
+    public required string ConfigWriteErrorCode { get; init; }
 }
 
 /// <summary>
@@ -145,6 +152,12 @@ public static class AppServerErrors
 
     public static AppServerException InvalidRequest(string detail) =>
         Create(InvalidRequestCode, "InvalidRequest", "errors.invalidRequest", "Invalid request", detail: detail);
+
+    public static AppServerException ConfigWrite(Configuration.ConfigWriteException ex) =>
+        new(InvalidRequestCode, ex.Message, new ConfigWriteErrorData
+        {
+            ConfigWriteErrorCode = JsonNamingPolicy.CamelCase.ConvertName(ex.Code.ToString())
+        });
 
     public static AppServerException MethodNotFound(string method) =>
         Create(MethodNotFoundCode, "MethodNotFound", "errors.methodNotFound", $"Method not found: {method}", new MethodErrorParams(method));

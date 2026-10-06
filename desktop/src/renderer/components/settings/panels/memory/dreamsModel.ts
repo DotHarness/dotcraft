@@ -30,10 +30,6 @@ export interface DreamsRunState {
 }
 
 export interface DreamsStatus {
-  enabled: boolean
-  interval: string
-  threadLookbackCount: number
-  autoApply: boolean
   minCompletedTurnsSinceLastRun: number
   nextRunAt?: string | null
   running: boolean
@@ -41,8 +37,6 @@ export interface DreamsStatus {
   lastRun: DreamsRunState | null
 }
 
-export const DEFAULT_DREAMS_INTERVAL = '24:00:00'
-export const DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT = 20
 export const DREAMS_INTERVAL_OPTIONS = ['06:00:00', '12:00:00', '24:00:00', '168:00:00'] as const
 export const DREAMS_THREAD_LOOKBACK_OPTIONS = [10, 20, 50, 100] as const
 
@@ -80,6 +74,14 @@ export function normalizeDreamsInterval(value: unknown): string | null {
     }
   }
   return trimmed
+}
+
+export function formatDreamsIntervalForConfig(value: string): string {
+  const match = /^(\d+):(\d{2}):(\d{2})$/.exec(value)
+  if (!match) return value
+  const totalHours = Number(match[1])
+  const time = `${String(totalHours % 24).padStart(2, '0')}:${match[2]}:${match[3]}`
+  return totalHours >= 24 ? `${Math.floor(totalHours / 24)}.${time}` : time
 }
 
 function normalizeDreamsRunStatus(value: unknown): DreamsRunStatus {
@@ -159,13 +161,6 @@ export function normalizeDreamsStatus(value: unknown): DreamsStatus {
   const source = value != null && typeof value === 'object' ? value as Partial<DreamsStatus> : {}
   const lastRun = normalizeDreamsRunState(source.lastRun)
   return {
-    enabled: source.enabled !== false,
-    interval: normalizeDreamsInterval(source.interval) ?? DEFAULT_DREAMS_INTERVAL,
-    threadLookbackCount:
-      typeof source.threadLookbackCount === 'number' && Number.isInteger(source.threadLookbackCount) && source.threadLookbackCount > 0
-        ? source.threadLookbackCount
-        : DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT,
-    autoApply: source.autoApply === true,
     minCompletedTurnsSinceLastRun:
       typeof source.minCompletedTurnsSinceLastRun === 'number' && Number.isFinite(source.minCompletedTurnsSinceLastRun)
         ? source.minCompletedTurnsSinceLastRun

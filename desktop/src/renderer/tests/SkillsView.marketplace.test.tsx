@@ -9,6 +9,7 @@ import { useSkillMarketStore } from '../stores/skillMarketStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useConfigStore } from '../stores/configStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useToastStore } from '../stores/toastStore'
 
@@ -18,7 +19,6 @@ const skillMarketSearch = vi.fn()
 const skillMarketDetail = vi.fn()
 const skillMarketInstall = vi.fn()
 const skillMarketPrepareDotCraftInstall = vi.fn()
-const workspaceConfigGetCore = vi.fn()
 const openExternal = vi.fn()
 let gitLocalInstalled = true
 let gitLocalHasVariant = false
@@ -63,6 +63,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
       dotCraftInstallSlug: null
     })
     useConnectionStore.getState().reset()
+    useConfigStore.getState().reset()
     useConversationStore.getState().reset()
     useConversationStore.setState({ remoteWorkspaceActive: false })
     useConnectionStore.getState().setStatus({
@@ -187,28 +188,9 @@ describe('SkillsView marketplace browse and manage modes', () => {
       candidateDir: 'X:\\fixtures\\workspace\\.craft\\skill-install-staging\\clawhub.git-helper.2026-05-01T00-00-00-000Z\\source',
       metadataPath: 'X:\\fixtures\\workspace\\.craft\\skill-install-staging\\clawhub.git-helper.2026-05-01T00-00-00-000Z\\.dotcraft-dotcraft-install.json'
     })
-    workspaceConfigGetCore.mockResolvedValue({
-      workspace: {
-        apiKey: null,
-        endPoint: null,
-        welcomeSuggestionsEnabled: null,
-        skillsSelfLearningEnabled: true,
-        memoryEnabled: null,
-        defaultApprovalPolicy: null
-      },
-      userDefaults: {
-        apiKey: null,
-        endPoint: null,
-        welcomeSuggestionsEnabled: null,
-        skillsSelfLearningEnabled: null,
-        memoryEnabled: null,
-        defaultApprovalPolicy: null
-      }
-    })
     installDesktopApiMock({
       settings: { get: settingsGet },
       appServer: { sendRequest: appServerSendRequest },
-      workspaceConfig: { getCore: workspaceConfigGetCore },
       skillMarket: {
         search: skillMarketSearch,
         detail: skillMarketDetail,
@@ -608,24 +590,10 @@ describe('SkillsView marketplace browse and manage modes', () => {
   })
 
   it('disables DotCraft install when self-learning is disabled', async () => {
-    workspaceConfigGetCore.mockResolvedValueOnce({
-      workspace: {
-        apiKey: null,
-        endPoint: null,
-        welcomeSuggestionsEnabled: null,
-        skillsSelfLearningEnabled: false,
-        memoryEnabled: null,
-        defaultApprovalPolicy: null
-      },
-      userDefaults: {
-        apiKey: null,
-        endPoint: null,
-        welcomeSuggestionsEnabled: null,
-        skillsSelfLearningEnabled: null,
-        memoryEnabled: null,
-        defaultApprovalPolicy: null
-      }
-    })
+    useConnectionStore.setState((state) => ({
+      capabilities: { ...state.capabilities, workspaceConfigManagement: true }
+    }))
+    useConfigStore.setState({ config: { Skills: { SelfLearning: { Enabled: false } } } })
 
     renderView()
     fireEvent.change(await screen.findByPlaceholderText('Search skills or install from Marketplace'), {

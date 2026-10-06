@@ -5692,6 +5692,266 @@
       "variants": []
     },
     {
+      "id": "core.ConfigBatchWriteParams",
+      "name": "ConfigBatchWriteParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ConfigBatchWriteParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "edits",
+          "type": "array<core.ConfigEdit>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "expectedVersion",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "filePath",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ConfigChangedParams",
+      "name": "ConfigChangedParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ConfigChangedParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "changedAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "regions",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ConfigEdit",
+      "name": "ConfigEdit",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ConfigEdit.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "keyPath",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "mergeStrategy",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "value",
+          "type": "json",
+          "required": true,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ConfigLayer",
+      "name": "ConfigLayer",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ConfigLayer.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "config",
+          "type": "json",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "core.ConfigLayerName",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "version",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ConfigLayerMetadata",
+      "name": "ConfigLayerMetadata",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ConfigLayerMetadata.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "name",
+          "type": "core.ConfigLayerName",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "version",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ConfigLayerName",
+      "name": "ConfigLayerName",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ConfigLayerName.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "file",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ConfigOverriddenMetadata",
+      "name": "ConfigOverriddenMetadata",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ConfigOverriddenMetadata.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "effectiveValue",
+          "type": "json",
+          "required": true,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "message",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "overridingLayer",
+          "type": "core.ConfigLayerMetadata",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ConfigReadParams",
+      "name": "ConfigReadParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ConfigReadParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "includeLayers",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ConfigReadResult",
+      "name": "ConfigReadResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ConfigReadResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "config",
+          "type": "json",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "layers",
+          "type": "array<core.ConfigLayer>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "origins",
+          "type": "map<core.ConfigLayerMetadata>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ConfigSchemaField",
       "name": "ConfigSchemaField",
       "module": "core",
@@ -5780,6 +6040,34 @@
       "variants": []
     },
     {
+      "id": "core.ConfigSchemaParams",
+      "name": "ConfigSchemaParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ConfigSchemaParams.schema.json",
+      "additionalProperties": true,
+      "fields": [],
+      "variants": []
+    },
+    {
+      "id": "core.ConfigSchemaResult",
+      "name": "ConfigSchemaResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ConfigSchemaResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "sections",
+          "type": "array<core.ConfigSchemaSection>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ConfigSchemaSection",
       "name": "ConfigSchemaSection",
       "module": "core",
@@ -5824,6 +6112,91 @@
         },
         {
           "name": "section",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ConfigValueWriteParams",
+      "name": "ConfigValueWriteParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ConfigValueWriteParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "expectedVersion",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "filePath",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "keyPath",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "mergeStrategy",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "value",
+          "type": "json",
+          "required": true,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ConfigWriteResult",
+      "name": "ConfigWriteResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ConfigWriteResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "filePath",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "overriddenMetadata",
+          "type": "core.ConfigOverriddenMetadata",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "version",
           "type": "string",
           "required": true,
           "nullable": false,
@@ -25322,326 +25695,6 @@
       "variants": []
     },
     {
-      "id": "core.WorkspaceConfigChangedParams",
-      "name": "WorkspaceConfigChangedParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/WorkspaceConfigChangedParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "changedAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "regions",
-          "type": "array<string>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "source",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.WorkspaceConfigSchemaParams",
-      "name": "WorkspaceConfigSchemaParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/WorkspaceConfigSchemaParams.schema.json",
-      "additionalProperties": true,
-      "fields": [],
-      "variants": []
-    },
-    {
-      "id": "core.WorkspaceConfigSchemaResult",
-      "name": "WorkspaceConfigSchemaResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/WorkspaceConfigSchemaResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "sections",
-          "type": "array<core.ConfigSchemaSection>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.WorkspaceConfigUpdateParams",
-      "name": "WorkspaceConfigUpdateParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/WorkspaceConfigUpdateParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "defaultApprovalPolicy",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "dreamsAutoApply",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "dreamsEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "dreamsInterval",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "dreamsThreadLookbackCount",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "instantInterruptEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "memoryEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "promptSuggestionsEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "providerId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "providerPreferences",
-          "type": "map<core.ModelPreference>",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "skillsIncludeSharedSkills",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "skillsSelfLearningEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "toolsCodeModeMode",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "toolsImageGenerationEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "toolsImageGenerationProvider",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "toolsLspEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "welcomeSuggestionsEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.WorkspaceConfigUpdateResult",
-      "name": "WorkspaceConfigUpdateResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/WorkspaceConfigUpdateResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "defaultApprovalPolicy",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "dreamsAutoApply",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "dreamsEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "dreamsInterval",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "dreamsThreadLookbackCount",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "instantInterruptEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "memoryEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "promptSuggestionsEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "providerId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "providerPreferences",
-          "type": "map<core.ModelPreference>",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "skillsIncludeSharedSkills",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "skillsSelfLearningEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "toolsCodeModeMode",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "toolsImageGenerationEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "toolsImageGenerationProvider",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "toolsLspEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "welcomeSuggestionsEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.WorktreeCreateAndForkParams",
       "name": "WorktreeCreateAndForkParams",
       "module": "core",
@@ -27017,6 +27070,38 @@
       "stability": "stable"
     },
     {
+      "name": "config/batchWrite",
+      "descriptorMember": "ConfigBatchWrite",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ConfigBatchWriteParams",
+      "resultType": "core.ConfigWriteResult",
+      "module": "core",
+      "capability": "workspaceConfigManagement",
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "config/changed",
+      "descriptorMember": "ConfigChanged",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.ConfigChangedParams",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "configChange",
+      "scope": "workspace",
+      "notificationOptOut": true,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
       "name": "config/mcpServer/reload",
       "descriptorMember": "ConfigMcpServerReload",
       "kind": "request",
@@ -27032,6 +27117,54 @@
         "InvalidRequest",
         "MethodNotFound"
       ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "config/read",
+      "descriptorMember": "ConfigRead",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ConfigReadParams",
+      "resultType": "core.ConfigReadResult",
+      "module": "core",
+      "capability": "workspaceConfigManagement",
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "config/schema",
+      "descriptorMember": "ConfigSchema",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ConfigSchemaParams",
+      "resultType": "core.ConfigSchemaResult",
+      "module": "core",
+      "capability": null,
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "config/value/write",
+      "descriptorMember": "ConfigValueWrite",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ConfigValueWriteParams",
+      "resultType": "core.ConfigWriteResult",
+      "module": "core",
+      "capability": "workspaceConfigManagement",
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"
@@ -31177,62 +31310,6 @@
         "InvalidRequest",
         "MethodNotFound"
       ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "workspace/config/schema",
-      "descriptorMember": "WorkspaceConfigSchema",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.WorkspaceConfigSchemaParams",
-      "resultType": "core.WorkspaceConfigSchemaResult",
-      "module": "core",
-      "capability": null,
-      "scope": "workspace",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "workspace/config/update",
-      "descriptorMember": "WorkspaceConfigUpdate",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.WorkspaceConfigUpdateParams",
-      "resultType": "core.WorkspaceConfigUpdateResult",
-      "module": "core",
-      "capability": null,
-      "scope": "workspace",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "workspace/configChanged",
-      "descriptorMember": "WorkspaceConfigChanged",
-      "kind": "notification",
-      "direction": "serverToClient",
-      "paramsType": "core.WorkspaceConfigChangedParams",
-      "resultType": "core.RpcEmpty",
-      "module": "core",
-      "capability": "configChange",
-      "scope": "workspace",
-      "notificationOptOut": true,
-      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

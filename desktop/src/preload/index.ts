@@ -8,7 +8,6 @@ import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { resolveThemeMode, type ThemeMode } from '../shared/theme'
 import { readInitialWorkspaceStatusFromArgv } from '../shared/initialWorkspaceStatus'
 import { INITIAL_CDP_DEBUGGING_ARG } from '../shared/initialCdpDebugging'
-import type { ProviderPreferences } from '../shared/modelPreference'
 import { localeToHtmlLang, normalizeLocale, type AppLocale } from '../shared/locales'
 import { deriveThemeProperties } from '../shared/themeDerive'
 import {
@@ -251,35 +250,6 @@ if (typeof document !== 'undefined') {
   if (!document.documentElement) {
     document.addEventListener('DOMContentLoaded', applyInitialDocumentState, { once: true })
   }
-}
-
-export type ConfigReloadBehavior = 'processRestart' | 'subsystemRestart' | 'hot' | string
-
-export interface WorkspaceConfigSchemaField {
-  key: string
-  displayName?: string
-  type: string
-  sensitive: boolean
-  options?: string[]
-  min?: number
-  max?: number
-  hint?: string
-  defaultValue?: unknown
-  reload?: ConfigReloadBehavior
-  subsystemKey?: string
-}
-
-export interface WorkspaceConfigSchemaSection {
-  section: string
-  order: number
-  path?: string[]
-  rootKey?: string
-  itemFields?: WorkspaceConfigSchemaField[]
-  fields: WorkspaceConfigSchemaField[]
-}
-
-export interface WorkspaceConfigSchema {
-  sections: WorkspaceConfigSchemaSection[]
 }
 
 export interface OpenThreadPayload {
@@ -549,10 +519,6 @@ const api = {
       return ipcRenderer.invoke('appserver:model-list', providerId)
     },
 
-    requestWorkspaceConfigSchema(): Promise<WorkspaceConfigSchema | null> {
-      return ipcRenderer.invoke('appserver:workspace-config-schema')
-    },
-
     /** Snapshot read so the renderer does not miss status events fired during bootstrap. */
     getConnectionStatus(): Promise<ConnectionStatusPayload> {
       return ipcRenderer.invoke('appserver:get-connection-status')
@@ -654,47 +620,6 @@ const api = {
         threadId,
         requestId
       )
-    }
-  },
-
-  workspaceConfig: {
-    getCore(): Promise<{
-      workspace: {
-        providerId: string | null
-        providerPreferences: ProviderPreferences
-        welcomeSuggestionsEnabled: boolean | null
-        promptSuggestionsEnabled: boolean | null
-        skillsSelfLearningEnabled: boolean | null
-        memoryEnabled: boolean | null
-        dreamsEnabled: boolean | null
-        dreamsInterval: string | null
-        dreamsThreadLookbackCount: number | null
-        dreamsAutoApply: boolean | null
-        defaultApprovalPolicy: 'default' | 'autoApprove' | null
-        toolsImageGenerationEnabled: boolean | null
-        toolsImageGenerationProvider: string | null
-        toolsCodeModeMode: 'off' | 'on' | 'only' | null
-        instantInterruptEnabled: boolean | null
-      }
-      userDefaults: {
-        providerId: string | null
-        providerPreferences: ProviderPreferences
-        welcomeSuggestionsEnabled: boolean | null
-        promptSuggestionsEnabled: boolean | null
-        skillsSelfLearningEnabled: boolean | null
-        memoryEnabled: boolean | null
-        dreamsEnabled: boolean | null
-        dreamsInterval: string | null
-        dreamsThreadLookbackCount: number | null
-        dreamsAutoApply: boolean | null
-        defaultApprovalPolicy: 'default' | 'autoApprove' | null
-        toolsImageGenerationEnabled: boolean | null
-        toolsImageGenerationProvider: string | null
-        toolsCodeModeMode: 'off' | 'on' | 'only' | null
-        instantInterruptEnabled: boolean | null
-      }
-    }> {
-      return ipcRenderer.invoke('workspace-config:get-core')
     }
   },
 

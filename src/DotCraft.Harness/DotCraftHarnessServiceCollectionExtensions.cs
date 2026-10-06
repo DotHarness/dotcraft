@@ -51,6 +51,7 @@ public static class DotCraftHarnessServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(paths);
 
         services.TryAddSingleton<IConfigSchemaProvider>(ConfigSchemaRegistrations.CreateSchemaProvider());
+        services.TryAddSingleton<IConfigDescriptorRegistry>(ConfigSchemaRegistrations.CreateDescriptorRegistry());
         if (runtimeOptions.Config.ModelService is { } connection)
         {
             if (connection.CallerId is null)
