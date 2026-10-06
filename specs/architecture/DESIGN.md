@@ -1007,6 +1007,10 @@ animation; the pulse itself is the running signal.
   accent bar along the toolbar's bottom edge, pulsing on opacity. It is
   `aria-hidden`; the Reload/Stop control is the accessible state. Under reduced
   motion the bar stays as a static rule.
+- Opening a thread before its record arrives shows only a centred 20px spinner in
+  `--text-secondary`, hidden for its first `400ms` (`.dc-delayed-reveal`) so a quick
+  switch paints nothing. It has no caption; the `role="status"` container carries the
+  accessible name.
 - An unloaded stretch of transcript history is a gap: `144px` of blank,
   `aria-hidden` space with no skeleton or spinner. It starts loading `800px` before
   it reaches the viewport, so it is rarely seen, and a skeleton of turns it has not

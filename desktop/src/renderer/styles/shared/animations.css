@@ -23,6 +23,19 @@
   animation: blink var(--animate-cursor-blink) step-end infinite;
 }
 
+@keyframes delayed-reveal {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
+}
+
+.dc-delayed-reveal {
+  animation: delayed-reveal 400ms step-end;
+}
+
 @keyframes pulse {
   0%, 100% {
     opacity: 1;

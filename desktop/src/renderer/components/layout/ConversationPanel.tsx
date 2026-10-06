@@ -28,6 +28,7 @@ import {
 import { useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import { ConversationAsideProvider } from '../conversation/conversationAside/ConversationAside'
+import { Spinner } from '../ui/Spinner'
 
 interface ConversationPanelProps {
   workspacePath?: string
@@ -157,9 +158,9 @@ export function ConversationPanel({
   // The thread object arrives a round trip after its id, and the thread-list loading flag does not cover that gap.
   if (!creating && activeThreadId && !activeThread) {
     return (
-      <div style={centeredStyle}>
-        <span style={conversationPlaceholderStyle}>
-          {t(isAgentBuilder ? 'conversation.startingBuilder' : 'conversation.loadingThread')}
+      <div style={centeredStyle} role="status" aria-label={t(isAgentBuilder ? 'conversation.startingBuilder' : 'conversation.loadingThread')}>
+        <span className="dc-delayed-reveal" style={openingIndicatorStyle}>
+          <Spinner size={20} />
         </span>
       </div>
     )
@@ -358,7 +359,7 @@ const panelStyle: CSSProperties = {
   overflow: 'hidden'
 }
 
-const conversationPlaceholderStyle: CSSProperties = { color: 'var(--text-dimmed)', fontSize: '13px' }
+const openingIndicatorStyle: CSSProperties = { display: 'inline-flex', color: 'var(--text-secondary)' }
 
 const centeredStyle: CSSProperties = {
   display: 'flex',
