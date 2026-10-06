@@ -15,7 +15,23 @@
   pointer-events: auto;
   scrollbar-color: var(--border-default) transparent;
   scrollbar-width: thin;
-  animation: conversation-summary-panel-in 220ms var(--ease-standard) both;
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  transform-origin: top right;
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+
+.conversation-summary-pinned[data-leaving] {
+  opacity: 0;
+  transform: translateX(100%) scale(0.8);
+  pointer-events: none;
+}
+
+@starting-style {
+  .conversation-summary-pinned {
+    opacity: 0;
+    transform: translateX(100%) scale(0.8);
+  }
 }
 
 .conversation-summary-popover {
@@ -183,13 +199,21 @@
   line-height: var(--type-ui-line-height);
 }
 
-html[data-reduce-motion='on'] .conversation-summary-pinned,
+html[data-reduce-motion='on'] .conversation-summary-pinned {
+  transform: none;
+  transition-duration: 0.001ms;
+}
+
 html[data-reduce-motion='on'] .conversation-summary-popover {
   animation: conversation-summary-fade-in 160ms ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html:not([data-reduce-motion='off']) .conversation-summary-pinned,
+  html:not([data-reduce-motion='off']) .conversation-summary-pinned {
+    transform: none;
+    transition-duration: 0.001ms;
+  }
+
   html:not([data-reduce-motion='off']) .conversation-summary-popover {
     animation: conversation-summary-fade-in 160ms ease-out both;
   }
@@ -198,11 +222,6 @@ html[data-reduce-motion='on'] .conversation-summary-popover {
 @keyframes conversation-summary-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-
-@keyframes conversation-summary-panel-in {
-  from { opacity: 0; transform: translateX(8px); }
-  to { opacity: 1; transform: none; }
 }
 
 @keyframes conversation-summary-popover-in {

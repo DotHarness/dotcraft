@@ -226,7 +226,7 @@ interface DesktopPluginConversationAsideContext extends DesktopPluginThreadSurfa
 
 Each aside is a seat between the edge of the message stream and the reading column. It spans the visible stream height and does not scroll with messages. Like `app.overlay`, the seat sets `pointer-events: none`, and a contribution opts back in on its own interactive elements.
 
-Layout belongs to the Host and depends only on width. The side space is half the difference between the stream width and the reading column width:
+Layout belongs to the Host and depends only on width. During a shell panel transition, the Host uses the conversation's target width rather than its interpolated measured width, so contributions and the reading-column shift start their transitions with the shell. Embedded conversations without a shell target use their measured stream width. The side space is half the difference between the stream width and the reading column width:
 
 - `overlay`: the side space is under 180 logical pixels.
 - `shift`: the side space is from 180 up to, but not including, 400 logical pixels.

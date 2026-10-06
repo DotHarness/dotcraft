@@ -8,6 +8,7 @@ import {
   type UIState
 } from '../../stores/uiStore'
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout'
+import { ConversationTargetWidthContext } from '../../contexts/ConversationLayoutContext'
 import { DragHandle } from './DragHandle'
 import { ResizeEdgeGlow } from './ResizeEdgeGlow'
 
@@ -245,7 +246,9 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
             background: 'transparent'
           }}
         >
-          {conversation}
+          <ConversationTargetWidthContext.Provider value={Math.max(CONVERSATION_MIN_WIDTH, mainSurfaceWidth - effectiveDetailPanelWidth)}>
+            {conversation}
+          </ConversationTargetWidthContext.Provider>
         </div>
 
         {/* The outer shell owns the width animation. Divider, glow, and drag handle

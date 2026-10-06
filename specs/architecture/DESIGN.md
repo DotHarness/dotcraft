@@ -1720,6 +1720,7 @@ Content beside the conversation stays quieter than the conversation itself. The 
 - **Header toggle.** A side panel's header toggle is a standard toolbar `IconButton` with the same size and gap as the header's other buttons. Its pressed state uses the header's existing treatment. Its glyph must not echo the panel toggle glyphs or the overflow menu.
 - **Summary card.** The summary is one self-contained card:
   - **Container:** `--bg-elevated`, a 1px default border, and a 16px radius, with 20px horizontal padding. The pinned card aligns to the trailing edge of the stream, 16px in, and has no shadow. The popover form adds `--shadow-lg`.
+  - **Motion:** when a shell panel leaves too little room for the pinned summary, it starts fading and sliding out as that panel opens, not after the stream finishes narrowing. Keep the outgoing card mounted only through its exit, non-interactive and hidden from assistive technology. Preserve the pin preference and reverse an interrupted exit when room returns. Reduced motion removes the slide and completes the exit immediately.
   - **Header:** the workspace name at ui size and medium weight.
   - **Sections:** a secondary-size title in muted text with no count. Sections are separated by a hairline.
   - **Rows:** single-line at ui size, with a 16px leading glyph and no trailing meta. Action rows take the standard hover fill.

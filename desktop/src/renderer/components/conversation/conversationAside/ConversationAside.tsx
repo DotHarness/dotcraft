@@ -17,6 +17,7 @@ import {
   type RefObject
 } from 'react'
 
+import { useConversationTargetWidth } from '../../../contexts/ConversationLayoutContext'
 import { DesktopPluginSurface } from '../../desktopPlugins/DesktopPluginSurface'
 import { conversationAsideLayout, type ConversationAsideLayout } from './conversationAsideLayout'
 
@@ -61,6 +62,7 @@ interface ConversationAsideProviderProps {
 }
 
 export function ConversationAsideProvider({ thread, style, children }: ConversationAsideProviderProps): JSX.Element {
+  const targetWidth = useConversationTargetWidth()
   const [metrics, setMetrics] = useState<StreamMetrics | null>(null)
   const [railShown, setRailShown] = useState(false)
   const [pinCount, setPinCount] = useState(0)
@@ -92,9 +94,9 @@ export function ConversationAsideProvider({ thread, style, children }: Conversat
   )
   const layout = useMemo(
     () => stableThread && metrics
-      ? conversationAsideLayout(metrics.streamWidth, metrics.readingWidth, pinCount > 0, railShown)
+      ? conversationAsideLayout(targetWidth ?? metrics.streamWidth, metrics.readingWidth, pinCount > 0, railShown)
       : null,
-    [stableThread, metrics, pinCount, railShown]
+    [stableThread, targetWidth, metrics, pinCount, railShown]
   )
   const state = useMemo(() => ({ thread: stableThread, layout }), [stableThread, layout])
   const shift = layout?.shift ?? 0

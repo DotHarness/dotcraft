@@ -8,6 +8,8 @@ import {
   ConversationAsides,
   useConversationColumnShift
 } from '../components/conversation/conversationAside/ConversationAside'
+import { ThreePanel } from '../components/layout/ThreePanel'
+import { useUIStore } from '../stores/uiStore'
 import {
   clearDesktopPluginRegistry,
   registerDesktopPluginSurface
@@ -55,6 +57,48 @@ afterEach(() => {
 })
 
 describe('conversation asides', () => {
+  it.each([
+    { viewportWidth: 1600, openTier: 'overlay', openShift: '0' },
+    { viewportWidth: 2400, openTier: 'shift', openShift: '153' }
+  ])('uses the shell target before stream resize at $viewportWidth px', ({ viewportWidth, openTier, openShift }) => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: viewportWidth })
+    useUIStore.setState({
+      activeMainView: 'conversation',
+      sidebarCollapsed: false,
+      sidebarPreferredCollapsed: false,
+      sidebarWidth: 240,
+      detailPanelVisible: false,
+      detailPanelPreferredVisible: false,
+      detailPanelWidthRatio: 0.36,
+      responsiveLayout: 'full'
+    })
+    registerDesktopPluginSurface('summary', host, 'conversation.aside.trailing', 'add', PinningPanel)
+    render(
+      <ThreePanel
+        sidebar={null}
+        detail={null}
+        conversation={(
+          <ConversationAsideProvider thread={thread} style={{}}>
+            <Stream />
+            <ColumnShift />
+          </ConversationAsideProvider>
+        )}
+      />
+    )
+    act(() => setPinned(true))
+    const initialTier = screen.getByTestId('trailing-layout').textContent
+    const initialShift = screen.getByTestId('column-shift').textContent
+
+    act(() => useUIStore.getState().setDetailPanelVisible(true))
+    expect(screen.getByTestId('trailing-layout')).toHaveTextContent(openTier)
+    expect(screen.getByTestId('column-shift')).toHaveTextContent(openShift)
+    expect(screen.getByTestId('stream').offsetWidth).toBe(1168)
+
+    act(() => useUIStore.getState().setDetailPanelVisible(false))
+    expect(screen.getByTestId('trailing-layout').textContent).toBe(initialTier)
+    expect(screen.getByTestId('column-shift').textContent).toBe(initialShift)
+  })
+
   it('moves the conversation column while a trailing pin is live in the shift tier', () => {
     registerDesktopPluginSurface('summary', host, 'conversation.aside.trailing', 'add', PinningPanel)
     render(
