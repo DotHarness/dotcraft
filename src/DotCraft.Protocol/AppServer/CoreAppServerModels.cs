@@ -5784,15 +5784,6 @@ public sealed class ThreadNamePolicy : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadPauseParams.</summary>
-public sealed class ThreadPauseParams : ExtensibleJsonObject
-{
-    [JsonPropertyName("threadId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ThreadId { get; init; }
-
-}
-
 /// <summary>Executable wire contract for ThreadPluginPolicy.</summary>
 public sealed class ThreadPluginPolicy : ExtensibleJsonObject
 {

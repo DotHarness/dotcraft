@@ -590,7 +590,7 @@ In a shared Session Core process (typical AppServer mode), when **any** channel 
 
 ### 4.2 `thread/resume`
 
-Resume a paused or previously loaded thread. Session Core loads the thread from persistence, reconstructs the agent session, and sets status to Active.
+Resume an active thread. Session Core loads the thread from persistence and reconstructs the agent session. Archived threads cannot be resumed.
 
 **Direction**: client → server (request)
 
@@ -887,7 +887,7 @@ Subscribe the current connection to future lifecycle events for a thread. Multip
 
 After subscription succeeds, the server may emit future `thread/*`, `turn/*`, and `item/*` notifications for that thread even when the current connection did not originate the turn.
 
-`thread/archived`, `thread/unarchived`, and `thread/paused` are live-only and are not retained in the recent replay buffer. A reconnecting client must recover the current thread status from `thread/read` or `thread/list`; replay must not transiently reapply an obsolete archived, paused, or active state.
+`thread/archived` and `thread/unarchived` are live-only and are not retained in the recent replay buffer. A reconnecting client must recover the current thread status from `thread/read` or `thread/list`; replay must not transiently reapply an obsolete archived or active state.
 
 If the subscribed thread is already paused in a `waitingApproval` or `waitingInput` turn, the server must re-deliver the unresolved interactive request to the subscribing connection using the same rules as `thread/resume`. `thread/unsubscribe` and ordinary thread switching are not dismissals; they must not resolve, reject, or answer an outstanding interactive request.
 
@@ -907,23 +907,7 @@ Remove the current connection's passive subscription to a thread.
 
 Cancellation of the transport connection also implicitly unsubscribes all active thread subscriptions owned by that connection.
 
-### 4.8 `thread/pause`
-
-Pause an active thread. A paused thread cannot accept new turns until resumed.
-
-**Direction**: client → server (request)
-
-**Params**:
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `threadId` | string | yes | Thread ID to pause. |
-
-**Result**: `{}`
-
-The server emits a `thread/paused` notification.
-
-### 4.9 `thread/archive`
+### 4.8 `thread/archive`
 
 Archive a thread. Archived threads are read-only — they can be listed and read but not resumed or turned. Archiving a thread releases channel App Bindings for that thread: accepted channel bindings are revoked and pending social bind-code requests are cancelled, allowing the same social conversation to be bound to another active thread. Social-channel resolve and accept flows also lazily revoke stale bindings that still point at missing or archived threads, covering historical data and out-of-band thread deletion. If the target is a top-level parent with session-backed SubAgent descendants, the server recursively archives the full child-thread subtree. Directly archiving a SubAgent child thread is invalid; callers manage it through its parent.
 
@@ -939,7 +923,7 @@ Archive a thread. Archived threads are read-only — they can be listed and read
 
 The server emits a `thread/archived` notification. If channel App Bindings changed as part of archive, the server also emits `thread/appBindings/changed` notifications for affected bindings.
 
-### 4.10 `thread/unarchive`
+### 4.9 `thread/unarchive`
 
 Restore an archived thread to Active status so it can appear in the normal active thread list again. If the target is a top-level parent with session-backed SubAgent descendants, the server recursively restores the full child-thread subtree.
 
@@ -955,7 +939,7 @@ Restore an archived thread to Active status so it can appear in the normal activ
 
 The server emits a `thread/unarchived` notification.
 
-### 4.11 `thread/delete`
+### 4.10 `thread/delete`
 
 Permanently delete a thread, its associated session data, and all tracing sessions/events bound to that thread. If the target is a top-level parent with session-backed SubAgent descendants, the server recursively deletes the full child-thread subtree and its graph edges. Directly deleting a SubAgent child thread is invalid; callers manage it through its parent.
 
@@ -971,7 +955,7 @@ Permanently delete a thread, its associated session data, and all tracing sessio
 
 After the thread is permanently removed, the server **broadcasts** a `thread/deleted` notification to **all** connected clients, including the connection that initiated `thread/delete`, subject to notification opt-out (see Section 6.1). For recursive SubAgent deletion, a notification is emitted for each removed thread. Deletion is only considered successful after the persisted thread record and all bound tracing data have been removed. Clients may remove the thread from local state when the RPC returns. The notification may arrive before or after the RPC response; both cleanup paths must be idempotent.
 
-### 4.12 `thread/mode/set`
+### 4.11 `thread/mode/set`
 
 Set the agent mode for a thread (e.g., `"plan"`, `"agent"`).
 
@@ -988,7 +972,7 @@ Set the agent mode for a thread (e.g., `"plan"`, `"agent"`).
 
 **Behavior**: The server recreates the execution context for the specified thread using the tool set associated with the requested mode.
 
-### 4.13 `thread/rename`
+### 4.12 `thread/rename`
 
 Update the display name of a thread.
 
@@ -1005,7 +989,7 @@ Update the display name of a thread.
 
 After the display name is persisted, the server **broadcasts** a `thread/renamed` notification to **all** connected clients (see [Section 6.1](#61-thread-notifications)). The same notification is used when Session Core sets the display name from the first user message on a turn (not only in response to this RPC).
 
-### 4.14 `thread/config/update`
+### 4.13 `thread/config/update`
 
 Update per-thread agent configuration (MCP servers, extensions, etc.).
 
@@ -1022,7 +1006,7 @@ Update per-thread agent configuration (MCP servers, extensions, etc.).
 
 Provider changes include a non-empty `providerId` and `model` in the same request. The server validates model-aware fields such as `reasoning` against that pair before persisting. On success, the server rebuilds the thread agent/compaction pipeline for queued and future Turns, persists the configuration, and broadcasts authoritative `thread/updated` state. A running Turn keeps the immutable configuration and tool snapshot captured at its start. Configuration replacement does not release terminal thread resources or revoke client-owned Runtime Dynamic Tool bindings.
 
-### 4.15 Thread Goal Methods
+### 4.14 Thread Goal Methods
 
 Thread goal behavior is defined by [Goal Design](../features/goal.md). AppServer projects the Session Core goal runtime through these JSON-RPC methods:
 
@@ -1062,7 +1046,7 @@ Goal notifications:
 
 `thread/read`, `thread/start`, `thread/resume`, and `thread/list` may include an optional `goal` snapshot for hydration. Clients must still consume goal notifications as the incremental source of truth.
 
-### 4.16 `thread/compact/start`
+### 4.15 `thread/compact/start`
 
 Manually compact the model-visible context for an idle server-managed thread.
 
@@ -1086,17 +1070,17 @@ Servers advertise this method with `capabilities.manualCompaction = true`. The m
 
 Compaction cancellation, provider timeout, backend failure, and replacement validation failure must be observable in trace storage with a terminal result. User interruption maps to `outcome = "cancelled"` and `compactCancelled`. Provider timeout, missing or overlong local summaries, invalid provider-native output, and persistence failure map to `outcome = "failed"` and `compactFailed`. Failure messages use the machine-readable reasons defined by the selected backend.
 
-### 4.17 `thread/maintenance/interrupt`
+### 4.16 `thread/maintenance/interrupt`
 
 Interrupts active thread-level maintenance such as manual compaction. This method is advertised with `capabilities.threadMaintenanceInterrupt = true`.
 
 If no maintenance is active, the request succeeds as a no-op. If maintenance is active, the server signals its cancellation token and later emits the matching terminal `system/event` (`compactCancelled`). Cancelling maintenance does not cancel any completed turn and does not remove queued inputs.
 
-### 4.18 Worktree Methods
+### 4.17 Worktree Methods
 
 Worktree methods are advertised with `capabilities.gitWorktrees = true`. They create, inspect, and switch DotCraft-managed Git worktrees bound to threads. Thread state stays in the original workspace; the worktree is only the execution workspace.
 
-#### 4.18.1 `worktree/createAndFork`
+#### 4.17.1 `worktree/createAndFork`
 
 Create a Git worktree, optionally copy dirty source changes, then fork a source thread into that worktree.
 
@@ -1126,7 +1110,7 @@ Semantics:
 - The forked thread's rollout, memory, goals, plans, app bindings, and metadata remain in the original state workspace.
 - Dirty handoff failure is recoverable and must not switch the active thread in clients.
 
-#### 4.18.2 `worktree/createAndStart`
+#### 4.17.2 `worktree/createAndStart`
 
 Create a Git worktree, optionally copy dirty source changes, then start a new empty thread in that worktree.
 
@@ -1156,7 +1140,7 @@ Semantics:
 - The thread's rollout, memory, goals, plans, app bindings, and metadata remain in the original state workspace.
 - After success, the server emits `thread/started` for the new thread.
 
-#### 4.18.3 `thread/worktree/handoff`
+#### 4.17.3 `thread/worktree/handoff`
 
 Move an existing thread between its local workspace and a DotCraft-managed worktree without changing the thread ID.
 
@@ -1183,7 +1167,7 @@ Semantics:
 - When no conflict exists, worktree -> local stashes modified, deleted, and non-ignored untracked worktree changes, detaches the worktree from its branch, checks out the worktree branch in the local workspace, applies the stashed changes locally, clears `thread.worktree`, clears `configuration.executionWorkspaceOverride`, and removes the registered managed worktree.
 - After success, the server emits `thread/updated` with the updated compact thread.
 
-#### 4.18.4 `worktree/list`
+#### 4.17.4 `worktree/list`
 
 List registered DotCraft-managed worktrees for the connected workspace.
 
@@ -1200,7 +1184,7 @@ List registered DotCraft-managed worktrees for the connected workspace.
 
 The list is scoped to registered worktrees under `.craft/worktrees`. Clients must not treat arbitrary external Git worktrees as managed DotCraft worktrees unless the server registers them.
 
-#### 4.18.5 `worktree/status`
+#### 4.17.5 `worktree/status`
 
 Return current Git status metadata for the worktree bound to a thread.
 
@@ -1233,11 +1217,11 @@ This method is a lightweight refresh path for worktree indicators. Full file, di
 | `hasCommitsAheadOfBase` | boolean | Whether `HEAD` has commits ahead of the recorded `baseHead` / `baseRef`. |
 | `aheadCount` | number | Commit count for `base..HEAD`; zero when unreadable or not ahead. |
 
-### 4.19 Thread Recovery Methods
+### 4.18 Thread Recovery Methods
 
 Thread recovery is a trusted adapter surface advertised through the existing `threadManagement` capability. The snapshot is a versioned JSON document owned by DotCraft; clients transfer it without interpreting or rewriting its Session fields.
 
-#### 4.19.1 `thread/recovery/export`
+#### 4.18.1 `thread/recovery/export`
 
 Flush and export a terminal Thread into the workspace-local restricted recovery staging directory.
 
@@ -1262,7 +1246,7 @@ Flush and export a terminal Thread into the workspace-local restricted recovery 
 
 The server first loads the Thread into its runtime, enters maintenance under the Thread's Turn-start lock, and flushes persistence before capture. It rejects ephemeral or client-managed Threads, active Turns, active thread maintenance, or a non-terminal newest Turn. The result's `terminalTurnId` is the durable boundary actually captured. The package contains the executable Session snapshot defined by Session Core.
 
-#### 4.19.2 `thread/recovery/restore`
+#### 4.18.2 `thread/recovery/restore`
 
 Validate and atomically install a JSON snapshot from the workspace-local restricted recovery staging directory.
 
@@ -1628,7 +1612,7 @@ The `thread` payload may omit full turn history. Clients should merge the compac
 
 #### `thread/renamed`
 
-Emitted when a thread's **display name** changes. The server **broadcasts** this notification to **all** connected clients (same delivery model as `thread/started`). Typical triggers include successful `thread/rename` (Section 4.13) and automatic display-name assignment from turn input.
+Emitted when a thread's **display name** changes. The server **broadcasts** this notification to **all** connected clients (same delivery model as `thread/started`). Typical triggers include successful `thread/rename` (Section 4.12) and automatic display-name assignment from turn input.
 
 **Params**: `{ "threadId": "<id>", "displayName": "<non-empty string>" }`
 
@@ -1657,12 +1641,6 @@ Emitted when a thread is archived, either directly or as part of archiving its p
 #### `thread/unarchived`
 
 Emitted when an archived thread is restored to Active status.
-
-**Params**: `{ "threadId": "<id>" }`
-
-#### `thread/paused`
-
-Emitted when a thread is paused. A paused thread becomes active again through `thread/resume`, which the server reports with `thread/resumed`.
 
 **Params**: `{ "threadId": "<id>" }`
 
@@ -2345,7 +2323,7 @@ This rule applies to all turn-scoped notifications:
 | `subagent/progress` | yes |
 | `system/event` | yes |
 
-Broadcast summary notifications such as `thread/started`, `thread/renamed`, `thread/deleted`, `thread/archived`, `thread/unarchived`, `thread/paused`, and `thread/status/changed` are **not** part of this thread-subscription delivery rule. They remain workspace-level broadcasts and may be delivered even when the connection is not subscribed to the target thread.
+Broadcast summary notifications such as `thread/started`, `thread/renamed`, `thread/deleted`, `thread/archived`, `thread/unarchived`, and `thread/status/changed` are **not** part of this thread-subscription delivery rule. They remain workspace-level broadcasts and may be delivered even when the connection is not subscribed to the target thread.
 
 **Rationale**: Without this rule, a connection that both subscribes to a thread and starts a turn on that thread could receive duplicate notifications through multiple delivery paths.
 
@@ -2585,7 +2563,7 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 | `-32002` | Not initialized | Method called before `initialize` handshake. |
 | `-32003` | Already initialized | `initialize` called more than once on the same connection. |
 | `-32010` | Thread not found | The specified `threadId` does not exist. |
-| `-32011` | Thread not active | Operation requires an active thread but the thread is paused or archived. |
+| `-32011` | Thread not active | Operation requires an active thread but the thread is archived. |
 | `-32012` | Turn in progress | A turn is already running or waiting for approval on this thread. |
 | `-32013` | Turn not found | The specified `turnId` does not exist on the thread. |
 | `-32014` | Turn not running | `turn/interrupt` called on a turn that is not in progress. |
@@ -2677,7 +2655,7 @@ Clients can suppress specific notification methods per connection by listing exa
 | `thread/started` | Client does not need thread lifecycle events. |
 | `thread/renamed` | Client does not need server-pushed display name updates (e.g. refreshes `thread/list` on a timer only). |
 | `thread/deleted` | Client does not need thread list sync when threads are removed elsewhere (e.g. polls `thread/list` only). |
-| `thread/archived`, `thread/unarchived`, `thread/paused` | Client manages thread status locally. |
+| `thread/archived`, `thread/unarchived` | Client manages thread status locally. |
 | `thread/status/changed` | Client does not display per-thread live activity indicators (e.g. batch runner, headless integration). |
 | `turn/diff/updated` | Client does not render aggregated Turn diffs; per-call file changes remain in `toolResult.structuredContent`. |
 | `subagent/progress` | Client does not display SubAgent real-time progress. |

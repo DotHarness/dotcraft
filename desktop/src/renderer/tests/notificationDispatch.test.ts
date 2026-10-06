@@ -352,13 +352,8 @@ function dispatchThreadLifecycle(
       removeThreadTree((p as { threadId: string }).threadId)
       break
     }
-    case 'thread/resumed': {
-      updateThreadStatus((p as { thread: ThreadSummary }).thread.id, 'active')
-      break
-    }
-    case 'thread/unarchived':
-    case 'thread/paused': {
-      updateThreadStatus((p as { threadId: string }).threadId, method === 'thread/paused' ? 'paused' : 'active')
+    case 'thread/unarchived': {
+      updateThreadStatus((p as { threadId: string }).threadId, 'active')
       break
     }
     default:
@@ -1793,25 +1788,6 @@ describe('thread lifecycle notification dispatch', () => {
     })
 
     expect(useThreadStore.getState().threadList).toEqual([])
-  })
-
-  it('marks a paused thread active when another client resumes it', () => {
-    dispatchThreadLifecycle({
-      method: 'thread/started',
-      params: { thread: minimalThread('paused-1') }
-    })
-    dispatchThreadLifecycle({
-      method: 'thread/paused',
-      params: { threadId: 'paused-1' }
-    })
-    expect(useThreadStore.getState().threadList[0]?.status).toBe('paused')
-
-    dispatchThreadLifecycle({
-      method: 'thread/resumed',
-      params: { thread: minimalThread('paused-1'), resumedBy: 'sdk' }
-    })
-
-    expect(useThreadStore.getState().threadList[0]?.status).toBe('active')
   })
 
 })

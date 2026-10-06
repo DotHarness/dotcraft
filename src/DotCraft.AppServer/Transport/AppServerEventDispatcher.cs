@@ -156,10 +156,12 @@ public sealed class AppServerEventDispatcher
                 break;
 
             case SessionEventType.ThreadStatusChanged:
-                if (evt.StatusChangedPayload is { } status
-                    && ThreadLifecycleNotification.For(evt.ThreadId, status.PreviousStatus, status.NewStatus) is { } lifecycle
-                    && CanSendToClient(lifecycle.Method))
-                    await SendNotificationAsync(lifecycle.Method, lifecycle.Params, ct);
+                if (evt.StatusChangedPayload is { } status)
+                {
+                    var lifecycle = ThreadLifecycleNotification.For(evt.ThreadId, status.NewStatus);
+                    if (CanSendToClient(lifecycle.Method))
+                        await SendNotificationAsync(lifecycle.Method, lifecycle.Params, ct);
+                }
                 break;
 
             default:

@@ -503,7 +503,6 @@ function methodToRunEventType(method: string | null | undefined): string {
     case "thread/resumed": return "thread_resumed";
     case "thread/archived": return "thread_archived";
     case "thread/unarchived": return "thread_unarchived";
-    case "thread/paused": return "thread_paused";
     case "thread/status/changed": return "thread_status_changed";
     case "thread/queue/updated": return "queue_updated";
     case "turn/started": return "turn_started";
@@ -622,14 +621,8 @@ class ThreadManagerImpl implements ThreadManager {
       ...identity,
       includeArchived: options.includeArchived ?? false,
     });
-    const reusable = threads.find((thread) => thread.status === "active" || thread.status === "paused");
+    const reusable = threads.find((thread) => thread.status === "active");
     if (reusable) {
-      if (reusable.status === "paused") {
-        return await this.resume(reusable.id, {
-          dynamicTools: options.dynamicTools,
-          additionalContext: options.additionalContext,
-        });
-      }
       const snapshot = await this.sdk.wire.threadRead(reusable.id);
       const thread = new DotCraftThread(this.sdk, snapshot, identity);
       thread.bindDynamicTools(options.dynamicTools);

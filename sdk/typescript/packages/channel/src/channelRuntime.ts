@@ -178,17 +178,13 @@ export class ChannelMessageQueue {
 export type ThreadResolveEventAction =
   | "force_fresh_created"
   | "cache_hit"
-  | "resumed_from_cache"
   | "cache_invalidated"
   | "listed_active"
-  | "listed_resumed"
   | "created"
   | "archived"
   | "archive_failed"
   | "recovered_stale_active"
-  | "recovered_stale_resumed"
   | "recovered_listed_active"
-  | "recovered_listed_resumed"
   | "recovered_created";
 
 export interface ThreadResolveEvent {
@@ -270,7 +266,7 @@ export class ThreadResolver {
       workspacePath: lookup.workspacePath,
     });
     for (const thread of threads) {
-      if (thread.status === "active" || thread.status === "paused") archivedIds.add(thread.id);
+      if (thread.status === "active") archivedIds.add(thread.id);
     }
 
     for (const threadId of archivedIds) {
@@ -313,12 +309,6 @@ export class ThreadResolver {
           this.emit({ action: "cache_hit", ...lookup, threadId: thread.id });
           return thread;
         }
-        if (thread.status === "paused") {
-          const resumed = await client.threadResume(threadId, { additionalContext });
-          this.threadMap.set(lookup.identityKey, resumed.id);
-          this.emit({ action: "resumed_from_cache", ...lookup, threadId: resumed.id });
-          return resumed;
-        }
       } catch (error) {
         this.threadMap.delete(lookup.identityKey);
         this.emit({ action: "cache_invalidated", ...lookup, threadId, error });
@@ -332,18 +322,13 @@ export class ThreadResolver {
       channelContext: lookup.channelContext,
       workspacePath: lookup.workspacePath,
     });
-    const reusable = threads.find((t) => t.status === "active" || t.status === "paused");
+    const reusable = threads.find((t) => t.status === "active");
     if (reusable) {
-      const thread =
-        reusable.status === "paused" || additionalContext
-          ? await client.threadResume(reusable.id, { additionalContext })
-          : await client.threadRead(reusable.id);
+      const thread = additionalContext
+        ? await client.threadResume(reusable.id, { additionalContext })
+        : await client.threadRead(reusable.id);
       this.threadMap.set(lookup.identityKey, thread.id);
-      this.emit({
-        action: reusable.status === "paused" ? "listed_resumed" : "listed_active",
-        ...lookup,
-        threadId: thread.id,
-      });
+      this.emit({ action: "listed_active", ...lookup, threadId: thread.id });
       return thread;
     }
 
@@ -368,12 +353,6 @@ export class ThreadResolver {
 
     try {
       const latest = await client.threadRead(staleThreadId);
-      if (latest.status === "paused") {
-        const resumed = await client.threadResume(staleThreadId, { additionalContext });
-        this.threadMap.set(lookup.identityKey, resumed.id);
-        this.emit({ action: "recovered_stale_resumed", ...lookup, staleThreadId, threadId: resumed.id });
-        return resumed;
-      }
       if (latest.status === "active") {
         this.threadMap.set(lookup.identityKey, latest.id);
         this.emit({ action: "recovered_stale_active", ...lookup, staleThreadId, threadId: latest.id });
@@ -390,19 +369,13 @@ export class ThreadResolver {
       channelContext: lookup.channelContext,
       workspacePath: lookup.workspacePath,
     });
-    const reusable = threads.find((t) => t.status === "active" || t.status === "paused");
+    const reusable = threads.find((t) => t.status === "active");
     if (reusable) {
-      const thread =
-        reusable.status === "paused" || additionalContext
-          ? await client.threadResume(reusable.id, { additionalContext })
-          : await client.threadRead(reusable.id);
+      const thread = additionalContext
+        ? await client.threadResume(reusable.id, { additionalContext })
+        : await client.threadRead(reusable.id);
       this.threadMap.set(lookup.identityKey, thread.id);
-      this.emit({
-        action: reusable.status === "paused" ? "recovered_listed_resumed" : "recovered_listed_active",
-        ...lookup,
-        staleThreadId,
-        threadId: thread.id,
-      });
+      this.emit({ action: "recovered_listed_active", ...lookup, staleThreadId, threadId: thread.id });
       return thread;
     }
 

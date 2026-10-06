@@ -43,7 +43,7 @@ class MyChannel extends ChannelAdapter {
 - Call `start()` before accepting platform events. It connects the Wire client, registers Channel handlers, and then advertises the Channel capabilities during `initialize`. Call `stop()` during shutdown.
 - Forward each platform event with `handleMessage`. The call accepts the event into an in-memory queue; it does not mean the turn or platform delivery has completed.
 - Queue identity is the combination of user id and channel context. Messages for one identity run serially; different identities can run concurrently. A slash command may bypass the queue when the adapter already knows the thread, so a command such as stop can affect an active turn.
-- The adapter resumes a paused thread, replaces a stale or inactive thread, retries against that replacement, and requeues an input when the server reports another turn is already running.
+- The adapter replaces a stale or inactive thread, retries against that replacement, and requeues an input when the server reports another turn is already running.
 - The Wire client reconnects and repeats initialization. It does not persist or replay platform events or delivery calls it already made. Keep the platform receiver alive and add platform-side deduplication or retry where needed. Reconnect is not a delivery-recovery mechanism.
 
 ## Handler rules

@@ -478,7 +478,6 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         }
         public Task<ThreadResetResult> ResetConversationAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? displayName = null, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<SessionThread> ResumeThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
-        public Task PauseThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
         public Task ArchiveThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
         public Task UnarchiveThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<IReadOnlyList<ThreadSummary>> FindThreadsAsync(SessionIdentity identity, bool includeArchived = false, IReadOnlyList<string>? crossChannelOrigins = null, CancellationToken ct = default, bool includeSubAgents = false, ThreadDiscoveryScope scope = ThreadDiscoveryScope.Identity) => throw new NotImplementedException();

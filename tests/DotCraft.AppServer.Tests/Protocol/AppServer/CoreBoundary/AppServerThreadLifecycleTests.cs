@@ -30,7 +30,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// Tests for thread/* methods (spec Section 4).
 /// Verifies response shapes and the post-response notifications emitted
 /// after thread/start (→ thread/started), thread/resume (→ thread/resumed),
-/// thread/pause (→ thread/paused), thread/archive (→ thread/archived) and thread/unarchive (→ thread/unarchived).
+/// thread/archive (→ thread/archived) and thread/unarchive (→ thread/unarchived).
 /// </summary>
 public sealed partial class AppServerThreadLifecycleTests : IDisposable
 {
@@ -1381,68 +1381,6 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
                 null,
                 [],
                 1)));
-    }
-
-    // -------------------------------------------------------------------------
-    // thread/pause (spec Section 4)
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task ThreadPause_EmitsPausedNotification()
-    {
-        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadPause, new { threadId = thread.Id });
-        await _h.ExecuteRequestAsync(msg);
-
-        var response = await _h.Transport.ReadNextSentAsync();
-        var notification = await _h.Transport.ReadNextSentAsync();
-
-        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadPaused);
-        Assert.Equal(thread.Id,
-            notification.RootElement.GetProperty("params").GetProperty("threadId").GetString());
-    }
-
-    [Fact]
-    public async Task ThreadPause_WhenSubscribed_SendsOnlyResponse_NoDuplicateNotification()
-    {
-        // Gap C: if the connection has an active subscription to the thread, the handler
-        // must not send an inline notification (the broker/dispatcher path handles it).
-        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-
-        // Subscribe to the thread first
-        var subscribeMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadSubscribe, new { threadId = thread.Id });
-        await _h.ExecuteRequestAsync(subscribeMsg);
-        await _h.Transport.ReadNextSentAsync(); // drain subscribe response
-
-        // Now pause — should produce exactly one message (the response), not two
-        var pauseMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadPause, new { threadId = thread.Id });
-        await _h.ExecuteRequestAsync(pauseMsg);
-
-        var response = await _h.Transport.ReadNextSentAsync();
-        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-
-        // Verify no additional message was sent (no duplicate notification)
-        await Task.Delay(20); // small delay to let any fire-and-forget tasks settle
-        var extra = _h.Transport.TryReadSent();
-        Assert.Null(extra);
-    }
-
-    [Fact]
-    public async Task ThreadPause_AlreadyPaused_SendsOnlyResponse_NoNotification()
-    {
-        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-        await _h.Service.PauseThreadAsync(thread.Id); // pre-pause
-
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadPause, new { threadId = thread.Id });
-        await _h.ExecuteRequestAsync(msg);
-
-        var response = await _h.Transport.ReadNextSentAsync();
-        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-
-        await Task.Delay(20);
-        Assert.Null(_h.Transport.TryReadSent());
     }
 
     // -------------------------------------------------------------------------

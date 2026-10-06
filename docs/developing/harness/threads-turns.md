@@ -2,7 +2,7 @@
 
 A Thread is a durable conversation. Submitting input starts a Turn and returns an event stream carrying text generation, tool activity, approval requests, and the Turn's final outcome.
 
-![Thread and Turn lifecycle: a Thread is created from an identity and becomes active, and from active it can be paused and resumed or archived and restored. While it is active, submitting input runs one Turn whose event stream carries every Item from start to completion, an approval request blocks the Turn until the application answers, and the Turn ends completed or failed while the Thread stays active.](/thread-turn-lifecycle.svg)
+![Thread and Turn lifecycle: a Thread is created from an identity and becomes active, and from active it can be archived and restored. While it is active, submitting input runs one Turn whose event stream carries every Item from start to completion, an approval request blocks the Turn until the application answers, and the Turn ends completed or failed while the Thread stays active.](/thread-turn-lifecycle.svg)
 
 ## Resolve the session service
 
@@ -78,9 +78,9 @@ Each event carries an `EventType` from `SessionEventType`. These are the ones ap
 > [!TIP]
 > Treat the event stream as the source of truth for the active Turn. Update UI incrementally and retain the Thread ID for future resume or history operations.
 
-## Resume and pause
+## Resume a conversation
 
-Resume a known Thread before continuing a conversation that is not active in memory. Resuming rebuilds the agent session from persisted history and returns the Thread to Active:
+Resume a known Thread before continuing a conversation that is not active in memory. Resuming rebuilds the agent session from persisted history:
 
 ```csharp
 var resumed = await sessions.ResumeThreadAsync(threadId, cancellationToken);
@@ -92,12 +92,6 @@ await foreach (var sessionEvent in sessions.SubmitInputAsync(
 {
     // Project events into the application UI.
 }
-```
-
-Pausing moves a Thread to Paused. The conversation stays fully durable, but no new Turn can start until it is resumed:
-
-```csharp
-await sessions.PauseThreadAsync(threadId, cancellationToken);
 ```
 
 ## Archive a conversation

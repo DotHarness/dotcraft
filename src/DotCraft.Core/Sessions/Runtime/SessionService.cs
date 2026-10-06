@@ -549,13 +549,6 @@ public sealed partial class SessionService(
             ct);
 
     /// <inheritdoc/>
-    public async Task PauseThreadAsync(string threadId, CancellationToken ct = default)
-        => await InvokeThreadCommandAsync(
-            threadId,
-            commandCt => ThreadLifecycle.PauseAsync(threadId, commandCt),
-            ct);
-
-    /// <inheritdoc/>
     public async Task<ThreadGoal?> GetThreadGoalAsync(string threadId, CancellationToken ct = default)
         => await Goals.GetAsync(threadId, ct);
 

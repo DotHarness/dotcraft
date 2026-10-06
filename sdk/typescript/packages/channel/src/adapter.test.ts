@@ -1108,7 +1108,6 @@ test("newThread archives all reusable threads for the identity", async () => {
   client.threadList = async () => [
     makeThread("thread-cached", "active"),
     makeThread("thread-hidden", "active"),
-    makeThread("thread-paused", "paused"),
     makeThread("thread-archived", "archived"),
   ];
   client.threadArchive = async (threadId: string) => {
@@ -1117,7 +1116,7 @@ test("newThread archives all reusable threads for the identity", async () => {
 
   await adapter.newThread("u", "c");
 
-  assert.deepEqual(archived, ["thread-cached", "thread-hidden", "thread-paused"]);
+  assert.deepEqual(archived, ["thread-cached", "thread-hidden"]);
   assert.equal((adapter as unknown as { threadMap: Map<string, string> }).threadMap.has("u:c"), false);
 });
 

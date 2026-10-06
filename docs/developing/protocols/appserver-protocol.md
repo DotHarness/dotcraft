@@ -204,7 +204,6 @@ Common thread methods:
 | `thread/subscribe` | Subscribe to thread events. |
 | `thread/unsubscribe` | Unsubscribe from thread events. |
 | `thread/rename` | Update the display name. |
-| `thread/pause` | Pause an active thread until it is resumed. |
 | `thread/archive` | Block new turns, stop or invalidate active background terminals, and archive the thread and its subagent subtree. |
 | `thread/unarchive` | Restore an archived thread and descendants whose subagent edges remain open. Explicitly closed descendants stay archived. |
 | `thread/delete` | Permanently delete a thread and its subagent subtree from durable state. Thread-owned filesystem cleanup is best effort and retryable. |

@@ -53,7 +53,7 @@ public enum ContextSearchStatusFilter
     Archived,
 
     /// <summary>
-    /// Include active, paused, archived, and unbound trace sessions.
+    /// Include active, archived, and unbound trace sessions.
     /// </summary>
     All
 }

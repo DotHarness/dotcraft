@@ -126,46 +126,8 @@ public sealed class SessionServiceLifecycleTests : IDisposable
     }
 
     // -------------------------------------------------------------------------
-    // PauseThread
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task PauseThread_SetsStatusPaused()
-    {
-        var thread = await _svc.CreateThreadAsync(MakeIdentity());
-        await _svc.PauseThreadAsync(thread.Id);
-
-        var loaded = await _store.LoadThreadAsync(thread.Id);
-        Assert.NotNull(loaded);
-        Assert.Equal(ThreadStatus.Paused, loaded.Status);
-    }
-
-    [Fact]
-    public async Task PauseThread_IsIdempotent()
-    {
-        var thread = await _svc.CreateThreadAsync(MakeIdentity());
-        await _svc.PauseThreadAsync(thread.Id);
-        await _svc.PauseThreadAsync(thread.Id); // second call should not throw
-        var loaded = await _store.LoadThreadAsync(thread.Id);
-        Assert.NotNull(loaded);
-        Assert.Equal(ThreadStatus.Paused, loaded.Status);
-    }
-
-    // -------------------------------------------------------------------------
     // ResumeThread
     // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task ResumeThread_SetsStatusActive()
-    {
-        var thread = await _svc.CreateThreadAsync(MakeIdentity());
-        await _svc.PauseThreadAsync(thread.Id);
-        await _svc.ResumeThreadAsync(thread.Id);
-
-        var loaded = await _store.LoadThreadAsync(thread.Id);
-        Assert.NotNull(loaded);
-        Assert.Equal(ThreadStatus.Active, loaded.Status);
-    }
 
     [Fact]
     public async Task ResumeThread_AlreadyActive_DoesNotThrow()
@@ -822,7 +784,7 @@ internal sealed class FakeSessionService : ISessionService, ISubAgentThreadLifec
     {
         var existing = await FindThreadsAsync(identity, includeArchived: false, crossChannelOrigins: null, ct);
         var archived = new List<string>();
-        foreach (var summary in existing.Where(s => s.Status is ThreadStatus.Active or ThreadStatus.Paused))
+        foreach (var summary in existing.Where(s => s.Status == ThreadStatus.Active))
         {
             await ArchiveThreadAsync(summary.Id, ct);
             archived.Add(summary.Id);
@@ -830,14 +792,6 @@ internal sealed class FakeSessionService : ISessionService, ISubAgentThreadLifec
 
         var thread = await CreateThreadAsync(identity, config, historyMode, displayName: displayName, ct: ct);
         return new ThreadResetResult { Thread = thread, ArchivedThreadIds = archived, CreatedLazily = true };
-    }
-
-    public async Task PauseThreadAsync(string threadId, CancellationToken ct = default)
-    {
-        var thread = await GetOrLoadAsync(threadId, ct);
-        if (thread.Status == ThreadStatus.Paused) return;
-        thread.Status = ThreadStatus.Paused;
-        await _store.SaveThreadAsync(thread, ct);
     }
 
     public async Task ArchiveThreadAsync(string threadId, CancellationToken ct = default)

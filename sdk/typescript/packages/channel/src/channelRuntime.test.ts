@@ -262,7 +262,6 @@ test("ChannelMessageQueue continues after a job error", async () => {
 test("ThreadResolver resolves cache, list reuse, fresh reset, and not-active recovery", async () => {
   const fake = new FakeRuntimeClient();
   fake.threads.set("cached", makeThread("cached", "active"));
-  fake.threads.set("paused", makeThread("paused", "paused"));
   fake.threads.set("listed", makeThread("listed", "active"));
   const eventsSeen: string[] = [];
   const resolver = new ThreadResolver({
@@ -279,14 +278,6 @@ test("ThreadResolver resolves cache, list reuse, fresh reset, and not-active rec
     workspacePath: "/w",
   })).id, "cached");
 
-  resolver.setCachedThread("u:p", "paused");
-  assert.equal((await resolver.getOrCreateThread({
-    identityKey: "u:p",
-    userId: "u",
-    channelContext: "p",
-    workspacePath: "/w",
-  })).id, "paused");
-
   fake.readFailures.add("missing");
   fake.listResult = [makeThread("listed", "active")];
   resolver.setCachedThread("u:m", "missing");
@@ -298,7 +289,7 @@ test("ThreadResolver resolves cache, list reuse, fresh reset, and not-active rec
   })).id, "listed");
 
   resolver.setCachedThread("u:fresh", "cached");
-  fake.listResult = [makeThread("cached", "active"), makeThread("old-paused", "paused")];
+  fake.listResult = [makeThread("cached", "active"), makeThread("old-active", "active")];
   const archived = await resolver.resetIdentityThreads({
     identityKey: "u:fresh",
     userId: "u",
@@ -314,25 +305,25 @@ test("ThreadResolver resolves cache, list reuse, fresh reset, and not-active rec
   })).id, "thread-fresh");
 
   fake.readFailures.add("stale");
-  fake.listResult = [makeThread("recover-paused", "paused")];
+  fake.threads.set("recover-active", makeThread("recover-active", "active"));
+  fake.listResult = [makeThread("recover-active", "active")];
   assert.equal((await resolver.recoverThreadAfterNotActive({
     identityKey: "u:recover",
     userId: "u",
     channelContext: "recover",
     workspacePath: "/w",
-  }, "stale")).id, "recover-paused");
+  }, "stale")).id, "recover-active");
 
-  assert.deepEqual(archived, ["cached", "old-paused"]);
-  assert.deepEqual(fake.archived, ["cached", "old-paused"]);
+  assert.deepEqual(archived, ["cached", "old-active"]);
+  assert.deepEqual(fake.archived, ["cached", "old-active"]);
   assert.deepEqual(eventsSeen, [
     "cache_hit",
-    "resumed_from_cache",
     "cache_invalidated",
     "listed_active",
     "archived",
     "archived",
     "force_fresh_created",
-    "recovered_listed_resumed",
+    "recovered_listed_active",
   ]);
 });
 

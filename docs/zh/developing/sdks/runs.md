@@ -25,7 +25,7 @@ var snapshot = await client.Threads.ReadAsync(threadId);
 
 :::
 
-TypeScript 还提供 `getOrCreate`。它返回该 identity 下第一个 active 或 paused 的 thread（paused 的会先恢复），两者都不存在时才启动新 thread。
+TypeScript 还提供 `getOrCreate`。它返回该 identity 下第一个 active 的 thread，不存在时才启动新 thread。
 
 `read` 返回当前 Thread 头部和 runtime 状态，不包含对话历史。通过有界的 Turn 和 Item 分页读取历史：
 

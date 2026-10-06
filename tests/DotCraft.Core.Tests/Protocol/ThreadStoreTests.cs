@@ -306,12 +306,12 @@ public sealed class ThreadStoreTests : IDisposable
         var thread = CreateThread();
         await _store.SaveThreadAsync(thread);
 
-        thread.Status = ThreadStatus.Paused;
+        thread.DisplayName = "Renamed";
         await _store.SaveThreadAsync(thread);
 
         var loaded = await _store.LoadThreadAsync(thread.Id);
         Assert.NotNull(loaded);
-        Assert.Equal(ThreadStatus.Paused, loaded.Status);
+        Assert.Equal("Renamed", loaded.DisplayName);
     }
 
     [Fact]

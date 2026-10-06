@@ -1513,8 +1513,7 @@ public sealed class AppServerHost(
 
     private void BroadcastThreadStatusChanged(string threadId, ThreadStatus previousStatus, ThreadStatus newStatus)
     {
-        if (ThreadLifecycleNotification.For(threadId, previousStatus, newStatus) is not { } lifecycle)
-            return;
+        var lifecycle = ThreadLifecycleNotification.For(threadId, newStatus);
 
         var skipTransport = AppServerRequestContext.CurrentTransport;
 

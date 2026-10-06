@@ -60,7 +60,6 @@ internal sealed partial class ThreadRequestHandler(
         table.Map(Contract.AppServerRpc.ThreadRollback, HandleThreadRollbackAsync);
         table.Map(Contract.AppServerRpc.ThreadSubscribe, HandleThreadSubscribeAsync);
         table.Map(Contract.AppServerRpc.ThreadUnsubscribe, HandleThreadUnsubscribeAsync);
-        table.Map(Contract.AppServerRpc.ThreadPause, HandleThreadPauseAsync);
         table.Map(Contract.AppServerRpc.ThreadArchive, HandleThreadArchiveAsync);
         table.Map(Contract.AppServerRpc.ThreadUnarchive, HandleThreadUnarchiveAsync);
         table.Map(Contract.AppServerRpc.ThreadDelete, HandleThreadDeleteAsync);
@@ -851,35 +850,6 @@ internal sealed partial class ThreadRequestHandler(
     private static bool HasUserInputResponse(SessionTurn turn, string requestId) =>
         turn.Items.Any(item => item.Payload is UserInputResponsePayload response
             && string.Equals(response.RequestId, requestId, StringComparison.Ordinal));
-
-    private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadPauseAsync(
-        AppServerTypedRequest<Contract.ThreadPauseParams> request,
-        CancellationToken ct)
-    {
-        var msg = request.Message;
-        var threadId = Require(request.Params.ThreadId, "'threadId' is required.");
-        var thread = await sessionService.GetThreadAsync(threadId, ct);
-        var previousStatus = thread.Status;
-
-        await sessionService.PauseThreadAsync(threadId, ct);
-
-        if (previousStatus == ThreadStatus.Paused)
-            return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
-
-        if (connection.HasSubscription(threadId))
-        {
-            await responseWriter.WriteResponseAsync(msg.Id, new Protocol.RpcEmpty(), ct);
-            return AppServerTypedResult<Protocol.RpcEmpty>.Written;
-        }
-
-        await responseWriter.SendNotificationAfterResponseAsync(
-            msg.Id,
-            new Protocol.RpcEmpty(),
-            Contract.AppServerRpc.ThreadPaused,
-            new Contract.ThreadPausedNotification { ThreadId = threadId },
-            ct);
-        return AppServerTypedResult<Protocol.RpcEmpty>.Written;
-    }
 
     private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadArchiveAsync(
         AppServerTypedRequest<Contract.ThreadArchiveParams> request,

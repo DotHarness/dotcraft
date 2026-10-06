@@ -82,7 +82,7 @@ public sealed partial class SessionService
         {
             var summaries = await owner.FindThreadsAsync(identity, includeArchived: false, crossChannelOrigins: null, ct);
             var archivedIds = new List<string>();
-            foreach (var summary in summaries.Where(s => s.Status is ThreadStatus.Active or ThreadStatus.Paused))
+            foreach (var summary in summaries.Where(s => s.Status == ThreadStatus.Active))
             {
                 await owner.ArchiveThreadAsync(summary.Id, ct);
                 archivedIds.Add(summary.Id);

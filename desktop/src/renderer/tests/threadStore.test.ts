@@ -362,7 +362,7 @@ describe('threadStore.updateThreadStatus', () => {
       makeThreadSummary('t2'),
       makeThreadSummary('t3')
     ])
-    useThreadStore.getState().updateThreadStatus('t2', 'paused')
+    useThreadStore.getState().updateThreadStatus('t2', 'archived')
     expect(useThreadStore.getState().threadList[0].status).toBe('active')
     expect(useThreadStore.getState().threadList[2].status).toBe('active')
   })

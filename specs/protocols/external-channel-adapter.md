@@ -163,7 +163,6 @@ This section defines the protocol-level obligations that any conforming external
 
 - The adapter is responsible for mapping platform identities to `SessionIdentity`. The `channelName` field in `SessionIdentity` **must** match the adapter's declared `channelName`.
 - The adapter **must** use `thread/list` to locate existing threads for a given identity before creating a new one with `thread/start`. Creating duplicate threads for the same identity is a logical error.
-- A paused thread must be resumed via `thread/resume` before submitting a new turn.
 - The adapter **must not** call `turn/start` on a thread that already has a running turn. The server rejects this with `-32012`. The adapter should serialize user messages per thread or inform the user that the agent is busy.
 - An inbound platform image is downloaded by the adapter, saved with a unique file name under the workspace's `.craft/attachments/images/`, and submitted as a `localImage` part, so the agent can reach the file by path after the Turn. The adapter never deletes it; Session Core owns the file's lifetime like any workspace-managed attachment. Platform image URLs are never forwarded.
 - A platform reaction or similar acknowledgement only confirms that the inbound event was received; it does not indicate that a DotCraft turn was created.

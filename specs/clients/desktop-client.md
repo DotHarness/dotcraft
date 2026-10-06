@@ -180,7 +180,7 @@ This section defines how protocol messages affect user-visible behavior. It inte
 | `thread/started` | The new thread appears in the thread navigation area and may become selectable immediately. |
 | `thread/renamed` | Any visible thread label updates everywhere the thread is referenced. |
 | `thread/deleted` | The thread is removed from navigation and from any active context. If currently open, the user is moved to a safe fallback state. |
-| `thread/archived`, `thread/unarchived`, `thread/paused` | Thread availability updates immediately. Actions that are no longer valid must be disabled or blocked. |
+| `thread/archived`, `thread/unarchived` | Thread availability updates immediately. Actions that are no longer valid must be disabled or blocked. |
 | `thread/resumed` | The thread returns to an active, turn-capable state. |
 | `thread/status/changed` | Thread activity indicators update immediately in the owning workspace's thread navigation area, including secondary workspace groups. Summary surfaces use its current Turn identity and start time for elapsed-time display when available. |
 

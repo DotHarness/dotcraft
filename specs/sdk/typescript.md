@@ -361,7 +361,7 @@ interface ThreadManager {
 }
 ```
 
-`getOrCreate()` should list reusable active or paused threads for the identity before creating a new thread. Paused threads are resumed before use.
+`getOrCreate()` should list reusable active threads for the identity before creating a new thread.
 
 ### 9.3 Default Identity
 
@@ -553,7 +553,6 @@ Required normalized event types:
 | `thread_resumed` | `thread/resumed` |
 | `thread_archived` | `thread/archived` |
 | `thread_unarchived` | `thread/unarchived` |
-| `thread_paused` | `thread/paused` |
 | `thread_status_changed` | `thread/status/changed` |
 | `queue_updated` | `thread/queue/updated` |
 | `turn_started` | `turn/started` |

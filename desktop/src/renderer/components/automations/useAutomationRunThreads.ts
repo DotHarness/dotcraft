@@ -4,7 +4,7 @@ import type { ThreadSummary } from '../../types/thread'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useThreadStore } from '../../stores/threadStore'
 
-const THREAD_LIFECYCLE_METHODS = new Set(['thread/archived', 'thread/unarchived', 'thread/paused'])
+const THREAD_LIFECYCLE_METHODS = new Set(['thread/archived', 'thread/unarchived'])
 
 export interface RunThread extends ThreadSummary { turns?: { status: string }[] }
 export function runThreadBusy(thread: RunThread | undefined): boolean {

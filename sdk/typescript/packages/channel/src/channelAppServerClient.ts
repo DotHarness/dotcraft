@@ -96,7 +96,6 @@ export class ChannelAppServerClient extends DotCraftWireClient {
 
   async threadSubscribe(threadId: string, replayRecent = false): Promise<void> { await this.request("thread/subscribe", { threadId, replayRecent }); }
   async threadUnsubscribe(threadId: string): Promise<void> { await this.request("thread/unsubscribe", { threadId }); }
-  async threadPause(threadId: string): Promise<void> { await this.request("thread/pause", { threadId }); }
   async threadArchive(threadId: string): Promise<void> { await this.request("thread/archive", { threadId }); }
   async threadDelete(threadId: string): Promise<void> { await this.request("thread/delete", { threadId }); }
   async threadSetMode(threadId: string, mode: string): Promise<void> { await this.request("thread/mode/set", { threadId, mode }); }
@@ -132,7 +131,7 @@ export class ChannelAppServerClient extends DotCraftWireClient {
     const queue: JsonRpcMessage[] = [];
     let resolveWait: (() => void) | null = null;
     const methods = [
-      "thread/started", "thread/renamed", "thread/resumed", "thread/archived", "thread/unarchived", "thread/paused",
+      "thread/started", "thread/renamed", "thread/resumed", "thread/archived", "thread/unarchived",
       "thread/status/changed", "thread/queue/updated", "turn/started", "turn/completed", "turn/failed", "turn/cancelled",
       "item/started", "item/completed", "item/agentMessage/delta", "item/reasoning/delta", "item/toolCall/argumentsDelta",
       "item/approval/resolved", "subagent/progress", "item/usage/delta", "system/event", "plan/updated",

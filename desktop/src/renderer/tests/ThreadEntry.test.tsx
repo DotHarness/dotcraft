@@ -498,24 +498,6 @@ describe('ThreadEntry', () => {
     expect(screen.getByTestId('thread-running-indicator-thread-1')).toBeInTheDocument()
   })
 
-  it('shows paused status when not running', () => {
-    renderThreadEntry(makeThread({ status: 'paused' }))
-
-    expect(screen.queryByTestId('thread-running-indicator-thread-1')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('paused')).toBeInTheDocument()
-  })
-
-  it('prefers the running spinner over paused status when both states are present', () => {
-    useThreadStore.setState({
-      runningTurnThreadIds: new Set<string>(['thread-1'])
-    })
-
-    renderThreadEntry(makeThread({ status: 'paused' }))
-
-    expect(screen.getByTestId('thread-running-indicator-thread-1')).toBeInTheDocument()
-    expect(screen.queryByLabelText('paused')).not.toBeInTheDocument()
-  })
-
   it('renders origin channel as an icon badge with tooltip text', async () => {
     renderThreadEntry(makeThread({ originChannel: 'qq' }))
     const card = await openDetailsCard()

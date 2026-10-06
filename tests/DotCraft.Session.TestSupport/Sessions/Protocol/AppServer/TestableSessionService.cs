@@ -251,7 +251,7 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
     {
         var active = await FindThreadsAsync(identity, includeArchived: false, crossChannelOrigins: null, ct);
         var archived = new List<string>();
-        foreach (var summary in active.Where(s => s.Status is ThreadStatus.Active or ThreadStatus.Paused))
+        foreach (var summary in active.Where(s => s.Status == ThreadStatus.Active))
         {
             await ArchiveThreadAsync(summary.Id, ct);
             archived.Add(summary.Id);
@@ -374,14 +374,6 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
         string threadId,
         CancellationToken ct = default)
         => throw new NotSupportedException("Worktree operations are not supported by this test service.");
-
-    public async Task PauseThreadAsync(string threadId, CancellationToken ct = default)
-    {
-        var t = await GetOrLoadAsync(threadId, ct);
-        if (t.Status == ThreadStatus.Paused) return;
-        t.Status = ThreadStatus.Paused;
-        await _store.SaveThreadAsync(t, ct);
-    }
 
     public async Task ArchiveThreadAsync(string threadId, CancellationToken ct = default)
     {

@@ -20890,42 +20890,6 @@
       "variants": []
     },
     {
-      "id": "core.ThreadPauseParams",
-      "name": "ThreadPauseParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ThreadPauseParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ThreadPausedNotification",
-      "name": "ThreadPausedNotification",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ThreadPausedNotification.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": true,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.ThreadPluginPolicy",
       "name": "ThreadPluginPolicy",
       "module": "core",
@@ -30393,42 +30357,6 @@
         "InvalidRequest",
         "MethodNotFound"
       ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "thread/pause",
-      "descriptorMember": "ThreadPause",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.ThreadPauseParams",
-      "resultType": "core.RpcEmpty",
-      "module": "core",
-      "capability": "threadManagement",
-      "scope": "thread",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "thread/paused",
-      "descriptorMember": "ThreadPaused",
-      "kind": "notification",
-      "direction": "serverToClient",
-      "paramsType": "core.ThreadPausedNotification",
-      "resultType": "core.RpcEmpty",
-      "module": "core",
-      "capability": "threadManagement",
-      "scope": "thread",
-      "notificationOptOut": true,
-      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

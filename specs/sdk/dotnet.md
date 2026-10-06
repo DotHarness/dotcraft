@@ -138,7 +138,7 @@ Task<ThreadRecoveryRestoreResult> RestoreRecoveryAsync(ThreadRecoveryRestorePara
 
 `DotCraftThread` is a high-level handle. Its `Snapshot` is `SessionThread`. Lifecycle helpers such as subscribe, unsubscribe, mode, archive, delete, enqueue, interrupt, and Runtime Dynamic Tool handler registration use generated typed bindings internally.
 
-`ExportRecoveryAsync` and `RestoreRecoveryAsync` transfer the recovery package without parsing or rewriting its Session fields, following the [AppServer recovery contract](../protocols/appserver-protocol.md#419-thread-recovery-methods). Callers resume the restored thread to obtain a high-level handle.
+`ExportRecoveryAsync` and `RestoreRecoveryAsync` transfer the recovery package without parsing or rewriting its Session fields, following the [AppServer recovery contract](../protocols/appserver-protocol.md#418-thread-recovery-methods). Callers resume the restored thread to obtain a high-level handle.
 
 The model-configuration convenience API reads the latest complete `ThreadConfiguration`, copies every unrelated `Optional<T>` state and unknown extension field, replaces only provider/model/reasoning/speed/context-window fields, sends `ThreadConfigUpdateParams`, then re-reads and returns the authoritative `ThreadConfiguration`.
 

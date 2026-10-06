@@ -6,7 +6,6 @@ namespace DotCraft.Sessions;
 public enum ThreadStatus
 {
     Active,
-    Paused,
     Archived
 }
 

@@ -861,7 +861,7 @@ public class SerializationTests
         evt.Payload = new ThreadStatusChangedPayload
         {
             PreviousStatus = ThreadStatus.Active,
-            NewStatus = ThreadStatus.Paused
+            NewStatus = ThreadStatus.Archived
         };
 
         var json = JsonSerializer.Serialize(evt, Opts);
@@ -871,7 +871,7 @@ public class SerializationTests
         var payload = deserialized.StatusChangedPayload;
         Assert.NotNull(payload);
         Assert.Equal(ThreadStatus.Active, payload.PreviousStatus);
-        Assert.Equal(ThreadStatus.Paused, payload.NewStatus);
+        Assert.Equal(ThreadStatus.Archived, payload.NewStatus);
     }
 
     [Fact]
@@ -1377,16 +1377,6 @@ public class SerializationTests
         Assert.Equal(expected, evt.ToWireMethodName());
     }
 
-    [Theory]
-    [InlineData(ThreadStatus.Active, ThreadStatus.Archived, "thread/archived")]
-    [InlineData(ThreadStatus.Archived, ThreadStatus.Active, "thread/unarchived")]
-    [InlineData(ThreadStatus.Active, ThreadStatus.Paused, "thread/paused")]
-    [InlineData(ThreadStatus.Paused, ThreadStatus.Active, null)]
-    public void ThreadLifecycleNotification_MapsStatusTransitionToMethod(ThreadStatus previous, ThreadStatus next, string? expected)
-    {
-        Assert.Equal(expected, ThreadLifecycleNotification.For("thread_001", previous, next)?.Method);
-    }
-
     [Fact]
     public void ToWireMethodName_ItemDelta_AgentMessage()
     {
@@ -1540,7 +1530,7 @@ public class SerializationTests
             Payload = new ThreadStatusChangedPayload
             {
                 PreviousStatus = ThreadStatus.Active,
-                NewStatus = ThreadStatus.Paused
+                NewStatus = ThreadStatus.Archived
             }
         };
 
@@ -1548,7 +1538,7 @@ public class SerializationTests
 
         Assert.Contains("\"threadId\":\"thread_001\"", json, StringComparison.Ordinal);
         Assert.Contains("\"previousStatus\":\"active\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"newStatus\":\"paused\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"newStatus\":\"archived\"", json, StringComparison.Ordinal);
     }
 
     [Fact]

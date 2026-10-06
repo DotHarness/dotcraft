@@ -43,7 +43,7 @@ class MyChannel extends ChannelAdapter {
 - 接收平台事件前调用 `start()`。它连接 Wire client、注册 Channel handler，然后在 `initialize` 时声明 Channel 能力。关闭时调用 `stop()`。
 - 用 `handleMessage` 转发每个事件。该调用只表示事件已进入内存队列，不表示 turn 或平台投递已经完成。
 - 队列身份由 user id 与 channel context 共同确定。同一身份的消息串行执行，不同身份可以并发。适配器已知 thread 时，斜杠命令可以绕过队列，让 stop 一类命令能影响正在运行的 turn。
-- 适配器会恢复 paused thread，替换过期或 inactive 的 thread，并在替代 thread 上重试。服务端报告已有 turn 在运行时，输入会重新排队。
+- 适配器会替换过期或 inactive 的 thread，并在替代 thread 上重试。服务端报告已有 turn 在运行时，输入会重新排队。
 - Wire client 会重连并重新执行初始化，但不会持久化或重放平台事件与已经发出的投递调用。保持平台接收器在线，按需在平台侧做去重或重试。重连不是投递恢复机制。
 
 ## Handler 规则

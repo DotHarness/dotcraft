@@ -4204,16 +4204,6 @@ export interface ThreadOriginPresentation {
   [key: string]: unknown;
 }
 
-export interface ThreadPauseParams {
-  threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface ThreadPausedNotification {
-  threadId: string;
-  [key: string]: unknown;
-}
-
 export interface ThreadPluginPolicy {
   allow?: string[] | null;
   deny?: string[] | null;

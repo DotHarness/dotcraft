@@ -125,7 +125,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const showPendingInStatus =
     showPendingBadge && !dropActive && !alreadyBound && anim !== 'success'
   const hasBadgeContent = dropActive || alreadyBound || anim === 'success'
-  const showStatusIcon = !isActive && thread.status !== 'active'
   const showUnreadCompletedDot =
     !isActive
     && !hasRunningTurn
@@ -482,15 +481,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                     data-testid={`thread-unread-completed-${thread.id}`}
                   >
                     <span className="dc-status-indicator__dot" data-tone="success" />
-                  </span>
-                </ActionTooltip>
-              ) : showStatusIcon ? (
-                <ActionTooltip label={thread.status}>
-                  <span
-                    style={{ fontSize: '10px', color: 'var(--text-dimmed)', flexShrink: 0 }}
-                    aria-label={thread.status}
-                  >
-                    {thread.status === 'paused' ? '⏸' : '🗄'}
                   </span>
                 </ActionTooltip>
               ) : null}

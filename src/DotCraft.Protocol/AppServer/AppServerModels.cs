@@ -1608,13 +1608,6 @@ public sealed class ThreadUnarchivedNotification : ExtensibleJsonObject
     public required string ThreadId { get; init; }
 }
 
-/// <summary>Thread pause notification payload.</summary>
-public sealed class ThreadPausedNotification : ExtensibleJsonObject
-{
-    [JsonPropertyName("threadId")]
-    public required string ThreadId { get; init; }
-}
-
 /// <summary>Turn lifecycle notification payload.</summary>
 public sealed class TurnNotification : ExtensibleJsonObject
 {

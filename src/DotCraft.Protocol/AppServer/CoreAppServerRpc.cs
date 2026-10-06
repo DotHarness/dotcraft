@@ -272,7 +272,6 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<ThreadModeSetParams, global::DotCraft.Protocol.RpcEmpty> ThreadModeSet = new("thread/mode/set", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);
 
-    public static readonly RpcRequest<ThreadPauseParams, global::DotCraft.Protocol.RpcEmpty> ThreadPause = new("thread/pause", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);
 
     public static readonly RpcNotification<ThreadQueueUpdatedNotification> ThreadQueueUpdated = new("thread/queue/updated", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", notificationOptOut: true);
 

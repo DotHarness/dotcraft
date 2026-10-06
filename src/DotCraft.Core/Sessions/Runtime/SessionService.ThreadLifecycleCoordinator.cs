@@ -18,17 +18,8 @@ public sealed partial class SessionService
 
             if (!wasLoaded)
             {
-                thread.Status = ThreadStatus.Active;
                 thread.LastActiveAt = DateTimeOffset.UtcNow;
                 await owner.PersistThreadWithMaterializationAsync(thread, ct);
-            }
-            else if (thread.Status != ThreadStatus.Active)
-            {
-                var previousStatus = thread.Status;
-                thread.Status = ThreadStatus.Active;
-                thread.LastActiveAt = DateTimeOffset.UtcNow;
-                await owner.PersistThreadIfMaterializedAsync(thread, ct);
-                owner.GetOrCreateBroker(threadId).PublishThreadStatusChanged(previousStatus, thread.Status);
             }
 
             await owner.EnsurePerThreadAgentIfMissingAsync(thread.Id, thread, ct);
@@ -39,18 +30,6 @@ public sealed partial class SessionService
             await owner.ContributionLifecycle.ThreadResumedAsync(thread, ct);
 
             return thread;
-        }
-
-        public async Task PauseAsync(string threadId, CancellationToken ct)
-        {
-            var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
-            if (thread.Status == ThreadStatus.Paused)
-                return;
-
-            var previousStatus = thread.Status;
-            thread.Status = ThreadStatus.Paused;
-            await owner.PersistThreadStatusAsync(thread, ct);
-            owner.GetOrCreateBroker(threadId).PublishThreadStatusChanged(previousStatus, thread.Status);
         }
 
         public async Task ArchiveAsync(string threadId, CancellationToken ct)

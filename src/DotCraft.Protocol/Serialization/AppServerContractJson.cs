@@ -61,7 +61,6 @@ public static class AppServerContractJson
 [JsonSerializable(typeof(ThreadDeletedNotification))]
 [JsonSerializable(typeof(ThreadArchivedNotification))]
 [JsonSerializable(typeof(ThreadUnarchivedNotification))]
-[JsonSerializable(typeof(ThreadPausedNotification))]
 [JsonSerializable(typeof(TurnNotification))]
 [JsonSerializable(typeof(TurnDiffUpdatedNotification))]
 [JsonSerializable(typeof(ItemNotification))]

@@ -91,7 +91,7 @@
   <rect x="528" y="132" width="220" height="64" rx="10" class="node"/>
   <g transform="translate(546,143) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5,10 A7,7 0 0 1 18.5,8 M18.8,3.8 L18.6,8.2 14.2,8"/><path d="M18.5,14 A7,7 0 0 1 5.5,16 M5.2,20.2 L5.4,15.8 9.8,16"/></g>
   <text x="574" y="158" class="title">Thread lifecycle</text>
-  <text x="546" y="178" class="body">active · paused · archived</text>
+  <text x="546" y="178" class="body">active · archived</text>
   <path d="M512 267 H526" class="link" marker-end="url(#a)"/>
   <rect x="528" y="235" width="220" height="64" rx="10" class="node"/>
   <g transform="translate(546,246) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12,3.4 L18.8,6 V11.4 C18.8,15.7 16,18.6 12,20.4 C8,18.6 5.2,15.7 5.2,11.4 V6 Z"/><path d="M8.9,11.6 l2.3,2.3 4,-4.4"/></g>

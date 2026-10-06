@@ -71,7 +71,7 @@ function toThreadSummary(raw: Partial<ThreadSummary> | null | undefined): Thread
   return {
     id,
     displayName: typeof raw?.displayName === 'string' ? raw.displayName : null,
-    status: raw?.status === 'paused' || raw?.status === 'archived' ? raw.status : 'active',
+    status: raw?.status === 'archived' ? 'archived' : 'active',
     originChannel: typeof raw?.originChannel === 'string' && raw.originChannel.trim() !== ''
       ? raw.originChannel
       : 'appserver',

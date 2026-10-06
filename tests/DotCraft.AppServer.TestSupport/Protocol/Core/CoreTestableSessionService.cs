@@ -287,7 +287,7 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
     {
         var active = await FindThreadsAsync(identity, includeArchived: false, crossChannelOrigins: null, ct);
         var archived = new List<string>();
-        foreach (var summary in active.Where(s => s.Status is ThreadStatus.Active or ThreadStatus.Paused))
+        foreach (var summary in active.Where(s => s.Status == ThreadStatus.Active))
         {
             await ArchiveThreadAsync(summary.Id, ct);
             archived.Add(summary.Id);
@@ -551,14 +551,6 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
         if (thread.Worktree == null)
             throw new InvalidOperationException($"Thread '{thread.Id}' is not bound to a DotCraft worktree.");
         return await ThreadWorktreeManager.GetStatusAsync(thread.Id, thread.Worktree, ct);
-    }
-
-    public async Task PauseThreadAsync(string threadId, CancellationToken ct = default)
-    {
-        var t = await GetOrLoadAsync(threadId, ct);
-        if (t.Status == ThreadStatus.Paused) return;
-        t.Status = ThreadStatus.Paused;
-        await _store.SaveThreadAsync(t, ct);
     }
 
     public async Task ArchiveThreadAsync(string threadId, CancellationToken ct = default)

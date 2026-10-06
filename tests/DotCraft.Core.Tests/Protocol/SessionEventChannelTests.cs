@@ -215,14 +215,14 @@ public sealed class SessionEventChannelTests
     {
         var channel = MakeChannel();
 
-        channel.EmitThreadStatusChanged(TestThreadId, ThreadStatus.Active, ThreadStatus.Paused);
+        channel.EmitThreadStatusChanged(TestThreadId, ThreadStatus.Active, ThreadStatus.Archived);
         channel.Complete();
 
         var events = await CollectAsync(channel);
         var payload = events[0].StatusChangedPayload;
         Assert.NotNull(payload);
         Assert.Equal(ThreadStatus.Active, payload.PreviousStatus);
-        Assert.Equal(ThreadStatus.Paused, payload.NewStatus);
+        Assert.Equal(ThreadStatus.Archived, payload.NewStatus);
     }
 
     [Fact]

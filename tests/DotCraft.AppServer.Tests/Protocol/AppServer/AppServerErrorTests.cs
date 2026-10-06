@@ -202,18 +202,6 @@ public sealed class AppServerErrorTests : IDisposable
     }
 
     [Fact]
-    public async Task ThreadPause_UnknownThreadId_ReturnsThreadNotFound()
-    {
-        await _h.InitializeAsync();
-
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadPause, new { threadId = "thread_ghost" });
-        await _h.ExecuteRequestAsync(msg);
-
-        var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(doc, AppServerErrors.ThreadNotFoundCode);
-    }
-
-    [Fact]
     public async Task ThreadResume_UnknownThreadId_ReturnsThreadNotFound()
     {
         await _h.InitializeAsync();

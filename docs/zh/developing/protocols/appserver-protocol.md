@@ -204,7 +204,6 @@ Server 还会广播 `thread/started`。多 client 场景下，发起请求的 cl
 | `thread/subscribe` | 订阅线程事件。 |
 | `thread/unsubscribe` | 取消订阅线程事件。 |
 | `thread/rename` | 更新显示名称。 |
-| `thread/pause` | 暂停活跃线程，直到再次恢复。 |
 | `thread/archive` | 阻止新 Turn，停止或失效活跃后台终端，并归档线程及其 subagent 子树。 |
 | `thread/unarchive` | 恢复已归档线程，以及 subagent edge 仍为 open 的后代。显式关闭的后代保持归档。 |
 | `thread/delete` | 从持久化状态中永久删除线程及其 subagent 子树。线程专属文件采用 best effort 清理，失败后可以重试。 |

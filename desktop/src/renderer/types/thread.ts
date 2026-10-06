@@ -1,7 +1,7 @@
 import type { QueuedTurnInput } from './conversation'
 import type { ChannelTarget } from '../stores/appBindingStore'
 
-export type ThreadStatus = 'active' | 'paused' | 'archived'
+export type ThreadStatus = 'active' | 'archived'
 
 export type ApprovalPolicyWire = 'default' | 'prompt' | 'autoApprove' | 'deny'
 

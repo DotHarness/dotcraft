@@ -143,8 +143,6 @@ export function applyWorkspaceThreadNotificationToCache(
     } else if (threadId) {
       refreshThreadList = true
     }
-  } else if (method === 'thread/paused') {
-    next = updateWorkspaceThread(threads, stringField(p.threadId), { status: 'paused' })
   } else if (method === 'thread/status/changed') {
     next = updateWorkspaceThread(threads, stringField(p.threadId), { runtime: p.runtime })
   }

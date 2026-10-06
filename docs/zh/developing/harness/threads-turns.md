@@ -2,7 +2,7 @@
 
 Thread 是持久化对话。提交输入会启动一个 Turn，并返回一条事件流，其中包含文本生成、工具活动、审批请求，以及 Turn 的最终结果。
 
-![Thread 与 Turn 生命周期：Thread 由身份创建后进入活动状态，可以暂停后恢复，也可以归档后取消归档。活动期间每次提交输入运行一个 Turn，Turn 的事件流承载每个 Item 的开始、增量与完成，审批请求会阻塞 Turn 直到应用作出决策，Turn 以完成或失败结束，而 Thread 保持活动。](/thread-turn-lifecycle.svg)
+![Thread 与 Turn 生命周期：Thread 由身份创建后进入活动状态，可以归档后取消归档。活动期间每次提交输入运行一个 Turn，Turn 的事件流承载每个 Item 的开始、增量与完成，审批请求会阻塞 Turn 直到应用作出决策，Turn 以完成或失败结束，而 Thread 保持活动。](/thread-turn-lifecycle.svg)
 
 ## 解析会话服务
 
@@ -78,9 +78,9 @@ await foreach (var sessionEvent in sessions.SubmitInputAsync(
 > [!TIP]
 > 将事件流视为活动 Turn 的事实来源。增量更新 UI，并保存 Thread ID，以便后续恢复会话或读取历史。
 
-## 恢复与暂停
+## 恢复对话
 
-继续一个不在内存中的已知对话前，先恢复对应 Thread。恢复会从持久化历史重建 Agent 会话，并把 Thread 转回活动状态：
+继续一个不在内存中的已知对话前，先恢复对应 Thread。恢复会从持久化历史重建 Agent 会话：
 
 ```csharp
 var resumed = await sessions.ResumeThreadAsync(threadId, cancellationToken);
@@ -92,12 +92,6 @@ await foreach (var sessionEvent in sessions.SubmitInputAsync(
 {
     // 将事件映射到应用 UI。
 }
-```
-
-暂停会把 Thread 转为 Paused。对话仍然完整持久化，但在恢复之前不能开始新的 Turn：
-
-```csharp
-await sessions.PauseThreadAsync(threadId, cancellationToken);
 ```
 
 ## 归档对话

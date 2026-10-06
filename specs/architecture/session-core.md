@@ -159,7 +159,7 @@ Fields:
   - True when the thread is process-local and is not persisted or listed by default.
 - `Worktree` (ThreadWorktreeInfo, nullable)
   - DotCraft-managed Git worktree metadata bound to this thread. Null for ordinary local-workspace threads.
-- `Status` (enum: `Active`, `Paused`, `Archived`)
+- `Status` (enum: `Active`, `Archived`)
   - See Section 5.1 for lifecycle rules.
 - `CreatedAt` (UTC timestamp)
 - `LastActiveAt` (UTC timestamp)
@@ -818,24 +818,11 @@ App Binding; see `specs/protocols/app-binding.md` §7.
 ### 5.1 Thread Lifecycle
 
 ```
-                    ┌──────────┐
-     CreateThread   │          │
-    ─────────────►  │  Active  │ ◄──── ResumeThread
-                    │          │
-                    └────┬─────┘
-                         │
-              ┌──────────┼──────────┐
-              │                     │
-              ▼                     ▼
-        ┌──────────┐         ┌───────────┐
-        │  Paused  │         │ Archived  │
-        └────┬─────┘         └───────────┘
-             │
-             │ ResumeThread
-             ▼
-        ┌──────────┐
-        │  Active  │
-        └──────────┘
+                    ┌──────────┐   ArchiveThread    ┌───────────┐
+     CreateThread   │          │ ─────────────────► │           │
+    ─────────────►  │  Active  │                    │ Archived  │
+                    │          │ ◄───────────────── │           │
+                    └──────────┘  UnarchiveThread   └───────────┘
 ```
 
 **Transitions**:
@@ -844,15 +831,9 @@ App Binding; see `specs/protocols/app-binding.md` §7.
   - Session Core generates a Thread ID, sets `CreatedAt` and `LastActiveAt` to now.
   - The adapter provides `SessionIdentity` with channel name, user ID, and context.
 
-- `Active` → `Paused`
-  - Triggered by explicit adapter request or by inactivity timeout (configurable, default: none).
-  - A Paused thread can be resumed by any compatible server-managed channel.
-  - No Turn may be started on a Paused thread without first resuming it.
-
-- `Paused` → `Active` (via `ResumeThread`)
-  - Any compatible in-scope adapter can resume a Paused thread by calling `ResumeThread(threadId)`.
-  - Session Core loads the thread state and model history from rollout, constructs a runtime agent session, and sets status to Active.
-  - `LastActiveAt` is updated.
+- `ResumeThread` (Active stays Active)
+  - Any compatible in-scope adapter can resume an Active thread by calling `ResumeThread(threadId)`. Archived threads cannot be resumed.
+  - When the thread is not loaded, Session Core loads the thread state and model history from rollout, constructs a runtime agent session, and updates `LastActiveAt`.
 
 - `Active` → `Archived`
   - Triggered by explicit adapter request or by archival policy (e.g., "archive threads inactive for 30 days").
@@ -1089,11 +1070,11 @@ SessionEvent
   - Payload: `{ thread: Thread }` (full Thread object with initial state).
 
 - **`thread/resumed`**
-  - Emitted when a Paused or otherwise inactive Thread is resumed.
+  - Emitted when a Thread is resumed.
   - Payload: `{ thread: Thread, resumedBy: string }` (channel name that resumed it).
 
-- **`thread/archived`, `thread/unarchived`, `thread/paused`**
-  - Emitted when Thread status changes (Active → Archived, Archived → Active, Active → Paused). Paused → Active is reported by `thread/resumed`.
+- **`thread/archived`, `thread/unarchived`**
+  - Emitted when Thread status changes (Active → Archived, Archived → Active).
   - Payload: `{ threadId: string }`.
 
 - **`thread/renamed` (Wire Protocol only; not a `SessionEvent`)**

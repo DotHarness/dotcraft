@@ -19,7 +19,6 @@ export const SECONDARY_THREAD_NOTIFICATION_METHODS = new Set([
   'thread/deleted',
   'thread/archived',
   'thread/unarchived',
-  'thread/paused',
   'thread/status/changed'
 ])
 

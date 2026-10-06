@@ -16927,29 +16927,6 @@
         "sourceId"
       ]
     },
-    "ThreadPauseParams": {
-      "title": "ThreadPauseParams",
-      "type": "object",
-      "properties": {
-        "threadId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "ThreadPausedNotification": {
-      "title": "ThreadPausedNotification",
-      "type": "object",
-      "properties": {
-        "threadId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true,
-      "required": [
-        "threadId"
-      ]
-    },
     "ThreadPluginPolicy": {
       "title": "ThreadPluginPolicy",
       "type": "object",

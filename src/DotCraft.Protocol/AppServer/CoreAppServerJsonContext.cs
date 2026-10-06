@@ -320,7 +320,6 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.ThreadMcpPolicy))]
 [JsonSerializable(typeof(AppServer.ThreadModeSetParams))]
 [JsonSerializable(typeof(AppServer.ThreadNamePolicy))]
-[JsonSerializable(typeof(AppServer.ThreadPauseParams))]
 [JsonSerializable(typeof(AppServer.ThreadPluginPolicy))]
 [JsonSerializable(typeof(AppServer.ThreadQueueUpdatedNotification))]
 [JsonSerializable(typeof(AppServer.ThreadRenameParams))]

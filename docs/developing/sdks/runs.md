@@ -25,7 +25,7 @@ var snapshot = await client.Threads.ReadAsync(threadId);
 
 :::
 
-TypeScript also provides `getOrCreate`. It returns the identity's first active or paused thread — resuming the paused one — and starts a new thread only when neither exists.
+TypeScript also provides `getOrCreate`. It returns the identity's first active thread and starts a new thread only when none exists.
 
 `read` returns the current Thread header and runtime state without conversation history. Read history through bounded Turn and Item pages:
 

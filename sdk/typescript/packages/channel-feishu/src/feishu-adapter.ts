@@ -694,9 +694,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     }
     if (
       event.action === "cache_hit" ||
-      event.action === "resumed_from_cache" ||
       event.action === "listed_active" ||
-      event.action === "listed_resumed" ||
       event.action === "created" ||
       event.action === "force_fresh_created"
     ) {

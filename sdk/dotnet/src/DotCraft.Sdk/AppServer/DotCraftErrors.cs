@@ -16,7 +16,7 @@ public static class AppServerErrorCodes
     /// <summary>The specified threadId does not exist.</summary>
     public const int ThreadNotFound = -32010;
 
-    /// <summary>Operation requires an active thread but the thread is paused or archived.</summary>
+    /// <summary>Operation requires an active thread but the thread is archived.</summary>
     public const int ThreadNotActive = -32011;
 
     /// <summary>A turn is already running or waiting for approval on this thread.</summary>
@@ -109,7 +109,7 @@ public sealed class TurnInProgressException(string message, Exception? innerExce
 public sealed class ThreadNotFoundException(string message, Exception? innerException = null)
     : DotCraftException("threadNotFound", message, innerException);
 
-/// <summary>The thread cannot accept turns because it is paused or archived.</summary>
+/// <summary>The thread cannot accept turns because it is archived.</summary>
 public sealed class ThreadNotActiveException(string message, Exception? innerException = null)
     : DotCraftException("threadNotActive", message, innerException);
 

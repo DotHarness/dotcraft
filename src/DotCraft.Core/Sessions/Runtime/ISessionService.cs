@@ -120,9 +120,6 @@ public interface ISessionService
         CancellationToken ct = default) =>
         throw new NotSupportedException("Thread import append is not supported by this session service.");
 
-    /// <summary>Pauses an active Thread.</summary>
-    Task PauseThreadAsync(string threadId, CancellationToken ct = default);
-
     /// <summary>Returns the current goal attached to a Thread.</summary>
     Task<ThreadGoal?> GetThreadGoalAsync(string threadId, CancellationToken ct = default) =>
         throw new NotSupportedException("Thread goals are not supported by this session service.");
