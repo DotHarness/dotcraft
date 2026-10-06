@@ -4050,7 +4050,7 @@ export const MESSAGES_ZH_HANS = {
     '请为这个智能体添加高级逻辑。强化它的路由、约束、边界情况以及工具或技能选择，但不要不必要地扩大范围。',
   'agentBuilder.chat.prompt.optimize':
     '请优化这个智能体的可靠性和专注度。收紧角色指令，移除不必要的能力，并推荐它真正需要的最小工具和技能集合。',
-  'agentBuilder.newAgent': '新建智能体',
+  'agentBuilder.newAgent': '创建',
   'agentBuilder.galleryTitle': '用 DotCraft 定制你的智能体',
   'agentBuilder.searchPlaceholder': '搜索智能体',
   'agentBuilder.loading': '正在加载智能体...',

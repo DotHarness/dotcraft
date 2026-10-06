@@ -3979,7 +3979,7 @@ export const MESSAGES_FR = {
     'Ajoute une logique avancée à cet agent. Renforce son routage, ses contraintes, ses cas limites et ses choix d’outils ou de compétences sans élargir inutilement son périmètre.',
   'agentBuilder.chat.prompt.optimize':
     'Optimise cet agent pour la fiabilité et la concentration. Resserre ses instructions de rôle, retire les capacités inutiles et recommande le minimum d’outils et de compétences nécessaires.',
-  'agentBuilder.newAgent': 'Nouvel agent',
+  'agentBuilder.newAgent': 'Créer',
   'agentBuilder.galleryTitle': 'Créez vos agents avec DotCraft',
   'agentBuilder.searchPlaceholder': 'Rechercher des agents',
   'agentBuilder.loading': 'Chargement des agents...',

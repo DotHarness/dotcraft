@@ -56,7 +56,7 @@ function renderView(): void {
 
 async function openBlankBuilder(): Promise<void> {
   renderView()
-  fireEvent.click(await screen.findByRole('button', { name: /New agent/i }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Create', exact: true }))
   await waitFor(() => {
     expect(screen.getByPlaceholderText('agent name')).toBeInTheDocument()
   })
@@ -72,7 +72,7 @@ async function addToolFromBuilder(name: string): Promise<void> {
 
 async function startBuilderTurn(): Promise<void> {
   renderView()
-  fireEvent.click(await screen.findByRole('button', { name: /New agent/i }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Create', exact: true }))
 
   const textbox = within(document.querySelector('.agent-builder-chatpane') as HTMLElement).getByRole('textbox')
   textbox.textContent = 'Name this agent Slate'
@@ -197,7 +197,7 @@ describe('AgentBuilderView creation', () => {
   it('uses the real builder composer and starts the first builder turn from the editor', async () => {
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: /New agent/i }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Create', exact: true }))
 
     expect(screen.getByRole('button', { name: 'Open commands' })).toBeInTheDocument()
     const voiceButton = screen.getByRole('button', { name: 'Click to dictate or hold' })
@@ -283,7 +283,7 @@ describe('AgentBuilderView creation', () => {
     })
 
     renderView()
-    fireEvent.click(await screen.findByRole('button', { name: /New agent/i }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Create', exact: true }))
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Select model/i })).toHaveTextContent('provider-model')
     })
@@ -306,7 +306,7 @@ describe('AgentBuilderView creation', () => {
   it('does not create a builder thread when starting a blank local draft', async () => {
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: /New agent/i }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Create', exact: true }))
 
 
     await waitFor(() => {

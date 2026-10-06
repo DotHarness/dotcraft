@@ -3980,7 +3980,7 @@ export const MESSAGES_DE = {
     'Füge diesem Agenten erweiterte Logik hinzu. Stärke Routing, Einschränkungen, Randfälle sowie Tool- oder Skill-Auswahl, ohne den Umfang unnötig zu erweitern.',
   'agentBuilder.chat.prompt.optimize':
     'Optimiere diesen Agenten für Zuverlässigkeit und Fokus. Straffe seine Rollenanweisungen, entferne unnötige Fähigkeiten und empfehle die minimal nötigen Tools und Skills.',
-  'agentBuilder.newAgent': 'Neuer Agent',
+  'agentBuilder.newAgent': 'Erstellen',
   'agentBuilder.galleryTitle': 'Erstelle deine Agenten mit DotCraft',
   'agentBuilder.searchPlaceholder': 'Agenten suchen',
   'agentBuilder.loading': 'Agenten werden geladen...',
