@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.1 |
+| **Version** | 0.8.3 |
 | **Status** | Living |
-| **Date** | 2026-10-03 |
+| **Date** | 2026-10-06 |
 | **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: Define the TypeScript binding, package contract, Node.js runtime requirements, channel runtime, and compatibility strategy for `@dotcraft/sdk`.
@@ -551,8 +551,10 @@ Required normalized event types:
 |------|--------|
 | `thread_started` | `thread/started` |
 | `thread_resumed` | `thread/resumed` |
-| `thread_status_changed` | `thread/statusChanged` |
-| `thread_runtime_changed` | `thread/runtimeChanged` |
+| `thread_archived` | `thread/archived` |
+| `thread_unarchived` | `thread/unarchived` |
+| `thread_paused` | `thread/paused` |
+| `thread_status_changed` | `thread/status/changed` |
 | `queue_updated` | `thread/queue/updated` |
 | `turn_started` | `turn/started` |
 | `item_started` | `item/started` |

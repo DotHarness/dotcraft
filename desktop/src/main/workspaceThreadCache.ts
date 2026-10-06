@@ -134,18 +134,18 @@ export function applyWorkspaceThreadNotificationToCache(
     next = updateWorkspaceThread(threads, threadId, { displayName })
   } else if (method === 'thread/deleted') {
     next = removeWorkspaceThreadTree(threads, stringField(p.threadId))
-  } else if (method === 'thread/statusChanged') {
+  } else if (method === 'thread/archived') {
+    next = removeWorkspaceThreadTree(threads, stringField(p.threadId))
+  } else if (method === 'thread/unarchived') {
     const threadId = stringField(p.threadId)
-    const newStatus = stringField(p.newStatus).toLowerCase()
-    const previousStatus = stringField(p.previousStatus).toLowerCase()
-    if (newStatus === 'archived') {
-      next = removeWorkspaceThreadTree(threads, threadId)
-    } else if (hasThread(threads, threadId)) {
-      next = updateWorkspaceThread(threads, threadId, { status: newStatus })
-    } else if (threadId && previousStatus === 'archived') {
+    if (hasThread(threads, threadId)) {
+      next = updateWorkspaceThread(threads, threadId, { status: 'active' })
+    } else if (threadId) {
       refreshThreadList = true
     }
-  } else if (method === 'thread/runtimeChanged') {
+  } else if (method === 'thread/paused') {
+    next = updateWorkspaceThread(threads, stringField(p.threadId), { status: 'paused' })
+  } else if (method === 'thread/status/changed') {
     next = updateWorkspaceThread(threads, stringField(p.threadId), { runtime: p.runtime })
   }
 

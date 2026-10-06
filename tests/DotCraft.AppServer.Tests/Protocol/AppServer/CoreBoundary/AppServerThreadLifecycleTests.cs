@@ -30,7 +30,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// Tests for thread/* methods (spec Section 4).
 /// Verifies response shapes and the post-response notifications emitted
 /// after thread/start (→ thread/started), thread/resume (→ thread/resumed),
-/// thread/pause and thread/archive (→ thread/statusChanged).
+/// thread/pause (→ thread/paused), thread/archive (→ thread/archived) and thread/unarchive (→ thread/unarchived).
 /// </summary>
 public sealed partial class AppServerThreadLifecycleTests : IDisposable
 {
@@ -1388,7 +1388,7 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task ThreadPause_EmitsStatusChangedNotification()
+    public async Task ThreadPause_EmitsPausedNotification()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
@@ -1399,27 +1399,9 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
         var notification = await _h.Transport.ReadNextSentAsync();
 
         CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged);
-        Assert.Equal("paused",
-            notification.RootElement.GetProperty("params").GetProperty("newStatus").GetString());
-    }
-
-    [Fact]
-    public async Task ThreadPause_NotificationIncludesPreviousStatus()
-    {
-        // Gap B: previousStatus must be present in thread/statusChanged notification
-        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-        Assert.Equal(ThreadStatus.Active, thread.Status);
-
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadPause, new { threadId = thread.Id });
-        await _h.ExecuteRequestAsync(msg);
-
-        await _h.Transport.ReadNextSentAsync(); // response
-        var notification = await _h.Transport.ReadNextSentAsync();
-
-        var @params = notification.RootElement.GetProperty("params");
-        Assert.Equal("active", @params.GetProperty("previousStatus").GetString());
-        Assert.Equal("paused", @params.GetProperty("newStatus").GetString());
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadPaused);
+        Assert.Equal(thread.Id,
+            notification.RootElement.GetProperty("params").GetProperty("threadId").GetString());
     }
 
     [Fact]
@@ -1468,7 +1450,7 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task ThreadArchive_EmitsStatusChangedNotification()
+    public async Task ThreadArchive_EmitsArchivedNotification()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
@@ -1479,32 +1461,15 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
         var notification = await _h.Transport.ReadNextSentAsync();
 
         CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged);
-        Assert.Equal("archived",
-            notification.RootElement.GetProperty("params").GetProperty("newStatus").GetString());
-    }
-
-    [Fact]
-    public async Task ThreadArchive_NotificationIncludesPreviousStatus()
-    {
-        // Gap B: previousStatus must be present in thread/statusChanged notification
-        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadArchive, new { threadId = thread.Id });
-        await _h.ExecuteRequestAsync(msg);
-
-        await _h.Transport.ReadNextSentAsync(); // response
-        var notification = await _h.Transport.ReadNextSentAsync();
-
-        var @params = notification.RootElement.GetProperty("params");
-        Assert.Equal("active", @params.GetProperty("previousStatus").GetString());
-        Assert.Equal("archived", @params.GetProperty("newStatus").GetString());
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadArchived);
+        Assert.Equal(thread.Id,
+            notification.RootElement.GetProperty("params").GetProperty("threadId").GetString());
     }
 
     [Fact]
     public async Task ThreadArchive_WhenSubscribed_SendsOnlyResponse_NoDuplicateNotification()
     {
-        // Gap C: subscribed connection should not receive a duplicate statusChanged
+        // Gap C: subscribed connection should not receive a duplicate thread/archived
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
         var subscribeMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadSubscribe, new { threadId = thread.Id });
@@ -1522,7 +1487,7 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task ThreadUnarchive_EmitsStatusChangedNotification()
+    public async Task ThreadUnarchive_EmitsUnarchivedNotification()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         await _h.Service.ArchiveThreadAsync(thread.Id);
@@ -1534,26 +1499,9 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
         var notification = await _h.Transport.ReadNextSentAsync();
 
         CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged);
-        Assert.Equal("active",
-            notification.RootElement.GetProperty("params").GetProperty("newStatus").GetString());
-    }
-
-    [Fact]
-    public async Task ThreadUnarchive_NotificationIncludesPreviousStatus()
-    {
-        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-        await _h.Service.ArchiveThreadAsync(thread.Id);
-
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUnarchive, new { threadId = thread.Id });
-        await _h.ExecuteRequestAsync(msg);
-
-        await _h.Transport.ReadNextSentAsync(); // response
-        var notification = await _h.Transport.ReadNextSentAsync();
-
-        var @params = notification.RootElement.GetProperty("params");
-        Assert.Equal("archived", @params.GetProperty("previousStatus").GetString());
-        Assert.Equal("active", @params.GetProperty("newStatus").GetString());
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUnarchived);
+        Assert.Equal(thread.Id,
+            notification.RootElement.GetProperty("params").GetProperty("threadId").GetString());
     }
 
     [Fact]

@@ -7,7 +7,7 @@ export interface ServerNotificationMethods {
   "app/connection/changed": { params: Models.AppConnectionChangedNotification; result: Models.RpcEmpty };
   "app/list/updated": { params: Models.AppListUpdatedNotification; result: Models.RpcEmpty };
   "auth/openai/authorizeUrl": { params: Models.AuthOpenAiAuthorizeUrlNotification; result: Models.RpcEmpty };
-  "auth/openai/usageChanged": { params: Models.AuthOpenAiUsageResult; result: Models.RpcEmpty };
+  "auth/openai/usage/updated": { params: Models.AuthOpenAiUsageResult; result: Models.RpcEmpty };
   "automation/run/updated": { params: Models.AutomationRunUpdatedNotification; result: Models.RpcEmpty };
   "automation/updated": { params: Models.AutomationUpdatedNotification; result: Models.RpcEmpty };
   "config/changed": { params: Models.ConfigChangedParams; result: Models.RpcEmpty };
@@ -29,7 +29,7 @@ export interface ServerNotificationMethods {
   "plan/updated": { params: Models.PlanUpdatedNotification; result: Models.RpcEmpty };
   "plugin/snapshot/updated": { params: Models.PluginSnapshotUpdatedNotification; result: Models.RpcEmpty };
   "remoteToolHost/route/changed": { params: Models.RemoteToolHostRouteChangedNotification; result: Models.RpcEmpty };
-  "subagent/graphChanged": { params: Models.SubAgentGraphChangedNotification; result: Models.RpcEmpty };
+  "subagent/graph/changed": { params: Models.SubAgentGraphChangedNotification; result: Models.RpcEmpty };
   "subagent/progress": { params: Models.SubAgentProgressNotification; result: Models.RpcEmpty };
   "system/event": { params: Models.SystemEventNotification; result: Models.RpcEmpty };
   "system/jobResult": { params: Models.SystemJobResultNotification; result: Models.RpcEmpty };
@@ -39,15 +39,17 @@ export interface ServerNotificationMethods {
   "terminal/stalled": { params: Models.TerminalLifecycleNotification; result: Models.RpcEmpty };
   "terminal/started": { params: Models.TerminalLifecycleNotification; result: Models.RpcEmpty };
   "thread/appBindings/changed": { params: Models.ThreadAppBindingsChangedNotification; result: Models.RpcEmpty };
+  "thread/archived": { params: Models.ThreadArchivedNotification; result: Models.RpcEmpty };
   "thread/deleted": { params: Models.ThreadDeletedNotification; result: Models.RpcEmpty };
   "thread/goal/cleared": { params: Models.ThreadGoalClearedNotification; result: Models.RpcEmpty };
   "thread/goal/updated": { params: Models.ThreadGoalUpdatedNotification; result: Models.RpcEmpty };
+  "thread/paused": { params: Models.ThreadPausedNotification; result: Models.RpcEmpty };
   "thread/queue/updated": { params: Models.ThreadQueueUpdatedNotification; result: Models.RpcEmpty };
   "thread/renamed": { params: Models.ThreadRenamedNotification; result: Models.RpcEmpty };
   "thread/resumed": { params: Models.ThreadNotification; result: Models.RpcEmpty };
-  "thread/runtimeChanged": { params: Models.ThreadRuntimeChangedParams; result: Models.RpcEmpty };
   "thread/started": { params: Models.ThreadNotification; result: Models.RpcEmpty };
-  "thread/statusChanged": { params: Models.ThreadStatusChangedNotification; result: Models.RpcEmpty };
+  "thread/status/changed": { params: Models.ThreadStatusChangedNotification; result: Models.RpcEmpty };
+  "thread/unarchived": { params: Models.ThreadUnarchivedNotification; result: Models.RpcEmpty };
   "thread/updated": { params: Models.ThreadNotification; result: Models.RpcEmpty };
   "turn/cancelled": { params: Models.TurnNotification; result: Models.RpcEmpty };
   "turn/completed": { params: Models.TurnNotification; result: Models.RpcEmpty };

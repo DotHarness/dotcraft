@@ -143,7 +143,7 @@ internal sealed class ThreadRuntimeNotificationCoordinator
         Contract.ThreadRuntimeState runtime,
         ConcurrentDictionary<IAppServerTransport, AppServerConnection> activeTransports)
     {
-        var parameters = new Contract.ThreadRuntimeChangedParams
+        var parameters = new Contract.ThreadStatusChangedNotification
         {
             ThreadId = threadId,
             Runtime = runtime
@@ -151,7 +151,7 @@ internal sealed class ThreadRuntimeNotificationCoordinator
 
         foreach (var (transport, connection) in activeTransports)
         {
-            if (!connection.ShouldSendNotification(Contract.AppServerRpc.ThreadRuntimeChanged.Name))
+            if (!connection.ShouldSendNotification(Contract.AppServerRpc.ThreadStatusChanged.Name))
                 continue;
 
             var queue = _notificationQueues.GetOrAdd(
@@ -165,7 +165,7 @@ internal sealed class ThreadRuntimeNotificationCoordinator
                             RemoveTransport(candidate);
                         }),
                     LazyThreadSafetyMode.ExecutionAndPublication));
-            queue.Value.Enqueue(Contract.AppServerRpc.ThreadRuntimeChanged.Name, parameters);
+            queue.Value.Enqueue(Contract.AppServerRpc.ThreadStatusChanged.Name, parameters);
         }
     }
 

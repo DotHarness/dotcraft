@@ -178,7 +178,7 @@ export function startSummaryFeed(
     if (params.turn.threadId === threadId) void reconcileRollback()
   })
 
-  const stopRuntime = host.appServer.onNotification('thread/runtimeChanged', (params) => {
+  const stopRuntime = host.appServer.onNotification('thread/status/changed', (params) => {
     if (params.threadId === threadId) void reconcileRollback()
   })
 

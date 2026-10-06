@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.8.3 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-06 |
 | **Related Specs** | [Design System](../architecture/DESIGN.md), [OpenAI Subscription Auth](../architecture/openai-subscription-auth.md) |
 
 Purpose: define speech-to-text input for the DotCraft Desktop Composer.
@@ -133,7 +133,7 @@ The ChatGPT route is available when all of these hold:
 2. The connected AppServer advertises `authOpenAiOAuth`.
 3. `auth/openai/status` with `includeToken: true` reports `loggedIn: true` and returns `authToken` (see [OpenAI Subscription Auth](../architecture/openai-subscription-auth.md#host-access-boundary)).
 
-Main refreshes availability, without keeping the token, when the AppServer connection changes, when `auth/openai/usageChanged` arrives, and when the setting changes. Main reads a fresh token for every request and never caches, persists, logs, or forwards it.
+Main refreshes availability, without keeping the token, when the AppServer connection changes, when `auth/openai/usage/updated` arrives, and when the setting changes. Main reads a fresh token for every request and never caches, persists, logs, or forwards it.
 
 Request contract:
 

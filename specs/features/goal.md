@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.8.3 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-06 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md) |
 
 Purpose: Define DotCraft's server-managed persistent thread goal feature, including the Session Core domain model, runtime lifecycle, persistence contract, model tool surface, AppServer wire projection, and client UX expectations.
@@ -438,7 +438,7 @@ Behavior:
 
 ### 10.7 Notification Delivery
 
-Goal notifications are summary notifications like `thread/runtimeChanged`, not turn-scoped item events.
+Goal notifications are summary notifications like `thread/status/changed`, not turn-scoped item events.
 
 Rules:
 

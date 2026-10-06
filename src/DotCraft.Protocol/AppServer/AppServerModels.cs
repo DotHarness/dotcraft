@@ -1594,6 +1594,27 @@ public sealed class ThreadDeletedNotification : ExtensibleJsonObject
     public required string ThreadId { get; init; }
 }
 
+/// <summary>Thread archive notification payload.</summary>
+public sealed class ThreadArchivedNotification : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")]
+    public required string ThreadId { get; init; }
+}
+
+/// <summary>Thread unarchive notification payload.</summary>
+public sealed class ThreadUnarchivedNotification : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")]
+    public required string ThreadId { get; init; }
+}
+
+/// <summary>Thread pause notification payload.</summary>
+public sealed class ThreadPausedNotification : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")]
+    public required string ThreadId { get; init; }
+}
+
 /// <summary>Turn lifecycle notification payload.</summary>
 public sealed class TurnNotification : ExtensibleJsonObject
 {

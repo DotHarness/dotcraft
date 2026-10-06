@@ -459,7 +459,7 @@ public sealed class ServerCapabilitySnapshot
 
     /// <summary>
     /// Server exposes usage / rate-limit telemetry for ChatGPT subscription accounts
-    /// (<c>auth/openai/usage</c> + <c>auth/openai/usageChanged</c>).
+    /// (<c>auth/openai/usage</c> + <c>auth/openai/usage/updated</c>).
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool AuthOpenAiUsage { get; set; }

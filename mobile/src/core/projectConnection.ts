@@ -205,7 +205,7 @@ export class ProjectConnection {
       }),
     )
 
-    client.on('thread/runtimeChanged', ({ threadId, runtime }) => {
+    client.on('thread/status/changed', ({ threadId, runtime }) => {
       if (!threadId) return
       if (!this.store.getState().chats[this.key(threadId)]) {
         this.lookUp(client, threadId)
@@ -223,9 +223,7 @@ export class ProjectConnection {
       if (threadId && displayName) this.patch(threadId, { title: displayName })
     })
     client.on('thread/deleted', ({ threadId }) => this.store.dispatch({ type: 'chatRemoved', key: this.key(threadId) }))
-    client.on('thread/statusChanged', ({ threadId, newStatus }) => {
-      if (threadId && newStatus === 'archived') this.store.dispatch({ type: 'chatRemoved', key: this.key(threadId) })
-    })
+    client.on('thread/archived', ({ threadId }) => this.store.dispatch({ type: 'chatRemoved', key: this.key(threadId) }))
     const turn = (failed: boolean | null) => (params: TurnNotification) => {
       this.route(params.turn.threadId, { kind: 'turn', turn: params.turn })
       this.patch(params.turn.threadId, { updatedAt: now(), ...(failed === null ? {} : { lastTurnFailed: failed }) })
@@ -254,7 +252,7 @@ export class ProjectConnection {
     client.on('turn/diff/updated', ({ threadId, turnId, diff }) => this.route(threadId, { kind: 'diff', turnId, diff }))
     client.on('item/usage/delta', (params) => this.contextChanged(params.threadId, usageDeltaUpdate(params)))
     client.on('system/event', (params) => this.contextChanged(params.threadId, systemEventUpdate(params)))
-    client.on('auth/openai/usageChanged', (params) => this.store.dispatch({ type: 'usage', projectId: this.projectId, windows: usageWindows(params) }))
+    client.on('auth/openai/usage/updated', (params) => this.store.dispatch({ type: 'usage', projectId: this.projectId, windows: usageWindows(params) }))
   }
 
   private contextChanged(threadId: string | null | undefined, update: ContextUpdate | null): void {

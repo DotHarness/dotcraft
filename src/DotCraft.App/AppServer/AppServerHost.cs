@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
-using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.AppBinding;
 using Microsoft.Extensions.Logging;
@@ -1132,14 +1131,14 @@ public sealed class AppServerHost(
             DotCraft.Auth.OpenAI.OpenAIProviderProjection.ToProviderUsage(snapshot));
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.AuthOpenAiUsageChanged))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.AuthOpenAiUsageUpdated))
                 continue;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await transport.NotifyContractAsync(Contract.AppServerRpc.AuthOpenAiUsageChanged, result, CancellationToken.None);
+                    await transport.NotifyContractAsync(Contract.AppServerRpc.AuthOpenAiUsageUpdated, result, CancellationToken.None);
                 }
                 catch
                 {
@@ -1514,18 +1513,14 @@ public sealed class AppServerHost(
 
     private void BroadcastThreadStatusChanged(string threadId, ThreadStatus previousStatus, ThreadStatus newStatus)
     {
-        var parameters = new Contract.ThreadStatusChangedNotification
-        {
-            ThreadId = threadId,
-            PreviousStatus = JsonNamingPolicy.CamelCase.ConvertName(previousStatus.ToString()),
-            NewStatus = JsonNamingPolicy.CamelCase.ConvertName(newStatus.ToString())
-        };
+        if (ThreadLifecycleNotification.For(threadId, previousStatus, newStatus) is not { } lifecycle)
+            return;
 
         var skipTransport = AppServerRequestContext.CurrentTransport;
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged))
+            if (!connection.ShouldSendNotification(lifecycle.Method))
                 continue;
 
             if (skipTransport != null && ReferenceEquals(transport, skipTransport))
@@ -1535,7 +1530,7 @@ public sealed class AppServerHost(
             {
                 try
                 {
-                    await transport.NotifyContractAsync(Contract.AppServerRpc.ThreadStatusChanged, parameters, CancellationToken.None);
+                    await transport.NotifyContractAsync(lifecycle.Method, lifecycle.Params, CancellationToken.None);
                 }
                 catch
                 {

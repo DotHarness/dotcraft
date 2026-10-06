@@ -405,7 +405,7 @@ public sealed partial class SessionService(
 
     /// <summary>
     /// Optional hook invoked after a session-backed SubAgent edge is created or changes status.
-    /// Hosts broadcast <c>subagent/graphChanged</c> so clients can refresh child thread metadata.
+    /// Hosts broadcast <c>subagent/graph/changed</c> so clients can refresh child thread metadata.
     /// </summary>
     public Action<string, string>? SubAgentGraphChangedForBroadcast { get; set; }
 

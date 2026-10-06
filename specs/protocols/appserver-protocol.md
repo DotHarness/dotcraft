@@ -77,7 +77,7 @@ The contract projects Session Core onto the wire. Features fall into three bucke
 | **Guaranteed with narrowed semantics** | `thread/list` is deterministic and supports optional cursor pagination; archived threads are excluded unless an explicit filter includes them. `thread/read` returns only the current Thread header; historical Turns and Items are read through the paged methods in [Section 4.4](#44-threadread). |
 | **Discoverable extensions** | Extension namespaces are advertised as a flat list in `serverInfo.extensions` and `capabilities.extensions` ([Section 11](#11-extension-methods)). Clients treat them as optional and must not require them for core Session behavior. |
 
-**Multi-client thread lists**: In deployments with multiple concurrent connections, server-broadcast notifications in [Section 6.1](#61-thread-notifications) include `thread/started`, `thread/deleted`, `thread/renamed`, and `thread/runtimeChanged` so clients can keep both thread lists and per-thread activity indicators (running, waiting-on-approval, waiting-on-plan-confirmation) synchronized without polling or subscribing to every thread's event stream.
+**Multi-client thread lists**: In deployments with multiple concurrent connections, server-broadcast notifications in [Section 6.1](#61-thread-notifications) include `thread/started`, `thread/deleted`, `thread/renamed`, and `thread/status/changed` so clients can keep both thread lists and per-thread activity indicators (running, waiting-on-approval, waiting-on-plan-confirmation) synchronized without polling or subscribing to every thread's event stream.
 
 ## 2. Protocol Fundamentals
 
@@ -704,7 +704,7 @@ Results are ordered by `lastActiveAt` descending. Filtering is applied before pa
 
 When `scope = "workspace"`, `crossChannelOrigins` is ignored because all origins in the exact workspace are already eligible. `includeInternal` remains `false` by default, so workspace scope does not expose internal helper threads unless explicitly requested. Unknown scope values return `InvalidParams`.
 
-Each `ThreadSummary` may include an optional `runtime` snapshot with the same shape as `thread/runtimeChanged`. This snapshot is best-effort process-local state intended to hydrate thread-list activity indicators after reconnect. Clients should apply it as initial list state and continue to consume `thread/runtimeChanged` as the incremental source of truth. `runtime` may be omitted; clients treat omission as unknown rather than as an idle thread.
+Each `ThreadSummary` may include an optional `runtime` snapshot with the same shape as `thread/status/changed`. This snapshot is best-effort process-local state intended to hydrate thread-list activity indicators after reconnect. Clients should apply it as initial list state and continue to consume `thread/status/changed` as the incremental source of truth. `runtime` may be omitted; clients treat omission as unknown rather than as an idle thread.
 
 Each `ThreadSummary` may also include an optional `originApp` object `{ appId, displayName, icon?, memberId? }`. The server populates it only when the summary's `originChannel` matches the declared `originChannel` of an installed App Binding app (see [App Binding] §5.1), attributing the thread's origin to that app so clients can render the app's icon + name as the origin badge. When the app also declares `originMembers` and the summary's `channelContext` matches one, `displayName`/`icon` carry the matched member's branding and `memberId` is set (the matched key) so clients can present it as a per-member origin; `appId` still identifies the owning app. `icon` is an optional data URL or safe URL (same contract as app icons). Clients must fall back to the generic origin-channel badge when `originApp` is absent or its `icon` is missing. The same `originApp` attribution (identical shape and contract) is attached to the full thread object delivered by the thread lifecycle methods — `thread/read`, `thread/started`, `thread/updated`, `thread/resumed`, and `thread/rollback` — so threads that reach the client only through the event stream (e.g. threads created server-side by a managed runtime) carry the same origin badge without waiting for a `thread/list` refresh.
 
@@ -887,7 +887,7 @@ Subscribe the current connection to future lifecycle events for a thread. Multip
 
 After subscription succeeds, the server may emit future `thread/*`, `turn/*`, and `item/*` notifications for that thread even when the current connection did not originate the turn.
 
-`thread/statusChanged` is live-only and is not retained in the recent replay buffer. A reconnecting client must recover the current thread status from `thread/read` or `thread/list`; replay must not transiently reapply an obsolete archived, paused, or active state.
+`thread/archived`, `thread/unarchived`, and `thread/paused` are live-only and are not retained in the recent replay buffer. A reconnecting client must recover the current thread status from `thread/read` or `thread/list`; replay must not transiently reapply an obsolete archived, paused, or active state.
 
 If the subscribed thread is already paused in a `waitingApproval` or `waitingInput` turn, the server must re-deliver the unresolved interactive request to the subscribing connection using the same rules as `thread/resume`. `thread/unsubscribe` and ordinary thread switching are not dismissals; they must not resolve, reject, or answer an outstanding interactive request.
 
@@ -921,7 +921,7 @@ Pause an active thread. A paused thread cannot accept new turns until resumed.
 
 **Result**: `{}`
 
-The server emits a `thread/statusChanged` notification.
+The server emits a `thread/paused` notification.
 
 ### 4.9 `thread/archive`
 
@@ -937,7 +937,7 @@ Archive a thread. Archived threads are read-only — they can be listed and read
 
 **Result**: `{}`
 
-The server emits a `thread/statusChanged` notification. If channel App Bindings changed as part of archive, the server also emits `thread/appBindings/changed` notifications for affected bindings.
+The server emits a `thread/archived` notification. If channel App Bindings changed as part of archive, the server also emits `thread/appBindings/changed` notifications for affected bindings.
 
 ### 4.10 `thread/unarchive`
 
@@ -953,7 +953,7 @@ Restore an archived thread to Active status so it can appear in the normal activ
 
 **Result**: `{}`
 
-The server emits a `thread/statusChanged` notification with `newStatus: "active"`.
+The server emits a `thread/unarchived` notification.
 
 ### 4.11 `thread/delete`
 
@@ -1082,7 +1082,7 @@ Manually compact the model-visible context for an idle server-managed thread.
 | `message` | string? | Optional skip/failure reason. |
 | `contextUsage` | ContextUsageSnapshot? | Updated snapshot when available. |
 
-Servers advertise this method with `capabilities.manualCompaction = true`. The method is valid only for Active, server-managed threads that have history and no `Running` / `WaitingApproval` turn or active thread maintenance. The response wire shape is stable: `outcome`, `message`, and `contextUsage` are the only result fields. The server emits `system/event` in the order `compacting` -> exactly one terminal event (`compacted`, `compactSkipped`, `compactFailed`, or `compactCancelled`). While running, the thread reports `maintenanceKind = "compacting"` through `thread/runtimeChanged`; new input must be queued instead of submitted with `turn/start`. Backend selection and history replacement follow [Context Compaction](../architecture/context-compaction.md).
+Servers advertise this method with `capabilities.manualCompaction = true`. The method is valid only for Active, server-managed threads that have history and no `Running` / `WaitingApproval` turn or active thread maintenance. The response wire shape is stable: `outcome`, `message`, and `contextUsage` are the only result fields. The server emits `system/event` in the order `compacting` -> exactly one terminal event (`compacted`, `compactSkipped`, `compactFailed`, or `compactCancelled`). While running, the thread reports `maintenanceKind = "compacting"` through `thread/status/changed`; new input must be queued instead of submitted with `turn/start`. Backend selection and history replacement follow [Context Compaction](../architecture/context-compaction.md).
 
 Compaction cancellation, provider timeout, backend failure, and replacement validation failure must be observable in trace storage with a terminal result. User interruption maps to `outcome = "cancelled"` and `compactCancelled`. Provider timeout, missing or overlong local summaries, invalid provider-native output, and persistence failure map to `outcome = "failed"` and `compactFailed`. Failure messages use the machine-readable reasons defined by the selected backend.
 
@@ -1648,19 +1648,31 @@ Emitted when a thread is resumed via `thread/resume`.
 
 **Params**: `{ "thread": Thread, "resumedBy": "<channelName>" }`
 
-#### `thread/statusChanged`
+#### `thread/archived`
 
-Emitted when a thread's status changes (Active → Paused, Active → Archived, etc.).
+Emitted when a thread is archived, either directly or as part of archiving its parent.
 
-**Params**: `{ "threadId": "<id>", "previousStatus": "<status>", "newStatus": "<status>" }`
+**Params**: `{ "threadId": "<id>" }`
 
-#### `thread/runtimeChanged`
+#### `thread/unarchived`
+
+Emitted when an archived thread is restored to Active status.
+
+**Params**: `{ "threadId": "<id>" }`
+
+#### `thread/paused`
+
+Emitted when a thread is paused. A paused thread becomes active again through `thread/resume`, which the server reports with `thread/resumed`.
+
+**Params**: `{ "threadId": "<id>" }`
+
+#### `thread/status/changed`
 
 Emitted when the server's aggregated **runtime snapshot** for a thread changes. This is a **workspace-level broadcast notification**: it is delivered to all initialized connections that have not opted out, regardless of whether they currently hold a `thread/subscribe` subscription for that thread.
 
 This notification is a **summary channel** for sidebar or thread-list style UIs. It does **not** replace turn-scoped notifications such as `turn/started`, `turn/completed`, or `item/*`; those notifications continue to follow thread-subscription delivery rules. Clients that need full turn details must still subscribe to the target thread.
 
-The server emits `thread/runtimeChanged` when any of the following state transitions changes the aggregated snapshot for a thread:
+The server emits `thread/status/changed` when any of the following state transitions changes the aggregated snapshot for a thread:
 
 - a turn starts;
 - a turn ends (`completed`, `failed`, or `cancelled`);
@@ -1704,7 +1716,7 @@ The server SHOULD broadcast this notification only when the effective snapshot a
 | `runtime.busy` | boolean | Whether the thread is currently unable to start a new turn because a turn, approval, model-initiated input request, or blocking maintenance operation is active. |
 | `runtime.maintenanceKind` | string? | Current blocking thread maintenance kind (`"compacting"`), or omitted/null when no maintenance is active. |
 
-`activeTurnId` and `activeTurnStartedAt` are one atomic snapshot: servers set both from the same current non-terminal Turn and clear both when that Turn becomes terminal. A follow-up Turn replaces both values. These fields let summary UIs display current-turn elapsed time without polling Turn history; they do not make `thread/runtimeChanged` a complete Turn lifecycle stream.
+`activeTurnId` and `activeTurnStartedAt` are one atomic snapshot: servers set both from the same current non-terminal Turn and clear both when that Turn becomes terminal. A follow-up Turn replaces both values. These fields let summary UIs display current-turn elapsed time without polling Turn history; they do not make `thread/status/changed` a complete Turn lifecycle stream.
 
 Forward-compatibility rule: future server versions may add additional fields under `runtime`. Clients MUST ignore unknown fields.
 
@@ -2148,7 +2160,7 @@ This notification is a sideband signal — it may interleave with `item/*` and `
 - The server stops emitting once all tracked SubAgents have completed and a final snapshot with all `isCompleted = true` has been sent.
 - Clients that do not need SubAgent progress can opt out via `optOutNotificationMethods: ["subagent/progress"]` during `initialize`.
 
-#### `subagent/graphChanged`
+#### `subagent/graph/changed`
 
 Emitted when a session-backed SubAgent parent/child edge is created or changes status. Clients should refresh `subagent/children/list` for the parent and may use returned `thread` summaries to hydrate thread lists/sidebar entries immediately.
 
@@ -2333,7 +2345,7 @@ This rule applies to all turn-scoped notifications:
 | `subagent/progress` | yes |
 | `system/event` | yes |
 
-Broadcast summary notifications such as `thread/started`, `thread/renamed`, `thread/deleted`, `thread/statusChanged`, and `thread/runtimeChanged` are **not** part of this thread-subscription delivery rule. They remain workspace-level broadcasts and may be delivered even when the connection is not subscribed to the target thread.
+Broadcast summary notifications such as `thread/started`, `thread/renamed`, `thread/deleted`, `thread/archived`, `thread/unarchived`, `thread/paused`, and `thread/status/changed` are **not** part of this thread-subscription delivery rule. They remain workspace-level broadcasts and may be delivered even when the connection is not subscribed to the target thread.
 
 **Rationale**: Without this rule, a connection that both subscribes to a thread and starts a turn on that thread could receive duplicate notifications through multiple delivery paths.
 
@@ -2665,8 +2677,8 @@ Clients can suppress specific notification methods per connection by listing exa
 | `thread/started` | Client does not need thread lifecycle events. |
 | `thread/renamed` | Client does not need server-pushed display name updates (e.g. refreshes `thread/list` on a timer only). |
 | `thread/deleted` | Client does not need thread list sync when threads are removed elsewhere (e.g. polls `thread/list` only). |
-| `thread/statusChanged` | Client manages thread status locally. |
-| `thread/runtimeChanged` | Client does not display per-thread live activity indicators (e.g. batch runner, headless integration). |
+| `thread/archived`, `thread/unarchived`, `thread/paused` | Client manages thread status locally. |
+| `thread/status/changed` | Client does not display per-thread live activity indicators (e.g. batch runner, headless integration). |
 | `turn/diff/updated` | Client does not render aggregated Turn diffs; per-call file changes remain in `toolResult.structuredContent`. |
 | `subagent/progress` | Client does not display SubAgent real-time progress. |
 | `item/usage/delta` | Client does not need real-time token consumption display; will use `turn/completed.tokenUsage` for final totals. |
@@ -7464,7 +7476,7 @@ These methods project [OpenAI subscription authentication](../architecture/opena
 | `auth/openai/logout` | client request | Revokes and clears local tokens and unbinds the provider. |
 | `auth/openai/usage` | client request | Returns cached usage, fetching inline when no snapshot is cached. |
 | `auth/openai/authorizeUrl` | server notification | Delivers the browser URL while login is pending. |
-| `auth/openai/usageChanged` | server notification | Announces a changed usage snapshot after polling, login, or logout. |
+| `auth/openai/usage/updated` | server notification | Announces a changed usage snapshot after polling, login, or logout. |
 
 The blocking login request allows at least 15 minutes for interactive authorization.
 

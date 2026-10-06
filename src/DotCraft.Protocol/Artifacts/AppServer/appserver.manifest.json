@@ -19510,6 +19510,24 @@
       "variants": []
     },
     {
+      "id": "core.ThreadArchivedNotification",
+      "name": "ThreadArchivedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadArchivedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "app-binding.ThreadChannelBindingRequestCreateParams",
       "name": "ThreadChannelBindingRequestCreateParams",
       "module": "app-binding",
@@ -20890,6 +20908,24 @@
       "variants": []
     },
     {
+      "id": "core.ThreadPausedNotification",
+      "name": "ThreadPausedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadPausedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ThreadPluginPolicy",
       "name": "ThreadPluginPolicy",
       "module": "core",
@@ -21248,31 +21284,6 @@
         {
           "name": "thread",
           "type": "core.SessionThread",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ThreadRuntimeChangedParams",
-      "name": "ThreadRuntimeChangedParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ThreadRuntimeChangedParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "runtime",
-          "type": "core.ThreadRuntimeState",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
           "required": false,
           "nullable": false,
           "const": null
@@ -21766,17 +21777,10 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "newStatus",
-          "type": "string",
+          "name": "runtime",
+          "type": "core.ThreadRuntimeState",
           "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "previousStatus",
-          "type": "string",
-          "required": false,
-          "nullable": true,
+          "nullable": false,
           "const": null
         },
         {
@@ -22094,6 +22098,24 @@
           "name": "threadId",
           "type": "string",
           "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadUnarchivedNotification",
+      "name": "ThreadUnarchivedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadUnarchivedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
           "nullable": false,
           "const": null
         }
@@ -26762,8 +26784,8 @@
       "stability": "stable"
     },
     {
-      "name": "auth/openai/usageChanged",
-      "descriptorMember": "AuthOpenAiUsageChanged",
+      "name": "auth/openai/usage/updated",
+      "descriptorMember": "AuthOpenAiUsageUpdated",
       "kind": "notification",
       "direction": "serverToClient",
       "paramsType": "core.AuthOpenAiUsageResult",
@@ -29592,7 +29614,7 @@
       "stability": "stable"
     },
     {
-      "name": "subagent/graphChanged",
+      "name": "subagent/graph/changed",
       "descriptorMember": "SubAgentGraphChanged",
       "kind": "notification",
       "direction": "serverToClient",
@@ -30072,6 +30094,22 @@
       "stability": "stable"
     },
     {
+      "name": "thread/archived",
+      "descriptorMember": "ThreadArchived",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.ThreadArchivedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": true,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
       "name": "thread/channelBindings/request/create",
       "descriptorMember": "ThreadChannelBindingRequestCreate",
       "kind": "request",
@@ -30380,6 +30418,22 @@
       "stability": "stable"
     },
     {
+      "name": "thread/paused",
+      "descriptorMember": "ThreadPaused",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.ThreadPausedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": true,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
       "name": "thread/queue/updated",
       "descriptorMember": "ThreadQueueUpdated",
       "kind": "notification",
@@ -30560,22 +30614,6 @@
       "stability": "stable"
     },
     {
-      "name": "thread/runtimeChanged",
-      "descriptorMember": "ThreadRuntimeChanged",
-      "kind": "notification",
-      "direction": "serverToClient",
-      "paramsType": "core.ThreadRuntimeChangedParams",
-      "resultType": "core.RpcEmpty",
-      "module": "core",
-      "capability": "threadManagement",
-      "scope": "thread",
-      "notificationOptOut": true,
-      "errors": [],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
       "name": "thread/search",
       "descriptorMember": "ThreadSearch",
       "kind": "request",
@@ -30632,7 +30670,7 @@
       "stability": "stable"
     },
     {
-      "name": "thread/statusChanged",
+      "name": "thread/status/changed",
       "descriptorMember": "ThreadStatusChanged",
       "kind": "notification",
       "direction": "serverToClient",
@@ -30703,6 +30741,22 @@
         "InvalidRequest",
         "MethodNotFound"
       ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "thread/unarchived",
+      "descriptorMember": "ThreadUnarchived",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.ThreadUnarchivedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": true,
+      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

@@ -4,25 +4,8 @@
   "title": "ThreadStatusChangedNotification",
   "type": "object",
   "properties": {
-    "newStatus": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "previousStatus": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
+    "runtime": {
+      "$ref": "./ThreadRuntimeState.schema.json"
     },
     "threadId": {
       "type": "string"

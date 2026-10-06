@@ -1363,7 +1363,6 @@ public class SerializationTests
     [Theory]
     [InlineData(SessionEventType.ThreadCreated, "thread/started")]
     [InlineData(SessionEventType.ThreadResumed, "thread/resumed")]
-    [InlineData(SessionEventType.ThreadStatusChanged, "thread/statusChanged")]
     [InlineData(SessionEventType.TurnStarted, "turn/started")]
     [InlineData(SessionEventType.TurnCompleted, "turn/completed")]
     [InlineData(SessionEventType.TurnFailed, "turn/failed")]
@@ -1376,6 +1375,16 @@ public class SerializationTests
     {
         var evt = new SessionEvent { EventType = eventType };
         Assert.Equal(expected, evt.ToWireMethodName());
+    }
+
+    [Theory]
+    [InlineData(ThreadStatus.Active, ThreadStatus.Archived, "thread/archived")]
+    [InlineData(ThreadStatus.Archived, ThreadStatus.Active, "thread/unarchived")]
+    [InlineData(ThreadStatus.Active, ThreadStatus.Paused, "thread/paused")]
+    [InlineData(ThreadStatus.Paused, ThreadStatus.Active, null)]
+    public void ThreadLifecycleNotification_MapsStatusTransitionToMethod(ThreadStatus previous, ThreadStatus next, string? expected)
+    {
+        Assert.Equal(expected, ThreadLifecycleNotification.For("thread_001", previous, next)?.Method);
     }
 
     [Fact]

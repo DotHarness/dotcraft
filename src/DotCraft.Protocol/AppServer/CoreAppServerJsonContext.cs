@@ -327,7 +327,6 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.ThreadRenamedNotification))]
 [JsonSerializable(typeof(AppServer.ThreadRollbackParams))]
 [JsonSerializable(typeof(AppServer.ThreadRollbackResponse))]
-[JsonSerializable(typeof(AppServer.ThreadRuntimeChangedParams))]
 [JsonSerializable(typeof(AppServer.ThreadRuntimeState))]
 [JsonSerializable(typeof(AppServer.ThreadSkillsPolicy))]
 [JsonSerializable(typeof(AppServer.ThreadSpawnEdge))]

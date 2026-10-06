@@ -155,6 +155,13 @@ public sealed class AppServerEventDispatcher
                     await SendNotificationAsync(method, await BuildTerminalTurnParamsAsync(evt, ct), ct);
                 break;
 
+            case SessionEventType.ThreadStatusChanged:
+                if (evt.StatusChangedPayload is { } status
+                    && ThreadLifecycleNotification.For(evt.ThreadId, status.PreviousStatus, status.NewStatus) is { } lifecycle
+                    && CanSendToClient(lifecycle.Method))
+                    await SendNotificationAsync(lifecycle.Method, lifecycle.Params, ct);
+                break;
+
             default:
                 if (CanSendToClient(method))
                 {
@@ -310,16 +317,6 @@ public sealed class AppServerEventDispatcher
                 EnrichThreadWire(evt.ThreadPayload?.ToWire())
                 ?? throw new InvalidOperationException("thread/resumed requires a thread payload.")),
             ResumedBy = evt.ResumedPayload?.ResumedBy
-        },
-        SessionEventType.ThreadStatusChanged => new Contract.ThreadStatusChangedNotification
-        {
-            ThreadId = evt.ThreadId,
-            PreviousStatus = evt.StatusChangedPayload?.PreviousStatus is { } previousStatus
-                ? WireString(previousStatus)
-                : default,
-            NewStatus = evt.StatusChangedPayload?.NewStatus is { } newStatus
-                ? WireString(newStatus)
-                : default
         },
         SessionEventType.ThreadQueueUpdated when evt.ThreadQueueUpdatedPayload is { } queue => new Contract.ThreadQueueUpdatedNotification
         {
@@ -751,10 +748,6 @@ public sealed class AppServerEventDispatcher
     private static T Require<T>(string method, object? parameters) where T : class =>
         parameters as T
         ?? throw new InvalidOperationException($"Notification '{method}' received an unrelated payload type.");
-
-    private static string WireString<T>(T value) where T : struct, Enum =>
-        JsonSerializer.SerializeToElement(value, SessionWireJsonOptions.Default).GetString()
-        ?? throw new JsonException($"Could not serialize wire enum {typeof(T).Name}.");
 
     private void MarkTransportUnavailable() => _transportUnavailable = true;
 

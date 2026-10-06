@@ -501,8 +501,10 @@ function methodToRunEventType(method: string | null | undefined): string {
   switch (method) {
     case "thread/started": return "thread_started";
     case "thread/resumed": return "thread_resumed";
-    case "thread/statusChanged": return "thread_status_changed";
-    case "thread/runtimeChanged": return "thread_runtime_changed";
+    case "thread/archived": return "thread_archived";
+    case "thread/unarchived": return "thread_unarchived";
+    case "thread/paused": return "thread_paused";
+    case "thread/status/changed": return "thread_status_changed";
     case "thread/queue/updated": return "queue_updated";
     case "turn/started": return "turn_started";
     case "item/started": return "item_started";

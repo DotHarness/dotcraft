@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.1 |
+| **Version** | 0.8.3 |
 | **Status** | Living |
-| **Date** | 2026-10-03 |
+| **Date** | 2026-10-06 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -1092,9 +1092,9 @@ SessionEvent
   - Emitted when a Paused or otherwise inactive Thread is resumed.
   - Payload: `{ thread: Thread, resumedBy: string }` (channel name that resumed it).
 
-- **`thread/statusChanged`**
-  - Emitted when Thread status changes (Active → Paused, Active → Archived).
-  - Payload: `{ previousStatus: string, newStatus: string }`.
+- **`thread/archived`, `thread/unarchived`, `thread/paused`**
+  - Emitted when Thread status changes (Active → Archived, Archived → Active, Active → Paused). Paused → Active is reported by `thread/resumed`.
+  - Payload: `{ threadId: string }`.
 
 - **`thread/renamed` (Wire Protocol only; not a `SessionEvent`)**
   - Display name changes are applied in Session Core via `ISessionService.RenameThreadAsync`, when the first user message on a turn sets the provisional `Thread.DisplayName`, or when a generated title atomically replaces that unchanged provisional value (see turn input handling and `Thread.DisplayName` in this specification). Session Core does **not** enqueue a `SessionEvent` on the turn/event stream for rename-only updates (there is no separate thread-level event type consumed by in-process adapters the same way as `thread/created`).
@@ -1946,7 +1946,6 @@ ISessionService.SetThreadMode(threadId: string, mode: string) → void
 - Changes `Thread.Configuration.Mode`.
 - Session Core recreates the agent with the new mode's tool set.
 - No Turn is created. This is a metadata operation.
-- Emits `thread/statusChanged` event with mode information.
 
 ### 12.3.1 Mode-Stable Plan Tools
 
