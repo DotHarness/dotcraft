@@ -232,10 +232,6 @@ export function AgentImportDialog({ onImported, onClose }: AgentImportDialogProp
                 event.target.value = ''
               }}
             />
-            <p className={styles.warning}>
-              <AlertTriangle size={14} strokeWidth={2} aria-hidden />
-              <span>{t('agentBuilder.import.trustWarning')}</span>
-            </p>
           </div>
         )}
 

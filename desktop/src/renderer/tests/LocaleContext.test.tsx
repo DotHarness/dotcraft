@@ -7,7 +7,7 @@ const settingsGet = vi.fn()
 
 function Probe(): JSX.Element {
   const t = useT()
-  return <div>{t('workspaceLaunch.connecting')}</div>
+  return <div>{t('agentBuilder.import.title')}</div>
 }
 
 beforeEach(() => {
@@ -31,7 +31,7 @@ describe('LocaleProvider', () => {
       </LocaleProvider>
     )
 
-    expect(screen.getByText('正在连接工作区…')).toBeInTheDocument()
+    expect(screen.getByText('导入智能体')).toBeInTheDocument()
     expect(document.documentElement.lang).toBe('zh-Hans')
   })
 })

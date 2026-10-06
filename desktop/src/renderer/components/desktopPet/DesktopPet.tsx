@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { AppearanceAvatar, MascotIdleStage } from '@dotcraft/avatar/react'
-import { deriveAppearance } from '@dotcraft/avatar'
+import { deriveAppearance, mascotPaletteOf } from '@dotcraft/avatar'
 import { safeAppearance } from '../../pet/petModel'
 import { MessageSquare, PanelTop } from 'lucide-react'
 import { PetActivitySurface } from './PetActivitySurface'
@@ -106,8 +106,9 @@ export function DesktopPet(): JSX.Element | null {
   return <>
     <div className={idle.idleClassName ? `desktop-pet-character ${idle.idleClassName}` : 'desktop-pet-character'} {...idle.idleAttributes}
       data-pet-interactive data-dragging={reaction.dragging} data-motion={snapshot.reducedMotion ? 'off' : 'on'}
+      data-mascot-theme={snapshot.theme} data-mascot-effort={snapshot.effort} data-mascot-speed={snapshot.speed}
       data-actions-side={position.x + position.size + 40 > window.innerWidth ? 'left' : 'right'}
-      style={{ left: position.x, top: position.y }} onAnimationEnd={idle.onAnimationEnd}>
+      style={{ left: position.x, top: position.y, '--mascot-energy-accent': mascotPaletteOf(look).accent } as CSSProperties} onAnimationEnd={idle.onAnimationEnd}>
       <MascotIdleStage>
         <button className="desktop-pet-drag" aria-label={t('desktopPet.drag')}
           style={{ transform: `rotate(${pose.rotation}deg) scale(${pose.scaleX}, ${pose.scaleY})` }}
@@ -139,12 +140,12 @@ export function DesktopPet(): JSX.Element | null {
             press.current = null
             if (drag.current) { drag.current = false; reaction.land(); void api.command({ type: 'drag', stage: 'end' }) }
           }}>
-          <span ref={gaze} className="desktop-pet-reaction" data-gaze={gazeEnabled} style={{ transform: `rotate(${reaction.tilt}deg) scale(${reaction.dragging && !snapshot.reducedMotion ? 1.04 : 1})` }}>
-            <AppearanceAvatar appearance={look} size={position.size} state={reaction.dragging ? 'idle' : reaction.state !== 'idle' ? reaction.state : idle.pose} eventSequence={reaction.sequence}
+          <span ref={gaze} className="desktop-pet-reaction composer-mascot-motion" data-gaze={gazeEnabled} style={{ transform: `rotate(${reaction.tilt}deg) scale(${reaction.dragging && !snapshot.reducedMotion ? 1.04 : 1})` }}>
+            <span className="composer-mascot-fast-echo"><AppearanceAvatar appearance={look} size={position.size} state={reaction.dragging ? 'idle' : reaction.state !== 'idle' ? reaction.state : idle.pose} eventSequence={reaction.sequence}
               expression={reaction.dragging ? 'operator' : reaction.state === 'greeting' ? 'happy' : undefined}
               gesture={reaction.dragging ? reaction.direction : idle.gesture} gestureSequence={reaction.dragging ? reaction.sequence : idle.gestureSequence}
               onGestureComplete={idle.completeGesture}
-              motion={snapshot.reducedMotion ? 'off' : 'on'} />
+              motion={snapshot.reducedMotion ? 'off' : 'on'} /></span>
           </span>
         </button>
       </MascotIdleStage>

@@ -73,7 +73,7 @@ Errors are invalid-params errors whose `data.code` is one of the stable codes `a
 
 ## Desktop
 
-- The Agents page toolbar carries Import beside New agent. Import opens a dialog that accepts a dropped or chosen `.zip` or `.md`, states the bound, and warns that a shared Agent can carry skills and plugins that run on this machine.
+- The Agents page toolbar carries Import beside New agent. Import opens a dialog that accepts a dropped or chosen `.zip` or `.md` and states the bound.
 - The preview step shows the name-derived avatar with the editable name, the description, the save location, the packages with one switch per installable package and the state of the others, and one warning line for unresolved names. Import stays disabled while the name is empty or taken or the document has errors. Choose another file discards the staged import.
 - Success closes the dialog and opens the imported profile in the editor. Each installed plugin that carries .NET code then opens its plugin dialog at the trust step, one after another.
 - The editor's More actions menu carries Export… for created user and workspace profiles. Export opens a dialog listing the offered packages with switches and their sizes, and a note that MCP server settings are not included. The server enforces the bound when it writes the file. Export writes the file through the system save dialog.

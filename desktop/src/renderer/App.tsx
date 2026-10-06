@@ -3385,7 +3385,6 @@ export function App(): JSX.Element {
             phase={workspaceLaunchTransition.phase}
             from={workspaceLaunchTransition.from}
             to={workspaceLaunchTransition.to}
-            logoSrc={workspaceLaunchTransition.logoSrc}
           />
           {workspaceLaunchTransition.phase === 'setup-complete-to-center' && (
             <WorkspaceSetupLogoHop

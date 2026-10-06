@@ -75,6 +75,7 @@
   .welcome-screen--opening .welcome-screen-background,
   .workspace-launch-transition__scrim,
   .workspace-launch-transition__logo,
+  .workspace-launch-transition__logo *,
   .workspace-setup-logo-handoff__logo {
     animation: none !important;
   }

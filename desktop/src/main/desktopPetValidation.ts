@@ -1,5 +1,5 @@
 import {
-  PET_FOLLOW_UP_MODES, PET_LINE_TONES, PET_STATUSES, PET_VOICES, petActivity,
+  PET_EFFORTS, PET_FOLLOW_UP_MODES, PET_LINE_TONES, PET_SPEEDS, PET_STATUSES, PET_VOICES, petActivity,
   type PetDecision, type PetPoint, type PetRect, type PetSnapshot, type PetStatusInfo, type PetVoice, type PetVoiceAction
 } from '../shared/desktopPet'
 import { SUPPORTED_LOCALE_VALUES } from '../shared/locales/types'
@@ -88,6 +88,7 @@ export function validSnapshot(value: unknown): value is PetSnapshot {
     && (snapshot.theme === 'dark' || snapshot.theme === 'light')
     && SUPPORTED_LOCALE_VALUES.includes(snapshot.locale)
     && typeof snapshot.reducedMotion === 'boolean' && typeof snapshot.canChat === 'boolean'
+    && PET_EFFORTS.includes(snapshot.effort) && PET_SPEEDS.includes(snapshot.speed)
     && (snapshot.busy === undefined || typeof snapshot.busy === 'boolean')
     && PET_FOLLOW_UP_MODES.includes(snapshot.followUpMode)
     && (snapshot.voice === undefined || PET_VOICES.includes(snapshot.voice))

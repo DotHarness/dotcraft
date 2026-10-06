@@ -18,6 +18,10 @@ export const PET_FOLLOW_UP_MODES: readonly PetFollowUpMode[] = ['steer', 'queue'
 export type PetVoice = 'idle' | 'recording' | 'processing' | 'retryable'
 export const PET_VOICES: readonly PetVoice[] = ['idle', 'recording', 'processing', 'retryable']
 export type PetVoiceAction = 'start' | 'stop' | 'cancel' | 'retry'
+export type PetEffort = 'off' | 'low' | 'medium' | 'high' | 'extraHigh' | 'max'
+export const PET_EFFORTS: readonly PetEffort[] = ['off', 'low', 'medium', 'high', 'extraHigh', 'max']
+export type PetSpeed = 'standard' | 'fast'
+export const PET_SPEEDS: readonly PetSpeed[] = ['standard', 'fast']
 
 export interface PetDecisionOption { value: string; label: string }
 export interface PetDecision {
@@ -65,6 +69,8 @@ export interface PetSnapshot {
   theme: 'dark' | 'light'
   locale: AppLocale
   reducedMotion: boolean
+  effort: PetEffort
+  speed: PetSpeed
   canChat: boolean
   /** The source can chat but is not accepting input right now (sending, loading). */
   busy?: boolean
@@ -94,6 +100,7 @@ export type PetCommand =
   | { type: 'voice'; action: PetVoiceAction }
   | { type: 'ready' }
   | { type: 'hidden' }
+  | { type: 'shown' }
   | { type: 'return' }
   | { type: 'seat'; seat: PetRect | null }
   | { type: 'snapshot'; snapshot: PetSnapshot }

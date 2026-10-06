@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { DEFAULT_MASCOT_PALETTE } from '@dotcraft/avatar'
 import { PET_RETURN_DURATION, samplePetReturn } from '../../shared/desktopPetMotion'
-import { useT } from '../contexts/LocaleContext'
 import { DotCraftFullLogo } from './ui/DotCraftLogo'
-import { RunningShimmer } from './ui/RunningShimmer'
+import dotCraftMark from '../../../resources/dotcraft.svg?raw'
 
 export interface LaunchLogoRect {
   left: number
@@ -25,7 +25,6 @@ interface WorkspaceLaunchTransitionProps {
   phase: WorkspaceLaunchTransitionPhase
   from: LaunchLogoRect
   to: LaunchLogoRect
-  logoSrc?: string
 }
 
 interface WorkspaceSetupLogoHopProps {
@@ -40,6 +39,11 @@ export const SETUP_LOGO_HOP_MS = PET_RETURN_DURATION
 const HOP_LAUNCH = 80 / PET_RETURN_DURATION
 const HOP_TOUCHDOWN = 600 / PET_RETURN_DURATION
 const HOP_VIEWPORT_EDGE = 8
+const LAUNCH_MARK_PAINT = {
+  '--mascot-body-dark': DEFAULT_MASCOT_PALETTE.bodyD,
+  '--mascot-body-mid': DEFAULT_MASCOT_PALETTE.bodyM,
+  '--mascot-body-light': DEFAULT_MASCOT_PALETTE.bodyL
+} as CSSProperties
 
 export function elementToLaunchLogoRect(node: HTMLElement | null): LaunchLogoRect | null {
   if (!node) return null
@@ -66,10 +70,8 @@ export function centeredLaunchLogoRect(size = LAUNCH_LOGO_BASE_SIZE): LaunchLogo
 export function WorkspaceLaunchTransition({
   phase,
   from,
-  to,
-  logoSrc
+  to
 }: WorkspaceLaunchTransitionProps): JSX.Element {
-  const t = useT()
   const [centerRect, setCenterRect] = useState(() => centeredLaunchLogoRect())
 
   useEffect(() => {
@@ -108,25 +110,11 @@ export function WorkspaceLaunchTransition({
       style={style}
     >
       <div className="workspace-launch-transition__scrim" />
-      {logoSrc ? (
-        <img
-          src={logoSrc}
-          alt=""
-          width={LAUNCH_LOGO_BASE_SIZE}
-          height={LAUNCH_LOGO_BASE_SIZE}
-          draggable={false}
-          className="workspace-launch-transition__logo"
-        />
-      ) : (
-        <DotCraftFullLogo size={LAUNCH_LOGO_BASE_SIZE} className="workspace-launch-transition__logo" />
-      )}
-      {(phase === 'connecting' || phase === 'preparing') && (
-        <RunningShimmer as="div" className="workspace-launch-transition__status">
-          {phase === 'preparing'
-            ? t('workspaceLaunch.preparing')
-            : t('workspaceLaunch.connecting')}
-        </RunningShimmer>
-      )}
+      <span
+        className="workspace-launch-transition__logo"
+        style={LAUNCH_MARK_PAINT}
+        dangerouslySetInnerHTML={{ __html: dotCraftMark }}
+      />
     </div>
   )
 }

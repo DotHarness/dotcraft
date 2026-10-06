@@ -67,7 +67,7 @@ beforeEach(() => {
 })
 afterEach(() => { vi.unstubAllGlobals(); window.api = originalApi })
 const snapshot: PetSnapshot = {
-  name: 'robot', text: 'Draft', theme: 'dark', locale: 'en', reducedMotion: true, canChat: true, followUpMode: 'steer', editRevision: 0
+  name: 'robot', text: 'Draft', theme: 'dark', locale: 'en', reducedMotion: true, effort: 'off', speed: 'standard', canChat: true, followUpMode: 'steer', editRevision: 0
 }
 const running: PetStatusInfo = { status: 'running', title: 'Fix the build', line: 'Running npm test', lineTone: 'neutral', turnId: 'turn-1', canStop: true }
 const sent = (type: string): Array<Record<string, unknown>> =>

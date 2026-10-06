@@ -88,17 +88,32 @@
   animation: logo-handoff-fade 360ms ease-out both;
 }
 
-.workspace-launch-transition__status {
-  position: absolute;
-  left: 50%;
-  top: calc(50% + 66px);
-  z-index: 1;
-  transform: translateX(-50%);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 18px;
-  text-align: center;
-  white-space: nowrap;
+.workspace-launch-transition__logo > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.workspace-launch-transition__logo #blue stop:nth-child(1) {
+  animation: composer-mascot-energy-medium-dark 6s ease-in-out infinite;
+}
+
+.workspace-launch-transition__logo #blue stop:nth-child(2) {
+  animation: composer-mascot-energy-medium-mid 6s ease-in-out infinite;
+}
+
+.workspace-launch-transition__logo #blue stop:nth-child(3) {
+  animation: composer-mascot-energy-medium-light 6s ease-in-out infinite;
+}
+
+.workspace-launch-transition__logo path {
+  animation: launch-mark-glance 4.8s ease-in-out infinite;
+}
+
+@keyframes launch-mark-glance {
+  0%, 16%, 84%, 100% { transform: translateX(0); }
+  26%, 42% { transform: translateX(-34px); }
+  58%, 74% { transform: translateX(34px); }
 }
 
 .workspace-setup-logo-handoff {

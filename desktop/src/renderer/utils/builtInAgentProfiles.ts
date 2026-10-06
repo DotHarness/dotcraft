@@ -10,12 +10,12 @@ interface AgentProfileText {
 }
 
 const BUILT_IN_PROFILE_TEXT: Record<string, { name: MessageKey; description: MessageKey }> = {
-  'data-analyst': { name: 'agentProfile.builtIn.dataAnalyst.name', description: 'agentProfile.builtIn.dataAnalyst.description' },
-  prototyper: { name: 'agentProfile.builtIn.prototyper.name', description: 'agentProfile.builtIn.prototyper.description' },
-  'qa-tester': { name: 'agentProfile.builtIn.qaTester.name', description: 'agentProfile.builtIn.qaTester.description' },
-  researcher: { name: 'agentProfile.builtIn.researcher.name', description: 'agentProfile.builtIn.researcher.description' },
-  'task-runner': { name: 'agentProfile.builtIn.taskRunner.name', description: 'agentProfile.builtIn.taskRunner.description' },
-  writer: { name: 'agentProfile.builtIn.writer.name', description: 'agentProfile.builtIn.writer.description' }
+  'Data Analyst': { name: 'agentProfile.builtIn.dataAnalyst.name', description: 'agentProfile.builtIn.dataAnalyst.description' },
+  Prototyper: { name: 'agentProfile.builtIn.prototyper.name', description: 'agentProfile.builtIn.prototyper.description' },
+  'QA Tester': { name: 'agentProfile.builtIn.qaTester.name', description: 'agentProfile.builtIn.qaTester.description' },
+  Researcher: { name: 'agentProfile.builtIn.researcher.name', description: 'agentProfile.builtIn.researcher.description' },
+  'Task Runner': { name: 'agentProfile.builtIn.taskRunner.name', description: 'agentProfile.builtIn.taskRunner.description' },
+  Writer: { name: 'agentProfile.builtIn.writer.name', description: 'agentProfile.builtIn.writer.description' }
 }
 
 export function localizeAgentProfile<P extends AgentProfileText>(profile: P, t: T): P {

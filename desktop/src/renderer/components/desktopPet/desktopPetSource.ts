@@ -1,5 +1,5 @@
 import { normalizeLocale } from '../../../shared/locales'
-import { petPose, type PetCommand, type PetEvent, type PetPoint, type PetRect, type PetSnapshot } from '../../../shared/desktopPet'
+import { PET_EFFORTS, petPose, type PetCommand, type PetEvent, type PetPoint, type PetRect, type PetSnapshot } from '../../../shared/desktopPet'
 import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
 import { usePetStore } from '../../pet/petStore'
 import { prefersReducedMotion } from '../../utils/appearance'
@@ -157,6 +157,7 @@ function unbind(current: Session): void {
 
 function snapshotOf(binding: PetSourceBinding, editRevision: number): PetSnapshot {
   const editor = findPetEditor(binding.root)
+  const mascot = binding.root.querySelector<HTMLElement>('[data-mascot-effort]')?.dataset
   const status = binding.activity.read() ?? undefined
   return {
     activity: petPose(status?.status ?? 'idle'),
@@ -168,6 +169,8 @@ function snapshotOf(binding: PetSourceBinding, editRevision: number): PetSnapsho
     theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark',
     locale: normalizeLocale(document.documentElement.lang),
     reducedMotion: prefersReducedMotion(),
+    effort: PET_EFFORTS.find(effort => effort === mascot?.mascotEffort) ?? 'off',
+    speed: mascot?.mascotSpeed === 'fast' ? 'fast' : 'standard',
     canChat: binding.surface() === 'chat' && !!editor,
     busy: !editor?.enabled,
     followUpMode: status?.status === 'running' ? useComposerPreferencesStore.getState().followUpQueueMode : 'queue',

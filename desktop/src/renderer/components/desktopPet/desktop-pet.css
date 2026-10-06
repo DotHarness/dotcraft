@@ -27,10 +27,10 @@ html[data-desktop-pet-detached] [data-composer-mascot-motion] { visibility: hidd
 }
 .desktop-pet-action:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 .desktop-pet-chat-position { position: absolute; width: min(360px, calc(100vw - 24px)); overflow-y: auto; padding: 3px; }
-.desktop-pet-composer-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.desktop-pet-composer-row { display: flex; align-items: flex-end; gap: 8px; min-width: 0; }
 .desktop-pet-quick-chat [data-composer-root] { padding-bottom: 0 !important; }
 .desktop-pet-quick-chat [data-composer-card] { padding: 3px 3px 3px 12px !important; }
-.desktop-pet-quick-chat .rich-input-area { padding: 0 2px !important; min-height: 32px !important; line-height: 32px !important; }
+.desktop-pet-quick-chat .rich-input-area { padding: max(0px, calc((32px - 1lh) / 2)) 2px !important; min-height: 32px !important; }
 .desktop-pet-quick-chat [data-dotcraft-plugin-surface="composer.toolbar"] { display: none !important; }
 .desktop-pet-character[data-motion='off'] :is(.desktop-pet-actions, .desktop-pet-reaction, .dca-face-motion) { transition: none; }
 .desktop-pet-character[data-mascot-active-idle] .desktop-pet-actions { opacity: 0; pointer-events: none; }

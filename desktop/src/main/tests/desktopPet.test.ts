@@ -43,7 +43,7 @@ vi.mock('electron', async () => {
 import { BrowserWindow } from 'electron'
 import { attachDesktopPet, restoreDesktopPet } from '../desktopPet'
 
-const snapshot = { name: 'DotCraft', text: 'Draft', theme: 'dark' as const, locale: 'en' as const, reducedMotion: false, canChat: true, followUpMode: 'queue' as const }
+const snapshot = { name: 'DotCraft', text: 'Draft', theme: 'dark' as const, locale: 'en' as const, reducedMotion: false, effort: 'off' as const, speed: 'standard' as const, canChat: true, followUpMode: 'queue' as const }
 let owner: any
 function send(sender: any, command: PetCommand): void { mocks.handler!({ sender: sender.webContents }, command) }
 function detach(pointerHeld = false): any {
@@ -105,8 +105,10 @@ describe('desktop pet native ownership', () => {
     expect(owner.show).toHaveBeenCalled()
     expect(pet.destroyed).toBe(false)
     await vi.advanceTimersByTimeAsync(300)
-    expect(pet.destroyed).toBe(true)
     expect(events(owner).at(-1)).toEqual({ type: 'ownership', detached: false })
+    expect(pet.destroyed).toBe(false)
+    send(owner, { type: 'shown' })
+    expect(pet.destroyed).toBe(true)
     expect(restoreDesktopPet(owner)).toBe(false)
     expect(owner.setOpacity).toHaveBeenLastCalledWith(1)
   })

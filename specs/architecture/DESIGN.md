@@ -1013,13 +1013,13 @@ animation; the pulse itself is the running signal.
   read would promise a shape it cannot keep.
 
 The workspace launch transition is the one wait with no shape to match, because the
-workspace it is opening does not exist on screen yet. While it connects or prepares, the
-brand mark breathes on a slow four-second loop, peaking three percent above rest and
-scaled about its own centre so it never drifts. This is not a second running signal
-beside the shimmering caption: the caption reports progress, and the breath only keeps
-the surface from reading as a hung frame during a wait that has no upper bound. It
-carries no state, appears on no other surface, and rests at both ends of its loop so the
-reduced-motion collapse leaves the mark still.
+workspace it is opening does not exist on screen yet. It has no caption: the brand mark
+alone is the running signal. Its body gradient flows with the Composer mascot's medium
+reasoning-effort energy, a slow six-second lift that leaves the face colours alone, and
+its `>_` face glances left and right on a slow loop. While it connects or prepares, the mark also breathes on a
+four-second loop, peaking three percent above rest and scaled about its own centre so it
+never drifts. Every loop rests on the plain mark at its ends, so the handoff from the
+Welcome logo never pops and the reduced-motion collapse leaves the mark still.
 
 ## Overlays
 

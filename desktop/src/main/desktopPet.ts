@@ -73,6 +73,7 @@ class DesktopPet {
           if (fromPet && this.detached && !this.returning && validVoice(command, this.snapshot)) this.send(owner, { type: 'voice', action: command.action })
           break
         case 'hidden': if (fromOwner && this.detached && !this.returning && !this.started) this.leave(); break
+        case 'shown': if (fromOwner && this.revealing) this.recover(); break
         case 'return': this.returnHome(); break
         case 'seat':
           if (fromOwner && this.returning) this.land(validRect(command.seat) ? this.toScreen(command.seat) : this.seat)
@@ -254,7 +255,9 @@ class DesktopPet {
       this.owner.setOpacity(0)
       if (this.owner.isMinimized()) this.owner.restore()
       this.owner.show()
-      if (await this.animate(260, progress => this.owner.setOpacity(progress))) this.recover()
+      if (!await this.animate(260, progress => this.owner.setOpacity(progress))) return
+      this.send(this.owner, { type: 'ownership', detached: false })
+      this.watchdog = setTimeout(() => this.recover(), 500)
     })
   }
 
