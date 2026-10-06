@@ -948,7 +948,7 @@ if (typeof window !== 'undefined') {
 
 /**
  * Archived threads are always hidden from the main sidebar list — on the archive
- * action itself and on a thread/statusChanged notification with newStatus 'archived'.
+ * action itself and on a thread/archived notification.
  */
 export function selectFilteredThreads(state: ThreadStore): ThreadSummary[] {
   // Subagent threads are surfaced through the dock (running) and the Subagents

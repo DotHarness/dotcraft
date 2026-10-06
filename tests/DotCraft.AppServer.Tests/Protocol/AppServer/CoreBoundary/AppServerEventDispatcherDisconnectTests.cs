@@ -102,7 +102,7 @@ public sealed class AppServerEventDispatcherDisconnectTests
         var sent = Assert.Single(transport.Sent);
         var json = JsonSerializer.Serialize(sent, sent.GetType());
         Assert.Contains(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted, json);
-        Assert.DoesNotContain(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged, json);
+        Assert.DoesNotContain(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadArchived, json);
     }
 
     [Theory]

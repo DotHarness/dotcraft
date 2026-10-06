@@ -17,8 +17,10 @@ export const SECONDARY_THREAD_NOTIFICATION_METHODS = new Set([
   'thread/started',
   'thread/renamed',
   'thread/deleted',
-  'thread/statusChanged',
-  'thread/runtimeChanged'
+  'thread/archived',
+  'thread/unarchived',
+  'thread/paused',
+  'thread/status/changed'
 ])
 
 export function isCurrentForegroundWorkspaceConnection<TClient, TWindow extends DestroyableWindow>(

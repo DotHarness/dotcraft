@@ -1728,13 +1728,14 @@ export function App(): JSX.Element {
             break
           }
 
-          case 'thread/statusChanged': {
-            const pp = p as { threadId: string; newStatus: string }
-            if (pp.newStatus === 'archived') {
-              useThreadStore.getState().removeThreadTree(pp.threadId)
-            } else {
-              doUpdateStatus(pp.threadId, pp.newStatus as 'active' | 'paused' | 'archived')
-            }
+          case 'thread/archived': {
+            useThreadStore.getState().removeThreadTree((p as { threadId: string }).threadId)
+            break
+          }
+
+          case 'thread/unarchived':
+          case 'thread/paused': {
+            doUpdateStatus((p as { threadId: string }).threadId, method === 'thread/paused' ? 'paused' : 'active')
             break
           }
 
@@ -1762,7 +1763,7 @@ export function App(): JSX.Element {
             break
           }
 
-          case 'thread/runtimeChanged': {
+          case 'thread/status/changed': {
             const pp = p as {
               threadId?: string
               runtime?: Partial<ThreadRuntimeSnapshot>
@@ -1836,7 +1837,7 @@ export function App(): JSX.Element {
                 if (isConversationRenderPaused()) {
                   markActiveConversationDeferred(threadId)
                 } else {
-                  void reconcileActiveThreadSnapshotRef.current?.('runtimeChanged')
+                  void reconcileActiveThreadSnapshotRef.current?.('statusChanged')
                 }
               }
             }
@@ -2079,7 +2080,7 @@ export function App(): JSX.Element {
             break
           }
 
-          case 'subagent/graphChanged': {
+          case 'subagent/graph/changed': {
             const parentThreadId = (p.parentThreadId as string | undefined) ?? ''
             if (parentThreadId) {
               void useSubAgentStore.getState().fetchChildren(parentThreadId, { authoritative: true }).catch(() => {})

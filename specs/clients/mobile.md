@@ -349,7 +349,7 @@ Every screen below Home leads with the same framed Back button as the chat's top
 over the pairing camera.
 
 Chat states use one vocabulary: **running**, **needs approval**, **needs answer**, **done**,
-**failed**. They come from `thread/list` runtime snapshots and `thread/runtimeChanged`. A stopped
+**failed**. They come from `thread/list` runtime snapshots and `thread/status/changed`. A stopped
 turn is done and shows a Stopped line. Thread summaries do not carry the last turn's result, so a
 list shows **failed** only for a chat whose failure the phone has seen.
 

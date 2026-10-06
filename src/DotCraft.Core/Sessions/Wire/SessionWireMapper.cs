@@ -177,7 +177,6 @@ public static class SessionWireMapper
         {
             SessionEventType.ThreadCreated => "thread/started",
             SessionEventType.ThreadResumed => "thread/resumed",
-            SessionEventType.ThreadStatusChanged => "thread/statusChanged",
             SessionEventType.ThreadQueueUpdated => "thread/queue/updated",
             SessionEventType.TurnStarted => "turn/started",
             SessionEventType.TurnCompleted => "turn/completed",

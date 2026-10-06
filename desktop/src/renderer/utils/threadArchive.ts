@@ -68,7 +68,7 @@ async function restoreThread({
     addToast(t('threadArchive.toast.restoreFailed', { error: errorText(err) }), 'error')
     return
   }
-  // thread/statusChanged only updates rows that are still listed, so put the tree back ourselves.
+  // thread/unarchived only updates rows that are still listed, so put the tree back ourselves.
   const store = useThreadStore.getState()
   store.upsertThreads(captured.map(thread => ({
     ...thread,

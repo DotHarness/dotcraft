@@ -1906,13 +1906,13 @@ describe('task completion notifications', () => {
   it('tags forwarded renderer notifications with a workspace path when provided', () => {
     const win = createWindow(false)
 
-    broadcastNotification(win, 'thread/runtimeChanged', {
+    broadcastNotification(win, 'thread/status/changed', {
       threadId: 'thread_1',
       runtime: { running: true }
     }, undefined, 'F:/workspace-b')
 
     expect(win.webContents.send).toHaveBeenCalledWith('appserver:notification', {
-      method: 'thread/runtimeChanged',
+      method: 'thread/status/changed',
       params: {
         threadId: 'thread_1',
         runtime: { running: true }
@@ -1924,13 +1924,13 @@ describe('task completion notifications', () => {
   it('tags forwarded renderer notifications with foreground state when provided', () => {
     const win = createWindow(false)
 
-    broadcastNotification(win, 'thread/runtimeChanged', {
+    broadcastNotification(win, 'thread/status/changed', {
       threadId: 'thread_1',
       runtime: { running: true }
     }, undefined, 'F:/workspace-b', false)
 
     expect(win.webContents.send).toHaveBeenCalledWith('appserver:notification', {
-      method: 'thread/runtimeChanged',
+      method: 'thread/status/changed',
       params: {
         threadId: 'thread_1',
         runtime: { running: true }

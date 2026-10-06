@@ -4,6 +4,8 @@ import type { ThreadSummary } from '../../types/thread'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useThreadStore } from '../../stores/threadStore'
 
+const THREAD_LIFECYCLE_METHODS = new Set(['thread/archived', 'thread/unarchived', 'thread/paused'])
+
 export interface RunThread extends ThreadSummary { turns?: { status: string }[] }
 export function runThreadBusy(thread: RunThread | undefined): boolean {
   return !!thread && (!!thread.runtime?.running || !!thread.runtime?.busy || !!thread.runtime?.waitingOnApproval
@@ -46,7 +48,7 @@ export function useAutomationRunThreads(runs: AutomationRun[]) {
     const off = window.api.appServer.onNotification?.(payload => {
       if (payload.foreground === false) return
       const params = payload.params as { threadId?: string } | undefined
-      if (payload.method === 'thread/statusChanged' && params?.threadId && (JSON.parse(ids) as string[]).includes(params.threadId)) void refresh()
+      if (THREAD_LIFECYCLE_METHODS.has(payload.method) && params?.threadId && (JSON.parse(ids) as string[]).includes(params.threadId)) void refresh()
     })
     return () => { generation.current++; off?.() }
   }, [refresh, ids])

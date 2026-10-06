@@ -112,6 +112,18 @@ public static partial class AppServerRpc
     public static readonly RpcNotification<ThreadDeletedNotification> ThreadDeleted =
         new("thread/deleted", RpcDirection.ServerToClient, "1", Spec, scope: "thread", notificationOptOut: true);
 
+    /// <summary>thread/archived notification.</summary>
+    public static readonly RpcNotification<ThreadArchivedNotification> ThreadArchived =
+        new("thread/archived", RpcDirection.ServerToClient, "1", Spec, scope: "thread", capability: "threadManagement", notificationOptOut: true);
+
+    /// <summary>thread/unarchived notification.</summary>
+    public static readonly RpcNotification<ThreadUnarchivedNotification> ThreadUnarchived =
+        new("thread/unarchived", RpcDirection.ServerToClient, "1", Spec, scope: "thread", capability: "threadManagement", notificationOptOut: true);
+
+    /// <summary>thread/paused notification.</summary>
+    public static readonly RpcNotification<ThreadPausedNotification> ThreadPaused =
+        new("thread/paused", RpcDirection.ServerToClient, "1", Spec, scope: "thread", capability: "threadManagement", notificationOptOut: true);
+
     /// <summary>turn/started notification.</summary>
     public static readonly RpcNotification<TurnNotification> TurnStarted =
         new("turn/started", RpcDirection.ServerToClient, "1", Spec, scope: "thread", notificationOptOut: true);

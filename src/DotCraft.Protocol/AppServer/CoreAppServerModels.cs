@@ -5867,19 +5867,6 @@ public sealed class ThreadRollbackResponse : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadRuntimeChangedParams.</summary>
-public sealed class ThreadRuntimeChangedParams : ExtensibleJsonObject
-{
-    [JsonPropertyName("runtime")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ThreadRuntimeState> Runtime { get; init; }
-
-    [JsonPropertyName("threadId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ThreadId { get; init; }
-
-}
-
 /// <summary>Executable wire contract for ThreadRuntimeState.</summary>
 public sealed class ThreadRuntimeState : ExtensibleJsonObject
 {
@@ -6018,13 +6005,9 @@ public sealed class ThreadSpawnEdge : ExtensibleJsonObject
 /// <summary>Executable wire contract for ThreadStatusChangedNotification.</summary>
 public sealed class ThreadStatusChangedNotification : ExtensibleJsonObject
 {
-    [JsonPropertyName("newStatus")]
+    [JsonPropertyName("runtime")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> NewStatus { get; init; }
-
-    [JsonPropertyName("previousStatus")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> PreviousStatus { get; init; }
+    public Optional<ThreadRuntimeState> Runtime { get; init; }
 
     [JsonPropertyName("threadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

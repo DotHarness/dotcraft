@@ -55,10 +55,8 @@ describe('workspace thread cache notifications', () => {
       thread('sibling')
     ]
 
-    const result = applyWorkspaceThreadNotificationToCache(cache, 'thread/statusChanged', {
-      threadId: 'parent',
-      previousStatus: 'active',
-      newStatus: 'archived'
+    const result = applyWorkspaceThreadNotificationToCache(cache, 'thread/archived', {
+      threadId: 'parent'
     })
 
     expect(result.changed).toBe(true)
@@ -109,10 +107,8 @@ describe('workspace thread cache notifications', () => {
   it('requests a refresh when a previously archived thread is restored but missing from cache', () => {
     const cache = [thread('other')]
 
-    const result = applyWorkspaceThreadNotificationToCache(cache, 'thread/statusChanged', {
-      threadId: 'restored',
-      previousStatus: 'archived',
-      newStatus: 'active'
+    const result = applyWorkspaceThreadNotificationToCache(cache, 'thread/unarchived', {
+      threadId: 'restored'
     })
 
     expect(result.changed).toBe(false)
@@ -121,12 +117,10 @@ describe('workspace thread cache notifications', () => {
   })
 
   it('updates an existing restored thread without forcing a refresh', () => {
-    const cache = [thread('restored', { status: 'paused' })]
+    const cache = [thread('restored', { status: 'archived' })]
 
-    const result = applyWorkspaceThreadNotificationToCache(cache, 'thread/statusChanged', {
-      threadId: 'restored',
-      previousStatus: 'paused',
-      newStatus: 'active'
+    const result = applyWorkspaceThreadNotificationToCache(cache, 'thread/unarchived', {
+      threadId: 'restored'
     })
 
     expect(result.changed).toBe(true)

@@ -25,7 +25,7 @@ public sealed class SessionEvent
     public string ThreadId { get; set; } = string.Empty;
 
     /// <summary>
-    /// Parent Turn ID. Null for thread-level events (thread/created, thread/resumed, thread/statusChanged)
+    /// Parent Turn ID. Null for thread-level events (thread/created, thread/resumed, thread/archived)
     /// and thread-scoped maintenance events.
     /// </summary>
     public string? TurnId { get; set; }
@@ -113,7 +113,7 @@ public sealed record TurnFailedPayload
 }
 
 /// <summary>
-/// Payload for thread/statusChanged events.
+/// Payload for thread lifecycle status events.
 /// </summary>
 public sealed record ThreadStatusChangedPayload
 {

@@ -34,8 +34,10 @@ public static class DotCraftRunEventTypes
 {
     public const string ThreadStarted = "thread/started";
     public const string ThreadResumed = "thread/resumed";
-    public const string ThreadStatusChanged = "thread/statusChanged";
-    public const string ThreadRuntimeChanged = "thread/runtimeChanged";
+    public const string ThreadArchived = "thread/archived";
+    public const string ThreadUnarchived = "thread/unarchived";
+    public const string ThreadPaused = "thread/paused";
+    public const string ThreadStatusChanged = "thread/status/changed";
     public const string QueueUpdated = "thread/queue/updated";
     public const string TurnStarted = "turn/started";
     public const string ItemStarted = "item/started";

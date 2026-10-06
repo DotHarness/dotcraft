@@ -875,13 +875,8 @@ internal sealed partial class ThreadRequestHandler(
         await responseWriter.SendNotificationAfterResponseAsync(
             msg.Id,
             new Protocol.RpcEmpty(),
-            Contract.AppServerRpc.ThreadStatusChanged,
-            new Contract.ThreadStatusChangedNotification
-            {
-                ThreadId = threadId,
-                PreviousStatus = WireString(previousStatus),
-                NewStatus = WireString(ThreadStatus.Paused)
-            },
+            Contract.AppServerRpc.ThreadPaused,
+            new Contract.ThreadPausedNotification { ThreadId = threadId },
             ct);
         return AppServerTypedResult<Protocol.RpcEmpty>.Written;
     }
@@ -910,13 +905,8 @@ internal sealed partial class ThreadRequestHandler(
 
         await responseWriter.WriteResponseAsync(msg.Id, new Protocol.RpcEmpty(), ct);
         await transport.NotifyContractAsync(
-            Contract.AppServerRpc.ThreadStatusChanged,
-            new Contract.ThreadStatusChangedNotification
-            {
-                ThreadId = threadId,
-                PreviousStatus = WireString(previousStatus),
-                NewStatus = WireString(ThreadStatus.Archived)
-            },
+            Contract.AppServerRpc.ThreadArchived,
+            new Contract.ThreadArchivedNotification { ThreadId = threadId },
             ct);
         await SendArchiveChannelBindingNotificationsAsync(channelBindingCleanup, ct);
         return AppServerTypedResult<Protocol.RpcEmpty>.Written;
@@ -967,13 +957,8 @@ internal sealed partial class ThreadRequestHandler(
         await responseWriter.SendNotificationAfterResponseAsync(
             msg.Id,
             new Protocol.RpcEmpty(),
-            Contract.AppServerRpc.ThreadStatusChanged,
-            new Contract.ThreadStatusChangedNotification
-            {
-                ThreadId = threadId,
-                PreviousStatus = WireString(previousStatus),
-                NewStatus = WireString(ThreadStatus.Active)
-            },
+            Contract.AppServerRpc.ThreadUnarchived,
+            new Contract.ThreadUnarchivedNotification { ThreadId = threadId },
             ct);
         return AppServerTypedResult<Protocol.RpcEmpty>.Written;
     }
@@ -1192,8 +1177,4 @@ internal sealed partial class ThreadRequestHandler(
 
     private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
         value is null ? default : Protocol.Optional<T?>.FromValue(value);
-
-    private static string WireString<T>(T value) where T : struct, Enum =>
-        JsonSerializer.SerializeToElement(value, SessionWireJsonOptions.Default).GetString()
-        ?? throw new JsonException($"Could not serialize wire enum {typeof(T).Name}.");
 }

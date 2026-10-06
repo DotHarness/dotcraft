@@ -51,7 +51,7 @@ describe('workspace connection routing', () => {
     wireClient = clientB
 
     expect(notificationForeground('turn/started', clientA, roleA)).toBeNull()
-    expect(notificationForeground('thread/runtimeChanged', clientA, roleA)).toBe(false)
+    expect(notificationForeground('thread/status/changed', clientA, roleA)).toBe(false)
     expect(bridgesServerRequest(clientA, roleA)).toBe(false)
     expect(notificationForeground('turn/started', clientB, roleB)).toBe(true)
     expect(bridgesServerRequest(clientB, roleB)).toBe(true)
@@ -63,7 +63,7 @@ describe('workspace connection routing', () => {
     expect(notificationForeground('turn/started', clientA, roleA)).toBe(true)
     expect(notificationForeground('item/started', clientA, roleA)).toBe(true)
     expect(bridgesServerRequest(clientA, roleA)).toBe(true)
-    expect(notificationForeground('thread/runtimeChanged', clientB, roleB)).toBe(false)
+    expect(notificationForeground('thread/status/changed', clientB, roleB)).toBe(false)
     expect(notificationForeground('turn/started', clientB, roleB)).toBeNull()
     expect(bridgesServerRequest(clientB, roleB)).toBe(false)
   })

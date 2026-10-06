@@ -76,7 +76,7 @@ function dispatch(payload: { method: string; params: unknown }): void {
       break
     }
 
-    case 'thread/runtimeChanged': {
+    case 'thread/status/changed': {
       const threadId = (p.threadId as string | undefined) ?? ''
       if (!threadId) break
       const runtime = p.runtime != null && typeof p.runtime === 'object'
@@ -302,7 +302,7 @@ function dispatch(payload: { method: string; params: unknown }): void {
       break
     }
 
-    case 'subagent/graphChanged': {
+    case 'subagent/graph/changed': {
       const parentThreadId = (p.parentThreadId as string | undefined) ?? ''
       if (parentThreadId) {
         void useSubAgentStore.getState().fetchChildren(parentThreadId, { authoritative: true })
@@ -348,13 +348,13 @@ function dispatchThreadLifecycle(
       removeThreadTree(pp.threadId)
       break
     }
-    case 'thread/statusChanged': {
-      const pp = p as { threadId: string; newStatus: string }
-      if (pp.newStatus === 'archived') {
-        removeThreadTree(pp.threadId)
-      } else {
-        updateThreadStatus(pp.threadId, pp.newStatus as 'active' | 'paused' | 'archived')
-      }
+    case 'thread/archived': {
+      removeThreadTree((p as { threadId: string }).threadId)
+      break
+    }
+    case 'thread/unarchived':
+    case 'thread/paused': {
+      updateThreadStatus((p as { threadId: string }).threadId, method === 'thread/paused' ? 'paused' : 'active')
       break
     }
     default:
@@ -588,7 +588,7 @@ describe('notification dispatch payload format', () => {
     })
   })
 
-  it('updates subagent dock runtime from thread/runtimeChanged notifications', () => {
+  it('updates subagent dock runtime from thread/status/changed notifications', () => {
     useSubAgentStore.getState().setChildren('thread-1', [
       {
         childThreadId: 'child-1',
@@ -615,7 +615,7 @@ describe('notification dispatch payload format', () => {
     ])
 
     dispatch({
-      method: 'thread/runtimeChanged',
+      method: 'thread/status/changed',
       params: {
         threadId: 'child-1',
         runtime: {
@@ -661,7 +661,7 @@ describe('notification dispatch payload format', () => {
     expect(s().turnStatus).toBe('waitingApproval')
 
     dispatch({
-      method: 'thread/runtimeChanged',
+      method: 'thread/status/changed',
       params: {
         threadId: 'thread-1',
         runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false }
@@ -693,7 +693,7 @@ describe('notification dispatch payload format', () => {
     s().onApprovalSubmitStarted('accept')
 
     dispatch({
-      method: 'thread/runtimeChanged',
+      method: 'thread/status/changed',
       params: {
         threadId: 'thread-1',
         runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false }
@@ -864,7 +864,7 @@ describe('notification dispatch payload format', () => {
     })
 
     dispatch({
-      method: 'subagent/graphChanged',
+      method: 'subagent/graph/changed',
       params: { parentThreadId: 'thread-1', childThreadId: 'child-graph' }
     })
 
@@ -916,7 +916,7 @@ describe('notification dispatch payload format', () => {
     })
 
     dispatch({
-      method: 'subagent/graphChanged',
+      method: 'subagent/graph/changed',
       params: { parentThreadId: 'thread-1', childThreadId: 'child-1' }
     })
 
@@ -946,7 +946,7 @@ describe('notification dispatch payload format', () => {
 
   it('dispatches turn/started correctly from { method, params } payload', () => {
     dispatch({
-      method: 'thread/runtimeChanged',
+      method: 'thread/status/changed',
       params: {
         threadId: 'thread-1',
         runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false }
@@ -966,7 +966,7 @@ describe('notification dispatch payload format', () => {
 
   it('dispatches turn/completed and sets status to idle', () => {
     dispatch({
-      method: 'thread/runtimeChanged',
+      method: 'thread/status/changed',
       params: {
         threadId: 'thread-1',
         runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false }
@@ -974,7 +974,7 @@ describe('notification dispatch payload format', () => {
     })
     dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
     dispatch({
-      method: 'thread/runtimeChanged',
+      method: 'thread/status/changed',
       params: {
         threadId: 'thread-1',
         runtime: { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false }
@@ -993,7 +993,7 @@ describe('notification dispatch payload format', () => {
 
   it('dispatches turn/failed', () => {
     dispatch({
-      method: 'thread/runtimeChanged',
+      method: 'thread/status/changed',
       params: {
         threadId: 'thread-1',
         runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false }
@@ -1001,7 +1001,7 @@ describe('notification dispatch payload format', () => {
     })
     dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
     dispatch({
-      method: 'thread/runtimeChanged',
+      method: 'thread/status/changed',
       params: {
         threadId: 'thread-1',
         runtime: { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false }
@@ -1020,7 +1020,7 @@ describe('notification dispatch payload format', () => {
 
   it('dispatches turn/cancelled', () => {
     dispatch({
-      method: 'thread/runtimeChanged',
+      method: 'thread/status/changed',
       params: {
         threadId: 'thread-1',
         runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false }
@@ -1028,7 +1028,7 @@ describe('notification dispatch payload format', () => {
     })
     dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
     dispatch({
-      method: 'thread/runtimeChanged',
+      method: 'thread/status/changed',
       params: {
         threadId: 'thread-1',
         runtime: { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false }
@@ -1784,8 +1784,8 @@ describe('thread lifecycle notification dispatch', () => {
     })
 
     dispatchThreadLifecycle({
-      method: 'thread/statusChanged',
-      params: { threadId: 'parent-1', newStatus: 'archived' }
+      method: 'thread/archived',
+      params: { threadId: 'parent-1' }
     })
 
     expect(useThreadStore.getState().threadList).toEqual([])

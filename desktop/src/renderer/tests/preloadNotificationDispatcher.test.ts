@@ -18,7 +18,7 @@ describe('preload notification dispatcher', () => {
     const unsubscribeApp = dispatcher.subscribe(appSubscriber)
     const unsubscribeTeam = dispatcher.subscribe(teamSubscriber)
 
-    dispatcher.dispatch({ method: 'thread/runtimeChanged' })
+    dispatcher.dispatch({ method: 'thread/status/changed' })
 
     expect(appSubscriber).toHaveBeenCalledTimes(1)
     expect(teamSubscriber).toHaveBeenCalledTimes(1)

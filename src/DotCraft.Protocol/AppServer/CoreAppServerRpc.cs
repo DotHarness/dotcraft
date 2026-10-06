@@ -28,7 +28,7 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, AuthOpenAiUsageResult> AuthOpenAiUsage = new("auth/openai/usage", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
-    public static readonly RpcNotification<AuthOpenAiUsageResult> AuthOpenAiUsageChanged = new("auth/openai/usageChanged", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", notificationOptOut: true);
+    public static readonly RpcNotification<AuthOpenAiUsageResult> AuthOpenAiUsageUpdated = new("auth/openai/usage/updated", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", notificationOptOut: true);
 
     public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, ChannelListResult> ChannelList = new("channel/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
@@ -207,7 +207,7 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<SubAgentTargetMessageParams, SubAgentControlResult> SubAgentFollowupTask = new("subagent/followupTask", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
-    public static readonly RpcNotification<SubAgentGraphChangedNotification> SubAgentGraphChanged = new("subagent/graphChanged", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", notificationOptOut: true);
+    public static readonly RpcNotification<SubAgentGraphChangedNotification> SubAgentGraphChanged = new("subagent/graph/changed", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", notificationOptOut: true);
 
     public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, SubAgentProfileListResult> SubAgentProfileList = new("subagent/profiles/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
@@ -282,9 +282,8 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<ThreadRollbackParams, ThreadRollbackResponse> ThreadRollback = new("thread/rollback", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);
 
-    public static readonly RpcNotification<ThreadRuntimeChangedParams> ThreadRuntimeChanged = new("thread/runtimeChanged", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", notificationOptOut: true);
 
-    public static readonly RpcNotification<ThreadStatusChangedNotification> ThreadStatusChanged = new("thread/statusChanged", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", notificationOptOut: true);
+    public static readonly RpcNotification<ThreadStatusChangedNotification> ThreadStatusChanged = new("thread/status/changed", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", notificationOptOut: true);
 
     public static readonly RpcRequest<ThreadSubscribeParams, global::DotCraft.Protocol.RpcEmpty> ThreadSubscribe = new("thread/subscribe", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);
 

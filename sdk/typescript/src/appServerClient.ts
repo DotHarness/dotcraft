@@ -146,9 +146,9 @@ export class InternalAppServerClient extends DotCraftWireClient {
     const queue: JsonRpcMessage[] = [];
     let resolveWait: (() => void) | null = null;
     const methods = [
-      "thread/started", "thread/renamed", "thread/resumed", "thread/statusChanged", "thread/runtimeChanged",
-      "thread/queue/updated", "turn/started", "turn/completed", "turn/failed", "turn/cancelled", "item/started",
-      "item/completed", "item/agentMessage/delta", "item/reasoning/delta", "item/toolCall/argumentsDelta",
+      "thread/started", "thread/renamed", "thread/resumed", "thread/archived", "thread/unarchived", "thread/paused",
+      "thread/status/changed", "thread/queue/updated", "turn/started", "turn/completed", "turn/failed", "turn/cancelled",
+      "item/started", "item/completed", "item/agentMessage/delta", "item/reasoning/delta", "item/toolCall/argumentsDelta",
       "item/approval/resolved", "subagent/progress", "item/usage/delta", "system/event", "plan/updated",
     ];
     const unsubscribe = methods.map((method) => this.onRaw(method, (async (params) => {

@@ -3926,6 +3926,11 @@ export interface ThreadArchiveParams {
   [key: string]: unknown;
 }
 
+export interface ThreadArchivedNotification {
+  threadId: string;
+  [key: string]: unknown;
+}
+
 export interface ThreadChannelBindingRequestCreateParams {
   channelName?: string;
   threadId?: string;
@@ -4204,6 +4209,11 @@ export interface ThreadPauseParams {
   [key: string]: unknown;
 }
 
+export interface ThreadPausedNotification {
+  threadId: string;
+  [key: string]: unknown;
+}
+
 export interface ThreadPluginPolicy {
   allow?: string[] | null;
   deny?: string[] | null;
@@ -4287,12 +4297,6 @@ export interface ThreadRollbackParams {
 
 export interface ThreadRollbackResponse {
   thread?: SessionThread;
-  [key: string]: unknown;
-}
-
-export interface ThreadRuntimeChangedParams {
-  runtime?: ThreadRuntimeState;
-  threadId?: string;
   [key: string]: unknown;
 }
 
@@ -4387,8 +4391,7 @@ export interface ThreadStartResult {
 }
 
 export interface ThreadStatusChangedNotification {
-  newStatus?: string | null;
-  previousStatus?: string | null;
+  runtime?: ThreadRuntimeState;
   threadId?: string;
   [key: string]: unknown;
 }
@@ -4449,6 +4452,11 @@ export interface ThreadTurnsListResult {
 
 export interface ThreadUnarchiveParams {
   threadId?: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadUnarchivedNotification {
+  threadId: string;
   [key: string]: unknown;
 }
 

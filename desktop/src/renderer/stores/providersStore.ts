@@ -195,7 +195,7 @@ function ensureUsageSubscription(): void {
   if (usageNotificationUnsubscribe) return
   if (typeof window === 'undefined' || !window.api?.appServer?.onNotification) return
   usageNotificationUnsubscribe = window.api.appServer.onNotification((payload) => {
-    if (payload?.method !== 'auth/openai/usageChanged') return
+    if (payload?.method !== 'auth/openai/usage/updated') return
     useProvidersStore.getState().applyUsage(parseUsage(payload.params))
   })
 }

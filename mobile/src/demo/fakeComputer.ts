@@ -354,9 +354,9 @@ export class FakeComputer {
     return { tokens, contextWindow: CONTEXT_WINDOW, percentLeft: Math.max(0, 1 - tokens / CONTEXT_WINDOW) }
   }
 
-  private runtimeChanged(project: FakeProject, thread: FakeThread): void {
+  private statusChanged(project: FakeProject, thread: FakeThread): void {
     thread.lastActiveAt = this.stamp()
-    this.broadcast(project, 'thread/runtimeChanged', { threadId: thread.id, runtime: this.summary(thread).runtime })
+    this.broadcast(project, 'thread/status/changed', { threadId: thread.id, runtime: this.summary(thread).runtime })
   }
 
   private request(connection: Connection, method: string, params: Record<string, unknown>): Outcome {
@@ -461,7 +461,7 @@ export class FakeComputer {
       }
       case 'thread/archive':
         thread.archived = true
-        return { result: {}, after: () => this.broadcast(project, 'thread/statusChanged', { threadId: thread.id, newStatus: 'archived' }) }
+        return { result: {}, after: () => this.broadcast(project, 'thread/archived', { threadId: thread.id }) }
       case 'thread/config/update': {
         const config = { ...(params.config as Record<string, unknown>) }
         delete config.agentProfileId
@@ -485,7 +485,7 @@ export class FakeComputer {
               clientUserMessageId: params.clientUserMessageId,
             })
             this.toSubscribers(project, thread.id, 'turn/started', { turn: { ...turn, items: [user] } })
-            this.runtimeChanged(project, thread)
+            this.statusChanged(project, thread)
             const reply =
               thread.turns.length === 1 ? `Starting on ${this.name} in ${project.name}. I’ll read the project first and report back here.` : thread.continuation
             this.streamReply(project, thread, turn, reply, true)
@@ -582,7 +582,7 @@ export class FakeComputer {
     for (const connection of this.projectConnections(project)) {
       if (connection.subscribed.has(thread.id)) this.deliver(connection, thread, active.id, pending)
     }
-    this.runtimeChanged(project, thread)
+    this.statusChanged(project, thread)
   }
 
   endTurn(threadId: string, status: 'completed' | 'cancelled' | 'failed'): void {
@@ -622,7 +622,7 @@ export class FakeComputer {
     }
     const resolved = pending.kind === 'approval' ? 'item/approval/resolved' : 'item/tool/requestUserInput/resolved'
     for (const method of [resolved, 'item/completed']) this.toSubscribers(project, thread.id, method, { threadId: thread.id, turnId: active.id, item })
-    this.runtimeChanged(project, thread)
+    this.statusChanged(project, thread)
     if (thread.pending.length === 0) this.streamReply(project, thread, active, reply, true)
   }
 
@@ -631,7 +631,7 @@ export class FakeComputer {
     if (!thread.pending.some((request) => request.requestId === requestId)) return
     thread.pending = thread.pending.filter((request) => request.requestId !== requestId)
     this.forgetHeld(requestId)
-    this.runtimeChanged(project, thread)
+    this.statusChanged(project, thread)
   }
 
   private completeItem(project: FakeProject, thread: FakeThread, item: FakeItem): void {
@@ -682,7 +682,7 @@ export class FakeComputer {
     turn.completedAt = this.stamp()
     thread.planned = status === 'completed' && thread.config?.mode === 'plan'
     this.toSubscribers(project, thread.id, `turn/${status}`, { turn })
-    this.runtimeChanged(project, thread)
+    this.statusChanged(project, thread)
   }
 
   private sendEvent(type: string, projectId: string): void {

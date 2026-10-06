@@ -104,7 +104,7 @@ public sealed class ThreadRuntimeNotificationCoordinatorTests
 
     private static void AssertRuntime(JsonElement notification, bool running, string? activeTurnId)
     {
-        Assert.Equal("thread/runtimeChanged", notification.GetProperty("method").GetString());
+        Assert.Equal("thread/status/changed", notification.GetProperty("method").GetString());
         var parameters = notification.GetProperty("params");
         Assert.Equal("thread-1", parameters.GetProperty("threadId").GetString());
         var runtime = parameters.GetProperty("runtime");

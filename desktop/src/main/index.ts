@@ -2200,7 +2200,7 @@ async function connectViaWebSocket(
       role: entry.role
     })
     if (foreground == null) return
-    if (foreground && method === 'auth/openai/usageChanged') refreshVoiceChatGptAvailability()
+    if (foreground && method === 'auth/openai/usage/updated') refreshVoiceChatGptAvailability()
 
     if (mainWindow && !mainWindow.isDestroyed()) {
       applyWorkspaceThreadNotification(entry, method, params)
@@ -2539,7 +2539,7 @@ function createSecondaryWorkspaceConnection(
       role: entry.role
     })
     if (foreground == null) return
-    if (foreground && method === 'auth/openai/usageChanged') refreshVoiceChatGptAvailability()
+    if (foreground && method === 'auth/openai/usage/updated') refreshVoiceChatGptAvailability()
 
     applyWorkspaceThreadNotification(entry, method, params)
     if (mainWindow && !mainWindow.isDestroyed()) {

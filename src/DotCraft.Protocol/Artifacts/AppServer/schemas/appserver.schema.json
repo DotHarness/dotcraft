@@ -15567,6 +15567,19 @@
       },
       "additionalProperties": true
     },
+    "ThreadArchivedNotification": {
+      "title": "ThreadArchivedNotification",
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
+    },
     "ThreadChannelBindingRequestCreateParams": {
       "title": "ThreadChannelBindingRequestCreateParams",
       "type": "object",
@@ -16924,6 +16937,19 @@
       },
       "additionalProperties": true
     },
+    "ThreadPausedNotification": {
+      "title": "ThreadPausedNotification",
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
+    },
     "ThreadPluginPolicy": {
       "title": "ThreadPluginPolicy",
       "type": "object",
@@ -17211,19 +17237,6 @@
       "properties": {
         "thread": {
           "$ref": "#/$defs/SessionThread"
-        }
-      },
-      "additionalProperties": true
-    },
-    "ThreadRuntimeChangedParams": {
-      "title": "ThreadRuntimeChangedParams",
-      "type": "object",
-      "properties": {
-        "runtime": {
-          "$ref": "#/$defs/ThreadRuntimeState"
-        },
-        "threadId": {
-          "type": "string"
         }
       },
       "additionalProperties": true
@@ -17714,25 +17727,8 @@
       "title": "ThreadStatusChangedNotification",
       "type": "object",
       "properties": {
-        "newStatus": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "previousStatus": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "runtime": {
+          "$ref": "#/$defs/ThreadRuntimeState"
         },
         "threadId": {
           "type": "string"
@@ -18122,6 +18118,19 @@
         }
       },
       "additionalProperties": true
+    },
+    "ThreadUnarchivedNotification": {
+      "title": "ThreadUnarchivedNotification",
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
     },
     "ThreadUnsubscribeParams": {
       "title": "ThreadUnsubscribeParams",
