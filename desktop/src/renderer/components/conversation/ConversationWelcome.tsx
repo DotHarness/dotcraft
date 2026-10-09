@@ -47,7 +47,6 @@ import { expandInitCommand } from '../../utils/initCommand'
 import { startPendingWelcomeTurn } from '../../utils/startPendingWelcomeTurn'
 import { welcomeScopeKey } from '../../utils/detailPanelScope'
 import { handOffWelcomePanel } from '../../utils/welcomePanelHandoff'
-import { useComposerFileAttachmentRequest } from './useComposerFileAttachmentRequest'
 import { useComposerFileReferenceRequest } from './useComposerFileReferenceRequest'
 import { useComposerImageAttachmentRequest } from './useComposerImageAttachmentRequest'
 import { DetailPanelToggleButton } from './DetailPanelToggleButton'
@@ -1440,11 +1439,6 @@ function ConversationWelcomeCore({
   }, [onPasteImage, remoteWorkspace, t])
 
   useComposerFileReferenceRequest(richRef, workspacePath, remoteWorkspace, busy, welcomeScopeKey(draftProjectKey), draftHydrated)
-
-  useComposerFileAttachmentRequest(remoteWorkspace, (attachment) => {
-    setFiles((prev) => mergeComposerFileAttachments(prev, [attachment]))
-    setTimeout(() => richRef.current?.focus(), 0)
-  })
 
   useComposerImageAttachmentRequest((image) => {
     void saveDataUrlAsTemp(image.dataUrl, image.fileName, image.mimeType)

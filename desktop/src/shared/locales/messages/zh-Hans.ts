@@ -2029,7 +2029,6 @@ export const MESSAGES_ZH_HANS = {
   'conversation.reference.defaultApp': '默认应用',
   'conversation.reference.copyPath': '复制路径',
   'conversation.reference.addToChat': '添加到聊天',
-  'conversation.reference.addAsAttachment': '作为附件添加',
   'conversation.reference.openInExplorer': '在资源管理器中打开',
   'conversation.reference.skillPathUnavailable': '无法获取该技能路径',
   'conversation.reference.openFailed': '无法打开该路径',

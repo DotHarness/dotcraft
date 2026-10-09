@@ -115,7 +115,7 @@ describe('InputComposer layout', () => {
         settings: { get: settingsGet },
         appServer: { sendRequest: appServerSendRequest, onNotification: undefined },
         git: { listBranches: gitListBranches },
-        workspace: { saveImageToTemp: vi.fn(), readImageAsDataUrl },
+        workspace: { saveImageToTemp: vi.fn(), readImageAsDataUrl, getPathForFile: () => 'C:\\sample\\workspace\\.dockerignore' },
         voice: undefined
       })
 
@@ -165,7 +165,6 @@ describe('InputComposer layout', () => {
       selectedChangeKey: null,
       autoShowTriggeredForTurn: null,
       composerPrefill: null,
-      composerFileAttachmentRequest: null,
       pendingWelcomeTurn: null,
       _pendingWelcomeTimer: null
     })
@@ -183,21 +182,18 @@ describe('InputComposer layout', () => {
     })
   })
 
-  it('adds a file requested by another surface to the active composer', async () => {
+  it('adds a dropped file to the active composer attachments', async () => {
     renderComposer()
 
-    act(() => {
-      useUIStore.getState().requestComposerFileAttachment({
-        path: 'C:\\sample\\workspace\\.dockerignore',
-        fileName: '.dockerignore'
-      })
+    fireEvent.drop(screen.getByRole('textbox'), {
+      dataTransfer: {
+        types: ['Files'],
+        files: [new File(['notes'], '.dockerignore', { type: 'text/plain' })],
+        items: []
+      }
     })
 
     expect(await screen.findByText('.dockerignore')).toBeInTheDocument()
-    expect(useUIStore.getState().composerFileAttachmentRequest).toBeNull()
-    await waitFor(() => {
-      expect(screen.getByRole('textbox')).toHaveFocus()
-    })
   })
 
   it('renders plan mode as an active-only label and exposes the mode switch from the command picker', async () => {

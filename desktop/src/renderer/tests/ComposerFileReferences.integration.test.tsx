@@ -96,7 +96,6 @@ describe('file references in real composer draft lifecycles', () => {
     useUIStore.setState({
       activeMainView: 'conversation',
       composerPrefill: null,
-      composerFileAttachmentRequest: null,
       composerImageAttachmentRequest: null,
       pendingWelcomeTurn: null,
       pendingThreadCreation: null,

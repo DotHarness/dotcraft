@@ -3058,7 +3058,6 @@ export const MESSAGES_DE = {
   'conversation.reference.defaultApp': 'Standard-App',
   'conversation.reference.copyPath': 'Pfad kopieren',
   'conversation.reference.addToChat': 'Zum Chat hinzufügen',
-  'conversation.reference.addAsAttachment': 'Als Anhang hinzufügen',
   'conversation.reference.openInExplorer': 'Im Explorer öffnen',
   'conversation.reference.skillPathUnavailable': 'Der Fertigkeitspfad ist nicht verfügbar',
   'conversation.reference.openFailed': 'Dieser Pfad konnte nicht geöffnet werden',

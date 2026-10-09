@@ -35,7 +35,6 @@ import { emptyComposerDraftSnapshot, mergeRestoredComposerDraft } from '../../ut
 import { expandInitCommand } from '../../utils/initCommand'
 import { useComposerMascot } from './useComposerMascot'
 import { usePromptSuggestion } from './usePromptSuggestion'
-import { useComposerFileAttachmentRequest } from './useComposerFileAttachmentRequest'
 import { useComposerFileReferenceRequest } from './useComposerFileReferenceRequest'
 import { useComposerImageAttachmentRequest } from './useComposerImageAttachmentRequest'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
@@ -702,11 +701,6 @@ function InputComposerCore({
     threadId,
     hydratedThreadId === threadId && !composerPrefill && (!prefillRequest?.text || appliedPrefillRequestId === prefillRequest.id)
   )
-
-  useComposerFileAttachmentRequest(remoteWorkspace, (attachment) => {
-    setFiles((current) => mergeComposerFileAttachments(current, [attachment]))
-    setTimeout(() => richRef.current?.focus(), 0)
-  })
 
   useEffect(() => {
     const prefill = prefillRequest?.text

@@ -3056,7 +3056,6 @@ export const MESSAGES_ES = {
   'conversation.reference.defaultApp': 'Aplicación predeterminada',
   'conversation.reference.copyPath': 'Copiar ruta',
   'conversation.reference.addToChat': 'Añadir al chat',
-  'conversation.reference.addAsAttachment': 'Añadir como archivo adjunto',
   'conversation.reference.openInExplorer': 'Abrir en el Explorador',
   'conversation.reference.skillPathUnavailable': 'La ruta de habilidad no está disponible',
   'conversation.reference.openFailed': 'No se pudo abrir este camino',

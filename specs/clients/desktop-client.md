@@ -686,7 +686,7 @@ Required behavior:
 
 ### File References from Context Menus
 
-- For file targets, the shared file-path context menu's Add to chat action inserts the same structured file chip as choosing a file from the composer's `@` search; it does not create an attachment or plain-text marker. Add as attachment retains the separate attachment action. Directory targets offer neither action.
+- For file targets, the shared file-path context menu's Add to chat action inserts the same structured file chip as choosing a file from the composer's `@` search; it does not create an attachment or plain-text marker. Directory targets do not offer Add to chat.
 - Requests are queued independently for each originating thread or project welcome scope; queuing or consuming references in one scope must not overwrite or clear another scope's pending references. Requests made before the editor is editable or its draft has hydrated wait for that scope, and multiple requests retain their order within that scope.
 - Both welcome and thread composers insert at the last valid editor selection even after the context menu takes focus, replacing selected text. Without a saved selection they append. Insertion restores editor focus, adds a leading space only after non-whitespace text, and leaves the caret inside the trailing spacer used by manual `@` insertion.
 - Paths inside the composer's file workspace use normalized workspace-relative paths; paths outside it remain absolute. Draft persistence and submission use the normal structured file segments and `fileRef` input parts. Remote-workspace composers retain the existing restriction on local-file input.

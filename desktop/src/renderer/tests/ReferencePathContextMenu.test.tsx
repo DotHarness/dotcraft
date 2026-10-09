@@ -2,7 +2,6 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReferencePathContextMenu } from '../components/conversation/ReferencePathContextMenu'
 import { LocaleProvider } from '../contexts/LocaleContext'
-import { useUIStore } from '../stores/uiStore'
 import { useComposerFileReferenceStore } from '../stores/composerFileReferenceStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
@@ -22,7 +21,6 @@ describe('ReferencePathContextMenu', () => {
         iconKey: 'explorer'
       }
     ])
-    useUIStore.setState({ composerFileAttachmentRequest: null })
     useComposerFileReferenceStore.setState({ pendingByScope: new Map() })
     installDesktopApiMock({
       settings: {
@@ -38,7 +36,7 @@ describe('ReferencePathContextMenu', () => {
     })
   })
 
-  it('requests a file reference without queuing an attachment', async () => {
+  it('requests an inline file reference for the active composer', async () => {
     const onClose = vi.fn()
     render(
       <LocaleProvider>
@@ -54,42 +52,16 @@ describe('ReferencePathContextMenu', () => {
       await Promise.resolve()
     })
 
+    expect(screen.queryByRole('menuitem', { name: 'Add as attachment' })).toBeNull()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Add to chat' }))
 
     expect(useComposerFileReferenceStore.getState().pendingByScope.get(null)).toEqual([
       'C:\\sample\\workspace\\.dockerignore'
     ])
-    expect(useUIStore.getState().composerFileAttachmentRequest).toBeNull()
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('queues an attachment without requesting a file reference', async () => {
-    const onClose = vi.fn()
-    render(
-      <LocaleProvider>
-        <ReferencePathContextMenu
-          position={{ x: 20, y: 20 }}
-          targetPath={'C:\\sample\\workspace\\.dockerignore'}
-          onClose={onClose}
-        />
-      </LocaleProvider>
-    )
-    await act(async () => {
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Add as attachment' }))
-
-    expect(useUIStore.getState().composerFileAttachmentRequest?.file).toEqual({
-      path: 'C:\\sample\\workspace\\.dockerignore',
-      fileName: '.dockerignore'
-    })
-    expect(useComposerFileReferenceStore.getState().pendingByScope.size).toBe(0)
-    expect(onClose).toHaveBeenCalledOnce()
-  })
-
-  it('omits both composer actions for directory targets', async () => {
+  it('omits Add to chat for directory targets', async () => {
     render(
       <LocaleProvider>
         <ReferencePathContextMenu

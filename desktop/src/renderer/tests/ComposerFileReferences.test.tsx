@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RichInputArea, type RichInputAreaHandle } from '../components/conversation/RichInputArea'
 import { useComposerFileReferenceRequest } from '../components/conversation/useComposerFileReferenceRequest'
 import { LocaleProvider } from '../contexts/LocaleContext'
-import { useUIStore } from '../stores/uiStore'
 import { useComposerFileReferenceStore } from '../stores/composerFileReferenceStore'
 import { useToastStore } from '../stores/toastStore'
 import { useThreadStore } from '../stores/threadStore'
@@ -32,7 +31,6 @@ function fixture(props: ComposerProps = {}) {
 
 describe('composer file reference requests', () => {
   beforeEach(() => {
-    useUIStore.setState({ composerFileAttachmentRequest: null })
     useComposerFileReferenceStore.setState({ pendingByScope: new Map() })
     useToastStore.setState({ toasts: [] })
     useThreadStore.setState({ activeThreadId: null })
@@ -55,7 +53,6 @@ describe('composer file reference requests', () => {
       { type: 'text', value: '\u00a0end' }
     ]))
     expect(useComposerFileReferenceStore.getState().pendingByScope.size).toBe(0)
-    expect(useUIStore.getState().composerFileAttachmentRequest).toBeNull()
     expect(buildComposerInputParts({
       text: editorRef.current!.getText(),
       segments: editorRef.current!.getSegments()
