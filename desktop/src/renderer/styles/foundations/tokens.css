@@ -52,6 +52,8 @@
   --border-subtle: color-mix(in srgb, var(--text-primary) calc(3.8% + var(--contrast-k) * 2%), transparent);
   --border-default: color-mix(in srgb, var(--text-primary) calc(7.6% + var(--contrast-k) * 4%), transparent);
   --border-active: color-mix(in srgb, var(--text-primary) calc(14.4% + var(--contrast-k) * 6%), transparent);
+  --bg-navigation: color-mix(in srgb, var(--accent) calc(8% + var(--contrast-k) * 6%), var(--bg-primary));
+  --border-navigation: color-mix(in srgb, var(--accent) 65%, var(--text-primary));
 
   /* --scrollbar-size is the grab target, not the painted slider: the thumb is inset
      by --scrollbar-thumb-inset on every side, so the visible bar stays slim while the

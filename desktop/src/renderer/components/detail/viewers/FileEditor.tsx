@@ -44,6 +44,8 @@ import { markdownEditing } from './markdownEditing'
 import { EditorFind } from './EditorFind'
 import { FileReview } from './FileReview'
 import { FileEditorComments, lineCommentField } from './FileEditorComments'
+import { fileNavigation } from './fileNavigation'
+import { useFileNavigation } from './useFileNavigation'
 import './file-editor.css'
 
 interface FileEditorProps {
@@ -52,6 +54,7 @@ interface FileEditorProps {
   markdown: boolean
   wordWrap: boolean
   navigationHint?: FileNavigationHint
+  navigationRevision?: number
 }
 const externalUpdate = Annotation.define<boolean>()
 
@@ -60,7 +63,8 @@ export function FileEditor({
   absolutePath,
   markdown: isMarkdown,
   wordWrap,
-  navigationHint
+  navigationHint,
+  navigationRevision = 0
 }: FileEditorProps): JSX.Element {
   const t = useT()
   const theme = useDocumentThemeMode()
@@ -104,6 +108,7 @@ export function FileEditor({
     EditorView.editable.of(!readOnly),
     editorHighlight(pool, absolutePath, preview),
     lineCommentField,
+    fileNavigation,
     search(),
     ...(wordWrap || preview ? [EditorView.lineWrapping] : []),
     EditorView.contentAttributes.of({
@@ -222,19 +227,16 @@ export function FileEditor({
     if (session?.focusRevision) viewRef.current?.focus()
   }, [session?.focusRevision])
 
-  useEffect(() => {
-    const view = viewRef.current
-    if (!view || !navigationHint?.line || !Number.isFinite(navigationHint.line)) return
-    const line = view.state.doc.line(
-      Math.min(view.state.doc.lines, Math.max(1, Math.floor(navigationHint.line)))
-    )
-    const column = Number.isFinite(navigationHint.column) ? navigationHint.column! : 1
-    const anchor = Math.min(line.to, line.from + Math.max(0, Math.floor(column) - 1))
-    view.dispatch({
-      selection: { anchor },
-      effects: EditorView.scrollIntoView(anchor, { y: 'center' })
-    })
-  }, [session?.status, navigationHint?.line, navigationHint?.column])
+  useFileNavigation({
+    tabId,
+    absolutePath,
+    view: viewRef,
+    hint: navigationHint,
+    revision: navigationRevision,
+    status: session?.status,
+    mode,
+    review: Boolean(session?.review)
+  })
 
   const view = viewRef.current
   const undoCount = view ? undoDepth(view.state) : 0

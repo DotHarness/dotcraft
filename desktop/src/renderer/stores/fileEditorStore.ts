@@ -36,6 +36,7 @@ export interface FileEditorSession {
   review?: FileReview
   reviewWrite?: boolean
   focusRevision: number
+  lastNavigationRevision?: number
   snapshots: Partial<Record<FileEditorMode, EditorSnapshot>>
 }
 interface FileEditorStore {
@@ -43,6 +44,7 @@ interface FileEditorStore {
   load(tabId: string, absolutePath: string, markdown: boolean): Promise<void>
   updateText(tabId: string, text: string): void
   setSnapshot(tabId: string, mode: FileEditorMode, snapshot: EditorSnapshot): void
+  markNavigationHandled(tabId: string, revision: number): void
   switchMode(tabId: string, mode: FileEditorMode): Promise<boolean>
   save(tabId: string): Promise<boolean>
   refreshFromDisk(tabId: string): Promise<void>
@@ -212,6 +214,9 @@ export const useFileEditorStore = create<FileEditorStore>((set, get) => ({
       ...session,
       snapshots: { ...session.snapshots, [mode]: snapshot }
     }))
+  },
+  markNavigationHandled(tabId, revision) {
+    patch(tabId, (session) => ({ ...session, lastNavigationRevision: revision }))
   },
   async switchMode(tabId, mode) {
     const session = get().sessions.get(tabId)

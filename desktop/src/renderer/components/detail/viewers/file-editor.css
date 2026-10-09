@@ -61,6 +61,14 @@
 .dc-file-editor .cm-focused .cm-activeLineGutter {
   background: var(--bg-active);
 }
+.dc-file-editor .cm-line.dc-file-editor__navigation-line {
+  background: var(--bg-navigation);
+}
+.dc-file-editor .cm-gutterElement.dc-file-editor__navigation-gutter {
+  background: var(--bg-navigation);
+  box-shadow: inset 2px 0 var(--border-navigation);
+}
+
 .dc-file-editor .cm-cursor {
   border-left-color: var(--text-primary);
 }

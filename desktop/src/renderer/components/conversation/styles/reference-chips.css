@@ -16,6 +16,11 @@
   transition: color var(--duration-fast) var(--ease-standard);
 }
 
+.markdown-body a.dc-ref[data-conversation-reference] {
+  user-select: text;
+  -webkit-user-drag: none;
+}
+
 /* Nudged down onto the text so the icon centres on the label, with a 4px gap after it. */
 .dc-ref > .dc-ref-icon-slot,
 .dc-ref > svg {

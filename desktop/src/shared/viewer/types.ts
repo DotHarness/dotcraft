@@ -10,6 +10,7 @@ export type ViewerContentClass = 'text' | 'image' | 'pdf' | 'unsupported'
 
 export interface FileNavigationHint {
   line?: number
+  endLine?: number
   column?: number
   fragment?: string
   query?: string
@@ -38,8 +39,10 @@ export interface FileViewerTab extends ViewerTabBase {
   contentClass: ViewerContentClass
   /** File size in bytes at classification time; used by image viewer for info display. */
   sizeBytes?: number
-  /** Optional deep-link navigation hint (line/column/query/fragment). */
+  /** Optional deep-link navigation hint (line/range/column/query/fragment). */
   navigationHint?: FileNavigationHint
+  /** Increments for explicit opens, even when the target position is unchanged. */
+  navigationRevision?: number
   /**
    * Per-tab word-wrap preference for the text viewer. Undefined is treated as
    * enabled (the historical default); toggled via the viewer `…` menu.

@@ -1,5 +1,6 @@
 export interface LinkNavigationHint {
   line?: number
+  endLine?: number
   column?: number
   fragment?: string
   query?: string
@@ -35,8 +36,43 @@ const WINDOWS_ABSOLUTE_PATH_RE = /^[A-Za-z]:[\\/].+/
 const LEADING_SLASH_DRIVE_RE = /^\/[A-Za-z]:[\\/]/
 const UNC_PATH_RE = /^(?:\\\\|\/\/)[^\\/]+[\\/]/
 const SCHEME_RE = /^[A-Za-z][A-Za-z0-9+.-]*:/
-const LINE_HINT_RE = /^(.*?):(\d+)(?::(\d+))?$/
-const LINE_FRAGMENT_RE = /^L(\d+)(?:C(\d+))?(?:-L?\d+(?:C\d+)?)?$/
+const LINE_HINT_RE = /^(.*?):(\d+)(?::(\d+)|-(\d+))?$/
+const LINE_FRAGMENT_RE = /^L(\d+)(?:C(\d+))?(?:-L?(\d+)(?:C(\d+))?)?$/
+
+function parseLineLocation(
+  lineText: string,
+  columnText?: string,
+  endLineText?: string,
+  endColumnText?: string
+): LinkNavigationHint | undefined {
+  const values = [lineText, columnText, endLineText, endColumnText]
+    .filter((value) => value !== undefined).map(Number)
+  if (values.some((value) => !Number.isSafeInteger(value) || value <= 0)) return undefined
+  const line = Number(lineText)
+  const column = columnText === undefined ? undefined : Number(columnText)
+  const endLine = endLineText === undefined ? undefined : Number(endLineText)
+  if (endLine !== undefined) {
+    if (endLine < line) return undefined
+    if (endLine === line && column !== undefined && endColumnText !== undefined && Number(endColumnText) < column) return undefined
+  }
+  return {
+    line,
+    ...(column === undefined ? {} : { column }),
+    ...(endLine === undefined ? {} : { endLine })
+  }
+}
+
+/** Only a filename with an extension and a valid location can bypass Markdown's scheme filter. */
+export function isBareFileLocationLinkTarget(target: string): boolean {
+  const match = target.split(/[?#]/, 1)[0].match(LINE_HINT_RE)
+  if (!match || !parseLineLocation(match[2], match[3], match[4])) return false
+  try {
+    const filename = decodeURIComponent(match[1])
+    return /^[^\\/:?#\u0000-\u001f]+\.[A-Za-z0-9][A-Za-z0-9._-]*$/.test(filename)
+  } catch {
+    return false
+  }
+}
 
 function normalizeSlashes(value: string): string {
   return value.replace(/\\/g, '/')
@@ -100,25 +136,20 @@ function splitDecorations(rawTarget: string): {
     pathLike = pathLike.slice(0, queryIndex)
   }
 
-  let line: number | undefined
-  let column: number | undefined
+  let location: LinkNavigationHint | undefined
   const lineMatch = pathLike.match(LINE_HINT_RE)
   if (lineMatch && !/^[A-Za-z]:$/.test(lineMatch[1] ?? '')) {
     pathLike = lineMatch[1] ?? pathLike
-    line = Number(lineMatch[2])
-    column = lineMatch[3] ? Number(lineMatch[3]) : undefined
+    location = parseLineLocation(lineMatch[2], lineMatch[3], lineMatch[4])
   }
 
   const lineFragment = fragment?.match(LINE_FRAGMENT_RE)
-  if (lineFragment && line === undefined) {
-    line = Number(lineFragment[1])
-    column = lineFragment[2] ? Number(lineFragment[2]) : undefined
-    fragment = undefined
+  if (lineFragment && !location) {
+    location = parseLineLocation(lineFragment[1], lineFragment[2], lineFragment[3], lineFragment[4])
+    if (location) fragment = undefined
   }
 
-  const hint: LinkNavigationHint = {}
-  if (line !== undefined) hint.line = line
-  if (column !== undefined) hint.column = column
+  const hint: LinkNavigationHint = { ...location }
   if (fragment !== undefined) hint.fragment = fragment
   if (query !== undefined) hint.query = query
   return {
@@ -194,6 +225,23 @@ export function resolveConversationLink(params: {
     return { kind: 'reject', reason: 'empty' }
   }
 
+  if (hasScheme(decodeLocalPathTarget(trimmed)) &&
+    !trimmed.toLowerCase().startsWith('file://') &&
+    !isBareFileLocationLinkTarget(trimmed)) {
+    try {
+      const parsed = new URL(trimmed)
+      if ((parsed.protocol === 'http:' || parsed.protocol === 'https:') && /^https?:\/\//i.test(trimmed)) {
+        return { kind: 'browser', url: parsed.href }
+      }
+      if (SAFE_EXTERNAL_SCHEMES.has(parsed.protocol)) {
+        return { kind: 'external', url: parsed.href }
+      }
+      return { kind: 'reject', reason: 'unsupported-scheme' }
+    } catch {
+      return { kind: 'reject', reason: 'malformed' }
+    }
+  }
+
   const { pathLikeTarget, hint } = splitDecorations(trimmed)
   const local = decodeLocalPathTarget(pathLikeTarget)
 
@@ -225,27 +273,6 @@ export function resolveConversationLink(params: {
       kind: 'file',
       absolutePath: localPath,
       ...(hint ? { hint } : {})
-    }
-  }
-
-  if (trimmed.toLowerCase().startsWith('http://') || trimmed.toLowerCase().startsWith('https://')) {
-    try {
-      const parsed = new URL(trimmed)
-      return { kind: 'browser', url: parsed.href }
-    } catch {
-      return { kind: 'reject', reason: 'malformed' }
-    }
-  }
-
-  if (hasScheme(trimmed)) {
-    try {
-      const parsed = new URL(trimmed)
-      if (SAFE_EXTERNAL_SCHEMES.has(parsed.protocol)) {
-        return { kind: 'external', url: parsed.href }
-      }
-      return { kind: 'reject', reason: 'unsupported-scheme' }
-    } catch {
-      return { kind: 'reject', reason: 'malformed' }
     }
   }
 

@@ -176,7 +176,7 @@ describe('FileEditor integration', () => {
       </LocaleProvider>
     )
     await screen.findByRole('textbox', { name: path })
-    expect(view().state.selection.main.anchor).toBe(view().state.doc.line(3).from + 5)
+    await waitFor(() => expect(view().state.selection.main.anchor).toBe(view().state.doc.line(3).from + 5))
   })
 
   it('does not restore a stale focused-marker state after returning to a tab', async () => {
