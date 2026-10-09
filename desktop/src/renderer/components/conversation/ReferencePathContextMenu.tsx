@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, Copy, ExternalLink, FolderOpen, MessageSquarePlus } from 'lucide-react'
+import { ChevronRight, Copy, ExternalLink, FolderOpen, MessageSquarePlus, Paperclip } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -57,7 +57,7 @@ export function ReferencePathContextMenu({
   }, [orderedEditors, resolvedLastOpenId])
   const primaryAppLabel = t(primaryEditor.labelKey)
 
-  const estimatedHeight = 5 * 32 + menuPadding * 2 + 7
+  const estimatedHeight = (allowAddToChat ? 6 : 4) * 32 + menuPadding * 2 + 13
   const left = clamp(position.x, 8, window.innerWidth - menuWidth - 8)
   const top = clamp(position.y, 8, window.innerHeight - estimatedHeight - 8)
   const submenuLeft = left + menuWidth + menuGap + submenuWidth <= window.innerWidth - 8
@@ -138,6 +138,10 @@ export function ReferencePathContextMenu({
   }
 
   function addToChat(): void {
+    useUIStore.getState().requestComposerFileReference(targetPath)
+  }
+
+  function addAsAttachment(): void {
     const attachment = normalizeComposerFileAttachment(targetPath)
     if (!attachment) return
     useUIStore.getState().requestComposerFileAttachment(attachment)
@@ -177,12 +181,20 @@ export function ReferencePathContextMenu({
           onClose={onClose}
         />
         {allowAddToChat && (
-          <MenuButton
-            label={t('conversation.reference.addToChat')}
-            icon={<MessageSquarePlus size={16} />}
-            onClick={addToChat}
-            onClose={onClose}
-          />
+          <>
+            <MenuButton
+              label={t('conversation.reference.addToChat')}
+              icon={<MessageSquarePlus size={16} />}
+              onClick={addToChat}
+              onClose={onClose}
+            />
+            <MenuButton
+              label={t('conversation.reference.addAsAttachment')}
+              icon={<Paperclip size={16} />}
+              onClick={addAsAttachment}
+              onClose={onClose}
+            />
+          </>
         )}
         <MenuButton
           label={t('conversation.reference.openInExplorer')}

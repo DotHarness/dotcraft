@@ -684,6 +684,13 @@ Required behavior:
 - Requested model or reasoning overrides must be supported and applied through the thread/turn contract; unsupported options fail rather than being ignored. Reasoning changes affect queued and future Turns, not the active Turn.
 - Results distinguish started and queued work. Failures have an English fallback and a stable code: `UnsupportedTool`, `UnsupportedOption`, `InvalidArguments`, `ThreadNotFound`, `ThreadArchived`, `ThreadBusy`, `ThreadManagementUnavailable`, `TargetUnsupported`, or `AppServerRequestFailed`. UI messages are localized.
 
+### File References from Context Menus
+
+- For file targets, the shared file-path context menu's Add to chat action inserts the same structured file chip as choosing a file from the composer's `@` search; it does not create an attachment or plain-text marker. Add as attachment retains the separate attachment action. Directory targets offer neither action.
+- Requests are bound to the originating thread or project welcome scope; other composers cannot consume them. Requests made before the editor is editable or its draft has hydrated wait for that scope, and multiple requests retain their order.
+- Both welcome and thread composers insert at the last valid editor selection even after the context menu takes focus, replacing selected text. Without a saved selection they append. Insertion restores editor focus, adds a leading space only after non-whitespace text, and leaves the caret inside the trailing spacer used by manual `@` insertion.
+- Paths inside the composer's file workspace use normalized workspace-relative paths; paths outside it remain absolute. Draft persistence and submission use the normal structured file segments and `fileRef` input parts. Remote-workspace composers retain the existing restriction on local-file input.
+
 ### 5.15 Thread References
 
 A user can point the model at earlier chats of the current workspace from the welcome and thread composers.

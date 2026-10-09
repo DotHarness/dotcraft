@@ -48,6 +48,7 @@ import { startPendingWelcomeTurn } from '../../utils/startPendingWelcomeTurn'
 import { welcomeScopeKey } from '../../utils/detailPanelScope'
 import { handOffWelcomePanel } from '../../utils/welcomePanelHandoff'
 import { useComposerFileAttachmentRequest } from './useComposerFileAttachmentRequest'
+import { useComposerFileReferenceRequest } from './useComposerFileReferenceRequest'
 import { useComposerImageAttachmentRequest } from './useComposerImageAttachmentRequest'
 import { DetailPanelToggleButton } from './DetailPanelToggleButton'
 import { CommandSearchPopover } from './CommandSearchPopover'
@@ -263,6 +264,7 @@ function ConversationWelcomeCore({
   const sendInFlightRef = useRef(false)
   const skipDraftPersistRef = useRef(false)
   const draftHydratedRef = useRef(false)
+  const [draftHydrated, setDraftHydrated] = useState(false)
   const draftHydratingRef = useRef(false)
   const userEditedBeforeHydrationRef = useRef(false)
   const latestDraftTextRef = useRef('')
@@ -645,10 +647,12 @@ function ConversationWelcomeCore({
     if (draftHydratedRef.current) return
     if (!welcomeDraft) {
       draftHydratedRef.current = true
+      setDraftHydrated(true)
       return
     }
     if (userEditedBeforeHydrationRef.current) {
       draftHydratedRef.current = true
+      setDraftHydrated(true)
       return
     }
     const hasStructuredSegments = Array.isArray(welcomeDraft.segments) && welcomeDraft.segments.length > 0
@@ -702,6 +706,7 @@ function ConversationWelcomeCore({
     if (welcomeDraft.speed != null) setSpeedValue(welcomeDraft.speed === 'fast' ? 'fast' : 'standard')
     setContentRevision((n) => n + 1)
     draftHydratedRef.current = true
+    setDraftHydrated(true)
   }, [canUseCommandPicker, customCommandStatus, skillCatalogReady])
 
   useEffect(() => {
@@ -1433,6 +1438,8 @@ function ConversationWelcomeCore({
       onPasteImage(file)
     }
   }, [onPasteImage, remoteWorkspace, t])
+
+  useComposerFileReferenceRequest(richRef, workspacePath, remoteWorkspace, busy, welcomeScopeKey(draftProjectKey), draftHydrated)
 
   useComposerFileAttachmentRequest(remoteWorkspace, (attachment) => {
     setFiles((prev) => mergeComposerFileAttachments(prev, [attachment]))

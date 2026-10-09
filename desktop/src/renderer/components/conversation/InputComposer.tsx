@@ -36,6 +36,7 @@ import { expandInitCommand } from '../../utils/initCommand'
 import { useComposerMascot } from './useComposerMascot'
 import { usePromptSuggestion } from './usePromptSuggestion'
 import { useComposerFileAttachmentRequest } from './useComposerFileAttachmentRequest'
+import { useComposerFileReferenceRequest } from './useComposerFileReferenceRequest'
 import { useComposerImageAttachmentRequest } from './useComposerImageAttachmentRequest'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { readThreadHistoryHead } from '../../utils/threadHistory'
@@ -267,6 +268,8 @@ function InputComposerCore({
   const [historyCursor, setHistoryCursor] = useState<number | null>(null)
   const [mascotBounce, setMascotBounce] = useState(0)
   const richRef = useRef<RichInputAreaHandle>(null)
+  const [hydratedThreadId, setHydratedThreadId] = useState<string | null>(null)
+  const [appliedPrefillRequestId, setAppliedPrefillRequestId] = useState<number | null>(null)
   const threadReferences = useComposerThreadReferences(threadId, richRef)
   const sendInFlightRef = useRef(false)
   const editingQueuedInputIdRef = useRef<string | null>(null)
@@ -568,6 +571,7 @@ function InputComposerCore({
 
   useEffect(() => {
     const id = threadId
+    setHydratedThreadId(null)
     restoredSubmissionId.current = undefined
     latestDraftRef.current = emptyComposerDraftSnapshot()
     let restoreTimer: number | undefined
@@ -585,9 +589,11 @@ function InputComposerCore({
             files: [...draft.files],
             images: [...draft.images]
           }
+          setHydratedThreadId(id)
         }, 0)
       }
     }
+    if (restoreTimer === undefined) setHydratedThreadId(id)
     return () => {
       if (restoreTimer !== undefined) window.clearTimeout(restoreTimer)
       const snapshot = latestDraftRef.current
@@ -676,14 +682,26 @@ function InputComposerCore({
 
   useEffect(() => {
     if (composerPrefill) {
+      setHydratedThreadId(null)
       const prefill = composerPrefill
       useUIStore.getState().consumeComposerPrefill()
       setTimeout(() => {
         richRef.current?.setPlainText(prefill)
+        richRef.current?.setSelectionRange({ start: prefill.length, end: prefill.length })
         richRef.current?.focus()
+        setHydratedThreadId(threadId)
       }, 0)
     }
-  }, [composerPrefill])
+  }, [composerPrefill, threadId])
+
+  useComposerFileReferenceRequest(
+    richRef,
+    effectiveFileWorkspacePath,
+    remoteWorkspace,
+    isWaitingApproval || isWaitingInput,
+    threadId,
+    hydratedThreadId === threadId && !composerPrefill && (!prefillRequest?.text || appliedPrefillRequestId === prefillRequest.id)
+  )
 
   useComposerFileAttachmentRequest(remoteWorkspace, (attachment) => {
     setFiles((current) => mergeComposerFileAttachments(current, [attachment]))
@@ -697,6 +715,7 @@ function InputComposerCore({
       richRef.current?.setPlainText(prefill)
       richRef.current?.setSelectionRange({ start: prefill.length, end: prefill.length })
       richRef.current?.focus()
+      setAppliedPrefillRequestId(prefillRequest.id)
     }, 0)
   }, [prefillRequest?.id, prefillRequest?.text])
 

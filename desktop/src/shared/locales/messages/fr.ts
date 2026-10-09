@@ -3056,6 +3056,7 @@ export const MESSAGES_FR = {
   'conversation.reference.defaultApp': 'Application par défaut',
   'conversation.reference.copyPath': 'Copier le chemin',
   'conversation.reference.addToChat': 'Ajouter au chat',
+  'conversation.reference.addAsAttachment': 'Ajouter en pièce jointe',
   'conversation.reference.openInExplorer': 'Ouvrir dans l\'Explorateur',
   'conversation.reference.skillPathUnavailable': 'Le parcours de compétences n\'est pas disponible',
   'conversation.reference.openFailed': 'Impossible d\'ouvrir ce chemin',

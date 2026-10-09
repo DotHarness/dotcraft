@@ -21,7 +21,7 @@ describe('ReferencePathContextMenu', () => {
         iconKey: 'explorer'
       }
     ])
-    useUIStore.setState({ composerFileAttachmentRequest: null })
+    useUIStore.setState({ composerFileReferenceRequest: null, composerFileAttachmentRequest: null })
     installDesktopApiMock({
       settings: {
         get: settingsGet,
@@ -36,7 +36,7 @@ describe('ReferencePathContextMenu', () => {
     })
   })
 
-  it('queues the selected file for the active composer', async () => {
+  it('requests a file reference without queuing an attachment', async () => {
     const onClose = vi.fn()
     render(
       <LocaleProvider>
@@ -54,14 +54,41 @@ describe('ReferencePathContextMenu', () => {
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Add to chat' }))
 
+    expect(useUIStore.getState().composerFileReferenceRequest).toEqual({
+      scopeId: null,
+      paths: ['C:\\sample\\workspace\\.dockerignore']
+    })
+    expect(useUIStore.getState().composerFileAttachmentRequest).toBeNull()
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('queues an attachment without requesting a file reference', async () => {
+    const onClose = vi.fn()
+    render(
+      <LocaleProvider>
+        <ReferencePathContextMenu
+          position={{ x: 20, y: 20 }}
+          targetPath={'C:\\sample\\workspace\\.dockerignore'}
+          onClose={onClose}
+        />
+      </LocaleProvider>
+    )
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add as attachment' }))
+
     expect(useUIStore.getState().composerFileAttachmentRequest?.file).toEqual({
       path: 'C:\\sample\\workspace\\.dockerignore',
       fileName: '.dockerignore'
     })
-    expect(onClose).toHaveBeenCalled()
+    expect(useUIStore.getState().composerFileReferenceRequest).toBeNull()
+    expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('omits Add to chat for directory targets', async () => {
+  it('omits both composer actions for directory targets', async () => {
     render(
       <LocaleProvider>
         <ReferencePathContextMenu
@@ -78,5 +105,6 @@ describe('ReferencePathContextMenu', () => {
     })
 
     expect(screen.queryByRole('menuitem', { name: 'Add to chat' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'Add as attachment' })).toBeNull()
   })
 })

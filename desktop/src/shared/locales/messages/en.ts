@@ -2063,6 +2063,7 @@ export const MESSAGES_EN = {
   'conversation.reference.defaultApp': 'Default app',
   'conversation.reference.copyPath': 'Copy path',
   'conversation.reference.addToChat': 'Add to chat',
+  'conversation.reference.addAsAttachment': 'Add as attachment',
   'conversation.reference.openInExplorer': 'Open in Explorer',
   'conversation.reference.skillPathUnavailable': 'Skill path is not available',
   'conversation.reference.openFailed': 'Could not open this path',

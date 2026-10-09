@@ -3055,6 +3055,7 @@ export const MESSAGES_JA = {
   'conversation.reference.defaultApp': 'デフォルトのアプリ',
   'conversation.reference.copyPath': 'パスをコピーする',
   'conversation.reference.addToChat': 'チャットに追加',
+  'conversation.reference.addAsAttachment': '添付ファイルとして追加',
   'conversation.reference.openInExplorer': 'エクスプローラーで開く',
   'conversation.reference.skillPathUnavailable': 'スキルパスは利用できません',
   'conversation.reference.openFailed': 'このパスを開けませんでした',

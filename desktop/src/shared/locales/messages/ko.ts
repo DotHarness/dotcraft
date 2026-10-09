@@ -3057,6 +3057,7 @@ export const MESSAGES_KO = {
   'conversation.reference.defaultApp': '기본 앱',
   'conversation.reference.copyPath': '경로 복사',
   'conversation.reference.addToChat': '채팅에 추가',
+  'conversation.reference.addAsAttachment': '첨부 파일로 추가',
   'conversation.reference.openInExplorer': '탐색기에서 열기',
   'conversation.reference.skillPathUnavailable': '스킬 경로를 사용할 수 없습니다.',
   'conversation.reference.openFailed': '이 경로를 열 수 없습니다.',
