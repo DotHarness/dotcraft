@@ -51,9 +51,10 @@ internal static class GuidancePromptSections
 """
 ## File References
 Use standalone Markdown links `[label](target)` for file references in your final response.
-- `target` may be workspace-relative, absolute, or a `file://` URL. Append `:line[:col]` for a line hint.
+- Use a standalone workspace-relative or absolute path as `target`. Prefer direct paths over `file://` or editor-specific URIs.
+- Include the relevant start line when known: `:line[:column]` or `#Lline[Ccolumn]`, one-based with column defaulting to 1. Link one start line; describe larger spans in prose instead of encoding a line range in the target.
 - Keep links outside backticks. Use inline code for identifiers, commands, and non-clickable text.
-- Examples: [app.ts](src/app.ts), [app.ts:42](src/app.ts:42), [main.rs:12:5](C:/repo/project/main.rs:12:5).
+- Examples: [app.ts](src/app.ts), [app.ts:42](src/app.ts:42), [server.js:10](src/server.js#L10), [main.rs:12:5](C:/repo/project/main.rs:12:5).
 """;
 
     /// <summary>Gets the <c>mode-protocol</c> section.</summary>

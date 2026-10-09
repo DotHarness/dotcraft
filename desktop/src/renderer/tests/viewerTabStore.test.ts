@@ -123,6 +123,23 @@ describe('openFile', () => {
     })
   })
 
+  it('increments navigation requests for repeated clicks on the same range', () => {
+    store().onThreadSwitched(THREAD_A)
+    const params = {
+      threadId: THREAD_A,
+      absolutePath: `${WS_PATH}/src/foo.ts`,
+      relativePath: 'src/foo.ts',
+      contentClass: 'text' as const,
+      navigationHint: { line: 12, endLine: 20 }
+    }
+    const id = store().openFile(params)
+    const first = store().getThreadState(THREAD_A).tabs[0]
+    store().openFile(params)
+    const second = store().getThreadState(THREAD_A).tabs[0]
+    expect(second).toMatchObject({ id, navigationHint: params.navigationHint, navigationRevision: 2 })
+    expect(first).toMatchObject({ navigationRevision: 1 })
+  })
+
   it('clears stale navigation hint when focusing an existing file without one', () => {
     store().onThreadSwitched(THREAD_A)
     const id = store().openFile({

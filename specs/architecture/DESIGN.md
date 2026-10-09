@@ -1756,6 +1756,12 @@ Content beside the conversation stays quieter than the conversation itself. The 
   Mermaid reuses the existing renderer. The header owns View source /
   View preview. Each mode retains its own selection and scroll position, with
   history restored only for the matching content version.
+- File-link navigation uses a restrained full-line background and gutter marker,
+  derived from semantic `--bg-navigation` and `--border-navigation` tokens. It is
+  distinct from selection, the active editing line and search matches, preserves
+  syntax colors, and follows light, dark and custom theme seeds without a fixed
+  palette. Reading and focus retain it; editing or deliberate selection movement
+  dismisses it. It is not a text selection or a timed flash.
 - The floating editor toolbar sits 16px from the bottom and right, with compact
   undo/redo controls, 1px gaps, 4px padding, a neutral border, 8px corners, a 90%
   elevated surface and backdrop blur. This is a local exception to the opaque

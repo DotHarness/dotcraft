@@ -127,7 +127,7 @@ function terminalDefaultLabel(tabs: ViewerTab[], tabIndex: number): string {
 }
 
 function applyFileNavigationHint(tab: FileViewerTab, navigationHint?: FileNavigationHint): FileViewerTab {
-  const next: FileViewerTab = { ...tab }
+  const next: FileViewerTab = { ...tab, navigationRevision: (tab.navigationRevision ?? 0) + 1 }
   if (navigationHint) {
     next.navigationHint = { ...navigationHint }
   } else {
@@ -299,6 +299,7 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
       relativePath,
       label: relativePath, // will be recomputed by computeLabels
       contentClass,
+      navigationRevision: 1,
       ...(sizeBytes !== undefined ? { sizeBytes } : {}),
       ...(navigationHint ? { navigationHint: { ...navigationHint } } : {})
     }

@@ -60,6 +60,9 @@ beforeAll(() => {
 describe('MarkdownRenderer', () => {
   beforeEach(() => {
     openExternal.mockReset()
+    authorizeFile.mockReset()
+    classify.mockReset()
+    window.getSelection()?.removeAllRanges()
     settingsSet.mockReset()
     shellListEditors.mockResolvedValue([
       { id: 'explorer', labelKey: 'editors.explorer', iconKey: 'explorer' },
@@ -467,6 +470,110 @@ describe('MarkdownRenderer', () => {
         contentClass: 'pdf'
       })
     }
+  })
+
+  it.each([
+    ['Test.cpp:123', 'Test.cpp', { line: 123 }],
+    ['Demo.h:12-20', 'Demo.h', { line: 12, endLine: 20 }],
+    ['File.tsx:50:3', 'File.tsx', { line: 50, column: 3 }],
+    ['Demo.h#L12-L20', 'Demo.h', { line: 12, endLine: 20 }]
+  ])('opens a Markdown file location and forwards its navigation hint: %s', async (target, file, navigationHint) => {
+    renderWithLocale(`[location](${target})`)
+    fireEvent.click(screen.getByRole('link', { name: 'location' }), { detail: 1 })
+
+    await waitFor(() => {
+      expect(authorizeFile).toHaveBeenCalledWith({ absolutePath: `F:/workspace/${file}` })
+      expect(useViewerTabStore.getState().getThreadState('thread-1').tabs).toEqual([
+        expect.objectContaining({ kind: 'file', absolutePath: `F:/workspace/${file}`, navigationHint })
+      ])
+    })
+  })
+
+  it.each(['javascript:123', 'https:123', 'data:123', 'vbscript:123'])(
+    'keeps numeric non-file schemes blocked in Markdown: %s', (target) => {
+      renderWithLocale(`[unsafe](${target})`)
+      const anchor = screen.getByText('unsafe').closest('a')!
+      if (target !== 'https:123') expect(anchor.getAttribute('href')).toBe('')
+      fireEvent.click(anchor, { detail: 1 })
+      expect(authorizeFile).not.toHaveBeenCalled()
+      expect(openExternal).not.toHaveBeenCalled()
+      expect(useViewerTabStore.getState().getThreadState('thread-1').tabs).toHaveLength(0)
+    }
+  )
+
+  it('does not relax the image URL sanitizer for bare file locations', () => {
+    renderWithLocale('![image](Test.cpp:123)')
+    expect(screen.getByRole('img', { name: 'image' }).getAttribute('src')).toBeNull()
+  })
+
+  it('preserves selected reference text without navigating on mouse activation', () => {
+    renderWithLocale('[FileEditorComments.tsx:50](FileEditorComments.tsx:50)')
+    const anchor = screen.getByRole('link', { name: 'FileEditorComments.tsx' })
+    const text = anchor.querySelector('span')!.firstChild!
+    const range = document.createRange()
+    range.setStart(text, 0)
+    range.setEnd(text, 18)
+    window.getSelection()?.addRange(range)
+
+    fireEvent.click(anchor, { detail: 1 })
+
+    expect(window.getSelection()?.toString()).toBe('FileEditorComments')
+    expect(authorizeFile).not.toHaveBeenCalled()
+    expect(useViewerTabStore.getState().getThreadState('thread-1').tabs).toHaveLength(0)
+  })
+
+  it('does not navigate when a cross-element text selection overlaps the reference', () => {
+    renderWithLocale('Before [source](Demo.h:12-20) after')
+    const anchor = screen.getByRole('link', { name: 'source' })
+    const range = document.createRange()
+    range.setStart(anchor.parentElement!.firstChild!, 0)
+    range.setEnd(anchor.querySelector('span')!.firstChild!, 3)
+    window.getSelection()?.addRange(range)
+
+    fireEvent.click(anchor, { detail: 1 })
+
+    expect(authorizeFile).not.toHaveBeenCalled()
+  })
+
+  it('allows navigation when the selected text is outside the activated reference', async () => {
+    renderWithLocale('**Unrelated** [source](Demo.h:12-20)')
+    const range = document.createRange()
+    range.selectNodeContents(screen.getByText('Unrelated'))
+    window.getSelection()?.addRange(range)
+
+    fireEvent.click(screen.getByRole('link', { name: 'source' }), { detail: 1 })
+
+    await waitFor(() => expect(authorizeFile).toHaveBeenCalledWith({ absolutePath: 'F:/workspace/Demo.h' }))
+  })
+
+  it('allows keyboard activation even when the reference text is selected', async () => {
+    renderWithLocale('[source](Test.cpp:123)')
+    const anchor = screen.getByRole('link', { name: 'source' })
+    const range = document.createRange()
+    range.selectNodeContents(anchor)
+    window.getSelection()?.addRange(range)
+
+    fireEvent.click(anchor, { detail: 0 })
+
+    await waitFor(() => expect(authorizeFile).toHaveBeenCalledWith({ absolutePath: 'F:/workspace/Test.cpp' }))
+  })
+
+  it('cancels native link dragging in conversation Markdown without navigating', () => {
+    renderWithLocale('[source](Test.cpp:123)')
+    expect(fireEvent.dragStart(screen.getByRole('link', { name: 'source' }))).toBe(false)
+    expect(authorizeFile).not.toHaveBeenCalled()
+  })
+
+  it('leaves external preview link activation unchanged when text is selected', () => {
+    renderWithLocale('[docs](https://example.com/docs)', { linkMode: 'external' })
+    const anchor = screen.getByRole('link', { name: 'docs' })
+    const range = document.createRange()
+    range.selectNodeContents(anchor)
+    window.getSelection()?.addRange(range)
+
+    fireEvent.click(anchor, { detail: 1 })
+
+    expect(openExternal).toHaveBeenCalledWith('https://example.com/docs')
   })
 
   it('opens encoded workspace-external paths with spaces and backslashes', async () => {

@@ -12,7 +12,7 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { openConversationLink } from '../../utils/conversationDeepLink'
 import { basename } from '../../utils/path'
-import { resolveConversationLink } from '../../../shared/viewer/linkResolver'
+import { isBareFileLocationLinkTarget, resolveConversationLink } from '../../../shared/viewer/linkResolver'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ReferencePathContextMenu } from './ReferencePathContextMenu'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
@@ -372,6 +372,7 @@ function InlineReferenceLink({
 
   async function handleClick(event: React.MouseEvent<HTMLAnchorElement>): Promise<void> {
     event.preventDefault()
+    if (linkMode === 'conversation' && event.detail !== 0 && selectionOverlapsReference(event.currentTarget)) return
     if (!href) return
     if (linkMode === 'external') {
       const externalUrl = resolveExternalMarkdownUrl(href)
@@ -412,6 +413,9 @@ function InlineReferenceLink({
         href={href}
         onClick={(event) => { void handleClick(event) }}
         onContextMenu={handleContextMenu}
+        draggable={linkMode === 'conversation' ? false : undefined}
+        onDragStart={linkMode === 'conversation' ? (event) => event.preventDefault() : undefined}
+        data-conversation-reference={linkMode === 'conversation' ? '' : undefined}
         data-inline-reference-kind={presentation.kind}
         // Shares the .dc-ref rules with the composer pills and user-message refs.
         className={`dc-ref ${presentation.kind === 'file' ? 'dc-ref-file' : 'dc-ref-link'}`}
@@ -447,9 +451,18 @@ function InlineReferenceLink({
   )
 }
 
+function selectionOverlapsReference(anchor: HTMLAnchorElement): boolean {
+  const selection = anchor.ownerDocument.getSelection()
+  if (!selection || selection.isCollapsed) return false
+  for (let index = 0; index < selection.rangeCount; index++) {
+    if (selection.getRangeAt(index).intersectsNode(anchor)) return true
+  }
+  return false
+}
+
 function markdownUrlTransform(url: string, key: string): string | null | undefined {
   const trimmed = url.trim()
-  if (key === 'href' && isLocalFileLinkTarget(trimmed)) return trimmed
+  if (key === 'href' && (isLocalFileLinkTarget(trimmed) || isBareFileLocationLinkTarget(trimmed))) return trimmed
   return defaultUrlTransform(url)
 }
 

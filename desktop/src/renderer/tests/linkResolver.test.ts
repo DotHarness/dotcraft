@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeBrowserUrl, resolveConversationLink } from '../../shared/viewer/linkResolver'
+import { isBareFileLocationLinkTarget, normalizeBrowserUrl, resolveConversationLink } from '../../shared/viewer/linkResolver'
 
 describe('resolveConversationLink', () => {
   const workspacePath = 'C:/repo'
@@ -160,7 +160,60 @@ describe('resolveConversationLink', () => {
     expect(resolveConversationLink({
       target: './a.md#L4-L9',
       workspacePath
-    })).toEqual({ kind: 'file', absolutePath: 'C:/repo/a.md', hint: { line: 4 } })
+    })).toEqual({ kind: 'file', absolutePath: 'C:/repo/a.md', hint: { line: 4, endLine: 9 } })
+  })
+
+  it.each([
+    ['Test.cpp:123', 'Test.cpp', { line: 123 }],
+    ['Demo.h:12-20', 'Demo.h', { line: 12, endLine: 20 }],
+    ['Test.cpp:123:7', 'Test.cpp', { line: 123, column: 7 }],
+    ['Demo.h#L12-L20', 'Demo.h', { line: 12, endLine: 20 }],
+    ['Demo.h#L12C3-L20C7', 'Demo.h', { line: 12, column: 3, endLine: 20 }],
+    ['Demo.h#L12-20', 'Demo.h', { line: 12, endLine: 20 }],
+    ['src/my%20demo.cpp:12-20', 'src/my demo.cpp', { line: 12, endLine: 20 }]
+  ])('preserves navigation locations from %s', (target, file, hint) => {
+    expect(resolveConversationLink({ target, workspacePath })).toEqual({
+      kind: 'file', absolutePath: `${workspacePath}/${file}`, hint
+    })
+  })
+
+  it.each([':0', ':1:0', ':9007199254740992', ':1:9007199254740992', ':20-12', ':1-0', ':1-9007199254740992'])(
+    'ignores invalid numeric locations %s while retaining the file path', (suffix) => {
+      expect(resolveConversationLink({ target: `./Demo.h${suffix}`, workspacePath })).toEqual({
+        kind: 'file', absolutePath: 'C:/repo/Demo.h'
+      })
+    }
+  )
+
+  it.each(['L0', 'L9007199254740992', 'L12C0', 'L20-L12', 'L12C3-L12C2', 'L12-L20C0'])(
+    'retains invalid line fragments %s as ordinary fragments', (fragment) => {
+      expect(resolveConversationLink({ target: `Demo.h#${fragment}`, workspacePath })).toEqual({
+        kind: 'file', absolutePath: 'C:/repo/Demo.h', hint: { fragment }
+      })
+    }
+  )
+
+  it('keeps query and ordinary fragment decorations on bare filename locations', () => {
+    expect(resolveConversationLink({ target: 'Test.cpp:123?mode=source#details', workspacePath })).toEqual({
+      kind: 'file', absolutePath: 'C:/repo/Test.cpp', hint: { line: 123, query: 'mode=source', fragment: 'details' }
+    })
+  })
+
+  it('supports locations on file URLs without decoding filename decorations', () => {
+    expect(resolveConversationLink({ target: 'file:///C:/repo/a%23b.cpp:12-20', workspacePath })).toEqual({
+      kind: 'file', absolutePath: 'C:/repo/a#b.cpp', hint: { line: 12, endLine: 20 }
+    })
+  })
+
+  it.each(['javascript:123', 'https:123', 'data:12-20', 'vbscript:123', 'custom:123'])(
+    'does not reinterpret numeric schemes as files: %s', (target) => {
+      expect(resolveConversationLink({ target, workspacePath })).toEqual({ kind: 'reject', reason: 'unsupported-scheme' })
+    }
+  )
+
+  it('does not extract file navigation hints from browser URL fragments', () => {
+    const target = 'https://github.com/org/repo/blob/main/Demo.h#L12-L20'
+    expect(resolveConversationLink({ target, workspacePath })).toEqual({ kind: 'browser', url: target })
   })
 
   it('does not decode http URLs', () => {
@@ -169,6 +222,20 @@ describe('resolveConversationLink', () => {
       workspacePath
     })).toEqual({ kind: 'browser', url: 'https://example.com/a%20b' })
   })
+})
+
+describe('isBareFileLocationLinkTarget', () => {
+  it.each(['Test.cpp:123', 'Demo.h:12-20', 'File.tsx:50:3', 'my%20file.cpp:12', 'Test.cpp:123?mode=source#details'])(
+    'allows a bare filename with a safe location: %s', (target) => {
+      expect(isBareFileLocationLinkTarget(target)).toBe(true)
+    }
+  )
+
+  it.each(['javascript:123', 'https:123', 'data:123', 'file:123', 'Test.cpp:0', 'Demo.h:20-12', 'Demo.h:9007199254740992', 'javascript%3Aalert.cpp:12', 'Test%00.cpp:12', 'src/Test.cpp:123', 'Test.cpp'])(
+    'does not relax the URL sanitizer for %s', (target) => {
+      expect(isBareFileLocationLinkTarget(target)).toBe(false)
+    }
+  )
 })
 
 describe('normalizeBrowserUrl', () => {

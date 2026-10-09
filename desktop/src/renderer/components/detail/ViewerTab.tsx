@@ -156,6 +156,7 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
                 markdown={markdown}
                 wordWrap={wordWrap}
                 navigationHint={tab.navigationHint}
+                navigationRevision={tab.navigationRevision}
               />
             )}
             {tab.contentClass === 'image' && (
