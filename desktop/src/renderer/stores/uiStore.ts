@@ -187,10 +187,6 @@ export interface UIState {
   /** Generic one-shot auto-show reasons to avoid repeated auto-open fights. */
   autoShowReasons: Set<string>
   composerPrefill: string | null
-  composerFileAttachmentRequest: {
-    id: number
-    file: ComposerFileAttachment
-  } | null
   composerImageAttachmentRequest: {
     id: number
     image: ComposerImageAttachmentRequest
@@ -273,9 +269,6 @@ interface UIStore extends UIState {
   setComposerPrefill(text: string): void
   /** Read and clear the prefill text atomically. */
   consumeComposerPrefill(): string | null
-  requestComposerFileAttachment(file: ComposerFileAttachment): void
-  /** Read and clear the pending file attachment atomically. */
-  consumeComposerFileAttachmentRequest(): ComposerFileAttachment | null
   requestComposerImageAttachment(image: ComposerImageAttachmentRequest): void
   consumeComposerImageAttachmentRequest(): ComposerImageAttachmentRequest | null
   setPendingWelcomeTurn(payload: PendingWelcomeTurnInput | null): void
@@ -390,7 +383,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   autoShowPlanForItem: null,
   autoShowReasons: new Set<string>(),
   composerPrefill: null,
-  composerFileAttachmentRequest: null,
   composerImageAttachmentRequest: null,
   pendingWelcomeTurn: null,
   pendingThreadCreation: null,
@@ -801,21 +793,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     const text = get().composerPrefill
     set({ composerPrefill: null })
     return text
-  },
-
-  requestComposerFileAttachment(file) {
-    set({
-      composerFileAttachmentRequest: {
-        id: Date.now(),
-        file
-      }
-    })
-  },
-
-  consumeComposerFileAttachmentRequest() {
-    const request = get().composerFileAttachmentRequest
-    set({ composerFileAttachmentRequest: null })
-    return request?.file ?? null
   },
 
   requestComposerImageAttachment(image) {

@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReferencePathContextMenu } from '../components/conversation/ReferencePathContextMenu'
 import { LocaleProvider } from '../contexts/LocaleContext'
-import { useUIStore } from '../stores/uiStore'
+import { useComposerFileReferenceStore } from '../stores/composerFileReferenceStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
@@ -21,7 +21,7 @@ describe('ReferencePathContextMenu', () => {
         iconKey: 'explorer'
       }
     ])
-    useUIStore.setState({ composerFileAttachmentRequest: null })
+    useComposerFileReferenceStore.setState({ pendingByScope: new Map() })
     installDesktopApiMock({
       settings: {
         get: settingsGet,
@@ -36,7 +36,7 @@ describe('ReferencePathContextMenu', () => {
     })
   })
 
-  it('queues the selected file for the active composer', async () => {
+  it('requests an inline file reference for the active composer', async () => {
     const onClose = vi.fn()
     render(
       <LocaleProvider>
@@ -52,13 +52,13 @@ describe('ReferencePathContextMenu', () => {
       await Promise.resolve()
     })
 
+    expect(screen.queryByRole('menuitem', { name: 'Add as attachment' })).toBeNull()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Add to chat' }))
 
-    expect(useUIStore.getState().composerFileAttachmentRequest?.file).toEqual({
-      path: 'C:\\sample\\workspace\\.dockerignore',
-      fileName: '.dockerignore'
-    })
-    expect(onClose).toHaveBeenCalled()
+    expect(useComposerFileReferenceStore.getState().pendingByScope.get(null)).toEqual([
+      'C:\\sample\\workspace\\.dockerignore'
+    ])
+    expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('omits Add to chat for directory targets', async () => {
@@ -78,5 +78,6 @@ describe('ReferencePathContextMenu', () => {
     })
 
     expect(screen.queryByRole('menuitem', { name: 'Add to chat' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'Add as attachment' })).toBeNull()
   })
 })

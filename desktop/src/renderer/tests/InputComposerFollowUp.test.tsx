@@ -67,6 +67,7 @@ describe('InputComposer follow-up routing', () => {
       settings: { get: async () => ({ locale: 'en' }), set: settingsSet },
       appServer: { sendRequest, onNotification: undefined },
       git: { listBranches: async () => ({ current: 'main', detachedHead: null, branches: [{ name: 'main', current: true }] }) },
+      workspace: { getPathForFile: () => 'X:\\fixtures\\workspace\\notes.md' },
       voice: undefined
     })
     useConversationStore.getState().reset()
@@ -80,7 +81,7 @@ describe('InputComposer follow-up routing', () => {
     useComposerPreferencesStore.setState({ followUpQueueMode: 'steer', saving: false })
     useComposerDraftStore.setState({ draftsByThread: {} })
     useToastStore.setState({ toasts: [] })
-    useUIStore.setState({ composerPrefill: null, composerFileAttachmentRequest: null, pendingWelcomeTurn: null })
+    useUIStore.setState({ composerPrefill: null, pendingWelcomeTurn: null })
     useVoiceStore.setState({ initialized: false, recording: null, finalizing: null,
       snapshot: { model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }, chatGpt: { signedIn: false, enabled: true }, sessions: [], capacity: 2 } })
     useConversationStore.setState({ turnStatus: 'running', activeTurnId: 'turn-123' })
@@ -189,7 +190,13 @@ describe('InputComposer follow-up routing', () => {
     const method = mode === 'queue' ? 'turn/enqueue' : 'turn/steer'
     sendRequest.mockImplementation((name: string) => name === method ? Promise.reject(new Error('turn changed')) : Promise.resolve({}))
     renderComposer()
-    act(() => useUIStore.getState().requestComposerFileAttachment({ path: 'X:\\fixtures\\workspace\\notes.md', fileName: 'notes.md' }))
+    fireEvent.drop(screen.getByRole('textbox'), {
+      dataTransfer: {
+        types: ['Files'],
+        files: [new File(['notes'], 'notes.md', { type: 'text/markdown' })],
+        items: []
+      }
+    })
     const textbox = draft('keep attached request')
     fireEvent.keyDown(textbox, { key: 'Enter' })
     await waitFor(() => expect(useToastStore.getState().toasts.length).toBe(1))

@@ -22,6 +22,7 @@ import {
 } from './richInputSerialization'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { usePetEditorBridge } from '../desktopPet/editorBridge'
+import { useRichInputSelectionReferences } from './useRichInputSelectionReferences'
 
 const MAX_ROWS = 8
 const MAX_TEXT_LEN = 100_000
@@ -43,6 +44,7 @@ export interface RichInputAreaHandle {
   endCommandQuery: () => void
   removeCommandQuery: () => void
   insertFileTag: (relativePath: string) => void
+  insertFileTagAtSelection: (relativePath: string) => void
   insertCommandTag: (commandName: string) => void
   insertSkillTag: (skillName: string) => void
   insertThreadTag: (threadId: string, title: string) => void
@@ -523,12 +525,11 @@ export const RichInputArea = forwardRef(function RichInputArea(
     )
 
     const replaceLinearRangeWithRef = useCallback(
-      (kind: RefType, value: string, targetRange: SelectionRange, title?: string): void => {
+      (kind: RefType, value: string, targetRange: SelectionRange, title?: string, leadingSpace = false): void => {
         const el = editorRef.current
         if (!el) return
-        const startLoc = walkToLinearOffset(el, targetRange.start)
-        const endLoc = walkToLinearOffset(el, targetRange.end)
-        if (!startLoc || !endLoc) return
+        const startLoc = locateLinearBoundary(el, targetRange.start)
+        const endLoc = locateLinearBoundary(el, targetRange.end)
         const range = document.createRange()
         try {
           range.setStart(startLoc.node, startLoc.offset)
@@ -536,6 +537,12 @@ export const RichInputArea = forwardRef(function RichInputArea(
           range.deleteContents()
         } catch {
           return
+        }
+        if (leadingSpace) {
+          const prefix = document.createTextNode(' ')
+          range.insertNode(prefix)
+          range.setStartAfter(prefix)
+          range.collapse(true)
         }
         const span = createRefSpan(kind, value, title)
         const space = document.createTextNode('\u00a0')
@@ -550,6 +557,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
         const sel = window.getSelection()
         sel?.removeAllRanges()
         sel?.addRange(range)
+        captureSelectionRange()
         commandQueryRangeRef.current = null
         onAtQuery?.(null)
         onSlashQuery?.(null)
@@ -559,7 +567,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
         adjustHeight()
         onContentChange?.()
       },
-      [adjustHeight, onAtQuery, onCommandQuery, onContentChange, onSkillQuery, onSlashQuery, syncEmpty]
+      [adjustHeight, captureSelectionRange, onAtQuery, onCommandQuery, onContentChange, onSkillQuery, onSlashQuery, syncEmpty]
     )
 
     const replaceQueryRangeWithRef = useCallback(
@@ -640,17 +648,13 @@ export const RichInputArea = forwardRef(function RichInputArea(
       [replaceQueryRangeWithRef]
     )
 
-    const insertThreadTagAtSelection = useCallback(
-      (threadId: string, title: string): void => {
-        const el = editorRef.current
-        if (!el) return
-        const length = linearLengthOfNode(el)
-        const { start, end } = getSelectionRange() ?? { start: length, end: length }
-        el.focus()
-        replaceLinearRangeWithRef('thread', threadId, { start: Math.min(start, length), end: Math.min(end, length) }, title)
-      },
-      [getSelectionRange, replaceLinearRangeWithRef]
-    )
+    const { insertFileTagAtSelection, insertThreadTagAtSelection } = useRichInputSelectionReferences({
+      editorRef,
+      disabled,
+      getSelectionRange,
+      linearize: linearizeForTriggers,
+      replaceRange: replaceLinearRangeWithRef
+    })
 
     const insertCommandTag = useCallback(
       (commandName: string): void => {
@@ -777,6 +781,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
         endCommandQuery,
         removeCommandQuery,
         insertFileTag,
+        insertFileTagAtSelection,
         insertCommandTag,
         insertSkillTag,
         insertThreadTag,
@@ -796,6 +801,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
         removeCommandQuery,
         insertCommandTag,
         insertFileTag,
+        insertFileTagAtSelection,
         insertSkillTag,
         insertThreadTag,
         insertThreadTagAtSelection,
@@ -1210,7 +1216,10 @@ export const RichInputArea = forwardRef(function RichInputArea(
             captureSelectionRange()
             onFocusChange?.(true)
           }}
-          onBlur={() => onFocusChange?.(false)}
+          onBlur={() => {
+            captureSelectionRange()
+            onFocusChange?.(false)
+          }}
           className="rich-input-area"
           style={{
             position: 'relative',
