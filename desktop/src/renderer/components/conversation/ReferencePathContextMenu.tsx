@@ -4,6 +4,7 @@ import { ChevronRight, Copy, ExternalLink, FolderOpen, MessageSquarePlus, Paperc
 import { useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useComposerFileReferenceStore } from '../../stores/composerFileReferenceStore'
 import { normalizeComposerFileAttachment } from '../../utils/composerAttachments'
 import {
   EDITOR_ICON_SIZE,
@@ -138,7 +139,7 @@ export function ReferencePathContextMenu({
   }
 
   function addToChat(): void {
-    useUIStore.getState().requestComposerFileReference(targetPath)
+    useComposerFileReferenceStore.getState().request(targetPath)
   }
 
   function addAsAttachment(): void {

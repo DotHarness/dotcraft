@@ -15,6 +15,7 @@ import { useGitStore } from '../stores/gitStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
+import { useComposerFileReferenceStore } from '../stores/composerFileReferenceStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
 import { useSkillsStore } from '../stores/skillsStore'
 import { useToastStore } from '../stores/toastStore'
@@ -86,6 +87,7 @@ describe('file references in real composer draft lifecycles', () => {
       }))
     })
     useComposerDraftStore.setState({ draftsByThread: {} })
+    useComposerFileReferenceStore.setState({ pendingByScope: new Map() })
     useComposerContextStore.setState({ byThread: {}, restoreRequests: {} })
     useSkillsStore.setState({ skills: [], loading: false, error: null })
     useToastStore.setState({ toasts: [] })
@@ -94,7 +96,6 @@ describe('file references in real composer draft lifecycles', () => {
     useUIStore.setState({
       activeMainView: 'conversation',
       composerPrefill: null,
-      composerFileReferenceRequest: null,
       composerFileAttachmentRequest: null,
       composerImageAttachmentRequest: null,
       pendingWelcomeTurn: null,
@@ -123,8 +124,8 @@ describe('file references in real composer draft lifecycles', () => {
     useThreadStore.setState({ activeThreadId: 'thread-1' })
     saveThreadDraft('thread-1', 'Keep this draft')
     act(() => {
-      useUIStore.getState().requestComposerFileReference(filePath)
-      useUIStore.getState().requestComposerFileReference(workspacePath + '\\src\\second.ts')
+      useComposerFileReferenceStore.getState().request(filePath)
+      useComposerFileReferenceStore.getState().request(workspacePath + '\\src\\second.ts')
     })
 
     const view = renderThread('thread-1')
@@ -136,7 +137,7 @@ describe('file references in real composer draft lifecycles', () => {
       { type: 'text', value: '\u00a0' }
     ]
     await waitFor(() => expect(segments()).toEqual(expected))
-    expect(useUIStore.getState().composerFileReferenceRequest).toBeNull()
+    expect(useComposerFileReferenceStore.getState().pendingByScope.size).toBe(0)
     view.unmount()
     expect(useComposerDraftStore.getState().getDraft('thread-1')?.segments).toEqual(expected)
 
@@ -156,7 +157,7 @@ describe('file references in real composer draft lifecycles', () => {
       capabilities: { commandManagement: true, skillsManagement: true }
     })
     savePlainComposerDraft(welcomeScopeKey(workspacePath), 'Saved welcome text')
-    act(() => useUIStore.getState().requestComposerFileReference(filePath))
+    act(() => useComposerFileReferenceStore.getState().request(filePath))
 
     const view = renderWelcome()
     await waitFor(() => {
@@ -164,11 +165,11 @@ describe('file references in real composer draft lifecycles', () => {
       expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', {})
     })
     expect(segments()).toEqual([])
-    expect(useUIStore.getState().composerFileReferenceRequest).not.toBeNull()
+    expect(useComposerFileReferenceStore.getState().pendingByScope.has(welcomeScopeKey(workspacePath))).toBe(true)
 
     await act(async () => { commands.resolve({ commands: [] }) })
     expect(segments()).toEqual([])
-    expect(useUIStore.getState().composerFileReferenceRequest).not.toBeNull()
+    expect(useComposerFileReferenceStore.getState().pendingByScope.has(welcomeScopeKey(workspacePath))).toBe(true)
 
     await act(async () => { skills.resolve({ skills: [] }) })
     const expected = [
@@ -177,7 +178,7 @@ describe('file references in real composer draft lifecycles', () => {
       { type: 'text', value: '\u00a0' }
     ]
     await waitFor(() => expect(segments()).toEqual(expected))
-    expect(useUIStore.getState().composerFileReferenceRequest).toBeNull()
+    expect(useComposerFileReferenceStore.getState().pendingByScope.size).toBe(0)
     view.unmount()
     expect(useUIStore.getState().getWelcomeDraftForWorkspace(workspacePath)?.segments).toEqual(expected)
   })
@@ -186,13 +187,13 @@ describe('file references in real composer draft lifecycles', () => {
     useThreadStore.setState({ activeThreadId: 'thread-1' })
     saveThreadDraft('thread-1', 'First draft')
     saveThreadDraft('thread-2', 'Second draft')
-    act(() => useUIStore.getState().requestComposerFileReference(filePath))
-    const pending = useUIStore.getState().composerFileReferenceRequest
+    act(() => useComposerFileReferenceStore.getState().request(filePath))
+    const pending = useComposerFileReferenceStore.getState().pendingByScope
     useThreadStore.setState({ activeThreadId: 'thread-2' })
 
     const other = renderThread('thread-2')
     await waitFor(() => expect(segments()).toEqual([{ type: 'text', value: 'Second draft' }]))
-    expect(useUIStore.getState().composerFileReferenceRequest).toEqual(pending)
+    expect(useComposerFileReferenceStore.getState().pendingByScope).toEqual(pending)
     other.unmount()
     expect(useComposerDraftStore.getState().getDraft('thread-2')?.segments).toEqual([
       { type: 'text', value: 'Second draft' }
@@ -205,7 +206,61 @@ describe('file references in real composer draft lifecycles', () => {
       { type: 'file', relativePath: 'src/file with spaces.ts' },
       { type: 'text', value: '\u00a0' }
     ]))
-    expect(useUIStore.getState().composerFileReferenceRequest).toBeNull()
+    expect(useComposerFileReferenceStore.getState().pendingByScope.size).toBe(0)
+  })
+
+  it('inserts queued files for both threads when the second thread is opened first', async () => {
+    useThreadStore.setState({ activeThreadId: 'thread-1' })
+    saveThreadDraft('thread-1', 'First draft')
+    saveThreadDraft('thread-2', 'Second draft')
+    useComposerFileReferenceStore.getState().request(filePath)
+    useThreadStore.setState({ activeThreadId: 'thread-2' })
+    useComposerFileReferenceStore.getState().request(workspacePath + '/src/second.ts')
+
+    const second = renderThread('thread-2')
+    await waitFor(() => expect(segments()).toEqual([
+      { type: 'text', value: 'Second draft ' },
+      { type: 'file', relativePath: 'src/second.ts' },
+      { type: 'text', value: '\u00a0' }
+    ]))
+    expect(useComposerFileReferenceStore.getState().pendingByScope.has('thread-1')).toBe(true)
+    second.unmount()
+
+    useThreadStore.setState({ activeThreadId: 'thread-1' })
+    renderThread('thread-1')
+    await waitFor(() => expect(segments()).toEqual([
+      { type: 'text', value: 'First draft ' },
+      { type: 'file', relativePath: 'src/file with spaces.ts' },
+      { type: 'text', value: '\u00a0' }
+    ]))
+    expect(useComposerFileReferenceStore.getState().pendingByScope.size).toBe(0)
+  })
+
+  it('preserves both welcome queues while each project waits for its composer', async () => {
+    const otherProject = 'other-project'
+    savePlainComposerDraft(welcomeScopeKey(workspacePath), 'First welcome')
+    savePlainComposerDraft(welcomeScopeKey(otherProject), 'Second welcome')
+    useComposerFileReferenceStore.getState().request(filePath)
+    useViewerTabStore.setState({ welcomeScopeId: welcomeScopeKey(otherProject) })
+    useComposerFileReferenceStore.getState().request(workspacePath + '/src/second.ts')
+
+    const second = renderWelcome(otherProject)
+    await waitFor(() => expect(segments()).toEqual([
+      { type: 'text', value: 'Second welcome ' },
+      { type: 'file', relativePath: 'src/second.ts' },
+      { type: 'text', value: '\u00a0' }
+    ]))
+    expect(useComposerFileReferenceStore.getState().pendingByScope.has(welcomeScopeKey(workspacePath))).toBe(true)
+    second.unmount()
+
+    useViewerTabStore.setState({ welcomeScopeId: welcomeScopeKey(workspacePath) })
+    renderWelcome()
+    await waitFor(() => expect(segments()).toEqual([
+      { type: 'text', value: 'First welcome ' },
+      { type: 'file', relativePath: 'src/file with spaces.ts' },
+      { type: 'text', value: '\u00a0' }
+    ]))
+    expect(useComposerFileReferenceStore.getState().pendingByScope.size).toBe(0)
   })
 
   it('applies a new global prefill before inserting a simultaneous reference', async () => {
@@ -216,14 +271,14 @@ describe('file references in real composer draft lifecycles', () => {
 
     act(() => {
       useUIStore.getState().setComposerPrefill('Prefilled text')
-      useUIStore.getState().requestComposerFileReference(filePath)
+      useComposerFileReferenceStore.getState().request(filePath)
     })
     await waitFor(() => expect(segments()).toEqual([
       { type: 'text', value: 'Prefilled text ' },
       { type: 'file', relativePath: 'src/file with spaces.ts' },
       { type: 'text', value: '\u00a0' }
     ]))
-    expect(useUIStore.getState().composerFileReferenceRequest).toBeNull()
+    expect(useComposerFileReferenceStore.getState().pendingByScope.size).toBe(0)
   })
 
   it('waits for an embedded prefill request before consuming the file reference', async () => {
@@ -233,7 +288,7 @@ describe('file references in real composer draft lifecycles', () => {
     await waitFor(() => expect(segments()).toEqual([{ type: 'text', value: 'Old draft' }]))
 
     act(() => {
-      useUIStore.getState().requestComposerFileReference(filePath)
+      useComposerFileReferenceStore.getState().request(filePath)
       view.rerender(
         <LocaleProvider>
           <InputComposer
@@ -249,12 +304,12 @@ describe('file references in real composer draft lifecycles', () => {
       { type: 'file', relativePath: 'src/file with spaces.ts' },
       { type: 'text', value: '\u00a0' }
     ]))
-    expect(useUIStore.getState().composerFileReferenceRequest).toBeNull()
+    expect(useComposerFileReferenceStore.getState().pendingByScope.size).toBe(0)
   })
 
   it('does not consume a welcome reference in another project scope', async () => {
-    act(() => useUIStore.getState().requestComposerFileReference(filePath))
-    const pending = useUIStore.getState().composerFileReferenceRequest
+    act(() => useComposerFileReferenceStore.getState().request(filePath))
+    const pending = useComposerFileReferenceStore.getState().pendingByScope
     const otherProject = 'other-project'
     useViewerTabStore.setState({ welcomeScopeId: welcomeScopeKey(otherProject) })
     savePlainComposerDraft(welcomeScopeKey(otherProject), 'Other project draft')
@@ -263,6 +318,6 @@ describe('file references in real composer draft lifecycles', () => {
     await waitFor(() => expect(segments()).toEqual([
       { type: 'text', value: 'Other project draft' }
     ]))
-    expect(useUIStore.getState().composerFileReferenceRequest).toEqual(pending)
+    expect(useComposerFileReferenceStore.getState().pendingByScope).toEqual(pending)
   })
 })

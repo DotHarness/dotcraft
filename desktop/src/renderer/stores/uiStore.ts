@@ -187,7 +187,6 @@ export interface UIState {
   /** Generic one-shot auto-show reasons to avoid repeated auto-open fights. */
   autoShowReasons: Set<string>
   composerPrefill: string | null
-  composerFileReferenceRequest: { scopeId: string | null; paths: string[] } | null
   composerFileAttachmentRequest: {
     id: number
     file: ComposerFileAttachment
@@ -274,8 +273,6 @@ interface UIStore extends UIState {
   setComposerPrefill(text: string): void
   /** Read and clear the prefill text atomically. */
   consumeComposerPrefill(): string | null
-  requestComposerFileReference(path: string): void
-  consumeComposerFileReferenceRequest(scopeId: string | null): string[]
   requestComposerFileAttachment(file: ComposerFileAttachment): void
   /** Read and clear the pending file attachment atomically. */
   consumeComposerFileAttachmentRequest(): ComposerFileAttachment | null
@@ -393,7 +390,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   autoShowPlanForItem: null,
   autoShowReasons: new Set<string>(),
   composerPrefill: null,
-  composerFileReferenceRequest: null,
   composerFileAttachmentRequest: null,
   composerImageAttachmentRequest: null,
   pendingWelcomeTurn: null,
@@ -805,26 +801,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     const text = get().composerPrefill
     set({ composerPrefill: null })
     return text
-  },
-
-  requestComposerFileReference(path) {
-    if (!path.trim()) return
-    const scopeId = activeDetailScopeId()
-    set((state) => ({
-      composerFileReferenceRequest: {
-        scopeId,
-        paths: state.composerFileReferenceRequest?.scopeId === scopeId
-          ? [...state.composerFileReferenceRequest.paths, path]
-          : [path]
-      }
-    }))
-  },
-
-  consumeComposerFileReferenceRequest(scopeId) {
-    const request = get().composerFileReferenceRequest
-    if (!request || request.scopeId !== scopeId) return []
-    set({ composerFileReferenceRequest: null })
-    return request.paths
   },
 
   requestComposerFileAttachment(file) {

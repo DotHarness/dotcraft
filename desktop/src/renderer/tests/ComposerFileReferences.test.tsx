@@ -5,6 +5,7 @@ import { RichInputArea, type RichInputAreaHandle } from '../components/conversat
 import { useComposerFileReferenceRequest } from '../components/conversation/useComposerFileReferenceRequest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useUIStore } from '../stores/uiStore'
+import { useComposerFileReferenceStore } from '../stores/composerFileReferenceStore'
 import { useToastStore } from '../stores/toastStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
@@ -31,7 +32,8 @@ function fixture(props: ComposerProps = {}) {
 
 describe('composer file reference requests', () => {
   beforeEach(() => {
-    useUIStore.setState({ composerFileReferenceRequest: null, composerFileAttachmentRequest: null })
+    useUIStore.setState({ composerFileAttachmentRequest: null })
+    useComposerFileReferenceStore.setState({ pendingByScope: new Map() })
     useToastStore.setState({ toasts: [] })
     useThreadStore.setState({ activeThreadId: null })
     useViewerTabStore.setState({ welcomeScopeId: null })
@@ -45,14 +47,14 @@ describe('composer file reference requests', () => {
       editorRef.current!.setSelectionRange({ start: 6, end: 6 })
       screen.getByRole('textbox').blur()
       window.getSelection()?.removeAllRanges()
-      useUIStore.getState().requestComposerFileReference('c:\\WORKSPACE\\src\\file with spaces.ts')
+      useComposerFileReferenceStore.getState().request('c:\\WORKSPACE\\src\\file with spaces.ts')
     })
     await waitFor(() => expect(editorRef.current!.getSegments()).toEqual([
       { type: 'text', value: 'Check ' },
       { type: 'file', relativePath: 'src/file with spaces.ts' },
       { type: 'text', value: '\u00a0end' }
     ]))
-    expect(useUIStore.getState().composerFileReferenceRequest).toBeNull()
+    expect(useComposerFileReferenceStore.getState().pendingByScope.size).toBe(0)
     expect(useUIStore.getState().composerFileAttachmentRequest).toBeNull()
     expect(buildComposerInputParts({
       text: editorRef.current!.getText(),
@@ -66,7 +68,7 @@ describe('composer file reference requests', () => {
 
   it('retains an external absolute path rather than making it relative to the wrong root', async () => {
     fixture()
-    act(() => useUIStore.getState().requestComposerFileReference('D:\\other\\file.ts'))
+    act(() => useComposerFileReferenceStore.getState().request('D:\\other\\file.ts'))
     await waitFor(() => expect(editorRef.current!.getSegments()).toContainEqual({
       type: 'file', relativePath: 'D:/other/file.ts'
     }))
@@ -74,23 +76,23 @@ describe('composer file reference requests', () => {
 
   it('leaves a request pending while the composer is disabled and consumes it once editable', async () => {
     const view = fixture({ disabled: true })
-    act(() => useUIStore.getState().requestComposerFileReference('C:\\workspace\\src\\file.ts'))
+    act(() => useComposerFileReferenceStore.getState().request('C:\\workspace\\src\\file.ts'))
     expect(editorRef.current!.getSegments()).toEqual([])
-    expect(useUIStore.getState().composerFileReferenceRequest).not.toBeNull()
+    expect(useComposerFileReferenceStore.getState().pendingByScope.has(null)).toBe(true)
     view.rerender(<LocaleProvider><Composer /></LocaleProvider>)
     await waitFor(() => expect(editorRef.current!.getSegments()).toContainEqual({
       type: 'file', relativePath: 'src/file.ts'
     }))
-    expect(useUIStore.getState().composerFileReferenceRequest).toBeNull()
+    expect(useComposerFileReferenceStore.getState().pendingByScope.size).toBe(0)
   })
 
   it('does not let a different composer consume a request queued for a disabled thread', async () => {
     useThreadStore.setState({ activeThreadId: 'thread-a' })
     const view = fixture({ scopeId: 'thread-a', disabled: true })
-    act(() => useUIStore.getState().requestComposerFileReference('C:\\workspace\\src\\file.ts'))
+    act(() => useComposerFileReferenceStore.getState().request('C:\\workspace\\src\\file.ts'))
     view.rerender(<LocaleProvider><Composer scopeId="thread-b" /></LocaleProvider>)
     expect(editorRef.current!.getSegments()).toEqual([])
-    expect(useUIStore.getState().composerFileReferenceRequest?.scopeId).toBe('thread-a')
+    expect(useComposerFileReferenceStore.getState().pendingByScope.get('thread-a')).toEqual(['C:\\workspace\\src\\file.ts'])
     view.rerender(<LocaleProvider><Composer scopeId="thread-a" /></LocaleProvider>)
     await waitFor(() => expect(editorRef.current!.getSegments()).toContainEqual({
       type: 'file', relativePath: 'src/file.ts'
@@ -100,8 +102,8 @@ describe('composer file reference requests', () => {
   it('waits for draft hydration and inserts all pending files in order', async () => {
     const view = fixture({ ready: false })
     act(() => {
-      useUIStore.getState().requestComposerFileReference('C:\\workspace\\src\\first.ts')
-      useUIStore.getState().requestComposerFileReference('C:\\workspace\\src\\second.ts')
+      useComposerFileReferenceStore.getState().request('C:\\workspace\\src\\first.ts')
+      useComposerFileReferenceStore.getState().request('C:\\workspace\\src\\second.ts')
     })
     expect(editorRef.current!.getSegments()).toEqual([])
     act(() => editorRef.current!.setPlainText('Saved draft '))
@@ -119,19 +121,19 @@ describe('composer file reference requests', () => {
     fixture({ remote: true })
     act(() => {
       editorRef.current!.setPlainText('Keep')
-      useUIStore.getState().requestComposerFileReference('C:\\workspace\\src\\file.ts')
+      useComposerFileReferenceStore.getState().request('C:\\workspace\\src\\file.ts')
     })
     await waitFor(() => expect(useToastStore.getState().toasts).toContainEqual(
       expect.objectContaining({ type: 'warning' })
     ))
     expect(editorRef.current!.getText()).toBe('Keep')
-    expect(useUIStore.getState().composerFileReferenceRequest).toBeNull()
+    expect(useComposerFileReferenceStore.getState().pendingByScope.size).toBe(0)
   })
 
   it('preserves the structured file when restoring the resulting draft', async () => {
     fixture()
-    act(() => useUIStore.getState().requestComposerFileReference('C:\\workspace\\src\\file.ts'))
-    await waitFor(() => expect(useUIStore.getState().composerFileReferenceRequest).toBeNull())
+    act(() => useComposerFileReferenceStore.getState().request('C:\\workspace\\src\\file.ts'))
+    await waitFor(() => expect(useComposerFileReferenceStore.getState().pendingByScope.size).toBe(0))
     const segments = editorRef.current!.getSegments()
     act(() => {
       editorRef.current!.clear()

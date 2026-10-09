@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReferencePathContextMenu } from '../components/conversation/ReferencePathContextMenu'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useUIStore } from '../stores/uiStore'
+import { useComposerFileReferenceStore } from '../stores/composerFileReferenceStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
@@ -21,7 +22,8 @@ describe('ReferencePathContextMenu', () => {
         iconKey: 'explorer'
       }
     ])
-    useUIStore.setState({ composerFileReferenceRequest: null, composerFileAttachmentRequest: null })
+    useUIStore.setState({ composerFileAttachmentRequest: null })
+    useComposerFileReferenceStore.setState({ pendingByScope: new Map() })
     installDesktopApiMock({
       settings: {
         get: settingsGet,
@@ -54,10 +56,9 @@ describe('ReferencePathContextMenu', () => {
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Add to chat' }))
 
-    expect(useUIStore.getState().composerFileReferenceRequest).toEqual({
-      scopeId: null,
-      paths: ['C:\\sample\\workspace\\.dockerignore']
-    })
+    expect(useComposerFileReferenceStore.getState().pendingByScope.get(null)).toEqual([
+      'C:\\sample\\workspace\\.dockerignore'
+    ])
     expect(useUIStore.getState().composerFileAttachmentRequest).toBeNull()
     expect(onClose).toHaveBeenCalledOnce()
   })
@@ -84,7 +85,7 @@ describe('ReferencePathContextMenu', () => {
       path: 'C:\\sample\\workspace\\.dockerignore',
       fileName: '.dockerignore'
     })
-    expect(useUIStore.getState().composerFileReferenceRequest).toBeNull()
+    expect(useComposerFileReferenceStore.getState().pendingByScope.size).toBe(0)
     expect(onClose).toHaveBeenCalledOnce()
   })
 

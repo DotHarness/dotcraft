@@ -1,6 +1,6 @@
 import { useEffect, type RefObject } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import { useUIStore } from '../../stores/uiStore'
+import { useComposerFileReferenceStore } from '../../stores/composerFileReferenceStore'
 import { addToast } from '../../stores/toastStore'
 import { toWorkspaceRelativePath } from '../../utils/workspacePaths'
 import type { RichInputAreaHandle } from './RichInputArea'
@@ -14,11 +14,11 @@ export function useComposerFileReferenceRequest(
   ready: boolean
 ): void {
   const t = useT()
-  const request = useUIStore((state) => state.composerFileReferenceRequest)
+  const request = useComposerFileReferenceStore((state) => state.pendingByScope.get(scopeId))
 
   useEffect(() => {
-    if (!request || request.scopeId !== scopeId || disabled || !ready || !richRef.current) return
-    const paths = useUIStore.getState().consumeComposerFileReferenceRequest(scopeId)
+    if (!request || disabled || !ready || !richRef.current) return
+    const paths = useComposerFileReferenceStore.getState().consume(scopeId)
     if (paths.length === 0) return
     if (remoteWorkspace) {
       addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
