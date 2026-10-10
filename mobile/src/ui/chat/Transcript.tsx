@@ -14,7 +14,8 @@ import type { UserSegment } from '../../core/userSegments'
 import { useI18n, type I18n } from '../../i18n'
 import type { MessageId } from '../../i18n/messages/en'
 import { Icon, type IconName } from '../icons'
-import { Spinner, Txt } from '../parts'
+import { Txt } from '../parts'
+import { RunningShimmer } from '../RunningShimmer'
 import { metrics, type, useTheme } from '../theme'
 import { TurnChangesCard } from './Changes'
 import { FileChip, InlineChip, SkillChip } from './Chips'
@@ -41,6 +42,14 @@ const TOOL_TEXT: Record<ToolVerb, MessageId> = {
   read: 'tool.read',
   searched: 'tool.searched',
   used: 'tool.used',
+}
+
+const TOOL_LIVE_TEXT: Record<ToolVerb, MessageId> = {
+  ran: 'tool.live.ran',
+  edited: 'tool.live.edited',
+  read: 'tool.live.read',
+  searched: 'tool.live.searched',
+  used: 'tool.live.used',
 }
 
 const TOOL_PENDING_TEXT: Record<Exclude<ToolVerb, 'used'>, MessageId> = {
@@ -87,13 +96,13 @@ function Disclosure({ open }: { open: boolean }) {
 function Reasoning({ text }: { text: string }) {
   const { t } = useI18n()
   return (
-    <Txt tone="secondary" numberOfLines={1} accessibilityLiveRegion="polite">
-      {thinkingStatus(text) ?? t('chat.thinking')}
-    </Txt>
+    <View accessibilityLiveRegion="polite">
+      <RunningShimmer textStyle={type.text}>{thinkingStatus(text) ?? t('chat.thinking')}</RunningShimmer>
+    </View>
   )
 }
 
-function useNow(ticking: boolean): number {
+export function useNow(ticking: boolean): number {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!ticking) return
@@ -129,9 +138,9 @@ function Activity({ entry, workspacePath }: { entry: Extract<TranscriptEntry, { 
         onPress={() => setOpen((value) => !value)}
         style={styles.activityRow}
       >
-        <Txt tone="secondary" style={styles.fixed}>
+        <Text numberOfLines={1} style={[type.text, styles.fixed, { color: colors.textSecondary }]}>
           {label}
-        </Txt>
+        </Text>
         {expandable ? <Disclosure open={open} /> : null}
         <View style={[styles.rule, { backgroundColor: colors.borderDefault }]} />
       </Pressable>
@@ -195,15 +204,26 @@ function ToolDetails({ entry }: { entry: ToolEntry }) {
   )
 }
 
+function Elapsed({ since }: { since: string }) {
+  const { colors } = useTheme()
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 100)
+    return () => clearInterval(timer)
+  }, [])
+  const start = Date.parse(since)
+  const seconds = Number.isFinite(start) ? Math.max(0, now - start) / 1000 : 0
+  return <Text style={[type.text, styles.fixed, { color: colors.textDimmed, fontVariant: ['tabular-nums'] }]}>{`${seconds.toFixed(1)}s`}</Text>
+}
+
 function ToolLine({ entry }: { entry: ToolEntry }) {
   const { t, around } = useI18n()
   const { colors } = useTheme()
   const [open, setOpen] = useState(false)
-  const textStyle = [type.text, styles.line, styles.shrink, { color: colors.textSecondary }]
+  const textStyle = [type.text, styles.line, { color: colors.textSecondary }]
   const pending = entry.subject === null && entry.verb !== 'used'
   const subject = entry.subject
-  const code = entry.code
-  const [before, after] = around(TOOL_TEXT[entry.verb], 'subject')
+  const [before, after] = around((entry.live ? TOOL_LIVE_TEXT : TOOL_TEXT)[entry.verb], 'subject')
   return (
     <View style={styles.toolBlock}>
       <Pressable
@@ -219,19 +239,20 @@ function ToolLine({ entry }: { entry: ToolEntry }) {
           color={entry.icon === 'declined' ? colors.warningText : colors.textSecondary}
           strokeWidth={1.6}
         />
-        {pending ? (
-          <Text numberOfLines={1} style={textStyle}>
-            {t(TOOL_PENDING_TEXT[entry.verb as Exclude<ToolVerb, 'used'>])}
-          </Text>
-        ) : (
-          <Text numberOfLines={1} style={textStyle}>
-            {before}
-            <Text style={code ? [type.code, { backgroundColor: colors.bgTertiary }] : undefined}>{code ? ` ${subject} ` : subject}</Text>
-            {after}
-            {entry.added !== undefined ? <Text style={{ color: colors.successText }}>{` +${entry.added}`}</Text> : null}
-            {entry.removed !== undefined ? <Text style={{ color: colors.errorText }}>{` −${entry.removed}`}</Text> : null}
-          </Text>
-        )}
+        <RunningShimmer active={entry.live} style={styles.shrink} textStyle={textStyle}>
+          {pending ? (
+            t(TOOL_PENDING_TEXT[entry.verb as Exclude<ToolVerb, 'used'>])
+          ) : (
+            <>
+              {before}
+              {subject}
+              {after}
+              {entry.added !== undefined ? <Text style={{ color: colors.successText }}>{` +${entry.added}`}</Text> : null}
+              {entry.removed !== undefined ? <Text style={{ color: colors.errorText }}>{` −${entry.removed}`}</Text> : null}
+            </>
+          )}
+        </RunningShimmer>
+        {entry.live ? <Elapsed since={entry.startedAt} /> : null}
       </Pressable>
       {open ? <ToolDetails entry={entry} /> : null}
       {entry.images.length > 0 ? (
@@ -259,8 +280,10 @@ function GeneratedImage({ entry }: { entry: Extract<TranscriptEntry, { kind: 'im
   return (
     <View style={styles.generated} accessibilityLiveRegion={running ? 'polite' : 'none'}>
       <View style={styles.tool}>
-        {running ? <Spinner size={16} /> : <Icon name="image" size={16} color={colors.textSecondary} strokeWidth={1.6} />}
-        <Txt tone="secondary">{running ? t('image.generating') : t('image.generated')}</Txt>
+        <Icon name="image" size={16} color={colors.textSecondary} strokeWidth={1.6} />
+        <RunningShimmer active={running} style={styles.shrink} textStyle={[type.text, { color: colors.textSecondary }]}>
+          {running ? t('image.generating') : t('image.generated')}
+        </RunningShimmer>
       </View>
       {entry.uri ? (
         <ImageThumb uri={entry.uri} label={t('image.open')} style={styles.generatedImage} />
@@ -304,11 +327,11 @@ export function TranscriptLine({
     case 'user':
       return (
         <View style={styles.user}>
-          {entry.added ? (
+          {entry.added || entry.origin ? (
             <View style={styles.origin}>
-              <Icon name="cornerDownRight" size={13} color={colors.textDimmed} />
+              <Icon name={entry.origin === 'workflow' ? 'workflow' : 'cornerDownRight'} size={13} color={colors.textDimmed} />
               <Txt variant="caption" tone="dimmed">
-                {t('chat.addedToTurn')}
+                {t(entry.origin === 'workflow' ? 'chat.sentFromWorkflow' : 'chat.addedToTurn')}
               </Txt>
             </View>
           ) : null}

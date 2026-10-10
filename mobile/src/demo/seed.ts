@@ -8,6 +8,7 @@ import {
   type FakeProvider,
   type FakeThread,
 } from './fakeComputer'
+import type { FakeBackgroundSeed } from './fakeBackground'
 import { sampleDiff, textBase64 } from './fakeDiffs'
 import { MEADOW_PNG } from './images'
 
@@ -19,8 +20,8 @@ export const DEMO_PORT = 47610
 type Line =
   | { kind: 'user'; text: string; photos?: number }
   | { kind: 'assistant'; text: string }
-  | { kind: 'reasoning'; seconds: number; text: string }
-  | { kind: 'ran'; command: string; output?: string }
+  | { kind: 'reasoning'; seconds: number; text: string; live?: boolean }
+  | { kind: 'ran'; command: string; output?: string; live?: boolean }
   | { kind: 'read'; paths: string[] }
   | { kind: 'searched'; pattern: string }
   | { kind: 'edited'; files: { path: string; added: number; removed: number }[] }
@@ -28,6 +29,7 @@ type Line =
   | { kind: 'image'; prompt: string }
   | { kind: 'chart'; text: string }
   | { kind: 'plan'; plan: string; steps: string[] }
+  | { kind: 'workflowFinished'; name: string; runId: string }
 
 interface ChatSeed {
   id: string
@@ -40,6 +42,7 @@ interface ChatSeed {
   stream?: string
   error?: string
   planned?: boolean
+  running?: boolean
   context?: number
   config?: Record<string, unknown>
   continuation: string
@@ -312,11 +315,32 @@ const CHATS: ChatSeed[] = [
       { kind: 'user', text: 'Check every dialog in the lab for the shared header treatment.' },
       { kind: 'searched', pattern: 'ModalHeader' },
       { kind: 'read', paths: fileList('src/dialogs', 14) },
-      { kind: 'codeMode', running: true, lines: [{ kind: 'searched', pattern: 'DialogBadge' }] },
+      { kind: 'ran', command: 'npm run lab:screenshots -- --only dialogs', live: true },
+      { kind: 'reasoning', seconds: 3, text: '**Comparing the header markup** of the two dialogs that skip the badge', live: true },
     ],
-    stream:
-      'Twelve of the fourteen dialogs use the shared header. The two that don’t are the color picker and the import sync dialog, and both draw a bare icon without the badge.',
+    running: true,
     continuation: 'Picking up from here.',
+  },
+  {
+    id: 'release-review',
+    context: 0.34,
+    title: 'Review the release branch',
+    project: 'dotcraft',
+    minutesAgo: 1,
+    lines: [
+      { kind: 'user', text: 'Review the release branch before I tag 0.8.3, draft the changelog, and keep the docs preview running.' },
+      { kind: 'ran', command: 'npm run docs:dev', output: 'Started in the background as term_docs_dev.' },
+      {
+        kind: 'assistant',
+        text: 'The docs preview is running at http://localhost:5173. Two workflows run in the background: one drafts the changelog and one reviews the branch. I’ll report back as each one finishes.',
+      },
+      { kind: 'workflowFinished', name: 'changelog', runId: 'run_changelog' },
+      {
+        kind: 'assistant',
+        text: 'The changelog draft is ready in `docs/changelog/0.8.3.md`: 14 entries grouped into Highlights, Fixes, and Docs. The review workflow is still running; I’ll post its findings when it finishes.',
+      },
+    ],
+    continuation: 'Sure, here’s more detail.',
   },
   {
     id: 'release-summary',
@@ -442,8 +466,11 @@ function iso(now: Date, minutesAgo: number, secondsOffset = 0): string {
 }
 
 function buildThread(chat: ChatSeed, now: Date): FakeThread {
-  const turnId = sequenceId('turn', 1)
+  const id = `thread_${chat.id.replace(/-/g, '_')}`
   const started = iso(now, chat.minutesAgo + 1)
+  const finished: FakeThread['turns'] = []
+  let turnId = sequenceId('turn', 1)
+  let turnStarted = started
   let clock = 0
   let call = 0
   const items: FakeItem[] = []
@@ -475,10 +502,11 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
         push('agentMessage', { text: line.text })
         break
       case 'reasoning':
-        push('reasoningContent', { text: line.text }, line.seconds)
+        push('reasoningContent', { text: line.text }, line.seconds, line.live ? 'started' : 'completed')
         break
       case 'ran':
-        tool('Exec', { command: line.command }, line.output ? { result: line.output } : {})
+        if (line.live) push('toolCall', { toolName: 'Exec', providerFlatName: 'Exec', callId: nextCall(), arguments: { command: line.command }, presentation: PRESENTATIONS.Exec }, 1, 'started')
+        else tool('Exec', { command: line.command }, line.output ? { result: line.output } : {})
         break
       case 'read':
         for (const path of line.paths) tool('ReadFile', { path })
@@ -516,6 +544,15 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
       case 'plan':
         tool('CreatePlan', { plan: line.plan, todos: line.steps.map((content, index) => ({ id: `step-${index + 1}`, content })) })
         break
+      case 'workflowFinished': {
+        const at = iso(now, chat.minutesAgo + 1, clock)
+        finished.push({ id: turnId, threadId: id, status: 'completed', startedAt: turnStarted, completedAt: at })
+        turnId = sequenceId('turn', finished.length + 1)
+        turnStarted = at
+        const text = `Workflow ${line.name} finished.`
+        push('userMessage', { text, nativeInputParts: [{ type: 'text', text }], triggerKind: 'workflow', triggerLabel: line.name, triggerRefId: line.runId })
+        break
+      }
       case 'chart':
         tool('NodeReplJs', { code: 'renderChart()' }, {
           result: '',
@@ -529,8 +566,7 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
   }
   for (const line of chat.lines) emit(line)
   for (const { kind, ...payload } of chat.pending ?? []) push(kind === 'approval' ? 'approvalRequest' : 'userInputRequest', payload)
-  const status = chat.error ? 'failed' : chat.stream || chat.pending ? 'running' : 'completed'
-  const id = `thread_${chat.id.replace(/-/g, '_')}`
+  const status = chat.error ? 'failed' : chat.stream || chat.pending || chat.running ? 'running' : 'completed'
   return {
     id,
     displayName: chat.title,
@@ -538,11 +574,12 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
     createdAt: started,
     lastActiveAt: iso(now, chat.minutesAgo),
     turns: [
+      ...finished,
       {
         id: turnId,
         threadId: id,
         status,
-        startedAt: started,
+        startedAt: turnStarted,
         ...(status === 'running' ? {} : { completedAt: iso(now, chat.minutesAgo) }),
         ...(chat.error ? { error: chat.error } : {}),
       },
@@ -612,6 +649,74 @@ const PRESENTATIONS: Record<string, { presentationId: string; options?: { operat
   FindFiles: { presentationId: 'core.read-file' },
 }
 
+function releaseBackground(now: Date): FakeBackgroundSeed {
+  const threadId = 'thread_release_review'
+  const at = (minutes: number, seconds = 0) => iso(now, minutes, -seconds)
+  return {
+    terminals: [
+      {
+        sessionId: 'term_docs_dev',
+        threadId,
+        command: 'npm run docs:dev',
+        status: 'running',
+        startedAt: at(4, 28),
+        output: ['  vitepress v1.6.3', '', '  ➜  Local:   http://localhost:5173/', '  ➜  Network: use --host to expose'].join('\n'),
+      },
+      {
+        sessionId: 'term_docs_build',
+        threadId,
+        command: 'npm run docs:build',
+        status: 'completed',
+        exitCode: 0,
+        startedAt: at(9, 12),
+        completedAt: at(8, 3),
+        output: ['vitepress v1.6.3', '✓ building client + server bundles...', '✓ rendering pages...', 'build complete in 68.41s.'].join('\n'),
+      },
+      {
+        sessionId: 'term_test_watch',
+        threadId,
+        command: 'npm run test -- --watch',
+        status: 'killed',
+        startedAt: at(9, 40),
+        completedAt: at(6, 2),
+        output: [' ✓ src/changelog.test.ts (6 tests) 41ms', '', ' Test Files  1 passed (1)', '      Tests  6 passed (6)', '', ' Waiting for file changes...'].join('\n'),
+      },
+    ],
+    agents: [
+      {
+        childThreadId: 'thread_link_checker',
+        parentThreadId: threadId,
+        nickname: 'Link checker',
+        role: 'explorer',
+        running: false,
+        createdAt: at(8, 30),
+        updatedAt: at(5, 14),
+      },
+    ],
+    workflows: [
+      {
+        runId: 'run_review',
+        threadId,
+        name: 'review',
+        description: 'Review the release branch for regressions',
+        status: 'running',
+        createdAt: at(3, 12),
+        agentCount: 4,
+      },
+      {
+        runId: 'run_changelog',
+        threadId,
+        name: 'changelog',
+        description: 'Draft the 0.8.3 changelog from merged pull requests',
+        status: 'succeeded',
+        createdAt: at(9, 5),
+        completedAt: at(1, 30),
+        agentCount: 3,
+      },
+    ],
+  }
+}
+
 export interface StudioOptions {
   id?: string
   name?: string
@@ -652,6 +757,7 @@ function studioSeed(now: Date, options: StudioOptions = {}): FakeComputerSeed {
     files: studioFiles(),
     tooLargeFiles: ['D:/Projects/dotcraft/artifacts/release/publish.log'],
     accountUsage: accountUsage(now),
+    ...(options.chats === false ? {} : { background: releaseBackground(now) }),
   }
 }
 

@@ -25,14 +25,30 @@ function reasoningOf(value: ReasoningConfig | null | undefined): { enabled: bool
   return { enabled: value.enabled === true, effort: value.effort || 'medium', output: value.output || 'full' }
 }
 
-export function controlsOf(config: ThreadConfiguration | null | undefined): ChatControls {
+const APPROVAL_DEFAULT_KEY = 'Permissions.DefaultApprovalPolicy'
+
+function field(value: unknown, name: string): unknown {
+  if (!value || typeof value !== 'object') return undefined
+  const key = Object.keys(value).find((entry) => entry.toLowerCase() === name.toLowerCase())
+  return key === undefined ? undefined : (value as Record<string, unknown>)[key]
+}
+
+export function workspaceApprovalOf(config: unknown): ApprovalPolicy {
+  return field(field(config, 'Permissions'), 'DefaultApprovalPolicy') === 'autoApprove' ? 'autoApprove' : 'prompt'
+}
+
+export function changesWorkspaceApproval(regions: readonly string[] | null | undefined): boolean {
+  return (regions ?? []).some((region) => region === APPROVAL_DEFAULT_KEY || APPROVAL_DEFAULT_KEY.startsWith(`${region}.`))
+}
+
+export function controlsOf(config: ThreadConfiguration | null | undefined, workspaceApproval: ApprovalPolicy): ChatControls {
   const reasoning = reasoningOf(config?.reasoning)
   return {
     providerId: config?.providerId || null,
     model: config?.model || null,
     reasoning: reasoning ? (reasoning.enabled ? reasoning.effort : 'off') : 'default',
     speed: config?.speed === 'fast' ? 'fast' : 'standard',
-    approvalPolicy: config?.approvalPolicy === 'autoApprove' ? 'autoApprove' : 'prompt',
+    approvalPolicy: config?.approvalPolicy === 'autoApprove' || config?.approvalPolicy === 'prompt' ? config.approvalPolicy : workspaceApproval,
   }
 }
 

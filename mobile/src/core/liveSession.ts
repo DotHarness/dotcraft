@@ -1,4 +1,5 @@
 import type { Timers } from './backoff'
+import { runningTaskCount } from './backgroundTasks'
 import { isLive, needsYou, type ChatState } from './chatState'
 import type { ChatHistory } from './history'
 import { runningChats, stateOf, type Action, type ChatSummary, type ComputerState, type MobileState, type PendingRequest } from './state'
@@ -13,12 +14,14 @@ export interface LiveFocus {
   state: ChatState
   request: PendingRequest | null
   activity: LatestActivity | null
+  tasks: number
 }
 
 export interface LiveStatus {
   computer: string
   running: number
   needsYou: number
+  tasks: number
   reachable: boolean
   focus: LiveFocus | null
 }
@@ -72,10 +75,14 @@ function updated(entry: Entry): number {
   return Date.parse(entry.chat.updatedAt ?? '') || 0
 }
 
+function tasksOf(entry: Entry): number {
+  return runningTaskCount(entry.computer.tasks[entry.chat.key])
+}
+
 function liveEntries(state: MobileState): Entry[] {
-  return entriesOf(state, (computer) => runningChats(computer).filter((chat) => isLive(stateOf(chat)))).sort(
-    (left, right) => updated(right) - updated(left),
-  )
+  return entriesOf(state, (computer) =>
+    runningChats(computer).filter((chat) => isLive(stateOf(chat)) || runningTaskCount(computer.tasks[chat.key]) > 0),
+  ).sort((left, right) => updated(right) - updated(left))
 }
 
 function heldKey({ computerId, chat }: Entry): string {
@@ -166,12 +173,13 @@ export class LiveSession {
   private statusOf(state: MobileState): LiveStatus {
     const live = liveEntries(state)
     const states = live.map((entry) => stateOf(entry.chat))
-    const followed = live.find((entry) => needsYou(stateOf(entry.chat))) ?? live[0]
+    const followed = live.find((entry) => needsYou(stateOf(entry.chat))) ?? live.find((entry) => isLive(stateOf(entry.chat))) ?? live[0]
     const computer = followed?.computer ?? (state.order[0] ? state.computers[state.order[0]] : null)
     return {
       computer: computer?.computer.name ?? '',
       running: states.filter((value) => value === 'running').length,
       needsYou: states.filter(needsYou).length,
+      tasks: live.reduce((sum, entry) => sum + tasksOf(entry), 0),
       reachable: computer?.link === 'online',
       focus: followed
         ? {
@@ -180,6 +188,7 @@ export class LiveSession {
             state: stateOf(followed.chat),
             request: followed.computer.pending[followed.chat.key]?.[0] ?? null,
             activity: this.latestOf(followed.computer.details[followed.chat.key]?.history),
+            tasks: tasksOf(followed),
           }
         : null,
     }

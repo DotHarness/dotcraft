@@ -1,5 +1,6 @@
 import type { ThreadConfiguration } from '@dotcraft/sdk/contracts'
 import { Reconnector, type Timers } from './backoff'
+import type { BackgroundTask } from './backgroundTasks'
 import { plainMessage, type MessageDraft } from './draft'
 import { GatewayClient, GatewayUnreachableError, isUnauthorized } from './gateway'
 import { NotConnectedError, ProjectConnection, ProjectNotRunningError, type ApprovalDecision } from './projectConnection'
@@ -33,6 +34,7 @@ export class ComputerLink {
   private readonly views = new Map<string, number>()
   private events: SocketHandle | null = null
   private generation = 0
+  private attempt: Promise<void> = Promise.resolve()
 
   constructor(
     readonly id: string,
@@ -64,7 +66,12 @@ export class ComputerLink {
     return generation !== this.generation
   }
 
-  async connect(quiet = false): Promise<void> {
+  connect(quiet = false): Promise<void> {
+    this.attempt = this.open(quiet)
+    return this.attempt
+  }
+
+  private async open(quiet: boolean): Promise<void> {
     if (!this.host.awake() || this.state.identityChanged) return
     this.halt()
     const generation = this.generation
@@ -99,6 +106,27 @@ export class ComputerLink {
   restart(): void {
     this.reconnector.reset()
     void this.connect()
+  }
+
+  async refresh(key?: string): Promise<void> {
+    if (!this.host.awake() || this.state.identityChanged) return
+    if (this.state.link === 'connecting' && !this.reconnector.pending) return await this.attempt
+    if (this.state.link !== 'online') {
+      this.reconnector.reset()
+      return await this.connect()
+    }
+    const generation = this.generation
+    if (!(await this.reloadProjects(generation))) return
+    const loads: Promise<unknown>[] = [this.openRunning(generation)]
+    for (const connection of this.connections.values()) {
+      if (connection.ready) loads.push(connection.refresh().catch(() => undefined))
+    }
+    if (key) {
+      const { projectId, threadId } = this.split(key)
+      const connection = this.connections.get(projectId)
+      if (connection?.ready) loads.push(connection.syncChat(threadId).catch(() => undefined))
+    }
+    await Promise.all(loads)
   }
 
   private async reloadProjects(generation: number): Promise<boolean> {
@@ -348,6 +376,11 @@ export class ComputerLink {
   async loadReferences(projectId: string): Promise<void> {
     const connection = this.connections.get(projectId)
     if (connection?.ready) await connection.loadReferences()
+  }
+
+  async stopTask(key: string, task: BackgroundTask): Promise<void> {
+    const { projectId, threadId } = this.split(key)
+    await this.connection(projectId).stopTask(threadId, task)
   }
 
   async stop(key: string): Promise<void> {

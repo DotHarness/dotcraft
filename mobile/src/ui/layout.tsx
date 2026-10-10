@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
-import { ScrollView, StyleSheet, View, type ScrollViewProps, type StyleProp, type ViewStyle } from 'react-native'
+import { useCallback, useState, type ReactElement, type ReactNode } from 'react'
+import { RefreshControl, ScrollView, StyleSheet, View, type RefreshControlProps, type ScrollViewProps, type StyleProp, type ViewStyle } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useComputerLink } from '../app-state/SessionContext'
 import { camera, metrics, useTheme } from './theme'
 
 export function Screen({ children, tone = 'default', style }: { children: ReactNode; tone?: 'default' | 'camera'; style?: StyleProp<ViewStyle> }) {
@@ -23,11 +24,42 @@ export function TopBar({ children }: { children?: ReactNode }) {
   return <View style={styles.topBar}>{children}</View>
 }
 
-export function ScrollArea({ children, last = false, onScroll }: { children: ReactNode; last?: boolean; onScroll?: ScrollViewProps['onScroll'] }) {
+export function useRefreshControl(chatKey?: string, offset?: number): ReactElement<RefreshControlProps> {
+  const link = useComputerLink()
+  const { colors } = useTheme()
+  const [refreshing, setRefreshing] = useState(false)
+  const onRefresh = useCallback(() => {
+    setRefreshing(true)
+    void link.refresh(chatKey).finally(() => setRefreshing(false))
+  }, [chatKey, link])
+  return (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      colors={[colors.textSecondary]}
+      tintColor={colors.textSecondary}
+      progressBackgroundColor={colors.bgElevated}
+      progressViewOffset={offset}
+    />
+  )
+}
+
+export function ScrollArea({
+  children,
+  last = false,
+  onScroll,
+  refreshControl,
+}: {
+  children: ReactNode
+  last?: boolean
+  onScroll?: ScrollViewProps['onScroll']
+  refreshControl?: ScrollViewProps['refreshControl']
+}) {
   const insets = useSafeAreaInsets()
   return (
     <ScrollView
       style={styles.scroll}
+      refreshControl={refreshControl}
       contentContainerStyle={[styles.scrollContent, { paddingBottom: last ? insets.bottom + 24 : 24 }]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}

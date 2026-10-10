@@ -1,11 +1,13 @@
 import type { ModelCatalogItem, ThreadConfiguration, ThreadRuntimeState, UserInputQuestion } from '@dotcraft/sdk/contracts'
 import type { UsageWindow } from './accountUsage'
+import type { BackgroundTask, TaskSource, TaskSources } from './backgroundTasks'
 import { chatState, needsYou, type ChatState } from './chatState'
 import { applyContext, type ContextUpdate, type ContextUsage } from './contextUsage'
 import type { ReferenceEntry } from './draft'
 import type { RelayInfo } from './gateway'
 import { applyEvent, emptyHistory, type ChatHistory, type Echo, type HistoryEvent, type HistoryItem } from './history'
 import type { PairingOffer } from './pairing'
+import type { ApprovalPolicy } from './threadConfig'
 
 export interface ComputerRecord {
   id: string
@@ -58,6 +60,7 @@ export interface ProjectModels {
   canListCommands: boolean
   canListSkills: boolean
   canReadUsage: boolean
+  approvalDefault: ApprovalPolicy
   defaultProviderId: string | null
   providers: { id: string; name: string; signsIn: boolean }[]
   catalogs: Record<string, ModelCatalogItem[]>
@@ -100,6 +103,7 @@ export interface ComputerState {
   pending: Record<string, PendingRequest[]>
   models: Record<string, ProjectModels>
   references: Record<string, ReferenceEntry[]>
+  tasks: Record<string, TaskSources>
 }
 
 export interface MobileState {
@@ -166,6 +170,7 @@ export type ComputerAction =
       capabilities: Pick<ProjectModels, 'canConfigure' | 'canListModels' | 'canFork' | 'fileSystem' | 'canListCommands' | 'canListSkills' | 'canReadUsage'>
     }
   | { type: 'usage'; projectId: string; windows: UsageWindow[] }
+  | { type: 'approvalDefault'; projectId: string; policy: ApprovalPolicy }
   | { type: 'references'; projectId: string; entries: ReferenceEntry[] }
   | { type: 'catalog'; projectId: string; providerId: string; models: ModelCatalogItem[]; isDefault: boolean }
   | { type: 'providers'; projectId: string; providers: ProjectModels['providers'] }
@@ -175,6 +180,7 @@ export type ComputerAction =
   | { type: 'pendingAdded'; key: string; request: PendingRequest }
   | { type: 'pendingRemoved'; key: string; requestId: string }
   | { type: 'pendingCleared'; projectId: string }
+  | { type: 'tasks'; key: string; source: TaskSource; tasks: BackgroundTask[] }
 
 export function initialState(): MobileState {
   return { hydrated: false, computers: {}, order: [], selected: null, revokedBy: null, pairing: { step: 'idle' } }
@@ -195,6 +201,7 @@ function freshComputer(computer: ComputerRecord): ComputerState {
     pending: {},
     models: {},
     references: {},
+    tasks: {},
   }
 }
 
@@ -218,6 +225,7 @@ function patchModels(state: ComputerState, projectId: string, patch: Partial<Pro
     canListCommands: false,
     canListSkills: false,
     canReadUsage: false,
+    approvalDefault: 'prompt',
     defaultProviderId: null,
     providers: [],
     catalogs: {},
@@ -328,6 +336,7 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
         chats: withoutKey(state.chats, action.key),
         details: withoutKey(state.details, action.key),
         pending: withoutKey(state.pending, action.key),
+        tasks: withoutKey(state.tasks, action.key),
       }
     case 'detailLoading': {
       const detail = state.details[action.key]
@@ -369,6 +378,8 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
       return patchModels(state, action.projectId, action.capabilities)
     case 'usage':
       return patchModels(state, action.projectId, { usage: action.windows })
+    case 'approvalDefault':
+      return patchModels(state, action.projectId, { approvalDefault: action.policy })
     case 'references':
       return { ...state, references: { ...state.references, [action.projectId]: action.entries } }
     case 'catalog': {
@@ -406,6 +417,8 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
       }
       return { ...state, pending }
     }
+    case 'tasks':
+      return { ...state, tasks: { ...state.tasks, [action.key]: { ...state.tasks[action.key], [action.source]: action.tasks } } }
   }
 }
 

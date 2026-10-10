@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useState } from 'react'
-import { AccessibilityInfo, LogBox, StyleSheet, type StyleProp, type ViewStyle, View } from 'react-native'
+import { LogBox, StyleSheet, type StyleProp, type ViewStyle, View } from 'react-native'
+import { useReducedMotion } from '../motion'
 import { Txt } from '../parts'
 import MascotView, { type MascotPose } from './MascotView'
 
@@ -35,22 +36,6 @@ const POSE: Record<MascotMoment, MascotPose> = {
   sad: 'blocked',
   wary: 'blocked',
   curious: 'thinking',
-}
-
-function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false)
-  useEffect(() => {
-    let mounted = true
-    void AccessibilityInfo.isReduceMotionEnabled().then((value) => {
-      if (mounted) setReduced(value)
-    })
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced)
-    return () => {
-      mounted = false
-      subscription.remove()
-    }
-  }, [])
-  return reduced
 }
 
 function useSettled<T>(value: T): T {
