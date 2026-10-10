@@ -109,6 +109,25 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ListAsync_CompletedBackgroundCommand_KeepsBackgroundReason()
+    {
+        var started = await Service.StartAsync(new BackgroundTerminalStartRequest
+        {
+            ThreadId = "thread_reason",
+            Command = DelayedEchoCommand("done"),
+            WorkingDirectory = _tempDir,
+            RunInBackground = true,
+            YieldTimeMs = 100,
+            MaxOutputChars = 1000
+        });
+        await Service.ReadAsync(started.SessionId, waitMs: 5000, maxOutputChars: 1000);
+
+        var listed = Assert.Single(await Service.ListAsync("thread_reason"));
+        Assert.Equal(BackgroundTerminalStatus.Completed, listed.Status);
+        Assert.Equal("runInBackground", listed.BackgroundReason);
+    }
+
+    [Fact]
     public async Task StartAsync_ConcurrentStdoutAndStderr_AppendsToSameLog()
     {
         var started = await Service.StartAsync(new BackgroundTerminalStartRequest

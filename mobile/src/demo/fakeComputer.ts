@@ -117,6 +117,7 @@ interface Connection {
   project: FakeProject
   sink: FakeSocketSink
   initialized: boolean
+  configChange: boolean
   subscribed: Set<string>
   held: Map<string | number, { threadId: string; requestId: string }>
 }
@@ -273,7 +274,7 @@ export class FakeComputer {
       sink.fail('ERR_HTTP', 'projectNotRunning', 409)
       return null
     }
-    this.connections.set(id, { project, sink, initialized: false, subscribed: new Set(), held: new Map() })
+    this.connections.set(id, { project, sink, initialized: false, configChange: false, subscribed: new Set(), held: new Map() })
     sink.open()
     return id
   }
@@ -371,6 +372,7 @@ export class FakeComputer {
     const project = connection.project
     switch (method) {
       case 'initialize':
+        connection.configChange = (params.capabilities as { configChange?: boolean } | undefined)?.configChange !== false
         return {
           result: {
             serverInfo: { name: 'dotcraft', version: this.version },
@@ -735,7 +737,10 @@ export class FakeComputer {
     const project = this.project(projectId)
     if (!project) return
     project.approvalDefault = policy
-    this.broadcast(project, 'config/changed', { source: 'config/value/write', regions: ['Permissions.DefaultApprovalPolicy'], changedAt: this.stamp() })
+    const params = { source: 'config/value/write', regions: ['Permissions.DefaultApprovalPolicy'], changedAt: this.stamp() }
+    for (const connection of this.projectConnections(project)) {
+      if (connection.configChange) this.write(connection, { jsonrpc: '2.0', method: 'config/changed', params })
+    }
   }
 
   stopProject(projectId: string): void {

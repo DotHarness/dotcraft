@@ -157,15 +157,14 @@ export class FakeBackground {
           after: () => this.host.notify(agent.parentThreadId, 'subagent/graph/changed', { parentThreadId: agent.parentThreadId, childThreadId: agent.childThreadId }),
         }
       }
-      case 'workflow/run/list':
-        return {
-          result: {
-            runs: this.workflows
-              .filter((entry) => entry.threadId === params.threadId)
-              .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-              .map(runBody),
-          },
-        }
+      case 'workflow/run/list': {
+        const runs = this.workflows
+          .filter((entry) => entry.threadId === params.threadId)
+          .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+        const start = Number(params.cursor ?? 0)
+        const end = start + Math.min(Number(params.limit ?? 50), 200)
+        return { result: { runs: runs.slice(start, end).map(runBody), ...(end < runs.length ? { nextCursor: String(end) } : {}) } }
+      }
       case 'workflow/run/stop': {
         const run = this.workflows.find((entry) => entry.runId === params.runId && entry.threadId === params.threadId)
         if (!run) return { error: { code: -32602, message: 'workflow_run_not_found' } }

@@ -9,9 +9,19 @@ afterEach(() => {
   for (const harness of harnesses.splice(0)) harness.session.dispose()
 })
 
-async function openReview() {
+async function openReview(newerRuns = 0) {
   const computer = createStudio(new Date())
   computer.streamDelayMs = 1
+  const review = computer.background.workflows.find((run) => run.runId === 'run_review')!
+  for (let index = 0; index < newerRuns; index += 1) {
+    computer.background.workflows.push({
+      ...review,
+      runId: `run_old_${index}`,
+      status: 'succeeded',
+      createdAt: new Date(Date.parse(review.createdAt) + 1_000 + index).toISOString(),
+      completedAt: review.createdAt,
+    })
+  }
   const harness = createHarness([computer])
   harnesses.push(harness)
   const state = () => harness.computerState()
@@ -37,6 +47,12 @@ describe('background tasks', () => {
       ['shell', 'term_test_watch', 'stopped'],
       ['shell', 'term_docs_build', 'completed'],
     ])
+  })
+
+  it('keeps a running workflow that falls past the first page of runs', async () => {
+    const { tasks } = await openReview(250)
+    expect(tasks().running.map((task) => task.id)).toContain('run_review')
+    expect(tasks().completed.filter((task) => task.kind === 'workflow')).toHaveLength(251)
   })
 
   it('follows terminal and workflow notifications and stops a task through its own method', async () => {

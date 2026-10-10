@@ -152,6 +152,7 @@ export class ProjectConnection {
       approvalSupport: true,
       requestUserInputSupport: true,
       streamingSupport: true,
+      configChange: true,
       optOutNotifications: OPTED_OUT_NOTIFICATIONS,
       extraCapabilities: { backgroundTerminals: true },
     })

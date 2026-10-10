@@ -4,6 +4,8 @@ import { agentTask, mergeAgents, terminalTask, upsertTask, workflowTask, type Ba
 import { chatKey, type ComputerAction, type ComputerState } from './state'
 import type { Store } from './store'
 
+const WORKFLOW_PAGE = 200
+
 export class BackgroundTaskSync {
   private readonly loads = new Map<string, { dirty: boolean; done: Promise<void> }>()
   private readonly sources: TaskSource[] = []
@@ -124,7 +126,13 @@ export class BackgroundTaskSync {
         return
       }
       case 'workflow': {
-        const { runs } = await this.client.request('workflow/run/list', { threadId })
+        const runs = []
+        let cursor: string | undefined
+        do {
+          const page = await this.client.request('workflow/run/list', { threadId, limit: WORKFLOW_PAGE, ...(cursor ? { cursor } : {}) })
+          runs.push(...page.runs)
+          cursor = page.nextCursor ?? undefined
+        } while (cursor)
         this.set(threadId, source, runs.map((run) => this.workflowTask(run)))
       }
     }

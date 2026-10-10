@@ -114,7 +114,8 @@ public sealed partial class BackgroundTerminalService
                     MetadataPath = MetadataPath,
                     ExitCode = _exitCode,
                     StartedAt = StartedAt,
-                    CompletedAt = _completedAt
+                    CompletedAt = _completedAt,
+                    BackgroundReason = Request.RunInBackground ? "runInBackground" : null
                 };
             }
         }
@@ -190,6 +191,8 @@ public sealed partial class BackgroundTerminalService
 
         public DateTimeOffset? CompletedAt { get; init; }
 
+        public string? BackgroundReason { get; init; }
+
         public BackgroundTerminalSnapshot ToSnapshot(string output, int originalChars, bool truncated) => new()
         {
             SessionId = SessionId,
@@ -207,7 +210,8 @@ public sealed partial class BackgroundTerminalService
             CompletedAt = CompletedAt,
             WallTimeMs = (long)Math.Max(0, ((CompletedAt ?? DateTimeOffset.UtcNow) - StartedAt).TotalMilliseconds),
             OriginalOutputChars = originalChars,
-            Truncated = truncated
+            Truncated = truncated,
+            BackgroundReason = BackgroundReason
         };
     }
 }
