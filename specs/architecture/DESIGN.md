@@ -1046,6 +1046,10 @@ palettes share one overlay language:
 - a submenu, flyout, or stacked overlay carries one `1px var(--glass-border)`
   hairline on the overlapping edge only — the overlap is the only case that earns
   a border;
+- a submenu opens beside its row on whichever side fits and stays inside the
+  window; it stays open while the pointer travels toward it through the triangle
+  between the pointer and the submenu's near corners, and closes once the pointer
+  leaves that triangle or rests on another row;
 - rows are borderless at rest;
 - hover, open, highlighted, and selected rows use neutral background elevation;
 - focus-visible rings remain available for keyboard accessibility.

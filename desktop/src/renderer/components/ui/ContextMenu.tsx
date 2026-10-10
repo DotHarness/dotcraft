@@ -77,13 +77,14 @@ interface ContextMenuProps {
   position: ContextMenuPosition
   onClose: () => void
   zIndex?: number
+  width?: number
 }
 
 interface SubmenuAnchor {
   top: number
 }
 
-export function ContextMenu({ items, position, onClose, zIndex }: ContextMenuProps): JSX.Element {
+export function ContextMenu({ items, position, onClose, zIndex, width = 200 }: ContextMenuProps): JSX.Element {
   const menuRef = useRef<HTMLDivElement>(null)
   const submenuRef = useRef<HTMLDivElement>(null)
   const layerDepth = useContext(LayerContext)
@@ -93,7 +94,7 @@ export function ContextMenu({ items, position, onClose, zIndex }: ContextMenuPro
   const [hoveredItemIndex, setHoveredItemIndex] = useState<number | null>(null)
   const [hoveredSubmenuItemIndex, setHoveredSubmenuItemIndex] = useState<number | null>(null)
 
-  const menuWidth = 200
+  const menuWidth = width
   const menuItemHeight = 30
   const menuPadding = 8
   // The submenu meets the parent edge-to-edge (a ~1px seam, not an obvious overlap
