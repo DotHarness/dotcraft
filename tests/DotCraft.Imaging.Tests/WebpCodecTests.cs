@@ -158,6 +158,37 @@ public sealed class WebpCodecTests
         Assert.Equal(ImageError.InvalidImage, result.Error);
     }
 
+    [Fact]
+    public void Vp8SegmentationWithoutFeatureUpdatesUsesAbsoluteDefaults()
+    {
+        AssertVp8Transcode(
+            "UklGRiQAAABXRUJQVlA4IBcAAAAQAQCdASoQABAAIAAeAAADcAD+3qwAAAA=",
+            [133]);
+    }
+
+    [Fact]
+    public void Vp8FrameDisablesFilteringDespitePositiveReferenceAdjustment()
+    {
+        AssertVp8Transcode(
+            "UklGRjYAAABXRUJQVlA4ICkAAABQAQCdASoQABAAAAd4ACgAAA3AAMT8iSJIkiSF02L6zpJ2P5C6bEgAAAA=",
+            [140, 134, 127, 121]);
+    }
+
+    private static void AssertVp8Transcode(string encoded, ReadOnlySpan<byte> expectedRow)
+    {
+        var result = ImageProcessor.Process(Convert.FromBase64String(encoded), new(ImageFormat.Png));
+        Assert.True(result.IsSuccess);
+        Assert.Equal(new ImageSize(16, 16), result.Image.Size);
+        var decoded = PngCodec.Decode(result.Image.Data.Span, new ImageBudget());
+        for (var offset = 0; offset < decoded.Pixels.Length; offset += 4)
+        {
+            var expected = expectedRow[(offset / 4) % expectedRow.Length];
+            for (var channel = 0; channel < 3; channel++)
+                Assert.InRange(Math.Abs(decoded.Pixels[offset + channel] - expected), 0, 1);
+            Assert.Equal(255, decoded.Pixels[offset + 3]);
+        }
+    }
+
     private static byte[] Read(string name, string extension) => File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", $"{name}.{extension}"));
 
     private static void WriteChunk(Stream output, ReadOnlySpan<byte> tag, ReadOnlySpan<byte> payload)

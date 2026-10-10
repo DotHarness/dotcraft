@@ -4,7 +4,7 @@ internal sealed class WebpVp8Header
 {
     public bool Segmented { get; private set; }
     public bool UpdateMap { get; private set; }
-    public bool AbsoluteSegments { get; private set; }
+    public bool AbsoluteSegments { get; private set; } = true;
     public int[] SegmentQuantizers { get; } = new int[4];
     public int[] SegmentFilters { get; } = new int[4];
     public byte[] SegmentProbabilities { get; } = [255, 255, 255];

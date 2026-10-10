@@ -31,7 +31,8 @@ internal static class WebpVp8Decoder
         try
         {
             DecodeBlocks(control, tokens, header, columns, rows, yPlane, uPlane, vPlane, filters, aboveModes, aboveCoefficients);
-            WebpVp8Filter.Apply(yPlane, uPlane, vPlane, columns, rows, filters, header.SimpleFilter, header.Sharpness);
+            if (header.FilterLevel != 0)
+                WebpVp8Filter.Apply(yPlane, uPlane, vPlane, columns, rows, filters, header.SimpleFilter, header.Sharpness);
             var image = DecodedImage.Create(width, height, budget);
             ConvertToRgba(image, yPlane, uPlane, vPlane, yStride, uvStride);
             return image;
