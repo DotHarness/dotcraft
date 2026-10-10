@@ -29,7 +29,6 @@
   <ItemGroup>
     <PackageReference Include="DiffPlex" Version="1.7.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="System.Management.Automation" Version="7.6.6" />
     <PackageReference Include="Microsoft.Extensions.AI" Version="10.10.0" />
@@ -42,6 +41,7 @@
   <ItemGroup>
     <ProjectReference Include="..\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\DotCraft.Agents\DotCraft.Agents.csproj" />
+    <ProjectReference Include="..\DotCraft.Imaging\DotCraft.Imaging.csproj" />
   </ItemGroup>
 
   <ItemGroup>

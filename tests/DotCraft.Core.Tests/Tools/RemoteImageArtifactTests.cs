@@ -5,8 +5,6 @@ using DotCraft.Tools;
 using DotCraft.Agents;
 using DotCraft.Sessions;
 using Microsoft.Extensions.AI;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using System.Text.Json.Nodes;
 using Xunit;
 
@@ -74,13 +72,7 @@ public sealed class RemoteImageArtifactTests
             state.ToolPolicies["ReadFile"] = "deny";
             storage.SaveHostState(state);
         }
-        byte[] reference;
-        using (var bitmap = new Image<Rgba32>(3, 3, new Rgba32(10, 20, 30, 255)))
-        using (var stream = new MemoryStream())
-        {
-            bitmap.SaveAsPng(stream);
-            reference = stream.ToArray();
-        }
+        var reference = ImageFixture.Read("color-3.png");
         await File.WriteAllBytesAsync(Path.Combine(workspace.Path, "reference.png"), reference);
         await using var server = new RemoteToolHostTestServer(storage);
         await using var client = server.CreateClient();

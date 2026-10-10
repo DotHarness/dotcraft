@@ -10,8 +10,6 @@ using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using DotCraft.AppServer;
 using DotCraft.Sessions;
 using SessionThread = DotCraft.Sessions.SessionThread;
@@ -2346,22 +2344,7 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
         return Assert.Single(AgentFactory.ProjectSnapshotTools(snapshot));
     }
 
-    private static byte[] CreateImageBytes(string mediaType)
-    {
-        using var image = new Image<Rgba32>(1, 1, new Rgba32(0xff, 0, 0));
-        using var stream = new MemoryStream();
-        switch (mediaType)
-        {
-            case "image/bmp":
-                image.SaveAsBmp(stream);
-                break;
-            default:
-                image.SaveAsPng(stream);
-                break;
-        }
-
-        return stream.ToArray();
-    }
+    private static byte[] CreateImageBytes(string mediaType) => ImageFixture.Red(mediaType);
 
     private sealed class FakeToolSearchTransport : IResponsesToolSearchTransport
     {

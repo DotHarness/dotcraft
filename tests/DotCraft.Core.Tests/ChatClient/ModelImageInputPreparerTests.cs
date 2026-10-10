@@ -1,7 +1,5 @@
 using DotCraft.Agents;
 using Microsoft.Extensions.AI;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using Xunit;
 
 namespace DotCraft.Tests.Agents;
@@ -19,7 +17,7 @@ public sealed class ModelImageInputPreparerTests
         var prepared = result.Content;
         Assert.NotNull(prepared);
         Assert.Equal("image/png", prepared.MediaType);
-        Assert.Equal("image/png", Image.DetectFormat(prepared.Data.ToArray()).DefaultMimeType);
+        Assert.Equal((1, 1), ImageFixture.PngSize(prepared.Data.Span));
     }
 
     [Theory]
@@ -60,34 +58,69 @@ public sealed class ModelImageInputPreparerTests
         var prepared = result.Content;
         Assert.NotNull(prepared);
         Assert.Equal("image/png", prepared.MediaType);
-        var info = Image.Identify(prepared.Data.ToArray());
-        Assert.NotNull(info);
+        var info = ImageFixture.PngSize(prepared.Data.Span);
         Assert.True(info.Width < 1700, $"Expected width to shrink, got {info.Width}.");
         Assert.True(info.Height < 1700, $"Expected height to shrink, got {info.Height}.");
         Assert.True(CountPatches(info.Width, info.Height) <= 2500);
     }
 
-    private static byte[] CreateImageBytes(string mediaType, int width = 1, int height = 1)
-    {
-        using var image = new Image<Rgba32>(width, height, new Rgba32(0xff, 0, 0));
-        using var stream = new MemoryStream();
-        switch (mediaType)
-        {
-            case "image/bmp":
-                image.SaveAsBmp(stream);
-                break;
-            case "image/jpeg":
-                image.SaveAsJpeg(stream);
-                break;
-            case "image/webp":
-                image.SaveAsWebp(stream);
-                break;
-            default:
-                image.SaveAsPng(stream);
-                break;
-        }
+    private static byte[] CreateImageBytes(string mediaType, int width = 1, int height = 1) =>
+        ImageFixture.Red(mediaType, width, height);
 
-        return stream.ToArray();
+    [Theory]
+    [InlineData(2048, 2048, 1600, 1600)]
+    [InlineData(4096, 1024, 2048, 512)]
+    [InlineData(1024, 4096, 512, 2048)]
+    [InlineData(1, 4096, 1, 2048)]
+    public void Prepare_UsesExactModelDimensions(int width, int height, int expectedWidth, int expectedHeight)
+    {
+        var result = ModelImageInputPreparer.Prepare(new DataContent(ImageFixture.Red("image/png", width, height), "image/png"));
+        Assert.True(result.HasImage);
+        Assert.Equal((expectedWidth, expectedHeight), ImageFixture.PngSize(result.Content!.Data.Span));
+    }
+
+    [Fact]
+    public void Prepare_UsesContentTypeAndCopiesApplicationMetadata()
+    {
+        var bytes = ImageFixture.Red("image/png");
+        var source = new DataContent(bytes, "image/jpeg")
+        {
+            AdditionalProperties = new() { ["artifact"] = "test", ["ordinal"] = 42 }
+        };
+        var result = ModelImageInputPreparer.Prepare(source);
+        Assert.True(result.HasImage);
+        Assert.Equal("image/png", result.Content!.MediaType);
+        Assert.Equal(bytes, result.Content.Data.ToArray());
+        Assert.Equal(source.AdditionalProperties, result.Content.AdditionalProperties);
+        Assert.NotSame(source.AdditionalProperties, result.Content.AdditionalProperties);
+    }
+
+    [Fact]
+    public void Prepare_GifUsesStaticPng()
+    {
+        var result = ModelImageInputPreparer.Prepare(new DataContent(ImageFixture.Red("image/gif"), "image/gif"));
+        Assert.True(result.HasImage);
+        Assert.Equal("image/png", result.Content!.MediaType);
+        Assert.Equal((1, 1), ImageFixture.PngSize(result.Content.Data.Span));
+    }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(64 * 1024 * 1024, false)]
+    [InlineData(64 * 1024 * 1024 + 1, true)]
+    public void Prepare_ByteLimitsHaveDistinctFailureClassification(int bytes, bool sizeFailure)
+    {
+        var result = ModelImageInputPreparer.Prepare(new DataContent(new byte[bytes], "image/png"));
+        Assert.False(result.HasImage);
+        Assert.Equal(sizeFailure ? ModelImageInputPreparer.TooLargePlaceholder : ModelImageInputPreparer.CouldNotProcessPlaceholder, result.PlaceholderText);
+    }
+
+    [Fact]
+    public void Prepare_CorruptSmallPngIsNotPreserved()
+    {
+        var result = ModelImageInputPreparer.Prepare(new DataContent(ImageFixture.Red("image/png")[..33], "image/png"));
+        Assert.False(result.HasImage);
+        Assert.Equal(ModelImageInputPreparer.CouldNotProcessPlaceholder, result.PlaceholderText);
     }
 
     private static long CountPatches(int width, int height) =>

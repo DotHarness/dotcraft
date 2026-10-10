@@ -25,7 +25,6 @@ internal static class PluginHostAssemblies
         "Microsoft.Data.Sqlite",
         "ModelContextProtocol",
         "ModelContextProtocol.Core",
-        "SixLabors.ImageSharp",
         "System.Management.Automation",
         "TimeZoneConverter",
         "YamlDotNet"

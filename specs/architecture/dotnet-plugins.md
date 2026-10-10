@@ -84,6 +84,11 @@ name. A bundle copy of a shared assembly is ignored. Other dependencies resolve 
 generation shadow copy and its `.deps.json`. This preserves type identity for contribution
 contracts while keeping plugin-private dependencies collectible.
 
+The host supplies `DotCraft.Imaging` for image processing.
+A deployed plugin's private image dependencies follow the bundle rules above; in-host authoring
+uses only the assemblies the current host supplies. The image capability is defined in
+[Image processing](image-processing.md).
+
 The public host surface is a version-bound ABI, not an append-only compatibility promise:
 
 - `dotnet.minHostVersion` is a hard admission floor.

@@ -42,7 +42,6 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.10" />
     <PackageReference Include="ModelContextProtocol" Version="2.2.0" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="TimeZoneConverter" Version="6.1.0" />
     <PackageReference Include="Tomlyn" Version="0.19.0" />
@@ -81,6 +80,8 @@
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.RemoteTools.dll" TargetPath="DotCraft.RemoteTools.dll" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Protocol.dll" TargetPath="DotCraft.Protocol.dll" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.dll" TargetPath="DotCraft.Agents.dll" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Imaging.dll" TargetPath="DotCraft.Imaging.dll" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Imaging.xml" TargetPath="DotCraft.Imaging.xml" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.OpenAI.dll" TargetPath="DotCraft.Agents.OpenAI.dll" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.Anthropic.dll" TargetPath="DotCraft.Agents.Anthropic.dll" />
       <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.Remote.dll" TargetPath="DotCraft.Agents.Remote.dll" />

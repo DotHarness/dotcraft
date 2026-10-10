@@ -1,9 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using DotCraft.Imaging;
 using static DotCraft.Screen.ScreenCaptureNativeMethods;
 
 namespace DotCraft.Screen;
@@ -15,7 +12,6 @@ internal sealed class GdiScreenCaptureSource : IScreenCaptureSource
     private const int DetailLimit = 200;
 
     private readonly object _gate = new();
-    private readonly MemoryStream _encoded = new();
     private Surface? _surface;
     private byte[] _pixels = [];
     private bool _disposed;
@@ -63,17 +59,16 @@ internal sealed class GdiScreenCaptureSource : IScreenCaptureSource
     {
         Copy(bounds);
 
-        using var image = Image.LoadPixelData<Bgra32>(_pixels, bounds.Width, bounds.Height);
         var (width, height) = ScreenCaptureSource.Fit(bounds.Width, bounds.Height, request.MaxWidth);
-        if (width != bounds.Width || height != bounds.Height)
-            image.Mutate(context => context.Resize(width, height, KnownResamplers.Triangle));
-        _encoded.SetLength(0);
-        image.SaveAsJpeg(_encoded, new JpegEncoder
+        var result = ImageProcessor.EncodeBgraJpeg(_pixels, new(bounds.Width, bounds.Height), bounds.Width * 4, new()
         {
+            TargetSize = new(width, height),
             Quality = Math.Clamp(request.Quality, 1, 100),
-            ColorType = JpegEncodingColor.YCbCrRatio420
+            Subsampling = JpegSubsampling.Yuv420
         });
-        return new ScreenFrame(width, height, _encoded.ToArray());
+        if (!result.IsSuccess)
+            throw new CaptureFailedException($"Screen image encoding failed ({result.Error}).");
+        return new ScreenFrame(width, height, result.Image.Data.ToArray());
     }
 
     /// <summary>The screen context lives for one frame: a cached one stops working after a session switch.</summary>
@@ -108,8 +103,12 @@ internal sealed class GdiScreenCaptureSource : IScreenCaptureSource
     {
         _surface?.Dispose();
         _surface = null;
+        var pixelCount = (long)bounds.Width * bounds.Height;
+        if (pixelCount <= 0 || pixelCount > 512L * 1024 * 1024 / 4)
+            throw new CaptureFailedException("Screen pixel buffer exceeds the supported size limit.");
+        var pixels = new byte[(int)pixelCount * 4];
         var surface = Surface.Create(screen, bounds.Width, bounds.Height);
-        _pixels = new byte[bounds.Width * bounds.Height * 4];
+        _pixels = pixels;
         _surface = surface;
         return surface;
     }
@@ -123,7 +122,6 @@ internal sealed class GdiScreenCaptureSource : IScreenCaptureSource
             _disposed = true;
             _surface?.Dispose();
             _surface = null;
-            _encoded.Dispose();
         }
     }
 

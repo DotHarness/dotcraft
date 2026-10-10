@@ -487,15 +487,7 @@ internal sealed class ImageGenerationToolRuntime(
 
     private static string DetectImageMediaType(byte[] bytes)
     {
-        try
-        {
-            return SixLabors.ImageSharp.Image.DetectFormat(bytes).DefaultMimeType;
-        }
-        catch (Exception ex) when (ex is ArgumentException or SixLabors.ImageSharp.ImageFormatException
-                                       or SixLabors.ImageSharp.UnknownImageFormatException)
-        {
-            return "application/octet-stream";
-        }
+        return DotCraft.Imaging.ImageProcessor.TryIdentify(bytes, out var info) ? info.MediaType : "application/octet-stream";
     }
 
     private static ToolExecutionResult InvalidInput(string message) =>
