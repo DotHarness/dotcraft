@@ -21,7 +21,15 @@ export type NoticeKind =
   | 'turnFailed'
 
 export type TranscriptEntry =
-  | { kind: 'user'; id: string; text: string; segments: UserSegment[]; images: ImageSource[]; added: boolean }
+  | {
+      kind: 'user'
+      id: string
+      text: string
+      segments: UserSegment[]
+      images: ImageSource[]
+      added: boolean
+      origin: 'workflow' | null
+    }
   | {
       kind: 'assistant'
       id: string
@@ -41,7 +49,7 @@ export type TranscriptEntry =
       subject: string | null
       details: ToolDetail[]
       images: string[]
-      code: boolean
+      startedAt: string
       category: ToolCategory | null
       web: 'search' | 'fetch' | null
       path: string
@@ -140,12 +148,11 @@ interface ToolShape {
   verb: ToolVerb
   target: string
   full?: string
-  code?: boolean
   counts?: { added: number; removed: number } | null
 }
 
 function toolShape(toolName: string, input: Record<string, unknown>, result: HistoryItem | undefined): ToolShape {
-  if (SHELL_TOOLS.has(toolName)) return { verb: 'ran', target: firstLine(str(input.command)), full: str(input.command), code: true }
+  if (SHELL_TOOLS.has(toolName)) return { verb: 'ran', target: firstLine(str(input.command)), full: str(input.command) }
   const path = str(input.path)
   switch (toolName) {
     case 'ReadFile':
@@ -155,7 +162,7 @@ function toolShape(toolName: string, input: Record<string, unknown>, result: His
       return { verb: 'edited', target: baseName(path), full: path, counts: fileChangeCounts(result) }
     case 'GrepFiles':
     case 'FindFiles':
-      return { verb: 'searched', target: str(input.pattern), code: true }
+      return { verb: 'searched', target: str(input.pattern) }
     case 'WebSearch':
       return { verb: 'searched', target: str(input.query) }
     case 'WebFetch':
@@ -273,6 +280,7 @@ function toolEntry(item: HistoryItem, results: Map<string, HistoryItem>): ToolEn
     verb: shape.verb,
     icon: toolIcon(toolName, result),
     images: imagesOf(result),
+    startedAt: item.createdAt,
     category: CATEGORIES[presentation.id] ?? null,
     web: webOperation(presentation.operation),
     path: str(input.path),
@@ -280,12 +288,11 @@ function toolEntry(item: HistoryItem, results: Map<string, HistoryItem>): ToolEn
     live,
     failed: !live && (result?.payload.success === false || result?.status === 'failed' || item.status === 'failed'),
   }
-  if (!shape.target && !isComplete(item)) return { ...base, subject: null, details: [], code: false }
+  if (!shape.target && !isComplete(item)) return { ...base, subject: null, details: [] }
   return {
     ...base,
     subject: shape.target || toolName,
     details: [{ target: shape.full || shape.target || toolName, output: outputOf(result) }],
-    code: Boolean(shape.target) && shape.code === true,
     ...shape.counts,
   }
 }
@@ -518,6 +525,7 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
             segments: userSegments(value, payload.nativeInputParts),
             images,
             added: mode === 'guidance',
+            origin: str(payload.triggerKind) === 'workflow' ? 'workflow' : null,
           })
         }
         break
@@ -590,7 +598,7 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
     const segments = userSegments(echo.text, echo.parts ?? null)
     const images = userImages(echo.parts)
     if (segments.length > 0 || images.length > 0) {
-      out.push({ kind: 'user', id: `echo-${echo.clientId}`, text: echo.text, segments, images, added: echo.added })
+      out.push({ kind: 'user', id: `echo-${echo.clientId}`, text: echo.text, segments, images, added: echo.added, origin: null })
     }
   }
   return out

@@ -14,6 +14,8 @@ import type {
 import { DotCraftWireClient, ERR_TURN_IN_PROGRESS, JsonRpcError } from '@dotcraft/sdk/wire'
 import { signsInWithAccount, usageWindows } from './accountUsage'
 import { AttachmentUploadError, uploadAttachments, uploadPhotos, type UploadedPhoto } from './attachments'
+import type { BackgroundTask } from './backgroundTasks'
+import { BackgroundTaskSync } from './backgroundTaskSync'
 import { imageKey, imageScope, rememberImage } from './imageCache'
 import { followUpMethod } from './chatState'
 import { contextUsageOf, systemEventUpdate, usageDeltaUpdate, type ContextUpdate } from './contextUsage'
@@ -23,13 +25,13 @@ import { applyEvent, emptyHistory, historyFromPages, restoreEchoes, type History
 import { HTTP_REJECTED } from './pinned'
 import { PinnedSocketTransport, SocketOpenError } from './pinnedSocketTransport'
 import type { PinnedSockets, SocketEnd } from './sockets'
-import { applyChange, type ConfigChange } from './threadConfig'
+import { applyChange, changesWorkspaceApproval, workspaceApprovalOf, type ConfigChange } from './threadConfig'
 import { chatKey, type ChatSummary, type ComputerAction, type ComputerState, type PendingRequest, type ProjectModels } from './state'
 import type { Store } from './store'
 
 const PHONE_IDENTITY = { channelName: 'dotcraft-desktop', userId: 'local' }
 
-const OPTED_OUT_NOTIFICATIONS = ['item/toolCall/argumentsDelta', 'subagent/progress', 'plan/updated']
+const OPTED_OUT_NOTIFICATIONS = ['item/toolCall/argumentsDelta', 'subagent/progress', 'plan/updated', 'terminal/outputDelta']
 
 export type ApprovalDecision = 'once' | 'session' | 'reject'
 
@@ -95,6 +97,7 @@ export class ProjectConnection {
   private profiles: AgentProfileEntry[] | null = null
   private readonly catalogs = new Map<string, Promise<void>>()
   private references: Promise<void> | null = null
+  private tasks: BackgroundTaskSync | null = null
 
   constructor(private readonly options: ProjectConnectionOptions) {}
 
@@ -149,7 +152,9 @@ export class ProjectConnection {
       approvalSupport: true,
       requestUserInputSupport: true,
       streamingSupport: true,
+      configChange: true,
       optOutNotifications: OPTED_OUT_NOTIFICATIONS,
+      extraCapabilities: { backgroundTerminals: true },
     })
     const capabilities = client.initializeResult?.capabilities
     this.store.dispatch({
@@ -165,9 +170,13 @@ export class ProjectConnection {
         canReadUsage: capabilities?.authOpenAiUsage === true,
       },
     })
-    await this.loadThreads(client)
+    const tasks = new BackgroundTaskSync(client, this.projectId, this.store)
+    this.tasks = tasks
+    await Promise.all([this.loadThreads(client), this.loadApprovalDefault(client).catch(() => undefined)])
     this.readyValue = true
-    await Promise.all(this.options.openThreads().map((threadId) => this.syncChat(threadId).catch(() => undefined)))
+    const open = this.options.openThreads()
+    tasks.reloadKnown(open)
+    await Promise.all(open.map((threadId) => this.syncChat(threadId).catch(() => undefined)))
   }
 
   async close(): Promise<void> {
@@ -208,7 +217,7 @@ export class ProjectConnection {
     client.on('thread/status/changed', ({ threadId, runtime }) => {
       if (!threadId) return
       if (!this.store.getState().chats[this.key(threadId)]) {
-        this.lookUp(client, threadId)
+        if (!this.tasks?.childChanged(threadId)) this.lookUp(client, threadId)
         return
       }
       this.patch(threadId, { runtime: runtime ?? null, updatedAt: now(), ...(runtime?.running ? { lastTurnFailed: false } : {}) })
@@ -253,6 +262,9 @@ export class ProjectConnection {
     client.on('item/usage/delta', (params) => this.contextChanged(params.threadId, usageDeltaUpdate(params)))
     client.on('system/event', (params) => this.contextChanged(params.threadId, systemEventUpdate(params)))
     client.on('auth/openai/usage/updated', (params) => this.store.dispatch({ type: 'usage', projectId: this.projectId, windows: usageWindows(params) }))
+    client.on('config/changed', ({ regions }) => {
+      if (changesWorkspaceApproval(regions)) void this.loadApprovalDefault(client).catch(() => undefined)
+    })
   }
 
   private contextChanged(threadId: string | null | undefined, update: ContextUpdate | null): void {
@@ -327,6 +339,17 @@ export class ProjectConnection {
     this.store.dispatch({ type: 'threads', projectId: this.projectId, chats })
   }
 
+  private async loadApprovalDefault(client: DotCraftWireClient): Promise<void> {
+    if (!client.initializeResult?.capabilities?.workspaceConfigManagement) return
+    const { config } = await client.request('config/read', {})
+    this.store.dispatch({ type: 'approvalDefault', projectId: this.projectId, policy: workspaceApprovalOf(config) })
+  }
+
+  async refresh(): Promise<void> {
+    const client = this.requireClient()
+    await Promise.all([this.loadThreads(client), this.loadApprovalDefault(client)])
+  }
+
   private async profileName(client: DotCraftWireClient, profileId: string): Promise<string> {
     if (!this.profiles && client.initializeResult?.capabilities.agentProfileManagement) {
       this.profiles = (await client.request('agent/profiles/list', {})).profiles ?? []
@@ -345,8 +368,10 @@ export class ProjectConnection {
     this.capturing.set(threadId, buffer)
     this.store.dispatch({ type: 'detailLoading', key })
     try {
-      await client.request('thread/subscribe', { threadId })
-      this.subscribed.add(threadId)
+      if (!this.subscribed.has(threadId)) {
+        await client.request('thread/subscribe', { threadId })
+        this.subscribed.add(threadId)
+      }
       const [read, turns, items] = await Promise.all([
         client.request('thread/read', { threadId }),
         client.request('thread/turns/list', { threadId, limit: 20, sortDirection: 'descending' }),
@@ -371,6 +396,7 @@ export class ProjectConnection {
         context: contextUsageOf(thread.contextUsage),
       })
       this.dropAnswered(key, history.items)
+      void this.tasks?.load(threadId).catch(() => undefined)
     } catch (error) {
       const existing = this.store.getState().details[key]
       if (existing) this.store.dispatch({ type: 'detailLoaded', key, ...existing })
@@ -594,6 +620,11 @@ export class ProjectConnection {
   async archive(threadId: string): Promise<void> {
     await this.requireClient().request('thread/archive', { threadId })
     this.store.dispatch({ type: 'chatRemoved', key: this.key(threadId) })
+  }
+
+  async stopTask(threadId: string, task: BackgroundTask): Promise<void> {
+    if (!this.tasks || !this.readyValue) throw new NotConnectedError()
+    await this.tasks.stop(threadId, task)
   }
 
   async stop(threadId: string): Promise<void> {

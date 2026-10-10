@@ -42,8 +42,8 @@ Phone app ──TLS, pinned certificate──> Hub mobile gateway ──loopback
 
 - Running the agent on the phone, or in a cloud service.
 - Editing settings, providers, plugins, skills, automations, or Agent Profiles from the phone.
-- Editing files, browsing the computer's folders, terminals, the in-app browser, or Desktop plugin
-  surfaces.
+- Editing files, browsing the computer's folders, typing into terminals, the in-app browser, or
+  Desktop plugin surfaces.
 - Controlling a computer that belongs to someone else. A pairing grants the phone the authority of
   the computer's signed-in user, and the product says so.
 - iOS in this version. The app ships for Android first; the wire contract stays platform-neutral so
@@ -314,7 +314,9 @@ they were opened from, so a chat, a project, and New chat always name one comput
 While in the foreground, and during a live session in the background (§8.5), the app keeps, for
 every paired computer, its `/m/events` socket and one relayed AppServer connection per running
 project; otherwise it closes them in the background. Each relayed connection initializes as an
-approval-capable client that supports user-input requests and streaming.
+approval-capable client that supports user-input requests, streaming, and background terminal
+notifications, and opts out of `terminal/outputDelta`, because the phone reads terminal output from
+snapshots rather than live.
 
 - **Status.** A computer is **online** when a gateway route answers, **connecting** while trying
   addresses, and **offline** otherwise. Offline shows its last known projects and chats read-only.
@@ -327,20 +329,28 @@ approval-capable client that supports user-input requests and streaming.
 - **Catching up.** After any reconnect the app follows the AppServer recovery rules: read the thread
   header, reload history head pages, and subscribe again. Subscribing replays pending approvals and
   questions, so nothing waiting is lost while the phone was away.
+- **Refresh.** Pulling down Home, a project, or a chat refreshes its computer, and the indicator
+  stays until the refresh settles. Online, the phone reloads the project list, connects projects
+  that started, lists the chats of every connected project again, rereads the workspace approval
+  default, and on a chat reads that chat's header and history head pages again. Offline, access
+  off, or waiting for the next backoff retry, it reconnects at once and settles with that attempt;
+  while an attempt is already running it settles with that one. A computer whose identity changed
+  does nothing.
 
 ### 8.2 Screens
 
 | Screen | Content |
 |---|---|
 | Pair | Camera scan, the Allow confirmation, and a connected confirmation. |
-| Home | One computer at a time, the selected one. No screen title. The top row centers the mascot, **DotCraft**, the selected computer's status, and a chevron; tapping it opens a menu with **Add computer** and **Settings**, so the row has no other button. Under it, a row of computer chips, one per paired computer with its status dot and name, switches the selected computer; the selected chip is filled. Both rows stay in place while the lists scroll. **Projects** lists the computer's projects, marking those whose runtime is not running, with no trailing chevron or chat state; **Recent** lists the chats of its running projects with a trailing state, so a chat waiting on the user shows **needs approval** or **needs answer** there, and is left out while there are none, so the compact composer is the only invitation to start. A search button at the end of the top row turns the row into a search field over chat titles. At the bottom, a compact composer with Add (**+**) and the composer's placeholder expands in place into New chat for the most recently used project with the keyboard up: the top row stays and gains a Back button at its start, the lists give way to an empty page, and Back folds it again, keeping any draft in the compact composer. A tap on the empty page only dismisses the keyboard. |
-| Project | Opened by tapping a project. The top bar names the project and the computer; the body lists the project's chats, newest first, or greets with the mascot when it has none, above the same compact composer as Home. Opening it starts a project whose runtime is not running, so its chats and model controls load; Home never starts a project by itself. |
+| Home | One computer at a time, the selected one. No screen title. The top row centers the mascot, **DotCraft**, the selected computer's status, and a chevron; tapping it opens a menu with **Add computer** and **Settings**, so the row has no other button. Under it, a row of computer chips, one per paired computer with its status dot and name, switches the selected computer; the selected chip is filled. Both rows stay in place while the lists scroll. **Projects** lists the computer's projects, marking those whose runtime is not running, with no trailing chevron or chat state; **Recent** lists the chats of its running projects with a trailing state, so a chat waiting on the user shows **needs approval** or **needs answer** there, and is left out while there are none, so the compact composer is the only invitation to start. Pulling the lists down refreshes them (§8.1). A search button at the end of the top row turns the row into a search field over chat titles. At the bottom, a compact composer with Add (**+**) and the composer's placeholder expands in place into New chat for the most recently used project with the keyboard up: the top row stays and gains a Back button at its start, the lists give way to an empty page, and Back folds it again, keeping any draft in the compact composer. A tap on the empty page only dismisses the keyboard. |
+| Project | Opened by tapping a project. The top bar names the project and the computer; the body lists the project's chats, newest first, or greets with the mascot when it has none, above the same compact composer as Home; pulling it down refreshes it (§8.1). Opening it starts a project whose runtime is not running, so its chats and model controls load; Home never starts a project by itself. |
 | New chat | The expanded compact composer, on Home or a project. Its composer is the chat's composer, so the model, reasoning, approval policy, and Plan mode are set before the first message. A project row above the composer names the project and switches it from the computer's projects, most recently used first. Expanding it starts a project whose runtime is not running. Send keeps the message in the composer and shows a spinner while the computer creates the chat; the chat then opens in place, without a page transition, showing the message at once with the composer where it was and the keyboard up. If the message does not go through, it returns to the chat's composer with the send error. |
-| Chat | A floating top bar over the transcript: Back, the chat title with its project and computer, the context ring, and a menu. The ring fills with the share of the context window in use; tapping it opens Status. The transcript follows Desktop's turn layout: a finished turn folds everything before its final reply into one **Worked for** row that expands, keeping steering messages, the last plan card, and generated images in view; consecutive tool calls of one kind (file reads, commands, file writes, web) group into one expandable row; reasoning shows only while it streams and then as **Thought for**; Copy sits under the final reply of a completed turn, and a completed turn that changed files ends its final reply with an **Edited** card that opens Changes for that turn; a created plan shows as a plan card. While an approval, a question, or a plan confirmation waits, the decision card closes the transcript and the composer is hidden. The composer card uses Desktop's placeholder and carries Add (**+**), the approval policy, and the model controls; while a turn runs it adds a message to the turn and a Stop control interrupts it. While a turn runs and has changed files, a changes pill above the composer opens Changes for it; the pill goes when the turn ends. The composer floats over the transcript, which fades out behind it. Scrolled away from the latest message, a round button above the composer returns to the bottom; while a turn runs it shows wave dots instead of the arrow. |
+| Chat | A floating top bar over the transcript: Back, the chat title with its project and computer, the context ring, and a menu. The ring fills with the share of the context window in use; tapping it opens Status. The transcript follows Desktop's turn layout: a finished turn folds everything before its final reply into one **Worked for** row that expands, keeping steering messages, the last plan card, and generated images in view; consecutive tool calls of one kind (file reads, commands, file writes, web) group into one expandable row; reasoning shows only while it streams and then as **Thought for**; Copy sits under the final reply of a completed turn, and a completed turn that changed files ends its final reply with an **Edited** card that opens Changes for that turn; a created plan shows as a plan card. While an approval, a question, or a plan confirmation waits, the decision card closes the transcript and the composer is hidden. The composer card uses Desktop's placeholder and carries Add (**+**), the approval policy, and the model controls; while a turn runs it adds a message to the turn and a Stop control interrupts it. While a turn runs and has changed files, a changes pill above the composer opens Changes for it; the pill goes when the turn ends. The composer floats over the transcript, which fades out behind it. Pulling the transcript down refreshes the chat (§8.1), with the indicator below the top bar. While any of the chat's background tasks runs (§8.3), a quiet row in the accent colour after the last turn counts them, such as "2 running tasks", and opens Background tasks; it is absent when none runs. Scrolled away from the latest message, a round button above the composer returns to the bottom; while a turn runs it shows wave dots instead of the arrow. |
 | Add menu | **Photo**, **File**, and **Plan mode**, which shows a check while it is on. |
 | Picker | Commands and skills matching what follows `/` or `$` in the composer. |
 | Changes | Every file the turn changed with its additions and deletions; each file expands to its diff. |
 | File | One file from the computer, read-only, with **Download**, which saves it to the phone's `Download/DotCraft/` folder. Images open full screen with the same Download. |
+| Background tasks | A sheet titled **Background tasks**, opened from the running tasks row. **Running**, expanded, and **Completed** with its count, collapsed, each fold in place. Each task is a card: its kind's icon, its title in bold and wrapping, and a line with its kind and how long it has run or ran, such as "Shell · 4m 28s", ending with **Stopped** or **Failed** when it did not finish normally. A running task ends with a Stop button; a finished task ends with a chevron that expands its detail in place: a shell task's last output lines, an agent's role, or a workflow's agent count. |
 | Status | Opened from the context ring: context left, account usage when the chat's provider reports it, the project folder, and the chat ID to copy. |
 | Decision card | One card for every decision a chat waits on: an approval, a question, or a plan confirmation. It is the last entry of the transcript, held at the bottom of the screen when the chat is short, and scrolls with it, so earlier messages stay one swipe away. Like the composer, it shows the focus border only while its text field is in use. The composer stays hidden until the decision is made. |
 | Settings | Every paired computer with its status and Remove, **Add computer**, and app information. |
@@ -385,8 +395,11 @@ list shows **failed** only for a chat whose failure the phone has seen.
   reasoning effort are each one row showing the current value, and tapping a row expands its choices
   in place and collapses the others; speed stays a Fast switch.
 - The composer shows the chat's model, reasoning effort, speed, and approval policy (`prompt` or
-  `autoApprove`). Changing one sends the whole configuration with `thread/config/update`, which takes
-  effect from the next turn. New chat starts on the model `model/list` marks `isDefault` for the
+  `autoApprove`). Any other chat policy, and New chat until the user picks one, shows the computer's
+  `Permissions.DefaultApprovalPolicy` for the project (`autoApprove`, else `prompt`), read with
+  `config/read` when the project's AppServer advertises `workspaceConfigManagement` and again on
+  `config/changed` for that key. Changing one sends the whole configuration with
+  `thread/config/update`, which takes effect from the next turn. New chat starts on the model `model/list` marks `isDefault` for the
   provider, and switching provider selects that provider's `isDefault` model; the `thread/start`
   configuration names that provider and model, and carries reasoning, speed, and approval policy
   only when the user changed them, so AppServer fills the rest from the provider's preference.
@@ -401,7 +414,9 @@ list shows **failed** only for a chat whose failure the phone has seen.
   **File** picks any document up to 2 MiB; before the message is sent, the phone creates
   `<project>/.craft/attachments/<id>/` with `fs/createDirectory`, writes the file there with
   `fs/writeFile`, and sends a `fileRef` to it. Attachments wait in the composer as removable
-  thumbnails and chips until sent; a failed upload keeps the draft and says which file failed. A
+  thumbnails and chips until sent. A message that fails to send, or whose upload fails, returns to
+  the composer, and a notice tucked behind the top of the composer card says so, naming the file for
+  a failed upload, with **Retry**, which sends the draft as it is; editing the draft dismisses it. A
   file over the limit is refused when picked. **Photo** and **File** are hidden when the server
   lacks `capabilities.fileSystem`.
 - **Plan mode** in the Add menu turns plan mode on, or off when it is on, with `thread/mode/set` (`plan` or `agent`); New chat in plan mode
@@ -450,7 +465,37 @@ list shows **failed** only for a chat whose failure the phone has seen.
   Math uses Desktop's delimiters; the phone does not typeset it, so a formula shows its TeX source
   styled as inline code, or as a code block for display math.
 - A tool activity line shows the tool kind's icon and fits one line, ending in an ellipsis; tapping it
-  shows the full command or target and its output.
+  shows the full command or target and its output. A running tool says what it is doing in the
+  present tense, such as "Running: npm test" or "Editing release.ps1", using Desktop's wording, and
+  ends with how long it has run, such as "12.3s". Commands and patterns show as plain text, as on
+  Desktop.
+- Work in progress shimmers instead of showing a spinner, following Desktop's `RunningShimmer`: a
+  running tool line, the streaming reasoning line, and an image being generated dim to the shimmer base colour, and every four seconds, starting shortly after they
+  appear, one highlight crosses the text at 450 px per second in a band half the text's width up to
+  80 px. The highlight is a copy hidden from screen readers. With reduced motion the text stays
+  dimmed and still.
+- A message the computer sends to start a turn when a Workflow finishes (`triggerKind` `workflow`)
+  shows as a user message under **Sent from workflow** with the workflow icon, the way Desktop marks
+  it, rather than as something the user typed.
+- **Background tasks** are the chat's work that outlives its turns, from three sources, each used
+  only when `initialize` reports its capability:
+  - shell commands the agent ran in the background: `terminal/list` for the thread, keeping only
+    terminals whose `backgroundReason` is `runInBackground`; they follow `terminal/started`,
+    `terminal/completed`, and `terminal/cleaned`, and Stop calls `terminal/stop`
+    (`capabilities.backgroundTerminals`);
+  - SubAgents: `subagent/children/list` for the chat with child threads, without closed children; it
+    is read again on `subagent/graph/changed` for the chat and on `thread/status/changed` for one of
+    its children, a child running per its thread runtime, and Stop calls `subagent/close` with the
+    child's agent path. A child that disappears from the list while running counts as stopped
+    (`capabilities.subAgentSessions`);
+  - Workflow runs: `workflow/run/list` for the thread, read again on `workflow/run/updated`; paused
+    runs count as running, Stop calls `workflow/run/stop` when the run's controls allow it and the
+    capability lists `stop` (`capabilities.extensions.dynamicWorkflows`).
+
+  The phone loads a chat's tasks when it opens or subscribes to the chat, and reloads every chat
+  whose tasks it knows after it reconnects to the project. Notifications are honoured for any chat
+  the phone lists, and repeated refreshes of one source for one chat coalesce into one request at a
+  time. Background tasks never mark the chat itself as running.
 
 ### 8.4 Mascot
 
@@ -471,7 +516,7 @@ Motion follows the phone's reduced-motion setting, and the mascot is decorative 
 ### 8.5 Live session
 
 When the app moves to the background while any chat on any computer is running or waiting on the
-user, it keeps its connections in an Android foreground service of type `connectedDevice` and shows
+user, or has a background task running (§8.3), it keeps its connections in an Android foreground service of type `connectedDevice` and shows
 one ongoing notification. It follows one chat across all computers, the most recent one waiting on
 the user or else the most recently updated running one: its title, and its pending approval or
 question, its latest tool step such as "Edited release.ps1", or that it is thinking or replying. The
@@ -479,17 +524,24 @@ notification's header names the followed chat's computer, or counts the chats, s
 needs you", when more than one is running or waiting, and tapping the notification opens the followed
 chat on its computer. On Android 16 and later the notification asks to be
 promoted to a Live Update, so it stays in the status bar the way a live activity does, with the
-followed chat's state, such as "Running", as its status bar chip.
+followed chat's state, such as "Running", as its status bar chip. A chat that is followed only for
+its background tasks shows how many run, such as "2 running tasks", with a "Running" chip, and does
+not count as a running chat in the header.
 
-- During a live session the phone subscribes to every running or waiting chat, because pending
-  requests and turn results reach only subscribed connections ([AppServer Protocol](../protocols/appserver-protocol.md) §7.6).
+- During a live session the phone subscribes to every running or waiting chat, and to every chat with
+  a background task running, because pending requests and turn results reach only subscribed
+  connections ([AppServer Protocol](../protocols/appserver-protocol.md) §7.6). So the turn the
+  computer starts when a Workflow finishes reaches the phone and ends in the usual done or failed
+  notification. The phone knows the tasks of chats it has opened or whose task notifications arrived
+  while it was connected; a task started while the phone was away, in a chat it has not opened since,
+  does not keep a live session.
 - A new approval posts a heads-up notification naming the chat, and its computer when more than one
   is paired, with **Allow once** and **Reject**
   actions that answer without opening the app; its body opens the chat.
 - A new question posts a notification that opens the chat.
 - A turn that ends while the app is in the background posts one notification: done or failed.
 - The session ends, its connections close, and its ongoing, approval, and question notifications go
-  away when nothing has been running or waiting for two minutes, when the user chooses **Disconnect** on the
+  away when nothing has been running, waiting, or running in the background for two minutes, when the user chooses **Disconnect** on the
   ongoing notification, or when every computer with work has been unreachable for two minutes. Done and failed
   notifications stay. Returning to the app continues normally.
 - Android cannot ask for permission from the background, so the app asks for notification permission
@@ -644,3 +696,6 @@ The Phones segment adds **Access from anywhere** with the relay address and toke
 - Changes lists the same files and line counts as Desktop for the same turn, and a file chip opens
   the file's contents.
 - Status shows the same context share as Desktop and, for a ChatGPT sign-in, the usage windows.
+- A chat whose turn ended while a Workflow and a background command keep running shows "2 running
+  tasks"; each can be stopped from Background tasks, and with the app in the background the phone
+  stays connected until they finish and posts the notification of the turn the Workflow starts.

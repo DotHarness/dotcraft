@@ -1,4 +1,5 @@
 import type { RelayInfo } from '../core/gateway'
+import { FakeBackground, type FakeBackgroundSeed, type FakeWorkflowRun } from './fakeBackground'
 import { FakeFiles } from './fakeFiles'
 
 export interface FakeItem {
@@ -81,6 +82,7 @@ export interface FakeProject {
   cantStart: boolean
   lastActiveAt: string
   path?: string
+  approvalDefault?: 'default' | 'autoApprove'
   threads: FakeThread[]
 }
 
@@ -99,6 +101,7 @@ export interface FakeComputerSeed {
   commands?: { name: string; description: string; category: 'builtin' | 'custom' }[]
   skills?: { name: string; description: string; enabled: boolean }[]
   files?: Record<string, string>
+  background?: FakeBackgroundSeed
   tooLargeFiles?: string[]
   accountUsage?: Record<string, unknown>
 }
@@ -114,6 +117,7 @@ interface Connection {
   project: FakeProject
   sink: FakeSocketSink
   initialized: boolean
+  configChange: boolean
   subscribed: Set<string>
   held: Map<string | number, { threadId: string; requestId: string }>
 }
@@ -158,6 +162,7 @@ export class FakeComputer {
   readonly removedDevices: string[] = []
   readonly failingMethods = new Set<string>()
   readonly files: FakeFiles
+  readonly background: FakeBackground
   private readonly credentials: Map<string, string>
   private readonly pairingCodes: Set<string>
   private readonly profiles: { id: string; name: string }[]
@@ -186,6 +191,10 @@ export class FakeComputer {
     this.skills = seed.skills ?? []
     this.accountUsage = seed.accountUsage
     this.files = new FakeFiles(this.projects.flatMap((project) => (project.path ? [project.path] : [])), seed.files)
+    this.background = new FakeBackground(seed.background ?? {}, {
+      notify: (threadId, method, params) => this.broadcast(this.thread(threadId).project, method, params),
+      workflowFinished: (run) => this.workflowFinished(run),
+    })
     for (const path of seed.tooLargeFiles ?? []) this.files.tooLarge.add(path)
     for (const project of this.projects) for (const thread of project.threads) thread.config = { ...this.defaultConfig(thread.config?.providerId as string | undefined), ...thread.config }
   }
@@ -265,7 +274,7 @@ export class FakeComputer {
       sink.fail('ERR_HTTP', 'projectNotRunning', 409)
       return null
     }
-    this.connections.set(id, { project, sink, initialized: false, subscribed: new Set(), held: new Map() })
+    this.connections.set(id, { project, sink, initialized: false, configChange: false, subscribed: new Set(), held: new Map() })
     sink.open()
     return id
   }
@@ -363,6 +372,7 @@ export class FakeComputer {
     const project = connection.project
     switch (method) {
       case 'initialize':
+        connection.configChange = (params.capabilities as { configChange?: boolean } | undefined)?.configChange !== false
         return {
           result: {
             serverInfo: { name: 'dotcraft', version: this.version },
@@ -376,9 +386,15 @@ export class FakeComputer {
               commandManagement: this.commands.length > 0,
               skillsManagement: this.skills.length > 0,
               authOpenAiUsage: this.accountUsage !== undefined,
+              workspaceConfigManagement: true,
+              backgroundTerminals: true,
+              subAgentSessions: true,
+              extensions: { dynamicWorkflows: { version: 1, list: true, read: true, pause: true, stop: true, resume: true, notifications: true } },
             },
           },
         }
+      case 'config/read':
+        return { result: { config: { Permissions: { DefaultApprovalPolicy: project.approvalDefault ?? 'default' } }, origins: {} } }
       case 'thread/list':
         return { result: { data: project.threads.filter((thread) => !thread.archived).map((thread) => this.summary(thread)) } }
       case 'agent/profiles/list':
@@ -427,6 +443,8 @@ export class FakeComputer {
     }
     const files = this.files.handle(method, params)
     if (files) return files
+    const background = this.background.handle(method, params)
+    if (background) return background
     const { thread } = this.thread(params.threadId as string)
     switch (method) {
       case 'thread/read':
@@ -685,6 +703,24 @@ export class FakeComputer {
     this.statusChanged(project, thread)
   }
 
+  private workflowFinished(run: FakeWorkflowRun): void {
+    const { project, thread } = this.thread(run.threadId)
+    if (this.activeTurn(thread)) return
+    const turn: FakeTurn = { id: sequenceId('turn', thread.turns.length + 1), threadId: thread.id, status: 'running', startedAt: this.stamp() }
+    thread.turns.push(turn)
+    const text = `Workflow ${run.name} finished.`
+    const user = this.addItem(thread, turn.id, 'userMessage', {
+      text,
+      nativeInputParts: [{ type: 'text', text }],
+      triggerKind: 'workflow',
+      triggerLabel: run.name,
+      triggerRefId: run.runId,
+    })
+    this.toSubscribers(project, thread.id, 'turn/started', { turn: { ...turn, items: [user] } })
+    this.statusChanged(project, thread)
+    this.streamReply(project, thread, turn, thread.continuation, true)
+  }
+
   private sendEvent(type: string, projectId: string): void {
     for (const sink of this.events.values()) sink.message(JSON.stringify({ type, projectId }))
   }
@@ -695,6 +731,16 @@ export class FakeComputer {
     project.running = true
     project.lastActiveAt = this.stamp()
     this.sendEvent('projectStarted', projectId)
+  }
+
+  setApprovalDefault(projectId: string, policy: 'default' | 'autoApprove'): void {
+    const project = this.project(projectId)
+    if (!project) return
+    project.approvalDefault = policy
+    const params = { source: 'config/value/write', regions: ['Permissions.DefaultApprovalPolicy'], changedAt: this.stamp() }
+    for (const connection of this.projectConnections(project)) {
+      if (connection.configChange) this.write(connection, { jsonrpc: '2.0', method: 'config/changed', params })
+    }
   }
 
   stopProject(projectId: string): void {

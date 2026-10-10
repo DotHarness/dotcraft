@@ -1,10 +1,12 @@
 import { File, Paths } from 'expo-file-system'
 import { AppRegistry, PermissionsAndroid, Platform } from 'react-native'
 import LiveSession from '../../modules/live-session'
+import { isLive } from '../core/chatState'
 import type { LiveFocus, LiveNotice, LiveNotifier, LiveStatus } from '../core/liveSession'
 import type { ChatSummary, PendingRequest } from '../core/state'
 import { deviceI18n, type I18n } from '../i18n'
 import { approvalTitle, subjectOf } from '../ui/chat/approvalText'
+import { runningTasksLabel } from '../ui/chat/BackgroundTasks'
 import { toolText } from '../ui/chat/Transcript'
 import { STATE_LABEL } from '../ui/parts'
 import { chatTitle } from '../ui/rows'
@@ -24,6 +26,7 @@ function requestText({ t }: I18n, request: PendingRequest): string {
 function focusText(i18n: I18n, focus: LiveFocus): string {
   const { t } = i18n
   if (focus.request) return requestText(i18n, focus.request)
+  if (!isLive(focus.state) && focus.tasks > 0) return runningTasksLabel(t, focus.tasks)
   switch (focus.activity?.kind) {
     case 'tool':
       return toolText(focus.activity.verb, focus.activity.subject, t)
@@ -47,7 +50,7 @@ function ongoing(i18n: I18n, status: LiveStatus) {
     title: focus ? chatTitle(focus.chat, t('chat.untitled')) : status.computer,
     text,
     subText: status.running + status.needsYou > 1 ? parts.join(' · ') : status.computer,
-    chip: !status.reachable ? t('status.connecting') : focus ? t(STATE_LABEL[focus.state]) : '',
+    chip: !status.reachable ? t('status.connecting') : focus ? t(STATE_LABEL[isLive(focus.state) ? focus.state : 'running']) : '',
     url: focus ? chatUrl(focus.computerId, focus.chat) : '',
     end: t('live.end'),
   }

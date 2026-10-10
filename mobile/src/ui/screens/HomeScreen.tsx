@@ -18,7 +18,7 @@ import {
 import { useI18n } from '../../i18n'
 import { Icon } from '../icons'
 import { animateLayout, CompactComposer, NewChatPane, useProjectStart } from '../chat/NewChat'
-import { Screen, ScrollArea } from '../layout'
+import { Screen, ScrollArea, useRefreshControl } from '../layout'
 import { Mascot, MascotNote, MascotTransition, type MascotMoment } from '../mascot/Mascot'
 import { MenuRow, PopoverMenu } from '../Menu'
 import { ComputerStatusLine, Notice, PhoneButton, ReadOnlyNotice, RoundIconButton, Section, Txt } from '../parts'
@@ -143,6 +143,7 @@ function ComputerHome() {
   const [draft, setDraft] = useState(EMPTY_DRAFT)
   const insets = useSafeAreaInsets()
   const addComputer = useAddComputer()
+  const refreshControl = useRefreshControl()
   const computer = state.computer
   const status = computerStatus(state)
   const live = isReachable(status)
@@ -206,7 +207,7 @@ function ComputerHome() {
               accessibilityRole="button"
               accessibilityLabel={menuLabel}
               accessibilityState={{ expanded: menuOpen }}
-              style={({ pressed }) => [styles.computer, pressed && { backgroundColor: colors.roundFill }]}
+              style={({ pressed }) => [styles.computer, pressed && styles.pressed]}
               onPress={() => setMenuOpen(true)}
             >
               <Mascot moment={computerMoment(status, waiting)} size={40} style={styles.avatar} />
@@ -253,7 +254,7 @@ function ComputerHome() {
         />
       ) : (
         <>
-          <ScrollArea>
+          <ScrollArea refreshControl={refreshControl}>
             <RevokedNotice />
             {status === 'access-off' ? <ReadOnlyNotice status={status} computer={computer.name} style={styles.notice} /> : null}
             <View style={styles.lists}>
@@ -334,6 +335,7 @@ const styles = StyleSheet.create({
   backButton: { position: 'absolute', left: metrics.gutter },
   searchButton: { position: 'absolute', right: metrics.gutter },
   searchRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: -52 },
+  pressed: { opacity: 0.6 },
   computer: {
     flexShrink: 1,
     minWidth: 0,

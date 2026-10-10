@@ -218,7 +218,12 @@ export function NewChatPane({
   if (!project) return null
   const projectName = projectTitle(project, t)
   const providerId = choices.controls.providerId ?? models?.defaultProviderId ?? null
-  const controls: ChatControls = { ...choices.controls, providerId, model: choices.controls.model ?? defaultModel(models, providerId) }
+  const controls: ChatControls = {
+    ...choices.controls,
+    providerId,
+    model: choices.controls.model ?? defaultModel(models, providerId),
+    approvalPolicy: choices.touched.approval ? choices.controls.approvalPolicy : (models?.approvalDefault ?? 'prompt'),
+  }
   const starting = sending ? !project.running : needsStart || phase === 'starting'
   const cantStart = failed || phase === 'cantStart'
 

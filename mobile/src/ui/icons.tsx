@@ -225,6 +225,20 @@ const ICONS = {
     ['path', { d: 'M12 8v4' }],
     ['path', { d: 'M12 16h.01' }],
   ],
+  workflow: [
+    ['rect', { width: 8, height: 8, x: 3, y: 3, rx: 2 }],
+    ['path', { d: 'M7 11v4a2 2 0 0 0 2 2h4' }],
+    ['rect', { width: 8, height: 8, x: 13, y: 13, rx: 2 }],
+  ],
+  bot: [
+    ['path', { d: 'M12 8V4H8' }],
+    ['rect', { width: 16, height: 12, x: 4, y: 8, rx: 2 }],
+    ['path', { d: 'M2 14h2' }],
+    ['path', { d: 'M20 14h2' }],
+    ['path', { d: 'M15 13v2' }],
+    ['path', { d: 'M9 13v2' }],
+  ],
+  activity: [['path', { d: 'M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2' }]],
   listChecks: [
     ['path', { d: 'M13 5h8' }],
     ['path', { d: 'M13 12h8' }],
@@ -274,6 +288,15 @@ export function Icon({
             return <Line key={index} {...attributes} />
         }
       })}
+    </Svg>
+  )
+}
+
+export function CircleStopGlyph({ size, color }: { size: number; color: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Circle cx={12} cy={12} r={10} fill="none" stroke={color} strokeWidth={1.6} />
+      <Rect width={8} height={8} x={8} y={8} rx={1.5} fill={color} />
     </Svg>
   )
 }

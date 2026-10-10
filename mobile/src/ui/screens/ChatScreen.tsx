@@ -7,12 +7,14 @@ import { awaitsPlanConfirmation, isLive, type ChatState } from '../../core/chatS
 import { usedShare } from '../../core/contextUsage'
 import { waitingDecisions } from '../../core/decisions'
 import { plainMessage } from '../../core/draft'
+import { chatTasks } from '../../core/backgroundTasks'
 import { chatKey, computerStatus, isReachable, projectById, stateOf, type PendingRequest } from '../../core/state'
 import { workspaceFile } from '../../core/links'
 import { controlsOf, offersPlanMode, type ChatControls } from '../../core/threadConfig'
 import { buildTranscript } from '../../core/transcript'
 import { runningTurnChanges, turnChanges } from '../../core/turnChanges'
 import { useI18n } from '../../i18n'
+import { TasksRow, TasksSheet } from '../chat/BackgroundTasks'
 import { ChangesOpenerContext, ChangesPill, ChangesSheet } from '../chat/Changes'
 import { BAR_HEIGHT, BarButton, ChatBar } from '../chat/ChatBar'
 import { ChatMenu } from '../chat/ChatMenu'
@@ -29,7 +31,7 @@ import { ImageReaderContext } from '../chat/Images'
 import { ScrollToBottom } from '../chat/ScrollToBottom'
 import { StatusPopover } from '../chat/StatusPopover'
 import { TranscriptLine } from '../chat/Transcript'
-import { Screen } from '../layout'
+import { Screen, useRefreshControl } from '../layout'
 import { MascotNote, MascotTransition } from '../mascot/Mascot'
 import { Notice, PhoneButton, ReadOnlyNotice } from '../parts'
 import { chatTitle, projectIcon, projectTitle } from '../rows'
@@ -48,12 +50,14 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const [changesOpen, setChangesOpen] = useState(false)
   const [changesTurn, setChangesTurn] = useState<string | null>(null)
   const [openPath, setOpenPath] = useState<string | null>(null)
+  const [tasksOpen, setTasksOpen] = useState(false)
   const scroller = useRef<ScrollView>(null)
   const pinned = useRef(true)
   const jumping = useRef(false)
   const [away, setAway] = useState(false)
   const [dockHeight, setDockHeight] = useState(0)
   const [pendingSend, setPendingSend] = useState(() => pendingSends.get(key))
+  const refreshControl = useRefreshControl(key, BAR_HEIGHT)
 
   useEffect(() => {
     pendingSends.delete(key)
@@ -77,9 +81,11 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const chatState: ChatState = chat ? stateOf(chat) : 'done'
   const pending: PendingRequest[] = state.pending[key] ?? []
   const transcript = useMemo(() => (detail ? buildTranscript(detail.history, detail.workspacePath) : []), [detail])
+  const chatTaskSources = state.tasks[key]
+  const tasks = useMemo(() => chatTasks(chatTaskSources), [chatTaskSources])
   const catchingUp = live && (detail ? detail.loading && detail.history.items.length === 0 : true)
   const profile = chat?.profileId ? (detail?.profileName ?? chat.profileId) : null
-  const configured = controlsOf(detail?.config)
+  const configured = controlsOf(detail?.config, state.models[projectId]?.approvalDefault ?? 'prompt')
   const models = useModels(projectId, ready, configured.providerId)
   const controls: ChatControls = { ...configured, providerId: configured.providerId ?? models?.defaultProviderId ?? null }
   const references = useReferences(projectId, ready)
@@ -161,6 +167,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
               keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
               scrollEventThrottle={64}
+              refreshControl={refreshControl}
               onScroll={track}
               onScrollBeginDrag={() => {
                 jumping.current = false
@@ -209,6 +216,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
                   </ChangesOpenerContext.Provider>
                 </ImageReaderContext.Provider>
               </FileViewerContext.Provider>
+              {tasks.running.length > 0 ? <TasksRow count={tasks.running.length} onPress={() => setTasksOpen(true)} /> : null}
               {decision ? (
                 <View style={styles.decision}>
                   <DecisionCard key={decision.requestId} decision={decision} count={decisions.length} disabled={!ready} actions={actions} />
@@ -294,6 +302,13 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
         />
       ) : null}
       <FileSheet path={openPath} read={readFile} onClose={() => setOpenPath(null)} />
+      <TasksSheet
+        visible={tasksOpen}
+        running={tasks.running}
+        completed={tasks.completed}
+        onClose={() => setTasksOpen(false)}
+        onStop={(task) => session.stopTask(key, task)}
+      />
     </Screen>
   )
 }

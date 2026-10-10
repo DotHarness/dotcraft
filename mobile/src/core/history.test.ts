@@ -93,9 +93,9 @@ describe('turn-scoped item ids', () => {
       ],
     }
     expect(buildTranscript(history)).toMatchObject([
-      { kind: 'tool', id: 't1/item_001', verb: 'edited', subject: 'a.ts', code: false, added: 3, removed: 1 },
+      { kind: 'tool', id: 't1/item_001', verb: 'edited', subject: 'a.ts', added: 3, removed: 1 },
       { kind: 'notice', id: 't1/item_004', tone: 'neutral', notice: 'allowedOnce', detail: 'npm test' },
-      { kind: 'tool', id: 't2/item_001', verb: 'edited', subject: 'b.ts', code: false, added: 7, removed: 0 },
+      { kind: 'tool', id: 't2/item_001', verb: 'edited', subject: 'b.ts', added: 7, removed: 0 },
       { kind: 'notice', id: 't2/item_004', tone: 'neutral', notice: 'rejected', detail: 'npm run lint' },
     ])
   })

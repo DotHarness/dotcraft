@@ -7,7 +7,7 @@ import { computerStatus, projectById, projectChats } from '../../core/state'
 import { useI18n } from '../../i18n'
 import { BAR_HEIGHT, ChatBar } from '../chat/ChatBar'
 import { animateLayout, CompactComposer, NewChatPane, useProjectStart } from '../chat/NewChat'
-import { Screen } from '../layout'
+import { Screen, useRefreshControl } from '../layout'
 import { MascotNote, MascotTransition } from '../mascot/Mascot'
 import { Section } from '../parts'
 import { ChatRow, projectTitle } from '../rows'
@@ -27,6 +27,7 @@ export function ProjectScreen({ projectId, compose = false }: { projectId: strin
   const status = computerStatus(state)
   const online = status === 'online'
   const needsStart = useProjectStart(projectId)
+  const refreshControl = useRefreshControl(undefined, BAR_HEIGHT)
   const collapse = useCallback(() => {
     animateLayout()
     setComposing(false)
@@ -62,22 +63,22 @@ export function ProjectScreen({ projectId, compose = false }: { projectId: strin
           <MascotTransition line={t('project.starting', { project: projectName })} />
         ) : phase === 'cantStart' ? (
           <MascotNote moment="asleep">{t('project.cantStart', { computer: computer.name, project: projectName })}</MascotNote>
-        ) : chats.length > 0 ? (
-          <ScrollView style={styles.fill} contentContainerStyle={styles.list}>
-            <Section title={t('home.recent')} grow>
-              {chats.map((chat) => (
-                <ChatRow key={chat.key} chat={chat} live={online} projectName={null} onPress={() => router.push(chatHref(computer.id, chat.key))} />
-              ))}
-            </Section>
-          </ScrollView>
         ) : (
-          <View style={[styles.fill, styles.empty]}>
-            <MascotNote moment="greeting">
-              {project.running
-                ? t('newChat.runsOn', { computer: computer.name, project: projectName })
-                : t('newChat.startsOn', { computer: computer.name, project: projectName })}
-            </MascotNote>
-          </View>
+          <ScrollView style={styles.fill} contentContainerStyle={chats.length > 0 ? styles.list : styles.empty} refreshControl={refreshControl}>
+            {chats.length > 0 ? (
+              <Section title={t('home.recent')} grow>
+                {chats.map((chat) => (
+                  <ChatRow key={chat.key} chat={chat} live={online} projectName={null} onPress={() => router.push(chatHref(computer.id, chat.key))} />
+                ))}
+              </Section>
+            ) : (
+              <MascotNote moment="greeting">
+                {project.running
+                  ? t('newChat.runsOn', { computer: computer.name, project: projectName })
+                  : t('newChat.startsOn', { computer: computer.name, project: projectName })}
+              </MascotNote>
+            )}
+          </ScrollView>
         )}
         {bar}
       </View>
@@ -95,6 +96,6 @@ export function ProjectScreen({ projectId, compose = false }: { projectId: strin
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  empty: { paddingHorizontal: metrics.gutter },
+  empty: { flexGrow: 1, paddingHorizontal: metrics.gutter },
   list: { flexGrow: 1, paddingTop: BAR_HEIGHT + 20, paddingHorizontal: metrics.gutter, paddingBottom: 16 },
 })

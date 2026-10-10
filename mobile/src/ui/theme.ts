@@ -38,6 +38,8 @@ const dark = {
   failureFill: 'rgba(239, 68, 68, 0.08)',
   shadow1: '0px 1px 3px rgba(0, 0, 0, 0.22)',
   shadow3: '0px 18px 48px rgba(0, 0, 0, 0.32)',
+  shimmerBase: '#818180',
+  shimmerPeak: '#c2cbe6',
 }
 
 const light: typeof dark = {
@@ -77,6 +79,8 @@ const light: typeof dark = {
   failureFill: 'rgba(220, 38, 38, 0.08)',
   shadow1: '0px 1px 2px rgba(0, 0, 0, 0.06)',
   shadow3: '0px 8px 16px -4px rgba(0, 0, 0, 0.12)',
+  shimmerBase: '#3e3f42',
+  shimmerPeak: '#adb5d1',
 }
 
 export const themes = {

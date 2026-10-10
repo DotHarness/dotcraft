@@ -239,3 +239,35 @@ describe('ending a live session', () => {
     expect(computer.connectionCount).toBeGreaterThan(0)
   })
 })
+
+describe('background tasks during a live session', () => {
+  it('holds a chat while its background tasks run and reports the turn its workflow starts when it finishes', async () => {
+    const computer = createStudio(new Date())
+    computer.streamDelayMs = 1
+    const notifier = new FakeNotifier()
+    const harness = createHarness([computer], { live: notifier })
+    harnesses.push(harness)
+    const state = () => harness.computerState()
+    await harness.session.boot()
+    await waitFor(() => state().link === 'online' && !state().syncing)
+    const key = chatKey(state(), 'Review the release branch')
+    const threadId = state().chats[key].threadId
+    harness.link().openChat(key)
+    await waitFor(() => Object.keys(state().tasks[key] ?? {}).length === 3)
+    harness.link().closeChat(key)
+    for (const chat of live(state())) computer.endTurn(chat.threadId, 'completed')
+    await waitFor(() => live(state()).length === 0)
+
+    harness.session.setForeground(false)
+    expect(notifier.statuses.at(-1)).toMatchObject({ running: 0, needsYou: 0, tasks: 2, focus: { chat: { key }, tasks: 2 } })
+    await waitFor(() => computer.calls.filter((call) => call.method === 'thread/subscribe' && call.params.threadId === threadId).length === 2)
+    expect(harness.timers.delays()).not.toContain(LIVE_END_MS)
+
+    computer.background.finishTerminal('term_docs_dev')
+    computer.background.finishWorkflow('run_review')
+    await waitFor(() => notifier.shown.get(`turn:${computer.id}:${key}`)?.kind === 'turnEnded')
+    expect(notifier.shown.get(`turn:${computer.id}:${key}`)).toMatchObject({ failed: false })
+    await waitFor(() => harness.timers.delays().includes(LIVE_END_MS))
+    expect(notifier.statuses.at(-1)).toMatchObject({ tasks: 0 })
+  })
+})
