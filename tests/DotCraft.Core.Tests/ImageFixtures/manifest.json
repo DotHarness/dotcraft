@@ -1,0 +1,123 @@
+{
+  "generator": "Pillow",
+  "version": "12.2.0",
+  "files": {
+    "color-1.png": {
+      "sha256": "c764e18e52e0452bff7f084e04326af8f57205a3c1d3975af5541866029c6c94",
+      "size": [
+        1,
+        1
+      ],
+      "pixel": [
+        10,
+        20,
+        30,
+        255
+      ]
+    },
+    "color-2.png": {
+      "sha256": "5ca13f1c095c3704fcd577dc5c8325883555d67a705b500564f784a71bcb01c3",
+      "size": [
+        2,
+        2
+      ],
+      "pixel": [
+        10,
+        20,
+        30,
+        255
+      ]
+    },
+    "color-3.png": {
+      "sha256": "3d72392cb693514b1a45e148be060bb157018046fcaab899aeecddb0b0dbc4d7",
+      "size": [
+        3,
+        3
+      ],
+      "pixel": [
+        10,
+        20,
+        30,
+        255
+      ]
+    },
+    "color-4.png": {
+      "sha256": "e4e062b9bcfdf3d7aa57836b9d23be3dc43118584c07c107fb4c6f07f0eb9fe3",
+      "size": [
+        4,
+        4
+      ],
+      "pixel": [
+        10,
+        20,
+        30,
+        255
+      ]
+    },
+    "red-1.bmp": {
+      "sha256": "efd6fb1b2a4846d21ca9008fa745d00e567730304dcad4f9b5423397ac75f6f2",
+      "size": [
+        1,
+        1
+      ],
+      "pixel": [
+        255,
+        0,
+        0,
+        255
+      ]
+    },
+    "red-1.gif": {
+      "sha256": "e568bb9dfab383c17ea45d0c66bf9bda250d87f4e8457c23276db8a35713bd75",
+      "size": [
+        1,
+        1
+      ],
+      "pixel": [
+        255,
+        0,
+        0,
+        255
+      ]
+    },
+    "red-1.jpg": {
+      "sha256": "878842eed6cd6227b57bc380ef12a9842b3926e6b597bf2a58238bac2c499238",
+      "size": [
+        1,
+        1
+      ],
+      "pixel": [
+        254,
+        0,
+        0,
+        255
+      ]
+    },
+    "red-1.png": {
+      "sha256": "b1ff9c8ea3a780bad09b346c423d2d0e46815926879b18e841d928376a946640",
+      "size": [
+        1,
+        1
+      ],
+      "pixel": [
+        255,
+        0,
+        0,
+        255
+      ]
+    },
+    "red-1.webp": {
+      "sha256": "882e5be149e09bb13b740230d48f462be51f3b4f8c4bcc051506e7bc419520ac",
+      "size": [
+        1,
+        1
+      ],
+      "pixel": [
+        255,
+        0,
+        0,
+        255
+      ]
+    }
+  }
+}

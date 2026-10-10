@@ -49,6 +49,12 @@ Embedded application
 - Dependency cycles are not permitted. A project reference must not be added merely to make a move
   compile.
 
+`DotCraft.Imaging` is a provider-independent image capability used by Agents and Core. It depends
+only on the .NET BCL and owns codecs, pixel resampling and image resource limits. Model input budgets
+and content adaptation belong to Agents; platform capture and screenshot policy belong to Core.
+Imaging does not depend on either consumer, Runtime, Protocol or a platform UI framework. See
+[Image processing](image-processing.md) for its contract.
+
 ## Core ownership
 
 Core represents what DotCraft is. It contains the implementations and domain contracts for the

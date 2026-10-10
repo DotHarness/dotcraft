@@ -2,8 +2,6 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DotCraft.Agents;
 using Microsoft.Extensions.AI;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using Xunit;
 
 namespace DotCraft.Tests.Agents;
@@ -32,7 +30,7 @@ public sealed class ImageContentSanitizingChatClientTests
                        message.Contents.OfType<DataContent>().Any());
         var image = Assert.Single(syntheticUser.Contents.OfType<DataContent>());
         Assert.Equal("image/png", image.MediaType);
-        Assert.Equal("image/png", Image.DetectFormat(image.Data.ToArray()).DefaultMimeType);
+        Assert.Equal((1, 1), ImageFixture.PngSize(image.Data.Span));
     }
 
     [Fact]
@@ -182,13 +180,7 @@ public sealed class ImageContentSanitizingChatClientTests
         return updates;
     }
 
-    private static byte[] CreateBmpBytes()
-    {
-        using var image = new Image<Rgba32>(1, 1, new Rgba32(0xff, 0, 0));
-        using var stream = new MemoryStream();
-        image.SaveAsBmp(stream);
-        return stream.ToArray();
-    }
+    private static byte[] CreateBmpBytes() => ImageFixture.Red("image/bmp");
 
     private sealed class CapturingChatClient : IChatClient
     {

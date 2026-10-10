@@ -63,6 +63,10 @@ Frame                         =  (Width, Height, Jpeg)
 `ScreenCaptureSource.Create()` returns the platform backend, or a source whose every answer is
 `noCaptureBackend` where the build has none. The Windows backend captures physical desktop pixels and returns JPEG images.
 
+Capture uses the shared [image capability](../architecture/image-processing.md) to resize desktop
+pixels and encode JPEG frames. Image-processing failures map to `captureFailed`; capture and
+frame retry policy belong to this feature.
+
 Rules:
 
 - The capture unit is the whole virtual desktop, starting at its real origin, which may be negative.

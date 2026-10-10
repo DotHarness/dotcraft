@@ -29,6 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="ImageFixtures/*.*" LogicalName="DotCraft.Tests.ImageFixtures.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Protocol\Fixtures\model-history-schema-v1.json"
                       LogicalName="DotCraft.Tests.ModelHistorySchemaV1.json" />
     <EmbeddedResource Include="..\fixtures\desktop-plugin-revision.json"

@@ -7,8 +7,6 @@ using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using Xunit;
 
@@ -350,13 +348,7 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
 
     private static string DataUrl(byte[] bytes) => "data:image/png;base64," + Convert.ToBase64String(bytes);
 
-    private static byte[] CreatePng(int size)
-    {
-        using var image = new Image<Rgba32>(size, size, new Rgba32(10, 20, 30, 255));
-        using var stream = new MemoryStream();
-        image.SaveAsPng(stream);
-        return stream.ToArray();
-    }
+    private static byte[] CreatePng(int size) => ImageFixture.Read($"color-{size}.png");
 
     private static AppConfig Disabled(AppConfig config)
     {

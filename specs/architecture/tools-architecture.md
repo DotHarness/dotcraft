@@ -164,6 +164,10 @@ Image generation is the Core Native tool `image_gen.imagegen`, dispatched throug
 
 ### 5.6 Presentation
 
+Tool images promoted into model input and image-generation references use the Agents image adapter
+and [managed image capability](image-processing.md). The adapter owns model size and patch budgets,
+format selection and failure placeholders.
+
 Presentation is optional enhancement after correctness. Every model-visible tool result MUST have a usable model/text fallback. Presentation has two independent mechanisms:
 
 - **MCP Apps**, for server-provided interactive resources and bidirectional host/view communication;
