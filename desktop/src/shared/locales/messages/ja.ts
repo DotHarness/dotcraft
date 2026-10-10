@@ -1313,7 +1313,6 @@ export const MESSAGES_JA = {
   'error.copiedAria': 'エラーをコピーしました',
 
   'toast.threadNotFound': 'スレッドが見つかりません - 一覧から削除しました',
-  'toast.threadArchived': 'この会話は別のクライアントでアーカイブされました',
   'toast.regionLabel': '通知',
   'threadArchive.toast.archived': '会話をアーカイブしました',
   'threadArchive.toast.archiveFailed': '会話のアーカイブに失敗しました: {{error}}',

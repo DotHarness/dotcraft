@@ -1313,7 +1313,6 @@ export const MESSAGES_ES = {
   'error.copiedAria': 'Error copiado',
 
   'toast.threadNotFound': 'Conversación no encontrada; se quitó de la lista',
-  'toast.threadArchived': 'Esta conversación fue archivada por otro cliente',
   'toast.regionLabel': 'Notificaciones',
   'threadArchive.toast.archived': 'Conversación archivada',
   'threadArchive.toast.archiveFailed': 'No se pudo archivar la conversación: {{error}}',

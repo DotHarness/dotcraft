@@ -1949,7 +1949,6 @@ export const MESSAGES_ZH_HANS = {
   'app.triggeredBy.generic': 'App 触发的输入',
 
   'toast.threadNotFound': '未找到会话 — 已从列表移除',
-  'toast.threadArchived': '此会话已被其他客户端归档',
   'toast.regionLabel': '通知',
   'threadArchive.toast.archived': '会话已归档',
   'threadArchive.toast.archiveFailed': '归档会话失败：{{error}}',

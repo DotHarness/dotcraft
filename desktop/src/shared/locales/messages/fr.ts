@@ -1313,7 +1313,6 @@ export const MESSAGES_FR = {
   'error.copiedAria': 'Erreur copiée',
 
   'toast.threadNotFound': 'Discussion introuvable — supprimée de la liste',
-  'toast.threadArchived': 'Cette discussion a été archivée par un autre client',
   'toast.regionLabel': 'Notifications',
   'threadArchive.toast.archived': 'Discussion archivée',
   'threadArchive.toast.archiveFailed': 'Impossible d’archiver la discussion : {{error}}',

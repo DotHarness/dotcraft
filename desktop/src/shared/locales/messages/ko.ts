@@ -1313,7 +1313,6 @@ export const MESSAGES_KO = {
   'error.copiedAria': '오류가 복사됨',
 
   'toast.threadNotFound': '스레드를 찾을 수 없어 목록에서 제거했습니다',
-  'toast.threadArchived': '이 대화는 다른 클라이언트에서 보관되었습니다',
   'toast.regionLabel': '알림',
   'threadArchive.toast.archived': '대화를 보관했습니다',
   'threadArchive.toast.archiveFailed': '대화 보관 실패: {{error}}',

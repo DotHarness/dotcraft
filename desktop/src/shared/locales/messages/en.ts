@@ -1983,7 +1983,6 @@ export const MESSAGES_EN = {
 
   // Common / toasts (App)
   'toast.threadNotFound': 'Thread not found — removed from list',
-  'toast.threadArchived': 'This conversation was archived by another client',
   'toast.regionLabel': 'Notifications',
   'threadArchive.toast.archived': 'Chat archived',
   'threadArchive.toast.archiveFailed': 'Failed to archive chat: {{error}}',

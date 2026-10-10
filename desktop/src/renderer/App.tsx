@@ -1855,16 +1855,6 @@ export function App(): JSX.Element {
             break
           }
 
-          case 'thread/archived': {
-            const pp = p as { threadId: string }
-            const activeId = useThreadStore.getState().activeThreadId
-            useThreadStore.getState().removeThreadTree(pp.threadId)
-            if (activeId === pp.threadId) {
-              addToast(translate(localeRef.current, 'toast.threadArchived'), 'info')
-            }
-            break
-          }
-
           case 'turn/started': {
             const rawTurn = (p.turn ?? p) as Record<string, unknown>
             const startedThreadId = (rawTurn.threadId as string | undefined) ?? (p.threadId as string | undefined)
