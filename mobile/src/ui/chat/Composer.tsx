@@ -87,7 +87,7 @@ export function Composer({
   const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(undefined)
   const [focused, setFocused] = useState(false)
   const [sending, setSending] = useState(pendingSend !== undefined)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{ text: string; retry: boolean } | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const input = useRef<TextInput>(null)
   const empty = isEmptyDraft(draft)
@@ -117,7 +117,7 @@ export function Composer({
   const settle = (submitted: MessageDraft, failure: SendFailure | null) => {
     if (failure) {
       setDraft(submitted)
-      setNotice(failure.kind === 'upload' ? t('composer.uploadFailed', { file: failure.file }) : t('composer.failed'))
+      setNotice({ text: failure.kind === 'upload' ? t('composer.uploadFailed', { file: failure.file }) : t('composer.failed'), retry: true })
     } else if (!clearOnSend) {
       setDraft(EMPTY_DRAFT)
     }
@@ -156,7 +156,7 @@ export function Composer({
     try {
       await pick()
     } catch {
-      setNotice(t('composer.attachFailed'))
+      setNotice({ text: t('composer.attachFailed'), retry: false })
     }
   }
 
@@ -169,7 +169,7 @@ export function Composer({
   const addFile = () =>
     attach(async () => {
       const picked = await pickFile()
-      if (picked?.kind === 'tooLarge') setNotice(t('composer.fileTooLarge', { file: picked.name }))
+      if (picked?.kind === 'tooLarge') setNotice({ text: t('composer.fileTooLarge', { file: picked.name }), retry: false })
       else if (picked) update((current) => ({ ...current, files: [...current.files, picked.file] }))
     })
 
@@ -178,7 +178,7 @@ export function Composer({
     try {
       await onPlanMode(on)
     } catch {
-      setNotice(t('controls.failed'))
+      setNotice({ text: t('controls.failed'), retry: false })
     }
   }
 
@@ -190,12 +190,29 @@ export function Composer({
 
   return (
     <View style={styles.wrap}>
-      {notice ? (
-        <Txt variant="meta" tone="error" accessibilityLiveRegion="polite">
-          {notice}
-        </Txt>
-      ) : null}
       {matches.length > 0 ? <ReferencePicker entries={matches} onChoose={choose} /> : null}
+      {notice ? (
+        <View accessibilityRole="alert" style={[styles.notice, { borderColor: colors.failureBorder, backgroundColor: colors.failureFill }]}>
+          <Icon name="circleAlert" size={16} color={colors.error} />
+          <Txt variant="meta" accessibilityLiveRegion="polite" style={styles.noticeText}>
+            {notice.text}
+          </Txt>
+          {notice.retry ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('composer.retry')}
+              disabled={sending || !canSend}
+              hitSlop={10}
+              onPress={() => void submit()}
+              style={({ pressed }) => [styles.noticeAction, (pressed || sending || !canSend) && styles.noticeDimmed]}
+            >
+              <Txt variant="meta" style={styles.noticeRetry}>
+                {t('composer.retry')}
+              </Txt>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
       <View
         style={[
           styles.card,
@@ -304,6 +321,24 @@ export function Composer({
 
 const styles = StyleSheet.create({
   wrap: { gap: 6 },
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 10,
+    marginBottom: -26,
+    paddingTop: 9,
+    paddingBottom: 29,
+    paddingLeft: 14,
+    paddingRight: 8,
+    borderWidth: 1,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+  },
+  noticeText: { flex: 1, minWidth: 0 },
+  noticeAction: { paddingHorizontal: 8, paddingVertical: 2 },
+  noticeRetry: { fontWeight: '600' },
+  noticeDimmed: { opacity: 0.5 },
   card: { borderWidth: 1, borderRadius: 26, paddingTop: 6, paddingBottom: 8, paddingHorizontal: 8 },
   reference: { fontWeight: '500' },
   input: { minHeight: 40, maxHeight: 140, paddingTop: 8, paddingBottom: 6, paddingHorizontal: 10, outlineWidth: 0 },

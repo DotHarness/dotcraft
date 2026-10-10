@@ -414,7 +414,9 @@ list shows **failed** only for a chat whose failure the phone has seen.
   **File** picks any document up to 2 MiB; before the message is sent, the phone creates
   `<project>/.craft/attachments/<id>/` with `fs/createDirectory`, writes the file there with
   `fs/writeFile`, and sends a `fileRef` to it. Attachments wait in the composer as removable
-  thumbnails and chips until sent; a failed upload keeps the draft and says which file failed. A
+  thumbnails and chips until sent. A message that fails to send, or whose upload fails, returns to
+  the composer, and a notice tucked behind the top of the composer card says so, naming the file for
+  a failed upload, with **Retry**, which sends the draft as it is; editing the draft dismisses it. A
   file over the limit is refused when picked. **Photo** and **File** are hidden when the server
   lacks `capabilities.fileSystem`.
 - **Plan mode** in the Add menu turns plan mode on, or off when it is on, with `thread/mode/set` (`plan` or `agent`); New chat in plan mode

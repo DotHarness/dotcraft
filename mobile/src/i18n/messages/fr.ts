@@ -125,7 +125,8 @@ export const MESSAGES_FR: Catalog = {
   'composer.placeholderPlan': 'Décrivez votre tâche pour générer un plan…',
   'composer.send': 'Envoyer',
   'composer.stop': 'Arrêter',
-  'composer.failed': 'Envoi impossible. Votre message est toujours là.',
+  'composer.failed': 'Impossible d’envoyer ce message.',
+  'composer.retry': 'Réessayer',
 
   'approval.policy': 'Politique d\'approbation',
   'approval.prompt.label': 'Demander une approbation',
@@ -204,7 +205,7 @@ export const MESSAGES_FR: Catalog = {
   'composer.planOff': 'Désactiver le mode plan',
   'composer.remove': 'Retirer {{name}}',
   'composer.photoName': 'Photo {{index}}',
-  'composer.uploadFailed': 'Impossible d’envoyer {{file}}. Votre message est toujours là.',
+  'composer.uploadFailed': 'Impossible d’envoyer {{file}}.',
   'composer.fileTooLarge': '{{file}} dépasse 2 Mo, il n’a donc pas été ajouté.',
   'composer.attachFailed': 'Ajout impossible. Réessayez.',
   'plan.title': 'Mettre en œuvre ce plan ?',

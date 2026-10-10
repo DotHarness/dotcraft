@@ -207,7 +207,7 @@ function ComputerHome() {
               accessibilityRole="button"
               accessibilityLabel={menuLabel}
               accessibilityState={{ expanded: menuOpen }}
-              style={({ pressed }) => [styles.computer, pressed && { backgroundColor: colors.roundFill }]}
+              style={({ pressed }) => [styles.computer, pressed && styles.pressed]}
               onPress={() => setMenuOpen(true)}
             >
               <Mascot moment={computerMoment(status, waiting)} size={40} style={styles.avatar} />
@@ -335,6 +335,7 @@ const styles = StyleSheet.create({
   backButton: { position: 'absolute', left: metrics.gutter },
   searchButton: { position: 'absolute', right: metrics.gutter },
   searchRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: -52 },
+  pressed: { opacity: 0.6 },
   computer: {
     flexShrink: 1,
     minWidth: 0,

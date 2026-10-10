@@ -125,7 +125,8 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'composer.placeholderPlan': '描述任务，生成计划…',
   'composer.send': '发送',
   'composer.stop': '停止',
-  'composer.failed': '无法发送，你的消息仍保留在这里。',
+  'composer.failed': '这条消息没能发出。',
+  'composer.retry': '重试',
 
   'approval.policy': '审批策略',
   'approval.prompt.label': '请求批准',
@@ -204,7 +205,7 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'composer.planOff': '关闭计划模式',
   'composer.remove': '移除 {{name}}',
   'composer.photoName': '照片 {{index}}',
-  'composer.uploadFailed': '无法上传 {{file}}，你的消息仍保留在这里。',
+  'composer.uploadFailed': '没能上传 {{file}}。',
   'composer.fileTooLarge': '{{file}} 超过 2 MB，未添加。',
   'composer.attachFailed': '无法添加，请重试。',
   'plan.title': '实施此计划？',

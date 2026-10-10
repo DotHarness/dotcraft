@@ -125,7 +125,8 @@ export const MESSAGES_ES: Catalog = {
   'composer.placeholderPlan': 'Describe tu tarea para generar un plan…',
   'composer.send': 'Enviar',
   'composer.stop': 'Detener',
-  'composer.failed': 'No se pudo enviar. Tu mensaje sigue aquí.',
+  'composer.failed': 'No se pudo enviar este mensaje.',
+  'composer.retry': 'Reintentar',
 
   'approval.policy': 'Política de aprobación',
   'approval.prompt.label': 'Pedir aprobación',
@@ -204,7 +205,7 @@ export const MESSAGES_ES: Catalog = {
   'composer.planOff': 'Desactivar el modo plan',
   'composer.remove': 'Quitar {{name}}',
   'composer.photoName': 'Foto {{index}}',
-  'composer.uploadFailed': 'No se pudo subir {{file}}. Tu mensaje sigue aquí.',
+  'composer.uploadFailed': 'No se pudo subir {{file}}.',
   'composer.fileTooLarge': '{{file}} pesa más de 2 MB, así que no se añadió.',
   'composer.attachFailed': 'No se pudo añadir. Inténtalo de nuevo.',
   'plan.title': '¿Implementar este plan?',

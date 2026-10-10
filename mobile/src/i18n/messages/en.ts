@@ -123,7 +123,8 @@ export const MESSAGES_EN = {
   'composer.placeholderPlan': 'Describe your task to generate a plan…',
   'composer.send': 'Send',
   'composer.stop': 'Stop',
-  'composer.failed': 'Couldn’t send that. Your message is still here.',
+  'composer.failed': 'Couldn’t send this message.',
+  'composer.retry': 'Retry',
 
   'approval.policy': 'Approval policy',
   'approval.prompt.label': 'Ask for approval',
@@ -202,7 +203,7 @@ export const MESSAGES_EN = {
   'composer.planOff': 'Turn off Plan mode',
   'composer.remove': 'Remove {{name}}',
   'composer.photoName': 'Photo {{index}}',
-  'composer.uploadFailed': 'Couldn’t upload {{file}}. Your message is still here.',
+  'composer.uploadFailed': 'Couldn’t upload {{file}}.',
   'composer.fileTooLarge': '{{file}} is larger than 2 MB, so it wasn’t added.',
   'composer.attachFailed': 'Couldn’t add that. Try again.',
   'plan.title': 'Implement this plan?',

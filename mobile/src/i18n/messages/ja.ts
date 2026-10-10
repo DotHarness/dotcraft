@@ -125,7 +125,8 @@ export const MESSAGES_JA: Catalog = {
   'composer.placeholderPlan': 'タスクを説明してプランを生成…',
   'composer.send': '送信',
   'composer.stop': '停止',
-  'composer.failed': '送信できませんでした。メッセージはここに残っています。',
+  'composer.failed': 'このメッセージを送信できませんでした。',
+  'composer.retry': '再試行',
 
   'approval.policy': '承認ポリシー',
   'approval.prompt.label': '承認を求める',
@@ -204,7 +205,7 @@ export const MESSAGES_JA: Catalog = {
   'composer.planOff': 'プランモードをオフにする',
   'composer.remove': '{{name}} を削除',
   'composer.photoName': '写真 {{index}}',
-  'composer.uploadFailed': '{{file}} をアップロードできませんでした。メッセージはここに残っています。',
+  'composer.uploadFailed': '{{file}} をアップロードできませんでした。',
   'composer.fileTooLarge': '{{file}} は 2 MB を超えているため、追加されませんでした。',
   'composer.attachFailed': '追加できませんでした。もう一度お試しください。',
   'plan.title': 'この計画を実行しますか?',

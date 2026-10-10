@@ -125,7 +125,8 @@ export const MESSAGES_DE: Catalog = {
   'composer.placeholderPlan': 'Beschreiben Sie Ihre Aufgabe, um einen Plan zu erstellen…',
   'composer.send': 'Senden',
   'composer.stop': 'Stoppen',
-  'composer.failed': 'Senden nicht möglich. Ihre Nachricht ist noch da.',
+  'composer.failed': 'Diese Nachricht konnte nicht gesendet werden.',
+  'composer.retry': 'Wiederholen',
 
   'approval.policy': 'Genehmigungsrichtlinie',
   'approval.prompt.label': 'Um Genehmigung fragen',
@@ -204,7 +205,7 @@ export const MESSAGES_DE: Catalog = {
   'composer.planOff': 'Planmodus ausschalten',
   'composer.remove': '{{name}} entfernen',
   'composer.photoName': 'Foto {{index}}',
-  'composer.uploadFailed': '{{file}} konnte nicht hochgeladen werden. Ihre Nachricht ist noch da.',
+  'composer.uploadFailed': '{{file}} konnte nicht hochgeladen werden.',
   'composer.fileTooLarge': '{{file}} ist größer als 2 MB und wurde nicht hinzugefügt.',
   'composer.attachFailed': 'Hinzufügen nicht möglich. Versuchen Sie es erneut.',
   'plan.title': 'Diesen Plan umsetzen?',

@@ -125,7 +125,8 @@ export const MESSAGES_KO: Catalog = {
   'composer.placeholderPlan': '계획을 생성할 작업을 설명하세요…',
   'composer.send': '보내기',
   'composer.stop': '중지',
-  'composer.failed': '보내지 못했습니다. 메시지는 그대로 남아 있습니다.',
+  'composer.failed': '이 메시지를 보내지 못했습니다.',
+  'composer.retry': '다시 시도',
 
   'approval.policy': '승인 정책',
   'approval.prompt.label': '승인 요청',
@@ -204,7 +205,7 @@ export const MESSAGES_KO: Catalog = {
   'composer.planOff': '계획 모드 끄기',
   'composer.remove': '{{name}} 제거',
   'composer.photoName': '사진 {{index}}',
-  'composer.uploadFailed': '{{file}}을(를) 업로드하지 못했습니다. 메시지는 그대로 남아 있습니다.',
+  'composer.uploadFailed': '{{file}}을(를) 업로드하지 못했습니다.',
   'composer.fileTooLarge': '{{file}}이(가) 2MB를 넘어 추가되지 않았습니다.',
   'composer.attachFailed': '추가하지 못했습니다. 다시 시도하세요.',
   'plan.title': '이 계획을 실행하시겠습니까?',
