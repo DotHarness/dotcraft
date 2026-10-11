@@ -320,6 +320,26 @@ describe('UserMessageBlock trigger source pills', () => {
     }
   })
 
+  it('opens a Markdown file link chip at its linked position', async () => {
+    renderWithLocale(<UserMessageBlock text="Check [the handler](src/App.tsx:12:3)" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open App.tsx in DotCraft viewer' }))
+
+    await waitFor(() => {
+      expect(classify).toHaveBeenCalledWith({ absolutePath: 'F:/workspace/src/App.tsx' })
+    })
+    const activeTab = useUIStore.getState().activeDetailTab
+    expect(activeTab.kind).toBe('viewer')
+    if (activeTab.kind === 'viewer') {
+      const tab = useViewerTabStore.getState().getThreadState('thread-1').tabs.find((entry) => entry.id === activeTab.id)
+      expect(tab).toMatchObject({
+        kind: 'file',
+        absolutePath: 'F:/workspace/src/App.tsx',
+        navigationHint: { line: 12, column: 3 }
+      })
+    }
+  })
+
   it('copies the resolved path from a user file chip context menu', async () => {
     renderWithLocale(
       <UserMessageBlock

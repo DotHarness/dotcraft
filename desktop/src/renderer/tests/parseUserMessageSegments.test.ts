@@ -79,3 +79,46 @@ describe('segmentsFromNativeInputParts commandRef rendering', () => {
     ])
   })
 })
+
+describe('parseUserMessageSegments Markdown file links', () => {
+  it('turns a relative file link into a file reference that keeps its position', () => {
+    expect(parseUserMessageSegments('See [the handler](src/app.ts:12:3) now')).toEqual([
+      { type: 'text', value: 'See ' },
+      { type: 'fileRef', relativePath: 'src/app.ts', targetPath: 'src/app.ts:12:3' },
+      { type: 'text', value: ' now' }
+    ])
+  })
+
+  it('accepts absolute paths and file URLs', () => {
+    expect(parseUserMessageSegments('[a](C:/repo/a.ts:4-9) [b](file:///home/me/b.md)')).toEqual([
+      { type: 'fileRef', relativePath: 'C:/repo/a.ts', targetPath: 'C:/repo/a.ts:4-9' },
+      { type: 'text', value: ' ' },
+      { type: 'fileRef', relativePath: '/home/me/b.md', targetPath: 'file:///home/me/b.md' }
+    ])
+  })
+
+  it('accepts line fragments', () => {
+    expect(parseUserMessageSegments('[notes](docs/notes.md#L10)')).toEqual([
+      { type: 'fileRef', relativePath: 'docs/notes.md', targetPath: 'docs/notes.md#L10' }
+    ])
+  })
+
+  it('uses the link target rather than the label', () => {
+    expect(parseUserMessageSegments('[other.ts](src/real.ts)')).toEqual([
+      { type: 'fileRef', relativePath: 'src/real.ts', targetPath: 'src/real.ts' }
+    ])
+  })
+
+  it('keeps web links, images and bare paths literal', () => {
+    for (const text of ['[docs](https://example.com/a.md)', '[mail](mailto:me@example.com)', '![shot](shot.png)', 'notes.md:2']) {
+      expect(parseUserMessageSegments(text)).toEqual([{ type: 'text', value: text }])
+    }
+  })
+
+  it('recognizes file links inside native text parts', () => {
+    expect(segmentsFromNativeInputParts([{ type: 'text', text: 'Fix [x](a.ts:3)' }])).toEqual([
+      { type: 'text', value: 'Fix ' },
+      { type: 'fileRef', relativePath: 'a.ts', targetPath: 'a.ts:3' }
+    ])
+  })
+})

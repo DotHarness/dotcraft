@@ -1,3 +1,4 @@
+import { resolveConversationLink } from '../../../shared/viewer/linkResolver'
 import type { InputPart } from '../../types/conversation'
 import { splitThreadMentions } from '../../utils/threadReferences'
 import { serializeSkillMarker } from './richInputSerialization'
@@ -14,6 +15,21 @@ interface Match {
   start: number
   end: number
   value: string
+  targetPath?: string
+}
+
+function findNextMarkdownFileLink(text: string, from: number): Match | null {
+  const pattern = /(?<!!)\[[^\]\n]+\]\(([^\s()]+)\)/g
+  pattern.lastIndex = from
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    const target = match[1]!
+    if (/^[#?]/.test(target)) continue
+    const resolution = resolveConversationLink({ target, workspacePath: '' })
+    if (resolution.kind === 'file') {
+      return { type: 'file', start: match.index, end: pattern.lastIndex, value: resolution.absolutePath, targetPath: target }
+    }
+  }
+  return null
 }
 
 function findNextFileRef(text: string, from: number): Match | null {
@@ -72,7 +88,7 @@ function findNextSkillRef(text: string, from: number): Match | null {
 }
 
 /**
- * Splits user message text into plain text, @fileRef segments, slash-command
+ * Splits user message text into plain text, @fileRef and Markdown file link segments, slash-command
  * fallback segments, skill marker segments, and thread mentions.
  */
 export function parseUserMessageSegments(text: string): UserMessageSegment[] {
@@ -87,7 +103,7 @@ function parseMarkerSegments(text: string): UserMessageSegment[] {
   let cursor = 0
 
   while (cursor < source.length) {
-    const next = [findNextFileRef(source, cursor), findNextCommandRef(source, cursor), findNextSkillRef(source, cursor)]
+    const next = [findNextMarkdownFileLink(source, cursor), findNextFileRef(source, cursor), findNextCommandRef(source, cursor), findNextSkillRef(source, cursor)]
       .filter((candidate): candidate is Match => candidate != null)
       .sort((a, b) => a.start - b.start)[0]
 
@@ -103,7 +119,7 @@ function parseMarkerSegments(text: string): UserMessageSegment[] {
     }
 
     if (next.type === 'file') {
-      out.push({ type: 'fileRef', relativePath: next.value })
+      out.push({ type: 'fileRef', relativePath: next.value, ...(next.targetPath ? { targetPath: next.targetPath } : {}) })
     } else if (next.type === 'command') {
       out.push({ type: 'commandRef', commandText: next.value })
     } else {
