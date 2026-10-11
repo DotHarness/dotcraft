@@ -23,6 +23,7 @@ import { normalizePetSetting, type PetSettings } from '../shared/pet'
 import { normalizeOpenTargetPreferences, type OpenTargetPreferences } from '../shared/openTargets'
 import type { ProjectActionPreferences } from '../shared/projectActions'
 import { normalizeProjectActionPreferences } from './projectActions/preferences'
+import { normalizeChatsFolderSetting, rememberChatsFolder } from './chatFolders'
 import {
   normalizeManualThreadOrder,
   normalizeProjectKeyList,
@@ -148,6 +149,10 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   pinnedSectionCollapsed?: boolean
   /** Omitted defaults to expanded. */
   chatsSectionCollapsed?: boolean
+  /** Omitted uses `Documents/DotCraft/Chats`. */
+  chatsFolder?: string
+  /** Every custom Chats folder that has been in effect, so chats started there stay reachable. */
+  chatsFolderHistory?: string[]
   /** macOS-only preference controlling whether DotCraft appears in the menu bar. */
   showInMenuBar?: boolean
   lastSeenWhatsNewVersion?: string
@@ -606,6 +611,8 @@ export function loadSettings(): AppSettings {
       raw.projectsSectionCollapsed = normalizeProjectsSectionCollapsed(raw)
       raw.pinnedSectionCollapsed = normalizePinnedSectionCollapsed(raw)
       raw.chatsSectionCollapsed = normalizeChatsSectionCollapsed(raw)
+      raw.chatsFolder = normalizeChatsFolderSetting(raw.chatsFolder)
+      raw.chatsFolderHistory = rememberChatsFolder(raw.chatsFolderHistory, raw.chatsFolder)
       normalizeSidebarThreadOrderSettings(raw)
       raw.showInMenuBar = normalizeShowInMenuBar(raw)
       raw.theme = normalizeUiTheme(raw)
@@ -666,6 +673,8 @@ export function saveSettings(settings: AppSettings): void {
     settings.projectsSectionCollapsed = normalizeProjectsSectionCollapsed(settings)
     settings.pinnedSectionCollapsed = normalizePinnedSectionCollapsed(settings)
     settings.chatsSectionCollapsed = normalizeChatsSectionCollapsed(settings)
+    settings.chatsFolder = normalizeChatsFolderSetting(settings.chatsFolder)
+    settings.chatsFolderHistory = rememberChatsFolder(settings.chatsFolderHistory, settings.chatsFolder)
     normalizeSidebarThreadOrderSettings(settings)
     settings.showInMenuBar = normalizeShowInMenuBar(settings)
     settings.theme = normalizeUiTheme(settings)

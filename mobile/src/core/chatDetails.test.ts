@@ -69,6 +69,31 @@ describe('changes', () => {
   })
 })
 
+describe('chat folders', () => {
+  it('identifies Chats by kind rather than by name', async () => {
+    const computer = createStudio(new Date())
+    computer.projects.find((project) => project.name === 'dotcraft')!.name = 'Chats'
+    const harness = createHarness([computer])
+    harnesses.push(harness)
+    await harness.session.boot()
+    await waitFor(() => harness.computerState().link === 'online')
+    const chats = computer.projects.find((project) => project.kind === 'chats')!
+    expect(harness.computerState().projects.filter((project) => project.isChats).map((project) => project.id)).toEqual([chats.id])
+  })
+
+  it('keeps the folder a chat runs in apart from its workspace', async () => {
+    const { computer, state, opened } = await connected()
+    const title = 'Rename the settings segments'
+    const { thread } = computer.thread(Object.values(state().chats).find((chat) => chat.title === title)!.threadId)
+    thread.cwd = 'D:/Projects/dotcraft/chat-folder'
+    const key = await opened(title)
+    expect(state().details[key]).toMatchObject({
+      workspacePath: 'D:/Projects/dotcraft',
+      effectiveWorkspacePath: 'D:/Projects/dotcraft/chat-folder',
+    })
+  })
+})
+
 describe('files and usage', () => {
   it('reads a file from the computer and reports a file over the read limit', async () => {
     const { harness, projectId } = await connected()

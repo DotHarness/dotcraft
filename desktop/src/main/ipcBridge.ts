@@ -28,6 +28,8 @@ import {
   registerSatellitesHandlers,
   SATELLITES_CHANNELS
 } from './satellites/satellitesIpc'
+import { CHAT_FOLDERS_CHANNELS, registerChatFoldersHandlers } from './chatFoldersIpc'
+import { chatFolderFor } from './chatFolderAccess'
 import { getSatellitesHubBridge } from './satellites/satellitesHubBridge'
 import { MOBILE_CHANNELS, registerMobileHandlers } from './mobile/mobileIpc'
 import { getMobileHubBridge } from './mobile/mobileHubBridge'
@@ -270,7 +272,7 @@ function assertPathWithinViewerRoots(
 ): { resolved: string; root: string } {
   const resolved = path.resolve(absPath)
   let match: string | null = null
-  for (const root of viewerRootsFor(workspacePath)) {
+  for (const root of viewerRootsFor(workspacePath, resolved)) {
     if (isSameOrInsidePath(resolved, root) && (!match || root.length > match.length)) match = root
   }
   if (!match) {
@@ -320,11 +322,24 @@ function assertGitInspectionPath(
     throw new Error(translate(locale, 'ipc.workspacePathMismatch'))
   }
   const resolved = path.resolve(requestedPath)
+  if (isChatFolderRoot(workspacePath, resolved)) return resolved
   for (const projectPath of localProjectPaths) {
     if (sameWorkspaceProjectKey(projectPath, requestedPath)) return path.resolve(projectPath)
     const worktreesRoot = path.resolve(projectPath, '.craft', 'worktrees')
     if (isSameOrInsidePath(resolved, worktreesRoot) && resolved !== worktreesRoot) return resolved
   }
+  throw new Error(translate(locale, 'ipc.workspacePathMismatch'))
+}
+
+function isChatFolderRoot(workspacePath: string, resolvedPath: string): boolean {
+  const chatFolder = chatFolderFor(workspacePath, resolvedPath)
+  return chatFolder !== null && sameWorkspaceProjectKey(chatFolder, resolvedPath)
+}
+
+function assertWorkspaceOrChatFolder(requestedPath: unknown, workspacePath: string, locale: AppLocale): string {
+  const ws = path.resolve(workspacePath)
+  const requested = typeof requestedPath === 'string' ? path.resolve(requestedPath) : ''
+  if (requested === ws || (requested && isChatFolderRoot(workspacePath, requested))) return requested
   throw new Error(translate(locale, 'ipc.workspacePathMismatch'))
 }
 
@@ -1228,8 +1243,9 @@ export function registerIpcHandlers(
   })
 
   handleSafe('shell:show-item-in-folder', async (_event, targetPath: string) => {
-    const locale = mainLocale(callbacks)
-    const resolved = assertPathWithinWorkspace(targetPath, workspacePath, locale)
+    const resolved = chatFolderFor(workspacePath, targetPath)
+      ? path.resolve(targetPath)
+      : assertPathWithinWorkspace(targetPath, workspacePath, mainLocale(callbacks))
     shell.showItemInFolder(resolved)
   })
 
@@ -1373,6 +1389,8 @@ export function registerIpcHandlers(
     if (result.canceled || result.filePaths.length === 0) return null
     return result.filePaths[0]
   })
+
+  registerChatFoldersHandlers(handleSafe, () => callbacks?.getSettings() ?? {})
 
   handleSafe('workspace:create-local-project', async (_event, params: { name?: string }) => {
     const folderName = sanitizeProjectFolderName(typeof params?.name === 'string' ? params.name : '')
@@ -1553,13 +1571,9 @@ export function registerIpcHandlers(
       if (!workspacePath.trim()) {
         return { files: [], indexStatus: 'empty', indexedCount: 0, stale: false }
       }
-      const ws = path.resolve(workspacePath)
-      const req = path.resolve(params.workspacePath)
-      if (ws !== req) {
-        throw new Error(translate(mainLocale(callbacks), 'ipc.workspacePathMismatch'))
-      }
+      const root = assertWorkspaceOrChatFolder(params.workspacePath, workspacePath, mainLocale(callbacks))
       const limit = Math.min(20, Math.max(1, params.limit ?? 10))
-      return listWorkspaceFiles(ws, params.query, limit)
+      return listWorkspaceFiles(root, params.query, limit)
     }
   )
 
@@ -1569,16 +1583,9 @@ export function registerIpcHandlers(
       _event,
       params: { workspacePath: string; query: string; limit: number }
     ) => {
-      const ws = path.resolve(workspacePath)
-      const req = path.resolve(params.workspacePath)
-      if (ws !== req) {
-        throw new Error(translate(mainLocale(callbacks), 'ipc.workspacePathMismatch'))
-      }
-      if (!ws) {
-        return { files: [], indexStatus: 'empty', indexedCount: 0, stale: false }
-      }
+      const root = assertWorkspaceOrChatFolder(params.workspacePath, workspacePath, mainLocale(callbacks))
       const limit = Math.min(500, Math.max(1, params.limit ?? 100))
-      return listViewerFiles(ws, params.query, limit)
+      return listViewerFiles(root, params.query, limit)
     }
   )
 
@@ -1800,11 +1807,7 @@ export function registerIpcHandlers(
       if (!win || win.isDestroyed()) {
         throw new Error('Browser window not available')
       }
-      const ws = path.resolve(workspacePath)
-      const req = path.resolve(params.workspacePath)
-      if (ws !== req) {
-        throw new Error(translate(mainLocale(callbacks), 'ipc.workspacePathMismatch'))
-      }
+      assertWorkspaceOrChatFolder(params.workspacePath, workspacePath, mainLocale(callbacks))
       return viewerBrowserManager.createTab(win, {
         tabId: params.tabId,
         ...(params.threadId ? { threadId: params.threadId } : {}),
@@ -2291,6 +2294,9 @@ export function unregisterIpcHandlers(): void {
     ipcMain.removeHandler(channel)
   }
   for (const channel of SATELLITES_CHANNELS) {
+    ipcMain.removeHandler(channel)
+  }
+  for (const channel of CHAT_FOLDERS_CHANNELS) {
     ipcMain.removeHandler(channel)
   }
   for (const channel of MOBILE_CHANNELS) {

@@ -154,6 +154,7 @@ public sealed class MobileGatewayTests : IDisposable
 
         var projects = (await phone.GetJsonAsync("/m/projects")).GetProperty("projects").EnumerateArray().ToArray();
         Assert.Equal(["alpha", "Chats"], projects.Select(project => project.GetProperty("displayName").GetString()));
+        Assert.Equal(["project", "chats"], projects.Select(project => project.GetProperty("kind").GetString()));
         Assert.Equal(JsonValueKind.Null, projects[1].GetProperty("lastActiveAt").ValueKind);
 
         var betaId = MobileProjects.ProjectId(Path.Combine(_userProfile, "workspaces", "beta"));

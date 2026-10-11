@@ -730,6 +730,7 @@ function studioSeed(now: Date, options: StudioOptions = {}): FakeComputerSeed {
   const project = (id: 'dotcraft' | 'design-lab' | 'chats', name: string, running: boolean, minutesAgo: number): FakeProject => ({
     id: `${id}-0000000000000000`.slice(0, 24).replace(/-/g, '0'),
     name,
+    kind: id === 'chats' ? 'chats' : 'project',
     running,
     cantStart: options.cantStart?.includes(id) ?? false,
     lastActiveAt: iso(now, minutesAgo),
@@ -771,7 +772,7 @@ export function buildBoxSeed(now: Date): FakeComputerSeed {
     addresses: ['192.168.1.40'],
     projects: [
       { id: 'release0tools00000000000', name: 'release-tools', running: false, cantStart: false, lastActiveAt: iso(now, 30), threads: [] },
-      { id: 'chats0000000000000000000', name: 'Chats', running: false, cantStart: false, lastActiveAt: iso(now, 90), threads: [] },
+      { id: 'chats0000000000000000000', name: 'Chats', kind: 'chats', running: false, cantStart: false, lastActiveAt: iso(now, 90), threads: [] },
     ],
     pairingCodes: ['build-box-code'],
     credentials: { [DEMO_CREDENTIAL]: 'dev_demo' },

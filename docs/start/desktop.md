@@ -20,6 +20,12 @@ When a calculator, comparison, or quiz answers a question better than text, DotC
 
 Switching workspaces switches projects: configuration, skills, memory, and automations all follow the project and stay out of each other's way. The memory switch, Dreams, and memory deletion live under **Settings → Personalization**, and [Memory and Dreams](../guide/memory) explains what each one covers.
 
+## Chat without a project
+
+Choose **Chats** instead of a project when a question doesn't belong to one. Each new chat gets its own folder under `Documents/DotCraft/Chats`, named after the date and the first words of your first message, such as `2026-10-11/write-a-release-note-for-v2`, or `new-chat` when the message has no English letters or digits. The agent keeps drafts and scratch files in the chat's `work` folder and saves what it makes for you in `outputs`, so one chat's files never mix with another's. The Files panel, the terminal, and **Open in** all work in that folder. Archiving, renaming, or deleting a chat leaves its folder where it is.
+
+To keep chat files somewhere else, choose **Change** under **Settings → General → Chats folder**. Chats you start afterwards use the new location, and **Reset** goes back to `Documents/DotCraft/Chats`.
+
 ## Set up a model
 
 Add providers, enter credentials, and pick models under **Settings → Model providers**. Credentials and endpoints go into your personal `~/.craft/config.json` rather than the workspace, so sharing workspace config with a teammate never shares a key. Use **Test** before saving to confirm the credentials and the model list are reachable. If a provider can't list models, type the model name by hand and save anyway. Desktop currently supports OpenAI and Anthropic.

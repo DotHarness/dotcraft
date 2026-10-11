@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { isAbsolute, relative, resolve } from 'node:path'
 import { viewerTerminalManager, type TerminalSpawnParams } from './viewerTerminal'
+import { chatFolderFor } from './chatFolderAccess'
 
 const CHANNELS = [
   'viewer:terminal:create',
@@ -24,12 +25,12 @@ function contains(parent: string, child: string): boolean {
   return path === '' || (!path.startsWith('..') && !isAbsolute(path))
 }
 
-/** A terminal may start in the workspace, a folder inside it, or a parent that holds its project actions. */
+/** A terminal may start in the workspace, a folder inside it, a parent that holds its project actions, or a chat's folder. */
 export function isTerminalCwdAllowed(workspacePath: string, cwd: string): boolean {
   if (!workspacePath || typeof cwd !== 'string' || !isAbsolute(cwd)) return false
   const workspace = resolve(workspacePath)
   const target = resolve(cwd)
-  return contains(workspace, target) || contains(target, workspace)
+  return contains(workspace, target) || contains(target, workspace) || chatFolderFor(workspacePath, cwd) !== null
 }
 
 function windowOf(event: IpcMainInvokeEvent): BrowserWindow | null {

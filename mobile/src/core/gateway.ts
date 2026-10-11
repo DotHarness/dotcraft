@@ -28,6 +28,7 @@ interface GatewayHello {
 export interface GatewayProject {
   projectId: string
   displayName: string
+  kind: 'chats' | 'project'
   running: boolean
   lastActiveAt: string | null
 }

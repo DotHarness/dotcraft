@@ -146,6 +146,26 @@ describe('ThreadHeader', () => {
     expect(screen.getByRole('menuitem', { name: 'Fork into new worktree' })).toBeInTheDocument()
   })
 
+  it('offers no commit or worktree fork in a chat', async () => {
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: { threadFork: true, gitWorktrees: true }
+    })
+    const chatsWorkspace = '/home/me/.craft/workspaces/chats'
+    const chatFolder = '/home/me/Documents/DotCraft/2026-10-11/plan-a-trip'
+    const thread = makeThread({ workspacePath: chatsWorkspace, effectiveWorkspacePath: chatFolder })
+    useThreadStore.setState({ activeThreadId: thread.id, activeThread: thread, threadList: [thread] })
+    seedWrittenFile(`${chatFolder}/outputs/report.md`)
+
+    renderHeader(false, chatFolder)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'More chat actions' }))
+    expect(screen.queryByRole('menuitem', { name: 'Commit' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Fork' }))
+    expect(screen.getByRole('menuitem', { name: 'Fork into local' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Fork into new worktree' })).not.toBeInTheDocument()
+  })
+
   it('omits Fork from the header menu when fork is unavailable', async () => {
     useConnectionStore.setState({
       status: 'connected',

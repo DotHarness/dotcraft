@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.8.4 |
 | **Status** | Draft |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-11 |
 | **Related Specs** | [Hub Architecture](../architecture/hub-architecture.md), [Session Core](../architecture/session-core.md) |
 
 ## 1. Overview
@@ -35,7 +35,7 @@ Its state still lives under:
 - No new `Chat` thread type.
 - No change to `thread/start`, `thread/list`, or `SessionIdentity`.
 - No special App Binding behavior for default chat threads.
-- No default execution access to the user's home directory.
+- No execution access to the user's home directory: a chat reaches only its own folder (§4.1).
 
 ## 4. Workspace Contract
 
@@ -51,6 +51,39 @@ The workspace initializer must be non-interactive and idempotent:
 - Create `.craft/`, `.craft/memory/`, `.craft/skills/`, and `.craft/security/`.
 - Create `.craft/config.json` with `{}` only when it does not already exist.
 - Never overwrite existing workspace config or user files.
+
+### 4.1 Chat Folders
+
+Desktop gives each new chat its own visible folder. The default Chat workspace stays the chat's
+configuration and state home, so `identity.workspacePath` is unchanged; only the thread's `cwd` moves.
+
+- **Root.** The Desktop setting "Chats folder", default `DotCraft/Chats` in the user's Documents folder. Settings → General
+  shows the current path with "Change" (a folder picker) and "Reset" (shown only when the path is
+  customized). Changing it affects only chats started afterwards.
+- **Path.** `<root>/<YYYY-MM-DD>/<slug>`, with the date in local time. The slug lowercases the first
+  message, takes its runs of `a-z` and `0-9`, joins the first six with `-`, and keeps at most 80
+  characters; it is `new-chat` when nothing remains. A name already in use gets `-2`, then `-3`, up
+  to `-100`, then a random suffix. An existing symbolic link or non-directory at the path is never
+  reused.
+- **Contents.** The folder holds `work/` for intermediate files and `outputs/` for deliverables.
+- **Creation.** Desktop creates the folder when the first message is sent, before `thread/start`,
+  and starts the thread with `cwd` set to the folder and the standalone-chat instructions below in
+  `config.developerInstructions`. A resumed chat keeps its folder. Desktop never moves, renames, or
+  deletes a chat folder; archiving, deleting, or renaming the chat leaves it in place.
+- **Entry points.** Every Desktop path that starts a chat — the Welcome composer, the desktop pet's
+  Quick Chat, the agent's thread-creation tool, and Skills' try action — uses this. Clients that
+  start a chat without `cwd`, such as mobile, App Binding, and SDK clients, keep running in the
+  workspace root, as do chats created before this behavior.
+
+The standalone-chat instructions are:
+
+```text
+### Standalone Chat
+This chat runs in its own folder. The folder name is only a file system identifier; do not infer the user's language, locale, or preferences from it.
+Prefer answering inline in chat unless local files make the result more useful.
+Use work/ for intermediate files, scratch analysis, scripts, drafts, and temporary assets. Use outputs/ only for user-facing deliverables, and link only files in outputs/ when referring to saved deliverables.
+Do not write directly in the user's home directory unless the user asks.
+```
 
 ## 5. Runtime Behavior
 
@@ -83,5 +116,9 @@ When Desktop starts without an explicit target or a restorable foreground entry,
 Desktop should remember which surface was last in the foreground. Later local starts should restore Chats after the user has chosen Chats, restore a project workspace while that project still exists, or return to the welcome chooser when Welcome was the last foreground surface. Explicit workspace paths and workspace deep links take precedence over the remembered surface. The explicit `--no-workspace` entry point always opens the welcome chooser, and remote startup must not implicitly restore the local default Chat workspace.
 
 Choosing Chats uses the same workspace readiness and connection flow as any other local workspace. Desktop initializes the default Chat workspace skeleton non-interactively, then routes through Workspace Setup when its effective provider or model configuration is incomplete. Once the workspace is ready, Desktop connects to its AppServer and shows the main conversation UI.
+
+A chat's Files tree, terminal, and "Open in" act on its folder. Chats offer no commit, fork into a worktree, worktree work location, or project actions.
+
+The default Chat workspace never appears as a project or by its path: the Projects menu, the tray's AppServer list, plugin install locations, and automation targets name it `Chats`, and automations in Chats offer no worktree option.
 
 Project workspaces remain visible under `Projects`. Default Chat workspace threads remain ordinary AppServer threads, so Desktop can reuse existing thread row, App Binding, and welcome composer behavior after it connects to the default Chat AppServer.

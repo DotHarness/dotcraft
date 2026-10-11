@@ -95,6 +95,7 @@ import { SegmentedControl } from './ui/SegmentedControl'
 import { GeneralPanel } from './panels/GeneralPanel'
 import { FollowUpBehaviorRow } from './panels/FollowUpBehaviorRow'
 import { DefaultOpenTargetRow } from './panels/DefaultOpenTargetRow'
+import { ChatsFolderRow } from './panels/ChatsFolderRow'
 import { NotificationsSettingsGroup } from './panels/NotificationsSettingsGroup'
 import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
 import { ProviderProtocolIcon } from './panels/ProviderProtocolIcon'
@@ -2037,6 +2038,8 @@ export function SettingsView({
                   />
 
                   <DefaultOpenTargetRow width={SETTINGS_SELECT_WIDTH} />
+
+                  <ChatsFolderRow />
 
                   {isMac && (
                     <SettingsRow

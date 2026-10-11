@@ -18,6 +18,8 @@ import { useGitStore, normalizeGitPathKey } from '../../stores/gitStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
+import { useWorkspaceProjectChoices } from '../conversation/workspaceProjectMenu'
 import { AUTOMATION_TASK_DRAG_MIME } from '../../utils/automationDrag'
 import { automationScheduleSummary } from '../../utils/automationScheduleSummary'
 import { ensureScheduleTimeZone, resolveSystemTimeZone } from '../../utils/automationTimeZone'
@@ -45,6 +47,8 @@ export function AutomationsView(): JSX.Element {
   const store = useAutomationsStore()
   const connected = useConnectionStore((state) => state.status === 'connected')
   const connectionEpoch = useConnectionStore((state) => state.connectionEpoch)
+  const foregroundWorkspacePath = useWorkspaceProjectsStore((state) => state.foregroundWorkspacePath)
+  const { foregroundIsChat } = useWorkspaceProjectChoices(foregroundWorkspacePath, false)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const [manual, setManual] = useState<AutomationInput | null>(null)
   const [query, setQuery] = useState('')
@@ -134,9 +138,11 @@ export function AutomationsView(): JSX.Element {
     finally { setCreatingPresetId(null) }
   }
   async function createManual(): Promise<void> {
-    const path = useViewerTabStore.getState().currentWorkspacePath
-      ?? useUIStore.getState().welcomeDraftWorkspacePath
-      ?? useThreadStore.getState().activeThread?.workspacePath
+    const path = foregroundIsChat
+      ? undefined
+      : useViewerTabStore.getState().currentWorkspacePath
+        ?? useUIStore.getState().welcomeDraftWorkspacePath
+        ?? useThreadStore.getState().activeThread?.workspacePath
     if (path) await useGitStore.getState().ensureBranches(path)
     const gitStatus = path
       ? useGitStore.getState().branchesByPath[normalizeGitPathKey(path)]?.status
@@ -237,7 +243,7 @@ export function AutomationsView(): JSX.Element {
         )}
         {selected || manual ? (
           <AutomationEditor
-            key={selected?.id ?? 'new'} automation={selected} initial={selected ?? manual!}
+            key={selected?.id ?? 'new'} automation={selected} initial={selected ?? manual!} chats={foregroundIsChat}
             onDelete={() => selected && setRemoving(selected)}
             onAction={(operation) => {
               if (!selected) return

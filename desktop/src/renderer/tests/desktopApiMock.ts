@@ -45,6 +45,10 @@ const SCREEN_VIEW_DEFAULT: ApiOverrides<Api>['screenView'] = {
   onState: () => () => undefined
 }
 
+const WORKSPACE_DEFAULT: ApiOverrides<Api>['workspace'] = {
+  getChatsFolder: () => Promise.resolve({ path: '/home/user/Documents/DotCraft/Chats', customized: false })
+}
+
 const HAS_DESKTOP_THREAD_TOOLS_DEFAULT: ApiOverrides<Api>['appServer'] = {
   hasDesktopThreadTools: () => Promise.resolve(true)
 }
@@ -55,7 +59,8 @@ export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
     appServer: { ...HAS_DESKTOP_THREAD_TOOLS_DEFAULT, ...overrides.appServer },
     satellites: { ...SATELLITES_DEFAULT, ...overrides.satellites },
     desktopPet: { ...DESKTOP_PET_DEFAULT, ...overrides.desktopPet },
-    screenView: { ...SCREEN_VIEW_DEFAULT, ...overrides.screenView }
+    screenView: { ...SCREEN_VIEW_DEFAULT, ...overrides.screenView },
+    workspace: { ...WORKSPACE_DEFAULT, ...overrides.workspace }
   }) as Api
   Object.defineProperty(window, 'api', { configurable: true, value: api })
   return api

@@ -1,6 +1,7 @@
 import type { TextContextMenuRequest } from '../shared/textContextMenu'
 import type { BrowserHostApi, BrowserHostEvent } from '../shared/viewer/browserHost'
 import type { PastedTextContext } from '../shared/composerContext'
+import type { ChatsFolderInfo } from '../shared/chatFolders'
 import type { BrowserDownloadRecord, BrowserFeedbackEvent, BrowserFindState, BrowserPageReference, BrowserSelectRequest } from '../shared/viewer/browserFeedback'
 import { contextBridge, ipcRenderer, shell, webFrame, webUtils } from 'electron'
 import { desktopPet } from './desktopPet'
@@ -942,6 +943,14 @@ const api = {
       return ipcRenderer.invoke('workspace:pick-folder', options)
     },
 
+    getChatsFolder(): Promise<ChatsFolderInfo> {
+      return ipcRenderer.invoke('workspace:get-chats-folder')
+    },
+
+    createChatFolder(params: { firstMessage: string }): Promise<{ path: string }> {
+      return ipcRenderer.invoke('workspace:create-chat-folder', params)
+    },
+
     /** Creates the folder under the user's Documents directory and git-inits it. */
     createLocalProject(params: { name: string }): Promise<{ path: string; gitInitialized: boolean }> {
       return ipcRenderer.invoke('workspace:create-local-project', params)
@@ -1512,6 +1521,7 @@ const api = {
       projectsSectionCollapsed?: boolean
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
+      chatsFolder?: string
       recentsThreadSort?: SidebarThreadSortMode
       projectsThreadSort?: SidebarThreadSortMode
       pinnedThreadSort?: SidebarThreadSortMode
@@ -1595,6 +1605,7 @@ const api = {
       projectsSectionCollapsed?: boolean
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
+      chatsFolder?: string
       recentsThreadSort?: SidebarThreadSortMode
       projectsThreadSort?: SidebarThreadSortMode
       pinnedThreadSort?: SidebarThreadSortMode

@@ -72,6 +72,20 @@ describe('WorkspaceHeader', () => {
     })
   })
 
+  it('never shows the Chats workspace path or opens it in Explorer', async () => {
+    const chatsWorkspace = '/home/me/.craft/workspaces/chats'
+    render(
+      <LocaleProvider>
+        <WorkspaceOptionsMenu workspacePath={chatsWorkspace} />
+      </LocaleProvider>
+    )
+    openWorkspaceMenu()
+
+    expect(await screen.findByRole('menuitem', { name: 'Switch Workspace' })).toBeInTheDocument()
+    expect(screen.queryByText(chatsWorkspace)).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Open in Explorer' })).not.toBeInTheDocument()
+  })
+
   it('shows a clear recent action in the recent workspace submenu', async () => {
     renderOptionsMenu()
 

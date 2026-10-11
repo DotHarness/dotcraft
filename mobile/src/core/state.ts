@@ -49,6 +49,7 @@ export interface ChatDetail {
   profileName: string | null
   config: ThreadConfiguration | null
   workspacePath: string | null
+  effectiveWorkspacePath: string | null
   context: ContextUsage | null
 }
 
@@ -160,6 +161,7 @@ export type ComputerAction =
       profileName: string | null
       config: ThreadConfiguration | null
       workspacePath: string | null
+      effectiveWorkspacePath: string | null
       context: ContextUsage | null
     }
   | { type: 'chatConfig'; key: string; config: ThreadConfiguration }
@@ -346,7 +348,7 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
           ...state.details,
           [action.key]: detail
             ? { ...detail, loading: true }
-            : { loading: true, history: emptyHistory(), profileName: null, config: null, workspacePath: null, context: null },
+            : { loading: true, history: emptyHistory(), profileName: null, config: null, workspacePath: null, effectiveWorkspacePath: null, context: null },
         },
       }
     }
@@ -361,6 +363,7 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
             profileName: action.profileName,
             config: action.config,
             workspacePath: action.workspacePath,
+            effectiveWorkspacePath: action.effectiveWorkspacePath,
             context: action.context,
           },
         },

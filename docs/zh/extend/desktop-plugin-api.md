@@ -181,7 +181,7 @@ host.ui.add("composer.status.subscription", SubscriptionStatus);
 
 | 字段 | 含义 |
 |---|---|
-| `workspacePath` | 该 thread 的 workspace，不可用时为 `null`。 |
+| `workspacePath` | 该 thread 的 workspace；Chats 中的对话或不可用时为 `null`。 |
 | `threadId` | 当前显示的 thread。 |
 | `busy` | 有一轮正在运行，或正在等待用户输入。 |
 

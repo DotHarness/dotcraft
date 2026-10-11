@@ -34,7 +34,7 @@ public sealed partial class SessionService
         {
             Thread = thread,
             ModeManager = modeManager,
-            WorkspacePath = thread.WorkspacePath,
+            WorkspacePath = ThreadWorkspaceResolver.Resolve(thread).Cwd,
             HasActivePlan = hasActivePlan,
             ThreadGoal = threadGoal,
             SessionStartHookContext = sessionStartHookContext

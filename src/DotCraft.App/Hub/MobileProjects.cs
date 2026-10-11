@@ -72,15 +72,24 @@ internal sealed class MobileProjects(ProjectRegistry projects, ManagedAppServerR
         {
             yield return new KnownProject(
                 project.Path,
-                false,
-                new MobileProject(ProjectId(project.Path), Path.GetFileName(project.Path), running.Contains(project.Path), project.LastOpenedAt));
+                new MobileProject(
+                    ProjectId(project.Path),
+                    Path.GetFileName(project.Path),
+                    MobileProjectKinds.Project,
+                    running.Contains(project.Path),
+                    project.LastOpenedAt));
         }
 
-        yield return new KnownProject(chats, true, new MobileProject(ProjectId(chats), ChatsDisplayName, running.Contains(chats), null));
+        yield return new KnownProject(
+            chats,
+            new MobileProject(ProjectId(chats), ChatsDisplayName, MobileProjectKinds.Chats, running.Contains(chats), null));
     }
 
     private static HubProtocolException ProjectNotFound() =>
         new("projectNotFound", "No project on this computer has that id.", StatusCodes.Status404NotFound);
 }
 
-internal sealed record KnownProject(string WorkspacePath, bool IsChats, MobileProject Project);
+internal sealed record KnownProject(string WorkspacePath, MobileProject Project)
+{
+    public bool IsChats => Project.Kind == MobileProjectKinds.Chats;
+}

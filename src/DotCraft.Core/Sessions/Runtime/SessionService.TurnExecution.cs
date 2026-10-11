@@ -1082,7 +1082,7 @@ public sealed partial class SessionService
                     HookEvent.UserPromptSubmit,
                     threadId,
                     turn.Id,
-                    thread.WorkspacePath,
+                    turnContext.Workspace.Cwd,
                     text,
                     stopHookActive,
                     executionCt);
@@ -1097,7 +1097,7 @@ public sealed partial class SessionService
                     HookEvent.PrePrompt,
                     threadId,
                     turn.Id,
-                    thread.WorkspacePath,
+                    turnContext.Workspace.Cwd,
                     text,
                     stopHookActive,
                     executionCt);
@@ -1108,7 +1108,7 @@ public sealed partial class SessionService
                     return;
                 }
 
-                var sessionStartHookContext = await RunSessionStartHookOnceAsync(threadId, turn.Id, thread.WorkspacePath, stopHookActive, executionCt);
+                var sessionStartHookContext = await RunSessionStartHookOnceAsync(threadId, turn.Id, turnContext.Workspace.Cwd, stopHookActive, executionCt);
                 var lifecycleHookContext = CombineHookContext(
                     ExtractHookContext(sessionStartHookContext),
                     ExtractHookContext(promptHookContext),
@@ -1160,7 +1160,7 @@ public sealed partial class SessionService
                         hookRunner,
                         threadId,
                         turn.Id,
-                        thread.WorkspacePath,
+                        turnContext.Workspace.Cwd,
                         stopHookActive,
                         logger);
                 }
@@ -1947,7 +1947,7 @@ public sealed partial class SessionService
                     {
                         SessionId = threadId,
                         TurnId = turn.Id,
-                        Cwd = thread.WorkspacePath,
+                        Cwd = turnContext.Workspace.Cwd,
                         Response = itemProjector.AgentText,
                         LastAssistantMessage = itemProjector.AgentText,
                         StopHookActive = string.Equals(turnContext.Trigger?.Kind, "hook", StringComparison.Ordinal)

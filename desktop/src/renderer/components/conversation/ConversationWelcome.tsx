@@ -41,6 +41,7 @@ import {
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { runtimeWorkspaceRootsFor } from '../../utils/workspaceRuntimeRoots'
 import { buildWelcomeThreadConfiguration } from '../../utils/welcomeThreadConfiguration'
+import { chatFolderThreadStart, startsInChatFolder } from '../../utils/chatFolderThreadStart'
 import { getFallbackThreadName } from '../../utils/threadFallbackName'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import { expandInitCommand } from '../../utils/initCommand'
@@ -1046,14 +1047,17 @@ function ConversationWelcomeCore({
     agentProfileId: selectedProfileId
   }), [modelName, providerId, reasoningConfig, selectedProfileId, speedValue, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
 
-  const startWelcomeThread = useCallback(async (): Promise<ThreadSummary> => {
+  const startWelcomeThread = useCallback(async (firstMessage: string): Promise<ThreadSummary> => {
     const identity = {
       channelName: 'dotcraft-desktop',
       userId: 'local',
       channelContext: `workspace:${identityPath}`,
       workspacePath: identityPath
     }
-    const config = welcomeThreadConfiguration
+    const chatFolder = startsInChatFolder(identityPath, remoteWorkspace)
+      ? await chatFolderThreadStart(firstMessage, welcomeThreadConfiguration)
+      : null
+    const config = chatFolder?.config ?? welcomeThreadConfiguration
 
     // Omitted for single-folder / remote workspaces, and deliberately for worktrees:
     // worktree/createAndStart does not accept runtime roots, so the first turn
@@ -1061,7 +1065,7 @@ function ConversationWelcomeCore({
     const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
     const rootsField = runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}
 
-    const thread = welcomeWorkspaceMode === 'worktree'
+    const thread = welcomeWorkspaceMode === 'worktree' && !chatFolder
       ? (await window.api.appServer.sendRequest('worktree/createAndStart', {
           identity,
           historyMode: 'server',
@@ -1073,7 +1077,7 @@ function ConversationWelcomeCore({
           identity,
           historyMode: 'server',
           config,
-          ...rootsField
+          ...(chatFolder ? { cwd: chatFolder.cwd } : rootsField)
         }) as unknown as { thread: ThreadSummary }).thread
 
     if (welcomeChangelist && welcomeChangelist !== 'default') {
@@ -1086,6 +1090,7 @@ function ConversationWelcomeCore({
     return thread
   }, [
     identityPath,
+    remoteWorkspace,
     welcomeBaseRef,
     welcomeChangelist,
     welcomeThreadConfiguration,
@@ -1155,7 +1160,7 @@ function ConversationWelcomeCore({
       })
       useUIStore.getState().setActiveMainView('conversation')
       clearWelcomeComposer()
-      const thread = await startWelcomeThread()
+      const thread = await startWelcomeThread(trimmedObjective)
       createdThreadId = thread.id
       useUIStore.getState().resolvePendingThreadCreation(requestId, thread.id)
 
@@ -1301,7 +1306,7 @@ function ConversationWelcomeCore({
       })
       useUIStore.getState().setActiveMainView('conversation')
       clearWelcomeComposer()
-      const thread = await startWelcomeThread()
+      const thread = await startWelcomeThread(preview.visibleText)
       createdThreadId = thread.id
       useUIStore.getState().resolvePendingThreadCreation(requestId, thread.id)
       const turnText = isInitCommand ? await expandInitCommand(thread.id) : trimmed

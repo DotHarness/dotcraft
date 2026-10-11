@@ -1,0 +1,11 @@
+.path {
+  margin-top: 2px;
+  color: var(--text-dimmed);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

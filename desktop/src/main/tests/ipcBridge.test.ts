@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ipcMain, Notification, shell } from 'electron'
 import { promises as fs } from 'fs'
 import * as path from 'path'
@@ -138,6 +138,9 @@ import { setDesktopServiceHandoffHandler } from '../desktopServiceHandoff'
 import { SshMachinesManager } from '../sshMachines/sshMachinesManager'
 import { normalizeSshMachines } from '../../shared/sshMachines'
 import { unwrapAppServerResult } from '../../shared/appServerError'
+import { setLocalChatsFolderRootsResolver } from '../chatFolderAccess'
+import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
+import { isTerminalCwdAllowed } from '../viewerTerminalIpc'
 
 type IpcCallbacks = NonNullable<Parameters<typeof registerIpcHandlers>[3]>
 type ExecFileCallback = (
@@ -1759,6 +1762,48 @@ describe('registerIpcHandlers', () => {
     resolveUpdate?.()
     await pending
     expect(settled).toBe(true)
+  })
+
+  describe('chat folders', () => {
+    const chatsWorkspace = resolveDefaultChatWorkspacePath()
+    const chatsRoot = path.resolve('/documents/DotCraft')
+    const chatFolder = path.join(chatsRoot, '2026-10-11', 'plan-a-trip')
+    const dateFolder = path.join(chatsRoot, '2026-10-11')
+
+    afterEach(() => setLocalChatsFolderRootsResolver(() => []))
+
+    it('opens a chat folder to search, git inspection, reveal, and the terminal while Chats is the local foreground', async () => {
+      setLocalChatsFolderRootsResolver(() => [chatsRoot])
+      mockGitCommands(() => ({ error: gitError(128, 'not a git repository') }))
+      const handlers = registerHandlersForTest(chatsWorkspace)
+      const report = path.join(chatFolder, 'outputs', 'report.md')
+
+      await handlers.get('workspace:search-files')!({}, { query: 'report', workspacePath: chatFolder, limit: 5 })
+      expect(listWorkspaceFilesMock).toHaveBeenCalledWith(chatFolder, 'report', 5)
+      await expect(handlers.get('git:inspectHead')!({}, chatFolder)).resolves.toEqual({ kind: 'none' })
+      await handlers.get('shell:show-item-in-folder')!({}, report)
+      expect(shell.showItemInFolder).toHaveBeenCalledWith(report)
+      expect(isTerminalCwdAllowed(chatsWorkspace, path.join(chatFolder, 'work'))).toBe(true)
+
+      await expect(handlers.get('workspace:search-files')!({}, { query: 'x', workspacePath: dateFolder })).rejects.toThrow('Workspace path mismatch')
+      await expect(handlers.get('git:inspectHead')!({}, chatsRoot)).rejects.toThrow('Workspace path mismatch')
+      await expect(handlers.get('shell:show-item-in-folder')!({}, path.join(chatsRoot, 'loose.md'))).rejects.toThrow()
+      expect(isTerminalCwdAllowed(chatsWorkspace, dateFolder)).toBe(false)
+    })
+
+    it('keeps chat folders closed for a project workspace or when Chats is not the local foreground', async () => {
+      setLocalChatsFolderRootsResolver(() => [chatsRoot])
+      const project = registerHandlersForTest('/workspace')
+      await expect(project.get('workspace:search-files')!({}, { query: 'x', workspacePath: chatFolder })).rejects.toThrow('Workspace path mismatch')
+      await expect(project.get('git:inspectHead')!({}, chatFolder)).rejects.toThrow('Workspace path mismatch')
+      expect(isTerminalCwdAllowed('/workspace', chatFolder)).toBe(false)
+
+      setLocalChatsFolderRootsResolver(() => [])
+      const chats = registerHandlersForTest(chatsWorkspace)
+      await expect(chats.get('workspace:search-files')!({}, { query: 'x', workspacePath: chatFolder })).rejects.toThrow('Workspace path mismatch')
+      expect(isTerminalCwdAllowed(chatsWorkspace, chatFolder)).toBe(false)
+      expect(listWorkspaceFilesMock).not.toHaveBeenCalled()
+    })
   })
 })
 

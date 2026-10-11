@@ -14,8 +14,9 @@ import { AgentProfileDropdown } from './AgentProfileDropdown'
 import { AutomationScheduleEditor, validSchedule } from './AutomationScheduleEditor'
 import { AutomationRunHistory } from './AutomationRunHistory'
 
-export function AutomationEditor({ automation, initial, onClose, onSaved, onDirtyChange, onAction, onDelete }: {
+export function AutomationEditor({ automation, initial, chats = false, onClose, onSaved, onDirtyChange, onAction, onDelete }: {
   onAction?(action: 'run' | 'pause' | 'resume'): void
+  chats?: boolean
   onDelete?(): void
   automation?: AutomationDefinition
   initial: AutomationInput
@@ -144,9 +145,11 @@ export function AutomationEditor({ automation, initial, onClose, onSaved, onDirt
             <summary><span>{t('automation.advanced')}</span><ChevronRight size={14} strokeWidth={1.8} aria-hidden /></summary>
             <div className="dc-automation-fields">
               <SettingRow label={t('automation.agent')}><AgentProfileDropdown value={draft.agentProfileId} onChange={(agentProfileId) => update({ agentProfileId })} /></SettingRow>
-              <SettingRow label={t('automation.workspace')}>
-                <Select appearance="frameless" adaptiveWidth={false} value={draft.workspaceMode ?? ''} options={workspaceOptions} ariaLabel={t('automation.workspace')} onValueChange={(workspaceMode) => update({ workspaceMode: workspaceMode || undefined })} />
-              </SettingRow>
+              {!chats ? (
+                <SettingRow label={t('automation.workspace')}>
+                  <Select appearance="frameless" adaptiveWidth={false} value={draft.workspaceMode ?? ''} options={workspaceOptions} ariaLabel={t('automation.workspace')} onValueChange={(workspaceMode) => update({ workspaceMode: workspaceMode || undefined })} />
+                </SettingRow>
+              ) : null}
               <SettingRow label={t('automation.permissions')}>
                 <Select appearance="frameless" adaptiveWidth={false} value={draft.approvalPolicy} options={permissionOptions} ariaLabel={t('automation.permissions')} onValueChange={(approvalPolicy) => update({ approvalPolicy })} />
               </SettingRow>

@@ -138,7 +138,7 @@ export class ComputerLink {
         projects: projects.map((project) => ({
           id: project.projectId,
           name: project.displayName,
-          isChats: project.displayName === 'Chats',
+          isChats: project.kind === 'chats',
           running: project.running,
           lastActiveAt: project.lastActiveAt,
         })),

@@ -1,8 +1,8 @@
 /**
  * Security contract for the `dotcraft-viewer://` scheme:
  *  - A workspace must be selected; when cleared, all requests return 403.
- *  - Files inside the workspace or any attached Project folder are served by that
- *    boundary; external files require
+ *  - Files inside the workspace, any attached Project folder, or a chat's own folder
+ *    are served by that boundary; external files require
  *    an explicit per-file authorization from a renderer action.
  *  - The requested path must resolve to a regular file.
  *  - Path traversal through malformed URL payloads is rejected by path decoding.
@@ -14,6 +14,7 @@ import { protocol, net } from 'electron'
 import { promises as fs } from 'fs'
 import * as path from 'path'
 import { pathToFileURL } from 'url'
+import { chatFolderFor } from './chatFolderAccess'
 
 export const VIEWER_SCHEME = 'dotcraft-viewer'
 const VIEWER_HOST = 'workspace'
@@ -102,11 +103,12 @@ export function setViewerSecondaryRootsResolver(
   secondaryRootsResolver = resolver
 }
 
-export function viewerRootsFor(workspaceRoot: string): string[] {
+export function viewerRootsFor(workspaceRoot: string, targetPath?: string): string[] {
   if (!workspaceRoot) return []
   const roots: string[] = []
   const seen = new Set<string>()
-  for (const candidate of [workspaceRoot, ...secondaryRootsResolver(workspaceRoot)]) {
+  const chatFolder = chatFolderFor(workspaceRoot, targetPath)
+  for (const candidate of [workspaceRoot, ...secondaryRootsResolver(workspaceRoot), ...(chatFolder ? [chatFolder] : [])]) {
     if (!candidate) continue
     const resolved = path.resolve(candidate)
     const key = process.platform === 'win32' ? resolved.toLowerCase() : resolved
@@ -118,7 +120,7 @@ export function viewerRootsFor(workspaceRoot: string): string[] {
 }
 
 export async function isPathInsideViewerRoots(targetPath: string, workspaceRoot: string): Promise<boolean> {
-  for (const root of viewerRootsFor(workspaceRoot)) {
+  for (const root of viewerRootsFor(workspaceRoot, targetPath)) {
     if (await isPathInsideWorkspace(targetPath, root)) return true
   }
   return false

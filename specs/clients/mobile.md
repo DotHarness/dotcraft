@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.3 |
+| Version | 0.8.4 |
 | Status | Draft |
 | Date | 2026-10-11 |
 | Parent spec | [Hub Architecture](../architecture/hub-architecture.md) |
@@ -163,6 +163,7 @@ computer it already paired.
     {
       "projectId": "9c1d0e5a2b7f4c3d8e6a1b0f",
       "displayName": "dotcraft",
+      "kind": "project",
       "running": true,
       "lastActiveAt": "2026-10-03T08:12:00+00:00"
     }
@@ -177,7 +178,7 @@ The projects are Hub's project list (Hub Architecture §7 Projects), the same li
 the default Chat workspace; a project removed on the computer disappears from the phone. A
 `projectId` that is not in that list is answered `404 projectNotFound` by every `/m/projects` route. `projectId` is the first 24 hexadecimal digits of the SHA-256 of the normalized workspace
 path, case-folded on Windows, so it is stable and never reveals the path. `displayName` is the
-folder name; the default Chat workspace is always listed, as `Chats`. `lastActiveAt` is the time the
+folder name; the default Chat workspace is always listed, as `Chats`. `kind` is `chats` for the default Chat workspace and `project` otherwise; the phone identifies Chats by `kind`, never by name. `lastActiveAt` is the time the
 project was last opened, or `null` for Chats, and projects are ordered by it, most recent first.
 
 The relay is opaque: Hub opens the AppServer's loopback WebSocket with that process's token and
@@ -348,7 +349,7 @@ snapshots rather than live.
 | Chat | A floating top bar over the transcript: Back, the chat title with its project and computer, the context ring, and a menu. The ring fills with the share of the context window in use; tapping it opens Status. The transcript follows Desktop's turn layout: a finished turn folds everything before its final reply into one **Worked for** row that expands, keeping steering messages, the last plan card, and generated images in view; consecutive tool calls of one kind (file reads, commands, file writes, web) group into one expandable row; reasoning shows only while it streams and then as **Thought for**; Copy sits under the final reply of a completed turn, and a completed turn that changed files ends its final reply with an **Edited** card that opens Changes for that turn; a created plan shows as a plan card. While an approval, a question, or a plan confirmation waits, the decision card closes the transcript and the composer is hidden. The composer card uses Desktop's placeholder and carries Add (**+**), the approval policy, and the model controls; while a turn runs it adds a message to the turn and a Stop control interrupts it. While a turn runs and has changed files, a changes pill above the composer opens Changes for it; the pill goes when the turn ends. The composer floats over the transcript, which fades out behind it. Pulling the transcript down refreshes the chat (§8.1), with the indicator below the top bar. While any of the chat's background tasks runs (§8.3), a quiet row in the accent colour after the last turn counts them, such as "2 running tasks", and opens Background tasks; it is absent when none runs. Scrolled away from the latest message, a round button above the composer returns to the bottom; while a turn runs it shows wave dots instead of the arrow. |
 | Add menu | **Photo**, **File**, and **Plan mode**, which shows a check while it is on. |
 | Picker | Commands and skills matching what follows `/` or `$` in the composer. |
-| Changes | Every file the turn changed with its additions and deletions; each file expands to its diff. |
+| Changes | Every file the turn changed with its additions and deletions; each file expands to its diff. Paths are shown relative to the chat's `effectiveWorkspacePath`, which is also the base for relative file links in the transcript. |
 | File | One file from the computer, read-only, with **Download**, which saves it to the phone's `Download/DotCraft/` folder. Images open full screen with the same Download. |
 | Background tasks | A sheet titled **Background tasks**, opened from the running tasks row. **Running**, expanded, and **Completed** with its count, collapsed, each fold in place. Each task is a card: its kind's icon, its title in bold and wrapping, and a line with its kind and how long it has run or ran, such as "Shell · 4m 28s", ending with **Stopped** or **Failed** when it did not finish normally. A running task ends with a Stop button; a finished task ends with a chevron that expands its detail in place: a shell task's last output lines, an agent's role, or a workflow's agent count. |
 | Status | Opened from the context ring: context left, account usage when the chat's provider reports it, the project folder, and the chat ID to copy. |

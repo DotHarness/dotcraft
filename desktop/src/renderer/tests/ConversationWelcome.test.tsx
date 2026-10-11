@@ -25,6 +25,7 @@ import type { ThreadGoal } from '../types/thread'
 import type { ModelPreference } from '../../shared/modelPreference'
 import { appendVoiceTranscript, isAvailableComposerVoiceOrigin } from '../voice/composerDraftBridge'
 import { installDesktopApiMock } from './desktopApiMock'
+import { STANDALONE_CHAT_INSTRUCTIONS } from '../../shared/chatFolders'
 import {
   clearDesktopPluginRegistry,
   registerDesktopPluginSurface
@@ -1287,6 +1288,38 @@ describe('ConversationWelcome composer', () => {
       expect(useThreadStore.getState().activeThreadId).toBe('thread-welcome')
       expect(useUIStore.getState().welcomeDraft).toBeNull()
     })
+  })
+
+  it('starts a Chats thread in a new chat folder named from the first message', async () => {
+    const chatsPath = '/home/me/.craft/workspaces/chats'
+    const chatFolder = '/home/me/Documents/DotCraft/2026-10-11/plan-a-trip'
+    const createChatFolder = vi.fn(async () => ({ path: chatFolder }))
+    window.api.workspace.createChatFolder = createChatFolder
+
+    render(
+      <LocaleProvider>
+        <ConversationWelcome workspacePath={chatsPath} />
+      </LocaleProvider>
+    )
+    const textbox = await screen.findByRole('textbox')
+    expect(createChatFolder).not.toHaveBeenCalled()
+    textbox.textContent = 'Plan a trip'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest.mock.calls.some(([method]) => method === 'thread/start')).toBe(true)
+    })
+    expect(createChatFolder).toHaveBeenCalledWith({ firstMessage: 'Plan a trip' })
+    const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
+    const payload = start?.[1] as {
+      cwd?: string
+      identity?: { workspacePath?: string }
+      config?: { developerInstructions?: string }
+    }
+    expect(payload.cwd).toBe(chatFolder)
+    expect(payload.identity?.workspacePath).toBe(chatsPath)
+    expect(payload.config?.developerInstructions).toBe(STANDALONE_CHAT_INSTRUCTIONS)
   })
 
   it('keeps the full-access workspace default inherited on the created thread', async () => {

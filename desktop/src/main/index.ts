@@ -80,6 +80,8 @@ import {
   type ConnectionMode
 } from './settings'
 import { mergeUpdatedSettings } from './settingsMerge'
+import { createChatFolderFromSettings, knownChatsFolderRootsFromSettings } from './chatFoldersIpc'
+import { setLocalChatsFolderRootsResolver } from './chatFolderAccess'
 import {
   acquireWorkspaceLock,
   releaseWorkspaceLock,
@@ -666,6 +668,9 @@ async function handleServerRequestInMain(method: string, params: unknown): Promi
     }
     return handleDesktopRuntimeThreadToolCall(client, params, getProtocolWorkspacePath(), {
       supportsDynamicToolRebind: lastConnectionStatus.capabilities?.dynamicToolRebind === true,
+      ...(isLocalChatsForeground()
+        ? { createChatFolder: (firstMessage: string) => createChatFolderFromSettings(sharedSettings, firstMessage) }
+        : {}),
       settingsHost: {
         getSettings: () => sharedSettings,
         updateSettings: updateSharedSettings,
@@ -948,6 +953,10 @@ setComputerUseRuntimeHost({
   getSettings: () => sharedSettings,
   updateSettings: updateSharedSettings
 })
+
+function isLocalChatsForeground(): boolean {
+  return !activeRemoteProject && !activeRemoteWorkspace && isDefaultChatWorkspace(currentWorkspacePath)
+}
 
 function resolveConnectionMode(settings: AppSettings): ConnectionMode {
   const mode = settings.connectionMode
@@ -3576,6 +3585,7 @@ app.whenReady().then(async () => {
     ensureWorkspaceActivation(workspacePath ?? '')
   }
   if (!hasRemoteEndpointArg()) localProjects.start()
+  setLocalChatsFolderRootsResolver(() => isLocalChatsForeground() ? knownChatsFolderRootsFromSettings(sharedSettings) : [])
   setViewerSecondaryRootsResolver((root) =>
     localProjects.has(root) ? getLocalProjectDetails(sharedSettings, root)?.secondaryFolders ?? [] : []
   )
