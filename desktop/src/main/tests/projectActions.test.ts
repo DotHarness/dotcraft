@@ -87,6 +87,26 @@ describe('project environment discovery', () => {
     ])
   })
 
+  it('keeps action ids unique when a name collides with a generated id', async () => {
+    writeEnvironment(workspace, 'environment.json', {
+      actions: [
+        { name: 'Build', command: 'npm run build' },
+        { name: 'Build#2', command: 'npm run build:2' },
+        { name: 'Build', command: 'npm run build:3' }
+      ]
+    })
+
+    const [environment] = await discoverProjectEnvironments(workspace, 'win32')
+    const run = await service().instance.prepareRun({
+      workspacePath: workspace,
+      environmentId: environment.id,
+      actionId: environment.actions[2].id
+    })
+
+    expect(environment.actions.map((action) => action.id)).toEqual(['Build', 'Build#2', 'Build#3'])
+    expect(run.command).toBe('npm run build:3')
+  })
+
   it('lists unparseable and invalid files as environments that need attention', async () => {
     writeEnvironment(workspace, 'environment.json', '{ "actions": [')
     writeEnvironment(workspace, 'platform.json', { actions: [{ name: 'Run', command: 'x', platform: 'windows' }] })
@@ -190,6 +210,21 @@ describe('project actions service', () => {
         { name: 'Test', icon: 'test', command: 'npm test', platform: 'win32' }
       ]
     })
+  })
+
+  it('returns no action to run after saving one restricted to another platform', async () => {
+    writeEnvironment(workspace, 'environment.json', { actions: [{ name: 'Run', command: 'npm start' }] })
+    const { instance } = service('win32')
+    const [environment] = (await instance.list(workspace)).environments
+
+    const result = await instance.add({
+      workspacePath: workspace,
+      environmentId: environment.id,
+      revision: environment.revision,
+      action: { name: 'Run', icon: 'run', command: 'make run', platform: 'linux' }
+    })
+
+    expect(result).toEqual({ ok: true, environmentId: environment.id, action: null })
   })
 
   it('writes nothing when the environment changed on disk after the dialog opened', async () => {

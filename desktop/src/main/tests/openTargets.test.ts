@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import * as path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +6,7 @@ import { readCustomOpenTargets } from '../openTargets/customTargets'
 import {
   createCommandLookup,
   detectWindowsTargets,
+  isExecutableFile,
   type DetectionHost
 } from '../openTargets/detection'
 import { composeBuiltInLaunch, composeCustomLaunch, runLaunchCommand } from '../openTargets/launch'
@@ -30,6 +31,7 @@ function windowsHost(
       PATHEXT: '.COM;.EXE;.BAT;.CMD'
     },
     exists: async (filePath) => known.has(filePath.toLowerCase()),
+    isExecutable: async (filePath) => known.has(filePath.toLowerCase()),
     listDirectory: async (directory) => options.directories?.[directory] ?? [],
     findWithVsWhere: async () => options.vswhere ?? null,
     hasWslDistribution: async () => options.wsl === true,
@@ -139,10 +141,12 @@ describe('open target launch arguments', () => {
 
 describe('custom open targets', () => {
   const tool = process.platform === 'win32' ? 'C:\\Tools\\review.exe' : '/opt/tools/review'
+  const known = [tool, process.platform === 'win32' ? 'C:\\Bin\\lens.exe' : '/usr/local/bin/lens']
   const lookup = createCommandLookup({
     platform: process.platform,
     env: { PATH: process.platform === 'win32' ? 'C:\\Bin' : '/usr/local/bin', PATHEXT: '.EXE;.CMD' },
-    exists: async (filePath) => [tool, process.platform === 'win32' ? 'C:\\Bin\\lens.exe' : '/usr/local/bin/lens'].includes(filePath)
+    exists: async (filePath) => known.includes(filePath),
+    isExecutable: async (filePath) => known.includes(filePath)
   })
 
   it('reads valid handlers from the Desktop section and skips invalid ones with a log line', async () => {
@@ -177,6 +181,46 @@ describe('custom open targets', () => {
   it('returns nothing when the configuration has no handlers', async () => {
     await expect(readCustomOpenTargets(null, lookup, vi.fn())).resolves.toEqual([])
     await expect(readCustomOpenTargets({ Desktop: {} }, lookup, vi.fn())).resolves.toEqual([])
+  })
+})
+
+describe('PATH command lookup', () => {
+  let directory: string | null = null
+
+  afterEach(async () => {
+    if (directory) await rm(directory, { recursive: true, force: true })
+    directory = null
+  })
+
+  it('skips Unix PATH entries that are not executable files', async () => {
+    const [plain, folder, executable] = ['/opt/plain', '/opt/folder', '/opt/bin'].map((entry) => path.join(entry, 'code'))
+    const lookup = createCommandLookup({
+      platform: 'linux',
+      env: { PATH: '/opt/plain:/opt/folder:/opt/bin' },
+      exists: async (filePath) => [plain, folder, executable].includes(filePath),
+      isExecutable: async (filePath) => filePath === executable
+    })
+
+    await expect(lookup.which('code')).resolves.toBe(executable)
+    await expect(lookup.exists(folder)).resolves.toBe(true)
+  })
+
+  it.skipIf(process.platform === 'win32')('finds the first executable regular file on a real PATH', async () => {
+    directory = await mkdtemp(path.join(tmpdir(), 'dotcraft-path-lookup-'))
+    const [plain, folder, bin] = ['plain', 'folder', 'bin'].map((entry) => path.join(directory!, entry))
+    await mkdir(path.join(folder, 'code'), { recursive: true })
+    await mkdir(plain)
+    await mkdir(bin)
+    await writeFile(path.join(plain, 'code'), '#!/bin/sh\n', { mode: 0o644 })
+    await writeFile(path.join(bin, 'code'), '#!/bin/sh\n', { mode: 0o755 })
+    const lookup = createCommandLookup({
+      platform: process.platform,
+      env: { PATH: [plain, folder, bin].join(':') },
+      exists: (filePath) => access(filePath).then(() => true, () => false),
+      isExecutable: isExecutableFile
+    })
+
+    await expect(lookup.which('code')).resolves.toBe(path.join(bin, 'code'))
   })
 })
 

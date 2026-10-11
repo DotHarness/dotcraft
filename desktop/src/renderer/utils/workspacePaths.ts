@@ -1,5 +1,5 @@
 export function toAbsoluteWorkspacePath(workspacePath: string, filePath: string): string {
-  if (filePath.startsWith('/') || /^[A-Za-z]:[\\/]/.test(filePath)) return filePath
+  if (filePath.startsWith('/') || filePath.startsWith('\\\\') || /^[A-Za-z]:[\\/]/.test(filePath)) return filePath
   const ws = workspacePath.replace(/\\/g, '/').replace(/\/$/, '')
   const rel = filePath.replace(/\\/g, '/')
   return `${ws}/${rel}`.replace(/\/+/g, '/')

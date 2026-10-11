@@ -71,10 +71,15 @@ export function parseEnvironment(content: string, platform: NodeJS.Platform): Pa
     const command = text(entry.command)
     if (!name || !command || (actionPlatform && actionPlatform !== platform)) continue
     const icon = text(entry.icon)
-    const occurrence = (seen.get(name) ?? 0) + 1
+    let occurrence = (seen.get(name) ?? 0) + 1
+    let id = occurrence === 1 ? name : `${name}#${occurrence}`
+    while (actions.some((action) => action.id === id)) {
+      occurrence++
+      id = `${name}#${occurrence}`
+    }
     seen.set(name, occurrence)
     actions.push({
-      id: occurrence === 1 ? name : `${name}#${occurrence}`,
+      id,
       name,
       icon: isProjectActionIcon(icon) ? icon : 'tool',
       command

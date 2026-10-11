@@ -122,9 +122,11 @@ describe('Desktop Plugin open targets', () => {
     ])
     await navigation.openPath('C:\\repo\\src\\app.ts', { target: 'vscode', line: 7, column: 3 })
     await navigation.openPath('src/app.ts')
+    await navigation.openPath('\\\\server\\share\\file.txt')
 
     expect(openInTarget).toHaveBeenNthCalledWith(1, { targetId: 'vscode', path: 'C:\\repo\\src\\app.ts', line: 7, column: 3 })
     expect(openInTarget).toHaveBeenNthCalledWith(2, { targetId: 'custom:review', path: 'C:/repo/src/app.ts' })
+    expect(openInTarget).toHaveBeenNthCalledWith(3, { targetId: 'custom:review', path: '\\\\server\\share\\file.txt' })
   })
 
   it('rejects an unavailable target and a remote workspace', async () => {

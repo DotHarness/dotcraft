@@ -10,6 +10,7 @@ import {
   createCommandLookup,
   detectUnixTargets,
   detectWindowsTargets,
+  isExecutableFile,
   type BuiltInOpenTarget,
   type DetectionHost
 } from './detection'
@@ -41,6 +42,7 @@ const productionHost: DetectionHost = {
       return false
     }
   },
+  isExecutable: isExecutableFile,
   async listDirectory(directory) {
     try {
       return await readdir(directory)

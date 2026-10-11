@@ -95,6 +95,10 @@ export class ProjectActionsService {
     const saved = (await this.discover(key)).find((environment) => environment.path === written.path)
     this.notify(key)
     if (!saved) return { ok: false, reason: 'failed' }
+    const platform = request.action.platform
+    if (platform && platform !== (this.deps.platform ?? process.platform)) {
+      return { ok: true, environmentId: saved.id, action: null }
+    }
     const name = request.action.name.trim()
     const action = [...saved.actions].reverse().find((candidate) => candidate.name === name) ?? null
     return { ok: true, environmentId: saved.id, action }

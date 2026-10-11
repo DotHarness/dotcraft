@@ -1,3 +1,5 @@
+import { constants } from 'fs'
+import { access, stat } from 'fs/promises'
 import * as path from 'path'
 import type { OpenTargetIconKey, OpenTargetLocation } from '../../shared/openTargets'
 
@@ -25,6 +27,7 @@ export interface DetectionHost {
   platform: NodeJS.Platform
   env: Record<string, string | undefined>
   exists(filePath: string): Promise<boolean>
+  isExecutable(filePath: string): Promise<boolean>
   listDirectory(directory: string): Promise<string[]>
   findWithVsWhere(vswhere: string, pattern: string): Promise<string | null>
   hasWslDistribution(): Promise<boolean>
@@ -52,7 +55,17 @@ export interface CommandLookup {
   exists(filePath: string): Promise<boolean>
 }
 
-export function createCommandLookup(host: Pick<DetectionHost, 'platform' | 'env' | 'exists'>): CommandLookup {
+export async function isExecutableFile(filePath: string): Promise<boolean> {
+  try {
+    if (!(await stat(filePath)).isFile()) return false
+    await access(filePath, constants.X_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function createCommandLookup(host: Pick<DetectionHost, 'platform' | 'env' | 'exists' | 'isExecutable'>): CommandLookup {
   const separator = host.platform === 'win32' ? ';' : ':'
   const pathValue = host.env.PATH ?? host.env.Path ?? ''
   const directories = pathValue.split(separator).map((entry) => entry.trim()).filter(Boolean)
@@ -66,9 +79,15 @@ export function createCommandLookup(host: Pick<DetectionHost, 'platform' | 'env'
     host.env['ProgramFiles(x86)'] ?? null
   ].filter((root): root is string => !!root)
 
-  async function firstExisting(candidates: string[]): Promise<string | null> {
+  const isCommand = (filePath: string): Promise<boolean> =>
+    host.platform === 'win32' ? host.exists(filePath) : host.isExecutable(filePath)
+
+  async function firstExisting(
+    candidates: string[],
+    matches: (filePath: string) => Promise<boolean> = host.exists
+  ): Promise<string | null> {
     for (const candidate of candidates) {
-      if (await host.exists(candidate)) return candidate
+      if (await matches(candidate)) return candidate
     }
     return null
   }
@@ -80,7 +99,7 @@ export function createCommandLookup(host: Pick<DetectionHost, 'platform' | 'env'
         ? [command]
         : extensions.map((ext) => command + ext)
       for (const directory of directories) {
-        const found = await firstExisting(names.map((name) => path.join(directory, name)))
+        const found = await firstExisting(names.map((name) => path.join(directory, name)), isCommand)
         if (found) return found
       }
       return null
