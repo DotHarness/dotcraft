@@ -98,7 +98,11 @@
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
       "x-dotcraft-spec-ref": "specs/features/agent-packages.md",
-      "x-dotcraft-errors": []
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
     },
     {
       "name": "agent/profiles/export/read",
@@ -127,7 +131,11 @@
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
       "x-dotcraft-spec-ref": "specs/features/agent-packages.md",
-      "x-dotcraft-errors": []
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
     },
     {
       "name": "agent/profiles/import/commit",
@@ -156,7 +164,11 @@
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
       "x-dotcraft-spec-ref": "specs/features/agent-packages.md",
-      "x-dotcraft-errors": []
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
     },
     {
       "name": "agent/profiles/import/discard",
@@ -185,7 +197,11 @@
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
       "x-dotcraft-spec-ref": "specs/features/agent-packages.md",
-      "x-dotcraft-errors": []
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
     },
     {
       "name": "agent/profiles/import/upload",
@@ -214,7 +230,11 @@
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
       "x-dotcraft-spec-ref": "specs/features/agent-packages.md",
-      "x-dotcraft-errors": []
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
     },
     {
       "name": "agent/profiles/list",
@@ -1698,7 +1718,11 @@
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
       "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": []
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
     },
     {
       "name": "config/mcpServer/reload",
@@ -1760,7 +1784,11 @@
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
       "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": []
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
     },
     {
       "name": "config/schema",
@@ -1789,7 +1817,11 @@
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
       "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": []
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
     },
     {
       "name": "config/value/write",
@@ -1818,7 +1850,11 @@
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
       "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": []
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
     },
     {
       "name": "dreams/apply",

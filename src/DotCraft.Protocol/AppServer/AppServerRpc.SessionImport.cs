@@ -4,7 +4,7 @@ public static partial class AppServerRpc
 {
     public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, ImportHistoryResult> ImportHistoryList =
         new("import/history/list", RpcDirection.ClientToServer, "1", Spec, module: "agent-import", scope: "workspace", capability: "extensions.agentImport", errors: CommonErrors);
-    private static readonly string[] SessionImportErrors = [.. CommonErrors, "import_busy"];
+    private static string[] SessionImportErrors => [.. CommonErrors, "import_busy"];
 
     public static readonly RpcRequest<ImportDetectParams, ImportDetectResult> ImportDetect =
         new("import/detect", RpcDirection.ClientToServer, "1", Spec, module: "agent-import", scope: "workspace", capability: "extensions.agentImport", errors: SessionImportErrors);

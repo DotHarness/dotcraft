@@ -2,11 +2,9 @@ namespace DotCraft.Protocol.AppServer;
 
 public static partial class AppServerRpc
 {
-    private static readonly string[] CommandExecErrors =
+    private static string[] CommandExecErrors =>
     [
-        "InvalidRequest",
-        "InvalidParams",
-        "MethodNotFound",
+        .. CommonErrors,
         "CommandNotFound",
         "DirectoryNotFound",
         "PathBlocked"

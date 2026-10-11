@@ -27227,7 +27227,11 @@
       "capability": null,
       "scope": "connection",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/features/agent-packages.md",
       "stability": "stable"
@@ -27243,7 +27247,11 @@
       "capability": null,
       "scope": "connection",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/features/agent-packages.md",
       "stability": "stable"
@@ -27259,7 +27267,11 @@
       "capability": null,
       "scope": "connection",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/features/agent-packages.md",
       "stability": "stable"
@@ -27275,7 +27287,11 @@
       "capability": null,
       "scope": "connection",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/features/agent-packages.md",
       "stability": "stable"
@@ -27291,7 +27307,11 @@
       "capability": null,
       "scope": "connection",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/features/agent-packages.md",
       "stability": "stable"
@@ -28302,7 +28322,11 @@
       "capability": "workspaceConfigManagement",
       "scope": "workspace",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"
@@ -28354,7 +28378,11 @@
       "capability": "workspaceConfigManagement",
       "scope": "workspace",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"
@@ -28370,7 +28398,11 @@
       "capability": null,
       "scope": "workspace",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"
@@ -28386,7 +28418,11 @@
       "capability": "workspaceConfigManagement",
       "scope": "workspace",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"
