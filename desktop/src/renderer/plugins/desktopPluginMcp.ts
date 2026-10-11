@@ -53,12 +53,15 @@ export async function callDesktopPluginMcpTool(call: DesktopPluginMcpToolCall): 
   if (call.threadId) return callTool(call, call.threadId)
   const epoch = connectionEpoch()
   const threadId = await hiddenThreadId()
+  if (connectionEpoch() !== epoch) throw new Error('AppServer connection changed before MCP tool dispatch.')
   try {
     return await callTool(call, threadId)
   } catch (error) {
     const threadGone = readAppServerErrorFields(error).rpcCode === THREAD_NOT_FOUND
-    if (!threadGone && connectionEpoch() === epoch) throw error
+    if (!threadGone || connectionEpoch() !== epoch) throw error
     forgetHiddenThread(threadId)
-    return callTool(call, await hiddenThreadId())
+    const retryThreadId = await hiddenThreadId()
+    if (connectionEpoch() !== epoch) throw error
+    return callTool(call, retryThreadId)
   }
 }

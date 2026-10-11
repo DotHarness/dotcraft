@@ -6961,7 +6961,7 @@ Rules:
 - Failures other than invalid params use error code `-32103`, with the case in `error.data.code` and
   the resolved path in `error.data.params.path`. A path under `Security.BlacklistedPaths` fails with
   `PathBlocked` for every method, checked both as given and after resolving symbolic links and
-  junctions; the method then acts on the resolved path, except that `fs/remove` removes a symbolic link or junction itself and never its target. `fs/copy` checks both paths.
+  junctions; the method then acts on the resolved path, except that `fs/remove` removes a symbolic link or junction itself and never its target. `fs/copy` checks both paths. A recursive `fs/copy` skips blocked entries and every symbolic link or junction inside the tree; a recursive `fs/remove` fails with `PathBlocked` and removes nothing when a blocked path lies inside the tree.
 - `fs/readFile` fails with `FileNotFound` when nothing exists at `path`, `NotAFile` when `path` is a
   directory, and `FileTooLarge` when the file exceeds 8 MiB.
 - `fs/writeFile` does not create parent directories; a missing parent fails with

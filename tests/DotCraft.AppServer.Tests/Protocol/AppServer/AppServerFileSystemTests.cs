@@ -264,6 +264,69 @@ public sealed class AppServerFileSystemTests : IDisposable
         Assert.Equal("a", File.ReadAllText(Path.Combine(copy, "a.txt")));
     }
 
+    [Fact]
+    public async Task Copy_SkipsBlacklistedEntriesInsideTheTree()
+    {
+        var source = Path.Combine(_root, "src");
+        Directory.CreateDirectory(Path.Combine(source, "secrets"));
+        File.WriteAllText(Path.Combine(source, "secrets", "key.txt"), "secret");
+        File.WriteAllText(Path.Combine(source, "token.txt"), "token");
+        File.WriteAllText(Path.Combine(source, "a.txt"), "a");
+        _harness.Monitor.Current.Security.BlacklistedPaths.Add(Path.Combine(source, "secrets"));
+        _harness.Monitor.Current.Security.BlacklistedPaths.Add(Path.Combine(source, "token.txt"));
+        var copy = Path.Combine(_root, "copy");
+        await _harness.InitializeAsync();
+
+        await SendAsync(Rpc.FsCopy.Name, new { sourcePath = source, destinationPath = copy, recursive = true });
+
+        Assert.Equal("a", File.ReadAllText(Path.Combine(copy, "a.txt")));
+        Assert.False(Directory.Exists(Path.Combine(copy, "secrets")));
+        Assert.False(File.Exists(Path.Combine(copy, "token.txt")));
+    }
+
+    [Fact]
+    public async Task Copy_SkipsFileLinksInsideTheTree()
+    {
+        var outside = Path.Combine(_root, "outside.txt");
+        File.WriteAllText(outside, "outside");
+        var source = Path.Combine(_root, "src");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source, "a.txt"), "a");
+        try
+        {
+            File.CreateSymbolicLink(Path.Combine(source, "link.txt"), outside);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            return;
+        }
+        var copy = Path.Combine(_root, "copy");
+        await _harness.InitializeAsync();
+
+        await SendAsync(Rpc.FsCopy.Name, new { sourcePath = source, destinationPath = copy, recursive = true });
+
+        Assert.Equal("a", File.ReadAllText(Path.Combine(copy, "a.txt")));
+        Assert.False(File.Exists(Path.Combine(copy, "link.txt")));
+    }
+
+    [Fact]
+    public async Task Remove_OfATreeHoldingABlacklistedPath_IsBlockedAndRemovesNothing()
+    {
+        var tree = Path.Combine(_root, "tree");
+        var blocked = Path.Combine(tree, "nested", "secrets");
+        Directory.CreateDirectory(blocked);
+        File.WriteAllText(Path.Combine(blocked, "key.txt"), "secret");
+        File.WriteAllText(Path.Combine(tree, "a.txt"), "a");
+        _harness.Monitor.Current.Security.BlacklistedPaths.Add(blocked);
+        await _harness.InitializeAsync();
+
+        var remove = await SendForErrorAsync(Rpc.FsRemove.Name, new { path = tree });
+
+        Assert.Equal("PathBlocked", DataCode(remove));
+        Assert.True(File.Exists(Path.Combine(tree, "a.txt")));
+        Assert.True(File.Exists(Path.Combine(blocked, "key.txt")));
+    }
+
     private static bool TryCreateDirectoryLink(string link, string target)
     {
         try

@@ -46,10 +46,16 @@ function nextConnection(): void {
   useConnectionStore.setState((state) => ({ connectionEpoch: state.connectionEpoch + 1 }))
 }
 
-function appServer(onToolCall: (params: Record<string, unknown>) => unknown = () => ({ content: [] })) {
+function appServer(
+  onToolCall: (params: Record<string, unknown>) => unknown = () => ({ content: [] }),
+  onThreadStart: () => void = () => {}
+) {
   let started = 0
   const sendRequestRaw = vi.fn(async (method: string, params?: unknown) => {
-    if (method === 'thread/start') return { thread: { id: `hidden-${++started}` } }
+    if (method === 'thread/start') {
+      onThreadStart()
+      return { thread: { id: `hidden-${++started}` } }
+    }
     if (method === 'mcpServer/tool/call') return onToolCall(params as Record<string, unknown>)
     throw new Error(`unexpected ${method}`)
   })
@@ -156,6 +162,24 @@ describe('Desktop Plugin mcp.callTool', () => {
     failures = 2
     await expect(host().mcp.callTool({ server: 'board', tool: 'list' })).rejects.toThrow('Thread not found')
     expect(server.calls('thread/start')).toHaveLength(3)
+  })
+
+  it('rejects a call when the connection changes while the hidden thread is starting', async () => {
+    const server = appServer(undefined, nextConnection)
+
+    await expect(host().mcp.callTool({ server: 'board', tool: 'list' })).rejects.toThrow('connection changed')
+    expect(server.calls('mcpServer/tool/call')).toEqual([])
+  })
+
+  it('does not retry a failed call after the connection changes', async () => {
+    const server = appServer(() => {
+      nextConnection()
+      throw threadNotFound()
+    })
+
+    await expect(host().mcp.callTool({ server: 'board', tool: 'list' })).rejects.toThrow('Thread not found')
+    expect(server.calls('thread/start')).toHaveLength(1)
+    expect(server.calls('mcpServer/tool/call')).toHaveLength(1)
   })
 
   it('does not retry an ordinary tool failure', async () => {

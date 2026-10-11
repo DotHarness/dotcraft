@@ -142,6 +142,9 @@ internal sealed class FileSystemRequestHandler(
         {
             if (!recursive && Directory.EnumerateFileSystemEntries(path).Any())
                 throw AppServerErrors.FileSystem("DirectoryNotEmpty", "The directory is not empty.", path);
+            var blacklist = Blacklist();
+            if (recursive && (blacklist.HasEntryWithin(given) || blacklist.HasEntryWithin(path)))
+                throw PathBlocked(given);
             Directory.Delete(path, recursive);
         }
         else if (File.Exists(path))
@@ -169,7 +172,7 @@ internal sealed class FileSystemRequestHandler(
             if (IsSameOrDescendant(destination, source))
                 throw AppServerErrors.InvalidParams("A directory cannot be copied into itself.");
             RequireParentDirectory(destination);
-            CopyDirectory(source, destination, ct);
+            CopyDirectory(source, destination, Blacklist(), ct);
         }
         else if (File.Exists(source))
         {
@@ -215,11 +218,14 @@ internal sealed class FileSystemRequestHandler(
 
         var fullPath = Path.GetFullPath(path);
         var resolvedPath = WorkspaceBoundary.ResolveSymbolicLink(fullPath);
-        var blacklist = new PathBlacklist(appConfigMonitor?.Current.Security.BlacklistedPaths ?? []);
+        var blacklist = Blacklist();
         if (blacklist.IsBlacklisted(fullPath) || blacklist.IsBlacklisted(resolvedPath))
-            throw AppServerErrors.FileSystem("PathBlocked", "Access to the path is blocked.", fullPath);
+            throw PathBlocked(fullPath);
         return (fullPath, resolvedPath);
     }
+
+    private PathBlacklist Blacklist() =>
+        new(appConfigMonitor?.Current.Security.BlacklistedPaths ?? []);
 
     private static void RequireParentDirectory(string path)
     {
@@ -228,17 +234,21 @@ internal sealed class FileSystemRequestHandler(
             throw AppServerErrors.FileSystem("DirectoryNotFound", "The parent directory does not exist.", path);
     }
 
-    private static void CopyDirectory(string source, string destination, CancellationToken ct)
+    private static void CopyDirectory(string source, string destination, PathBlacklist blacklist, CancellationToken ct)
     {
         Directory.CreateDirectory(destination);
         foreach (var entry in Directory.EnumerateFileSystemEntries(source))
         {
             ct.ThrowIfCancellationRequested();
             var target = Path.Combine(destination, Path.GetFileName(entry));
-            if (!Directory.Exists(entry))
+            if ((File.GetAttributes(entry) & FileAttributes.ReparsePoint) != 0
+                || blacklist.IsBlacklisted(entry)
+                || blacklist.IsBlacklisted(target))
+                continue;
+            if (Directory.Exists(entry))
+                CopyDirectory(entry, target, blacklist, ct);
+            else
                 File.Copy(entry, target, overwrite: true);
-            else if (LinkAt(entry) is null)
-                CopyDirectory(entry, target, ct);
         }
     }
 
@@ -260,6 +270,9 @@ internal sealed class FileSystemRequestHandler(
 
     private static AppServerException FileNotFound(string path) =>
         AppServerErrors.FileSystem("FileNotFound", "Nothing exists at the path.", path);
+
+    private static AppServerException PathBlocked(string path) =>
+        AppServerErrors.FileSystem("PathBlocked", "Access to the path is blocked.", path);
 
     private static AppServerException NotADirectory(string path) =>
         AppServerErrors.FileSystem("NotADirectory", "The path is a file, not a directory.", path);

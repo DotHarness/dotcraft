@@ -29,6 +29,15 @@ public sealed class PathBlacklist
         return false;
     }
 
+    public bool HasEntryWithin(string directoryPath)
+    {
+        var normalized = NormalizePath(directoryPath);
+        var prefix = Path.EndsInDirectorySeparator(normalized) ? normalized : normalized + Path.DirectorySeparatorChar;
+        return _normalizedPaths.Any(blocked =>
+            blocked.Equals(normalized, StringComparison.OrdinalIgnoreCase) ||
+            blocked.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static string NormalizePath(string path)
     {
         var expanded = Environment.ExpandEnvironmentVariables(path);

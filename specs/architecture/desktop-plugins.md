@@ -358,7 +358,7 @@ interface DesktopPluginSubAgent {
 authority, approval, and hook pipeline. With `threadId`, it runs on that thread. Without it, the Host
 uses one hidden ephemeral thread on the current AppServer connection: started on first use with
 `approvalPolicy = deny`, shared by every plugin, and replaced after a reconnect or workspace switch.
-An approval-gated call on that thread is rejected, and the rejection comes back as the tool result;
+A call never moves to another connection: when the connection changes before dispatch the call fails, and only a missing hidden thread on the same connection is recreated and retried once. An approval-gated call on that thread is rejected, and the rejection comes back as the tool result;
 a plugin that needs the user's approval passes the thread the user is looking at.
 
 ### AppServer notifications
