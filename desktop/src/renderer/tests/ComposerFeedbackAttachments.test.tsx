@@ -75,6 +75,23 @@ describe('feedback attachment pills', () => {
     useComposerContextStore.getState().setContexts('task', [reply, page, diff, paste])
   })
 
+  it('shows design changes as one pill per visualization that lists them and removes only itself', async () => {
+    const changes = {
+      kind: 'visualizationChanges' as const,
+      id: 'visualization-changes:/viz/timer.html',
+      path: '/viz/timer.html',
+      title: 'Focus timer designs',
+      text: 'Visible design: Ring' + String.fromCharCode(10) + 'Ring timer · Ring thickness: 8 → 12'
+    }
+    useComposerContextStore.getState().addContext('task', changes)
+    render(<Fixture />)
+    const pill = await screen.findByRole('button', { name: 'Visualization changes · Focus timer designs' })
+    fireEvent.click(pill)
+    expect(screen.getByRole('dialog', { name: 'Visualization changes · Focus timer designs' })).toHaveTextContent('Ring timer · Ring thickness: 8 → 12')
+    fireEvent.click(screen.getByRole('button', { name: 'Remove visualization changes' }))
+    expect(contexts()).toEqual([reply, page, diff, paste])
+  })
+
   it('removes everything a pill counts and nothing else', async () => {
     render(<Fixture />)
     fireEvent.click(await screen.findByRole('button', { name: 'Remove comments' }))

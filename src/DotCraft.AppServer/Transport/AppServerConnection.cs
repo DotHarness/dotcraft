@@ -62,14 +62,11 @@ public sealed class AppServerConnection
     /// <summary>Client-declared capabilities from the <c>initialize</c> params.</summary>
     public ClientConnectionCapabilities? ClientCapabilities => _clientCapabilities;
 
-    /// <summary>True when the client declared Interactive Tool UI support during <c>initialize</c>.</summary>
-    public bool SupportsInteractiveToolUi => _clientCapabilities?.InteractiveToolUi == true;
-
     /// <summary>True when the client declared stable MCP Apps host support.</summary>
     public bool SupportsMcpApps => _clientCapabilities?.McpApps == true;
 
-    /// <summary>True when the client declared assistant inline visualization support.</summary>
-    public bool SupportsInlineVisualizations => _clientCapabilities?.InlineVisualizations == true;
+    /// <summary>True when the client declared assistant visualization support.</summary>
+    public bool SupportsVisualizations => _clientCapabilities?.Visualizations == true;
 
     // -------------------------------------------------------------------------
     // Channel adapter state (external-channel-adapter.md §5.1)

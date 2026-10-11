@@ -164,9 +164,9 @@ public sealed class ClientCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? McpApps { get; init; }
 
-    [JsonPropertyName("inlineVisualizations")]
+    [JsonPropertyName("visualizations")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? InlineVisualizations { get; init; }
+    public bool? Visualizations { get; init; }
 
     [JsonPropertyName("mcpElicitation")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -379,9 +379,9 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool McpApps { get; init; }
 
-    [JsonPropertyName("inlineVisualizations")]
+    [JsonPropertyName("visualizations")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool InlineVisualizations { get; init; }
+    public bool Visualizations { get; init; }
 
     [JsonPropertyName("mcpElicitation")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

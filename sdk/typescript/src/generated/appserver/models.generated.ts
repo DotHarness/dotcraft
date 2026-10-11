@@ -1177,7 +1177,6 @@ export interface ClientCapabilities {
   computerUse?: ComputerUseCapability | null;
   configChange?: boolean | null;
   extensions?: Record<string, JsonValue> | null;
-  inlineVisualizations?: boolean | null;
   interactiveToolUi?: boolean | null;
   mcpApps?: boolean | null;
   mcpElicitation?: boolean | null;
@@ -1186,6 +1185,7 @@ export interface ClientCapabilities {
   requestUserInputSupport?: boolean | null;
   streamingSupport?: boolean | null;
   toolExecutionLifecycle?: boolean | null;
+  visualizations?: boolean | null;
   [key: string]: unknown;
 }
 
@@ -1903,42 +1903,6 @@ export interface InitializeResult {
   [key: string]: unknown;
 }
 
-export interface InlineVisualizationViewCloseParams {
-  viewHandle?: string;
-  [key: string]: unknown;
-}
-
-export interface InlineVisualizationViewCloseResult {
-  closed?: boolean;
-  [key: string]: unknown;
-}
-
-export interface InlineVisualizationViewMessageParams {
-  prompt?: string;
-  viewHandle?: string;
-  [key: string]: unknown;
-}
-
-export interface InlineVisualizationViewMessageResult {
-  queuedInputId?: string;
-  [key: string]: unknown;
-}
-
-export interface InlineVisualizationViewOpenParams {
-  file?: string;
-  itemId?: string;
-  threadId?: string;
-  turnId?: string;
-  [key: string]: unknown;
-}
-
-export interface InlineVisualizationViewOpenResult {
-  fragment?: string;
-  mimeType?: string;
-  viewHandle?: string;
-  [key: string]: unknown;
-}
-
 export interface InputContext {
   characterCount?: number | null;
   comment?: string | null;
@@ -1992,18 +1956,6 @@ export interface ItemNotification {
   item: SessionItem;
   threadId: string;
   turnId?: string | null;
-  [key: string]: unknown;
-}
-
-export interface ItemWidgetStateSetParams {
-  callId?: string;
-  threadId?: string;
-  widgetState?: JsonValue;
-  [key: string]: unknown;
-}
-
-export interface ItemWidgetStateSetResult {
-  cleared?: boolean;
   [key: string]: unknown;
 }
 
@@ -3231,7 +3183,6 @@ export interface ServerCapabilities {
   fileSystem?: boolean;
   gitWorktrees?: boolean;
   hooksManagement?: boolean;
-  inlineVisualizations?: boolean;
   manualCompaction?: boolean;
   mcpApps?: boolean;
   mcpElicitation?: boolean;
@@ -3261,6 +3212,7 @@ export interface ServerCapabilities {
   threadSubscriptions: boolean;
   toolCatalog?: boolean;
   usageTelemetry?: boolean;
+  visualizations?: boolean;
   workspaceConfigManagement?: boolean;
   [key: string]: unknown;
 }
@@ -5081,6 +5033,64 @@ export interface UserMessagePayload {
   triggerKind?: string | null;
   triggerLabel?: string | null;
   triggerRefId?: string | null;
+  [key: string]: unknown;
+}
+
+export interface VisualizationViewCloseParams {
+  viewHandle?: string;
+  [key: string]: unknown;
+}
+
+export interface VisualizationViewCloseResult {
+  closed?: boolean;
+  [key: string]: unknown;
+}
+
+export interface VisualizationViewMessageParams {
+  context?: JsonValue;
+  prompt?: string;
+  viewHandle?: string;
+  [key: string]: unknown;
+}
+
+export interface VisualizationViewMessageResult {
+  queuedInputId?: string;
+  [key: string]: unknown;
+}
+
+export interface VisualizationViewOpenParams {
+  itemId?: string;
+  path?: string;
+  threadId?: string;
+  turnId?: string;
+  [key: string]: unknown;
+}
+
+export interface VisualizationViewOpenResult {
+  fragment?: string;
+  mimeType?: string;
+  viewHandle?: string;
+  widgetState?: VisualizationWidgetState | null;
+  [key: string]: unknown;
+}
+
+export interface VisualizationViewWidgetStateUpdateParams {
+  modelContent?: JsonValue;
+  privateContent?: JsonValue;
+  viewHandle?: string;
+  [key: string]: unknown;
+}
+
+export interface VisualizationWidgetState {
+  modelContent?: JsonValue;
+  privateContent?: JsonValue;
+  [key: string]: unknown;
+}
+
+export interface VisualizationWidgetStateUpdatedNotification {
+  path: string;
+  threadId: string;
+  widgetState: VisualizationWidgetState | null;
   [key: string]: unknown;
 }
 

@@ -55,6 +55,7 @@ export interface ServerNotificationMethods {
   "turn/diff/updated": { params: Models.TurnDiffUpdatedNotification; result: Models.RpcEmpty };
   "turn/failed": { params: Models.TurnNotification; result: Models.RpcEmpty };
   "turn/started": { params: Models.TurnNotification; result: Models.RpcEmpty };
+  "visualization/widgetState/updated": { params: Models.VisualizationWidgetStateUpdatedNotification; result: Models.RpcEmpty };
   "workflow/run/updated": { params: Models.WorkflowRunUpdatedNotification; result: Models.RpcEmpty };
 }
 

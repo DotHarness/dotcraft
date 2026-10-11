@@ -19,6 +19,8 @@ public static class SessionContextMaterializer
             "pageReference" => context.Url != null && context.Title != null && context.Text != null
                 && context.Comment != null && context.SelectionKind is "text" or "element" or "region",
             "threadReferences" => !string.IsNullOrWhiteSpace(context.Text),
+            "visualizationChanges" => !string.IsNullOrWhiteSpace(context.Path) && context.Title != null
+                && !string.IsNullOrWhiteSpace(context.Text),
             _ => false
         };
         if (!valid || (context.Image != null && (context.Kind != "pageReference"
@@ -40,6 +42,7 @@ public static class SessionContextMaterializer
             "pastedText" => $"Pasted text file: {Quote(context.Path)}\nPreview: {Quote(context.Preview)}",
             "responseAnnotation" => $"Response: thread {Quote(context.ThreadId)}, turn {Quote(context.TurnId)}, item {Quote(context.ItemId)}\nSelected text: {Quote(context.SelectedText)}",
             "diffAnnotation" => $"Diff: {Quote(context.Path)}, {context.Side} side, lines {context.StartLine}–{context.EndLine}\nSelected code: {Quote(context.SelectedText)}",
+            "visualizationChanges" => $"Visualization: {Quote(context.Title)}\nFile: {Quote(context.Path)}\nDesign control changes: {Quote(context.Text)}",
             _ => $"Page: {Quote(context.Title)}\nURL: {Quote(context.Url)}\nSelection: {context.SelectionKind}\nSelected content: {Quote(context.Text)}"
         };
         yield return new SessionInputPart

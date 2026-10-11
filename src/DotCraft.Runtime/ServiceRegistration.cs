@@ -3,9 +3,10 @@ using DotCraft.Agents;
 using DotCraft.Commands.Custom;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
+using DotCraft.Context.WorldState;
 using DotCraft.Contributions;
 using DotCraft.Hooks;
-using DotCraft.InlineVisualizations;
+using DotCraft.Visualizations;
 using DotCraft.Tracing;
 using DotCraft.Logging;
 using DotCraft.Sessions;
@@ -127,7 +128,7 @@ public static class ServiceRegistration
         });
 
         services.AddSingleton<IToolSource>(sp => new GoalToolSource(sp.GetRequiredService<AppConfig>()));
-        services.AddSingleton<InlineVisualizationAssetStore>();
+        services.AddSingleton<VisualizationAssetStore>();
 
         // Hooks
         services.AddSingleton(_ =>
@@ -141,6 +142,8 @@ public static class ServiceRegistration
         services.AddSingleton<LspServerManager>();
         services.AddSingleton(new SessionGate(config.MaxSessionQueueSize));
         services.AddSingleton(sp => new ThreadStore(dataPath, sp.GetRequiredService<WorkspaceStateDatabase>()));
+        services.AddSingleton<IWorldStateSection>(sp =>
+            new VisualizationStateSection(sp.GetRequiredService<ThreadStore>().VisualizationWidgetStates));
         services.AddSingleton(sp => new DreamsInputCollector(
             sp.GetRequiredService<AppConfig>(),
             workspacePath,

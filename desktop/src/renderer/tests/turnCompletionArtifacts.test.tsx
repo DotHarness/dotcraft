@@ -124,7 +124,7 @@ describe('turn completion artifacts', () => {
     ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = undefined
   })
 
-  it('does not render inline visualization HTML as a regular artifact', () => {
+  it('does not render visualization HTML as a regular artifact', () => {
     seedTurn('.craft/visualizations/thread-test/chart.html', 'site/index.html')
 
     renderWithLocale(<TurnArtifacts turnId="turn-1" />)

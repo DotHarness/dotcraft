@@ -573,7 +573,7 @@ A capable View host MUST isolate untrusted resources, enforce declared and host 
 
 ## 14. Presentation boundary
 
-Presentation is optional and MUST preserve useful model/text fallback content. Local renderers and assistant inline visualizations are separate presentation paths; neither grants additional tool execution authority.
+Presentation is optional and MUST preserve useful model/text fallback content. Local renderers and assistant visualizations are separate presentation paths; neither grants additional tool execution authority.
 
 ### 14.1 Trusted local renderer registry
 
@@ -581,19 +581,28 @@ A trusted local renderer registry is independent of MCP Apps. Core renderers and
 
 The projected `PresentationId` selects only an already active local renderer; tool names, arguments, results, MCP metadata, and other payload data cannot provide module paths or executable code. Unknown or unavailable presentation ids use the Core or generic fallback. Client rendering families, grouping, and interaction behavior belong to the applicable client specification.
 
-### 14.2 Assistant inline visualization boundary
+### 14.2 Assistant visualization boundary
 
-Inline visualization is an assistant-message presentation path, not a tool-result payload. A completed `AgentMessage` may reference a View with an exact standalone directive:
+Visualization is an assistant-message presentation path, not a tool-result payload. A completed `AgentMessage` may reference a View with a visualization content reference on its own line, in either of two forms:
 
 ```text
-::dotcraft-inline-vis{file="example-name.html"}
+visualize{"path":"<absolute-path>/example-name.html"}
+\uE200visualize\uE202{"path":"<absolute-path>/example-name.html"}\uE201
 ```
 
-The directive remains ordinary persisted assistant text. It introduces no Session Item, delta, payload kind, snapshot, metadata record, or provider-history type. Clients without the capability retain the directive as text.
+The second form wraps the same JSON object in the private-use delimiters U+E200, U+E202, and U+E201. The JSON object contains a required absolute `path`, an optional non-empty `title` of at most 200 characters, and an optional `mode` whose only value is `"wide"`. A line with any other key, a malformed object, or an invalid value is not a reference. The path's file name MUST match `^[a-z0-9]+(?:-[a-z0-9]+)*\.html$` and it MUST NOT contain `.` or `..` segments.
 
-Only a completed `AgentMessage` containing the directive outside fenced code may authorize a View. The file name MUST match `^[a-z0-9]+(?:-[a-z0-9]+)*\.html$`. Authoring uses ordinary file tools in `<SessionThread.WorkspacePath>/.craft/visualizations/<threadId>/`; execution and worktree overrides do not change ownership. These files are transient workspace resources with no archive, fork, migration, reload, or cross-device guarantee. Implementations MUST NOT fall back to a user-global directory. Ordinary file-tool execution, history, trace, and result semantics remain unchanged.
+The reference remains ordinary persisted assistant text. It introduces no Session Item, delta, payload kind, or provider-history type. Clients without the capability retain the reference as text.
 
-The host issues a connection-owned opaque handle after revalidating the active connection/thread binding, completed source item, exact directive, safe file name, workspace boundary, and current file. The handle binds its source thread, Turn, Item, and file; a View cannot choose or override those identities. View follow-up starts or queues a source-marked Turn and cannot forge user or channel identity.
+Only a completed `AgentMessage` containing the reference outside fenced code may authorize a View. The referenced path MUST resolve, case-insensitively on Windows, to a file directly inside `<SessionThread.WorkspacePath>/.craft/visualizations/<threadId>/`. Authoring uses ordinary file tools in that directory; execution and worktree overrides do not change ownership. Implementations MUST NOT fall back to a user-global directory. Ordinary file-tool execution, history, trace, and result semantics remain unchanged.
+
+The model may rewrite an existing visualization file and reference the same path again in a later message. Opening a View always reads the current file, so every message that references the path shows its latest version. These files are transient workspace resources with no archive, fork, migration, or cross-device guarantee. Permanently deleting a thread deletes its visualization directory on a best-effort basis without following reparse points.
+
+The host issues a connection-owned opaque handle after revalidating the active connection/thread binding, completed source item, exact referenced path, workspace boundary, reparse-point safety, and current file. The handle binds its source thread, Turn, Item, and path; a View cannot choose or override those identities. View follow-up starts or queues a source-marked Turn and cannot forge user or channel identity.
+
+A View may save a widget state snapshot `{ modelContent, privateContent }`, each any JSON value or `null`. The thread owns one snapshot per visualization, keyed by its normalized path (case-insensitive on Windows) and stored with the thread's persisted metadata, so every View of that path in the thread, on any client and after a reload, opens with the latest snapshot. Each save replaces the snapshot; a snapshot whose fields are both `null` is removed. Snapshots are deleted with their thread and are not copied by fork.
+
+Saving never starts a turn. `modelContent` reaches the model as the `visualization_state` [world-state section](world-state.md): before a model request, each visualization whose `modelContent` differs from what the model was last shown, including its first save, is delivered keyed by path, and one whose `modelContent` became `null` or was removed is delivered once as cleared; unchanged state is not repeated. The section labels `modelContent` as untrusted data written by the visualization, not instructions. `privateContent` restores View presentation only and never reaches the model, its context, or a follow-up. A follow-up may carry explicit View context, which the host appends to the user's message as a visible JSON block.
 
 ## 15. App Binding boundary
 

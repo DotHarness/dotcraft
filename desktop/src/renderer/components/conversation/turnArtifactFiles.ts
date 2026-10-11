@@ -7,14 +7,14 @@ export interface TurnArtifact {
 }
 
 export function toTurnArtifact(diff: FileDiff): TurnArtifact | null {
-  if (isInlineVisualizationPath(diff.filePath)) return null
+  if (isVisualizationPath(diff.filePath)) return null
   const ext = extensionOf(diff.filePath)
   if (ext === '.md' || ext === '.markdown') return { kind: 'markdown', diff }
   if (ext === '.html' || ext === '.htm') return { kind: 'html', diff }
   return null
 }
 
-function isInlineVisualizationPath(filePath: string): boolean {
+function isVisualizationPath(filePath: string): boolean {
   const normalized = filePath.replace(/\\/g, '/').toLowerCase()
   return /(^|\/)\.craft\/visualizations(?:\/|$)/.test(normalized)
 }

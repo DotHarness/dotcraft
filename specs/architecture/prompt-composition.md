@@ -160,7 +160,7 @@ Current writers:
 | Writer | Content |
 |--------|---------|
 | Native session-backed SubAgent | Child role text and role boundaries. |
-| AppServer client binding | Runtime additional context and client-rendered capabilities such as inline visualizations (§9). |
+| AppServer client binding | Runtime additional context and client-rendered capabilities such as visualizations (§9). |
 | Thread configuration | `developerInstructions`, on protocols with a developer role only; elsewhere they stay base section 20. |
 | Persistent state | State that persists across turns, written only when it changes. |
 | Turn interruption | A `turn_aborted` event at the end of an intentionally interrupted turn or active-turn fork snapshot. |

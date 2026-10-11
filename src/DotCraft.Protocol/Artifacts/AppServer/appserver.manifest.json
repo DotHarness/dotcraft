@@ -5791,13 +5791,6 @@
           "const": null
         },
         {
-          "name": "inlineVisualizations",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "interactiveToolUi",
           "type": "boolean",
           "required": false,
@@ -5848,6 +5841,13 @@
         },
         {
           "name": "toolExecutionLifecycle",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "visualizations",
           "type": "boolean",
           "required": false,
           "nullable": true,
@@ -9382,156 +9382,6 @@
       "variants": []
     },
     {
-      "id": "core.InlineVisualizationViewCloseParams",
-      "name": "InlineVisualizationViewCloseParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/InlineVisualizationViewCloseParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "viewHandle",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.InlineVisualizationViewCloseResult",
-      "name": "InlineVisualizationViewCloseResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/InlineVisualizationViewCloseResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "closed",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.InlineVisualizationViewMessageParams",
-      "name": "InlineVisualizationViewMessageParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/InlineVisualizationViewMessageParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "prompt",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "viewHandle",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.InlineVisualizationViewMessageResult",
-      "name": "InlineVisualizationViewMessageResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/InlineVisualizationViewMessageResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "queuedInputId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.InlineVisualizationViewOpenParams",
-      "name": "InlineVisualizationViewOpenParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/InlineVisualizationViewOpenParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "file",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "itemId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "turnId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.InlineVisualizationViewOpenResult",
-      "name": "InlineVisualizationViewOpenResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/InlineVisualizationViewOpenResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "fragment",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "mimeType",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "viewHandle",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.InputContext",
       "name": "InputContext",
       "module": "core",
@@ -9850,56 +9700,6 @@
           "type": "string",
           "required": false,
           "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ItemWidgetStateSetParams",
-      "name": "ItemWidgetStateSetParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ItemWidgetStateSetParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "callId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "widgetState",
-          "type": "json",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ItemWidgetStateSetResult",
-      "name": "ItemWidgetStateSetResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ItemWidgetStateSetResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "cleared",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
           "const": null
         }
       ],
@@ -15958,13 +15758,6 @@
           "const": null
         },
         {
-          "name": "inlineVisualizations",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
           "name": "manualCompaction",
           "type": "boolean",
           "required": false,
@@ -16162,6 +15955,13 @@
         },
         {
           "name": "usageTelemetry",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "visualizations",
           "type": "boolean",
           "required": false,
           "nullable": false,
@@ -25401,6 +25201,259 @@
       "variants": []
     },
     {
+      "id": "core.VisualizationViewCloseParams",
+      "name": "VisualizationViewCloseParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/VisualizationViewCloseParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "viewHandle",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.VisualizationViewCloseResult",
+      "name": "VisualizationViewCloseResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/VisualizationViewCloseResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "closed",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.VisualizationViewMessageParams",
+      "name": "VisualizationViewMessageParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/VisualizationViewMessageParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "context",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "prompt",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "viewHandle",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.VisualizationViewMessageResult",
+      "name": "VisualizationViewMessageResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/VisualizationViewMessageResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "queuedInputId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.VisualizationViewOpenParams",
+      "name": "VisualizationViewOpenParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/VisualizationViewOpenParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "itemId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "turnId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.VisualizationViewOpenResult",
+      "name": "VisualizationViewOpenResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/VisualizationViewOpenResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "fragment",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "mimeType",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "viewHandle",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "widgetState",
+          "type": "core.VisualizationWidgetState",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.VisualizationViewWidgetStateUpdateParams",
+      "name": "VisualizationViewWidgetStateUpdateParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/VisualizationViewWidgetStateUpdateParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "modelContent",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "privateContent",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "viewHandle",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.VisualizationWidgetState",
+      "name": "VisualizationWidgetState",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/VisualizationWidgetState.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "modelContent",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "privateContent",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.VisualizationWidgetStateUpdatedNotification",
+      "name": "VisualizationWidgetStateUpdatedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/VisualizationWidgetStateUpdatedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "widgetState",
+          "type": "core.VisualizationWidgetState",
+          "required": true,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.WelcomeSuggestionItem",
       "name": "WelcomeSuggestionItem",
       "module": "core",
@@ -28847,26 +28900,6 @@
       "stability": "stable"
     },
     {
-      "name": "item/widget-state/set",
-      "descriptorMember": "ItemWidgetStateSet",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.ItemWidgetStateSetParams",
-      "resultType": "core.ItemWidgetStateSetResult",
-      "module": "core",
-      "capability": null,
-      "scope": "thread",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
       "name": "marketplace/add",
       "descriptorMember": "MarketplaceAdd",
       "kind": "request",
@@ -31668,13 +31701,13 @@
     },
     {
       "name": "visualization/view/close",
-      "descriptorMember": "InlineVisualizationViewClose",
+      "descriptorMember": "VisualizationViewClose",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "core.InlineVisualizationViewCloseParams",
-      "resultType": "core.InlineVisualizationViewCloseResult",
+      "paramsType": "core.VisualizationViewCloseParams",
+      "resultType": "core.VisualizationViewCloseResult",
       "module": "core",
-      "capability": "inlineVisualizations",
+      "capability": "visualizations",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -31688,13 +31721,13 @@
     },
     {
       "name": "visualization/view/message",
-      "descriptorMember": "InlineVisualizationViewMessage",
+      "descriptorMember": "VisualizationViewMessage",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "core.InlineVisualizationViewMessageParams",
-      "resultType": "core.InlineVisualizationViewMessageResult",
+      "paramsType": "core.VisualizationViewMessageParams",
+      "resultType": "core.VisualizationViewMessageResult",
       "module": "core",
-      "capability": "inlineVisualizations",
+      "capability": "visualizations",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -31708,13 +31741,13 @@
     },
     {
       "name": "visualization/view/open",
-      "descriptorMember": "InlineVisualizationViewOpen",
+      "descriptorMember": "VisualizationViewOpen",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "core.InlineVisualizationViewOpenParams",
-      "resultType": "core.InlineVisualizationViewOpenResult",
+      "paramsType": "core.VisualizationViewOpenParams",
+      "resultType": "core.VisualizationViewOpenResult",
       "module": "core",
-      "capability": "inlineVisualizations",
+      "capability": "visualizations",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -31722,6 +31755,42 @@
         "InvalidRequest",
         "MethodNotFound"
       ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "visualization/view/widgetState/update",
+      "descriptorMember": "VisualizationViewWidgetStateUpdate",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.VisualizationViewWidgetStateUpdateParams",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "visualizations",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "visualization/widgetState/updated",
+      "descriptorMember": "VisualizationWidgetStateUpdated",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.VisualizationWidgetStateUpdatedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "visualizations",
+      "scope": "thread",
+      "notificationOptOut": true,
+      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Context.Compaction;
 using DotCraft.Context.WorldState;
+using DotCraft.Visualizations;
 using DotCraft.Plugins;
 using DotCraft.Persistence;
 using Microsoft.Extensions.AI;
@@ -59,9 +60,12 @@ public sealed partial class ThreadStore : IAsyncDisposable
         _rolloutReplayer = new RolloutReplayer();
         _attachmentStore = new ThreadAttachmentStore(StateDatabase, botPath);
         _historyProjectionStore = new ThreadHistoryProjectionStore(StateDatabase, _metadataStore);
+        VisualizationWidgetStates = new VisualizationWidgetStateStore(StateDatabase);
     }
 
     internal WorkspaceStateDatabase StateDatabase { get; }
+
+    public VisualizationWidgetStateStore VisualizationWidgetStates { get; }
 
     internal string DataPath => _botPath;
 
@@ -444,21 +448,6 @@ public sealed partial class ThreadStore : IAsyncDisposable
         _metadataStore.SaveContextUsageAnchor(threadId, displayTokens, anchor, source, isEstimate);
         return Task.CompletedTask;
     }
-
-    /// <summary>
-    /// Upserts the UI-only Interactive Tool UI <c>widgetState</c> for a <c>dynamicToolCall</c> item
-    /// (M-iv), keyed by <paramref name="callId"/>. Stored in a mutable side table, not the rollout.
-    /// </summary>
-    public void SaveItemWidgetState(string threadId, string callId, string widgetStateJson)
-        => _metadataStore.SaveItemWidgetState(threadId, callId, widgetStateJson);
-
-    /// <summary>Removes a stored <c>widgetState</c> for an item.</summary>
-    public void DeleteItemWidgetState(string threadId, string callId)
-        => _metadataStore.DeleteItemWidgetState(threadId, callId);
-
-    /// <summary>Loads every stored <c>widgetState</c> for a thread, keyed by <c>callId</c>.</summary>
-    public IReadOnlyDictionary<string, string> LoadItemWidgetStates(string threadId)
-        => _metadataStore.LoadItemWidgetStates(threadId);
 
     /// <summary>
     /// Loads the current persistent goal for a thread, if one exists.

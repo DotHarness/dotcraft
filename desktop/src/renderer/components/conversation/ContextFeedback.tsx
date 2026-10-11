@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Pencil, X } from 'lucide-react'
+import { Pencil, SlidersHorizontal, X } from 'lucide-react'
 import type {
   ComposerContextRecord,
   DiffAnnotationContext,
   PageReferenceContext,
-  ResponseAnnotationContext
+  ResponseAnnotationContext,
+  VisualizationChangesContext
 } from '../../../shared/composerContext'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -38,6 +39,7 @@ export function ContextFeedback({
   const comments = contexts.filter((context): context is DiffAnnotationContext => context.kind === 'diffAnnotation')
   const pages = contexts.filter((context): context is PageReferenceContext => context.kind === 'pageReference')
   const replies = contexts.filter((context): context is ResponseAnnotationContext => context.kind === 'responseAnnotation')
+  const visualizations = contexts.filter((context): context is VisualizationChangesContext => context.kind === 'visualizationChanges')
   const annotations = pages.length + replies.length
   const removeAll = (group: Feedback[]): (() => void) | undefined =>
     onRemove && (() => group.forEach((context) => onRemove(context.id)))
@@ -117,6 +119,23 @@ export function ContextFeedback({
           </div>
         </FeedbackPill>
       )}
+      {visualizations.map((visualization) => (
+        <FeedbackPill
+          key={visualization.id}
+          label={t('composer.context.visualizationChanges', { title: visualization.title })}
+          removeLabel={t('composer.context.removeVisualizationChanges')}
+          onRemove={onRemove && (() => onRemove(visualization.id))}
+          icon={<SlidersHorizontal size={14} aria-hidden />}
+        >
+          <div className="dc-feedback-list">
+            {visualization.text.split('\n').map((line, index) => (
+              <div key={index} className="dc-feedback-row">
+                <div className="dc-feedback-text">{line}</div>
+              </div>
+            ))}
+          </div>
+        </FeedbackPill>
+      ))}
       {comments.length > 0 && (
         <FeedbackPill
           label={comments.length === 1

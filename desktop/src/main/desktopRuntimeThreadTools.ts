@@ -323,7 +323,7 @@ export async function sendDesktopAppServerRequest<T = unknown>(
   if (method === 'visualization/view/open') {
     const threadId = getStringProperty(params, 'threadId')
     if (threadId) {
-      await ensureInlineVisualizationThreadBound(client, threadId, options)
+      await ensureVisualizationThreadBound(client, threadId, options)
     }
   }
 
@@ -350,7 +350,7 @@ export async function sendDesktopAppServerRequest<T = unknown>(
   return result
 }
 
-async function ensureInlineVisualizationThreadBound(
+async function ensureVisualizationThreadBound(
   client: AppServerRequestClient,
   threadId: string,
   options: DesktopAppServerRequestOptions

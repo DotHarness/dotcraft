@@ -14,7 +14,7 @@ using DotCraft.Skills;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
-using DotCraft.InlineVisualizations;
+using DotCraft.Visualizations;
 using DotCraft.Plugins;
 using Microsoft.Extensions.Logging;
 using Contract = DotCraft.Protocol.AppServer;
@@ -78,8 +78,9 @@ public sealed record AppServerConnectionServices
     public IChannelStatusProvider? ChannelStatusProvider { get; init; }
     public McpClientManager? McpClientManager { get; init; }
     public McpAppTransientContextStore? McpAppTransientContextStore { get; init; }
-    public InlineVisualizationAssetStore? InlineVisualizationAssetStore { get; init; }
-    public InlineVisualizationRuntimeRegistry? InlineVisualizationRuntimeRegistry { get; init; }
+    public VisualizationAssetStore? VisualizationAssetStore { get; init; }
+    public VisualizationRuntimeRegistry? VisualizationRuntimeRegistry { get; init; }
+    public AppServerThreadSubscribers? ThreadSubscribers { get; init; }
     public LspServerManager? LspServerManager { get; init; }
     public IEnumerable<IAppServerProtocolExtension>? ProtocolExtensions { get; init; }
     public Func<ExternalChannelEntry, CancellationToken, Task>? OnExternalChannelUpserted { get; init; }

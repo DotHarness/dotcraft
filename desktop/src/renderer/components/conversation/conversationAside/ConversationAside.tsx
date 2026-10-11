@@ -19,6 +19,7 @@ import {
 
 import { useConversationTargetWidth } from '../../../contexts/ConversationLayoutContext'
 import { DesktopPluginSurface } from '../../desktopPlugins/DesktopPluginSurface'
+import { useDesktopPluginRegistry } from '../../../plugins/desktopPluginRegistry'
 import { conversationAsideLayout, type ConversationAsideLayout } from './conversationAsideLayout'
 
 interface StreamMetrics {
@@ -35,6 +36,12 @@ interface ConversationAsideControl {
 interface ConversationAsideState {
   thread: DesktopPluginThreadSurfaceContext | null
   layout: ConversationAsideLayout | null
+  insets: ConversationAsideInsets
+}
+
+export interface ConversationAsideInsets {
+  leading: number
+  trailing: number
 }
 
 const noop = (): void => {}
@@ -44,7 +51,8 @@ const ConversationAsideControlContext = createContext<ConversationAsideControl>(
   reportMetrics: noop,
   reportRail: noop
 })
-const ConversationAsideStateContext = createContext<ConversationAsideState>({ thread: null, layout: null })
+const NO_INSETS: ConversationAsideInsets = { leading: 0, trailing: 0 }
+const ConversationAsideStateContext = createContext<ConversationAsideState>({ thread: null, layout: null, insets: NO_INSETS })
 const ConversationColumnShiftContext = createContext(0)
 
 export function useConversationColumnShift(): number {
@@ -53,6 +61,10 @@ export function useConversationColumnShift(): number {
 
 export function useConversationAsideControl(): ConversationAsideControl {
   return useContext(ConversationAsideControlContext)
+}
+
+export function useConversationAsideInsets(): ConversationAsideInsets {
+  return useContext(ConversationAsideStateContext).insets
 }
 
 interface ConversationAsideProviderProps {
@@ -98,7 +110,18 @@ export function ConversationAsideProvider({ thread, style, children }: Conversat
       : null,
     [stableThread, targetWidth, metrics, pinCount, railShown]
   )
-  const state = useMemo(() => ({ thread: stableThread, layout }), [stableThread, layout])
+  const leadingUsed = useDesktopPluginRegistry((registry) => registry.surfaces.some((surface) => surface.surface === 'conversation.aside.leading'))
+  const trailingUsed = useDesktopPluginRegistry((registry) => registry.surfaces.some((surface) => surface.surface === 'conversation.aside.trailing'))
+  const insets = useMemo<ConversationAsideInsets>(
+    () => layout
+      ? {
+          leading: leadingUsed ? layout.side - layout.shift : layout.leadingStart,
+          trailing: trailingUsed ? layout.side + layout.shift : 0
+        }
+      : NO_INSETS,
+    [layout, leadingUsed, trailingUsed]
+  )
+  const state = useMemo(() => ({ thread: stableThread, layout, insets }), [stableThread, layout, insets])
   const shift = layout?.shift ?? 0
 
   return (

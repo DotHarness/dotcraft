@@ -161,7 +161,7 @@ Client                              Server
 | `capabilities.backgroundTerminals` | boolean | no | Whether the client can consume `terminal/*` terminal notifications for server-managed shell processes. Default `false`. |
 | `capabilities.configChange` | boolean | no | Whether the client wants `config/changed` notifications. Default `true`. |
 | `capabilities.mcpApps` | boolean | no | Whether this connection hosts stable MCP Apps views and accepts the opaque `mcpApp/view/*` contract. Default `false`. |
-| `capabilities.inlineVisualizations` | boolean | no | Whether this connection can host assistant inline visualization views. Default `false`. |
+| `capabilities.visualizations` | boolean | no | Whether this connection can host assistant visualization views. Default `false`. |
 | `capabilities.mcpElicitation` | boolean | no | Whether the client can answer `mcpServer/elicitation/request` form and URL requests. Default `false`; servers fail the MCP request with a client-unavailable result when no capable client owns the thread. |
 | `capabilities.optOutNotificationMethods` | string[] | no | Exact notification method names to suppress for this connection. See [Section 10](#10-notification-opt-out). |
 | `capabilities.channelAdapter` | object | no | External channel adapter metadata. When present, the connection is treated as the remote backend for one unified channel runtime. See [channel requests](#112-unified-channel-runtime-remote-projection). |
@@ -303,7 +303,7 @@ Built-in channels and external adapters share the delivery and tool-call contrac
 | `capabilities.mcpManagement` | boolean | Server supports MCP configuration management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`). |
 | `capabilities.mcpRuntime` | boolean | Server supports the MCP runtime/control methods and notifications in Section 22. |
 | `capabilities.mcpApps` | boolean | Server supports the stable MCP Apps `2026-01-26` opaque View methods in Section 22.10. A client must also advertise `capabilities.mcpApps` before using them. |
-| `capabilities.inlineVisualizations` | boolean | Server supports the connection-scoped `visualization/view/*` methods. A client must also advertise this capability before using them. |
+| `capabilities.visualizations` | boolean | Server supports the connection-scoped `visualization/view/*` methods and the `visualization/widgetState/updated` notification in Section 22.10A. A client must also advertise this capability before using or receiving them. |
 | `capabilities.mcpServerOrigins` | boolean | Server annotates MCP config/status DTOs with `origin` and `readOnly` so clients can show plugin-bundled MCP servers as read-only runtime entries. |
 | `capabilities.externalChannelManagement` | boolean | Server supports external channel configuration and diagnostic methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`, `externalChannel/logs`). |
 | `capabilities.agentProfileManagement` | boolean | Server supports Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/refreshThread`, `agent/profiles/builderDraft/read`, `agent/profiles/builderDraft/update`, and the Agent package methods in Section 23A.8A). |
@@ -5430,38 +5430,67 @@ Disconnect, thread archive/delete, MCP generation replacement, binding revoke, p
 
 Stable View error categories are `McpAppViewNotFound`, `McpAppViewStale`, `McpAppViewOffline`, `McpAppViewRevoked`, `McpAppUnauthorized`, `McpAppApprovalRejected`, `McpAppInputInvalid`, `McpAppTimeout`, `McpAppProtocolError`, and `McpAppResultTooLarge`.
 
-### 22.10A Inline Visualization Views
+### 22.10A Visualization Views
 
-These methods require both peers to advertise `inlineVisualizations = true`. They render current
-HTML fragments referenced by exact `::dotcraft-inline-vis{file="..."}` lines in a completed
-AgentMessage. They do not change the Session wire shape or persist visualization content.
+These methods require both peers to advertise `visualizations = true`. They render current
+HTML fragments referenced by visualization content references in a completed AgentMessage, as
+defined in [Tools Architecture §14.2](../architecture/tools-architecture.md#142-assistant-visualization-boundary).
+They do not change the Session wire shape or persist visualization content. The only state they
+persist is the widget state snapshot described in §22.10A.3.
 
 #### 22.10A.1 `visualization/view/open`
 
 **Direction:** client → server. Params are
-`{ "threadId": string, "turnId": string, "itemId": string, "file": string }`.
-Result is `{ "viewHandle": string, "fragment": string, "mimeType": "text/html" }`.
+`{ "threadId": string, "turnId": string, "itemId": string, "path": string }`.
+Result is `{ "viewHandle": string, "fragment": string, "mimeType": "text/html", "widgetState": { "modelContent": any | null, "privateContent": any | null } | null }`.
 
-The server reloads authoritative thread state, verifies the completed item and directive, safely
-reads the current file from
-`<SessionThread.WorkspacePath>/.craft/visualizations/<threadId>/`, and returns a connection-owned
-opaque handle bound to the source thread, turn, item, and file. Execution and worktree overrides
-do not change this workspace ownership. Paths and storage roots are never returned, and the
-server never falls back to a user-global visualization directory.
+`path` is the absolute path from the reference. The server reloads authoritative thread state,
+verifies that the completed item contains a reference to the same normalized path, resolves it
+directly inside `<SessionThread.WorkspacePath>/.craft/visualizations/<threadId>/`, safely reads
+the current file, and returns a connection-owned opaque handle bound to the source thread, turn,
+item, and path. Every open reads the file again, so a rewritten visualization opens at its latest
+version. Execution and worktree overrides do not change this workspace ownership, and the server
+never falls back to a user-global visualization directory. `widgetState` is the stored snapshot for
+the source thread and normalized path, or `null` when none is stored.
 
 #### 22.10A.2 `visualization/view/message`
 
-**Direction:** client → server. Params are `{ "viewHandle": string, "prompt": string }`; result
-is `{ "queuedInputId": string }`. The server resolves the connection-owned handle, then starts
-or queues a user turn with trigger kind `visualization`; the view cannot choose thread, identity,
-or channel.
+**Direction:** client → server. Params are
+`{ "viewHandle": string, "prompt": string, "context"?: any }`; result is
+`{ "queuedInputId": string }`. The server resolves the connection-owned handle, then starts or
+queues a user turn with trigger kind `visualization`; the view cannot choose thread, identity, or
+channel. When `context` is present and not `null`, its serialized JSON must not exceed 32 KiB. The
+user message text is `prompt`, a blank line, the line `Current visualization context (JSON):`, and
+the context as a fenced `json` block, so the context stays visible in history.
 
-#### 22.10A.3 `visualization/view/close`
+#### 22.10A.3 `visualization/view/widgetState/update`
+
+**Direction:** client → server. Params are
+`{ "viewHandle": string, "modelContent"?: any | null, "privateContent"?: any | null }`; result is
+`{}`. The server resolves the connection-owned handle and replaces the snapshot stored for its
+source thread and normalized path; an omitted field is stored as `null`, and a snapshot whose fields
+are both `null` removes the stored snapshot. The serialized snapshot
+`{"modelContent":…,"privateContent":…}` must not exceed 16 KiB. Saving never starts or queues a
+turn. Model delivery of `modelContent` is defined by
+[Tools Architecture §14.2](../architecture/tools-architecture.md#142-assistant-visualization-boundary).
+
+#### 22.10A.4 `visualization/view/close`
 
 **Direction:** client → server. Params are `{ "viewHandle": string }`; result is
 `{ "closed": boolean }`. Close is idempotent.
 
-Stable reason codes include `not_referenced`, `not_found`, `unsafe_path`, and `stale_view`.
+#### 22.10A.5 `visualization/widgetState/updated`
+
+**Direction:** server → client notification. Params are
+`{ "threadId": string, "path": string, "widgetState": { "modelContent": any | null, "privateContent": any | null } | null }`.
+After `visualization/view/widgetState/update` succeeds, the server sends the stored snapshot to
+every other open connection that advertised `visualizations` and holds a `thread/subscribe`
+subscription to the source thread. The connection that saved it does not receive it. `path` is the
+normalized path; `widgetState` is `null` when the save removed the snapshot. Clients may opt out
+with `optOutNotificationMethods`.
+
+Stable reason codes include `not_available`, `not_referenced`, `not_found`, `unsafe_path`,
+`stale_view`, `state_too_large`, and `context_too_large`.
 
 ### 22.11 Error Codes
 
@@ -7488,7 +7517,9 @@ Profile `id` references carry the canonical `name`: trim plus Unicode NFC, ordin
 
 ### Structured context input and submission identity
 
-`InputPart` supports `contextRef` with a typed `context` record (`pastedText`, `pageReference`, `responseAnnotation`, `diffAnnotation`, or `threadReferences`). Context identity, source snapshot, comment and owned image reference are persisted in native input; materialization expands the record into text/image parts once. Preview data URLs are not part of context records.
+`InputPart` supports `contextRef` with a typed `context` record (`pastedText`, `pageReference`, `responseAnnotation`, `diffAnnotation`, `visualizationChanges`, or `threadReferences`). Context identity, source snapshot, comment and owned image reference are persisted in native input; materialization expands the record into text/image parts once. Preview data URLs are not part of context records.
+
+`visualizationChanges` carries a visualization's `path`, its `title`, and a nonempty client-rendered list of the user's design-control changes in `text`; it materializes like the other source records, quoted as reference data.
 
 `threadReferences` carries a client-rendered prompt block in `text` and materializes to exactly that text. It keeps model-only framing for threads the user mentioned out of the user message's display text, which is built from text, file, command, and skill parts only.
 

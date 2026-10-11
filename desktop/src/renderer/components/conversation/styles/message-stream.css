@@ -18,7 +18,7 @@
   gap: var(--conversation-block-gap);
 }
 
-.dc-conversation-turn-shell:not([data-active="true"]) {
+.dc-conversation-turn-shell:not([data-active="true"], :has(.visualization-wide)) {
   content-visibility: auto;
   contain-intrinsic-size: auto 280px;
 }

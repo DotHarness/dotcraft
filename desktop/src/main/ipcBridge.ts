@@ -15,8 +15,8 @@ import type { GitApplyPatchOptions } from '../shared/gitApply'
 import { runGitCommand } from './gitCommand'
 import { applyGitPatch } from './gitApplyPatch'
 import { sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
-import type { InlineVisualizationCaptureRect } from '../shared/inlineVisualization'
-import { copyInlineVisualizationImage } from './inlineVisualizationCapture'
+import type { VisualizationCaptureRect } from '../shared/visualization'
+import { copyVisualizationImage } from './visualizationCapture'
 import { resolveBinaryLocation } from './AppServerManager'
 import { openDesktopServiceHandoff } from './desktopServiceHandoff'
 import type { SshMachinesManager } from './sshMachines/sshMachinesManager'
@@ -877,12 +877,12 @@ export function registerIpcHandlers(
   }
   let cachedModules: DiscoveredModule[] | null = null
 
-  handleSafe('visualization:copy-image', async (event, rect: InlineVisualizationCaptureRect) => {
+  handleSafe('visualization:copy-image', async (event, rect: VisualizationCaptureRect) => {
     const owner = BrowserWindow.fromWebContents(event.sender)
     if (!owner || owner.isDestroyed() || event.sender.isDestroyed()) {
       throw new Error('The visualization window is unavailable.')
     }
-    return copyInlineVisualizationImage(event.sender, rect)
+    return copyVisualizationImage(event.sender, rect)
   })
   const configWriteQueues = new Map<string, Promise<void>>()
   const scanAndCacheModules = async (

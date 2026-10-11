@@ -5,8 +5,8 @@ import { useConnectionStore } from '../../stores/connectionStore'
 import { addToast } from '../../stores/toastStore'
 import { useTypewriterReveal } from '../../hooks/useTypewriterReveal'
 import { useResponseSelectionStore } from './responseSelectionStore'
-import { InlineVisualizationMessage } from './InlineVisualizationMessage'
-import { stripInlineVisualizationDirectives } from './inlineVisualizationParser'
+import { AssistantMessageContent } from './AssistantMessageContent'
+import { assistantMessageCopyText } from './assistantMessageSegments'
 import { ResponseFeedback } from './ResponseFeedback'
 import { MessageCopyButton } from './MessageCopyButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -107,9 +107,9 @@ export function AgentMessage({
     >
       {threadId && turnId && itemId && !streaming ? (
         <ResponseFeedback key={`${threadId}:${turnId}:${itemId}`} threadId={threadId} turnId={turnId} itemId={itemId}>
-          <InlineVisualizationMessage text={displayText} streaming={false} threadId={threadId} turnId={turnId} itemId={itemId} />
+          <AssistantMessageContent text={displayText} streaming={false} threadId={threadId} turnId={turnId} itemId={itemId} />
         </ResponseFeedback>
-      ) : <InlineVisualizationMessage text={displayText} streaming={streaming} threadId={threadId} turnId={turnId} itemId={itemId} />}
+      ) : <AssistantMessageContent text={displayText} streaming={streaming} threadId={threadId} turnId={turnId} itemId={itemId} />}
       {afterContent}
       {showFooter && (
         <div
@@ -128,7 +128,7 @@ export function AgentMessage({
           }}
         >
           <MessageCopyButton
-            getText={() => stripInlineVisualizationDirectives(text)}
+            getText={() => assistantMessageCopyText(text)}
             visible={actionsVisible && text.length > 0}
             disabled={streaming || text.length === 0}
             wrapperStyle={{

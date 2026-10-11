@@ -296,8 +296,8 @@ public static class ContextPageKeys
     public static ContextPageKey RuntimeAdditionalContext() =>
         new("runtime", "additionalContext", "");
 
-    public static ContextPageKey InlineVisualization() =>
-        new("runtime", "inlineVisualization", "");
+    public static ContextPageKey Visualization() =>
+        new("runtime", "visualization", "");
 
     public static ContextPageKey AgentBuilderTarget(string variant) =>
         new("agentBuilder", "target", variant);

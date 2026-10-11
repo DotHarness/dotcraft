@@ -1,4 +1,4 @@
-using DotCraft.InlineVisualizations;
+using DotCraft.Visualizations;
 using DotCraft.Sessions;
 using SessionThread = DotCraft.Sessions.SessionThread;
 
@@ -15,7 +15,7 @@ internal sealed class AppServerThreadBinder(
     WireNodeReplProxy? wireNodeReplProxy,
     WireDynamicToolProxy? wireDynamicToolProxy,
     WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider,
-    InlineVisualizationRuntimeRegistry? inlineVisualizationRuntimeRegistry)
+    VisualizationRuntimeRegistry? visualizationRuntimeRegistry)
 {
     public void ValidateRuntimeInputs(
         IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? dynamicTools,
@@ -59,7 +59,7 @@ internal sealed class AppServerThreadBinder(
 
     /// <summary>Binds what needs the created thread. Never changes the tool surface.</summary>
     public void BindThreadAssets(SessionThread thread)
-        => inlineVisualizationRuntimeRegistry?.BindThread(thread, transport, connection);
+        => visualizationRuntimeRegistry?.BindThread(thread, transport, connection);
 
     public void ForkAdditionalContext(string parentThreadId, string childThreadId)
         => wireRuntimeAdditionalContextProvider?.TryForkThreadBinding(parentThreadId, childThreadId, connection);
@@ -78,7 +78,7 @@ internal sealed class AppServerThreadBinder(
         // Only a binding that changes the tool surface needs a rebuilt agent: client-bound context
         // reaches the model as a thread context item reconciled on each Turn.
         var shouldRefreshAgent = false;
-        inlineVisualizationRuntimeRegistry?.BindThread(thread, transport, connection);
+        visualizationRuntimeRegistry?.BindThread(thread, transport, connection);
         if (wireNodeReplProxy != null && connection.HasNodeRepl && (connection.HasBrowserUse || connection.HasComputerUse))
         {
             wireNodeReplProxy.BindThread(thread.Id, transport, connection);

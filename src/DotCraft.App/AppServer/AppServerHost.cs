@@ -11,7 +11,7 @@ using DotCraft.Logging;
 using DotCraft.Hosting;
 using DotCraft.Runtime;
 using DotCraft.Hooks;
-using DotCraft.InlineVisualizations;
+using DotCraft.Visualizations;
 using DotCraft.Memory;
 using DotCraft.Dreams;
 using DotCraft.Mcp;
@@ -314,6 +314,8 @@ public sealed class AppServerHost(
         IAppServerTransport transport,
         AppServerConnection connection)
     {
+        var threadSubscribers = _services.GetRequiredService<AppServerThreadSubscribers>();
+        threadSubscribers.Register(transport, connection);
         return new AppServerRequestHandler(
             runtime.SessionService,
             connection,
@@ -348,8 +350,9 @@ public sealed class AppServerHost(
                 ChannelStatusProvider = _appServerFeature?.ChannelStatusProvider,
                 McpClientManager = runtime.McpClientManager,
                 McpAppTransientContextStore = _services.GetService<McpAppTransientContextStore>(),
-                InlineVisualizationAssetStore = _services.GetService<InlineVisualizationAssetStore>(),
-                InlineVisualizationRuntimeRegistry = _services.GetService<InlineVisualizationRuntimeRegistry>(),
+                VisualizationAssetStore = _services.GetService<VisualizationAssetStore>(),
+                VisualizationRuntimeRegistry = _services.GetService<VisualizationRuntimeRegistry>(),
+                ThreadSubscribers = threadSubscribers,
                 LspServerManager = runtime.LspServerManager,
                 BroadcastMcpStatusChanged = BroadcastMcpStatusChanged,
                 NotifyAppPrincipal = NotifyAppPrincipal,
@@ -408,7 +411,7 @@ public sealed class AppServerHost(
                 transport, connection, handler,
                 WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
                 _services.GetService<WireRuntimeAdditionalContextProvider>(),
-                _services.GetService<InlineVisualizationRuntimeRegistry>(),
+                _services.GetService<VisualizationRuntimeRegistry>(),
                 runtime.ContextPageManager,
                 runtime.SessionService as IThreadAgentRefreshService,
                 _logger,
@@ -474,7 +477,7 @@ public sealed class AppServerHost(
                 transport, connection, handler,
                 WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
                 _services.GetService<WireRuntimeAdditionalContextProvider>(),
-                _services.GetService<InlineVisualizationRuntimeRegistry>(),
+                _services.GetService<VisualizationRuntimeRegistry>(),
                 runtime.ContextPageManager,
                 runtime.SessionService as IThreadAgentRefreshService,
                 _logger,
@@ -642,7 +645,7 @@ public sealed class AppServerHost(
                             wsTransport, wsConnection, wsHandler,
                             WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
                             _services.GetService<WireRuntimeAdditionalContextProvider>(),
-                            _services.GetService<InlineVisualizationRuntimeRegistry>(),
+                            _services.GetService<VisualizationRuntimeRegistry>(),
                             runtime.ContextPageManager,
                             runtime.SessionService as IThreadAgentRefreshService,
                             _logger,
@@ -665,7 +668,7 @@ public sealed class AppServerHost(
                     wsTransport, wsConnection, wsHandler,
                     WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
                     _services.GetService<WireRuntimeAdditionalContextProvider>(),
-                    _services.GetService<InlineVisualizationRuntimeRegistry>(),
+                    _services.GetService<VisualizationRuntimeRegistry>(),
                     runtime.ContextPageManager,
                     runtime.SessionService as IThreadAgentRefreshService,
                     _logger,
@@ -703,7 +706,7 @@ public sealed class AppServerHost(
         WireNodeReplProxy? wireNodeReplProxy,
         WireDynamicToolProxy? wireDynamicToolProxy,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider,
-        InlineVisualizationRuntimeRegistry? inlineVisualizationRuntimeRegistry,
+        VisualizationRuntimeRegistry? visualizationRuntimeRegistry,
         IContextPageManager? contextPageManager,
         IThreadAgentRefreshService? threadAgentRefreshService,
         ILogger logger,
@@ -769,11 +772,11 @@ public sealed class AppServerHost(
         wireAcpProxy?.UnbindTransport(transport);
         wireNodeReplProxy?.UnbindTransport(transport);
         wireDynamicToolProxy?.UnbindTransport(transport);
-        if (inlineVisualizationRuntimeRegistry != null)
+        if (visualizationRuntimeRegistry != null)
         {
-            foreach (var threadId in inlineVisualizationRuntimeRegistry.UnbindTransport(transport))
+            foreach (var threadId in visualizationRuntimeRegistry.UnbindTransport(transport))
             {
-                contextPageManager?.ReleaseStablePage(threadId, ContextPageKeys.InlineVisualization());
+                contextPageManager?.ReleaseStablePage(threadId, ContextPageKeys.Visualization());
                 if (threadAgentRefreshService != null)
                     await RefreshThreadAgentAfterCapabilityCleanupAsync(threadAgentRefreshService, threadId, logger);
             }

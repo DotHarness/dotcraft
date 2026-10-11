@@ -18,12 +18,14 @@ export function FeedbackPill({
   removeLabel,
   onRemove,
   keepOpen = false,
+  icon = <MessageSquare size={14} aria-hidden />,
   children
 }: {
   label: string
   removeLabel: string
   onRemove?: () => void
   keepOpen?: boolean
+  icon?: ReactNode
   children: ReactNode
 }): JSX.Element {
   const [open, setOpen] = useState(false)
@@ -117,7 +119,7 @@ export function FeedbackPill({
             setOpen((value) => !value)
           }}
         >
-          <MessageSquare size={14} aria-hidden />
+          {icon}
           <span className="dc-feedback-pill__label">{label}</span>
         </button>
         {onRemove && (

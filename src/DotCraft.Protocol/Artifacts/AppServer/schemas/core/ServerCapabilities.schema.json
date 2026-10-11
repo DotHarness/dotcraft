@@ -68,9 +68,6 @@
     "hooksManagement": {
       "type": "boolean"
     },
-    "inlineVisualizations": {
-      "type": "boolean"
-    },
     "manualCompaction": {
       "type": "boolean"
     },
@@ -156,6 +153,9 @@
       "type": "boolean"
     },
     "usageTelemetry": {
+      "type": "boolean"
+    },
+    "visualizations": {
       "type": "boolean"
     },
     "workspaceConfigManagement": {

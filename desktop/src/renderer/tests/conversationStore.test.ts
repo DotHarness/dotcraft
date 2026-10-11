@@ -1743,7 +1743,7 @@ describe('turn lifecycle', () => {
       item: {
         id: 'item-1',
         type: 'agentMessage',
-        payload: { text: 'Final text\n\n::dotcraft-inline-vis{file="chart.html"}' }
+        payload: { text: 'Final text\n\nvisualize{"path":"/w/chart.html"}' }
       }
     })
 
@@ -1753,7 +1753,7 @@ describe('turn lifecycle', () => {
       id: 'item-1',
       type: 'agentMessage',
       status: 'completed',
-      text: 'Final text\n\n::dotcraft-inline-vis{file="chart.html"}'
+      text: 'Final text\n\nvisualize{"path":"/w/chart.html"}'
     })
   })
 

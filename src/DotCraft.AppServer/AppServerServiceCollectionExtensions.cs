@@ -1,7 +1,7 @@
 using DotCraft.Agents;
 using DotCraft.AppBinding;
 using DotCraft.Context;
-using DotCraft.InlineVisualizations;
+using DotCraft.Visualizations;
 using DotCraft.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -28,14 +28,15 @@ public static class AppServerServiceCollectionExtensions
         services.TryAddSingleton<AppBindingService>();
         services.TryAddSingleton<AppBindingCoordinator>();
         services.TryAddSingleton<AppServerPluginManagementState>();
+        services.TryAddSingleton<AppServerThreadSubscribers>();
         services.TryAddSingleton<WireRuntimeAdditionalContextProvider>();
         services.TryAddSingleton<WireAcpExtensionProxy>();
         services.TryAddSingleton<IAcpExtensionProxy>(provider => provider.GetRequiredService<WireAcpExtensionProxy>());
         services.TryAddSingleton<WireNodeReplProxy>();
         services.TryAddSingleton<INodeReplProxy>(provider => provider.GetRequiredService<WireNodeReplProxy>());
-        services.TryAddSingleton<InlineVisualizationRuntimeRegistry>();
+        services.TryAddSingleton<VisualizationRuntimeRegistry>();
         services.AddSingleton<IThreadSystemPromptContextProvider>(provider =>
-            provider.GetRequiredService<InlineVisualizationRuntimeRegistry>());
+            provider.GetRequiredService<VisualizationRuntimeRegistry>());
         services.TryAddSingleton<WireDynamicToolProxy>();
         services.AddSingleton<IToolSource>(provider => provider.GetRequiredService<WireDynamicToolProxy>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider,

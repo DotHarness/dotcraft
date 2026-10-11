@@ -1366,8 +1366,8 @@ public sealed class HooksTrustPluginResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for InlineVisualizationViewCloseParams.</summary>
-public sealed class InlineVisualizationViewCloseParams : ExtensibleJsonObject
+/// <summary>Executable wire contract for VisualizationViewCloseParams.</summary>
+public sealed class VisualizationViewCloseParams : ExtensibleJsonObject
 {
     [JsonPropertyName("viewHandle")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1375,8 +1375,8 @@ public sealed class InlineVisualizationViewCloseParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for InlineVisualizationViewCloseResult.</summary>
-public sealed class InlineVisualizationViewCloseResult : ExtensibleJsonObject
+/// <summary>Executable wire contract for VisualizationViewCloseResult.</summary>
+public sealed class VisualizationViewCloseResult : ExtensibleJsonObject
 {
     [JsonPropertyName("closed")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1384,9 +1384,13 @@ public sealed class InlineVisualizationViewCloseResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for InlineVisualizationViewMessageParams.</summary>
-public sealed class InlineVisualizationViewMessageParams : ExtensibleJsonObject
+/// <summary>Executable wire contract for VisualizationViewMessageParams.</summary>
+public sealed class VisualizationViewMessageParams : ExtensibleJsonObject
 {
+    [JsonPropertyName("context")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonElement?> Context { get; init; }
+
     [JsonPropertyName("prompt")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Prompt { get; init; }
@@ -1397,8 +1401,8 @@ public sealed class InlineVisualizationViewMessageParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for InlineVisualizationViewMessageResult.</summary>
-public sealed class InlineVisualizationViewMessageResult : ExtensibleJsonObject
+/// <summary>Executable wire contract for VisualizationViewMessageResult.</summary>
+public sealed class VisualizationViewMessageResult : ExtensibleJsonObject
 {
     [JsonPropertyName("queuedInputId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1406,16 +1410,16 @@ public sealed class InlineVisualizationViewMessageResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for InlineVisualizationViewOpenParams.</summary>
-public sealed class InlineVisualizationViewOpenParams : ExtensibleJsonObject
+/// <summary>Executable wire contract for VisualizationViewOpenParams.</summary>
+public sealed class VisualizationViewOpenParams : ExtensibleJsonObject
 {
-    [JsonPropertyName("file")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> File { get; init; }
-
     [JsonPropertyName("itemId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ItemId { get; init; }
+
+    [JsonPropertyName("path")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Path { get; init; }
 
     [JsonPropertyName("threadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1427,8 +1431,8 @@ public sealed class InlineVisualizationViewOpenParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for InlineVisualizationViewOpenResult.</summary>
-public sealed class InlineVisualizationViewOpenResult : ExtensibleJsonObject
+/// <summary>Executable wire contract for VisualizationViewOpenResult.</summary>
+public sealed class VisualizationViewOpenResult : ExtensibleJsonObject
 {
     [JsonPropertyName("fragment")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1442,32 +1446,53 @@ public sealed class InlineVisualizationViewOpenResult : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ViewHandle { get; init; }
 
-}
-
-/// <summary>Executable wire contract for ItemWidgetStateSetParams.</summary>
-public sealed class ItemWidgetStateSetParams : ExtensibleJsonObject
-{
-    [JsonPropertyName("callId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> CallId { get; init; }
-
-    [JsonPropertyName("threadId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ThreadId { get; init; }
-
     [JsonPropertyName("widgetState")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<JsonElement?> WidgetState { get; init; }
+    public Optional<VisualizationWidgetState?> WidgetState { get; init; }
 
 }
 
-/// <summary>Executable wire contract for ItemWidgetStateSetResult.</summary>
-public sealed class ItemWidgetStateSetResult : ExtensibleJsonObject
+/// <summary>Executable wire contract for VisualizationViewWidgetStateUpdateParams.</summary>
+public sealed class VisualizationViewWidgetStateUpdateParams : ExtensibleJsonObject
 {
-    [JsonPropertyName("cleared")]
+    [JsonPropertyName("modelContent")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> Cleared { get; init; }
+    public Optional<JsonElement?> ModelContent { get; init; }
 
+    [JsonPropertyName("privateContent")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonElement?> PrivateContent { get; init; }
+
+    [JsonPropertyName("viewHandle")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ViewHandle { get; init; }
+
+}
+
+/// <summary>Executable wire contract for VisualizationWidgetState.</summary>
+public sealed class VisualizationWidgetState : ExtensibleJsonObject
+{
+    [JsonPropertyName("modelContent")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonElement?> ModelContent { get; init; }
+
+    [JsonPropertyName("privateContent")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonElement?> PrivateContent { get; init; }
+
+}
+
+/// <summary>Executable wire contract for VisualizationWidgetStateUpdatedNotification.</summary>
+public sealed class VisualizationWidgetStateUpdatedNotification : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")] public required string ThreadId { get; init; }
+
+    [JsonPropertyName("path")] public required string Path { get; init; }
+
+    [JsonPropertyName("widgetState")]
+    [JsonRequired]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public VisualizationWidgetState? WidgetState { get; init; }
 }
 
 /// <summary>Executable wire contract for MarketplaceAddParams.</summary>
