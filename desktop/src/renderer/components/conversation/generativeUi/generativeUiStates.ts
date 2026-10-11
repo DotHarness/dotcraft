@@ -105,11 +105,12 @@ export function saveGenerativeUiState(source: GenerativeUiBlockSource, blockInde
   clearTimeout(pendingSaves.get(key)?.timer)
   const send = (): void => {
     pendingSaves.delete(key)
-    const request = window.api.appServer.sendRequest('generativeUi/state/update', { ...source, blockIndex, state }).catch(() => {})
-    const previous = savesInFlight.get(threadId)
-    const settled = Promise.all([previous, request]).finally(() => {
-      if (savesInFlight.get(threadId) === settled) savesInFlight.delete(threadId)
-    })
+    const settled = (savesInFlight.get(threadId) ?? Promise.resolve())
+      .then(() => window.api.appServer.sendRequest('generativeUi/state/update', { ...source, blockIndex, state }))
+      .catch(() => {})
+      .finally(() => {
+        if (savesInFlight.get(threadId) === settled) savesInFlight.delete(threadId)
+      })
     savesInFlight.set(threadId, settled)
   }
   pendingSaves.set(key, { threadId, timer: setTimeout(send, SAVE_DELAY_MS), send })

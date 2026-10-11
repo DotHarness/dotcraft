@@ -79,7 +79,8 @@ export function GenerativeUiForm({ props, children }: LayoutProps<'Form'>): JSX.
   const invoke = useGenerativeUiInvoke()
   const values = useRef(new Map<string, GenerativeUiJson>())
   const context = useMemo<GenerativeUiFormContextValue>(() => ({
-    setValue: (name, value) => { values.current.set(name, value) }
+    setValue: (name, value) => { values.current.set(name, value) },
+    deleteValue: name => { values.current.delete(name) }
   }), [])
   const submit = (event: FormEvent): void => {
     event.preventDefault()

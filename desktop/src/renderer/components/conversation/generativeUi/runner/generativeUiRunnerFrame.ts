@@ -17,10 +17,13 @@ const workerSourceUrl = (): string => {
   return workerUrl
 }
 
+const challenge = (): string => Array.from(crypto.getRandomValues(new Uint32Array(4)), part => part.toString(16)).join('')
+
 const connect = (channel: MessagePort, protocolVersion: unknown): void => {
   let worker: Worker | null = null
   let started = false
   let lastPong = 0
+  const challenges = new Set<string>()
   let watchdog: ReturnType<typeof setInterval> | undefined
 
   const terminate = (): void => {
@@ -46,8 +49,16 @@ const connect = (channel: MessagePort, protocolVersion: unknown): void => {
   }
   lastPong = Date.now()
   worker.addEventListener('message', event => {
-    lastPong = Date.now()
-    if ((event.data as { type?: unknown } | null)?.type === 'pong') return
+    const data = event.data as { type?: unknown; challenge?: unknown } | null
+    if (data?.type === 'pong') {
+      if (typeof data.challenge !== 'string' || !challenges.has(data.challenge)) return
+      for (const sent of challenges) {
+        challenges.delete(sent)
+        if (sent === data.challenge) break
+      }
+      lastPong = Date.now()
+      return
+    }
     started = true
     channel.postMessage(event.data)
   })
@@ -68,7 +79,9 @@ const connect = (channel: MessagePort, protocolVersion: unknown): void => {
       stop('worker_timeout', `The program stopped responding for more than ${GENERATIVE_UI_LIMITS.workerUnresponsiveMs / 1000} seconds.`)
       return
     }
-    worker?.postMessage({ type: 'ping' })
+    const next = challenge()
+    challenges.add(next)
+    worker?.postMessage({ type: 'ping', challenge: next })
   }, GENERATIVE_UI_LIMITS.workerPingIntervalMs)
 }
 

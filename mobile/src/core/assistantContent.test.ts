@@ -13,6 +13,15 @@ describe('assistant content', () => {
     ])
   })
 
+  it.each([
+    ['tilde', ['~~~~dotcraft-ui', 'x', '~~~~']],
+    ['longer backtick', ['````dotcraft-ui', '```', '````']],
+    ['indented', ['   ```dotcraft-ui', 'x', '   ```']],
+    ['CRLF', ['```dotcraft-ui \r', 'x \r', '```\r']],
+  ])('recognizes a %s Generative UI fence like Desktop', (_label, lines) => {
+    expect(splitAssistantText(lines.join('\n'), false).map((part) => part.kind)).toEqual(['interactive'])
+  })
+
   it('keeps fenced content and hides a reference still streaming', () => {
     const fenced = ['````md', '```dotcraft-ui', 'visualize{"path":"/w/a.html"}', '```', '````'].join('\n')
     expect(splitAssistantText(fenced, false)).toEqual([{ kind: 'markdown', text: fenced }])

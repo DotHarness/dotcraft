@@ -5,6 +5,7 @@ import type { VisualizationWidgetState } from './visualizationSecurity'
 type WidgetStateListener = (state: VisualizationWidgetState | null) => void
 
 const listeners = new Map<string, Map<string, WidgetStateListener>>()
+const saves = new Map<string, Promise<void>>()
 let unsubscribeRemoteUpdates: (() => void) | null = null
 
 function receiveRemoteUpdate(payload: KnownNotificationPayload): void {
@@ -33,6 +34,25 @@ export function subscribeVisualizationWidgetState(
     unsubscribeRemoteUpdates?.()
     unsubscribeRemoteUpdates = null
   }
+}
+
+export function saveVisualizationWidgetState(
+  threadId: string,
+  path: string,
+  viewId: string,
+  viewHandle: string,
+  state: VisualizationWidgetState
+): Promise<void> {
+  const key = visualizationKey(threadId, path)
+  const save = (saves.get(key) ?? Promise.resolve())
+    .catch(() => {})
+    .then(() => window.api.appServer.sendRequest('visualization/view/widgetState/update', { viewHandle, ...state }))
+    .then(() => publishVisualizationWidgetState(threadId, path, viewId, state))
+  saves.set(key, save)
+  void save.catch(() => {}).finally(() => {
+    if (saves.get(key) === save) saves.delete(key)
+  })
+  return save
 }
 
 export function publishVisualizationWidgetState(

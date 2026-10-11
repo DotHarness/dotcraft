@@ -167,7 +167,7 @@ Desktop validates each node's props against the component's schema before render
 | `openUrl` URL | 2,048 characters | invalid call (`callback_error`) |
 | Sandbox start | 10 s from a block's request to the shared frame's `runnerReady` | `frame_timeout` |
 | First render | 5 s after `start` | `worker_timeout` |
-| Unresponsive worker | 3 s without answering the runner frame's ping | `worker_timeout` |
+| Unresponsive worker | 3 s without answering one of the runner frame's pings; other worker messages are not answers | `worker_timeout` |
 | Synchronous re-renders | 50 without yielding | `runtime_error` |
 | Callbacks | 30 per second; the excess is coalesced per handler and delivered later | none |
 

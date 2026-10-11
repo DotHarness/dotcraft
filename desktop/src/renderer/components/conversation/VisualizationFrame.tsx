@@ -17,7 +17,7 @@ import { ConversationVisualizationsContext, galleryForVisualization, type Visual
 import { VisualizationViewer, type VisualizationFullscreenHost, type VisualizationViewerKey } from './VisualizationViewer'
 import { useVisualizationWideLayout } from './useVisualizationWideLayout'
 import { subscribeVisualizationReload } from './visualizationReloads'
-import { publishVisualizationWidgetState, subscribeVisualizationWidgetState } from './visualizationWidgetStates'
+import { saveVisualizationWidgetState, subscribeVisualizationWidgetState } from './visualizationWidgetStates'
 import { VisualizationDesignPanel } from './VisualizationDesignPanel'
 import { clearVisualizationDesignValues, useVisualizationDesignState } from './useVisualizationDesignState'
 import { buildVisualizationChangesContext } from './visualizationDesignControls'
@@ -195,11 +195,8 @@ export function VisualizationFrame({ threadId, turnId, itemId, path, title, mode
           return
         }
         widgetStateRef.current = state
-        void window.api.appServer.sendRequest('visualization/view/widgetState/update', { viewHandle: handle, ...state })
-          .then(() => {
-            postResult(requestId, true)
-            publishVisualizationWidgetState(threadId, path, viewIdRef.current, state)
-          })
+        void saveVisualizationWidgetState(threadId, path, viewIdRef.current, handle, state)
+          .then(() => postResult(requestId, true))
           .catch(error => postResult(requestId, false, { error: String(error) }))
       } else if (message?.method === 'visualization/followUp') {
         const prompt = typeof message.params?.prompt === 'string' ? message.params.prompt : ''

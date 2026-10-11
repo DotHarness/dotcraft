@@ -38,8 +38,9 @@ for (let target: object | null = scope; target; target = Object.getPrototypeOf(t
 const runtime = createGenerativeUiRuntime(post)
 
 scope.addEventListener('message', event => {
-  if ((event.data as { type?: unknown } | null)?.type === 'ping') {
-    post({ type: 'pong' })
+  const data = event.data as { type?: unknown; challenge?: unknown } | null
+  if (data?.type === 'ping') {
+    post({ type: 'pong', challenge: data.challenge })
     return
   }
   runtime.receive(event.data)

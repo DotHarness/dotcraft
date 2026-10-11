@@ -19,6 +19,7 @@ export function useGenerativeUiInert(): boolean {
 
 export interface GenerativeUiFormContextValue {
   setValue: (name: string, value: GenerativeUiJson) => void
+  deleteValue: (name: string) => void
 }
 
 export const GenerativeUiFormContext = createContext<GenerativeUiFormContextValue | null>(null)
@@ -51,6 +52,11 @@ export function useGenerativeUiFieldValue<T extends GenerativeUiJson>(options: {
     }
     setDraft(value)
   }, [value])
+
+  useEffect(() => {
+    if (!name || !form) return
+    return () => form.deleteValue(name)
+  }, [form, name])
 
   useEffect(() => {
     if (name) form?.setValue(name, draft)

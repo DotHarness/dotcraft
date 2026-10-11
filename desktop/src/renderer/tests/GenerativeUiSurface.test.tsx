@@ -54,4 +54,22 @@ describe('GenerativeUiSurface', () => {
     expect(screen.queryByRole('status')).toBeNull()
     expect(invoke).toHaveBeenCalledWith('r.1:onClick', [])
   })
+
+  it('submits only the fields still in the form', () => {
+    const field = (name: string): GenerativeUiNode => ({ type: 'Input', props: { name, label: name, defaultValue: name }, children: [] })
+    const form = (fields: GenerativeUiNode[]): GenerativeUiNode[] => [{ type: 'Form', props: { onSubmit: { $callback: 'r.0:onSubmit' } }, children: [
+      ...fields,
+      { type: 'Button', props: { label: 'Send', submit: true }, children: [] }
+    ] }]
+    const { invoke, rerender } = renderSurface({ status: 'ready', tree: form([field('title'), field('steps')]), failure: null })
+    rerender(
+      <LocaleProvider loadSettings={false}>
+        <GenerativeUiSurface state={{ status: 'ready', tree: form([field('title')]), failure: null }} invoke={invoke} onHostError={vi.fn()} onRetry={vi.fn()} />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    expect(invoke).toHaveBeenCalledWith('r.0:onSubmit', [{ title: 'title' }])
+  })
 })

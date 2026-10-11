@@ -1,8 +1,6 @@
 export type AssistantPart = { kind: 'markdown'; text: string } | { kind: 'interactive'; source: string }
 
-const BLOCK_OPEN = /^```dotcraft-ui\s*$/
-const BLOCK_CLOSE = /^```\s*$/
-const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/
+const BLOCK_INFO = 'dotcraft-ui'
 const KEYWORD = 'visualize'
 const WRAPPED_PREFIX = `\uE200${KEYWORD}\uE202`
 const WRAPPED_END = '\uE201'
@@ -26,46 +24,55 @@ function isPendingVisualizationReference(line: string): boolean {
   return tail !== '' && [`${KEYWORD}{`, WRAPPED_PREFIX].some((prefix) => tail.startsWith(prefix) || prefix.startsWith(tail))
 }
 
+interface Fence {
+  char: string
+  length: number
+}
+
 export function splitAssistantText(text: string, streaming: boolean): AssistantPart[] {
   const parts: AssistantPart[] = []
   const lines = text.split('\n')
   let markdown: string[] = []
-  let block: string[] | null = null
-  let fence: RegExp | null = null
+  let block: { fence: Fence; source: string[] } | null = null
+  let fence: Fence | null = null
   const flush = () => {
     const value = markdown.join('\n')
     if (value.trim()) parts.push({ kind: 'markdown', text: value })
     markdown = []
   }
-  lines.forEach((line, index) => {
+  lines.forEach((rawLine, index) => {
+    const last = index === lines.length - 1
+    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
+    const trimmed = line.trimStart()
+    const marker = /^(`{3,}|~{3,})/.exec(trimmed)?.[1]
+    const closes = (open: Fence) =>
+      marker !== undefined && marker[0] === open.char && marker.length >= open.length && trimmed.slice(marker.length).trim() === ''
     if (block) {
-      if (BLOCK_CLOSE.test(line)) {
-        parts.push({ kind: 'interactive', source: block.join('\n') })
+      if (closes(block.fence)) {
+        parts.push({ kind: 'interactive', source: block.source.join('\n') })
         block = null
-      } else block.push(line)
+      } else block.source.push(line)
       return
     }
     if (fence) {
-      markdown.push(line)
-      if (fence.test(line)) fence = null
-      return
+      if (closes(fence)) fence = null
+    } else if (marker) {
+      const info = trimmed.slice(marker.length).trim()
+      if (line.length - trimmed.length <= 3 && info.split(/\s/)[0] === BLOCK_INFO) {
+        flush()
+        block = { fence: { char: marker[0], length: marker.length }, source: [] }
+        return
+      }
+      if (streaming && last && BLOCK_INFO.startsWith(info)) return
+      fence = { char: marker[0], length: marker.length }
+    } else {
+      if (streaming && last && isPendingVisualizationReference(line)) return
+      if (isVisualizationReference(line)) return
     }
-    if (BLOCK_OPEN.test(line)) {
-      flush()
-      block = []
-      return
-    }
-    const open = FENCE_OPEN.exec(line)
-    if (open) {
-      fence = new RegExp(`^ {0,3}${open[1][0] === '`' ? '`' : '~'}{${open[1].length},}\\s*$`)
-      markdown.push(line)
-      return
-    }
-    if (isVisualizationReference(line)) return
-    if (streaming && index === lines.length - 1 && isPendingVisualizationReference(line)) return
-    markdown.push(line)
+    markdown.push(rawLine)
   })
-  if (block) parts.push({ kind: 'interactive', source: (block as string[]).join('\n') })
+  const open = block as { source: string[] } | null
+  if (open) parts.push({ kind: 'interactive', source: open.source.join('\n') })
   flush()
   return parts
 }
