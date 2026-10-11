@@ -26,6 +26,76 @@ Agent 的每一步都摊在窗口里。打开一个会话就能逐条回看它�
 
 这里选的模型只决定新会话的默认值。已有会话保留自己创建时的设置，也可以在它自己的输入框里单独换。[Subagents](../guide/subagents) 默认沿用主 Agent 的模型，需要时可以给它指定一个更快或更便宜的。
 
+## 用自己的应用打开文件
+
+在会话 **⋯** 菜单或侧边栏会话右键菜单的**在…中打开**里，可以用 VS Code、JetBrains IDE、Windows Terminal、文件资源管理器或其他已安装的应用打开本地项目。文件查看器的**打开**按钮用同样的方式打开当前文件。回复里的文件引用在 VS Code、Cursor、Zed、Sublime Text 和 JetBrains IDE 中会直接跳到对应行。
+
+从**在…中打开**或文件查看器里选过的应用，Desktop 会记下来，作为这个项目以及其他地方的默认应用。在文件引用的菜单里选应用只打开这一次，不改默认值。所有项目的默认应用在**设置 → 常规 → 默认文件打开方式**里设置。
+
+### 添加自己的应用
+
+想用 Desktop 没有列出的应用或自己的脚本打开文件，就把它加到 `~/.craft/config.json` 的 `Desktop.CustomFileHandlers` 里。每一项以 id 为键，id 由字母、数字、`.`、`_` 和 `-` 组成，菜单中排在内置应用之后。
+
+```json
+{
+  "Desktop": {
+    "CustomFileHandlers": {
+      "notepad-plus": {
+        "Label": "Notepad++",
+        "Command": "C:\\Program Files\\Notepad++\\notepad++.exe"
+      },
+      "review": {
+        "Label": "Review tool",
+        "Command": "review-tool",
+        "Args": ["--open"],
+        "Input": "jsonStdin"
+      }
+    }
+  }
+}
+```
+
+| 字段 | 说明 | 默认值 |
+|---|---|---|
+| `Label` | 菜单中显示的名称 | 必填 |
+| `Command` | 程序的绝对路径，或能在 `PATH` 中找到的命令名 | 必填 |
+| `Args` | 放在路径或 JSON 之前的参数 | `[]` |
+| `Input` | `path` 把路径作为最后一个参数。`jsonArgument` 追加一个 JSON 参数，`jsonStdin` 把同样的 JSON 写到标准输入 | `path` |
+| `Icon` | 图片的绝对路径，或 `data:image/…` URL | 通用应用图标 |
+
+JSON 的内容是 `{ "target": "custom:review", "path": "<绝对路径>", "location": { "line": 12, "column": 1 } }`，没有对应行时 `location` 为 `null`。Desktop 每次打开菜单都会重新读取这份列表，保存后无需重启就能看到。缺少字段、id 不合法或命令不存在的条目不会出现。
+
+## 运行项目命令
+
+把项目里反复输入的命令存成操作，例如启动开发服务器、跑测试或在 Unity 中打开项目，之后在对话里直接运行。它们放在本地会话旁**摘要**的**环境信息**一栏：带操作图标的按钮运行最近一次运行过的操作，**操作**菜单列出全部操作，**打开终端**在项目文件夹中打开一个终端。每个操作在以它命名的终端标签页中运行，再次运行会重启这个标签页。
+
+添加第一个操作时，选择**设置本地环境**，填好名称、图标和命令后保存。Desktop 会在项目中写入 `.craft/environments/environment.json` 并运行这个操作。之后从**操作 → 添加操作**继续添加。
+
+### 在文件中编辑操作
+
+`.craft/environments/` 中的每个 JSON 文件是一个环境，也就是一组有名字的操作。Desktop 还会读取各级上层文件夹直到仓库根目录的 `.craft/environments/`，monorepo 里的项目因此可以共用操作。修改文件后无需重启就能看到。
+
+```json
+{
+  "version": 1,
+  "name": "Web",
+  "actions": [
+    { "name": "Dev server", "icon": "run", "command": "npm run dev" },
+    { "name": "Test", "icon": "test", "command": "npm test" },
+    { "name": "Reveal", "icon": "tool", "command": "explorer .", "platform": "win32" }
+  ]
+}
+```
+
+| 字段 | 说明 |
+|---|---|
+| `name` | 显示在菜单和终端标签页上 |
+| `icon` | `run`、`debug`、`test` 或 `tool`。其他值按 `tool` 显示 |
+| `command` | 在终端中输入的命令，运行目录是包含该环境 `.craft` 文件夹的那个文件夹 |
+| `platform` | `win32`、`darwin` 或 `linux`。设置后该操作只在对应系统上出现 |
+
+默认使用项目自己的 `environment.json`。有多个环境时，从**操作 → 更换环境**中选择，Desktop 会为这个项目记住选择。无法读取的文件会在环境信息一栏显示问题，点击即可打开该文件。
+
 ## 看 token 花在哪
 
 **设置 → 个人资料**里有一张 Token 活动图，像 GitHub 贡献图那样按天铺开当前工作区所有会话的用量，旁边是累计 Token、单日峰值和连续使用天数。需要先为这个工作区开启 tracing，这张图才有数据。

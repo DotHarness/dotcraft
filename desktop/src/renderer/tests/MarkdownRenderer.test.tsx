@@ -7,6 +7,7 @@ import { MarkdownRenderer } from '../components/conversation/MarkdownRenderer'
 import { sanitizeMermaidSvg } from '../components/conversation/mermaidSanitize'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useConversationStore } from '../stores/conversationStore'
+import { useOpenTargetsStore } from '../stores/openTargetsStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
@@ -25,9 +26,8 @@ const openExternal = vi.fn()
 const authorizeFile = vi.fn()
 const classify = vi.fn()
 const settingsSet = vi.fn()
-const shellListEditors = vi.fn()
-const shellLaunchLocalPathInEditor = vi.fn()
-const shellOpenLocalPath = vi.fn()
+const shellListOpenTargets = vi.fn()
+const shellOpenInTarget = vi.fn()
 const shellRevealLocalPath = vi.fn()
 const clipboardWriteText = vi.fn()
 
@@ -45,9 +45,8 @@ beforeAll(() => {
       },
       shell: {
         openExternal,
-        listEditors: shellListEditors,
-        launchLocalPathInEditor: shellLaunchLocalPathInEditor,
-        openLocalPath: shellOpenLocalPath,
+        listOpenTargets: shellListOpenTargets,
+        openInTarget: shellOpenInTarget,
         revealLocalPath: shellRevealLocalPath
       }
     })
@@ -64,12 +63,12 @@ describe('MarkdownRenderer', () => {
     classify.mockReset()
     window.getSelection()?.removeAllRanges()
     settingsSet.mockReset()
-    shellListEditors.mockResolvedValue([
-      { id: 'explorer', labelKey: 'editors.explorer', iconKey: 'explorer' },
-      { id: 'cursor', labelKey: 'editors.cursor', iconKey: 'editor-generic' }
+    useOpenTargetsStore.setState({ status: 'idle', targets: [], preferences: undefined })
+    shellListOpenTargets.mockResolvedValue([
+      { id: 'fileManager', label: 'File Explorer', labelKey: 'openTargets.fileManager', iconKey: 'fileManager' },
+      { id: 'cursor', label: 'Cursor', iconKey: 'editor' }
     ])
-    shellLaunchLocalPathInEditor.mockReset()
-    shellOpenLocalPath.mockReset()
+    shellOpenInTarget.mockReset()
     shellRevealLocalPath.mockReset()
     clipboardWriteText.mockReset()
     clipboardWriteText.mockResolvedValue(undefined)
@@ -450,6 +449,24 @@ describe('MarkdownRenderer', () => {
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith('F:/workspace/docs/guide.md')
     })
+  })
+
+  it('opens a markdown file pill at its line in the effective target', async () => {
+    renderWithLocale('[guide](./docs/guide.md#L12)')
+    const link = screen.getByRole('link', { name: /guide/i })
+
+    fireEvent.contextMenu(link, { clientX: 18, clientY: 22 })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Open in File Explorer' }))
+
+    await waitFor(() => {
+      expect(shellOpenInTarget).toHaveBeenCalledWith({
+        targetId: 'fileManager',
+        path: 'F:/workspace/docs/guide.md',
+        line: 12,
+        column: 1
+      })
+    })
+    expect(settingsSet).not.toHaveBeenCalled()
   })
 
   it('does not show the local path menu for http links', () => {

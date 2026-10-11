@@ -86,7 +86,7 @@ describe('channel handoff', () => {
     installDesktopApiMock({
       settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
       appServer: { sendRequest: appServerSendRequest, onNotification: vi.fn(() => () => {}) },
-      shell: { listEditors: vi.fn().mockResolvedValue([]) },
+      shell: { listOpenTargets: vi.fn().mockResolvedValue([]) },
       voice: undefined
     })
     useConversationStore.getState().reset()

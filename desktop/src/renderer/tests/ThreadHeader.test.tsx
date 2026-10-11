@@ -126,7 +126,7 @@ describe('ThreadHeader', () => {
       },
       git: { commit: gitCommit },
       shell: {
-        listEditors: vi.fn().mockResolvedValue([])
+        listOpenTargets: vi.fn().mockResolvedValue([])
       }
     })
   })

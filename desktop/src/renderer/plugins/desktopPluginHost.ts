@@ -35,7 +35,16 @@ import {
   useDesktopPluginService
 } from './desktopPluginKernel'
 import { callDesktopPluginMcpTool } from './desktopPluginMcp'
+import { listDesktopPluginOpenTargets, openDesktopPluginPath } from './desktopPluginOpenTargets'
 import { registerDesktopPluginOpenUrlListener } from './desktopPluginOpenUrl'
+import {
+  listDesktopPluginProjectActions,
+  onDesktopPluginProjectActionsChange,
+  openDesktopPluginProjectTerminal,
+  promptDesktopPluginProjectAction,
+  runDesktopPluginProjectAction,
+  selectDesktopPluginProjectEnvironment
+} from './desktopPluginProjectActions'
 import {
   buildDesktopPluginMainViewKey,
   buildDesktopPluginSettingsKey,
@@ -143,6 +152,26 @@ export function createDesktopPluginHost(
         else void host.navigation.openThread(parentThreadId).then(show)
       }
     },
+    projectActions: {
+      list(workspacePath) {
+        return listDesktopPluginProjectActions(workspacePath)
+      },
+      onChange(workspacePath, listener) {
+        return own(cleanups, onDesktopPluginProjectActionsChange(workspacePath, listener))
+      },
+      select(workspacePath, environmentId) {
+        return selectDesktopPluginProjectEnvironment(workspacePath, environmentId)
+      },
+      run(request) {
+        return runDesktopPluginProjectAction(request)
+      },
+      openTerminal(request) {
+        return openDesktopPluginProjectTerminal(request)
+      },
+      promptAddAction(request) {
+        return promptDesktopPluginProjectAction(request, (dismiss) => own(cleanups, dismiss))
+      }
+    },
     navigation: {
       openMainView(id) {
         useUIStore.getState().setActiveMainView(buildDesktopPluginMainViewKey(pluginId, id))
@@ -184,6 +213,12 @@ export function createDesktopPluginHost(
           absolutePath: toAbsoluteWorkspacePath(workspacePath, path),
           forceNew: false
         })
+      },
+      openPath(path, options) {
+        return openDesktopPluginPath(path, options)
+      },
+      listOpenTargets() {
+        return listDesktopPluginOpenTargets()
       },
       openDetailPanel(tab) {
         useUIStore.getState().setActiveDetailTab(tab)

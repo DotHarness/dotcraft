@@ -43,7 +43,7 @@ describe('PlanApprovalComposer', () => {
         settings: { get: async () => ({ locale: 'en' }) },
         appServer: { sendRequest: appServerSendRequest },
         file: { readFile: vi.fn().mockResolvedValue('{}') },
-        shell: { listEditors: vi.fn().mockResolvedValue([]) },
+        shell: { listOpenTargets: vi.fn().mockResolvedValue([]) },
         workspace: { saveImageToTemp: vi.fn() }
       })
   })

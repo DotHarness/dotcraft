@@ -6,8 +6,7 @@ import * as path from 'path'
 const {
   scanModulesMock,
   channelModuleManagerStartMock,
-  detectEditorsMock,
-  launchEditorMock,
+  openInTargetMock,
   execFileMock,
   existsSyncMock,
   readFileSyncMock,
@@ -16,8 +15,7 @@ const {
 } = vi.hoisted(() => ({
   scanModulesMock: vi.fn(),
   channelModuleManagerStartMock: vi.fn(),
-  detectEditorsMock: vi.fn(),
-  launchEditorMock: vi.fn(),
+  openInTargetMock: vi.fn(),
   execFileMock: vi.fn(),
   existsSyncMock: vi.fn(),
   readFileSyncMock: vi.fn(),
@@ -104,9 +102,9 @@ vi.mock('../channelModuleManager', async () => {
   }
 })
 
-vi.mock('../externalEditors', () => ({
-  detectEditors: detectEditorsMock,
-  launchEditor: launchEditorMock
+vi.mock('../openTargets', () => ({
+  listOpenTargets: vi.fn().mockResolvedValue([]),
+  openInTarget: openInTargetMock
 }))
 
 vi.mock('../workspaceComposerIpc', async () => {
@@ -381,11 +379,7 @@ describe('registerIpcHandlers', () => {
     scanModulesMock.mockResolvedValue([])
     channelModuleManagerStartMock.mockResolvedValue({ ok: true })
     readFileSyncMock.mockReturnValue('{"extensionId":"pekajfcokkicggfjmickmkngmmoojlda"}')
-    detectEditorsMock.mockResolvedValue([
-      { id: 'cursor', labelKey: 'editors.cursor', iconKey: 'editor-generic' },
-      { id: 'explorer', labelKey: 'editors.explorer', iconKey: 'explorer' }
-    ])
-    launchEditorMock.mockResolvedValue(undefined)
+    openInTargetMock.mockResolvedValue(undefined)
     listWorkspaceFilesMock.mockResolvedValue({
       files: [],
       indexStatus: 'ready',
@@ -1299,92 +1293,32 @@ describe('registerIpcHandlers', () => {
     expect(secondArgs.at(-1)).toBe('about:blank')
   })
 
-  it('registers editors:list and returns detected editor entries', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
-
-    registerIpcHandlers(null, () => null, '/workspace', {
-      onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
-      onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
-      onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
-      onListSetupModels: vi.fn().mockResolvedValue({ kind: 'unsupported' }),
-      onOpenNewWindow: vi.fn(),
-      onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
-      getSettings: vi.fn(() => ({})),
-      updateSettings: vi.fn(),
-      getLocalProjectPaths: vi.fn(() => []),
-      getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
-      getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
-    })
-
-    const result = await handlers.get('editors:list')?.({})
-    expect(detectEditorsMock).toHaveBeenCalledOnce()
-    expect(result).toEqual([
-      { id: 'cursor', labelKey: 'editors.cursor', iconKey: 'editor-generic' },
-      { id: 'explorer', labelKey: 'editors.explorer', iconKey: 'explorer' }
-    ])
-  })
-
-  it('registers editors:launch and validates workspace path before launch', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
-
-    registerIpcHandlers(null, () => null, '/workspace', {
-      onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
-      onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
-      onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
-      onListSetupModels: vi.fn().mockResolvedValue({ kind: 'unsupported' }),
-      onOpenNewWindow: vi.fn(),
-      onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
-      getSettings: vi.fn(() => ({ locale: 'en' })),
-      updateSettings: vi.fn(),
-      getLocalProjectPaths: vi.fn(() => []),
-      getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
-      getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
-    })
-
-    await handlers.get('editors:launch')?.({}, 'cursor', '/workspace')
-    expect(launchEditorMock).toHaveBeenCalledWith('cursor', expect.stringMatching(/^[A-Z]:\\workspace$/))
-
-    await expect(
-      handlers.get('editors:launch')?.({}, 'cursor', '/outside')
-    ).rejects.toThrow()
-  })
-
-  it('rejects unsafe local path open requests before invoking shell or editor actions', async () => {
+  it('rejects unsafe open target requests before launching anything', async () => {
     const handlers = registerHandlersForTest()
-    const openLocalPath = handlers.get('shell:open-local-path')!
+    const open = handlers.get('open-targets:open')!
 
-    await expect(openLocalPath({}, 'relative/path.txt')).rejects.toThrow(
+    await expect(open({}, { targetId: 'vscode', path: 'relative/path.txt' })).rejects.toThrow(
       'Local path must be absolute'
     )
-    await expect(openLocalPath({}, 'file:///tmp/path.txt')).rejects.toThrow(
+    await expect(open({}, { targetId: 'vscode', path: 'file:///tmp/path.txt' })).rejects.toThrow(
       'Local path must be an absolute filesystem path'
     )
 
     vi.mocked(fs.stat).mockRejectedValueOnce(Object.assign(new Error('missing'), { code: 'ENOENT' }))
-    await expect(openLocalPath({}, path.resolve('/tmp/missing.txt'))).rejects.toThrow('missing')
+    await expect(open({}, { targetId: 'vscode', path: path.resolve('/tmp/missing.txt') })).rejects.toThrow('missing')
 
-    expect(shell.openPath).not.toHaveBeenCalled()
-    expect(shell.showItemInFolder).not.toHaveBeenCalled()
-    expect(launchEditorMock).not.toHaveBeenCalled()
+    expect(openInTargetMock).not.toHaveBeenCalled()
   })
 
-  it('opens existing local paths with editor, default app, and Explorer handlers', async () => {
+  it('opens existing local paths in a target with their position and reveals them in Explorer', async () => {
     const handlers = registerHandlersForTest()
     const targetPath = path.resolve('/tmp/dotcraft-local-note.txt')
     vi.mocked(fs.stat).mockResolvedValue({} as Awaited<ReturnType<typeof fs.stat>>)
 
-    await handlers.get('editors:launch-local-path')?.({}, 'cursor', targetPath)
-    await handlers.get('shell:open-local-path')?.({}, targetPath)
+    await handlers.get('open-targets:open')?.({}, { targetId: 'vscode', path: targetPath, line: 4, column: 2 })
     await handlers.get('shell:reveal-local-path')?.({}, targetPath)
 
-    expect(launchEditorMock).toHaveBeenCalledWith('cursor', targetPath)
-    expect(shell.openPath).toHaveBeenCalledWith(targetPath)
+    expect(openInTargetMock).toHaveBeenCalledWith({ targetId: 'vscode', path: targetPath, line: 4, column: 2 })
     expect(shell.showItemInFolder).toHaveBeenCalledWith(targetPath)
   })
 

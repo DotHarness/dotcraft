@@ -1722,7 +1722,7 @@ describe('AgentResponseBlock completed turn folding', () => {
           get: async () => ({ locale: 'en' })
         },
         shell: {
-          listEditors: async () => []
+          listOpenTargets: async () => []
         },
         appServer: {
           sendRequest: vi.fn(async () => ({

@@ -130,6 +130,7 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
               <OpenTargetButton
                 variant="outlineGhost"
                 targetPath={absPath}
+                projectRoot={workspacePath}
                 tooltipLabel={t('turnArtifacts.openTitle', { path: diff.filePath })}
                 menuAriaLabel={t('turnArtifacts.openMenuAria')}
                 showPrimaryLabel

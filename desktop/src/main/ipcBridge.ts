@@ -67,7 +67,8 @@ import { registerDesktopPluginModuleIpc, unregisterDesktopPluginModuleIpc } from
 import { partitionForWorkspace, viewerBrowserManager } from './viewerBrowser'
 import { BROWSER_FEEDBACK_CHANNELS, registerBrowserFeedbackIpc } from './browserFeedbackIpc'
 import { saveFileAs, type SaveFileAsRequest } from './fileSaveAs'
-import { viewerTerminalManager } from './viewerTerminal'
+import { registerViewerTerminalHandlers, unregisterViewerTerminalHandlers } from './viewerTerminalIpc'
+import { registerProjectActionsHandlers, unregisterProjectActionsHandlers } from './projectActions/projectActionsIpc'
 import { browserUseManager } from './browserUseManager'
 import type { BrowserUseApprovalResponsePayload } from '../shared/viewer/types'
 import {
@@ -100,7 +101,8 @@ import { parseJsonObjectConfig } from '../shared/jsonConfig'
 import { findMissingRequiredConfigFields } from '../shared/channelModuleConfig'
 import type { ModuleConfigStatusMap } from '../shared/channelModules'
 import { readModuleConfigStatusMap } from './channelModuleConfigStatus'
-import { detectEditors, launchEditor, type EditorId } from './externalEditors'
+import { listOpenTargets, openInTarget } from './openTargets'
+import type { OpenInTargetRequest } from '../shared/openTargets'
 import {
   bindDotCraftSkillInstall,
   cleanupDotCraftSkillInstall,
@@ -822,8 +824,6 @@ let channelModuleManager: ChannelModuleManager | null = null
 let ensureModulesScanned: (() => Promise<DiscoveredModule[]>) | null = null
 let getSettingsSnapshotForModules: (() => AppSettings) | null = null
 
-const terminalCleanupHookedWindows = new Set<number>()
-
 function normalizeChannelName(channelName: string): string {
   return channelName.trim().toLowerCase()
 }
@@ -1208,27 +1208,14 @@ export function registerIpcHandlers(
     return getProtocolHandlerName(protocol)
   })
 
-  handleSafe('editors:list', async () => {
-    return detectEditors()
+  handleSafe('open-targets:list', async () => {
+    return listOpenTargets()
   })
 
-  handleSafe('editors:launch', async (_event, editorId: EditorId, targetPath: string) => {
-    const locale = mainLocale(callbacks)
-    const resolved = assertPathWithinWorkspace(targetPath, workspacePath, locale)
-    await launchEditor(editorId, resolved)
-  })
-
-  handleSafe('editors:launch-local-path', async (_event, editorId: EditorId, targetPath: string) => {
-    const resolved = await assertExistingLocalPath(targetPath)
-    await launchEditor(editorId, resolved)
-  })
-
-  handleSafe('shell:open-local-path', async (_event, targetPath: string) => {
-    const resolved = await assertExistingLocalPath(targetPath)
-    const error = await shell.openPath(resolved)
-    if (error) {
-      throw new Error(error)
-    }
+  handleSafe('open-targets:open', async (_event, request: OpenInTargetRequest) => {
+    if (!request || typeof request.targetId !== 'string') throw new Error('Invalid open target request')
+    const resolved = await assertExistingLocalPath(request.path)
+    await openInTarget({ ...request, path: resolved })
   })
 
   handleSafe('shell:reveal-local-path', async (_event, targetPath: string) => {
@@ -1576,18 +1563,6 @@ export function registerIpcHandlers(
     }
   )
 
-  const ensureTerminalWindowCleanup = (win: BrowserWindow): void => {
-    if (terminalCleanupHookedWindows.has(win.id)) return
-    terminalCleanupHookedWindows.add(win.id)
-    win.once('closed', () => {
-      terminalCleanupHookedWindows.delete(win.id)
-      viewerTerminalManager.destroyAllTabs(win)
-    })
-    win.webContents.on('did-finish-load', () => {
-      viewerTerminalManager.destroyAllTabs(win)
-    })
-  }
-
   handleSafe(
     'workspace:viewer:list-files',
     async (
@@ -1913,49 +1888,18 @@ export function registerIpcHandlers(
     return { ok: true }
   })
 
-  handleSafe(
-    'viewer:terminal:create',
-    async (
-      event,
-      params: { tabId: string; threadId: string; workspacePath: string; cols: number; rows: number }
-    ) => {
-      const win = BrowserWindow.fromWebContents(event.sender)
-      if (!win || win.isDestroyed()) {
-        throw new Error('Browser window not available')
-      }
-      const ws = path.resolve(workspacePath)
-      const req = path.resolve(params.workspacePath)
-      if (ws !== req) {
-        throw new Error(translate(mainLocale(callbacks), 'ipc.workspacePathMismatch'))
-      }
-      ensureTerminalWindowCleanup(win)
-      return viewerTerminalManager.createTab(win, params)
+  registerViewerTerminalHandlers({
+    handleSafe,
+    workspacePath,
+    workspaceMismatchMessage: () => translate(mainLocale(callbacks), 'ipc.workspacePathMismatch')
+  })
+  registerProjectActionsHandlers({
+    handleSafe,
+    getPreferences: () => callbacks?.getSettings().projectActionPreferences,
+    updatePreferences: async (projectActionPreferences) => {
+      await callbacks?.updateSettings({ projectActionPreferences })
     }
-  )
-  handleSafe('viewer:terminal:attach', async (event, params: { tabId: string }) => {
-    const win = BrowserWindow.fromWebContents(event.sender)
-    if (!win || win.isDestroyed()) {
-      throw new Error('Browser window not available')
-    }
-    ensureTerminalWindowCleanup(win)
-    return viewerTerminalManager.attachTab(win, params.tabId)
   })
-  handleSafe('viewer:terminal:write', async (event, params: { tabId: string; data: string }) => {
-    const win = BrowserWindow.fromWebContents(event.sender)
-    if (!win || win.isDestroyed()) return
-    viewerTerminalManager.write(win, params)
-  })
-  handleSafe('viewer:terminal:resize', async (event, params: { tabId: string; cols: number; rows: number }) => {
-    const win = BrowserWindow.fromWebContents(event.sender)
-    if (!win || win.isDestroyed()) return
-    viewerTerminalManager.resize(win, params)
-  })
-  handleSafe('viewer:terminal:dispose', async (event, params: { tabId: string }) => {
-    const win = BrowserWindow.fromWebContents(event.sender)
-    if (!win || win.isDestroyed()) return
-    viewerTerminalManager.destroyTab(win, params.tabId)
-  })
-
 
   handleSafe('computerUse:app-icon', async (_event, appId: unknown) => {
     if (typeof appId !== 'string' || !/\.exe$/i.test(appId)) return null
@@ -2382,10 +2326,8 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('shell:open-desktop-link')
   ipcMain.removeHandler('shell:show-reply-text-menu')
   ipcMain.removeHandler('shell:get-protocol-handler-name')
-  ipcMain.removeHandler('editors:list')
-  ipcMain.removeHandler('editors:launch')
-  ipcMain.removeHandler('editors:launch-local-path')
-  ipcMain.removeHandler('shell:open-local-path')
+  ipcMain.removeHandler('open-targets:list')
+  ipcMain.removeHandler('open-targets:open')
   ipcMain.removeHandler('shell:reveal-local-path')
   ipcMain.removeHandler('shell:save-file-as')
   ipcMain.removeHandler('file:write')
@@ -2450,11 +2392,8 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('viewer:browser:set-active')
   ipcMain.removeHandler('viewer:browser:open-external')
   ipcMain.removeHandler('viewer:browser:snapshot')
-  ipcMain.removeHandler('viewer:terminal:create')
-  ipcMain.removeHandler('viewer:terminal:attach')
-  ipcMain.removeHandler('viewer:terminal:write')
-  ipcMain.removeHandler('viewer:terminal:resize')
-  ipcMain.removeHandler('viewer:terminal:dispose')
+  unregisterViewerTerminalHandlers()
+  unregisterProjectActionsHandlers()
   ipcMain.removeHandler('chrome:check-setup')
   ipcMain.removeHandler('computerUse:app-icon')
   ipcMain.removeHandler('chrome:install-native-host')
@@ -2476,10 +2415,6 @@ export function unregisterIpcHandlers(): void {
   if (channelModuleManager) {
     channelModuleManager.dispose()
   }
-  for (const win of BrowserWindow.getAllWindows()) {
-    viewerTerminalManager.destroyAllTabs(win)
-  }
-  terminalCleanupHookedWindows.clear()
   channelModuleManager = null
   ensureModulesScanned = null
   getSettingsSnapshotForModules = null

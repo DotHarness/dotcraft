@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { UserMessageBlock } from '../components/conversation/UserMessageBlock'
 import { useConversationStore } from '../stores/conversationStore'
+import { useOpenTargetsStore } from '../stores/openTargetsStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
@@ -15,9 +16,8 @@ const readImageAsDataUrl = vi.fn()
 const authorizeFile = vi.fn()
 const classify = vi.fn()
 const shellOpenExternal = vi.fn()
-const shellListEditors = vi.fn()
-const shellLaunchLocalPathInEditor = vi.fn()
-const shellOpenLocalPath = vi.fn()
+const shellListOpenTargets = vi.fn()
+const shellOpenInTarget = vi.fn()
 const shellRevealLocalPath = vi.fn()
 const appServerSendRequest = vi.fn()
 const clipboardWriteText = vi.fn()
@@ -38,12 +38,13 @@ describe('UserMessageBlock trigger source pills', () => {
     readImageAsDataUrl.mockResolvedValue({ dataUrl: '' })
     authorizeFile.mockImplementation(async ({ absolutePath }: { absolutePath: string }) => ({ absolutePath }))
     classify.mockResolvedValue({ contentClass: 'text', mime: 'text/plain', sizeBytes: 10 })
-    shellListEditors.mockResolvedValue([
-      { id: 'explorer', labelKey: 'editors.explorer', iconKey: 'explorer' },
-      { id: 'cursor', labelKey: 'editors.cursor', iconKey: 'editor-generic' }
+    useOpenTargetsStore.setState({ status: 'idle', targets: [], preferences: undefined })
+    shellListOpenTargets.mockResolvedValue([
+      { id: 'cursor', label: 'Cursor', iconKey: 'editor' },
+      { id: 'fileManager', label: 'File Explorer', labelKey: 'openTargets.fileManager', iconKey: 'fileManager' },
+      { id: 'systemDefault', label: 'Default app', labelKey: 'conversation.reference.defaultApp', iconKey: 'fileManager', hidden: true }
     ])
-    shellLaunchLocalPathInEditor.mockResolvedValue(undefined)
-    shellOpenLocalPath.mockResolvedValue(undefined)
+    shellOpenInTarget.mockResolvedValue(undefined)
     shellRevealLocalPath.mockResolvedValue(undefined)
     appServerSendRequest.mockResolvedValue({ skills: [] })
     clipboardWriteText.mockResolvedValue(undefined)
@@ -80,9 +81,8 @@ describe('UserMessageBlock trigger source pills', () => {
       },
       shell: {
         openExternal: shellOpenExternal,
-        listEditors: shellListEditors,
-        launchLocalPathInEditor: shellLaunchLocalPathInEditor,
-        openLocalPath: shellOpenLocalPath,
+        listOpenTargets: shellListOpenTargets,
+        openInTarget: shellOpenInTarget,
         revealLocalPath: shellRevealLocalPath
       }
     })
@@ -320,6 +320,26 @@ describe('UserMessageBlock trigger source pills', () => {
     }
   })
 
+  it('opens a Markdown file link chip at its linked position', async () => {
+    renderWithLocale(<UserMessageBlock text="Check [the handler](src/App.tsx:12:3)" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open App.tsx in DotCraft viewer' }))
+
+    await waitFor(() => {
+      expect(classify).toHaveBeenCalledWith({ absolutePath: 'F:/workspace/src/App.tsx' })
+    })
+    const activeTab = useUIStore.getState().activeDetailTab
+    expect(activeTab.kind).toBe('viewer')
+    if (activeTab.kind === 'viewer') {
+      const tab = useViewerTabStore.getState().getThreadState('thread-1').tabs.find((entry) => entry.id === activeTab.id)
+      expect(tab).toMatchObject({
+        kind: 'file',
+        absolutePath: 'F:/workspace/src/App.tsx',
+        navigationHint: { line: 12, column: 3 }
+      })
+    }
+  })
+
   it('copies the resolved path from a user file chip context menu', async () => {
     renderWithLocale(
       <UserMessageBlock
@@ -373,43 +393,7 @@ describe('UserMessageBlock trigger source pills', () => {
   })
 
   it('supports editor, default app, and Explorer actions from the file chip context menu', async () => {
-    settingsGet.mockResolvedValue({ locale: 'en', lastOpenEditorId: 'cursor' })
-
-    renderWithLocale(
-      <UserMessageBlock
-        text=""
-        nativeInputParts={[
-          { type: 'fileRef', path: 'src/App.tsx', displayPath: 'src/App.tsx' }
-        ]}
-      />
-    )
-
-    const chip = screen.getByRole('button', { name: 'Open App.tsx in DotCraft viewer' })
-    fireEvent.contextMenu(chip, { clientX: 12, clientY: 18 })
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Open in Cursor' }))
-
-    await waitFor(() => {
-      expect(shellLaunchLocalPathInEditor).toHaveBeenCalledWith('cursor', 'F:/workspace/src/App.tsx')
-    })
-
-    fireEvent.contextMenu(chip, { clientX: 12, clientY: 18 })
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Open in Explorer' }))
-
-    await waitFor(() => {
-      expect(shellRevealLocalPath).toHaveBeenCalledWith('F:/workspace/src/App.tsx')
-    })
-
-    fireEvent.contextMenu(chip, { clientX: 12, clientY: 18 })
-    fireEvent.mouseEnter(await screen.findByRole('menuitem', { name: 'Open with' }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Default app' }))
-
-    await waitFor(() => {
-      expect(shellOpenLocalPath).toHaveBeenCalledWith('F:/workspace/src/App.tsx')
-    })
-  })
-
-  it('uses the current File Explorer opener as the primary context menu action', async () => {
-    settingsGet.mockResolvedValue({ locale: 'en', lastOpenEditorId: 'explorer' })
+    settingsGet.mockResolvedValue({ locale: 'en', openTargetPreferences: { global: 'fileManager' } })
 
     renderWithLocale(
       <UserMessageBlock
@@ -425,10 +409,47 @@ describe('UserMessageBlock trigger source pills', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Open in File Explorer' }))
 
     await waitFor(() => {
-      expect(shellRevealLocalPath).toHaveBeenCalledWith('F:/workspace/src/App.tsx')
-      expect(shellOpenLocalPath).not.toHaveBeenCalled()
-      expect(settingsSet).toHaveBeenCalledWith({ lastOpenEditorId: 'explorer' })
+      expect(shellOpenInTarget).toHaveBeenCalledWith({ targetId: 'fileManager', path: 'F:/workspace/src/App.tsx' })
     })
+
+    fireEvent.contextMenu(chip, { clientX: 12, clientY: 18 })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Open in Explorer' }))
+
+    await waitFor(() => {
+      expect(shellRevealLocalPath).toHaveBeenCalledWith('F:/workspace/src/App.tsx')
+    })
+
+    fireEvent.contextMenu(chip, { clientX: 12, clientY: 18 })
+    fireEvent.mouseEnter(await screen.findByRole('menuitem', { name: 'Open with' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Default app' }))
+
+    await waitFor(() => {
+      expect(shellOpenInTarget).toHaveBeenCalledWith({ targetId: 'systemDefault', path: 'F:/workspace/src/App.tsx' })
+    })
+    expect(settingsSet).not.toHaveBeenCalled()
+  })
+
+  it('opens a file chip in another app without changing the default open target', async () => {
+    settingsGet.mockResolvedValue({ locale: 'en', openTargetPreferences: { global: 'fileManager' } })
+
+    renderWithLocale(
+      <UserMessageBlock
+        text=""
+        nativeInputParts={[
+          { type: 'fileRef', path: 'src/App.tsx', displayPath: 'src/App.tsx' }
+        ]}
+      />
+    )
+
+    const chip = screen.getByRole('button', { name: 'Open App.tsx in DotCraft viewer' })
+    fireEvent.contextMenu(chip, { clientX: 12, clientY: 18 })
+    fireEvent.mouseEnter(await screen.findByRole('menuitem', { name: 'Open with' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Cursor' }))
+
+    await waitFor(() => {
+      expect(shellOpenInTarget).toHaveBeenCalledWith({ targetId: 'cursor', path: 'F:/workspace/src/App.tsx' })
+    })
+    expect(settingsSet).not.toHaveBeenCalled()
   })
 
   it('previews successfully hydrated message images in the lightbox', async () => {

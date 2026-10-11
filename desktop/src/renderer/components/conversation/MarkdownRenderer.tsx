@@ -12,6 +12,8 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { openConversationLink } from '../../utils/conversationDeepLink'
 import { basename } from '../../utils/path'
+import { referenceLocation } from '../../utils/referencePaths'
+import type { OpenTargetLocation } from '../../../shared/openTargets'
 import { isBareFileLocationLinkTarget, resolveConversationLink } from '../../../shared/viewer/linkResolver'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ReferencePathContextMenu } from './ReferencePathContextMenu'
@@ -383,7 +385,7 @@ function InlineReferenceLink({
   linkMode: 'conversation' | 'external'
   t: (key: string) => string
 }): JSX.Element {
-  const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string; location: OpenTargetLocation | null } | null>(null)
   const presentation = useMemo(
     () => getInlineReferencePresentation(href, workspacePath, extractText(children)),
     [children, href, workspacePath]
@@ -421,7 +423,8 @@ function InlineReferenceLink({
     event.stopPropagation()
     setContextMenu({
       position: { x: event.clientX, y: event.clientY },
-      targetPath: presentation.absolutePath
+      targetPath: presentation.absolutePath,
+      location: presentation.location ?? null
     })
   }
 
@@ -463,6 +466,7 @@ function InlineReferenceLink({
         <ReferencePathContextMenu
           position={contextMenu.position}
           targetPath={contextMenu.targetPath}
+          location={contextMenu.location}
           onClose={() => setContextMenu(null)}
         />
       )}
@@ -514,7 +518,7 @@ function getInlineReferencePresentation(
   href: string | undefined,
   workspacePath: string,
   childrenText: string
-): { kind: InlineReferenceKind; label: string; title: string; absolutePath?: string } {
+): { kind: InlineReferenceKind; label: string; title: string; absolutePath?: string; location?: OpenTargetLocation | null } {
   const rawHref = href?.trim() ?? ''
   const childLabel = childrenText.trim()
   const hasCustomLabel = childLabel.length > 0 && childLabel !== rawHref
@@ -527,7 +531,9 @@ function getInlineReferencePresentation(
       kind: 'file',
       label: hasCustomLabel ? childLabel : basename(resolution.absolutePath),
       title: rawHref || resolution.absolutePath,
-      ...(isAbsoluteLocalPath(resolution.absolutePath) ? { absolutePath: resolution.absolutePath } : {})
+      ...(isAbsoluteLocalPath(resolution.absolutePath)
+        ? { absolutePath: resolution.absolutePath, location: referenceLocation(resolution.hint) }
+        : {})
     }
   }
 

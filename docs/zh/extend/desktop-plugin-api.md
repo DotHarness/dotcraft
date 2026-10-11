@@ -343,6 +343,7 @@ function ReviewIcon({ size = 16, ...rest }: DesktopPluginIconProps) {
 | `appearance` | 由 generation 持有的 theme seed 与 backdrop presentation contribution。 |
 | `session` | 前台 workspace、当前 thread、mode 与忙碌状态，以及变更订阅。 |
 | `subagents` | 某个 thread 启动的 SubAgent、它们的状态与完成事件。 |
+| `projectActions` | 读取、添加并运行本地项目声明的操作。 |
 | `navigation` | 打开插件 view、Settings 页、thread、文件、Detail Panel 标签页与自动化任务，并接管自定义 scheme 的链接。 |
 | `ui` | 除三个 surface 操作外，还提供 toast、确认、颜色选择与文件夹选择等 Host-owned 对话框。 |
 | `appServer` | 受支持的 JSON-RPC request 与 subscription。 |
@@ -548,6 +549,41 @@ host.subagents.onChange(threadId, render);
 | `openDetailPanel(tab)` | 当前 thread 的 Detail Panel，并切到 `changes`、`plan` 或 `subagents`。 |
 | `openAutomation(automationId)` | Automations 视图中的该自动化任务。 |
 | `openExternal(url)` | 在用户默认浏览器中打开 http(s) URL，或在 Desktop 内处理 `dotcraft:` 链接。其他 scheme 会被拒绝。 |
+| `openPath(path, options?)` | 用其他已安装的应用打开本地文件或文件夹。见[用其他应用打开路径](#用其他应用打开路径)。 |
+
+### 用其他应用打开路径
+
+`listOpenTargets()` 返回用户可以用来打开本地路径的应用，例如 VS Code、文件资源管理器，或 `Desktop.CustomFileHandlers` 中的自定义应用，每项为 `{ id, label, icon? }`。`icon` 是图片 data URL。
+
+`openPath(path, { target?, line?, column? })` 用 `id` 等于 `target` 的应用打开该路径。不传 `target` 时，使用用户为当前项目选定的应用。`line` 和 `column` 让支持定位的编辑器跳到对应位置。相对路径基于当前 thread 的 workspace 解析。在远程 workspace 中两个方法都会拒绝，目标应用不可用时 `openPath` 也会拒绝。
+
+```ts
+const targets = await host.navigation.listOpenTargets();
+const vscode = targets.find((target) => target.id === "vscode");
+await host.navigation.openPath("src/app.ts", { target: vscode?.id, line: 42 });
+```
+
+### 运行项目操作
+
+`host.projectActions` 读取并运行本地项目在 `.craft/environments/*.json` 中声明的操作，与摘要里环境信息一栏显示的相同。在远程 workspace 中这些方法都会拒绝，`onChange` 也不会触发。
+
+`list(workspacePath)` 返回 `{ environments, selectedEnvironmentId }`。每个环境包含 `id`、`name`、文件路径 `path`、`isDefault`，以及适用于当前平台的 `actions`，每项为 `{ id, name, icon, command }`，最近运行过的排在前面。`icon` 为 `tool`、`run`、`debug` 或 `test`。无法使用的环境带有说明原因的 `error`，并且没有操作。环境文件、选中的环境或运行顺序变化时，`onChange(workspacePath, listener)` 会发送同样的结果。
+
+| 方法 | 效果 |
+|---|---|
+| `select(workspacePath, environmentId)` | 把该环境设为这个项目选中的环境。 |
+| `run({ threadId, environmentId, actionId })` | 打开或聚焦该 thread 中这个操作的终端标签页（以操作名命名），并重启它来运行命令。 |
+| `openTerminal({ threadId })` | 在 workspace 根目录打开一个终端标签页。 |
+| `promptAddAction({ workspacePath, environmentId? })` | 为该环境（未指定时为选中的环境）打开 Desktop 的添加操作对话框。还没有任何环境时会创建 `.craft/environments/environment.json`。解析为 `{ environmentId, action }`，用户取消或该操作属于其他平台时为 `null`。 |
+
+```ts
+const { environments, selectedEnvironmentId } = await host.projectActions.list(workspacePath);
+const selected = environments.find((environment) => environment.id === selectedEnvironmentId);
+const primary = selected?.actions[0];
+if (selected && primary) {
+  await host.projectActions.run({ threadId, environmentId: selected.id, actionId: primary.id });
+}
+```
 
 ### 新建对话并预填消息
 
@@ -668,7 +704,7 @@ function RowActions({ onOpen, onRemove }: { onOpen: () => void; onRemove: () => 
 }
 ```
 
-菜单项还支持 `icon` 与 `disabled`。
+菜单项还支持 `icon` 与 `disabled`。一组互斥选项中的每一项都可以设置 `checked`，标出当前选中的那一项。
 
 ### 请求颜色
 

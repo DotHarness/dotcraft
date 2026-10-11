@@ -421,7 +421,7 @@ describe('ConversationWelcome composer', () => {
           openExternal: shellOpenExternal,
           openAppHandoff: shellOpenAppHandoff,
           getProtocolHandlerName: shellGetProtocolHandlerName,
-          listEditors: async () => []
+          listOpenTargets: async () => []
         },
         voice: undefined
       })

@@ -3,24 +3,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReferencePathContextMenu } from '../components/conversation/ReferencePathContextMenu'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useComposerFileReferenceStore } from '../stores/composerFileReferenceStore'
+import { useOpenTargetsStore } from '../stores/openTargetsStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
-const listEditors = vi.fn()
+const listOpenTargets = vi.fn()
 
 describe('ReferencePathContextMenu', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en' })
     settingsSet.mockResolvedValue(undefined)
-    listEditors.mockResolvedValue([
-      {
-        id: 'explorer',
-        labelKey: 'editors.explorer',
-        iconKey: 'explorer'
-      }
+    listOpenTargets.mockResolvedValue([
+      { id: 'fileManager', label: 'File Explorer', labelKey: 'openTargets.fileManager', iconKey: 'fileManager' }
     ])
+    useOpenTargetsStore.setState({ status: 'idle', targets: [], preferences: undefined })
     useComposerFileReferenceStore.setState({ pendingByScope: new Map() })
     installDesktopApiMock({
       settings: {
@@ -28,10 +26,9 @@ describe('ReferencePathContextMenu', () => {
         set: settingsSet
       },
       shell: {
-        listEditors,
+        listOpenTargets,
         revealLocalPath: vi.fn(),
-        launchLocalPathInEditor: vi.fn(),
-        openLocalPath: vi.fn()
+        openInTarget: vi.fn()
       }
     })
   })

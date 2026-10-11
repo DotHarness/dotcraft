@@ -22,6 +22,13 @@ export interface SummaryStrings {
   readonly progressCount: string
   readonly viewAll: string
   readonly showLess: string
+  readonly environment: string
+  readonly runAction: string
+  readonly actions: string
+  readonly addAction: string
+  readonly changeEnvironment: string
+  readonly openTerminal: string
+  readonly setUpEnvironment: string
 }
 
 const CATALOG: Record<SummaryLocale, SummaryStrings> = {
@@ -44,7 +51,14 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     progress: 'Progress',
     progressCount: '{done} of {total} done',
     viewAll: 'View all',
-    showLess: 'Show less'
+    showLess: 'Show less',
+    environment: 'Environment',
+    runAction: 'Run: {action}',
+    actions: 'Actions',
+    addAction: 'Add action',
+    changeEnvironment: 'Change environment',
+    openTerminal: 'Open terminal',
+    setUpEnvironment: 'Set up local environment'
   },
   'zh-Hans': {
     panelLabel: '摘要',
@@ -65,7 +79,14 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     progress: '进度',
     progressCount: '已完成 {done}/{total}',
     viewAll: '查看全部',
-    showLess: '收起'
+    showLess: '收起',
+    environment: '环境信息',
+    runAction: '运行：{action}',
+    actions: '操作',
+    addAction: '添加操作',
+    changeEnvironment: '更换环境',
+    openTerminal: '打开终端',
+    setUpEnvironment: '设置本地环境'
   },
   ja: {
     panelLabel: 'サマリー',
@@ -86,7 +107,14 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     progress: '進捗',
     progressCount: '{total} 件中 {done} 件完了',
     viewAll: 'すべて表示',
-    showLess: '表示を減らす'
+    showLess: '表示を減らす',
+    environment: '環境',
+    runAction: '実行: {action}',
+    actions: 'アクション',
+    addAction: 'アクションを追加',
+    changeEnvironment: '環境を変更',
+    openTerminal: 'ターミナルを開く',
+    setUpEnvironment: 'ローカル環境をセットアップ'
   },
   ko: {
     panelLabel: '요약',
@@ -107,7 +135,14 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     progress: '진행 상황',
     progressCount: '{total}개 중 {done}개 완료',
     viewAll: '모두 보기',
-    showLess: '간단히 보기'
+    showLess: '간단히 보기',
+    environment: '환경',
+    runAction: '실행: {action}',
+    actions: '작업',
+    addAction: '작업 추가',
+    changeEnvironment: '환경 변경',
+    openTerminal: '터미널 열기',
+    setUpEnvironment: '로컬 환경 설정'
   },
   es: {
     panelLabel: 'Resumen',
@@ -128,7 +163,14 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     progress: 'Progreso',
     progressCount: '{done} de {total} completadas',
     viewAll: 'Ver todo',
-    showLess: 'Mostrar menos'
+    showLess: 'Mostrar menos',
+    environment: 'Entorno',
+    runAction: 'Ejecutar: {action}',
+    actions: 'Acciones',
+    addAction: 'Añadir acción',
+    changeEnvironment: 'Cambiar de entorno',
+    openTerminal: 'Abrir terminal',
+    setUpEnvironment: 'Configurar entorno local'
   },
   fr: {
     panelLabel: 'Résumé',
@@ -149,7 +191,14 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     progress: 'Progression',
     progressCount: '{done} sur {total} terminées',
     viewAll: 'Tout afficher',
-    showLess: 'Afficher moins'
+    showLess: 'Afficher moins',
+    environment: 'Environnement',
+    runAction: 'Exécuter : {action}',
+    actions: 'Actions',
+    addAction: 'Ajouter une action',
+    changeEnvironment: 'Changer d’environnement',
+    openTerminal: 'Ouvrir un terminal',
+    setUpEnvironment: 'Configurer l’environnement local'
   },
   de: {
     panelLabel: 'Übersicht',
@@ -170,7 +219,14 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     progress: 'Fortschritt',
     progressCount: '{done} von {total} erledigt',
     viewAll: 'Alle anzeigen',
-    showLess: 'Weniger anzeigen'
+    showLess: 'Weniger anzeigen',
+    environment: 'Umgebung',
+    runAction: 'Ausführen: {action}',
+    actions: 'Aktionen',
+    addAction: 'Aktion hinzufügen',
+    changeEnvironment: 'Umgebung wechseln',
+    openTerminal: 'Terminal öffnen',
+    setUpEnvironment: 'Lokale Umgebung einrichten'
   }
 }
 

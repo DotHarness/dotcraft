@@ -16,7 +16,8 @@ function toContextMenuEntry(entry: MenuEntry): ContextMenuEntry {
     onClick: entry.onSelect,
     icon: entry.icon,
     disabled: entry.disabled,
-    danger: entry.danger
+    danger: entry.danger,
+    ...(entry.checked === undefined ? {} : { selection: 'radio' as const, checked: entry.checked })
   }
 }
 

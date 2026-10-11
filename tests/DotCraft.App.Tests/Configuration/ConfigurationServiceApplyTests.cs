@@ -92,6 +92,7 @@ public sealed class ConfigurationServiceApplyTests
     {
         string[] useTimeFields =
         [
+            "Desktop.CustomFileHandlers",
             "InstantInterruptEnabled",
             "ProjectDocMaxBytes",
             "Permissions.DefaultApprovalPolicy",

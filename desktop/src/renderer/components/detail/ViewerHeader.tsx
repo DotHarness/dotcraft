@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import { ChevronRight, Folder, FolderOpen } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
+import { useConversationStore } from '../../stores/conversationStore'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
 import { OpenTargetButton } from '../conversation/OpenTargetButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -51,6 +52,7 @@ export function ViewerHeader({
   const t = useT()
   const explorerVisible = useUIStore((s) => s.explorerVisible)
   const toggleExplorer = useUIStore((s) => s.toggleExplorer)
+  const projectRoot = useConversationStore((s) => s.workspacePath)
   const crumbsRef = useRef<HTMLElement>(null)
   const [openCrumb, setOpenCrumb] = useState<{ index: number; anchor: HTMLButtonElement } | null>(null)
 
@@ -129,6 +131,8 @@ export function ViewerHeader({
 
         <OpenTargetButton
           targetPath={absolutePath}
+          projectRoot={projectRoot}
+          rememberChoice
           tooltipLabel={t('detailPanel.openFileTitle', { path: relativePath })}
           menuAriaLabel={t('detailPanel.openFileMenuAria')}
           showPrimaryLabel

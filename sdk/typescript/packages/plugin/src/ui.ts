@@ -200,6 +200,8 @@ export interface MenuItem {
   readonly label: string;
   readonly onSelect: () => void;
   readonly icon?: ReactNode;
+  /** Marks the item as one choice of a set, checked or not. */
+  readonly checked?: boolean;
   readonly disabled?: boolean;
   readonly danger?: boolean;
 }

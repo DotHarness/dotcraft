@@ -35,6 +35,22 @@ public sealed class ConfigurationServiceWriteTests
     }
 
     [Fact]
+    public async Task Write_DesktopCustomFileHandler_AddsOneHandlerToTheUserLayer()
+    {
+        using var fixture = new ConfigurationServiceFixture(user: "{ \"Desktop\": { \"CustomFileHandlers\": { \"lens\": { \"Label\": \"Lens\", \"Command\": \"lens\" } } } }");
+
+        var result = await fixture.WriteAsync(
+            "Desktop.CustomFileHandlers.review",
+            "{ \"Label\": \"Review\", \"Command\": \"review\", \"Args\": [\"--open\"], \"Input\": \"jsonStdin\" }",
+            filePath: fixture.UserPath);
+
+        Assert.Equal(ConfigWriteStatus.Ok, result.Status);
+        var handlers = ConfigurationServiceFixture.ReadFile(fixture.UserPath)["Desktop"]!["CustomFileHandlers"]!.AsObject();
+        Assert.Equal(["lens", "review"], handlers.Select(entry => entry.Key));
+        Assert.Equal("jsonStdin", handlers["review"]!["Input"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task Write_KeepsNonAsciiTextReadableInTheFile()
     {
         using var fixture = new ConfigurationServiceFixture(workspace: ExistingWorkspace);
@@ -59,6 +75,7 @@ public sealed class ConfigurationServiceWriteTests
     [InlineData("Hub.Port", "\"high\"", null, null, ConfigWriteErrorCode.ConfigValidationError)]
     [InlineData("Hub.Port", "70000", null, null, ConfigWriteErrorCode.ConfigValidationError)]
     [InlineData("ProviderPreferences.custom", "\"not-an-object\"", null, null, ConfigWriteErrorCode.ConfigValidationError)]
+    [InlineData("Desktop.CustomFileHandlers.review", "{ \"Label\": \"Review\", \"Command\": \"review\", \"Input\": \"socket\" }", null, null, ConfigWriteErrorCode.ConfigValidationError)]
     public async Task Write_Rejected_LeavesFileByteIdentical(
         string keyPath,
         string valueJson,

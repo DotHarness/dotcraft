@@ -45,3 +45,12 @@ export function resolveShellCommand(
   if (shell) return { shell, args: ['-NoLogo'] }
   return { shell: env('COMSPEC')?.trim() || 'cmd.exe', args: [] }
 }
+
+export function composeShellCommandLine(shell: string, cwd: string, command: string): string {
+  const name = shell.split(/[\\/]/).pop()?.toLowerCase().replace(/\.exe$/, '') ?? ''
+  if (name === 'pwsh' || name === 'powershell') {
+    return `Set-Location -LiteralPath '${cwd.replace(/'/g, "''")}'; if ($?) { ${command} }`
+  }
+  if (name === 'cmd') return `cd /d "${cwd}" && ${command}`
+  return `cd "${cwd.replace(/(["\\$`])/g, '\\$1')}" && ${command}`
+}

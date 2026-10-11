@@ -12,6 +12,7 @@ import { DesktopPluginSurface } from './components/desktopPlugins/DesktopPluginS
 import { HighlightProvider } from './highlight/react/HighlightProvider'
 import { CdpDebugIndicator } from './components/layout/CdpDebugIndicator'
 import { ColorPickerDialogHost } from './components/ui/ColorPickerDialog'
+import { AddProjectActionDialogHost } from './components/projectActions/AddProjectActionDialog'
 import { SelectMenuHost } from './components/ui/SelectMenu'
 import './styles/index.css'
 import { observeDesktopPetOwnership } from './components/desktopPet/desktopPetOwnership'
@@ -74,6 +75,7 @@ createRoot(rootElement).render(
           <CdpDebugIndicator enabled={window.api?.initialCdpDebuggingEnabled ?? false} />
         </div>
         <ColorPickerDialogHost />
+        <AddProjectActionDialogHost />
         <SelectMenuHost />
         </>}
       </HighlightProvider>

@@ -1,13 +1,23 @@
-import { resolveConversationLink } from '../../shared/viewer/linkResolver'
+import type { OpenTargetLocation } from '../../shared/openTargets'
+import { resolveConversationLink, type LinkNavigationHint } from '../../shared/viewer/linkResolver'
 import { useSkillsStore, type SkillEntry } from '../stores/skillsStore'
 
-export function resolveLocalReferencePath(target: string, workspacePath: string): string | null {
+export interface LocalReference {
+  path: string
+  location: OpenTargetLocation | null
+}
+
+export function referenceLocation(hint: LinkNavigationHint | undefined): OpenTargetLocation | null {
+  return hint?.line ? { line: hint.line, column: hint.column ?? 1 } : null
+}
+
+export function resolveLocalReference(target: string, workspacePath: string): LocalReference | null {
   const resolution = resolveConversationLink({
     target,
     workspacePath
   })
-  if (resolution.kind !== 'file') return null
-  return isAbsoluteLocalPath(resolution.absolutePath) ? resolution.absolutePath : null
+  if (resolution.kind !== 'file' || !isAbsoluteLocalPath(resolution.absolutePath)) return null
+  return { path: resolution.absolutePath, location: referenceLocation(resolution.hint) }
 }
 
 export async function resolveSkillReferencePath(skillName: string): Promise<string | null> {

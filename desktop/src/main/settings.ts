@@ -20,6 +20,9 @@ import {
 } from '../shared/appearance'
 import { normalizeThemeSeeds, type ThemeSeedOverrides, type ThemeVariant } from '../shared/themeSeed'
 import { normalizePetSetting, type PetSettings } from '../shared/pet'
+import { normalizeOpenTargetPreferences, type OpenTargetPreferences } from '../shared/openTargets'
+import type { ProjectActionPreferences } from '../shared/projectActions'
+import { normalizeProjectActionPreferences } from './projectActions/preferences'
 import {
   normalizeManualThreadOrder,
   normalizeProjectKeyList,
@@ -48,17 +51,6 @@ export interface LocalProjectDetails {
 
 export type UiTheme = 'system' | 'dark' | 'light'
 export type LastForegroundEntry = 'workspace' | 'chats' | 'welcome'
-export type LastOpenEditorId =
-  | 'explorer'
-  | 'vs'
-  | 'cursor'
-  | 'vscode'
-  | 'rider'
-  | 'webstorm'
-  | 'idea'
-  | 'github-desktop'
-  | 'git-bash'
-  | 'terminal'
 
 export interface WebSocketConnectionSettings {
   host?: string
@@ -160,7 +152,8 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   showInMenuBar?: boolean
   lastSeenWhatsNewVersion?: string
   localProjectDetails?: Record<string, LocalProjectDetails>
-  lastOpenEditorId?: LastOpenEditorId
+  openTargetPreferences?: OpenTargetPreferences
+  projectActionPreferences?: Record<string, ProjectActionPreferences>
   browserUse?: BrowserUseSettings
   computerUse?: ComputerUseSettings
   notifications?: NotificationSettings
@@ -195,25 +188,6 @@ function normalizeModulesDirectory(settings: AppSettings): string | undefined {
   const raw = settings.modulesDirectory?.trim()
   if (!raw) return undefined
   return normalize(raw)
-}
-
-function normalizeLastOpenEditorId(settings: AppSettings): LastOpenEditorId | undefined {
-  const value = settings.lastOpenEditorId
-  if (
-    value === 'explorer' ||
-    value === 'vs' ||
-    value === 'cursor' ||
-    value === 'vscode' ||
-    value === 'rider' ||
-    value === 'webstorm' ||
-    value === 'idea' ||
-    value === 'github-desktop' ||
-    value === 'git-bash' ||
-    value === 'terminal'
-  ) {
-    return value
-  }
-  return undefined
 }
 
 function normalizeBrowserUseApprovalMode(value: unknown): BrowserUseApprovalMode {
@@ -622,7 +596,8 @@ export function loadSettings(): AppSettings {
       raw.binarySource = normalizeBinarySource(raw)
       raw.connectionMode = normalizeConnectionMode(raw)
       raw.modulesDirectory = normalizeModulesDirectory(raw)
-      raw.lastOpenEditorId = normalizeLastOpenEditorId(raw)
+      raw.openTargetPreferences = normalizeOpenTargetPreferences(raw.openTargetPreferences)
+      raw.projectActionPreferences = normalizeProjectActionPreferences(raw.projectActionPreferences)
       raw.browserUse = normalizeBrowserUseSettings(raw)
       raw.computerUse = normalizeComputerUseSettings(raw)
       raw.notifications = normalizeNotificationSettings(raw)
@@ -681,7 +656,8 @@ export function saveSettings(settings: AppSettings): void {
     settings.lastForegroundEntry = normalizeLastForegroundEntry(settings)
     settings.connectionMode = normalizeConnectionMode(settings)
     settings.modulesDirectory = normalizeModulesDirectory(settings)
-    settings.lastOpenEditorId = normalizeLastOpenEditorId(settings)
+    settings.openTargetPreferences = normalizeOpenTargetPreferences(settings.openTargetPreferences)
+    settings.projectActionPreferences = normalizeProjectActionPreferences(settings.projectActionPreferences)
     settings.browserUse = normalizeBrowserUseSettings(settings)
     settings.computerUse = normalizeComputerUseSettings(settings)
     settings.notifications = normalizeNotificationSettings(settings)

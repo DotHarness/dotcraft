@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { DesktopPluginThreadSurfaceContext } from '@dotcraft/plugin'
-import { Archive, ArrowRightLeft, FolderOpen, GitFork, Laptop, MessageSquareOff, Pencil, Pin } from 'lucide-react'
+import { Archive, ArrowRightLeft, GitFork, Laptop, MessageSquareOff, Pencil, Pin } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { writtenFileSummaries } from '../../stores/turnDiffs'
@@ -25,14 +25,7 @@ import { Input } from '../ui/Input'
 import { isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
 import { archiveThreadWithUndo } from '../../utils/threadArchive'
-import {
-  EDITOR_ICON_SIZE,
-  listEditorsCached,
-  placeExplorerFirst,
-  renderEditorIcon,
-  type EditorId,
-  type EditorInfo
-} from '../../utils/editorTargets'
+import { buildOpenInSubmenu, useOpenTargets } from '../../utils/openTargets'
 
 interface ThreadHeaderProps {
   threadName: string
@@ -57,8 +50,6 @@ export function ThreadHeader({
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(threadName)
   const renameInputRef = useRef<HTMLInputElement>(null)
-  const [editors, setEditors] = useState<EditorInfo[]>([])
-  const [lastOpenEditorId, setLastOpenEditorId] = useState<EditorId | undefined>(undefined)
   const hasWrittenFiles = useConversationStore((s) => writtenFileSummaries(s.turnDiffs).length > 0)
   const activeThread = useThreadStore((s) => s.activeThread)
   const pinnedThreadIds = useThreadStore((s) => s.pinnedThreadIds)
@@ -109,15 +100,7 @@ export function ThreadHeader({
   const worktreeBranch = activeThread?.worktree?.branchName?.trim()
   const channelBindings = useThreadChannelBindings(threadId)
 
-  useEffect(() => {
-    if (remoteWorkspace) return
-    window.api.settings.get()
-      .then((settings) => setLastOpenEditorId(settings.lastOpenEditorId))
-      .catch(() => {})
-    void listEditorsCached()
-      .then((entries) => setEditors(placeExplorerFirst(entries)))
-      .catch(() => {})
-  }, [remoteWorkspace])
+  const openTargets = useOpenTargets(workspacePath, !remoteWorkspace)
 
   useEffect(() => {
     if (!renaming) setRenameValue(threadName)
@@ -164,16 +147,6 @@ export function ThreadHeader({
   async function archiveThread(): Promise<void> {
     setMenuPosition(null)
     await archiveThreadWithUndo({ threadId, t })
-  }
-
-  async function openWorkspaceIn(id: EditorId): Promise<void> {
-    setLastOpenEditorId(id)
-    void window.api.settings.set({ lastOpenEditorId: id }).catch(() => {})
-    try {
-      await window.api.shell.launchLocalPathInEditor(id, workspacePath)
-    } catch {
-      addToast(t('conversation.reference.openFailed'), 'warning')
-    }
   }
 
   async function stopChannelBinding(bindingId: string, channel: string): Promise<void> {
@@ -332,25 +305,14 @@ export function ThreadHeader({
       : !hasWrittenFiles
         ? t('threadHeader.noCommitTitle')
         : undefined
-  const resolvedEditorId = editors.some((entry) => entry.id === lastOpenEditorId) ? lastOpenEditorId : 'explorer'
-
   const menuItems: ContextMenuEntry[] = [
-    ...(!remoteWorkspace && editors.length > 0
-      ? [{
-          label: t('threadHeader.open'),
-          icon: <FolderOpen size={14} aria-hidden />,
-          onClick: () => {},
-          submenu: editors.map((entry) => ({
-            label: t(entry.labelKey),
-            icon: renderEditorIcon(entry, EDITOR_ICON_SIZE),
-            selection: 'radio' as const,
-            checked: entry.id === resolvedEditorId,
-            onClick: () => {
-              setMenuPosition(null)
-              void openWorkspaceIn(entry.id)
-            }
-          }))
-        }]
+    ...(!remoteWorkspace && workspacePath
+      ? [buildOpenInSubmenu({
+          view: openTargets,
+          projectRoot: workspacePath,
+          t,
+          onPicked: () => setMenuPosition(null)
+        })]
       : []),
     {
       label: isPerforceWorkspace ? t('threadHeader.prepareChangelist') : t('threadHeader.commit'),
@@ -543,6 +505,7 @@ export function ThreadHeader({
           open={menuPosition != null}
           onClick={(event) => {
             const rect = event.currentTarget.getBoundingClientRect()
+            if (!remoteWorkspace) void openTargets.refresh()
             setMenuPosition({ x: rect.right - 200, y: rect.bottom + 4 })
           }}
         />

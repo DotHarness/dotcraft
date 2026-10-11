@@ -1,11 +1,12 @@
 import type { AppSettings } from './settings'
 import { normalizeLocale } from '../shared/locales'
+import { mergeOpenTargetPreferences } from '../shared/openTargets'
 
 export function mergeUpdatedSettings(current: AppSettings, partial: Partial<AppSettings>): Partial<AppSettings> {
   const next: Partial<AppSettings> = { ...partial }
 
-  if (partial.lastOpenEditorId !== undefined) {
-    next.lastOpenEditorId = partial.lastOpenEditorId
+  if (partial.openTargetPreferences !== undefined) {
+    next.openTargetPreferences = mergeOpenTargetPreferences(current.openTargetPreferences, partial.openTargetPreferences)
   }
 
   if (partial.locale !== undefined) {
@@ -65,6 +66,13 @@ export function mergeUpdatedSettings(current: AppSettings, partial: Partial<AppS
     next.threadOrderByProject = {
       ...(current.threadOrderByProject ?? {}),
       ...partial.threadOrderByProject
+    }
+  }
+
+  if (partial.projectActionPreferences !== undefined) {
+    next.projectActionPreferences = {
+      ...(current.projectActionPreferences ?? {}),
+      ...partial.projectActionPreferences
     }
   }
 

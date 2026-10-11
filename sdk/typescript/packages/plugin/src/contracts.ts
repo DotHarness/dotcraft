@@ -188,6 +188,19 @@ export interface DesktopPluginEvents {
 
 export type DesktopPluginDetailPanelTab = "changes" | "plan" | "subagents";
 
+export interface DesktopPluginOpenTarget {
+  id: string;
+  label: string;
+  /** Image data URL of the app's icon, when one is available. */
+  icon?: string;
+}
+
+export interface DesktopPluginOpenPathOptions {
+  target?: string;
+  line?: number;
+  column?: number;
+}
+
 export interface DesktopPluginNavigation {
   openMainView(contributionId: string): void;
   openSettingsPage(contributionId: string): void;
@@ -196,6 +209,9 @@ export interface DesktopPluginNavigation {
   openExternal(url: string): Promise<void>;
   /** Opens a workspace file in the Detail Panel file viewer; a relative path resolves against the current thread's workspace. */
   openFile(path: string): Promise<void>;
+  /** Opens a local path in another app; rejects on a remote workspace or when the target is unavailable. */
+  openPath(path: string, options?: DesktopPluginOpenPathOptions): Promise<void>;
+  listOpenTargets(): Promise<DesktopPluginOpenTarget[]>;
   openDetailPanel(tab: DesktopPluginDetailPanelTab): void;
   openAutomation(automationId: string): void;
   onOpenUrl(listener: (url: string) => boolean): DesktopPluginDispose;
@@ -220,6 +236,53 @@ export interface DesktopPluginSubAgents {
     listener: (subagents: readonly DesktopPluginSubAgent[]) => void,
   ): DesktopPluginDispose;
   reveal(parentThreadId: string, childThreadId: string): void;
+}
+
+export type DesktopPluginProjectActionIcon = "tool" | "run" | "debug" | "test";
+
+export interface DesktopPluginProjectAction {
+  readonly id: string;
+  readonly name: string;
+  readonly icon: DesktopPluginProjectActionIcon;
+  readonly command: string;
+}
+
+export interface DesktopPluginProjectEnvironment {
+  readonly id: string;
+  readonly name: string;
+  readonly path: string;
+  readonly isDefault: boolean;
+  /** Why the environment needs attention; it then has no actions. */
+  readonly error?: string;
+  /** Actions for this platform, most recently run first. */
+  readonly actions: readonly DesktopPluginProjectAction[];
+}
+
+export interface DesktopPluginProjectActionsSnapshot {
+  readonly environments: readonly DesktopPluginProjectEnvironment[];
+  readonly selectedEnvironmentId: string | null;
+}
+
+export interface DesktopPluginSavedProjectAction {
+  readonly environmentId: string;
+  readonly action: DesktopPluginProjectAction;
+}
+
+export interface DesktopPluginProjectActions {
+  /** Rejects in a remote workspace. */
+  list(workspacePath: string): Promise<DesktopPluginProjectActionsSnapshot>;
+  onChange(
+    workspacePath: string,
+    listener: (snapshot: DesktopPluginProjectActionsSnapshot) => void,
+  ): DesktopPluginDispose;
+  select(workspacePath: string, environmentId: string): Promise<void>;
+  run(request: { threadId: string; environmentId: string; actionId: string }): Promise<void>;
+  openTerminal(request: { threadId: string }): Promise<void>;
+  /** Resolves to `null` when the user cancels or the saved action does not run on this platform. */
+  promptAddAction(request: {
+    workspacePath: string;
+    environmentId?: string;
+  }): Promise<DesktopPluginSavedProjectAction | null>;
 }
 
 export interface DesktopPluginToastOptions {
@@ -457,6 +520,7 @@ export interface DesktopPluginHost {
   readonly appearance: DesktopPluginAppearance;
   readonly session: DesktopPluginSession;
   readonly subagents: DesktopPluginSubAgents;
+  readonly projectActions: DesktopPluginProjectActions;
   effect(setup: DesktopPluginEffectSetup): DesktopPluginDispose;
   readonly services: DesktopPluginServices;
   readonly events: DesktopPluginEvents;

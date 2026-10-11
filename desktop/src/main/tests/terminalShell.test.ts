@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveShellCommand } from '../terminalShell'
+import { composeShellCommandLine, resolveShellCommand } from '../terminalShell'
 
 const pwsh = 'D:\\Portable Shell\\pwsh.exe'
 const installedPwsh = 'D:\\Program Files\\PowerShell\\7\\pwsh.exe'
@@ -40,5 +40,18 @@ describe('Windows terminal shell discovery', () => {
       .toEqual({ shell: '/bin/zsh', args: [] })
     expect(resolveShellCommand({ platform: 'darwin', env: {}, fileExists: () => false }))
       .toEqual({ shell: '/bin/bash', args: [] })
+  })
+})
+
+describe('shell command lines', () => {
+  it('enters the command in each shell syntax after changing into the folder', () => {
+    expect(composeShellCommandLine('C:\\Program Files\\PowerShell\\7\\pwsh.exe', "C:\\it's here", 'npm test'))
+      .toBe("Set-Location -LiteralPath 'C:\\it''s here'; if ($?) { npm test }")
+    expect(composeShellCommandLine('powershell.exe', 'C:\\repo', 'dotnet build'))
+      .toBe("Set-Location -LiteralPath 'C:\\repo'; if ($?) { dotnet build }")
+    expect(composeShellCommandLine('C:\\Windows\\System32\\cmd.exe', 'D:\\my repo', 'make'))
+      .toBe('cd /d "D:\\my repo" && make')
+    expect(composeShellCommandLine('/bin/zsh', '/home/me/"q"/$x', 'npm start'))
+      .toBe('cd "/home/me/\\"q\\"/\\$x" && npm start')
   })
 })

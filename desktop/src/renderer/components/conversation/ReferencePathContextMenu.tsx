@@ -1,21 +1,22 @@
-import { useEffect, useMemo, useState } from 'react'
+import { SYSTEM_DEFAULT_TARGET_ID, type OpenTargetLocation } from '../../../shared/openTargets'
 import { Copy, ExternalLink, FolderOpen, MessageSquarePlus } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
 import { useComposerFileReferenceStore } from '../../stores/composerFileReferenceStore'
+import { useConversationStore } from '../../stores/conversationStore'
 import {
-  EDITOR_ICON_SIZE,
-  listEditorsCached,
-  placeExplorerFirst,
-  renderEditorIcon,
-  type EditorId,
-  type EditorInfo
-} from '../../utils/editorTargets'
+  openPathInTarget,
+  openTargetLabel,
+  openTargetStatusLabel,
+  renderOpenTargetIcon,
+  useOpenTargets
+} from '../../utils/openTargets'
 import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
 
 interface ReferencePathContextMenuProps {
   position: ContextMenuPosition
   targetPath: string
+  location?: OpenTargetLocation | null
   allowAddToChat?: boolean
   onClose: () => void
 }
@@ -25,67 +26,16 @@ const menuWidth = 248
 export function ReferencePathContextMenu({
   position,
   targetPath,
+  location = null,
   allowAddToChat = true,
   onClose
 }: ReferencePathContextMenuProps): JSX.Element {
   const t = useT()
-  const [editors, setEditors] = useState<EditorInfo[]>([])
-  const [lastOpenEditorId, setLastOpenEditorId] = useState<EditorId | undefined>(undefined)
-
-  const orderedEditors = useMemo(
-    () => placeExplorerFirst(editors),
-    [editors]
-  )
-  const resolvedLastOpenId = useMemo<EditorId>(() => {
-    if (lastOpenEditorId && orderedEditors.some((entry) => entry.id === lastOpenEditorId)) {
-      return lastOpenEditorId
-    }
-    return 'explorer'
-  }, [lastOpenEditorId, orderedEditors])
-  const primaryEditor = useMemo(() => {
-    return orderedEditors.find((entry) => entry.id === resolvedLastOpenId)
-      ?? orderedEditors[0]
-      ?? { id: 'explorer', labelKey: 'editors.explorer', iconKey: 'explorer' }
-  }, [orderedEditors, resolvedLastOpenId])
-  const primaryAppLabel = t(primaryEditor.labelKey)
-
-  useEffect(() => {
-    let cancelled = false
-    window.api.settings.get()
-      .then((settings) => {
-        if (!cancelled) setLastOpenEditorId(settings.lastOpenEditorId)
-      })
-      .catch(() => {})
-    void listEditorsCached()
-      .then((entries) => {
-        if (!cancelled) setEditors(entries)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  async function launchWithEditor(editor: EditorInfo): Promise<void> {
-    try {
-      if (editor.id === 'explorer') {
-        await window.api.shell.revealLocalPath(targetPath)
-      } else {
-        await window.api.shell.launchLocalPathInEditor(editor.id, targetPath)
-      }
-      await window.api.settings.set({ lastOpenEditorId: editor.id })
-    } catch {
-      addToast(t('conversation.reference.openFailed'), 'warning')
-    }
-  }
-
-  async function openDefaultApp(): Promise<void> {
-    try {
-      await window.api.shell.openLocalPath(targetPath)
-    } catch {
-      addToast(t('conversation.reference.openFailed'), 'warning')
-    }
-  }
+  const projectRoot = useConversationStore((s) => s.workspacePath)
+  const view = useOpenTargets(projectRoot)
+  const statusLabel = openTargetStatusLabel(view.status, t)
+  const effective = view.effective
+  const otherTargets = view.targets.filter((target) => target.id !== effective?.id)
 
   async function revealInExplorer(): Promise<void> {
     try {
@@ -108,30 +58,39 @@ export function ReferencePathContextMenu({
     useComposerFileReferenceStore.getState().request(targetPath)
   }
 
-  const items: ContextMenuEntry[] = [
-    {
-      label: t('threadHeader.openIn', { app: primaryAppLabel }),
-      icon: renderEditorIcon(primaryEditor, EDITOR_ICON_SIZE),
-      onClick: () => { void launchWithEditor(primaryEditor) }
-    },
+  const statusRow: ContextMenuEntry | null = statusLabel
+    ? { label: statusLabel, disabled: true, onClick: () => {} }
+    : null
+  const openEntries: ContextMenuEntry[] = [
+    statusRow ?? (effective
+      ? {
+          label: t('threadHeader.openIn', { app: openTargetLabel(effective, t) }),
+          icon: renderOpenTargetIcon(effective),
+          onClick: () => { void openPathInTarget(effective.id, targetPath, t, location) }
+        }
+      : { label: t('openTargets.loading'), disabled: true, onClick: () => {} }),
     {
       label: t('conversation.reference.openWith'),
       icon: <ExternalLink size={16} />,
       onClick: () => {},
-      submenu: [
-        ...orderedEditors.map((editor): ContextMenuEntry => ({
-          label: t(editor.labelKey),
-          icon: renderEditorIcon(editor, EDITOR_ICON_SIZE),
-          onClick: () => { void launchWithEditor(editor) }
+      submenu: statusRow ? [statusRow] : [
+        ...otherTargets.map((target): ContextMenuEntry => ({
+          label: openTargetLabel(target, t),
+          icon: renderOpenTargetIcon(target),
+          onClick: () => { void openPathInTarget(target.id, targetPath, t, location) }
         })),
-        ...(orderedEditors.length > 0 ? [{ type: 'separator' } as const] : []),
+        ...(otherTargets.length > 0 ? [{ type: 'separator' } as const] : []),
         {
           label: t('conversation.reference.defaultApp'),
           icon: <ExternalLink size={16} />,
-          onClick: () => { void openDefaultApp() }
+          onClick: () => { void openPathInTarget(SYSTEM_DEFAULT_TARGET_ID, targetPath, t) }
         }
       ]
-    },
+    }
+  ]
+
+  const items: ContextMenuEntry[] = [
+    ...openEntries,
     { type: 'separator' },
     {
       label: t('conversation.reference.copyPath'),

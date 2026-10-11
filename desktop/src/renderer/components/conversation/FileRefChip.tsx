@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { openConversationLink } from '../../utils/conversationDeepLink'
-import { resolveLocalReferencePath } from '../../utils/referencePaths'
+import { resolveLocalReference, type LocalReference } from '../../utils/referencePaths'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
@@ -25,10 +25,10 @@ export function FileRefChip({
   remoteWorkspaceActive: boolean
 }): JSX.Element {
   const t = useT()
-  const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; reference: LocalReference } | null>(null)
   const fileName = displayPath.split(/[/\\]/).pop() ?? displayPath
-  const resolvedTargetPath = resolveLocalReferencePath(targetPath, workspacePath)
-  const title = resolvedTargetPath ?? targetPath
+  const reference = resolveLocalReference(targetPath, workspacePath)
+  const title = reference?.path ?? targetPath
   const canOpen = !remoteWorkspaceActive && workspacePath.length > 0 && !!activeThreadId
 
   return (
@@ -40,12 +40,12 @@ export function FileRefChip({
         disabled={!canOpen}
         className={className ? `dc-ref dc-ref-file ${className}` : 'dc-ref dc-ref-file'}
         onContextMenu={(event) => {
-          if (!resolvedTargetPath) return
+          if (!reference) return
           event.preventDefault()
           event.stopPropagation()
           setContextMenu({
             position: { x: event.clientX, y: event.clientY },
-            targetPath: resolvedTargetPath
+            reference
           })
         }}
         onClick={() => {
@@ -66,7 +66,8 @@ export function FileRefChip({
       {contextMenu && (
         <ReferencePathContextMenu
           position={contextMenu.position}
-          targetPath={contextMenu.targetPath}
+          targetPath={contextMenu.reference.path}
+          location={contextMenu.reference.location}
           onClose={() => setContextMenu(null)}
         />
       )}

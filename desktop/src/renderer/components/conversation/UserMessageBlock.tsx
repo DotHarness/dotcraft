@@ -53,8 +53,8 @@ interface UserMessageBlockProps {
 }
 
 /**
- * Plain text only — no Markdown. `@relative/path` tokens (from RichInputArea) render
- * as compact file chips. Spec §10.3.2.
+ * Plain text only — no Markdown except local file links. `@relative/path` tokens (from
+ * RichInputArea) and `[label](path)` file links render as compact file chips.
  */
 export function UserMessageBlock({
   messageId,

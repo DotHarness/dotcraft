@@ -121,7 +121,8 @@ function browserDefaultLabel(tab: ViewerTab): string {
 function terminalDefaultLabel(tabs: ViewerTab[], tabIndex: number): string {
   const tab = tabs[tabIndex]
   if (!tab || tab.kind !== 'terminal') return 'Terminal'
-  const terminalTabs = tabs.filter((item): item is TerminalViewerTab => item.kind === 'terminal')
+  if (tab.title) return tab.title
+  const terminalTabs = tabs.filter((item): item is TerminalViewerTab => item.kind === 'terminal' && !item.title)
   const position = terminalTabs.findIndex((item) => item.id === tab.id)
   return position >= 0 ? `Terminal ${position + 1}` : 'Terminal'
 }
@@ -174,6 +175,14 @@ interface ViewerTabStoreActions {
     threadId: string
     cwd: string
     initialLabel?: string
+  }): string
+
+  runInTerminal(params: {
+    threadId: string
+    tabId: string
+    cwd: string
+    title: string
+    command: string
   }): string
 
   openWorkflow(params: { threadId: string; runId: string; initialLabel: string }): string
@@ -230,6 +239,7 @@ const EMPTY_THREAD_STATE: PerThreadViewerState = Object.freeze({
 }) as PerThreadViewerState
 
 let _tabIdCounter = 0
+let _runNonce = 0
 function nextTabId(): string {
   return `vtab-${Date.now()}-${++_tabIdCounter}`
 }
@@ -393,6 +403,21 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
       return { byThread: next }
     })
     return newTab.id
+  },
+
+  runInTerminal({ threadId, tabId, cwd, title, command }) {
+    const threadState = get().getThreadState(threadId)
+    const pendingRun = { command, nonce: ++_runNonce }
+    const existing = threadState.tabs.find((tab) => tab.id === tabId && tab.kind === 'terminal')
+    const tabs = existing
+      ? threadState.tabs.map((tab) => (tab === existing ? { ...existing, cwd, title, pendingRun } : tab))
+      : [...threadState.tabs, { id: tabId, kind: 'terminal' as const, label: title, cwd, title, pendingRun, hasStarted: false }]
+    set((s) => {
+      const next = new Map(s.byThread)
+      next.set(threadId, { tabs: computeLabels(tabs), activeTabId: tabId })
+      return { byThread: next }
+    })
+    return tabId
   },
 
   openWorkflow({ threadId, runId, initialLabel }) {

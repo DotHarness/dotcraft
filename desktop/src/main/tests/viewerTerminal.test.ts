@@ -67,7 +67,7 @@ describe('ViewerTerminalManager', () => {
     const created = manager.createTab(win, {
       tabId: 'tab-1',
       threadId: 'thread-1',
-      workspacePath: 'C:\\repo',
+      cwd: 'C:\\repo',
       cols: 80,
       rows: 24
     })
@@ -95,7 +95,7 @@ describe('ViewerTerminalManager', () => {
     manager.createTab(win, {
       tabId: 'tab-1',
       threadId: 'thread-1',
-      workspacePath: 'C:\\repo',
+      cwd: 'C:\\repo',
       cols: 80,
       rows: 24
     })
@@ -121,7 +121,7 @@ describe('ViewerTerminalManager', () => {
     manager.createTab(win, {
       tabId: 'tab-1',
       threadId: 'thread-1',
-      workspacePath: 'C:\\repo',
+      cwd: 'C:\\repo',
       cols: 80,
       rows: 24
     })
@@ -149,21 +149,21 @@ describe('ViewerTerminalManager', () => {
     manager.createTab(win, {
       tabId: 'tab-1',
       threadId: 'thread-1',
-      workspacePath: 'C:\\repo',
+      cwd: 'C:\\repo',
       cols: 80,
       rows: 24
     })
     manager.createTab(win, {
       tabId: 'tab-2',
       threadId: 'thread-1',
-      workspacePath: 'C:\\repo',
+      cwd: 'C:\\repo',
       cols: 80,
       rows: 24
     })
     manager.createTab(win, {
       tabId: 'tab-3',
       threadId: 'thread-2',
-      workspacePath: 'C:\\repo',
+      cwd: 'C:\\repo',
       cols: 80,
       rows: 24
     })
@@ -176,5 +176,38 @@ describe('ViewerTerminalManager', () => {
     expect(() => manager.attachTab(win, 'tab-1')).toThrow('Terminal tab not found')
     expect(() => manager.attachTab(win, 'tab-2')).toThrow('Terminal tab not found')
     expect(manager.attachTab(win, 'tab-3').pid).toBe(2001)
+  })
+  it('restarts a tab in the requested folder, runs the command, and ignores the old shell', () => {
+    const manager = new ViewerTerminalManager()
+    const win = createMockWindow()
+    const handlers: Array<{ data?: (data: string) => void; exit?: (event: { exitCode: number; signal: number | null }) => void }> = []
+    const ptys = [createMockPty(), createMockPty()].map((pty, index) => {
+      pty.pid = 100 + index
+      handlers[index] = {}
+      pty.onData = (cb) => { handlers[index].data = cb }
+      pty.onExit = (cb) => { handlers[index].exit = cb }
+      return pty
+    })
+    spawnMock.mockReset().mockReturnValueOnce(ptys[0]).mockReturnValueOnce(ptys[1])
+
+    manager.createTab(win, { tabId: 'run', threadId: 'thread-1', cwd: 'C:\\repo', cols: 80, rows: 24 })
+    handlers[0].data?.('old output')
+    const restarted = manager.restartTab(win, {
+      tabId: 'run', threadId: 'thread-1', cwd: 'C:\\repo\\app', cols: 80, rows: 24, command: 'npm test'
+    })
+
+    expect(ptys[0].kill).toHaveBeenCalledTimes(1)
+    expect(spawnMock.mock.calls[1][2]).toMatchObject({ cwd: 'C:\\repo\\app' })
+    expect(restarted).toMatchObject({ tabId: 'run', pid: 101, cwd: 'C:\\repo\\app' })
+    const written = vi.mocked(ptys[1].write).mock.calls[0][0]
+    expect(written).toContain('npm test')
+    expect(written.endsWith('\r')).toBe(true)
+
+    vi.mocked(win.webContents.send).mockClear()
+    handlers[0].exit?.({ exitCode: 1, signal: null })
+    handlers[0].data?.('late output')
+    expect(win.webContents.send).not.toHaveBeenCalled()
+    expect(manager.attachTab(win, 'run')).toMatchObject({ pid: 101, buffer: '' })
+    expect(manager.attachTab(win, 'run').exited).toBeUndefined()
   })
 })
