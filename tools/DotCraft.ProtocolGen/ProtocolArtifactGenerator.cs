@@ -297,7 +297,13 @@ public static class ProtocolArtifactGenerator
         ContractTypeRefKind.AnyJson => new JsonObject(),
         ContractTypeRefKind.Named => new JsonObject { ["$ref"] = RefFor(reference.TypeId!, aggregate) },
         ContractTypeRefKind.Array => new JsonObject { ["type"] = "array", ["items"] = SchemaFor(reference.ElementType!, aggregate) },
-        ContractTypeRefKind.Map => new JsonObject { ["type"] = "object", ["additionalProperties"] = SchemaFor(reference.ElementType!, aggregate) },
+        ContractTypeRefKind.Map => new JsonObject
+        {
+            ["type"] = "object",
+            ["additionalProperties"] = reference.ElementNullable
+                ? NullableSchema(SchemaFor(reference.ElementType!, aggregate))
+                : SchemaFor(reference.ElementType!, aggregate)
+        },
         _ => throw new ArgumentOutOfRangeException(nameof(reference))
     };
 

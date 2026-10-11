@@ -168,6 +168,7 @@ public sealed class AppServerRequestHandler(
         new SkillsRequestHandler(services.SkillsLoader, services.ContextPageManager, services.AppConfigMonitor, services.WorkspaceCraftPath, SkillVariants),
         new ToolRequestHandler(),
         new FileSystemRequestHandler(services.AppConfigMonitor, connection, transport),
+        new CommandExecRequestHandler(services.AppConfigMonitor, services.HostWorkspacePath, connection),
         new McpRequestHandler(services.McpClientManager, McpConfig, transport, services.AppConfigMonitor, services.BroadcastMcpStatusChanged, sessionService as IThreadToolDispatchService, sessionService as IThreadMcpRuntimeService, sessionService as IThreadAgentRefreshService),
         new McpAppRequestHandler(
             sessionService,

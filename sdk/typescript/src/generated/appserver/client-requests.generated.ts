@@ -51,6 +51,7 @@ export interface ClientRequestMethods {
   "automation/update": { params: Models.AutomationUpdateParams; result: Models.AutomationReadResult };
   "channel/list": { params: Models.RpcEmpty; result: Models.ChannelListResult };
   "channel/status": { params: Models.RpcEmpty; result: Models.ChannelStatusResult };
+  "command/exec": { params: Models.CommandExecParams; result: Models.CommandExecResult };
   "command/execute": { params: Models.CommandExecuteParams; result: Models.CommandExecuteResult };
   "command/list": { params: Models.CommandListParams; result: Models.CommandListResult };
   "config/batchWrite": { params: Models.ConfigBatchWriteParams; result: Models.ConfigWriteResult };

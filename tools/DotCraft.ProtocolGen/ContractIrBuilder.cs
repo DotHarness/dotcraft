@@ -240,7 +240,8 @@ public static class ContractIrBuilder
                 BuildTypeRef(
                     propertyType,
                     knownTypes,
-                    allowsSafeInteger),
+                    allowsSafeInteger,
+                    valueNullability),
                 required,
                 nullable));
         }
@@ -267,7 +268,8 @@ public static class ContractIrBuilder
     private static ContractTypeRef BuildTypeRef(
         Type type,
         IReadOnlyDictionary<Type, string> knownTypes,
-        bool allowsSafeInteger = false)
+        bool allowsSafeInteger = false,
+        NullabilityInfo? nullability = null)
     {
         type = Nullable.GetUnderlyingType(type) ?? type;
         if (type == typeof(string) || type == typeof(Uri) || type == typeof(Guid))
@@ -308,7 +310,15 @@ public static class ContractIrBuilder
         if (TryGetGeneric(type, typeof(IReadOnlyList<>), typeof(IList<>), typeof(List<>), out var itemType) || type.IsArray && (itemType = type.GetElementType()) is not null)
             return new(ContractTypeRefKind.Array, $"array<{BuildTypeRef(itemType!, knownTypes, allowsSafeInteger).DisplayName}>", ElementType: BuildTypeRef(itemType!, knownTypes, allowsSafeInteger));
         if (TryGetDictionaryValue(type, out var valueType))
-            return new(ContractTypeRefKind.Map, $"map<{BuildTypeRef(valueType!, knownTypes, allowsSafeInteger).DisplayName}>", ElementType: BuildTypeRef(valueType!, knownTypes, allowsSafeInteger));
+        {
+            var element = BuildTypeRef(valueType!, knownTypes, allowsSafeInteger);
+            var elementNullable = nullability?.GenericTypeArguments is [_, var valueNullability] && IsNullable(valueType!, valueNullability);
+            return new(
+                ContractTypeRefKind.Map,
+                $"map<{element.DisplayName}{(elementNullable ? "?" : "")}>",
+                ElementType: element,
+                ElementNullable: elementNullable);
+        }
 
         throw new ProtocolGenerationException("DPG005", $"Unsupported contract type '{type.FullName}'.");
     }

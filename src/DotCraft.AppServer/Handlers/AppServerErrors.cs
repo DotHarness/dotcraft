@@ -123,6 +123,7 @@ public static class AppServerErrors
     public const int RemoteToolWorkspaceBusyCode = -32101;
     public const int SessionImportErrorCode = -32102;
     public const int FileSystemErrorCode = -32103;
+    public const int CommandExecErrorCode = -32104;
     // ── Automation-specific codes (-32050 to -32059) ──
 
     public const int AutomationNotFoundCode = -32051;
@@ -229,6 +230,9 @@ public static class AppServerErrors
 
     public static AppServerException FileSystem(string code, string fallbackText, string path) =>
         Create(FileSystemErrorCode, code, $"errors.fileSystem.{char.ToLowerInvariant(code[0])}{code[1..]}", fallbackText, new FileSystemErrorParams(path));
+
+    public static AppServerException CommandExec(string code, string fallbackText) =>
+        Create(CommandExecErrorCode, code, $"errors.commandExec.{char.ToLowerInvariant(code[0])}{code[1..]}", fallbackText);
 
     public static AppServerException ThreadNotActive(string threadId) =>
         Create(ThreadNotActiveCode, "ThreadNotActive", "errors.threadNotActive", $"Thread is not active: {threadId}", new ThreadErrorParams(threadId));

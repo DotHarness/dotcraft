@@ -44,6 +44,7 @@ Serialized shapes are defined by the [AppServer JSON Schema](../../src/DotCraft.
 - [25. Workspace Config Methods](#25-workspace-config-methods)
 - [25A. Source Control Methods](#25a-source-control-methods)
 - [25B. File System Methods](#25b-file-system-methods)
+- [25C. Command Execution Methods](#25c-command-execution-methods)
 - [26. Memory Management Methods](#26-memory-management-methods)
 - [27. Dreams Management Methods](#27-dreams-management-methods)
 - [27A. Usage Telemetry Methods](#27a-usage-telemetry-methods)
@@ -299,6 +300,7 @@ Built-in channels and external adapters share the delivery and tool-call contrac
 | `capabilities.workspaceConfigManagement` | boolean | Server supports configuration methods (`config/schema`, `config/read`, `config/value/write`, `config/batchWrite`). |
 | `capabilities.sourceControlManagement` | boolean | Server supports workspace source control binding methods (`sourceControl/get`, `sourceControl/update`, `sourceControl/test`) and source-control provider extensions advertised by `sourceControl/get.capabilities`, such as Perforce pending changelist selection/preparation. |
 | `capabilities.fileSystem` | boolean | Server supports the file system methods on the AppServer host (Section 25B). |
+| `capabilities.commandExec` | boolean | Server supports running a standalone command on the AppServer host (`command/exec`, Section 25C). |
 | `capabilities.memoryManagement` | boolean | Server supports workspace memory management methods (`memory/reset`). |
 | `capabilities.dreams` | boolean | Server supports workspace Dreams status, manual/create run requests, review lifecycle, and Dreams settings. |
 | `capabilities.mcpManagement` | boolean | Server supports MCP configuration management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`). |
@@ -2605,6 +2607,7 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 | `-32100` | Remote Tool Host unavailable | `remoteToolHost/connect`: the machine is not paired, offline, failed authentication, or speaks an incompatible profile. `error.data.code` carries the Remote Tool Host error code (Section 19B). |
 | `-32101` | Remote workspace busy | `remoteToolHost/connect`: another Agent Host holds the lease on the requested folder. `error.data.params.owner` is `self` or `other`. |
 | `-32103` | File system | `fs/*`: the path is blocked, missing, the wrong kind, or too large. `error.data.code` names the case and `error.data.params.path` the path (§25B). |
+| `-32104` | Command execution | `command/exec`: the program or working directory is missing, or the working directory is blocked. `error.data.code` names the case (§25C). |
 
 Automation task methods (`automation/*`) share this error space and are defined in [automations-lifecycle.md](../features/automations-lifecycle.md), which owns their params, results, and persisted shapes.
 
@@ -6983,6 +6986,40 @@ Rules:
   `watchId` is rejected with `InvalidParams`. A path that does not exist yet is watched through its parent directory, so its creation is reported; `FileNotFound` when the parent is missing too. Changes are coalesced for about 200 ms before one
   `fs/changed` is sent. Watches end with `fs/unwatch` or when the connection closes; unwatching an
   unknown `watchId` succeeds.
+
+## 25C. Command Execution Methods
+
+`command/exec` runs one program on the AppServer host outside any thread and returns its buffered
+output. It lets a client that does not share the host, such as a Desktop Plugin, run a host tool and
+read its result. Servers advertise it with `capabilities.commandExec = true`.
+
+| Method | Params | Result |
+|---|---|---|
+| `command/exec` | `{ command, cwd?, env?, timeoutMs?, outputBytesCap? }` | `{ exitCode, stdout, stderr }` |
+
+Rules:
+
+- `command` is the argument vector; an empty array is rejected with `InvalidParams` (`-32602`).
+  `command[0]` is a path, resolved against `cwd` when relative, or a program name found on the
+  host's `PATH`; on Windows the `PATHEXT` extensions are tried. The arguments are passed to the
+  program as given, without a shell.
+- `cwd` is an absolute path on the host and defaults to the workspace root; a relative path is
+  rejected with `InvalidParams`. `env` entries override the server's environment, and a `null` value
+  removes a variable.
+- The command runs with the authority of the host's user, like the file system methods (§25B). It is
+  not an agent tool call: it is not approval-gated, hooked, or recorded in a thread.
+- Failures to start use error code `-32104` with the case in `error.data.code`: `CommandNotFound`
+  when the program cannot be found, `DirectoryNotFound` when `cwd` is missing, and `PathBlocked` when
+  `cwd` is under `Security.BlacklistedPaths`. A program that starts and fails still returns a result
+  with its exit code.
+- `timeoutMs` defaults to 10 000. When it elapses the server terminates the process and returns
+  `exitCode` 124 with the output captured so far.
+- `stdout` and `stderr` are decoded as UTF-8. Each keeps at most `outputBytesCap` bytes, 1 MiB by
+  default; later output is discarded.
+- The result is sent when the process exits. Output is read for at most 2 seconds more, so a program
+  it started that keeps the output streams open, such as a detached editor, does not delay the
+  result.
+- Closing the connection terminates a running command.
 
 ## 26. Memory Management Methods
 

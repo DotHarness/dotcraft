@@ -212,7 +212,7 @@ public static class SdkBindingArtifactGenerator
         ContractTypeRefKind.AnyJson => "JsonValue",
         ContractTypeRefKind.Named => TypeName(reference.TypeId!),
         ContractTypeRefKind.Array => $"{TypeScriptType(reference.ElementType!)}[]",
-        ContractTypeRefKind.Map => $"Record<string, {TypeScriptType(reference.ElementType!)}>",
+        ContractTypeRefKind.Map => $"Record<string, {TypeScriptType(reference.ElementType!)}{(reference.ElementNullable ? " | null" : "")}>",
         _ => throw new ArgumentOutOfRangeException(nameof(reference))
     };
 
