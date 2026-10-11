@@ -53,6 +53,7 @@ export default defineConfig({
       '@dnd-kit/sortable',
       '@dnd-kit/utilities',
       'recharts',
+      'react-colorful',
       'sucrase'
     ]
   },
