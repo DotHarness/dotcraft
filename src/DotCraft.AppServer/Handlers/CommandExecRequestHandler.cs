@@ -1,4 +1,5 @@
 using System.Collections;
+using System.ComponentModel;
 using DotCraft.Configuration;
 using DotCraft.Security;
 using Contract = DotCraft.Protocol.AppServer;
@@ -38,6 +39,10 @@ internal sealed class CommandExecRequestHandler(
         var environment = BuildEnvironment(p.Env.IsSet ? p.Env.Value : null);
         var program = CommandExecProcess.ResolveProgram(p.Command[0], cwd, environment)
                       ?? throw CommandNotFound();
+        if (OperatingSystem.IsWindows()
+            && CommandExecWindowsLauncher.IsBatchFile(program)
+            && p.Command.Any(static part => part.AsSpan().IndexOfAny("\0\r\n") >= 0))
+            throw AppServerErrors.InvalidParams("Arguments for a batch file must not contain line breaks or NUL characters.");
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct, _connectionClosed);
         CommandExecProcess process;
@@ -45,9 +50,13 @@ internal sealed class CommandExecRequestHandler(
         {
             process = CommandExecProcess.Start(program, p.Command.Skip(1).ToArray(), cwd, environment);
         }
-        catch (FileNotFoundException)
+        catch (Win32Exception ex) when (ex.NativeErrorCode is 2 or 3)
         {
             throw CommandNotFound();
+        }
+        catch (Win32Exception ex)
+        {
+            throw AppServerErrors.CommandExec("CommandNotExecutable", $"The program could not be started: {ex.Message}");
         }
 
         await using (process)

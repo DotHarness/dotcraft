@@ -47,16 +47,9 @@ internal sealed class CommandExecProcess : IAsyncDisposable
         string cwd,
         IReadOnlyDictionary<string, string> environment)
     {
-        try
-        {
-            return OperatingSystem.IsWindows()
-                ? CommandExecWindowsLauncher.Start(program, arguments, cwd, environment)
-                : StartProcess(program, arguments, cwd, environment);
-        }
-        catch (Win32Exception ex) when (ex.NativeErrorCode is 2 or 3)
-        {
-            throw new FileNotFoundException(ex.Message, program, ex);
-        }
+        return OperatingSystem.IsWindows()
+            ? CommandExecWindowsLauncher.Start(program, arguments, cwd, environment)
+            : StartProcess(program, arguments, cwd, environment);
     }
 
     public async Task<(int ExitCode, string Stdout, string Stderr)> RunAsync(

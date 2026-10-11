@@ -74,10 +74,12 @@ internal static class CommandExecWindowsLauncher
                 lpAttributeList = attributeList
             };
             environmentBlock = Marshal.StringToHGlobalUni(BuildEnvironmentBlock(environment));
-            var commandLine = (BuildCommandLine(program, arguments) + '\0').ToCharArray();
+            var batch = IsBatchFile(program);
+            var commandLine = ((batch ? BuildBatchCommandLine(program, arguments) : BuildCommandLine(program, arguments)) + '\0')
+                .ToCharArray();
 
             if (!CreateProcessW(
-                    null,
+                    batch ? CommandInterpreter() : null,
                     commandLine,
                     IntPtr.Zero,
                     IntPtr.Zero,
@@ -133,6 +135,18 @@ internal static class CommandExecWindowsLauncher
             Marshal.FreeHGlobal(environmentBlock);
         }
     }
+
+    public static bool IsBatchFile(string program) =>
+        Path.GetExtension(program.TrimEnd('.', ' ')) is { } extension
+        && (extension.Equals(".cmd", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".bat", StringComparison.OrdinalIgnoreCase));
+
+    private static string CommandInterpreter() =>
+        Environment.GetEnvironmentVariable("ComSpec") is { } comSpec
+        && Path.IsPathFullyQualified(comSpec)
+        && File.Exists(comSpec)
+            ? comSpec
+            : Path.Combine(Environment.SystemDirectory, "cmd.exe");
 
     private static (NamedPipeServerStream Read, NamedPipeClientStream Write) CreateOutputPipe()
     {
@@ -194,6 +208,42 @@ internal static class CommandExecWindowsLauncher
 
         return builder.ToString();
     }
+
+    private static string BuildBatchCommandLine(string script, IReadOnlyList<string> arguments)
+    {
+        var builder = new StringBuilder("cmd.exe /e:ON /v:OFF /d /c \"\"").Append(script).Append('"');
+        foreach (var argument in arguments)
+        {
+            builder.Append(' ');
+            var quote = argument.Length == 0 || argument[^1] == '\\' || argument.Any(NeedsBatchQuotes);
+            if (quote)
+                builder.Append('"');
+            var backslashes = 0;
+            foreach (var c in argument)
+            {
+                if (c == '\\')
+                {
+                    backslashes++;
+                    builder.Append(c);
+                    continue;
+                }
+
+                if (c == '"')
+                    builder.Append('\\', backslashes).Append('"');
+                else if (c == '%')
+                    builder.Append("%%cd:~,");
+                backslashes = 0;
+                builder.Append(c);
+            }
+            if (quote)
+                builder.Append('\\', backslashes).Append('"');
+        }
+
+        return builder.Append('"').ToString();
+    }
+
+    private static bool NeedsBatchQuotes(char c) =>
+        char.IsAscii(c) ? !char.IsAsciiLetterOrDigit(c) && !"#$*+-./:?@\\_".Contains(c) : char.IsControl(c);
 
     private static string BuildEnvironmentBlock(IReadOnlyDictionary<string, string> environment)
     {

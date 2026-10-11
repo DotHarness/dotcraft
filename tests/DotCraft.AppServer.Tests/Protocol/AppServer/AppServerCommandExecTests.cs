@@ -54,11 +54,13 @@ public sealed class AppServerCommandExecTests : IDisposable
         var notFound = await SendForErrorAsync(new { command = new[] { $"dotcraft-missing-{Guid.NewGuid():N}" } });
         var missingDirectory = await SendForErrorAsync(new { command, cwd = Path.Combine(_root, "missing") });
         var pathBlocked = await SendForErrorAsync(new { command, cwd = blocked });
+        var notExecutable = await SendForErrorAsync(new { command = new[] { WriteInvalidProgram() } });
 
         Assert.Equal(AppServerErrors.InvalidParamsCode, empty.GetProperty("code").GetInt32());
         Assert.Equal(AppServerErrors.InvalidParamsCode, relative.GetProperty("code").GetInt32());
-        Assert.All([notFound, missingDirectory, pathBlocked], error => Assert.Equal(AppServerErrors.CommandExecErrorCode, error.GetProperty("code").GetInt32()));
+        Assert.All([notFound, missingDirectory, pathBlocked, notExecutable], error => Assert.Equal(AppServerErrors.CommandExecErrorCode, error.GetProperty("code").GetInt32()));
         Assert.Equal("CommandNotFound", DataCode(notFound));
+        Assert.Equal("CommandNotExecutable", DataCode(notExecutable));
         Assert.Equal("DirectoryNotFound", DataCode(missingDirectory));
         Assert.Equal("PathBlocked", DataCode(pathBlocked));
     }
@@ -105,6 +107,61 @@ public sealed class AppServerCommandExecTests : IDisposable
         Assert.Equal(0, result.GetProperty("exitCode").GetInt32());
         Assert.Equal("done", result.GetProperty("stdout").GetString()!.Trim());
         Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), stopwatch.Elapsed.ToString());
+    }
+
+    [Fact]
+    public async Task Exec_PassesArgumentsToABatchFileLiterally()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+        var script = WriteEchoScript();
+        await _harness.InitializeAsync();
+        string[] arguments = ["a b", "x & echo injected", "%PATH%", "say \"hi\"", "caret^", "plain", ""];
+        const string expected = "\"a b\" \"x & echo injected\" \"%PATH%\" \"say \"\"hi\"\"\" \"caret^\" plain \"\"";
+
+        var byPath = await SendAsync(new { command = new[] { script }.Concat(arguments) });
+        var byName = await SendAsync(new
+        {
+            command = new[] { "echo-args" }.Concat(arguments),
+            env = new Dictionary<string, string?> { ["PATH"] = Path.GetDirectoryName(script) }
+        });
+
+        Assert.All([byPath, byName], result =>
+        {
+            Assert.Equal(0, result.GetProperty("exitCode").GetInt32());
+            Assert.Equal([expected], result.GetProperty("stdout").GetString()!.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries));
+        });
+    }
+
+    [Fact]
+    public async Task Exec_RejectsALineBreakInABatchFileArgument()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+        var script = WriteEchoScript();
+        await _harness.InitializeAsync();
+
+        var error = await SendForErrorAsync(new { command = new[] { script, "one\r\necho injected" } });
+
+        Assert.Equal(AppServerErrors.InvalidParamsCode, error.GetProperty("code").GetInt32());
+    }
+
+    private string WriteEchoScript()
+    {
+        var directory = Path.Combine(_root, "batch dir");
+        Directory.CreateDirectory(directory);
+        var script = Path.Combine(directory, "echo-args.cmd");
+        File.WriteAllText(script, "@echo(%*\r\n");
+        return script;
+    }
+
+    private string WriteInvalidProgram()
+    {
+        var program = Path.Combine(_root, "not-a-program.exe");
+        File.WriteAllText(program, "not a program");
+        if (!OperatingSystem.IsWindows())
+            File.SetUnixFileMode(program, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        return program;
     }
 
     private static string[] Shell(string windows, string unix) =>

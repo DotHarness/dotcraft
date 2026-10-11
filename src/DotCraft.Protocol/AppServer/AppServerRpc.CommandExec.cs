@@ -6,6 +6,7 @@ public static partial class AppServerRpc
     [
         .. CommonErrors,
         "CommandNotFound",
+        "CommandNotExecutable",
         "DirectoryNotFound",
         "PathBlocked"
     ];

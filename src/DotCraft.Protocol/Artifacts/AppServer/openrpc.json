@@ -1617,6 +1617,7 @@
       "x-dotcraft-since": "1",
       "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
       "x-dotcraft-errors": [
+        "CommandNotExecutable",
         "CommandNotFound",
         "DirectoryNotFound",
         "InvalidParams",

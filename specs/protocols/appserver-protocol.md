@@ -2607,7 +2607,7 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 | `-32100` | Remote Tool Host unavailable | `remoteToolHost/connect`: the machine is not paired, offline, failed authentication, or speaks an incompatible profile. `error.data.code` carries the Remote Tool Host error code (Section 19B). |
 | `-32101` | Remote workspace busy | `remoteToolHost/connect`: another Agent Host holds the lease on the requested folder. `error.data.params.owner` is `self` or `other`. |
 | `-32103` | File system | `fs/*`: the path is blocked, missing, the wrong kind, or too large. `error.data.code` names the case and `error.data.params.path` the path (§25B). |
-| `-32104` | Command execution | `command/exec`: the program or working directory is missing, or the working directory is blocked. `error.data.code` names the case (§25C). |
+| `-32104` | Command execution | `command/exec`: the program or working directory is missing, the program cannot be started, or the working directory is blocked. `error.data.code` names the case (§25C). |
 
 Automation task methods (`automation/*`) share this error space and are defined in [automations-lifecycle.md](../features/automations-lifecycle.md), which owns their params, results, and persisted shapes.
 
@@ -7002,16 +7002,19 @@ Rules:
 - `command` is the argument vector; an empty array is rejected with `InvalidParams` (`-32602`).
   `command[0]` is a path, resolved against `cwd` when relative, or a program name found on the
   host's `PATH`; on Windows the `PATHEXT` extensions are tried. The arguments are passed to the
-  program as given, without a shell.
+  program as given, without a shell. On Windows a `.cmd` or `.bat` file runs through the command
+  interpreter with its arguments quoted so they reach the script literally; an argument containing a
+  line break is rejected with `InvalidParams` for such a file.
 - `cwd` is an absolute path on the host and defaults to the workspace root; a relative path is
   rejected with `InvalidParams`. `env` entries override the server's environment, and a `null` value
   removes a variable.
 - The command runs with the authority of the host's user, like the file system methods (§25B). It is
   not an agent tool call: it is not approval-gated, hooked, or recorded in a thread.
 - Failures to start use error code `-32104` with the case in `error.data.code`: `CommandNotFound`
-  when the program cannot be found, `DirectoryNotFound` when `cwd` is missing, and `PathBlocked` when
-  `cwd` is under `Security.BlacklistedPaths`. A program that starts and fails still returns a result
-  with its exit code.
+  when the program cannot be found, `CommandNotExecutable` when the host cannot start it,
+  `DirectoryNotFound` when `cwd` is missing, and `PathBlocked` when `cwd` is under
+  `Security.BlacklistedPaths`. A program that starts and fails still returns a result with its exit
+  code.
 - `timeoutMs` defaults to 10 000. When it elapses the server terminates the process and returns
   `exitCode` 124 with the output captured so far.
 - `stdout` and `stderr` are decoded as UTF-8. Each keeps at most `outputBytesCap` bytes, 1 MiB by

@@ -28260,6 +28260,7 @@
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
+        "CommandNotExecutable",
         "CommandNotFound",
         "DirectoryNotFound",
         "InvalidParams",
