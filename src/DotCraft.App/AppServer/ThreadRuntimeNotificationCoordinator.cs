@@ -17,7 +17,8 @@ internal sealed class ThreadRuntimeNotificationCoordinator
         string threadId,
         SessionThreadRuntimeSignal signal,
         SessionTurn? turn,
-        ConcurrentDictionary<IAppServerTransport, AppServerConnection> activeTransports)
+        ConcurrentDictionary<IAppServerTransport, AppServerConnection> activeTransports,
+        Func<AppServerConnection, bool> accepts)
     {
         lock (_signalGate)
         {
@@ -105,7 +106,7 @@ internal sealed class ThreadRuntimeNotificationCoordinator
                 return false;
 
             _threadRuntime[threadId] = next;
-            Broadcast(threadId, next.ToContract(), activeTransports);
+            Broadcast(threadId, next.ToContract(), activeTransports, accepts);
             return true;
         }
     }
@@ -141,7 +142,8 @@ internal sealed class ThreadRuntimeNotificationCoordinator
     private void Broadcast(
         string threadId,
         Contract.ThreadRuntimeState runtime,
-        ConcurrentDictionary<IAppServerTransport, AppServerConnection> activeTransports)
+        ConcurrentDictionary<IAppServerTransport, AppServerConnection> activeTransports,
+        Func<AppServerConnection, bool> accepts)
     {
         var parameters = new Contract.ThreadStatusChangedNotification
         {
@@ -151,7 +153,8 @@ internal sealed class ThreadRuntimeNotificationCoordinator
 
         foreach (var (transport, connection) in activeTransports)
         {
-            if (!connection.ShouldSendNotification(Contract.AppServerRpc.ThreadStatusChanged.Name))
+            if (!connection.ShouldSendNotification(Contract.AppServerRpc.ThreadStatusChanged.Name)
+                || !accepts(connection))
                 continue;
 
             var queue = _notificationQueues.GetOrAdd(

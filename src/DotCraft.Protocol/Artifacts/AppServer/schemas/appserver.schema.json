@@ -6704,6 +6704,46 @@
       },
       "additionalProperties": true
     },
+    "FsChangedNotification": {
+      "title": "FsChangedNotification",
+      "type": "object",
+      "properties": {
+        "changedPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "watchId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "changedPaths",
+        "watchId"
+      ]
+    },
+    "FsCopyParams": {
+      "title": "FsCopyParams",
+      "type": "object",
+      "properties": {
+        "destinationPath": {
+          "type": "string"
+        },
+        "recursive": {
+          "type": "boolean"
+        },
+        "sourcePath": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "destinationPath",
+        "sourcePath"
+      ]
+    },
     "FsCreateDirectoryParams": {
       "title": "FsCreateDirectoryParams",
       "type": "object",
@@ -6718,6 +6758,102 @@
       "additionalProperties": true,
       "required": [
         "path"
+      ]
+    },
+    "FsGetMetadataParams": {
+      "title": "FsGetMetadataParams",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "path"
+      ]
+    },
+    "FsGetMetadataResult": {
+      "title": "FsGetMetadataResult",
+      "type": "object",
+      "properties": {
+        "createdAtMs": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "isDirectory": {
+          "type": "boolean"
+        },
+        "isFile": {
+          "type": "boolean"
+        },
+        "isSymlink": {
+          "type": "boolean"
+        },
+        "modifiedAtMs": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "createdAtMs",
+        "isDirectory",
+        "isFile",
+        "isSymlink",
+        "modifiedAtMs"
+      ]
+    },
+    "FsReadDirectoryEntry": {
+      "title": "FsReadDirectoryEntry",
+      "type": "object",
+      "properties": {
+        "fileName": {
+          "type": "string"
+        },
+        "isDirectory": {
+          "type": "boolean"
+        },
+        "isFile": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "fileName",
+        "isDirectory",
+        "isFile"
+      ]
+    },
+    "FsReadDirectoryParams": {
+      "title": "FsReadDirectoryParams",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "path"
+      ]
+    },
+    "FsReadDirectoryResult": {
+      "title": "FsReadDirectoryResult",
+      "type": "object",
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FsReadDirectoryEntry"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "entries"
       ]
     },
     "FsReadFileParams": {
@@ -6744,6 +6880,68 @@
       "additionalProperties": true,
       "required": [
         "dataBase64"
+      ]
+    },
+    "FsRemoveParams": {
+      "title": "FsRemoveParams",
+      "type": "object",
+      "properties": {
+        "force": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        },
+        "recursive": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "path"
+      ]
+    },
+    "FsUnwatchParams": {
+      "title": "FsUnwatchParams",
+      "type": "object",
+      "properties": {
+        "watchId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "watchId"
+      ]
+    },
+    "FsWatchParams": {
+      "title": "FsWatchParams",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "watchId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "path",
+        "watchId"
+      ]
+    },
+    "FsWatchResult": {
+      "title": "FsWatchResult",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "path"
       ]
     },
     "FsWriteFileParams": {
@@ -18066,6 +18264,16 @@
               "items": {
                 "$ref": "#/$defs/RuntimeDynamicToolDeclaration"
               }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ephemeral": {
+          "anyOf": [
+            {
+              "type": "boolean"
             },
             {
               "type": "null"

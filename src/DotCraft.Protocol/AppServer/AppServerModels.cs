@@ -578,6 +578,10 @@ public sealed class ThreadStartParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DisplayName { get; init; }
 
+    [JsonPropertyName("ephemeral")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Ephemeral { get; init; }
+
     [JsonPropertyName("spawnedFromThreadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SpawnedFromThreadId { get; init; }

@@ -735,6 +735,7 @@ export function cancelServerRequestBridge(bridgeId: string): void {
 
 export interface IpcHandlerCallbacks {
   onSwitchWorkspace: (newPath: string) => Promise<void>
+  onOpenDesktopLink: (url: string) => Promise<void>
   onClearWorkspaceSelection: () => Promise<void>
   onRunWorkspaceSetup: (request: WorkspaceSetupRequest) => Promise<WorkspaceSetupResult>
   onListSetupModels: (
@@ -1186,6 +1187,12 @@ export function registerIpcHandlers(
 
   handleSafe('shell:open-external', async (_event, url: string) => {
     await openExternalUrl(url)
+  })
+
+  handleSafe('shell:open-desktop-link', async (_event, url: string) => {
+    if (typeof url !== 'string') throw new Error('Invalid URL')
+    if (!callbacks) throw new Error('Desktop links are unavailable')
+    await callbacks.onOpenDesktopLink(url)
   })
 
   handleSafe('shell:show-reply-text-menu', (event, request: TextContextMenuRequest) => {
@@ -2372,6 +2379,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('window:get-visibility-state')
   ipcMain.removeHandler('window:get-workspace-path')
   ipcMain.removeHandler('shell:open-external')
+  ipcMain.removeHandler('shell:open-desktop-link')
   ipcMain.removeHandler('shell:show-reply-text-menu')
   ipcMain.removeHandler('shell:get-protocol-handler-name')
   ipcMain.removeHandler('editors:list')

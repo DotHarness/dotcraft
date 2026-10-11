@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
+import { useContext, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronRight } from 'lucide-react'
 import { useMenuAim } from '../../hooks/useMenuAim'
@@ -34,6 +34,7 @@ export type ContextMenuEntry = ContextMenuItem | ContextMenuSeparator | ContextM
 
 const MENU_SEPARATOR_HEIGHT = 9
 const MENU_LABEL_HEIGHT = 26
+const MENU_FOCUS_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Home', 'End'])
 
 function menuItemRole(item: ContextMenuItem): 'menuitem' | 'menuitemradio' | 'menuitemcheckbox' {
   if (item.selection === 'radio') return 'menuitemradio'
@@ -78,13 +79,14 @@ interface ContextMenuProps {
   onClose: () => void
   zIndex?: number
   width?: number
+  autoFocus?: boolean
 }
 
 interface SubmenuAnchor {
   top: number
 }
 
-export function ContextMenu({ items, position, onClose, zIndex, width = 200 }: ContextMenuProps): JSX.Element {
+export function ContextMenu({ items, position, onClose, zIndex, width = 200, autoFocus = false }: ContextMenuProps): JSX.Element {
   const menuRef = useRef<HTMLDivElement>(null)
   const submenuRef = useRef<HTMLDivElement>(null)
   const layerDepth = useContext(LayerContext)
@@ -93,6 +95,7 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200 }: C
   const [submenuAnchor, setSubmenuAnchor] = useState<SubmenuAnchor | null>(null)
   const [hoveredItemIndex, setHoveredItemIndex] = useState<number | null>(null)
   const [hoveredSubmenuItemIndex, setHoveredSubmenuItemIndex] = useState<number | null>(null)
+  const focusSubmenuOnOpenRef = useRef(false)
 
   const menuWidth = width
   const menuItemHeight = 30
@@ -138,6 +141,8 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200 }: C
       if (e.key === 'Escape') {
         cancelMenuAim()
         onClose()
+      } else if (moveMenuFocus(submenuRef.current?.contains(document.activeElement) ? submenuRef.current : menuRef.current, e.key)) {
+        e.preventDefault()
       }
     }
     document.addEventListener('mousedown', handleMouseDown)
@@ -148,6 +153,16 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200 }: C
     }
   }, [cancelMenuAim, onClose])
 
+  useEffect(() => {
+    if (autoFocus) moveMenuFocus(menuRef.current, 'Home')
+  }, [autoFocus])
+
+  useEffect(() => {
+    if (!focusSubmenuOnOpenRef.current) return
+    focusSubmenuOnOpenRef.current = false
+    moveMenuFocus(submenuRef.current, 'Home')
+  }, [openSubmenuIndex])
+
   function openSubmenu(index: number, element: HTMLElement): void {
     setOpenSubmenuIndex(index)
     setSubmenuAnchor(getSubmenuAnchor(element, index, top, items, menuPadding, menuItemHeight))
@@ -157,6 +172,26 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200 }: C
     setOpenSubmenuIndex(null)
     setSubmenuAnchor(null)
     setHoveredSubmenuItemIndex(null)
+  }
+
+  function handleParentItemKeyDown(item: ContextMenuItem, index: number, event: ReactKeyboardEvent<HTMLButtonElement>): void {
+    if (event.key !== 'ArrowRight' || item.disabled || !item.submenu) return
+    event.preventDefault()
+    cancelMenuAim()
+    if (openSubmenuIndex === index) {
+      moveMenuFocus(submenuRef.current, 'Home')
+      return
+    }
+    focusSubmenuOnOpenRef.current = true
+    openSubmenu(index, event.currentTarget)
+  }
+
+  function handleSubmenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
+    if (event.key !== 'ArrowLeft') return
+    event.preventDefault()
+    const parentItem = menuRef.current?.querySelector<HTMLButtonElement>('button[aria-expanded="true"]')
+    closeSubmenu()
+    parentItem?.focus()
   }
 
   function handleParentItemPointer(
@@ -285,6 +320,8 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200 }: C
               cursor: item.disabled ? 'default' : 'pointer',
               transition: 'background-color 80ms ease'
             }}
+            onFocus={() => setHoveredItemIndex(i)}
+            onKeyDown={(event) => handleParentItemKeyDown(item, i, event)}
             onMouseEnter={(event) => handleParentItemPointer(item, i, event)}
             onMouseMove={(event) => handleParentItemPointer(item, i, event)}
             onMouseLeave={() => {
@@ -332,6 +369,7 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200 }: C
           role="menu"
           onMouseEnter={cancelMenuAim}
           onMouseMove={cancelMenuAim}
+          onKeyDown={handleSubmenuKeyDown}
           style={{
             position: 'absolute',
             top: submenuTopOffset,
@@ -473,6 +511,23 @@ function getSubmenuAnchor(
   return {
     top: menuTop + offsetTop
   }
+}
+
+function moveMenuFocus(menu: HTMLElement | null, key: string): boolean {
+  if (!menu || !MENU_FOCUS_KEYS.has(key)) return false
+  const items = [...menu.querySelectorAll<HTMLButtonElement>('button[role^="menuitem"]:not(:disabled)')]
+    .filter((item) => item.closest('[role="menu"]') === menu)
+  if (items.length === 0) return false
+  const current = items.indexOf(document.activeElement as HTMLButtonElement)
+  const next = key === 'Home'
+    ? 0
+    : key === 'End'
+      ? items.length - 1
+      : key === 'ArrowDown'
+        ? (current + 1) % items.length
+        : (current <= 0 ? items.length : current) - 1
+  items[next].focus()
+  return true
 }
 
 function isMenuItem(entry: ContextMenuEntry): entry is ContextMenuItem {

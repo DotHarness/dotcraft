@@ -27,7 +27,8 @@ public interface ISessionService
         string? threadId = null,
         string? displayName = null,
         CancellationToken ct = default,
-        ThreadSource? source = null);
+        ThreadSource? source = null,
+        bool ephemeral = false);
 
     /// <summary>Archives reusable threads for an identity and creates a new Thread.</summary>
     Task<ThreadResetResult> ResetConversationAsync(
@@ -379,6 +380,9 @@ public interface ISessionService
     /// <summary>Returns the process-local runtime snapshot for a loaded Thread.</summary>
     ThreadSummaryRuntime GetThreadRuntimeSnapshot(SessionThread thread) =>
         ThreadSummaryRuntime.FromThread(thread);
+
+    /// <summary>Returns whether a loaded Thread is hidden; unloaded Threads report false.</summary>
+    bool IsHiddenThread(string threadId) => false;
 
     /// <summary>Notifies hosts after a Thread is created and persisted.</summary>
     Action<SessionThread>? ThreadCreatedForBroadcast { get; set; }

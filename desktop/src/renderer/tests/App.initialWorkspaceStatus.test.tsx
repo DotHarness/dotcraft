@@ -440,7 +440,8 @@ function installApi(
         onVisibilityChanged: onWindowVisibilityChanged,
         onOpenChromeSettings: vi.fn(() => vi.fn()),
         onOpenWhatsNew: vi.fn(() => vi.fn()),
-        onOpenThread: vi.fn(() => vi.fn())
+        onOpenThread: vi.fn(() => vi.fn()),
+        onOpenNewChat: vi.fn(() => vi.fn())
       },
       whatsNew: {
         getReleases,

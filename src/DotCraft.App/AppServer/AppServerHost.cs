@@ -76,6 +76,7 @@ public sealed class AppServerHost(
     private readonly ConcurrentDictionary<IAppServerTransport, Lazy<OrderedAppServerNotificationQueue>> _terminalNotificationQueues = new();
     private readonly ConcurrentDictionary<IAppServerTransport, Lazy<OrderedAppServerNotificationQueue>> _pluginNotificationQueues = new();
     private readonly ThreadRuntimeNotificationCoordinator _threadRuntimeNotifications = new();
+    private readonly HiddenThreadAudience _hiddenThreads = new(threadId => runtime.SessionService.IsHiddenThread(threadId));
 
     private IReadOnlyList<IAppServerProtocolExtension> ProtocolExtensions =>
         runtime.Services.GetServices<IAppServerProtocolExtension>().ToArray();
@@ -1288,9 +1289,7 @@ public sealed class AppServerHost(
     /// </summary>
     private void BroadcastThreadStarted(SessionThread thread)
     {
-        if (ThreadVisibility.IsInternal(thread))
-            return;
-
+        _hiddenThreads.Observe(thread);
         var wire = thread.ToWire() with
         {
             Runtime = runtime.SessionService.GetThreadRuntimeSnapshot(thread).ToWireRuntimeState()
@@ -1312,6 +1311,9 @@ public sealed class AppServerHost(
                 continue;
 
             if (skipTransport != null && ReferenceEquals(transport, skipTransport))
+                continue;
+
+            if (!_hiddenThreads.Accepts(thread.Id, connection))
                 continue;
 
             _ = Task.Run(async () =>
@@ -1422,6 +1424,7 @@ public sealed class AppServerHost(
         if (string.IsNullOrEmpty(thread.DisplayName))
             return;
 
+        _hiddenThreads.Observe(thread);
         var parameters = new Contract.ThreadRenamedNotification
         {
             ThreadId = thread.Id,
@@ -1430,7 +1433,8 @@ public sealed class AppServerHost(
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRenamed))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRenamed)
+                || !_hiddenThreads.Accepts(thread.Id, connection))
                 continue;
 
             _ = Task.Run(async () =>
@@ -1449,9 +1453,7 @@ public sealed class AppServerHost(
 
     private void BroadcastThreadUpdated(SessionThread thread)
     {
-        if (ThreadVisibility.IsInternal(thread))
-            return;
-
+        _hiddenThreads.Observe(thread);
         var wire = thread.ToWire(includeTurns: false) with
         {
             Runtime = runtime.SessionService.GetThreadRuntimeSnapshot(thread).ToWireRuntimeState()
@@ -1470,7 +1472,8 @@ public sealed class AppServerHost(
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUpdated))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUpdated)
+                || !_hiddenThreads.Accepts(thread.Id, connection))
                 continue;
 
             if (skipTransport != null && ReferenceEquals(transport, skipTransport))
@@ -1495,7 +1498,12 @@ public sealed class AppServerHost(
         if (signal == SessionThreadRuntimeSignal.TurnCompleted)
             runtime.WelcomeSuggestionService.ScheduleRefresh(runtime.Paths.WorkspacePath, threadId);
 
-        if (_threadRuntimeNotifications.ApplySignal(threadId, signal, turn, _activeTransports))
+        if (_threadRuntimeNotifications.ApplySignal(
+                threadId,
+                signal,
+                turn,
+                _activeTransports,
+                connection => _hiddenThreads.Accepts(threadId, connection)))
             RequestHubTurnNotification(threadId, signal);
     }
 
@@ -1538,7 +1546,8 @@ public sealed class AppServerHost(
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(lifecycle.Method))
+            if (!connection.ShouldSendNotification(lifecycle.Method)
+                || !_hiddenThreads.Accepts(threadId, connection))
                 continue;
 
             if (skipTransport != null && ReferenceEquals(transport, skipTransport))
@@ -1570,7 +1579,8 @@ public sealed class AppServerHost(
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadDeleted))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadDeleted)
+                || !_hiddenThreads.Accepts(threadId, connection))
                 continue;
 
             _ = Task.Run(async () =>
@@ -1585,6 +1595,8 @@ public sealed class AppServerHost(
                 }
             });
         }
+
+        _hiddenThreads.Forget(threadId);
     }
 
     /// <summary>

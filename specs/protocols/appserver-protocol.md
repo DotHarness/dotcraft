@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.3 |
+| **Version** | 0.8.4 |
 | **Status** | Living |
-| **Date** | 2026-10-06 |
+| **Date** | 2026-10-11 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md) |
 
@@ -298,7 +298,7 @@ Built-in channels and external adapters share the delivery and tool-call contrac
 | `capabilities.modelCatalogManagement` | boolean | Server supports model catalog methods (`model/list`). |
 | `capabilities.workspaceConfigManagement` | boolean | Server supports configuration methods (`config/schema`, `config/read`, `config/value/write`, `config/batchWrite`). |
 | `capabilities.sourceControlManagement` | boolean | Server supports workspace source control binding methods (`sourceControl/get`, `sourceControl/update`, `sourceControl/test`) and source-control provider extensions advertised by `sourceControl/get.capabilities`, such as Perforce pending changelist selection/preparation. |
-| `capabilities.fileSystem` | boolean | Server supports file system methods on the AppServer host (`fs/readFile`, `fs/writeFile`, `fs/createDirectory`). |
+| `capabilities.fileSystem` | boolean | Server supports the file system methods on the AppServer host (Section 25B). |
 | `capabilities.memoryManagement` | boolean | Server supports workspace memory management methods (`memory/reset`). |
 | `capabilities.dreams` | boolean | Server supports workspace Dreams status, manual/create run requests, review lifecycle, and Dreams settings. |
 | `capabilities.mcpManagement` | boolean | Server supports MCP configuration management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`). |
@@ -351,7 +351,7 @@ Thread methods correspond to `ISessionService` thread lifecycle operations defin
 
 ### 4.1 `thread/start`
 
-Create a new thread. The server generates a Thread ID and persists initial state.
+Create a new thread. The server generates a Thread ID and persists initial state unless the thread is ephemeral.
 
 **Direction**: client → server (request)
 
@@ -365,6 +365,7 @@ Create a new thread. The server generates a Thread ID and persists initial state
 | `additionalContext` | RuntimeAdditionalContext | no | Thread-bound runtime context supplied by the AppServer client. Requires `capabilities.runtimeAdditionalContext`. |
 | `historyMode` | string | no | `"server"` (default) or `"client"`. |
 | `displayName` | string | no | Explicit thread display name. |
+| `ephemeral` | boolean | no | When true, create a process-local thread that is never persisted, omitted from `thread/list` and `thread/search`, and hidden (Section 6.1). It runs turns like any thread and ends when it is deleted or the server process exits. Defaults to false. |
 | `spawnedFromThreadId` | string | no | Id of the thread that started this thread on the user's behalf (e.g. the Desktop `CreateThread` tool invoked from another thread). The server records it as a non-subagent origin on the new thread's `ThreadSource` (`kind` stays `"user"`) and mirrors it into thread metadata as `spawnedFromThreadId`, so the new thread stays an ordinary sibling thread (it does not become a subagent and does not enter the SubAgent dock) while its first user message can link back to the source thread. Self-references are ignored. |
 
 When `config.agentProfileId` is set, AppServer resolves the Agent Profile for the normalized workspace and compiles the Markdown profile into a `ThreadConfiguration` template. `agentProfileSource` and `agentProfileFingerprint` are server-resolved provenance outputs; clients must not send either field as a `thread/start` overlay or use a source value to bypass profile precedence. A profile without `providerPreference` starts from the effective workspace/global provider preference. A profile with `providerPreference` materializes its fixed model preset into a complete preference, deriving reasoning output visibility from the selected model catalog's `defaultOutput`. AppServer then applies only the supported runtime overlays (`providerId`, `model`, `reasoning`, `speed`, `developerInstructions`), normalizes the resulting model configuration as one unit, and persists a complete provider/model/reasoning/speed snapshot on the new thread. A provider or model overlay selects a new runtime model and reseeds omitted model options from that provider's effective preference when one exists, otherwise from capability-safe defaults for the explicit model, before explicit option overlays are applied. A complete explicit provider/model configuration does not require a saved workspace `providerPreference`. An explicit reasoning overlay, including output visibility, is applied after Profile materialization. `developerInstructions` carries the starting application's own instructions and is rendered as the final system prompt section after the profile's role instructions, so an application such as a channel host can state the thread's role and delivery contract without touching the profile. Capability or instruction overlays such as tools, MCP, plugins, skills, approval policy, `agentInstructions`, `overrideBasePrompt`, workspace overrides, `agentProfileSource`, and `agentProfileFingerprint` are rejected with `AgentProfileValidationFailed`. Clients should read the structured error `data.detail` and `data.params.diagnostics` fields for the rejected overlay names and stable diagnostic codes.
@@ -637,7 +638,7 @@ Create a new thread from a source thread's persisted history. Clients must check
 | `identity` | SessionIdentity | no | Replacement identity for the forked thread. Omitted fields inherit from the source thread. |
 | `config` | ThreadConfiguration | no | Thread configuration overrides applied after copying the source configuration. |
 | `displayName` | string | no | Explicit display name for the forked thread. When omitted, the fork uses the source thread's visible display name, or the first retained user message when the source has no display name. |
-| `ephemeral` | boolean | no | When true, create a process-local fork omitted from default lists. Defaults to false. |
+| `ephemeral` | boolean | no | When true, create a process-local fork with the same meaning as `thread/start.ephemeral`. Defaults to false. |
 | `promptSuggestion` | boolean | no | Marks an ephemeral fork used to predict the next user message. Requires `ephemeral = true` and a full `after` boundary at the latest completed Turn, with no non-empty `itemId`; omitted position defaults to `after`. Preserves the source's tool-planning role and provider cache routing identity while keeping a distinct thread id. Defaults to false. |
 
 **Result**: `{ "thread": Thread, "instructionSources": string[] }`
@@ -1537,7 +1538,7 @@ Suggest a source-control summary from the **source thread’s** recent conversat
 
 **Errors** (non-exhaustive): source thread not found; paths outside workspace; unsupported provider; Git repository/diff unavailable; Perforce binding unavailable/offline; empty change context; model did not emit the `CommitSuggest` tool; timeout. If the server cannot run the suggest pipeline (e.g. no session service), it returns an appropriate JSON-RPC error.
 
-**Note**: The server may create and delete an **ephemeral** thread for this operation. Clients may observe transient `thread/*` / `turn/*` notifications for that internal thread; implementations typically filter or ignore threads whose origin channel marks commit-message generation.
+**Note**: The server runs this operation on an internal ephemeral thread. That thread is hidden (Section 6.1), so clients receive no notifications for it.
 
 ### 5.4 `welcome/suggestions`
 
@@ -1598,6 +1599,8 @@ All notifications share the pattern:
 
 ### 6.1 Thread Notifications
 
+A thread is **hidden** when it is ephemeral or internal. Internal threads are DotCraft-owned helper threads marked with `dotcraft.internal` metadata or a known internal origin, and conversational Agent Builder threads. The workspace-level broadcasts in this section — `thread/started`, `thread/updated`, `thread/renamed`, `thread/deleted`, `thread/archived`, `thread/unarchived`, and `thread/status/changed` — are delivered for a hidden thread only to connections subscribed to it; the creating connection already has the thread from its request's result. Turn and item notifications keep their subscription rules. SubAgent child threads are not hidden.
+
 #### `thread/started`
 
 Emitted when a new thread is created. Sent to the initiating client after `thread/start` (see Section 4.1), and **broadcast to connected clients** when a thread is created by any other channel in the same process. When a thread is created as a side effect of another JSON-RPC request, such as a protocol extension request, the broadcast is also delivered to the connection that initiated that request. Session-backed SubAgent child thread creation is broadcast to the current connection too so sidebar/thread-list UIs can show the child immediately while the parent turn is still running.
@@ -1622,7 +1625,7 @@ Duplicate or idempotent deliveries for the same `threadId` and `displayName` are
 
 #### `thread/deleted`
 
-Emitted when a thread is **permanently** deleted. The server **broadcasts** this notification to **all** connected clients after deletion completes, including the initiating connection, regardless of which protocol entry point or host integration triggered the removal. Notification opt-out still applies. Delivery does not require a thread subscription and may precede or follow the deletion RPC response.
+Emitted when a thread is **permanently** deleted. The server **broadcasts** this notification to **all** connected clients, except for hidden threads (Section 6.1), after deletion completes, including the initiating connection, regardless of which protocol entry point or host integration triggered the removal. Notification opt-out still applies. Delivery does not require a thread subscription and may precede or follow the deletion RPC response.
 
 **Params**: `{ "threadId": "<id>" }`
 
@@ -1648,7 +1651,7 @@ Emitted when an archived thread is restored to Active status.
 
 #### `thread/status/changed`
 
-Emitted when the server's aggregated **runtime snapshot** for a thread changes. This is a **workspace-level broadcast notification**: it is delivered to all initialized connections that have not opted out, regardless of whether they currently hold a `thread/subscribe` subscription for that thread.
+Emitted when the server's aggregated **runtime snapshot** for a thread changes. This is a **workspace-level broadcast notification**: it is delivered to all initialized connections that have not opted out, regardless of whether they currently hold a `thread/subscribe` subscription for that thread. Hidden threads (Section 6.1) are the exception.
 
 This notification is a **summary channel** for sidebar or thread-list style UIs. It does **not** replace turn-scoped notifications such as `turn/started`, `turn/completed`, or `item/*`; those notifications continue to follow thread-subscription delivery rules. Clients that need full turn details must still subscribe to the target thread.
 
@@ -6933,24 +6936,32 @@ Clients must check `capabilities.sourceControlManagement` before calling source 
 ## 25B. File System Methods
 
 These methods let a client that does not share the AppServer host's file system, such as a paired
-phone, read a file the conversation refers to and place an attachment on the host. Servers advertise
-them with `capabilities.fileSystem = true`.
+phone or a Desktop Plugin running against a remote workspace, read, inspect, change, and watch paths
+on the host. Servers advertise them with `capabilities.fileSystem = true`.
 
 | Method | Params | Result |
 |---|---|---|
 | `fs/readFile` | `{ path }` | `{ dataBase64 }`: the file's bytes. |
 | `fs/writeFile` | `{ path, dataBase64 }` | `{}`. Creates the file or replaces its contents. |
 | `fs/createDirectory` | `{ path, recursive? }` | `{}`. `recursive` defaults to `true` and also creates missing parents; an existing directory succeeds. |
+| `fs/getMetadata` | `{ path }` | `{ isDirectory, isFile, isSymlink, createdAtMs, modifiedAtMs }`. Times are Unix milliseconds, or `0` when the platform does not report them. |
+| `fs/readDirectory` | `{ path }` | `{ entries }`: the direct children as `{ fileName, isDirectory, isFile }`, where `fileName` is the entry name only. |
+| `fs/remove` | `{ path, recursive?, force? }` | `{}`. Removes a file or directory tree. `recursive` and `force` default to `true`; `force` makes a missing path succeed. |
+| `fs/copy` | `{ sourcePath, destinationPath, recursive? }` | `{}`. Copies a file, or a directory tree when `recursive` is `true`. |
+| `fs/watch` | `{ watchId, path }` | `{ path }`: the canonical watched path. |
+| `fs/unwatch` | `{ watchId }` | `{}`. |
+
+`fs/changed` is a server → client notification with `{ watchId, changedPaths }`.
 
 Rules:
 
-- `path` must be an absolute path on the AppServer host; a relative path is rejected with
+- Every path must be an absolute path on the AppServer host; a relative path is rejected with
   `InvalidParams` (`-32602`). Paths are not limited to the workspace, because the client already has
   the authority of the host's user.
 - Failures other than invalid params use error code `-32103`, with the case in `error.data.code` and
   the resolved path in `error.data.params.path`. A path under `Security.BlacklistedPaths` fails with
   `PathBlocked` for every method, checked both as given and after resolving symbolic links and
-  junctions; the method then acts on the resolved path.
+  junctions; the method then acts on the resolved path, except that `fs/remove` removes a symbolic link or junction itself and never its target. `fs/copy` checks both paths. A recursive `fs/copy` skips blocked entries and every symbolic link or junction inside the tree; a recursive `fs/remove` fails with `PathBlocked` and removes nothing when a blocked path lies inside the tree.
 - `fs/readFile` fails with `FileNotFound` when nothing exists at `path`, `NotAFile` when `path` is a
   directory, and `FileTooLarge` when the file exceeds 8 MiB.
 - `fs/writeFile` does not create parent directories; a missing parent fails with
@@ -6958,6 +6969,20 @@ Rules:
   transport's message size limit (§15), so a client keeps each written file to about 2 MiB.
 - `fs/createDirectory` fails with `NotADirectory` when a file already exists at `path`, and with
   `DirectoryNotFound` when `recursive` is `false` and the parent is missing.
+- `fs/getMetadata` fails with `FileNotFound` when nothing exists at `path`. `isSymlink` describes
+  `path` itself; `isDirectory` and `isFile` describe what it resolves to.
+- `fs/readDirectory` fails with `FileNotFound` when nothing exists at `path` and `NotADirectory` when
+  `path` is a file.
+- `fs/remove` fails with `FileNotFound` when `path` is missing and `force` is `false`, and with
+  `DirectoryNotEmpty` when `path` is a non-empty directory and `recursive` is `false`.
+- `fs/copy` fails with `FileNotFound` when the source is missing, `InvalidParams` when the source is a
+  directory and `recursive` is not `true`, and `DirectoryNotFound` when the destination's parent is
+  missing. An existing destination file is replaced. Copying a directory into itself or one of its descendants is rejected with `InvalidParams`.
+- `fs/watch` watches `path` itself, not its subtree: a directory reports changes to its direct
+  children. `watchId` is chosen by the client and scoped to its connection; reusing an active
+  `watchId` is rejected with `InvalidParams`. A path that does not exist yet is watched through its parent directory, so its creation is reported; `FileNotFound` when the parent is missing too. Changes are coalesced for about 200 ms before one
+  `fs/changed` is sent. Watches end with `fs/unwatch` or when the connection closes; unwatching an
+  unknown `watchId` succeeds.
 
 ## 26. Memory Management Methods
 

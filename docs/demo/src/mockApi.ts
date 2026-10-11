@@ -187,7 +187,8 @@ const explicitApi = {
     getWorkspacePath: async () => DEMO_WORKSPACE_PATH,
     onOpenChromeSettings: unsubscribe,
     onOpenWhatsNew: unsubscribe,
-    onOpenThread: unsubscribe
+    onOpenThread: unsubscribe,
+    onOpenNewChat: unsubscribe
   },
   shell: {
     openPath: async () => '',

@@ -34,7 +34,6 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     private readonly string _workspacePath;
     private readonly string _craftPath;
     private readonly ThreadStore _threadStore;
-    private readonly SessionPersistenceService _persistence;
     private readonly MemoryStore _memoryStore;
     private readonly DreamStore _dreamStore;
     private readonly TestableSessionService _sessionService;
@@ -46,7 +45,6 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         Directory.CreateDirectory(_craftPath);
 
         _threadStore = new ThreadStore(_craftPath);
-        _persistence = new SessionPersistenceService(_threadStore);
         _memoryStore = new MemoryStore(_craftPath);
         _dreamStore = new DreamStore(_craftPath);
         _sessionService = new TestableSessionService(_threadStore);
@@ -805,7 +803,6 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     private WelcomeSuggestionService CreateService(bool welcomeSuggestionsEnabled = true, bool memoryEnabled = true) =>
         new(
             _sessionService,
-            _persistence,
             _memoryStore,
             _dreamStore,
             _workspacePath,

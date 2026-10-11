@@ -72,6 +72,23 @@ public sealed class HubTurnNotificationPolicyTests
     }
 
     [Fact]
+    public async Task ResolveDecision_ForEphemeralThread_SuppressesNotification()
+    {
+        var thread = new SessionThread
+        {
+            Id = "thread_ephemeral",
+            OriginChannel = "dotcraft-desktop",
+            DisplayName = "Plugin helper",
+            Ephemeral = true
+        };
+        var service = new FakeSessionService(thread);
+
+        var decision = await HubTurnNotificationPolicy.ResolveDecisionAsync(service, "thread_ephemeral");
+
+        Assert.False(decision.ShouldNotify);
+    }
+
+    [Fact]
     public async Task ResolveDecision_ForKnownInternalOriginThread_SuppressesNotification()
     {
         var service = new FakeSessionService(new SessionThread
@@ -151,7 +168,7 @@ public sealed class HubTurnNotificationPolicyTests
         public Action<string, ThreadStatus, ThreadStatus>? ThreadStatusChangedForBroadcast { get; set; }
         public Action<string, SessionThreadRuntimeSignal, SessionTurn?>? ThreadRuntimeSignalForBroadcast { get; set; }
 
-        public Task<SessionThread> CreateThreadAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? threadId = null, string? displayName = null, CancellationToken ct = default, ThreadSource? source = null) => throw new NotImplementedException();
+        public Task<SessionThread> CreateThreadAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? threadId = null, string? displayName = null, CancellationToken ct = default, ThreadSource? source = null, bool ephemeral = false) => throw new NotImplementedException();
         public Task<ThreadResetResult> ResetConversationAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? displayName = null, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<SessionThread> ResumeThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
         public Task ArchiveThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();

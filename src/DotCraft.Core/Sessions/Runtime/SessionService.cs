@@ -476,8 +476,13 @@ public sealed partial class SessionService(
         string? threadId = null,
         string? displayName = null,
         CancellationToken ct = default,
-        ThreadSource? source = null)
-        => await ThreadCreation.CreateAsync(identity, config, historyMode, threadId, displayName, ct, source);
+        ThreadSource? source = null,
+        bool ephemeral = false)
+        => await ThreadCreation.CreateAsync(identity, config, historyMode, threadId, displayName, ct, source, ephemeral);
+
+    /// <inheritdoc/>
+    public bool IsHiddenThread(string threadId) =>
+        _runtimeRegistry.TryGetThread(threadId, out var thread) && ThreadVisibility.IsHidden(thread);
 
     /// <inheritdoc/>
     public async Task<ThreadResetResult> ResetConversationAsync(

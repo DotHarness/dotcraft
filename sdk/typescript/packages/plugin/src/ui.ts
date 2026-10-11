@@ -3,6 +3,7 @@ import type {
   ComponentType,
   CSSProperties,
   InputHTMLAttributes,
+  ReactElement,
   ReactNode,
   TextareaHTMLAttributes,
 } from "react";
@@ -195,6 +196,30 @@ export interface AgentAvatarProps {
   readonly animated?: boolean;
 }
 
+export interface MenuItem {
+  readonly label: string;
+  readonly onSelect: () => void;
+  readonly icon?: ReactNode;
+  readonly disabled?: boolean;
+  readonly danger?: boolean;
+}
+
+export interface MenuSeparator {
+  readonly type: "separator";
+}
+
+export interface MenuLabel {
+  readonly type: "label";
+  readonly label: string;
+}
+
+export type MenuEntry = MenuItem | MenuSeparator | MenuLabel;
+
+export interface MenuProps {
+  readonly items: readonly MenuEntry[];
+  readonly children: ReactElement;
+}
+
 export interface PluginSurfaceProps<Surface extends string = string> {
   readonly name: Surface;
   readonly context: DesktopPluginSurfaceContext<Surface>;
@@ -235,4 +260,5 @@ export interface DesktopPluginUiComponents {
   readonly SettingsRow: ComponentType<SettingsRowProps>;
   readonly InlineDiff: ComponentType<InlineDiffProps>;
   readonly AgentAvatar: ComponentType<AgentAvatarProps>;
+  readonly Menu: ComponentType<MenuProps>;
 }

@@ -27,7 +27,6 @@ public interface IWelcomeSuggester : IContributionContract
 
 public sealed class WelcomeSuggestionService(
     ISessionService sessionService,
-    SessionPersistenceService persistence,
     MemoryStore memoryStore,
     DreamStore dreamStore,
     string workspaceRoot,
@@ -96,6 +95,8 @@ public sealed class WelcomeSuggestionService(
         var normalizedWorkspace = NormalizeWorkspacePath(workspacePath);
         if (!string.Equals(normalizedWorkspace, NormalizeWorkspacePath(workspaceRoot), StringComparison.OrdinalIgnoreCase))
             return;
+        if (!string.IsNullOrWhiteSpace(triggerThreadId) && sessionService.IsHiddenThread(triggerThreadId.Trim()))
+            return;
 
         lock (_refreshLock)
         {
@@ -104,7 +105,7 @@ public sealed class WelcomeSuggestionService(
             _pendingRefreshCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCts.Token);
             var refreshCt = _pendingRefreshCts.Token;
             _latestRefreshTask = Task.Run(
-                () => RunScheduledRefreshAsync(normalizedWorkspace, triggerThreadId, refreshCt),
+                () => RunScheduledRefreshAsync(normalizedWorkspace, refreshCt),
                 CancellationToken.None);
         }
     }
@@ -154,18 +155,12 @@ public sealed class WelcomeSuggestionService(
 
     private async Task RunScheduledRefreshAsync(
         string workspacePath,
-        string? triggerThreadId,
         CancellationToken cancellationToken)
     {
         try
         {
             if (!IsWelcomeSuggestionsEnabled(workspacePath))
                 return;
-            if (!string.IsNullOrWhiteSpace(triggerThreadId)
-                && await IsInternalThreadAsync(triggerThreadId, cancellationToken).ConfigureAwait(false))
-            {
-                return;
-            }
 
             await Task.Delay(RefreshDebounce, cancellationToken).ConfigureAwait(false);
             var minNextRefreshAt = _lastRefreshCompletedAt + MinRefreshInterval;
@@ -242,16 +237,6 @@ public sealed class WelcomeSuggestionService(
             persisted!,
             DateTimeOffset.UtcNow.Add(CacheTtl));
         return true;
-    }
-
-    private async Task<bool> IsInternalThreadAsync(string threadId, CancellationToken cancellationToken)
-    {
-        var normalizedThreadId = threadId.Trim();
-        if (normalizedThreadId.Length == 0)
-            return false;
-        var summaries = await persistence.LoadIndexAsync(cancellationToken).ConfigureAwait(false);
-        var summary = summaries.FirstOrDefault(item => string.Equals(item.Id, normalizedThreadId, StringComparison.Ordinal));
-        return summary != null && IsInternalThread(summary);
     }
 
     private static WelcomeSuggestionSnapshot LimitResult(WelcomeSuggestionSnapshot source, int maxItems)
@@ -380,13 +365,13 @@ public sealed class WelcomeSuggestionService(
                     },
                     HistoryMode.Server,
                     displayName: "[internal] Welcome suggestions",
-                    ct: linked.Token)
+                    ct: linked.Token,
+                    ephemeral: true)
                 .ConfigureAwait(false);
 
             tempThreadId = tempThread.Id;
             tempThread.Metadata[WelcomeSuggestionConstants.InternalMetadataKey] =
                 WelcomeSuggestionConstants.InternalMetadataValue;
-            await persistence.SaveThreadAsync(tempThread, linked.Token).ConfigureAwait(false);
 
             List<WelcomeSuggestion>? items = null;
             await foreach (var evt in sessionService.SubmitInputAsync(
@@ -573,11 +558,6 @@ public sealed class WelcomeSuggestionService(
 
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
         return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
-
-    internal static bool IsInternalThread(ThreadSummary summary)
-    {
-        return ThreadVisibility.IsInternal(summary);
     }
 
     internal static string NormalizeWorkspacePath(string? path) =>

@@ -8178,6 +8178,63 @@
       "variants": []
     },
     {
+      "id": "core.FsChangedNotification",
+      "name": "FsChangedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/FsChangedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "changedPaths",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "watchId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.FsCopyParams",
+      "name": "FsCopyParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/FsCopyParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "destinationPath",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "recursive",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "sourcePath",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.FsCreateDirectoryParams",
       "name": "FsCreateDirectoryParams",
       "module": "core",
@@ -8196,6 +8253,142 @@
           "name": "recursive",
           "type": "boolean",
           "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.FsGetMetadataParams",
+      "name": "FsGetMetadataParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/FsGetMetadataParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.FsGetMetadataResult",
+      "name": "FsGetMetadataResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/FsGetMetadataResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "createdAtMs",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "isDirectory",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "isFile",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "isSymlink",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "modifiedAtMs",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.FsReadDirectoryEntry",
+      "name": "FsReadDirectoryEntry",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/FsReadDirectoryEntry.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "fileName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "isDirectory",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "isFile",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.FsReadDirectoryParams",
+      "name": "FsReadDirectoryParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/FsReadDirectoryParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.FsReadDirectoryResult",
+      "name": "FsReadDirectoryResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/FsReadDirectoryResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "entries",
+          "type": "array<core.FsReadDirectoryEntry>",
+          "required": true,
           "nullable": false,
           "const": null
         }
@@ -8230,6 +8423,99 @@
       "fields": [
         {
           "name": "dataBase64",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.FsRemoveParams",
+      "name": "FsRemoveParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/FsRemoveParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "force",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "recursive",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.FsUnwatchParams",
+      "name": "FsUnwatchParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/FsUnwatchParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "watchId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.FsWatchParams",
+      "name": "FsWatchParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/FsWatchParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "watchId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.FsWatchResult",
+      "name": "FsWatchResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/FsWatchResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "path",
           "type": "string",
           "required": true,
           "nullable": false,
@@ -22179,6 +22465,13 @@
           "const": null
         },
         {
+          "name": "ephemeral",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "historyMode",
           "type": "string",
           "required": false,
@@ -28531,6 +28824,49 @@
       "stability": "stable"
     },
     {
+      "name": "fs/changed",
+      "descriptorMember": "FsChanged",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.FsChangedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "fileSystem",
+      "scope": "connection",
+      "notificationOptOut": true,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "fs/copy",
+      "descriptorMember": "FsCopy",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.FsCopyParams",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "fileSystem",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "DirectoryNotEmpty",
+        "DirectoryNotFound",
+        "FileNotFound",
+        "FileTooLarge",
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "NotADirectory",
+        "NotAFile",
+        "PathBlocked"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
       "name": "fs/createDirectory",
       "descriptorMember": "FsCreateDirectory",
       "kind": "request",
@@ -28542,6 +28878,61 @@
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
+        "DirectoryNotEmpty",
+        "DirectoryNotFound",
+        "FileNotFound",
+        "FileTooLarge",
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "NotADirectory",
+        "NotAFile",
+        "PathBlocked"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "fs/getMetadata",
+      "descriptorMember": "FsGetMetadata",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.FsGetMetadataParams",
+      "resultType": "core.FsGetMetadataResult",
+      "module": "core",
+      "capability": "fileSystem",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "DirectoryNotEmpty",
+        "DirectoryNotFound",
+        "FileNotFound",
+        "FileTooLarge",
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "NotADirectory",
+        "NotAFile",
+        "PathBlocked"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "fs/readDirectory",
+      "descriptorMember": "FsReadDirectory",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.FsReadDirectoryParams",
+      "resultType": "core.FsReadDirectoryResult",
+      "module": "core",
+      "capability": "fileSystem",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "DirectoryNotEmpty",
         "DirectoryNotFound",
         "FileNotFound",
         "FileTooLarge",
@@ -28568,6 +28959,81 @@
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
+        "DirectoryNotEmpty",
+        "DirectoryNotFound",
+        "FileNotFound",
+        "FileTooLarge",
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "NotADirectory",
+        "NotAFile",
+        "PathBlocked"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "fs/remove",
+      "descriptorMember": "FsRemove",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.FsRemoveParams",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "fileSystem",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "DirectoryNotEmpty",
+        "DirectoryNotFound",
+        "FileNotFound",
+        "FileTooLarge",
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "NotADirectory",
+        "NotAFile",
+        "PathBlocked"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "fs/unwatch",
+      "descriptorMember": "FsUnwatch",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.FsUnwatchParams",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "fileSystem",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "fs/watch",
+      "descriptorMember": "FsWatch",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.FsWatchParams",
+      "resultType": "core.FsWatchResult",
+      "module": "core",
+      "capability": "fileSystem",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "DirectoryNotEmpty",
         "DirectoryNotFound",
         "FileNotFound",
         "FileTooLarge",
@@ -28594,6 +29060,7 @@
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
+        "DirectoryNotEmpty",
         "DirectoryNotFound",
         "FileNotFound",
         "FileTooLarge",

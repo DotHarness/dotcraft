@@ -256,6 +256,10 @@ export interface OpenThreadPayload {
   threadId: string
 }
 
+export interface OpenNewChatPayload {
+  prompt?: string
+}
+
 export interface ModulesRescanSummaryPayload {
   addedModuleIds: string[]
   removedModuleIds: string[]
@@ -406,6 +410,14 @@ let openThreadToken = 0
 let activeOpenThreadCallback: ((payload: OpenThreadPayload) => void) | null = null
 ipcRenderer.on('app:open-thread', (_event: Electron.IpcRendererEvent, payload: OpenThreadPayload) => {
   activeOpenThreadCallback?.(payload)
+})
+
+let openNewChatToken = 0
+let activeOpenNewChatCallback: ((payload: OpenNewChatPayload) => void) | null = null
+let pendingOpenNewChat: OpenNewChatPayload | null = null
+ipcRenderer.on('app:open-new-chat', (_event: Electron.IpcRendererEvent, payload: OpenNewChatPayload) => {
+  if (activeOpenNewChatCallback) activeOpenNewChatCallback(payload)
+  else pendingOpenNewChat = payload
 })
 
 let pinnedThreadIdsChangedToken = 0
@@ -734,6 +746,19 @@ const api = {
           activeOpenThreadCallback = null
         }
       }
+    },
+
+    onOpenNewChat(callback: (payload: OpenNewChatPayload) => void): () => void {
+      const token = ++openNewChatToken
+      activeOpenNewChatCallback = callback
+      const pending = pendingOpenNewChat
+      pendingOpenNewChat = null
+      if (pending) callback(pending)
+      return () => {
+        if (openNewChatToken === token) {
+          activeOpenNewChatCallback = null
+        }
+      }
     }
   },
 
@@ -749,6 +774,10 @@ const api = {
     /** The URL scheme is validated in the main process, not here. */
     openExternal(url: string): Promise<void> {
       return ipcRenderer.invoke('shell:open-external', url)
+    },
+
+    openDesktopLink(url: string): Promise<void> {
+      return ipcRenderer.invoke('shell:open-desktop-link', url)
     },
 
     openAppHandoff(url: string): Promise<void> {

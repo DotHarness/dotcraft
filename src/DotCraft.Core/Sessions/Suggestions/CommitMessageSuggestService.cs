@@ -95,7 +95,8 @@ public sealed class CommitMessageSuggestService(
                     config,
                     HistoryMode.Client,
                     displayName: "[internal] Commit suggestion",
-                    ct: linked.Token)
+                    ct: linked.Token,
+                    ephemeral: true)
                 .ConfigureAwait(false);
 
             tempThreadId = tempThread.Id;

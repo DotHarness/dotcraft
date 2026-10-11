@@ -192,7 +192,7 @@ export interface DesktopPluginNavigation {
   openMainView(contributionId: string): void;
   openSettingsPage(contributionId: string): void;
   openThread(threadId: string, workspacePath?: string): Promise<void>;
-  /** Opens an http(s) URL in the user's default browser. */
+  /** Opens an http(s) URL in the user's default browser and handles a `dotcraft:` link inside Desktop; rejects other schemes. */
   openExternal(url: string): Promise<void>;
   /** Opens a workspace file in the Detail Panel file viewer; a relative path resolves against the current thread's workspace. */
   openFile(path: string): Promise<void>;
@@ -258,10 +258,16 @@ export type DesktopPluginColorPickerResult =
   | { readonly kind: "reset" }
   | { readonly kind: "cancel" };
 
+export interface DesktopPluginFolderPickerOptions {
+  readonly title: string;
+}
+
 export interface DesktopPluginUi {
   showToast(options: DesktopPluginToastOptions): DesktopPluginDispose;
   confirm(options: DesktopPluginConfirmOptions): Promise<boolean>;
   pickColor(options: DesktopPluginColorPickerOptions): Promise<DesktopPluginColorPickerResult>;
+  /** Resolves to the chosen absolute path on the Desktop machine, or `null` when cancelled. */
+  pickFolder(options: DesktopPluginFolderPickerOptions): Promise<string | null>;
   add<Surface extends string>(
     surface: Surface,
     component: DesktopPluginSurfaceComponent<Surface>,
@@ -357,6 +363,24 @@ export interface DesktopPluginAppSurfaces {
   getJson<T = unknown>(appId: string, surfaceId: string, relativePath: string, timeoutMs?: number): Promise<T>;
   postJson<T = unknown>(appId: string, surfaceId: string, relativePath: string, body: unknown, timeoutMs?: number): Promise<T>;
 }
+export interface DesktopPluginMcpToolCall {
+  readonly server: string;
+  readonly tool: string;
+  readonly arguments?: Readonly<Record<string, unknown>>;
+  /** Without a thread, the call runs on a shared hidden thread that denies approval-gated tools. */
+  readonly threadId?: string;
+}
+
+export interface DesktopPluginMcpToolResult {
+  readonly content: readonly unknown[];
+  readonly structuredContent?: unknown;
+  readonly isError?: boolean;
+  readonly _meta?: Readonly<Record<string, unknown>>;
+}
+
+export interface DesktopPluginMcp {
+  callTool(call: DesktopPluginMcpToolCall): Promise<DesktopPluginMcpToolResult>;
+}
 
 export interface DesktopPluginLocalProject {
   readonly path: string;
@@ -439,6 +463,7 @@ export interface DesktopPluginHost {
   readonly navigation: DesktopPluginNavigation;
   readonly ui: DesktopPluginUi;
   readonly appServer: DesktopPluginAppServer;
+  readonly mcp: DesktopPluginMcp;
   readonly settings: DesktopPluginSettings;
   readonly appBindings: DesktopPluginAppBindings;
   readonly appSurfaces: DesktopPluginAppSurfaces;

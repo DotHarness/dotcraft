@@ -1,3 +1,5 @@
+import { isHiddenThread } from '../shared/hiddenThreads'
+
 export interface WorkspaceThreadCacheUpdateResult {
   threads: unknown[]
   changed: boolean
@@ -80,7 +82,7 @@ function removeWorkspaceThreadTree(threads: unknown[], rootThreadId: string): un
 function upsertWorkspaceThread(threads: unknown[], thread: unknown): unknown[] {
   const id = getThreadId(thread)
   if (!id || !isRecord(thread)) return threads
-  if (getThreadStatus(thread) === 'archived') return removeWorkspaceThreadTree(threads, id)
+  if (getThreadStatus(thread) === 'archived' || isHiddenThread(thread)) return removeWorkspaceThreadTree(threads, id)
 
   const existing = threads.findIndex((candidate) => getThreadId(candidate) === id)
   if (existing >= 0) {

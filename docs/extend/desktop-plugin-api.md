@@ -348,8 +348,9 @@ Beyond the four primitives, `DesktopPluginHost` groups stable product operations
 | `session` | The foreground workspace, active thread, mode, and busy state, plus a change subscription. |
 | `subagents` | The SubAgents a thread has started, their state, and their completions. |
 | `navigation` | Opening plugin views, Settings pages, threads, files, Detail Panel tabs, and automations, and claiming custom-scheme links. |
-| `ui` | Toasts, Host-owned confirmation and color dialogs, and the three surface operations. |
+| `ui` | Toasts, Host-owned confirmation, color, and folder dialogs, and the three surface operations. |
 | `appServer` | Supported JSON-RPC requests and subscriptions. |
+| `mcp` | Calling tools on the workspace's MCP servers. |
 | `settings` | Reading, mutating, and following this plugin's schema-backed settings. |
 | `appBindings`, `appSurfaces` | Connected-app binding and app-provided UI surfaces. |
 | `workspaces` | Reading local workspace information. |
@@ -550,7 +551,49 @@ host.subagents.onChange(threadId, render);
 | `openFile(path)` | A workspace file in the Detail Panel file viewer. A relative path resolves against the current thread's workspace. |
 | `openDetailPanel(tab)` | The current thread's Detail Panel on `changes`, `plan`, or `subagents`. |
 | `openAutomation(automationId)` | That automation in the Automations view. |
-| `openExternal(url)` | An http(s) URL in the user's default browser. |
+| `openExternal(url)` | An http(s) URL in the user's default browser, or a `dotcraft:` link inside Desktop. Other schemes are rejected. |
+
+### Start a chat with a prefilled message
+
+A `dotcraft://threads/new` link opens Desktop's new-chat screen with a message waiting in the composer:
+
+```text
+dotcraft://threads/new?path=<folder>&prompt=<message>
+```
+
+| Parameter | Effect |
+|---|---|
+| `path` | Optional. An absolute folder on the Desktop machine. Desktop adds it to the project list if needed and selects it. When the folder does not exist, the current project stays selected. |
+| `prompt` | Optional. Text placed in the composer. Desktop never sends it, so the user can edit it first. |
+
+The chat is created only when the user sends. Encode both values. From a plugin, pass the link to `openExternal`:
+
+```ts
+const folder = await host.ui.pickFolder({ title: "Choose a project folder" });
+if (folder) {
+  const link = new URL("dotcraft://threads/new");
+  link.searchParams.set("path", folder);
+  link.searchParams.set("prompt", "Summarize this project");
+  await host.navigation.openExternal(link.href);
+}
+```
+
+The same link works from outside Desktop, for example from a browser or another app.
+
+### Call MCP tools
+
+`host.mcp.callTool` calls a tool on one of the workspace's MCP servers and returns the tool's MCP result: `content`, plus `structuredContent`, `isError`, and `_meta` when the tool sets them.
+
+```ts
+const result = await host.mcp.callTool({
+  server: "board",
+  tool: "list_items",
+  arguments: { status: "open" },
+});
+if (!result.isError) showItems(result.structuredContent);
+```
+
+The call follows the same approval and hook rules as a tool the agent calls. Without `threadId`, it runs outside any conversation and adds nothing to the user's chats, so a tool that needs approval is refused and the refusal comes back as the result. To let the user approve, pass the thread they are looking at, such as `host.session.threadId`.
 
 ## Use the UI kit
 
@@ -558,7 +601,7 @@ Import shared UI components from `@dotcraft/plugin` so a plugin page looks like 
 
 | Group | Components |
 |---|---|
-| **Controls** | `Button`, `IconButton`, `Input`, `Textarea`, `Select`, `SegmentedControl`, `Combobox`, `Checkbox`, `PillSwitch`, `Slider` |
+| **Controls** | `Button`, `IconButton`, `Menu`, `Input`, `Textarea`, `Select`, `SegmentedControl`, `Combobox`, `Checkbox`, `PillSwitch`, `Slider` |
 | **Presentation** | `Spinner`, `Skeleton`, `ActionTooltip`, `ModalHeader`, `InlineDiff`, `AgentAvatar` |
 | **Settings layout** | `SettingsPanelShell`, `SettingsBreadcrumb`, `SettingsGroup`, `SettingsRow` |
 
@@ -607,6 +650,31 @@ function DensityRow({
 }
 ```
 
+### Show a menu
+
+Wrap a trigger, usually an overflow `IconButton`, in `Menu` to open a Desktop menu from it. Desktop places the menu, handles arrow keys and Escape, and closes it when the user clicks elsewhere. Each item calls `onSelect`. `{ type: "separator" }` draws a divider, and `{ type: "label", label }` draws a group heading.
+
+```tsx
+import { IconButton, Menu } from "@dotcraft/plugin";
+import { MoreIcon } from "./icons";
+
+function RowActions({ onOpen, onRemove }: { onOpen: () => void; onRemove: () => void }) {
+  return (
+    <Menu
+      items={[
+        { label: "Open", onSelect: onOpen },
+        { type: "separator" },
+        { label: "Remove", onSelect: onRemove, danger: true },
+      ]}
+    >
+      <IconButton icon={<MoreIcon size={16} />} label="More actions" />
+    </Menu>
+  );
+}
+```
+
+Items also accept `icon` and `disabled`.
+
 ### Request a color
 
 Use `host.ui.pickColor` for an opaque RGB choice. Desktop owns the compact dialog, portal, focus
@@ -630,6 +698,15 @@ Done returns `select`. Reset returns `reset` and closes immediately. Escape, the
 the backdrop, a competing picker request, or plugin disposal return `cancel`. Invalid Host
 arguments reject with `TypeError`. Do not render a native `input[type="color"]` or implement a
 plugin-owned color dialog.
+
+### Request a folder
+
+Use `host.ui.pickFolder` to let the user choose a folder on the Desktop machine. It opens the system folder dialog with your title and resolves to the folder's absolute path, or `null` when the user cancels. Pass a title that is already in the user's language.
+
+```ts
+const folder = await host.ui.pickFolder({ title: "Choose a project folder" });
+if (folder) await save(folder);
+```
 
 ## Use bundled assets
 

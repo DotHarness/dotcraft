@@ -20,6 +20,7 @@ import { SettingsGroup, SettingsRow } from '../components/settings/SettingsGroup
 import { SettingsPanelShell } from '../components/settings/SettingsPanelShell'
 import { RobotAvatar } from '../components/agents/RobotAvatar'
 import { DesktopPluginInlineDiff } from '../components/desktopPlugins/DesktopPluginInlineDiff'
+import { DesktopPluginMenu } from '../components/desktopPlugins/DesktopPluginMenu'
 import { DesktopPluginSegmentedControl } from '../components/desktopPlugins/DesktopPluginSegmentedControl'
 
 installDesktopPluginRuntime({
@@ -45,6 +46,7 @@ installDesktopPluginRuntime({
     SettingsGroup,
     SettingsRow,
     InlineDiff: DesktopPluginInlineDiff,
-    AgentAvatar: RobotAvatar
+    AgentAvatar: RobotAvatar,
+    Menu: DesktopPluginMenu
   }
 })

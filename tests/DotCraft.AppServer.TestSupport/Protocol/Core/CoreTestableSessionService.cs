@@ -205,7 +205,8 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
         string? threadId = null,
         string? displayName = null,
         CancellationToken ct = default,
-        ThreadSource? source = null)
+        ThreadSource? source = null,
+        bool ephemeral = false)
     {
         var thread = new SessionThread
         {
@@ -219,7 +220,8 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
             LastActiveAt = DateTimeOffset.UtcNow,
             Configuration = config,
             DisplayName = displayName,
-            Source = source ?? ThreadSource.User()
+            Source = source ?? ThreadSource.User(),
+            Ephemeral = ephemeral
         };
         if (identity.ChannelContext != null)
         {
@@ -230,7 +232,8 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
             await CreateThreadHandler(thread, ct);
 
         _cache[thread.Id] = thread;
-        await _store.SaveThreadAsync(thread, ct);
+        if (!ephemeral)
+            await _store.SaveThreadAsync(thread, ct);
         ThreadCreatedForBroadcast?.Invoke(thread);
         return thread;
     }

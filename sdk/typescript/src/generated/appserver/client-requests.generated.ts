@@ -73,8 +73,14 @@ export interface ClientRequestMethods {
   "externalChannel/logs": { params: Models.ExternalChannelLogsParams; result: Models.ExternalChannelLogsResult };
   "externalChannel/remove": { params: Models.ExternalChannelRemoveParams; result: Models.ExternalChannelRemoveResult };
   "externalChannel/upsert": { params: Models.ExternalChannelUpsertParams; result: Models.ExternalChannelUpsertResult };
+  "fs/copy": { params: Models.FsCopyParams; result: Models.RpcEmpty };
   "fs/createDirectory": { params: Models.FsCreateDirectoryParams; result: Models.RpcEmpty };
+  "fs/getMetadata": { params: Models.FsGetMetadataParams; result: Models.FsGetMetadataResult };
+  "fs/readDirectory": { params: Models.FsReadDirectoryParams; result: Models.FsReadDirectoryResult };
   "fs/readFile": { params: Models.FsReadFileParams; result: Models.FsReadFileResult };
+  "fs/remove": { params: Models.FsRemoveParams; result: Models.RpcEmpty };
+  "fs/unwatch": { params: Models.FsUnwatchParams; result: Models.RpcEmpty };
+  "fs/watch": { params: Models.FsWatchParams; result: Models.FsWatchResult };
   "fs/writeFile": { params: Models.FsWriteFileParams; result: Models.RpcEmpty };
   "generativeUi/state/read": { params: Models.GenerativeUiStateReadParams; result: Models.GenerativeUiStateReadResult };
   "generativeUi/state/update": { params: Models.GenerativeUiStateUpdateParams; result: Models.RpcEmpty };

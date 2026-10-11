@@ -23,6 +23,7 @@ export type {
   DesktopPluginDispose,
   DesktopPluginEnvironment,
   DesktopPluginEnvironmentSnapshot,
+  DesktopPluginFolderPickerOptions,
   DesktopPluginThemeSeed,
   DesktopPluginThemeSeedOverrides,
   DesktopPluginEffectSetup,
@@ -35,6 +36,9 @@ export type {
   DesktopPluginLocalProject,
   DesktopPluginMetadata,
   DesktopPluginMainViewContribution,
+  DesktopPluginMcp,
+  DesktopPluginMcpToolCall,
+  DesktopPluginMcpToolResult,
   DesktopPluginNavigation,
   DesktopPluginOratorio,
   DesktopPluginOratorioBoardEvent,
@@ -93,6 +97,11 @@ export type {
   IconButtonProps,
   InlineDiffProps,
   InputProps,
+  MenuEntry,
+  MenuItem,
+  MenuLabel,
+  MenuProps,
+  MenuSeparator,
   ModalHeaderProps,
   PillSwitchProps,
   PluginSurfaceComponent,
@@ -136,3 +145,4 @@ export const SettingsGroup = ui.SettingsGroup;
 export const SettingsRow = ui.SettingsRow;
 export const InlineDiff = ui.InlineDiff;
 export const AgentAvatar = ui.AgentAvatar;
+export const Menu = ui.Menu;

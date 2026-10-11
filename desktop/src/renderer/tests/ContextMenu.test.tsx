@@ -219,6 +219,39 @@ describe('ContextMenu', () => {
     act(() => vi.advanceTimersByTime(280))
     expect(screen.getByRole('menuitem', { name: 'Move to project' })).toBeInTheDocument()
   })
+
+  it('moves keyboard focus into, within, and out of a submenu', () => {
+    render(
+      <ContextMenu
+        position={{ x: 16, y: 16 }}
+        onClose={vi.fn()}
+        autoFocus
+        items={[
+          {
+            label: 'Move',
+            onClick: vi.fn(),
+            submenu: [
+              { label: 'Move to project', onClick: vi.fn() },
+              { label: 'Move to archive', onClick: vi.fn() }
+            ]
+          },
+          { label: 'Delete', onClick: vi.fn() }
+        ]}
+      />
+    )
+    const parent = screen.getByRole('menuitem', { name: 'Move' })
+    expect(parent).toHaveFocus()
+
+    fireEvent.keyDown(parent, { key: 'ArrowRight' })
+    expect(screen.getByRole('menuitem', { name: 'Move to project' })).toHaveFocus()
+
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
+    expect(screen.getByRole('menuitem', { name: 'Move to archive' })).toHaveFocus()
+
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' })
+    expect(parent).toHaveFocus()
+    expect(screen.queryByRole('menuitem', { name: 'Move to project' })).not.toBeInTheDocument()
+  })
 })
 
 function renderPredictionMenu(position: { x: number; y: number }): void {

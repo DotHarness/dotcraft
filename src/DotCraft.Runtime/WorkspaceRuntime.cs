@@ -336,7 +336,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                         () => _appConfigMonitor.Current.SourceControl);
                 welcomeSuggestionService = new WelcomeSuggestionService(
                     sessionService,
-                    Services.GetRequiredService<SessionPersistenceService>(),
                     MemoryStore,
                     Services.GetRequiredService<DreamStore>(),
                     Paths.WorkspacePath,

@@ -703,6 +703,21 @@ describe('ConversationWelcome composer', () => {
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'thread/start')).toBe(false)
   })
 
+  it('places a requested prefill in the welcome composer without sending it', async () => {
+    renderWelcome()
+    const textbox = await screen.findByRole('textbox')
+
+    act(() => {
+      useUIStore.getState().setComposerPrefill('Summarize the open issues')
+    })
+
+    await waitFor(() => {
+      expect(textbox).toHaveTextContent('Summarize the open issues')
+    })
+    expect(useUIStore.getState().composerPrefill).toBeNull()
+    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'thread/start')).toBe(false)
+  })
+
   it('creates a thread and expands /init before queuing the first turn', async () => {
     renderWelcome()
 

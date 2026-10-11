@@ -93,7 +93,6 @@ public sealed class AppServerWelcomeSuggestionsTests : IDisposable
             var sessionService = new TestableSessionService(threadStore);
             await using var service = new WelcomeSuggestionService(
                 sessionService,
-                new SessionPersistenceService(threadStore),
                 new MemoryStore(craftPath),
                 new DreamStore(craftPath),
                 workspacePath,

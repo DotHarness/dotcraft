@@ -1,6 +1,7 @@
 import { existsSync } from 'fs'
 import type { AppSettings } from './settings'
-import { findWorkspaceOpenDeepLink } from '../shared/desktopDeepLink'
+import { findNewThreadDeepLink, findWorkspaceOpenDeepLink } from '../shared/desktopDeepLink'
+import { isLocalDirectory } from './newThreadDeepLink'
 
 export const NO_WORKSPACE_ARG = '--no-workspace'
 
@@ -55,6 +56,16 @@ export function resolveStartupWorkspacePath(
 ): string | null {
   const explicitWorkspacePath = resolveExplicitWorkspacePathFromArgs(argv)
   if (explicitWorkspacePath) return explicitWorkspacePath
+
+  const newThreadWorkspacePath = findNewThreadDeepLink(argv)?.workspacePath
+  if (
+    newThreadWorkspacePath &&
+    connectionMode === 'local' &&
+    !hasRemoteEndpointArg(argv) &&
+    isLocalDirectory(newThreadWorkspacePath)
+  ) {
+    return newThreadWorkspacePath
+  }
 
   if (hasNoWorkspaceArg(argv)) {
     return null

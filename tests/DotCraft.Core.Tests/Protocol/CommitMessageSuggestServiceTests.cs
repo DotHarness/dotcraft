@@ -52,8 +52,10 @@ public sealed class CommitMessageSuggestServiceTests : IDisposable
         AddUserMessageTurn(sourceThread, "Please generate a commit message.");
         await _threadStore.SaveThreadAsync(sourceThread);
 
+        SessionThread? persistedDuringTurn = null;
         _sessionService.SubmitInputHandler = (threadId, _, _) =>
         {
+            persistedDuringTurn = _threadStore.LoadThreadAsync(threadId).GetAwaiter().GetResult();
             return
             [
                 new SessionEvent
@@ -99,6 +101,7 @@ public sealed class CommitMessageSuggestServiceTests : IDisposable
         });
 
         Assert.Equal("test: add demo file", result.Message);
+        Assert.Null(persistedDuringTurn);
 
         var submittedPrompt = string.Concat(_sessionService.LastSubmittedContent
             .OfType<TextContent>()

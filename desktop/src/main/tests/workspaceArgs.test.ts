@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { describe, expect, it, vi } from 'vitest'
 import {
   NO_WORKSPACE_ARG,
@@ -128,5 +131,24 @@ describe('workspace argument resolution', () => {
       defaultChatsPath,
       'local'
     )).toBeNull()
+  })
+
+  it('opens the project named by a new chat link when it is a local directory', () => {
+    const project = mkdtempSync(join(tmpdir(), 'dotcraft-startup-link-'))
+    const link = `dotcraft://threads/new?path=${encodeURIComponent(project)}&prompt=hi`
+    try {
+      const settings = { lastForegroundEntry: 'workspace' as const, lastWorkspacePath: 'E:/recent' }
+      expect(resolveStartupWorkspacePath(settings, ['electron', link], () => true, defaultChatsPath, 'local')).toBe(project)
+      expect(resolveStartupWorkspacePath(settings, ['electron', link], () => true, defaultChatsPath, 'remote')).toBe('E:/recent')
+      expect(resolveStartupWorkspacePath(
+        settings,
+        ['electron', `dotcraft://threads/new?path=${encodeURIComponent(join(project, 'missing'))}`],
+        () => true,
+        defaultChatsPath,
+        'local'
+      )).toBe('E:/recent')
+    } finally {
+      rmSync(project, { recursive: true, force: true })
+    }
   })
 })

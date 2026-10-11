@@ -15,7 +15,8 @@ public sealed partial class SessionService
             string? threadId,
             string? displayName,
             CancellationToken ct,
-            ThreadSource? source)
+            ThreadSource? source,
+            bool ephemeral)
         {
             var capturedConfig = owner.CaptureThreadConfigurationForNewThread(config);
             capturedConfig = ThreadWorkspaceResolver.Apply(
@@ -36,6 +37,7 @@ public sealed partial class SessionService
                 Configuration = capturedConfig,
                 DisplayName = displayName,
                 Source = source ?? ThreadSource.User(),
+                Ephemeral = ephemeral,
                 ProviderHistorySchemaVersion = ProviderHistorySchema.CurrentSchemaVersion
             };
 
@@ -50,7 +52,9 @@ public sealed partial class SessionService
             if (!string.IsNullOrWhiteSpace(thread.Source.SpawnedFromThreadId))
                 thread.Metadata["spawnedFromThreadId"] = thread.Source.SpawnedFromThreadId!;
 
-            owner._runtimeRegistry.SetThread(thread);
+            var runtime = owner._runtimeRegistry.SetThread(thread);
+            if (ephemeral)
+                runtime.EphemeralHistory = [];
             owner._runtimeRegistry.ClearPendingPermanentDeletion(thread.Id);
             var broker = owner.GetOrCreateBroker(thread.Id);
 

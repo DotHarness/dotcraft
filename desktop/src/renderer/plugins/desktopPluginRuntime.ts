@@ -5,6 +5,7 @@ import * as JsxRuntime from 'react/jsx-runtime'
 
 import { RobotAvatar } from '../components/agents/RobotAvatar'
 import { DesktopPluginInlineDiff } from '../components/desktopPlugins/DesktopPluginInlineDiff'
+import { DesktopPluginMenu } from '../components/desktopPlugins/DesktopPluginMenu'
 import { DesktopPluginSegmentedControl } from '../components/desktopPlugins/DesktopPluginSegmentedControl'
 import { DesktopPluginSurface } from '../components/desktopPlugins/DesktopPluginSurface'
 import { SettingsBreadcrumb } from '../components/settings/SettingsBreadcrumb'
@@ -58,6 +59,7 @@ export function startDesktopPluginRuntime(): () => void {
       SettingsRow,
       InlineDiff: DesktopPluginInlineDiff,
       AgentAvatar: RobotAvatar,
+      Menu: DesktopPluginMenu,
       PluginSurface: DesktopPluginSurface
     }
   })
