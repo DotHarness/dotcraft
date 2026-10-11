@@ -70,6 +70,7 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'tool.read': '读取了 {{subject}}',
   'tool.searched': '搜索了 {{subject}}',
   'tool.used': '使用了 {{subject}}',
+  'tool.interactiveContent': '交互内容',
   'tool.running': '正在运行命令…',
   'tool.editing': '正在编辑文件…',
   'tool.reading': '正在读取…',

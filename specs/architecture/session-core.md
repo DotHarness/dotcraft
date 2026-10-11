@@ -1616,9 +1616,9 @@ If SQLite listing or repair is unavailable, discovery reports the metadata read 
 | Category | Data | Recovery contract |
 |---|---|---|
 | Rollout session authority | Thread baseline and source, Turns, Items, queued inputs, model history, compaction | Replayed from the thread rollout |
-| SQLite durable business authority | Goals, plans, spawn edges, subagent mailbox | Not rebuilt by rollout read-repair |
+| SQLite durable business authority | Goals, plans, spawn edges, subagent mailbox, visualization widget state | Not rebuilt by rollout read-repair |
 | SQLite runtime continuity state | Context windows | May explicitly degrade to a new transient window when unavailable |
-| SQLite disposable cache and sidecar | Context usage, item widget state | May be discarded and recomputed or restarted |
+| SQLite disposable cache and sidecar | Context usage | May be discarded and recomputed or restarted |
 | SQLite rebuildable projection | Threads, confirmed rollout offset, attachment references, thread read snapshots, Turns, Items | Rebuilt from readable rollout records |
 | Diagnostics and accounting | Traces, token usage, dashboard usage | Independent diagnostic retention rules apply |
 | Independent file assets | Attachment file bytes | Rollout preserves references only |

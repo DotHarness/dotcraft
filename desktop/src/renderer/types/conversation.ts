@@ -172,8 +172,6 @@ export interface ConversationItem {
   meta?: Record<string, unknown>
   /** Read-only private iframe descriptor. Provenance is required before use. */
   toolUi?: ToolUiDescriptor
-  /** UI-only Interactive Tool UI widgetState (M-iv), surfaced on thread/read for iframe restore. */
-  widgetState?: unknown
   errorCode?: string
   errorMessage?: string
   /** Tool result text updated on item/completed (toolResult) */
@@ -583,10 +581,6 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
   const invocationToolUi = isStructuredInvocation
     ? normalizeToolUiDescriptor((raw.ui as unknown) ?? (payload.ui as unknown))
     : undefined
-  // M-iv: UI-only widgetState surfaced on thread/read for iframe restore (never reaches the model).
-  const invocationWidgetState = isStructuredInvocation
-    ? ((raw.widgetState as unknown) ?? (payload.widgetState as unknown))
-    : undefined
   const rawErrorMessage = (raw.errorMessage as string | undefined)
     ?? (payload.errorMessage as string | undefined)
   const invocationErrorMessage = isStructuredInvocation
@@ -715,7 +709,6 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
       && (raw.mcpApp as { available?: unknown } | undefined)?.available === true,
     meta: invocationMeta,
     toolUi: invocationToolUi,
-    widgetState: invocationWidgetState,
     errorCode: (raw.errorCode as string | undefined)
       ?? (payload.errorCode as string | undefined),
     errorMessage: invocationErrorMessage ?? rawErrorMessage,

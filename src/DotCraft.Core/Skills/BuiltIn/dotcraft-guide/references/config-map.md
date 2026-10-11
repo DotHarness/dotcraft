@@ -1,6 +1,6 @@
 # Configuration Map
 
-An index, not a field reference. For any field name, type, default, sensitive flag, or reload tier run `dotcraft config schema --json`; for current values run `dotcraft config show --json`. Prose lives at `https://www.dotcraft.net/developing/configuration`.
+An index, not a field reference. For any field name, type, default, sensitive flag, or reload tier run `dotcraft config schema --json`; for current values run `dotcraft config show --json`. Prose lives at `https://www.dotcraft.net/configuration/`.
 
 ## Two files, one merged config
 

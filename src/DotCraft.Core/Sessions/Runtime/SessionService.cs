@@ -19,6 +19,8 @@ using Microsoft.Extensions.Logging;
 using DotCraft.Sessions.Wire;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
+using DotCraft.GenerativeUi;
+using DotCraft.Visualizations;
 
 namespace DotCraft.Sessions;
 
@@ -553,12 +555,20 @@ public sealed partial class SessionService(
         => await Goals.GetAsync(threadId, ct);
 
     /// <inheritdoc/>
-    public IReadOnlyDictionary<string, string> GetItemWidgetStates(string threadId)
-        => ThreadAccess.GetItemWidgetStates(threadId);
+    public VisualizationWidgetState? GetVisualizationWidgetState(string threadId, string path)
+        => Persistence.VisualizationWidgetStates.Load(NormalizeRequiredThreadId(threadId), path);
 
     /// <inheritdoc/>
-    public void SetItemWidgetState(string threadId, string callId, string? widgetStateJson)
-        => ThreadAccess.SetItemWidgetState(threadId, callId, widgetStateJson);
+    public void SetVisualizationWidgetState(string threadId, string path, VisualizationWidgetState state)
+        => Persistence.VisualizationWidgetStates.Save(NormalizeRequiredThreadId(threadId), path, state);
+
+    /// <inheritdoc/>
+    public IReadOnlyList<GenerativeUiBlockState> GetGenerativeUiStates(string threadId)
+        => Persistence.GenerativeUiStates.Load(NormalizeRequiredThreadId(threadId));
+
+    /// <inheritdoc/>
+    public void SetGenerativeUiState(string threadId, string turnId, string itemId, int blockIndex, string? stateJson)
+        => Persistence.GenerativeUiStates.Save(NormalizeRequiredThreadId(threadId), turnId, itemId, blockIndex, stateJson);
 
     /// <inheritdoc/>
     public async Task<ThreadGoal> SetThreadGoalAsync(

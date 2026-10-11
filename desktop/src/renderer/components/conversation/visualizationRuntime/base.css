@@ -1,0 +1,219 @@
+:root {
+  --background: light-dark(rgb(255 255 255), rgb(24 24 24));
+  --foreground: light-dark(rgb(26 28 31), rgb(255 255 255));
+  --card: color-mix(in srgb, var(--foreground) 5%, transparent);
+  --card-foreground: var(--foreground);
+  --popover: light-dark(#2a2a2a, #ededed);
+  --popover-foreground: light-dark(#eeeeec, #1a1c1f);
+  --primary: light-dark(rgb(51 156 255), rgb(131 195 255));
+  --primary-foreground: var(--background);
+  --secondary: light-dark(rgb(248 248 248), rgb(38 38 38));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: color-mix(in srgb, var(--foreground) 52%, transparent);
+  --accent: var(--muted);
+  --accent-foreground: var(--foreground);
+  --destructive: light-dark(#b91c1c, #f87171);
+  --border: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --input: var(--border);
+  --ring: var(--primary);
+  --blue: light-dark(#2a78d6, #3987e5);
+  --orange: light-dark(#eb6834, #d95926);
+  --green: light-dark(#1baf7a, #199e70);
+  --red: light-dark(#dc2626, #ef4444);
+  --purple: light-dark(#9333ea, #c678dd);
+  --yellow: light-dark(#eda100, #c98500);
+  --primary-hover: color-mix(in srgb, var(--primary) 88%, var(--foreground));
+  --on-primary: #ffffff;
+  --dimmed-foreground: color-mix(in srgb, var(--foreground) 36%, var(--background));
+  --border-subtle: color-mix(in srgb, var(--foreground) 5%, transparent);
+  --elevated: var(--secondary);
+  --warning: light-dark(#c9a227, #eab308);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 22%);
+  --shadow-md: 0 8px 22px rgb(0 0 0 / 26%);
+  --tooltip-shadow: 0 18px 48px rgb(0 0 0 / 32%);
+  --tooltip-radius: 8px;
+  --control-height: 32px;
+  --control-height-sm: 28px;
+  --control-radius: 8px;
+  --control-text-radius: 999px;
+  --control-padding-x: 12px;
+  --font-size-control: 13px;
+  --line-height-control: 18px;
+  --font-size-small: 12px;
+  --line-height-small: 16px;
+  --scrollbar-size: 12px;
+  --scrollbar-thumb-inset: 3px;
+  --scrollbar-thumb: color-mix(in srgb, var(--foreground) 22%, transparent);
+  --scrollbar-thumb-hover: var(--dimmed-foreground);
+  --scrollbar-thumb-active: var(--muted-foreground);
+  --font-size-base: 14px;
+  --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --cursor-interaction: pointer;
+  --viz-container-width: 100%;
+  --viz-series-1: var(--primary);
+  --viz-series-2: var(--orange);
+  --viz-series-3: var(--green);
+  --viz-series-4: var(--yellow);
+  --viz-series-5: var(--purple);
+  --viz-series-6: var(--red);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: max(11px, var(--font-size-base));
+  line-height: 1.45;
+  color: var(--foreground);
+  background: transparent;
+}
+
+/* Off :root on purpose: a root color-scheme that differs from the embedding frame makes Chromium paint the view opaque. */
+body {
+  color-scheme: light dark;
+  color: var(--foreground);
+}
+
+:root[data-theme=light] body {
+  color-scheme: light;
+}
+
+:root[data-theme=dark] body {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+
+body {
+  display: flow-root;
+  overflow: hidden;
+}
+
+/* Both edges, so the reserved gutter keeps the content centred in the fullscreen panel. */
+:root[data-overflow=true] {
+  scrollbar-gutter: stable both-edges;
+}
+
+:root[data-overflow=true] body {
+  overflow-y: auto;
+}
+
+::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  min-width: 32px;
+  min-height: 32px;
+  border: var(--scrollbar-thumb-inset) solid transparent;
+  border-radius: calc(var(--scrollbar-size) / 2);
+  background-color: var(--scrollbar-thumb);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
+}
+
+img,
+canvas,
+svg,
+video {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 8px;
+  color: var(--foreground);
+  line-height: 1.3;
+}
+
+h1 {
+  font-size: calc(var(--font-size-base) + 6px);
+  font-weight: 500;
+}
+
+h2 {
+  font-size: calc(var(--font-size-base) + 3px);
+  font-weight: 600;
+}
+
+h3 {
+  font-size: calc(var(--font-size-base) + 1px);
+  font-weight: 600;
+}
+
+hr {
+  height: 0;
+  margin: 12px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+:where(a[href]) {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  text-underline-offset: 2px;
+  cursor: var(--cursor-interaction);
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+}
+
+code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--muted);
+  font-size: 0.92em;
+}
+
+pre {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border-radius: 8px;
+  background: var(--muted);
+  font-size: max(11px, calc(var(--font-size-base) - 2px));
+  line-height: 1.5;
+}
+
+pre code {
+  padding: 0;
+  background: transparent;
+  font-size: inherit;
+}
+
+.viz-root {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.cursor-interaction {
+  cursor: var(--cursor-interaction);
+}

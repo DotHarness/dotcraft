@@ -1,7 +1,4 @@
-import {
-  Check,
-  ChevronDown
-} from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import {
   useCallback,
   useEffect,
@@ -18,6 +15,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { ActionTooltip } from './ActionTooltip'
+import { firstEnabledIndex, lastEnabledIndex, nextEnabledIndex, SelectMenuOption } from './SelectMenu'
 
 export interface SelectOption<T extends string = string> {
   value: T
@@ -477,40 +475,19 @@ export function Select<T extends string = string>({
           maxHeight: position.maxHeight
         }}
       >
-        {options.map((option, index) => {
-          const selected = option.value === value
-          const active = index === activeIndex
-          return (
-            <div
-              key={option.value}
-              id={`${listboxId}-option-${index}`}
-              role="option"
-              aria-selected={selected}
-              aria-disabled={option.disabled || undefined}
-              // Keeps the underlying value observable in the DOM, the way a native
-              // <option value> was, since the trigger only renders the label.
-              data-value={option.value}
-              data-active={active || undefined}
-              data-disabled={option.disabled || undefined}
-              className="dc-settings-select-option"
-              onMouseDown={(event) => event.preventDefault()}
-              onMouseEnter={() => {
-                if (!option.disabled) setActiveIndex(index)
-              }}
-              onClick={() => selectOption(index)}
-            >
-              {option.icon && (
-                <span className="dc-settings-select-option__icon" aria-hidden="true">
-                  {option.icon}
-                </span>
-              )}
-              {withOptionTooltip(option, adaptive)}
-              <span className="dc-settings-select-option__check" aria-hidden="true">
-                {selected && <Check size={15} strokeWidth={1.8} />}
-              </span>
-            </div>
-          )
-        })}
+        {options.map((option, index) => (
+          <SelectMenuOption
+            key={option.value}
+            id={`${listboxId}-option-${index}`}
+            value={option.value}
+            option={option}
+            selected={option.value === value}
+            active={index === activeIndex}
+            showTooltip={!adaptive}
+            onActivate={() => setActiveIndex(index)}
+            onSelect={() => selectOption(index)}
+          />
+        ))}
       </div>,
       document.body
     )
@@ -599,30 +576,6 @@ export function Select<T extends string = string>({
   )
 }
 
-function withOptionTooltip<T extends string>(option: SelectOption<T>, adaptive: boolean): JSX.Element {
-  const copy = (
-    <span className="dc-settings-select-option__copy">
-      <span className="dc-settings-select-option__label">{option.label}</span>
-      {option.description && (
-        <span className="dc-settings-select-option__description">
-          {option.description}
-        </span>
-      )}
-    </span>
-  )
-  if (!option.tooltip || adaptive) return copy
-  return (
-    <ActionTooltip
-      label={option.tooltip}
-      placement="right"
-      multiline
-      wrapperStyle={{ flex: '1 1 auto', minWidth: 0, width: '100%' }}
-    >
-      {copy}
-    </ActionTooltip>
-  )
-}
-
 function resolveAdaptiveAnchor(trigger: HTMLElement): AdaptiveAnchor {
   const wrapper = trigger.closest<HTMLElement>('.dc-adaptive-select')
   const row = trigger.closest<HTMLElement>('.dc-settings-row')
@@ -633,32 +586,4 @@ function resolveAdaptiveAnchor(trigger: HTMLElement): AdaptiveAnchor {
   const leftGap = wrapperRect.left - rowRect.left
   const rightGap = rowRect.right - wrapperRect.right
   return rightGap < leftGap ? 'right' : 'left'
-}
-
-function firstEnabledIndex<T extends string>(options: ReadonlyArray<SelectOption<T>>): number {
-  return options.findIndex((option) => !option.disabled)
-}
-
-function lastEnabledIndex<T extends string>(options: ReadonlyArray<SelectOption<T>>): number {
-  for (let index = options.length - 1; index >= 0; index -= 1) {
-    if (!options[index].disabled) return index
-  }
-  return -1
-}
-
-function nextEnabledIndex<T extends string>(
-  options: ReadonlyArray<SelectOption<T>>,
-  currentIndex: number,
-  delta: 1 | -1
-): number {
-  if (options.length === 0) return -1
-  const fallback = delta === 1 ? firstEnabledIndex(options) : lastEnabledIndex(options)
-  if (fallback < 0) return -1
-
-  let index = currentIndex
-  for (let visited = 0; visited < options.length; visited += 1) {
-    index = (index + delta + options.length) % options.length
-    if (!options[index].disabled) return index
-  }
-  return fallback
 }

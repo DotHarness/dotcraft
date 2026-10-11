@@ -44,7 +44,14 @@ export type PageReferenceContext = ContextBase & {
   image?: ContextImage
 }
 
-export type ComposerContextRecord = PastedTextContext | ResponseAnnotationContext | DiffAnnotationContext | PageReferenceContext
+export type VisualizationChangesContext = ContextBase & {
+  kind: 'visualizationChanges'
+  path: string
+  title: string
+  text: string
+}
+
+export type ComposerContextRecord = PastedTextContext | ResponseAnnotationContext | DiffAnnotationContext | PageReferenceContext | VisualizationChangesContext
 
 export type ThreadReferencesContext = ContextBase & {
   kind: 'threadReferences'

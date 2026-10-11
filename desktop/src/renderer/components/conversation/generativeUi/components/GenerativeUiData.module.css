@@ -1,0 +1,180 @@
+.list {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list[data-divided] {
+  gap: 0;
+}
+
+.listItem {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.list[data-divided] .listItem {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.list[data-divided] .listItem:first-child {
+  padding-top: 0;
+}
+
+.list[data-divided] .listItem:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.listIndex {
+  min-width: 16px;
+  color: var(--text-dimmed);
+  font-variant-numeric: tabular-nums;
+}
+
+.listIcon {
+  display: inline-flex;
+  height: 21px;
+  align-items: center;
+  color: var(--text-secondary);
+}
+
+.listBody {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.listTitle {
+  overflow-wrap: anywhere;
+}
+
+.listDescription {
+  color: var(--text-secondary);
+  font-size: var(--conversation-secondary-size);
+  line-height: var(--type-secondary-prose-line-height);
+}
+
+.listTrailing {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: var(--conversation-secondary-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.tableScroll {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--conversation-secondary-size);
+  line-height: var(--type-secondary-prose-line-height);
+}
+
+.tableCaption {
+  padding-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: var(--conversation-meta-size);
+  text-align: start;
+}
+
+.table th,
+.table td {
+  padding: 8px 12px 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table th:last-child,
+.table td:last-child {
+  padding-right: 0;
+}
+
+.table th {
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table [data-align='center'] {
+  text-align: center;
+}
+
+.table [data-align='end'] {
+  text-align: end;
+}
+
+.chart {
+  min-width: 0;
+  width: 100%;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendSwatch {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+
+.tooltip {
+  display: flex;
+  min-width: 120px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-inverse);
+  box-shadow: var(--shadow-md);
+  color: var(--text-on-inverse);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}
+
+.tooltipLabel {
+  opacity: 0.72;
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+}

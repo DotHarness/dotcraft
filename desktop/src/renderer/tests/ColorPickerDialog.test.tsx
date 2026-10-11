@@ -148,6 +148,26 @@ describe('ColorPickerDialog', () => {
     await waitFor(() => expect(trigger).toHaveFocus())
   })
 
+  it('previews every valid edit of an anchored picker and cancels on resize', async () => {
+    renderHost()
+    const onPreview = vi.fn()
+    let request!: ReturnType<typeof requestColorPickerDialog>
+    act(() => {
+      request = requestColorPickerDialog(
+        { title: 'Label color', initialColor: '#4566cc' },
+        { anchor: { x: 12, y: 40, width: 24, height: 24 }, onPreview }
+      )
+    })
+
+    const hex = screen.getByRole('textbox', { name: 'Hex color' })
+    fireEvent.change(hex, { target: { value: '#12' } })
+    fireEvent.change(hex, { target: { value: '#123456' } })
+    expect(onPreview.mock.calls).toEqual([['#123456']])
+
+    fireEvent(window, new Event('resize'))
+    await expect(request.result).resolves.toEqual({ kind: 'cancel' })
+  })
+
   it('rejects invalid Host options with TypeError', () => {
     expect(() => requestColorPickerDialog({
       title: 'Choose accent',

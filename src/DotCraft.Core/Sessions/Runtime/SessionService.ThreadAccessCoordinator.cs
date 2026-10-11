@@ -30,21 +30,6 @@ public sealed partial class SessionService
             return ThreadSummaryRuntime.FromThread(thread, maintenanceKind);
         }
 
-        public IReadOnlyDictionary<string, string> GetItemWidgetStates(string threadId) =>
-            owner.Persistence.GetItemWidgetStates(NormalizeRequiredThreadId(threadId));
-
-        public void SetItemWidgetState(string threadId, string callId, string? widgetStateJson)
-        {
-            var normalizedThreadId = NormalizeRequiredThreadId(threadId);
-            if (string.IsNullOrWhiteSpace(callId))
-                throw new ArgumentException("'callId' is required.", nameof(callId));
-
-            if (string.IsNullOrWhiteSpace(widgetStateJson))
-                owner.Persistence.DeleteItemWidgetState(normalizedThreadId, callId);
-            else
-                owner.Persistence.SaveItemWidgetState(normalizedThreadId, callId, widgetStateJson);
-        }
-
         public async IAsyncEnumerable<SessionEvent> Subscribe(
             string threadId,
             bool replayRecent,

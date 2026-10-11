@@ -4,7 +4,7 @@
 |---|---|
 | Version | 0.8.3 |
 | Status | Draft |
-| Date | 2026-10-05 |
+| Date | 2026-10-11 |
 | Parent spec | [Hub Architecture](../architecture/hub-architecture.md) |
 | Related Specs | [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](desktop-client.md), [TypeScript SDK](../sdk/typescript.md) |
 
@@ -464,6 +464,9 @@ list shows **failed** only for a chat whose failure the phone has seen.
   or any other client, is read with `fs/readFile` to show its thumbnail.
   Math uses Desktop's delimiters; the phone does not typeset it, so a formula shows its TeX source
   styled as inline code, or as a code block for display math.
+- The phone renders neither Generative UI blocks nor visualizations. Each top-level `dotcraft-ui`
+  block shows as a tool activity line for interactive content whose details hold its source, a
+  visualization reference line is left out, and Copy keeps only the prose.
 - A tool activity line shows the tool kind's icon and fits one line, ending in an ellipsis; tapping it
   shows the full command or target and its output. A running tool says what it is doing in the
   present tense, such as "Running: npm test" or "Editing release.ps1", using Desktop's wording, and

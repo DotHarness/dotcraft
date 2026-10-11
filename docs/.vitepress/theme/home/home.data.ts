@@ -22,7 +22,7 @@ export { data }
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = resolve(here, '../../../..')
 const docs = resolve(repo, 'docs')
-const harnessPage = resolve(docs, 'developing/harness/index.md')
+const harnessPage = resolve(docs, 'extend/harness/index.md')
 
 const lucide = [
   'app-window', 'arrow-right', 'blocks', 'bot', 'check', 'chevron-down', 'chevron-right', 'circuit-board', 'copy', 'cpu',
@@ -69,7 +69,7 @@ async function highlightProgram(): Promise<string> {
 }
 
 export default defineLoader({
-  watch: ['./avatars.tsx', '../../../developing/harness/index.md', '../../../../sdk/typescript/packages/avatar/src/*.{ts,tsx}'],
+  watch: ['./avatars.tsx', '../../../extend/harness/index.md', '../../../../sdk/typescript/packages/avatar/src/*.{ts,tsx}'],
   async load(): Promise<HomeData> {
     const avatars = await loadAvatars()
     const poses = (sequence: Pose[], size: number) =>

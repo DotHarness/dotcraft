@@ -176,7 +176,7 @@ import type { ChromeSetupStatus } from '../shared/chromeSetup'
 export type { ChromeSetupCheckStatus, ChromeSetupStatus } from '../shared/chromeSetup'
 import type { GitHeadInspection } from '../shared/gitHead'
 import type { GitApplyPatchOptions, GitApplyPatchResult } from '../shared/gitApply'
-import type { InlineVisualizationCaptureRect, InlineVisualizationCaptureResult } from '../shared/inlineVisualization'
+import type { VisualizationCaptureRect, VisualizationCaptureResult } from '../shared/visualization'
 import type { OratorioApi, OratorioRequest, OratorioResponse, OratorioServiceContext, OratorioServiceEvent } from '../shared/oratorio'
 import { TokenMulticastDispatcher } from './notificationDispatcher'
 import {
@@ -460,7 +460,7 @@ const api = {
   },
 
   visualization: {
-    copyImage(rect: InlineVisualizationCaptureRect): Promise<InlineVisualizationCaptureResult> {
+    copyImage(rect: VisualizationCaptureRect): Promise<VisualizationCaptureResult> {
       return ipcRenderer.invoke('visualization:copy-image', rect)
     }
   },

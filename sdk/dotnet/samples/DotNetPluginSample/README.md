@@ -59,5 +59,5 @@ Run the bundles through a real AppServer and the current local Model Provider:
 Pass `-ProviderId` or `-Model` to override the current selection. The smoke test uses an isolated
 temporary workspace and removes it after the run.
 
-For authoring details, see [Build a .NET plugin](../../../../docs/developing/integrations/dotnet-plugins.md)
-and [Desktop Plugins](../../../../docs/developing/integrations/desktop-plugins.md).
+For authoring details, see [Build a .NET plugin](../../../../docs/extend/dotnet-plugins.md)
+and [Desktop Plugins](../../../../docs/extend/desktop-plugins.md).

@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
 [![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-lightgrey)](https://github.com/DotHarness/dotcraft/releases)
 
-[English](./README.md) · [官方文档](https://www.dotcraft.net/zh/) · [快速开始](https://www.dotcraft.net/zh/getting-started) · [下载 Release](https://github.com/DotHarness/dotcraft/releases) · [License](./LICENSE)
+[English](./README.md) · [官方文档](https://www.dotcraft.net/zh/) · [快速开始](https://www.dotcraft.net/zh/start/) · [下载 Release](https://github.com/DotHarness/dotcraft/releases) · [License](./LICENSE)
 
 </div>
 
@@ -41,11 +41,11 @@ curl -fsSL https://www.dotcraft.net/install.sh | bash
 irm https://www.dotcraft.net/install.ps1 | iex
 ```
 
-完整说明请查看[快速开始](https://www.dotcraft.net/zh/getting-started)。
+完整说明请查看[快速开始](https://www.dotcraft.net/zh/start/)。
 
 ## Desktop
 
-<p align="center"><a href="https://www.dotcraft.net/zh/features/entry-points/desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-desktop.png" width="830" alt="DotCraft Desktop：「Ship dark mode」计划已完成两步，子智能体面板里有两个子智能体正在处理后续步骤。"></a></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/start/desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-desktop.png" width="830" alt="DotCraft Desktop：「Ship dark mode」计划已完成两步，子智能体面板里有两个子智能体正在处理后续步骤。"></a></p>
 
 一个工作台：Agent 在你的项目里做计划，把任务拆给子智能体，确认结果没问题后才告诉你完成了。
 
@@ -63,21 +63,21 @@ irm https://www.dotcraft.net/install.ps1 | iex
 - **Automations**、**Goals**、**Dreams** 和 **Dynamic Workflows** 在你离开时也让工作继续推进。
 - **你的宠物** 待在输入框上，在 Agent 工作时找到可以穿戴的道具。
 
-[Desktop 指南](https://www.dotcraft.net/zh/features/entry-points/desktop) · [子智能体](https://www.dotcraft.net/zh/features/agent-system/subagents) · [Agent Profiles](https://www.dotcraft.net/zh/features/agent-system/agent-profiles) · [Automations](https://www.dotcraft.net/zh/features/agent-system/automations)
+[Desktop 指南](https://www.dotcraft.net/zh/start/desktop) · [子智能体](https://www.dotcraft.net/zh/guide/subagents) · [Agent Profiles](https://www.dotcraft.net/zh/guide/agent-profiles) · [Automations](https://www.dotcraft.net/zh/guide/automations)
 
 ## 手机 App
 
-<p align="center"><a href="https://www.dotcraft.net/zh/features/entry-points/mobile"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-mobile.png" width="830" alt="Android 手机上的 DotCraft 请求运行 npm run test:contrast，带 Allow once 按钮。"></a></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/start/mobile"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-mobile.png" width="830" alt="Android 手机上的 DotCraft 请求运行 npm run test:contrast，带 Allow once 按钮。"></a></p>
 
 Agent 在你的电脑上干活时，你可以在手机上跟进：看哪些聊天在运行，处理审批和提问，追加消息或停止聊天，还能在任意项目里开新聊天。
 
 **获取方式：** [下载](https://github.com/DotHarness/dotcraft/releases) Android App，然后在 Desktop 的**设置 → 连接 → 手机**里扫码配对。
 
-[手机 App 指南](https://www.dotcraft.net/zh/features/entry-points/mobile) · [随处访问](https://www.dotcraft.net/zh/developing/lifecycle/hub#随处访问)
+[手机 App 指南](https://www.dotcraft.net/zh/start/mobile) · [随处访问](https://www.dotcraft.net/zh/contribute/lifecycle/hub#随处访问)
 
 ## CLI
 
-<p align="center"><a href="https://www.dotcraft.net/zh/features/entry-points/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-cli.png" width="830" alt="终端里运行 dotcraft exec：Agent 列出 Card.css 和 Chart.css 里仍然写死的颜色。"></a></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/start/entry-points"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-cli.png" width="830" alt="终端里运行 dotcraft exec：Agent 列出 Card.css 和 Chart.css 里仍然写死的颜色。"></a></p>
 
 一条命令运行任务，答案直接回到终端，在笔记本、服务器或 CI 里都能用。
 
@@ -85,41 +85,41 @@ Agent 在你的电脑上干活时，你可以在手机上跟进：看哪些聊�
 dotcraft exec "src/components 里还有哪些颜色是写死的？"
 ```
 
-[入口概览](https://www.dotcraft.net/zh/features/entry-points/) · [IDE](https://www.dotcraft.net/zh/features/entry-points/editors)
+[入口概览](https://www.dotcraft.net/zh/start/entry-points) · [IDE](https://www.dotcraft.net/zh/start/editors)
 
 ## 卫星
 
-<p align="center"><a href="https://www.dotcraft.net/zh/features/agent-system/satellite"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-satellite.png" width="830" alt="另一台电脑的屏幕顶部显示卫星胶囊：Ann 请求运行 npm run test:contrast，可选择拒绝或允许一次。"></a></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/guide/satellite"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-satellite.png" width="830" alt="另一台电脑的屏幕顶部显示卫星胶囊：Ann 请求运行 npm run test:contrast，可选择拒绝或允许一次。"></a></p>
 
 让你的 Agent 在另一台 Windows 电脑上工作。共享电脑的人可以选择完全访问或只开放一个文件夹，在屏幕顶部看到每个请求，并随时暂停共享。
 
 **获取方式：** 在 Desktop 打开 **设置 → 连接 → 卫星 → 邀请**，把链接发给对方。对方在那个页面下载 DotCraft Satellite。
 
-[卫星指南](https://www.dotcraft.net/zh/features/agent-system/satellite)
+[卫星指南](https://www.dotcraft.net/zh/guide/satellite)
 
 ## Oratorio
 
-<p align="center"><a href="https://www.dotcraft.net/zh/features/oratorio"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-oratorio.png" width="830" alt="Oratorio 看板：一个 issue 正在由 Agent 处理，一个 pull request 等待评审，检查已通过。"></a></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/guide/oratorio/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-oratorio.png" width="830" alt="Oratorio 看板：一个 issue 正在由 Agent 处理，一个 pull request 等待评审，检查已通过。"></a></p>
 
 内置在 Desktop 里的项目看板。本地任务、GitHub 的 issue 和 pull request、GitLab 的 issue 和 merge request 都汇集在同一块看板上；把卡片交给 Agent，跟进执行过程，评审结果。
 
 **获取方式：** 已内置。在 Desktop 侧边栏选择 **Oratorio**。
 
-[Oratorio 指南](https://www.dotcraft.net/zh/features/oratorio) · [工作流](https://www.dotcraft.net/zh/features/oratorio/workflow)
+[Oratorio 指南](https://www.dotcraft.net/zh/guide/oratorio/) · [工作流](https://www.dotcraft.net/zh/guide/oratorio/workflow)
 
 ## 聊天机器人
 
-<p align="center"><a href="https://www.dotcraft.net/zh/features/channels/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-chat-bots.png" width="830" alt="Desktop 的渠道页面，已连接飞书、QQ、Telegram 和企业微信。"></a></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/guide/channels/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-chat-bots.png" width="830" alt="Desktop 的渠道页面，已连接飞书、QQ、Telegram 和企业微信。"></a></p>
 
 把 DotCraft 拉进群聊，团队成员不用打开 Desktop 也能问项目的事。支持飞书 / Lark、QQ、Telegram、企业微信和微信，这些对话和其他入口共用同一个工作区。
 
 **获取方式：** 已内置。在 Desktop 打开 **渠道**，选择平台并填写凭据。
 
-[渠道与机器人](https://www.dotcraft.net/zh/features/channels/)
+[渠道与机器人](https://www.dotcraft.net/zh/guide/channels/)
 
 ## Harness
 
-<p align="center"><a href="https://www.dotcraft.net/zh/developing/harness/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-harness.png" width="830" alt="Program.cs 用 ISessionService 创建线程，并流式输出 Agent 的回复。"></a></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/extend/harness/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-harness.png" width="830" alt="Program.cs 用 ISessionService 创建线程，并流式输出 Agent 的回复。"></a></p>
 
 DotCraft Desktop 背后的完整 Agent 运行时，装进你自己的 .NET 应用：会话、工具、审批和模型提供商，都跟随宿主的生命周期。
 
@@ -136,11 +136,11 @@ using var host = builder.Build();
 await host.StartAsync();
 ```
 
-[Harness 指南](https://www.dotcraft.net/zh/developing/harness/) · [.NET 插件](https://www.dotcraft.net/zh/developing/integrations/dotnet-plugins)
+[Harness 指南](https://www.dotcraft.net/zh/extend/harness/) · [.NET 插件](https://www.dotcraft.net/zh/extend/dotnet-plugins)
 
 ## SDK
 
-<p align="center"><a href="https://www.dotcraft.net/zh/developing/sdks/quickstart"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-sdks.png" width="830" alt="app.ts 用 TypeScript SDK 启动线程，并流式输出 Agent 的回复。"></a></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/extend/sdks/quickstart"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-sdks.png" width="830" alt="app.ts 用 TypeScript SDK 启动线程，并流式输出 Agent 的回复。"></a></p>
 
 让你的应用成为 DotCraft 客户端：连接工作区、启动线程、运行一轮对话，支持 TypeScript 和 .NET。
 
@@ -157,11 +157,11 @@ const result = await thread.run("Check contrast in dark mode.");
 console.log(result.text);
 ```
 
-[SDK 快速开始](https://www.dotcraft.net/zh/developing/sdks/quickstart) · [App Binding](https://www.dotcraft.net/zh/developing/integrations/app-binding) · [Desktop 插件](https://www.dotcraft.net/zh/developing/integrations/desktop-plugins)
+[SDK 快速开始](https://www.dotcraft.net/zh/extend/sdks/quickstart) · [App Binding](https://www.dotcraft.net/zh/extend/app-binding) · [Desktop 插件](https://www.dotcraft.net/zh/extend/desktop-plugins)
 
 ## Avatar
 
-<p align="center"><a href="https://www.dotcraft.net/zh/developing/sdks/typescript#avatar-包"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-avatar.webp" width="830" alt="一群穿着不同装扮的 DotCraft 机器人，最前面的一个戴着云龙和星星眼镜。"></a></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/extend/sdks/typescript#avatar-包"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-avatar.webp" width="830" alt="一群穿着不同装扮的 DotCraft 机器人，最前面的一个戴着云龙和星星眼镜。"></a></p>
 
 就是你在 Desktop 里看到的那个机器人，做成了 React 组件。它会随 Agent 的状态变化而动起来，160 多件收藏道具可以给它换装，同一个名字永远画出同一个形象。
 
@@ -169,7 +169,7 @@ console.log(result.text);
 npm install @dotcraft/avatar
 ```
 
-[Avatar 包](https://www.dotcraft.net/zh/developing/sdks/typescript#avatar-包)
+[Avatar 包](https://www.dotcraft.net/zh/extend/sdks/typescript#avatar-包)
 
 ## 贡献代码
 

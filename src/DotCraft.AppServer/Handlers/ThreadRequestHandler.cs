@@ -36,7 +36,6 @@ internal sealed partial class ThreadRequestHandler(
     private const int ThreadTurnsMaxPageLimit = 100;
     private const int ThreadItemsDefaultPageLimit = 100;
     private const int ThreadItemsMaxPageLimit = 500;
-    private const int MaxWidgetStateBytes = 8 * 1024;
     private const string ThreadListCursorKind = "thread-list";
     private readonly object _pendingInteractiveReplayLock = new();
     private readonly Dictionary<string, Task> _pendingInteractiveReplayTasks = new(StringComparer.Ordinal);
@@ -54,7 +53,6 @@ internal sealed partial class ThreadRequestHandler(
         table.Map(Contract.AppServerRpc.ThreadGoalGet, HandleThreadGoalGetAsync);
         table.Map(Contract.AppServerRpc.ThreadGoalSet, HandleThreadGoalSetAsync);
         table.Map(Contract.AppServerRpc.ThreadGoalClear, HandleThreadGoalClearAsync);
-        table.Map(Contract.AppServerRpc.ItemWidgetStateSet, HandleItemWidgetStateSetAsync);
         table.Map(Contract.AppServerRpc.ThreadCompactStart, HandleThreadCompactStartAsync);
         table.Map(Contract.AppServerRpc.ThreadMaintenanceInterrupt, HandleThreadMaintenanceInterruptAsync);
         table.Map(Contract.AppServerRpc.ThreadRollback, HandleThreadRollbackAsync);
@@ -391,9 +389,7 @@ internal sealed partial class ThreadRequestHandler(
             Runtime = snapshot.PersistedRuntime.ToWireRuntimeState()
         };
         var wire = await threadProjector.WithPlanAsync(
-            threadProjector.WithWidgetState(
-                threadProjector.WithContextUsage(baseWire, thread.Id),
-                thread.Id),
+            threadProjector.WithContextUsage(baseWire, thread.Id),
             thread.Id,
             ct);
         var result = new Contract.ThreadReadResult
@@ -478,37 +474,6 @@ internal sealed partial class ThreadRequestHandler(
                 ? ThreadHistoryCursorCodec.Encode(p.ThreadId, scope, turnId, directionName, next.RolloutOrdinal)
                 : null
         });
-    }
-
-    private Task<AppServerTypedResult<Contract.ItemWidgetStateSetResult>> HandleItemWidgetStateSetAsync(
-        AppServerTypedRequest<Contract.ItemWidgetStateSetParams> request,
-        CancellationToken ct)
-    {
-        _ = ct;
-        // widgetState is part of the Interactive Tool UI bridge; only a client that negotiated
-        // interactiveToolUi has an iframe to persist it (tools-architecture.md §13).
-        if (!connection.SupportsInteractiveToolUi)
-            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.ItemWidgetStateSet);
-        var p = request.Params;
-        var threadId = p.ThreadId.IsSet ? p.ThreadId.Value : null;
-        var callId = p.CallId.IsSet ? p.CallId.Value : null;
-        if (string.IsNullOrWhiteSpace(threadId))
-            throw AppServerErrors.InvalidParams("'threadId' is required.");
-        if (string.IsNullOrWhiteSpace(callId))
-            throw AppServerErrors.InvalidParams("'callId' is required.");
-
-        var json = p.WidgetState.IsSet && p.WidgetState.Value is { } widgetState
-            ? widgetState.GetRawText()
-            : null;
-        var cleared = string.IsNullOrEmpty(json);
-        if (!cleared && Encoding.UTF8.GetByteCount(json!) > MaxWidgetStateBytes)
-            throw AppServerErrors.InvalidParams($"widgetState exceeds the {MaxWidgetStateBytes}-byte limit.");
-
-        sessionService.SetItemWidgetState(threadId, callId, cleared ? null : json);
-        return Task.FromResult(AppServerTypedResult<Contract.ItemWidgetStateSetResult>.FromResult(new()
-        {
-            Cleared = cleared
-        }));
     }
 
     private async Task<AppServerTypedResult<Contract.ThreadGoalGetResult>> HandleThreadGoalGetAsync(

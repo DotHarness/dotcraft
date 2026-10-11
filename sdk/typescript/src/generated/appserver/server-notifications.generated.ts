@@ -11,6 +11,7 @@ export interface ServerNotificationMethods {
   "automation/run/updated": { params: Models.AutomationRunUpdatedNotification; result: Models.RpcEmpty };
   "automation/updated": { params: Models.AutomationUpdatedNotification; result: Models.RpcEmpty };
   "config/changed": { params: Models.ConfigChangedParams; result: Models.RpcEmpty };
+  "generativeUi/state/updated": { params: Models.GenerativeUiStateUpdatedNotification; result: Models.RpcEmpty };
   "import/completed": { params: Models.ImportCompletedNotification; result: Models.RpcEmpty };
   "import/progress": { params: Models.ImportProgressNotification; result: Models.RpcEmpty };
   "item/agentMessage/delta": { params: Models.ItemDeltaNotification; result: Models.RpcEmpty };
@@ -55,6 +56,7 @@ export interface ServerNotificationMethods {
   "turn/diff/updated": { params: Models.TurnDiffUpdatedNotification; result: Models.RpcEmpty };
   "turn/failed": { params: Models.TurnNotification; result: Models.RpcEmpty };
   "turn/started": { params: Models.TurnNotification; result: Models.RpcEmpty };
+  "visualization/widgetState/updated": { params: Models.VisualizationWidgetStateUpdatedNotification; result: Models.RpcEmpty };
   "workflow/run/updated": { params: Models.WorkflowRunUpdatedNotification; result: Models.RpcEmpty };
 }
 

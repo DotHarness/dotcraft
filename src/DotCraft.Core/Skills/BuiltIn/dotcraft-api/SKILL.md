@@ -13,12 +13,12 @@ Search `https://www.dotcraft.net` for the exact SDK, Harness, protocol, or exten
 
 | Task | Documentation |
 | --- | --- |
-| Connect an application | `https://www.dotcraft.net/developing/sdks/` |
-| Connect a messaging platform | `https://www.dotcraft.net/developing/sdks/channels` |
-| Package a Channel for DotCraft hosts | `https://www.dotcraft.net/developing/integrations/typescript-module` |
-| Embed the runtime in .NET | `https://www.dotcraft.net/developing/harness/` |
-| Implement AppServer JSON-RPC | `https://www.dotcraft.net/developing/protocols/appserver-protocol` |
-| Build App Binding or a plugin | `https://www.dotcraft.net/developing/integrations/app-binding` |
+| Connect an application | `https://www.dotcraft.net/extend/sdks/` |
+| Connect a messaging platform | `https://www.dotcraft.net/extend/sdks/channels` |
+| Package a Channel for DotCraft hosts | `https://www.dotcraft.net/extend/channel-modules` |
+| Embed the runtime in .NET | `https://www.dotcraft.net/extend/harness/` |
+| Implement AppServer JSON-RPC | `https://www.dotcraft.net/extend/protocols/appserver` |
+| Build App Binding or a plugin | `https://www.dotcraft.net/extend/app-binding` |
 
 The site describes the latest public release. Do not use a repository checkout, internal specification, test fixture, or default branch as an API reference.
 

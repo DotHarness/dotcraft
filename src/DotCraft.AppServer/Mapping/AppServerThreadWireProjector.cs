@@ -216,9 +216,6 @@ internal sealed class AppServerThreadWireProjector(
         return wire with { Plan = plan == null ? null : SessionWireMapper.ToWire(plan) };
     }
 
-    public SessionWireThread WithWidgetState(SessionWireThread wire, string threadId)
-        => wire;
-
     public SessionWireThread WithOriginPresentation(SessionWireThread wire)
     {
         var presentation = ResolveOriginPresentation(

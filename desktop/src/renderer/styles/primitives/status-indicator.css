@@ -55,6 +55,7 @@
 .dc-status-badge__label {
   min-width: 0;
   overflow: hidden;
+  line-height: var(--type-secondary-line-height);
   white-space: nowrap;
   text-overflow: ellipsis;
 }

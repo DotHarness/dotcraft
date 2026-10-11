@@ -29,14 +29,21 @@ function plain(nodes: PhrasingContent[]): string {
     .join('')
 }
 
+const LINE_BREAK = /^<br\s*\/?>$/i
+
+function lineBreakOr(html: string): string {
+  return LINE_BREAK.test(html.trim()) ? '\n' : html
+}
+
 function inline(nodes: PhrasingContent[], env: Env, key = ''): ReactNode[] {
   const { colors } = env
   return nodes.map((node, index) => {
     const id = `${key}${index}`
     switch (node.type) {
       case 'text':
-      case 'html':
         return node.value
+      case 'html':
+        return lineBreakOr(node.value)
       case 'strong':
         return (
           <Text key={id} style={styles.strong}>
@@ -216,7 +223,7 @@ function block(node: RootContent, env: Env, key: number): ReactNode {
     case 'html':
       return (
         <Text key={key} selectable style={base}>
-          {node.value}
+          {lineBreakOr(node.value)}
         </Text>
       )
     default:

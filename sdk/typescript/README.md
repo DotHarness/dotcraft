@@ -8,19 +8,19 @@
 npm install @dotcraft/sdk
 ```
 
-Follow the [SDK quickstart](https://www.dotcraft.net/developing/sdks/quickstart) to connect an application.
+Follow the [SDK quickstart](https://www.dotcraft.net/extend/sdks/quickstart) to connect an application.
 
 For name-derived robot avatars in React applications, use the separate
 [@dotcraft/avatar package](packages/avatar/README.md). It does not require this Node.js SDK.
 
 ## Documentation
 
-- [SDK overview](https://www.dotcraft.net/developing/sdks/)
-- [TypeScript SDK reference](https://www.dotcraft.net/developing/sdks/typescript)
-- [SDK quickstart](https://www.dotcraft.net/developing/sdks/quickstart)
-- [Threads and runs](https://www.dotcraft.net/developing/sdks/runs)
-- [Tools and approvals](https://www.dotcraft.net/developing/sdks/tools)
-- [Channel adapters](https://www.dotcraft.net/developing/sdks/channels)
+- [SDK overview](https://www.dotcraft.net/extend/sdks/)
+- [TypeScript SDK reference](https://www.dotcraft.net/extend/sdks/typescript)
+- [SDK quickstart](https://www.dotcraft.net/extend/sdks/quickstart)
+- [Threads and runs](https://www.dotcraft.net/extend/sdks/runs)
+- [Tools and approvals](https://www.dotcraft.net/extend/sdks/tools)
+- [Channel adapters](https://www.dotcraft.net/extend/sdks/channels)
 
 ## Samples
 

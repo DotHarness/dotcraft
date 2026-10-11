@@ -13,7 +13,7 @@ public sealed class ThreadContextItemsTests
     [Fact]
     public void ReconcileClientContext_AppendsBoundSectionOnce()
     {
-        var provider = new FakeProvider { Section = "# Inline Visualizations\n\ndirectory-v1" };
+        var provider = new FakeProvider { Section = "# Visualizations\n\ndirectory-v1" };
         var history = new List<ChatMessage> { new(ChatRole.User, "task") };
 
         var first = ThreadContextItems.ReconcileClientContext(

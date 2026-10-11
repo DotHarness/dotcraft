@@ -218,6 +218,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
               turnId={turn.id}
               itemId={item.id}
               streaming={isLiveStreaming}
+              turnRunning={isRunning}
               createdAt={item.createdAt}
               isLastTurn={isLastTurn}
               readOnly={readOnly}

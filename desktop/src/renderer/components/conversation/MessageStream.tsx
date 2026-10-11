@@ -1,5 +1,6 @@
 import { useAutomationRunReveal } from '../../hooks/useAutomationRunReveal'
 import { collectConversationImages, ConversationImagesContext, type GalleryImage } from './imagePreview/galleryImages'
+import { collectConversationVisualizations, ConversationVisualizationsContext, type VisualizationEntry } from './visualizationGallery'
 import { useHistoryGapLoading } from '../../hooks/useHistoryGapLoading'
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -90,10 +91,16 @@ function getStoreConversationImages(): GalleryImage[] {
   return collectConversationImages(state.turns, { localFiles: !state.remoteWorkspaceActive })
 }
 
+function getStoreConversationVisualizations(): VisualizationEntry[] {
+  return collectConversationVisualizations(useConversationStore.getState().turns)
+}
+
 export function MessageStream(): JSX.Element {
   return (
     <ConversationImagesContext.Provider value={getStoreConversationImages}>
-      <MessageStreamContent />
+      <ConversationVisualizationsContext.Provider value={getStoreConversationVisualizations}>
+        <MessageStreamContent />
+      </ConversationVisualizationsContext.Provider>
     </ConversationImagesContext.Provider>
   )
 }

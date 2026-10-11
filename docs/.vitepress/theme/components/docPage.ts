@@ -1,5 +1,6 @@
 import { computed } from 'vue'
 import { useData, type DefaultTheme } from 'vitepress'
+import { useSidebar } from 'vitepress/theme-without-fonts'
 
 interface Crumb {
   text: string
@@ -49,14 +50,17 @@ export function useEditUrl() {
 
 export function useBreadcrumb() {
   const { theme, page } = useData()
+  const { sidebar } = useSidebar()
   return computed<Crumb[]>(() => {
-    const sidebar = theme.value.sidebar
-    if (!Array.isArray(sidebar)) return []
-    const trail = findTrail(sidebar, routeKey(page.value.relativePath)) ?? []
+    const path = `/${page.value.relativePath}`
     const nav = (theme.value.nav ?? []) as DefaultTheme.NavItemWithLink[]
-    return trail.map((item) => {
+    const tab = nav.find((entry) => entry.activeMatch && new RegExp(entry.activeMatch).test(path))
+    const trail = findTrail(sidebar.value, routeKey(page.value.relativePath)) ?? []
+    const crumbs: Crumb[] = tab ? [{ text: tab.text, link: tab.link }] : []
+    for (const item of trail) {
       const text = plainText(item.text ?? '')
-      return { text, link: item.link ?? nav.find((entry) => entry.text === text)?.link }
-    })
+      if (text !== crumbs.at(-1)?.text) crumbs.push({ text, link: item.link })
+    }
+    return crumbs
   })
 }

@@ -38,7 +38,7 @@ import {
   resolveVisibleApprovalPolicy,
   resolveWorkspaceProviderFromConfig
 } from '../../utils/workspaceCoreConfig'
-import { AgentBuilderToolbar } from './AgentBuilderToolbar'
+import { AgentBuilderToolbar, type AgentBuilderLeadingAction } from './AgentBuilderToolbar'
 import {
   AGENT_BUILDER_CHAT_MIN_WIDTH,
   resolveAgentBuilderChatWidth,
@@ -155,8 +155,6 @@ type Route =
       updatedAt: string | null
     }
 
-const INSTRUCTIONS_PLACEHOLDER = 'Give your agent instructions on how to operate — its job, boundaries, and what it handles…'
-
 type CatalogKind = 'tool' | 'mcp' | 'skill'
 
 const TOOL_ICON_BY_NAME: Record<string, LucideIcon> = {
@@ -242,9 +240,10 @@ function newDraftTargetId(): string {
 interface AgentBuilderViewProps {
   /** Initial surface for the design lab. */
   initialRoute?: 'gallery' | 'new'
+  leadingAction?: AgentBuilderLeadingAction
 }
 
-export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewProps = {}): JSX.Element {
+export function AgentBuilderView({ initialRoute = 'gallery', leadingAction }: AgentBuilderViewProps = {}): JSX.Element {
   const t = useT()
   const [profiles, setProfiles] = useState<ProfileEntry[]>([])
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -503,7 +502,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
         targetSource: entry.source
       })
     } catch (err) {
-      showToast({ message: `Could not open: ${errorText(err)}`, type: 'error' })
+      showToast({ message: t('agentBuilder.openFailed', { error: errorText(err) }), type: 'error' })
     }
   }, [t])
 
@@ -622,7 +621,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
     if (route.name !== 'builder') return
     const name = route.draft.name.trim().normalize('NFC')
     if (!name) {
-      showToast({ message: 'Give the agent a name first.', type: 'error' })
+      showToast({ message: t('agentBuilder.nameRequired'), type: 'error' })
       return
     }
     const md = toMarkdown(route.draft)
@@ -636,27 +635,27 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
         ? { ...r, id: name, source: target, saveTarget: target, readOnly: false, isNew: false, created: true, updatedAt: new Date().toISOString() }
         : r))
       setAutoSaveState('saved')
-      showToast({ message: `Created "${name}".`, type: 'success' })
+      showToast({ message: t('agentBuilder.created', { name }), type: 'success' })
       void loadProfiles()
     } catch (err) {
       setAutoSaveState('error')
-      showToast({ message: `Create failed: ${errorText(err)}`, type: 'error' })
+      showToast({ message: t('agentBuilder.createFailed', { error: errorText(err) }), type: 'error' })
     }
-  }, [route, loadProfiles])
+  }, [route, loadProfiles, t])
 
   const removeProfile = useCallback(async (): Promise<void> => {
     if (route.name !== 'builder' || !route.id || route.readOnly) return
     const { id, source } = route
     try {
       await rpc('agent/profiles/remove', { id, source })
-      showToast({ message: `Removed "${id}".`, type: 'info' })
+      showToast({ message: t('agentBuilder.removed', { name: id }), type: 'info' })
       await loadProfiles()
       setBuilderSession(null)
       setRoute({ name: 'gallery' })
     } catch (err) {
-      showToast({ message: `Remove failed: ${errorText(err)}`, type: 'error' })
+      showToast({ message: t('agentBuilder.removeFailed', { error: errorText(err) }), type: 'error' })
     }
-  }, [route, loadProfiles])
+  }, [route, loadProfiles, t])
 
   const leaveBuilder = useCallback((): void => {
     setBuilderSession(null)
@@ -708,6 +707,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
             cursor={cursor}
             agentDriving={agentDriving}
             onBack={leaveBuilder}
+            leadingAction={leadingAction}
             onDelete={removeProfile}
             onCreate={() => setCreateDialogOpen(true)}
             onExport={route.created && route.id && (route.source === 'user' || route.source === 'workspace') && toMarkdown(route.draft) === lastSavedMdRef.current && route.saveTarget === lastSavedSourceRef.current ? () => setExportDialogOpen(true) : undefined}
@@ -716,7 +716,7 @@ export function AgentBuilderView({ initialRoute = 'gallery' }: AgentBuilderViewP
         <aside className="agent-builder-chatpane" style={builderChatpaneStyle}>
           <ResizeEdgeGlow active={builderChatDividerActive} testId="agent-builder-divider-glow" />
           {builderConversationStatus === 'starting' ? (
-            <div className="agent-builder-chat-loading">Starting builder…</div>
+            <div className="agent-builder-chat-loading">{t('conversation.startingBuilder')}…</div>
           ) : builderConversationStatus === 'ready' ? (
             <ConversationPanel
               workspacePath={workspacePath}
@@ -877,12 +877,13 @@ interface BuilderViewProps {
   cursor: { field: BuilderField; phase: AgentEditingPhase } | null
   agentDriving: boolean
   onBack: () => void
+  leadingAction?: AgentBuilderLeadingAction
   onDelete: () => void
   onCreate: () => void
   onExport?: () => void
 }
 
-function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, cursor, agentDriving, onBack, onDelete, onCreate, onExport }: BuilderViewProps): JSX.Element {
+function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, cursor, agentDriving, onBack, leadingAction, onDelete, onCreate, onExport }: BuilderViewProps): JSX.Element {
   const t = useT()
   const { draft } = route
   const nameMissing = !draft.name.trim()
@@ -1003,7 +1004,7 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
   return (
     <div className="agent-builder">
       <AgentBuilderToolbar created={route.created} updatedAt={route.updatedAt} autoSaveState={autoSaveState}
-        preview={preview} nameMissing={nameMissing} onBack={onBack} onDelete={onDelete} onCreate={onCreate} onExport={onExport}
+        preview={preview} nameMissing={nameMissing} onBack={onBack} leadingAction={leadingAction} onDelete={onDelete} onCreate={onCreate} onExport={onExport}
         onTogglePreview={() => setViewMode(preview ? 'edit' : 'preview')} />
 
       <div className="agent-builder-scroll dc-scrollbar-stable">
@@ -1020,7 +1021,7 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
                 spellCheck={false}
                 className={`agent-builder-id-name${nameMissing ? ' is-empty' : ''}`}
                 value={draft.name}
-                placeholder="agent name"
+                placeholder={t('agentBuilder.name.placeholder')}
                 readOnly={preview}
                 data-agent-builder-marker-target
                 data-agent-builder-marker-offset-x={7}
@@ -1032,18 +1033,18 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
                 spellCheck={false}
                 className="agent-builder-id-desc"
                 value={draft.description}
-                placeholder="One line about this agent…"
+                placeholder={t('agentBuilder.description.placeholder')}
                 readOnly={preview}
                 data-agent-builder-marker-target
                 data-agent-builder-marker-offset-x={7}
                 onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
               />
             </FieldAnchor>
-            {route.readOnly && !preview && <div className="agent-builder-note">Built-in template — click Create to save it as a new agent in the selected source.</div>}
+            {route.readOnly && !preview && <div className="agent-builder-note">{t('agentBuilder.builtInNote')}</div>}
           </div>
         </div>
 
-        <Section label="Tools">
+        <Section label={t('agentBuilder.tools.label')}>
           <FieldAnchor field="tools.policy" className="agent-builder-tool-policy">
             <SettingsSelect<ToolPolicyMode>
               value={draft.tools.mode}
@@ -1086,31 +1087,31 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
           )}
         </Section>
 
-        <Section label="MCP">
+        <Section label={t('agentBuilder.mcp.label')}>
           <CatalogField
             options={mcpOptions}
             selected={draft.mcp.servers}
             onChange={(servers) => setDraft((d) => ({ ...d, mcp: { ...d.mcp, servers } }))}
-            addLabel="Add MCP server"
+            addLabel={t('agentBuilder.mcp.add')}
             kind="mcp"
             field="mcp.servers"
             readOnly={preview}
           />
         </Section>
 
-        <Section label="Skills">
+        <Section label={t('agentBuilder.skills.label')}>
           <CatalogField
             options={skillOptions}
             selected={draft.skills.preload}
             onChange={(preload) => setDraft((d) => ({ ...d, skills: { ...d.skills, preload } }))}
-            addLabel="Add skill"
+            addLabel={t('agentBuilder.skills.add')}
             kind="skill"
             field="skills.preload"
             readOnly={preview}
           />
         </Section>
 
-        <Section label="Instructions">
+        <Section label={t('agentBuilder.instructions.label')}>
           <InstructionsField
             value={draft.roleInstructions}
             preview={preview}
@@ -1118,7 +1119,7 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
           />
         </Section>
 
-        <Section label="Details">
+        <Section label={t('agentBuilder.details.label')}>
           <SettingsGroup>
             <SettingsRow
               label={t('agentBuilder.model.customSettings')}
@@ -1251,7 +1252,9 @@ function InstructionsField({
   preview: boolean
   onChange: (value: string) => void
 }): JSX.Element {
+  const t = useT()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const placeholder = t('agentBuilder.instructions.placeholder')
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current
@@ -1272,7 +1275,7 @@ function InstructionsField({
           {value.trim() ? (
             <MarkdownRenderer content={value} containOverflow enableMermaid={false} />
           ) : (
-            <span className="agent-builder-instr-empty">{INSTRUCTIONS_PLACEHOLDER}</span>
+            <span className="agent-builder-instr-empty">{placeholder}</span>
           )}
         </div>
       ) : (
@@ -1281,7 +1284,7 @@ function InstructionsField({
           className="agent-builder-instr"
           rows={6}
           value={value}
-          placeholder={INSTRUCTIONS_PLACEHOLDER}
+          placeholder={placeholder}
           data-agent-builder-marker-target
           data-agent-builder-marker-offset-x={12}
           data-agent-builder-marker-offset-y={22}
@@ -1324,6 +1327,7 @@ function CatalogField({
   field: BuilderField
   readOnly?: boolean
 }): JSX.Element {
+  const t = useT()
   const [pickerOpen, setPickerOpen] = useState(false)
   const addRef = useRef<HTMLButtonElement>(null)
   const byId = useMemo(() => new Map(options.map((o) => [o.id, o])), [options])
@@ -1332,7 +1336,7 @@ function CatalogField({
   if (readOnly && selected.length === 0) {
     return (
       <FieldAnchor field={field} className="agent-builder-field-anchor-catalog">
-        <span className="agent-builder-pick-empty" data-agent-builder-marker-target>None</span>
+        <span className="agent-builder-pick-empty" data-agent-builder-marker-target>{t('agentBuilder.catalog.none')}</span>
       </FieldAnchor>
     )
   }
@@ -1441,6 +1445,7 @@ function CatalogAddPopover({
   onPick: (id: string) => void
   onClose: () => void
 }): JSX.Element | null {
+  const t = useT()
   const menuRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
@@ -1479,11 +1484,11 @@ function CatalogAddPopover({
     <div ref={menuRef} className="agent-builder-addmenu" style={{ top: pos.top, left: pos.left, width: pos.width }} role="listbox">
       <div className="agent-builder-addmenu-search">
         <Search size={13} />
-        <Input bare autoFocus value={query} placeholder="Search…" onChange={(e) => setQuery(e.target.value)} />
+        <Input bare autoFocus value={query} placeholder={t('agentBuilder.catalog.search')} onChange={(e) => setQuery(e.target.value)} />
       </div>
       <div className="agent-builder-addmenu-list">
         {filtered.length === 0 ? (
-          <div className="agent-builder-addmenu-empty">Nothing to add</div>
+          <div className="agent-builder-addmenu-empty">{t('agentBuilder.catalog.empty')}</div>
         ) : (
           filtered.map((o) => {
             const line = [o.description, o.source].filter(Boolean).join(' · ')

@@ -4648,7 +4648,7 @@
             }
           ]
         },
-        "inlineVisualizations": {
+        "generativeUi": {
           "anyOf": [
             {
               "type": "boolean"
@@ -4732,6 +4732,16 @@
           ]
         },
         "toolExecutionLifecycle": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "visualizations": {
           "anyOf": [
             {
               "type": "boolean"
@@ -6753,6 +6763,111 @@
         "path"
       ]
     },
+    "GenerativeUiBlockState": {
+      "title": "GenerativeUiBlockState",
+      "type": "object",
+      "properties": {
+        "blockIndex": {
+          "type": "integer"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "state": {},
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "blockIndex",
+        "itemId",
+        "state",
+        "turnId"
+      ]
+    },
+    "GenerativeUiStateReadParams": {
+      "title": "GenerativeUiStateReadParams",
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
+    },
+    "GenerativeUiStateReadResult": {
+      "title": "GenerativeUiStateReadResult",
+      "type": "object",
+      "properties": {
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GenerativeUiBlockState"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "states"
+      ]
+    },
+    "GenerativeUiStateUpdateParams": {
+      "title": "GenerativeUiStateUpdateParams",
+      "type": "object",
+      "properties": {
+        "blockIndex": {
+          "type": "integer"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "state": {},
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "blockIndex",
+        "itemId",
+        "threadId",
+        "turnId"
+      ]
+    },
+    "GenerativeUiStateUpdatedNotification": {
+      "title": "GenerativeUiStateUpdatedNotification",
+      "type": "object",
+      "properties": {
+        "blockIndex": {
+          "type": "integer"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "state": {},
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "blockIndex",
+        "itemId",
+        "state",
+        "threadId",
+        "turnId"
+      ]
+    },
     "HookErrorInfo": {
       "title": "HookErrorInfo",
       "type": "object",
@@ -7614,84 +7729,6 @@
         "serverInfo"
       ]
     },
-    "InlineVisualizationViewCloseParams": {
-      "title": "InlineVisualizationViewCloseParams",
-      "type": "object",
-      "properties": {
-        "viewHandle": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "InlineVisualizationViewCloseResult": {
-      "title": "InlineVisualizationViewCloseResult",
-      "type": "object",
-      "properties": {
-        "closed": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true
-    },
-    "InlineVisualizationViewMessageParams": {
-      "title": "InlineVisualizationViewMessageParams",
-      "type": "object",
-      "properties": {
-        "prompt": {
-          "type": "string"
-        },
-        "viewHandle": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "InlineVisualizationViewMessageResult": {
-      "title": "InlineVisualizationViewMessageResult",
-      "type": "object",
-      "properties": {
-        "queuedInputId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "InlineVisualizationViewOpenParams": {
-      "title": "InlineVisualizationViewOpenParams",
-      "type": "object",
-      "properties": {
-        "file": {
-          "type": "string"
-        },
-        "itemId": {
-          "type": "string"
-        },
-        "threadId": {
-          "type": "string"
-        },
-        "turnId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "InlineVisualizationViewOpenResult": {
-      "title": "InlineVisualizationViewOpenResult",
-      "type": "object",
-      "properties": {
-        "fragment": {
-          "type": "string"
-        },
-        "mimeType": {
-          "type": "string"
-        },
-        "viewHandle": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
     "InputContext": {
       "title": "InputContext",
       "type": "object",
@@ -8085,30 +8122,6 @@
         "item",
         "threadId"
       ]
-    },
-    "ItemWidgetStateSetParams": {
-      "title": "ItemWidgetStateSetParams",
-      "type": "object",
-      "properties": {
-        "callId": {
-          "type": "string"
-        },
-        "threadId": {
-          "type": "string"
-        },
-        "widgetState": {}
-      },
-      "additionalProperties": true
-    },
-    "ItemWidgetStateSetResult": {
-      "title": "ItemWidgetStateSetResult",
-      "type": "object",
-      "properties": {
-        "cleared": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true
     },
     "MarketplaceAddParams": {
       "title": "MarketplaceAddParams",
@@ -12666,13 +12679,13 @@
         "fileSystem": {
           "type": "boolean"
         },
+        "generativeUi": {
+          "type": "boolean"
+        },
         "gitWorktrees": {
           "type": "boolean"
         },
         "hooksManagement": {
-          "type": "boolean"
-        },
-        "inlineVisualizations": {
           "type": "boolean"
         },
         "manualCompaction": {
@@ -12760,6 +12773,9 @@
           "type": "boolean"
         },
         "usageTelemetry": {
+          "type": "boolean"
+        },
+        "visualizations": {
           "type": "boolean"
         },
         "workspaceConfigManagement": {
@@ -20807,6 +20823,144 @@
       "additionalProperties": true,
       "required": [
         "text"
+      ]
+    },
+    "VisualizationViewCloseParams": {
+      "title": "VisualizationViewCloseParams",
+      "type": "object",
+      "properties": {
+        "viewHandle": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "VisualizationViewCloseResult": {
+      "title": "VisualizationViewCloseResult",
+      "type": "object",
+      "properties": {
+        "closed": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "VisualizationViewMessageParams": {
+      "title": "VisualizationViewMessageParams",
+      "type": "object",
+      "properties": {
+        "context": {},
+        "prompt": {
+          "type": "string"
+        },
+        "viewHandle": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "VisualizationViewMessageResult": {
+      "title": "VisualizationViewMessageResult",
+      "type": "object",
+      "properties": {
+        "queuedInputId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "VisualizationViewOpenParams": {
+      "title": "VisualizationViewOpenParams",
+      "type": "object",
+      "properties": {
+        "itemId": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "VisualizationViewOpenResult": {
+      "title": "VisualizationViewOpenResult",
+      "type": "object",
+      "properties": {
+        "fragment": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "viewHandle": {
+          "type": "string"
+        },
+        "widgetState": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VisualizationWidgetState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "VisualizationViewWidgetStateUpdateParams": {
+      "title": "VisualizationViewWidgetStateUpdateParams",
+      "type": "object",
+      "properties": {
+        "modelContent": {},
+        "privateContent": {},
+        "viewHandle": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "VisualizationWidgetState": {
+      "title": "VisualizationWidgetState",
+      "type": "object",
+      "properties": {
+        "modelContent": {},
+        "privateContent": {}
+      },
+      "additionalProperties": true
+    },
+    "VisualizationWidgetStateUpdatedNotification": {
+      "title": "VisualizationWidgetStateUpdatedNotification",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "widgetState": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VisualizationWidgetState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "path",
+        "threadId",
+        "widgetState"
       ]
     },
     "WelcomeSuggestionItem": {

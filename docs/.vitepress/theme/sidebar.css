@@ -85,6 +85,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   padding: 0;
   font-size: var(--type-ui-size);
   font-weight: 400;
@@ -97,7 +98,6 @@
 
 .VPSidebar div.VPSidebarItem.is-active > .item .text {
   color: var(--text-primary);
-  font-weight: 500;
 }
 
 .dc-side-icon {
@@ -116,6 +116,9 @@
 
 .dc-side-label {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .VPSidebar .VPSidebarItem .caret {

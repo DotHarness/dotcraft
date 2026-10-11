@@ -18,26 +18,28 @@ interface SettingsDocsRoute {
 
 const SETTINGS_DOCS_ROUTES: Record<SettingsDocsTopic, SettingsDocsRoute> = {
   hooks: {
-    en: '/features/agent-system/hooks'
+    en: '/guide/hooks'
   },
   servers: {
-    en: '/features/self-hosted/server-deployment#connect-from-desktop',
-    zhHans: '/features/self-hosted/server-deployment#从-desktop-连接'
+    en: '/self-hosting/server-deployment#connect-from-desktop',
+    zhHans: '/self-hosting/server-deployment#从-desktop-连接'
   },
   modelProviders: {
-    en: '/features/entry-points/desktop#model-providers'
+    en: '/start/desktop#set-up-a-model',
+    zhHans: '/start/desktop#配好模型'
   },
   memory: {
-    en: '/features/agent-system/memory'
+    en: '/guide/memory'
   },
   subAgents: {
-    en: '/features/agent-system/subagents'
+    en: '/guide/subagents'
   },
   mcp: {
-    en: '/features/agent-system/plugins-tools#mcp-servers'
+    en: '/guide/plugins-tools#connect-an-mcp-server',
+    zhHans: '/guide/plugins-tools#连接-mcp-server'
   },
   security: {
-    en: '/features/self-hosted/security'
+    en: '/self-hosting/security'
   }
 }
 

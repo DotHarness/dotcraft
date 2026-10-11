@@ -2793,6 +2793,72 @@
       ]
     },
     {
+      "name": "generativeUi/state/read",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/GenerativeUiStateReadParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/GenerativeUiStateReadResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "generativeUi",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
+      "name": "generativeUi/state/update",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/GenerativeUiStateUpdateParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/RpcEmpty.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "generativeUi",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
       "name": "hooks/list",
       "paramStructure": "by-name",
       "params": [
@@ -3214,39 +3280,6 @@
       "x-dotcraft-kind": "request",
       "x-dotcraft-module": "core",
       "x-dotcraft-capability": "requestUserInputSupport",
-      "x-dotcraft-scope": "thread",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "item/widget-state/set",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/core/ItemWidgetStateSetParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/core/ItemWidgetStateSetResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "core",
-      "x-dotcraft-capability": null,
       "x-dotcraft-scope": "thread",
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
@@ -7023,20 +7056,20 @@
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/core/InlineVisualizationViewCloseParams.schema.json"
+            "$ref": "./schemas/core/VisualizationViewCloseParams.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/InlineVisualizationViewCloseResult.schema.json"
+          "$ref": "./schemas/core/VisualizationViewCloseResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
       "x-dotcraft-kind": "request",
       "x-dotcraft-module": "core",
-      "x-dotcraft-capability": "inlineVisualizations",
+      "x-dotcraft-capability": "visualizations",
       "x-dotcraft-scope": "connection",
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
@@ -7056,20 +7089,20 @@
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/core/InlineVisualizationViewMessageParams.schema.json"
+            "$ref": "./schemas/core/VisualizationViewMessageParams.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/InlineVisualizationViewMessageResult.schema.json"
+          "$ref": "./schemas/core/VisualizationViewMessageResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
       "x-dotcraft-kind": "request",
       "x-dotcraft-module": "core",
-      "x-dotcraft-capability": "inlineVisualizations",
+      "x-dotcraft-capability": "visualizations",
       "x-dotcraft-scope": "connection",
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
@@ -7089,20 +7122,53 @@
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/core/InlineVisualizationViewOpenParams.schema.json"
+            "$ref": "./schemas/core/VisualizationViewOpenParams.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/InlineVisualizationViewOpenResult.schema.json"
+          "$ref": "./schemas/core/VisualizationViewOpenResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
       "x-dotcraft-kind": "request",
       "x-dotcraft-module": "core",
-      "x-dotcraft-capability": "inlineVisualizations",
+      "x-dotcraft-capability": "visualizations",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
+      "name": "visualization/view/widgetState/update",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/VisualizationViewWidgetStateUpdateParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/RpcEmpty.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "visualizations",
       "x-dotcraft-scope": "connection",
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",

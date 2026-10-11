@@ -70,6 +70,7 @@ export const MESSAGES_FR: Catalog = {
   'tool.read': 'A lu {{subject}}',
   'tool.searched': 'A recherché {{subject}}',
   'tool.used': 'A utilisé {{subject}}',
+  'tool.interactiveContent': 'du contenu interactif',
   'tool.running': 'Exécution de la commande…',
   'tool.editing': 'Modification du fichier…',
   'tool.reading': 'Lecture…',

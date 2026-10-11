@@ -1,8 +1,10 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
   type JSX
 } from 'react'
@@ -16,11 +18,17 @@ import type {
 import { normalizeHexColor } from '../../../shared/themeSeed'
 import { LayerBoundary } from '../../contexts/LayerContext'
 import { useT } from '../../contexts/LocaleContext'
+import { useDismissOnViewportChange, type PopupAnchor } from './anchoredPopup'
 import { Button } from './Button'
 import { Input } from './Input'
 import { ModalHeader } from './ModalHeader'
 
-interface ColorPickerDialogProps {
+export interface ColorPickerPresentation {
+  anchor?: PopupAnchor
+  onPreview?(color: string): void
+}
+
+interface ColorPickerDialogProps extends ColorPickerPresentation {
   options: DesktopPluginColorPickerOptions
   initialDraft?: string
   onFinish(result: DesktopPluginColorPickerResult): void
@@ -34,6 +42,7 @@ interface ColorPickerDialogRequest {
 interface ActiveRequest {
   id: number
   options: DesktopPluginColorPickerOptions
+  presentation: ColorPickerPresentation
   returnFocus: HTMLElement | null
   resolve(result: DesktopPluginColorPickerResult): void
 }
@@ -42,9 +51,14 @@ let activeRequest: ActiveRequest | null = null
 let requestListener: ((request: ActiveRequest | null) => void) | null = null
 let nextRequestId = 0
 
+const ANCHOR_GAP = 6
+const VIEWPORT_MARGIN = 8
+
 export function ColorPickerDialog({
   options,
   initialDraft,
+  anchor,
+  onPreview,
   onFinish
 }: ColorPickerDialogProps): JSX.Element {
   const t = useT()
@@ -56,7 +70,27 @@ export function ColorPickerDialog({
   const initialColor = normalizeHexColor(options.initialColor)!
   const [input, setInput] = useState(initialDraft ?? initialColor.toUpperCase())
   const [color, setColor] = useState(initialColor)
+  const [position, setPosition] = useState<CSSProperties | null>(null)
   const validColor = normalizeHexColor(input)
+
+  function preview(next: string): void {
+    setColor(next)
+    onPreview?.(next)
+  }
+
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current
+    if (!anchor || !dialog) return
+    const { width, height } = dialog.getBoundingClientRect()
+    const below = anchor.y + anchor.height + ANCHOR_GAP
+    const top = below + height <= window.innerHeight - VIEWPORT_MARGIN ? below : anchor.y - ANCHOR_GAP - height
+    setPosition({
+      top: Math.max(VIEWPORT_MARGIN, top),
+      left: Math.max(VIEWPORT_MARGIN, Math.min(anchor.x, window.innerWidth - VIEWPORT_MARGIN - width))
+    })
+  }, [anchor])
+
+  useDismissOnViewportChange(dialogRef, anchor ? () => onFinish({ kind: 'cancel' }) : null)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -103,6 +137,7 @@ export function ColorPickerDialog({
   const dialog = (
     <div
       className="dc-color-picker-overlay"
+      data-anchored={anchor ? '' : undefined}
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -113,6 +148,7 @@ export function ColorPickerDialog({
       <div
         ref={dialogRef}
         className="dc-color-picker-dialog"
+        style={anchor ? { ...position, visibility: position ? undefined : 'hidden' } : undefined}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <ModalHeader
@@ -143,7 +179,7 @@ export function ColorPickerDialog({
                   const next = event.currentTarget.value
                   setInput(next)
                   const normalized = normalizeHexColor(next)
-                  if (normalized) setColor(normalized)
+                  if (normalized) preview(normalized)
                 }}
               />
             </label>
@@ -158,7 +194,7 @@ export function ColorPickerDialog({
               color={color}
               onChange={(next) => {
                 const normalized = normalizeHexColor(next) ?? color
-                setColor(normalized)
+                preview(normalized)
                 setInput(normalized.toUpperCase())
               }}
             />
@@ -202,13 +238,16 @@ export function ColorPickerDialogHost(): JSX.Element | null {
     <ColorPickerDialog
       key={request.id}
       options={request.options}
+      anchor={request.presentation.anchor}
+      onPreview={request.presentation.onPreview}
       onFinish={(result) => finishRequest(request, result)}
     />
   )
 }
 
 export function requestColorPickerDialog(
-  rawOptions: DesktopPluginColorPickerOptions
+  rawOptions: DesktopPluginColorPickerOptions,
+  presentation: ColorPickerPresentation = {}
 ): ColorPickerDialogRequest {
   const options = validateOptions(rawOptions)
   if (activeRequest) {
@@ -226,6 +265,7 @@ export function requestColorPickerDialog(
   const request: ActiveRequest = {
     id,
     options,
+    presentation,
     returnFocus: document.activeElement instanceof HTMLElement ? document.activeElement : null,
     resolve
   }
@@ -246,6 +286,7 @@ function finishRequest(
   if (activeRequest?.id !== request.id) return
   activeRequest = null
   requestListener?.(null)
+  request.returnFocus?.focus()
   request.resolve(result)
   requestAnimationFrame(() => request.returnFocus?.focus())
 }

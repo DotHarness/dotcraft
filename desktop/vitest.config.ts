@@ -1,8 +1,9 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import { bundledScriptPlugin } from './bundledScriptPlugin'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [bundledScriptPlugin(), react()],
   test: {
     projects: [
       {
@@ -23,7 +24,7 @@ export default defineConfig({
       },
       {
         // jsdom environment for React component tests
-        plugins: [react()],
+        plugins: [bundledScriptPlugin(), react()],
         test: {
           name: 'browser',
           environment: 'jsdom',

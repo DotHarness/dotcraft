@@ -62,13 +62,13 @@
     "fileSystem": {
       "type": "boolean"
     },
+    "generativeUi": {
+      "type": "boolean"
+    },
     "gitWorktrees": {
       "type": "boolean"
     },
     "hooksManagement": {
-      "type": "boolean"
-    },
-    "inlineVisualizations": {
       "type": "boolean"
     },
     "manualCompaction": {
@@ -156,6 +156,9 @@
       "type": "boolean"
     },
     "usageTelemetry": {
+      "type": "boolean"
+    },
+    "visualizations": {
       "type": "boolean"
     },
     "workspaceConfigManagement": {

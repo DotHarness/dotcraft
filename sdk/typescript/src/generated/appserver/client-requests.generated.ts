@@ -76,6 +76,8 @@ export interface ClientRequestMethods {
   "fs/createDirectory": { params: Models.FsCreateDirectoryParams; result: Models.RpcEmpty };
   "fs/readFile": { params: Models.FsReadFileParams; result: Models.FsReadFileResult };
   "fs/writeFile": { params: Models.FsWriteFileParams; result: Models.RpcEmpty };
+  "generativeUi/state/read": { params: Models.GenerativeUiStateReadParams; result: Models.GenerativeUiStateReadResult };
+  "generativeUi/state/update": { params: Models.GenerativeUiStateUpdateParams; result: Models.RpcEmpty };
   "hooks/list": { params: Models.HooksListParams; result: Models.HooksListResult };
   "hooks/setState": { params: Models.HooksSetStateParams; result: Models.HooksSetStateResult };
   "hooks/trustPlugin": { params: Models.HooksTrustPluginParams; result: Models.HooksTrustPluginResult };
@@ -85,7 +87,6 @@ export interface ClientRequestMethods {
   "import/settings/get": { params: Models.RpcEmpty; result: Models.ImportSettingsResult };
   "import/settings/set": { params: Models.ImportSettingsSetParams; result: Models.ImportSettingsResult };
   "initialize": { params: Models.InitializeParams; result: Models.InitializeResult };
-  "item/widget-state/set": { params: Models.ItemWidgetStateSetParams; result: Models.ItemWidgetStateSetResult };
   "marketplace/add": { params: Models.MarketplaceAddParams; result: Models.MarketplaceAddResult };
   "marketplace/refresh": { params: Models.MarketplaceRefreshParams; result: Models.MarketplaceRefreshResult };
   "marketplace/remove": { params: Models.MarketplaceRemoveParams; result: Models.MarketplaceRemoveResult };
@@ -198,9 +199,10 @@ export interface ClientRequestMethods {
   "usage/summary": { params: Models.UsageSummaryParams; result: Models.UsageSummaryResult };
   "usage/thread": { params: Models.UsageThreadParams; result: Models.UsageThreadResult };
   "usage/threads": { params: Models.UsageThreadsParams; result: Models.UsageThreadsResult };
-  "visualization/view/close": { params: Models.InlineVisualizationViewCloseParams; result: Models.InlineVisualizationViewCloseResult };
-  "visualization/view/message": { params: Models.InlineVisualizationViewMessageParams; result: Models.InlineVisualizationViewMessageResult };
-  "visualization/view/open": { params: Models.InlineVisualizationViewOpenParams; result: Models.InlineVisualizationViewOpenResult };
+  "visualization/view/close": { params: Models.VisualizationViewCloseParams; result: Models.VisualizationViewCloseResult };
+  "visualization/view/message": { params: Models.VisualizationViewMessageParams; result: Models.VisualizationViewMessageResult };
+  "visualization/view/open": { params: Models.VisualizationViewOpenParams; result: Models.VisualizationViewOpenResult };
+  "visualization/view/widgetState/update": { params: Models.VisualizationViewWidgetStateUpdateParams; result: Models.RpcEmpty };
   "welcome/suggestions": { params: Models.WelcomeSuggestionsParams; result: Models.WelcomeSuggestionsResult };
   "workflow/run/list": { params: Models.WorkflowRunListParams; result: Models.WorkflowRunListResult };
   "workflow/run/pause": { params: Models.WorkflowRunParams; result: Models.WorkflowRunReadResult };

@@ -1315,7 +1315,11 @@ Third-party content rendered in sandboxed views is outside this rule.
 Desktop-owned opaque RGB color choices use the shared `ColorPickerDialog`, not
 `input[type="color"]`. The compact Host-owned dialog contains a Hex field, saturation/value
 plane, Hue control, and explicit Done/Reset actions. Edits preview inside the dialog; Done
-commits, Reset clears the semantic override immediately, and every close path cancels. A hidden
+commits, Reset clears the semantic override immediately, and every close path cancels. Opened from
+a control, such as a design-controls swatch or a visualization color input, the dialog anchors
+beside that control instead of centring over a scrim, its edits also preview live in the control,
+and cancelling, which scrolling or resizing the window also does, restores the value the control had
+when it opened. A hidden
 native file input may still open the system file chooser because file access remains a platform
 capability rather than a Desktop-owned visual editor.
 
@@ -1529,14 +1533,22 @@ Formulas use KaTeX's own typesetting in the surrounding text colour. A display f
 centred on its own line and scrolls sideways when it is wider than the column, never wrapping
 or shrinking.
 
-### Inline visualization
+### Visualization
 
-Assistant inline visualizations are conversation-native media, not tool cards. Their host is
+Assistant visualizations are conversation-native media, not tool cards. Their host is
 transparent and unframed, with no header or attribution row. Host actions sit just outside the
 visualization content edge in a narrow host-owned action rail so they never cover the rendered
-media. A single available command is exposed directly as a borderless tertiary icon button
-rather than being hidden behind an overflow menu. It may appear on hover, keyboard focus, or
-coarse-pointer devices and is not included when the visualization is copied as an image.
+media. Its commands, Copy as image, Open fullscreen, and Design controls when the view registers
+any, are borderless tertiary 24px icon buttons stacked 4px apart from the view's top edge, never
+hidden behind an overflow menu. They appear on hover, keyboard focus, coarse-pointer devices, or
+while the design controls panel is open, and are not included when the visualization is copied as
+an image.
+
+A wide visualization breaks out of the reading column, up to 1024px of content plus its action
+rail, centred on the column where there is room. It never covers the conversation's side gutters,
+the turn navigation rail, or an occupied aside seat; an occupied side stops it at the column edge,
+and with no free room it simply fills the column. Everything else in the message, including normal-width visualizations,
+keeps the reading width. Only a full application shell or side-by-side small multiples are wide.
 
 Historical visualization views are lazy-loaded near the message viewport. Before the preload
 boundary is reached, reserve the expected content shape without a running animation. From the
@@ -1544,9 +1556,134 @@ first runtime request through iframe readiness, use one animated, shape-matched 
 show a second spinner or eagerly open off-screen visualization views.
 
 Desktop injects the active neutral surface, text, border, focus, accent, and font tokens into the
-visualization document. Ordinary visualization buttons are `32px` controls with an `8px` radius,
-matching the Desktop icon and field band; primary actions use neutral inversion rather than an
-accent fill. Feature colors remain available for charts and diagrams, not ordinary controls.
+visualization document, together with the control band and the state tokens its controls need, so
+every sandboxed control mirrors the shared Desktop control it stands for and follows theme and
+appearance changes without hard-coded values: `.btn` is the text `Button` (standard band, pill,
+13px medium, frameless secondary fill, neutral inversion for `.btn-primary` and for a pressed
+button, transparent `.btn-ghost`), `.form-control` the field `Input`, `.form-select` the field
+`Select` trigger, opening the shared select menu beside it rather than the platform popup, `.form-check` the `Checkbox` (a radio is its round twin with an on-accent dot),
+`.form-switch` the medium `PillSwitch`, `.form-range` the shared slider with its accent fill,
+`.viz-badge` the neutral status badge, `.table` the Generative UI data table, and the tooltip the
+inverse action tooltip. Hover, focus, invalid, and disabled states follow the same components.
+Scrollbars inside a view are the shared [Scrollbars](#scrollbars) from the same tokens, and a view
+that scrolls in the fullscreen viewer reserves the gutter on both edges, so the bar never covers
+content and the content stays centred in the panel.
+Control rules carry no selector weight, so a mockup resets them with one root-scoped class. Feature
+colors remain available for charts and diagrams, not ordinary controls. The
+named hues (`--blue`, `--orange`, `--green`, `--yellow`) are the chart series palette, `--red` is
+the error hue, and `--purple` comes from the ANSI palette. Series 1 is the accent and series 2-6
+are orange, green, yellow, purple, and red, so the first four follow the validated chart order and a
+series color never disagrees with its named hue. The visualization `--popover` pair is
+the inverse tooltip surface, because a visualization popover is an annotation, not a place to go.
+
+- Tooltips follow [Tooltips](#tooltips): inverse pair, no border, the shadow carries the lift,
+  secondary type, and a 320px maximum width before wrapping. They sit 6px from the trigger,
+  prefer the author's side, flip to the opposite side and then to top or bottom when there is no
+  room, and shift to stay 4px inside the view.
+- Tabs are quiet pills on the transparent surface with the ghost button's geometry: muted text at
+  rest, a neutral hover fill, and the selected tab in `--accent` (Desktop's active neutral) at
+  weight 500. There is no track and no accent color; a justified tab group shares the row equally.
+- A color input is a 24px swatch with a 6px radius and a hairline border; `.form-control-color`
+  sets the swatch inside a field. Activating it opens the shared color picker beside the input, not
+  the platform picker.
+- A selectable tile keeps its category fill when selected and marks selection with a 2px accent
+  ring inside its edge, never a solid inversion.
+- A progress bar is a 6px rounded neutral track with an accent fill and no outline.
+- The day calendar is one card surface. Events are flat soft fills of their tone mixed into the
+  background, with no side bar, border, or gradient, an `8px` radius, `8px` between lanes, and a
+  `2px` gap between stacked events. Titles use the foreground at weight 500 and time lines the
+  muted foreground; finished events halve their tint and fade their text. Hover adds a barely
+  visible foreground overlay, keyboard focus an inset ring. The now marker is a 2px `--red` line
+  with a dot at the time gutter.
+- A contained mockup may sit on a quiet dot grid (`.viz-dotted-background`): a 2% foreground
+  wash with 1px dots at 16% foreground every 14px and an `8px` radius. Full-page mockups, charts,
+  and explainers stay on the plain surface.
+- A variant carousel's controls sit centred below the designs in space the carousel reserves:
+  borderless 28px icon buttons with an `8px` radius in the muted foreground, a frameless
+  medium-weight picker of the design names, and the "n / total" count in muted tabular numerals.
+  They have no surface or frame, take the muted fill on hover, and an end button dims to 40%.
+- A runtime error is reported below the view, not over it: one line of conversation meta type in
+  `--text-secondary` with a 14px alert icon in `--error-text` and a ghost "Ask to fix" action. It
+  carries no fill or frame, and only one notice appears per view.
+
+Design controls follow [Menus, popovers, and pickers](#menus-popovers-and-pickers): an opaque
+elevated surface with a 10px radius, the soft overlay shadow, and no border. Inline, the panel docks
+below the view at the view's width and never covers its content. In the fullscreen viewer it floats
+at the top-right of the panel, 288px wide and up to 440px tall before its body scrolls. A 40px header holds the medium-weight title and a
+24px close button. Each group takes a 12px semibold tertiary heading. Rows are borderless 32px
+rows with the label in secondary text and the control at the trailing edge: a slider stacks its
+label above the shared slider with value and unit, a color shows a 24px swatch that opens the color
+picker beside it and an 88px mono hex field, a toggle uses the small pill switch, and a select uses the field select at 140px. A
+hairline-topped footer holds ghost Show original, a pressed toggle while the original shows, at the
+start, and ghost Reset with primary Add to message at the end; all three stay disabled until
+something changes, and Reset and Add to message also while the original shows. Added changes ride
+the composer as one attachment pill per visualization with a sliders icon, labelled with the
+visualization's title. The Design controls button keeps the neutral
+active state while the panel is open. The panel never opens on its own.
+
+The fullscreen viewer follows [Image preview](#image-preview): the same dark scrim, 72px side
+gutters with elevated round previous/next buttons, the "n of total" pill below, `←`/`→` paging
+through every visualization in the conversation, and `Esc` or a scrim click to close. The view
+sits centred on a `--bg-primary` panel with a 12px radius and 16px padding, up to 1024px of
+content wide and as tall as its content until the stage height, after which it scrolls inside.
+The top-right toolbar pill holds the visualization title (medium weight, truncated at 320px),
+Design controls when the view registers any, Copy as image, and Exit fullscreen; it has no zoom or
+download. The viewer sits below dialogs
+and toasts, so a follow-up or link confirmation raised from the fullscreen view appears above it.
+
+### Generative UI
+
+Generative UI answers (see [Generative UI](../features/generative-ui.md)) render natively in the
+reading column with Desktop's own components, never in a visible frame. The answer carries no
+header, attribution row, or host chrome; it sits 8px from the surrounding Markdown and spans the
+column width.
+
+- **Surfaces.** A `Card` is one `--bg-secondary` surface with an 8px radius, no border or shadow,
+  16px padding (12px compact, 20px roomy, or none), and 12px between children. Its title is
+  conversation-size semibold and its subtitle `--text-secondary` at the secondary size. A `Box`
+  may take `--bg-secondary` or `--bg-tertiary` and a 6px or 8px radius; nothing else adds fills.
+- **Spacing and layout.** `Row` and `Col` default to an 8px gap; authors may choose any gap up to
+  64px. Children of a column stretch to its width, except buttons, badges, icons, and images, which
+  keep their own width. A row that holds buttons or badges wraps them onto further lines at the same
+  gap instead of letting them leave the card, and a button never grows past its container: a label
+  too long for it truncates. Text wraps at word boundaries and never breaks inside a word.
+- **Type.** Body text uses the conversation scale; `Caption` and table text use the meta and
+  secondary sizes on `--text-secondary`. Large figures use the detail-title and title sizes with
+  tabular numerals. Tones map to `--text-*` and the semantic `--*-text` inks only.
+- **Controls.** Every control is the shared production control: `Button` (neutral inversion for
+  primary, the frameless fill for secondary), the field `Input`/`Textarea` with the warning border
+  for `error`, the field `Select`, `Checkbox`, the shared `SegmentedControl`, and the shared slider
+  stretched to the field width with its value at the trailing edge. Radios mirror the checkbox:
+  a 17px ring that fills with `--accent` and shows an `--on-accent` dot, with the checkbox's hover.
+  A `Badge` is the shared status badge. Field labels sit 6px above
+  the control in secondary medium type; hints follow in `--text-dimmed`, errors in `--error-text`.
+- **Data.** Tables are frameless: secondary-size rows divided by `--border-subtle`, a medium
+  `--text-secondary` header, numbers right-aligned in tabular numerals, and horizontal scrolling
+  instead of squeezing. Lists separate items with gap, or with `--border-subtle` when divided.
+- **Charts.** Series take `--chart-series-1` to `-4` in order and fold the rest into
+  `--chart-series-other`. Grid lines are horizontal `--border-subtle`; axes have no lines and use
+  11px `--text-dimmed` ticks, thinned so labels never collide. Line and area strokes are 2px, bars
+  have a 4px top radius, and donuts separate slices with a 1° gap. The tooltip is the inverse
+  surface. A legend appears below when there is more than one series.
+- **Icons.** Lucide icons by name at 16px with a 1.75 stroke, in the current text color or a
+  `--*-text` tone. While an icon loads, its box is reserved empty.
+- **Images.** Only embedded images render, with an 8px radius by default. An image that cannot
+  load becomes a `--bg-tertiary` placeholder with its alt text in `--text-dimmed`.
+- **Loading.** From the first runner request to the first snapshot, while a block waits for the
+  conversation to scroll near it, and while its closing fence has not arrived, one card-shaped
+  skeleton holds the place: a title line, two body lines, and two pill
+  controls on `--bg-secondary`. There is no spinner.
+- **Failed.** A failure is one quiet notice: `--bg-secondary`, 8px radius, a 14px alert icon in
+  `--error-text`, the sentence in `--text-secondary`, and the stage, position, and message as a
+  `--text-dimmed` meta line clamped to two lines, with a secondary `Retry` at the trailing edge.
+- **Locked.** While a block's message streams or its turn runs, its controls show their shared
+  disabled state at full opacity; the block is never dimmed for this.
+- **Inert.** When a block fails after it has rendered, its last frame stays in place at 60% opacity,
+  inert and with every control disabled, and the failure notice sits 12px below it.
+- **Invalid nodes.** A component that fails validation is replaced in place by one meta-size line:
+  a 14px alert icon in `--error-text` and the component name and reason in `--text-secondary`,
+  truncated to one line wherever the node sits, with the full reason in its tooltip. The rest of the
+  answer renders normally.
 
 ### Image preview
 

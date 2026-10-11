@@ -1,0 +1,80 @@
+.viz-carousel {
+  position: relative;
+  padding-bottom: 52px;
+}
+
+.viz-carousel > [data-variant][hidden] {
+  display: none !important;
+}
+
+.viz-carousel-controls {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  display: flex;
+  max-width: calc(100% - 16px);
+  align-items: center;
+  gap: 2px;
+  transform: translateX(-50%);
+}
+
+.viz-carousel-controls .viz-carousel-step {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.viz-carousel-controls .viz-carousel-step:hover {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.viz-carousel-controls .viz-carousel-step:disabled {
+  color: var(--muted-foreground);
+  background: transparent;
+  opacity: 0.4;
+}
+
+.viz-carousel-picker {
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  color: var(--foreground);
+  background: transparent;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  cursor: var(--cursor-interaction);
+}
+
+.viz-carousel-picker:hover {
+  background: var(--muted);
+}
+
+.viz-carousel-picker:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.viz-carousel-picker option {
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.viz-carousel-count {
+  flex: none;
+  padding: 0 4px;
+  color: var(--muted-foreground);
+  font-size: 0.857em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

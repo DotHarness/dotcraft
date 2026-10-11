@@ -10,9 +10,11 @@ import './band.css'
 import './doc.css'
 import './code.css'
 import './search.css'
+import './live-example.css'
 import DocBand from './components/DocBand.vue'
 import DocMeta from './components/DocMeta.vue'
 import DocOutlineActions from './components/DocOutlineActions.vue'
+import LiveExample from './components/LiveExample.vue'
 import { setupCodeWrap } from './codeWrap'
 
 export default {
@@ -23,7 +25,8 @@ export default {
       'aside-outline-after': () => h(DocOutlineActions),
       'doc-footer-before': () => h(DocMeta)
     }),
-  enhanceApp() {
+  enhanceApp({ app }) {
+    app.component('LiveExample', LiveExample)
     if (typeof window !== 'undefined') setupCodeWrap()
   }
 }

@@ -4,6 +4,8 @@ using DotCraft.Context.Compaction;
 using DotCraft.Context.WorldState;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.AI;
+using DotCraft.GenerativeUi;
+using DotCraft.Visualizations;
 
 namespace DotCraft.Sessions;
 
@@ -243,14 +245,9 @@ public sealed class SessionPersistenceService(
         CancellationToken ct = default)
         => threadStore.AbortProviderHistoryAttemptAsync(payload, ct);
 
-    public IReadOnlyDictionary<string, string> GetItemWidgetStates(string threadId)
-        => threadStore.LoadItemWidgetStates(threadId);
+    public VisualizationWidgetStateStore VisualizationWidgetStates => threadStore.VisualizationWidgetStates;
 
-    public void SaveItemWidgetState(string threadId, string callId, string widgetStateJson)
-        => threadStore.SaveItemWidgetState(threadId, callId, widgetStateJson);
-
-    public void DeleteItemWidgetState(string threadId, string callId)
-        => threadStore.DeleteItemWidgetState(threadId, callId);
+    public GenerativeUiStateStore GenerativeUiStates => threadStore.GenerativeUiStates;
 
     public Task<ThreadGoal?> GetThreadGoalAsync(string threadId, CancellationToken ct = default)
         => threadStore.GetThreadGoalAsync(threadId, ct);

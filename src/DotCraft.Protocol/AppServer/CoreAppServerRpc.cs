@@ -73,8 +73,6 @@ public static partial class AppServerRpc
 
     public static readonly RpcNotification<UsageDeltaNotification> ItemUsageDelta = new("item/usage/delta", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "thread", notificationOptOut: true);
 
-    public static readonly RpcRequest<ItemWidgetStateSetParams, ItemWidgetStateSetResult> ItemWidgetStateSet = new("item/widget-state/set", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", errors: CommonErrors);
-
     public static readonly RpcRequest<MarketplaceAddParams, MarketplaceAddResult> MarketplaceAdd = new("marketplace/add", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginMarketplaces", errors: CommonErrors);
 
     public static readonly RpcRequest<MarketplaceRefreshParams, MarketplaceRefreshResult> MarketplaceRefresh = new("marketplace/refresh", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginMarketplaces", errors: CommonErrors);
@@ -308,11 +306,15 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<UsageThreadsParams, UsageThreadsResult> UsageThreads = new("usage/threads", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
-    public static readonly RpcRequest<InlineVisualizationViewCloseParams, InlineVisualizationViewCloseResult> InlineVisualizationViewClose = new("visualization/view/close", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "inlineVisualizations", errors: CommonErrors);
+    public static readonly RpcRequest<VisualizationViewCloseParams, VisualizationViewCloseResult> VisualizationViewClose = new("visualization/view/close", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "visualizations", errors: CommonErrors);
 
-    public static readonly RpcRequest<InlineVisualizationViewMessageParams, InlineVisualizationViewMessageResult> InlineVisualizationViewMessage = new("visualization/view/message", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "inlineVisualizations", errors: CommonErrors);
+    public static readonly RpcRequest<VisualizationViewMessageParams, VisualizationViewMessageResult> VisualizationViewMessage = new("visualization/view/message", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "visualizations", errors: CommonErrors);
 
-    public static readonly RpcRequest<InlineVisualizationViewOpenParams, InlineVisualizationViewOpenResult> InlineVisualizationViewOpen = new("visualization/view/open", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "inlineVisualizations", errors: CommonErrors);
+    public static readonly RpcRequest<VisualizationViewOpenParams, VisualizationViewOpenResult> VisualizationViewOpen = new("visualization/view/open", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "visualizations", errors: CommonErrors);
+
+    public static readonly RpcRequest<VisualizationViewWidgetStateUpdateParams, global::DotCraft.Protocol.RpcEmpty> VisualizationViewWidgetStateUpdate = new("visualization/view/widgetState/update", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "visualizations", errors: CommonErrors);
+
+    public static readonly RpcNotification<VisualizationWidgetStateUpdatedNotification> VisualizationWidgetStateUpdated = new("visualization/widgetState/updated", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "visualizations", notificationOptOut: true);
 
     public static readonly RpcRequest<WelcomeSuggestionsParams, WelcomeSuggestionsResult> WelcomeSuggestions = new("welcome/suggestions", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 

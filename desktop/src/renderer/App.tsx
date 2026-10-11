@@ -82,6 +82,7 @@ import type { ContextUsageSnapshotWire, SessionIdentity, Thread, ThreadGoal, Thr
 import { wireTurnToConversationTurn } from './types/conversation'
 import type { ApprovalDecision, QueuedTurnInput } from './types/conversation'
 import { autoOpenWorkflowLaunch } from './components/workflow/WorkflowToolCard'
+import { reloadVisualizationsReferencedBy } from './components/conversation/visualizationReloads'
 import type { SubAgentEntry } from './types/toolCall'
 import { applyTheme, resolveTheme } from './utils/theme'
 import { handleBrowserEvent } from './utils/browserEventHandler'
@@ -2023,6 +2024,12 @@ export function App(): JSX.Element {
             if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
               conv.onItemCompleted(p)
               const rawItem = p.item as Record<string, unknown> | undefined
+              const completedMessage = typeof rawItem?.id === 'string'
+                ? useConversationStore.getState().turns
+                  .flatMap((turn) => turn.items)
+                  .find((item) => item.id === rawItem.id && item.type === 'agentMessage')
+                : undefined
+              if (completedMessage?.text) reloadVisualizationsReferencedBy(tid, completedMessage.id, completedMessage.text)
               const payload = rawItem?.payload as Record<string, unknown> | undefined
               const callId = typeof payload?.callId === 'string' ? payload.callId : undefined
               if (callId) {

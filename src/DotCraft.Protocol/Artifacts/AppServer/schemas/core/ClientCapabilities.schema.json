@@ -105,7 +105,7 @@
         }
       ]
     },
-    "inlineVisualizations": {
+    "generativeUi": {
       "anyOf": [
         {
           "type": "boolean"
@@ -189,6 +189,16 @@
       ]
     },
     "toolExecutionLifecycle": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "visualizations": {
       "anyOf": [
         {
           "type": "boolean"

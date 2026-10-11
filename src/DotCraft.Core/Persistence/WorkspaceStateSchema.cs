@@ -132,12 +132,25 @@ internal static class WorkspaceStateSchema
                     FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
                 );
 
-                CREATE TABLE IF NOT EXISTS item_widget_state (
+                CREATE TABLE IF NOT EXISTS visualization_widget_state (
                     thread_id TEXT NOT NULL,
-                    call_id TEXT NOT NULL,
-                    widget_state_json TEXT NOT NULL,
+                    path_key TEXT NOT NULL,
+                    path TEXT NOT NULL,
+                    model_content_json TEXT,
+                    private_content_json TEXT,
                     updated_at TEXT NOT NULL,
-                    PRIMARY KEY(thread_id, call_id),
+                    PRIMARY KEY(thread_id, path_key),
+                    FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS generative_ui_state (
+                    thread_id TEXT NOT NULL,
+                    turn_id TEXT NOT NULL,
+                    item_id TEXT NOT NULL,
+                    block_index INTEGER NOT NULL,
+                    state_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY(thread_id, turn_id, item_id, block_index),
                     FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
                 );
 

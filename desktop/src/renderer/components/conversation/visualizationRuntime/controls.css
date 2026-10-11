@@ -1,0 +1,210 @@
+/* Control rules stay at zero specificity so a mockup can reset them with one class. */
+:where(button, input, select, textarea) {
+  font: inherit;
+}
+
+:where(.btn, button) {
+  box-sizing: border-box;
+  display: inline-flex;
+  max-width: 100%;
+  min-height: var(--control-height);
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0 var(--control-padding-x);
+  border: 1px solid transparent;
+  border-radius: var(--control-text-radius);
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  font-size: var(--font-size-control);
+  font-weight: 500;
+  line-height: var(--line-height-control);
+  text-decoration: none;
+  user-select: none;
+  cursor: var(--cursor-interaction);
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
+}
+
+:where(.btn) {
+  white-space: nowrap;
+}
+
+:where(.btn, button):where(:hover:not(:disabled)) {
+  background: color-mix(in srgb, var(--foreground) 11%, transparent);
+}
+
+:where(.btn-primary, .btn.active, .btn[aria-pressed=true], .btn[data-state=active], button.active, button[aria-pressed=true], button[data-state=active]) {
+  border-color: var(--foreground);
+  color: var(--background);
+  background: var(--foreground);
+}
+
+:where(.btn-primary) {
+  font-weight: 600;
+}
+
+:where(.btn-primary, .btn.active, .btn[aria-pressed=true], .btn[data-state=active], button.active, button[aria-pressed=true], button[data-state=active]):where(:hover:not(:disabled)) {
+  border-color: color-mix(in srgb, var(--foreground) 88%, var(--background));
+  background: color-mix(in srgb, var(--foreground) 88%, var(--background));
+}
+
+:where(.btn-ghost) {
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+:where(.btn-ghost):where(:hover:not(:disabled)) {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+:where(.btn-block) {
+  display: flex;
+  width: 100%;
+}
+
+:where(.btn, button):where(:disabled) {
+  cursor: default;
+  opacity: 0.5;
+}
+
+:where(.btn, button, .nav-link):where(:focus-visible) {
+  outline: 2px solid color-mix(in srgb, var(--primary) 72%, transparent);
+  outline-offset: 2px;
+}
+
+[data-tooltip]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.btn.viz-tile {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--control-radius);
+  color: var(--foreground);
+  font-size: inherit;
+  font-weight: 400;
+  line-height: inherit;
+  text-align: start;
+  white-space: normal;
+}
+
+.btn.viz-tile:where(.active, [aria-pressed=true], [aria-selected=true], [data-state=active]) {
+  border-color: var(--ring);
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.btn.viz-tile:where(.active, [aria-pressed=true], [aria-selected=true], [data-state=active]):hover:not(:disabled) {
+  border-color: var(--ring);
+  background: color-mix(in srgb, var(--foreground) 11%, transparent);
+}
+
+.nav {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+:where(.nav .nav-link) {
+  box-sizing: border-box;
+  display: inline-flex;
+  min-height: var(--control-height);
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 var(--control-padding-x);
+  border: 1px solid transparent;
+  border-radius: var(--control-text-radius);
+  color: var(--muted-foreground);
+  background: transparent;
+  font-size: var(--font-size-control);
+  font-weight: 500;
+  line-height: var(--line-height-control);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: var(--cursor-interaction);
+}
+
+:where(.nav .nav-link):where(:hover:not(:disabled, [aria-disabled=true])) {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+:where(.nav .nav-link):where(.active, [aria-selected=true]) {
+  color: var(--foreground);
+  background: var(--accent);
+}
+
+:where(.nav .nav-link):where(:disabled, [aria-disabled=true]) {
+  color: var(--muted-foreground);
+  background: transparent;
+  cursor: default;
+  opacity: 0.5;
+}
+
+.nav-justified > .nav-link {
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+[role=tabpanel] {
+  min-width: 0;
+}
+
+[role=tabpanel][hidden] {
+  display: none !important;
+}
+
+.progress {
+  display: flex;
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--muted);
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--viz-series-1);
+  transition: width 0.2s ease;
+}
+
+.tooltip {
+  z-index: 50;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 6px 8px;
+  border-radius: var(--tooltip-radius);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: var(--tooltip-shadow);
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.viz-tooltip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  white-space: pre-line;
+}

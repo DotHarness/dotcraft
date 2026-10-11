@@ -1,4 +1,5 @@
 using DotCraft.Channels;
+using DotCraft.Visualizations;
 using DotCraft.Tools;
 using Microsoft.Extensions.Logging;
 
@@ -251,6 +252,15 @@ public sealed partial class SessionService
                         "Failed to delete {Count} tool-result artifact directories for thread {ThreadId}; cleanup will be retried.",
                         cleanup.Errors,
                         threadId);
+                }
+
+                var visualizationCleanup = VisualizationAssetStore.DeleteThreadDirectory(workspacePath, owner.DataPath, threadId);
+                if (visualizationCleanup.Errors > 0)
+                {
+                    owner.Logger?.LogWarning(
+                        "Failed to delete the visualization directory for thread {ThreadId}: {Error}",
+                        threadId,
+                        visualizationCleanup.ErrorMessages[0]);
                 }
             }
 

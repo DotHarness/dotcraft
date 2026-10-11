@@ -5,8 +5,10 @@ import {
   MCP_APP_SANDBOX_BRIDGE_VIOLATION_METHOD,
   MCP_APP_SANDBOX_PROXY_READY_METHOD,
   MCP_APP_SANDBOX_PROXY_URL,
-  INLINE_VISUALIZATION_MAX_DOCUMENT_BYTES,
-  INLINE_VISUALIZATION_SANDBOX_RESOURCE_READY_METHOD,
+  VISUALIZATION_DOWNLOAD_METHOD,
+  VISUALIZATION_MAX_DOCUMENT_BYTES,
+  VISUALIZATION_MAX_DOWNLOAD_MESSAGE_BYTES,
+  VISUALIZATION_SANDBOX_RESOURCE_READY_METHOD,
   MCP_APP_SANDBOX_RESOURCE_READY_METHOD,
   MCP_APP_SANDBOX_SCHEME
 } from '../shared/mcpAppSandbox'
@@ -18,14 +20,16 @@ export const MCP_APP_SANDBOX_PROXY_HTML = `<!doctype html><html><head><meta char
   let inner = null;
   const maxBytes = ${MCP_APP_MAX_BRIDGE_MESSAGE_BYTES};
   const maxResourceBytes = ${MCP_APP_MAX_RESOURCE_BYTES};
-  const maxVisualizationDocumentBytes = ${INLINE_VISUALIZATION_MAX_DOCUMENT_BYTES};
+  const maxVisualizationDocumentBytes = ${VISUALIZATION_MAX_DOCUMENT_BYTES};
+  const maxVisualizationDownloadBytes = ${VISUALIZATION_MAX_DOWNLOAD_MESSAGE_BYTES};
+  const visualizationDownloadMethod = ${JSON.stringify(VISUALIZATION_DOWNLOAD_METHOD)};
   const resourceReadyMethod = ${JSON.stringify(MCP_APP_SANDBOX_RESOURCE_READY_METHOD)};
-  const visualizationResourceReadyMethod = ${JSON.stringify(INLINE_VISUALIZATION_SANDBOX_RESOURCE_READY_METHOD)};
+  const visualizationResourceReadyMethod = ${JSON.stringify(VISUALIZATION_SANDBOX_RESOURCE_READY_METHOD)};
   const byteLength = (value) => new TextEncoder().encode(value).byteLength;
-  const withinLimit = (message) => {
+  const withinLimit = (message, limit = maxBytes) => {
     try {
       const json = JSON.stringify(message);
-      return json !== undefined && byteLength(json) <= maxBytes;
+      return json !== undefined && byteLength(json) <= limit;
     }
     catch { return false; }
   };
@@ -42,9 +46,9 @@ export const MCP_APP_SANDBOX_PROXY_HTML = `<!doctype html><html><head><meta char
     inner = null;
     window.parent.postMessage({ jsonrpc: '2.0', method: ${JSON.stringify(MCP_APP_SANDBOX_BRIDGE_VIOLATION_METHOD)}, params: {} }, '*');
   };
-  const forward = (message) => {
+  const forward = (message, ports) => {
     if (!withinLimit(message)) { violate(); return; }
-    if (inner && inner.contentWindow) inner.contentWindow.postMessage(message, '*');
+    if (inner && inner.contentWindow) inner.contentWindow.postMessage(message, '*', Array.from(ports || []));
   };
   window.addEventListener('message', (event) => {
     if (event.source === window.parent) {
@@ -61,11 +65,12 @@ export const MCP_APP_SANDBOX_PROXY_HTML = `<!doctype html><html><head><meta char
         return;
       }
       if (!withinLimit(message)) { violate(); return; }
-      forward(message);
+      forward(message, event.ports);
       return;
     }
     if (inner && event.source === inner.contentWindow) {
-      if (!withinLimit(event.data)) { violate(); return; }
+      const limit = event.data && event.data.method === visualizationDownloadMethod ? maxVisualizationDownloadBytes : maxBytes;
+      if (!withinLimit(event.data, limit)) { violate(); return; }
       window.parent.postMessage(event.data, '*');
     }
   });

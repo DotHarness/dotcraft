@@ -2,6 +2,7 @@ import { resolve } from 'path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { bundledScriptPlugin } from '../../desktop/bundledScriptPlugin'
 
 const desktopRenderer = resolve(__dirname, '../../desktop/src/renderer')
 const avatarSource = resolve(__dirname, '../../sdk/typescript/packages/avatar/src')
@@ -50,10 +51,12 @@ export default defineConfig({
       'mermaid',
       '@dnd-kit/core',
       '@dnd-kit/sortable',
-      '@dnd-kit/utilities'
+      '@dnd-kit/utilities',
+      'recharts',
+      'sucrase'
     ]
   },
-  plugins: [react(), tailwindcss()],
+  plugins: [bundledScriptPlugin(), react(), tailwindcss()],
   server: {
     fs: {
       allow: [repoRoot]
@@ -61,6 +64,12 @@ export default defineConfig({
   },
   build: {
     outDir: resolve(__dirname, '../public/demo'),
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        index: resolve(__dirname, 'index.html'),
+        showcase: resolve(__dirname, 'showcase.html')
+      }
+    }
   }
 })
