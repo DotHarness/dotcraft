@@ -3103,7 +3103,7 @@ export const MESSAGES_FR = {
   'threadHeader.perforceCommitUnavailable': 'Utilisez Checkout dans les espaces de travail Perforce.',
   'threadHeader.prepareChangelist': 'Checkout',
   'threadHeader.renameTitle': 'Double-cliquez pour renommer',
-  'threadHeader.openIn': 'Ouvert à {{app}}',
+  'threadHeader.openIn': 'Ouvrir dans {{app}}',
   'threadHeader.openTitle': 'Espace de travail ouvert : {{path}}',
   'threadHeader.openMenuAria': 'Choisissez comment ouvrir l\'espace de travail',
   'openTargets.openIn': 'Ouvrir dans',

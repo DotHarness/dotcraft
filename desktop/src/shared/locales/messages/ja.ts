@@ -3102,7 +3102,7 @@ export const MESSAGES_JA = {
   'threadHeader.perforceCommitUnavailable': 'Perforce ワークスペースでは Checkout を使用してください。',
   'threadHeader.prepareChangelist': 'Checkout',
   'threadHeader.renameTitle': 'ダブルクリックして名前を変更します',
-  'threadHeader.openIn': '{{app}}にオープン',
+  'threadHeader.openIn': '{{app}} で開く',
   'threadHeader.openTitle': 'ワークスペースを開く: {{path}}',
   'threadHeader.openMenuAria': 'ワークスペースを開く方法を選択してください',
   'openTargets.openIn': 'アプリで開く',

@@ -3105,7 +3105,7 @@ export const MESSAGES_DE = {
   'threadHeader.perforceCommitUnavailable': 'Verwenden Sie Checkout in Perforce-Arbeitsbereichen.',
   'threadHeader.prepareChangelist': 'Checkout',
   'threadHeader.renameTitle': 'Zum Umbenennen doppelklicken',
-  'threadHeader.openIn': 'Öffnen in {{app}}',
+  'threadHeader.openIn': 'In {{app}} öffnen',
   'threadHeader.openTitle': 'Offener Arbeitsbereich: {{path}}',
   'threadHeader.openMenuAria': 'Wählen Sie aus, wie der Arbeitsbereich geöffnet werden soll',
   'openTargets.openIn': 'Öffnen in',

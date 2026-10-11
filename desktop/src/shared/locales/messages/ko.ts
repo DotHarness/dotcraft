@@ -3104,7 +3104,7 @@ export const MESSAGES_KO = {
   'threadHeader.perforceCommitUnavailable': 'Perforce 작업 공간에서는 Checkout을 사용하세요.',
   'threadHeader.prepareChangelist': 'Checkout',
   'threadHeader.renameTitle': '이름을 바꾸려면 두 번 클릭하세요.',
-  'threadHeader.openIn': '{{app}}에 열기',
+  'threadHeader.openIn': '{{app}}에서 열기',
   'threadHeader.openTitle': '열린 작업공간: {{path}}',
   'threadHeader.openMenuAria': '작업공간을 여는 방법 선택',
   'openTargets.openIn': '다음에서 열기',
