@@ -5896,6 +5896,84 @@
       "variants": []
     },
     {
+      "id": "core.CommandExecParams",
+      "name": "CommandExecParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/CommandExecParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "command",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "cwd",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "env",
+          "type": "map<string?>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "outputBytesCap",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "timeoutMs",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.CommandExecResult",
+      "name": "CommandExecResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/CommandExecResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "exitCode",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "stderr",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "stdout",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.CommandExecuteParams",
       "name": "CommandExecuteParams",
       "module": "core",
@@ -16142,6 +16220,13 @@
         },
         {
           "name": "channelStatus",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "commandExec",
           "type": "boolean",
           "required": false,
           "nullable": false,
@@ -27142,7 +27227,11 @@
       "capability": null,
       "scope": "connection",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/features/agent-packages.md",
       "stability": "stable"
@@ -27158,7 +27247,11 @@
       "capability": null,
       "scope": "connection",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/features/agent-packages.md",
       "stability": "stable"
@@ -27174,7 +27267,11 @@
       "capability": null,
       "scope": "connection",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/features/agent-packages.md",
       "stability": "stable"
@@ -27190,7 +27287,11 @@
       "capability": null,
       "scope": "connection",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/features/agent-packages.md",
       "stability": "stable"
@@ -27206,7 +27307,11 @@
       "capability": null,
       "scope": "connection",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/features/agent-packages.md",
       "stability": "stable"
@@ -28144,6 +28249,30 @@
       "stability": "stable"
     },
     {
+      "name": "command/exec",
+      "descriptorMember": "CommandExec",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.CommandExecParams",
+      "resultType": "core.CommandExecResult",
+      "module": "core",
+      "capability": "commandExec",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "CommandNotExecutable",
+        "CommandNotFound",
+        "DirectoryNotFound",
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "PathBlocked"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
       "name": "command/execute",
       "descriptorMember": "CommandExecute",
       "kind": "request",
@@ -28194,7 +28323,11 @@
       "capability": "workspaceConfigManagement",
       "scope": "workspace",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"
@@ -28246,7 +28379,11 @@
       "capability": "workspaceConfigManagement",
       "scope": "workspace",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"
@@ -28262,7 +28399,11 @@
       "capability": null,
       "scope": "workspace",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"
@@ -28278,7 +28419,11 @@
       "capability": "workspaceConfigManagement",
       "scope": "workspace",
       "notificationOptOut": false,
-      "errors": [],
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

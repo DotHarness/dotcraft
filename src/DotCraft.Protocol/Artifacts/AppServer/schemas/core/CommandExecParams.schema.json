@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/CommandExecParams.schema.json",
+  "title": "CommandExecParams",
+  "type": "object",
+  "properties": {
+    "command": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "outputBytesCap": {
+      "type": "integer"
+    },
+    "timeoutMs": {
+      "type": "integer"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "command"
+  ]
+}

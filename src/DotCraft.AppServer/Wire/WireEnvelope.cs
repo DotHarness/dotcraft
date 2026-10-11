@@ -353,6 +353,9 @@ public sealed class ServerCapabilitySnapshot
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool FileSystem { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool CommandExec { get; set; }
+
     /// <summary>
     /// Server supports workspace memory management methods (<c>memory/reset</c>).
     /// </summary>

@@ -4,8 +4,8 @@ namespace DotCraft.Protocol.AppServer;
 public static partial class AppServerRpc
 {
     private const string Spec = "specs/protocols/appserver-protocol.md";
-    private static readonly string[] CommonErrors = ["InvalidRequest", "InvalidParams", "MethodNotFound"];
-    private static readonly string[] ThreadRecoveryErrors =
+    private static string[] CommonErrors => ["InvalidRequest", "InvalidParams", "MethodNotFound"];
+    private static string[] ThreadRecoveryErrors =>
     [
         .. CommonErrors,
         "ThreadNotFound",
@@ -16,7 +16,7 @@ public static partial class AppServerRpc
         "ThreadRecoveryTargetExists"
     ];
     /// <summary>The error.data.code values plugin/config/* returns alongside -32099.</summary>
-    private static readonly string[] PluginConfigErrors =
+    private static string[] PluginConfigErrors =>
     [
         .. CommonErrors,
         "PluginConfigurationNotDeclared",
@@ -28,7 +28,7 @@ public static partial class AppServerRpc
     ];
 
     /// <summary>The errors remoteToolHost/connect returns beyond the common set.</summary>
-    private static readonly string[] RemoteToolHostErrors =
+    private static string[] RemoteToolHostErrors =>
     [
         .. CommonErrors,
         "ThreadNotFound",

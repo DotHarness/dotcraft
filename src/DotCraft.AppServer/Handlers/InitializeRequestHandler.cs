@@ -62,6 +62,7 @@ internal sealed class InitializeRequestHandler(
             WorkspaceConfigManagement = services.Configuration != null,
             SourceControlManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             FileSystem = true,
+            CommandExec = true,
             MemoryManagement = services.MemoryStore != null,
             Dreams = services.DreamsService != null && !string.IsNullOrWhiteSpace(workspaceCraftPath),
             McpManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath) && services.McpClientManager != null,

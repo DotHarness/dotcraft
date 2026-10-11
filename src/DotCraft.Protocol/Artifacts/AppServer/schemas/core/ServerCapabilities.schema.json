@@ -31,6 +31,9 @@
     "channelStatus": {
       "type": "boolean"
     },
+    "commandExec": {
+      "type": "boolean"
+    },
     "commandManagement": {
       "type": "boolean"
     },

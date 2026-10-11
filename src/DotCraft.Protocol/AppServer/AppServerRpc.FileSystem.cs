@@ -2,7 +2,7 @@ namespace DotCraft.Protocol.AppServer;
 
 public static partial class AppServerRpc
 {
-    private static readonly string[] FileSystemErrors =
+    private static string[] FileSystemErrors =>
     [
         .. CommonErrors,
         "PathBlocked",

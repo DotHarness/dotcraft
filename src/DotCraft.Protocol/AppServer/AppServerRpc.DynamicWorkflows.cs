@@ -2,7 +2,7 @@ namespace DotCraft.Protocol.AppServer;
 
 public static partial class AppServerRpc
 {
-    private static readonly string[] WorkflowErrors = [.. CommonErrors, "workflow_run_not_found", "workflow_run_state_conflict", "workflow_resume_unavailable"];
+    private static string[] WorkflowErrors => [.. CommonErrors, "workflow_run_not_found", "workflow_run_state_conflict", "workflow_resume_unavailable"];
 
     public static readonly RpcRequest<WorkflowRunListParams, WorkflowRunListResult> WorkflowRunList =
         new("workflow/run/list", RpcDirection.ClientToServer, "1", Spec, module: "dynamic-workflows", scope: "thread", capability: "extensions.dynamicWorkflows", errors: WorkflowErrors);

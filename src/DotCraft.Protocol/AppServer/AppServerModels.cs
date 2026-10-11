@@ -363,6 +363,10 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool FileSystem { get; init; }
 
+    [JsonPropertyName("commandExec")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool CommandExec { get; init; }
+
     [JsonPropertyName("memoryManagement")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool MemoryManagement { get; init; }

@@ -4781,6 +4781,65 @@
         "version"
       ]
     },
+    "CommandExecParams": {
+      "title": "CommandExecParams",
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "outputBytesCap": {
+          "type": "integer"
+        },
+        "timeoutMs": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "command"
+      ]
+    },
+    "CommandExecResult": {
+      "title": "CommandExecResult",
+      "type": "object",
+      "properties": {
+        "exitCode": {
+          "type": "integer"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "stdout": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "exitCode",
+        "stderr",
+        "stdout"
+      ]
+    },
     "CommandExecuteParams": {
       "title": "CommandExecuteParams",
       "type": "object",
@@ -12844,6 +12903,9 @@
           "type": "boolean"
         },
         "channelStatus": {
+          "type": "boolean"
+        },
+        "commandExec": {
           "type": "boolean"
         },
         "commandManagement": {

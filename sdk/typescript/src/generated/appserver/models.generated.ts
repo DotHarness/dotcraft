@@ -1197,6 +1197,22 @@ export interface ClientInfo {
   [key: string]: unknown;
 }
 
+export interface CommandExecParams {
+  command: string[];
+  cwd?: string;
+  env?: Record<string, string | null>;
+  outputBytesCap?: number;
+  timeoutMs?: number;
+  [key: string]: unknown;
+}
+
+export interface CommandExecResult {
+  exitCode: number;
+  stderr: string;
+  stdout: string;
+  [key: string]: unknown;
+}
+
 export interface CommandExecuteParams {
   arguments?: string[] | null;
   command?: string;
@@ -3277,6 +3293,7 @@ export interface ServerCapabilities {
   automations?: boolean;
   backgroundTerminals?: boolean;
   channelStatus?: boolean;
+  commandExec?: boolean;
   commandManagement?: boolean;
   configOverride?: boolean;
   desktopPluginArtifacts?: boolean;

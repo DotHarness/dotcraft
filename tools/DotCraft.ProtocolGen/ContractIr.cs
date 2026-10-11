@@ -52,7 +52,8 @@ public sealed record ContractTypeRef(
     string? TypeId = null,
     ContractTypeRef? ElementType = null,
     long? Minimum = null,
-    long? Maximum = null);
+    long? Maximum = null,
+    bool ElementNullable = false);
 
 public enum ContractTypeRefKind
 {

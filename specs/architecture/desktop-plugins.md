@@ -375,6 +375,13 @@ workspace and when the target is not available.
   resolves to `{ environmentId, action }` for the saved action, or `null` when cancelled or when the
   action does not run on this platform.
 
+### Host commands
+
+A plugin runs a program on the AppServer host through `appServer.request("command/exec", …)`
+([AppServer protocol §25C](../protocols/appserver-protocol.md#25c-command-execution-methods)), for
+example to launch an editor or read a command-line tool's JSON output. On a remote workspace the
+program runs on the remote machine.
+
 ### MCP tool calls
 
 `mcp.callTool({ server, tool, arguments?, threadId? })` calls a tool on an MCP server through

@@ -1,0 +1,16 @@
+namespace DotCraft.Protocol.AppServer;
+
+public static partial class AppServerRpc
+{
+    private static string[] CommandExecErrors =>
+    [
+        .. CommonErrors,
+        "CommandNotFound",
+        "CommandNotExecutable",
+        "DirectoryNotFound",
+        "PathBlocked"
+    ];
+
+    public static readonly RpcRequest<CommandExecParams, CommandExecResult> CommandExec =
+        new("command/exec", RpcDirection.ClientToServer, "1", Spec, scope: "connection", capability: "commandExec", errors: CommandExecErrors);
+}
