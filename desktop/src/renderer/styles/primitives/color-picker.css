@@ -8,6 +8,12 @@
   background: var(--overlay-scrim);
 }
 
+.dc-color-picker-overlay[data-anchored] {
+  display: block;
+  padding: 0;
+  background: transparent;
+}
+
 .dc-color-picker-dialog {
   width: 352px;
   max-width: calc(100vw - 48px);
@@ -15,6 +21,11 @@
   border-radius: 10px;
   background: var(--bg-secondary);
   box-shadow: var(--shadow-level-3);
+}
+
+.dc-color-picker-overlay[data-anchored] .dc-color-picker-dialog {
+  position: fixed;
+  max-width: calc(100vw - 16px);
 }
 
 .dc-color-picker-value-row {

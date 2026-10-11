@@ -138,6 +138,21 @@
   overscroll-behavior: contain;
 }
 
+.dc-settings-select-menu:focus {
+  outline: none;
+}
+
+.dc-settings-select-group {
+  padding: 6px 8px 4px;
+  overflow: hidden;
+  color: var(--text-dimmed);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: none;
+}
+
 .dc-settings-select-menu[data-adaptive-select="true"] {
   transform-origin: top right;
   transition:

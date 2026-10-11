@@ -1315,7 +1315,10 @@ Third-party content rendered in sandboxed views is outside this rule.
 Desktop-owned opaque RGB color choices use the shared `ColorPickerDialog`, not
 `input[type="color"]`. The compact Host-owned dialog contains a Hex field, saturation/value
 plane, Hue control, and explicit Done/Reset actions. Edits preview inside the dialog; Done
-commits, Reset clears the semantic override immediately, and every close path cancels. A hidden
+commits, Reset clears the semantic override immediately, and every close path cancels. Opened from
+a control, the dialog anchors beside that control instead of centring over a scrim, its edits also
+preview live in the control, and cancelling, which scrolling or resizing the window also does,
+restores the value the control had when it opened. A hidden
 native file input may still open the system file chooser because file access remains a platform
 capability rather than a Desktop-owned visual editor.
 
