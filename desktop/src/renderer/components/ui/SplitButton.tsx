@@ -31,6 +31,7 @@ interface SplitButtonProps {
   /** Intent shared by both segments. `primary` is the neutral inversion. */
   variant?: ButtonVariant
   disabled?: boolean
+  onMenuOpen?: () => void
 }
 
 /**
@@ -48,7 +49,8 @@ export function SplitButton({
   disabledReason,
   tooltipPlacement = 'bottom',
   variant = 'primary',
-  disabled = false
+  disabled = false,
+  onMenuOpen
 }: SplitButtonProps): JSX.Element {
   const wrapRef = useRef<HTMLDivElement>(null)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
@@ -142,7 +144,10 @@ export function SplitButton({
       disabled={disabled || items.length === 0}
       onMouseDown={guardPress}
       onContextMenu={(event) => event.preventDefault()}
-      onClick={() => setOpen((current) => !current)}
+      onClick={() => {
+        if (!open) onMenuOpen?.()
+        setOpen(!open)
+      }}
       style={menuSegmentStyle}
     >
       <span style={chevronStyle}>

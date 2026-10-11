@@ -1,13 +1,14 @@
 import { AgentAvatar, type DesktopPluginHost } from '@dotcraft/plugin'
 import { Box, ChevronUp, Clock, FileDiff, FileText, Globe, Lightbulb, Link, Server } from 'lucide-react'
-import { useEffect, useMemo, useState, type JSX, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type JSX } from 'react'
+import { EnvironmentSection } from './EnvironmentSection'
 import { startSummaryFeed, type SummaryAutomation, type SummaryState } from './feed'
 import { fill, stringsFor, type SummaryStrings } from './i18n'
 import { extractSources, hasFileChanges, type Source, type SourceKind } from './sources'
+import { GLYPH, Row, Section } from './SummaryRows'
 
 const SOURCE_LIMIT = 3
 const AVATAR_LIMIT = 4
-const GLYPH = { size: 16, strokeWidth: 1.75 } as const
 
 const SOURCE_GLYPHS: Record<SourceKind, typeof Globe> = {
   web: Globe,
@@ -23,56 +24,6 @@ function useSummaryState(host: DesktopPluginHost, threadId: string): SummaryStat
     return startSummaryFeed(host, threadId, setState)
   }, [host, threadId])
   return state
-}
-
-function Row({
-  leading,
-  label,
-  inline,
-  title,
-  ariaExpanded,
-  muted,
-  onClick
-}: {
-  leading: ReactNode
-  label: string
-  inline?: string
-  title?: string
-  ariaExpanded?: boolean
-  muted?: boolean
-  onClick?: () => void
-}): JSX.Element {
-  const content = (
-    <>
-      <span className="conversation-summary-row__leading" aria-hidden="true">{leading}</span>
-      <span className="conversation-summary-row__label">{label}</span>
-      {inline ? <span className="conversation-summary-row__inline">{inline}</span> : null}
-    </>
-  )
-  if (!onClick) return <li className="conversation-summary-row" title={title}>{content}</li>
-  return (
-    <li>
-      <button
-        type="button"
-        className="conversation-summary-row conversation-summary-row--action"
-        title={title}
-        aria-expanded={ariaExpanded}
-        data-muted={muted || undefined}
-        onClick={onClick}
-      >
-        {content}
-      </button>
-    </li>
-  )
-}
-
-function Section({ title, children }: { title?: string; children: ReactNode }): JSX.Element {
-  return (
-    <section className="conversation-summary-section" aria-label={title}>
-      {title ? <h3 className="conversation-summary-section__title">{title}</h3> : null}
-      <ul className="conversation-summary-rows">{children}</ul>
-    </section>
-  )
 }
 
 function SubagentsRow({ host, state, strings }: {
@@ -257,6 +208,8 @@ export function SummaryPanel({
           <SourceRows host={host} sources={sources} strings={strings} />
         </Section>
       ) : null}
+
+      <EnvironmentSection host={host} threadId={threadId} workspacePath={workspacePath} strings={strings} />
     </div>
   )
 }

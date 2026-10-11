@@ -752,6 +752,77 @@ A user can point the model at earlier chats of the current workspace from the we
 
 A thread with at least four user messages shows a navigation rail at the leading edge of the conversation. It previews any user message on hover and jumps to it on click, including messages in history pages that are not loaded yet. The rail, its previews, bookmarks, and the `Alt+ArrowUp` / `Alt+ArrowDown` shortcuts are defined in [Turn Navigation](../features/turn-navigation.md).
 
+### 5.17 Open in Another App
+
+Desktop opens a local project, folder, or file in another installed app. Remote workspaces offer no
+open targets.
+
+- **Targets.** On Windows the built-in targets are, in order: VS Code, VS Code Insiders, Visual
+  Studio, Cursor, Sublime Text, Zed, Antigravity, GitHub Desktop, File Explorer, Windows Terminal,
+  Git Bash, Cmder, WSL, Android Studio, IntelliJ IDEA, Rider, PyCharm, WebStorm, and PhpStorm, plus a
+  hidden Default app used by "Open with". A target is listed only when it is installed: Desktop
+  looks it up on `PATH` and in its known install folders, including versioned JetBrains folders and
+  the Visual Studio installer's records. Each row shows the app's own icon.
+- **Custom targets.** The user configuration `Desktop.CustomFileHandlers` maps an id (letters,
+  digits, `.`, `_`, `-`; up to 64 characters, starting with a letter or digit) to
+  `{ Label, Icon, Command, Args = [], Input = path | jsonArgument | jsonStdin }`. Custom targets are
+  listed after the built-ins as `custom:<id>`. `Command` is an absolute path or a name found on
+  `PATH`. `path` appends the target path after `Args`; `jsonArgument` appends one JSON argument
+  `{ target, path, location }`; `jsonStdin` writes the same JSON to standard input. `location` is
+  `{ line, column }` or `null`. `Icon` is an absolute image path or a `data:image/…` URL; other values
+  use the fallback icon. Invalid entries are skipped and logged. There is no settings page for them.
+- **Positions.** Opening a file at a position passes it to editors that accept one: the VS Code
+  family takes `--goto path:line:column`, JetBrains IDEs take `--line N --column N path`, and Sublime
+  Text and Zed take `path:line:column`. Other targets open the path only.
+- **Default target.** Desktop remembers one global target and one target per project root. The
+  effective target for a path is its project's choice, else the global choice, else the first
+  installed target. A choice is remembered only when the user picks a target explicitly from the
+  thread menu's "Open in" submenu or from the file viewer's open menu; file-reference menus and file
+  trees open without changing it. Settings → General → "Default file open destination" sets the
+  global choice.
+- **Surfaces.** The thread "⋯" menu and the sidebar thread menu offer "Open in" with one row per
+  target, which opens the project root. The file viewer's split button opens the file in the
+  effective target; picking an app from its menu opens the file there and remembers the choice.
+  File-reference menus offer "Open in {app}" for the effective target and "Open with" for the rest.
+  While targets load, menus show "Loading available apps…"; a failed load shows "Unable to load
+  apps. Reopen menu to retry". A failed launch shows "Unable to open item".
+
+### 5.18 Project Actions
+
+A project can declare actions — named commands such as "Run", "Test", or "Open in Unity" — that run
+in a terminal from the conversation. Actions are available for local workspaces.
+
+- **Files.** Each `.craft/environments/*.json` file is one environment. Desktop reads the
+  environment folders of the workspace and of each parent folder up to the one that contains `.git`,
+  at most 50 levels. `environment.json` in the nearest folder is the default; the rest follow by
+  distance, then path.
+- **Format.** `{ "version": 1, "name": string, "actions": [{ "name", "icon", "command",
+  "platform"? }] }`. `version` defaults to `1`. `icon` is `tool`, `run`, `debug`, or `test`, and any
+  other value shows as `tool`. `platform` is `win32`, `darwin`, or `linux`; an action with a
+  `platform` is shown only on that platform. Strings are trimmed and actions with an empty name or
+  command are dropped. A file that cannot be parsed or validated is listed as an environment that
+  needs attention, with the reason.
+- **Environment section.** The Summary card beside a local conversation has an "Environment" section.
+  Its header holds:
+  - the primary action as an icon button labelled "Run: {action}";
+  - an "Actions" menu listing each action with its icon, followed by "Add action" and, when more
+    than one environment exists, "Change environment";
+  - "Open terminal", which opens a terminal tab at the workspace root.
+
+  Actions are ordered by most recent run in this project; the most recent is primary. Without any
+  environment the header offers "Set up local environment", which opens the add-action dialog. The
+  chosen environment and the run order are remembered per project on this device.
+- **Running.** Running an action opens or focuses the conversation's terminal tab for that
+  environment and action, titled with the action's name. Each run restarts that tab's shell in the
+  folder that contains the environment's `.craft` folder and enters the command in the shell's own
+  syntax. The terminal owns the process; there is no separate stop control.
+- **Adding an action.** The dialog asks for a name, an icon, the command, and optionally a
+  platform. Saving writes the whole environment file, creating `environment.json` in the workspace
+  when none exists, and then runs the new action. When the file changed on disk after the dialog
+  opened, saving fails with "This environment changed on disk. Reopen this dialog and try again" and
+  nothing is written.
+- Environment files are re-read when they change on disk.
+
 ## 6. Secondary Flows
 
 ### 6.1 Plugins and Skills

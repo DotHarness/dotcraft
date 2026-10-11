@@ -86,6 +86,9 @@ export interface TerminalExitState {
 export interface TerminalViewerTab extends ViewerTabBase {
   kind: 'terminal'
   cwd: string
+  title?: string
+  /** A command waiting to restart this tab's shell; `nonce` distinguishes repeated runs. */
+  pendingRun?: { command: string; nonce: number }
   shell?: string
   pid?: number
   exited?: TerminalExitState

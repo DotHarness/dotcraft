@@ -28,6 +28,7 @@ import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { threadOriginBadge, useThreadEntryDetails, workspacePathName } from './ThreadEntryDetails'
 import { useRememberRowSelection, useThreadRowSelected } from './threadRowSelection'
 import { buildWorkspaceOpenDeepLink } from '../../../shared/desktopDeepLink'
+import { buildOpenInSubmenu, useOpenTargets } from '../../utils/openTargets'
 
 interface ThreadEntryProps {
   thread: ThreadSummary
@@ -105,6 +106,9 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const deepLinkWorkspacePath = project?.remote
     ? null
     : project?.path.trim() || identityPath.trim() || null
+  const openRoot = project?.remote
+    ? null
+    : thread.effectiveWorkspacePath?.trim() || thread.workspacePath?.trim() || null
   const threadDetails = useThreadEntryDetails({
     thread: { ...thread, displayName },
     project,
@@ -524,6 +528,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
           onArchive={performArchiveThread}
           thread={thread}
           deepLinkWorkspacePath={deepLinkWorkspacePath}
+          openRoot={openRoot}
           allowLifecycleActions={!isSubAgent}
         />
       )}
@@ -559,6 +564,7 @@ interface ThreadEntryContextMenuProps {
   onArchive: () => Promise<void>
   thread: ThreadSummary
   deepLinkWorkspacePath: string | null
+  openRoot: string | null
   allowLifecycleActions: boolean
 }
 
@@ -569,9 +575,11 @@ function ThreadEntryContextMenu({
   onArchive,
   thread,
   deepLinkWorkspacePath,
+  openRoot,
   allowLifecycleActions
 }: ThreadEntryContextMenuProps): JSX.Element {
   const t = useT()
+  const openTargets = useOpenTargets(openRoot, openRoot != null)
   const confirm = useConfirmDialog()
   const capabilities = useConnectionStore((s) => s.capabilities)
   const canFork = canForkThread(capabilities)
@@ -632,6 +640,12 @@ function ThreadEntryContextMenu({
       position={position}
       onClose={onClose}
       items={[
+        ...(openRoot
+          ? [
+              buildOpenInSubmenu({ view: openTargets, projectRoot: openRoot, t, onPicked: onClose }),
+              { type: 'separator' as const }
+            ]
+          : []),
         ...(allowLifecycleActions
           ? [
               {

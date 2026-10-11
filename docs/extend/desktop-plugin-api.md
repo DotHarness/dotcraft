@@ -347,6 +347,7 @@ Beyond the four primitives, `DesktopPluginHost` groups stable product operations
 | `appearance` | Generation-owned theme-seed and backdrop-presentation contributions. |
 | `session` | The foreground workspace, active thread, mode, and busy state, plus a change subscription. |
 | `subagents` | The SubAgents a thread has started, their state, and their completions. |
+| `projectActions` | Reading, adding, and running the actions a local project declares. |
 | `navigation` | Opening plugin views, Settings pages, threads, files, Detail Panel tabs, and automations, and claiming custom-scheme links. |
 | `ui` | Toasts, Host-owned confirmation, color, and folder dialogs, and the three surface operations. |
 | `appServer` | Supported JSON-RPC requests and subscriptions. |
@@ -552,6 +553,41 @@ host.subagents.onChange(threadId, render);
 | `openDetailPanel(tab)` | The current thread's Detail Panel on `changes`, `plan`, or `subagents`. |
 | `openAutomation(automationId)` | That automation in the Automations view. |
 | `openExternal(url)` | An http(s) URL in the user's default browser, or a `dotcraft:` link inside Desktop. Other schemes are rejected. |
+| `openPath(path, options?)` | A local file or folder in another installed app. See [Open a path in another app](#open-a-path-in-another-app). |
+
+### Open a path in another app
+
+`listOpenTargets()` returns the apps the user can open local paths in, such as VS Code, File Explorer, or a custom app from `Desktop.CustomFileHandlers`, as `{ id, label, icon? }`. `icon` is an image data URL.
+
+`openPath(path, { target?, line?, column? })` opens the path in the app whose `id` is `target`. Without `target`, it uses the app the user picked for the current project. `line` and `column` move editors that accept a position to that spot. A relative path resolves against the current thread's workspace. Both methods reject in a remote workspace, and `openPath` rejects when the target is not available.
+
+```ts
+const targets = await host.navigation.listOpenTargets();
+const vscode = targets.find((target) => target.id === "vscode");
+await host.navigation.openPath("src/app.ts", { target: vscode?.id, line: 42 });
+```
+
+### Run project actions
+
+`host.projectActions` reads and runs the actions a local project declares in `.craft/environments/*.json`, the same ones the Summary's Environment section shows. In a remote workspace its methods reject and `onChange` never fires.
+
+`list(workspacePath)` returns `{ environments, selectedEnvironmentId }`. Each environment has an `id`, a `name`, its file `path`, `isDefault`, and its `actions` for this platform as `{ id, name, icon, command }`, most recently run first. `icon` is `tool`, `run`, `debug`, or `test`. An environment that can't be used has an `error` with the reason and no actions. `onChange(workspacePath, listener)` delivers the same result when a file, the selection, or the run order changes.
+
+| Method | Effect |
+|---|---|
+| `select(workspacePath, environmentId)` | Makes that environment the selected one for the project. |
+| `run({ threadId, environmentId, actionId })` | Opens or focuses that thread's terminal tab for the action, titled with its name, and restarts it to run the command. |
+| `openTerminal({ threadId })` | Opens a terminal tab at the workspace root. |
+| `promptAddAction({ workspacePath, environmentId? })` | Opens Desktop's add-action dialog for that environment, or the selected one. Without any environment it creates `.craft/environments/environment.json`. Resolves to `{ environmentId, action }`, or `null` when the user cancels or the action is for another platform. |
+
+```ts
+const { environments, selectedEnvironmentId } = await host.projectActions.list(workspacePath);
+const selected = environments.find((environment) => environment.id === selectedEnvironmentId);
+const primary = selected?.actions[0];
+if (selected && primary) {
+  await host.projectActions.run({ threadId, environmentId: selected.id, actionId: primary.id });
+}
+```
 
 ### Start a chat with a prefilled message
 
@@ -673,7 +709,7 @@ function RowActions({ onOpen, onRemove }: { onOpen: () => void; onRemove: () => 
 }
 ```
 
-Items also accept `icon` and `disabled`.
+Items also accept `icon` and `disabled`. Give each item of a set of choices `checked` to show which one is current.
 
 ### Request a color
 

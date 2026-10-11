@@ -8,6 +8,7 @@ import {
 } from '../plugins/desktopPluginHost'
 import type { PluginEntry } from '../stores/pluginStore'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useConversationStore } from '../stores/conversationStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const scopes: DesktopPluginCleanupScope[] = []
@@ -89,6 +90,52 @@ describe('Desktop Plugin navigation.openExternal', () => {
     await expect(navigation.openExternal('not a url')).rejects.toThrow()
     expect(openExternal).toHaveBeenCalledOnce()
     expect(openDesktopLink).toHaveBeenCalledOnce()
+  })
+})
+
+describe('Desktop Plugin open targets', () => {
+  const targets = [
+    { id: 'vscode', label: 'VS Code', iconKey: 'editor', iconDataUrl: 'data:image/png;base64,AA' },
+    { id: 'fileManager', label: 'File Explorer', labelKey: 'openTargets.fileManager', iconKey: 'fileManager' },
+    { id: 'custom:review', label: 'Review', iconKey: 'editor' },
+    { id: 'systemDefault', label: 'Default app', iconKey: 'fileManager', hidden: true }
+  ]
+
+  function installTargets(openTargetPreferences?: unknown) {
+    const openInTarget = vi.fn().mockResolvedValue(undefined)
+    installDesktopApiMock({
+      shell: { listOpenTargets: vi.fn().mockResolvedValue(targets), openInTarget },
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en', openTargetPreferences }) }
+    })
+    useConversationStore.setState({ workspacePath: 'C:\\repo', remoteWorkspaceActive: false })
+    return openInTarget
+  }
+
+  it('lists visible targets and opens a path in the chosen or the effective target', async () => {
+    const openInTarget = installTargets({ perProject: { 'C:\\repo': 'custom:review' } })
+    const navigation = host().navigation
+
+    await expect(navigation.listOpenTargets()).resolves.toEqual([
+      { id: 'vscode', label: 'VS Code', icon: 'data:image/png;base64,AA' },
+      { id: 'fileManager', label: 'File Explorer' },
+      { id: 'custom:review', label: 'Review' }
+    ])
+    await navigation.openPath('C:\\repo\\src\\app.ts', { target: 'vscode', line: 7, column: 3 })
+    await navigation.openPath('src/app.ts')
+
+    expect(openInTarget).toHaveBeenNthCalledWith(1, { targetId: 'vscode', path: 'C:\\repo\\src\\app.ts', line: 7, column: 3 })
+    expect(openInTarget).toHaveBeenNthCalledWith(2, { targetId: 'custom:review', path: 'C:/repo/src/app.ts' })
+  })
+
+  it('rejects an unavailable target and a remote workspace', async () => {
+    const openInTarget = installTargets()
+    const navigation = host().navigation
+
+    await expect(navigation.openPath('C:\\repo\\a.ts', { target: 'zed' })).rejects.toThrow()
+    useConversationStore.setState({ remoteWorkspaceActive: true })
+    await expect(navigation.listOpenTargets()).rejects.toThrow()
+    await expect(navigation.openPath('C:\\repo\\a.ts')).rejects.toThrow()
+    expect(openInTarget).not.toHaveBeenCalled()
   })
 })
 

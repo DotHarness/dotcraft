@@ -4,7 +4,6 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import { useViewerTabStore } from '../../../stores/viewerTabStore'
-import { useConversationStore } from '../../../stores/conversationStore'
 import { createTerminalThemeFromDocument } from './viewerTheme'
 import { useDocumentThemeMode } from '../../../utils/theme'
 
@@ -20,18 +19,21 @@ function formatExitMessage(code: number | null): string {
 export function TerminalViewerTab({ tabId }: TerminalViewerTabProps): JSX.Element {
   const themeMode = useDocumentThemeMode()
   const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
-  const hasStarted = useViewerTabStore((s) => {
+  const tab = useViewerTabStore((s) => {
     const threadId = s.currentThreadId
-    if (!threadId) return false
-    const tab = s.getThreadState(threadId).tabs.find((item) => item.id === tabId)
-    return tab?.kind === 'terminal' ? tab.hasStarted : false
+    if (!threadId) return null
+    const found = s.getThreadState(threadId).tabs.find((item) => item.id === tabId)
+    return found?.kind === 'terminal' ? found : null
   })
-  const workspacePath = useConversationStore((s) => s.workspacePath)
+  const hasStarted = tab?.hasStarted ?? false
+  const cwd = tab?.cwd ?? ''
+  const pendingRun = tab?.pendingRun
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const startedRef = useRef(false)
+  const appliedRunRef = useRef<number | null>(null)
   const threadIdRef = useRef<string | null>(currentThreadId)
   const updateTerminalTabRef = useRef(useViewerTabStore.getState().updateTerminalTab)
 
@@ -123,11 +125,39 @@ export function TerminalViewerTab({ tabId }: TerminalViewerTabProps): JSX.Elemen
   useEffect(() => {
     const term = terminalRef.current
     const threadId = threadIdRef.current
-    if (!term || !workspacePath || !threadId || startedRef.current) return
+    if (!term || !cwd || !threadId) return
+    if (startedRef.current && (!pendingRun || appliedRunRef.current === pendingRun.nonce)) return
 
     startedRef.current = true
     let cancelled = false
     const attachOrCreate = async (): Promise<void> => {
+      if (pendingRun) {
+        if (appliedRunRef.current === pendingRun.nonce) return
+        appliedRunRef.current = pendingRun.nonce
+        term.reset()
+        const restarted = await window.api.workspace.viewer.terminal.restart({
+          tabId,
+          threadId,
+          cwd,
+          cols: term.cols,
+          rows: term.rows,
+          command: pendingRun.command
+        })
+        updateTerminalTabRef.current(threadId, tabId, {
+          hasStarted: true,
+          pendingRun: undefined,
+          pid: restarted.pid,
+          shell: restarted.shell,
+          cwd: restarted.cwd,
+          exited: undefined
+        })
+        const live = terminalRef.current
+        if (!live) return
+        live.options.disableStdin = false
+        live.focus()
+        return
+      }
+
       if (hasStarted) {
         const attached = await window.api.workspace.viewer.terminal.attach({ tabId })
         if (cancelled) return
@@ -152,7 +182,7 @@ export function TerminalViewerTab({ tabId }: TerminalViewerTabProps): JSX.Elemen
       const created = await window.api.workspace.viewer.terminal.create({
         tabId,
         threadId,
-        workspacePath,
+        cwd,
         cols: term.cols,
         rows: term.rows
       })
@@ -175,7 +205,7 @@ export function TerminalViewerTab({ tabId }: TerminalViewerTabProps): JSX.Elemen
     return () => {
       cancelled = true
     }
-  }, [tabId, hasStarted, workspacePath])
+  }, [tabId, hasStarted, cwd, pendingRun])
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%', padding: '8px' }} />
 }

@@ -170,8 +170,16 @@ import type {
 } from '../shared/workspaceSetup'
 export type * from '../shared/workspaceSetup'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
-import type { EditorId, EditorInfo } from '../shared/externalEditors'
-export type { EditorId, EditorInfo } from '../shared/externalEditors'
+import type { OpenInTargetRequest, OpenTargetInfo, OpenTargetPreferences } from '../shared/openTargets'
+export type { OpenInTargetRequest, OpenTargetInfo, OpenTargetPreferences } from '../shared/openTargets'
+import type {
+  AddProjectActionRequest,
+  AddProjectActionResult,
+  ProjectActionRun,
+  ProjectActionRunRequest,
+  ProjectEnvironmentsResult
+} from '../shared/projectActions'
+export type * from '../shared/projectActions'
 import type { ChromeSetupStatus } from '../shared/chromeSetup'
 export type { ChromeSetupCheckStatus, ChromeSetupStatus } from '../shared/chromeSetup'
 import type { GitHeadInspection } from '../shared/gitHead'
@@ -788,20 +796,12 @@ const api = {
       return ipcRenderer.invoke('shell:get-protocol-handler-name', protocol)
     },
 
-    listEditors(): Promise<EditorInfo[]> {
-      return ipcRenderer.invoke('editors:list')
+    listOpenTargets(): Promise<OpenTargetInfo[]> {
+      return ipcRenderer.invoke('open-targets:list')
     },
 
-    launchEditor(id: EditorId, targetPath: string): Promise<void> {
-      return ipcRenderer.invoke('editors:launch', id, targetPath)
-    },
-
-    launchLocalPathInEditor(id: EditorId, targetPath: string): Promise<void> {
-      return ipcRenderer.invoke('editors:launch-local-path', id, targetPath)
-    },
-
-    openLocalPath(path: string): Promise<void> {
-      return ipcRenderer.invoke('shell:open-local-path', path)
+    openInTarget(request: OpenInTargetRequest): Promise<void> {
+      return ipcRenderer.invoke('open-targets:open', request)
     },
 
     revealLocalPath(path: string): Promise<void> {
@@ -1279,11 +1279,21 @@ const api = {
         create(params: {
           tabId: string
           threadId: string
-          workspacePath: string
+          cwd: string
           cols: number
           rows: number
         }): Promise<{ tabId: string; pid: number; shell: string; cwd: string }> {
           return ipcRenderer.invoke('viewer:terminal:create', params)
+        },
+        restart(params: {
+          tabId: string
+          threadId: string
+          cwd: string
+          cols: number
+          rows: number
+          command: string
+        }): Promise<{ tabId: string; pid: number; shell: string; cwd: string }> {
+          return ipcRenderer.invoke('viewer:terminal:restart', params)
         },
         attach(params: { tabId: string }): Promise<{
           tabId: string
@@ -1440,6 +1450,30 @@ const api = {
     }
   },
 
+  projectActions: {
+    list(workspacePath: string): Promise<ProjectEnvironmentsResult> {
+      return ipcRenderer.invoke('project-actions:list', workspacePath)
+    },
+    watch(workspacePath: string, listener: () => void): UnsubscribeFn {
+      const wrapped = (): void => listener()
+      ipcRenderer.on('project-actions:changed', wrapped)
+      void ipcRenderer.invoke('project-actions:subscribe', workspacePath).catch(() => {})
+      return () => {
+        ipcRenderer.removeListener('project-actions:changed', wrapped)
+        void ipcRenderer.invoke('project-actions:unsubscribe', workspacePath).catch(() => {})
+      }
+    },
+    select(params: { workspacePath: string; environmentId: string }): Promise<void> {
+      return ipcRenderer.invoke('project-actions:select', params)
+    },
+    prepareRun(request: ProjectActionRunRequest): Promise<ProjectActionRun> {
+      return ipcRenderer.invoke('project-actions:prepare-run', request)
+    },
+    add(request: AddProjectActionRequest): Promise<AddProjectActionResult> {
+      return ipcRenderer.invoke('project-actions:add', request)
+    }
+  },
+
   settings: {
     get(): Promise<{
       binarySource?: BinarySource
@@ -1489,7 +1523,7 @@ const api = {
       projectOrder?: string[]
       collapsedProjectIds?: string[]
       showInMenuBar?: boolean
-      lastOpenEditorId?: EditorId
+      openTargetPreferences?: OpenTargetPreferences
       lastSeenWhatsNewVersion?: string
       browserUse?: {
         approvalMode?: BrowserUseApprovalMode
@@ -1573,7 +1607,7 @@ const api = {
       projectOrder?: string[]
       collapsedProjectIds?: string[]
       showInMenuBar?: boolean
-      lastOpenEditorId?: EditorId
+      openTargetPreferences?: OpenTargetPreferences
       lastSeenWhatsNewVersion?: string
       browserUse?: {
         approvalMode?: BrowserUseApprovalMode

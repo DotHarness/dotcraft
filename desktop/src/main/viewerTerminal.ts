@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { spawn, type IPty } from '@lydell/node-pty'
-import { resolveShellCommand } from './terminalShell'
+import { composeShellCommandLine, resolveShellCommand } from './terminalShell'
 import type {
   TerminalAttachResult,
   TerminalCreateResult,
@@ -22,6 +22,14 @@ interface TerminalTabRuntime {
   exited?: TerminalExitState
 }
 
+export interface TerminalSpawnParams {
+  tabId: string
+  threadId: string
+  cwd: string
+  cols: number
+  rows: number
+}
+
 interface WindowRuntime {
   tabs: Map<string, TerminalTabRuntime>
 }
@@ -29,6 +37,10 @@ interface WindowRuntime {
 function trimBuffer(input: string): string {
   if (input.length <= MAX_BUFFER_CHARS) return input
   return input.slice(input.length - MAX_BUFFER_CHARS)
+}
+
+function describe(tab: TerminalTabRuntime): TerminalCreateResult {
+  return { tabId: tab.tabId, pid: tab.pid, shell: tab.shell, cwd: tab.cwd }
 }
 
 function emitTerminalData(win: BrowserWindow, payload: { tabId: string; data: string }): void {
@@ -47,46 +59,16 @@ function emitTerminalExit(
 export class ViewerTerminalManager {
   private readonly byWindowId = new Map<number, WindowRuntime>()
 
-  createTab(
-    win: BrowserWindow,
-    params: { tabId: string; threadId: string; workspacePath: string; cols: number; rows: number }
-  ): TerminalCreateResult {
-    const runtime = this.ensureWindowRuntime(win)
-    const existing = runtime.tabs.get(params.tabId)
-    if (existing) {
-      return {
-        tabId: existing.tabId,
-        pid: existing.pid,
-        shell: existing.shell,
-        cwd: existing.cwd
-      }
-    }
+  createTab(win: BrowserWindow, params: TerminalSpawnParams): TerminalCreateResult {
+    const existing = this.getTab(win, params.tabId)
+    return describe(existing ?? this.spawnTab(win, params))
+  }
 
-    const { shell, args } = resolveShellCommand()
-    const proc = spawn(shell, args, {
-      name: 'xterm-256color',
-      cols: Math.max(2, Math.round(params.cols)),
-      rows: Math.max(2, Math.round(params.rows)),
-      cwd: params.workspacePath,
-      env: process.env as Record<string, string>
-    })
-    const tab: TerminalTabRuntime = {
-      tabId: params.tabId,
-      threadId: params.threadId,
-      cwd: params.workspacePath,
-      shell,
-      pid: proc.pid,
-      proc,
-      buffer: ''
-    }
-    runtime.tabs.set(params.tabId, tab)
-    this.bindPtyEvents(win, tab, proc)
-    return {
-      tabId: tab.tabId,
-      pid: tab.pid,
-      shell: tab.shell,
-      cwd: tab.cwd
-    }
+  restartTab(win: BrowserWindow, params: TerminalSpawnParams & { command: string }): TerminalCreateResult {
+    this.destroyTab(win, params.tabId)
+    const tab = this.spawnTab(win, params)
+    tab.proc?.write(`${composeShellCommandLine(tab.shell, tab.cwd, params.command)}\r`)
+    return describe(tab)
   }
 
   attachTab(win: BrowserWindow, tabId: string): TerminalAttachResult {
@@ -121,13 +103,12 @@ export class ViewerTerminalManager {
     if (!runtime) return
     const tab = runtime.tabs.get(tabId)
     if (!tab) return
-    if (tab.proc) {
-      try {
-        tab.proc.kill()
-      } catch {
-        // Best-effort shutdown.
-      }
-      tab.proc = null
+    const proc = tab.proc
+    tab.proc = null
+    try {
+      proc?.kill()
+    } catch {
+      // Best-effort shutdown.
     }
     runtime.tabs.delete(tabId)
   }
@@ -152,6 +133,29 @@ export class ViewerTerminalManager {
     this.byWindowId.delete(win.id)
   }
 
+  private spawnTab(win: BrowserWindow, params: TerminalSpawnParams): TerminalTabRuntime {
+    const { shell, args } = resolveShellCommand()
+    const proc = spawn(shell, args, {
+      name: 'xterm-256color',
+      cols: Math.max(2, Math.round(params.cols)),
+      rows: Math.max(2, Math.round(params.rows)),
+      cwd: params.cwd,
+      env: process.env as Record<string, string>
+    })
+    const tab: TerminalTabRuntime = {
+      tabId: params.tabId,
+      threadId: params.threadId,
+      cwd: params.cwd,
+      shell,
+      pid: proc.pid,
+      proc,
+      buffer: ''
+    }
+    this.ensureWindowRuntime(win).tabs.set(params.tabId, tab)
+    this.bindPtyEvents(win, tab, proc)
+    return tab
+  }
+
   private ensureWindowRuntime(win: BrowserWindow): WindowRuntime {
     const existing = this.byWindowId.get(win.id)
     if (existing) return existing
@@ -166,10 +170,12 @@ export class ViewerTerminalManager {
 
   private bindPtyEvents(win: BrowserWindow, tab: TerminalTabRuntime, proc: IPty): void {
     proc.onData((data) => {
+      if (tab.proc !== proc) return
       tab.buffer = trimBuffer(`${tab.buffer}${data}`)
       emitTerminalData(win, { tabId: tab.tabId, data })
     })
     proc.onExit(({ exitCode, signal }) => {
+      if (tab.proc !== proc) return
       tab.exited = { code: exitCode, signal: signal ?? null }
       tab.proc = null
       emitTerminalExit(win, {

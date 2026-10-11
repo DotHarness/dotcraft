@@ -118,7 +118,6 @@ beforeEach(() => {
         get: async () => ({ locale: 'en' })
       },
       shell: {
-        launchEditor: vi.fn(async () => {}),
         showItemInFolder: vi.fn(async () => {})
       }
     })

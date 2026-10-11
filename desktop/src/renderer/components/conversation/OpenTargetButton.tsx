@@ -1,19 +1,22 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import { addToast } from '../../stores/toastStore'
+import { useOpenTargetsStore } from '../../stores/openTargetsStore'
 import { SplitButton, type SplitButtonItem } from '../ui/SplitButton'
 import type { ButtonVariant } from '../ui/Button'
+import { ExplorerIcon } from '../ui/AppIcons'
 import {
-  EDITOR_ICON_SIZE,
-  listEditorsCached,
-  placeExplorerFirst,
-  renderEditorIcon,
-  type EditorId,
-  type EditorInfo
-} from '../../utils/editorTargets'
+  OPEN_TARGET_ICON_SIZE,
+  openPathInTarget,
+  openTargetLabel,
+  openTargetStatusLabel,
+  renderOpenTargetIcon,
+  useOpenTargets
+} from '../../utils/openTargets'
 
 interface OpenTargetButtonProps {
   targetPath: string
+  projectRoot: string
+  rememberChoice?: boolean
   tooltipLabel: string
   menuAriaLabel: string
   showPrimaryLabel?: boolean
@@ -23,13 +26,10 @@ interface OpenTargetButtonProps {
   variant?: ButtonVariant
 }
 
-/**
- * Opens a path in the last-used editor. The menu picks the default rather than
- * running a command, so its items mark the current choice instead of acting
- * immediately; the principal segment launches it.
- */
 export function OpenTargetButton({
   targetPath,
+  projectRoot,
+  rememberChoice = false,
   tooltipLabel,
   menuAriaLabel,
   showPrimaryLabel = false,
@@ -39,84 +39,41 @@ export function OpenTargetButton({
   variant = 'secondary'
 }: OpenTargetButtonProps): JSX.Element {
   const t = useT()
-  const [loading, setLoading] = useState(false)
-  const [editors, setEditors] = useState<EditorInfo[]>([])
-  const [lastOpenEditorId, setLastOpenEditorId] = useState<EditorId | undefined>(undefined)
+  const view = useOpenTargets(projectRoot)
+  const effective = view.effective
 
-  const orderedEditors = useMemo(() => placeExplorerFirst(editors), [editors])
-  const resolvedLastOpenId = useMemo<EditorId>(() => {
-    if (lastOpenEditorId && orderedEditors.some((entry) => entry.id === lastOpenEditorId)) {
-      return lastOpenEditorId
-    }
-    return 'explorer'
-  }, [lastOpenEditorId, orderedEditors])
-
-  const primaryEditor = useMemo(() => {
-    const preferred = orderedEditors.find((entry) => entry.id === resolvedLastOpenId)
-    if (preferred) return preferred
-    return orderedEditors[0] ?? { id: 'explorer', labelKey: 'editors.explorer', iconKey: 'explorer' }
-  }, [orderedEditors, resolvedLastOpenId])
-
-  const primaryAriaLabel = useMemo(() => {
-    if (primaryEditor.id === 'explorer') return primaryButtonLabel ?? t('threadHeader.open')
-    return t('threadHeader.openIn', { app: t(primaryEditor.labelKey) })
-  }, [primaryButtonLabel, primaryEditor, t])
-
-  useEffect(() => {
-    window.api.settings.get()
-      .then((settings) => {
-        setLastOpenEditorId(settings.lastOpenEditorId)
-      })
-      .catch(() => {})
-    setLoading(true)
-    void listEditorsCached()
-      .then((entries) => {
-        setEditors(entries)
-      })
-      .catch(() => {})
-      .finally(() => {
-        setLoading(false)
-      })
-  }, [])
-
-  async function handleSwitchDefault(id: EditorId): Promise<void> {
-    setLastOpenEditorId(id)
-    try {
-      await window.api.settings.set({ lastOpenEditorId: id })
-    } catch {
-      // Keep silent to avoid interrupting regular conversation flow.
-    }
+  function pick(targetId: string): void {
+    if (rememberChoice) useOpenTargetsStore.getState().remember(targetId, projectRoot)
+    void openPathInTarget(targetId, targetPath, t)
   }
 
-  async function handleLaunch(id: EditorId): Promise<void> {
-    try {
-      await window.api.shell.launchLocalPathInEditor(id, targetPath)
-    } catch {
-      addToast(t('conversation.reference.openFailed'), 'warning')
-    }
-  }
-
-  const items: SplitButtonItem[] = orderedEditors.map((entry) => ({
-    key: entry.id,
-    label: t(entry.labelKey),
-    icon: renderEditorIcon(entry, EDITOR_ICON_SIZE),
-    selected: entry.id === resolvedLastOpenId,
-    onClick: () => { void handleSwitchDefault(entry.id) }
-  }))
+  const statusLabel = openTargetStatusLabel(view.status, t)
+  const items: SplitButtonItem[] = statusLabel
+    ? [{ key: 'status', label: statusLabel, disabled: true, onClick: () => {} }]
+    : view.targets.map((target) => ({
+        key: target.id,
+        label: openTargetLabel(target, t),
+        icon: renderOpenTargetIcon(target, OPEN_TARGET_ICON_SIZE),
+        selected: target.id === effective?.id,
+        onClick: () => pick(target.id)
+      }))
 
   return (
     <SplitButton
       variant={variant}
       label={showPrimaryLabel ? (primaryButtonLabel ?? t('threadHeader.open')) : undefined}
-      ariaLabel={primaryAriaLabel}
-      icon={primaryIcon ?? renderEditorIcon(primaryEditor, EDITOR_ICON_SIZE)}
-      onClick={() => { void handleLaunch(primaryEditor.id) }}
+      ariaLabel={effective ? t('threadHeader.openIn', { app: openTargetLabel(effective, t) }) : t('threadHeader.open')}
+      icon={primaryIcon ?? (effective ? renderOpenTargetIcon(effective, OPEN_TARGET_ICON_SIZE) : <ExplorerIcon size={OPEN_TARGET_ICON_SIZE} />)}
+      onClick={() => {
+        if (effective) void openPathInTarget(effective.id, targetPath, t)
+      }}
       items={items}
       menuLabel={menuAriaLabel}
       tooltip={tooltipLabel}
-      disabledReason={loading ? t('quickOpen.loading') : undefined}
+      disabledReason={effective ? undefined : t('openTargets.loading')}
       tooltipPlacement={tooltipPlacement}
-      disabled={loading}
+      disabled={!effective && view.status !== 'error'}
+      onMenuOpen={() => { void view.refresh() }}
     />
   )
 }

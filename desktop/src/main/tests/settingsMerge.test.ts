@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mergeUpdatedSettings } from '../settingsMerge'
 import type { AppSettings } from '../settings'
+import { rememberOpenTarget } from '../../shared/openTargets'
 
 describe('mergeUpdatedSettings', () => {
   it('merges other nested transport settings without dropping unspecified fields', () => {
@@ -34,16 +35,32 @@ describe('mergeUpdatedSettings', () => {
     })
   })
 
-  it('keeps lastOpenEditorId when explicitly provided', () => {
+  it('remembers an explicit open target pick for the project and globally without dropping other projects', () => {
     const current: AppSettings = {
-      lastOpenEditorId: 'explorer'
+      openTargetPreferences: { global: 'vscode', perProject: { '/projects/alpha': 'rider' } }
     }
 
     const next = mergeUpdatedSettings(current, {
-      lastOpenEditorId: 'cursor'
+      openTargetPreferences: rememberOpenTarget('zed', '/projects/beta')
     })
 
-    expect(next.lastOpenEditorId).toBe('cursor')
+    expect(next.openTargetPreferences).toEqual({
+      global: 'zed',
+      perProject: { '/projects/alpha': 'rider', '/projects/beta': 'zed' }
+    })
+  })
+
+  it('changes only the global open target from Settings', () => {
+    const current: AppSettings = {
+      openTargetPreferences: { global: 'vscode', perProject: { '/projects/alpha': 'rider' } }
+    }
+
+    const next = mergeUpdatedSettings(current, { openTargetPreferences: { global: 'fileManager' } })
+
+    expect(next.openTargetPreferences).toEqual({
+      global: 'fileManager',
+      perProject: { '/projects/alpha': 'rider' }
+    })
   })
 
   it('merges notification settings without dropping unspecified fields', () => {

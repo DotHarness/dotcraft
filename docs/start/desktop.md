@@ -26,6 +26,76 @@ Add providers, enter credentials, and pick models under **Settings → Model pro
 
 The model you pick here only sets the default for new threads. An existing thread keeps the settings it was created with and can switch on its own from its composer. [Subagents](../guide/subagents) follow the main agent's model by default, and you can point them at a faster or cheaper one when it helps.
 
+## Open files in your own apps
+
+Open a local project in VS Code, a JetBrains IDE, Windows Terminal, File Explorer, or another installed app from **Open in** in the thread's **⋯** menu or in a thread's right-click menu in the sidebar. The file viewer's **Open** button opens the current file the same way. A file reference in a reply opens at its line in VS Code, Cursor, Zed, Sublime Text, and JetBrains IDEs.
+
+Desktop remembers the app you pick from **Open in** or the file viewer, for that project and as your default elsewhere. Choosing an app from a file reference's menu opens the file there once without changing the default. Set the default for every project under **Settings → General → Default file open destination**.
+
+### Add your own app
+
+To open files in an app Desktop doesn't list, or in your own script, add it to `Desktop.CustomFileHandlers` in `~/.craft/config.json`. Each entry is keyed by an id made of letters, digits, `.`, `_`, and `-`, and appears after the built-in apps.
+
+```json
+{
+  "Desktop": {
+    "CustomFileHandlers": {
+      "notepad-plus": {
+        "Label": "Notepad++",
+        "Command": "C:\\Program Files\\Notepad++\\notepad++.exe"
+      },
+      "review": {
+        "Label": "Review tool",
+        "Command": "review-tool",
+        "Args": ["--open"],
+        "Input": "jsonStdin"
+      }
+    }
+  }
+}
+```
+
+| Field | Description | Default |
+|---|---|---|
+| `Label` | Name shown in the menus | Required |
+| `Command` | Absolute path of the program, or a command name found on `PATH` | Required |
+| `Args` | Arguments placed before the path or JSON | `[]` |
+| `Input` | `path` appends the path as the last argument. `jsonArgument` appends one JSON argument, and `jsonStdin` writes the same JSON to standard input | `path` |
+| `Icon` | Absolute path of an image, or a `data:image/…` URL | Generic app icon |
+
+The JSON is `{ "target": "custom:review", "path": "<absolute path>", "location": { "line": 12, "column": 1 } }`, with `location` set to `null` when no line applies. Desktop reads the list each time a menu opens, so a saved change shows up without a restart. An entry with a missing field, an invalid id, or a command that doesn't exist is left out.
+
+## Run project commands
+
+Save the commands you keep typing in a project, such as starting the dev server, running the tests, or opening the project in Unity, as actions and run them from the conversation. They live in the **Environment** section of the **Summary** beside a local conversation. The button with an action's icon runs the action you ran most recently, **Actions** lists every action, and **Open terminal** opens a terminal in the project folder. Each action runs in its own terminal tab, named after the action, and running it again restarts that tab.
+
+To add the first action, choose **Set up local environment**, enter a name, an icon, and the command, and save. Desktop writes `.craft/environments/environment.json` in the project and runs the action. Add more from **Actions → Add action**.
+
+### Edit actions in the file
+
+Each JSON file in `.craft/environments/` is one environment, a named set of actions. Desktop also reads the `.craft/environments/` folders of parent folders up to the repository root, so the projects in a monorepo can share actions. Edits to the files show up without a restart.
+
+```json
+{
+  "version": 1,
+  "name": "Web",
+  "actions": [
+    { "name": "Dev server", "icon": "run", "command": "npm run dev" },
+    { "name": "Test", "icon": "test", "command": "npm test" },
+    { "name": "Reveal", "icon": "tool", "command": "explorer .", "platform": "win32" }
+  ]
+}
+```
+
+| Field | Description |
+|---|---|
+| `name` | Shown in the menu and on the terminal tab |
+| `icon` | `run`, `debug`, `test`, or `tool`. Other values show as `tool` |
+| `command` | Entered in the terminal, in the folder that contains the environment's `.craft` folder |
+| `platform` | `win32`, `darwin`, or `linux`. The action then appears only on that system |
+
+The project's own `environment.json` is used by default. When there are several environments, pick one from **Actions → Change environment**. Desktop remembers the choice for the project. A file that can't be read shows the problem in the Environment section. Select it to open the file.
+
 ## See where your tokens go
 
 **Settings → Profile** shows a token activity chart that spreads daily usage across every thread in the current workspace, GitHub-contribution style, alongside lifetime tokens, single-day peak, and usage streaks. Enable tracing for the workspace first, or the chart has nothing to plot.

@@ -15,8 +15,8 @@ import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
-const listEditors = vi.fn()
-const launchEditor = vi.fn()
+const listOpenTargets = vi.fn()
+const openInTarget = vi.fn()
 const classify = vi.fn()
 const toViewerUrl = vi.fn()
 const browserCreate = vi.fn()
@@ -94,10 +94,10 @@ describe('turn completion artifacts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetStores()
-    settingsGet.mockResolvedValue({ locale: 'en', lastOpenEditorId: 'explorer' })
+    settingsGet.mockResolvedValue({ locale: 'en' })
     settingsSet.mockResolvedValue(undefined)
-    listEditors.mockResolvedValue([{ id: 'explorer', labelKey: 'editors.explorer', iconKey: 'explorer' }])
-    launchEditor.mockResolvedValue(undefined)
+    listOpenTargets.mockResolvedValue([{ id: 'fileManager', label: 'File Explorer', labelKey: 'openTargets.fileManager', iconKey: 'fileManager' }])
+    openInTarget.mockResolvedValue(undefined)
     classify.mockResolvedValue({ contentClass: 'text', mime: 'text/markdown', sizeBytes: 16 })
     toViewerUrl.mockResolvedValue({ url: 'dotcraft-viewer://workspace/F%3A/workspace/site/index.html' })
     browserCreate.mockResolvedValue({
@@ -112,7 +112,7 @@ describe('turn completion artifacts', () => {
     installDesktopApiMock({
       settings: { get: settingsGet, set: settingsSet },
       git: { applyPatch },
-      shell: { listEditors, launchLocalPathInEditor: launchEditor },
+      shell: { listOpenTargets, openInTarget },
       workspace: {
         viewer: {
           classify,
@@ -155,7 +155,7 @@ describe('turn completion artifacts', () => {
       })
     }
     expect(useUIStore.getState().detailPanelVisible).toBe(true)
-    expect(launchEditor).not.toHaveBeenCalled()
+    expect(openInTarget).not.toHaveBeenCalled()
   })
 
   it('opens HTML artifacts in the internal browser', async () => {

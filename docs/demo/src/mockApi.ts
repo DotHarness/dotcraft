@@ -195,10 +195,8 @@ const explicitApi = {
     openExternal: async () => {},
     openAppHandoff: async () => {},
     getProtocolHandlerName: async () => '',
-    listEditors: async () => [],
-    launchEditor: async () => {},
-    launchLocalPathInEditor: async () => {},
-    openLocalPath: async () => {},
+    listOpenTargets: async () => [],
+    openInTarget: async () => {},
     revealLocalPath: async () => {},
     showItemInFolder: async () => {}
   },

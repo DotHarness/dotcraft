@@ -100,7 +100,7 @@ Host adapters preserve these SDK names independently of internal component prop 
 ### Menus
 
 `Menu` opens a Host menu from a plugin-rendered trigger, such as a row's overflow `IconButton`. It
-takes the trigger as its child and an `items` list of `{ label, onSelect, icon?, disabled?, danger? }`
+takes the trigger as its child and an `items` list of `{ label, onSelect, icon?, disabled?, danger?, checked? }`
 entries, `{ type: "separator" }`, and `{ type: "label", label }`. The Host owns placement, keyboard
 navigation, dismissal, and layering, as it does for Core menus.
 
@@ -292,7 +292,7 @@ Verified cache entries survive disconnects. Superseded revisions and removed plu
 
 ## Host and compatibility contract
 
-Every Desktop Plugin receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, notifications, AppServer, MCP tool calls, App Binding, App Surfaces, workspaces, and Oratorio. It is a supported authoring API, not a security membrane. Private stores, routes, components, DOM, and CSS remain reachable to trusted code but are not compatibility contracts. Main-process validation remains a service invariant rather than a plugin permission.
+Every Desktop Plugin receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, open targets, project actions, notifications, AppServer, MCP tool calls, App Binding, App Surfaces, workspaces, and Oratorio. It is a supported authoring API, not a security membrane. Private stores, routes, components, DOM, and CSS remain reachable to trusted code but are not compatibility contracts. Main-process validation remains a service invariant rather than a plugin permission.
 
 ### Environment changes
 
@@ -350,6 +350,30 @@ interface DesktopPluginSubAgent {
 ### Navigation
 
 `navigation` opens product destinations. `openExternal(url)` opens an `http` or `https` URL in the user's default browser and handles a `dotcraft:` link inside Desktop exactly as if the operating system had delivered it; it rejects other schemes. A plugin adds or opens a project and starts a chat with a prefilled message through `dotcraft://threads/new` ([Desktop client §5.2](../clients/desktop-client.md#52-start-a-new-conversation)). `openFile(path)` opens a workspace file in the Detail Panel file viewer. `openDetailPanel(tab)` opens the current thread's Detail Panel on `changes`, `plan`, or `subagents`. `openAutomation(automationId)` opens that automation in the Automations view. `openMainView` remains limited to the plugin's own main views.
+
+`openPath(path, { target?, line?, column? })` opens a local path in another app ([Desktop client
+§5.17](../clients/desktop-client.md#517-open-in-another-app)). `target` is an id returned by
+`listOpenTargets()`, such as `fileManager` or `custom:<id>`; without it the path's effective default
+target is used. `line` and `column` reach editors that accept a position. It rejects on a remote
+workspace and when the target is not available.
+
+### Project actions
+
+`projectActions` reads and runs the actions a local workspace declares ([Desktop client
+§5.18](../clients/desktop-client.md#518-project-actions)).
+
+- `list(workspacePath)` returns the workspace's environments in discovery order — each with its
+  `id`, `name`, file `path`, whether it is the default, an `error` when it needs attention, and its
+  actions `{ id, name, icon, command }` for this platform, most recently run first — plus the
+  selected environment id.
+- `onChange(workspacePath, listener)` delivers the same result when an environment file, the
+  selection, or the run order changes. It is generation-owned.
+- `select(workspacePath, environmentId)` changes the selected environment.
+- `run({ threadId, environmentId, actionId })` runs an action in the conversation's terminal.
+- `openTerminal({ threadId })` opens a terminal tab at the workspace root.
+- `promptAddAction({ workspacePath, environmentId? })` opens the Host's add-action dialog and
+  resolves to `{ environmentId, action }` for the saved action, or `null` when cancelled or when the
+  action does not run on this platform.
 
 ### MCP tool calls
 

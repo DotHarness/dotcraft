@@ -89,6 +89,31 @@
   line-height: var(--type-secondary-line-height);
 }
 
+.conversation-summary-section__header {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+.conversation-summary-section__header .conversation-summary-section__title {
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-summary-section__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  margin-right: -4px;
+}
+
 .conversation-summary-rows {
   display: flex;
   flex-direction: column;

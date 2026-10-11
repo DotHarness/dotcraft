@@ -1178,6 +1178,8 @@ export const MESSAGES_EN = {
   'settings.appearance.preview.label': 'Preview',
   'settings.general.showInMenuBar': 'Show in menu bar',
   'settings.general.showInMenuBarHint': 'Keep DotCraft available from the macOS menu bar.',
+  'settings.general.defaultOpenTarget': 'Default file open destination',
+  'settings.general.defaultOpenTargetHint': 'Where files and folders open by default',
   'settings.notifications.title': 'Notifications',
   'settings.notifications.taskCompletion': 'Task completion notifications',
   'settings.notifications.taskCompletionHint': 'Set reminders when DotCraft completes a task.',
@@ -2065,7 +2067,7 @@ export const MESSAGES_EN = {
   'conversation.reference.addToChat': 'Add to chat',
   'conversation.reference.openInExplorer': 'Open in Explorer',
   'conversation.reference.skillPathUnavailable': 'Skill path is not available',
-  'conversation.reference.openFailed': 'Could not open this path',
+  'conversation.reference.openFailed': 'Unable to open item',
 
   // Main process (connection)
   'main.error.workspaceLocked':
@@ -2174,15 +2176,10 @@ export const MESSAGES_EN = {
   'threadHeader.panelToggleHide': 'Hide viewer panel (Ctrl+Shift+B)',
   'threadHeader.moreActions': 'More chat actions',
   'threadHeader.worktreeBadge': 'Worktree: {{branch}}',
-  'editors.explorer': 'File Explorer',
-  'editors.vs': 'Visual Studio',
-  'editors.cursor': 'Cursor',
-  'editors.vscode': 'VS Code',
-  'editors.rider': 'Rider',
-  'editors.webstorm': 'WebStorm',
-  'editors.idea': 'IntelliJ IDEA',
-  'editors.githubDesktop': 'GitHub Desktop',
-  'editors.gitBash': 'Git Bash',
+  'openTargets.openIn': 'Open in',
+  'openTargets.fileManager': 'File Explorer',
+  'openTargets.loading': 'Loading available apps…',
+  'openTargets.loadFailed': 'Unable to load apps. Reopen menu to retry',
 
   // Plugins
   'plugins.pageTitle': 'Plugins',
@@ -4465,6 +4462,22 @@ export const MESSAGES_EN = {
   'turnNavigation.outputImage': 'Image',
   'turnNavigation.outputWebPreview': 'Web preview',
   'turnNavigation.moreOutputs': '+{{count}}',
+  'projectActions.add.title': 'Add action',
+  'projectActions.add.description': 'Create a command to run from the conversation.',
+  'projectActions.add.name': 'Name',
+  'projectActions.add.namePlaceholder': 'Run',
+  'projectActions.add.icon': 'Icon',
+  'projectActions.add.command': 'Command',
+  'projectActions.add.commandPlaceholder': 'npm run dev',
+  'projectActions.add.platform': 'Platform',
+  'projectActions.add.anyPlatform': 'All platforms',
+  'projectActions.add.save': 'Save',
+  'projectActions.add.conflict': 'This environment changed on disk. Reopen this dialog and try again',
+  'projectActions.add.failed': 'Could not save the action. Try again',
+  'projectActions.icon.tool': 'Tool',
+  'projectActions.icon.run': 'Run',
+  'projectActions.icon.debug': 'Debug',
+  'projectActions.icon.test': 'Test',
 } as const
 
 export type MessageId = keyof typeof MESSAGES_EN

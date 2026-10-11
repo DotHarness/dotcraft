@@ -131,7 +131,7 @@ describe('turn navigation rail', () => {
     settingsSet.mockResolvedValue(undefined)
     installDesktopApiMock({
       settings: { get: async () => ({ locale: 'en' }), set: settingsSet },
-      shell: { listEditors: vi.fn().mockResolvedValue([]) },
+      shell: { listOpenTargets: vi.fn().mockResolvedValue([]) },
       appServer: { sendRequest: server.request },
       workspace: { readImageAsDataUrl: vi.fn().mockResolvedValue({ dataUrl: '' }) }
     })

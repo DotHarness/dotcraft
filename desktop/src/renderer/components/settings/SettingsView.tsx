@@ -94,6 +94,7 @@ import { InstantInterruptRow } from './panels/instantInterrupt/InstantInterruptR
 import { SegmentedControl } from './ui/SegmentedControl'
 import { GeneralPanel } from './panels/GeneralPanel'
 import { FollowUpBehaviorRow } from './panels/FollowUpBehaviorRow'
+import { DefaultOpenTargetRow } from './panels/DefaultOpenTargetRow'
 import { NotificationsSettingsGroup } from './panels/NotificationsSettingsGroup'
 import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
 import { ProviderProtocolIcon } from './panels/ProviderProtocolIcon'
@@ -2034,6 +2035,8 @@ export function SettingsView({
                       />
                     }
                   />
+
+                  <DefaultOpenTargetRow width={SETTINGS_SELECT_WIDTH} />
 
                   {isMac && (
                     <SettingsRow
