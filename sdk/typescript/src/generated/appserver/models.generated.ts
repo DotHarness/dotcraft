@@ -1658,9 +1658,53 @@ export interface ExternalChannelUpsertResult {
   [key: string]: unknown;
 }
 
+export interface FsChangedNotification {
+  changedPaths: string[];
+  watchId: string;
+  [key: string]: unknown;
+}
+
+export interface FsCopyParams {
+  destinationPath: string;
+  recursive?: boolean;
+  sourcePath: string;
+  [key: string]: unknown;
+}
+
 export interface FsCreateDirectoryParams {
   path: string;
   recursive?: boolean;
+  [key: string]: unknown;
+}
+
+export interface FsGetMetadataParams {
+  path: string;
+  [key: string]: unknown;
+}
+
+export interface FsGetMetadataResult {
+  createdAtMs: number;
+  isDirectory: boolean;
+  isFile: boolean;
+  isSymlink: boolean;
+  modifiedAtMs: number;
+  [key: string]: unknown;
+}
+
+export interface FsReadDirectoryEntry {
+  fileName: string;
+  isDirectory: boolean;
+  isFile: boolean;
+  [key: string]: unknown;
+}
+
+export interface FsReadDirectoryParams {
+  path: string;
+  [key: string]: unknown;
+}
+
+export interface FsReadDirectoryResult {
+  entries: FsReadDirectoryEntry[];
   [key: string]: unknown;
 }
 
@@ -1671,6 +1715,29 @@ export interface FsReadFileParams {
 
 export interface FsReadFileResult {
   dataBase64: string;
+  [key: string]: unknown;
+}
+
+export interface FsRemoveParams {
+  force?: boolean;
+  path: string;
+  recursive?: boolean;
+  [key: string]: unknown;
+}
+
+export interface FsUnwatchParams {
+  watchId: string;
+  [key: string]: unknown;
+}
+
+export interface FsWatchParams {
+  path: string;
+  watchId: string;
+  [key: string]: unknown;
+}
+
+export interface FsWatchResult {
+  path: string;
   [key: string]: unknown;
 }
 
@@ -4463,6 +4530,7 @@ export interface ThreadStartParams {
   cwd?: string | null;
   displayName?: string | null;
   dynamicTools?: RuntimeDynamicToolDeclaration[] | null;
+  ephemeral?: boolean | null;
   historyMode?: string | null;
   identity: SessionIdentity;
   runtimeWorkspaceRoots?: string[] | null;

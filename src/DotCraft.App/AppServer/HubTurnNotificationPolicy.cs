@@ -52,7 +52,7 @@ internal static class HubTurnNotificationPolicy
         try
         {
             var thread = await sessionService.GetThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
-            if (ThreadVisibility.IsInternal(thread))
+            if (ThreadVisibility.IsHidden(thread))
                 return Suppress();
 
             if (IsSubAgentThread(thread))

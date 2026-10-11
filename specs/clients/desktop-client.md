@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.3 |
+| **Version** | 0.8.4 |
 | **Status** | Living |
 | **Date** | 2026-10-11 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -363,6 +363,8 @@ That starting point's heading names the foreground project and offers switching 
 3. Desktop clears the composer and opens the conversation surface as soon as the request is issued, without waiting for the response. Until the thread exists, the conversation shows the submitted message and a creating state. That placeholder is client-only: it never becomes a thread id, never appears in the thread list, and is not subject to the restore pipeline in [5.3.1](#531-desktop-thread-restore-pipeline).
 4. The created thread becomes active when the request succeeds, and the creating state hands over to it once the thread is restored. Desktop submits the staged first message after the new thread is restored. It must not patch the thread configuration between creation and the first turn. If the user opened another thread before the first message was submitted — while the thread was still being created, or while it was being restored — Desktop leaves them there and still starts that message on the created thread, without the local echo and status label that belong to the conversation on screen. Anything submitted into the creating state's composer is carried to the created thread as a draft, never to a thread the user opened instead.
 5. If thread creation fails, Desktop returns the user to the surface that started it with the submitted content restored to that composer, and reports the failure. A submission that never produced a thread leaves no thread behind.
+
+`dotcraft://threads/new?path=<dir>&prompt=<text>` opens the new-chat surface from outside the conversation, whether the operating system delivered the link or a Desktop Plugin passed it to `navigation.openExternal`. When `path` names an existing local directory, Desktop adds it to the project list if it is not there yet and selects it; otherwise the current project stays selected. `prompt`, when not blank, is placed in the composer and never sent. The link creates no thread until the user sends.
 
 When Welcome selects an Agent Profile, Desktop sends `config.agentProfileId` during creation. It may include only the model-related overlays allowed by the Agent Profile start contract. It does not apply the Profile through `agent/profiles/refreshThread`, and it does not override Profile-owned approval, tool, skill, plugin, MCP, or instruction policy.
 

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildWorkspaceOpenDeepLink,
+  findNewThreadDeepLink,
   findSatelliteJoinDeepLink,
   findWorkspaceOpenDeepLink,
+  parseNewThreadDeepLink,
   parseSatelliteJoinDeepLink,
   parseWorkspaceOpenDeepLink
 } from '../desktopDeepLink'
@@ -89,5 +91,36 @@ describe('satellite join deep links', () => {
 
   it('does not let a satellite link parse as a workspace link', () => {
     expect(parseWorkspaceOpenDeepLink(link)).toBeNull()
+  })
+})
+
+describe('new thread deep links', () => {
+  it('decodes the project path and prompt', () => {
+    const link = `dotcraft://threads/new?path=${encodeURIComponent('/Users/me/工作区/a b')}&prompt=${encodeURIComponent('Fix #12 & ship')}`
+
+    expect(parseNewThreadDeepLink(link)).toEqual({ workspacePath: '/Users/me/工作区/a b', prompt: 'Fix #12 & ship' })
+  })
+
+  it('treats both parameters as optional and drops a blank prompt', () => {
+    expect(parseNewThreadDeepLink('dotcraft://threads/new')).toEqual({})
+    expect(parseNewThreadDeepLink('dotcraft://threads/new/?path=%20&prompt=%20%20')).toEqual({})
+    expect(parseNewThreadDeepLink('dotcraft://threads/new?prompt=hi')).toEqual({ prompt: 'hi' })
+  })
+
+  it('finds the link in argv without matching other DotCraft links', () => {
+    const workspaceLink = buildWorkspaceOpenDeepLink('/workspace/sample')
+
+    expect(findNewThreadDeepLink(['electron', workspaceLink, 'dotcraft://threads/new?path=%2Fp'])).toEqual({ workspacePath: '/p' })
+    expect(parseNewThreadDeepLink(workspaceLink)).toBeNull()
+    expect(parseWorkspaceOpenDeepLink('dotcraft://threads/new?path=%2Fp')).toBeNull()
+  })
+
+  it.each([
+    'not a url',
+    'https://threads/new?path=%2Fp',
+    'dotcraft://threads/open?path=%2Fp',
+    'dotcraft://thread/new?path=%2Fp'
+  ])('rejects unsupported links: %s', (value) => {
+    expect(parseNewThreadDeepLink(value)).toBeNull()
   })
 })

@@ -22,6 +22,7 @@ import { requestWorkspaceActivation, requestWorkspaceWindowState } from './deskt
 import { getDesktopActivationEndpoint } from './desktopActivationLock'
 import {
   buildWorkspaceOpenDeepLink,
+  parseNewThreadDeepLink,
   parseSatelliteJoinDeepLink,
   parseWorkspaceOpenDeepLink
 } from '../shared/desktopDeepLink'
@@ -165,6 +166,7 @@ function baseDesktopArgs(): string[] {
           arg !== '--tray' &&
           arg !== NO_WORKSPACE_ARG &&
           !parseWorkspaceOpenDeepLink(arg) &&
+          !parseNewThreadDeepLink(arg) &&
           !parseSatelliteJoinDeepLink(arg)
         )),
         '--workspace'

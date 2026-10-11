@@ -732,7 +732,8 @@ internal sealed class FakeSessionService : ISessionService, ISubAgentThreadLifec
         string? threadId = null,
         string? displayName = null,
         CancellationToken ct = default,
-        ThreadSource? source = null)
+        ThreadSource? source = null,
+        bool ephemeral = false)
     {
         var thread = new SessionThread
         {

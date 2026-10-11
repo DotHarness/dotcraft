@@ -59,7 +59,7 @@ public sealed class WelcomeSuggestionEvidenceTests : IDisposable
         recorder.Bind(sessions);
         var identity = new SessionIdentity { ChannelName = "test", UserId = "user", WorkspacePath = _workspace };
 
-        WelcomeSuggestionService CreateService() => new(sessions, persistence, memory, dreams, _workspace, config, dataPath);
+        WelcomeSuggestionService CreateService() => new(sessions, memory, dreams, _workspace, config, dataPath);
         async Task<WelcomeSuggestionSnapshot> GenerateAsync(bool clearCache = false)
         {
             await using var service = CreateService();
@@ -77,8 +77,13 @@ public sealed class WelcomeSuggestionEvidenceTests : IDisposable
             }
         }
 
+        var threadsDirectory = Path.Combine(dataPath, "threads");
+        var threadFilesDuringRequest = -1;
         client.OnRequest = () =>
         {
+            threadFilesDuringRequest = Directory.Exists(threadsDirectory)
+                ? Directory.EnumerateFiles(threadsDirectory, "*", SearchOption.AllDirectories).Count()
+                : 0;
             if (hasMemory) File.WriteAllText(memory.LongTermFilePath, "Changed memory after request capture.");
             if (dreamPath != null) File.WriteAllText(dreamPath, "Changed dream after request capture.");
         };
@@ -87,6 +92,7 @@ public sealed class WelcomeSuggestionEvidenceTests : IDisposable
         Assert.Equal(hasMemory, captured.Contains(memoryText, StringComparison.Ordinal));
         Assert.Equal(hasDream, captured.Contains(dreamText, StringComparison.Ordinal));
         Assert.Equal(4, first.Items.Count);
+        Assert.Equal(0, threadFilesDuringRequest);
 
         client.OnRequest = null;
         if (hasMemory)

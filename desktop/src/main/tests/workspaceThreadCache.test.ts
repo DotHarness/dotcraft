@@ -80,6 +80,23 @@ describe('workspace thread cache notifications', () => {
     expect(ids(result.threads)).toEqual(['sibling'])
   })
 
+  it.each([
+    ['ephemeral', { ephemeral: true }],
+    ['internal metadata', { metadata: { 'dotcraft.internal': 'agent-builder' } }],
+    ['internal origin', { originChannel: 'dreams' }]
+  ])('keeps a started %s thread out of the project cache', (_kind, hidden) => {
+    const cache = [thread('visible'), thread('hidden')]
+
+    const result = applyWorkspaceThreadNotificationToCache(cache, 'thread/started', {
+      thread: thread('hidden', hidden)
+    })
+
+    expect(ids(result.threads)).toEqual(['visible'])
+    expect(ids(applyWorkspaceThreadNotificationToCache([], 'thread/started', {
+      thread: thread('fresh', hidden)
+    }).threads)).toEqual([])
+  })
+
   it('removes a deleted thread tree from the project cache', () => {
     const cache = [
       thread('parent'),

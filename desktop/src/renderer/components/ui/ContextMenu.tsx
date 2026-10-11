@@ -34,6 +34,7 @@ export type ContextMenuEntry = ContextMenuItem | ContextMenuSeparator | ContextM
 
 const MENU_SEPARATOR_HEIGHT = 9
 const MENU_LABEL_HEIGHT = 26
+const MENU_FOCUS_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Home', 'End'])
 
 function menuItemRole(item: ContextMenuItem): 'menuitem' | 'menuitemradio' | 'menuitemcheckbox' {
   if (item.selection === 'radio') return 'menuitemradio'
@@ -78,13 +79,14 @@ interface ContextMenuProps {
   onClose: () => void
   zIndex?: number
   width?: number
+  autoFocus?: boolean
 }
 
 interface SubmenuAnchor {
   top: number
 }
 
-export function ContextMenu({ items, position, onClose, zIndex, width = 200 }: ContextMenuProps): JSX.Element {
+export function ContextMenu({ items, position, onClose, zIndex, width = 200, autoFocus = false }: ContextMenuProps): JSX.Element {
   const menuRef = useRef<HTMLDivElement>(null)
   const submenuRef = useRef<HTMLDivElement>(null)
   const layerDepth = useContext(LayerContext)
@@ -138,6 +140,8 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200 }: C
       if (e.key === 'Escape') {
         cancelMenuAim()
         onClose()
+      } else if (moveMenuFocus(menuRef.current, e.key)) {
+        e.preventDefault()
       }
     }
     document.addEventListener('mousedown', handleMouseDown)
@@ -147,6 +151,10 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200 }: C
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [cancelMenuAim, onClose])
+
+  useEffect(() => {
+    if (autoFocus) moveMenuFocus(menuRef.current, 'Home')
+  }, [autoFocus])
 
   function openSubmenu(index: number, element: HTMLElement): void {
     setOpenSubmenuIndex(index)
@@ -285,6 +293,7 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200 }: C
               cursor: item.disabled ? 'default' : 'pointer',
               transition: 'background-color 80ms ease'
             }}
+            onFocus={() => setHoveredItemIndex(i)}
             onMouseEnter={(event) => handleParentItemPointer(item, i, event)}
             onMouseMove={(event) => handleParentItemPointer(item, i, event)}
             onMouseLeave={() => {
@@ -473,6 +482,23 @@ function getSubmenuAnchor(
   return {
     top: menuTop + offsetTop
   }
+}
+
+function moveMenuFocus(menu: HTMLElement | null, key: string): boolean {
+  if (!menu || !MENU_FOCUS_KEYS.has(key)) return false
+  const items = [...menu.querySelectorAll<HTMLButtonElement>('button[role^="menuitem"]:not(:disabled)')]
+    .filter((item) => item.closest('[role="menu"]') === menu)
+  if (items.length === 0) return false
+  const current = items.indexOf(document.activeElement as HTMLButtonElement)
+  const next = key === 'Home'
+    ? 0
+    : key === 'End'
+      ? items.length - 1
+      : key === 'ArrowDown'
+        ? (current + 1) % items.length
+        : (current <= 0 ? items.length : current) - 1
+  items[next].focus()
+  return true
 }
 
 function isMenuItem(entry: ContextMenuEntry): entry is ContextMenuItem {

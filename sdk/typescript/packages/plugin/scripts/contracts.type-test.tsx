@@ -5,6 +5,8 @@ import {
   SettingsRow,
   Slider,
   AgentAvatar,
+  IconButton,
+  Menu,
   type DesktopPluginActivate,
   type DesktopPluginHost,
   type DesktopPluginLocale,
@@ -42,6 +44,17 @@ void host.ui.pickColor({
 });
 
 void host.ui.pickColor({ title: "Choose label color", initialColor: "#abc" });
+
+void host.ui.pickFolder({ title: "Choose a project folder" }).then((path) => {
+  const chosen: string | null = path;
+  void chosen;
+});
+
+void host.mcp.callTool({ server: "board", tool: "list_items", arguments: { limit: 5 } }).then((result) => {
+  const failed: boolean | undefined = result.isError;
+  void failed;
+  void result.content.length;
+});
 
 // @ts-expect-error Resettable requests require a default color.
 void host.ui.pickColor({ title: "Choose accent", initialColor: "#4566cc", allowReset: true });
@@ -172,6 +185,19 @@ void (
 );
 
 void <AgentAvatar name="Ada" size={28} animated />;
+
+void (
+  <Menu
+    items={[
+      { label: "Open", onSelect: () => undefined },
+      { type: "separator" },
+      { type: "label", label: "Danger zone" },
+      { label: "Remove", onSelect: () => undefined, danger: true, disabled: false },
+    ]}
+  >
+    <IconButton icon="..." label="More actions" />
+  </Menu>
+);
 
 void (
   <SettingsGroup title="Preview" flush>

@@ -27,7 +27,8 @@ public sealed class ThreadRuntimeNotificationCoordinatorTests
             firstTurn.ThreadId,
             SessionThreadRuntimeSignal.TurnStarted,
             firstTurn,
-            activeTransports));
+            activeTransports,
+            static _ => true));
         await transport.FirstWriteObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         firstTurn.Status = TurnStatus.Completed;
@@ -35,7 +36,8 @@ public sealed class ThreadRuntimeNotificationCoordinatorTests
             firstTurn.ThreadId,
             SessionThreadRuntimeSignal.TurnCompleted,
             firstTurn,
-            activeTransports));
+            activeTransports,
+            static _ => true));
 
         var followUpTurn = new SessionTurn
         {
@@ -48,7 +50,8 @@ public sealed class ThreadRuntimeNotificationCoordinatorTests
             followUpTurn.ThreadId,
             SessionThreadRuntimeSignal.TurnStarted,
             followUpTurn,
-            activeTransports));
+            activeTransports,
+            static _ => true));
 
         transport.ReleaseFirstWrite.TrySetResult();
         await transport.ThirdWriteObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -81,12 +84,14 @@ public sealed class ThreadRuntimeNotificationCoordinatorTests
             turn.ThreadId,
             SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation,
             turn,
-            activeTransports));
+            activeTransports,
+            static _ => true));
         Assert.True(coordinator.ApplySignal(
             turn.ThreadId,
             SessionThreadRuntimeSignal.HistoryRolledBack,
             null,
-            activeTransports));
+            activeTransports,
+            static _ => true));
         await coordinator.CompleteAsync();
 
         Assert.Collection(

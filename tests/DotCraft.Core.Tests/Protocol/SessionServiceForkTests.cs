@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
@@ -256,6 +257,29 @@ public sealed class SessionServiceForkTests : IDisposable
         Assert.DoesNotContain(listed, summary => summary.Id == fork.Id);
     }
 
+    [Fact]
+    public async Task CreateThreadAsync_Ephemeral_RunsTurnsWithoutPersistingOrListing()
+    {
+        var chatClient = new RecordingChatClient("first answer");
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var service = CreateService(agentFactory);
+        var identity = MakeIdentity();
+
+        var thread = await service.CreateThreadAsync(identity, ephemeral: true);
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("first question")]));
+        chatClient.ResponseText = "second answer";
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("second question")]));
+
+        var secondRequest = chatClient.Requests.Last(messages => messages.Any(message => MessageText(message).Contains("second question")));
+        Assert.Contains(secondRequest, message => MessageText(message).Contains("first answer"));
+        Assert.Equal(2, (await service.GetThreadAsync(thread.Id)).Turns.Count);
+        Assert.True(service.IsHiddenThread(thread.Id));
+        Assert.DoesNotContain(await service.FindThreadsAsync(identity), summary => summary.Id == thread.Id);
+        Assert.Null(await _store.LoadThreadAsync(thread.Id));
+        var threadsDirectory = Path.Combine(_tempDir, "threads");
+        Assert.False(Directory.Exists(threadsDirectory) && Directory.EnumerateFiles(threadsDirectory, "*", SearchOption.AllDirectories).Any());
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("after")]
@@ -481,12 +505,15 @@ public sealed class SessionServiceForkTests : IDisposable
 
         public string? LastPromptCacheKey { get; private set; }
 
+        public ConcurrentQueue<IReadOnlyList<ChatMessage>> Requests { get; } = new();
+
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> chatMessages,
             ChatOptions? options = null,
             CancellationToken cancellationToken = default)
         {
             LastMessages = chatMessages.ToList();
+            Requests.Enqueue(LastMessages);
             LastOptions = options?.Clone();
             LastPromptCacheKey = ProviderPromptCacheMetadata.ResolveKey(options);
             return Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, ResponseText)]));
@@ -498,6 +525,7 @@ public sealed class SessionServiceForkTests : IDisposable
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             LastMessages = chatMessages.ToList();
+            Requests.Enqueue(LastMessages);
             LastOptions = options?.Clone();
             LastPromptCacheKey = ProviderPromptCacheMetadata.ResolveKey(options);
             yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent(ResponseText)]) { FinishReason = ChatFinishReason.Stop };

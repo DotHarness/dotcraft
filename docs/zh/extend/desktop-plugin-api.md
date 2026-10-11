@@ -344,8 +344,9 @@ function ReviewIcon({ size = 16, ...rest }: DesktopPluginIconProps) {
 | `session` | 前台 workspace、当前 thread、mode 与忙碌状态，以及变更订阅。 |
 | `subagents` | 某个 thread 启动的 SubAgent、它们的状态与完成事件。 |
 | `navigation` | 打开插件 view、Settings 页、thread、文件、Detail Panel 标签页与自动化任务，并接管自定义 scheme 的链接。 |
-| `ui` | 除三个 surface 操作外，还提供 toast、确认与颜色选择等 Host-owned 对话框。 |
+| `ui` | 除三个 surface 操作外，还提供 toast、确认、颜色选择与文件夹选择等 Host-owned 对话框。 |
 | `appServer` | 受支持的 JSON-RPC request 与 subscription。 |
+| `mcp` | 调用 workspace 中 MCP server 的工具。 |
 | `settings` | 读取、修改并跟随本插件由 schema 约束的设置。 |
 | `appBindings`、`appSurfaces` | Connected App binding 与 app 提供的 UI surface。 |
 | `workspaces` | 读取本地 workspace 信息。 |
@@ -546,7 +547,49 @@ host.subagents.onChange(threadId, render);
 | `openFile(path)` | Detail Panel 文件查看器中的一个 workspace 文件。相对路径基于当前 thread 的 workspace 解析。 |
 | `openDetailPanel(tab)` | 当前 thread 的 Detail Panel，并切到 `changes`、`plan` 或 `subagents`。 |
 | `openAutomation(automationId)` | Automations 视图中的该自动化任务。 |
-| `openExternal(url)` | 在用户默认浏览器中打开 http(s) URL。 |
+| `openExternal(url)` | 在用户默认浏览器中打开 http(s) URL，或在 Desktop 内处理 `dotcraft:` 链接。其他 scheme 会被拒绝。 |
+
+### 新建对话并预填消息
+
+`dotcraft://threads/new` 链接会打开 Desktop 的新对话界面，并在输入框中预先填好一条消息：
+
+```text
+dotcraft://threads/new?path=<folder>&prompt=<message>
+```
+
+| 参数 | 作用 |
+|---|---|
+| `path` | 可选。Desktop 所在机器上的绝对文件夹路径。Desktop 会在需要时把它加入项目列表并选中。文件夹不存在时保持当前项目。 |
+| `prompt` | 可选。放入输入框的文本。Desktop 不会自动发送，用户可以先修改。 |
+
+用户发送后才会创建对话。两个参数都需要编码。在插件中把链接传给 `openExternal`：
+
+```ts
+const folder = await host.ui.pickFolder({ title: "选择项目文件夹" });
+if (folder) {
+  const link = new URL("dotcraft://threads/new");
+  link.searchParams.set("path", folder);
+  link.searchParams.set("prompt", "总结这个项目");
+  await host.navigation.openExternal(link.href);
+}
+```
+
+在 Desktop 之外打开同一链接也有效，例如从浏览器或其他应用打开。
+
+### 调用 MCP 工具
+
+`host.mcp.callTool` 调用 workspace 中某个 MCP server 的工具，并返回该工具的 MCP 结果：`content`，以及工具设置时附带的 `structuredContent`、`isError` 与 `_meta`。
+
+```ts
+const result = await host.mcp.callTool({
+  server: "board",
+  tool: "list_items",
+  arguments: { status: "open" },
+});
+if (!result.isError) showItems(result.structuredContent);
+```
+
+调用遵循与 agent 调用工具相同的审批与 hook 规则。不传 `threadId` 时，调用在任何对话之外运行，不会在用户的对话列表中留下任何内容，因此需要审批的工具会被拒绝，拒绝信息作为结果返回。若要让用户审批，请传入用户正在查看的 thread，例如 `host.session.threadId`。
 
 ## 使用 UI kit
 
@@ -554,7 +597,7 @@ host.subagents.onChange(threadId, render);
 
 | 分组 | 组件 |
 |---|---|
-| **控件** | `Button`、`IconButton`、`Input`、`Textarea`、`Select`、`SegmentedControl`、`Combobox`、`Checkbox`、`PillSwitch`、`Slider` |
+| **控件** | `Button`、`IconButton`、`Menu`、`Input`、`Textarea`、`Select`、`SegmentedControl`、`Combobox`、`Checkbox`、`PillSwitch`、`Slider` |
 | **展示** | `Spinner`、`Skeleton`、`ActionTooltip`、`ModalHeader`、`InlineDiff`、`AgentAvatar` |
 | **Settings 布局** | `SettingsPanelShell`、`SettingsBreadcrumb`、`SettingsGroup`、`SettingsRow` |
 
@@ -602,6 +645,31 @@ function DensityRow({
 }
 ```
 
+### 显示菜单
+
+把触发元素（通常是溢出操作的 `IconButton`）包在 `Menu` 里，即可从它打开 Desktop 菜单。菜单的位置、方向键与 Escape 操作，以及点击别处时关闭，都由 Desktop 处理。每个菜单项通过 `onSelect` 回调。`{ type: "separator" }` 绘制分隔线，`{ type: "label", label }` 绘制分组标题。
+
+```tsx
+import { IconButton, Menu } from "@dotcraft/plugin";
+import { MoreIcon } from "./icons";
+
+function RowActions({ onOpen, onRemove }: { onOpen: () => void; onRemove: () => void }) {
+  return (
+    <Menu
+      items={[
+        { label: "打开", onSelect: onOpen },
+        { type: "separator" },
+        { label: "移除", onSelect: onRemove, danger: true },
+      ]}
+    >
+      <IconButton icon={<MoreIcon size={16} />} label="更多操作" />
+    </Menu>
+  );
+}
+```
+
+菜单项还支持 `icon` 与 `disabled`。
+
 ### 请求颜色
 
 不透明 RGB 颜色选择统一使用 `host.ui.pickColor`。compact dialog、portal、焦点锁定、通用文案、
@@ -624,6 +692,15 @@ if (result.kind === "reset") await clearOverride();
 Done 返回 `select`，Reset 立即返回 `reset` 并关闭。Escape、关闭按钮、遮罩、同时发起的另一个
 picker 请求或插件销毁都返回 `cancel`。Host 参数不合法时 Promise 以 `TypeError` 拒绝。
 不要渲染原生 `input[type="color"]`，也不要自行维护插件颜色弹窗。
+
+### 请求文件夹
+
+需要用户在 Desktop 所在机器上选择文件夹时，使用 `host.ui.pickFolder`。它会以你提供的标题打开系统文件夹对话框，返回所选文件夹的绝对路径，用户取消时返回 `null`。传入的标题应已是用户界面语言。
+
+```ts
+const folder = await host.ui.pickFolder({ title: "选择项目文件夹" });
+if (folder) await save(folder);
+```
 
 ## 使用打包的静态资源
 

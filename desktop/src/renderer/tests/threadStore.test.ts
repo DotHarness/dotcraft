@@ -326,6 +326,37 @@ describe('threadStore.upsertThreads', () => {
     expect(state.goalSnapshots.has('leaked')).toBe(false)
   })
 
+  it('keeps hidden threads out of running, unread, and badge state', () => {
+    const runningSnapshot = {
+      running: true,
+      waitingOnApproval: true,
+      waitingOnInput: false,
+      waitingOnPlanConfirmation: false
+    }
+    const store = useThreadStore.getState()
+    store.setThreadList([makeThreadSummary('visible')])
+    store.addThread(makeThreadSummary('fork', { ephemeral: true }))
+    store.setActiveThread(makeThread('builder', { metadata: { 'dotcraft.internal': 'agent-builder' } }))
+
+    for (const id of ['fork', 'builder']) {
+      useThreadStore.getState().applyRuntimeSnapshot(id, runningSnapshot, { isActive: false, isDesktopOrigin: true })
+      useThreadStore.getState().applyRuntimeSnapshot(id, { ...runningSnapshot, running: false, waitingOnApproval: false }, {
+        isActive: false,
+        isDesktopOrigin: true
+      })
+      useThreadStore.getState().markUnreadCompleted(id)
+    }
+    useThreadStore.getState().applyRuntimeSnapshot('visible', runningSnapshot, { isActive: false, isDesktopOrigin: true })
+
+    const state = useThreadStore.getState()
+    expect(state.threadList.map((thread) => thread.id)).toEqual(['visible'])
+    expect([...state.runningTurnThreadIds]).toEqual(['visible'])
+    expect([...state.pendingApprovalThreadIds]).toEqual(['visible'])
+    expect(state.unreadCompletedThreadIds.size).toBe(0)
+    expect(state.runtimeSnapshots.has('fork')).toBe(false)
+    expect(state.runtimeSnapshots.has('builder')).toBe(false)
+  })
+
   it('clears stale worktree metadata when a local snapshot omits worktree', () => {
     const worktreeThread = makeWorktreeThread('t1')
     const localThread = makeThreadSummary('t1', {

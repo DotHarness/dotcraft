@@ -95,12 +95,16 @@ import {
   type WorkspaceActivationHandle
 } from './desktopActivation'
 import {
+  findNewThreadDeepLink,
   findSatelliteJoinDeepLink,
   findWorkspaceOpenDeepLink,
+  parseNewThreadDeepLink,
   parseSatelliteJoinDeepLink,
   parseWorkspaceOpenDeepLink,
+  type NewThreadDeepLink,
   type WorkspaceOpenDeepLink
 } from '../shared/desktopDeepLink'
+import { openNewThreadDeepLink } from './newThreadDeepLink'
 import {
   flushPendingSatelliteJoinLink,
   forwardSatelliteJoinDeepLink,
@@ -285,6 +289,7 @@ const localProjects = new LocalProjectList(() => createHubClient(sharedSettings)
 let secondaryRefreshTimer: ReturnType<typeof setTimeout> | null = null
 let pendingChromeSettingsDeepLink = process.argv.some(isChromeSettingsDeepLink)
 let pendingWorkspaceOpenThreadId = findWorkspaceOpenDeepLink(process.argv)?.threadId ?? null
+let pendingNewThreadLink = findNewThreadDeepLink(process.argv)
 let chromeSettingsDeepLinkServer: net.Server | null = null
 let workspaceActivation:
   | { workspacePath: string; handle: WorkspaceActivationHandle }
@@ -1567,6 +1572,66 @@ function handleWorkspaceOpenDeepLink(link: WorkspaceOpenDeepLink): void {
   void openDesktopWindow(link.workspacePath, link.threadId)
 }
 
+function sendOpenNewChat(win: BrowserWindow, prompt: string | undefined): void {
+  const send = (): void => {
+    if (!win.isDestroyed()) {
+      win.webContents.send('app:open-new-chat', { prompt })
+    }
+  }
+  if (win.webContents.isLoading()) {
+    win.webContents.once('did-finish-load', send)
+  } else {
+    send()
+  }
+}
+
+async function handleNewThreadDeepLink(link: NewThreadDeepLink): Promise<void> {
+  const win = mainWindow
+  if (!win || win.isDestroyed()) {
+    pendingNewThreadLink = link
+    return
+  }
+  showWindowSafely(win)
+  await openNewThreadDeepLink(link, {
+    canOpenLocalProject: () => !hasRemoteEndpointArg() && resolveConnectionMode(sharedSettings) === 'local',
+    isForegroundWorkspace: isWorkspaceForeground,
+    switchWorkspace: switchForegroundWorkspace,
+    openNewChat: (prompt) => {
+      if (mainWindow && !mainWindow.isDestroyed()) sendOpenNewChat(mainWindow, prompt)
+    }
+  })
+}
+
+function flushPendingNewThreadLink(): void {
+  const link = pendingNewThreadLink
+  if (!link) return
+  pendingNewThreadLink = null
+  void handleNewThreadDeepLink(link).catch((error) => {
+    console.warn('[desktop] failed to open new chat link', error)
+  })
+}
+
+function handleDesktopDeepLink(url: string): Promise<void> | null {
+  const workspaceOpen = parseWorkspaceOpenDeepLink(url)
+  if (workspaceOpen) {
+    handleWorkspaceOpenDeepLink(workspaceOpen)
+    return Promise.resolve()
+  }
+
+  const newThread = parseNewThreadDeepLink(url)
+  if (newThread) return handleNewThreadDeepLink(newThread)
+
+  const satelliteJoin = parseSatelliteJoinDeepLink(url)
+  if (satelliteJoin) {
+    // Consumed even with no Satellite installed, so the link never falls through.
+    return forwardSatelliteJoinDeepLink(satelliteJoin, satelliteJoinLinkWindow).then(() => undefined)
+  }
+
+  if (!isChromeSettingsDeepLink(url)) return null
+  openChromeSettingsFromDeepLink()
+  return Promise.resolve()
+}
+
 function startChromeSettingsDeepLinkServer(): void {
   if (chromeSettingsDeepLinkServer || !Number.isFinite(CHROME_SETTINGS_DEEP_LINK_PORT) || CHROME_SETTINGS_DEEP_LINK_PORT <= 0) {
     return
@@ -1850,6 +1915,7 @@ function stripWorkspaceArgs(argv: string[]): string[] {
     } else if (
       argv[i] === NO_WORKSPACE_ARG ||
       parseWorkspaceOpenDeepLink(argv[i]) ||
+      parseNewThreadDeepLink(argv[i]) ||
       parseSatelliteJoinDeepLink(argv[i])
     ) {
       continue
@@ -2708,27 +2774,34 @@ async function removeLocalProject(workspacePath: string): Promise<void> {
   emitWorkspaceProjects()
 }
 
+async function switchForegroundWorkspace(newPath: string): Promise<void> {
+  if (activeRemoteProject) {
+    await disconnectActiveRemoteProject({ restorePreviousLocal: false })
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    viewerBrowserManager.destroyAllTabs(mainWindow)
+  }
+  setViewerWorkspaceRoot(newPath)
+  // Ensure the Chat skeleton first so it never diverts into the setup wizard.
+  if (isDefaultChatWorkspace(newPath)) ensureDefaultChatWorkspace()
+  recordForegroundWorkspace(newPath, true)
+  emitWorkspaceProjects()
+  await connectToAppServer(newPath)
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const loc = normalizeLocale(sharedSettings.locale)
+    mainWindow.setTitle(
+      translate(loc, 'app.titleWithWorkspace', { name: workspaceTitleName(newPath, loc) })
+    )
+  }
+}
+
 function buildCallbacks(): IpcHandlerCallbacks {
   return {
-    onSwitchWorkspace: async (newPath: string) => {
-      if (activeRemoteProject) {
-        await disconnectActiveRemoteProject({ restorePreviousLocal: false })
-      }
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        viewerBrowserManager.destroyAllTabs(mainWindow)
-      }
-      setViewerWorkspaceRoot(newPath)
-      // Ensure the Chat skeleton first so it never diverts into the setup wizard.
-      if (isDefaultChatWorkspace(newPath)) ensureDefaultChatWorkspace()
-      recordForegroundWorkspace(newPath, true)
-      emitWorkspaceProjects()
-      await connectToAppServer(newPath)
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        const loc = normalizeLocale(sharedSettings.locale)
-        mainWindow.setTitle(
-          translate(loc, 'app.titleWithWorkspace', { name: workspaceTitleName(newPath, loc) })
-        )
-      }
+    onSwitchWorkspace: switchForegroundWorkspace,
+    onOpenDesktopLink: async (url: string) => {
+      const handled = handleDesktopDeepLink(url)
+      if (!handled) throw new Error('Unsupported DotCraft link')
+      await handled
     },
     onClearWorkspaceSelection: async () => {
       await clearWorkspaceSelection()
@@ -3279,8 +3352,8 @@ function refreshAppMenu(): void {
   Menu.setApplicationMenu(buildAppMenu(normalizeLocale(sharedSettings.locale)))
 }
 
-function connectWorkspaceForLoadedWindow(win: BrowserWindow, workspacePath: string): void {
-  void connectToAppServer(workspacePath).catch((error) => {
+function connectWorkspaceForLoadedWindow(win: BrowserWindow, workspacePath: string): Promise<void> {
+  return connectToAppServer(workspacePath).then(() => undefined, (error) => {
     const message = error instanceof Error ? error.message : String(error)
     console.warn('[desktop] failed to connect restored workspace', message)
     if (!win.isDestroyed()) {
@@ -3365,24 +3438,12 @@ function registerMenuPopupIpc(): void {
 
 
 app.on('open-url', (event, url) => {
-  const workspaceOpen = parseWorkspaceOpenDeepLink(url)
-  if (workspaceOpen) {
-    event.preventDefault()
-    handleWorkspaceOpenDeepLink(workspaceOpen)
-    return
-  }
-
-  const satelliteJoin = parseSatelliteJoinDeepLink(url)
-  if (satelliteJoin) {
-    // Consumed even with no Satellite installed, so the link never falls through.
-    event.preventDefault()
-    void forwardSatelliteJoinDeepLink(satelliteJoin, satelliteJoinLinkWindow)
-    return
-  }
-
-  if (!isChromeSettingsDeepLink(url)) return
+  const handled = handleDesktopDeepLink(url)
+  if (!handled) return
   event.preventDefault()
-  openChromeSettingsFromDeepLink()
+  void handled.catch((error) => {
+    console.warn('[desktop] failed to open DotCraft link', error)
+  })
 })
 
 app.whenReady().then(async () => {
@@ -3541,9 +3602,10 @@ app.whenReady().then(async () => {
     flushPendingSatelliteJoinLink(satelliteJoinLinkWindow)
     getSshMachinesManager().connectAutoMachines()
     if (workspacePath && initialWorkspaceStatus.status === 'ready') {
-      connectWorkspaceForLoadedWindow(win, workspacePath)
+      void connectWorkspaceForLoadedWindow(win, workspacePath).then(flushPendingNewThreadLink)
     } else {
       emitConnectionStatus(win, { status: 'disconnected' })
+      flushPendingNewThreadLink()
     }
   })
 
@@ -3595,9 +3657,10 @@ app.whenReady().then(async () => {
         flushPendingSatelliteJoinLink(satelliteJoinLinkWindow)
         getSshMachinesManager().connectAutoMachines()
         if (wsPath && workspaceStatus.status === 'ready') {
-          connectWorkspaceForLoadedWindow(newWin, wsPath)
+          void connectWorkspaceForLoadedWindow(newWin, wsPath).then(flushPendingNewThreadLink)
         } else {
           emitConnectionStatus(newWin, { status: 'disconnected' })
+          flushPendingNewThreadLink()
         }
       })
     } else {

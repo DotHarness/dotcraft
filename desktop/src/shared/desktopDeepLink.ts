@@ -44,6 +44,41 @@ export function findWorkspaceOpenDeepLink(argv: readonly string[]): WorkspaceOpe
   return null
 }
 
+export interface NewThreadDeepLink {
+  workspacePath?: string
+  prompt?: string
+}
+
+export function parseNewThreadDeepLink(value: string): NewThreadDeepLink | null {
+  try {
+    const parsed = new URL(value)
+    if (
+      parsed.protocol !== 'dotcraft:' ||
+      parsed.hostname !== 'threads' ||
+      parsed.pathname.replace(/\/+$/, '') !== '/new'
+    ) {
+      return null
+    }
+
+    const workspacePath = parsed.searchParams.get('path')?.trim()
+    const prompt = parsed.searchParams.get('prompt')
+    return {
+      ...(workspacePath ? { workspacePath } : {}),
+      ...(prompt?.trim() ? { prompt } : {})
+    }
+  } catch {
+    return null
+  }
+}
+
+export function findNewThreadDeepLink(argv: readonly string[]): NewThreadDeepLink | null {
+  for (const value of argv) {
+    const parsed = parseNewThreadDeepLink(value)
+    if (parsed) return parsed
+  }
+  return null
+}
+
 export interface SatelliteJoinDeepLink {
   /** The original link, forwarded verbatim to the Satellite executable. */
   link: string

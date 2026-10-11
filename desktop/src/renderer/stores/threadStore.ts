@@ -4,7 +4,7 @@ import { useViewerTabStore } from './viewerTabStore'
 import { useComposerDraftStore } from './composerDraftStore'
 import { discardRemovedVoiceOrigins } from '../voice/voiceOriginCleanupBridge'
 import { getSubAgentParentThreadId, isSubAgentThread } from '../utils/subAgentThreads'
-import { isInternalThread } from '../utils/internalThreads'
+import { isHiddenThread } from '../../shared/hiddenThreads'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 export type { ThreadRuntimeSnapshot } from '../types/thread'
 
@@ -48,6 +48,7 @@ interface ThreadStoreState {
   unreadCompletedThreadIds: Set<string>
   /** Best-effort current goal snapshots, keyed by thread id. */
   goalSnapshots: Map<string, ThreadGoal>
+  hiddenThreadIds: Set<string>
   /** Desktop-local pinned top-level thread ids for the current workspace. */
   pinnedThreadIds: string[]
   pinnedThreadWorkspacePath: string | null
@@ -109,8 +110,21 @@ const initialState: ThreadStoreState = {
   pendingPlanConfirmationThreadIds: new Set<string>(),
   unreadCompletedThreadIds: new Set<string>(),
   goalSnapshots: new Map<string, ThreadGoal>(),
+  hiddenThreadIds: new Set<string>(),
   pinnedThreadIds: [],
   pinnedThreadWorkspacePath: null
+}
+
+function trackHiddenThreads(current: Set<string>, threads: readonly ThreadSummary[]): Set<string> {
+  let next = current
+  for (const thread of threads) {
+    const hidden = isHiddenThread(thread)
+    if (hidden === next.has(thread.id)) continue
+    if (next === current) next = new Set(current)
+    if (hidden) next.add(thread.id)
+    else next.delete(thread.id)
+  }
+  return next
 }
 
 function filterSetToThreadList(current: Set<string>, ids: Set<string>): Set<string> {
@@ -253,7 +267,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
   setThreadList(threads, projectKey = null) {
     set((state) => {
-      const visibleThreads = threads.filter((thread) => !isInternalThread(thread))
+      const visibleThreads = threads.filter((thread) => !isHiddenThread(thread))
       const threadListProjectKey = normalizeWorkspaceProjectKey(projectKey)
       const threadIds = new Set(visibleThreads.map((thread) => thread.id))
       const runtimeSnapshots = filterMapToThreadList(state.runtimeSnapshots, threadIds)
@@ -331,6 +345,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
       return {
         threadList: visibleThreads,
         threadListProjectKey: threadListProjectKey || null,
+        hiddenThreadIds: trackHiddenThreads(state.hiddenThreadIds, threads),
         runtimeSnapshots,
         runningTurnThreadIds,
         parkedApprovals,
@@ -346,21 +361,23 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
   addThread(thread) {
     set((state) => {
-      if (isInternalThread(thread)) return state
-      if (state.threadList.some((t) => t.id === thread.id)) return state
+      const hiddenThreadIds = trackHiddenThreads(state.hiddenThreadIds, [thread])
+      if (isHiddenThread(thread) || state.threadList.some((t) => t.id === thread.id)) {
+        return hiddenThreadIds === state.hiddenThreadIds ? state : { hiddenThreadIds }
+      }
       const goalSnapshots = new Map(state.goalSnapshots)
       if (thread.goal === null) {
         goalSnapshots.delete(thread.id)
       } else if (thread.goal) {
         goalSnapshots.set(thread.id, thread.goal)
       }
-      return { threadList: [thread, ...state.threadList], goalSnapshots }
+      return { threadList: [thread, ...state.threadList], goalSnapshots, hiddenThreadIds }
     })
   },
 
   upsertThreads(threads) {
-    const internalThreadIds = new Set(threads.filter((thread) => isInternalThread(thread)).map((thread) => thread.id))
-    const visibleThreads = threads.filter((thread) => !isInternalThread(thread))
+    const internalThreadIds = new Set(threads.filter((thread) => isHiddenThread(thread)).map((thread) => thread.id))
+    const visibleThreads = threads.filter((thread) => !isHiddenThread(thread))
     if (visibleThreads.length === 0 && internalThreadIds.size === 0) return
     set((state) => {
       const incoming = new Map(visibleThreads.map((thread) => [thread.id, thread]))
@@ -428,6 +445,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
       return {
         threadList: [...missing, ...threadList],
+        hiddenThreadIds: trackHiddenThreads(state.hiddenThreadIds, threads),
         runtimeSnapshots,
         parkedApprovals,
         parkedUserInputs,
@@ -609,7 +627,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
       } else if (activeThread.goal) {
         goalSnapshots.set(activeThread.id, activeThread.goal)
       }
-      return { activeThread, goalSnapshots }
+      return { activeThread, goalSnapshots, hiddenThreadIds: trackHiddenThreads(state.hiddenThreadIds, [thread]) }
     })
   },
 
@@ -623,6 +641,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
   markTurnStarted(threadId) {
     set((state) => {
+      if (state.hiddenThreadIds.has(threadId)) return state
       const next = new Set(state.runningTurnThreadIds)
       next.add(threadId)
       return { runningTurnThreadIds: next }
@@ -712,6 +731,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
   applyRuntimeSnapshot(threadId, runtime, options) {
     set((state) => {
+      if (state.hiddenThreadIds.has(threadId)) return state
       const previous = state.runtimeSnapshots.get(threadId)
       const runtimeSnapshots = new Map(state.runtimeSnapshots)
       runtimeSnapshots.set(threadId, runtime)
@@ -797,6 +817,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
   markUnreadCompleted(threadId) {
     set((state) => {
+      if (state.hiddenThreadIds.has(threadId)) return state
       const unreadCompletedThreadIds = new Set(state.unreadCompletedThreadIds)
       unreadCompletedThreadIds.add(threadId)
       return { unreadCompletedThreadIds }
@@ -934,6 +955,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
       pendingPlanConfirmationThreadIds: new Set<string>(),
       unreadCompletedThreadIds: new Set<string>(),
       goalSnapshots: new Map<string, ThreadGoal>(),
+      hiddenThreadIds: new Set<string>(),
       pinnedThreadIds: [],
       pinnedThreadWorkspacePath: null
     })

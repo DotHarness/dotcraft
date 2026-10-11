@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.7.10 |
+| Version | 0.8.4 |
 | Status | Living |
-| Date | 2026-10-02 |
+| Date | 2026-10-11 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -67,7 +67,7 @@ Plugin settings do not provide revisions, conflict resolution, secrets, or files
 
 A plugin settings page is built from the Host's settings shell, groups, and rows. Ordinary controls — switches, selects, sliders — go in a row's control slot; previews, media pickers, theme choices, and other wide visual choices go in a block row or a flush group so a plugin never nests a decorative card inside a settings card. The visual grammar those pieces follow is defined in [Desktop DESIGN.md](DESIGN.md#plugin-surfaces).
 
-The Host UI Kit is the settings control boundary. Plugins use its shared controls instead of restyling native selects, segmented controls, switches, or ranges. A hidden native file input may still invoke the platform file picker when the visible trigger is a Host control. Opaque colour choices use Core's shared picker, requested through `host.ui.pickColor`; a plugin never owns its portal, focus lifecycle, validation, or localization.
+The Host UI Kit is the settings control boundary. Plugins use its shared controls instead of restyling native selects, segmented controls, switches, or ranges. A hidden native file input may still invoke the platform file picker when the visible trigger is a Host control. Opaque colour choices use Core's shared picker, requested through `host.ui.pickColor`; a plugin never owns its portal, focus lifecycle, validation, or localization. A folder choice uses `host.ui.pickFolder({ title })`, which opens the platform folder dialog and resolves to the chosen absolute path on the Desktop machine, or `null` when cancelled; `title` is already localized.
 
 Continuous controls preview locally and persist when the interaction commits. `Slider` `onValueChange` tracks the pointer or keyboard value, while `onValueCommit` reports the final value once at the end of the gesture. Do not send each intermediate delta through AppServer or write it to configuration storage.
 
@@ -96,6 +96,13 @@ supported authoring contracts; private renderer components and properties are no
 
 Value controls use `onValueChange` and `ariaLabel`; boolean controls use `onChange`.
 Host adapters preserve these SDK names independently of internal component prop names.
+
+### Menus
+
+`Menu` opens a Host menu from a plugin-rendered trigger, such as a row's overflow `IconButton`. It
+takes the trigger as its child and an `items` list of `{ label, onSelect, icon?, disabled?, danger? }`
+entries, `{ type: "separator" }`, and `{ type: "label", label }`. The Host owns placement, keyboard
+navigation, dismissal, and layering, as it does for Core menus.
 
 ### Agent identity
 
@@ -285,7 +292,7 @@ Verified cache entries survive disconnects. Superseded revisions and removed plu
 
 ## Host and compatibility contract
 
-Every Desktop Plugin receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, notifications, AppServer, App Binding, App Surfaces, workspaces, and Oratorio. It is a supported authoring API, not a security membrane. Private stores, routes, components, DOM, and CSS remain reachable to trusted code but are not compatibility contracts. Main-process validation remains a service invariant rather than a plugin permission.
+Every Desktop Plugin receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, notifications, AppServer, MCP tool calls, App Binding, App Surfaces, workspaces, and Oratorio. It is a supported authoring API, not a security membrane. Private stores, routes, components, DOM, and CSS remain reachable to trusted code but are not compatibility contracts. Main-process validation remains a service invariant rather than a plugin permission.
 
 ### Environment changes
 
@@ -342,7 +349,17 @@ interface DesktopPluginSubAgent {
 
 ### Navigation
 
-`navigation` opens product destinations. `openFile(path)` opens a workspace file in the Detail Panel file viewer. `openDetailPanel(tab)` opens the current thread's Detail Panel on `changes`, `plan`, or `subagents`. `openAutomation(automationId)` opens that automation in the Automations view. `openMainView` remains limited to the plugin's own main views.
+`navigation` opens product destinations. `openExternal(url)` opens an `http` or `https` URL in the user's default browser and handles a `dotcraft:` link inside Desktop exactly as if the operating system had delivered it; it rejects other schemes. A plugin adds or opens a project and starts a chat with a prefilled message through `dotcraft://threads/new` ([Desktop client §5.2](../clients/desktop-client.md#52-start-a-new-conversation)). `openFile(path)` opens a workspace file in the Detail Panel file viewer. `openDetailPanel(tab)` opens the current thread's Detail Panel on `changes`, `plan`, or `subagents`. `openAutomation(automationId)` opens that automation in the Automations view. `openMainView` remains limited to the plugin's own main views.
+
+### MCP tool calls
+
+`mcp.callTool({ server, tool, arguments?, threadId? })` calls a tool on an MCP server through
+`mcpServer/tool/call` and returns its raw MCP result. The call passes through the server's normal
+authority, approval, and hook pipeline. With `threadId`, it runs on that thread. Without it, the Host
+uses one hidden ephemeral thread on the current AppServer connection: started on first use with
+`approvalPolicy = deny`, shared by every plugin, and replaced after a reconnect or workspace switch.
+An approval-gated call on that thread is rejected, and the rejection comes back as the tool result;
+a plugin that needs the user's approval passes the thread the user is looking at.
 
 ### AppServer notifications
 

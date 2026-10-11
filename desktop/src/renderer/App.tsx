@@ -48,6 +48,7 @@ import {
   stopAppNavigationHistory
 } from './stores/appNavigationStore'
 import { isDefaultChatWorkspacePathCandidate } from '../shared/defaultChatWorkspace'
+import { isHiddenThread } from '../shared/hiddenThreads'
 import { CustomMenuBar } from './components/layout/CustomMenuBar'
 import { Sidebar } from './components/layout/Sidebar'
 import { SettingsSidebar } from './components/layout/SettingsSidebar'
@@ -1288,6 +1289,14 @@ export function App(): JSX.Element {
   }, [])
 
   useEffect(() => {
+    return window.api.window.onOpenNewChat(({ prompt }) => {
+      const ui = useUIStore.getState()
+      ui.goToNewChat()
+      if (prompt) ui.setComposerPrefill(prompt)
+    })
+  }, [])
+
+  useEffect(() => {
     window.api.settings
       .get()
       .then((s) => {
@@ -1688,7 +1697,6 @@ export function App(): JSX.Element {
         switch (method as string) {
           case 'thread/started': {
             const pp = p as { thread: ThreadSummary }
-            if (pp.thread.ephemeral) break
             doAddThread(pp.thread)
             if (isSessionImportThread(pp.thread)) {
               useThreadStore.getState().markUnreadCompleted(pp.thread.id)
@@ -1704,7 +1712,7 @@ export function App(): JSX.Element {
 
           case 'thread/updated': {
             const pp = p as { thread?: Thread }
-            if (pp.thread && !pp.thread.ephemeral) {
+            if (pp.thread) {
               useThreadStore.getState().upsertThreads([pp.thread])
               if (useThreadStore.getState().activeThreadId === pp.thread.id) {
                 useThreadStore.getState().setActiveThread(pp.thread)
@@ -1884,7 +1892,8 @@ export function App(): JSX.Element {
               void window.api.skillMarket?.cleanupDotCraftInstall?.({ threadId: completedThreadId }).catch(() => {})
               const ts = useThreadStore.getState()
               const threadEntry = ts.threadList.find((t) => t.id === completedThreadId)
-              if (!threadEntry?.displayName) {
+                ?? (ts.activeThread?.id === completedThreadId ? ts.activeThread : null)
+              if (threadEntry && !threadEntry.displayName && !isHiddenThread(threadEntry)) {
                 void window.api.appServer
                   .sendRequest('thread/read', { threadId: completedThreadId })
                   .then((res) => {

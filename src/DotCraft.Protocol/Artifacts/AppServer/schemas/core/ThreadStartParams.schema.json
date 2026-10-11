@@ -60,6 +60,16 @@
         }
       ]
     },
+    "ephemeral": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "historyMode": {
       "anyOf": [
         {

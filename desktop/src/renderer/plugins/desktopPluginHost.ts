@@ -34,6 +34,7 @@ import {
   provideDesktopPluginService,
   useDesktopPluginService
 } from './desktopPluginKernel'
+import { callDesktopPluginMcpTool } from './desktopPluginMcp'
 import { registerDesktopPluginOpenUrlListener } from './desktopPluginOpenUrl'
 import {
   buildDesktopPluginMainViewKey,
@@ -168,7 +169,10 @@ export function createDesktopPluginHost(
         })
       },
       async openExternal(url) {
-        await window.api.shell.openExternal(url)
+        const { protocol } = new URL(url)
+        if (protocol === 'http:' || protocol === 'https:') return window.api.shell.openExternal(url)
+        if (protocol === 'dotcraft:') return window.api.shell.openDesktopLink(url)
+        throw new TypeError(`openExternal does not open ${protocol} URLs`)
       },
       async openFile(path) {
         const thread = useThreadStore.getState().activeThread
@@ -222,6 +226,9 @@ export function createDesktopPluginHost(
         }
         const dismiss = own(cleanups, request.dismiss)
         return request.result.finally(dismiss)
+      },
+      pickFolder(options) {
+        return window.api.workspace.pickFolder({ title: options.title })
       },
       add(surface, component, options) {
         return own(cleanups, registerDesktopPluginSurface(
@@ -292,6 +299,9 @@ export function createDesktopPluginHost(
           }
         }))
       }
+    },
+    mcp: {
+      callTool: callDesktopPluginMcpTool
     },
     settings: {
       get<TValue = Record<string, unknown>>() {

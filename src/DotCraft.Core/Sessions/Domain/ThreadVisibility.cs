@@ -23,6 +23,9 @@ public static class ThreadVisibility
         !string.IsNullOrWhiteSpace(thread.Configuration?.AgentBuilderTargetId)
         || IsInternal(thread.OriginChannel, thread.Metadata);
 
+    /// <summary>Returns whether workspace-level thread notifications reach only the thread's subscribers.</summary>
+    public static bool IsHidden(SessionThread thread) => thread.Ephemeral || IsInternal(thread);
+
     /// <summary>
     /// Returns whether the thread summary represents an internal-only DotCraft helper thread.
     /// </summary>

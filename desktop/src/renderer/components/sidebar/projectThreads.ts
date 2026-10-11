@@ -6,7 +6,7 @@ import {
   sameWorkspaceProjectKey
 } from '../../../shared/workspaceProjectKey'
 import type { ThreadSummary } from '../../types/thread'
-import { isInternalThread } from '../../utils/internalThreads'
+import { isHiddenThread } from '../../../shared/hiddenThreads'
 import { isSubAgentThread } from '../../utils/subAgentThreads'
 
 export function projectIdentity(project: WorkspaceProjectSummary): string {
@@ -75,7 +75,7 @@ function isThreadSummary(value: unknown): value is ThreadSummary {
 export function visibleProjectThreads(threads: unknown[]): ThreadSummary[] {
   return threads
     .filter(isThreadSummary)
-    .filter((thread) => !isInternalThread(thread))
+    .filter((thread) => !isHiddenThread(thread))
     .filter((thread) => thread.status?.toLowerCase() !== 'archived')
     // Subagent threads are surfaced via the dock / Subagents tab, not the sidebar.
     .filter((thread) => !isSubAgentThread(thread))

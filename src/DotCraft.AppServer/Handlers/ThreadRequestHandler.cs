@@ -114,7 +114,8 @@ internal sealed partial class ThreadRequestHandler(
                 threadId: threadId,
                 displayName: p.DisplayName,
                 ct: ct,
-                source: spawnSource);
+                source: spawnSource,
+                ephemeral: p.Ephemeral ?? false);
         }
         catch
         {

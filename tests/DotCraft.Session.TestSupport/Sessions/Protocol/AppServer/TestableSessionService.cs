@@ -83,6 +83,9 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
     /// <inheritdoc />
     public ContextUsageSnapshot? TryGetContextUsageSnapshot(string threadId) => null;
 
+    public bool IsHiddenThread(string threadId) =>
+        _cache.TryGetValue(threadId, out var thread) && ThreadVisibility.IsHidden(thread);
+
     /// <inheritdoc />
     public ThreadSummaryRuntime GetThreadRuntimeSnapshot(SessionThread thread) =>
         RuntimeSnapshotHandler?.Invoke(thread) ?? ThreadSummaryRuntime.FromThread(thread);
@@ -169,7 +172,8 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
         string? threadId = null,
         string? displayName = null,
         CancellationToken ct = default,
-        ThreadSource? source = null)
+        ThreadSource? source = null,
+        bool ephemeral = false)
     {
         var thread = new SessionThread
         {
@@ -183,7 +187,8 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
             LastActiveAt = DateTimeOffset.UtcNow,
             Configuration = config,
             DisplayName = displayName,
-            Source = source ?? ThreadSource.User()
+            Source = source ?? ThreadSource.User(),
+            Ephemeral = ephemeral
         };
         if (identity.ChannelContext != null)
         {
@@ -194,7 +199,8 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
             await CreateThreadHandler(thread, ct);
 
         _cache[thread.Id] = thread;
-        await _store.SaveThreadAsync(thread, ct);
+        if (!ephemeral)
+            await _store.SaveThreadAsync(thread, ct);
         ThreadCreatedForBroadcast?.Invoke(thread);
         return thread;
     }
