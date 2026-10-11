@@ -2789,7 +2789,8 @@ public sealed class OratorioApiTests
         var answered = await WaitForItemByIdAsync(
             client,
             task.Item.ItemId,
-            x => x.DiscussionTurns.Any(turn => turn.Status == DiscussionTurnStatus.Succeeded));
+            x => x.DiscussionTurns.Any(turn => turn.Status == DiscussionTurnStatus.Succeeded)
+                && x.Comments.Any(comment => comment.Purpose == CommentPurpose.DiscussionReply));
         var turn = Assert.Single(answered.DiscussionTurns);
 
         Assert.Equal(DiscussionTurnStatus.Succeeded, turn.Status);
