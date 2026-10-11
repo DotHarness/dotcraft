@@ -141,12 +141,7 @@ internal static class CommandExecWindowsLauncher
         && (extension.Equals(".cmd", StringComparison.OrdinalIgnoreCase)
             || extension.Equals(".bat", StringComparison.OrdinalIgnoreCase));
 
-    private static string CommandInterpreter() =>
-        Environment.GetEnvironmentVariable("ComSpec") is { } comSpec
-        && Path.IsPathFullyQualified(comSpec)
-        && File.Exists(comSpec)
-            ? comSpec
-            : Path.Combine(Environment.SystemDirectory, "cmd.exe");
+    private static string CommandInterpreter() => Path.Combine(Environment.SystemDirectory, "cmd.exe");
 
     private static (NamedPipeServerStream Read, NamedPipeClientStream Write) CreateOutputPipe()
     {
@@ -211,7 +206,9 @@ internal static class CommandExecWindowsLauncher
 
     private static string BuildBatchCommandLine(string script, IReadOnlyList<string> arguments)
     {
-        var builder = new StringBuilder("cmd.exe /e:ON /v:OFF /d /c \"\"").Append(script).Append('"');
+        var builder = new StringBuilder("cmd.exe /e:ON /v:OFF /d /c \"\"")
+            .Append(script.Replace("%", "%%cd:~,%", StringComparison.Ordinal))
+            .Append('"');
         foreach (var argument in arguments)
         {
             builder.Append(' ');

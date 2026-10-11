@@ -119,11 +119,15 @@ public sealed class AppServerCommandExecTests : IDisposable
         string[] arguments = ["a b", "x & echo injected", "%PATH%", "say \"hi\"", "caret^", "plain", ""];
         const string expected = "\"a b\" \"x & echo injected\" \"%PATH%\" \"say \"\"hi\"\"\" \"caret^\" plain \"\"";
 
-        var byPath = await SendAsync(new { command = new[] { script }.Concat(arguments) });
+        var byPath = await SendAsync(new
+        {
+            command = new[] { script }.Concat(arguments),
+            env = new Dictionary<string, string?> { ["DC_SUFFIX"] = "changed" }
+        });
         var byName = await SendAsync(new
         {
             command = new[] { "echo-args" }.Concat(arguments),
-            env = new Dictionary<string, string?> { ["PATH"] = Path.GetDirectoryName(script) }
+            env = new Dictionary<string, string?> { ["PATH"] = Path.GetDirectoryName(script), ["DC_SUFFIX"] = "changed" }
         });
 
         Assert.All([byPath, byName], result =>
@@ -148,7 +152,7 @@ public sealed class AppServerCommandExecTests : IDisposable
 
     private string WriteEchoScript()
     {
-        var directory = Path.Combine(_root, "batch dir");
+        var directory = Path.Combine(_root, "batch %DC_SUFFIX% dir");
         Directory.CreateDirectory(directory);
         var script = Path.Combine(directory, "echo-args.cmd");
         File.WriteAllText(script, "@echo(%*\r\n");
