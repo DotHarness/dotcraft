@@ -1791,6 +1791,19 @@ describe('registerIpcHandlers', () => {
       expect(isTerminalCwdAllowed(chatsWorkspace, dateFolder)).toBe(false)
     })
 
+    it('reads files inside a chat folder but nowhere else outside the workspace', async () => {
+      setLocalChatsFolderRootsResolver(() => [chatsRoot])
+      vi.mocked(fs.readFile).mockResolvedValueOnce('# Report' as never)
+      const handlers = registerHandlersForTest(chatsWorkspace)
+      const report = path.join(chatFolder, 'outputs', 'report.md')
+
+      await expect(handlers.get('file:read')!({}, report)).resolves.toBe('# Report')
+      expect(fs.readFile).toHaveBeenCalledWith(report, 'utf-8')
+
+      await expect(handlers.get('file:read')!({}, path.join(chatsRoot, 'loose.md'))).rejects.toThrow()
+      await expect(handlers.get('file:exists')!({}, path.resolve('/elsewhere/report.md'))).rejects.toThrow()
+    })
+
     it('keeps chat folders closed for a project workspace or when Chats is not the local foreground', async () => {
       setLocalChatsFolderRootsResolver(() => [chatsRoot])
       const project = registerHandlersForTest('/workspace')

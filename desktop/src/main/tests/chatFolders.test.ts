@@ -16,6 +16,13 @@ describe('chatFolderSlug', () => {
     expect(chatFolderSlug('   ')).toBe('new-chat')
   })
 
+  it('suffixes Windows reserved device names', () => {
+    expect(chatFolderSlug('con')).toBe('con-chat')
+    expect(chatFolderSlug('COM1')).toBe('com1-chat')
+    expect(chatFolderSlug('Lpt9?')).toBe('lpt9-chat')
+    expect(chatFolderSlug('console')).toBe('console')
+  })
+
   it('keeps only the ASCII runs of mixed text', () => {
     expect(chatFolderSlug('修复 bug 123')).toBe('bug-123')
   })

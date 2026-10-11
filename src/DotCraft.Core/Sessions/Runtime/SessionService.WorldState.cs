@@ -16,6 +16,7 @@ public sealed partial class SessionService
 
     private WorldStateTurnUpdate BuildWorldStateUpdate(
         SessionThread thread,
+        string workspacePath,
         IReadOnlyList<ChatMessage> history,
         ThreadContextCarrier carrier,
         AgentModeManager? modeManager,
@@ -34,7 +35,7 @@ public sealed partial class SessionService
         {
             Thread = thread,
             ModeManager = modeManager,
-            WorkspacePath = ThreadWorkspaceResolver.Resolve(thread).Cwd,
+            WorkspacePath = workspacePath,
             HasActivePlan = hasActivePlan,
             ThreadGoal = threadGoal,
             SessionStartHookContext = sessionStartHookContext
@@ -107,6 +108,7 @@ public sealed partial class SessionService
 
     private async Task<IReadOnlyList<ChatMessage>> DrainWorldStateMessagesAsync(
         SessionThread thread,
+        string workspacePath,
         string turnId,
         IReadOnlyList<ChatMessage> history,
         ThreadContextCarrier carrier,
@@ -121,6 +123,7 @@ public sealed partial class SessionService
 
         var update = BuildWorldStateUpdate(
             thread,
+            workspacePath,
             history,
             carrier,
             modeManager,

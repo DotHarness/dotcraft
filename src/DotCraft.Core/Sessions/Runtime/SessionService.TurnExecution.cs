@@ -1389,6 +1389,7 @@ public sealed partial class SessionService
 
                 var worldStateUpdate = BuildWorldStateUpdate(
                     thread,
+                    turnContext.Workspace.Cwd,
                     session,
                     threadContextCarrier,
                     runtimeModeManager,
@@ -1456,6 +1457,7 @@ public sealed partial class SessionService
                             boundary,
                             worldStateCt => DrainWorldStateMessagesAsync(
                                 thread,
+                                turnContext.Workspace.Cwd,
                                 turn.Id,
                                 session,
                                 threadContextCarrier,

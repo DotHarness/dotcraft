@@ -265,6 +265,12 @@ function assertPathWithinWorkspace(
   return resolved
 }
 
+function assertPathWithinWorkspaceOrChatFolder(absPath: string, workspacePath: string, locale: AppLocale): string {
+  return chatFolderFor(workspacePath, absPath)
+    ? path.resolve(absPath)
+    : assertPathWithinWorkspace(absPath, workspacePath, locale)
+}
+
 function assertPathWithinViewerRoots(
   absPath: string,
   workspacePath: string,
@@ -1243,9 +1249,7 @@ export function registerIpcHandlers(
   })
 
   handleSafe('shell:show-item-in-folder', async (_event, targetPath: string) => {
-    const resolved = chatFolderFor(workspacePath, targetPath)
-      ? path.resolve(targetPath)
-      : assertPathWithinWorkspace(targetPath, workspacePath, mainLocale(callbacks))
+    const resolved = assertPathWithinWorkspaceOrChatFolder(targetPath, workspacePath, mainLocale(callbacks))
     shell.showItemInFolder(resolved)
   })
 
@@ -1256,7 +1260,7 @@ export function registerIpcHandlers(
   })
 
   handleSafe('file:read', async (_event, absPath: string): Promise<string> => {
-    const resolved = assertPathWithinWorkspace(absPath, workspacePath, mainLocale(callbacks))
+    const resolved = assertPathWithinWorkspaceOrChatFolder(absPath, workspacePath, mainLocale(callbacks))
     try {
       return await fs.readFile(resolved, 'utf-8')
     } catch (err: unknown) {
@@ -1267,7 +1271,7 @@ export function registerIpcHandlers(
   })
 
   handleSafe('file:exists', async (_event, absPath: string): Promise<boolean> => {
-    const resolved = assertPathWithinWorkspace(absPath, workspacePath, mainLocale(callbacks))
+    const resolved = assertPathWithinWorkspaceOrChatFolder(absPath, workspacePath, mainLocale(callbacks))
     try {
       await fs.access(resolved)
       return true

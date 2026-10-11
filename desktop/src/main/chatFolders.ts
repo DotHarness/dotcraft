@@ -10,7 +10,8 @@ const RANDOM_SUFFIX_ATTEMPTS = 10
 export function chatFolderSlug(firstMessage: string): string {
   const words = firstMessage.toLowerCase().match(/[a-z0-9]+/g) ?? []
   const slug = words.slice(0, MAX_SLUG_WORDS).join('-').slice(0, MAX_SLUG_LENGTH).replace(/-+$/, '')
-  return slug || 'new-chat'
+  const name = slug || 'new-chat'
+  return /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/.test(name) ? `${name}-chat` : name
 }
 
 export function normalizeChatsFolderSetting(value: unknown): string | undefined {

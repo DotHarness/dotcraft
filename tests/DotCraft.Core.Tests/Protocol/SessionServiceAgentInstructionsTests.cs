@@ -257,6 +257,11 @@ public sealed class SessionServiceAgentInstructionsTests : IDisposable
         var firstInstructions = Assert.Single(recorder.LastMessages, AgentInstructionsHistory.IsInstructions);
         Assert.Contains("admitted workspace rules", firstInstructions.Text, StringComparison.Ordinal);
         Assert.DoesNotContain("updated workspace rules", firstInstructions.Text, StringComparison.Ordinal);
+        var firstEnvironment = Assert.Single(
+            recorder.LastMessages,
+            message => ThreadContextItems.IsKind(message, WorldStateComposer.ItemKind(EnvironmentSection.SectionId)));
+        Assert.Contains($"WorkingDirectory: {_workspace}", firstEnvironment.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain(updatedWorkspace, firstEnvironment.Text, StringComparison.Ordinal);
 
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("second")]));
 
