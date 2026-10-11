@@ -264,6 +264,15 @@ describe('trayManager notifications', () => {
     desktopActivationLockMocks.getDesktopActivationEndpoint.mockReturnValue(null)
   })
 
+  it('lists the default Chat workspace AppServer as Chats rather than its folder', async () => {
+    const { trayWorkspaceName } = await import('../trayManager')
+    const { resolveDefaultChatWorkspacePath } = await import('../defaultChatWorkspace')
+    const { translate } = await import('../../shared/locales')
+
+    expect(trayWorkspaceName(resolveDefaultChatWorkspacePath(), 'zh-Hans')).toBe(translate('zh-Hans', 'chatsRail.title'))
+    expect(trayWorkspaceName('F:/examples/workspace', 'zh-Hans')).toBe('workspace')
+  })
+
   it('parses Hub notification events', async () => {
     const { parseHubNotificationPayload } = await import('../trayManager')
     const event: HubEvent = {

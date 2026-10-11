@@ -1,6 +1,7 @@
 import { readThreadTool } from './desktopReadThread'
 import { readThreadToolDefinition } from './desktopReadThreadContract'
 import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
+import { STANDALONE_CHAT_INSTRUCTIONS } from '../shared/chatFolders'
 
 export const DESKTOP_THREAD_TOOL_NAMESPACE = 'desktop'
 export const DESKTOP_THREAD_COORDINATION_CONTEXT_KEY = 'desktop.threadCoordination'
@@ -50,6 +51,7 @@ export interface AppServerRequestClient {
 export interface DesktopAppServerRequestOptions {
   supportsDynamicToolRebind?: boolean
   settingsHost?: DesktopThreadToolSettingsHost
+  createChatFolder?: (firstMessage: string) => Promise<string>
 }
 
 export interface DesktopThreadToolSettingsHost {
@@ -456,6 +458,10 @@ async function createThreadTool(
   }
   if (reasoningEffort?.value) {
     config.reasoning = buildReasoningConfig(reasoningEffort.value)
+  }
+  if (options.createChatFolder) {
+    startParams.cwd = await options.createChatFolder(prompt.value)
+    config.developerInstructions = STANDALONE_CHAT_INSTRUCTIONS
   }
   if (Object.keys(config).length > 0) {
     startParams.config = config

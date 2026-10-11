@@ -393,6 +393,7 @@ export class ProjectConnection {
         profileName,
         config: thread.configuration ?? null,
         workspacePath: thread.workspacePath || null,
+        effectiveWorkspacePath: thread.effectiveWorkspacePath || null,
         context: contextUsageOf(thread.contextUsage),
       })
       this.dropAnswered(key, history.items)
@@ -435,6 +436,7 @@ export class ProjectConnection {
       profileName: null,
       config: thread.configuration ?? null,
       workspacePath: thread.workspacePath || null,
+      effectiveWorkspacePath: thread.effectiveWorkspacePath || null,
       context: contextUsageOf(thread.contextUsage),
     })
     await client.request('thread/subscribe', { threadId: thread.id })

@@ -12,6 +12,13 @@ beforeEach(() => {
   installDesktopApiMock({ settings: { get: async () => ({ locale: 'en' }) }, appServer: { onNotification: () => () => {}, sendRequest: request } })
 })
 const props = { initial: automation, automation, onClose: vi.fn(), onSaved: vi.fn(), onDirtyChange: vi.fn() }
+it('offers no working directory choice in Chats', async () => {
+  const independent = { ...automation, executionMode: 'independent' as const, targetThreadId: null }
+  const view = render(<LocaleProvider><AutomationEditor {...props} automation={independent} initial={independent} /></LocaleProvider>)
+  expect(await screen.findByRole('combobox', { name: 'Working directory', hidden: true })).toBeInTheDocument()
+  view.rerender(<LocaleProvider><AutomationEditor {...props} automation={independent} initial={independent} chats /></LocaleProvider>)
+  expect(screen.queryByRole('combobox', { name: 'Working directory', hidden: true })).not.toBeInTheDocument()
+})
 it('preserves edited text and exposes a failed save', async () => {
   request.mockImplementation(async (method: string) => { if (method === 'automation/update') throw new Error('Connection lost'); return { runs: [] } })
   render(<LocaleProvider><AutomationEditor {...props} /></LocaleProvider>)

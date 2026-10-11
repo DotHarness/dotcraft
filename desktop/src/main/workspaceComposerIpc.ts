@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { Worker } from 'worker_threads'
 import { promises as fs } from 'fs'
 import * as path from 'path'
@@ -6,6 +6,9 @@ import { translate, DEFAULT_LOCALE, type AppLocale } from '../shared/locales'
 import { watch as fsWatch, type FSWatcher } from 'fs'
 import { resolveBundledRipgrepPath } from './ripgrepRuntime'
 import { workspaceTempPath } from './workspaceTempPath'
+import { chatFolderFor } from './chatFolderAccess'
+import { resolveDefaultChatWorkspacePath } from './defaultChatWorkspace'
+import { normalizeWorkspaceProjectKey, sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024
 
@@ -425,6 +428,12 @@ function ensureFsWatchForWorkspace(resolvedRoot: string): void {
 }
 
 function cachePathForWorkspace(resolvedRoot: string): string {
+  const chatsWorkspace = resolveDefaultChatWorkspacePath()
+  const chatFolder = chatFolderFor(chatsWorkspace, resolvedRoot)
+  if (chatFolder && sameWorkspaceProjectKey(chatFolder, resolvedRoot)) {
+    const key = createHash('sha256').update(normalizeWorkspaceProjectKey(resolvedRoot)).digest('hex').slice(0, 24)
+    return path.join(chatsWorkspace, '.craft', 'cache', `desktop-file-index-v1-${key}.json`)
+  }
   return path.join(resolvedRoot, FILE_INDEX_CACHE_RELATIVE_PATH)
 }
 

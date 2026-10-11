@@ -29,6 +29,7 @@ import { useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import { ConversationAsideProvider } from '../conversation/conversationAside/ConversationAside'
 import { Spinner } from '../ui/Spinner'
+import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChatWorkspace'
 
 interface ConversationPanelProps {
   workspacePath?: string
@@ -195,7 +196,9 @@ export function ConversationPanel({
     isAgentBuilder || creating || selectedConversationView
       ? null
       : {
-          workspacePath: desktopPluginSurfaceContext.workspacePath,
+          workspacePath: isDefaultChatWorkspacePathCandidate(threadStateWorkspacePath)
+            ? null
+            : desktopPluginSurfaceContext.workspacePath,
           threadId: thread.id,
           busy: desktopPluginSurfaceContext.busy
         }

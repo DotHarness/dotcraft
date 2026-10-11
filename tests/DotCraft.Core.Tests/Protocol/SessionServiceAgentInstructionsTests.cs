@@ -193,6 +193,34 @@ public sealed class SessionServiceAgentInstructionsTests : IDisposable
     }
 
     [Fact]
+    public async Task ProviderRequest_ReportsTheThreadCwdAsWorkingDirectory()
+    {
+        var chatFolder = Directory.CreateDirectory(Path.Combine(_root, "chats", "2026-10-11", "hello")).FullName;
+        var recorder = new RecordingChatClient();
+        await using var factory = CreateAgentFactory();
+        var service = new SessionService(
+            factory,
+            recorder.AsAIAgent(),
+            _persistence,
+            new SessionGate());
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        var runtime = Assert.IsType<ThreadRuntime>(service.DebugGetRuntime(thread.Id));
+        runtime.Thread.Configuration = ThreadWorkspaceResolver.Apply(
+            runtime.Thread.WorkspacePath,
+            runtime.Thread.Configuration,
+            chatFolder,
+            null);
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        var environment = Assert.Single(
+            recorder.LastMessages,
+            message => ThreadContextItems.IsKind(message, WorldStateComposer.ItemKind(EnvironmentSection.SectionId)));
+        Assert.Contains($"WorkingDirectory: {chatFolder}", environment.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain($"WorkingDirectory: {_workspace}", environment.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ActiveTurn_UsesWorkspaceCapturedAtAdmission()
     {
         File.WriteAllText(Path.Combine(_workspace, "AGENTS.md"), "admitted workspace rules");
@@ -229,6 +257,11 @@ public sealed class SessionServiceAgentInstructionsTests : IDisposable
         var firstInstructions = Assert.Single(recorder.LastMessages, AgentInstructionsHistory.IsInstructions);
         Assert.Contains("admitted workspace rules", firstInstructions.Text, StringComparison.Ordinal);
         Assert.DoesNotContain("updated workspace rules", firstInstructions.Text, StringComparison.Ordinal);
+        var firstEnvironment = Assert.Single(
+            recorder.LastMessages,
+            message => ThreadContextItems.IsKind(message, WorldStateComposer.ItemKind(EnvironmentSection.SectionId)));
+        Assert.Contains($"WorkingDirectory: {_workspace}", firstEnvironment.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain(updatedWorkspace, firstEnvironment.Text, StringComparison.Ordinal);
 
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("second")]));
 

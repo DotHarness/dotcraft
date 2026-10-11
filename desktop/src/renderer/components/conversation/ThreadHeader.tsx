@@ -26,6 +26,7 @@ import { isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
 import { archiveThreadWithUndo } from '../../utils/threadArchive'
 import { buildOpenInSubmenu, useOpenTargets } from '../../utils/openTargets'
+import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChatWorkspace'
 
 interface ThreadHeaderProps {
   threadName: string
@@ -96,7 +97,8 @@ export function ThreadHeader({
   const activeThreadIsSubAgent = activeThread ? isSubAgentThread(activeThread) : false
   const pinned = pinnedThreadIds.includes(threadId)
   const canFork = canForkThread(capabilities)
-  const canForkIntoWorktree = canForkWorktree(capabilities) && !remoteWorkspace
+  const chatThread = isDefaultChatWorkspacePathCandidate(activeThread?.workspacePath)
+  const canForkIntoWorktree = canForkWorktree(capabilities) && !remoteWorkspace && !chatThread
   const worktreeBranch = activeThread?.worktree?.branchName?.trim()
   const channelBindings = useThreadChannelBindings(threadId)
 
@@ -305,8 +307,9 @@ export function ThreadHeader({
       : !hasWrittenFiles
         ? t('threadHeader.noCommitTitle')
         : undefined
+  const showOpenIn = !remoteWorkspace && Boolean(workspacePath)
   const menuItems: ContextMenuEntry[] = [
-    ...(!remoteWorkspace && workspacePath
+    ...(showOpenIn
       ? [buildOpenInSubmenu({
           view: openTargets,
           projectRoot: workspacePath,
@@ -314,18 +317,20 @@ export function ThreadHeader({
           onPicked: () => setMenuPosition(null)
         })]
       : []),
-    {
-      label: isPerforceWorkspace ? t('threadHeader.prepareChangelist') : t('threadHeader.commit'),
-      icon: <CommitIcon size={14} />,
-      title: commitDisabledReason,
-      disabled: commitDisabledReason != null,
-      onClick: () => {
-        setMenuPosition(null)
-        if (isPerforceWorkspace) setPrepareOpen(true)
-        else setCommitOpen(true)
-      }
-    },
-    { type: 'separator' },
+    ...(!chatThread
+      ? [{
+          label: isPerforceWorkspace ? t('threadHeader.prepareChangelist') : t('threadHeader.commit'),
+          icon: <CommitIcon size={14} />,
+          title: commitDisabledReason,
+          disabled: commitDisabledReason != null,
+          onClick: () => {
+            setMenuPosition(null)
+            if (isPerforceWorkspace) setPrepareOpen(true)
+            else setCommitOpen(true)
+          }
+        }]
+      : []),
+    ...(showOpenIn || !chatThread ? [{ type: 'separator' as const }] : []),
     ...(!activeThreadIsSubAgent
       ? [{
           label: pinned ? t('threadEntry.unpin') : t('threadEntry.pin'),

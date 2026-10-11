@@ -60,6 +60,12 @@ public sealed record MobileHello(
 
 public sealed record MobileHelloRelay(string Url);
 
-public sealed record MobileProject(string ProjectId, string DisplayName, bool Running, DateTimeOffset? LastActiveAt);
+public sealed record MobileProject(string ProjectId, string DisplayName, string Kind, bool Running, DateTimeOffset? LastActiveAt);
+
+public static class MobileProjectKinds
+{
+    public const string Chats = "chats";
+    public const string Project = "project";
+}
 
 public sealed record MobileProjectList(IReadOnlyList<MobileProject> Projects);

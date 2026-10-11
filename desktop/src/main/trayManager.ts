@@ -249,8 +249,8 @@ async function openNotificationAction(payload: HubNotificationPayload): Promise<
   await openDesktopWindow(payload.workspacePath ?? undefined, payload.threadId ?? undefined)
 }
 
-function displayWorkspaceName(path: string): string {
-  return basename(path) || path
+export function trayWorkspaceName(path: string, locale: AppLocale): string {
+  return isDefaultChatWorkspace(path) ? translate(locale, 'chatsRail.title') : basename(path) || path
 }
 
 function dashboardUrlOf(server: HubAppServerResponse): string | null {
@@ -268,7 +268,7 @@ function buildAppServerMenu(
   const dashboardUrl = dashboardUrlOf(server)
   const running = server.state === 'running'
   return {
-    label: `${displayWorkspaceName(workspacePath)} (${server.state})`,
+    label: `${trayWorkspaceName(workspacePath, locale)} (${server.state})`,
     submenu: [
       {
         label: L('tray.openDesktop'),

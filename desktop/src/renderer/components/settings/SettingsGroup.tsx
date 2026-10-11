@@ -122,7 +122,7 @@ export function SettingsRow({
         )}
         {description && <div style={settingsHintStyle()}>{description}</div>}
       </div>
-      {control !== undefined && <div style={{ flexShrink: 0, minWidth: controlMinWidth }}>{control}</div>}
+      {control !== undefined && <div style={{ flexShrink: 0, minWidth: controlMinWidth, maxWidth: '100%' }}>{control}</div>}
     </div>
   )
 }

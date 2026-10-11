@@ -9,6 +9,17 @@ export function DefaultOpenTargetRow({ width }: { width: string }): JSX.Element 
   const t = useT()
   const view = useOpenTargets(null)
   const current = view.effective
+  const options = view.targets.length > 0
+    ? view.targets.map((target) => ({
+        value: target.id,
+        label: openTargetLabel(target, t),
+        icon: renderOpenTargetIcon(target)
+      }))
+    : [{
+        value: '',
+        label: t(view.status === 'idle' || view.status === 'loading' ? 'openTargets.loading' : 'openTargets.noneFound'),
+        disabled: true
+      }]
 
   return (
     <SettingsRow
@@ -22,11 +33,8 @@ export function DefaultOpenTargetRow({ width }: { width: string }): JSX.Element 
           disabled={view.targets.length === 0}
           onValueChange={(targetId) => { useOpenTargetsStore.getState().setGlobal(targetId) }}
           style={{ width }}
-          options={view.targets.map((target) => ({
-            value: target.id,
-            label: openTargetLabel(target, t),
-            icon: renderOpenTargetIcon(target)
-          }))}
+          menuMaxHeight={320}
+          options={options}
         />
       }
     />

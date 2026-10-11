@@ -185,7 +185,7 @@ On the new-chat Welcome screen, `composer` covers the complete pre-thread compos
 
 | Field | Meaning |
 |---|---|
-| `workspacePath` | The thread's workspace, or `null` when unavailable. |
+| `workspacePath` | The thread's workspace, or `null` for a chat in Chats or when unavailable. |
 | `threadId` | The thread on screen. |
 | `busy` | A turn is running or waiting for the user's input. |
 

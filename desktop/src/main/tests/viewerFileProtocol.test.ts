@@ -1,4 +1,4 @@
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
@@ -39,6 +39,8 @@ import {
   viewerRootsFor,
   viewerUrlToPath
 } from '../viewerFileProtocol'
+import { setLocalChatsFolderRootsResolver } from '../chatFolderAccess'
+import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
 
 const tempDirs: string[] = []
 
@@ -226,6 +228,40 @@ describe('handleViewerFileRequest external authorization', () => {
 
     expect(response.status).toBe(403)
     expect(netFetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('handleViewerFileRequest chat folders', () => {
+  afterEach(() => setLocalChatsFolderRootsResolver(() => []))
+
+  function chatFolderFixture(): { chatsRoot: string; inChat: string; inRoot: string } {
+    const chatsRoot = createTempDir()
+    const chatFolder = join(chatsRoot, '2026-10-11', 'plan-a-trip')
+    mkdirSync(join(chatFolder, 'outputs'), { recursive: true })
+    const inChat = join(chatFolder, 'outputs', 'report.png')
+    const inRoot = join(chatsRoot, 'loose.png')
+    writeFileSync(inChat, 'report')
+    writeFileSync(inRoot, 'loose')
+    setViewerWorkspaceRoot(resolveDefaultChatWorkspacePath())
+    return { chatsRoot, inChat, inRoot }
+  }
+
+  it('serves a chat folder under the Chats folder root while Chats is the local foreground', async () => {
+    const { chatsRoot, inChat, inRoot } = chatFolderFixture()
+    setLocalChatsFolderRootsResolver(() => [chatsRoot])
+
+    expect((await handleViewerFileRequest(new Request(buildViewerUrl(inChat)))).status).toBe(200)
+    expect((await handleViewerFileRequest(new Request(buildViewerUrl(inRoot)))).status).toBe(403)
+  })
+
+  it('keeps chat folders closed when Chats is not the local foreground', async () => {
+    const { chatsRoot, inChat } = chatFolderFixture()
+    setLocalChatsFolderRootsResolver(() => [])
+    expect((await handleViewerFileRequest(new Request(buildViewerUrl(inChat)))).status).toBe(403)
+
+    setLocalChatsFolderRootsResolver(() => [chatsRoot])
+    setViewerWorkspaceRoot(createTempDir())
+    expect((await handleViewerFileRequest(new Request(buildViewerUrl(inChat)))).status).toBe(403)
   })
 })
 

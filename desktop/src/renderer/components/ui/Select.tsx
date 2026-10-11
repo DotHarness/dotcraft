@@ -530,6 +530,9 @@ export function Select<T extends string = string>({
       onKeyDown={handleKeyDown}
       style={triggerStyle}
     >
+      {selectedOption?.icon && (
+        <span className="dc-settings-select__icon" aria-hidden="true">{selectedOption.icon}</span>
+      )}
       <span className="dc-settings-select__value" {...valueProps}>
         {selectedOption?.label ?? value}
       </span>

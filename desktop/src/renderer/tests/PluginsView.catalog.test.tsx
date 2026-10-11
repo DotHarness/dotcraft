@@ -1,8 +1,10 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { usePluginStore } from '../stores/pluginStore'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
+import { translate } from '../../shared/locales'
 import {
   appServerSendRequest,
   browserUsePlugin,
@@ -16,6 +18,7 @@ import {
 
 describe('PluginsView catalog', () => {
   beforeEach(setupPluginsViewTest)
+  afterEach(() => useWorkspaceProjectsStore.getState().reset())
 
   it('shows installed and catalog plugins by default', async () => {
     appServerSendRequest.mockResolvedValue({
@@ -28,6 +31,20 @@ describe('PluginsView catalog', () => {
     expect(await screen.findByText('External Process Echo')).toBeInTheDocument()
     expect(screen.getByText('Browser')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Filter plugins' })).toBeInTheDocument()
+  })
+
+  it('groups plugins installed in the Chats workspace under Chats rather than its folder name', async () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/home/me/.craft/workspaces/chats',
+      secondaryLimit: 8,
+      projects: []
+    })
+    appServerSendRequest.mockResolvedValue({ plugins: [localPlugin], diagnostics: [], snapshotRevision: 1 })
+
+    renderPluginsView()
+
+    const chats = translate('en', 'chatsRail.title')
+    expect(await screen.findByText(translate('en', 'plugins.section.installedInWorkspace', { name: chats }))).toBeInTheDocument()
   })
 
   it('installs a plugin from a picked disk folder via plugin/installLocal', async () => {

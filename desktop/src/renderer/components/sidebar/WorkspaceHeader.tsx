@@ -7,6 +7,7 @@ import type { ContextMenuEntry } from '../ui/ContextMenu'
 import { SectionOptionsMenu } from './SidebarSectionParts'
 import { localProjectsByLastOpened, useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
+import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChatWorkspace'
 
 /** Extracts a clean user-facing message from a workspace switch error. */
 function switchErrorMessage(err: unknown): string {
@@ -75,6 +76,9 @@ export function WorkspaceOptionsMenu({
   const t = useT()
   const confirm = useConfirmDialog()
   const projects = useWorkspaceProjectsStore((s) => s.projects)
+  const chat = useWorkspaceProjectsStore((s) => s.chat)
+  const chatsForeground = isDefaultChatWorkspacePathCandidate(workspacePath)
+    || (chat != null && sameWorkspaceProjectKey(chat.path, workspacePath))
   const recents = useMemo(
     () => localProjectsByLastOpened(projects).filter((project) => !sameWorkspaceProjectKey(project.path, workspacePath)),
     [projects, workspacePath]
@@ -120,12 +124,16 @@ export function WorkspaceOptionsMenu({
 
   const workspaceItems: ContextMenuEntry[] = hasWorkspace
     ? [
-        { type: 'label', label: workspacePath },
-        {
-          label: t('workspaceHeader.openInExplorer'),
-          disabled: localActionsDisabled,
-          onClick: openInExplorer
-        },
+        ...(chatsForeground
+          ? [{ type: 'label' as const, label: t('chatsRail.title') }]
+          : [
+              { type: 'label' as const, label: workspacePath },
+              {
+                label: t('workspaceHeader.openInExplorer'),
+                disabled: localActionsDisabled,
+                onClick: openInExplorer
+              }
+            ]),
         { label: t('workspaceHeader.switchWorkspace'), onClick: () => { void switchWorkspace() } },
         {
           label: t('workspaceHeader.recentWorkspaces'),

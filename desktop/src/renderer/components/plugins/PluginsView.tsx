@@ -63,9 +63,9 @@ export function PluginsView(): JSX.Element {
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
   const { selectedProject, foregroundIsChat } = useWorkspaceProjectChoices(foregroundWorkspacePath)
-  const workspaceName = !foregroundIsChat && selectedProject
-    ? projectLabel(selectedProject)
-    : workspaceSlug(foregroundWorkspacePath)
+  const workspaceName = foregroundIsChat
+    ? t('chatsRail.title')
+    : selectedProject ? projectLabel(selectedProject) : workspaceSlug(foregroundWorkspacePath)
   const sshMachine = useSshProjectMachine(selectedProject ? sshProjectRef(selectedProject) : null)
   const machineName = remoteWorkspaceActive
     ? sshMachine?.name ?? selectedProject?.remote?.serverName ?? null

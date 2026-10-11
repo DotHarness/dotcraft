@@ -80,7 +80,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const ready = state.phases[projectId] === 'ready'
   const chatState: ChatState = chat ? stateOf(chat) : 'done'
   const pending: PendingRequest[] = state.pending[key] ?? []
-  const transcript = useMemo(() => (detail ? buildTranscript(detail.history, detail.workspacePath) : []), [detail])
+  const transcript = useMemo(() => (detail ? buildTranscript(detail.history, detail.effectiveWorkspacePath) : []), [detail])
   const chatTaskSources = state.tasks[key]
   const tasks = useMemo(() => chatTasks(chatTaskSources), [chatTaskSources])
   const catchingUp = live && (detail ? detail.loading && detail.history.items.length === 0 : true)
@@ -95,8 +95,8 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const decision = live ? (decisions[0] ?? null) : null
   const insets = useSafeAreaInsets()
   const canPlan = offersPlanMode(detail?.config, chat?.profileId)
-  const runningChanges = useMemo(() => (detail && isLive(chatState) ? runningTurnChanges(detail.history, detail.workspacePath) : null), [detail, chatState])
-  const changes = useMemo(() => (detail && changesTurn ? turnChanges(detail.history, changesTurn, detail.workspacePath) : null), [detail, changesTurn])
+  const runningChanges = useMemo(() => (detail && isLive(chatState) ? runningTurnChanges(detail.history, detail.effectiveWorkspacePath) : null), [detail, chatState])
+  const changes = useMemo(() => (detail && changesTurn ? turnChanges(detail.history, changesTurn, detail.effectiveWorkspacePath) : null), [detail, changesTurn])
   const openChanges = useCallback((turnId: string) => {
     setChangesTurn(turnId)
     setChangesOpen(true)
@@ -109,7 +109,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
     [computerId, projectId, readFile, reading],
   )
   const openFile = models?.fileSystem === true ? setOpenPath : null
-  const workspacePath = detail?.workspacePath ?? null
+  const workspacePath = detail?.effectiveWorkspacePath ?? null
   const docked = !catchingUp && live && !decision
   const inset = docked ? dockHeight : insets.bottom
   const signsIn = models?.providers.find((provider) => provider.id === controls.providerId)?.signsIn === true

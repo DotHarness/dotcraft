@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { STANDALONE_CHAT_INSTRUCTIONS } from '../../shared/chatFolders'
 import {
   DESKTOP_THREAD_TOOL_NAMESPACE,
   DESKTOP_THREAD_COORDINATION_CONTEXT_KEY,
@@ -389,6 +390,31 @@ describe('desktop runtime thread tools', () => {
 
     const startCall = vi.mocked(client.sendRequest).mock.calls.find((call) => call[0] === 'thread/start')
     expect(startCall?.[1]).not.toHaveProperty('spawnedFromThreadId')
+  })
+
+  it('starts CreateThread in a chat folder when the host provides one', async () => {
+    const client = createClient(async (method) => {
+      if (method === 'thread/start') return { thread: { id: 'thread-chat' } }
+      if (method === 'turn/start') return { turn: { id: 'turn-1' } }
+      throw new Error(`unexpected ${method}`)
+    })
+    const createChatFolder = vi.fn(async () => '/docs/DotCraft/2026-10-11/plan-a-trip')
+
+    await handleDesktopRuntimeThreadToolCall(client, {
+      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      tool: 'CreateThread',
+      arguments: { prompt: 'Plan a trip' }
+    }, '/home/me/.craft/workspaces/chats', { createChatFolder })
+
+    expect(createChatFolder).toHaveBeenCalledWith('Plan a trip')
+    const startCall = vi.mocked(client.sendRequest).mock.calls.find((call) => call[0] === 'thread/start')
+    expect(startCall?.[1]).toEqual(expect.objectContaining({
+      cwd: '/docs/DotCraft/2026-10-11/plan-a-trip',
+      identity: expect.objectContaining({ workspacePath: '/home/me/.craft/workspaces/chats' }),
+      config: { developerInstructions: STANDALONE_CHAT_INSTRUCTIONS }
+    }))
+    const turnCall = vi.mocked(client.sendRequest).mock.calls.find((call) => call[0] === 'turn/start')
+    expect(turnCall?.[1]).not.toHaveProperty('cwd')
   })
 
   it('queues SendMessageToThread when the target thread is busy', async () => {

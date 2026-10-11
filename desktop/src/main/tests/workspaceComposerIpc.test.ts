@@ -1,8 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import { setLocalChatsFolderRootsResolver } from '../chatFolderAccess'
+
+const fakeHome = vi.hoisted(() => ({ path: '' }))
+
+vi.mock('os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('os')>()
+  return { ...actual, homedir: () => fakeHome.path || actual.homedir() }
+})
 import {
   cleanupWorkspaceCache,
   ensureFileIndex,
@@ -11,6 +19,35 @@ import {
   readImageAsDataUrl,
   shouldInvalidateFileIndexForWatchEvent
 } from '../workspaceComposerIpc'
+
+describe('chat folder file index', () => {
+  let tempRoot = ''
+
+  afterEach(async () => {
+    invalidateFileIndex()
+    setLocalChatsFolderRootsResolver(() => [])
+    fakeHome.path = ''
+    if (tempRoot) await rm(tempRoot, { recursive: true, force: true })
+    tempRoot = ''
+  })
+
+  it('keeps the index cache of a chat folder in the Chats workspace instead of the folder', async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), 'dotcraft-chat-index-'))
+    fakeHome.path = join(tempRoot, 'home')
+    const chatsRoot = join(tempRoot, 'Chats')
+    const chatFolder = join(chatsRoot, '2026-10-11', 'plan-a-trip')
+    await mkdir(join(chatFolder, 'outputs'), { recursive: true })
+    await writeFile(join(chatFolder, 'outputs', 'itinerary.md'), '# Trip', 'utf8')
+    setLocalChatsFolderRootsResolver(() => [chatsRoot])
+
+    const entries = await ensureFileIndex(chatFolder)
+
+    expect(entries.map((entry) => entry.relativePath)).toContain('outputs/itinerary.md')
+    expect(existsSync(join(chatFolder, '.craft'))).toBe(false)
+    const cacheDir = join(fakeHome.path, '.craft', 'workspaces', 'chats', '.craft', 'cache')
+    expect((await readdir(cacheDir)).some((name) => name.startsWith('desktop-file-index-v1-'))).toBe(true)
+  }, 20_000)
+})
 
 describe('workspace image compatibility', () => {
   it('reads an existing image from the workspace tmp directory', async () => {

@@ -53,6 +53,7 @@ export interface FakeThread {
   archived?: boolean
   planned?: boolean
   context?: number
+  cwd?: string
 }
 
 export interface FakeModel {
@@ -81,6 +82,7 @@ export interface FakeProject {
   running: boolean
   cantStart: boolean
   lastActiveAt: string
+  kind?: 'chats' | 'project'
   path?: string
   approvalDefault?: 'default' | 'autoApprove'
   threads: FakeThread[]
@@ -351,6 +353,7 @@ export class FakeComputer {
     return {
       ...this.summary(thread),
       workspacePath: this.thread(thread.id).project.path ?? '',
+      effectiveWorkspacePath: thread.cwd ?? this.thread(thread.id).project.path ?? '',
       configuration: { ...thread.config, agentProfileId: thread.profileId },
       ...(thread.context === undefined ? {} : { contextUsage: this.contextUsage(thread.context) }),
       metadata: {},
@@ -786,5 +789,11 @@ export class FakeComputer {
 }
 
 function projectBody(project: FakeProject) {
-  return { projectId: project.id, displayName: project.name, running: project.running, lastActiveAt: project.lastActiveAt }
+  return {
+    projectId: project.id,
+    displayName: project.name,
+    kind: project.kind ?? 'project',
+    running: project.running,
+    lastActiveAt: project.lastActiveAt,
+  }
 }
