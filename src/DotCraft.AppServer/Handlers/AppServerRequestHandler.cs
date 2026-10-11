@@ -112,7 +112,8 @@ public sealed class AppServerRequestHandler(
             services.WireNodeReplProxy,
             services.WireDynamicToolProxy,
             services.WireRuntimeAdditionalContextProvider,
-            services.VisualizationRuntimeRegistry);
+            services.VisualizationRuntimeRegistry,
+            services.GenerativeUiRuntimeRegistry);
 
     private AppServerResponseWriter ResponseWriter => _responseWriter ??= new AppServerResponseWriter(transport);
 
@@ -182,6 +183,7 @@ public sealed class AppServerRequestHandler(
             services.VisualizationAssetStore,
             services.VisualizationRuntimeRegistry,
             services.ThreadSubscribers),
+        new GenerativeUiRequestHandler(sessionService, connection, services.GenerativeUiRuntimeRegistry, services.ThreadSubscribers),
         new ChannelRequestHandler(channelListContributor, services.ChannelStatusProvider, WorkspaceConfig, ExternalChannelConfig, services.WorkspaceCraftPath, services.AppConfigMonitor, services.OnExternalChannelUpserted, services.OnExternalChannelRemoved, services.ExternalChannelLogProvider),
         new ProviderRequestHandler(
             transport,

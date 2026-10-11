@@ -4648,6 +4648,16 @@
             }
           ]
         },
+        "generativeUi": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "interactiveToolUi": {
           "anyOf": [
             {
@@ -6751,6 +6761,111 @@
       "required": [
         "dataBase64",
         "path"
+      ]
+    },
+    "GenerativeUiBlockState": {
+      "title": "GenerativeUiBlockState",
+      "type": "object",
+      "properties": {
+        "blockIndex": {
+          "type": "integer"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "state": {},
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "blockIndex",
+        "itemId",
+        "state",
+        "turnId"
+      ]
+    },
+    "GenerativeUiStateReadParams": {
+      "title": "GenerativeUiStateReadParams",
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
+    },
+    "GenerativeUiStateReadResult": {
+      "title": "GenerativeUiStateReadResult",
+      "type": "object",
+      "properties": {
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GenerativeUiBlockState"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "states"
+      ]
+    },
+    "GenerativeUiStateUpdateParams": {
+      "title": "GenerativeUiStateUpdateParams",
+      "type": "object",
+      "properties": {
+        "blockIndex": {
+          "type": "integer"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "state": {},
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "blockIndex",
+        "itemId",
+        "threadId",
+        "turnId"
+      ]
+    },
+    "GenerativeUiStateUpdatedNotification": {
+      "title": "GenerativeUiStateUpdatedNotification",
+      "type": "object",
+      "properties": {
+        "blockIndex": {
+          "type": "integer"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "state": {},
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "blockIndex",
+        "itemId",
+        "state",
+        "threadId",
+        "turnId"
       ]
     },
     "HookErrorInfo": {
@@ -12562,6 +12677,9 @@
           "type": "boolean"
         },
         "fileSystem": {
+          "type": "boolean"
+        },
+        "generativeUi": {
           "type": "boolean"
         },
         "gitWorktrees": {

@@ -70,6 +70,7 @@ export const MESSAGES_KO: Catalog = {
   'tool.read': '{{subject}} 읽음',
   'tool.searched': '{{subject}} 검색함',
   'tool.used': '{{subject}} 사용함',
+  'tool.interactiveContent': '인터랙티브 콘텐츠',
   'tool.running': '명령 실행 중…',
   'tool.editing': '파일 편집 중…',
   'tool.reading': '읽는 중…',

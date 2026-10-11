@@ -1,0 +1,155 @@
+.field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  font-weight: 500;
+  line-height: var(--type-secondary-line-height);
+}
+
+.hint,
+.error {
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-prose-line-height);
+}
+
+.hint {
+  color: var(--text-dimmed);
+}
+
+.error {
+  color: var(--error-text);
+}
+
+.button {
+  width: fit-content;
+  max-width: 100%;
+}
+
+/* The label's line box is trimmed to the cap height, so the clip box is padded to keep descenders. */
+.button :global(.dc-button__label) {
+  min-width: 0;
+  margin-block: -0.3em;
+  padding-block: 0.3em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.button[data-full-width] {
+  width: 100%;
+}
+
+.select {
+  display: flex;
+  min-width: 0;
+}
+
+.select > * {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.segmented {
+  display: flex;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.radioGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.radioGroup[data-direction='row'] {
+  flex-flow: row wrap;
+  column-gap: 16px;
+}
+
+.radio {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  min-width: 0;
+  color: var(--text-primary);
+}
+
+.radio > :last-child {
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.radio[data-disabled] {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.radioInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.radioControl {
+  display: inline-flex;
+  width: 17px;
+  height: 17px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-active);
+  border-radius: 50%;
+  background: var(--bg-primary);
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.radioControl::after {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--on-accent);
+  content: '';
+  transform: scale(0);
+  transition: transform 120ms ease;
+}
+
+.radio:hover:not([data-disabled]) .radioControl {
+  border-color: var(--text-secondary);
+  background: var(--bg-tertiary);
+}
+
+.radioInput:checked + .radioControl {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.radio:hover:not([data-disabled]) .radioInput:checked + .radioControl {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+.radioInput:checked + .radioControl::after {
+  transform: scale(1);
+}
+
+.radioInput:focus-visible + .radioControl {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+.slider :global(.dc-slider) {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+}

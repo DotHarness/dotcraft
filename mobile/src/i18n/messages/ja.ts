@@ -70,6 +70,7 @@ export const MESSAGES_JA: Catalog = {
   'tool.read': '{{subject}} を読み取りました',
   'tool.searched': '{{subject}} を検索しました',
   'tool.used': '{{subject}} を使用しました',
+  'tool.interactiveContent': 'インタラクティブコンテンツ',
   'tool.running': 'コマンドを実行中…',
   'tool.editing': 'ファイルを編集中…',
   'tool.reading': '読み取り中…',

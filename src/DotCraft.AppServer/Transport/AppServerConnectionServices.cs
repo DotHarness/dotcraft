@@ -14,6 +14,7 @@ using DotCraft.Skills;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
+using DotCraft.GenerativeUi;
 using DotCraft.Visualizations;
 using DotCraft.Plugins;
 using Microsoft.Extensions.Logging;
@@ -80,6 +81,7 @@ public sealed record AppServerConnectionServices
     public McpAppTransientContextStore? McpAppTransientContextStore { get; init; }
     public VisualizationAssetStore? VisualizationAssetStore { get; init; }
     public VisualizationRuntimeRegistry? VisualizationRuntimeRegistry { get; init; }
+    public GenerativeUiRuntimeRegistry? GenerativeUiRuntimeRegistry { get; init; }
     public AppServerThreadSubscribers? ThreadSubscribers { get; init; }
     public LspServerManager? LspServerManager { get; init; }
     public IEnumerable<IAppServerProtocolExtension>? ProtocolExtensions { get; init; }

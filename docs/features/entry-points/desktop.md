@@ -20,6 +20,10 @@ Ask DotCraft to turn a comparison, explanation, or result into an interactive vi
 
 Use the view's actions to send a follow-up after confirming the prompt or copy its current state as an image.
 
+## Get interactive answers
+
+When a calculator, quiz, form, or side-by-side choice answers a question better than text, DotCraft can reply with one right in the message, built from the same controls as the rest of Desktop. Adjust it while you read. Its buttons can send a follow-up, fill in the composer, copy a result, or open a link after you confirm. Changes you make are still there when you reopen the conversation, and the reply's text keeps the answer when you copy it.
+
 ## Keep several projects in one window
 
 Switching workspaces switches projects: configuration, skills, memory, and automations all follow the project and stay out of each other's way. The memory switch, Dreams, and memory deletion live under **Settings → Personalization**, and [Memory and Dreams](../agent-system/memory) explains what each one covers.

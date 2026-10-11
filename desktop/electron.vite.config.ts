@@ -3,6 +3,7 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import pkg from './package.json'
+import { bundledScriptPlugin } from './bundledScriptPlugin'
 
 export default defineConfig({
   main: {
@@ -51,6 +52,6 @@ export default defineConfig({
     worker: {
       format: 'es'
     },
-    plugins: [react(), tailwindcss({ optimize: false })]
+    plugins: [bundledScriptPlugin(), react(), tailwindcss({ optimize: false })]
   }
 })

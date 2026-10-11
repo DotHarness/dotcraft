@@ -76,6 +76,8 @@ export interface ClientRequestMethods {
   "fs/createDirectory": { params: Models.FsCreateDirectoryParams; result: Models.RpcEmpty };
   "fs/readFile": { params: Models.FsReadFileParams; result: Models.FsReadFileResult };
   "fs/writeFile": { params: Models.FsWriteFileParams; result: Models.RpcEmpty };
+  "generativeUi/state/read": { params: Models.GenerativeUiStateReadParams; result: Models.GenerativeUiStateReadResult };
+  "generativeUi/state/update": { params: Models.GenerativeUiStateUpdateParams; result: Models.RpcEmpty };
   "hooks/list": { params: Models.HooksListParams; result: Models.HooksListResult };
   "hooks/setState": { params: Models.HooksSetStateParams; result: Models.HooksSetStateResult };
   "hooks/trustPlugin": { params: Models.HooksTrustPluginParams; result: Models.HooksTrustPluginResult };

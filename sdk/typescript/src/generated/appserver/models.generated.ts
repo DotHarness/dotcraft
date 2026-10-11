@@ -1177,6 +1177,7 @@ export interface ClientCapabilities {
   computerUse?: ComputerUseCapability | null;
   configChange?: boolean | null;
   extensions?: Record<string, JsonValue> | null;
+  generativeUi?: boolean | null;
   interactiveToolUi?: boolean | null;
   mcpApps?: boolean | null;
   mcpElicitation?: boolean | null;
@@ -1676,6 +1677,42 @@ export interface FsReadFileResult {
 export interface FsWriteFileParams {
   dataBase64: string;
   path: string;
+  [key: string]: unknown;
+}
+
+export interface GenerativeUiBlockState {
+  blockIndex: number;
+  itemId: string;
+  state: JsonValue;
+  turnId: string;
+  [key: string]: unknown;
+}
+
+export interface GenerativeUiStateReadParams {
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface GenerativeUiStateReadResult {
+  states: GenerativeUiBlockState[];
+  [key: string]: unknown;
+}
+
+export interface GenerativeUiStateUpdateParams {
+  blockIndex: number;
+  itemId: string;
+  state?: JsonValue;
+  threadId: string;
+  turnId: string;
+  [key: string]: unknown;
+}
+
+export interface GenerativeUiStateUpdatedNotification {
+  blockIndex: number;
+  itemId: string;
+  state: JsonValue;
+  threadId: string;
+  turnId: string;
   [key: string]: unknown;
 }
 
@@ -3181,6 +3218,7 @@ export interface ServerCapabilities {
   extensions?: ServerCapabilityExtensions | null;
   externalChannelManagement?: boolean;
   fileSystem?: boolean;
+  generativeUi?: boolean;
   gitWorktrees?: boolean;
   hooksManagement?: boolean;
   manualCompaction?: boolean;

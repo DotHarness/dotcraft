@@ -2,10 +2,11 @@ import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { ResponseSelectionOverlay } from './ResponseSelectionOverlay'
 import { selectionDraftKey, useResponseSelectionStore } from './responseSelectionStore'
 
-export function ResponseFeedback({ threadId, turnId, itemId, children }: {
+export function ResponseFeedback({ threadId, turnId, itemId, disabled = false, children }: {
   threadId: string
   turnId: string
   itemId: string
+  disabled?: boolean
   children: ReactNode
 }): JSX.Element {
   const owner = useId()
@@ -17,6 +18,7 @@ export function ResponseFeedback({ threadId, turnId, itemId, children }: {
   }, [owner, threadId, turnId, itemId])
 
   function capture(): void {
+    if (disabled) return
     const selection = window.getSelection()
     const container = textRoot.current
     if (!selection?.rangeCount || !container?.contains(selection.anchorNode) ||

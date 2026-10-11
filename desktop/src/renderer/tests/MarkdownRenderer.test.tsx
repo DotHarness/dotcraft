@@ -126,6 +126,13 @@ describe('MarkdownRenderer', () => {
     expect(container.textContent).toContain('Hello world')
   })
 
+  it('turns <br> into a line break and shows other raw HTML as text', () => {
+    const { container } = renderWithLocale('| A |\n|---|\n| one<br>two |\n\n<details><summary>Answer</summary>3</details>')
+    expect(container.querySelector('td br')).not.toBeNull()
+    expect(container.querySelector('details')).toBeNull()
+    expect(container.textContent).toContain('<details><summary>Answer</summary>3</details>')
+  })
+
   it('renders a heading', () => {
     renderWithLocale('# Main Title')
     const heading = document.querySelector('h1')

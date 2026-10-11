@@ -276,6 +276,7 @@ function buildInitializeCapabilities(_profile: InitializeProfile): Record<string
     backgroundTerminals: true,
     mcpApps: true,
     visualizations: true,
+    generativeUi: true,
     appBindingVersion: 1,
     mcpElicitation: true,
     nodeRepl: { backend: 'desktop-node' },

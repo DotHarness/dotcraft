@@ -1,8 +1,11 @@
 import { isPendingVisualizationReference, parseVisualizationReferenceLine, type VisualizationContentReference } from './visualizationParser'
 
+export const GENERATIVE_UI_FENCE_INFO = 'dotcraft-ui'
+
 export type AssistantMessageSegment =
   | { kind: 'markdown'; start: number; text: string }
   | { kind: 'visualization'; start: number; reference: VisualizationContentReference }
+  | { kind: 'generativeUi'; start: number; index: number; code: string; closed: boolean }
 
 type VisualizationReferenceMode = 'render' | 'strip' | 'keep'
 
@@ -14,6 +17,8 @@ export function splitAssistantMessage(text: string, { streaming, visualizations 
   let markdown = ''
   let markdownStart = 0
   let fence: Fence | null = null
+  let block: { start: number; index: number; fence: Fence; code: string[] } | null = null
+  let blockCount = 0
   let offset = 0
 
   const flush = (): void => {
@@ -32,9 +37,25 @@ export function splitAssistantMessage(text: string, { streaming, visualizations 
     const closes = (open: Fence): boolean =>
       marker !== undefined && marker[0] === open.char && marker.length >= open.length && trimmed.slice(marker.length).trim() === ''
 
+    if (block) {
+      if (closes(block.fence)) {
+        segments.push({ kind: 'generativeUi', start: block.start, index: block.index, code: block.code.join('\n'), closed: true })
+        block = null
+      } else {
+        block.code.push(line)
+      }
+      continue
+    }
     if (fence) {
       if (closes(fence)) fence = null
     } else if (marker) {
+      const info = trimmed.slice(marker.length).trim()
+      if (line.length - trimmed.length <= 3 && info.split(/\s/)[0] === GENERATIVE_UI_FENCE_INFO) {
+        flush()
+        block = { start, index: blockCount++, fence: { char: marker[0], length: marker.length }, code: [] }
+        continue
+      }
+      if (streaming && last && GENERATIVE_UI_FENCE_INFO.startsWith(info)) continue
       fence = { char: marker[0], length: marker.length }
     } else if (visualizations !== 'keep') {
       if (streaming && last && isPendingVisualizationReference(line)) continue
@@ -51,6 +72,7 @@ export function splitAssistantMessage(text: string, { streaming, visualizations 
     markdown += last ? rawLine : `${rawLine}\n`
   }
 
+  if (block) segments.push({ kind: 'generativeUi', start: block.start, index: block.index, code: block.code.join('\n'), closed: !streaming })
   flush()
   return segments
 }

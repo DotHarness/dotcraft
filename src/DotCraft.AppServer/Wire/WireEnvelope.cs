@@ -108,6 +108,9 @@ public sealed class ClientConnectionCapabilities
     /// <summary>Whether the client can host assistant visualization views.</summary>
     public bool? Visualizations { get; set; }
 
+    /// <summary>Whether the client renders Generative UI blocks and saves their view state.</summary>
+    public bool? GenerativeUi { get; set; }
+
     /// <summary>Whether the client can answer MCP form and URL elicitation requests.</summary>
     public bool? McpElicitation { get; set; }
 
@@ -379,6 +382,10 @@ public sealed class ServerCapabilitySnapshot
     /// <summary>Server supports connection-scoped assistant visualization views.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool Visualizations { get; set; }
+
+    /// <summary>Server supports the Generative UI state methods.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool GenerativeUi { get; set; }
 
     /// <summary>Server can forward standards-based MCP form and URL elicitation to a capable client.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

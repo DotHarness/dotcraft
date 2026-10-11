@@ -168,6 +168,10 @@ public sealed class ClientCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? Visualizations { get; init; }
 
+    [JsonPropertyName("generativeUi")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? GenerativeUi { get; init; }
+
     [JsonPropertyName("mcpElicitation")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? McpElicitation { get; init; }
@@ -382,6 +386,10 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonPropertyName("visualizations")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool Visualizations { get; init; }
+
+    [JsonPropertyName("generativeUi")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool GenerativeUi { get; init; }
 
     [JsonPropertyName("mcpElicitation")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

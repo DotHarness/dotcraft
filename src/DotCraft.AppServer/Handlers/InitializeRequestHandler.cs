@@ -70,6 +70,8 @@ internal sealed class InitializeRequestHandler(
             Visualizations = services.VisualizationAssetStore != null
                 && services.VisualizationRuntimeRegistry != null
                 && clientCapabilities?.Visualizations == true,
+            GenerativeUi = services.GenerativeUiRuntimeRegistry != null
+                && clientCapabilities?.GenerativeUi == true,
             McpElicitation = services.McpClientManager != null && clientCapabilities?.McpElicitation == true,
             McpServerOrigins = services.McpClientManager != null,
             ExternalChannelManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),

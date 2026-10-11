@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.8.3 |
 | **Status** | Living |
-| **Date** | 2026-10-06 |
+| **Date** | 2026-10-11 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Machines over SSH](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [DotCraft Mobile](mobile.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md), [Session Import](../features/session-import.md), [Turn Navigation](../features/turn-navigation.md) |
 
@@ -224,6 +224,8 @@ math. A single `$` stays text, so amounts never become math. Delimiters in code 
 unclosed inline delimiter stays text, while display math, like a code fence, runs to the end of a
 streaming reply until its closing line arrives. A formula KaTeX cannot parse shows its source. Copying a selection that includes a formula copies the formula's TeX in `\(…\)` or
 `\[…\]`, and find matches a formula's visible text once.
+
+Raw HTML in a reply shows as text, except a lone `<br>` tag, which breaks the line.
 
 `Turn.error` is the canonical user-facing Turn failure. If the same failure is also retained as an Error Item, Desktop presents it once. Distinct errors remain independently visible.
 
@@ -568,6 +570,18 @@ Each View keeps one display mode for its lifetime. `window.openai.displayMode` i
 Desktop may copy the current rendered View to the system clipboard as a tightly cropped image. The capture includes the current SVG, canvas, form, and interaction state with the active theme background; it excludes host actions, loading/error UI, surrounding Markdown, and other conversation content. The viewer offers the same copy action for its View. The host actions, viewer, and View surface follow [Desktop DESIGN](../architecture/DESIGN.md#visualization).
 
 Unmounting, switching threads, or disconnecting closes an acquired handle. A handle returned after cancellation is closed without mounting. Loading failure renders the localized unavailable fallback and Retry action; Retry repeats the on-demand open path. Exact reference grammar and authority, workspace ownership, updates, cleanup, and transient-file semantics are defined by [Tool Architecture Section 14.2](../architecture/tools-architecture.md#142-assistant-visualization-boundary). Exact methods and errors remain defined by [AppServer Protocol Section 22.10A](../protocols/appserver-protocol.md#2210a-visualization-views).
+
+#### 5.8.4 Generative UI in Assistant Messages
+
+Desktop renders each top-level fenced block whose info string is `dotcraft-ui` in an assistant message as a Generative UI block, defined by [Generative UI](../features/generative-ui.md). One splitter turns a message into Markdown, visualization references (§5.8.3), and Generative UI blocks in source order; a `dotcraft-ui` fence nested in another fence or indented as code stays ordinary Markdown.
+
+- **Streaming.** While a message streams, a block whose closing fence has not arrived shows the loading skeleton with an accessible "Working" label and never shows its source. A block whose fence has closed starts at once, even while the rest of the message still streams. A completed message whose last block never closed runs that block to the end of the message.
+- **Lazy start.** Blocks in completed turns use the same 320px preload range as historical visualization Views: until a block's host enters it, Desktop shows the skeleton, starts no runner, and reads no saved state.
+- **Runner.** Blocks share one hidden runner frame per window with one Worker per block. Desktop creates the frame when a message with blocks mounts and removes it after 60 seconds without blocks.
+- **Turn activity.** A block is locked, with its controls disabled, while its message streams or its turn is still running, and in read-only transcripts.
+- **Actions.** Desktop carries out a block's accepted actions in the thread that owns it. `sendMessage` starts a user turn with the prompt as the message text and no confirmation; while a turn is running or waiting for approval or input, or when the block's thread is not the open one, it shows a quiet notice and sends nothing. `prefillComposer` fills the composer without sending. `copy` writes the clipboard and shows the shared Copied notice. `openUrl` asks for confirmation in the trusted dialog that shows the full URL, then opens it in the system browser, exactly like a visualization link; one confirmation may be pending per block.
+- **Saved state.** When the server advertises `generativeUi`, Desktop reads a thread's saved block states once with `generativeUi/state/read` when its first block starts and passes a block's state to its runner as `initialState`. After user-driven state changes it saves the block's snapshot with `generativeUi/state/update`, debounced to at most one request per 600 ms per block. Loading a block never saves. When `generativeUi/state/updated` reports a state saved by another client, Desktop updates its cached copy, drops that block's pending save, and restores the state into the running program without restarting it. Saved state stays client view data and is never sent to the model.
+- **Copy.** Copying a message omits block source and visualization references and keeps the surrounding prose.
 
 ### 5.9 Interrupt a Running Turn
 

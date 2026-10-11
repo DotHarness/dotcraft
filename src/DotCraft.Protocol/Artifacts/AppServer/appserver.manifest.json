@@ -5791,6 +5791,13 @@
           "const": null
         },
         {
+          "name": "generativeUi",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "interactiveToolUi",
           "type": "boolean",
           "required": false,
@@ -8248,6 +8255,173 @@
         },
         {
           "name": "path",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.GenerativeUiBlockState",
+      "name": "GenerativeUiBlockState",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/GenerativeUiBlockState.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "blockIndex",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "itemId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "state",
+          "type": "json",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "turnId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.GenerativeUiStateReadParams",
+      "name": "GenerativeUiStateReadParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/GenerativeUiStateReadParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.GenerativeUiStateReadResult",
+      "name": "GenerativeUiStateReadResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/GenerativeUiStateReadResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "states",
+          "type": "array<core.GenerativeUiBlockState>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.GenerativeUiStateUpdateParams",
+      "name": "GenerativeUiStateUpdateParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/GenerativeUiStateUpdateParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "blockIndex",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "itemId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "state",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "turnId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.GenerativeUiStateUpdatedNotification",
+      "name": "GenerativeUiStateUpdatedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/GenerativeUiStateUpdatedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "blockIndex",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "itemId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "state",
+          "type": "json",
+          "required": true,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "turnId",
           "type": "string",
           "required": true,
           "nullable": false,
@@ -15738,6 +15912,13 @@
         },
         {
           "name": "fileSystem",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "generativeUi",
           "type": "boolean",
           "required": false,
           "nullable": false,
@@ -28423,6 +28604,62 @@
         "NotAFile",
         "PathBlocked"
       ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "generativeUi/state/read",
+      "descriptorMember": "GenerativeUiStateRead",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.GenerativeUiStateReadParams",
+      "resultType": "core.GenerativeUiStateReadResult",
+      "module": "core",
+      "capability": "generativeUi",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "generativeUi/state/update",
+      "descriptorMember": "GenerativeUiStateUpdate",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.GenerativeUiStateUpdateParams",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "generativeUi",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "generativeUi/state/updated",
+      "descriptorMember": "GenerativeUiStateUpdated",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.GenerativeUiStateUpdatedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "generativeUi",
+      "scope": "thread",
+      "notificationOptOut": true,
+      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

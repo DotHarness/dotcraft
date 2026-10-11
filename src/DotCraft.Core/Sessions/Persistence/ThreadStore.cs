@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Context.Compaction;
 using DotCraft.Context.WorldState;
+using DotCraft.GenerativeUi;
 using DotCraft.Visualizations;
 using DotCraft.Plugins;
 using DotCraft.Persistence;
@@ -61,11 +62,14 @@ public sealed partial class ThreadStore : IAsyncDisposable
         _attachmentStore = new ThreadAttachmentStore(StateDatabase, botPath);
         _historyProjectionStore = new ThreadHistoryProjectionStore(StateDatabase, _metadataStore);
         VisualizationWidgetStates = new VisualizationWidgetStateStore(StateDatabase);
+        GenerativeUiStates = new GenerativeUiStateStore(StateDatabase);
     }
 
     internal WorkspaceStateDatabase StateDatabase { get; }
 
     public VisualizationWidgetStateStore VisualizationWidgetStates { get; }
+
+    public GenerativeUiStateStore GenerativeUiStates { get; }
 
     internal string DataPath => _botPath;
 

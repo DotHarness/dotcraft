@@ -105,6 +105,16 @@
         }
       ]
     },
+    "generativeUi": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "interactiveToolUi": {
       "anyOf": [
         {

@@ -46,9 +46,9 @@ export const MCP_APP_SANDBOX_PROXY_HTML = `<!doctype html><html><head><meta char
     inner = null;
     window.parent.postMessage({ jsonrpc: '2.0', method: ${JSON.stringify(MCP_APP_SANDBOX_BRIDGE_VIOLATION_METHOD)}, params: {} }, '*');
   };
-  const forward = (message) => {
+  const forward = (message, ports) => {
     if (!withinLimit(message)) { violate(); return; }
-    if (inner && inner.contentWindow) inner.contentWindow.postMessage(message, '*');
+    if (inner && inner.contentWindow) inner.contentWindow.postMessage(message, '*', Array.from(ports || []));
   };
   window.addEventListener('message', (event) => {
     if (event.source === window.parent) {
@@ -65,7 +65,7 @@ export const MCP_APP_SANDBOX_PROXY_HTML = `<!doctype html><html><head><meta char
         return;
       }
       if (!withinLimit(message)) { violate(); return; }
-      forward(message);
+      forward(message, event.ports);
       return;
     }
     if (inner && event.source === inner.contentWindow) {

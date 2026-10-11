@@ -22,6 +22,7 @@ interface AgentMessageProps {
   turnId?: string
   itemId?: string
   streaming?: boolean
+  turnRunning?: boolean
   createdAt?: string
   showFooter?: boolean
   /** Whether this message belongs to the latest turn (forks straight to local). */
@@ -37,6 +38,7 @@ export function AgentMessage({
   turnId,
   itemId,
   streaming = false,
+  turnRunning = false,
   createdAt,
   showFooter = true,
   isLastTurn = false,
@@ -105,11 +107,11 @@ export function AgentMessage({
       }}
       onContextMenu={handleContextMenu}
     >
-      {threadId && turnId && itemId && !streaming ? (
-        <ResponseFeedback key={`${threadId}:${turnId}:${itemId}`} threadId={threadId} turnId={turnId} itemId={itemId}>
-          <AssistantMessageContent text={displayText} streaming={false} threadId={threadId} turnId={turnId} itemId={itemId} />
+      {threadId && turnId && itemId ? (
+        <ResponseFeedback key={`${threadId}:${turnId}:${itemId}`} threadId={threadId} turnId={turnId} itemId={itemId} disabled={streaming}>
+          <AssistantMessageContent text={displayText} streaming={streaming} threadId={threadId} turnId={turnId} itemId={itemId} turnRunning={turnRunning} readOnly={readOnly} />
         </ResponseFeedback>
-      ) : <AssistantMessageContent text={displayText} streaming={streaming} threadId={threadId} turnId={turnId} itemId={itemId} />}
+      ) : <AssistantMessageContent text={displayText} streaming={streaming} turnRunning={turnRunning} readOnly={readOnly} />}
       {afterContent}
       {showFooter && (
         <div

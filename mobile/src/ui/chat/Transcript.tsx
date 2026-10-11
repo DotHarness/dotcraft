@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { copyableAssistantText, splitAssistantText } from '../../core/assistantContent'
 import { workspaceFile } from '../../core/links'
 import {
   baseName,
@@ -266,6 +267,30 @@ function ToolLine({ entry }: { entry: ToolEntry }) {
   )
 }
 
+function interactiveEntry(
+  message: Extract<TranscriptEntry, { kind: 'assistant' }>,
+  source: string,
+  index: number,
+  t: I18n['t'],
+): ToolEntry {
+  return {
+    kind: 'tool',
+    id: `${message.id}:interactive:${index}`,
+    verb: 'used',
+    icon: 'other',
+    subject: t('tool.interactiveContent'),
+    details: [{ target: 'dotcraft-ui', output: source }],
+    images: [],
+    startedAt: message.at,
+    category: null,
+    web: null,
+    path: '',
+    created: false,
+    live: false,
+    failed: false,
+  }
+}
+
 function GeneratedImage({ entry }: { entry: Extract<TranscriptEntry, { kind: 'image' }> }) {
   const { t } = useI18n()
   const { colors } = useTheme()
@@ -354,13 +379,21 @@ export function TranscriptLine({
     case 'assistant':
       return (
         <View accessibilityLiveRegion={entry.streaming ? 'polite' : 'none'}>
-          <Markdown text={entry.text} workspacePath={workspacePath} />
+          <View style={styles.assistant}>
+            {splitAssistantText(entry.text, entry.streaming).map((part, index) =>
+              part.kind === 'markdown' ? (
+                <Markdown key={index} text={part.text} workspacePath={workspacePath} />
+              ) : (
+                <ToolLine key={index} entry={interactiveEntry(entry, part.source, index, t)} />
+              ),
+            )}
+          </View>
           {entry.changes ? (
             <View style={styles.changes}>
               <TurnChangesCard changes={entry.changes} />
             </View>
           ) : null}
-          {entry.copy ? <CopyButton text={entry.text} label={t('chat.copy')} style={styles.copy} /> : null}
+          {entry.copy ? <CopyButton text={copyableAssistantText(entry.text)} label={t('chat.copy')} style={styles.copy} /> : null}
         </View>
       )
     case 'reasoning':
@@ -424,6 +457,7 @@ const styles = StyleSheet.create({
   fixed: { flexShrink: 0 },
   line: { lineHeight: 22 },
   user: { alignItems: 'flex-end', gap: 4 },
+  assistant: { gap: 12 },
   origin: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   photos: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6, maxWidth: '84%' },
   photo: { width: 112, maxHeight: 160 },

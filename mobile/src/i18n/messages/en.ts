@@ -68,6 +68,7 @@ export const MESSAGES_EN = {
   'tool.read': 'Read {{subject}}',
   'tool.searched': 'Searched for {{subject}}',
   'tool.used': 'Used {{subject}}',
+  'tool.interactiveContent': 'interactive content',
   'tool.running': 'Running command…',
   'tool.editing': 'Editing file…',
   'tool.reading': 'Reading…',

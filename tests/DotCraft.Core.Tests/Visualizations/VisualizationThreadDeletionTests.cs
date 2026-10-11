@@ -37,6 +37,8 @@ public sealed class VisualizationThreadDeletionTests : IAsyncLifetime
         var state = new VisualizationWidgetState("{\"selected\":\"north\"}", null);
         service.SetVisualizationWidgetState(deleted.Id, Path.Combine(deletedDirectory, "chart.html"), state);
         service.SetVisualizationWidgetState(kept.Id, Path.Combine(keptDirectory, "chart.html"), state);
+        service.SetGenerativeUiState(deleted.Id, "turn_a", "item_a", 0, "{\"tab\":\"a\"}");
+        service.SetGenerativeUiState(kept.Id, "turn_a", "item_a", 0, "{\"tab\":\"b\"}");
 
         await service.DeleteThreadPermanentlyAsync(deleted.Id);
 
@@ -44,6 +46,8 @@ public sealed class VisualizationThreadDeletionTests : IAsyncLifetime
         Assert.True(File.Exists(Path.Combine(keptDirectory, "chart.html")));
         Assert.Null(_store.VisualizationWidgetStates.Load(deleted.Id, Path.Combine(deletedDirectory, "chart.html")));
         Assert.Equal(state, _store.VisualizationWidgetStates.Load(kept.Id, Path.Combine(keptDirectory, "chart.html")));
+        Assert.Empty(_store.GenerativeUiStates.Load(deleted.Id));
+        Assert.Equal("{\"tab\":\"b\"}", Assert.Single(_store.GenerativeUiStates.Load(kept.Id)).StateJson);
     }
 
     private string WriteVisualization(string threadId)

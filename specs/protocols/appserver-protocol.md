@@ -162,6 +162,7 @@ Client                              Server
 | `capabilities.configChange` | boolean | no | Whether the client wants `config/changed` notifications. Default `true`. |
 | `capabilities.mcpApps` | boolean | no | Whether this connection hosts stable MCP Apps views and accepts the opaque `mcpApp/view/*` contract. Default `false`. |
 | `capabilities.visualizations` | boolean | no | Whether this connection can host assistant visualization views. Default `false`. |
+| `capabilities.generativeUi` | boolean | no | Whether this connection renders Generative UI blocks in assistant messages and saves their view state with the `generativeUi/state/*` methods. Default `false`. |
 | `capabilities.mcpElicitation` | boolean | no | Whether the client can answer `mcpServer/elicitation/request` form and URL requests. Default `false`; servers fail the MCP request with a client-unavailable result when no capable client owns the thread. |
 | `capabilities.optOutNotificationMethods` | string[] | no | Exact notification method names to suppress for this connection. See [Section 10](#10-notification-opt-out). |
 | `capabilities.channelAdapter` | object | no | External channel adapter metadata. When present, the connection is treated as the remote backend for one unified channel runtime. See [channel requests](#112-unified-channel-runtime-remote-projection). |
@@ -304,6 +305,7 @@ Built-in channels and external adapters share the delivery and tool-call contrac
 | `capabilities.mcpRuntime` | boolean | Server supports the MCP runtime/control methods and notifications in Section 22. |
 | `capabilities.mcpApps` | boolean | Server supports the stable MCP Apps `2026-01-26` opaque View methods in Section 22.10. A client must also advertise `capabilities.mcpApps` before using them. |
 | `capabilities.visualizations` | boolean | Server supports the connection-scoped `visualization/view/*` methods and the `visualization/widgetState/updated` notification in Section 22.10A. A client must also advertise this capability before using or receiving them. |
+| `capabilities.generativeUi` | boolean | Server supports the `generativeUi/state/*` methods and the `generativeUi/state/updated` notification in Section 22.10B and tells the model about Generative UI in threads bound by the connection. Reported only when the client advertises this capability. |
 | `capabilities.mcpServerOrigins` | boolean | Server annotates MCP config/status DTOs with `origin` and `readOnly` so clients can show plugin-bundled MCP servers as read-only runtime entries. |
 | `capabilities.externalChannelManagement` | boolean | Server supports external channel configuration and diagnostic methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`, `externalChannel/logs`). |
 | `capabilities.agentProfileManagement` | boolean | Server supports Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/refreshThread`, `agent/profiles/builderDraft/read`, `agent/profiles/builderDraft/update`, and the Agent package methods in Section 23A.8A). |
@@ -5491,6 +5493,45 @@ with `optOutNotificationMethods`.
 
 Stable reason codes include `not_available`, `not_referenced`, `not_found`, `unsafe_path`,
 `stale_view`, `state_too_large`, and `context_too_large`.
+
+### 22.10B Generative UI State
+
+These methods require both peers to advertise `generativeUi = true`. They store the view state of
+Generative UI blocks, the fenced `dotcraft-ui` blocks that a client renders from a completed
+AgentMessage as defined in [Generative UI](../features/generative-ui.md). A block is identified by
+its thread, turn, item, and zero-based `blockIndex` among the item's Generative UI blocks. The
+state is client view data: the server never sends it to the model, never starts or queues a turn
+when it changes, and deletes it with its thread. States are mutable and independent of immutable
+items, so they are not projected onto `agentMessage` items; a client reads them once per thread.
+
+`GenerativeUiBlockState` is
+`{ "turnId": string, "itemId": string, "blockIndex": number, "state": any }`.
+
+#### 22.10B.1 `generativeUi/state/read`
+
+**Direction:** client → server. Params are `{ "threadId": string }`. Result is
+`{ "states": GenerativeUiBlockState[] }`, ordered by `turnId`, `itemId`, then `blockIndex`. An
+unknown thread fails with reason code `not_found`.
+
+#### 22.10B.2 `generativeUi/state/update`
+
+**Direction:** client → server. Params are
+`{ "threadId": string, "turnId": string, "itemId": string, "blockIndex": number, "state"?: any | null }`;
+result is `{}`. The server replaces the state stored for the block. An omitted or `null` `state`
+removes it. The thread must exist and the turn must contain the item as an AgentMessage, otherwise
+the request fails with `not_found`. `blockIndex` must be zero or greater (`invalid_block`), and the
+serialized `state` must not exceed 16 KiB of UTF-8 (`state_too_large`).
+
+#### 22.10B.3 `generativeUi/state/updated`
+
+**Direction:** server → client notification. Params are
+`{ "threadId": string, "turnId": string, "itemId": string, "blockIndex": number, "state": any | null }`.
+After `generativeUi/state/update` succeeds, the server sends the stored state to every other open
+connection that advertised `generativeUi` and holds a `thread/subscribe` subscription to the
+thread. The connection that saved it does not receive it. `state` is `null` when the update removed
+it. Clients may opt out with `optOutNotificationMethods`.
+
+Stable reason codes include `not_found`, `invalid_block`, and `state_too_large`.
 
 ### 22.11 Error Codes
 

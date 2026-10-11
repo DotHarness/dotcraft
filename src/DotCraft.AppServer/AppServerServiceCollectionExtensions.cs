@@ -1,6 +1,7 @@
 using DotCraft.Agents;
 using DotCraft.AppBinding;
 using DotCraft.Context;
+using DotCraft.GenerativeUi;
 using DotCraft.Visualizations;
 using DotCraft.Tools;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,9 @@ public static class AppServerServiceCollectionExtensions
         services.TryAddSingleton<VisualizationRuntimeRegistry>();
         services.AddSingleton<IThreadSystemPromptContextProvider>(provider =>
             provider.GetRequiredService<VisualizationRuntimeRegistry>());
+        services.TryAddSingleton<GenerativeUiRuntimeRegistry>();
+        services.AddSingleton<IThreadSystemPromptContextProvider>(provider =>
+            provider.GetRequiredService<GenerativeUiRuntimeRegistry>());
         services.TryAddSingleton<WireDynamicToolProxy>();
         services.AddSingleton<IToolSource>(provider => provider.GetRequiredService<WireDynamicToolProxy>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider,

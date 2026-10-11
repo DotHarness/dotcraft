@@ -1,0 +1,6 @@
+interface:
+  display_name: "Generative UI"
+  short_description: "Answer with small interactive tools, forms, and choices"
+  icon_small: "./assets/generative-ui-small.svg"
+  icon_large: "./assets/generative-ui.svg"
+  default_prompt: "Use $generative-ui to turn this answer into a small interactive tool."

@@ -11,6 +11,7 @@ using DotCraft.Logging;
 using DotCraft.Hosting;
 using DotCraft.Runtime;
 using DotCraft.Hooks;
+using DotCraft.GenerativeUi;
 using DotCraft.Visualizations;
 using DotCraft.Memory;
 using DotCraft.Dreams;
@@ -352,6 +353,7 @@ public sealed class AppServerHost(
                 McpAppTransientContextStore = _services.GetService<McpAppTransientContextStore>(),
                 VisualizationAssetStore = _services.GetService<VisualizationAssetStore>(),
                 VisualizationRuntimeRegistry = _services.GetService<VisualizationRuntimeRegistry>(),
+                GenerativeUiRuntimeRegistry = _services.GetService<GenerativeUiRuntimeRegistry>(),
                 ThreadSubscribers = threadSubscribers,
                 LspServerManager = runtime.LspServerManager,
                 BroadcastMcpStatusChanged = BroadcastMcpStatusChanged,
@@ -412,6 +414,7 @@ public sealed class AppServerHost(
                 WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
                 _services.GetService<WireRuntimeAdditionalContextProvider>(),
                 _services.GetService<VisualizationRuntimeRegistry>(),
+                _services.GetService<GenerativeUiRuntimeRegistry>(),
                 runtime.ContextPageManager,
                 runtime.SessionService as IThreadAgentRefreshService,
                 _logger,
@@ -478,6 +481,7 @@ public sealed class AppServerHost(
                 WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
                 _services.GetService<WireRuntimeAdditionalContextProvider>(),
                 _services.GetService<VisualizationRuntimeRegistry>(),
+                _services.GetService<GenerativeUiRuntimeRegistry>(),
                 runtime.ContextPageManager,
                 runtime.SessionService as IThreadAgentRefreshService,
                 _logger,
@@ -646,6 +650,7 @@ public sealed class AppServerHost(
                             WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
                             _services.GetService<WireRuntimeAdditionalContextProvider>(),
                             _services.GetService<VisualizationRuntimeRegistry>(),
+                            _services.GetService<GenerativeUiRuntimeRegistry>(),
                             runtime.ContextPageManager,
                             runtime.SessionService as IThreadAgentRefreshService,
                             _logger,
@@ -669,6 +674,7 @@ public sealed class AppServerHost(
                     WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
                     _services.GetService<WireRuntimeAdditionalContextProvider>(),
                     _services.GetService<VisualizationRuntimeRegistry>(),
+                    _services.GetService<GenerativeUiRuntimeRegistry>(),
                     runtime.ContextPageManager,
                     runtime.SessionService as IThreadAgentRefreshService,
                     _logger,
@@ -707,6 +713,7 @@ public sealed class AppServerHost(
         WireDynamicToolProxy? wireDynamicToolProxy,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider,
         VisualizationRuntimeRegistry? visualizationRuntimeRegistry,
+        GenerativeUiRuntimeRegistry? generativeUiRuntimeRegistry,
         IContextPageManager? contextPageManager,
         IThreadAgentRefreshService? threadAgentRefreshService,
         ILogger logger,
@@ -777,6 +784,15 @@ public sealed class AppServerHost(
             foreach (var threadId in visualizationRuntimeRegistry.UnbindTransport(transport))
             {
                 contextPageManager?.ReleaseStablePage(threadId, ContextPageKeys.Visualization());
+                if (threadAgentRefreshService != null)
+                    await RefreshThreadAgentAfterCapabilityCleanupAsync(threadAgentRefreshService, threadId, logger);
+            }
+        }
+        if (generativeUiRuntimeRegistry != null)
+        {
+            foreach (var threadId in generativeUiRuntimeRegistry.UnbindConnection(connection))
+            {
+                contextPageManager?.ReleaseStablePage(threadId, ContextPageKeys.GenerativeUi());
                 if (threadAgentRefreshService != null)
                     await RefreshThreadAgentAfterCapabilityCleanupAsync(threadAgentRefreshService, threadId, logger);
             }

@@ -6,6 +6,11 @@
 
 declare const __APP_VERSION__: string
 
+declare module '*?bundled' {
+  const source: string
+  export default source
+}
+
 // Make React.JSX.Element available as JSX.Element globally
 declare namespace JSX {
   type Element = React.JSX.Element

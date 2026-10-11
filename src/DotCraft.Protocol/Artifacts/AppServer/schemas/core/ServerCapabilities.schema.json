@@ -62,6 +62,9 @@
     "fileSystem": {
       "type": "boolean"
     },
+    "generativeUi": {
+      "type": "boolean"
+    },
     "gitWorktrees": {
       "type": "boolean"
     },

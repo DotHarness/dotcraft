@@ -1,6 +1,7 @@
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions.Wire;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
+using DotCraft.GenerativeUi;
 using DotCraft.Visualizations;
 
 namespace DotCraft.Sessions;
@@ -132,6 +133,14 @@ public interface ISessionService
     /// <summary>Replaces the widget state saved by a Thread's visualization.</summary>
     void SetVisualizationWidgetState(string threadId, string path, VisualizationWidgetState state) =>
         throw new NotSupportedException("Visualization widget state is not supported by this session service.");
+
+    /// <summary>Returns the view states saved by a Thread's Generative UI blocks.</summary>
+    IReadOnlyList<GenerativeUiBlockState> GetGenerativeUiStates(string threadId) =>
+        throw new NotSupportedException("Generative UI state is not supported by this session service.");
+
+    /// <summary>Replaces a Generative UI block's view state; a <c>null</c> state removes it.</summary>
+    void SetGenerativeUiState(string threadId, string turnId, string itemId, int blockIndex, string? stateJson) =>
+        throw new NotSupportedException("Generative UI state is not supported by this session service.");
 
     /// <summary>Creates, replaces, or updates a Thread goal.</summary>
     Task<ThreadGoal> SetThreadGoalAsync(

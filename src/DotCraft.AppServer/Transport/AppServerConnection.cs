@@ -68,6 +68,9 @@ public sealed class AppServerConnection
     /// <summary>True when the client declared assistant visualization support.</summary>
     public bool SupportsVisualizations => _clientCapabilities?.Visualizations == true;
 
+    /// <summary>True when the client declared Generative UI support.</summary>
+    public bool SupportsGenerativeUi => _clientCapabilities?.GenerativeUi == true;
+
     // -------------------------------------------------------------------------
     // Channel adapter state (external-channel-adapter.md §5.1)
     // -------------------------------------------------------------------------

@@ -1563,7 +1563,7 @@ appearance changes without hard-coded values: `.btn` is the text `Button` (stand
 button, transparent `.btn-ghost`), `.form-control` the field `Input`, `.form-select` the field
 `Select` trigger, opening the shared select menu beside it rather than the platform popup, `.form-check` the `Checkbox` (a radio is its round twin with an on-accent dot),
 `.form-switch` the medium `PillSwitch`, `.form-range` the shared slider with its accent fill,
-`.viz-badge` the neutral status badge, `.table` a frameless data table, and the tooltip the
+`.viz-badge` the neutral status badge, `.table` the Generative UI data table, and the tooltip the
 inverse action tooltip. Hover, focus, invalid, and disabled states follow the same components.
 Scrollbars inside a view are the shared [Scrollbars](#scrollbars) from the same tokens, and a view
 that scrolls in the fullscreen viewer reserves the gutter on both edges, so the bar never covers
@@ -1630,6 +1630,60 @@ The top-right toolbar pill holds the visualization title (medium weight, truncat
 Design controls when the view registers any, Copy as image, and Exit fullscreen; it has no zoom or
 download. The viewer sits below dialogs
 and toasts, so a follow-up or link confirmation raised from the fullscreen view appears above it.
+
+### Generative UI
+
+Generative UI answers (see [Generative UI](../features/generative-ui.md)) render natively in the
+reading column with Desktop's own components, never in a visible frame. The answer carries no
+header, attribution row, or host chrome; it sits 8px from the surrounding Markdown and spans the
+column width.
+
+- **Surfaces.** A `Card` is one `--bg-secondary` surface with an 8px radius, no border or shadow,
+  16px padding (12px compact, 20px roomy, or none), and 12px between children. Its title is
+  conversation-size semibold and its subtitle `--text-secondary` at the secondary size. A `Box`
+  may take `--bg-secondary` or `--bg-tertiary` and a 6px or 8px radius; nothing else adds fills.
+- **Spacing and layout.** `Row` and `Col` default to an 8px gap; authors may choose any gap up to
+  64px. Children of a column stretch to its width, except buttons, badges, icons, and images, which
+  keep their own width. A row that holds buttons or badges wraps them onto further lines at the same
+  gap instead of letting them leave the card, and a button never grows past its container: a label
+  too long for it truncates. Text wraps at word boundaries and never breaks inside a word.
+- **Type.** Body text uses the conversation scale; `Caption` and table text use the meta and
+  secondary sizes on `--text-secondary`. Large figures use the detail-title and title sizes with
+  tabular numerals. Tones map to `--text-*` and the semantic `--*-text` inks only.
+- **Controls.** Every control is the shared production control: `Button` (neutral inversion for
+  primary, the frameless fill for secondary), the field `Input`/`Textarea` with the warning border
+  for `error`, the field `Select`, `Checkbox`, the shared `SegmentedControl`, and the shared slider
+  stretched to the field width with its value at the trailing edge. Radios mirror the checkbox:
+  a 17px ring that fills with `--accent` and shows an `--on-accent` dot, with the checkbox's hover.
+  A `Badge` is the shared status badge. Field labels sit 6px above
+  the control in secondary medium type; hints follow in `--text-dimmed`, errors in `--error-text`.
+- **Data.** Tables are frameless: secondary-size rows divided by `--border-subtle`, a medium
+  `--text-secondary` header, numbers right-aligned in tabular numerals, and horizontal scrolling
+  instead of squeezing. Lists separate items with gap, or with `--border-subtle` when divided.
+- **Charts.** Series take `--chart-series-1` to `-4` in order and fold the rest into
+  `--chart-series-other`. Grid lines are horizontal `--border-subtle`; axes have no lines and use
+  11px `--text-dimmed` ticks, thinned so labels never collide. Line and area strokes are 2px, bars
+  have a 4px top radius, and donuts separate slices with a 1° gap. The tooltip is the inverse
+  surface. A legend appears below when there is more than one series.
+- **Icons.** Lucide icons by name at 16px with a 1.75 stroke, in the current text color or a
+  `--*-text` tone. While an icon loads, its box is reserved empty.
+- **Images.** Only embedded images render, with an 8px radius by default. An image that cannot
+  load becomes a `--bg-tertiary` placeholder with its alt text in `--text-dimmed`.
+- **Loading.** From the first runner request to the first snapshot, while a block waits for the
+  conversation to scroll near it, and while its closing fence has not arrived, one card-shaped
+  skeleton holds the place: a title line, two body lines, and two pill
+  controls on `--bg-secondary`. There is no spinner.
+- **Failed.** A failure is one quiet notice: `--bg-secondary`, 8px radius, a 14px alert icon in
+  `--error-text`, the sentence in `--text-secondary`, and the stage, position, and message as a
+  `--text-dimmed` meta line clamped to two lines, with a secondary `Retry` at the trailing edge.
+- **Locked.** While a block's message streams or its turn runs, its controls show their shared
+  disabled state at full opacity; the block is never dimmed for this.
+- **Inert.** When a block fails after it has rendered, its last frame stays in place at 60% opacity,
+  inert and with every control disabled, and the failure notice sits 12px below it.
+- **Invalid nodes.** A component that fails validation is replaced in place by one meta-size line:
+  a 14px alert icon in `--error-text` and the component name and reason in `--text-secondary`,
+  truncated to one line wherever the node sits, with the full reason in its tooltip. The rest of the
+  answer renders normally.
 
 ### Image preview
 

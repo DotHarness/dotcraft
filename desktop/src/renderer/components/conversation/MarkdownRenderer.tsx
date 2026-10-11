@@ -93,7 +93,26 @@ function remarkMath(this: { data(): unknown }): void {
 }
 
 const remarkPlugins: PluggableList = [remarkGfm, remarkMath]
-const noRehypePlugins: PluggableList = []
+
+const LINE_BREAK = /^<br\s*\/?>$/i
+
+type HastNode = { type: string; value?: string; children?: HastNode[] }
+
+function rehypeLineBreaks(): (tree: HastNode) => void {
+  return replaceLineBreaks
+}
+
+function replaceLineBreaks(node: HastNode): void {
+  node.children?.forEach((child, index, children) => {
+    if (child.type === 'raw' && LINE_BREAK.test(child.value?.trim() ?? '')) {
+      children[index] = { type: 'element', tagName: 'br', properties: {}, children: [] } as HastNode
+    } else {
+      replaceLineBreaks(child)
+    }
+  })
+}
+
+const noRehypePlugins: PluggableList = [rehypeLineBreaks]
 let katexPlugins: PluggableList | null = null
 let katexLoading: Promise<PluggableList> | null = null
 
@@ -104,7 +123,7 @@ function useKatexPlugins(): PluggableList {
     if (plugins) return
     let mounted = true
     katexLoading ??= Promise.all([import('rehype-katex'), import('katex/dist/katex.min.css'), import('./markdownMath.css')])
-      .then(([{ default: rehypeKatex }]) => (katexPlugins = [rehypeKatex]))
+      .then(([{ default: rehypeKatex }]) => (katexPlugins = [rehypeLineBreaks, rehypeKatex]))
     void katexLoading.then((loaded) => mounted && setPlugins(loaded))
     return () => { mounted = false }
   }, [plugins])

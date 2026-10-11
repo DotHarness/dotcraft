@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Threading.Channels;
 using DotCraft.Agents;
+using DotCraft.GenerativeUi;
 using DotCraft.Visualizations;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
@@ -228,6 +229,12 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
 
     public void SetVisualizationWidgetState(string threadId, string path, VisualizationWidgetState state)
         => _store.VisualizationWidgetStates.Save(threadId, path, state);
+
+    public IReadOnlyList<GenerativeUiBlockState> GetGenerativeUiStates(string threadId)
+        => _store.GenerativeUiStates.Load(threadId);
+
+    public void SetGenerativeUiState(string threadId, string turnId, string itemId, int blockIndex, string? stateJson)
+        => _store.GenerativeUiStates.Save(threadId, turnId, itemId, blockIndex, stateJson);
 
     /// <summary>Seeds a thread (with any pre-built turns/items) into the store + cache for tests.</summary>
     public async Task SeedThreadAsync(SessionThread thread, CancellationToken ct = default)
