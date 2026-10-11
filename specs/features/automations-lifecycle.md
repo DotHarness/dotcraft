@@ -17,6 +17,8 @@ prompt, status (active/paused/completed), executionMode (thread/independent), nu
 targetThreadId, workspaceMode (project/worktree), optional agentProfileId,
 approvalPolicy (workspaceScope/fullAuto), schedule, notificationPolicy (important/all/failures),
 optional origin, createdAt, updatedAt and nullable nextRunAt (UTC ISO timestamps).
+Runs auto-approve their tool calls. Under workspaceScope, file and shell tools are refused
+outside the run's workspace; under fullAuto, access outside it is auto-approved.
 Origin preserves channel, userId, groupId and deliveryTarget independently of execution.
 The host captures origin; models cannot impersonate a creator.
 

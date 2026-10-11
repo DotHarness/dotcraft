@@ -66,6 +66,7 @@ public sealed class AutomationExecutionIntegrationTests
             var thread = await sessions.GetThreadAsync(recorded.ThreadId!);
             var turn = Assert.Single(thread.Turns);
             Assert.Equal(recorded.TurnId, turn.Id);
+            Assert.False(thread.Configuration?.RequireApprovalOutsideWorkspace);
             Assert.Equal(TurnStatus.Completed, turn.Status);
             Assert.Equal("automation", turn.Input?.AsUserMessage?.TriggerKind);
             Assert.Equal(id, turn.Input?.AsUserMessage?.TriggerRefId);

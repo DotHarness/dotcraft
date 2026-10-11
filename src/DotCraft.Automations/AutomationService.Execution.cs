@@ -75,7 +75,7 @@ public sealed partial class AutomationService
                 // Every run of one automation is a fresh Thread, so its memory belongs to the automation.
                 threadConfig.MemoryScope = definition.Id;
                 threadConfig.ApprovalPolicy = ApprovalPolicy.AutoApprove;
-                threadConfig.RequireApprovalOutsideWorkspace = definition.ApprovalPolicy != "fullAuto";
+                threadConfig.RequireApprovalOutsideWorkspace = definition.ApprovalPolicy == "fullAuto";
                 threadId = await client.CreateThreadAsync("automations", "run-" + run.Id, threadConfig, ct, definition.Name);
                 run = run with { ThreadId = threadId };
                 await SaveRunAsync(run);
