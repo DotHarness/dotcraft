@@ -32,6 +32,7 @@
     "micromark-factory-space": "^2.1.0",
     "micromark-util-character": "^2.1.1",
     "react": "^19.0.0",
+    "react-colorful": "^5.8.1",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "recharts": "^3.10.1",
