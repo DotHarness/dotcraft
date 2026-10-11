@@ -3110,6 +3110,7 @@ export const MESSAGES_ES = {
   'openTargets.fileManager': 'Explorador de archivos',
   'openTargets.loading': 'Cargando apps disponibles…',
   'openTargets.loadFailed': 'No se pudieron cargar las apps. Vuelve a abrir el menú para reintentar',
+  'openTargets.noneFound': 'No se encontraron apps',
   'plugins.installBrowserUse': 'Instalar navegador',
   'plugins.installDialog.pluginStep': 'Agregar complemento a DotCraft',
   'plugins.installDialog.installed': 'Instalado',

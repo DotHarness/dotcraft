@@ -2148,6 +2148,7 @@ export const MESSAGES_ZH_HANS = {
   'openTargets.fileManager': '文件资源管理器',
   'openTargets.loading': '正在加载可用应用…',
   'openTargets.loadFailed': '无法加载应用，请重新打开菜单重试',
+  'openTargets.noneFound': '未找到可用应用',
 
   'plugins.pageTitle': '插件',
   'plugins.tab.plugins': '插件',

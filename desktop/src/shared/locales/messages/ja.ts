@@ -3109,6 +3109,7 @@ export const MESSAGES_JA = {
   'openTargets.fileManager': 'ファイルエクスプローラー',
   'openTargets.loading': '利用可能なアプリを読み込んでいます…',
   'openTargets.loadFailed': 'アプリを読み込めません。メニューを開き直して再試行してください',
+  'openTargets.noneFound': 'アプリが見つかりません',
   'plugins.installBrowserUse': 'ブラウザのインストール',
   'plugins.installDialog.pluginStep': 'DotCraftにプラグインを追加',
   'plugins.installDialog.installed': 'インストール済み',

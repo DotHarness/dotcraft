@@ -41,22 +41,18 @@ export function ChatsFolderRow(): JSX.Element {
   return (
     <SettingsRow
       label={t('settings.chatsFolder.label')}
-      description={(
-        <>
-          {t('settings.chatsFolder.description')}
-          {folder && <div className={styles.path}>{folder.path}</div>}
-        </>
-      )}
+      description={t('settings.chatsFolder.description')}
       control={(
         <div className={styles.actions}>
+          {folder && <span className={styles.path} title={folder.path}>{folder.path}</span>}
+          <Button variant="secondary" disabled={saving} onClick={() => { void change() }}>
+            {t('settings.chatsFolder.change')}
+          </Button>
           {folder?.customized && (
             <Button variant="ghost" disabled={saving} onClick={() => { void save('') }}>
               {t('settings.chatsFolder.reset')}
             </Button>
           )}
-          <Button variant="secondary" disabled={saving} onClick={() => { void change() }}>
-            {t('settings.chatsFolder.change')}
-          </Button>
         </div>
       )}
     />

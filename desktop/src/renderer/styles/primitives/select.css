@@ -105,6 +105,15 @@
   opacity: 0.62;
 }
 
+.dc-settings-select__icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 .dc-settings-select__value {
   flex: 1;
   min-width: 0;

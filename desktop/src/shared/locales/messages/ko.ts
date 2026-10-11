@@ -3111,6 +3111,7 @@ export const MESSAGES_KO = {
   'openTargets.fileManager': '파일 탐색기',
   'openTargets.loading': '사용 가능한 앱을 불러오는 중…',
   'openTargets.loadFailed': '앱을 불러올 수 없습니다. 메뉴를 다시 열어 재시도하세요',
+  'openTargets.noneFound': '앱을 찾을 수 없습니다',
   'plugins.installBrowserUse': '브라우저 설치',
   'plugins.installDialog.pluginStep': 'DotCraft에 플러그인 추가',
   'plugins.installDialog.installed': '설치됨',

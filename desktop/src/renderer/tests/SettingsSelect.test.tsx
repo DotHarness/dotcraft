@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SettingsSelect } from '../components/settings/ui/SettingsSelect'
 
@@ -107,4 +107,21 @@ describe('SettingsSelect', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
+  it('shows the selected option icon in the trigger', () => {
+    render(
+      <SettingsSelect
+        ariaLabel="Open in"
+        value="code"
+        onValueChange={() => undefined}
+        options={[
+          { value: 'files', label: 'Files', icon: <svg data-testid="files-icon" /> },
+          { value: 'code', label: 'Code', icon: <svg data-testid="code-icon" /> }
+        ]}
+      />
+    )
+
+    const trigger = screen.getByRole('combobox', { name: 'Open in' })
+    expect(within(trigger).getByTestId('code-icon')).toBeInTheDocument()
+    expect(within(trigger).queryByTestId('files-icon')).not.toBeInTheDocument()
+  })
 })

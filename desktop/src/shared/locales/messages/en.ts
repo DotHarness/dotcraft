@@ -2186,6 +2186,7 @@ export const MESSAGES_EN = {
   'openTargets.fileManager': 'File Explorer',
   'openTargets.loading': 'Loading available apps…',
   'openTargets.loadFailed': 'Unable to load apps. Reopen menu to retry',
+  'openTargets.noneFound': 'No apps found',
 
   // Plugins
   'plugins.pageTitle': 'Plugins',
