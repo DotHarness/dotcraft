@@ -1,0 +1,74 @@
+body {
+  background: var(--bg-primary);
+}
+
+html[data-theme="light"] body {
+  background: var(--bg-primary);
+}
+
+.showcase {
+  padding: 20px clamp(12px, 3vw, 24px) 16px;
+}
+
+.showcase--builder {
+  height: 100%;
+  padding: 0;
+}
+
+.showcase-conversation .showcase-answer {
+  min-width: 0;
+}
+
+.showcase-builder {
+  position: relative;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+}
+
+.showcase-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+  animation: showcase-note-in 160ms ease-out;
+}
+
+.showcase-note__icon {
+  flex: none;
+  margin-top: 1px;
+}
+
+.showcase-note-region--floating {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  z-index: 50;
+  width: max-content;
+  max-width: min(520px, calc(100% - 32px));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.showcase-note-region--floating .showcase-note {
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+}
+
+@keyframes showcase-note-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .showcase-note {
+    animation: none;
+  }
+}

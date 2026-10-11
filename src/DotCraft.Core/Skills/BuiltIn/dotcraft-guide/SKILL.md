@@ -36,7 +36,7 @@ Cite only `www.dotcraft.net` and `github.com/DotHarness/dotcraft`. Never invent 
 | "From now on, whenever X happens, do Y", mechanically | A hook — `$create-hooks`. Not memory, and not prose in a file |
 | Something on a schedule | the `Automation` tool |
 | Parallel orchestration across many items | `$workflow-authoring` |
-| A chat bot on QQ, WeCom, Feishu, Telegram, or Weixin | Desktop > Channels, and `/features/channels/` for setup |
+| A chat bot on QQ, WeCom, Feishu, Telegram, or Weixin | Desktop > Channels, and `/guide/channels/` for setup |
 
 Split a mixed request and place each part separately.
 

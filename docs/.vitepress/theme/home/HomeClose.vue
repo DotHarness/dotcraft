@@ -44,7 +44,7 @@ const mascot = ref<InstanceType<typeof PerchedMascot>>()
         </div>
       </div>
       <div class="dc-close__context">
-        <a class="dc-button" data-variant="primary" data-size="prominent" :href="href('/getting-started')">{{ t.start }}</a>
+        <a class="dc-button" data-variant="primary" data-size="prominent" :href="href('/start/')">{{ t.start }}</a>
         <DownloadSplit drop="up" />
       </div>
     </div>

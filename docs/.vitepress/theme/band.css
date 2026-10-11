@@ -2,8 +2,7 @@
   position: relative;
   z-index: 20;
   display: grid;
-  grid-template-columns: minmax(0, 720px);
-  justify-content: center;
+  grid-template-columns: var(--dc-doc-columns);
   align-items: center;
   height: var(--dc-band-height);
   padding: 0 32px;
@@ -43,7 +42,7 @@
 
 .dc-crumbs {
   display: flex;
-  grid-area: 1 / 1;
+  grid-area: 1 / 2;
   align-items: center;
   gap: 4px;
   min-width: 0;
@@ -85,16 +84,19 @@ a.dc-crumbs__item:hover {
 
 .dc-band__actions {
   display: flex;
-  grid-area: 1 / 1;
+  grid-area: 1 / 2;
   justify-self: end;
   align-items: center;
   gap: 2px;
 }
 
 @media (min-width: 1280px) {
+  .VPDoc .dc-band {
+    grid-template-columns: var(--dc-doc-columns-centered);
+  }
+
   .VPDoc.has-aside .dc-band {
-    grid-template-columns: minmax(0, 720px) 216px;
-    column-gap: 72px;
+    grid-template-columns: var(--dc-doc-columns-aside);
   }
 
   .VPDoc.has-aside .dc-crumbs {
@@ -102,7 +104,9 @@ a.dc-crumbs__item:hover {
   }
 
   .VPDoc.has-aside .dc-band__actions {
-    grid-area: 1 / 2;
+    grid-area: 1 / 3 / 2 / 5;
+    width: var(--dc-aside-width);
+    justify-content: flex-end;
   }
 }
 

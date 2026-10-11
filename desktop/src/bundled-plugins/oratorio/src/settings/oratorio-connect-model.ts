@@ -58,7 +58,7 @@ export interface ConnectContext {
 export const DOCS_BASE_URL = 'https://www.dotcraft.net'
 
 export function connectDocsUrl(provider: SourceProvider, locale: string): string {
-  return `${DOCS_BASE_URL}${locale === 'zh-Hans' ? '/zh' : ''}/features/oratorio/${provider}`
+  return `${DOCS_BASE_URL}${locale === 'zh-Hans' ? '/zh' : ''}/guide/oratorio/${provider}`
 }
 
 export function githubAppConfigured(settings: OratorioSettingsConfig): boolean {

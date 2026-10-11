@@ -15,8 +15,10 @@ conventions of their owning project; sample and example READMEs follow `sample-r
 
 ## Section layout (audience map)
 
-- **End-user** content: root `getting-started.md` and `features/`.
-- **Developer** sections: `developing/` (architecture, lifecycle, configuration, protocols, sdks, integrations, channels).
+Each top-level directory is one nav tab with its own sidebar in `docs/.vitepress/sidebar.ts`.
+
+- **End-user** content: `start/` (install and entry points), `guide/` (features, channels, Oratorio), `self-hosting/`, and `configuration/`.
+- **Developer** content: `extend/` (plugins, apps, SDKs, Harness, protocols) for people building on DotCraft, and `contribute/` (workflow, architecture, lifecycle, debugging) for DotCraft contributors.
 
 Treat the current VitePress navigation as authoritative. Place a new page where its audience already lives; ask before creating it when no current section owns the topic.
 
@@ -57,11 +59,11 @@ Group parallel examples with VitePress code-group, canonical order **TypeScript 
 
 ## Documentation-site page footer
 
-A **Related docs** section (localized naturally, e.g. 相关文档) is **optional**. Keep it only when the page has genuine same-audience next steps — curated, usually 2–3 entries, each with a short reason. User (features) pages never list developer references or architecture pages in the footer; those links go inline at the sentence that needs them. Omit the section entirely when nothing qualifies. Custom locale landing pages and repository READMEs follow their own structure.
+A **Related docs** section (localized naturally, e.g. 相关文档) is **optional**. Keep it only when the page has genuine same-audience next steps — curated, usually 2–3 entries, each with a short reason. User pages never list developer references or architecture pages in the footer; those links go inline at the sentence that needs them. Omit the section entirely when nothing qualifies. Custom locale landing pages and repository READMEs follow their own structure.
 
 ## Overview pages for feature groups
 
-Each sidebar group under Features gets an `index.md` overview: a short value paragraph, the group's hero diagram, then a grouped tour with inline links — one or two declarative sentences per page, organized under benefit-led `##` headings. The sidebar group link points at the overview and the group's first child item is a localized "Overview" entry (see the Agent System group for the pattern).
+A feature area gets an `index.md` overview: a short value paragraph, the area's hero diagram, then a grouped tour with inline links — one or two declarative sentences per page, organized under benefit-led `##` headings. Its first sidebar item is a localized "Overview" entry (see `guide/index.md` and `guide/channels/index.md`).
 
 ## Chinese (zh) terminology
 

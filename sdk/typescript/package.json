@@ -7,7 +7,7 @@
     "url": "git+https://github.com/DotHarness/dotcraft.git",
     "directory": "sdk/typescript"
   },
-  "homepage": "https://www.dotcraft.net/developing/sdks/",
+  "homepage": "https://www.dotcraft.net/extend/sdks/",
   "bugs": {
     "url": "https://github.com/DotHarness/dotcraft/issues"
   },

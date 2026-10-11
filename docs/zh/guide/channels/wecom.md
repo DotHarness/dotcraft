@@ -1,0 +1,56 @@
+# 将 DotCraft 接入企业微信
+
+用企业微信管理后台中的回调设置，把企业微信群机器人接成 DotCraft 的一个[渠道](./)。
+
+## 快速设置
+
+1. 在 DotCraft Desktop 打开目标 workspace。
+2. 打开 **Channels**，选择 **企业微信**，然后选择 **Connect**。
+
+   ![在企业微信渠道详情页开始连接](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/wecom-detail.png)
+
+3. 设置回调监听 host、port 和 scheme。默认本地监听是 `0.0.0.0:9000`。
+4. 添加机器人配置，填写回调 path、Token 和 EncodingAESKey。
+5. 至少添加一个管理员用户、允许用户或允许会话。
+
+   ![在 DotCraft Desktop 中配置企业微信渠道](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/wecom-configuration.png)
+
+6. 保存渠道并启用。
+7. 在企业微信中，将群机器人回调 URL 设置为能访问 DotCraft 监听地址的公网 URL。
+8. 将同一组 Token 和 EncodingAESKey 填入企业微信机器人设置。
+
+企业微信完成回调校验后，Desktop 中的企业微信渠道应显示为 connected。
+
+## 平台设置细节
+
+在企业微信管理后台：
+
+1. 创建或打开要接入 DotCraft 的群机器人。
+2. 启用回调模式。
+3. 将回调 URL 设置为公网 HTTPS 端点加上 Desktop 中的机器人 path。
+4. 将 Token 设置为 Desktop 中的同一个机器人 token。
+5. 将 EncodingAESKey 设置为 Desktop 中的同一个机器人 AES key。
+6. 将机器人添加到需要 DotCraft 响应的会话。
+
+企业微信必须能从公网访问回调地址。本地 Desktop 场景请在 Desktop 监听地址前放一个 HTTPS 反向代理或隧道。
+
+## 测试连接
+
+1. 在允许的企业微信会话中发送消息。
+2. 确认 DotCraft 在同一会话中回复。
+3. 让 DotCraft 执行一个需要审批的操作。
+4. 确认审批请求出现在企业微信中，并且你的回复会被接受。
+
+## 设置后可用能力
+
+- DotCraft 会回复来自允许用户和允许会话的消息。
+- 管理员用户可以在企业微信中审批高风险操作。
+- 审批回复支持 `同意`、`允许`、`yes`、`approve`、`拒绝`、`no`、`reject` 和 `deny`。前面带 `/` 也可以，`/yes`、`/no` 同样有效。回复 `同意全部` 或 `approve all` 会在本会话内放行同类操作。
+- 审批等待回复期间，你在该聊天里发的其他消息不会转给 DotCraft，机器人会回复一条提醒。超时未回复时，操作会被取消，聊天里也会收到通知。
+- 文件和图片投递可通过渠道投递工具使用。
+- 白名单之外的用户或会话消息会被忽略。
+
+## 相关文档
+
+- [渠道配置](../../configuration/channels)——企业微信配置文件的全部字段、默认值与注册形态。
+- [微信渠道](./weixin)——个人微信走另一条链路，通过腾讯 iLink 扫码接入。

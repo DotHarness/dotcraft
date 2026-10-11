@@ -3,14 +3,24 @@
 }
 
 .VPContent .VPDoc .container {
-  display: flex;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: var(--dc-doc-columns);
   max-width: none;
   padding: 36px 48px 0;
 }
 
+@media (min-width: 1280px) {
+  .VPContent .VPDoc .container {
+    grid-template-columns: var(--dc-doc-columns-centered);
+  }
+
+  .VPContent .VPDoc.has-aside .container {
+    grid-template-columns: var(--dc-doc-columns-aside);
+  }
+}
+
 .VPContent .VPDoc .container > .content {
-  flex: 0 1 720px;
+  grid-area: 1 / 2;
   min-width: 0;
   width: auto;
   margin: 0;
@@ -23,15 +33,17 @@
 }
 
 .VPContent .VPDoc .aside {
-  flex: 0 0 288px;
+  grid-area: 1 / 3 / 2 / 5;
+  justify-self: end;
+  width: var(--dc-aside-width);
   max-width: none;
-  padding-left: 72px;
+  padding-left: 0;
 }
 
 .VPContent .VPDoc .aside-container {
   position: sticky;
   top: calc(var(--vp-nav-height) + var(--dc-band-height) + 36px);
-  width: 216px;
+  width: var(--dc-aside-width);
   height: auto;
   max-height: calc(100vh - var(--vp-nav-height) - var(--dc-band-height) - 36px);
   padding-top: 0;

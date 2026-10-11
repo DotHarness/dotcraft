@@ -253,8 +253,8 @@ export const configDescriptors: ConfigDescriptor[] = [
       de: "Ein Feishu-Bereich pro Zeile. Leer lassen, damit alles die Bot-Identität nutzt.",
     },
     docsPath: {
-      en: "/features/channels/feishu#personal-access",
-      "zh-Hans": "/features/channels/feishu#个人资源访问",
+      en: "/guide/channels/feishu#personal-access",
+      "zh-Hans": "/guide/channels/feishu#个人资源访问",
     },
     required: false,
     dataKind: "list",

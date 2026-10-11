@@ -35,10 +35,10 @@ const cdn = 'https://cdn.jsdelivr.net/gh/DotHarness/resources@master/'
 
 function stories(base: string, text: { name: string; line: string; alt: string; links: string[] }[]): Story[] {
   const shape = [
-    { icon: 'monitor', src: 'dotcraft/docs/tour-desktop', hrefs: ['/features/entry-points/desktop', '/getting-started'] },
-    { icon: 'bot', src: 'dotcraft/docs/tour-agents', hrefs: ['/features/agent-system/agent-profiles', '/features/agent-system/subagents', '/features/agent-system/automations'], team: true },
-    { icon: 'puzzle', src: 'dotcraft/docs/tour-plugins', hrefs: ['/developing/integrations/dotnet-plugins', '/developing/integrations/desktop-plugins'] },
-    { icon: 'blocks', src: 'dotcraft/docs/tour-apps', hrefs: ['/developing/harness/', '/developing/integrations/app-binding', '/developing/sdks/'] }
+    { icon: 'monitor', src: 'dotcraft/docs/tour-desktop', hrefs: ['/start/desktop', '/start/'] },
+    { icon: 'bot', src: 'dotcraft/docs/tour-agents', hrefs: ['/guide/agent-profiles', '/guide/subagents', '/guide/automations'], team: true },
+    { icon: 'puzzle', src: 'dotcraft/docs/tour-plugins', hrefs: ['/extend/dotnet-plugins', '/extend/desktop-plugins'] },
+    { icon: 'blocks', src: 'dotcraft/docs/tour-apps', hrefs: ['/extend/harness/', '/extend/app-binding', '/extend/sdks/'] }
   ]
   return shape.map((story, index) => ({
     icon: story.icon,
@@ -51,14 +51,14 @@ function stories(base: string, text: { name: string; line: string; alt: string; 
 }
 
 const productHrefs = {
-  desktop: '/features/entry-points/desktop',
-  mobile: '/features/entry-points/mobile',
-  cli: '/features/entry-points/',
-  satellite: '/features/agent-system/satellite',
-  oratorio: '/features/oratorio',
-  chatBots: '/features/channels/',
-  harness: '/developing/harness/',
-  sdks: '/developing/sdks/'
+  desktop: '/start/desktop',
+  mobile: '/start/mobile',
+  cli: '/start/entry-points',
+  satellite: '/guide/satellite',
+  oratorio: '/guide/oratorio/',
+  chatBots: '/guide/channels/',
+  harness: '/extend/harness/',
+  sdks: '/extend/sdks/'
 }
 
 export type ProductId = 'desktop' | 'mobile' | 'cli' | 'satellite' | 'oratorio' | 'chat-bots' | 'harness' | 'sdks' | 'avatar'
@@ -97,22 +97,22 @@ export const homeCopy = {
       groups: [
         {
           title: 'Run the app',
-          link: { text: 'Getting Started', href: '/getting-started' },
+          link: { text: 'Getting Started', href: '/start/' },
           rows: [
-            { icon: 'sparkles', label: 'Ready out of the box', hint: 'Plan, subagents, automations and the in-app browser, built in.', href: '/features/agent-system/' },
-            { icon: 'app-window', label: 'Works in your apps', hint: 'Agents operate the Windows apps you allow.', href: '/features/entry-points/desktop' },
-            { icon: 'layers', label: 'Pick up anywhere', hint: 'Desktop, CLI, editors, your phone and chat bots share one workspace.', href: '/features/entry-points/' },
-            { icon: 'server', label: 'Your models, your costs', hint: 'Any compatible provider or ChatGPT, with keys kept on one machine.', href: '/features/self-hosted/server-deployment' }
+            { icon: 'sparkles', label: 'Ready out of the box', hint: 'Plan, subagents, automations and the in-app browser, built in.', href: '/guide/' },
+            { icon: 'app-window', label: 'Works in your apps', hint: 'Agents operate the Windows apps you allow.', href: '/start/desktop' },
+            { icon: 'layers', label: 'Pick up anywhere', hint: 'Desktop, CLI, editors, your phone and chat bots share one workspace.', href: '/start/entry-points' },
+            { icon: 'server', label: 'Your models, your costs', hint: 'Any compatible provider or ChatGPT, with keys kept on one machine.', href: '/self-hosting/server-deployment' }
           ]
         },
         {
           title: 'Embed and extend',
-          link: { text: 'DotCraft Harness', href: '/developing/harness/' },
+          link: { text: 'DotCraft Harness', href: '/extend/harness/' },
           rows: [
-            { icon: 'circuit-board', label: 'Build it into your product', hint: 'Embed the runtime behind Desktop in your .NET app.', href: '/developing/harness/' },
-            { icon: 'plug-zap', label: 'Connect existing products', hint: 'Bring agents in through the SDKs and App Binding.', href: '/developing/sdks/' },
-            { icon: 'dotnet', label: '.NET plugins', hint: 'Add tools and commands; the agent can write and hot-swap them.', href: '/developing/integrations/dotnet-plugins' },
-            { icon: 'layout-dashboard', label: 'Desktop plugins', hint: "React plugins reshape Desktop's interface.", href: '/developing/integrations/desktop-plugins' }
+            { icon: 'circuit-board', label: 'Build it into your product', hint: 'Embed the runtime behind Desktop in your .NET app.', href: '/extend/harness/' },
+            { icon: 'plug-zap', label: 'Connect existing products', hint: 'Bring agents in through the SDKs and App Binding.', href: '/extend/sdks/' },
+            { icon: 'dotnet', label: '.NET plugins', hint: 'Add tools and commands; the agent can write and hot-swap them.', href: '/extend/dotnet-plugins' },
+            { icon: 'layout-dashboard', label: 'Desktop plugins', hint: "React plugins reshape Desktop's interface.", href: '/extend/desktop-plugins' }
           ]
         }
       ]
@@ -138,7 +138,7 @@ export const homeCopy = {
         ['chat-bots', 'Chat bots', 'Ask about your project right in the group chat.', 'Built in', productHrefs.chatBots],
         ['harness', 'Harness', 'The whole agent runtime, inside your .NET app.', 'NuGet', productHrefs.harness],
         ['sdks', 'SDKs', 'Make your own app a DotCraft client.', 'npm · NuGet', productHrefs.sdks],
-        ['avatar', 'Avatar', 'A face for your agent that moves and dresses up.', 'npm', '/developing/sdks/typescript#avatar-package']
+        ['avatar', 'Avatar', 'A face for your agent that moves and dresses up.', 'npm', '/extend/sdks/typescript#avatar-package']
       ])
     },
     harness: {
@@ -149,8 +149,8 @@ export const homeCopy = {
         { icon: 'dotnet', title: 'Built the .NET way', text: 'Plugs into the Generic Host and dependency injection.' },
         { icon: 'layers', title: 'More than an agent loop', text: 'Sessions, tools, skills, approvals and providers come wired.' }
       ],
-      overview: { text: 'Harness overview', href: '/developing/harness/' },
-      nuget: { text: 'NuGet package', href: '/developing/harness/nuget-package' },
+      overview: { text: 'Harness overview', href: '/extend/harness/' },
+      nuget: { text: 'NuGet package', href: '/extend/harness/nuget-package' },
       viewer: 'Harness example'
     },
     close: { title: 'All set — over to you.' },
@@ -185,22 +185,22 @@ export const homeCopy = {
       groups: [
         {
           title: '直接运行',
-          link: { text: '快速开始', href: '/getting-started' },
+          link: { text: '快速开始', href: '/start/' },
           rows: [
-            { icon: 'sparkles', label: '开箱即用', hint: '计划、子智能体、自动化和应用内浏览器都已内置。', href: '/features/agent-system/' },
-            { icon: 'app-window', label: '操作你的应用', hint: 'Agent 可以操作你允许的 Windows 应用。', href: '/features/entry-points/desktop' },
-            { icon: 'layers', label: '随处接着做', hint: 'Desktop、CLI、编辑器、手机和聊天机器人共用一个工作区。', href: '/features/entry-points/' },
-            { icon: 'server', label: '模型和成本由你掌控', hint: '任选兼容的模型服务或 ChatGPT 订阅，密钥可由一台机器统一保管。', href: '/features/self-hosted/server-deployment' }
+            { icon: 'sparkles', label: '开箱即用', hint: '计划、子智能体、自动化和应用内浏览器都已内置。', href: '/guide/' },
+            { icon: 'app-window', label: '操作你的应用', hint: 'Agent 可以操作你允许的 Windows 应用。', href: '/start/desktop' },
+            { icon: 'layers', label: '随处接着做', hint: 'Desktop、CLI、编辑器、手机和聊天机器人共用一个工作区。', href: '/start/entry-points' },
+            { icon: 'server', label: '模型和成本由你掌控', hint: '任选兼容的模型服务或 ChatGPT 订阅，密钥可由一台机器统一保管。', href: '/self-hosting/server-deployment' }
           ]
         },
         {
           title: '嵌入与扩展',
-          link: { text: 'DotCraft Harness', href: '/developing/harness/' },
+          link: { text: 'DotCraft Harness', href: '/extend/harness/' },
           rows: [
-            { icon: 'circuit-board', label: '装进你的产品', hint: '把 Desktop 背后的运行时嵌入你的 .NET 应用。', href: '/developing/harness/' },
-            { icon: 'plug-zap', label: '接入现有产品', hint: '通过 SDK 和 App Binding 把 Agent 带进现有产品。', href: '/developing/sdks/' },
-            { icon: 'dotnet', label: '.NET 插件', hint: '添加工具和命令，Agent 还能自己编写并热替换。', href: '/developing/integrations/dotnet-plugins' },
-            { icon: 'layout-dashboard', label: 'Desktop 插件', hint: 'React 插件可以改造 Desktop 的界面。', href: '/developing/integrations/desktop-plugins' }
+            { icon: 'circuit-board', label: '装进你的产品', hint: '把 Desktop 背后的运行时嵌入你的 .NET 应用。', href: '/extend/harness/' },
+            { icon: 'plug-zap', label: '接入现有产品', hint: '通过 SDK 和 App Binding 把 Agent 带进现有产品。', href: '/extend/sdks/' },
+            { icon: 'dotnet', label: '.NET 插件', hint: '添加工具和命令，Agent 还能自己编写并热替换。', href: '/extend/dotnet-plugins' },
+            { icon: 'layout-dashboard', label: 'Desktop 插件', hint: 'React 插件可以改造 Desktop 的界面。', href: '/extend/desktop-plugins' }
           ]
         }
       ]
@@ -226,7 +226,7 @@ export const homeCopy = {
         ['chat-bots', '聊天机器人', '在群聊里直接问项目的事。', '已内置', productHrefs.chatBots],
         ['harness', 'Harness', '整套 Agent 运行时，装进你的 .NET 应用。', 'NuGet', productHrefs.harness],
         ['sdks', 'SDK', '让你的应用成为 DotCraft 客户端。', 'npm · NuGet', productHrefs.sdks],
-        ['avatar', 'Avatar', '给你的 Agent 一张会动、能换装的脸。', 'npm', '/developing/sdks/typescript#avatar-包']
+        ['avatar', 'Avatar', '给你的 Agent 一张会动、能换装的脸。', 'npm', '/extend/sdks/typescript#avatar-包']
       ])
     },
     harness: {
@@ -237,8 +237,8 @@ export const homeCopy = {
         { icon: 'dotnet', title: '遵循 .NET 的开发方式', text: '沿用 Generic Host 与依赖注入。' },
         { icon: 'layers', title: '不止一个 Agentic Loop', text: '会话、工具、Skills、审批与模型 Provider 已组合就绪。' }
       ],
-      overview: { text: 'Harness 总览', href: '/developing/harness/' },
-      nuget: { text: 'NuGet 包', href: '/developing/harness/nuget-package' },
+      overview: { text: 'Harness 总览', href: '/extend/harness/' },
+      nuget: { text: 'NuGet 包', href: '/extend/harness/nuget-package' },
       viewer: 'Harness 示例'
     },
     close: { title: '一切就绪，就等你了。' },

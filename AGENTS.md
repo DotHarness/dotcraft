@@ -103,6 +103,6 @@ Use the [development guide's validation entry points](.agents/skills/dotcraft-de
 
 - Runtime boundaries: `specs/architecture/runtime-module-boundaries.md`
 - Session and protocol specs: `specs/architecture/session-core.md`, `specs/protocols/appserver-protocol.md`, `specs/protocols/external-channel-adapter.md`
-- Developer architecture overview: `docs/developing/architecture/overview.md`
+- Developer architecture overview: `docs/contribute/architecture/index.md`
 - Desktop visual design: `specs/architecture/DESIGN.md` (read before changing Desktop colors, buttons, inputs, cards, modals, menus, or view styling)
 - Client docs: `desktop/README.md`

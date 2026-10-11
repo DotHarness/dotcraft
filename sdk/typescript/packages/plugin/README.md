@@ -23,5 +23,5 @@ export const activate: DesktopPluginActivate = (host) => {
 
 ## Documentation
 
-- [Build a Desktop Plugin](https://www.dotcraft.net/developing/integrations/desktop-plugins)
-- [Desktop Plugin API](https://www.dotcraft.net/developing/integrations/desktop-plugin-api)
+- [Build a Desktop Plugin](https://www.dotcraft.net/extend/desktop-plugins)
+- [Desktop Plugin API](https://www.dotcraft.net/extend/desktop-plugin-api)

@@ -40,5 +40,5 @@ enabled; smaller avatars render their static frame, and avatars at 20px and belo
 overlay-skin, and effect layers entirely. The model is specified in
 [specs/features/avatar-system.md](../../../../specs/features/avatar-system.md).
 
-See the [TypeScript SDK reference](https://www.dotcraft.net/developing/sdks/typescript) for the
+See the [TypeScript SDK reference](https://www.dotcraft.net/extend/sdks/typescript) for the
 available entry points.

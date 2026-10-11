@@ -2,7 +2,7 @@
 
 Use AppServer directly for a custom client, unsupported language, or protocol-level debugging. Prefer a public SDK when it supports the application.
 
-The current protocol reference is `https://www.dotcraft.net/developing/protocols/appserver-protocol`. Hub discovery and ownership are documented at `https://www.dotcraft.net/developing/protocols/hub-protocol` and `https://www.dotcraft.net/developing/lifecycle/hub`.
+The current protocol reference is `https://www.dotcraft.net/extend/protocols/appserver`. Hub discovery and ownership are documented at `https://www.dotcraft.net/extend/protocols/hub` and `https://www.dotcraft.net/contribute/lifecycle/hub`.
 
 ## Connection invariants
 

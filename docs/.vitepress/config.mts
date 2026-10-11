@@ -1,7 +1,7 @@
-import { defineConfig, type DefaultTheme } from 'vitepress'
+import { defineConfig } from 'vitepress'
 import { withMermaid } from 'vitepress-plugin-mermaid'
 import { createLlmsBuildEnd } from './llms'
-import { enSidebar, zhSidebar } from './sidebar'
+import { enSections, sectionNav, sectionSidebar, zhSections } from './sidebar'
 
 const repo = 'https://github.com/DotHarness/dotcraft'
 const base = process.env.VITEPRESS_BASE ?? '/'
@@ -12,20 +12,6 @@ const absoluteBase = new URL(base, siteOrigin).href
 function escapeMustaches(value: string): string {
   return value.replaceAll('{{', '&#123;&#123;').replaceAll('}}', '&#125;&#125;')
 }
-
-const enNav: DefaultTheme.NavItem[] = [
-  { text: 'Overview', link: '/' },
-  { text: 'Getting Started', link: '/getting-started' },
-  { text: 'Features', link: '/features/agent-system/', activeMatch: '^/features/' },
-  { text: 'Developing', link: '/developing/workflow/spec-driven-development', activeMatch: '^/developing/' }
-]
-
-const zhNav: DefaultTheme.NavItem[] = [
-  { text: '总览', link: '/zh/' },
-  { text: '快速开始', link: '/zh/getting-started' },
-  { text: '功能', link: '/zh/features/agent-system/', activeMatch: '^/zh/features/' },
-  { text: '开发', link: '/zh/developing/workflow/spec-driven-development', activeMatch: '^/zh/developing/' }
-]
 
 const codeActionLabels = {
   en: { copy: 'Copy code', copied: 'Copied', wrap: 'Wrap lines' },
@@ -42,99 +28,6 @@ const desktopThemeSelectors = {
   }
 }
 
-const redirectMap: Record<string, string> = {
-  'reference.md': 'developing/architecture/overview.md',
-  'features.md': 'features/agent-system/index.md',
-  'getting-started.md': 'getting-started.md',
-  'config_guide.md': 'developing/configuration.md',
-  'desktop_guide.md': 'features/entry-points/desktop.md',
-  'acp_guide.md': 'features/entry-points/editors.md',
-  'unity_guide.md': 'features/entry-points/editors.md',
-  'appserver_guide.md': 'developing/lifecycle/appserver.md',
-  'hub_guide.md': 'developing/lifecycle/hub.md',
-  'dash_board_guide.md': 'features/self-hosted/observability.md',
-  'subagents_guide.md': 'features/agent-system/subagents.md',
-  'external_cli_subagents_guide.md': 'features/agent-system/subagents.md',
-  'automations_guide.md': 'features/agent-system/automations.md',
-  'hooks_guide.md': 'features/agent-system/hooks.md',
-  'automations/reference.md': 'features/agent-system/automations.md',
-  'hooks/reference.md': 'developing/configuration.md#automations-goals-and-hooks',
-  'config/security.md': 'features/self-hosted/security.md',
-  'settings-lifecycle.md': 'developing/lifecycle/settings-lifecycle.md',
-  'features/workspace-handoff.md': 'features/agent-system/workspace-handoff.md',
-  'developing/context-export-cli.md': 'features/agent-system/workspace-handoff.md',
-  'developing/workflow/workspace-handoff.md': 'features/agent-system/workspace-handoff.md',
-  'typescript-module-integration.md': 'developing/integrations/typescript-module.md',
-  'reference/config.md': 'developing/configuration.md',
-  'reference/appserver-protocol.md': 'developing/protocols/appserver-protocol.md',
-  'reference/hub-protocol.md': 'developing/protocols/hub-protocol.md',
-  'reference/dashboard-api.md': 'developing/protocols/dashboard-api.md',
-  'sdk/index.md': 'developing/sdks/index.md',
-  'sdk/python.md': 'developing/sdks/index.md',
-  'sdk/typescript.md': 'developing/sdks/typescript.md',
-  'sdk/dotnet.md': 'developing/sdks/dotnet.md',
-  'sdk/python-telegram.md': 'developing/sdks/channels.md',
-  'sdk/typescript-feishu.md': 'features/channels/feishu.md',
-  'sdk/typescript-telegram.md': 'features/channels/telegram.md',
-  'sdk/typescript-weixin.md': 'features/channels/weixin.md',
-  'sdk/typescript-qq.md': 'features/channels/qq.md',
-  'sdk/typescript-wecom.md': 'features/channels/wecom.md',
-  'developing/channels/qq.md': 'features/channels/qq.md',
-  'developing/channels/wecom.md': 'features/channels/wecom.md',
-  'developing/channels/feishu.md': 'features/channels/feishu.md',
-  'developing/channels/telegram.md': 'features/channels/telegram.md',
-  'developing/channels/weixin.md': 'features/channels/weixin.md',
-  'developing/channels/reference.md': 'features/channels/reference.md',
-  'features/entry-points/channels.md': 'features/channels/index.md',
-  'skills/agent-self-learning.md': 'features/agent-system/skills.md',
-  'skills/marketplace.md': 'features/agent-system/skills.md',
-  'plugins/install.md': 'features/agent-system/plugins-tools.md',
-  'plugins/build.md': 'features/agent-system/plugins-tools.md',
-  'features/workspace.md': 'getting-started.md',
-  'features/project-design/workspace.md': 'getting-started.md',
-  'features/memory.md': 'features/agent-system/memory.md',
-  'features/skills.md': 'features/agent-system/skills.md',
-  'features/plugins-tools.md': 'features/agent-system/plugins-tools.md',
-  'features/automations.md': 'features/agent-system/automations.md',
-  'features/subagents.md': 'features/agent-system/subagents.md',
-  'features/observability.md': 'features/self-hosted/observability.md',
-  'features/security.md': 'features/self-hosted/security.md',
-  'features/session-core.md': 'developing/architecture/session-core.md',
-  'features/app.md': 'developing/integrations/app-binding.md',
-  'developing/spec-driven-development.md': 'developing/workflow/spec-driven-development.md',
-  'developing/workspace-handoff.md': 'features/agent-system/workspace-handoff.md',
-  'developing/architecture.md': 'developing/architecture/overview.md',
-  'developing/configuration/reference.md': 'developing/configuration.md',
-  'developing/settings-lifecycle.md': 'developing/lifecycle/settings-lifecycle.md',
-  'developing/appserver.md': 'developing/lifecycle/appserver.md',
-  'developing/hub.md': 'developing/lifecycle/hub.md',
-  'developing/server-deployment.md': 'features/self-hosted/server-deployment.md',
-  'developing/lifecycle/server-deployment.md': 'features/self-hosted/server-deployment.md',
-  'developing/appserver-protocol.md': 'developing/protocols/appserver-protocol.md',
-  'developing/hub-protocol.md': 'developing/protocols/hub-protocol.md',
-  'developing/dashboard-api.md': 'developing/protocols/dashboard-api.md',
-  'developing/sdk.md': 'developing/sdks/index.md',
-  'developing/sdk-typescript.md': 'developing/sdks/typescript.md',
-  'developing/sdk-dotnet.md': 'developing/sdks/dotnet.md',
-  'developing/sdk-python.md': 'developing/sdks/index.md',
-  'developing/app-binding.md': 'developing/integrations/app-binding.md',
-  'developing/typescript-module.md': 'developing/integrations/typescript-module.md'
-}
-
-const rewrites: Record<string, string> = {}
-for (const [from, to] of Object.entries(redirectMap)) {
-  // English root keeps short path
-  rewrites[from] = to
-  // Chinese moves under /zh/
-  rewrites[`zh/${from}`] = `zh/${to}`
-  // Old /en/ URLs redirect to root (English is now default)
-  rewrites[`en/${from}`] = to
-}
-// Map any leftover /en/<page> to root
-rewrites['en/index.md'] = 'index.md'
-rewrites['en/getting-started.md'] = 'getting-started.md'
-rewrites['zh/hooks/reference.md'] = 'zh/developing/configuration.md#automations-goals-与-hooks'
-
 export default withMermaid(defineConfig({
   title: 'DotCraft',
   description: 'An open-source, self-hosted AI agent runtime built with C#/.NET. Run the Desktop app, add the runtime to your own .NET application, and extend both with plugins.',
@@ -142,7 +35,6 @@ export default withMermaid(defineConfig({
   cleanUrls: true,
   lastUpdated: true,
   srcExclude: ['demo/README.md'],
-  rewrites,
   scrollOffset: 112,
   sitemap: { hostname: absoluteBase },
   buildEnd: createLlmsBuildEnd({ hostname: absoluteBase }),
@@ -243,8 +135,8 @@ export default withMermaid(defineConfig({
       title: 'DotCraft',
       description: 'An open-source, self-hosted AI agent runtime built with C#/.NET. Run the Desktop app, add the runtime to your own .NET application, and extend both with plugins.',
       themeConfig: {
-        nav: enNav,
-        sidebar: enSidebar,
+        nav: sectionNav(enSections),
+        sidebar: sectionSidebar(enSections),
         outline: { label: 'On this page' },
         docFooter: {
           prev: 'Previous',
@@ -263,8 +155,8 @@ export default withMermaid(defineConfig({
       title: 'DotCraft',
       description: '基于 C#/.NET 构建的开源、自托管 AI Agent Runtime。既可以直接使用 Desktop 应用，也可以把运行时引入你自己的 .NET 应用，两者都能用插件扩展。',
       themeConfig: {
-        nav: zhNav,
-        sidebar: zhSidebar,
+        nav: sectionNav(zhSections),
+        sidebar: sectionSidebar(zhSections),
         outline: { label: '本页目录' },
         docFooter: {
           prev: '上一页',

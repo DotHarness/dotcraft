@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { DefaultTheme, SiteConfig } from 'vitepress'
-import { enSidebar, zhSidebar } from './sidebar'
+import { enSections, zhSections, type DocSection } from './sidebar'
 
 const DESCRIPTION_MAX = 200
 
@@ -48,6 +48,15 @@ export function flattenSidebar(sidebar: DefaultTheme.SidebarItem[]): Section[] {
   }
 
   return sections.filter((section) => section.links.length > 0)
+}
+
+export function flattenSections(tabs: DocSection[]): Section[] {
+  return tabs.flatMap((tab) =>
+    flattenSidebar(tab.groups).map((section) => ({
+      ...section,
+      title: section.title === tab.text ? tab.text : `${tab.text}: ${section.title}`
+    }))
+  )
 }
 
 export function resolveSourceFile(srcDir: string, link: string): string {
@@ -131,9 +140,11 @@ export function renderLlmsTxt(sections: PageSection[], hostname: string, summary
     '',
     'DotCraft is a .NET agent runtime: the CLI, the Desktop app, IDE integrations, and chat bots all',
     'connect to one workspace and share its sessions, memory, skills, and tools under `.craft/`.',
-    'Pages under /features/ describe what the agent can do; pages under /developing/ cover embedding it,',
-    'extending it, and the protocols behind it. Every configuration field, with defaults and JSON',
-    `examples, is listed in the full configuration reference at ${pageUrl(hostname, '/developing/configuration')}.`
+    'Pages under /start/ install DotCraft and introduce its entry points, /guide/ describes what the agent',
+    'can do, and /self-hosting/ covers running it on your own servers. Pages under /extend/ cover building',
+    'on DotCraft with plugins, SDKs, the embeddable Harness, and its protocols; /contribute/ covers its',
+    'architecture and development workflow. Pages under /configuration/ list every configuration field,',
+    `with defaults and JSON examples, starting from ${pageUrl(hostname, '/configuration/')}.`
   ]
 
   for (const section of sections) {
@@ -154,11 +165,10 @@ export function renderLlmsTxt(sections: PageSection[], hostname: string, summary
   return out.join('\n')
 }
 
-/** The emitted heading already carries the title, so drop the body's own H1. */
+/** The emitted heading already carries the title, so drop the body's own H1; live examples only render in a browser. */
 function bodyWithoutHeading(body: string): string {
-  const lines = body.trim().split(/\r?\n/)
-  if (!lines[0]?.startsWith('# ')) return body.trim()
-  return lines.slice(1).join('\n').trim()
+  const lines = body.trim().split(/\r?\n/).filter((line) => !line.trimStart().startsWith('<LiveExample'))
+  return (lines[0]?.startsWith('# ') ? lines.slice(1) : lines).join('\n').trim()
 }
 
 export function renderLlmsFullTxt(sections: PageSection[], hostname: string): string {
@@ -181,11 +191,11 @@ export function createLlmsBuildEnd({ hostname }: { hostname: string }) {
     const { srcDir, outDir } = siteConfig
 
     // Resolve the Chinese links too so drift in either language fails the build.
-    for (const section of flattenSidebar(zhSidebar as DefaultTheme.SidebarItem[])) {
+    for (const section of flattenSections(zhSections)) {
       for (const link of section.links) resolveSourceFile(srcDir, link)
     }
 
-    const sections = collectPages(srcDir, flattenSidebar(enSidebar as DefaultTheme.SidebarItem[]))
+    const sections = collectPages(srcDir, flattenSections(enSections))
     const home = readPageSummary(join(srcDir, 'index.md'))
 
     writeFileSync(join(outDir, 'llms.txt'), renderLlmsTxt(sections, hostname, home.description), 'utf-8')

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ArrowLeft, Download, Eye, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { formatRelativeTime } from '../../utils/relativeTime'
@@ -8,6 +8,12 @@ import { IconButton } from '../ui/IconButton'
 import { MoreActionsButton } from '../ui/MoreActionsButton'
 import './AgentBuilderToolbar.css'
 
+export interface AgentBuilderLeadingAction {
+  label: string
+  icon: ReactNode
+  onClick: () => void
+}
+
 interface AgentBuilderToolbarProps {
   created: boolean
   updatedAt?: string | null
@@ -15,20 +21,22 @@ interface AgentBuilderToolbarProps {
   preview: boolean
   nameMissing: boolean
   onBack: () => void
+  leadingAction?: AgentBuilderLeadingAction
   onDelete: () => void
   onCreate: () => void
   onExport?: () => void
   onTogglePreview: () => void
 }
 
-export function AgentBuilderToolbar({ created, updatedAt, autoSaveState, preview, nameMissing, onBack, onDelete, onCreate, onExport, onTogglePreview }: AgentBuilderToolbarProps) {
+export function AgentBuilderToolbar({ created, updatedAt, autoSaveState, preview, nameMissing, onBack, leadingAction, onDelete, onCreate, onExport, onTogglePreview }: AgentBuilderToolbarProps) {
   const locale = useLocale()
   const t = useT()
   const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
+  const leading = leadingAction ?? { label: t('agentBuilder.toolbar.back'), icon: <ArrowLeft size={16} />, onClick: onBack }
 
   return <header className="agent-builder-edit-head">
     <div className="agent-builder-edit-left">
-      <IconButton label={t('agentBuilder.toolbar.back')} tooltipLabel={t('agentBuilder.toolbar.back')} tooltipPlacement="bottom" icon={<ArrowLeft size={16} />} size={28} onClick={onBack} />
+      <IconButton label={leading.label} tooltipLabel={leading.label} tooltipPlacement="bottom" icon={leading.icon} size={28} onClick={leading.onClick} />
     </div>
     <div className="agent-builder-edit-right">
       {created && <span className={`agent-builder-autosave${autoSaveState === 'error' ? ' is-error' : ''}`}>

@@ -130,13 +130,13 @@ describe('ModuleConfigForm descriptors', () => {
       masked: false,
       interactiveSetupOnly: false,
       group: 'configuration',
-      docsPath: { en: '/features/channels/example#scopes' }
+      docsPath: { en: '/guide/channels/example#scopes' }
     }]
 
     renderForm(module)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Learn more about Scopes' }))
-    expect(openExternal).toHaveBeenCalledWith('https://www.dotcraft.net/features/channels/example#scopes')
+    expect(openExternal).toHaveBeenCalledWith('https://www.dotcraft.net/guide/channels/example#scopes')
   })
 
   it('keeps legacy advanced fields visible', async () => {

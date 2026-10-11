@@ -5,9 +5,15 @@
 
   --vp-nav-height: 48px;
   --vp-nav-logo-height: 24px;
-  --vp-sidebar-width: 272px;
+  --vp-sidebar-width: 240px;
   --vp-layout-max-width: 100vw;
   --dc-band-height: 48px;
+  --dc-doc-width: 800px;
+  --dc-aside-width: 216px;
+  --dc-aside-track: calc(var(--dc-aside-width) + 72px);
+  --dc-doc-columns: minmax(0, 1fr) minmax(0, var(--dc-doc-width)) minmax(0, 1fr);
+  --dc-doc-columns-centered: minmax(0, 1fr) minmax(0, var(--dc-doc-width)) minmax(0, 1fr) var(--vp-sidebar-width);
+  --dc-doc-columns-aside: minmax(0, 1fr) minmax(0, var(--dc-doc-width)) minmax(calc(var(--dc-aside-track) - var(--vp-sidebar-width)), 1fr) var(--vp-sidebar-width);
   --dc-surface-radius: 14px;
 
   --vp-c-bg: var(--bg-primary);

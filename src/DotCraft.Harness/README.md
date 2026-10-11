@@ -16,11 +16,11 @@ dotnet add package Microsoft.Extensions.Hosting
 
 Start with the public Harness documentation:
 
-- [Harness overview](https://www.dotcraft.net/developing/harness/)
-- [Package installation](https://www.dotcraft.net/developing/harness/nuget-package)
-- [Hosting and lifecycle](https://www.dotcraft.net/developing/harness/hosting-lifecycle)
-- [Configuration and paths](https://www.dotcraft.net/developing/harness/configuration-paths)
-- [Model providers](https://www.dotcraft.net/developing/harness/model-providers)
+- [Harness overview](https://www.dotcraft.net/extend/harness/)
+- [Package installation](https://www.dotcraft.net/extend/harness/nuget-package)
+- [Hosting and lifecycle](https://www.dotcraft.net/extend/harness/hosting-lifecycle)
+- [Configuration and paths](https://www.dotcraft.net/extend/harness/configuration-paths)
+- [Model providers](https://www.dotcraft.net/extend/harness/model-providers)
 
 ## Links
 

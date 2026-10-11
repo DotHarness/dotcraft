@@ -6,11 +6,11 @@ Use a client SDK when an application connects to a workspace owned by another Do
 
 | Layer | Use for | Official documentation |
 | --- | --- | --- |
-| High-level client | Threads, runs, tools, approvals, models, MCP runtime, and App Binding | `https://www.dotcraft.net/developing/sdks/` |
-| Typed Wire | Explicit JSON-RPC lifecycle, transport, and generated request maps | `https://www.dotcraft.net/developing/sdks/typescript` or `https://www.dotcraft.net/developing/sdks/dotnet` |
+| High-level client | Threads, runs, tools, approvals, models, MCP runtime, and App Binding | `https://www.dotcraft.net/extend/sdks/` |
+| Typed Wire | Explicit JSON-RPC lifecycle, transport, and generated request maps | `https://www.dotcraft.net/extend/sdks/typescript` or `https://www.dotcraft.net/extend/sdks/dotnet` |
 | Generated contracts | DTOs and method maps without transport ownership | The same language reference above |
 
-Installation and the first connection live at `https://www.dotcraft.net/developing/sdks/quickstart`. Threads, streaming, and reconnect behavior live at `https://www.dotcraft.net/developing/sdks/runs`. Tool callbacks and approvals live at `https://www.dotcraft.net/developing/sdks/tools`.
+Installation and the first connection live at `https://www.dotcraft.net/extend/sdks/quickstart`. Threads, streaming, and reconnect behavior live at `https://www.dotcraft.net/extend/sdks/runs`. Tool callbacks and approvals live at `https://www.dotcraft.net/extend/sdks/tools`.
 
 ## Confirm the current API
 

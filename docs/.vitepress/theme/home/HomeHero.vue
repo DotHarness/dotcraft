@@ -30,7 +30,7 @@ const mascot = ref<InstanceType<typeof PerchedMascot>>()
       <p class="dc-hero__lead">{{ t.hero.lead }}</p>
       <div class="dc-hero__actions">
         <div class="dc-actions">
-          <a class="dc-button" data-variant="primary" data-size="prominent" :href="href('/getting-started')">{{ t.start }}</a>
+          <a class="dc-button" data-variant="primary" data-size="prominent" :href="href('/start/')">{{ t.start }}</a>
           <DownloadSplit />
         </div>
         <div class="dc-install">

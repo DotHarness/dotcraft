@@ -5,6 +5,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { FolderGit2, Save, User } from 'lucide-react'
+import { useT } from '../../contexts/LocaleContext'
 import { Button } from '../ui/Button'
 import { ModalHeader } from '../ui/ModalHeader'
 import './AgentSaveTargetDialog.css'
@@ -17,6 +18,7 @@ interface AgentSaveTargetDialogProps {
 }
 
 export function AgentSaveTargetDialog({ name, onChoose, onCancel }: AgentSaveTargetDialogProps): JSX.Element {
+  const t = useT()
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.key === 'Escape') onCancel()
@@ -38,28 +40,28 @@ export function AgentSaveTargetDialog({ name, onChoose, onCancel }: AgentSaveTar
       <div style={cardStyle} onMouseDown={(event) => event.stopPropagation()}>
         <ModalHeader
           icon={<Save size={18} strokeWidth={2} aria-hidden />}
-          title="Save this agent"
+          title={t('agentBuilder.saveTarget.title')}
           titleId="agent-save-title"
-          description={name ? `Choose where to keep “${name}”.` : 'Choose where to keep this agent.'}
+          description={name ? t('agentBuilder.saveTarget.description', { name }) : t('agentBuilder.saveTarget.descriptionUnnamed')}
         />
 
         <div style={optionsStyle}>
           <SaveOption
             icon={<User size={18} strokeWidth={2} aria-hidden />}
-            title="User"
-            subtitle="Available across all your workspaces"
+            title={t('agentBuilder.saveTarget.user')}
+            subtitle={t('agentBuilder.saveTarget.userDescription')}
             onClick={() => onChoose('user')}
           />
           <SaveOption
             icon={<FolderGit2 size={18} strokeWidth={2} aria-hidden />}
-            title="Workspace"
-            subtitle="Only in this workspace"
+            title={t('agentBuilder.saveTarget.workspace')}
+            subtitle={t('agentBuilder.saveTarget.workspaceDescription')}
             onClick={() => onChoose('workspace')}
           />
         </div>
 
         <Button variant="secondary" onClick={onCancel} className="agent-save-cancel">
-          Cancel
+          {t('common.cancel')}
         </Button>
       </div>
     </div>

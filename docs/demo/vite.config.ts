@@ -64,6 +64,12 @@ export default defineConfig({
   },
   build: {
     outDir: resolve(__dirname, '../public/demo'),
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        index: resolve(__dirname, 'index.html'),
+        showcase: resolve(__dirname, 'showcase.html')
+      }
+    }
   }
 })

@@ -1,0 +1,185 @@
+# TypeScript SDK 参考
+
+`@dotcraft/sdk` 是面向 AppServer 应用的 Node.js SDK。安装和首次运行见[快速开始](./quickstart)。
+
+## 包
+
+| 字段 | 值 |
+| --- | --- |
+| 包 | `@dotcraft/sdk` |
+| 模块格式 | ESM |
+| 运行时 | Node.js 20+ |
+
+该包发布在 npm。运行时入口位于 Node.js 或 Electron Main，不要放进浏览器或 Electron Renderer 代码。
+
+## 入口点
+
+| 入口点 | 公共接口 |
+| --- | --- |
+| `@dotcraft/sdk` | `DotCraft`、thread、run、回调、输入 helper、审批决策和高层错误。 |
+| `@dotcraft/sdk/contracts` | 生成的 DTO、方法映射、注册表和协议元数据。 |
+| `@dotcraft/sdk/wire` | `DotCraftWireClient`、transport、生命周期状态、超时、typed 方法和 raw 扩展 API。 |
+| `@dotcraft/sdk/hub` | Hub 发现、AppServer 管理、进程策略、事件和结构化错误。 |
+| `@dotcraft/sdk/app-binding` | App Binding handoff 和结果 helper。 |
+| `@dotcraft/sdk/dynamic-tools` | Runtime Dynamic Tool authoring helper。 |
+| `@dotcraft/sdk/testing` | Transport 与协议测试接口。 |
+| `@dotcraft/sdk/meta` | SDK、contract、protocol 和 contract hash 元数据。 |
+
+Contracts 不依赖 Node.js、WebSocket 或运行时 I/O，因此 Renderer 代码可以导入它获取类型。
+
+## Avatar 包
+
+`@dotcraft/avatar/react` 提供面向 React 19 的 DotCraft 名称派生 `Avatar` 组件。传入 `name` 和 `size`，还可传入 `state`、`motion`、`paused`、`eventSequence` 和 `label`。其中的 `ComposerMascot` 组件通过可选 `theme` 属性接收宿主已应用的 `light` 或 `dark` 主题，默认值为 `dark`。不依赖框架的包根入口导出 `deriveAppearance`，它会先去除名称两端空白并进行 NFC 规范化，再生成外观。规范化后相同的名称会得到相同的视觉身份，空名称会使用原始 DotCraft 外观。
+
+一个外观由五个独立槽位（`head`、`face`、`hand`、`back`、`skin`）组成，物件来自一个收藏品注册表，每件都带有从 Common 到 Legendary 的稀有度和所属系列。占用同一挂载区域的物件不会同时出现；`equip(appearance, slot, id)` 修改一个槽位并清除与之冲突的槽位。Holographic、Chrome 等物件特效只在 44px 及以上且开启动效时播放，20px 及以下的头像只保留头顶和背后的轮廓。可通过 `@dotcraft/avatar/react` 的 `AppearanceAvatar` 渲染显式指定的外观。
+
+## 高层 API
+
+| 任务 | API |
+| --- | --- |
+| 连接 | `DotCraft.local()`、`DotCraft.localChat()`、`DotCraft.remote()` |
+| 关闭 | `dotcraft.close()` |
+| Thread | `threads.getOrCreate()`、`start()`、`resume()`、`list()`、`listPage()`、`read()`、`listTurns()`、`listItems()` |
+| Run | `run()`、`runStreamed()`、`enqueue()`、`interrupt()` |
+| Thread 状态 | `snapshot()`、`refresh()`、`subscribe()`、`unsubscribe()`、`setMode()`、`archive()`、`delete()` |
+| 模型 | `models.list()` |
+| MCP runtime | `mcpRuntime.listStatus()`、`readResource()`、`callTool()`、`loginOAuth()`、`reload()` |
+| App Binding | `appBindings` |
+| 运行时工具 | `onToolCall()` |
+
+在本地或远程连接选项中配置 `approvalHandler` 和 `userInputHandler`。任务流程见[线程与运行](./runs)和[工具与审批](./tools)。
+
+## 连接
+
+| 方法 | 必需选项 | 连接所有权 |
+| --- | --- | --- |
+| `DotCraft.local(options)` | `workspacePath` | 通过 Hub 确保工作区 AppServer 可用，再连接到它。 |
+| `DotCraft.localChat(options?)` | 无 | 通过 Hub 确保默认 Chat 工作区 AppServer 可用。 |
+| `DotCraft.remote(options)` | `url`，可选 `token` | 直接连接现有 AppServer WebSocket。 |
+
+三种选项类型都支持 client identity、审批和用户输入 handler，以及额外 capability。本地选项还支持可执行文件选择、二进制匹配策略、Hub timeout 和 home directory 覆盖。
+
+| 选项类型 | 字段 |
+| --- | --- |
+| `DotCraftLocalOptions` | 必需 `workspacePath`，可选 `clientName`、`clientVersion`、`clientTitle`、`executable`、`expectedExecutable`、`binaryMatchPolicy`、`hubStartupTimeoutMs`、`homeDir`、handler 和 `capabilities`。 |
+| `DotCraftLocalChatOptions` | 除 `workspacePath` 外的本地字段。 |
+| `DotCraftRemoteOptions` | 必需 `url`，可选 `token`、client identity、handler 和 `capabilities`。 |
+
+远程 `url` 指向 AppServer 的 WebSocket 端点，路径以 `/ws` 结尾。token 单独放在 `token` 选项里，不要拼进 URL，也不要把两者写进日志。服务端监听方式见 [AppServer 模式](../../contribute/lifecycle/appserver)。
+
+## Thread 与 Run
+
+`ThreadManager` 提供以下高层操作：
+
+```ts
+getOrCreate(options?: GetOrCreateThreadOptions): Promise<DotCraftThread>;
+start(options?: StartThreadOptions): Promise<DotCraftThread>;
+resume(threadId: string, options?: ResumeThreadOptions): Promise<DotCraftThread>;
+list(options?: ListThreadOptions): Promise<ThreadSummary[]>;
+listPage(options?: ListThreadOptions): Promise<ThreadListResult>;
+read(threadId: string): Promise<SessionThread>;
+listTurns(threadId: string, options?: ThreadHistoryPageOptions): Promise<ThreadTurnsListResult>;
+listItems(threadId: string, options?: ThreadItemPageOptions): Promise<ThreadItemsListResult>;
+```
+
+Start 选项包含 identity 字段、显示名称、history mode、配置、运行时动态工具和额外上下文。Resume 选项只重新绑定动态工具和额外上下文。List 选项还包含 identity/workspace scope、归档过滤、文本查询、limit 和 cursor。
+
+`read()` 和 Thread handle 的 `refresh()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`listTurns()` 读取 Turn 元数据，`listItems()` 跨 Thread 或按可选 `turnId` 读取 Item。两者都接受 `cursor`、`limit` 和 `sortDirection`，并返回 `data` 与 opaque `nextCursor`；`listTurns()` 还会返回 `backwardsCursor`，可从本页第一个 Turn 起向任一方向继续读取。Thread handle 也提供相同的两个分页方法，但不需要 `threadId` 参数。
+
+`run()` 和 `runStreamed()` 接受文本、`InputPart[]` 或 `{ input, sender }`。Run 选项为 `sender`、`collectRawEvents`、`abortSignal` 和 `enqueueIfBusy`。Buffered 结果包含 `thread`、可选终止 `turn`、合并后的 `text`、`items`、可选 `usage`、可选 raw event 和 queued-input 结果。
+
+## 模型、MCP 与 App Binding
+
+| Manager | 操作 |
+| --- | --- |
+| `models` | `list()` 返回当前 AppServer 可见的模型目录。 |
+| `mcpRuntime` | `listStatus()`、`readResource()`、`callTool()`、`loginOAuth()`、`reload()`。 |
+| `appBindings` | App 发现、连接、surface、thread binding、channel binding 和 principal 操作。 |
+
+TypeScript 高层接口可以列出模型，但目前没有模型配置便利方法。应用必须修改完整 thread 配置时，使用类型化 Wire request map 调用 `thread/config/update`，并保留不归自己所有的字段。任务流程见 [MCP 运行时](./mcp-runtime)和 [DotCraft App](../app-binding)。
+
+MCP manager 的签名如下：
+
+```ts
+listStatus(params?: McpServerStatusListParams): Promise<McpServerStatusListResult>;
+readResource(params: McpServerResourceReadParams): Promise<McpServerResourceReadResult>;
+callTool(params: McpServerToolCallParams): Promise<McpServerToolCallResult>;
+loginOAuth(params: McpServerOAuthLoginParams): Promise<McpServerOAuthLoginResult>;
+reload(): Promise<McpServerReloadResult>;
+```
+
+## 回调与运行时动态工具
+
+```ts
+type ApprovalHandler =
+  (request: Record<string, unknown>) => Promise<ApprovalDecision> | ApprovalDecision;
+type UserInputHandler =
+  (request: Record<string, unknown>) => Promise<Record<string, unknown>> | Record<string, unknown>;
+type DynamicToolHandler =
+  (request: DynamicToolCallRequest) => Promise<DynamicToolCallResult> | DynamicToolCallResult;
+
+thread.onToolCall(namespace: string | null, name: string, handler: DynamicToolHandler): Unsubscribe;
+```
+
+Handler 在应用进程中执行。请在启动可能调用工具的工作前注册 handler，在 handler 中验证参数，并在其所属 scope 结束时 dispose 注册。
+
+## Typed 与 raw Wire API
+
+已登记的 AppServer 方法使用 typed 方法映射：
+
+```ts
+const result = await wire.request("thread/list", params);
+const dispose = wire.on("thread/started", ({ thread }) => console.log(thread.id));
+```
+
+只有第三方或尚未进入目录的扩展才使用 raw API：
+
+```ts
+const value = await wire.requestRaw("ext/example/read", { id: "42" });
+const dispose = wire.onRaw("ext/example/changed", console.log);
+```
+
+`DotCraftWireClient` 只负责 JSON-RPC 和连接状态，不会自动审批、回答用户输入，也不会重建 thread 和工具资源。
+
+## 连接生命周期
+
+Wire 状态包括 `connecting`、`initializing`、`ready`、`disconnected`、`reconnecting`、`reconnectError` 和 `closed`。
+
+- 本地和远程高层连接自动重连。
+- Raw Wire 连接只有启用 `autoReconnect` 后才会重连。
+- 普通请求默认超时为 30 秒。
+- 重连使用指数退避，最多排队 1024 个新调用。
+- 进行中的调用会失败且绝不重放。
+- 初始化完成后才会释放排队调用。
+- Handler 注册会跨重连保留，但 thread subscription、活动 run 和运行时工具资源不会保留。
+
+重连不会替应用重建这些资源。继续工作前先读取或恢复 thread、重新订阅，并重新注册运行时工具 handler。
+
+关闭本地高层 client 只关闭其 WebSocket 连接，不会停止 Hub 或由 Hub 管理的 AppServer。
+
+## 错误
+
+所有 SDK 错误都派生自 `DotCraftError`，并带有稳定的 `code`。
+
+| 错误 | 条件 |
+| --- | --- |
+| `JsonRpcError` | AppServer 返回 JSON-RPC 错误，并保留 `rpcCode` 和 data。 |
+| `InitializationError` | 连接初始化失败。 |
+| `TurnInProgressError` | Thread 已有活动 turn。 |
+| `ThreadNotFoundError` / `ThreadNotActiveError` | 目标 thread 不存在或无法运行。 |
+| `TurnFailedError` / `TurnCancelledError` | Buffered run 到达失败或取消终态。 |
+| `ProtocolViolationError` | 已知消息不符合其 contract。 |
+
+`JsonRpcError` 与 transport 层错误 `TransportError`、`TransportClosed`、`RequestTimeoutError`、`ReconnectQueueFullError` 由 Wire 入口导出。
+
+## Hub API
+
+`HubClient` 发现或启动 Hub、验证本地 lock、解析工作区 AppServer，并支持 ensure、restart、stop、list、status、events 和 shutdown。
+
+Hub 错误会保留 `code`、`message` 和 `details`。不要记录 Hub token 或包含 token 的完整 WebSocket URL。
+
+## 相关文档
+
+- [AppServer 协议](../protocols/appserver)——本页各方法对应的线路契约。
+- [Hub 生命周期](../../contribute/lifecycle/hub)——本地连接背后的 Hub 进程模型。
+- [渠道适配器](./channels)——基于 SDK 接入外部消息平台。

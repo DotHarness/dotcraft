@@ -135,6 +135,8 @@ const SOURCES = {
   blocks: { type: 'lucide', name: 'blocks' },
   dashboard: { type: 'lucide', name: 'layout-dashboard' },
   layout: { type: 'lucide', name: 'layout' },
+  pointerClick: { type: 'lucide', name: 'mouse-pointer-click' },
+  chartLine: { type: 'lucide', name: 'chart-line' },
   cloud: { type: 'lucide', name: 'cloud' },
   rocket: { type: 'lucide', name: 'rocket' },
   repeat: { type: 'lucide', name: 'repeat' },

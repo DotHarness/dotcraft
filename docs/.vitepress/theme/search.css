@@ -99,6 +99,26 @@
   }
 }
 
+@media (min-width: 768px) and (max-width: 1023px) {
+  .VPNav .DocSearch-Button {
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: transparent;
+    color: var(--text-secondary);
+  }
+
+  .VPNav .DocSearch-Button .DocSearch-Button-Container {
+    flex: 0;
+  }
+
+  .VPNav .DocSearch-Button .DocSearch-Button-Placeholder,
+  .VPNav .DocSearch-Button .DocSearch-Button-Keys {
+    display: none;
+  }
+}
+
 html .VPLocalSearchBox .shell {
   margin: 12vh auto 16px;
   padding: 0;
