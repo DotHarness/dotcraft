@@ -55,6 +55,9 @@
     "claude-haiku-4-5-20251001": {
       "contextWindow": 200000
     },
+    "claude-haiku-5-5": {
+      "contextWindow": 1000000
+    },
     "claude-mythos-5": {
       "contextWindow": 1000000
     },
