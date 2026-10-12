@@ -70,6 +70,7 @@ export function ThinkingIndicator({
 
       {expanded && reasoning && (
         <div
+          className="selectable"
           style={{
             marginTop: '4px',
             padding: '8px 12px',
