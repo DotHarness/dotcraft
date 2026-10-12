@@ -20,6 +20,8 @@ internal sealed class CodexSessionSource(string root) : ISessionImportSource
     private IReadOnlyList<SessionImportCandidateFile> Enumerate(SessionImportScope scope, CancellationToken ct)
     {
         var files = SessionFileWindow.Files(Path.Combine(root, "sessions"), "rollout-*.jsonl", SessionFileWindow.Recursive);
+        if (scope.IncludeArchived)
+            files = [.. files, .. ArchivedRollouts()];
         var byThread = new Dictionary<string, SessionImportCandidateFile>(StringComparer.OrdinalIgnoreCase);
         foreach (var (path, modifiedAt) in SessionFileWindow.SelectNewest(files, scope))
         {
@@ -104,9 +106,12 @@ internal sealed class CodexSessionSource(string root) : ISessionImportSource
         return segments;
     }
 
+    private IReadOnlyList<string> ArchivedRollouts() =>
+        SessionFileWindow.Files(Path.Combine(root, "archived_sessions"), "rollout-*.jsonl", SessionFileWindow.TopLevel);
+
     private string? FindRollout(string rolloutId) =>
         SessionFileWindow.Files(Path.Combine(root, "sessions"), "rollout-*.jsonl", SessionFileWindow.Recursive)
-            .Concat(SessionFileWindow.Files(Path.Combine(root, "archived_sessions"), "rollout-*.jsonl", SessionFileWindow.TopLevel))
+            .Concat(ArchivedRollouts())
             .FirstOrDefault(path => ParseRolloutName(path) is { } name
                 && string.Equals(name.RolloutId, rolloutId, StringComparison.OrdinalIgnoreCase));
 

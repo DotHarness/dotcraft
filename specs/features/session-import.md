@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.8.1 |
 | **Status** | Draft |
-| **Date** | 2026-10-04 |
+| **Date** | 2026-10-12 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Runtime Module Boundaries](../architecture/runtime-module-boundaries.md) |
 | **Related Specs** | [External CLI SubAgent](external-cli-subagent.md), [Context Compaction](../architecture/context-compaction.md), [Multi-Folder Projects](multi-folder-projects.md) |
 
@@ -309,5 +309,8 @@ a session to someone who decides what to do with it. The Harness package exposes
   request that followed it. A candidate's summary is kept
   for the reader's lifetime and converted again when its file's modification time changes.
 - Reading returns one candidate converted as in §4.1, or nothing when it is no longer a candidate.
+- The caller may include archived sessions. For `codex` the top-level `archived_sessions/rollout-*.jsonl`
+  are then read beside `sessions/` within the same window; the other sources keep no archived state on
+  disk. Import (§3) never includes them, so archiving a source session keeps it out of the workspace.
 - It writes nothing and consults nothing it did not read from a source: no ledger, thread, setting,
   or import history.
