@@ -180,6 +180,27 @@ public sealed class CodexSessionSourceTests : IDisposable
         Assert.Null(await source.LoadAsync(imported));
     }
 
+    [Fact]
+    public async Task ReadsArchivedThreadsOnlyWhenTheScopeIncludesThem()
+    {
+        const string archivedId = "01990000-0000-7000-8000-000000000008";
+        Session(ThreadId, Meta(ThreadId));
+        Jsonl.Write(
+            Path.Combine(_root, "archived_sessions", $"rollout-2026-09-20T10-00-00-{archivedId}.jsonl"),
+            Meta(archivedId),
+            UserItem("2026-09-20T10:00:01.000Z", "t1", "u1", "Archived question"));
+        var source = new CodexSessionSource(_root);
+
+        var active = await source.EnumerateCandidatesAsync(Scopes.For(_workspace));
+        var all = await source.EnumerateCandidatesAsync(Scopes.For(_workspace) with { IncludeArchived = true });
+
+        Assert.Equal(ThreadId, Assert.Single(active).SourceId);
+        var archived = Assert.Single(all, static candidate => candidate.SourceId == archivedId);
+        Assert.Equal(2, all.Count);
+        var session = Assert.IsType<ImportedSession>(await source.LoadAsync(archived));
+        Assert.Equal("Archived question", Assert.Single(session.Turns).UserText);
+    }
+
     private void Session(string id, object meta, params object[] extra) =>
         Rollout(
             $"rollout-2026-09-20T10-00-00-{id}.jsonl",

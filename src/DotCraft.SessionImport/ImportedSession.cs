@@ -34,4 +34,7 @@ public sealed record SessionImportScope
     public required int MaxSessions { get; init; }
 
     public required IReadOnlySet<string> ExternalCliSessionIds { get; init; }
+
+    /// <summary>Also reads sessions a source keeps apart as archived. Import never sets it.</summary>
+    public bool IncludeArchived { get; init; }
 }
