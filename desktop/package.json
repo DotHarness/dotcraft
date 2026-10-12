@@ -25,6 +25,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:repl-worker": "node scripts/test-node-repl-worker.mjs",
+    "test:reference-copy": "node scripts/test-conversation-reference-copy.mjs",
     "verify:package": "node scripts/verify-package.mjs",
     "pack": "npm run ensure:electron && npm run prepare:runtime && npm run build && node --require ./scripts/electron-builder-rename-retry.cjs ./node_modules/electron-builder/cli.js --dir",
     "dist:package": "node scripts/dist-package.mjs",

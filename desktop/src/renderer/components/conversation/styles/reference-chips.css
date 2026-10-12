@@ -16,6 +16,11 @@
   transition: color var(--duration-fast) var(--ease-standard);
 }
 
+/* Flex items are blockified and add line breaks to Chromium's copied text. */
+.markdown-body .dc-conversation-reference-tooltip {
+  display: inline-block;
+}
+
 .markdown-body a.dc-ref[data-conversation-reference] {
   user-select: text;
   -webkit-user-drag: none;

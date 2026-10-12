@@ -1,4 +1,9 @@
 /* Action tooltip + keyboard shortcut keycaps */
+.dc-action-tooltip-anchor {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
 .dc-action-tooltip {
   display: inline-flex;
   align-items: center;
