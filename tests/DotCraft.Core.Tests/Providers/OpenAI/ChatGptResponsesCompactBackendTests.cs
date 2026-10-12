@@ -139,7 +139,6 @@ public sealed class ChatGptResponsesCompactBackendTests
             body,
             ChatGptResponsesCompactJson.Options);
 
-        Assert.Null(body.Instructions);
         Assert.Null(body.Tools);
         Assert.False(body.ParallelToolCalls);
         Assert.Equal(
@@ -150,7 +149,7 @@ public sealed class ChatGptResponsesCompactBackendTests
     }
 
     [Fact]
-    public void RequestBuilder_StandardPreservesTopLevelInstructionsToolsAndParallelCapability()
+    public void RequestBuilder_StandardUsesInstructionPrefixWithTopLevelToolsAndParallelCapability()
     {
         var input = new ProviderNativeCompactionInput(
             [new ProviderHistoryItem("input:0", ReadObject("""{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}"""))],
@@ -175,13 +174,16 @@ public sealed class ChatGptResponsesCompactBackendTests
             options,
             useResponsesLite: false);
 
-        Assert.Equal("stay concise", body.Instructions);
+        Assert.Equal("stay concise", body.Input[0].GetProperty("content")[0].GetProperty("text").GetString());
+        Assert.StartsWith("msg_", body.Input[0].GetProperty("id").GetString());
+        Assert.False(JsonSerializer.SerializeToElement(body, ChatGptResponsesCompactJson.Options)
+            .TryGetProperty("instructions", out _));
         Assert.NotEmpty(Assert.IsType<List<JsonElement>>(body.Tools));
         Assert.True(body.ParallelToolCalls);
         Assert.Equal("high", body.Reasoning?.GetProperty("effort").GetString());
         Assert.False(body.Reasoning?.TryGetProperty("context", out _) ?? false);
         Assert.Equal(
-            ["message", "compaction_trigger"],
+            ["message", "message", "compaction_trigger"],
             body.Input.Select(item => item.GetProperty("type").GetString()!).ToArray());
     }
 

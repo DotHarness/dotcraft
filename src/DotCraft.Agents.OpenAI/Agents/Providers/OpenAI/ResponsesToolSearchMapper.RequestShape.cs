@@ -218,6 +218,24 @@ internal static partial class ResponsesToolSearchMapper
             responseOptions.StreamingEnabled == true);
     }
 
+    internal static PromptCacheRequestShapeSnapshot WithFinalInputShape(
+        PromptCacheRequestShapeSnapshot shape, JsonArray input)
+    {
+        var identity = OpenAIResponsesItemIdentityDiagnostics.FromInput(input);
+        return shape with
+        {
+            InputHash = HashJsonNode(input),
+            InputItemCount = input.Count,
+            InputItemHashes = input.Select(static item => item == null
+                ? HashUtf8String("null")
+                : HashJsonNode(item)).ToArray(),
+            InputBytes = Encoding.UTF8.GetByteCount(input.ToJsonString(JsonOptions)),
+            InputItemIdEligibleCount = identity.EligibleCount,
+            InputItemIdPresentCount = identity.PresentCount,
+            InputItemIdMissingCount = identity.MissingCount
+        };
+    }
+
     private static string DescribeToolChoiceKind(ChatToolMode? toolMode)
     {
         if (toolMode == null || ReferenceEquals(toolMode, ChatToolMode.Auto))

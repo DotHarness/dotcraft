@@ -497,6 +497,10 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
                 tool => tool.GetProperty("name").GetString() == "ReadRepository");
 
             var input = root.GetProperty("input").EnumerateArray().ToArray();
+            Assert.Equal("developer", input[0].GetProperty("role").GetString());
+            Assert.StartsWith("msg_", input[0].GetProperty("id").GetString());
+            Assert.False(root.TryGetProperty("instructions", out _));
+            input = input.Skip(1).ToArray();
             Assert.Equal(
                 ["message", "reasoning", "function_call", "function_call_output"],
                 input.Select(item => item.GetProperty("type").GetString()!).ToArray());
@@ -511,10 +515,10 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
             Assert.Equal("repository contents", input[3].GetProperty("output").GetString());
 
             Assert.Equal(
-                "8286d566efdbd853027d48410cd3821676c023cb2b4dc084254f7fffcc092d03",
+                "6988e6133379a55e022639194bb996df2c230b18eb486515b5f5208e6880fd91",
                 ComputeSha256(request.Body));
             Assert.Equal(
-                "d5bd5d24df340c3a54ffdaaeed16d5f1bd0810b21f643b389eb901ade9c885ec",
+                "a8230a557b95be139529d52e585e22d2d7ebc32d4bfd7c9a480ef406fc7f7c7a",
                 ComputeSha256(BuildSanitizedCacheWireSnapshot(request)));
         }
         finally

@@ -16,7 +16,7 @@ internal static partial class ResponsesToolSearchMapper
     internal const string FunctionCallNamespaceMetadataKey = "openai.responses.function_call.namespace";
     internal const string PromptCacheKeyAdditionalProperty = "prompt_cache_key";
 
-    private const int PromptCacheRequestShapeSchemaVersion = 2;
+    private const int PromptCacheRequestShapeSchemaVersion = 1;
     private const string OpenAIResponsesProtocolName = "openai-responses";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -129,22 +129,20 @@ internal static partial class ResponsesToolSearchMapper
     {
         var messages = chatMessages as IReadOnlyList<ChatMessage> ?? chatMessages.ToList();
         var callNames = new Dictionary<string, ResponsesCallReference>(StringComparer.Ordinal);
-        var responseOptions =
-            rawRepresentationClient is not null
-            && options?.RawRepresentationFactory?.Invoke(rawRepresentationClient) is CreateResponseOptions rawOptions
-                ? rawOptions
-                : new CreateResponseOptions();
+        var rawOptions = rawRepresentationClient is not null
+            ? options?.RawRepresentationFactory?.Invoke(rawRepresentationClient) as CreateResponseOptions
+            : null;
+        var responseOptions = rawOptions is not null
+            ? OpenAIResponsesRequestOptions.Copy(rawOptions)
+            : new CreateResponseOptions();
         responseOptions.Model ??= options?.ModelId ?? model;
         responseOptions.StreamingEnabled = true;
         responseOptions.StoredOutputEnabled = false;
 
-        var instructions = BuildInstructions(messages, options);
-        if (!string.IsNullOrWhiteSpace(instructions))
-        {
-            responseOptions.Instructions = string.IsNullOrWhiteSpace(responseOptions.Instructions)
-                ? instructions
-                : responseOptions.Instructions + Environment.NewLine + instructions;
-        }
+        var instructions = OpenAIResponsesInstructionPrefix.ResolveInstructions(
+            responseOptions, BuildInstructions(messages, options), rawOptions);
+
+        canonicalInput = canonicalInput?.DeepClone().AsArray();
 
         if (canonicalInput != null && !supportsFreeformTools
             && ProjectCustomCallsAsFunctionCalls(canonicalInput, CollectFreeformParameters(options)))
@@ -159,6 +157,12 @@ internal static partial class ResponsesToolSearchMapper
                 canonicalInput,
                 canonicalItemIdentity ?? OpenAIResponsesItemIdentityDiagnostics.FromInput(canonicalInput));
         var input = inputResult.Input;
+        var itemIdentity = inputResult.ItemIdentity.Copy();
+        if (instructions is not null)
+        {
+            input.Insert(0, OpenAIResponsesInstructionPrefix.Create(instructions));
+            itemIdentity.Record(generated: true, invalidSource: false);
+        }
         var tools = BuildTools(options, supportsFreeformTools);
 
         if (tools.Count > 0 && options?.AllowMultipleToolCalls is { } allowMultiple)
@@ -199,6 +203,8 @@ internal static partial class ResponsesToolSearchMapper
         if (!string.IsNullOrWhiteSpace(promptCacheKey.Value))
             PatchResponsePromptCacheKey(responseOptions, promptCacheKey.Value!);
 
+        OpenAIResponsesRequestOptions.Freeze(responseOptions);
+
         return new OpenAIResponsesRequest(
             responseOptions,
             CreatePromptCacheRequestShapeSnapshot(
@@ -206,7 +212,7 @@ internal static partial class ResponsesToolSearchMapper
                 promptCacheKey,
                 instructions,
                 input,
-                inputResult.ItemIdentity,
+                itemIdentity,
                 tools,
                 includeReasoning,
                 responseOptions.ReasoningOptions,

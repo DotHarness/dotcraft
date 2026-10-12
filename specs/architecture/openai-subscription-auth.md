@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7.8 |
+| Version | 0.8.5 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-12 |
 
 DotCraft natively supports authenticating outgoing model requests against a user's ChatGPT
 subscription (Plus, Pro, Team, Business, Enterprise, Edu) as an alternative to the standard
@@ -237,9 +237,18 @@ and never enables Lite for API-key Responses runtimes.
 
 Both dialects share the canonical Responses history, OAuth routing headers, `store=false`, encrypted
 reasoning inclusion, stable item IDs, and prompt-cache identity described below. The standard dialect
-uses the SDK's top-level `instructions` and `tools` fields. Model metadata supplies the default
+uses the SDK's top-level `tools` field. Model metadata supplies the default
 `parallel_tool_calls` value; the Lite dialect always forces that value to `false`. The standard
 dialect does not send the Responses Lite header or apply Lite body mapping.
+
+All `openai-responses` requests, including API-key and compatible endpoints, must carry effective
+base instructions in one developer message before the original input and omit top-level
+`instructions`. Instruction sources retain their merge order and caller overrides, including
+explicit removal. Whitespace-only instructions produce no prefix.
+
+The prefix identity must remain stable for unchanged instructions within the current execution
+thread across turns, retries, cold resume, and compaction. Instruction changes, child threads, and
+forks must produce a different identity. Request construction must preserve caller options.
 
 Every OAuth `/responses` request advertises
 `x-codex-beta-features: remote_compaction_v2`. The Lite dialect additionally carries
@@ -247,8 +256,8 @@ Every OAuth `/responses` request advertises
 `Accept: text/event-stream` and serialize the complete JSON body before applying Zstandard level 3
 compression, independently of the selected dialect. Compact requests are not compressed. The Lite
 body moves tool definitions into a leading developer
-`additional_tools` input item and moves non-empty base instructions into the following developer
-message. It removes the top-level `instructions`, `tools`, and `max_output_tokens` fields, strips
+`additional_tools` input item before the shared base-instruction prefix and original history.
+It removes the top-level `tools` and `max_output_tokens` fields, strips
 image `detail` values, and sets `reasoning.context=all_turns`. Sampling requests use `store=false`
 and `stream=true`.
 

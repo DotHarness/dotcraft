@@ -13,10 +13,6 @@ internal sealed record ChatGptResponsesCompactRequest
     [JsonRequired]
     public required List<JsonElement> Input { get; init; }
 
-    [JsonPropertyName("instructions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Instructions { get; init; }
-
     [JsonPropertyName("tools")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<JsonElement>? Tools { get; init; }
