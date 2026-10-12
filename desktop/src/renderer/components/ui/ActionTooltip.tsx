@@ -27,6 +27,7 @@ interface ActionTooltipProps {
   disabledReason?: string
   multiline?: boolean
   children: ReactNode
+  wrapperClassName?: string
   wrapperStyle?: CSSProperties
 }
 
@@ -47,6 +48,7 @@ export function ActionTooltip({
   disabledReason,
   multiline = false,
   children,
+  wrapperClassName,
   wrapperStyle
 }: ActionTooltipProps): JSX.Element {
   const tooltipId = useId()
@@ -81,11 +83,8 @@ export function ActionTooltip({
         onMouseLeave={hide}
         onFocusCapture={open}
         onBlurCapture={hide}
-        style={{
-          display: 'inline-flex',
-          flexShrink: 0,
-          ...wrapperStyle
-        }}
+        className={wrapperClassName ? `dc-action-tooltip-anchor ${wrapperClassName}` : 'dc-action-tooltip-anchor'}
+        style={wrapperStyle}
       >
         {describedChild}
       </span>

@@ -458,7 +458,12 @@ function InlineReferenceLink({
   return (
     <>
       {presentation.title ? (
-        <ActionTooltip label={presentation.title}>{anchor}</ActionTooltip>
+        <ActionTooltip
+          label={presentation.title}
+          wrapperClassName={linkMode === 'conversation' ? 'dc-conversation-reference-tooltip' : undefined}
+        >
+          {anchor}
+        </ActionTooltip>
       ) : (
         anchor
       )}
