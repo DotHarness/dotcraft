@@ -16,6 +16,53 @@ namespace DotCraft.Tests.Providers.OpenAI;
 public sealed class ResponsesInstructionPrefixTests
 {
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ChildOptions_PreserveSeededFieldsPatchesAndReusableCallerOptions(bool lite, bool patched)
+    {
+        var native = ModelReaderWriter.Read<CreateResponseOptions>(BinaryData.FromString("""
+            {"text":{"verbosity":"low","removed":"discard"},
+             "reasoning":{"effort":"low","provider_hint":"retained","removed":"discard"}}
+            """))!;
+        native.TextOptions.Patch.Remove("$.removed"u8);
+        native.ReasoningOptions.Patch.Remove("$.removed"u8);
+        if (patched)
+        {
+            native.TextOptions.Patch.Set("$.verbosity"u8, "high");
+            native.ReasoningOptions.Patch.Set("$.provider_hint"u8, "patched");
+            native.ReasoningOptions.ReasoningEffortLevel = ResponseReasoningEffortLevel.High;
+        }
+        var originalText = native.TextOptions.Patch.ToBinaryData("J").ToString();
+        var originalReasoning = native.ReasoningOptions.Patch.ToBinaryData("J").ToString();
+        var options = new ChatOptions { Instructions = "base", RawRepresentationFactory = _ => native };
+        using var client = new NoopChatClient();
+        ChatMessage[] messages = [new(ChatRole.User, "hello")];
+        string? firstBody = null;
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var wire = lite
+                ? OpenAIResponsesLiteRequestMapper.CreateResponseRequest(
+                    "gpt-test", messages, options, null, null, client, "installation-test", true).WireBody
+                : ModelReaderWriter.Write(Request(messages, options).Options);
+            using var body = JsonDocument.Parse(wire);
+            var text = body.RootElement.GetProperty("text");
+            var reasoning = body.RootElement.GetProperty("reasoning");
+            Assert.Equal(patched ? "high" : "low", text.GetProperty("verbosity").GetString());
+            Assert.Equal(patched ? "patched" : "retained", reasoning.GetProperty("provider_hint").GetString());
+            Assert.Equal(patched ? "high" : "low", reasoning.GetProperty("effort").GetString());
+            Assert.False(text.TryGetProperty("removed", out _));
+            Assert.False(reasoning.TryGetProperty("removed", out _));
+            if (firstBody is not null)
+                Assert.Equal(firstBody, wire.ToString());
+            firstBody = wire.ToString();
+        }
+        Assert.Equal(originalText, native.TextOptions.Patch.ToBinaryData("J").ToString());
+        Assert.Equal(originalReasoning, native.ReasoningOptions.Patch.ToBinaryData("J").ToString());
+    }
+
+    [Theory]
     [InlineData("none")]
     [InlineData("replace")]
     [InlineData("root")]

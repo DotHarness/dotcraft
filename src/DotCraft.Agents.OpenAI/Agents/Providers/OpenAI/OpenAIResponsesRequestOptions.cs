@@ -46,17 +46,16 @@ internal static class OpenAIResponsesRequestOptions
             copy.IncludedProperties.Add(included);
         if (source.ReasoningOptions is { } reasoning)
         {
-            copy.ReasoningOptions = new ResponseReasoningOptions
-            {
-                ReasoningEffortLevel = reasoning.ReasoningEffortLevel,
-                ReasoningSummaryVerbosity = reasoning.ReasoningSummaryVerbosity,
-                Context = reasoning.Context
-            };
+            copy.ReasoningOptions = ModelReaderWriter.Read<ResponseReasoningOptions>(reasoning.Patch.ToBinaryData("J"))!;
+            copy.ReasoningOptions.ReasoningEffortLevel = reasoning.ReasoningEffortLevel;
+            copy.ReasoningOptions.ReasoningSummaryVerbosity = reasoning.ReasoningSummaryVerbosity;
+            copy.ReasoningOptions.Context = reasoning.Context;
             CopyPatch(reasoning.Patch, ref copy.ReasoningOptions.Patch);
         }
         if (source.TextOptions is { } text)
         {
-            copy.TextOptions = new ResponseTextOptions { TextFormat = text.TextFormat };
+            copy.TextOptions = ModelReaderWriter.Read<ResponseTextOptions>(text.Patch.ToBinaryData("J"))!;
+            copy.TextOptions.TextFormat = text.TextFormat;
             CopyPatch(text.Patch, ref copy.TextOptions.Patch);
         }
         CopyPatch(source.Patch, ref copy.Patch);
