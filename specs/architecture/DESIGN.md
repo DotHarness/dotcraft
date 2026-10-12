@@ -1,5 +1,5 @@
 ---
-version: "0.7.10"
+version: "0.8.5"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -417,6 +417,12 @@ View-level color assignment stays neutral:
   for records the user already owns. Every row is a borderless `8px` box with a
   `40px` leading mark, a `--type-ui` title and one truncating `--type-secondary`
   line, and fills with `--bg-tertiary` on hover rather than gaining a border.
+- A group of owned records that compares several attributes per record lays them
+  out in aligned columns under one quiet header line: `--type-secondary` labels in
+  secondary or tertiary text, with no rules above or below it. The name column
+  comes first and takes the remaining width; trailing row actions sit in a
+  reserved slot and appear on hover or focus, so revealing them never shifts the
+  columns. As the page narrows, the least important columns hide first.
 - The Plugins browse page titles its two installed groups in one pattern: the
   plugins the user installed are `Installed globally` (`Installed globally on
   <machine>` in a remote workspace), and the plugins that come with

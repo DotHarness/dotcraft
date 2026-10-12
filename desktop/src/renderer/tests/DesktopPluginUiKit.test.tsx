@@ -1,5 +1,5 @@
 import './setupPluginRuntime'
-import { IconButton, Menu, SegmentedControl } from '@dotcraft/plugin'
+import { CatalogPage, IconButton, Menu, SegmentedControl, SplitButton } from '@dotcraft/plugin'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -65,5 +65,56 @@ describe('Desktop Plugin UI kit', () => {
     expect(onRemove).toHaveBeenCalledOnce()
     expect(onOpen).not.toHaveBeenCalled()
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('runs split button menu items through the kit onSelect name', () => {
+    const onClick = vi.fn()
+    const onClone = vi.fn()
+    render(
+      <SplitButton
+        label="Add"
+        menuLabel="More ways to add"
+        onClick={onClick}
+        items={[{ label: 'Clone', onSelect: onClone }]}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    expect(onClick).toHaveBeenCalledOnce()
+
+    fireEvent.click(screen.getByRole('button', { name: 'More ways to add' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Clone' }))
+    expect(onClone).toHaveBeenCalledOnce()
+    expect(onClick).toHaveBeenCalledOnce()
+  })
+
+  it('reports catalog search and filter choices through the kit onValueChange name', () => {
+    const onSearch = vi.fn()
+    const onStatus = vi.fn()
+    render(
+      <CatalogPage
+        title="Projects"
+        search={{ value: '', placeholder: 'Search projects', onValueChange: onSearch }}
+        filters={{
+          ariaLabel: 'Filter',
+          groups: [{
+            label: 'Status',
+            value: 'all',
+            options: [{ value: 'all', label: 'All' }, { value: 'open', label: 'Open' }],
+            onValueChange: onStatus
+          }]
+        }}
+      >
+        {null}
+      </CatalogPage>
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('Search projects'), { target: { value: 'demo' } })
+    expect(onSearch).toHaveBeenCalledWith('demo')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Status' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Open' }))
+    expect(onStatus).toHaveBeenCalledWith('open')
   })
 })

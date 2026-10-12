@@ -1,5 +1,9 @@
 import {
+  CatalogPage,
+  CatalogSection,
+  CatalogToolbarButton,
   PluginSurface,
+  SplitButton,
   SegmentedControl,
   SettingsGroup,
   SettingsRow,
@@ -214,6 +218,42 @@ void (
     </SettingsRow>
   </SettingsGroup>
 );
+
+void (
+  <CatalogPage
+    title="Projects"
+    actions={(
+      <>
+        <CatalogToolbarButton label="Refresh" icon="R" onClick={(event) => void event.currentTarget} />
+        <SplitButton
+          label="Add project"
+          menuLabel="More ways to add"
+          onClick={() => undefined}
+          items={[
+            { label: "Open folder", onSelect: () => undefined },
+            { label: "Clone", onSelect: () => undefined, disabled: true },
+          ]}
+          variant="secondary"
+        />
+      </>
+    )}
+    search={{ value: "", placeholder: "Search projects", onValueChange: (value) => void value }}
+    filters={{
+      ariaLabel: "Filter",
+      groups: [{
+        label: "Status",
+        value: "all",
+        options: [{ value: "all", label: "All" }, { value: "open", label: "Open" }],
+        onValueChange: (value) => void value,
+      }],
+    }}
+  >
+    <CatalogSection title="Recent">{null}</CatalogSection>
+  </CatalogPage>
+);
+
+// @ts-expect-error Split button items run through onSelect, as Menu items do.
+void <SplitButton label="Add" menuLabel="More" onClick={() => undefined} items={[{ label: "Clone", onClick: () => undefined }]} />;
 
 void (
   <SegmentedControl

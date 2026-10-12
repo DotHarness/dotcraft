@@ -4,9 +4,12 @@ import { createPortal } from 'react-dom'
 import * as JsxRuntime from 'react/jsx-runtime'
 
 import { RobotAvatar } from '../components/agents/RobotAvatar'
+import { CatalogSection, CatalogToolbarIconButton } from '../components/catalog/CatalogSurface'
+import { DesktopPluginCatalogPage } from '../components/desktopPlugins/DesktopPluginCatalogPage'
 import { DesktopPluginInlineDiff } from '../components/desktopPlugins/DesktopPluginInlineDiff'
 import { DesktopPluginMenu } from '../components/desktopPlugins/DesktopPluginMenu'
 import { DesktopPluginSegmentedControl } from '../components/desktopPlugins/DesktopPluginSegmentedControl'
+import { DesktopPluginSplitButton } from '../components/desktopPlugins/DesktopPluginSplitButton'
 import { DesktopPluginSurface } from '../components/desktopPlugins/DesktopPluginSurface'
 import { SettingsBreadcrumb } from '../components/settings/SettingsBreadcrumb'
 import { SettingsGroup, SettingsRow } from '../components/settings/SettingsGroup'
@@ -60,6 +63,10 @@ export function startDesktopPluginRuntime(): () => void {
       InlineDiff: DesktopPluginInlineDiff,
       AgentAvatar: RobotAvatar,
       Menu: DesktopPluginMenu,
+      SplitButton: DesktopPluginSplitButton,
+      CatalogPage: DesktopPluginCatalogPage,
+      CatalogToolbarButton: CatalogToolbarIconButton,
+      CatalogSection,
       PluginSurface: DesktopPluginSurface
     }
   })

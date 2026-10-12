@@ -19,9 +19,12 @@ import { SettingsBreadcrumb } from '../components/settings/SettingsBreadcrumb'
 import { SettingsGroup, SettingsRow } from '../components/settings/SettingsGroup'
 import { SettingsPanelShell } from '../components/settings/SettingsPanelShell'
 import { RobotAvatar } from '../components/agents/RobotAvatar'
+import { CatalogSection, CatalogToolbarIconButton } from '../components/catalog/CatalogSurface'
+import { DesktopPluginCatalogPage } from '../components/desktopPlugins/DesktopPluginCatalogPage'
 import { DesktopPluginInlineDiff } from '../components/desktopPlugins/DesktopPluginInlineDiff'
 import { DesktopPluginMenu } from '../components/desktopPlugins/DesktopPluginMenu'
 import { DesktopPluginSegmentedControl } from '../components/desktopPlugins/DesktopPluginSegmentedControl'
+import { DesktopPluginSplitButton } from '../components/desktopPlugins/DesktopPluginSplitButton'
 
 installDesktopPluginRuntime({
   react: React as Parameters<typeof installDesktopPluginRuntime>[0]['react'],
@@ -47,6 +50,10 @@ installDesktopPluginRuntime({
     SettingsRow,
     InlineDiff: DesktopPluginInlineDiff,
     AgentAvatar: RobotAvatar,
-    Menu: DesktopPluginMenu
+    Menu: DesktopPluginMenu,
+    SplitButton: DesktopPluginSplitButton,
+    CatalogPage: DesktopPluginCatalogPage,
+    CatalogToolbarButton: CatalogToolbarIconButton,
+    CatalogSection
   }
 })

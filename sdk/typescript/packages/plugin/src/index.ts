@@ -95,6 +95,13 @@ export type {
   ButtonProps,
   ButtonSize,
   ButtonVariant,
+  CatalogFilterGroup,
+  CatalogFilterOption,
+  CatalogPageFilters,
+  CatalogPageProps,
+  CatalogPageSearch,
+  CatalogSectionProps,
+  CatalogToolbarButtonProps,
   CheckboxProps,
   ComboboxOption,
   ComboboxProps,
@@ -121,6 +128,8 @@ export type {
   SkeletonProps,
   SliderProps,
   SpinnerProps,
+  SplitButtonItem,
+  SplitButtonProps,
   SettingsBreadcrumbProps,
   SettingsGroupProps,
   SettingsPanelShellProps,
@@ -154,3 +163,7 @@ export const SettingsRow = ui.SettingsRow;
 export const InlineDiff = ui.InlineDiff;
 export const AgentAvatar = ui.AgentAvatar;
 export const Menu = ui.Menu;
+export const SplitButton = ui.SplitButton;
+export const CatalogPage = ui.CatalogPage;
+export const CatalogToolbarButton = ui.CatalogToolbarButton;
+export const CatalogSection = ui.CatalogSection;

@@ -637,9 +637,12 @@ Import shared UI components from `@dotcraft/plugin` so a plugin page looks like 
 
 | Group | Components |
 |---|---|
-| **Controls** | `Button`, `IconButton`, `Menu`, `Input`, `Textarea`, `Select`, `SegmentedControl`, `Combobox`, `Checkbox`, `PillSwitch`, `Slider` |
+| **Controls** | `Button`, `IconButton`, `SplitButton`, `Menu`, `Input`, `Textarea`, `Select`, `SegmentedControl`, `Combobox`, `Checkbox`, `PillSwitch`, `Slider` |
 | **Presentation** | `Spinner`, `Skeleton`, `ActionTooltip`, `ModalHeader`, `InlineDiff`, `AgentAvatar` |
 | **Settings layout** | `SettingsPanelShell`, `SettingsBreadcrumb`, `SettingsGroup`, `SettingsRow` |
+| **Catalog layout** | `CatalogPage`, `CatalogSection`, `CatalogToolbarButton` |
+
+`CatalogPage` gives a main view the same frame as Desktop's Plugins and Agents pages: pass a `title`, optional `actions` for the top bar (`CatalogToolbarButton` for icon-only commands such as Refresh, `Button` or `SplitButton` for the principal one), an optional `search` and `filters`, and render your groups as children with `CatalogSection`. In each filter group, put the unfiltered choice first.
 
 `AgentAvatar` draws the character Desktop shows for an agent. Pass the SubAgent's `nickname` as `name`, plus an optional `size` and `animated`, and your plugin draws the same character as the Subagents tab. Desktop supplies the component, so do not bundle the avatar package yourself.
 

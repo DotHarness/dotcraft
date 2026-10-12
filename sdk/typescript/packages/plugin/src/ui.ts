@@ -3,6 +3,7 @@ import type {
   ComponentType,
   CSSProperties,
   InputHTMLAttributes,
+  MouseEvent,
   ReactElement,
   ReactNode,
   TextareaHTMLAttributes,
@@ -222,6 +223,69 @@ export interface MenuProps {
   readonly children: ReactElement;
 }
 
+export interface SplitButtonItem {
+  readonly label: string;
+  readonly onSelect: () => void;
+  readonly icon?: ReactNode;
+  readonly disabled?: boolean;
+}
+
+export interface SplitButtonProps {
+  readonly label: string;
+  readonly onClick: () => void;
+  readonly items: readonly SplitButtonItem[];
+  readonly menuLabel: string;
+  readonly icon?: ReactNode;
+  readonly variant?: "primary" | "secondary";
+  readonly disabled?: boolean;
+  readonly ariaLabel?: string;
+}
+
+export interface CatalogToolbarButtonProps
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "onClick"> {
+  readonly icon: ReactNode;
+  readonly label: string;
+  readonly onClick: (event: MouseEvent<HTMLButtonElement>) => void;
+}
+
+export interface CatalogFilterOption {
+  readonly value: string;
+  readonly label: string;
+}
+
+export interface CatalogFilterGroup {
+  readonly label: string;
+  readonly value: string;
+  /** The first option is the unfiltered choice. */
+  readonly options: readonly CatalogFilterOption[];
+  readonly onValueChange: (value: string) => void;
+  readonly icon?: ReactNode;
+}
+
+export interface CatalogPageSearch {
+  readonly value: string;
+  readonly placeholder: string;
+  readonly onValueChange: (value: string) => void;
+}
+
+export interface CatalogPageFilters {
+  readonly ariaLabel: string;
+  readonly groups: readonly CatalogFilterGroup[];
+}
+
+export interface CatalogPageProps {
+  readonly title: string;
+  readonly actions?: ReactNode;
+  readonly search?: CatalogPageSearch;
+  readonly filters?: CatalogPageFilters;
+  readonly children: ReactNode;
+}
+
+export interface CatalogSectionProps {
+  readonly title: string;
+  readonly children: ReactNode;
+}
+
 export interface PluginSurfaceProps<Surface extends string = string> {
   readonly name: Surface;
   readonly context: DesktopPluginSurfaceContext<Surface>;
@@ -263,4 +327,8 @@ export interface DesktopPluginUiComponents {
   readonly InlineDiff: ComponentType<InlineDiffProps>;
   readonly AgentAvatar: ComponentType<AgentAvatarProps>;
   readonly Menu: ComponentType<MenuProps>;
+  readonly SplitButton: ComponentType<SplitButtonProps>;
+  readonly CatalogPage: ComponentType<CatalogPageProps>;
+  readonly CatalogToolbarButton: ComponentType<CatalogToolbarButtonProps>;
+  readonly CatalogSection: ComponentType<CatalogSectionProps>;
 }

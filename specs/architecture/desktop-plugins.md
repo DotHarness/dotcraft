@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.8.4 |
+| Version | 0.8.5 |
 | Status | Living |
-| Date | 2026-10-11 |
+| Date | 2026-10-12 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -103,6 +103,24 @@ Host adapters preserve these SDK names independently of internal component prop 
 takes the trigger as its child and an `items` list of `{ label, onSelect, icon?, disabled?, danger?, checked? }`
 entries, `{ type: "separator" }`, and `{ type: "label", label }`. The Host owns placement, keyboard
 navigation, dismissal, and layering, as it does for Core menus.
+
+### Catalog pages
+
+A plugin main view that browses or manages a collection uses the Host catalog frame instead of
+copying its sizes. `CatalogPage` takes `{ title, actions?, search?, filters?, children }` and renders
+the catalog top band with `actions` on the right, the pinned header with `title` as the hero and a
+search row, and the scrolling body that centres `children` on the catalog column. `search` is
+`{ value, placeholder, onValueChange }`. `filters` is `{ ariaLabel, groups }`, where each group is
+`{ label, icon?, value, options, onValueChange }` and options are `{ value, label }`; the first
+option is the unfiltered choice, and the filter button reads active while any group holds another
+value. The band carries no navigation slot for plugins.
+
+`CatalogSection` titles one group of the body with `{ title, children }`. `CatalogToolbarButton`
+is the band's icon-only action, `{ icon, label, onClick }`, whose label is also its tooltip.
+`SplitButton` is the band's principal action with alternatives: `{ label, onClick, items, menuLabel,
+icon?, variant?, disabled?, ariaLabel? }`, where `variant` is `primary` or `secondary` and `items`
+use `{ label, onSelect, icon?, disabled? }` like `Menu` items. Rows and tables inside a group stay
+plugin code built from theme tokens.
 
 ### Agent identity
 
