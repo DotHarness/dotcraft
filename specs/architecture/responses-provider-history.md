@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.7.10 |
+| **Version** | 0.8.5 |
 | **Status** | Living |
-| **Date** | 2026-10-02 |
+| **Date** | 2026-10-12 |
 | **Parent Specs** | [Session Core](session-core.md), [Model Runtime](model-runtime.md) |
 
 ## Overview
@@ -103,8 +103,14 @@ locally generated item IDs, and sanitizing invalid IDs. A correlation index deri
 calls is supplied when mapping a tail so a result for a native tool-search call remains a
 `tool_search_output` and a result for a `custom_tool_call` remains a `custom_tool_call_output`.
 
-Instructions, tools, reasoning configuration, `prompt_cache_key`, OAuth body shaping, and headers
-continue to use their existing request paths. Canonical history changes only the `input` array.
+Canonical history supplies the original input sequence. Base-instruction prefixes are request-local:
+they must not enter persisted history, advance message coverage, or change existing item IDs and
+tool-call correlation. Existing developer messages retain their positions.
+
+Sampling and compaction must use the same instruction prefix. Standard requests place it before
+history; Lite places its tool catalog before the prefix. Compaction puts its trigger last and builds
+replacement history from the original canonical input without the prefix. Request diagnostics
+must describe the final input sent to the provider.
 
 When tools are present, `ChatOptions.ToolMode` maps to the final Responses `tool_choice` field:
 

@@ -36,20 +36,14 @@ public sealed class OpenAIResponsesLiteChatClientTests
                 AllowMultipleToolCalls = true,
                 MaxOutputTokens = 123
             });
-#pragma warning disable SCME0001
         var standardBody = JsonNode.Parse(ModelReaderWriter.Write(options).ToString())!.AsObject();
         var patchedInput = standardBody["input"]!.AsArray();
-        patchedInput[0]!["content"]!.AsArray().Add(JsonNode.Parse(
+        patchedInput[1]!["content"]!.AsArray().Add(JsonNode.Parse(
             """{"type":"input_image","image_url":"data:image/png;base64,AA==","detail":"high"}"""));
-        options.Patch.Set(
-            "$.input"u8,
-            BinaryData.FromString(patchedInput.ToJsonString()));
-        options.Patch.Set(
-            "$.tools"u8,
-            BinaryData.FromString("""[{"type":"function","name":"nullable","parameters":{"type":"object","properties":{"value":{"type":["string","null"]}}}}]"""));
-#pragma warning restore SCME0001
+        standardBody["tools"] = JsonNode.Parse(
+            """[{"type":"function","name":"nullable","parameters":{"type":"object","properties":{"value":{"type":["string","null"]}}}}]""");
 
-        var body = OpenAIResponsesLiteRequestMapper.BuildWireBody(options, "install-1");
+        var body = OpenAIResponsesLiteRequestMapper.BuildWireBody(BinaryData.FromString(standardBody.ToJsonString()), "install-1");
         using var document = JsonDocument.Parse(body);
         var root = document.RootElement;
 

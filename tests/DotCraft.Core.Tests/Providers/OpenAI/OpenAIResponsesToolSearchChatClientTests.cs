@@ -673,7 +673,8 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
             options).Shape;
 
         Assert.Equal(first.InputItemHashes, appended.InputItemHashes.Take(first.InputItemCount).ToArray());
-        Assert.NotEqual(first.InputItemHashes[0], changed.InputItemHashes[0]);
+        Assert.Equal(first.InputItemHashes[0], changed.InputItemHashes[0]);
+        Assert.NotEqual(first.InputItemHashes[1], changed.InputItemHashes[1]);
         Assert.All(appended.InputItemHashes, hash => Assert.StartsWith("sha256:", hash, StringComparison.Ordinal));
         Assert.StartsWith("sha256:", appended.InputHash, StringComparison.Ordinal);
         Assert.StartsWith("sha256:", appended.ToolsHash, StringComparison.Ordinal);
@@ -991,11 +992,11 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal("Auto", root.GetProperty("toolChoiceKind").GetString());
         Assert.True(root.GetProperty("streamingEnabled").GetBoolean());
         Assert.Equal("gpt-test", root.GetProperty("model").GetString());
-        Assert.Equal(1, root.GetProperty("inputItemCount").GetInt32());
+        Assert.Equal(2, root.GetProperty("inputItemCount").GetInt32());
         Assert.True(root.GetProperty("inputBytes").GetInt32() > 0);
-        Assert.Equal(1, root.GetProperty("inputItemIdEligibleCount").GetInt32());
-        Assert.Equal(1, root.GetProperty("inputItemIdPresentCount").GetInt32());
-        Assert.Equal(1, root.GetProperty("inputItemIdGeneratedCount").GetInt32());
+        Assert.Equal(2, root.GetProperty("inputItemIdEligibleCount").GetInt32());
+        Assert.Equal(2, root.GetProperty("inputItemIdPresentCount").GetInt32());
+        Assert.Equal(2, root.GetProperty("inputItemIdGeneratedCount").GetInt32());
         Assert.Equal(0, root.GetProperty("inputItemIdMissingCount").GetInt32());
         Assert.Equal(0, root.GetProperty("inputItemIdInvalidSourceCount").GetInt32());
         Assert.StartsWith("sha256:", root.GetProperty("inputHash").GetString(), StringComparison.Ordinal);

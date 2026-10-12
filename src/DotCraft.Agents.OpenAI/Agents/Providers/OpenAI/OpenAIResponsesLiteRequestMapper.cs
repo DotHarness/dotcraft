@@ -36,10 +36,16 @@ internal static class OpenAIResponsesLiteRequestMapper
             canonicalItemIdentity: canonicalItemIdentity,
             rawRepresentationClient: rawRepresentationClient,
             supportsFreeformTools: supportsFreeformTools);
+        var wireBody = BuildWireBody(standard.Options, installationId);
+        var input = JsonNode.Parse(wireBody.ToString())!["input"]!.AsArray();
         return new OpenAIResponsesLiteRequest(
             standard.Options,
-            BuildWireBody(standard.Options, installationId),
-            standard.Shape);
+            wireBody,
+            ResponsesToolSearchMapper.WithFinalInputShape(standard.Shape, input) with
+            {
+                MaxOutputTokensPresentAfterOAuthRewrite = false,
+                MaxOutputTokensRemovedByOAuthRewrite = standard.Shape.MaxOutputTokensRequested.HasValue
+            });
     }
 
     internal static BinaryData BuildWireBody(CreateResponseOptions options, string installationId)
@@ -68,7 +74,6 @@ internal static class OpenAIResponsesLiteRequestMapper
 
     private static void ApplyLiteDialect(JsonObject root)
     {
-        var instructions = root["instructions"]?.GetValue<string>();
         var tools = NormalizeTools(root["tools"] as JsonArray);
         var originalInput = root["input"]?.DeepClone() as JsonArray ?? [];
         var liteInput = new JsonArray
@@ -80,28 +85,11 @@ internal static class OpenAIResponsesLiteRequestMapper
                 ["tools"] = tools
             }
         };
-        if (!string.IsNullOrEmpty(instructions))
-        {
-            liteInput.Add(new JsonObject
-            {
-                ["type"] = "message",
-                ["role"] = "developer",
-                ["content"] = new JsonArray
-                {
-                    new JsonObject
-                    {
-                        ["type"] = "input_text",
-                        ["text"] = instructions
-                    }
-                }
-            });
-        }
         foreach (var item in originalInput)
             liteInput.Add(item?.DeepClone());
 
         StripImageDetails(liteInput);
         root["input"] = liteInput;
-        root.Remove("instructions");
         root.Remove("tools");
         root.Remove("max_output_tokens");
         root["store"] = false;
@@ -110,7 +98,6 @@ internal static class OpenAIResponsesLiteRequestMapper
         var reasoning = root["reasoning"] as JsonObject ?? new JsonObject();
         reasoning["context"] = "all_turns";
         root["reasoning"] = reasoning;
-
     }
 
     private static JsonArray NormalizeTools(JsonArray? source)

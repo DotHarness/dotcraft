@@ -91,8 +91,10 @@ public sealed class ResponsesLiteWireTests : IDisposable
         Assert.Equal("message", user.GetProperty("type").GetString());
     }
 
-    [Fact]
-    public async Task StandardOAuthResponses_UsesTopLevelInstructionsToolsAndCallerParallelSetting()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OAuthResponses_UsesStableInstructionPrefixAndDialectTools(bool lite)
     {
         const string threadId = "thread-standard-wire";
         await using var server = RawRecordingHttpServer.Start(SuccessfulSseResponse());
@@ -101,7 +103,7 @@ public sealed class ResponsesLiteWireTests : IDisposable
         using var scope = OpenAIResponsesCodexRuntimeScope.Set(
             CreateContext(threadId, "turn_standard", "window_standard"));
         using var client = provider.GetOpenAIResponsesChatClient(
-            OAuthRuntime(server.Endpoint + "/backend-api/codex", useResponsesLite: false));
+            OAuthRuntime(server.Endpoint + "/backend-api/codex", useResponsesLite: lite));
         var options = new ChatOptions
         {
             Instructions = "stable standard instructions",
@@ -115,20 +117,27 @@ public sealed class ResponsesLiteWireTests : IDisposable
             options));
 
         var request = Assert.Single(server.Requests);
-        Assert.False(request.Headers.ContainsKey(OpenAIResponsesLiteHeadersPipelinePolicy.ResponsesLiteHeader));
+        Assert.Equal(lite, request.Headers.ContainsKey(OpenAIResponsesLiteHeadersPipelinePolicy.ResponsesLiteHeader));
         Assert.Equal(
             OpenAIOAuthPipelinePolicy.BetaFeaturesValue,
             request.Headers[OpenAIOAuthPipelinePolicy.BetaFeaturesHeader]);
         Assert.Equal("zstd", request.Headers["Content-Encoding"]);
         using var body = JsonDocument.Parse(Decompress(request.Body));
         var root = body.RootElement;
-        Assert.Equal("stable standard instructions", root.GetProperty("instructions").GetString());
-        Assert.Equal("lookup", Assert.Single(root.GetProperty("tools").EnumerateArray()).GetProperty("name").GetString());
-        Assert.True(root.GetProperty("parallel_tool_calls").GetBoolean());
+        Assert.False(root.TryGetProperty("instructions", out _));
+        var input = root.GetProperty("input").EnumerateArray().ToArray();
+        var prefix = input[lite ? 1 : 0];
+        Assert.Equal("developer", prefix.GetProperty("role").GetString());
+        Assert.StartsWith("msg_", prefix.GetProperty("id").GetString());
+        Assert.Equal("stable standard instructions", prefix.GetProperty("content")[0].GetProperty("text").GetString());
+        Assert.Equal(lite ? "additional_tools" : "message", input[0].GetProperty("type").GetString());
+        Assert.Equal(!lite, root.TryGetProperty("tools", out _));
+        if (!lite)
+            Assert.Equal("lookup", Assert.Single(root.GetProperty("tools").EnumerateArray()).GetProperty("name").GetString());
+        Assert.Equal(!lite, root.GetProperty("parallel_tool_calls").GetBoolean());
         Assert.False(root.TryGetProperty("max_output_tokens", out _));
-        Assert.DoesNotContain(
-            root.GetProperty("input").EnumerateArray(),
-            item => item.TryGetProperty("type", out var type) && type.GetString() == "additional_tools");
+        Assert.Single(input, item => item.TryGetProperty("role", out var role) && role.GetString() == "developer"
+                                    && item.GetProperty("type").GetString() == "message");
     }
 
     [Fact]
@@ -141,7 +150,7 @@ public sealed class ResponsesLiteWireTests : IDisposable
 
         await ConsumeAsync(client.GetStreamingResponseAsync([
             new ChatMessage(ChatRole.User, "api key wire")
-        ]));
+        ], new ChatOptions { Instructions = "API key instructions" }));
 
         var request = Assert.Single(server.Requests);
         Assert.False(request.Headers.ContainsKey("Content-Encoding"));
@@ -149,10 +158,15 @@ public sealed class ResponsesLiteWireTests : IDisposable
         Assert.False(request.Headers.ContainsKey(OpenAIResponsesLiteHeadersPipelinePolicy.ResponsesLiteHeader));
         using var body = JsonDocument.Parse(request.Body);
         Assert.Equal("gpt-test", body.RootElement.GetProperty("model").GetString());
+        Assert.False(body.RootElement.TryGetProperty("instructions", out _));
+        Assert.Equal("API key instructions", body.RootElement.GetProperty("input")[0]
+            .GetProperty("content")[0].GetProperty("text").GetString());
     }
 
-    [Fact]
-    public async Task OAuthResponses_UnauthorizedRefreshReplaysIdenticalBodyAndStickyHeaders()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OAuthResponses_UnauthorizedRefreshReplaysIdenticalBodyAndStickyHeaders(bool lite)
     {
         const string threadId = "thread-lite-401";
         await using var server = RawRecordingHttpServer.Start(
@@ -166,10 +180,10 @@ public sealed class ResponsesLiteWireTests : IDisposable
         using var scope = OpenAIResponsesCodexRuntimeScope.Set(context);
 
         using var client = provider.GetOpenAIResponsesChatClient(
-            OAuthRuntime(server.Endpoint + "/backend-api/codex"));
+            OAuthRuntime(server.Endpoint + "/backend-api/codex", useResponsesLite: lite));
         await ConsumeAsync(client.GetStreamingResponseAsync([
             new ChatMessage(ChatRole.User, "retry")
-        ]));
+        ], new ChatOptions { Instructions = "retry instructions" }));
 
         Assert.Equal([false, true], auth.ForceRefreshCalls);
         var requests = server.Requests;

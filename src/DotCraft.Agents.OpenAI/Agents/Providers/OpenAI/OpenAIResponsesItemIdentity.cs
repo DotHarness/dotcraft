@@ -28,6 +28,14 @@ internal sealed class OpenAIResponsesItemIdentityDiagnostics
             InvalidSourceCount++;
     }
 
+    internal OpenAIResponsesItemIdentityDiagnostics Copy() => new()
+    {
+        EligibleCount = EligibleCount,
+        PresentCount = PresentCount,
+        GeneratedCount = GeneratedCount,
+        InvalidSourceCount = InvalidSourceCount
+    };
+
     internal static OpenAIResponsesItemIdentityDiagnostics FromInput(JsonArray input)
     {
         var diagnostics = new OpenAIResponsesItemIdentityDiagnostics();
