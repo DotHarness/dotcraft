@@ -3729,6 +3729,7 @@ export const MESSAGES_ZH_HANS = {
   'settings.breadcrumb.backTo': '返回{{label}}',
   'settings.mcp.field.name': '名称',
   'settings.mcp.field.namePlaceholder': 'MCP 服务器名称',
+  'settings.mcp.field.nameLocked': '如需重命名，请删除该服务器后重新添加。',
   'settings.mcp.transport.stdio': 'STDIO',
   'settings.mcp.transport.http': 'Streamable HTTP',
   'settings.mcp.field.command': '命令',

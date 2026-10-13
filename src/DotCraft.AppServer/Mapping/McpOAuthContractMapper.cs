@@ -6,12 +6,15 @@ namespace DotCraft.AppServer;
 
 internal static class McpOAuthContractMapper
 {
+    /// <summary>The read projection of a saved literal secret; writing it back keeps the saved value.</summary>
+    internal const string MaskedSecret = "********";
+
     public static Optional<Contract.McpOAuthConfig?> ToContract(Domain.McpOAuthConfig? config) => config is null
         ? default
         : new Contract.McpOAuthConfig
         {
             ClientId = config.ClientId,
-            ClientSecret = string.IsNullOrEmpty(config.ClientSecret) ? null : "********",
+            ClientSecret = string.IsNullOrEmpty(config.ClientSecret) ? null : MaskedSecret,
             HasClientSecret = !string.IsNullOrEmpty(config.ClientSecret),
             ClientSecretEnvVar = config.ClientSecretEnvVar,
             CallbackUrl = config.CallbackUrl,
@@ -22,7 +25,9 @@ internal static class McpOAuthContractMapper
     {
         if (!wire.IsSet) return existing?.Clone();
         if (wire.Value is not { } value) return null;
-        var secret = value.ClientSecret.IsSet ? value.ClientSecret.Value : existing?.ClientSecret;
+        var secret = value.ClientSecret.IsSet && value.ClientSecret.Value != MaskedSecret
+            ? value.ClientSecret.Value
+            : existing?.ClientSecret;
         return new Domain.McpOAuthConfig
         {
             ClientId = Value(value.ClientId)?.Trim(),

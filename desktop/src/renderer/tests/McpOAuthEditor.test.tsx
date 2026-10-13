@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { McpOAuthFields } from '../components/settings/panels/mcp/McpOAuthFields'
+import { McpServerEditor } from '../components/settings/panels/mcp/McpServerEditor'
 import { hasExplicitAuthorization, useMcpDraft } from '../components/settings/panels/mcp/useMcpDraft'
 
 function Editor() {
@@ -109,5 +110,39 @@ describe('MCP OAuth editor', () => {
     expect(hasExplicitAuthorization(draft, [row('Authorization', '')], [])).toBe(false)
     expect(hasExplicitAuthorization(draft, [], [row('authorization', 'MCP_TOKEN')])).toBe(true)
     expect(hasExplicitAuthorization({ ...draft, bearerTokenEnvVar: 'MCP_TOKEN' }, [], [])).toBe(true)
+  })
+
+  it('locks the name of an existing server so a saved secret cannot be orphaned by a rename', () => {
+    function NameEditor() {
+      const editor = useMcpDraft()
+      return (
+        <>
+          <button onClick={() => editor.startMcpDraft()}>New</button>
+          <button
+            onClick={() =>
+              editor.startMcpDraft({
+                name: 'registered',
+                enabled: true,
+                transport: 'streamableHttp',
+                url: 'https://example.test/mcp',
+                oauth: { clientId: 'client', clientSecret: '********', hasClientSecret: true }
+              })
+            }
+          >
+            Load
+          </button>
+          <McpServerEditor editor={editor} />
+        </>
+      )
+    }
+    render(
+      <LocaleProvider loadSettings={false}>
+        <NameEditor />
+      </LocaleProvider>
+    )
+    fireEvent.click(screen.getByText('Load'))
+    expect(screen.getByLabelText('Name')).toBeDisabled()
+    fireEvent.click(screen.getByText('New'))
+    expect(screen.getByLabelText('Name')).not.toBeDisabled()
   })
 })

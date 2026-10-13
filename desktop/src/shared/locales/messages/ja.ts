@@ -1911,6 +1911,7 @@ export const MESSAGES_JA = {
   'settings.breadcrumb.backTo': '{{label}}に戻る',
   'settings.mcp.field.name': '名前',
   'settings.mcp.field.namePlaceholder': 'MCP サーバー名',
+  'settings.mcp.field.nameLocked': '名前を変更するには、このサーバーを削除してから追加し直してください。',
   'settings.mcp.transport.stdio': 'STDIO',
   'settings.mcp.transport.http': 'Streamable HTTP',
   'settings.mcp.field.command': 'コマンド',

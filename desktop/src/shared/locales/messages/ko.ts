@@ -1915,6 +1915,7 @@ export const MESSAGES_KO = {
   'settings.breadcrumb.backTo': '{{label}}(으)로 돌아가기',
   'settings.mcp.field.name': '이름',
   'settings.mcp.field.namePlaceholder': 'MCP 서버 이름',
+  'settings.mcp.field.nameLocked': '이름을 바꾸려면 이 서버를 삭제한 후 다시 추가하세요.',
   'settings.mcp.transport.stdio': 'STDIO',
   'settings.mcp.transport.http': 'Streamable HTTP',
   'settings.mcp.field.command': '명령',

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DotCraft.AppServerTestClient;
 using DotCraft.Mcp;
 using DotCraft.Workspaces;
@@ -127,6 +128,32 @@ public sealed class McpPreRegisteredOAuthIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ThreadConfiguration_WritingBackTheReadProjection_PreservesSecret()
+    {
+        using var harness = new AppServerTestHarness();
+        await harness.InitializeAsync();
+        using var started = await RpcAsync(harness, "thread/start", new
+        {
+            identity = new { channelName = "appserver", userId = "oauth-test", workspacePath = harness.Identity.WorkspacePath },
+            config = new { mcpServers = new[] { new
+            {
+                name = "thread-oauth", enabled = false, transport = "http", url = _server.McpUrl,
+                oauth = new { clientId = "client-a", clientSecret = "secret-a", callbackUrl = _callback }
+            } } }
+        });
+        var threadId = started.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
+        using var read = await RpcAsync(harness, "thread/read", new { threadId });
+        var config = JsonNode.Parse(read.RootElement.GetProperty("result").GetProperty("thread").GetProperty("configuration").GetRawText())!.AsObject();
+        Assert.Equal("********", config["mcpServers"]![0]!["oauth"]!["clientSecret"]!.GetValue<string>());
+        config["developerInstructions"] = "Answer briefly.";
+
+        using var updated = await RpcAsync(harness, "thread/config/update", new { threadId, config });
+
+        var thread = await harness.Service.GetThreadAsync(threadId);
+        Assert.Equal("secret-a", thread.Configuration!.McpServers!.Single().OAuth!.ClientSecret);
+    }
+
+    [Fact]
     public async Task UnconfiguredClient_UsesDynamicRegistration_AndRestoresItsCredentials()
     {
         await using var dynamicServer = new McpOAuthSmokeServer { AllowDynamicRegistration = true };
@@ -171,7 +198,7 @@ public sealed class McpPreRegisteredOAuthIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ScopeEditing_PreservesOmittedSecrets_AndAllowsExplicitRemoval()
+    public async Task ScopeEditing_PreservesOmittedOrMaskedSecrets_AndAllowsExplicitRemoval()
     {
         var craft = Path.Combine(_root, ".craft");
         Directory.CreateDirectory(craft);
@@ -182,6 +209,9 @@ public sealed class McpPreRegisteredOAuthIntegrationTests : IAsyncLifetime
         await harness.InitializeAsync();
         using var omitted = await RpcAsync(harness, "mcp/upsert", new { scope = "workspace", server = new
         { name = config.Name, enabled = false, transport = "http", url = config.Url } });
+        Assert.Equal("secret-a", McpScopeStore.Read(Path.Combine(craft, "config.json"), "workspace").Single().OAuth!.ClientSecret);
+        using var masked = await RpcAsync(harness, "mcp/upsert", new { scope = "workspace", server = new
+        { name = config.Name, enabled = false, transport = "http", url = config.Url, oauth = new { clientId = "client-a", clientSecret = "********", hasClientSecret = true } } });
         Assert.Equal("secret-a", McpScopeStore.Read(Path.Combine(craft, "config.json"), "workspace").Single().OAuth!.ClientSecret);
         using var secretRemoved = await RpcAsync(harness, "mcp/upsert", new { scope = "workspace", server = new
         { name = config.Name, enabled = false, transport = "http", url = config.Url, oauth = new { clientId = "client-a", clientSecret = (string?)null } } });

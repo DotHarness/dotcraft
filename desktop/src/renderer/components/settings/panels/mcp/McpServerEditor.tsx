@@ -11,6 +11,7 @@ import { hasExplicitAuthorization, type useMcpDraft } from './useMcpDraft'
 export function McpServerEditor({ editor }: { editor: ReturnType<typeof useMcpDraft> }): JSX.Element {
   const t = useT()
   const {
+    editingServerName,
     mcpDraft,
     setMcpDraft,
     argRows,
@@ -24,15 +25,22 @@ export function McpServerEditor({ editor }: { editor: ReturnType<typeof useMcpDr
     envHttpHeaderRows,
     setEnvHttpHeaderRows
   } = editor
+  const nameLocked = editingServerName !== null && editingServerName !== '__new__'
   return (
     <>
       <SettingsGroup title={t('settings.group.identity')}>
-        <SettingsRow label={t('settings.mcp.field.name')} htmlFor="mcp-server-name" orientation="block">
+        <SettingsRow
+          label={t('settings.mcp.field.name')}
+          description={nameLocked ? t('settings.mcp.field.nameLocked') : undefined}
+          htmlFor="mcp-server-name"
+          orientation="block"
+        >
           <Input
             id="mcp-server-name"
             value={mcpDraft.name}
             onChange={(e) => setMcpDraft((prev) => ({ ...prev, name: e.target.value }))}
             placeholder={t('settings.mcp.field.namePlaceholder')}
+            disabled={nameLocked}
           />
         </SettingsRow>
         <SettingsRow

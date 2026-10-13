@@ -3821,6 +3821,7 @@ export const MESSAGES_EN = {
   'settings.breadcrumb.backTo': 'Back to {{label}}',
   'settings.mcp.field.name': 'Name',
   'settings.mcp.field.namePlaceholder': 'MCP server name',
+  'settings.mcp.field.nameLocked': 'To rename this server, delete it and add it again.',
   'settings.mcp.transport.stdio': 'STDIO',
   'settings.mcp.transport.http': 'Streamable HTTP',
   'settings.mcp.field.command': 'Command',
