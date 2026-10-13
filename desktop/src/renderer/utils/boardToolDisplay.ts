@@ -1,30 +1,23 @@
 import { translate, type AppLocale } from '../../shared/locales'
 
 /** Board errors arrive as a successful call whose result is `{ error: { code, message } }`. */
-export type BoardOperation =
-  | 'createChannel'
-  | 'getChannels'
-  | 'listThreads'
-  | 'searchPosts'
-  | 'readThread'
-  | 'readPost'
-  | 'subscribe'
-  | 'unsubscribe'
-  | 'post'
+export const BOARD_OPERATIONS = [
+  'createChannel',
+  'getChannels',
+  'listThreads',
+  'searchPosts',
+  'readThread',
+  'readPost',
+  'subscribe',
+  'unsubscribe',
+  'post'
+] as const
 
-export const BOARD_TOOL_OPERATIONS: Readonly<Record<string, BoardOperation>> = {
-  BoardCreateChannel: 'createChannel',
-  BoardGetChannels: 'getChannels',
-  BoardListThreads: 'listThreads',
-  BoardSearchPosts: 'searchPosts',
-  BoardReadThread: 'readThread',
-  BoardReadPost: 'readPost',
-  BoardSubscribe: 'subscribe',
-  BoardUnsubscribe: 'unsubscribe',
-  BoardPost: 'post'
+export type BoardOperation = (typeof BOARD_OPERATIONS)[number]
+
+export function isBoardOperation(value: unknown): value is BoardOperation {
+  return (BOARD_OPERATIONS as readonly unknown[]).includes(value)
 }
-
-export const BOARD_OPERATIONS: readonly BoardOperation[] = Object.values(BOARD_TOOL_OPERATIONS)
 
 const READ_OPERATIONS = new Set<unknown>(['getChannels', 'listThreads', 'searchPosts', 'readThread', 'readPost'])
 
@@ -232,13 +225,11 @@ export function formatBoardLabel(label: BoardLabel, locale: AppLocale, call?: Bo
 }
 
 export function formatBoardToolLabel(
-  toolName: string,
+  operation: BoardOperation,
   args: Record<string, unknown> | undefined,
   locale: AppLocale,
   running: boolean
-): string | null {
-  const operation = BOARD_TOOL_OPERATIONS[toolName]
-  if (!operation) return null
+): string {
   const call = parseBoardCall({ operation, args, result: undefined, running: true })
   // Without a result a read has no count to report, so it keeps its in-progress wording.
   const phase = running || isBoardReadOperation(operation) ? 'running' : 'completed'

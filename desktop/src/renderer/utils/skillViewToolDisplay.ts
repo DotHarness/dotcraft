@@ -1,7 +1,5 @@
 import { translate, type AppLocale } from '../../shared/locales'
 
-export const SKILL_VIEW_TOOL_NAME = 'SkillView'
-
 export interface SkillViewDisplay {
   name: string
   loaded: boolean

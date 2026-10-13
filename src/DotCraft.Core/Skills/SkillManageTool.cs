@@ -61,6 +61,7 @@ public sealed class SkillManageTool(
     /// Creates and maintains reusable workspace skills.
     /// </summary>
     [GeneratedTool]
+    [ToolPresentation("core.skill-manage")]
     [Description(SkillManageDescription)]
     [StreamArguments(false)]
     public async Task<string> SkillManage(

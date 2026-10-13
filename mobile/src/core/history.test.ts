@@ -3,6 +3,17 @@ import { describe, expect, it } from 'vitest'
 import { applyEvent, emptyHistory, historyFromPages, restoreEchoes, type ChatHistory } from './history'
 import { buildTranscript as layout } from './transcript'
 
+// The trusted source and presentation the server declares on first-party tools.
+const CORE_PRESENTATIONS: Record<string, { presentationId: string; options?: { operation: string } }> = {
+  ReadFile: { presentationId: 'core.read-file', options: { operation: 'read' } },
+  EditFile: { presentationId: 'core.file-write', options: { operation: 'edit' } },
+  CreatePlan: { presentationId: 'core.create-plan' },
+}
+
+function core(toolName: string) {
+  return { toolName, source: { kind: 'CoreNative', sourceId: 'core-native' }, presentation: CORE_PRESENTATIONS[toolName] }
+}
+
 const buildTranscript = (history: ChatHistory) => layout(history).filter((entry) => entry.kind !== 'activity')
 
 const item = (id: string, type: string, payload: { [key: string]: JsonValue }, extra: Record<string, unknown> = {}) => ({
@@ -77,15 +88,15 @@ describe('turn-scoped item ids', () => {
     const history: ChatHistory = {
       ...emptyHistory(),
       items: [
-        item('item_001', 'toolCall', { toolName: 'EditFile', callId: 'call_001', arguments: { path: 'src/a.ts' } }),
-        item('item_002', 'toolResult', { toolName: 'EditFile', callId: 'call_001', structuredContent: { changes: [{ additions: 3, deletions: 1 }] } }),
+        item('item_001', 'toolCall', { ...core('EditFile'), callId: 'call_001', arguments: { path: 'src/a.ts' } }),
+        item('item_002', 'toolResult', { ...core('EditFile'), callId: 'call_001', structuredContent: { changes: [{ additions: 3, deletions: 1 }] } }),
         item('item_003', 'approvalRequest', { requestId: 'approval_001', approvalType: 'shell', operation: 'npm test', target: 'repo' }),
         item('item_004', 'approvalResponse', { requestId: 'approval_001', approved: true, decision: 'accept' }),
-        item('item_001', 'toolCall', { toolName: 'EditFile', callId: 'call_001', arguments: { path: 'src/b.ts' } }, { turnId: 't2' }),
+        item('item_001', 'toolCall', { ...core('EditFile'), callId: 'call_001', arguments: { path: 'src/b.ts' } }, { turnId: 't2' }),
         item(
           'item_002',
           'toolResult',
-          { toolName: 'EditFile', callId: 'call_001', structuredContent: { changes: [{ additions: 7, deletions: 0 }] } },
+          { ...core('EditFile'), callId: 'call_001', structuredContent: { changes: [{ additions: 7, deletions: 0 }] } },
           { turnId: 't2' },
         ),
         item('item_003', 'approvalRequest', { requestId: 'approval_001', approvalType: 'shell', operation: 'npm run lint', target: 'repo' }, { turnId: 't2' }),

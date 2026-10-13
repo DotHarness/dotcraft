@@ -7,6 +7,7 @@ namespace DotCraft.Tools;
 internal sealed class RemoteToolHostTransferTools(IRemoteToolHostClient client, RemoteLocalWorkspace? local)
 {
     [GeneratedTool(Name = "Transfer")]
+    [ToolPresentation("core.remote-tool-host", Operation = "transfer")]
     [Description("Upload or download files and directories between local and connected remote workspaces; directories merge into the destination.")]
     public async Task<ToolExecutionResult> Transfer(
         [Description("Upload or download.")] string direction,

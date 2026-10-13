@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { emptyHistory, type ChatHistory, type HistoryItem } from './history'
 import { buildTranscript, thinkingStatus } from './transcript'
 
+// The trusted source and presentation the server declares on first-party tools.
+const CORE_PRESENTATIONS: Record<string, { presentationId: string; options?: { operation: string } }> = {
+  ReadFile: { presentationId: 'core.read-file', options: { operation: 'read' } },
+  EditFile: { presentationId: 'core.file-write', options: { operation: 'edit' } },
+  CreatePlan: { presentationId: 'core.create-plan' },
+}
+
+function core(toolName: string) {
+  return { toolName, source: { kind: 'CoreNative', sourceId: 'core-native' }, presentation: CORE_PRESENTATIONS[toolName] }
+}
+
 let clock = 0
 
 function item(type: string, payload: Record<string, unknown>, extra: Partial<HistoryItem> = {}): HistoryItem {
@@ -20,10 +31,9 @@ function item(type: string, payload: Record<string, unknown>, extra: Partial<His
 }
 
 function read(path: string, callId: string): HistoryItem[] {
-  const presentation = { presentationId: 'core.read-file' }
   return [
-    item('toolCall', { toolName: 'ReadFile', callId, arguments: { path }, presentation }),
-    item('toolResult', { toolName: 'ReadFile', callId, result: 'ok', presentation }),
+    item('toolCall', { ...core('ReadFile'), callId, arguments: { path } }),
+    item('toolResult', { ...core('ReadFile'), callId, result: 'ok' }),
   ]
 }
 
@@ -42,8 +52,8 @@ describe('turn layout', () => {
       item('agentMessage', { text: 'Looking around first.', phase: 'commentary' }),
       ...read('a.ts', 'c1'),
       ...read('b.ts', 'c2'),
-      item('toolCall', { toolName: 'CreatePlan', callId: 'p1', arguments: { plan: '# Release' } }),
-      item('toolResult', { toolName: 'CreatePlan', callId: 'p1', result: 'ok', success: true }),
+      item('toolCall', { ...core('CreatePlan'), callId: 'p1', arguments: { plan: '# Release' } }),
+      item('toolResult', { ...core('CreatePlan'), callId: 'p1', result: 'ok', success: true }),
       item('agentMessage', { text: 'Here is the plan.', phase: 'final' }),
     ]
     const transcript = buildTranscript(history(items, 'completed'))
@@ -80,8 +90,8 @@ describe('turn layout', () => {
 function edit(path: string, callId: string): HistoryItem[] {
   const structuredContent = { kind: 'fileChange', changes: [{ path, kind: 'update', additions: 2, deletions: 1 }] }
   return [
-    item('toolCall', { toolName: 'EditFile', callId, arguments: { path } }),
-    item('toolResult', { toolName: 'EditFile', callId, result: 'ok', structuredContent }),
+    item('toolCall', { ...core('EditFile'), callId, arguments: { path } }),
+    item('toolResult', { ...core('EditFile'), callId, result: 'ok', structuredContent }),
   ]
 }
 

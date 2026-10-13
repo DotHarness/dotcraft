@@ -175,6 +175,46 @@ public sealed class ToolFunctionGeneratorTests
     }
 
     [Fact]
+    public void Generator_carries_declared_presentation_and_emits_per_type_factories()
+    {
+        const string source = """
+            using System.ComponentModel;
+            using DotCraft.Tools;
+
+            namespace PresentationFixture;
+
+            public sealed class BoardFixtureTools
+            {
+                [Tool]
+                [ToolPresentation("acme.board", Operation = "post")]
+                [ToolPresentationOption("label", "say \"hi\"")]
+                [Description("Post a message.")]
+                public string Post([Description("Message text.")] string text) => text;
+
+                [Tool]
+                [Description("Read a message.")]
+                public string Read([Description("Message id.")] string id) => id;
+            }
+            """;
+
+        var assembly = ToolGeneratorTestCompilation.Compile(source);
+        var target = Activator.CreateInstance(assembly.GetType("PresentationFixture.BoardFixtureTools")!)!;
+
+        var post = Assert.IsAssignableFrom<IGeneratedToolMetadata>(
+            ToolGeneratorTestCompilation.Function(assembly, "BoardFixtureTools_Post", target));
+        Assert.Equal("acme.board", post.Presentation?.Id.Value);
+        Assert.Equal(
+            new Dictionary<string, string?> { ["operation"] = "post", ["label"] = "say \"hi\"" },
+            post.Presentation!.Options.ToDictionary(pair => pair.Key, pair => pair.Value.GetString()));
+        Assert.Null(Assert.IsAssignableFrom<IGeneratedToolMetadata>(
+            ToolGeneratorTestCompilation.Function(assembly, "BoardFixtureTools_Read", target)).Presentation);
+
+        var factories = assembly.GetType($"DotCraft.GeneratedTools.{assembly.GetName().Name}.GeneratedToolFunctions")!;
+        var all = Assert.IsType<AIFunction[]>(factories.GetMethod("All", [target.GetType()])!.Invoke(null, [target]));
+        Assert.Equal(["Post", "Read"], all.Select(static function => function.Name));
+    }
+
+    [Fact]
     public void Generator_reports_invalid_declarations_names_constraints_and_enum_values()
     {
         const string source = """
@@ -229,6 +269,19 @@ public sealed class ToolFunctionGeneratorTests
                 [ToolRpc]
                 public void Run() { }
             }
+
+            internal sealed class InvalidPresentationTools
+            {
+                [Tool]
+                [ToolPresentation(" ")]
+                [Description("Blank presentation identifier.")]
+                public void BlankId() { }
+
+                [Tool]
+                [ToolPresentationOption("field", "name")]
+                [Description("Option without a presentation.")]
+                public void OrphanOption() { }
+            }
             """;
 
         var result = ToolGeneratorTestCompilation.Run(source, $"InvalidFixture_{Guid.NewGuid():N}", out _);
@@ -241,6 +294,7 @@ public sealed class ToolFunctionGeneratorTests
         Assert.Contains("DCGEN009", ids);
         Assert.Contains("DCGEN010", ids);
         Assert.Contains("DCGEN011", ids);
+        Assert.Equal(2, result.Diagnostics.Count(static diagnostic => diagnostic.Id == "DCGEN013"));
         var constraintMessages = result.Diagnostics
             .Where(static diagnostic => diagnostic.Id == "DCGEN007")
             .Select(static diagnostic => diagnostic.GetMessage())

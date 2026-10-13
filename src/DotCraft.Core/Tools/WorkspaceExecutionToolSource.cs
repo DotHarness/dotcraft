@@ -50,11 +50,7 @@ public sealed class WorkspaceExecutionToolSource(
             searchTimeout: fileSearchTimeout,
             workspaceRoots: context.WorkspaceRoots,
             managedSearchOnly: managedFileSearch);
-        tools.Add(GeneratedToolFunctions.FileTools_ReadFile(fileTools));
-        tools.Add(GeneratedToolFunctions.FileTools_WriteFile(fileTools));
-        tools.Add(GeneratedToolFunctions.FileTools_EditFile(fileTools));
-        tools.Add(GeneratedToolFunctions.FileTools_GrepFiles(fileTools));
-        tools.Add(GeneratedToolFunctions.FileTools_FindFiles(fileTools));
+        tools.AddRange(GeneratedToolFunctions.All(fileTools));
 
         if (config.Tools.Lsp.Enabled && lspServerManager != null)
         {
@@ -78,8 +74,7 @@ public sealed class WorkspaceExecutionToolSource(
             approvalService,
             context.WorkspaceRoots,
             ShellPolicySource.ForWorkspace(config.Tools.Shell.Policy.ToRules(), context.DataPath));
-        tools.Add(GeneratedToolFunctions.ShellTools_Exec(shellTools));
-        tools.Add(GeneratedToolFunctions.ShellTools_WriteStdin(shellTools));
+        tools.AddRange(GeneratedToolFunctions.All(shellTools));
 
         return tools;
     }

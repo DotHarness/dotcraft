@@ -45,7 +45,7 @@ export function hasFileChanges(items: readonly SummaryItem[]): boolean {
 }
 
 export function extractSources(items: readonly SummaryItem[], workspacePath: string | null): Source[] {
-  const calls = new Map<string, { toolName: string; args: Record<string, unknown> }>()
+  const calls = new Map<string, { kind: SourceToolKind | null; args: Record<string, unknown> }>()
   const sources: Source[] = []
   const positions = new Map<string, number>()
   const untitled = new Set<string>()
@@ -78,8 +78,7 @@ export function extractSources(items: readonly SummaryItem[], workspacePath: str
     }
 
     if (item.type === 'toolCall') {
-      const toolName = stringOf(payload.toolName) ?? ''
-      calls.set(callId, { toolName, args: isRecord(payload.arguments) ? payload.arguments : {} })
+      calls.set(callId, { kind: sourceKindOf(payload), args: isRecord(payload.arguments) ? payload.arguments : {} })
       const source = isRecord(payload.source) ? payload.source : null
       const server = source && stringOf(source.kind)?.toLowerCase() === 'mcp' ? stringOf(source.sourceId) : null
       if (server) add({ kind: 'mcp', id: server, title: server, target: null })
@@ -87,24 +86,24 @@ export function extractSources(items: readonly SummaryItem[], workspacePath: str
     }
 
     const call = calls.get(callId)
-    const toolName = stringOf(payload.toolName) ?? call?.toolName ?? ''
+    const kind = sourceKindOf(payload) ?? call?.kind ?? null
     const args = call?.args ?? {}
     const result = typeof payload.result === 'string' ? payload.result : ''
     const succeeded = payload.success !== false
 
-    if (toolName === 'WebSearch') {
+    if (kind === 'webSearch') {
       for (const row of webSearchRows(result)) addWeb(row.url, row.title)
-    } else if (toolName === 'WebFetch') {
+    } else if (kind === 'webFetch') {
       const url = stringOf(args.url)
       if (succeeded && url) addWeb(url, null)
-    } else if (toolName === 'ReadFile') {
+    } else if (kind === 'read') {
       const path = stringOf(args.path)
       if (succeeded && path) {
         const relative = relativePath(path, workspacePath)
         const slash = relative.lastIndexOf('/')
         add({ kind: 'file', id: relative, title: relative.slice(slash + 1), target: path })
       }
-    } else if (toolName === 'SkillView') {
+    } else if (kind === 'skillView') {
       const name = stringOf(args.name)?.trim()
       if (succeeded && name && skillLoaded(result)) add({ kind: 'skill', id: name, title: name, target: null })
     }
@@ -184,6 +183,25 @@ function relativePath(path: string, workspacePath: string | null): string {
   return root && normalized.toLowerCase().startsWith(`${root.toLowerCase()}/`)
     ? normalized.slice(root.length + 1)
     : normalized.replace(/^\.\//, '')
+}
+
+type SourceToolKind = 'webSearch' | 'webFetch' | 'read' | 'skillView'
+
+function sourceKindOf(payload: Record<string, unknown>): SourceToolKind | null {
+  const source = isRecord(payload.source) ? payload.source : null
+  const presentation = isRecord(payload.presentation) ? payload.presentation : null
+  if (stringOf(source?.kind) !== 'CoreNative' || !presentation) return null
+  const operation = isRecord(presentation.options) ? stringOf(presentation.options.operation) : null
+  switch (stringOf(presentation.presentationId)) {
+    case 'core.web':
+      return operation === 'search' ? 'webSearch' : operation === 'fetch' ? 'webFetch' : null
+    case 'core.read-file':
+      return operation === 'read' ? 'read' : null
+    case 'core.skill-view':
+      return 'skillView'
+    default:
+      return null
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -27,6 +27,7 @@ public static class CommitSuggestMethods
     public const string ToolName = "CommitSuggest";
 
     [GeneratedTool]
+    [ToolPresentation("core.commit-suggest")]
     [Description(
         "Submit the suggested source-control summary. Call once with a concise summary line and an optional body.")]
     public static string CommitSuggest(

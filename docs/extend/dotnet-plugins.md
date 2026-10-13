@@ -142,14 +142,10 @@ internal sealed class PluginTool : AIFunctionToolSource
     protected override ToolPolicyHints GetPolicyHints(
         AIFunction function,
         ToolPlanningContext context) => new(ReadOnly: true);
-
-    protected override ToolPresentationDescriptor? GetPresentation(
-        AIFunction function,
-        ToolPlanningContext context) => null;
 }
 ```
 
-The generated namespace above assumes the entry assembly is `Acme.ReviewCore.Plugin.dll`, matching the manifest. The source compiler also uses the manifest's entry assembly filename as its assembly name. The plugin explicitly returns no Core presentation descriptor; use a plugin-owned Desktop presentation contribution when needed.
+The generated namespace above assumes the entry assembly is `Acme.ReviewCore.Plugin.dll`, matching the manifest. The source compiler also uses the manifest's entry assembly filename as its assembly name. A tool has no presentation unless its method declares `[ToolPresentation("acme.review-status")]`; pair that identifier with a plugin-owned Desktop renderer when needed.
 
 The activation context carries both directions of the plugin model:
 

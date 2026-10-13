@@ -1,5 +1,5 @@
 import type { ConversationItem } from '../types/conversation'
-import { isShellToolName } from '../utils/shellTools'
+import { isShellCommandKind, resolveToolKind } from '../utils/toolKind'
 import { limitShellRuntimeOutput } from './shellRuntimeBuffer'
 
 function terminalStatusToExecutionStatus(status: string | undefined): ConversationItem['executionStatus'] | undefined {
@@ -37,7 +37,7 @@ function mergeTerminalIntoExecToolCall(
   delta: string
 ): ConversationItem {
   if (item.type !== 'toolCall') return item
-  if (!isShellToolName(item.toolName)) return item
+  if (!isShellCommandKind(resolveToolKind(item))) return item
   const callId = terminal.callId as string | undefined
   if (!callId || item.toolCallId !== callId) return item
 

@@ -42,10 +42,7 @@ public sealed class DreamsToolSource(
             ripgrepPath: config.Tools.File.RipgrepPath,
             searchTimeout: TimeSpan.FromSeconds(Math.Max(1, config.Tools.File.SearchTimeoutSeconds)));
 
-        yield return GeneratedToolFunctions.FileTools_ReadFile(fileTools);
-        yield return GeneratedToolFunctions.FileTools_WriteFile(fileTools);
-        yield return GeneratedToolFunctions.FileTools_EditFile(fileTools);
-        yield return GeneratedToolFunctions.FileTools_GrepFiles(fileTools);
-        yield return GeneratedToolFunctions.FileTools_FindFiles(fileTools);
+        foreach (var function in GeneratedToolFunctions.All(fileTools))
+            yield return function;
     }
 }

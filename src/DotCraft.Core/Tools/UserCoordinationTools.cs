@@ -9,6 +9,7 @@ public sealed class UserCoordinationTools
     private static readonly JsonSerializerOptions JsonOptions = JsonSerializerOptions.Web;
 
     [GeneratedTool]
+    [ToolPresentation("core.send-user-message-async")]
     [Description("Send a concise question or important update during ongoing work. Use for missing information, preferences, constraints, clarification, or authorization; critical blockers or findings that may change the task's direction; or replies to user questions or status requests. Use commentary for routine progress. Returns immediately without ending the turn; replies arrive as new user messages.")]
     public async Task<string> SendUserMessageAsync(
         [Description("The concise question or update to send to the user.")] string message,
@@ -26,6 +27,7 @@ public sealed class UserCoordinationTools
     }
 
     [GeneratedTool]
+    [ToolPresentation("core.sleep")]
     [Description("Wait for the requested duration, or return early when steer or mailbox input arrives for the active turn.")]
     public async Task<string> Sleep(
         [Description("Duration in milliseconds from 1 through 43200000.")] int durationMs,

@@ -147,6 +147,7 @@ public sealed class AIFunctionToolSourceTests
 
         Assert.Equal(30_000, definition.Annotations["dotcraft/maxResultChars"].GetInt32());
         Assert.True(definition.Annotations["dotcraft/streamArguments"].GetBoolean());
+        Assert.Equal("core.shell", definition.Presentation?.Id.Value);
         var projected = Assert.IsAssignableFrom<IGeneratedToolMetadata>(
             Assert.Single(AgentFactory.ProjectSnapshotTools(snapshot)));
         Assert.Equal(30_000, projected.MaxResultChars);
@@ -181,61 +182,28 @@ public sealed class AIFunctionToolSourceTests
         Assert.Equal(["second", "first"], sources.Select(source => source.SourceId));
     }
 
-    [Theory]
-    [InlineData("ReadFile")]
-    [InlineData("GrepFiles")]
-    [InlineData("FindFiles")]
-    public void CoreExploreTools_UseTrustedReadPresentation(string toolName)
+    [Fact]
+    public void FirstPartyTools_DeclareTheirDesktopPresentation()
     {
-        var presentation = CoreToolPresentationCatalog.Resolve(toolName);
-
-        Assert.NotNull(presentation);
-        Assert.Equal("core.read-file", presentation.Id.Value);
+        AssertPresentation(GeneratedToolDeclarations.FileTools_ReadFile_Declaration, "core.read-file", ("operation", "read"));
+        AssertPresentation(GeneratedToolDeclarations.LspTool_LSP_Declaration, "core.lsp");
+        AssertPresentation(GeneratedToolDeclarations.UserCoordinationTools_Sleep_Declaration, "core.sleep");
+        AssertPresentation(GeneratedToolDeclarations.AgentMessageBoardTools_BoardPost_Declaration, "core.board", ("operation", "post"));
+        AssertPresentation(GeneratedToolDeclarations.RemoteToolHostTransferTools_Transfer_Declaration, "core.remote-tool-host", ("operation", "transfer"));
+        AssertPresentation(GeneratedToolDeclarations.AgentProfileBuilderToolMethods_RemoveAgentSkills_Declaration, "core.agent-builder", ("field", "skills.preload"));
+        Assert.Null(GeneratedToolDeclarations.UserCoordinationTools_CurrentTime_Declaration.Presentation);
     }
 
-    [Theory]
-    [InlineData("SetAgentName", "name")]
-    [InlineData("AppendAgentInstructions", "instructions")]
-    [InlineData("RemoveAgentSkills", "skills.preload")]
-    [InlineData("ClearAgentProviderPreference", "providerPreference")]
-    public void AgentBuilderTools_UseTrustedFieldPresentation(string toolName, string field)
+    private static void AssertPresentation(
+        GeneratedToolDeclaration declaration,
+        string presentationId,
+        params (string Key, string Value)[] options)
     {
-        var presentation = CoreToolPresentationCatalog.Resolve(toolName);
-
-        Assert.NotNull(presentation);
-        Assert.Equal("core.agent-builder", presentation.Id.Value);
-        Assert.Equal(field, presentation.Options["field"].GetString());
-    }
-
-    [Theory]
-    [InlineData("BoardCreateChannel", "createChannel")]
-    [InlineData("BoardGetChannels", "getChannels")]
-    [InlineData("BoardListThreads", "listThreads")]
-    [InlineData("BoardSearchPosts", "searchPosts")]
-    [InlineData("BoardReadThread", "readThread")]
-    [InlineData("BoardReadPost", "readPost")]
-    [InlineData("BoardSubscribe", "subscribe")]
-    [InlineData("BoardUnsubscribe", "unsubscribe")]
-    [InlineData("BoardPost", "post")]
-    public void MessageBoardTools_UseTrustedBoardPresentation(string toolName, string operation)
-    {
-        var presentation = CoreToolPresentationCatalog.Resolve(toolName);
-
-        Assert.NotNull(presentation);
-        Assert.Equal("core.board", presentation.Id.Value);
-        Assert.Equal(operation, presentation.Options["operation"].GetString());
-    }
-
-    [Theory]
-    [InlineData("LSP", "core.lsp")]
-    [InlineData("CommitSuggest", "core.commit-suggest")]
-    [InlineData("Sleep", "core.sleep")]
-    public void CoreUtilityTools_UseTrustedPresentation(string toolName, string presentationId)
-    {
-        var presentation = CoreToolPresentationCatalog.Resolve(toolName);
-
-        Assert.NotNull(presentation);
-        Assert.Equal(presentationId, presentation.Id.Value);
+        Assert.NotNull(declaration.Presentation);
+        Assert.Equal(presentationId, declaration.Presentation.Id.Value);
+        Assert.Equal(
+            options.ToDictionary(option => option.Key, option => option.Value),
+            declaration.Presentation.Options.ToDictionary(pair => pair.Key, pair => pair.Value.GetString()));
     }
 
     [Theory]

@@ -30,7 +30,7 @@ public sealed class ClockToolSource : AIFunctionToolSource
 
 `CreateFunctions` receives immutable planning context for the current Thread and Turn. Use it to decide whether to emit a function that belongs only to a particular workspace, mode, or provider capability.
 
-The generator owns schema generation and typed argument binding. Describe each model parameter with `[Description]`; C# defaults become optional arguments. `[Tool]` uses the same generator and adds built-in catalog/presentation metadata. Plugins normally use `[GeneratedTool]`, which is not catalog-visible by default.
+The generator owns schema generation and typed argument binding. Describe each model parameter with `[Description]`; C# defaults become optional arguments. `[Tool]` uses the same generator and adds built-in catalog metadata; `[ToolPresentation]` selects a Desktop renderer for the tool's result. Plugins normally use `[GeneratedTool]`, which is not catalog-visible by default.
 
 ### Access live invocation identity only when needed
 

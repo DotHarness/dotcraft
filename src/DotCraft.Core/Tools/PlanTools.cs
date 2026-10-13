@@ -15,6 +15,7 @@ public sealed class PlanTools(
 {
     [Description("Create or replace the structured plan for the current session. Call this tool to present your finalized plan to the user. The plan parameter must be one complete, compact decision-complete Markdown document.")]
     [Tool(Icon = "📋", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.CreatePlan))]
+    [ToolPresentation("core.create-plan")]
     public async Task<string> CreatePlan(
         [Description("Complete Markdown plan. Start with one H1 title, then concise sections such as Summary, Implementation Changes, Test Plan, and Assumptions. Do not split the body into separate overview/content fields.")] string plan,
         [Description("3-7 high-level actionable implementation tasks. Each item has 'id' (short kebab-case) and 'content' (task description). Do not include search, reading, or explanation-only steps.")] List<PlanTodoInput> todos)
@@ -76,6 +77,7 @@ public sealed class PlanTools(
 
     [Description("Update the status of one or more tasks in the current plan. Call this to mark tasks as in_progress when you start working on them and completed when done.")]
     [Tool(Icon = "✅", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.UpdateTodos))]
+    [ToolPresentation("core.todo", Operation = "updateTodos")]
     public async Task<string> UpdateTodos(
         [Description("Status updates. Each item has a task id and its new status.")]
         List<TodoStatusUpdateInput> updates)
@@ -171,6 +173,7 @@ public sealed class PlanTools(
         - Keep items high-level and actionable
         """)]
     [Tool(Icon = "📝", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.TodoWrite))]
+    [ToolPresentation("core.todo", Operation = "todoWrite")]
     public async Task<string> TodoWrite(
         [Description("Todo items with a short kebab-case id, task description, and status.")]
         List<TodoWriteInput> todos,

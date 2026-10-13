@@ -12,6 +12,7 @@ public sealed class RequestUserInputTools
     private static readonly JsonSerializerOptions JsonOptions = JsonSerializerOptions.Web;
 
     [Tool(Icon = "❓", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.RequestUserInput))]
+    [ToolPresentation("core.request-user-input")]
     [Description("Request user input for one to three short questions and wait for the response.")]
     public async Task<string> RequestUserInput(
         [Description("Questions to show the user. Prefer 1 and do not exceed 3. Each question has id, header, question, and 2-3 mutually exclusive options with label and description. Put the recommended option first and suffix its label with \"(Recommended)\". Do not include an \"Other\" option.")]

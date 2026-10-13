@@ -57,6 +57,7 @@ public sealed class WebTools
     /// </summary>
     [Description("Search the web for current information. Returns titles, URLs, and snippets.")]
     [Tool(Icon = "🔍", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.WebSearch))]
+    [ToolPresentation("core.web", Operation = "search")]
     public async Task<string> WebSearch(
         [Description("The search query.")] string query,
         [Description("Maximum number of results to return (1-10).")] int? maxResults = null)
@@ -114,6 +115,7 @@ public sealed class WebTools
     /// </summary>
     [Description("Fetch URL and extract readable content. Supports HTML, JSON, and plain text.")]
     [Tool(Icon = "🌐", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.WebFetch))]
+    [ToolPresentation("core.web", Operation = "fetch")]
     public async Task<string> WebFetch(
         [Description("The URL to fetch.")] string url,
         [Description("Extraction mode for HTML.")] WebFetchExtractionMode extractMode = WebFetchExtractionMode.Markdown,

@@ -11,6 +11,7 @@ import {
   getWebToolIcon,
   getWebToolSectionLabel,
   invocationNeedsCallingPrefix,
+  isWebToolKind,
   parseWebSearchResultDisplay,
   type WebSearchResultRow
 } from '../../utils/webToolDisplay'
@@ -21,9 +22,10 @@ import {
   formatCollapsedToolLabel,
   formatExpandedInvocation,
   formatWorkflowFailureLabel,
-  getStreamingToolDisplay,
   getToolRowIcon
 } from '../../utils/toolCallDisplay'
+import { getStreamingToolDisplay } from '../../utils/streamingToolDisplay'
+import { resolveToolKind, type ToolKind, type ToolKindSource } from '../../utils/toolKind'
 import { PlanToolOutput } from './PlanToolOutput'
 import { CreatePlanCard, hasCreatePlanDisplayData } from './CreatePlanCard'
 import { AutomationToolCard, parseAutomationResult } from './AutomationToolCard'
@@ -83,7 +85,7 @@ interface ToolCallCardProps {
 
 function formatRunningToolLabel(
   rendererFamily: ToolRendererFamily | undefined,
-  toolName: string,
+  kind: ToolKind | null,
   args: Record<string, unknown> | undefined,
   locale: AppLocale,
   streamingLabel: string,
@@ -101,8 +103,8 @@ function formatRunningToolLabel(
   if (rendererFamily === 'skillView' && args) {
     return formatSkillViewRunningLabel(args, locale)
   }
-  if (rendererFamily === 'web' && args && !invocationNeedsCallingPrefix(toolName, args)) {
-    return formatInvocationDisplay(toolName, args, locale) ?? streamingLabel
+  if (isWebToolKind(kind) && kind !== 'toolSearch' && args && !invocationNeedsCallingPrefix(kind, args)) {
+    return formatInvocationDisplay(kind, args, locale) ?? streamingLabel
   }
   return streamingLabel
 }
@@ -225,7 +227,8 @@ export const ToolCallCard = memo(function ToolCallCard({
   const isWebFetchTool = rendererFamily === 'web' && rendererOperation === 'fetch'
   const isSkillManageTool = rendererFamily === 'skillManage'
   const isSkillViewTool = rendererFamily === 'skillView'
-  const isWorkflowTool = toolName === 'Workflow'
+  const toolKind = resolveToolKind(item)
+  const isWorkflowTool = toolKind === 'workflow'
   const builderField: BuilderField | null = rendererFamily === 'agentBuilder' && isBuilderField(rendererPlan?.options.field as string | undefined)
     ? rendererPlan!.options.field as BuilderField
     : null
@@ -233,9 +236,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   const isRemoteToolHostTool = rendererFamily === 'remoteToolHost'
   const isShellTool = rendererFamily === 'shell'
   const isStreamingFileTool = rendererFamily === 'fileWrite'
-  const streamingDisplay = rendererPlan || isWorkflowTool
-    ? getStreamingToolDisplay(toolName, item.argumentsPreview ?? null, locale)
-    : { label: translate(locale, 'toolCall.streaming.genericExternal', { toolName }) }
+  const streamingDisplay = getStreamingToolDisplay(item, item.argumentsPreview ?? null, locale)
   const shellCommand = isShellTool
     ? resolveShellCommand(item.command, args, streamingDisplay.parsedPreview?.command)
     : undefined
@@ -330,7 +331,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     : subAgentRunningLabel
     ?? formatRunningToolLabel(
       rendererFamily,
-      toolName,
+      toolKind,
       hasFinalArgs ? shellDisplayArgs : undefined,
       locale,
       streamingDisplay.label,
@@ -524,7 +525,7 @@ export const ToolCallCard = memo(function ToolCallCard({
                 itemId={item.id}
                 rendererFamily={rendererFamily}
                 rendererOptions={rendererPlan?.options}
-                toolName={toolName}
+                tool={item}
                 args={shellDisplayArgs}
                 result={shellOutput}
                 success
@@ -552,7 +553,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   }
 
   const completedToolSearchLabel = success && rendererFamily === 'deferredSearch'
-    ? formatToolSearchCompletedLabel(toolName, item.result, locale)
+    ? formatToolSearchCompletedLabel(item.result, locale)
     : null
   const fallbackLabel = completedToolSearchLabel
     ?? (isSkillManageTool
@@ -561,9 +562,7 @@ export const ToolCallCard = memo(function ToolCallCard({
         ? formatSkillViewLabel(args, locale)
         : isShellTool && !shellCommand
           ? translate(locale, 'toolCall.ranCommand')
-        : rendererPlan || isWorkflowTool
-          ? formatCollapsedToolLabel(toolName, shellDisplayArgs, locale, { planTodos })
-          : translate(locale, 'toolCall.called', { toolName }))
+        : formatCollapsedToolLabel(item, shellDisplayArgs, locale, { planTodos }))
   const label = isStreamingFileTool
     ? formatFileToolLabel(rendererOperation, fileDiff, fallbackLabel, locale)
     : fallbackLabel
@@ -667,7 +666,7 @@ export const ToolCallCard = memo(function ToolCallCard({
           itemId={item.id}
           rendererFamily={rendererFamily}
           rendererOptions={rendererPlan?.options}
-          toolName={toolName}
+          tool={item}
           args={shellDisplayArgs}
           result={isShellTool ? shellOutput : toolResult}
           success={success}
@@ -698,7 +697,7 @@ interface ExpandedContentProps {
   itemId: string
   rendererFamily?: ToolRendererFamily
   rendererOptions?: Readonly<Record<string, unknown>>
-  toolName: string
+  tool: ToolKindSource
   args: Record<string, unknown> | undefined
   result: string | undefined
   success: boolean
@@ -713,7 +712,7 @@ function ExpandedContent({
   itemId,
   rendererFamily,
   rendererOptions,
-  toolName,
+  tool,
   args,
   result,
   success,
@@ -804,10 +803,11 @@ function ExpandedContent({
       }
     }
 
-    const lines = formatResultSummary(toolName, result)
-    const inv = formatInvocationDisplay(toolName, args, locale)
-    const section = getWebToolSectionLabel(toolName, locale)
-    const icon = getWebToolIcon(toolName)
+    const webKind = rendererOptions?.operation === 'fetch' ? 'webFetch' : 'webSearch'
+    const lines = formatResultSummary(webKind, result)
+    const inv = formatInvocationDisplay(webKind, args, locale)
+    const section = getWebToolSectionLabel(webKind, locale)
+    const icon = getWebToolIcon(webKind)
     const errPrefix = 'Error: '
 
     if (lines && lines.length > 0) {
@@ -868,7 +868,7 @@ function ExpandedContent({
 
   const resultText = formatDefaultToolResultForDisplay(result)
   const invocation = rendererFamily
-    ? formatExpandedInvocation(toolName, args, locale, { planTodos })
+    ? formatExpandedInvocation(tool, args, locale, { planTodos })
     : null
 
   return (

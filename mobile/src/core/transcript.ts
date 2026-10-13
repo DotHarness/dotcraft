@@ -100,8 +100,9 @@ function todoStatus(value: unknown): PlanTodo['status'] {
   return value === 'in_progress' || value === 'completed' || value === 'cancelled' ? value : 'pending'
 }
 
-const SHELL_TOOLS = new Set(['Exec', 'RunCommand', 'BashCommand'])
-const HIDDEN_TOOLS = new Set(['RequestUserInput'])
+type ToolKind =
+  | 'read' | 'grep' | 'find' | 'explore' | 'edit' | 'shell' | 'writeStdin'
+  | 'webSearch' | 'webFetch' | 'skillView' | 'skillManage' | 'requestUserInput' | 'createPlan'
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value : ''
@@ -151,47 +152,49 @@ interface ToolShape {
   counts?: { added: number; removed: number } | null
 }
 
-function toolShape(toolName: string, input: Record<string, unknown>, result: HistoryItem | undefined): ToolShape {
-  if (SHELL_TOOLS.has(toolName)) return { verb: 'ran', target: firstLine(str(input.command)), full: str(input.command) }
+function toolShape(kind: ToolKind | null, toolName: string, input: Record<string, unknown>, result: HistoryItem | undefined): ToolShape {
   const path = str(input.path)
-  switch (toolName) {
-    case 'ReadFile':
+  switch (kind) {
+    case 'shell':
+      return { verb: 'ran', target: firstLine(str(input.command)), full: str(input.command) }
+    case 'read':
       return { verb: 'read', target: baseName(path), full: path }
-    case 'WriteFile':
-    case 'EditFile':
+    case 'explore':
+      return path ? { verb: 'read', target: baseName(path), full: path } : { verb: 'searched', target: str(input.pattern) }
+    case 'edit':
       return { verb: 'edited', target: baseName(path), full: path, counts: fileChangeCounts(result) }
-    case 'GrepFiles':
-    case 'FindFiles':
+    case 'grep':
+    case 'find':
       return { verb: 'searched', target: str(input.pattern) }
-    case 'WebSearch':
+    case 'webSearch':
       return { verb: 'searched', target: str(input.query) }
-    case 'WebFetch':
+    case 'webFetch':
       return { verb: 'read', target: str(input.url) }
     default:
       return { verb: 'used', target: toolName }
   }
 }
 
-function toolIcon(toolName: string, result: HistoryItem | undefined): ToolIcon {
-  if (SHELL_TOOLS.has(toolName)) {
-    const errorCode = str(result?.payload.errorCode)
-    if (errorCode === 'tool_approval_rejected') return 'declined'
-    return errorCode === 'tool_cancelled' ? 'stopped' : 'terminal'
-  }
-  switch (toolName) {
-    case 'ReadFile':
-    case 'SkillView':
+function toolIcon(kind: ToolKind | null, result: HistoryItem | undefined): ToolIcon {
+  switch (kind) {
+    case 'shell': {
+      const errorCode = str(result?.payload.errorCode)
+      if (errorCode === 'tool_approval_rejected') return 'declined'
+      return errorCode === 'tool_cancelled' ? 'stopped' : 'terminal'
+    }
+    case 'read':
+    case 'explore':
+    case 'skillView':
       return 'read'
-    case 'GrepFiles':
+    case 'grep':
       return 'search'
-    case 'FindFiles':
+    case 'find':
       return 'folder'
-    case 'WriteFile':
-    case 'EditFile':
-    case 'SkillManage':
+    case 'edit':
+    case 'skillManage':
       return 'edit'
-    case 'WebSearch':
-    case 'WebFetch':
+    case 'webSearch':
+    case 'webFetch':
       return 'web'
     default:
       return 'other'
@@ -232,7 +235,7 @@ function imagesOf(item: HistoryItem | undefined): string[] {
 }
 
 function planEntry(item: HistoryItem, results: Map<string, HistoryItem>): TranscriptEntry | null {
-  if (item.type !== 'toolCall' || str(item.payload.toolName) !== 'CreatePlan') return null
+  if (item.type !== 'toolCall' || toolKind(item, undefined) !== 'createPlan') return null
   const result = results.get(inTurn(item.turnId, str(item.payload.callId)))
   if (!result || result.payload.success === false || str(result.payload.result).startsWith('Error:')) return null
   const input = args(item.payload)
@@ -256,6 +259,32 @@ function presentationOf(item: HistoryItem, result: HistoryItem | undefined): { i
   return { id: str(value?.presentationId), operation: str(value?.options?.operation) }
 }
 
+function toolKind(item: HistoryItem, result: HistoryItem | undefined): ToolKind | null {
+  const source = (item.payload.source ?? result?.payload.source) as { kind?: unknown } | null | undefined
+  if (source?.kind !== 'CoreNative') return null
+  const { id, operation } = presentationOf(item, result)
+  switch (id) {
+    case 'core.read-file':
+      return operation === 'read' || operation === 'grep' || operation === 'find' ? operation : 'explore'
+    case 'core.file-write':
+      return 'edit'
+    case 'core.shell':
+      return operation === 'writeStdin' ? 'writeStdin' : 'shell'
+    case 'core.web':
+      return operation === 'fetch' ? 'webFetch' : 'webSearch'
+    case 'core.skill-view':
+      return 'skillView'
+    case 'core.skill-manage':
+      return 'skillManage'
+    case 'core.request-user-input':
+      return 'requestUserInput'
+    case 'core.create-plan':
+      return 'createPlan'
+    default:
+      return null
+  }
+}
+
 function webOperation(operation: string): ToolEntry['web'] {
   return operation === 'search' || operation === 'fetch' ? operation : null
 }
@@ -267,18 +296,19 @@ function createsFile(result: HistoryItem | undefined): boolean {
 
 function toolEntry(item: HistoryItem, results: Map<string, HistoryItem>): ToolEntry | null {
   const toolName = str(item.payload.toolName)
-  if (!toolName || HIDDEN_TOOLS.has(toolName) || isCodeModeWrapper(item)) return null
-  const id = entryId(item)
   const result = item.type === 'toolCall' ? results.get(inTurn(item.turnId, str(item.payload.callId))) : item
+  const kind = toolKind(item, result)
+  if (!toolName || kind === 'requestUserInput' || isCodeModeWrapper(item)) return null
+  const id = entryId(item)
   const input = item.type === 'toolCall' ? args(item.payload) : {}
-  const shape: ToolShape = item.type === 'toolCall' ? toolShape(toolName, input, result) : { verb: 'used', target: toolName }
+  const shape: ToolShape = item.type === 'toolCall' ? toolShape(kind, toolName, input, result) : { verb: 'used', target: toolName }
   const presentation = presentationOf(item, result)
   const live = item.type === 'toolCall' ? !result : !isComplete(item)
   const base = {
     kind: 'tool' as const,
     id,
     verb: shape.verb,
-    icon: toolIcon(toolName, result),
+    icon: toolIcon(kind, result),
     images: imagesOf(result),
     startedAt: item.createdAt,
     category: CATEGORIES[presentation.id] ?? null,

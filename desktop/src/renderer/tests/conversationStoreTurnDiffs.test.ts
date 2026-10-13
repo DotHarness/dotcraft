@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useConversationStore } from '../stores/conversationStore'
 import { wireTurnToConversationTurn } from '../types/conversation'
+import { coreToolFields } from './testToolPresentation'
 
 const s = () => useConversationStore.getState()
 
@@ -19,7 +20,7 @@ function fileChange(path: string, diff: string, additions = 1, deletions = 1, ki
 }
 
 function wireCall(id: string, toolName = 'EditFile'): Record<string, unknown> {
-  return { id, type: 'toolCall', createdAt, payload: { callId: `call-${id}`, toolName, arguments: { path: 'ignored' } } }
+  return { id, type: 'toolCall', createdAt, payload: { callId: `call-${id}`, toolName, ...coreToolFields(toolName), arguments: { path: 'ignored' } } }
 }
 
 function wireResult(id: string, structuredContent: unknown): Record<string, unknown> {

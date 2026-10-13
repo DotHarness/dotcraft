@@ -221,8 +221,6 @@ function getSubAgentCompletedTitleKey(operation: SubAgentOperation): string {
   if (operation === 'sendMessage') return 'toolCall.subAgent.sentMessage'
   if (operation === 'followupTask') return 'toolCall.subAgent.followedUp'
   if (operation === 'list') return 'toolCall.subAgent.listed'
-  if (operation === 'sendInput') return 'toolCall.subAgent.sentInput'
-  if (operation === 'resume') return 'toolCall.subAgent.resumed'
   return 'toolCall.subAgent.closed'
 }
 
@@ -230,8 +228,6 @@ function getSubAgentRunningTitleKey(operation: SubAgentOperation): string {
   if (operation === 'sendMessage') return 'toolCall.subAgent.sendingMessage'
   if (operation === 'followupTask') return 'toolCall.subAgent.followingUp'
   if (operation === 'list') return 'toolCall.subAgent.listing'
-  if (operation === 'sendInput') return 'toolCall.subAgent.sendingInput'
-  if (operation === 'resume') return 'toolCall.subAgent.resuming'
   return 'toolCall.subAgent.closing'
 }
 
@@ -280,15 +276,13 @@ function isTimeoutMessage(value: string | null): boolean {
   return normalized.includes('timed out') || normalized.includes('timeout')
 }
 
-type SubAgentOperation = 'spawn' | 'wait' | 'sendInput' | 'sendMessage' | 'followupTask' | 'resume' | 'list' | 'close'
+type SubAgentOperation = 'spawn' | 'wait' | 'sendMessage' | 'followupTask' | 'list' | 'close'
 
 function isSubAgentOperation(operation: unknown): operation is SubAgentOperation {
   return operation === 'spawn'
     || operation === 'wait'
-    || operation === 'sendInput'
     || operation === 'sendMessage'
     || operation === 'followupTask'
-    || operation === 'resume'
     || operation === 'list'
     || operation === 'close'
 }

@@ -24,7 +24,7 @@ import {
   wireItemToConversationItem,
   wireTurnToConversationTurn
 } from '../types/conversation'
-import { isShellToolName } from '../utils/shellTools'
+import { isFileWriteKind, isShellCommandKind, isSubAgentKind, resolveToolKind, type ToolKind } from '../utils/toolKind'
 import type { FileDiff } from '../types/toolCall'
 import type { TurnDiff } from '../types/turnDiff'
 import {
@@ -210,15 +210,6 @@ interface StreamingFileBaseline {
   path: string
   originalContent: string
 }
-
-const SUB_AGENT_STREAMING_TOOLS = new Set([
-  'SpawnAgent',
-  'SendMessage',
-  'FollowupTask',
-  'WaitAgent',
-  'ListAgents',
-  'CloseAgent'
-])
 
 const SUB_AGENT_ARGUMENT_BUFFER_MAX_CHARS = 12000
 const SUB_AGENT_ARGUMENT_FIELD_MAX_CHARS = 800
@@ -595,7 +586,7 @@ function mergeCommandExecutionIntoToolCall(
   commandExecution: Partial<ConversationItem>
 ): ConversationItem {
   if (item.type !== 'toolCall') return item
-  if (!isShellToolName(item.toolName)) return item
+  if (!isShellCommandKind(resolveToolKind(item))) return item
   if (!commandExecution.toolCallId || item.toolCallId !== commandExecution.toolCallId) return item
   const commandOutput = commandExecution.aggregatedOutput
   const currentOutput = item.aggregatedOutput
@@ -674,7 +665,7 @@ function terminalMatchesTurn(entry: PendingTerminalEntry, turn: ConversationTurn
 
 function turnHasShellToolCall(turn: ConversationTurn, callId: string): boolean {
   return turn.items.some(
-    (item) => item.type === 'toolCall' && item.toolCallId === callId && isShellToolName(item.toolName)
+    (item) => item.type === 'toolCall' && item.toolCallId === callId && isShellCommandKind(resolveToolKind(item))
   )
 }
 
@@ -1424,11 +1415,11 @@ function latestCompactedNotice(turns: ConversationTurn[]): {
 
 function appendStreamingArgumentsPreview(
   bufferKey: string,
-  toolName: string,
+  kind: ToolKind | null,
   currentPreview: string | undefined,
   delta: string
 ): string {
-  if (!SUB_AGENT_STREAMING_TOOLS.has(toolName)) {
+  if (!isSubAgentKind(kind)) {
     return (currentPreview ?? '') + delta
   }
 
@@ -2107,10 +2098,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     let shouldLoadBaseline = false
     let baselinePath = ''
     let nextArgumentsPreviewForLoad = ''
-    let nextToolNameForLoad = ''
 
     set((state) => {
       let capturedToolName = ''
+      let capturedKind: ToolKind | null = null
       let capturedPreview = ''
       let nextPendingToolCompletions = state.pendingToolCompletionsByCallKey
       const nextTurns = state.turns.map((t) => {
@@ -2120,13 +2111,15 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           ? t.items.map((i) => {
               if (i.id !== itemId) return i
               const nextToolName = params.toolName ?? i.toolName ?? 'tool'
+              const kind = resolveToolKind(i)
               const nextArgumentsPreview = appendStreamingArgumentsPreview(
                 streamingBufferKey,
-                nextToolName,
+                kind,
                 i.argumentsPreview,
                 delta
               )
               capturedToolName = nextToolName
+              capturedKind = kind
               capturedPreview = nextArgumentsPreview
               return {
                 ...i,
@@ -2146,7 +2139,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
                 const toolName = params.toolName ?? 'tool'
                 const argumentsPreview = appendStreamingArgumentsPreview(
                   streamingBufferKey,
-                  toolName,
+                  null,
                   undefined,
                   delta
                 )
@@ -2183,8 +2176,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
       const nextStreamingItemDiffs = new Map(state.streamingItemDiffs)
       const nextStreamingBaselines = new Map(state.streamingBaselines)
-      const isFileTool = capturedToolName === 'WriteFile' || capturedToolName === 'EditFile'
-      if (isFileTool) {
+      if (isFileWriteKind(capturedKind)) {
         const previewPath = extractStreamingFilePath(capturedPreview)
         const baseline = nextStreamingBaselines.get(itemId)
         if (previewPath && baseline?.path !== previewPath) {
@@ -2192,7 +2184,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         }
         const baselineContent = baseline?.originalContent ?? (previewPath ? nextStreamingBaselines.get(itemId)?.originalContent : undefined)
         const streamingDiff = computeStreamingFileDiff({
-          toolName: capturedToolName as 'WriteFile' | 'EditFile',
+          kind: capturedKind,
           argumentsPreview: capturedPreview,
           filePath: previewPath ?? baseline?.path ?? null,
           baselineContent
@@ -2206,7 +2198,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           shouldLoadBaseline = true
           baselinePath = previewPath
           nextArgumentsPreviewForLoad = capturedPreview
-          nextToolNameForLoad = capturedToolName
         }
       } else {
         nextStreamingItemDiffs.delete(itemId)
@@ -2238,8 +2229,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           const item = turn?.items.find((i) => i.id === itemId)
           if (!item) return {}
 
-          const toolName = (item.toolName ?? nextToolNameForLoad) as 'WriteFile' | 'EditFile' | string
-          if (toolName !== 'WriteFile' && toolName !== 'EditFile') return {}
+          const kind = resolveToolKind(item)
+          if (!isFileWriteKind(kind)) return {}
           const preview = item.argumentsPreview ?? nextArgumentsPreviewForLoad
           if (!preview) return {}
           const resolvedPath = extractStreamingFilePath(preview) ?? baselinePath
@@ -2251,7 +2242,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           })
 
           const streamingDiff = computeStreamingFileDiff({
-            toolName,
+            kind,
             argumentsPreview: preview,
             filePath: resolvedPath,
             baselineContent: originalContent
@@ -3270,7 +3261,7 @@ function findStreamingCreatePlanCall(state: ConversationState): StreamingCreateP
       const item = t.items[idx]
       if (
         item.type === 'toolCall'
-        && item.toolName === 'CreatePlan'
+        && resolveToolKind(item) === 'createPlan'
         && item.status !== 'completed'
       ) {
         return {
@@ -3348,7 +3339,7 @@ export function selectLatestCreatePlanTurnId(state: ConversationState): string |
 
   const containsSuccessfulCreatePlan = turn.items.some((item) =>
     item.type === 'toolCall'
-    && item.toolName === 'CreatePlan'
+    && resolveToolKind(item) === 'createPlan'
     && item.status === 'completed'
     && item.success !== false
   )

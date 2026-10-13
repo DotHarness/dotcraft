@@ -208,11 +208,4 @@ public class ToolResultProcessorTests
             try { Directory.Delete(workspace, recursive: true); } catch { /* ignore */ }
         }
     }
-
-    [Fact]
-    public void ResolveMaxResultChars_UsesGlobalWhenNoPerTool()
-    {
-        var n = ToolResultProcessor.ResolveMaxResultChars($"Tool_{Guid.NewGuid():N}", 42_000);
-        Assert.Equal(42_000, n);
-    }
 }

@@ -58,7 +58,9 @@ public sealed class GeneratedToolDeclaration
         string description,
         string inputSchemaJson,
         Type? outputType,
-        bool rpcEligible = false)
+        bool rpcEligible = false,
+        string? presentationId = null,
+        string? presentationOptionsJson = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(description);
@@ -69,6 +71,13 @@ public sealed class GeneratedToolDeclaration
         InputSchema = GeneratedToolSchema.Parse(inputSchemaJson);
         OutputSchema = GeneratedToolSchema.CreateReturnSchema(outputType, OutputSerializerOptions);
         RpcEligible = rpcEligible;
+        Presentation = presentationId is null
+            ? null
+            : new ToolPresentationDescriptor(
+                new PresentationId(presentationId),
+                presentationOptionsJson is null
+                    ? null
+                    : JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(presentationOptionsJson));
     }
 
     /// <summary>Gets the model-visible tool name.</summary>
@@ -85,6 +94,8 @@ public sealed class GeneratedToolDeclaration
 
     /// <summary>Gets whether the native declaration may be exported by a Remote Tool Host.</summary>
     public bool RpcEligible { get; }
+
+    public ToolPresentationDescriptor? Presentation { get; }
 
     internal JsonSerializerOptions InputSerializerOptions { get; } = CreateSerializerOptions(strictEnums: true);
 
@@ -119,6 +130,8 @@ internal interface IGeneratedToolMetadata
     Func<IDictionary<string, object?>?, string>? DisplayFormatter { get; }
 
     bool RpcEligible { get; }
+
+    ToolPresentationDescriptor? Presentation { get; }
 }
 
 /// <summary>
@@ -178,6 +191,7 @@ public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
 
     public bool RpcEligible => _metadata.RpcEligible;
 
+    public ToolPresentationDescriptor? Presentation => _declaration.Presentation;
 }
 
 internal sealed class StrictToolInputEnumConverterFactory : JsonConverterFactory
@@ -228,6 +242,15 @@ internal static class GeneratedToolMetadataResolver
 
         metadata = null!;
         return false;
+    }
+
+    /// <summary>Formats a call with the tool's own display formatter; a failing formatter yields null.</summary>
+    public static string? FormatCall(AITool tool, IDictionary<string, object?>? args)
+    {
+        if (!TryGet(tool, out var metadata) || metadata.DisplayFormatter is not { } formatter)
+            return null;
+        try { return formatter(args); }
+        catch { return null; }
     }
 }
 

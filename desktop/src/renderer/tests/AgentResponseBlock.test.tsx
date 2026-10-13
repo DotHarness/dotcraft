@@ -11,7 +11,7 @@ import type { ConversationItem, ConversationTurn } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
 import type { TurnDiff } from '../types/turnDiff'
 import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
-import { withTestCorePresentation } from './testToolPresentation'
+import { withTestCorePresentation, coreToolFields } from './testToolPresentation'
 import { installDesktopApiMock } from './desktopApiMock'
 
 vi.mock('../components/conversation/McpAppView', () => ({
@@ -27,8 +27,8 @@ interface CoreFixturePresentation {
   options?: Record<string, unknown>
 }
 
-const EXPLORE: CoreFixturePresentation = { presentationId: CORE_TOOL_PRESENTATION_IDS.readFile }
-const SHELL: CoreFixturePresentation = { presentationId: CORE_TOOL_PRESENTATION_IDS.shell }
+// The presentation the server declares for the named tool.
+const DECLARED = 'declared' as const
 const TEST_IMAGE_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 
 function makeToolCallItem(
@@ -36,7 +36,7 @@ function makeToolCallItem(
   toolCallId: string,
   toolName: string,
   createdAt: string,
-  presentation?: CoreFixturePresentation
+  presentation?: CoreFixturePresentation | typeof DECLARED
 ): ConversationItem {
   const item: ConversationItem = {
     id,
@@ -48,6 +48,7 @@ function makeToolCallItem(
     success: true,
     createdAt
   }
+  if (presentation === DECLARED) return { ...item, ...coreToolFields(toolName) }
   return presentation
     ? withTestCorePresentation(item, presentation.presentationId, presentation.options)
     : item
@@ -63,7 +64,7 @@ function makeCreatePlanItem(
     type: 'toolCall',
     status: 'completed',
     toolCallId: `${id}-call`,
-    toolName: 'CreatePlan',
+    toolName: 'CreatePlan', ...coreToolFields('CreatePlan'),
     arguments: {
       title,
       overview: `${title} overview`,
@@ -485,7 +486,7 @@ describe('AgentResponseBlock tool transcript rendering', () => {
       startedAt: '2026-04-18T10:06:10.000Z',
       items: [
         {
-          ...makeToolCallItem('read-image-tool-1', 'read-image-call-1', 'ReadFile', '2026-04-18T10:06:11.000Z', EXPLORE),
+          ...makeToolCallItem('read-image-tool-1', 'read-image-call-1', 'ReadFile', '2026-04-18T10:06:11.000Z', DECLARED),
           arguments: { path: 'docs/diagram.png' }
         },
         {
@@ -626,12 +627,12 @@ describe('AgentResponseBlock tool transcript rendering', () => {
       startedAt: '2026-04-18T10:07:00.000Z',
       items: [
         {
-          ...makeToolCallItem('read-tool-1', 'read-call-1', 'ReadFile', '2026-04-18T10:07:01.000Z', EXPLORE),
+          ...makeToolCallItem('read-tool-1', 'read-call-1', 'ReadFile', '2026-04-18T10:07:01.000Z', DECLARED),
           contentItems: [
             { type: 'image', mediaType: 'image/png', dataBase64: 'grouped' }
           ]
         },
-        makeToolCallItem('read-tool-2', 'read-call-2', 'ReadFile', '2026-04-18T10:07:02.000Z', EXPLORE)
+        makeToolCallItem('read-tool-2', 'read-call-2', 'ReadFile', '2026-04-18T10:07:02.000Z', DECLARED)
       ]
     }
 
@@ -666,8 +667,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'running',
       startedAt: '2026-04-18T11:00:00.000Z',
       items: [
-        makeToolCallItem('tool-1', 'call-1', 'ReadFile', '2026-04-18T11:00:01.000Z', EXPLORE),
-        makeToolCallItem('tool-2', 'call-2', 'FindFiles', '2026-04-18T11:00:02.000Z', EXPLORE)
+        makeToolCallItem('tool-1', 'call-1', 'ReadFile', '2026-04-18T11:00:01.000Z', DECLARED),
+        makeToolCallItem('tool-2', 'call-2', 'FindFiles', '2026-04-18T11:00:02.000Z', DECLARED)
       ]
     }
 
@@ -688,8 +689,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'running',
       startedAt: '2026-04-18T11:05:00.000Z',
       items: [
-        makeToolCallItem('tool-1', 'call-1', 'ReadFile', '2026-04-18T11:05:01.000Z', EXPLORE),
-        makeToolCallItem('tool-2', 'call-2', 'FindFiles', '2026-04-18T11:05:02.000Z', EXPLORE),
+        makeToolCallItem('tool-1', 'call-1', 'ReadFile', '2026-04-18T11:05:01.000Z', DECLARED),
+        makeToolCallItem('tool-2', 'call-2', 'FindFiles', '2026-04-18T11:05:02.000Z', DECLARED),
         {
           id: 'reasoning-1',
           type: 'reasoningContent',
@@ -716,9 +717,9 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'running',
       startedAt: '2026-04-18T11:06:00.000Z',
       items: [
-        makeToolCallItem('tool-profile', 'call-profile', 'ReadFile', '2026-04-18T11:06:01.000Z', EXPLORE),
-        makeToolCallItem('tool-notes', 'call-notes', 'ReadFile', '2026-04-18T11:06:02.000Z', EXPLORE),
-        makeToolCallItem('tool-assets', 'call-assets', 'FindFiles', '2026-04-18T11:06:03.000Z', EXPLORE),
+        makeToolCallItem('tool-profile', 'call-profile', 'ReadFile', '2026-04-18T11:06:01.000Z', DECLARED),
+        makeToolCallItem('tool-notes', 'call-notes', 'ReadFile', '2026-04-18T11:06:02.000Z', DECLARED),
+        makeToolCallItem('tool-assets', 'call-assets', 'FindFiles', '2026-04-18T11:06:03.000Z', DECLARED),
         {
           id: 'approval-profile',
           type: 'approvalCard',
@@ -735,9 +736,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'call-next-find',
-          toolName: 'FindFiles',
+          toolName: 'FindFiles', ...coreToolFields('FindFiles'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'FindFiles' },
-          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'docs' },
           createdAt: '2026-04-18T11:06:05.000Z'
         },
@@ -772,8 +772,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'completed',
       startedAt: '2026-04-18T11:10:00.000Z',
       items: [
-        makeToolCallItem('tool-1', 'call-1', 'ReadFile', '2026-04-18T11:10:01.000Z', EXPLORE),
-        makeToolCallItem('tool-2', 'call-2', 'FindFiles', '2026-04-18T11:10:02.000Z', EXPLORE)
+        makeToolCallItem('tool-1', 'call-1', 'ReadFile', '2026-04-18T11:10:01.000Z', DECLARED),
+        makeToolCallItem('tool-2', 'call-2', 'FindFiles', '2026-04-18T11:10:02.000Z', DECLARED)
       ]
     }
 
@@ -793,8 +793,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'completed',
       startedAt: '2026-04-18T11:11:00.000Z',
       items: [
-        makeToolCallItem('shell-1', 'call-shell-1', 'Exec', '2026-04-18T11:11:01.000Z', SHELL),
-        { ...makeToolCallItem('shell-2', 'call-shell-2', 'Exec', '2026-04-18T11:11:02.000Z', SHELL), success: false, exitCode: 1 }
+        makeToolCallItem('shell-1', 'call-shell-1', 'Exec', '2026-04-18T11:11:01.000Z', DECLARED),
+        { ...makeToolCallItem('shell-2', 'call-shell-2', 'Exec', '2026-04-18T11:11:02.000Z', DECLARED), success: false, exitCode: 1 }
       ]
     }
 
@@ -818,8 +818,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'completed',
       startedAt: '2026-04-18T11:11:00.000Z',
       items: [
-        makeToolCallItem('file-1', 'call-file-1', 'ReadFile', '2026-04-18T11:11:01.000Z', EXPLORE),
-        { ...makeToolCallItem('file-2', 'call-file-2', 'FindFiles', '2026-04-18T11:11:02.000Z', EXPLORE), success: false }
+        makeToolCallItem('file-1', 'call-file-1', 'ReadFile', '2026-04-18T11:11:01.000Z', DECLARED),
+        { ...makeToolCallItem('file-2', 'call-file-2', 'FindFiles', '2026-04-18T11:11:02.000Z', DECLARED), success: false }
       ]
     }
 
@@ -1019,7 +1019,7 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       type: 'toolCall',
       status: 'completed',
       toolCallId: id,
-      toolName: 'WebSearch',
+      toolName: 'WebSearch', ...coreToolFields('WebSearch'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WebSearch' },
           presentation: { presentationId: 'core.web', options: { operation: 'search' } },
       arguments: { query },
@@ -1094,9 +1094,8 @@ describe('AgentResponseBlock reasoning timeline rendering', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'call-between',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T11:18:02.000Z'
@@ -1566,9 +1565,8 @@ describe('AgentResponseBlock idle running fallback', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'call-read-settled',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'docs/readme.md' },
           result: 'file contents',
           success: true,
@@ -1604,9 +1602,8 @@ describe('AgentResponseBlock idle running fallback', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'call-read-settled',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'docs/readme.md' },
           result: 'file contents',
           success: true,
@@ -1781,9 +1778,8 @@ describe('AgentResponseBlock completed turn folding', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'call-1',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T11:20:02.000Z'
@@ -1837,9 +1833,8 @@ describe('AgentResponseBlock completed turn folding', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'call-1',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T11:20:03.000Z'
@@ -1890,9 +1885,8 @@ describe('AgentResponseBlock completed turn folding', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'call-1',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T11:30:02.000Z'
@@ -2026,9 +2020,8 @@ describe('AgentResponseBlock completed turn folding', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'call-1',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T11:40:02.000Z'
@@ -2072,9 +2065,8 @@ describe('AgentResponseBlock completed turn folding', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'call-1',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T11:50:01.000Z'
@@ -2123,9 +2115,8 @@ describe('AgentResponseBlock completed turn folding', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'call-1',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T12:10:03.000Z'
@@ -2272,9 +2263,8 @@ describe('AgentResponseBlock interactive card pinning', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'call-read',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-06-10T11:30:01.000Z'
@@ -2320,9 +2310,8 @@ describe('AgentResponseBlock interactive card pinning', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'call-read',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-06-10T11:40:02.000Z'
@@ -2365,9 +2354,8 @@ describe('AgentResponseBlock interactive card pinning', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'call-read',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-06-10T11:50:02.000Z'
@@ -2462,9 +2450,8 @@ describe('AgentResponseBlock historical tool trimming', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'read-call-1',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T12:00:02.000Z'
@@ -2474,7 +2461,7 @@ describe('AgentResponseBlock historical tool trimming', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'write-call-1',
-          toolName: 'WriteFile',
+          toolName: 'WriteFile', ...coreToolFields('WriteFile'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WriteFile' },
           presentation: { presentationId: 'core.file-write', options: { operation: 'write' } },
           arguments: { path: 'docs/old-artifact.md', content: 'new\n' },
@@ -2487,9 +2474,8 @@ describe('AgentResponseBlock historical tool trimming', () => {
           type: 'toolCall',
           status: 'completed',
           toolCallId: 'shell-call-1',
-          toolName: 'Exec',
+          toolName: 'Exec', ...coreToolFields('Exec'),
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
-          presentation: { presentationId: 'core.shell' },
           arguments: { command: 'npm test' },
           result: 'all green',
           success: true,

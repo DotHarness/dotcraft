@@ -3,6 +3,7 @@ import { derivePetActivity, flattenPetLine, type PetActivityInput } from '../com
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
 import type { PendingApproval } from '../stores/conversationStore'
 import type { TurnDiff, TurnFileChange } from '../types/turnDiff'
+import { coreToolFields } from './testToolPresentation'
 
 let counter = 0
 function item(partial: Partial<ConversationItem> & { type: ConversationItem['type'] }): ConversationItem {
@@ -31,16 +32,16 @@ describe('derivePetActivity', () => {
     expect(derivePetActivity(input({ threadId: null }))).toMatchObject({ status: 'idle', line: '', turnId: '', canStop: false })
   })
   it('names the live tool while it runs, from a partial or a complete argument set', () => {
-    const streaming = derivePetActivity(running([item({ type: 'toolCall', toolName: 'Exec', status: 'streaming', argumentsPreview: '{"command":"npm test' })]))
+    const streaming = derivePetActivity(running([item({ type: 'toolCall', toolName: 'Exec', ...coreToolFields('Exec'), status: 'streaming', argumentsPreview: '{"command":"npm test' })]))
     expect(streaming.status).toBe('running')
     expect(streaming.line).toContain('npm test')
-    const started = derivePetActivity(running([item({ type: 'toolCall', toolName: 'Exec', status: 'started', arguments: { command: 'npm test' } })]))
+    const started = derivePetActivity(running([item({ type: 'toolCall', toolName: 'Exec', ...coreToolFields('Exec'), status: 'started', arguments: { command: 'npm test' } })]))
     expect(started.line).toContain('npm test')
   })
   it('counts additional live tools', () => {
     const info = derivePetActivity(running([
-      item({ type: 'toolCall', toolName: 'ReadFile', status: 'started', arguments: { path: 'src/a.ts' } }),
-      item({ type: 'toolCall', toolName: 'ReadFile', status: 'started', arguments: { path: 'src/b.ts' } })
+      item({ type: 'toolCall', toolName: 'ReadFile', ...coreToolFields('ReadFile'), status: 'started', arguments: { path: 'src/a.ts' } }),
+      item({ type: 'toolCall', toolName: 'ReadFile', ...coreToolFields('ReadFile'), status: 'started', arguments: { path: 'src/b.ts' } })
     ]))
     expect(info.line).toContain('b.ts')
     expect(info.line).toContain('+1 more')
@@ -53,7 +54,7 @@ describe('derivePetActivity', () => {
   })
   it('puts a pending approval ahead of everything else', () => {
     const info = derivePetActivity(running(
-      [item({ type: 'toolCall', toolName: 'Exec', status: 'started', arguments: { command: 'rm -rf x' } })],
+      [item({ type: 'toolCall', toolName: 'Exec', ...coreToolFields('Exec'), status: 'started', arguments: { command: 'rm -rf x' } })],
       { turnStatus: 'waitingApproval', approval }
     ))
     expect(info).toMatchObject({ status: 'waiting', line: 'run npm test', lineTone: 'warning' })

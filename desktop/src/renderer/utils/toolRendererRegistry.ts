@@ -123,6 +123,12 @@ function hasOperation(...allowed: readonly string[]) {
   )
 }
 
+/** Items persisted before these families named an operation carry no options. */
+function hasOptionalOperation(...allowed: readonly string[]) {
+  const named = hasOperation(...allowed)
+  return (options: Readonly<Record<string, unknown>>): boolean => hasNoOptions(options) || named(options)
+}
+
 export const CORE_TOOL_PRESENTATION_IDS = {
   createPlan: 'core.create-plan',
   automation: 'core.automation',
@@ -153,13 +159,13 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   registration(CORE_TOOL_PRESENTATION_IDS.skillView, 'skillView', { mode: 'standalone' }),
   registration(CORE_TOOL_PRESENTATION_IDS.subagent, 'subagent', {
     mode: 'standalone', groupCategory: 'subagent'
-  }, hasOperation('spawn', 'wait', 'sendMessage', 'followupTask', 'list', 'close', 'sendInput', 'resume')),
+  }, hasOperation('spawn', 'wait', 'sendMessage', 'followupTask', 'list', 'close')),
   registration(CORE_TOOL_PRESENTATION_IDS.board, 'board', {
     mode: 'standalone', groupCategory: 'board'
   }, hasOperation(...BOARD_OPERATIONS)),
   registration(CORE_TOOL_PRESENTATION_IDS.shell, 'shell', {
     mode: 'collapsible', groupCategory: 'shell', successOverride: true
-  }),
+  }, hasOptionalOperation('exec', 'writeStdin')),
   registration(CORE_TOOL_PRESENTATION_IDS.fileWrite, 'fileWrite', {
     mode: 'collapsible', groupCategory: 'write'
   }, hasOperation('write', 'edit')),
@@ -171,14 +177,14 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   }),
   registration(CORE_TOOL_PRESENTATION_IDS.readFile, 'readFile', {
     mode: 'collapsible', groupCategory: 'explore'
-  }),
+  }, hasOptionalOperation('read', 'grep', 'find')),
   registration(CORE_TOOL_PRESENTATION_IDS.lsp, 'lsp', {
     mode: 'collapsible', groupCategory: 'explore'
   }),
   registration(CORE_TOOL_PRESENTATION_IDS.commitSuggest, 'commitSuggest', {
     mode: 'collapsible'
   }),
-  registration(CORE_TOOL_PRESENTATION_IDS.todo, 'todo', { mode: 'collapsible' }),
+  registration(CORE_TOOL_PRESENTATION_IDS.todo, 'todo', { mode: 'collapsible' }, hasOptionalOperation('todoWrite', 'updateTodos')),
   registration(CORE_TOOL_PRESENTATION_IDS.deferredSearch, 'deferredSearch', {
     mode: 'collapsible'
   }),

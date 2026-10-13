@@ -23,19 +23,18 @@ describe('formatInvocationDisplay', () => {
     const query = 'compare shared tool activity title geometry across commands todo searches workflows and agents'
     const url = 'https://example.com/reference/tool-activity-disclosure/complete-layout-contract?mode=desktop'
 
-    expect(formatInvocationDisplay('WebSearch', { query }, 'en')).toContain(query)
-    expect(formatInvocationDisplay('WebFetch', { url }, 'en')).toContain(url)
-    expect(formatInvocationDisplay('SearchTools', { query }, 'en')).toContain(query)
+    expect(formatInvocationDisplay('webSearch', { query }, 'en')).toContain(query)
+    expect(formatInvocationDisplay('webFetch', { url }, 'en')).toContain(url)
+    expect(formatInvocationDisplay('toolSearch', { query }, 'en')).toContain(query)
   })
 })
 
 describe('invocationNeedsCallingPrefix', () => {
   it('omits the generic prefix only when standalone web/tool-search args parse', () => {
-    expect(invocationNeedsCallingPrefix('WebSearch', { query: 'x', maxResults: 5 })).toBe(false)
-    expect(invocationNeedsCallingPrefix('WebFetch', { url: 'https://a.com' })).toBe(false)
-    expect(invocationNeedsCallingPrefix('SearchTools', { query: 'ReadFile' })).toBe(false)
-    expect(invocationNeedsCallingPrefix('WebSearch', {})).toBe(true)
-    expect(invocationNeedsCallingPrefix('ReadFile', { path: 'src/main.rs' })).toBe(true)
+    expect(invocationNeedsCallingPrefix('webSearch', { query: 'x', maxResults: 5 })).toBe(false)
+    expect(invocationNeedsCallingPrefix('webFetch', { url: 'https://a.com' })).toBe(false)
+    expect(invocationNeedsCallingPrefix('toolSearch', { query: 'ReadFile' })).toBe(false)
+    expect(invocationNeedsCallingPrefix('webSearch', {})).toBe(true)
   })
 })
 

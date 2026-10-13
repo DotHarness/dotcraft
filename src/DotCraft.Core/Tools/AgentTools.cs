@@ -25,6 +25,7 @@ public sealed class AgentTools(
 
     [Description("Spawn a subagent as a child thread for concrete, bounded work that can run while the parent continues. Omit model to use the configured SubAgent or runtime default; set model only when an explicit override is needed.")]
     [Tool(Icon = "🐧", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.SpawnAgent))]
+    [ToolPresentation("core.subagent", Operation = "spawn")]
     public async Task<string> SpawnAgent(
         [Description("Task prompt for the child agent thread.")] string message,
         [Description("Lowercase task name using only letters, digits, and underscores for this child under the current agent path.")] string taskName,
@@ -80,6 +81,7 @@ public sealed class AgentTools(
 
     [Description("Send a mailbox message to another agent path without starting a target turn.")]
     [Tool(Icon = "💬")]
+    [ToolPresentation("core.subagent", Operation = "sendMessage")]
     public async Task<string> SendMessage(
         [Description("Agent path target. Relative targets resolve from the current agent path; absolute targets start with /root.")] string target,
         [Description("Message to place in the target agent mailbox.")] string message,
@@ -97,6 +99,7 @@ public sealed class AgentTools(
 
     [Description("Start a follow-up task for an agent path. Pending mailbox messages for the target are delivered as context.")]
     [Tool(Icon = "🧭")]
+    [ToolPresentation("core.subagent", Operation = "followupTask")]
     public async Task<string> FollowupTask(
         [Description("Agent path target. Relative targets resolve from the current agent path; absolute targets start with /root.")] string target,
         [Description("Task prompt for the target agent turn.")] string message,
@@ -117,6 +120,7 @@ public sealed class AgentTools(
 
     [Description("Wait for a mailbox or SubAgent graph status change.")]
     [Tool(Icon = "⏱️")]
+    [ToolPresentation("core.subagent", Operation = "wait")]
     public async Task<string> WaitAgent(
         [Description("Optional timeout in milliseconds. Uses the configured default and must be within the configured range.")] int? timeoutMs = null,
         CancellationToken cancellationToken = default)
@@ -133,6 +137,7 @@ public sealed class AgentTools(
 
     [Description("List root and available SubAgent paths.")]
     [Tool(Icon = "📋")]
+    [ToolPresentation("core.subagent", Operation = "list")]
     public async Task<string> ListAgents(
         [Description("Optional path prefix. Relative prefixes resolve from the current agent path; absolute prefixes start with /root.")] string? pathPrefix = null,
         CancellationToken cancellationToken = default)
@@ -148,6 +153,7 @@ public sealed class AgentTools(
 
     [Description("Close a SubAgent path and cancel its active turn if one is running.")]
     [Tool(Icon = "⏹️")]
+    [ToolPresentation("core.subagent", Operation = "close")]
     public async Task<string> CloseAgent(
         [Description("Agent path target. Relative targets resolve from the current agent path; absolute targets start with /root.")] string target,
         CancellationToken cancellationToken = default)

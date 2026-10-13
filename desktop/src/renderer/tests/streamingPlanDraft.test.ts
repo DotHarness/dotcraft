@@ -9,6 +9,7 @@ import {
   selectStreamingPlanDraft,
   useConversationStore
 } from '../stores/conversationStore'
+import { coreToolFields, streamingToolCallStarted } from './testToolPresentation'
 
 function StreamingPlanProbe() {
   const streamingItemId = useConversationStore(selectStreamingPlanItemId)
@@ -53,6 +54,7 @@ describe('selectStreamingPlanDraft', () => {
     ])
 
     // Simulate streaming argument deltas arriving one chunk at a time.
+    store.onItemStarted(streamingToolCallStarted('turn-1', 'item-plan-1', 'CreatePlan', 'call-1'))
     store.onToolCallArgumentsDelta({
       turnId: 'turn-1',
       itemId: 'item-plan-1',
@@ -90,6 +92,7 @@ describe('selectStreamingPlanDraft', () => {
     ])
 
     const slash = String.fromCharCode(92)
+    store.onItemStarted(streamingToolCallStarted('turn-1', 'item-plan-2', 'CreatePlan', 'call-2'))
     store.onToolCallArgumentsDelta({
       turnId: 'turn-1',
       itemId: 'item-plan-2',
@@ -115,6 +118,7 @@ describe('selectStreamingPlanDraft', () => {
       }
     ])
 
+    store.onItemStarted(streamingToolCallStarted('turn-1', 'item-plan-3', 'CreatePlan', 'call-3'))
     store.onToolCallArgumentsDelta({
       turnId: 'turn-1',
       itemId: 'item-plan-3',
@@ -134,7 +138,7 @@ describe('selectStreamingPlanDraft', () => {
         toolCallId: 'call-3',
         turnId: 'turn-1',
         payload: {
-          toolName: 'CreatePlan',
+          toolName: 'CreatePlan', ...coreToolFields('CreatePlan'),
           arguments: { plan: '# Y' }
         }
       }
@@ -160,6 +164,7 @@ describe('selectStreamingPlanDraft', () => {
     expect(screen.getByTestId('streaming-todo-count').textContent).toBe('0')
 
     act(() => {
+      store.onItemStarted(streamingToolCallStarted('turn-1', 'item-plan-4', 'CreatePlan', 'call-4'))
       store.onToolCallArgumentsDelta({
         turnId: 'turn-1',
         itemId: 'item-plan-4',

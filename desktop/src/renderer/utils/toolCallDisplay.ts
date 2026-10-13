@@ -12,75 +12,20 @@ import {
 } from 'lucide-react'
 import { translate, type AppLocale } from '../../shared/locales'
 import type { ConversationItem } from '../types/conversation'
-import { isShellToolName } from './shellTools'
-import { BOARD_TOOL_OPERATIONS, formatBoardToolLabel } from './boardToolDisplay'
-
-import {
-  SKILL_MANAGE_TOOL_NAME,
-  formatSkillManageLabel,
-  formatSkillManageRunningLabel
-} from './skillManageToolDisplay'
-import {
-  SKILL_VIEW_TOOL_NAME,
-  formatSkillViewLabel,
-  formatSkillViewRunningLabel
-} from './skillViewToolDisplay'
-import {
-  formatInvocationDisplay,
-  invocationNeedsCallingPrefix,
-  isToolSearchTool,
-  isWebToolName
-} from './webToolDisplay'
+import { formatBoardToolLabel, isBoardOperation } from './boardToolDisplay'
+import { formatSkillManageLabel } from './skillManageToolDisplay'
+import { formatSkillViewLabel } from './skillViewToolDisplay'
+import { isShellCommandKind, resolveToolKind, resolveToolOperation, type ToolKind, type ToolKindSource } from './toolKind'
+import { formatInvocationDisplay, invocationNeedsCallingPrefix } from './webToolDisplay'
 
 type ToolArgs = Record<string, unknown> | undefined
 type PlanTodoLike = { id?: string; content?: string }
 
-const EXPLORE_TOOL_ICONS: Readonly<Record<string, LucideIcon>> = {
-  ReadFile: BookOpen,
-  GrepFiles: Search,
-  FindFiles: Folder
-}
-const EXPLORE_TOOLS = new Set(Object.keys(EXPLORE_TOOL_ICONS))
-const REQUEST_USER_INPUT_TOOL_NAME = 'RequestUserInput'
-export const FILE_WRITE_TOOLS = new Set(['WriteFile', 'EditFile'])
-
-/**
- * Tools in this set get bespoke streaming copy and parsed parameter previews.
- * Anything outside it is external and must never render raw argument JSON.
- */
-export const BUILTIN_TOOLS = new Set<string>([
-  'ReadFile',
-  'WriteFile',
-  'EditFile',
-  'GrepFiles',
-  'FindFiles',
-  'Exec',
-  'WriteStdin',
-  'WebSearch',
-  'WebFetch',
-  'SpawnAgent',
-  'WaitAgent',
-  'SendMessage',
-  'FollowupTask',
-  'ListAgents',
-  'CloseAgent',
-  'SendInput',
-  'ResumeAgent',
-  'LSP',
-  'SearchTools',
-  'Automation',
-  'CommitSuggest',
-  'CreatePlan',
-  'UpdateTodos',
-  'TodoWrite',
-  REQUEST_USER_INPUT_TOOL_NAME,
-  'SkillManage',
-  'SkillView',
-  'Workflow'
-])
-
-export function isBuiltinTool(toolName: string): boolean {
-  return BUILTIN_TOOLS.has(toolName)
+const EXPLORE_ICONS: Partial<Record<ToolKind, LucideIcon>> = {
+  read: BookOpen,
+  explore: BookOpen,
+  grep: Search,
+  find: Folder
 }
 
 /**
@@ -151,11 +96,11 @@ export function extractBoardArguments(preview: string): Record<string, unknown> 
   return args
 }
 
-function getFilename(path: string): string {
+export function getFilename(path: string): string {
   return path.split(/[\\/]/).pop() ?? path
 }
 
-function extractPlanTitle(markdown: string | null | undefined): string {
+export function extractPlanTitle(markdown: string | null | undefined): string {
   if (!markdown) return ''
   const h1 = markdown
     .replace(/\r\n/g, '\n')
@@ -221,21 +166,9 @@ function asObjectArray(value: unknown): Array<Record<string, unknown>> {
   ))
 }
 
-function getRequestUserInputQuestionCount(args: ToolArgs): number | undefined {
+export function getRequestUserInputQuestionCount(args: ToolArgs): number | undefined {
   const questions = args?.questions
   return Array.isArray(questions) && questions.length > 0 ? questions.length : undefined
-}
-
-function getRequestUserInputQuestionCountFromJson(rawArgs: string): number | undefined {
-  try {
-    const parsed = JSON.parse(rawArgs) as unknown
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return getRequestUserInputQuestionCount(parsed as ToolArgs)
-    }
-  } catch {
-    return undefined
-  }
-  return undefined
 }
 
 function formatRequestUserInputLabel(
@@ -248,15 +181,6 @@ function formatRequestUserInputLabel(
   if (count === 1) return translate(locale, `${prefix}.single`)
   if (count && count > 1) return translate(locale, `${prefix}.multiple`, { count })
   return translate(locale, `${prefix}.generic`)
-}
-
-function formatRequestUserInputStreamingLabel(rawArgs: string, locale: AppLocale): string {
-  const count = getRequestUserInputQuestionCountFromJson(rawArgs)
-  if (count === 1) return translate(locale, 'toolCall.streaming.requestUserInput.single')
-  if (count && count > 1) {
-    return translate(locale, 'toolCall.streaming.requestUserInput.multiple', { count })
-  }
-  return translate(locale, 'toolCall.streaming.requestUserInput.generic')
 }
 
 function getTodoWriteSummary(args: ToolArgs, preferStarted: boolean): string | null {
@@ -294,14 +218,12 @@ function getUpdateTodosSummary(
 }
 
 function formatTodoLabel(
-  toolName: string,
+  kind: 'todoWrite' | 'updateTodos',
   args: ToolArgs,
   locale: AppLocale,
   planTodos: readonly PlanTodoLike[] | undefined
 ): string | null {
-  if (toolName !== 'TodoWrite' && toolName !== 'UpdateTodos') return null
-
-  if (toolName === 'TodoWrite') {
+  if (kind === 'todoWrite') {
     const merge = args?.merge === true
     const todos = asObjectArray(args?.todos)
     const hasInProgress = todos.some((todo) => normalizeStatus(todo.status) === 'in_progress')
@@ -344,79 +266,82 @@ export interface ToolCallDisplayOptions {
   planTodos?: readonly PlanTodoLike[]
 }
 
+function formatExploredLabel(args: ToolArgs, locale: AppLocale): string {
+  const path = (args?.path as string | undefined) ?? (args?.pattern as string | undefined) ?? ''
+  const filename = path ? getFilename(path) : ''
+  return filename
+    ? translate(locale, 'toolCall.explored', { filename })
+    : translate(locale, 'toolCall.exploredFiles')
+}
+
 export function formatCollapsedToolLabel(
-  toolName: string,
+  item: ToolKindSource,
   args: ToolArgs,
   locale: AppLocale,
   options?: ToolCallDisplayOptions
 ): string {
-  if (toolName === 'ReadFile') {
-    const readLabel = formatReadFileLabel(args, locale)
-    if (readLabel) return readLabel
-  }
-
-  const boardLabel = formatBoardToolLabel(toolName, args, locale, false)
-  if (boardLabel) return boardLabel
-
-  const todoLabel = formatTodoLabel(toolName, args, locale, options?.planTodos)
-  if (todoLabel) return todoLabel
-
-  if (toolName === REQUEST_USER_INPUT_TOOL_NAME) {
-    return formatRequestUserInputLabel(args, locale, false)
-  }
-
-  if (toolName === 'CreatePlan') {
-    const planTitle = typeof args?.plan === 'string' ? extractPlanTitle(args.plan) : ''
-    const fallbackTitle = typeof args?.title === 'string' ? args.title.trim() : ''
-    const title = planTitle || fallbackTitle
-    if (title) {
-      return translate(locale, 'toolCall.plan.collapsedLabel', { title })
+  const toolName = item.toolName ?? 'tool'
+  const kind = resolveToolKind(item)
+  switch (kind) {
+    case 'read':
+      return formatReadFileLabel(args, locale) ?? formatExploredLabel(args, locale)
+    case 'grep':
+    case 'find':
+    case 'explore':
+      return formatExploredLabel(args, locale)
+    case 'board': {
+      const operation = resolveToolOperation(item)
+      if (isBoardOperation(operation)) return formatBoardToolLabel(operation, args, locale, false)
+      break
     }
-    return translate(locale, 'toolCall.plan.collapsedLabelFallback')
+    case 'todoWrite':
+    case 'updateTodos': {
+      const todoLabel = formatTodoLabel(kind, args, locale, options?.planTodos)
+      if (todoLabel) return todoLabel
+      break
+    }
+    case 'requestUserInput':
+      return formatRequestUserInputLabel(args, locale, false)
+    case 'createPlan': {
+      const planTitle = typeof args?.plan === 'string' ? extractPlanTitle(args.plan) : ''
+      const fallbackTitle = typeof args?.title === 'string' ? args.title.trim() : ''
+      const title = planTitle || fallbackTitle
+      return title
+        ? translate(locale, 'toolCall.plan.collapsedLabel', { title })
+        : translate(locale, 'toolCall.plan.collapsedLabelFallback')
+    }
+    case 'workflow': {
+      const name = typeof args?.name === 'string' ? args.name.trim() : ''
+      return name
+        ? translate(locale, 'toolCall.workflow.started', { name })
+        : translate(locale, 'toolCall.workflow.startedGeneric')
+    }
+    case 'write':
+    case 'edit': {
+      const path = (args?.path as string | undefined) ?? ''
+      const filename = path ? getFilename(path) : ''
+      return filename
+        ? translate(locale, 'toolCall.edited', { filename })
+        : translate(locale, 'toolCall.editedFile')
+    }
+    case 'exec':
+    case 'shell': {
+      const cmd = (args?.command as string | undefined) ?? toolName
+      const firstLine = cmd.split(/\r?\n/, 1)[0] ?? cmd
+      return translate(locale, 'toolCall.ran', { cmd: firstLine })
+    }
+    case 'skillManage':
+      return formatSkillManageLabel(args, undefined, locale)
+    case 'skillView':
+      return formatSkillViewLabel(args, locale)
+    case 'webSearch':
+    case 'webFetch':
+    case 'toolSearch': {
+      const invocation = formatInvocationDisplay(kind, args, locale)
+      if (invocation) return invocation
+      break
+    }
   }
-
-  if (toolName === 'Workflow') {
-    const name = typeof args?.name === 'string' ? args.name.trim() : ''
-    return name
-      ? translate(locale, 'toolCall.workflow.started', { name })
-      : translate(locale, 'toolCall.workflow.startedGeneric')
-  }
-
-  if (EXPLORE_TOOLS.has(toolName)) {
-    const path = (args?.path as string | undefined) ?? (args?.pattern as string | undefined) ?? ''
-    const filename = path ? getFilename(path) : ''
-    return filename
-      ? translate(locale, 'toolCall.explored', { filename })
-      : translate(locale, 'toolCall.exploredFiles')
-  }
-
-  if (FILE_WRITE_TOOLS.has(toolName)) {
-    const path = (args?.path as string | undefined) ?? ''
-    const filename = path ? getFilename(path) : ''
-    return filename
-      ? translate(locale, 'toolCall.edited', { filename })
-      : translate(locale, 'toolCall.editedFile')
-  }
-
-  if (isShellToolName(toolName)) {
-    const cmd = (args?.command as string | undefined) ?? toolName
-    const firstLine = cmd.split(/\r?\n/, 1)[0] ?? cmd
-    return translate(locale, 'toolCall.ran', { cmd: firstLine })
-  }
-
-  if (toolName === SKILL_MANAGE_TOOL_NAME) {
-    return formatSkillManageLabel(args, undefined, locale)
-  }
-
-  if (toolName === SKILL_VIEW_TOOL_NAME) {
-    return formatSkillViewLabel(args, locale)
-  }
-
-  if (isWebToolName(toolName)) {
-    const inv = formatInvocationDisplay(toolName, args, locale)
-    if (inv) return inv
-  }
-
   return translate(locale, 'toolCall.called', { toolName })
 }
 
@@ -426,18 +351,19 @@ export interface ToolRowIcon {
 }
 
 export function getToolRowIcon(
-  item: Pick<ConversationItem, 'toolName' | 'errorCode' | 'executionStatus'>
+  item: Pick<ConversationItem, 'toolName' | 'presentation' | 'source' | 'errorCode' | 'executionStatus'>
 ): ToolRowIcon {
-  const toolName = item.toolName ?? ''
-  if (isShellToolName(toolName)) {
+  const kind = resolveToolKind(item)
+  if (isShellCommandKind(kind)) {
     if (item.errorCode === 'tool_approval_rejected') return { icon: ShieldAlert, tone: 'warning' }
     if (item.errorCode === 'tool_cancelled' || item.executionStatus === 'cancelled') return { icon: CircleStop }
     return { icon: SquareTerminal }
   }
-  if (EXPLORE_TOOLS.has(toolName)) return { icon: EXPLORE_TOOL_ICONS[toolName] }
-  if (toolName === SKILL_VIEW_TOOL_NAME) return { icon: BookOpen }
-  if (FILE_WRITE_TOOLS.has(toolName) || toolName === SKILL_MANAGE_TOOL_NAME) return { icon: Pencil }
-  if (isWebToolName(toolName) && !isToolSearchTool(toolName)) return { icon: Globe }
+  const exploreIcon = kind ? EXPLORE_ICONS[kind] : undefined
+  if (exploreIcon) return { icon: exploreIcon }
+  if (kind === 'skillView') return { icon: BookOpen }
+  if (kind === 'write' || kind === 'edit' || kind === 'skillManage') return { icon: Pencil }
+  if (kind === 'webSearch' || kind === 'webFetch') return { icon: Globe }
   return { icon: Wrench }
 }
 
@@ -448,347 +374,44 @@ export function formatWorkflowFailureLabel(args: ToolArgs, locale: AppLocale): s
     : translate(locale, 'toolCall.workflow.failedGeneric')
 }
 
-function formatGenericInvocation(toolName: string, args: ToolArgs): string | null {
+function formatGenericInvocation(item: ToolKindSource, args: ToolArgs): string | null {
+  const toolName = item.toolName ?? 'tool'
   if (!args || Object.keys(args).length === 0) return null
-  // Non-built-in tools (MCP / external modules) never surface raw argument
-  // JSON to the user; show only the tool name as a label.
-  if (!isBuiltinTool(toolName)) {
+  // Tools without a trusted presentation (MCP / external modules) never surface
+  // raw argument JSON to the user; show only the tool name as a label.
+  if (resolveToolKind(item) == null) {
     return toolName
   }
   const entries = Object.entries(args).map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
   return `${toolName}(${entries.join(', ')})`
 }
 
-/**
- * Parsed preview extracted from the streaming JSON delta for a tool call.
- * Populated only for built-in tools with a streaming-aware rendering.
- */
-export interface StreamingParsedPreview {
-  /** File path preview for WriteFile / EditFile (used to render a diff header). */
-  path?: string | null
-  /** File content / newText preview for WriteFile / EditFile. */
-  content?: string | null
-  /** Partial command preview for Exec. */
-  command?: string | null
-  /** Partial CreatePlan draft, populated progressively while streaming. */
-  planDraft?: {
-    title?: string | null
-    plan?: string | null
-  }
-}
-
-export interface StreamingToolDisplay {
-  /** Running label shown next to the spinner. */
-  label: string
-  /** Parsed preview data; absent for non-built-in tools. */
-  parsedPreview?: StreamingParsedPreview
-}
-
-/**
- * `argumentsPreview` is the concatenated argument JSON fragments received so far
- * and may be invalid JSON. Unknown tools get a placeholder that never contains it.
- */
-export function getStreamingToolDisplay(
-  toolName: string,
-  argumentsPreview: string | null | undefined,
-  locale: AppLocale
-): StreamingToolDisplay {
-  const rawArgs = argumentsPreview ?? ''
-
-  if (BOARD_TOOL_OPERATIONS[toolName]) {
-    return { label: formatBoardToolLabel(toolName, extractBoardArguments(rawArgs), locale, true) ?? toolName }
-  }
-
-  if (!isBuiltinTool(toolName)) {
-    return {
-      label: translate(locale, 'toolCall.streaming.genericExternal', { toolName })
-    }
-  }
-
-  switch (toolName) {
-    case 'ReadFile': {
-      const path = extractPartialJsonStringValue(rawArgs, 'path')
-      const filename = path ? getFilename(path) : ''
-      return {
-        label: filename
-          ? translate(locale, 'toolCall.streaming.readingFile', { filename })
-          : translate(locale, 'toolCall.streaming.readingGeneric')
-      }
-    }
-    case 'WriteFile': {
-      const path = extractPartialJsonStringValue(rawArgs, 'path')
-      const content = extractPartialJsonStringValue(rawArgs, 'content')
-      const filename = path ? getFilename(path) : ''
-      return {
-        label: filename
-          ? translate(locale, 'toolCall.writingFile', { filename })
-          : translate(locale, 'toolCall.writingGeneric'),
-        parsedPreview: { path, content }
-      }
-    }
-    case 'EditFile': {
-      const path = extractPartialJsonStringValue(rawArgs, 'path')
-      const content = extractPartialJsonStringValue(rawArgs, 'newText')
-        ?? extractPartialJsonStringValue(rawArgs, 'content')
-      const filename = path ? getFilename(path) : ''
-      return {
-        label: filename
-          ? translate(locale, 'toolCall.editingFile', { filename })
-          : translate(locale, 'toolCall.editingGeneric'),
-        parsedPreview: { path, content }
-      }
-    }
-    case 'GrepFiles': {
-      const pattern = extractPartialJsonStringValue(rawArgs, 'pattern')
-      const path = extractPartialJsonStringValue(rawArgs, 'path')
-      if (pattern && path) {
-        return {
-          label: translate(locale, 'toolCall.streaming.searchingGrepIn', {
-            pattern,
-            path
-          })
-        }
-      }
-      if (pattern) {
-        return {
-          label: translate(locale, 'toolCall.streaming.searchingGrep', { pattern })
-        }
-      }
-      return { label: translate(locale, 'toolCall.streaming.searchingGeneric') }
-    }
-    case 'FindFiles': {
-      const pattern = extractPartialJsonStringValue(rawArgs, 'pattern')
-      const path = extractPartialJsonStringValue(rawArgs, 'path')
-      if (pattern && path) {
-        return {
-          label: translate(locale, 'toolCall.streaming.findingFilesIn', {
-            pattern,
-            path
-          })
-        }
-      }
-      if (pattern) {
-        return {
-          label: translate(locale, 'toolCall.streaming.findingFiles', { pattern })
-        }
-      }
-      return { label: translate(locale, 'toolCall.streaming.findingGeneric') }
-    }
-    case 'Exec': {
-      const command = extractPartialJsonStringValue(rawArgs, 'command')
-      if (command) {
-        const firstLine = command.split('\n')[0] ?? command
-        return {
-          label: translate(locale, 'toolCall.streaming.runningCommand', { command: firstLine }),
-          parsedPreview: { command }
-        }
-      }
-      return { label: translate(locale, 'toolCall.streaming.runningGeneric') }
-    }
-    case 'WriteStdin': {
-      return { label: translate(locale, 'toolCall.streaming.genericBuiltin', { toolName }) }
-    }
-    case 'WebSearch': {
-      const query = extractPartialJsonStringValue(rawArgs, 'query')
-      if (query) {
-        return {
-          label: translate(locale, 'toolCall.streaming.webSearch', { query })
-        }
-      }
-      return { label: translate(locale, 'toolCall.streaming.webSearchGeneric') }
-    }
-    case 'WebFetch': {
-      const url = extractPartialJsonStringValue(rawArgs, 'url')
-      if (url) {
-        return {
-          label: translate(locale, 'toolCall.streaming.webFetch', { url })
-        }
-      }
-      return { label: translate(locale, 'toolCall.streaming.webFetchGeneric') }
-    }
-    case 'SpawnAgent': {
-      const label = extractPartialJsonStringValue(rawArgs, 'agentNickname')
-      const task = extractPartialJsonStringValue(rawArgs, 'message')
-        ?? extractPartialJsonStringValue(rawArgs, 'agentPrompt')
-      const profile = extractPartialJsonStringValue(rawArgs, 'profile')
-      if (label) {
-        return {
-          label: translate(locale, 'toolCall.streaming.spawnAgent', { label })
-        }
-      }
-      if (task) {
-        return {
-          label: translate(locale, 'toolCall.streaming.spawnAgentTask', { task })
-        }
-      }
-      if (profile) {
-        return {
-          label: translate(locale, 'toolCall.streaming.spawnAgentProfile', { profile })
-        }
-      }
-      return { label: translate(locale, 'toolCall.streaming.spawnAgentGeneric') }
-    }
-    case 'Workflow': {
-      const name = extractPartialJsonStringValue(rawArgs, 'name')
-      return {
-        label: name
-          ? translate(locale, 'toolCall.streaming.workflowNamed', { name })
-          : translate(locale, 'toolCall.streaming.workflow')
-      }
-    }
-    case 'WaitAgent': {
-      return {
-        label: translate(locale, 'toolCall.subAgent.waiting', {
-          name: translate(locale, 'toolCall.subAgent.agent')
-        })
-      }
-    }
-    case 'SendMessage': {
-      return {
-        label: translate(locale, 'toolCall.subAgent.sendingMessage', {
-          name: translate(locale, 'toolCall.subAgent.agent')
-        })
-      }
-    }
-    case 'FollowupTask': {
-      return {
-        label: translate(locale, 'toolCall.subAgent.followingUp', {
-          name: translate(locale, 'toolCall.subAgent.agent')
-        })
-      }
-    }
-    case 'ListAgents': {
-      return {
-        label: translate(locale, 'toolCall.subAgent.listing')
-      }
-    }
-    case 'CloseAgent': {
-      return {
-        label: translate(locale, 'toolCall.subAgent.closing', {
-          name: translate(locale, 'toolCall.subAgent.agent')
-        })
-      }
-    }
-    case 'SendInput': {
-      return {
-        label: translate(locale, 'toolCall.subAgent.sendingMessage', {
-          name: translate(locale, 'toolCall.subAgent.agent')
-        })
-      }
-    }
-    case 'ResumeAgent': {
-      return {
-        label: translate(locale, 'toolCall.subAgent.resuming', {
-          name: translate(locale, 'toolCall.subAgent.agent')
-        })
-      }
-    }
-    case 'LSP': {
-      const op = extractPartialJsonStringValue(rawArgs, 'operation')
-      const filePath = extractPartialJsonStringValue(rawArgs, 'filePath')
-      const filename = filePath ? getFilename(filePath) : ''
-      if (op && filename) {
-        return {
-          label: translate(locale, 'toolCall.streaming.lspOpOnFile', { op, filename })
-        }
-      }
-      if (op) {
-        return { label: translate(locale, 'toolCall.streaming.lspOp', { op }) }
-      }
-      return { label: translate(locale, 'toolCall.streaming.lspGeneric') }
-    }
-    case 'SearchTools': {
-      const query = extractPartialJsonStringValue(rawArgs, 'query')
-        ?? extractPartialJsonStringValue(rawArgs, 'q')
-      if (query) {
-        return {
-          label: translate(locale, 'toolCall.streaming.searchTools', { query })
-        }
-      }
-      return { label: translate(locale, 'toolCall.streaming.searchToolsGeneric') }
-    }
-    case REQUEST_USER_INPUT_TOOL_NAME: {
-      return { label: formatRequestUserInputStreamingLabel(rawArgs, locale) }
-    }
-
-    case 'CommitSuggest': {
-      return { label: translate(locale, 'toolCall.streaming.commitSuggest') }
-    }
-    case 'CreatePlan': {
-      const plan = extractPartialJsonStringValue(rawArgs, 'plan')
-      const title = extractPlanTitle(plan)
-      return {
-        label: title
-          ? translate(locale, 'toolCall.streaming.draftingPlanTitled', { title })
-          : translate(locale, 'toolCall.streaming.draftingPlan'),
-        parsedPreview: {
-          planDraft: { title, plan }
-        }
-      }
-    }
-    case 'TodoWrite':
-    case 'UpdateTodos': {
-      return { label: translate(locale, 'toolCall.streaming.updatingTodos') }
-    }
-    case 'SkillManage': {
-      return {
-        label: formatSkillManageRunningLabel(
-          {
-            action: extractPartialJsonStringValue(rawArgs, 'action'),
-            name: extractPartialJsonStringValue(rawArgs, 'name')
-          },
-          locale
-        )
-      }
-    }
-    case 'SkillView': {
-      return {
-        label: formatSkillViewRunningLabel(
-          { name: extractPartialJsonStringValue(rawArgs, 'name') },
-          locale
-        )
-      }
-    }
-    default: {
-      return {
-        label: translate(locale, 'toolCall.streaming.genericBuiltin', { toolName })
-      }
-    }
-  }
-}
-
 export function formatExpandedInvocation(
-  toolName: string,
+  item: ToolKindSource,
   args: ToolArgs,
   locale: AppLocale,
   options?: ToolCallDisplayOptions
 ): string | null {
-  if (toolName === 'ReadFile') {
-    return formatReadFileLabel(args, locale) ?? formatGenericInvocation(toolName, args)
+  const kind = resolveToolKind(item)
+  switch (kind) {
+    case 'read':
+      return formatReadFileLabel(args, locale) ?? formatGenericInvocation(item, args)
+    case 'todoWrite':
+    case 'updateTodos':
+      return formatTodoLabel(kind, args, locale, options?.planTodos) ?? formatGenericInvocation(item, args)
+    case 'requestUserInput':
+      return formatRequestUserInputLabel(args, locale, false)
+    case 'webSearch':
+    case 'webFetch':
+    case 'toolSearch':
+      if (!invocationNeedsCallingPrefix(kind, args)) return formatInvocationDisplay(kind, args, locale)
+      break
+    case 'skillManage':
+      return formatSkillManageLabel(args, undefined, locale)
+    case 'skillView':
+      return formatSkillViewLabel(args, locale)
   }
-
-  if (toolName === 'TodoWrite' || toolName === 'UpdateTodos') {
-    return formatTodoLabel(toolName, args, locale, options?.planTodos)
-      ?? formatGenericInvocation(toolName, args)
-  }
-
-  if (toolName === REQUEST_USER_INPUT_TOOL_NAME) {
-    return formatRequestUserInputLabel(args, locale, false)
-  }
-
-  if (isWebToolName(toolName) && !invocationNeedsCallingPrefix(toolName, args)) {
-    return formatInvocationDisplay(toolName, args, locale)
-  }
-
-  if (toolName === SKILL_MANAGE_TOOL_NAME) {
-    return formatSkillManageLabel(args, undefined, locale)
-  }
-
-  if (toolName === SKILL_VIEW_TOOL_NAME) {
-    return formatSkillViewLabel(args, locale)
-  }
-
-  return formatGenericInvocation(toolName, args)
+  return formatGenericInvocation(item, args)
 }
 
 /** The authoritative failure signal for a tool call: execution status first, then the result payload. */

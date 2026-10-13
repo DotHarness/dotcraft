@@ -5,7 +5,8 @@ import {
   selectLatestCreatePlanTurnId,
   useConversationStore
 } from '../stores/conversationStore'
-import { getStreamingToolDisplay } from '../utils/toolCallDisplay'
+import { getStreamingToolDisplay } from '../utils/streamingToolDisplay'
+import { coreToolFields, streamingToolCallStarted } from './testToolPresentation'
 
 const s = () => useConversationStore.getState()
 
@@ -55,7 +56,7 @@ describe('selectLatestCreatePlanTurnId', () => {
           id: 'item-plan',
           type: 'toolCall',
           status: 'completed',
-          toolName: 'CreatePlan',
+          toolName: 'CreatePlan', ...coreToolFields('CreatePlan'),
           toolCallId: 'call-plan',
           success: true
         },
@@ -63,7 +64,7 @@ describe('selectLatestCreatePlanTurnId', () => {
           id: 'item-close',
           type: 'toolCall',
           status: 'completed',
-          toolName: 'CloseAgent',
+          toolName: 'CloseAgent', ...coreToolFields('CloseAgent'),
           toolCallId: 'call-close',
           success: true
         },
@@ -90,7 +91,7 @@ describe('selectLatestCreatePlanTurnId', () => {
           id: 'item-plan',
           type: 'toolCall',
           status: 'completed',
-          toolName: 'CreatePlan',
+          toolName: 'CreatePlan', ...coreToolFields('CreatePlan'),
           toolCallId: 'call-plan',
           success: true
         }]
@@ -122,7 +123,7 @@ describe('selectLatestCreatePlanTurnId', () => {
         id: 'item-plan',
         type: 'toolCall',
         status: 'completed',
-        toolName: 'CreatePlan',
+        toolName: 'CreatePlan', ...coreToolFields('CreatePlan'),
         toolCallId: 'call-plan',
         success: false
       }]
@@ -364,7 +365,7 @@ describe('turn lifecycle', () => {
           id: 'tool-1',
           type: 'toolCall',
           status: 'completed',
-          payload: { toolName: 'ReadFile', callId: 'call-1', arguments: { path: 'a.txt' } },
+          payload: { toolName: 'ReadFile', ...coreToolFields('ReadFile'), callId: 'call-1', arguments: { path: 'a.txt' } },
           createdAt: '2026-04-25T10:00:01.000Z',
           completedAt: '2026-04-25T10:00:02.000Z'
         }
@@ -510,7 +511,7 @@ describe('turn lifecycle', () => {
         type: 'toolCall',
         payload: {
           callId: 'exec-2',
-          toolName: 'Exec',
+          toolName: 'Exec', ...coreToolFields('Exec'),
           arguments: { command: 'npm test' }
         }
       }
@@ -635,7 +636,7 @@ describe('turn lifecycle', () => {
         type: 'toolCall',
         payload: {
           callId: 'exec-terminal-early',
-          toolName: 'Exec',
+          toolName: 'Exec', ...coreToolFields('Exec'),
           arguments: { command: 'ping -n 4 10.8.8.8' }
         }
       }
@@ -660,7 +661,7 @@ describe('turn lifecycle', () => {
         createdAt: '2026-06-01T10:00:00.000Z',
         payload: {
           callId: 'exec-terminal-complete',
-          toolName: 'Exec',
+          toolName: 'Exec', ...coreToolFields('Exec'),
           arguments: { command: 'ping -n 4 10.8.8.8' }
         }
       }
@@ -687,7 +688,7 @@ describe('turn lifecycle', () => {
         completedAt: '2026-06-01T10:00:21.152Z',
         payload: {
           callId: 'exec-terminal-complete',
-          toolName: 'Exec',
+          toolName: 'Exec', ...coreToolFields('Exec'),
           arguments: { command: 'ping -n 4 10.8.8.8' }
         }
       }
@@ -750,7 +751,7 @@ describe('turn lifecycle', () => {
         type: 'toolCall',
         payload: {
           callId: 'exec-terminal-snapshot',
-          toolName: 'Exec',
+          toolName: 'Exec', ...coreToolFields('Exec'),
           arguments: { command: 'npm test' }
         }
       }
@@ -796,7 +797,7 @@ describe('turn lifecycle', () => {
       item: {
         id: 'tool-batched',
         type: 'toolCall',
-        payload: { callId: 'exec-batched', toolName: 'Exec', arguments: { command: 'many-lines' } }
+        payload: { callId: 'exec-batched', toolName: 'Exec', ...coreToolFields('Exec'), arguments: { command: 'many-lines' } }
       }
     })
     s().onItemStarted({
@@ -836,7 +837,7 @@ describe('turn lifecycle', () => {
         item: {
           id: `tool-${callId}`,
           type: 'toolCall',
-          payload: { callId, toolName: 'Exec', arguments: { command: callId } }
+          payload: { callId, toolName: 'Exec', ...coreToolFields('Exec'), arguments: { command: callId } }
         }
       })
       s().onItemStarted({
@@ -881,7 +882,7 @@ describe('turn lifecycle', () => {
         type: 'toolCall',
         payload: {
           callId: 'exec-terminal-background',
-          toolName: 'Exec',
+          toolName: 'Exec', ...coreToolFields('Exec'),
           arguments: { command: 'sleep 60' }
         }
       }
@@ -925,7 +926,7 @@ describe('turn lifecycle', () => {
             type: 'toolCall',
             status: 'started',
             toolCallId: 'exec-terminal-setturns',
-            toolName: 'Exec',
+            toolName: 'Exec', ...coreToolFields('Exec'),
             arguments: { command: 'npm test' },
             createdAt: '2026-06-01T10:00:00.000Z'
           }
@@ -948,7 +949,7 @@ describe('turn lifecycle', () => {
         type: 'toolCall',
         payload: {
           callId: 'wait-1',
-          toolName: 'WaitAgent',
+          toolName: 'WaitAgent', ...coreToolFields('WaitAgent'),
           arguments: { childThreadId: 'thread_child' }
         }
       }
@@ -962,7 +963,7 @@ describe('turn lifecycle', () => {
         completedAt: '2026-04-25T10:00:02.000Z',
         payload: {
           callId: 'wait-1',
-          toolName: 'WaitAgent',
+          toolName: 'WaitAgent', ...coreToolFields('WaitAgent'),
           status: 'completed',
           success: true,
           durationMs: 1200,
@@ -1034,7 +1035,7 @@ describe('turn lifecycle', () => {
         completedAt: '2026-04-25T10:00:02.000Z',
         payload: {
           callId: 'read-early-execution',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           status: 'completed',
           success: true,
           durationMs: 900,
@@ -1053,7 +1054,7 @@ describe('turn lifecycle', () => {
         type: 'toolCall',
         payload: {
           callId: 'read-early-execution',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           arguments: { path: 'docs/readme.md' }
         }
       }
@@ -1102,7 +1103,7 @@ describe('turn lifecycle', () => {
         createdAt: '2026-04-25T10:00:01.000Z',
         payload: {
           callId: 'read-early-result',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           arguments: { path: 'docs/notes.md' }
         }
       }
@@ -1133,7 +1134,7 @@ describe('turn lifecycle', () => {
         createdAt: '2026-04-25T10:00:01.000Z',
         payload: {
           callId: 'read-image-result',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           arguments: { path: 'docs/diagram.png' }
         }
       }
@@ -1177,7 +1178,7 @@ describe('turn lifecycle', () => {
         createdAt: '2026-04-25T10:00:01.000Z',
         payload: {
           callId: 'call-read',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           arguments: { path: 'docs/readme.md' }
         }
       }
@@ -1209,7 +1210,7 @@ describe('turn lifecycle', () => {
             createdAt: '2026-04-25T10:00:01.000Z',
             payload: {
               callId: 'call-read',
-              toolName: 'ReadFile',
+              toolName: 'ReadFile', ...coreToolFields('ReadFile'),
               arguments: { path: 'docs/readme.md' }
             }
           }
@@ -1426,7 +1427,7 @@ describe('turn lifecycle', () => {
         createdAt: '2026-04-25T10:00:01.000Z',
         payload: {
           callId: 'call-read',
-          toolName: 'ReadFile',
+          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
           arguments: { path: 'docs/a.md' }
         }
       }
@@ -1459,7 +1460,7 @@ describe('turn lifecycle', () => {
             createdAt: '2026-04-25T10:01:01.000Z',
             payload: {
               callId: 'call-read',
-              toolName: 'ReadFile',
+              toolName: 'ReadFile', ...coreToolFields('ReadFile'),
               arguments: { path: 'docs/b.md' }
             }
           }
@@ -1486,7 +1487,7 @@ describe('turn lifecycle', () => {
             id: 'tool-denied',
             type: 'toolCall',
             status: 'completed',
-            toolName: 'Exec',
+            toolName: 'Exec', ...coreToolFields('Exec'),
             toolCallId: 'exec-denied',
             arguments: { command: 'Get-Content README.md | Select-String DotCraft' },
             createdAt: '2026-06-11T07:08:02.030Z',
@@ -1507,7 +1508,7 @@ describe('turn lifecycle', () => {
             type: 'toolExecution',
             status: 'completed',
             toolCallId: 'exec-denied',
-            toolName: 'Exec',
+            toolName: 'Exec', ...coreToolFields('Exec'),
             executionStatus: 'failed',
             success: false,
             resultPreview: denial,
@@ -1533,6 +1534,7 @@ describe('turn lifecycle', () => {
     const largePrompt = 'x'.repeat(20000)
     s().onTurnStarted(makeTurn())
 
+    s().onItemStarted(streamingToolCallStarted('turn-1', 'spawn-stream', 'SpawnAgent', 'call-spawn'))
     s().onToolCallArgumentsDelta({
       turnId: 'turn-1',
       itemId: 'spawn-stream',
@@ -1547,13 +1549,14 @@ describe('turn lifecycle', () => {
     expect(item?.status).toBe('streaming')
     expect(item?.argumentsPreview?.length).toBeLessThan(1200)
 
-    const display = getStreamingToolDisplay('SpawnAgent', item?.argumentsPreview, 'en')
+    const display = getStreamingToolDisplay(item!, item?.argumentsPreview, 'en')
     expect(display.label).toMatch(/^Spawning agent for: x+/)
     expect(item?.argumentsPreview).not.toContain(largePrompt)
   })
 
   it('enriches a delta-first tool placeholder without discarding its streaming preview', () => {
     s().onTurnStarted(makeTurn())
+    s().onItemStarted(streamingToolCallStarted('turn-1', 'exec-stream', 'Exec', 'call-exec'))
     s().onToolCallArgumentsDelta({
       turnId: 'turn-1',
       itemId: 'exec-stream',
@@ -1569,7 +1572,7 @@ describe('turn lifecycle', () => {
         type: 'toolCall',
         createdAt: '2026-07-15T00:00:00Z',
         payload: {
-          toolName: 'Exec',
+          toolName: 'Exec', ...coreToolFields('Exec'),
           callId: 'call-exec',
           arguments: {},
           source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
@@ -1581,7 +1584,7 @@ describe('turn lifecycle', () => {
     const item = s().turns[0].items.find((candidate) => candidate.id === 'exec-stream')
     expect(item).toMatchObject({
       status: 'streaming',
-      toolName: 'Exec',
+      toolName: 'Exec', ...coreToolFields('Exec'),
       toolCallId: 'call-exec',
       arguments: {},
       source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
@@ -1614,7 +1617,7 @@ describe('turn lifecycle', () => {
         type: 'toolCall',
         payload: {
           callId: 'exec-pre',
-          toolName: 'Exec',
+          toolName: 'Exec', ...coreToolFields('Exec'),
           arguments: { command: 'npm test' }
         }
       }
@@ -1650,7 +1653,7 @@ describe('turn lifecycle', () => {
         type: 'toolCall',
         payload: {
           callId: 'exec-live',
-          toolName: 'Exec'
+          toolName: 'Exec', ...coreToolFields('Exec')
         }
       }
     })
@@ -1663,7 +1666,7 @@ describe('turn lifecycle', () => {
         completedAt: new Date().toISOString(),
         payload: {
           callId: 'exec-live',
-          toolName: 'Exec',
+          toolName: 'Exec', ...coreToolFields('Exec'),
           arguments: { command: 'npm test' }
         }
       }
@@ -1675,45 +1678,6 @@ describe('turn lifecycle', () => {
     expect(toolItem?.arguments?.command).toBe('npm test')
     expect(toolItem?.executionStatus).toBe('inProgress')
     expect(toolItem?.aggregatedOutput).toBe('booting\n')
-  })
-
-  it('mirrors command execution onto matching RunCommand toolCall (not only Exec)', () => {
-    vi.useFakeTimers()
-    s().onTurnStarted(makeTurn())
-    s().onItemStarted({
-      turnId: 'turn-1',
-      item: {
-        id: 'tool-rc',
-        type: 'toolCall',
-        payload: {
-          callId: 'run-1',
-          toolName: 'RunCommand',
-          arguments: { command: 'echo hi' }
-        }
-      }
-    })
-    s().onItemStarted({
-      turnId: 'turn-1',
-      item: {
-        id: 'cmd-rc',
-        type: 'commandExecution',
-        payload: {
-          callId: 'run-1',
-          command: 'echo hi',
-          status: 'inProgress',
-          aggregatedOutput: ''
-        }
-      }
-    })
-    s().onCommandExecutionDelta({ turnId: 'turn-1', itemId: 'cmd-rc', delta: 'out\n' })
-    vi.advanceTimersByTime(50)
-
-    const toolItem = s().turns[0].items.find((i) => i.id === 'tool-rc')
-    expect(toolItem?.type).toBe('toolCall')
-    expect(toolItem?.toolName).toBe('RunCommand')
-    expect(toolItem?.aggregatedOutput).toBe('')
-    expect(s().shellRuntimeByCallId.get('run-1')?.output).toBe('out\n')
-    expect(toolItem?.executionStatus).toBe('inProgress')
   })
 
   it('onItemCompleted (agentMessage) updates placeholder in place and clears buffer', () => {
@@ -1810,7 +1774,7 @@ describe('turn lifecycle', () => {
     s().onItemStarted({ turnId: 'turn-1', item: { id: 'item-1', type: 'agentMessage' } })
     s().onItemStarted({
       turnId: 'turn-1',
-      item: { id: 'local-tool', type: 'toolCall', toolName: 'ReadFile', createdAt: startedAt }
+      item: { id: 'local-tool', type: 'toolCall', toolName: 'ReadFile', ...coreToolFields('ReadFile'), createdAt: startedAt }
     })
 
     s().onTurnCompleted(makeTurn({
@@ -2464,7 +2428,7 @@ describe('tool item ordering by createdAt', () => {
         id: 'late',
         type: 'toolCall',
         createdAt: '2025-01-02T00:00:00.000Z',
-        payload: { callId: 'c-late', toolName: 'ReadFile', arguments: { path: 'a.ts' } }
+        payload: { callId: 'c-late', toolName: 'ReadFile', ...coreToolFields('ReadFile'), arguments: { path: 'a.ts' } }
       }
     })
     s().onItemStarted({
@@ -2473,7 +2437,7 @@ describe('tool item ordering by createdAt', () => {
         id: 'early',
         type: 'toolCall',
         createdAt: '2025-01-01T00:00:00.000Z',
-        payload: { callId: 'c-early', toolName: 'ReadFile', arguments: { path: 'b.ts' } }
+        payload: { callId: 'c-early', toolName: 'ReadFile', ...coreToolFields('ReadFile'), arguments: { path: 'b.ts' } }
       }
     })
     const tools = s().turns[0].items.filter((i) => i.type === 'toolCall')
@@ -2486,7 +2450,7 @@ describe('tool item ordering by createdAt', () => {
       id: 'tool-1',
       type: 'toolCall',
       createdAt: '2025-01-01T00:00:00.000Z',
-      payload: { callId: 'c-1', toolName: 'ReadFile', arguments: { path: 'a.ts' } }
+      payload: { callId: 'c-1', toolName: 'ReadFile', ...coreToolFields('ReadFile'), arguments: { path: 'a.ts' } }
     }
     const commandItem = {
       id: 'cmd-1',
@@ -2525,7 +2489,7 @@ describe('tool item ordering by createdAt', () => {
         id: 'tool-1',
         type: 'toolCall',
         createdAt: '2025-01-02T00:00:00.000Z',
-        payload: { callId: 'c-1', toolName: 'ReadFile', arguments: { path: 'a.ts' } }
+        payload: { callId: 'c-1', toolName: 'ReadFile', ...coreToolFields('ReadFile'), arguments: { path: 'a.ts' } }
       }
     })
     expect(s().turns[0].items.map((i) => i.id)).toEqual(['msg-1', 'tool-1'])

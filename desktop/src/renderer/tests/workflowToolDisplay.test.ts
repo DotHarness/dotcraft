@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { autoOpenWorkflowLaunch, parseWorkflowLaunch, parseWorkflowRunId } from '../components/workflow/WorkflowToolCard'
-import { formatCollapsedToolLabel, formatWorkflowFailureLabel, getStreamingToolDisplay } from '../utils/toolCallDisplay'
+import { formatCollapsedToolLabel, formatWorkflowFailureLabel } from '../utils/toolCallDisplay'
+import { getStreamingToolDisplay } from '../utils/streamingToolDisplay'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
+
+const WORKFLOW = { toolName: 'Workflow' }
 
 describe('parseWorkflowRunId', () => {
   it('recognizes only a successful Workflow tool result', () => {
@@ -12,16 +15,16 @@ describe('parseWorkflowRunId', () => {
   })
 
   it('uses dedicated Workflow lifecycle labels', () => {
-    expect(getStreamingToolDisplay('Workflow', '', 'en').label).toBe('Preparing workflow…')
-    expect(getStreamingToolDisplay('Workflow', '{"name":"release-review', 'en').label)
+    expect(getStreamingToolDisplay(WORKFLOW, '', 'en').label).toBe('Preparing workflow…')
+    expect(getStreamingToolDisplay(WORKFLOW, '{"name":"release-review', 'en').label)
       .toBe('Starting workflow release-review…')
-    expect(formatCollapsedToolLabel('Workflow', { name: 'release-review' }, 'en'))
+    expect(formatCollapsedToolLabel(WORKFLOW, { name: 'release-review' }, 'en'))
       .toBe('Started workflow release-review')
     expect(formatWorkflowFailureLabel({ name: 'release-review' }, 'en'))
       .toBe('Could not start workflow release-review')
 
     const longName = 'release-review-with-complete-desktop-tool-title-geometry-validation'
-    expect(getStreamingToolDisplay('Workflow', `{"name":"${longName}`, 'en').label)
+    expect(getStreamingToolDisplay(WORKFLOW, `{"name":"${longName}`, 'en').label)
       .toContain(longName)
   })
 

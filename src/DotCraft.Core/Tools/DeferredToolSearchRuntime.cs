@@ -12,6 +12,7 @@ namespace DotCraft.Tools;
 internal interface IDeferredToolSearchDeclaration
 {
     [ToolDeclaration(Name = NativeToolSearchTool.ToolName)]
+    [ToolPresentation("core.deferred-search")]
     [Description("Search for deferred tools and activate matching definitions.")]
     void Search(
         [Description("Search keywords for deferred tools.")] string query,
@@ -139,7 +140,7 @@ internal sealed class DeferredToolSearchRuntime(
             declaration.Description,
             declaration.InputSchema,
             declaration.OutputSchema,
-            presentation: new ToolPresentationDescriptor(new PresentationId("core.deferred-search")),
+            presentation: declaration.Presentation,
             provenance: new ToolProvenance(ToolSourceKind.CoreNative, SourceId));
         var binding = new ToolRuntimeBinding(
             new RuntimeBindingId($"core-native:{CanonicalName}:{revision}"),

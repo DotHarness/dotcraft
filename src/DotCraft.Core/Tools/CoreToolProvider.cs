@@ -83,16 +83,10 @@ public sealed class CoreToolSource(
         if (!RequiresApprovalOutsideWorkspace(context))
             return null;
 
-        return function.Name switch
-        {
-            "ReadFile" => FileApproval("path", "read", context.WorkspacePath, context.WorkspaceRoots, trustedRead: true),
-            "WriteFile" => FileApproval("path", "write", context.WorkspacePath, context.WorkspaceRoots),
-            "EditFile" => FileApproval("path", "edit", context.WorkspacePath, context.WorkspaceRoots),
-            "GrepFiles" => FileApproval("path", "read", context.WorkspacePath, context.WorkspaceRoots, trustedRead: true),
-            "FindFiles" => FileApproval("path", "read", context.WorkspacePath, context.WorkspaceRoots, trustedRead: true),
-            "LSP" => FileApproval("filePath", "read", context.WorkspacePath, context.WorkspaceRoots, trustedRead: true),
-            _ => null
-        };
+        return FileToolAccess.TryGet(function.Name, out var access)
+            ? FileApproval(access.PathArgument, access.Operation, context.WorkspacePath, context.WorkspaceRoots,
+                trustedRead: access.Operation == "read")
+            : null;
     }
 
     /// <summary>
@@ -184,23 +178,10 @@ public sealed class CoreToolSource(
             maxConcurrentSubAgents: config.SubAgent.MaxConcurrentSubAgents,
             modelCatalogSnapshot: context.SubAgentModelCatalogSnapshot,
             inheritedModel: context.EffectiveMainModel);
-        tools.Add(GeneratedToolFunctions.AgentTools_SpawnAgent(agentTools));
-        tools.Add(GeneratedToolFunctions.AgentTools_SendMessage(agentTools));
-        tools.Add(GeneratedToolFunctions.AgentTools_FollowupTask(agentTools));
-        tools.Add(GeneratedToolFunctions.AgentTools_WaitAgent(agentTools));
-        tools.Add(GeneratedToolFunctions.AgentTools_ListAgents(agentTools));
-        tools.Add(GeneratedToolFunctions.AgentTools_CloseAgent(agentTools));
+        tools.AddRange(GeneratedToolFunctions.All(agentTools));
 
         var boardTools = new AgentMessageBoardTools();
-        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardCreateChannel(boardTools));
-        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardGetChannels(boardTools));
-        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardListThreads(boardTools));
-        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardSearchPosts(boardTools));
-        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardReadThread(boardTools));
-        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardReadPost(boardTools));
-        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardSubscribe(boardTools));
-        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardUnsubscribe(boardTools));
-        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardPost(boardTools));
+        tools.AddRange(GeneratedToolFunctions.All(boardTools));
 
         // File tools
         var fileTools = new FileTools(
@@ -214,11 +195,7 @@ public sealed class CoreToolSource(
             ripgrepPath: config.Tools.File.RipgrepPath,
             searchTimeout: fileSearchTimeout,
             workspaceRoots: context.WorkspaceRoots);
-        tools.Add(GeneratedToolFunctions.FileTools_ReadFile(fileTools));
-        tools.Add(GeneratedToolFunctions.FileTools_WriteFile(fileTools));
-        tools.Add(GeneratedToolFunctions.FileTools_EditFile(fileTools));
-        tools.Add(GeneratedToolFunctions.FileTools_GrepFiles(fileTools));
-        tools.Add(GeneratedToolFunctions.FileTools_FindFiles(fileTools));
+        tools.AddRange(GeneratedToolFunctions.All(fileTools));
 
         // LSP tool
         if (config.Tools.Lsp.Enabled && lspServerManager != null)
@@ -244,8 +221,7 @@ public sealed class CoreToolSource(
             approvalService,
             workspaceRoots: context.WorkspaceRoots,
             policy: shellPolicy);
-        tools.Add(GeneratedToolFunctions.ShellTools_Exec(shellTools));
-        tools.Add(GeneratedToolFunctions.ShellTools_WriteStdin(shellTools));
+        tools.AddRange(GeneratedToolFunctions.All(shellTools));
 
         // Web tools
         var webTools = new WebTools(
@@ -253,8 +229,7 @@ public sealed class CoreToolSource(
             config.Tools.Web.Timeout,
             config.Tools.Web.SearchMaxResults,
             config.Tools.Web.SearchProvider);
-        tools.Add(GeneratedToolFunctions.WebTools_WebSearch(webTools));
-        tools.Add(GeneratedToolFunctions.WebTools_WebFetch(webTools));
+        tools.AddRange(GeneratedToolFunctions.All(webTools));
 
         var target = SkillVariantStore.CreateTarget(
             context.EffectiveMainModel,
