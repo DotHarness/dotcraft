@@ -7,6 +7,20 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed class AppServerToolCatalogTests
 {
     [Fact]
+    public async Task ToolList_MessageBoardToolsRemainAvailableInPlanMode()
+    {
+        using var harness = new AppServerTestHarness();
+        await harness.InitializeAsync();
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ToolList, new { mode = "plan" }));
+        using var response = harness.Transport.TryReadSent()!;
+        var tools = response.RootElement.GetProperty("result").GetProperty("tools");
+        foreach (var name in new[] { "BoardCreateChannel", "BoardGetChannels", "BoardListThreads", "BoardSearchPosts",
+                     "BoardReadThread", "BoardReadPost", "BoardSubscribe", "BoardUnsubscribe", "BoardPost" })
+            Assert.True(FindTool(tools, name).GetProperty("planMode").GetBoolean());
+    }
+
+    [Fact]
     public async Task ToolList_ReturnsBuiltInToolsWithMetadata()
     {
         using var harness = new AppServerTestHarness();

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.3 |
+| **Version** | 0.8.4 |
 | **Status** | Living |
-| **Date** | 2026-10-06 |
+| **Date** | 2026-10-13 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -1469,6 +1469,8 @@ prefix. In-memory history and UI notifications become observable only after the 
 commit succeeds.
 
 Per-thread plans are stored in SQLite `thread_plans`. Plans follow the thread lifecycle: archive/unarchive keeps them, and permanent thread deletion cascades through the database.
+
+Native Agent trees own durable shared discussion state independently of transcript projections. Its ownership, fork, deletion and transient notification semantics are defined by [SubAgent communication and persistence](../features/subagents.md#81-shared-discussion-board).
 
 Workspace-managed attachments under `.craft/attachments/`, referenced by persisted `localImage`, `fileRef`, or `contextRef` input parts, are indexed in SQLite `thread_attachments`. Desktop pastes, phone photos and files, and channel images all land there. An attachment file is an independent asset: rollout stores its reference but cannot reconstruct its bytes. The file remains available for history rendering while at least one active or archived thread references it. Permanent thread deletion removes that thread's references and best-effort deletes now-unreferenced managed files. Attachments that never enter thread history, such as unsent drafts, inputs a channel drops before a Turn starts, or a failed send, are removed by an orphan sweep once they are a day old. The sweep runs at most hourly, after a thread-index repair that read every rollout, and is skipped while any rollout is unreadable, because attachment references are then uncertain.
 

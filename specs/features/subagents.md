@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.10 |
-| **Status** | Draft |
-| **Date** | 2026-10-02 |
+| **Version** | 0.8.0 |
+| **Status** | Living |
+| **Date** | 2026-10-13 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Prompt Composition](../architecture/prompt-composition.md), [Prompt Cache](../architecture/prompt-cache.md), [Model Options](model-options.md), [Tool Architecture](../architecture/tools-architecture.md) |
 | **Related Specs** | [Agent Profiles](agent-profiles.md) |
 
@@ -23,7 +23,7 @@ This specification covers:
 - child identity, ancestry, depth, and residency;
 - full-history, fresh, and bounded context creation;
 - role, profile, model, permission, and tool resolution;
-- task dispatch, communication, continuation, cancellation, and closure;
+- task dispatch, directed communication, shared discussion, continuation, cancellation, and closure;
 - persistence, recovery, progress, and parent ownership;
 - Desktop identity resolution and discovery-dependent activity state.
 
@@ -276,7 +276,67 @@ that consumes the child result itself spawns the child with silent completion, p
 messages are marked delivered only after their materialized input is persisted with a submitted,
 queued, or steered task.
 
+### 8.1 Shared discussion board
+
+Each persistent native root tree shares one board, scoped by state workspace and root thread ID.
+The root and native descendants share channels and topics regardless of `forkTurns` or working
+directory. Identity comes from the active Turn, never tool arguments. Temporary and internal threads
+and external runtimes cannot use the board. Cross-root access is prohibited.
+
+The default native tools are `BoardCreateChannel`, `BoardGetChannels`, `BoardListThreads`,
+`BoardSearchPosts`, `BoardReadThread`, `BoardReadPost`, `BoardSubscribe`, `BoardUnsubscribe` and
+`BoardPost`. Their schemas remain stable across Plan and Agent modes. Board access is independent of
+Agent-control authority. Plan and built-in explorer permit collaboration writes; parent, profile and
+custom role tool restrictions still apply. Direct calls and CodeMode obey the same contract.
+
+Posts are append-only and contain a stable message ID, channel, author path, creation time and topic
+root ID. The first post identifies its topic. Posting requires exactly one destination: an existing
+channel, a new channel or a topic root ID. Writes return metadata. Retrying the same runtime invocation
+returns the original post without sending notices again, including after a recipient closes. Reusing
+that identity with different arguments fails; distinct nested CodeMode calls remain distinct.
+
+Creating a channel subscribes its creator by default. Posting subscribes the author to the topic unless
+explicitly opted out. Channel subscriptions cover new topics; topic subscriptions cover replies.
+Subscribe and unsubscribe can target another open native Agent in the same tree. Explicit recipients
+receive a one-time notice without changing subscriptions. Recipients are deduplicated and exclude the
+author. Shared content is peer data, not system instructions.
+
+List and search tools return previews and opaque cursors. Searches use case-insensitive substrings.
+Concurrent writes may shift pages; callers restart the query to refresh. Text offsets count Unicode
+scalar values. The following limits apply to the tool contract:
+
+| Value | Limit |
+| --- | --- |
+| Page size | Default 20, maximum 50 posts or channels. |
+| Post preview | Default 1,000, maximum 20,000 characters. |
+| Full post slice | Default and maximum 20,000 characters, with a continuation offset. |
+| Response | Valid JSON within 8,000 UTF-8 bytes; reads reduce previews/pages and writes reject oversized metadata before commit. |
+| Post body | 1–65,536 UTF-8 bytes. |
+| Channel name | 1–128 UTF-8 bytes, without edge whitespace or control characters. |
+| Channel description | At most 1,024 UTF-8 bytes. |
+| Explicit recipients | At most 256 per post. |
+
+A post becomes durable before best-effort notification. A notice carries metadata and at most 150
+characters of preview. It can reach only the recipient's current active Turn while that Turn accepts
+collaboration input. Delivery must not start idle Agents, load execution resources or retain notices
+for future Turns. Pending notices are bounded and may wake `WaitAgent` or `Sleep`. Final-answer
+admission closure, cancellation and Turn termination discard undelivered notices; callers read the
+board to catch up.
+
+Consumed notices follow the existing internal communication and model-history persistence contract,
+including recovery after an interrupted commit. Tool calls and results use existing generic activity
+records. Notice failure must not fail a committed post. Storage errors return a stable code and English
+fallback without resetting board data or preventing unrelated work. `SendMessage` retains directed
+durable delivery; `FollowupTask` retains task startup and continuation.
+
 ## 9. Persistence, recovery, and ownership
+
+Channels, posts, subscriptions and explicit opt-outs are durable shared state, independent of tool
+output and transcript projections. Rollback, compaction, projection rebuild, archive, unload and
+child closure preserve them. Cold resume reuses the same board. An ordinary conversation fork starts
+with an empty board. Permanent root deletion removes content and subscriptions and prevents delayed
+or concurrent writes from recreating them; child deletion preserves the team's records. Single-thread
+recovery packages do not export or restore the shared board.
 
 The child `SessionThread`, `ThreadSource.SubAgent`, spawn edge, mailbox entries, and model configuration
 are durable. Cold recovery preserves open identity, ancestry, path, role, profile, runtime metadata,

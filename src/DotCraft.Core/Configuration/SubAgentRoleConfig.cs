@@ -192,6 +192,15 @@ You may use agent-control tools only when they are exposed by the current depth 
                 "WebSearch",
                 "WebFetch",
                 "SkillView",
+                "BoardCreateChannel",
+                "BoardGetChannels",
+                "BoardListThreads",
+                "BoardSearchPosts",
+                "BoardReadThread",
+                "BoardReadPost",
+                "BoardSubscribe",
+                "BoardUnsubscribe",
+                "BoardPost",
                 "Exec"
             ],
             Instructions = """

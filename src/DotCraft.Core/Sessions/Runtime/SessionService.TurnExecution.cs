@@ -178,6 +178,7 @@ public sealed partial class SessionService
             // for the full duration of the background task rather than being disposed on method return.
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCt, cts.Token);
             var executionCt = linkedCts.Token;
+            var boardInbox = RegisterBoardInbox(thread, turn.Id, executionCt);
 
             IDisposable? gateLock = null;
             IDisposable? approvalOverride = null;
@@ -356,7 +357,7 @@ public sealed partial class SessionService
                     rootThreadId,
                     agentPath,
                     pendingCt);
-                return pendingMailbox.Count > 0;
+                return pendingMailbox.Count > 0 || boardInbox.HasPending;
             }
 
             async Task<UserCoordinationSleepResult> CompleteSleepItemAsync(
@@ -387,10 +388,14 @@ public sealed partial class SessionService
             {
                 if (boundary == StreamingGuidanceBoundary.TurnStart)
                 {
-                    return await AcquireMailboxInboxAsync(drainCt) is { } startInbox
-                        && await TryDrainSubAgentMailboxMessageAsync(startInbox, drainCt) is { } initialMailbox
-                            ? [initialMailbox]
-                            : [];
+                    var initial = new List<ChatMessage>();
+                    if (await AcquireMailboxInboxAsync(drainCt) is { } startInbox
+                        && await TryDrainSubAgentMailboxMessageAsync(startInbox, drainCt) is { } initialMailbox)
+                        initial.Add(initialMailbox);
+                    if (DrainBoardInput(boardInbox, thread, turn, eventChannel, NextItemSeq,
+                        FinalizeStreamingAgentMessage, FinalizeStreamingReasoning, turnModelHistory!) is { } initialBoard)
+                        initial.Add(initialBoard);
+                    return initial;
                 }
 
                 var prepared = await PrepareGuidanceInputsAsync(admittedRuntime, turn, drainCt);
@@ -409,15 +414,20 @@ public sealed partial class SessionService
                 if (boundary == StreamingGuidanceBoundary.AnswerBoundary && guidance.Count == 0)
                 {
                     inbox?.Lease.Dispose();
+                    boardInbox.SetAdmission(false);
                     return [];
                 }
 
+                boardInbox.SetAdmission(true);
                 var messages = new List<ChatMessage>();
                 if (TryDrainGoalSteeringMessage() is { } goalSteering)
                     messages.Add(goalSteering);
                 messages.AddRange(guidance);
                 if (inbox is { } heldInbox && await TryDrainSubAgentMailboxMessageAsync(heldInbox, drainCt) is { } mailbox)
                     messages.Add(mailbox);
+                if (DrainBoardInput(boardInbox, thread, turn, eventChannel, NextItemSeq,
+                    FinalizeStreamingAgentMessage, FinalizeStreamingReasoning, turnModelHistory!) is { } boardMessage)
+                    messages.Add(boardMessage);
                 messages.AddRange(await drainWorldStateAsync(drainCt));
                 return messages;
             }
@@ -450,71 +460,10 @@ public sealed partial class SessionService
                 return (lease, rootThreadId, currentPath.Value);
             }
 
-            async Task<ChatMessage?> TryDrainSubAgentMailboxMessageAsync(
-                (IDisposable Lease, string RootThreadId, string AgentPath) inbox,
-                CancellationToken drainCt)
-            {
-                var (inboxLease, rootThreadId, agentPath) = inbox;
-                var staged = false;
-                try
-                {
-                    var pending = await ListPendingSubAgentMailboxAsync(
-                        rootThreadId,
-                        agentPath,
-                        drainCt);
-                    if (pending.Count == 0)
-                        return null;
-
-                    var materializedText = BuildSubAgentMailboxModelText(pending);
-                    if (string.IsNullOrWhiteSpace(materializedText))
-                        return null;
-
-                    var displayText = BuildSubAgentMailboxDisplayText(pending);
-                    var materializedPart = new SessionInputPart { Type = "text", Text = materializedText };
-                    var nativePart = new SessionInputPart { Type = "text", Text = displayText };
-                    var item = new SessionItem
-                    {
-                        Id = SessionIdGenerator.NewItemId(NextItemSeq()),
-                        TurnId = turn.Id,
-                        Type = ItemType.UserMessage,
-                        Status = ItemStatus.Completed,
-                        CreatedAt = DateTimeOffset.UtcNow,
-                        CompletedAt = DateTimeOffset.UtcNow,
-                        Payload = new UserMessagePayload
-                        {
-                            Text = displayText,
-                            DeliveryMode = SubAgentMailboxDelivery.DeliveryMode,
-                            NativeInputParts = [nativePart],
-                            MaterializedInputParts = [materializedPart],
-                            ChannelName = turn.OriginChannel,
-                            ChannelContext = turn.Initiator?.ChannelContext,
-                            GroupId = turn.Initiator?.GroupId,
-                            TriggerKind = SubAgentMailboxDelivery.DeliveryMode,
-                            TriggerLabel = pending.Count == 1 ? pending[0].SenderAgentPath : $"{pending.Count} messages",
-                            TriggerRefId = agentPath
-                        }
-                    };
-
-                    FinalizeStreamingAgentMessage();
-                    FinalizeStreamingReasoning();
-
-                    var message = new ChatMessage(ChatRole.User, (IList<AIContent>)[new TextContent(materializedText)]);
-                    turnModelHistory!.Stage([new TurnModelHistory.StagedInput(message, item.Id,
-                        pending.Select(entry => $"mailbox:{entry.Id}").ToArray())], async () =>
-                    {
-                        turn.Items.Add(item);
-                        thread.LastActiveAt = DateTimeOffset.UtcNow;
-                        await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
-                        await MarkSubAgentMailboxDeliveredAsync(rootThreadId, pending.Select(entry => entry.Id).ToArray(),
-                            DateTimeOffset.UtcNow, CancellationToken.None);
-                        eventChannel.EmitItemStarted(item);
-                        eventChannel.EmitItemCompleted(item);
-                    }, inboxLease);
-                    staged = true;
-                    return message;
-                }
-                finally { if (!staged) inboxLease.Dispose(); }
-            }
+            Task<ChatMessage?> TryDrainSubAgentMailboxMessageAsync(
+                (IDisposable Lease, string RootThreadId, string AgentPath) inbox, CancellationToken ct) =>
+                DrainCollaborationMailboxAsync(inbox, thread, turn, eventChannel, NextItemSeq,
+                    FinalizeStreamingAgentMessage, FinalizeStreamingReasoning, turnModelHistory!, ct);
 
             async Task RestoreUndrainedGuidanceAsync(Action? terminalTransition = null)
             {
@@ -2333,6 +2282,8 @@ public sealed partial class SessionService
             }
             finally
             {
+                boardInbox.Dispose();
+                _boardInboxes.TryRemove(new KeyValuePair<string, BoardTurnInbox>(threadId, boardInbox));
                 RecordPromptSuggestionOutcome(thread, turn);
                 turnModelHistory?.AbortPending();
                 sessionApproval?.Close();

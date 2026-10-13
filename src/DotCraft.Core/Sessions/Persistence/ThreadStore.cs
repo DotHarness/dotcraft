@@ -230,6 +230,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
     public void DeleteThread(string threadId)
     {
         using var writeLock = ThreadRolloutWriteGate.Acquire(_botPath, threadId);
+        new AgentMessageBoardStore(StateDatabase).Delete(threadId);
         _rolloutStore.CloseThreadAsync(threadId).GetAwaiter().GetResult();
         var candidatePaths = _rolloutStore.LoadThreadAsync(threadId).GetAwaiter().GetResult() is { } loaded
             ? _attachmentStore.ExtractManagedPaths(loaded)

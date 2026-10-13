@@ -36,7 +36,7 @@ public sealed partial class SessionService
                 {
                     if (!admission.Ids.All(incorporated.Contains)) continue;
                     await admission.Commit();
-                    admission.Lease.Dispose();
+                    admission.Lease?.Dispose();
                     _admissions.Remove(admission);
                 }
             }
@@ -48,7 +48,7 @@ public sealed partial class SessionService
             }
         }
 
-        public void Stage(IReadOnlyList<StagedInput> inputs, Func<Task> commit, IDisposable lease)
+        public void Stage(IReadOnlyList<StagedInput> inputs, Func<Task> commit, IDisposable? lease)
         {
             foreach (var input in inputs)
             {
@@ -61,7 +61,7 @@ public sealed partial class SessionService
 
         public void AbortPending()
         {
-            foreach (var admission in _admissions) admission.Lease.Dispose();
+            foreach (var admission in _admissions) admission.Lease?.Dispose();
             _admissions.Clear();
         }
 
@@ -73,6 +73,6 @@ public sealed partial class SessionService
 
         internal sealed record InputIdentity(string InputId, string ItemId, string TurnId);
         internal sealed record StagedInput(ChatMessage Message, string ItemId, IReadOnlyList<string> Ids);
-        private sealed record Admission(IReadOnlyList<string> Ids, Func<Task> Commit, IDisposable Lease);
+        private sealed record Admission(IReadOnlyList<string> Ids, Func<Task> Commit, IDisposable? Lease);
     }
 }

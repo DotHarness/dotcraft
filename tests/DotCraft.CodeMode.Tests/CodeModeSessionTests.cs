@@ -14,7 +14,7 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.CodeMode.Tests;
 
-public sealed class CodeModeSessionTests : IDisposable
+public sealed partial class CodeModeSessionTests : IDisposable
 {
     private readonly string _tempDir = Directory.CreateTempSubdirectory("codemode-session-").FullName;
 
