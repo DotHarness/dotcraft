@@ -64,12 +64,33 @@ public sealed class ConsolidationLockTests : IDisposable
     }
 
     [Fact]
-    public void Rollback_WithoutAPreviousConsolidation_RemovesTheLock()
+    public void Rollback_WithoutAPreviousConsolidation_KeepsTheLockFileAndForgetsTheTime()
     {
         ConsolidationLock.TryAcquire(_store, DateTimeOffset.UtcNow)!.Rollback();
 
-        Assert.False(File.Exists(Path.Combine(_store, ConsolidationLock.FileName)));
+        Assert.True(File.Exists(Path.Combine(_store, ConsolidationLock.FileName)));
         Assert.Null(ConsolidationLock.LastConsolidatedAt(_store));
+        var next = ConsolidationLock.TryAcquire(_store, DateTimeOffset.UtcNow);
+        Assert.NotNull(next);
+        Assert.Null(next.PreviousConsolidatedAt);
+        next.Rollback();
+    }
+
+    [Fact]
+    public void TryAcquire_ReadsThePreviousConsolidationOnlyOnceItOwnsTheLock()
+    {
+        var settled = DateTimeOffset.UtcNow.AddDays(-2);
+        DreamsTestWorkspace.SetLastConsolidated(_store, settled);
+        var first = ConsolidationLock.TryAcquire(_store, DateTimeOffset.UtcNow)!;
+        Assert.Null(ConsolidationLock.TryAcquire(_store, DateTimeOffset.UtcNow));
+
+        first.Rollback();
+        var second = ConsolidationLock.TryAcquire(_store, DateTimeOffset.UtcNow);
+
+        Assert.NotNull(second);
+        AssertTime(settled, second.PreviousConsolidatedAt);
+        second.Rollback();
+        AssertTime(settled, ConsolidationLock.LastConsolidatedAt(_store));
     }
 
     private static void AssertTime(DateTimeOffset expected, DateTimeOffset? actual)
