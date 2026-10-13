@@ -37,7 +37,7 @@ public sealed class LspTool(
         new(workspaceRoot, requireApprovalOutsideWorkspace, approvalService, blacklist, workspaceRoots: workspaceRoots);
 
     [Description("Interact with Language Server Protocol (LSP) servers for code intelligence. line and character are 1-based positions.")]
-    [Tool(Icon = "🧭", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.LSP), MaxResultChars = 100_000)]
+    [Tool(MaxResultChars = 100_000)]
     [ToolPresentation("core.lsp")]
     [ToolRpc]
     public async Task<string> LSP(

@@ -87,7 +87,6 @@ export class WeixinMediaTools {
         name: WEIXIN_SEND_FILE_TOOL,
         description: "Send a real file attachment to the current Weixin chat.",
         requiresChatContext: true,
-        display: { icon: "\u{1F4CE}", title: "Send file to current Weixin chat" },
         approval: {
           required: true,
           kind: "file",
@@ -108,7 +107,6 @@ export class WeixinMediaTools {
         name: WEIXIN_SEND_IMAGE_TOOL,
         description: "Send a real image to the current Weixin chat.",
         requiresChatContext: true,
-        display: { icon: "\u{1F5BC}", title: "Send image to current Weixin chat" },
         approval: {
           required: true,
           kind: "file",

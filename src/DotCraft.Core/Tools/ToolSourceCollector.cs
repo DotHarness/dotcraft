@@ -2,7 +2,6 @@ using DotCraft.Configuration;
 using DotCraft.Contributions;
 using DotCraft.Modules;
 using Microsoft.Extensions.DependencyInjection;
-using System.Reflection;
 
 namespace DotCraft.Tools;
 
@@ -39,16 +38,4 @@ public sealed class ToolSourceCollector(
             .ThenBy(collected => collected.Source.SourceId, StringComparer.Ordinal)
             .ToArray();
     }
-
-    /// <summary>Scans core and enabled module assemblies for presentation metadata.</summary>
-    public static void ScanToolIcons(ModuleRegistry registry, AppConfig config)
-    {
-        ToolRegistry.ScanAssembly(typeof(ToolSourceCollector).Assembly);
-        foreach (var module in registry.GetEnabledModules(config))
-            ToolRegistry.ScanAssembly(module.GetType().Assembly);
-    }
-
-    /// <summary>Scans explicit assemblies for presentation metadata.</summary>
-    public static void ScanToolIcons(params Assembly[] assemblies) =>
-        ToolRegistry.ScanAssemblies(assemblies);
 }

@@ -53,7 +53,6 @@ export class WeComMediaTools {
         description:
           "Send a voice message in the current WeCom chat. WeCom voice only supports AMR files; use WeComSendFile for other audio formats.",
         requiresChatContext: true,
-        display: { icon: "\u{1F3A4}", title: "Send voice in current WeCom chat" },
         inputSchema: {
           type: "object",
           properties: {
@@ -71,7 +70,6 @@ export class WeComMediaTools {
         name: WE_COM_SEND_FILE_TOOL,
         description: "Send a file in the current WeCom chat. The file must be a local absolute path.",
         requiresChatContext: true,
-        display: { icon: "\u{1F4C1}", title: "Send file in current WeCom chat" },
         inputSchema: {
           type: "object",
           properties: {
@@ -90,7 +88,6 @@ export class WeComMediaTools {
         description:
           "Send an image in the current WeCom chat. WeCom images must be JPG or PNG files up to 2 MB; use WeComSendFile for larger images. The file must be a local absolute path.",
         requiresChatContext: true,
-        display: { icon: "\u{1F5BC}", title: "Send image in current WeCom chat" },
         inputSchema: {
           type: "object",
           properties: {

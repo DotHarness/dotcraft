@@ -93,7 +93,7 @@ public static partial class SubAgentSessionControl
             ?? NormalizeOptional(child.DisplayName)
             ?? child.Id;
         var task = NormalizeOptional(source.TaskName) ?? label;
-        var bridgeKey = SubAgentManager.NormalizeLabel(label, task);
+        var bridgeKey = SubAgentProgressBridge.NormalizeLabel(label, task);
         var progress = SubAgentProgressBridge.GetOrCreate(bridgeKey);
         progress.CurrentTool = null;
         progress.CurrentToolDisplay = null;

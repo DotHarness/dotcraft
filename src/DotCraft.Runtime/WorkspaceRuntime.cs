@@ -207,8 +207,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 Services.GetService<ToolInvocationRecorderRouter>(),
                 Services.GetService<DefaultToolResultNormalizer>());
 
-            ToolSourceCollector.ScanToolIcons(moduleRegistry, Config);
-
             var fallbackApproval = new AutoApproveApprovalService();
             var scopedApproval = new SessionScopedApprovalService(fallbackApproval);
             var remoteToolHostClient = Services

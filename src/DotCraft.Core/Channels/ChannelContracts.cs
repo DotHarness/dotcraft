@@ -50,12 +50,6 @@ public sealed class ChannelToolSpec
     public JsonObject? OutputSchema { get; set; }
 
     /// <summary>
-    /// Optional adapter-provided display metadata for richer tool UIs.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ChannelToolDisplaySpec? Display { get; set; }
-
-    /// <summary>
     /// Optional approval metadata describing which argument should be intercepted by the server
     /// before dispatching <c>ext/channel/toolCall</c>.
     /// This describes approval targets only; policy remains server-owned.
@@ -92,18 +86,6 @@ public sealed class ChannelToolApprovalSpec
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? OperationArgument { get; set; }
-}
-
-public sealed class ChannelToolDisplaySpec
-{
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Title { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Subtitle { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Icon { get; set; }
 }
 
 public sealed class ChannelToolInvocationRequest

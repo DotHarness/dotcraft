@@ -296,13 +296,6 @@ public static class DashBoardMiddleware
         });
         }
 
-        endpoints.MapGet("/dashboard/api/tools", () =>
-        {
-            var icons = ToolRegistry.GetAllToolIcons();
-            var tools = icons.Select(kv => new { name = kv.Key, icon = kv.Value });
-            return Results.Json(new { tools }, JsonOptions);
-        });
-
         if (settingsConfiguration != null)
             DashBoardSettingsEndpoints.Map(endpoints, settingsConfiguration, configSchema ?? [], paths, logger);
 

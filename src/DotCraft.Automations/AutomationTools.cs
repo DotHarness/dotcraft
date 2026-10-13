@@ -17,7 +17,7 @@ public sealed class AutomationToolSource(AutomationService service) : AIFunction
 public sealed class AutomationTools(AutomationService service, string? planningThreadId = null)
 {
     [GeneratedTool]
-    [Tool(Icon = "⏰")]
+    [Tool]
     [ToolPresentation("core.automation")]
     [Description("Manage scheduled work. Create and update take a complete definition; update also requires expectedVersion. Report records the current run's outcome.")]
     public async Task<string> Automation(

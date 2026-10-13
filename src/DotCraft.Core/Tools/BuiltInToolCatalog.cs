@@ -1,13 +1,14 @@
+using System.Reflection;
+
 namespace DotCraft.Tools;
 
 /// <summary>
-/// A single built-in tool's catalog metadata: its canonical model-visible name,
-/// human-readable description, and display icon.
+/// A single built-in tool's catalog metadata: its canonical model-visible name and
+/// human-readable description.
 /// </summary>
 public sealed record BuiltInToolDescriptor(
     string Name,
     string Description,
-    string Icon,
     bool RpcEligible = false);
 
 /// <summary>
@@ -21,14 +22,10 @@ public sealed record BuiltInToolDescriptor(
 /// </summary>
 public static class BuiltInToolCatalog
 {
-    private const string DefaultIcon = "🔧";
-
     private static readonly Lazy<IReadOnlyList<BuiltInToolDescriptor>> Cached = new(Scan);
 
     /// <summary>
     /// Returns all built-in tool descriptors, deduplicated by name and sorted ordinally by name.
-    /// The tool name is the canonical model-visible tool name; the description and icon come from the
-    /// tool's declaration.
     /// The result is computed once per process (the set is fixed for a given build).
     /// </summary>
     public static IReadOnlyList<BuiltInToolDescriptor> Enumerate() => Cached.Value;
@@ -36,20 +33,29 @@ public static class BuiltInToolCatalog
     private static IReadOnlyList<BuiltInToolDescriptor> Scan()
     {
         var byName = new SortedDictionary<string, BuiltInToolDescriptor>(StringComparer.Ordinal);
-        foreach (var descriptor in ToolRegistry.ReadGeneratedDescriptors(typeof(ToolAttribute).Assembly)
+        foreach (var descriptor in ReadGeneratedDescriptors(typeof(ToolAttribute).Assembly)
                      .Where(static descriptor => descriptor.CatalogVisible))
         {
-            if (byName.ContainsKey(descriptor.Name))
-                continue;
-
-            var icon = string.IsNullOrEmpty(descriptor.Icon) ? DefaultIcon : descriptor.Icon;
-            byName[descriptor.Name] = new BuiltInToolDescriptor(
+            byName.TryAdd(
                 descriptor.Name,
-                descriptor.Description,
-                icon,
-                descriptor.RpcEligible);
+                new BuiltInToolDescriptor(descriptor.Name, descriptor.Description, descriptor.RpcEligible));
         }
 
         return byName.Values.ToList();
+    }
+
+    private static IEnumerable<GeneratedToolDescriptor> ReadGeneratedDescriptors(Assembly assembly)
+    {
+        foreach (var attribute in assembly.GetCustomAttributes<GeneratedToolCatalogAttribute>())
+        {
+            var property = attribute.ProviderType.GetProperty(
+                "Descriptors",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+            if (property?.GetValue(null) is IEnumerable<GeneratedToolDescriptor> generated)
+            {
+                foreach (var descriptor in generated)
+                    yield return descriptor;
+            }
+        }
     }
 }

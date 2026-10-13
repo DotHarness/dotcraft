@@ -9,7 +9,15 @@ namespace DotCraft.Agents;
 /// </summary>
 public static class SubAgentProgressBridge
 {
+    private const int MaxLabelLength = 60;
+
     private static readonly ConcurrentDictionary<string, ProgressEntry> Entries = new();
+
+    internal static string NormalizeLabel(string? label, string task)
+    {
+        var text = label ?? task;
+        return text.Length <= MaxLabelLength ? text : text[..MaxLabelLength] + "...";
+    }
 
     public sealed class ProgressEntry
     {
@@ -23,9 +31,7 @@ public static class SubAgentProgressBridge
         public volatile string? LastTool;
 
         /// <summary>
-        /// Human-readable formatted display text for the currently executing tool
-        /// (e.g. "Read src/foo.cs lines 10-20"). Null when no display formatter
-        /// is registered or no tool is running. Cleared in finally like <see cref="CurrentTool"/>.
+        /// Progress text an external runtime reports for its current step. Null when no step is running.
         /// </summary>
         public volatile string? CurrentToolDisplay;
         /// <summary>

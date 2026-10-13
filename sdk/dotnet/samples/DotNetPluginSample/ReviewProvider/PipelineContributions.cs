@@ -5,7 +5,7 @@ using Microsoft.Extensions.AI;
 
 namespace Acme.ReviewCore;
 
-/// <summary>An observing wrapper around the model call; returning <c>inner</c> unchanged declines a pipeline.</summary>
+/// <summary>An observing wrapper around the model call.</summary>
 internal sealed class ReviewObserverMiddleware(ReviewJournal journal) : IChatMiddleware
 {
     /// <inheritdoc />
@@ -13,15 +13,12 @@ internal sealed class ReviewObserverMiddleware(ReviewJournal journal) : IChatMid
 
     /// <inheritdoc />
     public IChatClient Wrap(IChatClient inner, ChatPipelineContext context) =>
-        context.Kind == ChatPipelineKind.SubAgent
-            ? inner
-            : new ObservingChatClient(inner, journal, context);
+        new ObservingChatClient(inner, journal);
 }
 /// <summary>Counts model calls without altering a single request or response.</summary>
 internal sealed class ObservingChatClient(
     IChatClient innerClient,
-    ReviewJournal journal,
-    ChatPipelineContext context) : DelegatingChatClient(innerClient)
+    ReviewJournal journal) : DelegatingChatClient(innerClient)
 {
     /// <inheritdoc />
     public override async Task<ChatResponse> GetResponseAsync(
@@ -29,7 +26,7 @@ internal sealed class ObservingChatClient(
         ChatOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        journal.Write($"model call on {context.Kind} pipeline");
+        journal.Write("model call");
         return await base.GetResponseAsync(messages, options, cancellationToken).ConfigureAwait(false);
     }
 
@@ -39,7 +36,7 @@ internal sealed class ObservingChatClient(
         ChatOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        journal.Write($"streaming call on {context.Kind} pipeline");
+        journal.Write("streaming call");
         await foreach (var update in base
                            .GetStreamingResponseAsync(messages, options, cancellationToken)
                            .ConfigureAwait(false))

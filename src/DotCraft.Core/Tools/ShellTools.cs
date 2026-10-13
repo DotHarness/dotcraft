@@ -47,7 +47,7 @@ public sealed class ShellTools
     }
 
     [Description("Execute a shell command and return its output.")]
-    [Tool(Icon = "⌨️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.Exec), MaxResultChars = 30_000)]
+    [Tool(MaxResultChars = 30_000)]
     [ToolPresentation("core.shell", Operation = "exec")]
     [ToolRpc]
     public async Task<ToolExecutionResult> Exec(
@@ -103,7 +103,7 @@ public sealed class ShellTools
     }
 
     [Description("Write input to a running background terminal session, or pass an empty input string to poll for recent output.")]
-    [Tool(Icon = "⌨️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.Exec), MaxResultChars = 30_000)]
+    [Tool(MaxResultChars = 30_000)]
     [ToolPresentation("core.shell", Operation = "writeStdin")]
     [ToolRpc]
     public async Task<ToolExecutionResult> WriteStdin(

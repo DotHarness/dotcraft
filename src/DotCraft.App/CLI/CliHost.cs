@@ -5,8 +5,6 @@ using DotCraft.Common;
 using DotCraft.Configuration;
 using DotCraft.Hub;
 using DotCraft.Hosting;
-using DotCraft.Modules;
-using DotCraft.Tools;
 using DotCraft.AppServer;
 
 namespace DotCraft.CLI;
@@ -17,8 +15,7 @@ namespace DotCraft.CLI;
 public sealed class CliHost(
     CommandLineArgs cliArgs,
     AppConfig config,
-    DotCraftPaths paths,
-    ModuleRegistry moduleRegistry) : IDotCraftHost
+    DotCraftPaths paths) : IDotCraftHost
 {
     private WebSocketClientConnection? _wsConnection;
 
@@ -33,8 +30,6 @@ public sealed class CliHost(
                 Environment.ExitCode = 1;
                 return;
             }
-
-            ToolSourceCollector.ScanToolIcons(moduleRegistry, config);
 
             var cliConfig = config.GetSection<CliConfig>("CLI");
             var wire = await ConnectAsync(cliConfig, cancellationToken).ConfigureAwait(false);

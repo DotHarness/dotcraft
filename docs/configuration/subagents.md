@@ -6,7 +6,6 @@ For the concept and everyday use, read [Subagents](../guide/subagents).
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `SubagentMaxConcurrency` | Maximum concurrent subagents | `3` |
 | `SubAgent.MaxDepth` | Maximum spawn depth for session-backed subagents. The first child is depth `1` | `1` |
 | `SubAgent.MaxConcurrentSubAgents` | Maximum resident session-backed subagents inside one root thread's subtree. Exceeding it auto-closes the oldest idle subagent, and the spawn fails instead when every resident subagent is still running | `16` |
 | `SubAgent.ProviderPreferences` | Complete native subagent preferences keyed by the parent thread provider. A missing entry inherits that thread's complete MainAgent preference | `{}` |

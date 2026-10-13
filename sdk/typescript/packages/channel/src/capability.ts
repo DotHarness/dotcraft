@@ -10,13 +10,6 @@ export interface CapabilitySummary {
   capabilitySetMayVaryByEnvironment: boolean;
 }
 
-export interface ChannelToolDisplayDescriptor {
-  title?: string;
-  subtitle?: string;
-  icon?: string;
-  [key: string]: unknown;
-}
-
 export interface ToolApprovalDescriptor {
   [key: string]: unknown;
   /**
@@ -45,14 +38,9 @@ export interface ToolApprovalDescriptor {
 export interface ChannelToolDescriptor {
   [key: string]: unknown;
   name: string;
-  /**
-   * Legacy display label kept for older adapters. New descriptors should use display.title.
-   */
-  displayName?: string;
   description: string;
   inputSchema: JsonValue;
   outputSchema?: JsonValue;
-  display?: ChannelToolDisplayDescriptor;
   approval?: ToolApprovalDescriptor;
   requiresChatContext?: boolean;
   deferLoading?: boolean;

@@ -89,7 +89,6 @@ export class QQMediaTools {
         description:
           "Send a voice/audio message to a QQ group chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
         requiresChatContext: false,
-        display: { icon: "\u{1F3A4}", title: "Send voice to QQ group" },
         approval: filePathApproval,
         inputSchema: {
           type: "object",
@@ -105,7 +104,6 @@ export class QQMediaTools {
         description:
           "Send a voice/audio message to a QQ private chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
         requiresChatContext: false,
-        display: { icon: "\u{1F3A4}", title: "Send voice to QQ user" },
         approval: filePathApproval,
         inputSchema: {
           type: "object",
@@ -121,7 +119,6 @@ export class QQMediaTools {
         description:
           "Send an image to a QQ group chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
         requiresChatContext: false,
-        display: { icon: "\u{1F5BC}", title: "Send image to QQ group" },
         approval: filePathApproval,
         inputSchema: {
           type: "object",
@@ -137,7 +134,6 @@ export class QQMediaTools {
         description:
           "Send an image to a QQ private chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
         requiresChatContext: false,
-        display: { icon: "\u{1F5BC}", title: "Send image to QQ user" },
         approval: filePathApproval,
         inputSchema: {
           type: "object",
@@ -153,7 +149,6 @@ export class QQMediaTools {
         description:
           "Send a video message to a QQ group chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
         requiresChatContext: false,
-        display: { icon: "\u{1F39E}", title: "Send video to QQ group" },
         approval: filePathApproval,
         inputSchema: {
           type: "object",
@@ -169,7 +164,6 @@ export class QQMediaTools {
         description:
           "Send a video message to a QQ private chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
         requiresChatContext: false,
-        display: { icon: "\u{1F39E}", title: "Send video to QQ user" },
         approval: filePathApproval,
         inputSchema: {
           type: "object",
@@ -184,7 +178,6 @@ export class QQMediaTools {
         name: QQ_UPLOAD_GROUP_FILE_TOOL,
         description: "Upload a file to a QQ group using upload_group_file. The file must be a local absolute path.",
         requiresChatContext: false,
-        display: { icon: "\u{1F4CE}", title: "Upload file to QQ group" },
         inputSchema: {
           type: "object",
           properties: {
@@ -205,7 +198,6 @@ export class QQMediaTools {
         name: QQ_UPLOAD_PRIVATE_FILE_TOOL,
         description: "Upload a file to a QQ private chat using upload_private_file. The file must be a local absolute path.",
         requiresChatContext: false,
-        display: { icon: "\u{1F4CE}", title: "Upload file to QQ user" },
         inputSchema: {
           type: "object",
           properties: {

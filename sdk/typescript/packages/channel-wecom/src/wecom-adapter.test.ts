@@ -52,11 +52,9 @@ test("parseWeComMessage parses JSON mixed messages", () => {
   assert.equal(message?.mixedMessage?.msgItems[0]?.text?.content, "hello");
 });
 
-test("WeComMediaTools requires current chat context and exposes display metadata", () => {
+test("WeComMediaTools requires current chat context", () => {
   const tools = new WeComMediaTools().getChannelTools();
   assert.ok(tools.every((tool) => tool.requiresChatContext === true));
-  assert.equal((tools[0]?.display as Record<string, unknown> | undefined)?.icon, "🎤");
-  assert.equal((tools[1]?.display as Record<string, unknown> | undefined)?.icon, "📁");
 });
 
 test("WeComMediaTools uploads file tool paths as bytes", async () => {

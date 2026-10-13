@@ -203,7 +203,7 @@ public sealed class AIFunctionToolSourceTests
         Assert.Equal(presentationId, declaration.Presentation.Id.Value);
         Assert.Equal(
             options.ToDictionary(option => option.Key, option => option.Value),
-            declaration.Presentation.Options.ToDictionary(pair => pair.Key, pair => pair.Value.GetString()));
+            declaration.Presentation.Options.ToDictionary(pair => pair.Key, pair => pair.Value.GetString()!));
     }
 
     [Theory]

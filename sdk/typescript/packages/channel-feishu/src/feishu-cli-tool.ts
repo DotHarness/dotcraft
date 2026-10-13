@@ -41,10 +41,6 @@ export function getFeishuCliToolDescriptors(enabled: boolean): ChannelToolDescri
       targetArgument: "command",
       operation: "invoke",
     },
-    display: {
-      icon: "\u{1F6E0}\u{FE0F}",
-      title: "Feishu CLI",
-    },
     inputSchema: {
       type: "object",
       properties: {

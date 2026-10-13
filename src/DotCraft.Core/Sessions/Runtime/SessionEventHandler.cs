@@ -14,7 +14,7 @@ namespace DotCraft.Sessions;
 /// var handler = new SessionEventHandler
 /// {
 ///     OnTextDelta   = text => SendMessageAsync(text),
-///     OnToolStarted = (name, icon, args) => ...,
+///     OnToolStarted = (name, callId) => ...,
 ///     OnTurnCompleted = usage => RecordTokenUsageAsync(usage),
 ///     OnApprovalRequested = req => AskUserAsync(req),
 /// };
@@ -31,10 +31,10 @@ public sealed class SessionEventHandler
 
     /// <summary>
     /// Called when a tool call begins (<see cref="SessionEventType.ItemStarted"/> for <see cref="ItemType.ToolCall"/>).
-    /// Parameters: toolName, icon, formatted display string (may be null), callId (correlation ID, may be empty).
+    /// Parameters: toolName, callId (correlation ID, may be empty).
     /// The adapter may send a progress notification to the user.
     /// </summary>
-    public required Func<string, string, string?, string, Task> OnToolStarted { get; init; }
+    public required Func<string, string, Task> OnToolStarted { get; init; }
 
     /// <summary>
     /// Called when an approval is required before executing a sensitive operation.
@@ -122,12 +122,7 @@ public sealed class SessionEventHandler
                 case SessionEventType.ItemStarted when evt.ItemPayload?.Type == ItemType.ToolCall:
                 {
                     var tp = evt.ItemPayload!.Payload as ToolCallPayload;
-                    var toolName = tp?.ToolName ?? string.Empty;
-                    var icon = ToolRegistry.GetToolIcon(toolName);
-                    var formatted = tp?.Arguments != null
-                        ? ToolRegistry.FormatToolCall(toolName, tp.Arguments)
-                        : null;
-                    await OnToolStarted(toolName, icon, formatted, tp?.CallId ?? string.Empty);
+                    await OnToolStarted(tp?.ToolName ?? string.Empty, tp?.CallId ?? string.Empty);
                     break;
                 }
 

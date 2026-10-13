@@ -137,7 +137,7 @@ public static partial class SubAgentSessionControl
             turn = await syntheticTurns.StartSubAgentSyntheticTurnAsync(
                 childThreadId,
                 [new TextContent(prompt)],
-                prepared.Runtime.RuntimeType,
+                prepared.RuntimeType,
                 prepared.Profile.Name,
                 ct);
             dispatchStarted?.TrySetResult();
@@ -299,7 +299,7 @@ public static partial class SubAgentSessionControl
         };
         var prepared = coordinator?.PrepareRun(request, profileName)
             ?? throw new InvalidOperationException("External subagent profiles require a SubAgentCoordinator.");
-        var capabilities = ResolveCapabilities(prepared.Runtime.RuntimeType, prepared.Profile, coordinator);
+        var capabilities = ResolveCapabilities(prepared.RuntimeType, prepared.Profile, coordinator);
         if (requireExternalResume && !capabilities.SupportsSendInput)
         {
             throw new InvalidOperationException(

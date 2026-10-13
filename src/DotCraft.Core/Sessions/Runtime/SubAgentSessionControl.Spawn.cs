@@ -42,7 +42,7 @@ public static partial class SubAgentSessionControl
         };
         var prepared = PrepareRun(coordinator, request, requestedProfileName);
         var profileName = prepared?.Profile.Name ?? SubAgentCoordinator.DefaultProfileName;
-        var runtimeType = prepared?.Runtime.RuntimeType ?? NativeSubAgentRuntime.RuntimeTypeName;
+        var runtimeType = prepared?.RuntimeType ?? NativeSubAgentRuntime.RuntimeTypeName;
         if (prepared != null
             && !string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase))
         {

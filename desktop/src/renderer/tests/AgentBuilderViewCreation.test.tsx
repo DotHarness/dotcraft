@@ -31,13 +31,13 @@ Object.defineProperty(globalThis, 'ResizeObserver', {
 })
 
 const toolCatalog = [
-  { name: 'WebSearch', description: 'Search the web', icon: '🔍' },
-  { name: 'WebFetch', description: 'Fetch a URL', icon: '🌐' },
-  { name: 'WriteFile', description: 'Write files', icon: '🖊️' },
-  { name: 'ReadFile', description: 'Read files', icon: '📄' },
-  { name: 'TodoWrite', description: 'Track todos', icon: '📝' },
-  { name: 'Automation', description: 'Schedule jobs', icon: '⏰' },
-  { name: 'RequestUserInput', description: 'Ask the user', icon: '❓' }
+  { name: 'WebSearch', description: 'Search the web' },
+  { name: 'WebFetch', description: 'Fetch a URL' },
+  { name: 'WriteFile', description: 'Write files' },
+  { name: 'ReadFile', description: 'Read files' },
+  { name: 'TodoWrite', description: 'Track todos' },
+  { name: 'Automation', description: 'Schedule jobs' },
+  { name: 'RequestUserInput', description: 'Ask the user' }
 ]
 
 function emitNotification(payload: NotificationPayload): void {

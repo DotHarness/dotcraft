@@ -6,7 +6,6 @@
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
-| `SubagentMaxConcurrency` | 最大并发 subagent 数量 | `3` |
 | `SubAgent.MaxDepth` | session-backed subagent 的最大生成深度。第一级 subagent 深度为 `1` | `1` |
 | `SubAgent.MaxConcurrentSubAgents` | 同一根线程子树内同时驻留的 session-backed subagent 上限。超出时自动关闭最旧的空闲 subagent，若驻留的 subagent 全部仍在运行则本次 spawn 失败 | `16` |
 | `SubAgent.ProviderPreferences` | 按父线程 provider 保存的完整原生 subagent 偏好。缺少对应项时继承该线程完整的 MainAgent 偏好 | `{}` |

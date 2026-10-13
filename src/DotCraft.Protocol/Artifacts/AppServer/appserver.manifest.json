@@ -5643,13 +5643,6 @@
           "const": null
         },
         {
-          "name": "display",
-          "type": "core.ChannelToolDisplay",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "inputSchema",
           "type": "json",
           "required": true,
@@ -5675,38 +5668,6 @@
           "type": "boolean",
           "required": true,
           "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ChannelToolDisplay",
-      "name": "ChannelToolDisplay",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ChannelToolDisplay.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "icon",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "subtitle",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "title",
-          "type": "string",
-          "required": false,
-          "nullable": true,
           "const": null
         }
       ],
@@ -23718,13 +23679,6 @@
       "fields": [
         {
           "name": "description",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "icon",
           "type": "string",
           "required": false,
           "nullable": false,

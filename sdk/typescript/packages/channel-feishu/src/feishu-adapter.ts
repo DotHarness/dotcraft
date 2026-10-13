@@ -323,10 +323,6 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
           + "The link is delivered privately to whoever asked, never to the current group. "
           + "Does not help with FeishuCliUserIdentityUnavailable, which needs an administrator to configure scopes.",
         requiresChatContext: true,
-        display: {
-          icon: "\u{1F511}",
-          title: "Authorize Feishu account",
-        },
         inputSchema: {
           type: "object",
           properties: {},

@@ -17,9 +17,6 @@ internal sealed class ChatPipelineHostInputs
     /// <summary>Gets the hook runner for dynamic tool injection, or <see langword="null"/> when hooks run elsewhere (snapshot dispatch) or are not configured.</summary>
     internal HookRunner? HookRunner { get; init; }
 
-    /// <summary>Gets the SubAgent progress entry, or <see langword="null"/> when the run is not tracked by the live table.</summary>
-    internal SubAgentProgressBridge.ProgressEntry? SubAgentProgress { get; init; }
-
     /// <summary>Gets the factory for the tool-call orchestration client, whose configuration stays owned by the call site.</summary>
     internal Func<IChatClient, IChatClient>? CreateFunctionInvokingClient { get; init; }
 }

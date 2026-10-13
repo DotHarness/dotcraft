@@ -75,12 +75,6 @@ internal sealed class HookWrappedFunction : DelegatingAIFunction,
     public int? MaxResultChars =>
         GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) ? metadata.MaxResultChars : null;
 
-    public string? Icon =>
-        GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) ? metadata.Icon : null;
-
-    public Func<IDictionary<string, object?>?, string>? DisplayFormatter =>
-        GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) ? metadata.DisplayFormatter : null;
-
     public bool RpcEligible =>
         GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) && metadata.RpcEligible;
 

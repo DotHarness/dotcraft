@@ -19,10 +19,6 @@ public sealed class ChannelToolDescriptor : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? OutputSchema { get; init; }
 
-    [JsonPropertyName("display")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ChannelToolDisplay? Display { get; init; }
-
     [JsonPropertyName("approval")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ChannelToolApprovalDescriptor? Approval { get; init; }
@@ -51,22 +47,6 @@ public sealed class ChannelToolApprovalDescriptor : ExtensibleJsonObject
     [JsonPropertyName("operationArgument")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? OperationArgument { get; init; }
-}
-
-/// <summary>Optional display metadata for a channel tool.</summary>
-public sealed class ChannelToolDisplay : ExtensibleJsonObject
-{
-    [JsonPropertyName("title")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Title { get; init; }
-
-    [JsonPropertyName("subtitle")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Subtitle { get; init; }
-
-    [JsonPropertyName("icon")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Icon { get; init; }
 }
 
 /// <summary>Structured delivery support advertised by a channel adapter.</summary>

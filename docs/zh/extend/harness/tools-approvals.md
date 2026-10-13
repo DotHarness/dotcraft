@@ -61,8 +61,8 @@ Harness 构建工具规划时会收集全部 `IToolSource` 注册。保持来源
 var handler = new SessionEventHandler
 {
     OnTextDelta = text => ui.AppendTextAsync(text),
-    OnToolStarted = (name, icon, display, callId) =>
-        ui.ShowToolStartedAsync(name, display),
+    OnToolStarted = (name, callId) =>
+        ui.ShowToolStartedAsync(callId, name),
     OnToolCompleted = (callId, result) =>
         ui.ShowToolResultAsync(callId, result),
     OnApprovalRequested = request =>

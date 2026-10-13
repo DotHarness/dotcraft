@@ -103,15 +103,6 @@ public sealed class ChatClientRegistry
         GetChatClient(ResolveMainRuntime(config, providerIdOverride, modelOverride));
 
     /// <summary>
-    /// Gets a cached provider-neutral chat client for the effective native SubAgent model.
-    /// </summary>
-    public IChatClient GetSubAgentChatClient(
-        AppConfig config,
-        string effectiveMainProviderId,
-        string effectiveMainModel) =>
-        GetChatClient(ResolveSubAgentRuntime(config, effectiveMainProviderId, effectiveMainModel));
-
-    /// <summary>
     /// Gets a cached provider-neutral chat client for a specific provider runtime.
     /// </summary>
     public IChatClient GetChatClient(EffectiveModelRuntime runtime)

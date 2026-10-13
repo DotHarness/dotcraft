@@ -115,24 +115,11 @@ public sealed class ChannelToolRegistrationService
                 continue;
             }
 
-            RegisterToolDisplay(descriptor);
             registered.Add(descriptor);
         }
 
         diagnostics = warnings;
         return registered;
-    }
-
-    private static void RegisterToolDisplay(ChannelToolSpec descriptor)
-    {
-        if (descriptor.Display != null)
-        {
-            ToolRegistry.RegisterDisplay(
-                descriptor.Name,
-                title: descriptor.Display.Title,
-                subtitle: descriptor.Display.Subtitle,
-                icon: descriptor.Display.Icon);
-        }
     }
 
     private static bool TryValidateDescriptor(ChannelToolSpec descriptor, out string message)

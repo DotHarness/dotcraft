@@ -51,10 +51,6 @@ export class FeishuMediaDelivery {
           targetArgument: "filePath",
           operation: "read",
         },
-        display: {
-          icon: "\u{1F4CE}",
-          title: "Send file to current Feishu chat",
-        },
         inputSchema: {
           type: "object",
           properties: {
@@ -73,10 +69,6 @@ export class FeishuMediaDelivery {
           kind: "file",
           targetArgument: "imagePath",
           operation: "read",
-        },
-        display: {
-          icon: "\u{1F5BC}",
-          title: "Send image to current Feishu chat",
         },
         inputSchema: {
           type: "object",

@@ -1707,7 +1707,7 @@ public sealed partial class SessionService
 
                                         if (rawLabel != null || rawTask != null)
                                         {
-                                            var normalizedLabel = SubAgentManager.NormalizeLabel(
+                                            var normalizedLabel = SubAgentProgressBridge.NormalizeLabel(
                                                 rawLabel, rawTask ?? "task");
                                             progressAggregator ??= new SubAgentProgressAggregator(
                                                 eventChannel, threadId, turn.Id);

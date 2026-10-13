@@ -32,7 +32,6 @@ internal sealed class ToolRequestHandler : IAppServerDomainHandler
             {
                 Name = descriptor.Name,
                 Description = descriptor.Description,
-                Icon = descriptor.Icon,
                 Source = "builtin",
                 PlanMode = !ModeToolPolicy.PlanDeniedToolNames.Contains(descriptor.Name)
             })
