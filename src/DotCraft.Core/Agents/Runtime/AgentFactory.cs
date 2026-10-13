@@ -318,7 +318,7 @@ public sealed class AgentFactory : IAsyncDisposable
         var builder = new EffectiveToolSnapshotBuilder();
         var registrations = await builder.CollectAsync(sources, planningContext, cancellationToken)
             .ConfigureAwait(false);
-        registrations = RemoteToolRegistrationRouter.Wrap(registrations, _remoteToolHostClient);
+        registrations = RemoteToolRegistrationRouter.Wrap(registrations, _remoteToolHostClient, planningContext.MemoryStoreDirectory);
         return ApplyGlobalToolExposure(builder.Build(
             ApplyToolRestrictions(registrations, planningContext),
             planningContext.Revision,

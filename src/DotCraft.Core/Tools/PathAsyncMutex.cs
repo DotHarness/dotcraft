@@ -5,9 +5,19 @@ internal static class PathAsyncMutex
     private static readonly object Gate = new();
     private static readonly Dictionary<string, Entry> Entries = new(StringComparer.Ordinal);
 
-    internal static IDisposable Acquire(string fullPath)
+    internal static IDisposable Acquire(string fullPath) => AcquireKey(Canonicalize(fullPath));
+
+    internal static async Task<IDisposable> AcquireAsync(string fullPath, CancellationToken cancellationToken = default)
+        => await AcquireKeyAsync(Canonicalize(fullPath), cancellationToken);
+
+    /// <summary>Locks a directory as a whole, under a key that no file lock shares.</summary>
+    internal static IDisposable AcquireDirectory(string fullPath) => AcquireKey(DirectoryKey(fullPath));
+
+    internal static Task<IDisposable> AcquireDirectoryAsync(string fullPath, CancellationToken cancellationToken = default)
+        => AcquireKeyAsync(DirectoryKey(fullPath), cancellationToken);
+
+    private static IDisposable AcquireKey(string key)
     {
-        var key = Canonicalize(fullPath);
         var entry = AddReference(key);
 
         try
@@ -21,9 +31,6 @@ internal static class PathAsyncMutex
             throw;
         }
     }
-
-    internal static async Task<IDisposable> AcquireAsync(string fullPath, CancellationToken cancellationToken = default)
-        => await AcquireKeyAsync(Canonicalize(fullPath), cancellationToken);
 
     internal static async Task<IDisposable> AcquireKeyAsync(string key, CancellationToken cancellationToken = default)
     {
@@ -49,6 +56,9 @@ internal static class PathAsyncMutex
             ? path.ToLowerInvariant()
             : path;
     }
+
+    private static string DirectoryKey(string fullPath) =>
+        "directory:" + Path.TrimEndingDirectorySeparator(Canonicalize(fullPath));
 
     private static Entry AddReference(string key)
     {

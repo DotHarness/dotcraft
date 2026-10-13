@@ -20,7 +20,7 @@ public sealed class ConsolidationLockTests : IDisposable
     }
 
     [Fact]
-    public void TryAcquire_RecordsTheAcquireTimeAndBlocksWhileTheHolderIsAlive()
+    public void TryAcquire_RecordsTheAcquireTimeAndBlocksAnotherHolderUntilReleased()
     {
         var now = DateTimeOffset.UtcNow;
 
@@ -30,24 +30,17 @@ public sealed class ConsolidationLockTests : IDisposable
         Assert.Null(held.PreviousConsolidatedAt);
         AssertTime(now, ConsolidationLock.LastConsolidatedAt(_store));
         Assert.Null(ConsolidationLock.TryAcquire(_store, now.AddMinutes(1)));
+
+        held.Commit();
+        var next = ConsolidationLock.TryAcquire(_store, now.AddMinutes(2));
+
+        Assert.NotNull(next);
+        AssertTime(now, next.PreviousConsolidatedAt);
+        next.Rollback();
     }
 
     [Fact]
-    public void TryAcquire_TakesOverADeadOrTimedOutHolder()
-    {
-        var now = DateTimeOffset.UtcNow;
-        DreamsTestWorkspace.SetLastConsolidated(_store, now.AddMinutes(-5), holder: int.MaxValue.ToString());
-        Assert.NotNull(ConsolidationLock.TryAcquire(_store, now));
-
-        DreamsTestWorkspace.SetLastConsolidated(_store, now.AddHours(-2), holder: Environment.ProcessId.ToString());
-        var held = ConsolidationLock.TryAcquire(_store, now);
-
-        Assert.NotNull(held);
-        AssertTime(now.AddHours(-2), held.PreviousConsolidatedAt);
-    }
-
-    [Fact]
-    public void Commit_KeepsTheAcquireTimeAndReleasesTheHolder()
+    public void Commit_KeepsTheAcquireTimeAndReleasesTheLock()
     {
         var acquiredAt = DateTimeOffset.UtcNow.AddMinutes(-1);
         DreamsTestWorkspace.SetLastConsolidated(_store, acquiredAt.AddDays(-2));
@@ -55,7 +48,7 @@ public sealed class ConsolidationLockTests : IDisposable
         ConsolidationLock.TryAcquire(_store, acquiredAt)!.Commit();
 
         AssertTime(acquiredAt, ConsolidationLock.LastConsolidatedAt(_store));
-        Assert.NotNull(ConsolidationLock.TryAcquire(_store, DateTimeOffset.UtcNow));
+        ConsolidationLock.TryAcquire(_store, DateTimeOffset.UtcNow)!.Rollback();
     }
 
     [Fact]
@@ -67,7 +60,7 @@ public sealed class ConsolidationLockTests : IDisposable
         ConsolidationLock.TryAcquire(_store, DateTimeOffset.UtcNow)!.Rollback();
 
         AssertTime(previous, ConsolidationLock.LastConsolidatedAt(_store));
-        Assert.NotNull(ConsolidationLock.TryAcquire(_store, DateTimeOffset.UtcNow));
+        ConsolidationLock.TryAcquire(_store, DateTimeOffset.UtcNow)!.Rollback();
     }
 
     [Fact]
@@ -75,6 +68,7 @@ public sealed class ConsolidationLockTests : IDisposable
     {
         ConsolidationLock.TryAcquire(_store, DateTimeOffset.UtcNow)!.Rollback();
 
+        Assert.False(File.Exists(Path.Combine(_store, ConsolidationLock.FileName)));
         Assert.Null(ConsolidationLock.LastConsolidatedAt(_store));
     }
 

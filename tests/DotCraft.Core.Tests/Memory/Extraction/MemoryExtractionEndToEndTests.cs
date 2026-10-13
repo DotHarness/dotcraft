@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
@@ -107,6 +108,29 @@ public sealed class MemoryExtractionEndToEndTests : IDisposable
         Assert.Equal("completed", outcome.RootElement.GetProperty("outcome").GetString());
     }
 
+    [Fact]
+    public async Task ExtractionForkOfARemoteConnectedThread_SavesTheMemoryOnThisMachine()
+    {
+        var memoryFile = Path.Combine(_memoryStore.MemoryDirectoryPath, "feedback_tests.md");
+        var chat = new ScriptedChatClient([WriteFile("call-memory", memoryFile, "Run only the focused tests.")]);
+        var remote = new RoutedRemoteClient();
+        await using var harness = await Harness.StartAsync(this, chat, remote);
+        remote.Connect(harness.Thread.Id);
+
+        for (var i = 1; i <= MemoryExtractionScheduler.Cadence; i++)
+            await harness.SubmitAsync($"Request {i}");
+        await harness.Scheduler.WhenIdleAsync();
+
+        var fork = Assert.Single(harness.Created);
+        Assert.Equal([fork], remote.Forked);
+        Assert.Equal(0, remote.RemoteCalls);
+        Assert.Equal("Run only the focused tests.", File.ReadAllText(memoryFile).Trim());
+        using var outcome = harness.Outcome(fork);
+        Assert.Equal(
+            ["feedback_tests.md"],
+            outcome.RootElement.GetProperty("writtenFiles").EnumerateArray().Select(file => file.GetString()));
+    }
+
     private static FunctionCallContent WriteFile(string callId, string path, string content) =>
         new(callId, "WriteFile", new Dictionary<string, object?> { ["path"] = path, ["content"] = content });
 
@@ -142,7 +166,10 @@ public sealed class MemoryExtractionEndToEndTests : IDisposable
 
         public ConcurrentQueue<string> Deleted { get; } = new();
 
-        public static async Task<Harness> StartAsync(MemoryExtractionEndToEndTests test, ScriptedChatClient chat)
+        public static async Task<Harness> StartAsync(
+            MemoryExtractionEndToEndTests test,
+            ScriptedChatClient chat,
+            IRemoteToolHostClient? remote = null)
         {
             var config = AppConfigTestFactory.CreateOpenAI();
             config.Memory.AutoExtract = true;
@@ -186,7 +213,8 @@ public sealed class MemoryExtractionEndToEndTests : IDisposable
                 chatClientRegistry: chatClientRegistry,
                 chatClient: chat,
                 toolDispatcher: new ToolDispatcher(approvalEvaluator: approvalStage, recorder: router, contributions: registry),
-                toolSources: [new CoreToolSource(config, chatClientRegistry, skills, approval, new StubBackgroundTerminalService())]);
+                toolSources: [new CoreToolSource(config, chatClientRegistry, skills, approval, new StubBackgroundTerminalService())],
+                remoteToolHostClient: remote);
             var service = new SessionService(
                 factory,
                 defaultAgent: null,
@@ -222,6 +250,71 @@ public sealed class MemoryExtractionEndToEndTests : IDisposable
         {
             Scheduler.Dispose();
             await _factory.DisposeAsync();
+        }
+    }
+
+    private sealed class RoutedRemoteClient : IRemoteToolHostClient
+    {
+        private readonly ConcurrentDictionary<string, RemoteToolRoute> _routes = new(StringComparer.Ordinal);
+        private int _remoteCalls;
+
+        public event Action<RemoteToolRouteChange>? RouteChanged { add { } remove { } }
+
+        public ConcurrentQueue<string> Forked { get; } = new();
+
+        public int RemoteCalls => Volatile.Read(ref _remoteCalls);
+
+        public void Connect(string threadId) =>
+            _routes[threadId] = new RemoteToolRoute("host-1", "workspace-1", "lease-1", "instance-1", "session-1");
+
+        public void UpdateRemoteToolSnapshot(string threadId, EffectiveToolSnapshot snapshot, string mode) { }
+
+        public ValueTask PrepareTurnAsync(string threadId, EffectiveToolSnapshot snapshot, string mode,
+            CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+
+        public void ReportTurn(string threadId, string turnId, TurnStatus status) { }
+
+        public ValueTask<RemoteToolHostCatalog> ListAsync(string threadId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ValueTask<RemoteToolConnectResult> ConnectAsync(string threadId, string hostId, string workspaceId,
+            CancellationToken cancellationToken = default, RemoteToolRouteInitiator initiator = RemoteToolRouteInitiator.Client) =>
+            throw new NotSupportedException();
+
+        public ValueTask<RemoteToolDisconnectResult> DisconnectAsync(string threadId,
+            CancellationToken cancellationToken = default, RemoteToolRouteInitiator initiator = RemoteToolRouteInitiator.Client) =>
+            ValueTask.FromResult(_routes.TryRemove(threadId, out var route)
+                ? new RemoteToolDisconnectResult(true, route)
+                : new RemoteToolDisconnectResult(false));
+
+        public bool TryGetRoute(string threadId, out RemoteToolRoute route) => _routes.TryGetValue(threadId, out route!);
+
+        public bool TryGetConnectionSnapshot(string threadId, out RemoteToolConnectionSnapshot snapshot)
+        {
+            snapshot = null!;
+            return false;
+        }
+
+        public bool TryForkRoute(string parentThreadId, string childThreadId)
+        {
+            if (!_routes.TryGetValue(parentThreadId, out var route))
+                return false;
+            _routes[childThreadId] = route;
+            Forked.Enqueue(childThreadId);
+            return true;
+        }
+
+        public ValueTask<string> WriteImageAsync(RemoteToolRoute route, string threadId, string callId, byte[] bytes,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public ValueTask<byte[]> ReadImageAsync(RemoteToolRoute route, string threadId, string callId, string path,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public ValueTask<ToolExecutionResult> InvokeAsync(RemoteToolRoute route, ToolDefinition definition, string contractHash,
+            ToolInvocationContext context, JsonObject arguments, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref _remoteCalls);
+            return ValueTask.FromResult(ToolExecutionResult.Succeeded("Written on the remote workspace."));
         }
     }
 

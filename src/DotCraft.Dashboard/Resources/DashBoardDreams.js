@@ -154,14 +154,16 @@ function computeLineDiff(oldText, newText) {
       additions++;
     }
   }
-  return { rows, additions, removals };
+  const reordered = !additions && !removals && oldLines.some((line, i) => line !== newLines[i]);
+  return { rows, additions, removals, reordered };
 }
 
 function renderLineDiff(diff) {
-  if (!diff.rows.length || (diff.additions === 0 && diff.removals === 0)) {
+  if (!diff.rows.length) {
     return '<span style="color:var(--text-muted)">No line changes.</span>';
   }
-  return diff.rows.map(r => {
+  const note = diff.reordered ? '<span class="dreams-diff-line" style="color:var(--text-muted)">Lines reordered.</span>' : '';
+  return note + diff.rows.map(r => {
     const marker = r.type === 'add' ? '+' : r.type === 'del' ? '-' : ' ';
     return `<span class="dreams-diff-line ${r.type}">${escapeHtml(marker + r.text)}</span>`;
   }).join('');

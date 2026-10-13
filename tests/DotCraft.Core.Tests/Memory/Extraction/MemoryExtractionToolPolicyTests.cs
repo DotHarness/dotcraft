@@ -53,7 +53,21 @@ public sealed class MemoryExtractionToolPolicyTests
         Assert.False(await AllowsAsync(tool, ".craft/memory/fact.md", kind));
     }
 
-    private async Task<bool> AllowsAsync(string tool, string path, ToolSourceKind kind = ToolSourceKind.CoreNative)
+    [Fact]
+    public async Task StoreWritesThatWouldRunOnARemoteWorkspace_AreDenied()
+    {
+        var remote = new ToolExecutionLocation("remote", "/remote/workspace");
+
+        Assert.False(await AllowsAsync("WriteFile", ".craft/memory/fact.md", location: remote));
+        Assert.False(await AllowsAsync("EditFile", ".craft/memory/MEMORY.md", location: remote));
+        Assert.True(await AllowsAsync("ReadFile", ".craft/memory/fact.md", location: remote));
+    }
+
+    private async Task<bool> AllowsAsync(
+        string tool,
+        string path,
+        ToolSourceKind kind = ToolSourceKind.CoreNative,
+        ToolExecutionLocation? location = null)
     {
         var registration = Registration(tool, kind);
         var context = new ToolInvocationContext(
@@ -66,7 +80,8 @@ public sealed class MemoryExtractionToolPolicyTests
             registration.Binding.Id,
             1,
             DateTimeOffset.UtcNow,
-            WorkspacePath: Workspace);
+            WorkspacePath: Workspace,
+            ExecutionLocation: location);
         var decision = await _policy.EvaluateAsync(
             context,
             registration,

@@ -14,9 +14,9 @@ internal sealed class MemoryExtractionToolPolicy(string storeDirectory) : IToolP
         ToolRegistration registration,
         JsonObject arguments,
         CancellationToken cancellationToken = default) =>
-        ValueTask.FromResult(Evaluate(context.WorkspacePath, registration, arguments));
+        ValueTask.FromResult(Evaluate(context, registration, arguments));
 
-    private ToolDispatchDecision Evaluate(string? workspacePath, ToolRegistration registration, JsonObject arguments)
+    private ToolDispatchDecision Evaluate(ToolInvocationContext context, ToolRegistration registration, JsonObject arguments)
     {
         var definition = registration.Definition;
         if (definition.Id.Kind != ToolSourceKind.CoreNative)
@@ -24,10 +24,11 @@ internal sealed class MemoryExtractionToolPolicy(string storeDirectory) : IToolP
         // Code mode dispatches each call its program makes through this policy.
         if (definition.Name == CodeModeToolName || EffectiveToolSnapshot.IsDeferredToolSearch(registration))
             return ToolDispatchDecision.Allow;
-        if (!FileToolAccess.TryResolveTarget(definition.Id.SourceToolId.Value, arguments, workspacePath, out var access, out var target))
+        if (!FileToolAccess.TryResolveTarget(definition.Id.SourceToolId.Value, arguments, context.WorkspacePath, out var access, out var target))
             return Refuse();
         if (access.Operation == "read"
-            || string.Equals(Path.GetExtension(target), ".md", StringComparison.OrdinalIgnoreCase)
+            || context.ExecutionLocation is not { Target: "remote" }
+            && string.Equals(Path.GetExtension(target), ".md", StringComparison.OrdinalIgnoreCase)
             && WorkspaceBoundary.IsWithin(target, storeDirectory))
         {
             return ToolDispatchDecision.Allow;

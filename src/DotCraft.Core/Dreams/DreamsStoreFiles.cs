@@ -17,8 +17,7 @@ internal static partial class DreamsStoreFiles
         string.Equals(name, MemoryStore.IndexFileName, StringComparison.OrdinalIgnoreCase);
 
     public static bool HasMemoryFiles(string directory) =>
-        Directory.Exists(directory)
-        && Directory.EnumerateFiles(directory, "*.md", SearchOption.TopDirectoryOnly).Any(path => !IsIndex(Path.GetFileName(path)));
+        Directory.Exists(directory) && MarkdownFiles(directory).Any(path => !IsIndex(Path.GetFileName(path)));
 
     public static Dictionary<string, byte[]> Read(string directory)
     {
@@ -26,14 +25,14 @@ internal static partial class DreamsStoreFiles
         if (!Directory.Exists(directory))
             return files;
 
-        foreach (var path in Directory.EnumerateFiles(directory, "*.md", SearchOption.TopDirectoryOnly))
-        {
-            if (string.Equals(Path.GetExtension(path), ".md", StringComparison.OrdinalIgnoreCase))
-                files[Path.GetFileName(path)] = File.ReadAllBytes(path);
-        }
-
+        foreach (var path in MarkdownFiles(directory))
+            files[Path.GetFileName(path)] = File.ReadAllBytes(path);
         return files;
     }
+
+    private static IEnumerable<string> MarkdownFiles(string directory) =>
+        Directory.EnumerateFiles(directory)
+            .Where(static path => string.Equals(Path.GetExtension(path), ".md", StringComparison.OrdinalIgnoreCase));
 
     public static void Write(string directory, IReadOnlyDictionary<string, byte[]> files)
     {
@@ -117,6 +116,7 @@ internal static partial class DreamsStoreFiles
         IReadOnlyDictionary<string, byte[]> replacement)
     {
         Directory.CreateDirectory(storeDirectory);
+        using var storeLock = PathAsyncMutex.AcquireDirectory(storeDirectory);
         using var indexLock = PathAsyncMutex.Acquire(Path.Combine(storeDirectory, MemoryStore.IndexFileName));
         var current = Read(storeDirectory);
         if (!SameFiles(current, expected))

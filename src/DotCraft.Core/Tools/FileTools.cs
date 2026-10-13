@@ -163,6 +163,11 @@ public sealed class FileTools(
             ? "\n\n" + notice
             : string.Empty;
 
+    private async Task<IDisposable?> AcquireMemoryStoreLockAsync(string fullPath) =>
+        memoryStoreDirectory is not null && WorkspaceBoundary.IsWithin(fullPath, memoryStoreDirectory)
+            ? await PathAsyncMutex.AcquireDirectoryAsync(memoryStoreDirectory)
+            : null;
+
     private static bool TryGetImageMediaType(string fullPath, out string mediaType)
     {
         var ext = Path.GetExtension(fullPath);
@@ -191,6 +196,7 @@ public sealed class FileTools(
             if (validateResult != null)
                 return outcome.Fail(validateResult, ToolErrorCodes.AccessDenied);
 
+            using (await AcquireMemoryStoreLockAsync(fullPath))
             using (await PathAsyncMutex.AcquireAsync(fullPath))
             {
                 var directory = Path.GetDirectoryName(fullPath);
@@ -245,6 +251,7 @@ public sealed class FileTools(
 
             ToolExecutionResult result;
             string? writtenContent;
+            using (await AcquireMemoryStoreLockAsync(fullPath))
             using (await PathAsyncMutex.AcquireAsync(fullPath))
             {
                 if (!File.Exists(fullPath))

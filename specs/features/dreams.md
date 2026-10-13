@@ -40,7 +40,7 @@ Dreams keeps memory accurate and compact while the host runs, without an open cl
 | **Baseline** | A snapshot of the store's files taken when the run starts. |
 | **Candidate store** | A working copy of the baseline that the run edits into the consolidated store. |
 | **Dream Run Thread** | The internal Session Core Thread that performs a run's model work. |
-| **Consolidation lock** | `.consolidate-lock` inside a store. Its modification time records the store's last consolidation, and it keeps two processes from consolidating one store at once. |
+| **Consolidation lock** | `.consolidate-lock` inside a store. Its modification time records the store's last consolidation. A run holds it exclusively until it finishes, so two processes never consolidate one store at once, and a process that exits releases it. |
 
 How memory is maintained:
 

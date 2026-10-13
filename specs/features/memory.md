@@ -139,7 +139,7 @@ Save rules:
 - Before saving, the agent updates a memory that already covers the knowledge rather than adding a duplicate, and deletes memories that proved wrong.
 - When unsure whether knowledge outlasts the current task, the agent does not save it.
 
-The resolved store is writable for every memory-enabled Thread, regardless of its mode, working directory, worktree, or workspace-boundary approval policy. The exemption covers the store and nothing else.
+The resolved store is writable for every memory-enabled Thread, regardless of its mode, working directory, worktree, or workspace-boundary approval policy. The exemption covers the store and nothing else. File operations on the store always run on the machine that hosts the workspace, even when the Thread is connected to a remote workspace, and writes to it are serialized with Dreams applying or restoring a run.
 
 A write that leaves the index beyond 80% of either load limit ends with a notice asking the agent to compact the index now: one line per entry, detail moved into memory files, and stale entries merged or dropped.
 

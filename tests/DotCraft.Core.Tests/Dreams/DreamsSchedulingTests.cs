@@ -85,10 +85,12 @@ public sealed class DreamsSchedulingTests : IDisposable
     public async Task ScheduledCheck_WhileAnotherProcessHoldsTheLock_CreatesNoRun()
     {
         _workspace.Config.Dreams.Interval = TimeSpan.FromMinutes(1);
-        DreamsTestWorkspace.SetLastConsolidated(_workspace.WorkspaceStore, DateTimeOffset.UtcNow.AddMinutes(-10), Environment.ProcessId.ToString());
+        DreamsTestWorkspace.SetLastConsolidated(_workspace.WorkspaceStore, DateTimeOffset.UtcNow.AddMinutes(-10));
         for (var i = 0; i < 3; i++)
             await _workspace.SaveThreadAsync($"thread_{i}");
         await using var service = _workspace.CreateService(_runner);
+        await using var otherProcess = new FileStream(
+            Path.Combine(_workspace.WorkspaceStore, ConsolidationLock.FileName), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
 
         Assert.Empty(await service.RunScheduledCheckAsync());
         Assert.Empty(_runner.Inputs);

@@ -237,6 +237,29 @@ public sealed class DreamsReviewTests : IDisposable
     }
 
     [Fact]
+    public async Task Reset_KeepsAnApplyFromRestoringClearedMemory()
+    {
+        await _workspace.SaveThreadAsync("thread_one");
+        _runner.Edit = input => File.WriteAllText(Path.Combine(input.CandidateDirectory, "added.md"), "new fact");
+        await using var service = _workspace.CreateService(_runner);
+        var run = await RunAsync(service);
+        Task<DreamsRunState?>? apply = null;
+        var appliedDuringReset = true;
+
+        await service.ResetAsync(() =>
+        {
+            MemoryScopes.ClearAll(new MemoryStore(_workspace.CraftPath));
+            apply = Task.Run(() => service.ApplyRun(run.Id));
+            appliedDuringReset = apply.Wait(TimeSpan.FromMilliseconds(200));
+        });
+
+        Assert.False(appliedDuringReset);
+        Assert.Null(await apply!);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Store));
+        Assert.Empty(service.ListRuns(includeArchived: true));
+    }
+
+    [Fact]
     public async Task Cancel_EndsTheRunCanceledAndRestoresTheLockTime()
     {
         WriteStore();

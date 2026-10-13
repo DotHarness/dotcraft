@@ -219,8 +219,11 @@ public sealed partial class DreamsService : IAsyncDisposable
         await _runGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            clearStores();
-            _artifacts.ClearAll();
+            lock (_reviewSync)
+            {
+                clearStores();
+                _artifacts.ClearAll();
+            }
         }
         finally
         {
@@ -267,7 +270,16 @@ public sealed partial class DreamsService : IAsyncDisposable
 
     private async Task<DreamsRunState> RunAsync(PlannedRun plan, DreamsRunState? state, CancellationToken batchToken)
     {
-        state ??= CreateRunState(plan);
+        try
+        {
+            state ??= CreateRunState(plan);
+        }
+        catch
+        {
+            plan.Lock?.Rollback();
+            throw;
+        }
+
         using var runCts = CancellationTokenSource.CreateLinkedTokenSource(batchToken);
         _activeRunCts = runCts;
         _activeRunId = state.Id;

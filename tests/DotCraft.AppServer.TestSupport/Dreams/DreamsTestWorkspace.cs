@@ -64,9 +64,9 @@ public sealed class DreamsTestWorkspace : IDisposable
         return path;
     }
 
-    public static void SetLastConsolidated(string store, DateTimeOffset at, string holder = "")
+    public static void SetLastConsolidated(string store, DateTimeOffset at)
     {
-        var path = WriteFile(store, ConsolidationLock.FileName, holder);
+        var path = WriteFile(store, ConsolidationLock.FileName, string.Empty);
         File.SetLastWriteTimeUtc(path, at.UtcDateTime);
     }
 

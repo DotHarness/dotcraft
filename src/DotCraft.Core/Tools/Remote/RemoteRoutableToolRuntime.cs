@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotCraft.Security;
 
 namespace DotCraft.Tools;
 
@@ -11,7 +12,8 @@ internal sealed class RemoteRoutableToolRuntime(
     ToolDefinition definition,
     IToolRuntime localRuntime,
     IRemoteToolHostClient remoteClient,
-    ToolBindingAvailability localAvailability = ToolBindingAvailability.Available) : IToolRuntime
+    ToolBindingAvailability localAvailability = ToolBindingAvailability.Available,
+    string? memoryStoreDirectory = null) : IToolRuntime
 {
     private readonly ToolDefinition _definition = definition ?? throw new ArgumentNullException(nameof(definition));
     private readonly IToolRuntime _localRuntime = localRuntime ?? throw new ArgumentNullException(nameof(localRuntime));
@@ -40,7 +42,7 @@ internal sealed class RemoteRoutableToolRuntime(
             throw new RemoteToolHostException(ToolErrorCodes.InputInvalid, "'target' must be 'local' or 'remote'.");
         }
 
-        if (target == "local")
+        if (target == "local" || TargetsMemoryStore(context, arguments))
             return context with { ExecutionLocation = new("local", context.WorkspacePath) };
         if (_remoteClient.TryGetRoute(context.ThreadId, out var route))
         {
@@ -51,6 +53,12 @@ internal sealed class RemoteRoutableToolRuntime(
             throw new RemoteToolHostException(RemoteToolErrorCodes.LeaseLost, "No remote workspace is connected.");
         return context with { ExecutionLocation = new("local", context.WorkspacePath) };
     }
+
+    private bool TargetsMemoryStore(ToolInvocationContext context, JsonObject arguments) =>
+        memoryStoreDirectory is not null
+        && _definition.Id.Kind == ToolSourceKind.CoreNative
+        && FileToolAccess.TryResolveTarget(_definition.Id.SourceToolId.Value, arguments, context.WorkspacePath, out _, out var target)
+        && WorkspaceBoundary.IsWithin(target, memoryStoreDirectory);
 
     public async ValueTask<ToolExecutionResult> InvokeAsync(
         ToolInvocationContext context,
@@ -87,7 +95,8 @@ internal static class RemoteToolRegistrationRouter
 {
     public static IReadOnlyList<ToolRegistration> Wrap(
         IReadOnlyList<ToolRegistration> registrations,
-        IRemoteToolHostClient? remoteClient)
+        IRemoteToolHostClient? remoteClient,
+        string? memoryStoreDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(registrations);
         if (remoteClient is null)
@@ -110,7 +119,8 @@ internal static class RemoteToolRegistrationRouter
             var routedBinding = new ToolRuntimeBinding(
                 binding.Id,
                 binding.DefinitionId,
-                new RemoteRoutableToolRuntime(registration.Definition, binding.Runtime, remoteClient, binding.Availability),
+                new RemoteRoutableToolRuntime(registration.Definition, binding.Runtime, remoteClient, binding.Availability,
+                    memoryStoreDirectory),
                 binding.Lease,
                 binding.AuthorityReference,
                 binding.Revision,

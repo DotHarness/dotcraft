@@ -26,6 +26,7 @@ public sealed class MemoryStore
 
     public void ClearAll()
     {
+        using var storeLock = PathAsyncMutex.AcquireDirectory(MemoryDirectoryPath);
         using var indexLock = PathAsyncMutex.Acquire(IndexFilePath);
         RejectReparsePointRoot();
         Directory.CreateDirectory(MemoryDirectoryPath);
