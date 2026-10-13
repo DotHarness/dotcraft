@@ -11,6 +11,8 @@ export interface McpServerOriginWire {
   declaredName?: string | null
 }
 
+export type McpOAuthConfigWire = import('@dotcraft/sdk/contracts').McpOAuthConfig
+
 export interface McpServerConfigWire {
   name: string
   enabled: boolean
@@ -22,6 +24,7 @@ export interface McpServerConfigWire {
   cwd?: string | null
   url?: string | null
   bearerTokenEnvVar?: string | null
+  oauth?: McpOAuthConfigWire | null
   httpHeaders?: Record<string, string> | null
   envHttpHeaders?: Record<string, string> | null
   startupTimeoutSec?: number | null

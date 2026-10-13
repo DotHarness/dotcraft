@@ -80,14 +80,15 @@ internal static class ThreadConfigurationContractMapper
         Speed = ParseEnum(ValueOrDefault(value.Speed), InferenceSpeed.Standard),
     };
 
-    public static Domain.ThreadConfiguration FromContract(Contract.ThreadConfiguration value) => new()
+    public static Domain.ThreadConfiguration FromContract(Contract.ThreadConfiguration value, Domain.ThreadConfiguration? existing = null) => new()
     {
         AgentProfileId = ValueOrDefault(value.AgentProfileId),
         AgentProfileSource = ValueOrDefault(value.AgentProfileSource),
         AgentProfileFingerprint = ValueOrDefault(value.AgentProfileFingerprint),
         AgentBuilderTargetId = ValueOrDefault(value.AgentBuilderTargetId),
         AgentBuilderTargetSource = ValueOrDefault(value.AgentBuilderTargetSource),
-        McpServers = ValueOrDefault(value.McpServers)?.Select(FromContract).ToArray(),
+        McpServers = ValueOrDefault(value.McpServers)?.Select(server => FromContract(server, existing?.McpServers?.FirstOrDefault(previous =>
+            string.Equals(previous.Name, ValueOrDefault(server.Name), StringComparison.OrdinalIgnoreCase)))).ToArray(),
         Mode = ValueOrDefault(value.Mode) ?? "agent",
         Extensions = ValueOrDefault(value.Extensions)?.ToArray(),
         CustomTools = ValueOrDefault(value.CustomTools)?.ToArray(),
@@ -132,11 +133,12 @@ internal static class ThreadConfigurationContractMapper
         Headers = value.Headers,
         EnvHttpHeaders = value.EnvHttpHeaders,
         BearerTokenEnvVar = OmitIfNull(value.BearerTokenEnvVar),
+        OAuth = McpOAuthContractMapper.ToContract(value.OAuth),
         StartupTimeoutSec = OmitIfNull(value.StartupTimeoutSec),
         ToolTimeoutSec = OmitIfNull(value.ToolTimeoutSec)
     };
 
-    private static McpServerConfig FromContract(Contract.ThreadMcpServerConfig value) => new()
+    private static McpServerConfig FromContract(Contract.ThreadMcpServerConfig value, McpServerConfig? existing = null) => new()
     {
         Name = ValueOrDefault(value.Name) ?? string.Empty,
         Enabled = value.Enabled.IsSet ? value.Enabled.Value : true,
@@ -150,6 +152,7 @@ internal static class ThreadConfigurationContractMapper
         Headers = ValueOrDefault(value.Headers)?.ToDictionary() ?? [],
         EnvHttpHeaders = ValueOrDefault(value.EnvHttpHeaders)?.ToDictionary() ?? [],
         BearerTokenEnvVar = ValueOrDefault(value.BearerTokenEnvVar),
+        OAuth = McpOAuthContractMapper.FromContract(value.OAuth, existing?.OAuth),
         StartupTimeoutSec = ValueOrDefault(value.StartupTimeoutSec),
         ToolTimeoutSec = ValueOrDefault(value.ToolTimeoutSec)
     };

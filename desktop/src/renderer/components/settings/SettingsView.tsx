@@ -73,16 +73,7 @@ import { SettingsBreadcrumb } from './SettingsBreadcrumb'
 import { PluginCatalogItem, pluginTitle } from '../plugins/PluginCatalogItem'
 import { PluginInstallDialog } from '../plugins/PluginInstallDialog'
 import { showPluginInstalledToast } from '../plugins/pluginToasts'
-import {
-  EditableKeyValueList,
-  EditableValueList,
-  normalizeKeyValueRows,
-  normalizeValueRows,
-  rowsToRecord,
-  rowsToValues,
-  type KeyValueRow,
-  type ValueRow
-} from './ui/EditableList'
+
 import { SettingsSelect } from './ui/SettingsSelect'
 import { DreamsPanel } from './panels/memory/DreamsPanel'
 import { MemorySettingsGroup } from './panels/memory/MemorySettingsGroup'
@@ -105,10 +96,12 @@ import { ProfilePanel } from './panels/ProfilePanel'
 import { ProfileView } from './ProfileView'
 import { ProviderModelSummary } from './ProviderModelSummary'
 import { McpPanel } from './panels/McpPanel'
+import { McpServerEditor } from './panels/mcp/McpServerEditor'
+import { isPluginManagedMcpServer, McpServerList } from './panels/mcp/McpServerList'
+import { oauthPayload, useMcpDraft } from './panels/mcp/useMcpDraft'
 import {
   StatusIndicator,
   statusTextStyle,
-  type StatusIndicatorTone,
   type StatusTone
 } from './panels/settingsStatusStyles'
 import { coreSettingsPanels } from './coreSettingsPanels'
@@ -120,8 +113,7 @@ import {
 import {
   useMcpStore,
   type McpServerConfigWire,
-  type McpServerStatusWire,
-  type McpTransport
+  type McpServerStatusWire
 } from '../../stores/mcpStore'
 import type {
   BinarySource,
@@ -286,57 +278,11 @@ const REMOTE_URL_ERROR_KEYS: Record<RemoteConnectionValidationCode, MessageKey> 
   'unsupported-protocol': 'settings.remoteUrlError.protocol'
 }
 
-function createEmptyMcpServer(): McpServerConfigWire {
-  return {
-    name: '',
-    enabled: true,
-    transport: 'stdio',
-    command: '',
-    args: [],
-    env: {},
-    envVars: [],
-    cwd: '',
-    url: '',
-    bearerTokenEnvVar: '',
-    httpHeaders: {},
-    envHttpHeaders: {},
-    startupTimeoutSec: null,
-    toolTimeoutSec: null
-  }
-}
-
-function isPluginManagedMcpServer(server: McpServerConfigWire, originsEnabled: boolean): boolean {
-  return (originsEnabled && server.origin?.kind === 'plugin') || server.readOnly === true
-}
-
 function toContractMcpServer(server: McpServerConfigWire) {
   return {
     ...server,
+    oauth: oauthPayload(server.oauth),
     origin: server.origin ? { ...server.origin } : server.origin
-  }
-}
-
-function mcpPluginSourceLabel(server: McpServerConfigWire, t: (key: MessageKey | string, vars?: Record<string, string | number>) => string): string {
-  return t('settings.mcp.origin.fromPlugin', {
-    plugin: server.origin?.pluginDisplayName || server.origin?.pluginId || 'plugin'
-  })
-}
-
-function getStatusTone(
-  t: (key: MessageKey | string, vars?: Record<string, string | number>) => string,
-  status?: McpServerStatusWire
-): { label: string; tone: StatusIndicatorTone } {
-  switch (status?.startupState) {
-    case 'ready':
-      return { label: t('settings.mcp.status.connected'), tone: 'success' }
-    case 'starting':
-      return { label: t('settings.mcp.status.connecting'), tone: 'pending' }
-    case 'error':
-      return { label: t('settings.mcp.status.error'), tone: 'error' }
-    case 'disabled':
-      return { label: t('settings.mcp.disabledSuffix').replace(/^ · /, ''), tone: 'neutral' }
-    default:
-      return { label: t('settings.mcp.status.idle'), tone: 'neutral' }
   }
 }
 
@@ -432,20 +378,6 @@ function normalizeBrowserUseDomainInput(input: string): string | null {
     return domain || null
   } catch {
     return null
-  }
-}
-
-function mcpSourcePillStyle(): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    minHeight: 20,
-    padding: '2px 7px',
-    borderRadius: 999,
-    backgroundColor: 'var(--bg-tertiary)',
-    color: 'var(--text-secondary)',
-    fontSize: 11,
-    fontWeight: 600
   }
 }
 
@@ -582,13 +514,8 @@ export function SettingsView({
   const [mcpServers, setMcpServers] = useState<McpServerConfigWire[]>([])
   const [mcpLoading, setMcpLoading] = useState(false)
   const [mcpError, setMcpError] = useState<string | null>(null)
-  const [editingServerName, setEditingServerName] = useState<string | null>(null)
-  const [mcpDraft, setMcpDraft] = useState<McpServerConfigWire>(createEmptyMcpServer())
-  const [argRows, setArgRows] = useState<ValueRow[]>(normalizeValueRows([]))
-  const [envRows, setEnvRows] = useState<KeyValueRow[]>(normalizeKeyValueRows({}))
-  const [envVarRows, setEnvVarRows] = useState<ValueRow[]>(normalizeValueRows([]))
-  const [httpHeaderRows, setHttpHeaderRows] = useState<KeyValueRow[]>(normalizeKeyValueRows({}))
-  const [envHttpHeaderRows, setEnvHttpHeaderRows] = useState<KeyValueRow[]>(normalizeKeyValueRows({}))
+  const mcpEditor = useMcpDraft()
+  const { editingServerName, mcpDraft, buildDraftPayload } = mcpEditor
   const [testingMcp, setTestingMcp] = useState(false)
   const [savingMcp, setSavingMcp] = useState(false)
   const [deletingMcp, setDeletingMcp] = useState(false)
@@ -1466,57 +1393,13 @@ export function SettingsView({
 
   function startMcpDraft(server?: McpServerConfigWire): void {
     if (server && isPluginManagedMcpServer(server, mcpOriginsEnabled)) return
-    const next = server
-      ? {
-          ...createEmptyMcpServer(),
-          ...server,
-          args: [...(server.args ?? [])],
-          env: { ...(server.env ?? {}) },
-          envVars: [...(server.envVars ?? [])],
-          httpHeaders: { ...(server.httpHeaders ?? {}) },
-          envHttpHeaders: { ...(server.envHttpHeaders ?? {}) }
-        }
-      : createEmptyMcpServer()
-    setEditingServerName(server?.name ?? '__new__')
-    setMcpDraft(next)
-    setArgRows(normalizeValueRows(next.args))
-    setEnvRows(normalizeKeyValueRows(next.env))
-    setEnvVarRows(normalizeValueRows(next.envVars))
-    setHttpHeaderRows(normalizeKeyValueRows(next.httpHeaders))
-    setEnvHttpHeaderRows(normalizeKeyValueRows(next.envHttpHeaders))
+    mcpEditor.startMcpDraft(server)
     setMcpTestResult(null)
   }
 
   function cancelMcpEdit(): void {
-    setEditingServerName(null)
-    setMcpDraft(createEmptyMcpServer())
-    setArgRows(normalizeValueRows([]))
-    setEnvRows(normalizeKeyValueRows({}))
-    setEnvVarRows(normalizeValueRows([]))
-    setHttpHeaderRows(normalizeKeyValueRows({}))
-    setEnvHttpHeaderRows(normalizeKeyValueRows({}))
+    mcpEditor.cancelMcpEdit()
     setMcpTestResult(null)
-  }
-
-  function buildDraftPayload(): McpServerConfigWire {
-    const transport = mcpDraft.transport
-    return {
-      name: mcpDraft.name.trim(),
-      enabled: mcpDraft.enabled,
-      transport,
-      command: transport === 'stdio' ? mcpDraft.command?.trim() ?? '' : null,
-      args: transport === 'stdio' ? rowsToValues(argRows) : null,
-      env: transport === 'stdio' ? rowsToRecord(envRows) : null,
-      envVars: transport === 'stdio' ? rowsToValues(envVarRows) : null,
-      cwd: transport === 'stdio' ? (mcpDraft.cwd?.trim() || null) : null,
-      url: transport === 'streamableHttp' ? mcpDraft.url?.trim() ?? '' : null,
-      bearerTokenEnvVar:
-        transport === 'streamableHttp' ? mcpDraft.bearerTokenEnvVar?.trim() || null : null,
-      httpHeaders: transport === 'streamableHttp' ? rowsToRecord(httpHeaderRows) : null,
-      envHttpHeaders: transport === 'streamableHttp' ? rowsToRecord(envHttpHeaderRows) : null,
-      startupTimeoutSec: mcpDraft.startupTimeoutSec ?? null,
-      toolTimeoutSec: mcpDraft.toolTimeoutSec ?? null
-    }
   }
 
   async function reloadMcpServers(): Promise<void> {
@@ -1560,31 +1443,12 @@ export function SettingsView({
     const payload = buildDraftPayload()
     setSavingMcp(true)
     try {
-      const originalName = editingServerName !== '__new__' ? editingServerName?.trim() ?? null : null
-      const nextName = payload.name.trim()
-      const isRename =
-        originalName !== null &&
-        originalName.localeCompare(nextName, undefined, { sensitivity: 'accent' }) !== 0
-
-      let renameCleanupFailed = false
-      if (isRename) {
-        try {
-          await window.api.appServer.sendRequest('mcp/remove', { name: originalName, scope: mcpServers.find(server => server.name === originalName)?.origin?.kind === 'user' ? 'user' : 'workspace' })
-        } catch (err) {
-          renameCleanupFailed = true
-          console.warn('Failed to remove old MCP server before rename save', err)
-        }
-      }
-
       await window.api.appServer.sendRequest('mcp/upsert', {
         scope: mcpServers.find(server => server.name === editingServerName)?.origin?.kind === 'user' ? 'user' : 'workspace',
         server: toContractMcpServer(payload)
       })
       await Promise.all([reloadMcpServers(), reloadMcpStatuses()])
       setMcpSavedHint(t('settings.savedToast'))
-      if (renameCleanupFailed) {
-        addToast('MCP server saved, but the old server entry may still exist', 'error')
-      }
       cancelMcpEdit()
     } catch (err) {
       addToast(`Failed to save MCP server: ${err instanceof Error ? err.message : String(err)}`, 'error')
@@ -3142,296 +3006,24 @@ export function SettingsView({
                 )}
 
                 {mcpEnabled && editingServerName === null && (
-                  <>
-                    {mcpLoading && (
-                      <SettingsGroup title={t('settings.group.servers')}>
-                        <SettingsRow>
-                        <div style={{ fontSize: '13px', color: 'var(--text-dimmed)' }}>
-                          {t('settings.mcp.loading')}
-                        </div>
-                        </SettingsRow>
-                      </SettingsGroup>
-                    )}
-
-                    {!mcpLoading && mcpError && (
-                      <SettingsGroup title={t('settings.group.servers')}>
-                        <SettingsRow>
-                        <div style={{ fontSize: '13px', color: 'var(--error)' }}>{mcpError}</div>
-                        </SettingsRow>
-                      </SettingsGroup>
-                    )}
-
-                    {!mcpLoading && !mcpError && mergedMcpServers.length === 0 && (
-                      <SettingsGroup title={t('settings.group.servers')}>
-                        <SettingsRow>
-                          <div style={settingsPlaceholderStyle()}>{t('settings.mcp.empty.title')}</div>
-                        </SettingsRow>
-                      </SettingsGroup>
-                    )}
-
-                    {!mcpLoading && !mcpError && mergedMcpServers.length > 0 && (
-                      <SettingsGroup title={t('settings.group.servers')} flush>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {mergedMcpServers.map((server) => {
-                        const status = mcpStatuses[server.name.trim().toLowerCase()]
-                        const tone = getStatusTone(t, status)
-                        const isToggling = togglingServerName === server.name
-                        const isPluginManaged = isPluginManagedMcpServer(server, mcpOriginsEnabled)
-                        const transportLabel =
-                          server.transport === 'stdio'
-                            ? t('settings.mcp.transport.stdio')
-                            : t('settings.mcp.transport.http')
-                        const toolCountLabel =
-                          typeof status?.toolCount === 'number'
-                            ? t('settings.mcp.toolsCountSuffix', { count: status.toolCount }).replace(/^ · /, '')
-                            : null
-                        return (
-                          <div
-                            key={server.name}
-                            role={isPluginManaged ? undefined : 'button'}
-                            tabIndex={isPluginManaged ? undefined : 0}
-                            aria-label={isPluginManaged ? `MCP server ${server.name}` : `Edit MCP server ${server.name}`}
-                            onClick={isPluginManaged ? undefined : () => startMcpDraft(server)}
-                            onKeyDown={(event) => {
-                              if (isPluginManaged) return
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault()
-                                startMcpDraft(server)
-                              }
-                            }}
-                            style={{
-                              ...cardStyle(),
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: '16px',
-                              cursor: isPluginManaged ? 'default' : 'pointer',
-                              textAlign: 'left',
-                              opacity: isToggling ? 0.7 : 1
-                            }}
-                          >
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                {server.name}
-                              </div>
-                              <div
-                                style={{
-                                  marginTop: '4px',
-                                  fontSize: '12px',
-                                  color: 'var(--text-dimmed)',
-                                  display: 'flex',
-                                  flexWrap: 'wrap',
-                                  alignItems: 'center',
-                                  gap: '6px'
-                                }}
-                              >
-                                <span>{transportLabel}</span>
-                                {isPluginManaged && (
-                                  <>
-                                    <span aria-hidden>·</span>
-                                    <span style={mcpSourcePillStyle()}>
-                                      {mcpPluginSourceLabel(server, t)}
-                                    </span>
-                                  </>
-                                )}
-                                <span aria-hidden>·</span>
-                                <span style={{ ...statusTextStyle(), fontSize: 'inherit', fontWeight: 500 }}>
-                                  <StatusIndicator tone={tone.tone} />
-                                  {tone.label}
-                                </span>
-                                {toolCountLabel && (
-                                  <>
-                                    <span aria-hidden>·</span>
-                                    <span>{toolCountLabel}</span>
-                                  </>
-                                )}
-                              </div>
-                              {status?.lastError && (
-                                <div style={{ fontSize: '12px', color: 'var(--error)', marginTop: '8px' }}>
-                                  {status.lastError}
-                                </div>
-                              )}
-                            </div>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                            {status?.authStatus === 'notLoggedIn' && (
-                              <Button
-                                disabled={authenticatingMcpName === server.name}
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  void handleMcpOAuthLogin(server)
-                                }}
-                              >
-                                {authenticatingMcpName === server.name
-                                  ? t('settings.mcp.authenticating')
-                                  : status.failureReason === 'reauthenticationRequired'
-                                    ? t('settings.mcp.reauthenticate')
-                                    : t('settings.mcp.authenticate')}
-                              </Button>
-                            )}
-                            {isPluginManaged ? (
-                              <Button
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  void handleViewPluginMcp(server)
-                                }}
-                              >
-                                {t('settings.mcp.viewPlugin')}
-                              </Button>
-                            ) : (
-                              <span
-                                onClick={(event) => event.stopPropagation()}
-                                onKeyDown={(event) => event.stopPropagation()}
-                                style={{ flexShrink: 0, display: 'inline-flex' }}
-                              >
-                                <PillSwitch
-                                  checked={server.enabled}
-                                  disabled={isToggling}
-                                  onChange={(checked) => {
-                                    void handleMcpQuickToggle(server, checked)
-                                  }}
-                                  aria-label={`Toggle MCP server ${server.name}`}
-                                />
-                              </span>
-                            )}
-                            </div>
-                          </div>
-                        )
-                      })}
-                      </div>
-                      </SettingsGroup>
-                    )}
-                  </>
+                  <McpServerList
+                    servers={mergedMcpServers}
+                    statuses={mcpStatuses}
+                    loading={mcpLoading}
+                    error={mcpError}
+                    originsEnabled={mcpOriginsEnabled}
+                    togglingServerName={togglingServerName}
+                    authenticatingServerName={authenticatingMcpName}
+                    onEdit={startMcpDraft}
+                    onToggle={(server, enabled) => void handleMcpQuickToggle(server, enabled)}
+                    onAuthenticate={(server) => void handleMcpOAuthLogin(server)}
+                    onViewPlugin={(server) => void handleViewPluginMcp(server)}
+                  />
                 )}
 
                 {mcpEnabled && editingServerName !== null && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <SettingsGroup title={t('settings.group.identity')} flush>
-                      <label style={sectionLabelStyle()}>{t('settings.mcp.field.name')}</label>
-                      <Input
-                        value={mcpDraft.name}
-                        onChange={(e) => setMcpDraft((prev) => ({ ...prev, name: e.target.value }))}
-                        placeholder={t('settings.mcp.field.namePlaceholder')}
-                      />
-                      <div style={{ marginTop: '12px' }}>
-                        <SegmentedControl<McpTransport>
-                          value={mcpDraft.transport}
-                          options={[
-                            { value: 'stdio', label: t('settings.mcp.transport.stdio') },
-                            { value: 'streamableHttp', label: t('settings.mcp.transport.http') }
-                          ]}
-                          onChange={(transport) => setMcpDraft((prev) => ({ ...prev, transport }))}
-                          ariaLabel={t('channels.transport')}
-                        />
-                      </div>
-                    </SettingsGroup>
-
-                    {mcpDraft.transport === 'stdio' && (
-                      <>
-                        <SettingsGroup title={t('settings.group.command')} flush>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                            <div>
-                              <label style={sectionLabelStyle()}>{t('settings.mcp.field.command')}</label>
-                              <Input
-                                value={mcpDraft.command ?? ''}
-                                onChange={(e) => setMcpDraft((prev) => ({ ...prev, command: e.target.value }))}
-                                placeholder="npx"
-                                mono
-                              />
-                            </div>
-
-                            <div>
-                              <div style={sectionLabelStyle()}>{t('settings.mcp.field.args')}</div>
-                              <EditableValueList
-                                rows={argRows}
-                                setRows={setArgRows}
-                                placeholder={t('settings.mcp.field.argsPlaceholder')}
-                              />
-                            </div>
-
-                            <div>
-                              <label style={sectionLabelStyle()}>{t('settings.mcp.field.cwd')}</label>
-                              <Input
-                                value={mcpDraft.cwd ?? ''}
-                                onChange={(e) => setMcpDraft((prev) => ({ ...prev, cwd: e.target.value }))}
-                                placeholder="~/code"
-                                mono
-                              />
-                            </div>
-                          </div>
-                        </SettingsGroup>
-
-                        <SettingsGroup title={t('settings.group.environment')} flush>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                            <div>
-                              <div style={sectionLabelStyle()}>{t('settings.mcp.field.env')}</div>
-                              <EditableKeyValueList
-                                rows={envRows}
-                                setRows={setEnvRows}
-                                keyPlaceholder={t('settings.mcp.keyPlaceholder')}
-                                valuePlaceholder={t('settings.mcp.valuePlaceholder')}
-                              />
-                            </div>
-
-                            <div>
-                              <div style={sectionLabelStyle()}>{t('settings.mcp.field.envForwarding')}</div>
-                              <EditableValueList
-                                rows={envVarRows}
-                                setRows={setEnvVarRows}
-                                placeholder={t('settings.mcp.field.envForwardingPlaceholder')}
-                              />
-                            </div>
-                          </div>
-                        </SettingsGroup>
-                      </>
-                    )}
-
-                    {mcpDraft.transport === 'streamableHttp' && (
-                      <SettingsGroup title={t('settings.group.http')} flush>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        <div>
-                          <label style={sectionLabelStyle()}>{t('settings.mcp.field.url')}</label>
-                          <Input
-                            value={mcpDraft.url ?? ''}
-                            onChange={(e) => setMcpDraft((prev) => ({ ...prev, url: e.target.value }))}
-                            placeholder="https://example.com/mcp"
-                            mono
-                          />
-                        </div>
-
-                        <div>
-                          <label style={sectionLabelStyle()}>{t('settings.mcp.field.bearerEnv')}</label>
-                          <Input
-                            value={mcpDraft.bearerTokenEnvVar ?? ''}
-                            onChange={(e) =>
-                              setMcpDraft((prev) => ({ ...prev, bearerTokenEnvVar: e.target.value }))
-                            }
-                            placeholder={t('settings.mcp.field.bearerEnvPlaceholder')}
-                            mono
-                          />
-                        </div>
-
-                        <div>
-                          <div style={sectionLabelStyle()}>{t('settings.mcp.field.httpHeaders')}</div>
-                          <EditableKeyValueList
-                            rows={httpHeaderRows}
-                            setRows={setHttpHeaderRows}
-                            keyPlaceholder={t('settings.mcp.headerPlaceholder')}
-                            valuePlaceholder={t('settings.mcp.valuePlaceholder')}
-                          />
-                        </div>
-
-                        <div>
-                          <div style={sectionLabelStyle()}>{t('settings.mcp.field.envHeaders')}</div>
-                          <EditableKeyValueList
-                            rows={envHttpHeaderRows}
-                            setRows={setEnvHttpHeaderRows}
-                            keyPlaceholder={t('settings.mcp.headerPlaceholder')}
-                            valuePlaceholder={t('settings.mcp.field.envForwardingPlaceholder')}
-                          />
-                        </div>
-                        </div>
-                      </SettingsGroup>
-                    )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <McpServerEditor editor={mcpEditor} />
 
                     {mcpTestResult && (
                       <div style={cardStyle()}>

@@ -19,11 +19,15 @@ internal sealed class McpOAuthTokenStore : ITokenCache
 
     private readonly string? _path;
     private readonly string _key;
+    private readonly string? _clientId;
+    private readonly string? _clientSecret;
 
-    private McpOAuthTokenStore(string? path, string key)
+    private McpOAuthTokenStore(string? path, string key, string? clientId, string? clientSecret)
     {
         _path = path;
         _key = key;
+        _clientId = clientId;
+        _clientSecret = clientSecret;
     }
 
     /// <summary>Creates the token cache partition for a server.</summary>
@@ -39,7 +43,9 @@ internal sealed class McpOAuthTokenStore : ITokenCache
             endpointHash);
         return new McpOAuthTokenStore(
             string.IsNullOrWhiteSpace(craftRoot) ? null : Path.Combine(craftRoot, "mcp-auth.json"),
-            key);
+            key,
+            string.IsNullOrWhiteSpace(server.OAuth?.ClientId) ? null : server.OAuth.ClientId.Trim(),
+            McpOAuthOptionsFactory.ResolveSecret(server));
     }
 
     /// <summary>Returns whether this partition currently contains tokens.</summary>
@@ -56,7 +62,9 @@ internal sealed class McpOAuthTokenStore : ITokenCache
         try
         {
             var document = await ReadDocumentUnsafeAsync(cancellationToken);
-            document[_key] = tokens;
+            var stored = CloneTokens(tokens);
+            if (_clientId is not null) stored.ClientSecret = null;
+            document[_key] = stored;
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
             var tempPath = _path + ".tmp";
             await File.WriteAllTextAsync(
@@ -81,7 +89,13 @@ internal sealed class McpOAuthTokenStore : ITokenCache
         try
         {
             var document = await ReadDocumentUnsafeAsync(cancellationToken);
-            return document.TryGetValue(_key, out var tokens) ? tokens : null;
+            if (!document.TryGetValue(_key, out var tokens)) return null;
+            if (_clientId is not null)
+            {
+                if (!string.Equals(tokens.ClientId, _clientId, StringComparison.Ordinal)) return null;
+                tokens.ClientSecret = _clientSecret;
+            }
+            return tokens;
         }
         finally
         {
@@ -138,6 +152,9 @@ internal sealed class McpOAuthTokenStore : ITokenCache
             return new Dictionary<string, TokenContainer>(StringComparer.Ordinal);
         }
     }
+
+    private static TokenContainer CloneTokens(TokenContainer tokens) =>
+        JsonSerializer.Deserialize<TokenContainer>(JsonSerializer.Serialize(tokens, SerializerOptions), SerializerOptions)!;
 
     private static void RestrictFilePermissions(string path)
     {

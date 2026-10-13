@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.4 |
+| **Version** | 0.8.6 |
 | **Status** | Living |
-| **Date** | 2026-10-11 |
+| **Date** | 2026-10-13 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md) |
 
@@ -1009,7 +1009,7 @@ Update per-thread agent configuration (MCP servers, extensions, etc.).
 
 **Result**: `{}`
 
-Provider changes include a non-empty `providerId` and `model` in the same request. The server validates model-aware fields such as `reasoning` against that pair before persisting. On success, the server rebuilds the thread agent/compaction pipeline for queued and future Turns, persists the configuration, and broadcasts authoritative `thread/updated` state. A running Turn keeps the immutable configuration and tool snapshot captured at its start. Configuration replacement does not release terminal thread resources or revoke client-owned Runtime Dynamic Tool bindings.
+Provider changes include a non-empty `providerId` and `model` in the same request. The server validates model-aware fields such as `reasoning` against that pair before persisting. On success, the server rebuilds the thread agent/compaction pipeline for queued and future Turns, persists the configuration, and broadcasts authoritative `thread/updated` state. A running Turn keeps the immutable configuration and tool snapshot captured at its start. Configuration replacement does not release terminal thread resources or revoke client-owned Runtime Dynamic Tool bindings. An MCP server keeps its saved OAuth client secret when the replacement names the same server and omits the secret or writes back its read mask, as for `mcp/upsert`.
 
 ### 4.14 Thread Goal Methods
 
@@ -5156,6 +5156,7 @@ Supported fields:
 - `bearerTokenEnvVar?: string | null`
 - `httpHeaders?: Record<string, string>`
 - `envHttpHeaders?: Record<string, string>`
+- `oauth?: { clientId?, clientSecret?, clientSecretEnvVar?, callbackUrl?, callbackPort?, hasClientSecret? } | null`
 - `startupTimeoutSec?: number | null`
 - `toolTimeoutSec?: number | null`
 - `origin?: { kind: "workspace" | "plugin", pluginId?: string, pluginDisplayName?: string, declaredName?: string }`
@@ -5165,7 +5166,10 @@ Validation rules:
 
 - `name` is the logical primary key and is compared case-insensitively.
 - `stdio` only allows `command`, `args`, `env`, `envVars`, and `cwd`.
-- `streamableHttp` only allows `url`, `bearerTokenEnvVar`, `httpHeaders`, and `envHttpHeaders`.
+- `streamableHttp` only allows `url`, `bearerTokenEnvVar`, `httpHeaders`, `envHttpHeaders`, and optional `oauth`.
+- `oauth` contains optional `clientId`, `clientSecret`, `clientSecretEnvVar`, `callbackUrl`, and `callbackPort`. A secret requires a non-empty client ID. An environment reference takes precedence over the literal secret and must resolve to a non-empty host environment value. OAuth configuration cannot be combined with explicit Bearer/Authorization headers or stdio transport.
+- Callback URLs are HTTP loopback URLs without credentials, query, or fragment. An explicit URL port and `callbackPort` must agree. A configured port must be available; login never substitutes another port. Without a configured port, login uses an ephemeral port.
+- Read projections mask a configured literal `clientSecret` and expose `hasClientSecret`. On `mcp/upsert`, omitted `oauth` preserves the existing configuration in the selected scope, while explicit null removes it. Within a supplied OAuth object, an omitted `clientSecret` or the read projection's mask preserves the existing literal secret, so a client may write back a configuration it read without losing the secret; the mask is never stored. Explicit null or empty removes it. Switching to stdio removes OAuth configuration.
 - `mcp/test` validates and probes a temporary configuration but does not persist it.
 - When `capabilities.mcpServerOrigins` is true, `mcp/list`, `mcp/get`, and `mcpServerStatus/list` include origin metadata. Workspace-origin servers are editable. Plugin-origin servers are read-only runtime entries derived from plugin `.mcp.json`; runtime status additionally supports thread and binding origins.
 
@@ -5281,6 +5285,8 @@ The result preserves the raw MCP shape: `{ "content": any[], "structuredContent"
 **Direction:** client → server. Params are `{ "name": string, "threadId"?: string|null, "scopes"?: string[]|null, "timeoutSecs"?: number|null }`; result is `{ "authorizationUrl": string }`. The server resolves the effective runtime identified by `threadId` and rejects login unless its current `authStatus` is `notLoggedIn`. The client opens only HTTPS or explicit loopback URLs. Completion is reported by `mcpServer/oauthLogin/completed` with `{ name, threadId, success, error? }`.
 
 OAuth credentials are stored only in the user-scoped protected MCP auth store, partitioned by origin/runtime name/endpoint identity. They MUST NOT be persisted in workspace config, Session items, or logs. Expired credentials that cannot refresh are reported as `failureReason: "reauthenticationRequired"`; clients restart the same login method.
+
+Pre-registered OAuth client credentials are configuration values, distinct from issued access/refresh tokens. Login and ordinary connections use the same configured client identity and current secret. Configured secrets are not copied into the token cache. Cached tokens issued to a different configured client ID are unavailable for both access and refresh; the user must authorize the new client. Updating a secret for the same client preserves the issuer binding and lets the OAuth SDK perform refresh with the current secret. Dynamic registration remains available when no client ID is configured, with its existing registration-cache behavior.
 
 `mcpServer/oauthLogin/completed` with `success: true` is emitted only after an authorization URL was returned, the loopback callback supplied an authorization code and matching state, and the MCP SDK completed any authorization-server issuer validation. A missing or mismatched state, a mismatched issuer, or an OAuth callback error fails the login and MUST NOT produce a success notification. A server that completes ordinary MCP startup without requesting OAuth causes the login request itself to fail and MUST NOT produce a contradictory success notification or clear unrelated credentials.
 

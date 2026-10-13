@@ -42,6 +42,9 @@ static void Usage()
           --workspace <dir>        Working directory for the dotcraft subprocess (default: current)
 
         Commands:
+          mcp-oauth-smoke-server [--port 18554] [--callback-port 18555]
+              Run a local pre-registered OAuth MCP server without a model or account.
+
           init
               Perform initialize + initialized handshake. Print server capabilities.
 
@@ -119,6 +122,9 @@ for (var i = 0; i < args.Length; i++)
             break;
     }
 }
+
+if (command == "mcp-oauth-smoke-server")
+    return await McpOAuthSmokeServer.RunAsync(commandArgs);
 
 if (dotcraftBin == null)
 {

@@ -2096,6 +2096,10 @@ public sealed class ThreadMcpServerConfig : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Url { get; init; }
 
+    [JsonPropertyName("oauth")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<McpOAuthConfig?> OAuth { get; init; }
+
 }
 
 /// <summary>Executable wire contract for McpServerConfig.</summary>
@@ -2168,6 +2172,10 @@ public sealed class McpServerConfig : ExtensibleJsonObject
     [JsonPropertyName("url")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Url { get; init; }
+
+    [JsonPropertyName("oauth")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<McpOAuthConfig?> OAuth { get; init; }
 
 }
 
@@ -7155,5 +7163,33 @@ public sealed class WorktreeStatusResult : ExtensibleJsonObject
     [JsonPropertyName("status")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ThreadWorktreeStatus> Status { get; init; }
+
+}
+
+public sealed class McpOAuthConfig : ExtensibleJsonObject
+{
+    [JsonPropertyName("clientId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ClientId { get; init; }
+
+    [JsonPropertyName("clientSecret")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ClientSecret { get; init; }
+
+    [JsonPropertyName("clientSecretEnvVar")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ClientSecretEnvVar { get; init; }
+
+    [JsonPropertyName("callbackUrl")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> CallbackUrl { get; init; }
+
+    [JsonPropertyName("callbackPort")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int?> CallbackPort { get; init; }
+
+    [JsonPropertyName("hasClientSecret")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> HasClientSecret { get; init; }
 
 }

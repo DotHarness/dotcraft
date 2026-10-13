@@ -8986,6 +8986,66 @@
       },
       "additionalProperties": true
     },
+    "McpOAuthConfig": {
+      "title": "McpOAuthConfig",
+      "type": "object",
+      "properties": {
+        "callbackPort": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "callbackUrl": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clientId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clientSecret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clientSecretEnvVar": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hasClientSecret": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
     "McpRemoveParams": {
       "title": "McpRemoveParams",
       "type": "object",
@@ -9148,6 +9208,16 @@
         },
         "name": {
           "type": "string"
+        },
+        "oauth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/McpOAuthConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "origin": {
           "anyOf": [
@@ -17438,6 +17508,16 @@
         },
         "name": {
           "type": "string"
+        },
+        "oauth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/McpOAuthConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "startupTimeoutSec": {
           "anyOf": [

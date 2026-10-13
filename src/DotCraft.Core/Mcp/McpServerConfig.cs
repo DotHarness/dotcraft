@@ -127,6 +127,8 @@ public sealed class McpServerConfig
     /// </summary>
     public string? BearerTokenEnvVar { get; set; }
 
+    public McpOAuthConfig? OAuth { get; set; }
+
     /// <summary>
     /// Startup timeout in seconds.
     /// </summary>
@@ -155,6 +157,8 @@ public sealed class McpServerConfig
             ? "streamableHttp"
             : "stdio";
 
+    public void ValidateOAuth() => McpOAuthOptionsFactory.Validate(this);
+
     public McpServerConfig Clone() =>
         new()
         {
@@ -170,6 +174,7 @@ public sealed class McpServerConfig
             Headers = new Dictionary<string, string>(Headers, StringComparer.Ordinal),
             EnvHttpHeaders = new Dictionary<string, string>(EnvHttpHeaders, StringComparer.Ordinal),
             BearerTokenEnvVar = BearerTokenEnvVar,
+            OAuth = OAuth?.Clone(),
             StartupTimeoutSec = StartupTimeoutSec,
             ToolTimeoutSec = ToolTimeoutSec,
             Origin = Origin.Clone()
