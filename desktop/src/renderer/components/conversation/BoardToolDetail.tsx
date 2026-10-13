@@ -54,7 +54,7 @@ function PostFeed({
         <article key={post.messageId} className={styles.entry} data-reply={threaded && !post.topic ? 'true' : undefined}>
           <header className={styles.entryHeader}>
             <BoardAgentName path={post.authorPath} context={context} mark />
-            {showChannel && post.channel && <span className={styles.meta}>#{post.channel}</span>}
+            {showChannel && post.channel && <span className={styles.meta}>{post.channel}</span>}
             {post.createdAt && (
               <time className={styles.meta} dateTime={post.createdAt}>{formatTime(post.createdAt, locale)}</time>
             )}
@@ -103,7 +103,7 @@ function ChannelList({ channels }: { channels: BoardChannel[] }): JSX.Element {
       <ul className={styles.list}>
         {channels.map((channel) => (
           <li key={channel.name}>
-            <span className={styles.listTitle}>#{channel.name}</span>
+            <span className={styles.listTitle}>{channel.name}</span>
             <span className={styles.meta}>
               {channel.description ? `${channel.description} · ` : ''}
               {channel.messageCount

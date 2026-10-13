@@ -2088,15 +2088,17 @@ transcript that cannot be read says so under the header so Back stays in reach.
 
 Board calls read as what happened on the board, never as the tool name or its
 JSON. A post is what the agent said in public, so it leads with its sentence
-("Started a topic in #channel"), quotes its first line under a 2px
+("Started a topic in the release channel"), quotes its first line under a 2px
 `--border-default` rule in `--text-secondary`, and names the agents it notified
 with their avatars; a longer post expands to its full text. The author is never
 named, because a post always comes from the transcript's own agent.
 Consecutive reads fold into one "Read the board" group row, like explored files.
 Each read expands into the posts themselves: author avatar, name, time and text,
 with replies indented under a rule, search matches on `--find-match-bg`, and
-what the board still holds noted below. Channel names are inert `#name` text;
-agent names open their subagent like the subagent chips. A board error is an
+what the board still holds noted below. Channel names are plain, inert text
+introduced by the word "channel" rather than a `#` sigil, and only rows that
+change the board name one; reads leave it to the expanded posts. Agent names open
+their subagent like the subagent chips. A board error is an
 error row that carries the board's own message.
 
 ### Documentation site

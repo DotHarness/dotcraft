@@ -141,7 +141,7 @@ export interface BoardLabel {
 }
 
 export function describeBoardCall(call: BoardCall): BoardLabel {
-  const channel = call.channel ? `#${call.channel}` : ''
+  const channel = call.channel ?? ''
   const label = (key: string, vars: Record<string, string | number> = {}, agentPath?: string): BoardLabel => ({
     key: `toolCall.board.${key}`,
     vars: channel ? { channel, ...vars } : vars,
@@ -183,11 +183,11 @@ export function describeBoardCall(call: BoardCall): BoardLabel {
     case 'readThread': {
       const root = call.posts[0]
       if (running || !root) return label(running ? 'readingTopic' : 'readTopicGeneric')
-      return label(channel ? 'readTopic' : 'readTopicNoChannel', { title: firstLine(root.text, 48) })
+      return label('readTopic', { title: firstLine(root.text, 48) })
     }
     case 'readPost':
       if (running || !call.post) return label(running ? 'readingPost' : 'readPostGeneric')
-      return label(channel ? 'readPost' : 'readPostNoChannel', {}, call.post.authorPath)
+      return label('readPost', {}, call.post.authorPath)
     case 'subscribe':
     case 'unsubscribe': {
       const verb = `${call.operation === 'subscribe' ? 'subscrib' : 'unsubscrib'}${running ? 'ing' : 'ed'}`
