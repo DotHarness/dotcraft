@@ -115,6 +115,16 @@
     "name": {
       "type": "string"
     },
+    "oauth": {
+      "anyOf": [
+        {
+          "$ref": "./McpOAuthConfig.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "origin": {
       "anyOf": [
         {

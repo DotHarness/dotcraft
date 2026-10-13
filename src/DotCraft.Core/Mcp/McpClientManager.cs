@@ -1140,6 +1140,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             AppendFingerprintValue(builder, config.Cwd);
             AppendFingerprintValue(builder, config.Url);
             AppendFingerprintValue(builder, config.BearerTokenEnvVar);
+            AppendFingerprintValue(builder, System.Text.Json.JsonSerializer.Serialize(config.OAuth));
             foreach (var pair in config.Headers.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase))
             {
                 AppendFingerprintValue(builder, pair.Key);
@@ -1404,13 +1405,9 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                 if (IsOAuthCandidate(server))
                 {
                     var hadTokens = await tokenStore.HasTokensAsync(cancellationToken);
-                    oauthOptions = new ClientOAuthOptions
-                    {
-                        RedirectUri = new Uri("http://127.0.0.1/callback"),
-                        TokenCache = tokenStore,
-                        AuthorizationCallbackHandler = (_, _) =>
-                            throw new McpAuthenticationRequiredException(hadTokens)
-                    };
+                    oauthOptions = McpOAuthOptionsFactory.Create(server, userDataPath);
+                    oauthOptions.AuthorizationCallbackHandler = (_, _) =>
+                        throw new McpAuthenticationRequiredException(hadTokens);
                 }
             }
 

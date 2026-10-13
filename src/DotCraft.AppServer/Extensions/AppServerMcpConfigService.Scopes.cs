@@ -12,6 +12,10 @@ internal sealed partial class AppServerMcpConfigService
         _ => throw AppServerErrors.InvalidParams("Unknown MCP scope.")
     };
 
+    public McpServerConfig? GetScoped(string scope, string name) =>
+        McpScopeStore.Read(ScopePath(scope), scope).FirstOrDefault(server =>
+            string.Equals(server.Name, name, StringComparison.OrdinalIgnoreCase));
+
     public void UpsertScoped(string scope, McpServerConfig server)
     {
         McpScopeStore.Upsert(ScopePath(scope), server);

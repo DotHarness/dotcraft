@@ -95,6 +95,28 @@ MCP 示例：
 
 `Tools.DeferredLoading.Strategy = Auto` 时，所有模式都使用规范名称 `SearchTools`。OpenAI Responses 将它映射为 Provider 的 client-executed `tool_search` wire 类型，Anthropic 返回原生 tool reference，chat-completions 则在下一次模型请求中注入已发现的 schema。
 
+### 预注册 OAuth 客户端
+
+如果 HTTP MCP 服务要求使用已有的 OAuth 应用，在设置 → MCP 中打开该服务器，将 **OAuth → 客户端注册** 设为 **预注册**。填写客户端 ID，选择密钥值或环境变量，并设置在服务中注册的回调 URL。也可以直接配置文件：
+
+```json
+{
+  "McpServers": {
+    "registered-service": {
+      "transport": "http",
+      "url": "https://mcp.example.com/mcp",
+      "oauth": {
+        "clientId": "your-registered-client-id",
+        "clientSecretEnvVar": "MCP_CLIENT_SECRET",
+        "callbackUrl": "http://127.0.0.1:8080/callback/"
+      }
+    }
+  }
+}
+```
+
+在启动 DotCraft 宿主前设置引用的环境变量。`clientSecretEnvVar` 优先于 `clientSecret`，引用的变量缺失或为空时会失败，不会回退到明文密钥。URL 已包含端口时无需填写 `callbackPort`。固定回调端口必须可用。不配置 OAuth 时，继续使用现有的自动注册流程。保存服务后，使用认证操作完成授权。
+
 ## LSP
 
 | 配置项 | 说明 | 默认值 |

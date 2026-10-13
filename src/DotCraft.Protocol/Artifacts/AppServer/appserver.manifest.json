@@ -11206,6 +11206,59 @@
       "variants": []
     },
     {
+      "id": "core.McpOAuthConfig",
+      "name": "McpOAuthConfig",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/McpOAuthConfig.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "callbackPort",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "callbackUrl",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "clientId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "clientSecret",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "clientSecretEnvVar",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "hasClientSecret",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.McpRemoveParams",
       "name": "McpRemoveParams",
       "module": "core",
@@ -11370,6 +11423,13 @@
           "type": "string",
           "required": false,
           "nullable": false,
+          "const": null
+        },
+        {
+          "name": "oauth",
+          "type": "core.McpOAuthConfig",
+          "required": false,
+          "nullable": true,
           "const": null
         },
         {
@@ -21569,6 +21629,13 @@
           "type": "string",
           "required": false,
           "nullable": false,
+          "const": null
+        },
+        {
+          "name": "oauth",
+          "type": "core.McpOAuthConfig",
+          "required": false,
+          "nullable": true,
           "const": null
         },
         {

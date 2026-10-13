@@ -1,6 +1,5 @@
 using System.Collections.Specialized;
 using System.Net;
-using System.Net.Sockets;
 using System.Runtime.ExceptionServices;
 using ModelContextProtocol.Authentication;
 
@@ -29,31 +28,33 @@ public static class McpOAuthLoginCoordinator
         if (string.IsNullOrWhiteSpace(userDataPath))
             throw new InvalidOperationException("UserDataPath is required for MCP authentication persistence.");
         var tokenCache = McpOAuthTokenStore.Create(server, userDataPath);
-        await tokenCache.ClearAsync(cancellationToken);
-
-        var port = ReserveLoopbackPort();
-        var redirectUri = new Uri($"http://127.0.0.1:{port}/callback/");
+        var redirectUri = McpOAuthOptionsFactory.ResolveCallback(server, allocatePort: true);
         var authorizationUrl = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var listener = new HttpListener();
-        listener.Prefixes.Add(redirectUri.AbsoluteUri);
-        listener.Start();
+        listener.Prefixes.Add(new UriBuilder(redirectUri) { Path = "/" }.Uri.AbsoluteUri);
+        try
+        {
+            listener.Start();
+            await tokenCache.ClearAsync(cancellationToken);
+        }
+        catch
+        {
+            listener.Close();
+            throw;
+        }
 
         var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (timeoutSecs is > 0)
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(Math.Min(timeoutSecs.Value, 3600)));
         var loginCancellationToken = timeoutCts.Token;
-        var oauth = new ClientOAuthOptions
+        var oauth = McpOAuthOptionsFactory.Create(server, userDataPath, redirectUri);
+        oauth.Scopes = scopes;
+        oauth.AuthorizationCallbackHandler = async (context, ct) =>
         {
-            RedirectUri = redirectUri,
-            TokenCache = tokenCache,
-            Scopes = scopes,
-            AuthorizationCallbackHandler = async (context, ct) =>
-            {
-                if (!IsSafeAuthorizationUrl(context.AuthorizationUri))
-                    throw new InvalidOperationException("The MCP authorization URL must use HTTPS or loopback HTTP.");
-                authorizationUrl.TrySetResult(context.AuthorizationUri.AbsoluteUri);
-                return await WaitForAuthorizationResultAsync(listener, ct);
-            }
+            if (!IsSafeAuthorizationUrl(context.AuthorizationUri))
+                throw new InvalidOperationException("The MCP authorization URL must use HTTPS or loopback HTTP.");
+            authorizationUrl.TrySetResult(context.AuthorizationUri.AbsoluteUri);
+            return await WaitForAuthorizationResultAsync(listener, redirectUri, ct);
         };
 
         _ = Task.Run(async () =>
@@ -74,11 +75,13 @@ public static class McpOAuthLoginCoordinator
                         new InvalidOperationException("The MCP server did not request OAuth authorization."));
                     return;
                 }
+                listener.Close();
                 terminalCompletionAttempted = true;
                 await onCompleted(true, null);
             }
             catch (Exception ex)
             {
+                listener.Close();
                 if (authorizationUrl.Task.IsCompletedSuccessfully && !terminalCompletionAttempted)
                 {
                     terminalCompletionAttempted = true;
@@ -108,9 +111,17 @@ public static class McpOAuthLoginCoordinator
 
     private static async Task<AuthorizationResult> WaitForAuthorizationResultAsync(
         HttpListener listener,
+        Uri redirectUri,
         CancellationToken cancellationToken)
     {
-        var context = await listener.GetContextAsync().WaitAsync(cancellationToken);
+        HttpListenerContext context;
+        while (true)
+        {
+            context = await listener.GetContextAsync().WaitAsync(cancellationToken);
+            if (context.Request.Url?.AbsolutePath == redirectUri.AbsolutePath) break;
+            context.Response.StatusCode = 404;
+            context.Response.Close();
+        }
         var query = context.Request.QueryString;
         AuthorizationResult? result = null;
         ExceptionDispatchInfo? callbackError = null;
@@ -157,20 +168,6 @@ public static class McpOAuthLoginCoordinator
             State = state,
             Iss = string.IsNullOrWhiteSpace(issuer) ? null : issuer
         };
-    }
-
-    private static int ReserveLoopbackPort()
-    {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        try
-        {
-            return ((IPEndPoint)listener.LocalEndpoint).Port;
-        }
-        finally
-        {
-            listener.Stop();
-        }
     }
 
     private static bool IsSafeAuthorizationUrl(Uri uri) =>

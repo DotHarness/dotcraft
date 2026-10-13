@@ -74,7 +74,10 @@ internal sealed class McpRequestHandler(
         var serverContract = Require(p.Server, "'server' is required.");
         McpContractMapper.ValidateContract(serverContract);
 
-        var server = McpContractMapper.FromContract(serverContract);
+        var scopedExisting = configService.GetScoped(p.Scope, ValueOrDefault(serverContract.Name) ?? string.Empty);
+        var server = McpContractMapper.FromContract(serverContract, scopedExisting);
+        try { server.ValidateOAuth(); }
+        catch (InvalidOperationException ex) { throw AppServerErrors.McpServerValidationFailed(ex.Message); }
         server.Origin = new McpServerOrigin { Kind = p.Scope };
 
         var existing = await mcpClientManager!.GetConfigAsync(server.Name, ct);
@@ -128,7 +131,11 @@ internal sealed class McpRequestHandler(
 
         var serverContract = Require(p.Server, "'server' is required.");
         McpContractMapper.ValidateContract(serverContract);
-        var status = await mcpClientManager.TestAsync(McpContractMapper.FromContract(serverContract), ct);
+        var existing = await mcpClientManager.GetConfigAsync(ValueOrDefault(serverContract.Name) ?? string.Empty, ct);
+        var server = McpContractMapper.FromContract(serverContract, existing);
+        try { server.ValidateOAuth(); }
+        catch (InvalidOperationException ex) { throw AppServerErrors.McpServerValidationFailed(ex.Message); }
+        var status = await mcpClientManager.TestAsync(server, ct);
         return new Contract.McpTestResult
         {
             Success = string.Equals(status.StartupState, "ready", StringComparison.OrdinalIgnoreCase),

@@ -166,7 +166,8 @@ describe('SettingsView plugin MCP servers', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'MCP' }))
 
     expect(await screen.findByText('review-tools:review')).toBeInTheDocument()
-    expect(screen.getByText('From Review Tools')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'From plugins' })).toBeInTheDocument()
+    expect(screen.getByText('Review Tools · STDIO · 2 tools')).toBeInTheDocument()
     expect(screen.queryByRole('switch', { name: 'Toggle MCP server review-tools:review' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'View plugin' }))

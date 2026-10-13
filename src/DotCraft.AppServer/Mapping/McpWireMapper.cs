@@ -20,6 +20,7 @@ internal static class McpContractMapper
         Cwd = config.Cwd,
         Url = string.IsNullOrWhiteSpace(config.Url) ? null : config.Url,
         BearerTokenEnvVar = config.BearerTokenEnvVar,
+        OAuth = McpOAuthContractMapper.ToContract(config.OAuth),
         HttpHeaders = config.Headers.Count > 0 ? new Dictionary<string, string>(config.Headers) : null,
         EnvHttpHeaders = config.EnvHttpHeaders.Count > 0 ? new Dictionary<string, string>(config.EnvHttpHeaders) : null,
         StartupTimeoutSec = config.StartupTimeoutSec,
@@ -28,7 +29,7 @@ internal static class McpContractMapper
         ReadOnly = config.ReadOnly
     };
 
-    public static McpServerConfig FromContract(Contract.McpServerConfig wire) => new()
+    public static McpServerConfig FromContract(Contract.McpServerConfig wire, McpServerConfig? existing = null) => new()
     {
         Name = ValueOrDefault(wire.Name)?.Trim() ?? string.Empty,
         Enabled = ValueOrDefault(wire.Enabled),
@@ -44,6 +45,7 @@ internal static class McpContractMapper
         EnvHttpHeaders = ValueOrDefault(wire.EnvHttpHeaders)?.ToDictionary() ?? new Dictionary<string, string>(),
         StartupTimeoutSec = ValueOrDefault(wire.StartupTimeoutSec),
         ToolTimeoutSec = ValueOrDefault(wire.ToolTimeoutSec),
+        OAuth = NormalizeTransport(ValueOrDefault(wire.Transport)) == "stdio" ? null : McpOAuthContractMapper.FromContract(wire.OAuth, existing?.OAuth),
         Origin = McpServerOrigin.Workspace()
     };
 
@@ -63,6 +65,8 @@ internal static class McpContractMapper
             throw AppServerErrors.McpServerValidationFailed("'server.name' is required.");
 
         var transport = NormalizeTransport(ValueOrDefault(server.Transport));
+        try { FromContract(server).ValidateOAuth(); }
+        catch (InvalidOperationException ex) { throw AppServerErrors.McpServerValidationFailed(ex.Message); }
 
         if (transport == "stdio")
         {

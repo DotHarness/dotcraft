@@ -2299,6 +2299,16 @@ export interface McpListResult {
   [key: string]: unknown;
 }
 
+export interface McpOAuthConfig {
+  callbackPort?: number | null;
+  callbackUrl?: string | null;
+  clientId?: string | null;
+  clientSecret?: string | null;
+  clientSecretEnvVar?: string | null;
+  hasClientSecret?: boolean;
+  [key: string]: unknown;
+}
+
 export interface McpRemoveParams {
   name?: string;
   scope: string;
@@ -2330,6 +2340,7 @@ export interface McpServerConfig {
   envVars?: string[] | null;
   httpHeaders?: Record<string, string> | null;
   name?: string;
+  oauth?: McpOAuthConfig | null;
   origin?: McpServerOrigin | null;
   readOnly?: boolean;
   startupTimeoutSec?: number | null;
@@ -4342,6 +4353,7 @@ export interface ThreadMcpServerConfig {
   environmentVariables?: Record<string, string>;
   headers?: Record<string, string>;
   name?: string;
+  oauth?: McpOAuthConfig | null;
   startupTimeoutSec?: number | null;
   toolTimeoutSec?: number | null;
   transport?: string;

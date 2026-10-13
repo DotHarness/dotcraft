@@ -942,7 +942,8 @@ internal sealed partial class ThreadRequestHandler(
         var p = request.Params;
         var threadId = Require(p.ThreadId, "'threadId' is required.");
         var contractConfig = Require(p.Config, "'config' is required.");
-        var config = ThreadConfigurationContractMapper.FromContract(contractConfig);
+        var current = await sessionService.GetThreadAsync(threadId, ct);
+        var config = ThreadConfigurationContractMapper.FromContract(contractConfig, current.Configuration);
         ValidateRuntimeConfiguration(config);
         await sessionService.UpdateThreadConfigurationAsync(threadId, config, ct);
         return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
@@ -955,6 +956,11 @@ internal sealed partial class ThreadRequestHandler(
         if (config == null)
             return;
 
+        foreach (var server in config.McpServers ?? [])
+        {
+            try { server.ValidateOAuth(); }
+            catch (InvalidOperationException ex) { throw AppServerErrors.McpServerValidationFailed(ex.Message); }
+        }
         var currentConfig = appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig();
         if (config.Reasoning != null)
         {

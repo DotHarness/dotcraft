@@ -95,6 +95,28 @@ MCP example:
 
 With `Tools.DeferredLoading.Strategy = Auto`, all modes use the canonical `SearchTools` operation. OpenAI Responses maps it to the provider's client-executed `tool_search` wire type, Anthropic returns native tool references, and chat-completions injects the discovered schemas on the next model request.
 
+### Pre-registered OAuth clients
+
+For an HTTP MCP service that requires an existing OAuth application, open the server in Settings → MCP and set **OAuth → Client registration** to **Pre-registered**. Enter its client ID, choose a secret value or an environment variable, and set the callback URL registered with the service. You can also configure it in the file:
+
+```json
+{
+  "McpServers": {
+    "registered-service": {
+      "transport": "http",
+      "url": "https://mcp.example.com/mcp",
+      "oauth": {
+        "clientId": "your-registered-client-id",
+        "clientSecretEnvVar": "MCP_CLIENT_SECRET",
+        "callbackUrl": "http://127.0.0.1:8080/callback/"
+      }
+    }
+  }
+}
+```
+
+Set the referenced variable before starting the DotCraft host. `clientSecretEnvVar` takes precedence over `clientSecret`; a missing or empty referenced value fails instead of using the literal secret. `callbackPort` is optional when the URL already includes a port. A fixed callback port must be available. Leave OAuth configuration absent to use the existing automatic registration flow. Save the server, then use Authenticate to authorize it.
+
 ## LSP
 
 | Field | Description | Default |
