@@ -1,6 +1,7 @@
 import type { ConversationItem, ToolPresentationDescriptor, ToolSourceProvenance } from '../types/conversation'
 import type { ToolGroupCategory } from './toolCallAggregation'
 import { isBuilderField } from '../components/agents/agentBuilderDraftSync'
+import { BOARD_OPERATIONS } from './boardToolDisplay'
 
 export type ToolRendererFamily =
   | 'createPlan'
@@ -8,6 +9,7 @@ export type ToolRendererFamily =
   | 'skillManage'
   | 'skillView'
   | 'subagent'
+  | 'board'
   | 'shell'
   | 'fileWrite'
   | 'web'
@@ -127,6 +129,7 @@ export const CORE_TOOL_PRESENTATION_IDS = {
   skillManage: 'core.skill-manage',
   skillView: 'core.skill-view',
   subagent: 'core.subagent',
+  board: 'core.board',
   shell: 'core.shell',
   fileWrite: 'core.file-write',
   web: 'core.web',
@@ -151,6 +154,9 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   registration(CORE_TOOL_PRESENTATION_IDS.subagent, 'subagent', {
     mode: 'standalone', groupCategory: 'subagent'
   }, hasOperation('spawn', 'wait', 'sendMessage', 'followupTask', 'list', 'close', 'sendInput', 'resume')),
+  registration(CORE_TOOL_PRESENTATION_IDS.board, 'board', {
+    mode: 'standalone', groupCategory: 'board'
+  }, hasOperation(...BOARD_OPERATIONS)),
   registration(CORE_TOOL_PRESENTATION_IDS.shell, 'shell', {
     mode: 'collapsible', groupCategory: 'shell', successOverride: true
   }),

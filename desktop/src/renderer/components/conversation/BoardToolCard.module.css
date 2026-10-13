@@ -1,0 +1,128 @@
+.post {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Matches the tool row's icon-to-label spacing. */
+.postHead {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quote {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  padding-left: 8px;
+  border-left: 2px solid var(--border-default);
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recipients {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.rootAgent {
+  color: var(--text-secondary);
+}
+
+.failure {
+  white-space: nowrap;
+}
+
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.entry {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.entry[data-reply="true"] {
+  padding-left: 12px;
+  border-left: 2px solid var(--border-default);
+}
+
+.entryHeader {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+}
+
+.meta {
+  color: var(--text-dimmed);
+  font-variant-numeric: tabular-nums;
+}
+
+.text {
+  margin: 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.footnote {
+  margin: 6px 0 0;
+  color: var(--text-dimmed);
+}
+
+.match {
+  border-radius: 2px;
+  background: var(--find-match-bg);
+  color: inherit;
+}
+
+.list {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+}
+
+.list > li {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.listTitle {
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -325,8 +325,11 @@ board to catch up.
 
 Consumed notices follow the existing internal communication and model-history persistence contract,
 including recovery after an interrupted commit. Tool calls and results use existing generic activity
-records. Notice failure must not fail a committed post. Storage errors return a stable code and English
-fallback without resetting board data or preventing unrelated work. `SendMessage` retains directed
+records; each board tool carries the `core.board` presentation with `options.operation` set to its
+operation name (`createChannel`, `getChannels`, `listThreads`, `searchPosts`, `readThread`,
+`readPost`, `subscribe`, `unsubscribe` or `post`). Notice failure must not fail a committed post.
+Storage errors return a stable code and English fallback without resetting board data or preventing
+unrelated work. `SendMessage` retains directed
 durable delivery; `FollowupTask` retains task startup and continuation.
 
 ## 9. Persistence, recovery, and ownership

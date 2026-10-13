@@ -57,6 +57,8 @@ import { isToolItemLive } from '../../utils/toolCallAggregation'
 import { formatDefaultToolResultForDisplay } from '../../utils/toolResultDisplay'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { SubAgentToolResultCard, getSubAgentToolDisplay, formatSubAgentRunningLabel } from './SubAgentToolResultCard'
+import { BoardToolCard } from './BoardToolCard'
+import type { BoardOperation } from '../../utils/boardToolDisplay'
 import {
   formatRequestUserInputResultLines,
   type RequestUserInputResultLine
@@ -458,6 +460,10 @@ export const ToolCallCard = memo(function ToolCallCard({
     : null
   if (subAgentDisplay) {
     return <SubAgentToolResultCard display={subAgentDisplay} locale={locale} sourceThreadId={threadId} />
+  }
+
+  if (rendererFamily === 'board') {
+    return <BoardToolCard item={item} operation={rendererOperation as BoardOperation} threadId={threadId} running={isRunning} />
   }
 
   if (builderField && !isRunning) {

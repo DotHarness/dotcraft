@@ -13,6 +13,7 @@ import {
 import { translate, type AppLocale } from '../../shared/locales'
 import type { ConversationItem } from '../types/conversation'
 import { isShellToolName } from './shellTools'
+import { BOARD_TOOL_OPERATIONS, formatBoardToolLabel } from './boardToolDisplay'
 
 import {
   SKILL_MANAGE_TOOL_NAME,
@@ -138,6 +139,16 @@ export function extractPartialJsonStringValue(json: string, key: string): string
   }
 
   return out
+}
+
+/** While board arguments stream, only the fields that name the call are read. */
+export function extractBoardArguments(preview: string): Record<string, unknown> {
+  const args: Record<string, unknown> = {}
+  for (const key of ['channelName', 'newChannelName', 'threadId', 'query', 'text']) {
+    const value = extractPartialJsonStringValue(preview, key)
+    if (value) args[key] = value
+  }
+  return args
 }
 
 function getFilename(path: string): string {
@@ -344,6 +355,9 @@ export function formatCollapsedToolLabel(
     if (readLabel) return readLabel
   }
 
+  const boardLabel = formatBoardToolLabel(toolName, args, locale, false)
+  if (boardLabel) return boardLabel
+
   const todoLabel = formatTodoLabel(toolName, args, locale, options?.planTodos)
   if (todoLabel) return todoLabel
 
@@ -480,6 +494,10 @@ export function getStreamingToolDisplay(
   locale: AppLocale
 ): StreamingToolDisplay {
   const rawArgs = argumentsPreview ?? ''
+
+  if (BOARD_TOOL_OPERATIONS[toolName]) {
+    return { label: formatBoardToolLabel(toolName, extractBoardArguments(rawArgs), locale, true) ?? toolName }
+  }
 
   if (!isBuiltinTool(toolName)) {
     return {
