@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using DotCraft.Agents;
 using DotCraft.AppBinding;
 using DotCraft.Configuration;
 using DotCraft.Logging;
@@ -26,7 +25,7 @@ internal sealed partial class ThreadRequestHandler(
     WorkspaceConfigEditor workspaceConfig,
     IAppConfigMonitor? appConfigMonitor,
     string? hostWorkspacePath,
-    string? workspaceCraftPath,
+    AgentProfileThreadConfigResolver profileResolver,
     SessionStreamDebugLogger? streamDebugLogger,
     ILogger<ThreadRequestHandler>? logger) : IAppServerDomainHandler
 {
@@ -85,7 +84,7 @@ internal sealed partial class ThreadRequestHandler(
 
         var identity = NormalizeIdentityWorkspace(WorktreeContractMapper.ToDomain(p.Identity)!);
         var config = p.Config is null ? null : ThreadConfigurationContractMapper.FromContract(p.Config);
-        config = ResolveAgentProfileConfig(config, msg, identity);
+        config = profileResolver.Resolve(config, msg);
         config = ThreadWorkspaceResolver.Apply(
             identity.WorkspacePath,
             config,
@@ -139,53 +138,6 @@ internal sealed partial class ThreadRequestHandler(
             ct);
 
         return AppServerTypedResult<Contract.ThreadStartResult>.Written;
-    }
-
-    private ThreadConfiguration? ResolveAgentProfileConfig(
-        ThreadConfiguration? config,
-        AppServerIncomingMessage msg,
-        SessionIdentity identity)
-    {
-        if (string.IsNullOrWhiteSpace(config?.AgentProfileId))
-            return config;
-
-        try
-        {
-            var store = new AgentProfileStore(ResolveAgentProfileWorkspaceDataPath(), workspaceConfig.UserDataPath);
-            var currentConfig = appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig();
-            var resolved = store.ResolveThreadStartConfiguration(config, currentConfig, TryGetConfigElement(msg));
-            AppServerRuntimeRequestValidator.NormalizeCompleteModelConfiguration(currentConfig, resolved);
-            return resolved;
-        }
-        catch (AgentProfileException ex)
-        {
-            if (ex.Kind == AgentProfileErrorKind.ValidationFailed)
-            {
-                logger?.LogWarning(
-                    "Agent Profile rejected thread start. ProfileId={ProfileId} RequestedSource={RequestedSource} DiagnosticCodes={DiagnosticCodes}",
-                    config?.AgentProfileId,
-                    config?.AgentProfileSource,
-                    string.Join(",", ex.Diagnostics.Select(diagnostic => diagnostic.Code).Distinct(StringComparer.Ordinal)));
-            }
-            throw AgentProfileRequestHandler.MapError(ex);
-        }
-    }
-
-    private string? ResolveAgentProfileWorkspaceDataPath() =>
-        string.IsNullOrWhiteSpace(workspaceCraftPath) ? null : workspaceCraftPath;
-
-    private static JsonElement? TryGetConfigElement(AppServerIncomingMessage msg)
-    {
-        if (!msg.Params.HasValue || msg.Params.Value.ValueKind != JsonValueKind.Object)
-            return null;
-
-        foreach (var property in msg.Params.Value.EnumerateObject())
-        {
-            if (string.Equals(property.Name, "config", StringComparison.OrdinalIgnoreCase))
-                return property.Value;
-        }
-
-        return null;
     }
 
     private async Task<AppServerTypedResult<Contract.ThreadForkResult>> HandleThreadForkAsync(

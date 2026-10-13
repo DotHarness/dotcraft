@@ -78,6 +78,7 @@ public sealed class AppServerRequestHandler(
     private AppServerThreadBinder? _threadBinder;
     private AppServerResponseWriter? _responseWriter;
     private AppServerThreadWireProjector? _threadProjector;
+    private AgentProfileThreadConfigResolver? _profileResolver;
 
     /// <summary>
     /// Shared skill-variant resolver (variant mode + per-connection target), consulted by the
@@ -116,6 +117,13 @@ public sealed class AppServerRequestHandler(
             services.GenerativeUiRuntimeRegistry);
 
     private AppServerResponseWriter ResponseWriter => _responseWriter ??= new AppServerResponseWriter(transport);
+
+    private AgentProfileThreadConfigResolver ProfileResolver => _profileResolver ??=
+        new AgentProfileThreadConfigResolver(
+            WorkspaceConfig,
+            services.AppConfigMonitor,
+            services.WorkspaceCraftPath,
+            services.LoggerFactory?.CreateLogger<AgentProfileThreadConfigResolver>());
 
     private AppServerThreadWireProjector ThreadProjector => _threadProjector ??=
         new AppServerThreadWireProjector(
@@ -202,9 +210,9 @@ public sealed class AppServerRequestHandler(
         new AgentProfileRequestHandler(sessionService, services.WorkspaceCraftPath, WorkspaceConfig.UserDataPath, services.HostWorkspacePath, services.AppConfigMonitor),
         new CommandRequestHandler(_commandRegistry, sessionService, connection, services.WorkspaceCraftPath, (thread, token) => ThreadProjector.EnrichAsync(thread.ToWire(), thread, token)),
         new ThreadRecoveryRequestHandler(sessionService),
-        new ThreadRequestHandler(sessionService, connection, transport, ResponseWriter, ThreadBinder, ThreadProjector, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, services.WorkspaceCraftPath, services.StreamDebugLogger, services.LoggerFactory?.CreateLogger<ThreadRequestHandler>()),
+        new ThreadRequestHandler(sessionService, connection, transport, ResponseWriter, ThreadBinder, ThreadProjector, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ProfileResolver, services.StreamDebugLogger, services.LoggerFactory?.CreateLogger<ThreadRequestHandler>()),
         new TurnRequestHandler(sessionService, connection, transport, ResponseWriter, _commandRegistry, services.SkillsLoader, SkillVariants, services.TraceStore, services.StreamDebugLogger, _defaultApprovalDecision, ThreadProjector, services.LoggerFactory?.CreateLogger<TurnRequestHandler>()),
-        new WorktreeRequestHandler(sessionService, ResponseWriter, ThreadBinder, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ThreadProjector.ProjectAsync),
+        new WorktreeRequestHandler(sessionService, ResponseWriter, ThreadBinder, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ProfileResolver, ThreadProjector.ProjectAsync),
         new SubAgentRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, RuntimeConfig, (thread, wire, token) => ThreadProjector.EnrichAsync(wire, thread, token), services.SubAgentCoordinatorFactory, services.Contributions),
         new UsageRequestHandler(services.UsageAnalytics, services.TraceStore, sessionService, services.HostWorkspacePath),
         new AutomationRequestHandler(services.AutomationsHandler),

@@ -1139,6 +1139,7 @@ Create a Git worktree, optionally copy dirty source changes, then start a new em
 
 Semantics:
 
+- When `config.agentProfileId` is set, the server resolves the Agent Profile and applies its overlays exactly as `thread/start` does (§4.1), before creating the worktree. A missing or invalid profile, or a rejected overlay, fails the request with the same errors and creates neither a worktree nor a thread.
 - The server creates the thread only after worktree creation and dirty handoff have succeeded.
 - The returned thread has `worktree` and an `effectiveWorkspacePath` pointing to the worktree path.
 - The thread's rollout, memory, goals, plans, app bindings, and metadata remain in the original state workspace.
@@ -2595,7 +2596,7 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 | `-32084` | SubAgent profile validation failed | The profile payload is invalid or incompatible with runtime rules. |
 | `-32085` | SubAgent profile protected | The operation targets a protected profile such as `native`. |
 | `-32086` | Agent Profile not found | The requested Agent Profile id/source does not exist. |
-| `-32087` | Agent Profile validation failed | Markdown/frontmatter validation failed, or `thread/start` supplied an unsupported overlay with `agentProfileId`. |
+| `-32087` | Agent Profile validation failed | Markdown/frontmatter validation failed, or `thread/start` or `worktree/createAndStart` supplied an unsupported overlay with `agentProfileId`. |
 | `-32088` | Agent Profile protected | A write or remove targeted a built-in profile. |
 | `-32089` | Agent Profile source unavailable | The requested source is unsupported or cannot be read/written in this runtime. |
 | `-32091` | Agent Profile conflict | The requested id conflicts with the profile frontmatter name or a protected source. |
@@ -6074,7 +6075,7 @@ Uploads and exports are held for the requesting connection for at most one hour 
 | Code | Constant | When |
 |------|----------|------|
 | `-32086` | `AgentProfileNotFound` | Requested Agent Profile id/source does not exist. |
-| `-32087` | `AgentProfileValidationFailed` | Markdown/frontmatter validation failed, or `thread/start` supplied an unsupported overlay with `agentProfileId`. |
+| `-32087` | `AgentProfileValidationFailed` | Markdown/frontmatter validation failed, or `thread/start` or `worktree/createAndStart` supplied an unsupported overlay with `agentProfileId`. |
 | `-32088` | `AgentProfileProtected` | Write/remove targeted a built-in profile. |
 | `-32089` | `AgentProfileSourceUnavailable` | Requested source is unsupported or cannot be read/written in this runtime. |
 | `-32091` | `AgentProfileConflict` | Requested id conflicts with the profile frontmatter name or a protected source. |
