@@ -1,6 +1,5 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.Dreams;
 using DotCraft.Mcp;
 using DotCraft.Security;
 using DotCraft.Skills;
@@ -76,6 +75,7 @@ public sealed partial class SessionService
         }
 
         captured.MemoryEnabled ??= currentConfig.Memory.Enabled;
+        captured.MemoryAutoExtract ??= currentConfig.Memory.AutoExtract;
         captured.Reasoning ??= ThreadConfigurationCloner.CloneReasoningConfig(preference.Reasoning);
         captured.Speed ??= preference.Speed;
 
@@ -319,7 +319,6 @@ public sealed partial class SessionService
             var craftPath = Path.Combine(config.WorkspaceOverride, Path.GetFileName(DataPath));
             Directory.CreateDirectory(craftPath);
 
-            var scopedDreamStore = new DreamStore(craftPath);
             var scopedSkills = new SkillsLoader(
                 craftPath,
                 baseCtx.SkillsLoader.UserSkillsPath,
@@ -337,7 +336,6 @@ public sealed partial class SessionService
                 WorkspacePath = config.WorkspaceOverride,
                 WorkspaceRoots = [config.WorkspaceOverride],
                 BotPath = craftPath,
-                DreamStore = scopedDreamStore,
                 SkillsLoader = scopedSkills,
                 // Skill mutations follow the scoped loader, not the workspace-root one.
                 SkillMutationApplier = new WorkspaceFileSkillMutationApplier(scopedSkills),
@@ -471,7 +469,8 @@ public sealed partial class SessionService
             config.Model,
             toolContext.WorkspaceRoots,
             config.SubAgentModelCatalogSnapshot,
-            config.RequireApprovalOutsideWorkspace);
+            config.RequireApprovalOutsideWorkspace,
+            toolContext.MemoryEnabled ? toolContext.MemoryStore.MemoryDirectoryPath : null);
         var toolSnapshot = await agentFactory.BuildToolSnapshotAsync(
             snapshotSources,
             planningContext,

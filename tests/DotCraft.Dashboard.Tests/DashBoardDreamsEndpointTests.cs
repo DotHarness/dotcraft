@@ -1,4 +1,3 @@
-using DotCraft.Workspaces;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
@@ -6,40 +5,31 @@ using DotCraft.Configuration;
 using DotCraft.DashBoard;
 using DotCraft.Dreams;
 using DotCraft.Memory;
+using DotCraft.Sessions;
 using DotCraft.Tracing;
+using DotCraft.Workspaces;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Logging;
-using DotCraft.Sessions;
-using SessionItem = DotCraft.Sessions.SessionItem;
-using SessionThread = DotCraft.Sessions.SessionThread;
-using SessionTurn = DotCraft.Sessions.SessionTurn;
-using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
-using ThreadSource = DotCraft.Sessions.ThreadSource;
-using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 using Xunit;
 
 namespace DotCraft.Tests.DashBoard;
 
 public sealed class DashBoardDreamsEndpointTests : IDisposable
 {
-    private readonly string _root;
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "DashBoardDreams_" + Guid.NewGuid().ToString("N")[..8]);
     private readonly string _workspace;
     private readonly string _craft;
-    private readonly ThreadStore _threadStore;
-    private readonly MemoryStore _memoryStore;
-    private readonly DreamStore _dreamStore;
-    private readonly DreamsStateStore _stateStore;
+    private readonly string _store;
+    private readonly AppConfig _config = new() { Dreams = new DreamsConfig { Enabled = true, StartupDelay = TimeSpan.Zero } };
 
     public DashBoardDreamsEndpointTests()
     {
-        _root = Path.Combine(Path.GetTempPath(), "DashBoardDreams_" + Guid.NewGuid().ToString("N")[..8]);
         _workspace = Path.Combine(_root, "workspace");
         _craft = Path.Combine(_workspace, ".craft");
-        Directory.CreateDirectory(_craft);
-        _threadStore = new ThreadStore(_craft);
-        _memoryStore = new MemoryStore(_craft);
-        _dreamStore = new DreamStore(_craft);
-        _stateStore = new DreamsStateStore(_dreamStore);
+        _store = MemoryStore.DirectoryOf(_craft);
+        Directory.CreateDirectory(_store);
+        File.WriteAllText(Path.Combine(_store, "deploy.md"), "Deploy on Fridays.");
+        File.WriteAllText(Path.Combine(_store, "MEMORY.md"), "- [Deploy](deploy.md) — deploy day");
     }
 
     public void Dispose()
@@ -49,106 +39,105 @@ public sealed class DashBoardDreamsEndpointTests : IDisposable
     }
 
     [Fact]
-    public async Task DreamsEndpoints_RunListGetApplyAndArchive()
+    public async Task DreamsEndpoints_RunReviewApplyRestoreAndArchive()
     {
-        await SaveThreadAsync("thread_one");
-        var config = CreateConfig();
-        var deletedThreadIds = new List<string>();
-        await using var dreamsService = CreateDreamsService(config);
-        await using var app = await CreateDashboardApp(dreamsService, (threadId, _) =>
-        {
-            deletedThreadIds.Add(threadId);
-            return Task.CompletedTask;
-        });
+        await using var service = CreateService();
+        await using var app = await CreateDashboardAppAsync(service);
         using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
 
-        using var status = await http.GetAsync("/dashboard/api/dreams/status");
-        Assert.Equal(HttpStatusCode.OK, status.StatusCode);
-        using var statusDoc = JsonDocument.Parse(await status.Content.ReadAsStringAsync());
-        Assert.False(statusDoc.RootElement.GetProperty("autoApply").GetBoolean());
+        using var started = await http.PostAsync("/dashboard/api/dreams/run", content: null);
+        Assert.Equal(HttpStatusCode.OK, started.StatusCode);
+        var runId = await WaitForFinishedRunAsync(service);
 
-        using var created = await http.PostAsync("/dashboard/api/dreams/run", content: null);
-        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+        using var status = await ReadJsonAsync(http, "/dashboard/api/dreams/status");
+        Assert.Equal(1, status.RootElement.GetProperty("pendingCount").GetInt32());
+        Assert.False(status.RootElement.GetProperty("autoApply").GetBoolean());
 
-        var completed = await WaitForStateAsync(DreamsRunStatuses.Succeeded);
-        Assert.Equal(DreamsReviewStatuses.Pending, completed.ReviewStatus);
-
-        using var runs = await http.GetAsync("/dashboard/api/dreams/runs");
-        Assert.Equal(HttpStatusCode.OK, runs.StatusCode);
-        using var runsDoc = JsonDocument.Parse(await runs.Content.ReadAsStringAsync());
-        var runId = runsDoc.RootElement.GetProperty("runs")[0].GetProperty("id").GetString()!;
-        Assert.Equal(completed.Id, runId);
-
-        using var details = await http.GetAsync($"/dashboard/api/dreams/runs/{runId}");
-        Assert.Equal(HttpStatusCode.OK, details.StatusCode);
-        using var detailsDoc = JsonDocument.Parse(await details.Content.ReadAsStringAsync());
-        Assert.Contains(
-            "Dashboard focus",
-            detailsDoc.RootElement.GetProperty("preview").GetProperty("outputIndexMarkdown").GetString(),
-            StringComparison.Ordinal);
+        using var details = await ReadJsonAsync(http, $"/dashboard/api/dreams/runs/{runId}");
+        var file = Assert.Single(details.RootElement.GetProperty("files").EnumerateArray());
+        Assert.Equal("deploy.md", file.GetProperty("name").GetString());
+        Assert.Equal("Deploy on Fridays.", file.GetProperty("baseline").GetString());
+        Assert.Equal("Deploy on Thursdays.", file.GetProperty("candidate").GetString());
+        Assert.Contains("deploy.md", details.RootElement.GetProperty("manifest").GetString(), StringComparison.Ordinal);
 
         using var applied = await http.PostAsync($"/dashboard/api/dreams/runs/{runId}/apply", content: null);
         Assert.Equal(HttpStatusCode.OK, applied.StatusCode);
-        using var appliedDoc = JsonDocument.Parse(await applied.Content.ReadAsStringAsync());
-        var outputStoreId = appliedDoc.RootElement.GetProperty("run").GetProperty("outputStoreId").GetString();
-        Assert.Equal(DreamsReviewStatuses.Applied, appliedDoc.RootElement.GetProperty("run").GetProperty("reviewStatus").GetString());
-        Assert.Equal(outputStoreId, appliedDoc.RootElement.GetProperty("activeDreamStoreId").GetString());
+        Assert.Equal("Deploy on Thursdays.", await File.ReadAllTextAsync(Path.Combine(_store, "deploy.md")));
+
+        using var restored = await http.PostAsync($"/dashboard/api/dreams/runs/{runId}/restore", content: null);
+        Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
+        Assert.Equal(DreamsReviewStatuses.Discarded, service.LoadRun(runId)!.ReviewStatus);
+        Assert.Equal("Deploy on Fridays.", await File.ReadAllTextAsync(Path.Combine(_store, "deploy.md")));
 
         using var archived = await http.PostAsync($"/dashboard/api/dreams/runs/{runId}/archive", content: null);
         Assert.Equal(HttpStatusCode.OK, archived.StatusCode);
-        Assert.Equal(DreamsReviewStatuses.Archived, _stateStore.Load(runId)?.ReviewStatus);
-
-        var activeStorePath = _dreamStore.GetStoreDescriptor(outputStoreId!).IndexPath;
-        using var deleted = await http.DeleteAsync($"/dashboard/api/dreams/runs/{runId}");
-        Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
-        using var deletedDoc = JsonDocument.Parse(await deleted.Content.ReadAsStringAsync());
-        Assert.True(deletedDoc.RootElement.GetProperty("deleted").GetBoolean());
-        Assert.True(deletedDoc.RootElement.GetProperty("activeStorePreserved").GetBoolean());
-        Assert.True(deletedDoc.RootElement.GetProperty("traceDeleted").GetBoolean());
-        Assert.Null(_stateStore.Load(runId));
-        Assert.True(File.Exists(activeStorePath));
-        Assert.Contains("thread_dream_fake", deletedThreadIds);
+        using var runs = await ReadJsonAsync(http, "/dashboard/api/dreams/runs");
+        Assert.Equal(runId, Assert.Single(runs.RootElement.GetProperty("runs").EnumerateArray()).GetProperty("id").GetString());
     }
 
     [Fact]
-    public async Task DreamsDeleteAll_IncludesArchivedRunsAndPreservesActiveStore()
+    public async Task DreamsApply_WhenTheStoreChanged_ReturnsConflict()
     {
-        await SaveThreadAsync("thread_one");
+        await using var service = CreateService();
+        await using var app = await CreateDashboardAppAsync(service);
+        using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+        await service.RequestRunAsync();
+        var runId = await WaitForFinishedRunAsync(service);
+        File.WriteAllText(Path.Combine(_store, "deploy.md"), "Edited by the user.");
+
+        using var applied = await http.PostAsync($"/dashboard/api/dreams/runs/{runId}/apply", content: null);
+
+        Assert.Equal(HttpStatusCode.Conflict, applied.StatusCode);
+        Assert.Equal(DreamsReviewStatuses.Pending, service.LoadRun(runId)!.ReviewStatus);
+        Assert.Equal("Edited by the user.", await File.ReadAllTextAsync(Path.Combine(_store, "deploy.md")));
+    }
+
+    [Fact]
+    public async Task DreamsDelete_RemovesRunsAndTheirTracesButNeverTheStore()
+    {
         var deletedThreadIds = new List<string>();
-        await using var dreamsService = CreateDreamsService(CreateConfig());
-        await using var app = await CreateDashboardApp(dreamsService, (threadId, _) =>
+        await using var service = CreateService();
+        await using var app = await CreateDashboardAppAsync(service, (threadId, _) =>
         {
             deletedThreadIds.Add(threadId);
             return Task.CompletedTask;
         });
         using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+        await service.RequestRunAsync();
+        var first = await WaitForFinishedRunAsync(service);
+        service.ApplyRun(first);
+        await service.RequestRunAsync();
+        var second = await WaitForFinishedRunAsync(service, first);
+        service.ArchiveRun(second);
 
-        using var firstRequest = await http.PostAsync("/dashboard/api/dreams/run", content: null);
-        Assert.Equal(HttpStatusCode.OK, firstRequest.StatusCode);
-        var first = await WaitForStateAsync(DreamsRunStatuses.Succeeded);
-        _ = dreamsService.ApplyRun(first.Id);
+        using var missing = await http.DeleteAsync("/dashboard/api/dreams/runs/dream_missing");
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
 
-        using var secondRequest = await http.PostAsync("/dashboard/api/dreams/run", content: null);
-        Assert.Equal(HttpStatusCode.OK, secondRequest.StatusCode);
-        var second = await WaitForDifferentStateAsync(first.Id, DreamsRunStatuses.Succeeded);
-        _ = dreamsService.ArchiveRun(second.Id);
+        using var single = await http.DeleteAsync($"/dashboard/api/dreams/runs/{first}");
+        Assert.Equal(HttpStatusCode.OK, single.StatusCode);
+        using (var singleDoc = JsonDocument.Parse(await single.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal([first], singleDoc.RootElement.GetProperty("deletedRunIds").EnumerateArray().Select(static id => id.GetString()));
+            Assert.Equal(1, singleDoc.RootElement.GetProperty("deletedCount").GetInt32());
+            Assert.False(singleDoc.RootElement.GetProperty("partial").GetBoolean());
+            Assert.Empty(singleDoc.RootElement.GetProperty("traceCleanupFailures").EnumerateArray());
+        }
 
-        var activeStorePath = _dreamStore.GetStoreDescriptor(first.OutputStoreId!).IndexPath;
-        var inactiveStorePath = _dreamStore.GetStoreDescriptor(second.OutputStoreId!).DirectoryPath;
-        using var deleted = await http.DeleteAsync("/dashboard/api/dreams/runs");
+        using var all = await http.DeleteAsync("/dashboard/api/dreams/runs");
+        Assert.Equal(HttpStatusCode.OK, all.StatusCode);
+        using (var allDoc = JsonDocument.Parse(await all.Content.ReadAsStringAsync()))
+            Assert.Equal(1, allDoc.RootElement.GetProperty("deletedCount").GetInt32());
 
-        Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
-        using var deletedDoc = JsonDocument.Parse(await deleted.Content.ReadAsStringAsync());
-        Assert.Equal(2, deletedDoc.RootElement.GetProperty("deletedCount").GetInt32());
-        Assert.True(deletedDoc.RootElement.GetProperty("activeStorePreserved").GetBoolean());
-        Assert.Null(_stateStore.Load());
-        Assert.Empty(_stateStore.List(includeArchived: true));
-        Assert.True(File.Exists(activeStorePath));
-        Assert.False(Directory.Exists(inactiveStorePath));
+        Assert.Empty(service.ListRuns(includeArchived: true));
+        Assert.Null(service.LoadLatestState());
         Assert.Equal(2, deletedThreadIds.Count);
+        Assert.Equal("Deploy on Thursdays.", await File.ReadAllTextAsync(Path.Combine(_store, "deploy.md")));
     }
 
-    private async Task<WebApplication> CreateDashboardApp(
+    private DreamsService CreateService() =>
+        new(_config, new DotCraftPaths(_workspace, _craft, userDataPath: null), new ThreadStore(_craft), new CandidateEditingRunner());
+
+    private async Task<WebApplication> CreateDashboardAppAsync(
         DreamsService dreamsService,
         Func<string, CancellationToken, Task>? deleteThreadAsync = null)
     {
@@ -159,107 +148,29 @@ public sealed class DashBoardDreamsEndpointTests : IDisposable
             new TraceStore(),
             new DotCraftPaths(_workspace, _craft, userDataPath: null),
             deleteThreadAsync: deleteThreadAsync,
-            dreamStore: _dreamStore,
             dreamsService: dreamsService);
         app.Urls.Add($"http://127.0.0.1:{GetFreeTcpPort()}");
         await app.StartAsync();
         return app;
     }
 
-    private DreamsService CreateDreamsService(AppConfig config)
+    private static async Task<string> WaitForFinishedRunAsync(DreamsService service, string? previousRunId = null)
     {
-        var runner = new FakeRunner { Store = _dreamStore };
-        var collector = new DreamsInputCollector(config, _workspace, _memoryStore, _dreamStore, _threadStore);
-        return new DreamsService(config, collector, runner, _dreamStore, _stateStore);
-    }
-
-    private static AppConfig CreateConfig() => new()
-    {
-        Dreams = new DreamsConfig
+        for (var attempt = 0; attempt < 200; attempt++)
         {
-            Enabled = true,
-            Interval = TimeSpan.FromHours(24),
-            StartupDelay = TimeSpan.Zero,
-            ThreadLookbackCount = 20,
-            MinCompletedTurnsSinceLastRun = 1
-        }
-    };
-
-    private async Task<DreamsRunState> WaitForStateAsync(string status)
-    {
-        for (var attempt = 0; attempt < 20; attempt++)
-        {
-            var state = _stateStore.Load();
-            if (state?.Status == status)
-                return state;
-            await Task.Delay(50);
+            if (service.LoadLatestState() is { IsRunning: false } state && state.Id != previousRunId)
+                return state.Id;
+            await Task.Delay(25);
         }
 
-        Assert.Equal(status, _stateStore.Load()?.Status);
-        throw new InvalidOperationException("Unreachable.");
+        throw new Xunit.Sdk.XunitException("The Dream run did not finish.");
     }
 
-    private async Task<DreamsRunState> WaitForDifferentStateAsync(string previousRunId, string status)
+    private static async Task<JsonDocument> ReadJsonAsync(HttpClient http, string path)
     {
-        for (var attempt = 0; attempt < 20; attempt++)
-        {
-            var state = _stateStore.Load();
-            if (state?.Id != previousRunId && state?.Status == status)
-                return state;
-            await Task.Delay(50);
-        }
-
-        Assert.NotEqual(previousRunId, _stateStore.Load()?.Id);
-        Assert.Equal(status, _stateStore.Load()?.Status);
-        throw new InvalidOperationException("Unreachable.");
-    }
-
-    private async Task SaveThreadAsync(string id)
-    {
-        var now = DateTimeOffset.UtcNow;
-        var user = new SessionItem
-        {
-            Id = "item_user",
-            TurnId = "turn_001",
-            Type = ItemType.UserMessage,
-            Status = ItemStatus.Completed,
-            Payload = new UserMessagePayload { Text = "Please organize Dashboard Dreams review." },
-            CreatedAt = now
-        };
-        var assistant = new SessionItem
-        {
-            Id = "item_agent",
-            TurnId = "turn_001",
-            Type = ItemType.AgentMessage,
-            Status = ItemStatus.Completed,
-            Payload = new AgentMessagePayload { Text = "Dreams can create review stores." },
-            CreatedAt = now
-        };
-        await _threadStore.SaveThreadAsync(new SessionThread
-        {
-            Id = id,
-            WorkspacePath = _workspace,
-            OriginChannel = "desktop",
-            DisplayName = "Dashboard Dreams test",
-            Source = ThreadSource.User(),
-            Status = ThreadStatus.Active,
-            CreatedAt = now.AddMinutes(-5),
-            LastActiveAt = now,
-            HistoryMode = HistoryMode.Server,
-            Turns =
-            [
-                new SessionTurn
-                {
-                    Id = "turn_001",
-                    ThreadId = id,
-                    Status = TurnStatus.Completed,
-                    Input = user,
-                    Items = [user, assistant],
-                    StartedAt = now.AddMinutes(-1),
-                    CompletedAt = now
-                }
-            ]
-        });
+        using var response = await http.GetAsync(path);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
     }
 
     private static int GetFreeTcpPort()
@@ -271,59 +182,20 @@ public sealed class DashBoardDreamsEndpointTests : IDisposable
         return port;
     }
 
-    private static string ValidDreamMarkdown() =>
-        """
-        # Dream Memory
-
-        Generated by scheduled Dreams from recent workspace sessions. Treat as inferred background context, not explicit user instruction.
-
-        ## Workspace Focus
-        - Dashboard focus.
-
-        ## Active Threads And Open Loops
-
-        ## Inferred Project Conventions
-
-        ## Repeated Problems And Prior Mistakes
-
-        ## Latest Stable Understanding
-
-        ## Low-Signal Or One-Off Context To Ignore
-        """;
-
-    private sealed class FakeRunner : IDreamsRunner
+    private sealed class CandidateEditingRunner : IDreamsRunner
     {
         public string ModelId => "fake-dream-model";
 
-        public DreamStore? Store { get; init; }
-
-        public async Task<DreamsGenerationResult> GenerateAsync(
+        public Task<DreamsGenerationResult> GenerateAsync(
             DreamsRunInput input,
-            string runId,
-            string trigger,
-            string? outputStoreId = null,
-            string? modelId = null,
+            string modelId,
             Action<DreamsRunSessionBinding>? onSessionBinding = null,
             CancellationToken cancellationToken = default)
         {
-            _ = trigger;
-            _ = modelId;
-            onSessionBinding?.Invoke(new DreamsRunSessionBinding("thread_dream_fake", "turn_dream_fake"));
-            string? createdOutputStoreId = null;
-            if (Store != null)
-            {
-                var store = Store.CreateOutputStore(runId, DateTimeOffset.UtcNow);
-                await File.WriteAllTextAsync(store.IndexPath, ValidDreamMarkdown(), cancellationToken);
-                createdOutputStoreId = store.StoreId;
-            }
-
-            return DreamsGenerationResult.Success(
-                ValidDreamMarkdown(),
-                "Dreams processed test input.",
-                "thread_dream_fake",
-                "turn_dream_fake",
-                outputStoreId: outputStoreId ?? createdOutputStoreId,
-                diagnostics: new DreamsRunDiagnostics(input.Threads.Count, [], 0, 0));
+            var threadId = "thread_" + input.RunId;
+            onSessionBinding?.Invoke(new DreamsRunSessionBinding(threadId, "turn_dream"));
+            File.WriteAllText(Path.Combine(input.CandidateDirectory, "deploy.md"), "Deploy on Thursdays.");
+            return Task.FromResult(new DreamsGenerationResult(true, "Moved deploys to Thursdays.", ThreadId: threadId, TurnId: "turn_dream"));
         }
     }
 }

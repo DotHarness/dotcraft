@@ -4,16 +4,6 @@
   "title": "DreamsStatusResult",
   "type": "object",
   "properties": {
-    "activeDreamStoreId": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "autoApply": {
       "type": "boolean"
     },
@@ -33,7 +23,7 @@
         }
       ]
     },
-    "minCompletedTurnsSinceLastRun": {
+    "minSessionsSinceLastRun": {
       "type": "integer"
     },
     "nextRunAt": {
@@ -49,9 +39,6 @@
     },
     "running": {
       "type": "boolean"
-    },
-    "threadLookbackCount": {
-      "type": "integer"
     }
   },
   "additionalProperties": true

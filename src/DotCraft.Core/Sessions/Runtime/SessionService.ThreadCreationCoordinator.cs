@@ -109,14 +109,14 @@ public sealed partial class SessionService
             options ??= new ThreadForkOptions();
             var normalizedThreadId = NormalizeRequiredThreadId(threadId);
             var source = await LoadForkSourceThreadAsync(normalizedThreadId, options.Path, ct);
-            if (options.PromptSuggestion && (!options.Ephemeral
+            if (options.Purpose is not null && (!options.Ephemeral
                 || options.ForkPoint is not { } forkPoint
                 || forkPoint.TurnId != source.Turns.LastOrDefault()?.Id
                 || !string.IsNullOrWhiteSpace(forkPoint.ItemId)
                 || !ResolveForkPosition(forkPoint.Position)
                 || source.Turns.LastOrDefault()?.Status != TurnStatus.Completed))
             {
-                throw new ArgumentException("Prompt suggestions require an ephemeral fork after the latest completed Turn.", nameof(options));
+                throw new ArgumentException("An internal fork must be ephemeral and taken after the latest completed Turn.", nameof(options));
             }
             var identity = ResolveForkIdentity(source, options.Identity);
             var now = DateTimeOffset.UtcNow;
@@ -127,6 +127,10 @@ public sealed partial class SessionService
                     : owner.CaptureThreadConfigurationForNewThread(null);
             config.MemoryScope = source.Configuration?.MemoryScope;
             config.MemoryEnabled = source.Configuration?.MemoryEnabled;
+            config.MemoryAutoExtract = source.Configuration?.MemoryAutoExtract;
+            // Nobody answers an extraction fork's approval prompts; the policy is not model-visible, so the cache is kept.
+            if (options.Purpose == ThreadForkPurpose.MemoryExtraction)
+                config.ApprovalPolicy = ApprovalPolicy.Deny;
             config = ThreadWorkspaceResolver.Apply(
                 identity.WorkspacePath,
                 config,
@@ -136,14 +140,14 @@ public sealed partial class SessionService
             var activeSourceTurns = source.Turns.Where(IsActiveTurn).ToArray();
             var forkedTurns = CloneForkTurns(source, options.ForkPoint, forkedThreadId, source.Id, now);
             var metadata = CopyForkMetadata(source, identity);
-            if (options.Ephemeral && options.PromptSuggestion)
+            if (options.Purpose is { } purpose)
             {
-                metadata[ThreadVisibility.InternalMetadataKey] = PromptSuggestionThread.InternalValue;
-                metadata[PromptSuggestionThread.CacheRootKey] = string.IsNullOrWhiteSpace(source.Source.SubAgent?.RootThreadId)
+                metadata[ThreadVisibility.InternalMetadataKey] = CacheSharingFork.InternalValue(purpose);
+                metadata[CacheSharingFork.CacheRootKey] = string.IsNullOrWhiteSpace(source.Source.SubAgent?.RootThreadId)
                     ? source.Id
                     : source.Source.SubAgent.RootThreadId;
-                metadata[PromptSuggestionThread.ParentTurnKey] = options.ForkPoint!.TurnId!;
-                metadata[PromptSuggestionThread.ToolKindKey] = ToolPlanningThreadClassifier.Classify(source).ToString();
+                metadata[CacheSharingFork.ParentTurnKey] = options.ForkPoint!.TurnId!;
+                metadata[CacheSharingFork.ToolKindKey] = ToolPlanningThreadClassifier.Classify(source).ToString();
             }
             var forked = new SessionThread
             {
@@ -168,12 +172,12 @@ public sealed partial class SessionService
                 ProviderHistorySchemaVersion = ProviderHistorySchema.CurrentSchemaVersion
             };
 
-            owner.BindPromptSuggestionTrace(forked);
+            owner.BindCacheSharingForkTrace(forked);
             owner._runtimeRegistry.SetThread(forked);
             owner._runtimeRegistry.ClearPendingPermanentDeletion(forked.Id);
             var broker = owner.GetOrCreateBroker(forked.Id);
 
-            if (options.Ephemeral && options.PromptSuggestion)
+            if (options.Purpose is not null)
                 ((IThreadForkToolBindingService)owner).TryForkThreadToolBindings(source.Id, forked.Id);
 
             using (await owner.AcquireThreadAgentLockAsync(forked.Id, ct))
@@ -186,7 +190,7 @@ public sealed partial class SessionService
             var interruptions = await owner.BuildForkInterruptionsAsync(source, forked, activeSourceTurns, ct);
             var materialization = await owner.Persistence.BuildForkModelHistoryMaterializationAsync(
                 source, forked, ct, interruptions);
-            if (options.PromptSuggestion)
+            if (options.Purpose is not null)
             {
                 var copiedHistory = await owner.Persistence.LoadModelHistoryAsync(source, null, ct);
                 if (copiedHistory.Count > 0)

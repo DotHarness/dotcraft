@@ -19,7 +19,8 @@ internal sealed class AuxiliaryProviderRequestScope : IDisposable
             AgentHistoryRuntimeScope.Suppress(),
             StreamingSamplingRuntimeScope.Suppress(),
             StreamingGuidanceRuntimeScope.Suppress(),
-            StreamingToolInvocationRuntimeScope.Suppress()
+            StreamingToolInvocationRuntimeScope.Suppress(),
+            ModelRequestLimitScope.Suppress()
         ];
     }
 

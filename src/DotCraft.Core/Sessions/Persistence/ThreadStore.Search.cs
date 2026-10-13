@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 namespace DotCraft.Sessions;
@@ -9,18 +10,7 @@ public sealed partial class ThreadStore
 
     public async Task<string?> FindContentMatchAsync(string threadId, string searchTerm, CancellationToken ct = default)
     {
-        using var readLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
-        var path = _rolloutStore.ResolveExistingPath(threadId);
-        if (path == null)
-            return null;
-
-        // Rollout strings are JSON-escaped, so raw lines are prefiltered with the term escaped the same way. A non-ASCII
-        // character escapes differently in each case, so such a term is only matched in the decoded messages.
-        var escapedTerm = JsonSerializer.Serialize(searchTerm, SessionJsonOptions.Default)[1..^1];
-        Func<string, bool>? prefilter = searchTerm.Any(static c => c > 0x7F)
-            ? null
-            : rawLine => rawLine.Contains(escapedTerm, StringComparison.OrdinalIgnoreCase);
-        await foreach (var line in RolloutItemReader.ReadAsync(path, prefilter, ct))
+        await foreach (var line in ReadRolloutItemsAsync(threadId, ContentPrefilter(searchTerm), ct))
         {
             var text = line.Item.Type switch
             {
@@ -33,6 +23,31 @@ public sealed partial class ThreadStore
         }
 
         return null;
+    }
+
+    /// <summary>Streams a persisted Thread's Items in rollout order; an Item can appear more than once as it is updated.</summary>
+    internal async IAsyncEnumerable<RolloutItemLine> ReadRolloutItemsAsync(
+        string threadId,
+        Func<string, bool>? lineFilter = null,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        using var readLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
+        var path = _rolloutStore.ResolveExistingPath(threadId);
+        if (path == null)
+            yield break;
+
+        await foreach (var line in RolloutItemReader.ReadAsync(path, lineFilter, ct))
+            yield return line;
+    }
+
+    internal static Func<string, bool>? ContentPrefilter(string searchTerm)
+    {
+        // Rollout strings are JSON-escaped, so raw lines are prefiltered with the term escaped the same way. A non-ASCII
+        // character escapes differently in each case, so such a term is only matched in the decoded messages.
+        var escapedTerm = JsonSerializer.Serialize(searchTerm, SessionJsonOptions.Default)[1..^1];
+        return searchTerm.Any(static c => c > 0x7F)
+            ? null
+            : rawLine => rawLine.Contains(escapedTerm, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? ExcerptAroundMatch(string text, string searchTerm)

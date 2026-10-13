@@ -293,7 +293,7 @@ public sealed class SessionServiceForkTests : IDisposable
         var fork = await service.ForkThreadAsync(source.Id, new ThreadForkOptions
         {
             Ephemeral = true,
-            PromptSuggestion = true,
+            Purpose = ThreadForkPurpose.PromptSuggestion,
             ForkPoint = position == null
                 ? new ThreadForkPoint { TurnId = "turn_001" }
                 : new ThreadForkPoint { TurnId = "turn_001", Position = position }
@@ -324,7 +324,7 @@ public sealed class SessionServiceForkTests : IDisposable
         await Assert.ThrowsAsync<ArgumentException>(() => service.ForkThreadAsync(source.Id, new ThreadForkOptions
         {
             Ephemeral = true,
-            PromptSuggestion = true,
+            Purpose = ThreadForkPurpose.PromptSuggestion,
             ForkPoint = new ThreadForkPoint { TurnId = "turn_001", Position = position, ItemId = itemId }
         }));
         Assert.Equal(0, created);
@@ -355,7 +355,7 @@ public sealed class SessionServiceForkTests : IDisposable
         var fork = await service.ForkThreadAsync(source.Id, new ThreadForkOptions
         {
             Ephemeral = true,
-            PromptSuggestion = true,
+            Purpose = ThreadForkPurpose.PromptSuggestion,
             ForkPoint = new ThreadForkPoint { TurnId = lastTurn.Id }
         });
         Assert.Equal([agentsPath], await service.GetInstructionSourcesAsync(fork.Id));

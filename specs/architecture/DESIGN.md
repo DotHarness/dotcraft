@@ -1,5 +1,5 @@
 ---
-version: "0.8.5"
+version: "0.8.6"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -1495,6 +1495,7 @@ The summary stays one line and ellipsizes, however long the command.
 | Text search | magnifying glass |
 | File listing | folder |
 | File or skill edit | pencil |
+| Memory update | brain |
 | Web search or fetch | globe |
 | Discussion board read or change | speech bubbles |
 | Any other tool | wrench |

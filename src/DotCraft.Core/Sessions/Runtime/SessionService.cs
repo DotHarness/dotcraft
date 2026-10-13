@@ -1280,10 +1280,7 @@ public sealed partial class SessionService(
     }
 
     private MemoryStore ResolveMemoryStore(ThreadConfiguration? config) =>
-        MemoryScopes.Resolve(config?.MemoryScope, DataPath)
-        ?? (string.IsNullOrEmpty(config?.WorkspaceOverride)
-            ? agentFactory.RuntimeContext.MemoryStore
-            : new MemoryStore(Path.Combine(config.WorkspaceOverride, Path.GetFileName(DataPath))));
+        MemoryScopes.ForThread(config, agentFactory.RuntimeContext.MemoryStore, DataPath);
 
     private ThreadLoadGate AddThreadLoadGateReference(string threadId)
     {

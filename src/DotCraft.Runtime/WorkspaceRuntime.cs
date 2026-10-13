@@ -10,6 +10,7 @@ using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Dreams;
 using DotCraft.Memory;
+using DotCraft.Memory.Extraction;
 using DotCraft.Modules;
 using DotCraft.Security;
 using DotCraft.Skills;
@@ -269,7 +270,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                         BotPath = Paths.Data.RootPath,
                         UserDataPath = Paths.UserData.RootPath,
                         MemoryStore = MemoryStore,
-                        DreamStore = Services.GetRequiredService<DreamStore>(),
                         SkillsLoader = SkillsLoader,
                         ContextPageManager = contextPageManager,
                         ThreadSystemPromptContextProviders = threadSystemPromptContextProviders,
@@ -335,12 +335,24 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 welcomeSuggestionService = new WelcomeSuggestionService(
                     sessionService,
                     MemoryStore,
-                    Services.GetRequiredService<DreamStore>(),
                     Paths.WorkspacePath,
                     Config,
                     Paths.Data.RootPath,
                     loggerFactory?.CreateLogger<WelcomeSuggestionService>());
-                _contributionScope.RegisterSessionContributions(commitMessageSuggestService, welcomeSuggestionService);
+                var memoryExtraction = new MemoryExtractionScheduler(
+                    sessionService.GetThreadAsync,
+                    new MemoryExtractionRunner(
+                        sessionService,
+                        contributionRegistry,
+                        MemoryStore,
+                        Paths.Data.RootPath,
+                        traceCollector,
+                        loggerFactory?.CreateLogger<MemoryExtractionRunner>()),
+                    loggerFactory?.CreateLogger<MemoryExtractionScheduler>());
+                _contributionScope.RegisterSessionContributions(
+                    commitMessageSuggestService,
+                    welcomeSuggestionService,
+                    memoryExtraction);
                 // Handed out instead of the built-ins so a caller that captures one — an open AppServer
                 // connection, say — still observes a replacement registered after it captured.
                 var commitMessageSuggest =
@@ -356,19 +368,15 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     Services.GetRequiredService<SessionPersistenceService>(),
                     chatClientRegistry,
                     Config,
-                    Paths.WorkspacePath,
                     Services.GetRequiredService<DreamsRunRegistry>(),
-                    Services.GetRequiredService<DreamStore>(),
-                    Services.GetService<ILoggerFactory>()
-                        ?.CreateLogger<DreamsSessionRunner>());
+                    loggerFactory?.CreateLogger<DreamsSessionRunner>());
                 dreamsService = new DreamsService(
                     Config,
-                    Services.GetRequiredService<DreamsInputCollector>(),
+                    Paths,
+                    Services.GetRequiredService<ThreadStore>(),
                     dreamsRunner,
-                    Services.GetRequiredService<DreamStore>(),
-                    Services.GetRequiredService<DreamsStateStore>(),
-                    Services.GetService<ILoggerFactory>()
-                        ?.CreateLogger<DreamsService>());
+                    _appConfigMonitor,
+                    loggerFactory?.CreateLogger<DreamsService>());
                 await dreamsService.StartAsync(ct);
 
                 var descriptors = Services.GetService<IConfigDescriptorRegistry>()

@@ -1,50 +1,55 @@
 import type { MessageKey } from '../../../../../shared/locales'
+import type { StatusIndicatorTone } from '../../../ui/StatusIndicator'
 
 export type DreamsRunStatus = 'running' | 'succeeded' | 'skipped' | 'failed' | 'canceled'
 export type DreamsReviewStatus = 'pending' | 'applied' | 'discarded' | 'archived'
 
+type Translate = (key: MessageKey | string, vars?: Record<string, string | number>) => string
+
+export interface DreamsRunChanges {
+  added: string[]
+  updated: string[]
+  deleted: string[]
+  indexChanged: boolean
+}
+
 export interface DreamsRunState {
   id: string
+  scope: string | null
   status: DreamsRunStatus
+  trigger: string | null
   startedAt: string
-  endedAt?: string | null
-  processedThreadCount: number
+  endedAt: string | null
   candidateThreadCount: number
-  dreamWritten: boolean
-  topicFilesWritten: number
-  topicFilesDeleted: number
+  evidenceThreadIds: string[]
   evidenceSearchCount: number
   evidenceReadCount: number
-  outputStoreId?: string | null
-  reviewStatus?: DreamsReviewStatus | null
+  changes: DreamsRunChanges | null
+  reviewStatus: DreamsReviewStatus | null
   autoApplied: boolean
-  errorType?: string | null
-  evidenceThreadIds: string[]
-  writtenPaths: string[]
-  threadId?: string | null
-  turnId?: string | null
-  turnIds: string[]
-  trigger?: string | null
-  message?: string | null
-  inputManifestPath?: string | null
+  summary: string | null
+  errorType: string | null
+  message: string | null
+  threadId: string | null
 }
 
 export interface DreamsStatus {
-  minCompletedTurnsSinceLastRun: number
-  nextRunAt?: string | null
+  enabled: boolean
+  interval: string | null
+  autoApply: boolean
+  minSessionsSinceLastRun: number
+  nextRunAt: string | null
   running: boolean
-  activeDreamStoreId?: string | null
   lastRun: DreamsRunState | null
 }
 
 export const DREAMS_INTERVAL_OPTIONS = ['06:00:00', '12:00:00', '24:00:00', '168:00:00'] as const
-export const DREAMS_THREAD_LOOKBACK_OPTIONS = [10, 20, 50, 100] as const
 
 export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
-export function formatDreamsIntervalOption(value: string, t: (key: MessageKey | string, vars?: Record<string, string | number>) => string): string {
+export function formatDreamsIntervalOption(value: string, t: Translate): string {
   switch (value) {
     case '06:00:00':
       return t('settings.personalization.dreamsInterval.6h')
@@ -84,6 +89,48 @@ export function formatDreamsIntervalForConfig(value: string): string {
   return totalHours >= 24 ? `${Math.floor(totalHours / 24)}.${time}` : time
 }
 
+export function dreamsRunStateLabel(run: DreamsRunState): { tone: StatusIndicatorTone; labelKey: MessageKey } {
+  switch (run.status) {
+    case 'running':
+      return { tone: 'pending', labelKey: 'settings.personalization.dreamsStatus.running' }
+    case 'failed':
+      return { tone: 'error', labelKey: 'settings.personalization.dreamsStatus.failed' }
+    case 'skipped':
+      return { tone: 'neutral', labelKey: 'settings.personalization.dreamsStatus.skipped' }
+    case 'canceled':
+      return { tone: 'neutral', labelKey: 'settings.personalization.dreamsStatus.canceled' }
+    case 'succeeded':
+      switch (run.reviewStatus) {
+        case 'pending':
+          return { tone: 'warning', labelKey: 'settings.dreams.reviewStatus.pending' }
+        case 'applied':
+          return { tone: 'success', labelKey: 'settings.dreams.reviewStatus.applied' }
+        case 'discarded':
+          return { tone: 'neutral', labelKey: 'settings.dreams.reviewStatus.discarded' }
+        case 'archived':
+          return { tone: 'neutral', labelKey: 'settings.dreams.reviewStatus.archived' }
+        default:
+          return { tone: 'success', labelKey: 'settings.personalization.dreamsStatus.succeeded' }
+      }
+  }
+}
+
+export function dreamsStoreLabel(run: DreamsRunState, t: Translate): string {
+  return run.scope ? t('settings.dreams.store.agent') : t('settings.dreams.store.workspace')
+}
+
+export function dreamsChangeSummary(run: DreamsRunState, t: Translate): string[] {
+  if (run.status !== 'succeeded') return []
+  const changes = run.changes
+  const parts = [
+    changes?.added.length ? t('settings.dreams.changes.added', { count: changes.added.length }) : null,
+    changes?.updated.length ? t('settings.dreams.changes.updated', { count: changes.updated.length }) : null,
+    changes?.deleted.length ? t('settings.dreams.changes.deleted', { count: changes.deleted.length }) : null
+  ].filter((part): part is string => part != null)
+  if (parts.length > 0) return parts
+  return [changes?.indexChanged ? t('settings.dreams.changes.index') : t('settings.dreams.changes.none')]
+}
+
 function normalizeDreamsRunStatus(value: unknown): DreamsRunStatus {
   return value === 'running' || value === 'succeeded' || value === 'skipped' || value === 'failed' || value === 'canceled'
     ? value
@@ -102,51 +149,46 @@ function asStringArray(value: unknown): string[] {
     : []
 }
 
+function asString(value: unknown): string | null {
+  return typeof value === 'string' && value !== '' ? value : null
+}
+
+function asCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function normalizeDreamsRunChanges(value: unknown): DreamsRunChanges | null {
+  if (value == null || typeof value !== 'object') return null
+  const source = value as Record<string, unknown>
+  return {
+    added: asStringArray(source.added),
+    updated: asStringArray(source.updated),
+    deleted: asStringArray(source.deleted),
+    indexChanged: source.indexChanged === true
+  }
+}
+
 function normalizeDreamsRunState(value: unknown): DreamsRunState | null {
   if (value == null || typeof value !== 'object') return null
-  const source = value as Partial<DreamsRunState>
+  const source = value as Record<string, unknown>
   return {
-    id: typeof source.id === 'string' ? source.id : '',
+    id: asString(source.id) ?? '',
+    scope: asString(source.scope),
     status: normalizeDreamsRunStatus(source.status),
-    startedAt: typeof source.startedAt === 'string' ? source.startedAt : '',
-    endedAt: typeof source.endedAt === 'string' ? source.endedAt : null,
-    processedThreadCount:
-      typeof source.processedThreadCount === 'number' && Number.isFinite(source.processedThreadCount)
-        ? source.processedThreadCount
-        : 0,
-    candidateThreadCount:
-      typeof source.candidateThreadCount === 'number' && Number.isFinite(source.candidateThreadCount)
-        ? source.candidateThreadCount
-        : 0,
-    dreamWritten: source.dreamWritten === true,
-    topicFilesWritten:
-      typeof source.topicFilesWritten === 'number' && Number.isFinite(source.topicFilesWritten)
-        ? source.topicFilesWritten
-        : 0,
-    topicFilesDeleted:
-      typeof source.topicFilesDeleted === 'number' && Number.isFinite(source.topicFilesDeleted)
-        ? source.topicFilesDeleted
-        : 0,
-    evidenceSearchCount:
-      typeof source.evidenceSearchCount === 'number' && Number.isFinite(source.evidenceSearchCount)
-        ? source.evidenceSearchCount
-        : 0,
-    evidenceReadCount:
-      typeof source.evidenceReadCount === 'number' && Number.isFinite(source.evidenceReadCount)
-        ? source.evidenceReadCount
-        : 0,
-    outputStoreId: typeof source.outputStoreId === 'string' ? source.outputStoreId : null,
+    trigger: asString(source.trigger),
+    startedAt: asString(source.startedAt) ?? '',
+    endedAt: asString(source.endedAt),
+    candidateThreadCount: asCount(source.candidateThreadCount),
+    evidenceThreadIds: asStringArray(source.evidenceThreadIds),
+    evidenceSearchCount: asCount(source.evidenceSearchCount),
+    evidenceReadCount: asCount(source.evidenceReadCount),
+    changes: normalizeDreamsRunChanges(source.changes),
     reviewStatus: normalizeDreamsReviewStatus(source.reviewStatus),
     autoApplied: source.autoApplied === true,
-    errorType: typeof source.errorType === 'string' ? source.errorType : null,
-    evidenceThreadIds: asStringArray(source.evidenceThreadIds),
-    writtenPaths: asStringArray(source.writtenPaths),
-    threadId: typeof source.threadId === 'string' ? source.threadId : null,
-    turnId: typeof source.turnId === 'string' ? source.turnId : null,
-    turnIds: asStringArray(source.turnIds),
-    trigger: typeof source.trigger === 'string' ? source.trigger : null,
-    message: typeof source.message === 'string' ? source.message : null,
-    inputManifestPath: typeof source.inputManifestPath === 'string' ? source.inputManifestPath : null
+    summary: asString(source.summary),
+    errorType: asString(source.errorType),
+    message: asString(source.message),
+    threadId: asString(source.threadId)
   }
 }
 
@@ -158,16 +200,14 @@ export function normalizeDreamsRunList(value: unknown): DreamsRunState[] {
 }
 
 export function normalizeDreamsStatus(value: unknown): DreamsStatus {
-  const source = value != null && typeof value === 'object' ? value as Partial<DreamsStatus> : {}
-  const lastRun = normalizeDreamsRunState(source.lastRun)
+  const source = value != null && typeof value === 'object' ? value as Record<string, unknown> : {}
   return {
-    minCompletedTurnsSinceLastRun:
-      typeof source.minCompletedTurnsSinceLastRun === 'number' && Number.isFinite(source.minCompletedTurnsSinceLastRun)
-        ? source.minCompletedTurnsSinceLastRun
-        : 0,
-    nextRunAt: typeof source.nextRunAt === 'string' ? source.nextRunAt : null,
+    enabled: source.enabled === true,
+    interval: normalizeDreamsInterval(source.interval),
+    autoApply: source.autoApply === true,
+    minSessionsSinceLastRun: asCount(source.minSessionsSinceLastRun),
+    nextRunAt: asString(source.nextRunAt),
     running: source.running === true,
-    activeDreamStoreId: typeof source.activeDreamStoreId === 'string' ? source.activeDreamStoreId : null,
-    lastRun
+    lastRun: normalizeDreamsRunState(source.lastRun)
   }
 }

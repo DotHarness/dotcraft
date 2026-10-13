@@ -64,6 +64,54 @@ public sealed class SessionServiceToolInvocationRecorderTests : IDisposable
     }
 
     [Theory]
+    [InlineData("ReadFile", "memory/user_role.md", "recall")]
+    [InlineData("GrepFiles", "memory", "recall")]
+    [InlineData("WriteFile", "memory/new_note.md", "update")]
+    [InlineData("EditFile", "memory/user_role.md", "update")]
+    public async Task RecordStartedAsync_FileCallInsideMemoryStore_MarksLiveAndHistoryItems(
+        string tool,
+        string path,
+        string expected)
+    {
+        WriteMemoryFile("user_role.md");
+
+        var (events, history) = await RunMemoryTurnAsync(tool, path);
+
+        Assert.Equal(expected, MemoryMark(LastToolCall(events, SessionEventType.ItemStarted)));
+        Assert.Equal(expected, MemoryMark(LastToolCall(events, SessionEventType.ItemCompleted)));
+        var result = Assert.Single(events, evt =>
+            evt.EventType == SessionEventType.ItemCompleted && evt.ItemPayload?.Payload is ToolResultPayload);
+        Assert.Equal(expected, MemoryMark(result.ItemPayload!));
+        Assert.Equal(expected, MemoryMark(Assert.Single(history, item => item.Payload is ToolCallPayload)));
+        Assert.Equal(expected, MemoryMark(Assert.Single(history, item => item.Payload is ToolResultPayload)));
+    }
+
+    [Fact]
+    public async Task RecordStartedAsync_FileCallOutsideMemoryStore_LeavesPresentationUnmarked()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "notes.md"), "notes\n");
+
+        var (events, history) = await RunMemoryTurnAsync("ReadFile", "notes.md");
+
+        Assert.Null(MemoryMark(LastToolCall(events, SessionEventType.ItemStarted)));
+        Assert.Null(MemoryMark(Assert.Single(history, item => item.Payload is ToolCallPayload)));
+    }
+
+    [Fact]
+    public async Task RecordStartedAsync_MemoryDisabledThread_LeavesMemoryStoreCallsUnmarked()
+    {
+        WriteMemoryFile("user_role.md");
+
+        var (events, history) = await RunMemoryTurnAsync(
+            "ReadFile",
+            "memory/user_role.md",
+            new ThreadConfiguration { MemoryEnabled = false });
+
+        Assert.Null(MemoryMark(LastToolCall(events, SessionEventType.ItemStarted)));
+        Assert.Null(MemoryMark(Assert.Single(history, item => item.Payload is ToolCallPayload)));
+    }
+
+    [Theory]
     [InlineData("core-native", "host", null)]
     public void RegisterCommandExecutionForInvocation_PreregistersExecOnceWithProviderCallId(
         string sourceId,
@@ -168,9 +216,61 @@ public sealed class SessionServiceToolInvocationRecorderTests : IDisposable
             ValueTask.FromResult(ToolExecutionResult.Succeeded("ok"));
     }
 
+    private async Task<(List<SessionEvent> Events, IReadOnlyList<SessionItem> History)> RunMemoryTurnAsync(
+        string tool,
+        string path,
+        ThreadConfiguration? config = null)
+    {
+        var arguments = new Dictionary<string, object?> { ["path"] = path };
+        if (tool == "WriteFile")
+            arguments["content"] = "remember\n";
+        if (tool == "EditFile")
+        {
+            arguments["oldText"] = "role";
+            arguments["newText"] = "title";
+        }
+        if (tool == "GrepFiles")
+            arguments["pattern"] = "role";
+
+        IReadOnlyList<SessionItem> history = [];
+        var events = await RunToolTurnAsync(
+            [(tool, arguments)],
+            config: config,
+            inspect: async (service, threadId) =>
+            {
+                var page = await service.ListThreadItemsAsync(
+                    threadId,
+                    turnId: null,
+                    cursor: null,
+                    limit: 50,
+                    direction: ThreadHistorySortDirection.Ascending);
+                history = page.Data.Select(entry => entry.Item).ToList();
+            });
+        return (events, history);
+    }
+
+    private void WriteMemoryFile(string name)
+    {
+        var directory = Directory.CreateDirectory(MemoryStore.DirectoryOf(_tempDir)).FullName;
+        File.WriteAllText(Path.Combine(directory, name), "The user's role is maintainer.\n");
+    }
+
+    private static SessionItem LastToolCall(List<SessionEvent> events, SessionEventType type) =>
+        events.Last(evt => evt.EventType == type && evt.ItemPayload?.Payload is ToolCallPayload).ItemPayload!;
+
+    private static string? MemoryMark(SessionItem item) =>
+        (item.Payload switch
+        {
+            ToolCallPayload call => call.Presentation,
+            ToolResultPayload result => result.Presentation,
+            _ => null
+        })?.Options?["memory"]?.GetValue<string>();
+
     private async Task<List<SessionEvent>> RunToolTurnAsync(
         IReadOnlyList<(string Tool, IDictionary<string, object?> Arguments)> calls,
-        string? remoteCallId = null)
+        string? remoteCallId = null,
+        ThreadConfiguration? config = null,
+        Func<SessionService, string, Task>? inspect = null)
     {
         var chatClient = new ScriptedToolCallChatClient(calls);
         var router = new ToolInvocationRecorderRouter();
@@ -197,13 +297,15 @@ public sealed class SessionServiceToolInvocationRecorderTests : IDisposable
             ChannelName = "test",
             UserId = "u",
             WorkspacePath = _tempDir
-        });
+        }, config);
         await service.RefreshThreadAgentAsync(thread.Id);
 
         var events = new List<SessionEvent>();
         await foreach (var evt in service.SubmitInputAsync(thread.Id, [new TextContent("go")]))
             events.Add(evt);
         Assert.Contains(events, evt => evt.EventType == SessionEventType.TurnCompleted);
+        if (inspect is not null)
+            await inspect(service, thread.Id);
         return events;
     }
 
@@ -222,7 +324,11 @@ public sealed class SessionServiceToolInvocationRecorderTests : IDisposable
 
         protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
         {
-            yield return GeneratedToolFunctions.FileTools_WriteFile(new FileTools(workspace));
+            var fileTools = new FileTools(workspace);
+            yield return GeneratedToolFunctions.FileTools_ReadFile(fileTools);
+            yield return GeneratedToolFunctions.FileTools_WriteFile(fileTools);
+            yield return GeneratedToolFunctions.FileTools_EditFile(fileTools);
+            yield return GeneratedToolFunctions.FileTools_GrepFiles(fileTools);
             yield return AIFunctionFactory.Create(() => "file contents", name: "PlainRead", description: "Read a file.");
         }
     }

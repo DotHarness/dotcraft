@@ -9,7 +9,7 @@ import {
   getFilename,
   getRequestUserInputQuestionCount
 } from './toolCallDisplay'
-import { resolveToolKind, resolveToolOperation, type ToolKindSource } from './toolKind'
+import { resolveMemoryOperation, resolveToolKind, resolveToolOperation, type ToolKindSource } from './toolKind'
 
 /**
  * Parsed preview extracted from the streaming JSON delta for a tool call.
@@ -72,6 +72,10 @@ export function getStreamingToolDisplay(
   if (kind == null) {
     return { label: translate(locale, 'toolCall.streaming.genericExternal', { toolName }) }
   }
+
+  const memory = resolveMemoryOperation(item)
+  if (memory === 'recall') return { label: translate(locale, 'toolCall.memory.recalling') }
+  if (memory === 'update') return { label: translate(locale, 'toolCall.memory.updating') }
 
   switch (kind) {
     case 'board': {

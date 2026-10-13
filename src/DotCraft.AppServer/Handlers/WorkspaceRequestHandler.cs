@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.Configuration;
-using DotCraft.Context;
 using DotCraft.Dreams;
 using DotCraft.Memory;
 using Contract = DotCraft.Protocol.AppServer;
@@ -14,10 +13,9 @@ internal sealed class WorkspaceRequestHandler(
     IWelcomeSuggester? welcomeSuggestionService,
     IReadOnlyList<ConfigSchemaSection> configSchema,
     MemoryStore? memoryStore,
-    DreamStore? dreamStore,
+    DreamsService? dreamsService,
     IAppConfigMonitor? appConfigMonitor,
-    string? hostWorkspacePath,
-    IContextPageManager? contextPageManager) : IAppServerDomainHandler
+    string? hostWorkspacePath) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
@@ -105,11 +103,10 @@ internal sealed class WorkspaceRequestHandler(
         });
     }
 
-    private Task<object?> HandleMemoryResetAsync(
+    private async Task<object?> HandleMemoryResetAsync(
         AppServerTypedRequest<Protocol.RpcEmpty> request,
         CancellationToken ct)
     {
-        _ = ct;
         if (memoryStore == null)
             throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.MemoryReset);
         if (request.Message.Params.HasValue
@@ -122,9 +119,15 @@ internal sealed class WorkspaceRequestHandler(
 
         try
         {
-            memoryStore.ClearAll();
-            dreamStore?.ClearAll();
-            AppServerContextInvalidation.MarkMemory(contextPageManager);
+            if (dreamsService != null)
+            {
+                await dreamsService.ResetAsync(() => MemoryScopes.ClearAll(memoryStore), ct).ConfigureAwait(false);
+            }
+            else
+            {
+                MemoryScopes.ClearAll(memoryStore);
+                new DreamsArtifacts(Path.GetDirectoryName(memoryStore.MemoryDirectoryPath)!).ClearAll();
+            }
             if (!string.IsNullOrWhiteSpace(hostWorkspacePath))
                 welcomeSuggestionService?.ClearWorkspaceCache(hostWorkspacePath);
         }
@@ -137,7 +140,7 @@ internal sealed class WorkspaceRequestHandler(
             Protocol.AppServer.AppServerMethodNames.MemoryReset,
             [ConfigChangeRegions.Memory]);
 
-        return Task.FromResult<object?>(new Contract.MemoryResetResult());
+        return new Contract.MemoryResetResult();
     }
 
     private SessionIdentity NormalizeIdentityWorkspace(SessionIdentity identity)

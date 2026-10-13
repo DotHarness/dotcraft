@@ -2,6 +2,7 @@ using DotCraft.Agents;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Contributions;
+using DotCraft.Memory.Extraction;
 using DotCraft.Plugins;
 using DotCraft.Sessions;
 using DotCraft.Tools;
@@ -70,12 +71,17 @@ internal sealed class WorkspaceContributionScope(IContributionRegistry registry)
     /// <remarks>Scope-owned, not self-guarding: the instances are minted per start, so a restart must re-register its own.</remarks>
     public void RegisterSessionContributions(
         ICommitMessageSuggester? commitMessageSuggest,
-        IWelcomeSuggester? welcomeSuggestions)
+        IWelcomeSuggester? welcomeSuggestions,
+        MemoryExtractionScheduler? memoryExtraction = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var registrar = _registry.CreateRegistrar(ContributionOrigin.Builtin);
         _owned.Add(registrar);
         SuggestionServiceCatalog.RegisterBuiltIns(_registry, commitMessageSuggest, welcomeSuggestions, registrar);
+        if (memoryExtraction is null)
+            return;
+        registrar.Add<ITurnLifecycleContributor>(memoryExtraction);
+        registrar.Add<IThreadLifecycleContributor>(memoryExtraction);
     }
 
     /// <summary>Registers the composed tool sources as contributions, spacing orders by ten to leave room between them.</summary>

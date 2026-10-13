@@ -6,7 +6,6 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using DotCraft.Configuration;
 using DotCraft.Contributions;
-using DotCraft.Dreams;
 using DotCraft.Memory;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
@@ -28,7 +27,6 @@ public interface IWelcomeSuggester : IContributionContract
 public sealed class WelcomeSuggestionService(
     ISessionService sessionService,
     MemoryStore memoryStore,
-    DreamStore dreamStore,
     string workspaceRoot,
     AppConfig appConfig,
     string dataPath,
@@ -441,18 +439,33 @@ public sealed class WelcomeSuggestionService(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var memoryText = memoryStore.GetMemoryContext();
-        var dreamText = dreamStore.ReadDream();
-        var fingerprint = BuildFingerprint(
-            workspacePath,
-            maxItems,
-            memoryText,
-            dreamText);
+        var memoryFiles = MemoryFiles.List(memoryStore.MemoryDirectoryPath);
+        var memoryText = memoryFiles.Count == 0 ? string.Empty : BuildMemorySnapshot(memoryStore, memoryFiles);
+        var fingerprint = BuildFingerprint(workspacePath, maxItems, memoryText);
 
-        return Task.FromResult(new WelcomeSuggestionEvidence(
-            fingerprint,
-            memoryText,
-            dreamText));
+        return Task.FromResult(new WelcomeSuggestionEvidence(fingerprint, memoryText));
+    }
+
+    private static string BuildMemorySnapshot(MemoryStore memoryStore, IReadOnlyList<MemoryFileInfo> memoryFiles)
+    {
+        var index = MemoryIndex.Load(memoryStore.MemoryDirectoryPath);
+        var snapshot = new StringBuilder();
+        snapshot.AppendLine("### MEMORY.md");
+        snapshot.AppendLine(index.IsEmpty ? "(empty)" : index.Content);
+        snapshot.AppendLine();
+        snapshot.AppendLine("### Memory files");
+        foreach (var file in memoryFiles)
+        {
+            snapshot.Append("- ");
+            if (file.Type != null)
+                snapshot.Append('[').Append(file.Type).Append("] ");
+            snapshot.Append(file.FileName);
+            if (file.Description != null)
+                snapshot.Append(": ").Append(file.Description);
+            snapshot.AppendLine();
+        }
+
+        return snapshot.ToString().TrimEnd();
     }
 
     private bool IsWelcomeSuggestionsEnabled(string workspacePath)
@@ -464,11 +477,8 @@ public sealed class WelcomeSuggestionService(
         $"""
         Use the following memory snapshot to infer likely next tasks. Call {WelcomeSuggestionMethods.ToolName} exactly once with exactly {maxItems} concrete suggestions. If the evidence cannot support {maxItems} concrete suggestions, do not call the tool.
 
-        ## Saved memory from MEMORY.md
+        ## Saved memory
         {evidence.MemoryContext}
-
-        ## Inferred Dream Memory
-        {evidence.DreamContext}
         """;
 
     private static List<WelcomeSuggestion> ParseSuggestionItems(JsonObject? arguments, int maxItems)
@@ -547,14 +557,12 @@ public sealed class WelcomeSuggestionService(
     private static string BuildFingerprint(
         string workspacePath,
         int maxItems,
-        string memoryContext,
-        string dreamContext)
+        string memoryContext)
     {
         var sb = new StringBuilder();
         sb.AppendLine(workspacePath);
         sb.AppendLine($"maxItems:{maxItems}");
         sb.AppendLine(memoryContext);
-        sb.AppendLine(dreamContext);
 
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
         return Convert.ToHexString(bytes).ToLowerInvariant();
@@ -574,11 +582,9 @@ public sealed class WelcomeSuggestionService(
 
     private sealed record WelcomeSuggestionEvidence(
         string Fingerprint,
-        string MemoryContext,
-        string DreamContext)
+        string MemoryContext)
     {
-        public bool HasSufficientContext => !string.IsNullOrWhiteSpace(MemoryContext)
-            || !string.IsNullOrWhiteSpace(DreamContext);
+        public bool HasSufficientContext => !string.IsNullOrWhiteSpace(MemoryContext);
     }
 
     private sealed record WelcomeSuggestionCacheEntry(

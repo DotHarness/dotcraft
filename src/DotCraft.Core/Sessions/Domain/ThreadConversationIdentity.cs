@@ -19,10 +19,8 @@ internal static class ThreadConversationIdentity
         var rootThreadId = string.IsNullOrWhiteSpace(subAgent?.RootThreadId)
             ? thread.Id
             : subAgent.RootThreadId;
-        if (thread.Ephemeral
-            && thread.Metadata.TryGetValue(ThreadVisibility.InternalMetadataKey, out var internalKind)
-            && string.Equals(internalKind, PromptSuggestionThread.InternalValue, StringComparison.Ordinal)
-            && thread.Metadata.TryGetValue(PromptSuggestionThread.CacheRootKey, out var parentCacheRoot)
+        if (CacheSharingFork.PurposeOf(thread) is not null
+            && thread.Metadata.TryGetValue(CacheSharingFork.CacheRootKey, out var parentCacheRoot)
             && !string.IsNullOrWhiteSpace(parentCacheRoot))
         {
             rootThreadId = parentCacheRoot;

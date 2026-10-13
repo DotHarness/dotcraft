@@ -943,13 +943,47 @@ public sealed class DreamsCreateParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Model { get; init; }
 
+    [JsonPropertyName("scope")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Scope { get; init; }
+
     [JsonPropertyName("threadIds")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<string>?> ThreadIds { get; init; }
 
-    [JsonPropertyName("threadLookbackCount")]
+}
+
+/// <summary>Executable wire contract for DreamsFileChange.</summary>
+public sealed class DreamsFileChange : ExtensibleJsonObject
+{
+    [JsonPropertyName("baseline")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> ThreadLookbackCount { get; init; }
+    public Optional<string?> Baseline { get; init; }
+
+    [JsonPropertyName("candidate")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Candidate { get; init; }
+
+    [JsonPropertyName("change")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Change { get; init; }
+
+    [JsonPropertyName("name")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Name { get; init; }
+
+}
+
+/// <summary>Executable wire contract for DreamsGetResult.</summary>
+public sealed class DreamsGetResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("files")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<DreamsFileChange>> Files { get; init; }
+
+    [JsonPropertyName("run")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<DreamsRunState?> Run { get; init; }
 
 }
 
@@ -971,6 +1005,27 @@ public sealed class DreamsListResult : ExtensibleJsonObject
 
 }
 
+/// <summary>Executable wire contract for DreamsRunChanges.</summary>
+public sealed class DreamsRunChanges : ExtensibleJsonObject
+{
+    [JsonPropertyName("added")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Added { get; init; }
+
+    [JsonPropertyName("deleted")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Deleted { get; init; }
+
+    [JsonPropertyName("indexChanged")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> IndexChanged { get; init; }
+
+    [JsonPropertyName("updated")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Updated { get; init; }
+
+}
+
 /// <summary>Executable wire contract for DreamsRunIdParams.</summary>
 public sealed class DreamsRunIdParams : ExtensibleJsonObject
 {
@@ -985,46 +1040,9 @@ public sealed class DreamsRunParams : ExtensibleJsonObject
 {
 }
 
-/// <summary>Executable wire contract for DreamsRunPreview.</summary>
-public sealed class DreamsRunPreview : ExtensibleJsonObject
-{
-    [JsonPropertyName("activeIndexMarkdown")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ActiveIndexMarkdown { get; init; }
-
-    [JsonPropertyName("activeStoreId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> ActiveStoreId { get; init; }
-
-    [JsonPropertyName("activeTopicPaths")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<string>> ActiveTopicPaths { get; init; }
-
-    [JsonPropertyName("outputIndexMarkdown")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> OutputIndexMarkdown { get; init; }
-
-    [JsonPropertyName("outputStoreId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> OutputStoreId { get; init; }
-
-    [JsonPropertyName("outputTopicPaths")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<string>> OutputTopicPaths { get; init; }
-
-}
-
 /// <summary>Executable wire contract for DreamsRunResult.</summary>
 public sealed class DreamsRunResult : ExtensibleJsonObject
 {
-    [JsonPropertyName("activeDreamStoreId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> ActiveDreamStoreId { get; init; }
-
-    [JsonPropertyName("preview")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<DreamsRunPreview?> Preview { get; init; }
-
     [JsonPropertyName("run")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<DreamsRunState?> Run { get; init; }
@@ -1042,9 +1060,9 @@ public sealed class DreamsRunState : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int> CandidateThreadCount { get; init; }
 
-    [JsonPropertyName("dreamWritten")]
+    [JsonPropertyName("changes")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> DreamWritten { get; init; }
+    public Optional<DreamsRunChanges?> Changes { get; init; }
 
     [JsonPropertyName("endedAt")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1078,17 +1096,13 @@ public sealed class DreamsRunState : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Message { get; init; }
 
-    [JsonPropertyName("outputStoreId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> OutputStoreId { get; init; }
-
-    [JsonPropertyName("processedThreadCount")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int> ProcessedThreadCount { get; init; }
-
     [JsonPropertyName("reviewStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> ReviewStatus { get; init; }
+
+    [JsonPropertyName("scope")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Scope { get; init; }
 
     [JsonPropertyName("startedAt")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1098,17 +1112,13 @@ public sealed class DreamsRunState : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Status { get; init; }
 
+    [JsonPropertyName("summary")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Summary { get; init; }
+
     [JsonPropertyName("threadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> ThreadId { get; init; }
-
-    [JsonPropertyName("topicFilesDeleted")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int> TopicFilesDeleted { get; init; }
-
-    [JsonPropertyName("topicFilesWritten")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int> TopicFilesWritten { get; init; }
 
     [JsonPropertyName("trigger")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1118,17 +1128,9 @@ public sealed class DreamsRunState : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> TurnId { get; init; }
 
-    [JsonPropertyName("turnIds")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<string>> TurnIds { get; init; }
-
     [JsonPropertyName("usage")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<TokenUsageInfo?> Usage { get; init; }
-
-    [JsonPropertyName("writtenPaths")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<string>> WrittenPaths { get; init; }
 
 }
 
@@ -1140,10 +1142,6 @@ public sealed class DreamsStatusParams : ExtensibleJsonObject
 /// <summary>Executable wire contract for DreamsStatusResult.</summary>
 public sealed class DreamsStatusResult : ExtensibleJsonObject
 {
-    [JsonPropertyName("activeDreamStoreId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> ActiveDreamStoreId { get; init; }
-
     [JsonPropertyName("autoApply")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> AutoApply { get; init; }
@@ -1160,9 +1158,9 @@ public sealed class DreamsStatusResult : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<DreamsRunState?> LastRun { get; init; }
 
-    [JsonPropertyName("minCompletedTurnsSinceLastRun")]
+    [JsonPropertyName("minSessionsSinceLastRun")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int> MinCompletedTurnsSinceLastRun { get; init; }
+    public Optional<int> MinSessionsSinceLastRun { get; init; }
 
     [JsonPropertyName("nextRunAt")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1171,10 +1169,6 @@ public sealed class DreamsStatusResult : ExtensibleJsonObject
     [JsonPropertyName("running")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Running { get; init; }
-
-    [JsonPropertyName("threadLookbackCount")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int> ThreadLookbackCount { get; init; }
 
 }
 

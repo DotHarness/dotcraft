@@ -7,7 +7,6 @@ using DotCraft.Contributions;
 using DotCraft.Tracing;
 using DotCraft.Mcp;
 using DotCraft.Memory;
-using DotCraft.Dreams;
 using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Lsp;
@@ -53,7 +52,6 @@ public sealed class AgentRuntimeContext
         UserDataPath = source.UserDataPath;
         MemoryStore = source.MemoryStore;
         MemoryEnabled = source.MemoryEnabled;
-        DreamStore = source.DreamStore;
         SkillsLoader = source.SkillsLoader;
         ContextPageManager = source.ContextPageManager;
         ThreadSystemPromptContextProviders = source.ThreadSystemPromptContextProviders;
@@ -210,11 +208,6 @@ public sealed class AgentRuntimeContext
     public required MemoryStore MemoryStore { get; init; }
 
     public bool MemoryEnabled { get; init; } = true;
-
-    /// <summary>
-    /// Optional Dreams store for passive workspace memory context.
-    /// </summary>
-    public DreamStore? DreamStore { get; init; }
 
     /// <summary>
     /// The skills loader for skill-based tools.

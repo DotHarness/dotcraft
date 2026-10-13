@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7.8 |
+| Version | 0.8.6 |
 | Status | Living |
-| Date | 2026-09-08 |
+| Date | 2026-10-13 |
 
 Automations is the single workspace capability for scheduled agent work. The optional
 DotCraft.Automations module owns storage, scheduling, execution, presets and delivery.
@@ -111,7 +111,7 @@ periodic jobs continue at the next occurrence. Interrupted runs are recorded on 
 Follow-ups default to thread mode and continue the specified conversation. Independent
 runs create a new conversation each time and name the automation as their memory scope,
 so successive runs share one long-term memory that the agent maintains, rather
-than a reported field. Thread mode carries continuity in the target conversation and
+than a reported field. They capture memory extraction as disabled. Thread mode carries continuity in the target conversation and
 names no scope. Record exact turn ids. Git workspaces default to a fresh worktree per
 run; non-Git use project mode. Reported summaries have a hard size limit.
 Explicit worktree provisioning failure is an error, never a silent fallback. Missing or

@@ -94,6 +94,7 @@ public sealed class ConfigurationServiceApplyTests
         [
             "Desktop.CustomFileHandlers",
             "InstantInterruptEnabled",
+            "Memory.AutoExtract",
             "ProjectDocMaxBytes",
             "Permissions.DefaultApprovalPolicy",
             "PromptSuggestions.Enabled",

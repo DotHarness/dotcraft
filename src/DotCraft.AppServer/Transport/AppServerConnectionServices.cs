@@ -99,7 +99,6 @@ public sealed record AppServerConnectionServices
 
     public IRemoteToolHostClient? RemoteToolHostClient { get; init; }
     public IContextPageManager? ContextPageManager { get; init; }
-    public DreamStore? DreamStore { get; init; }
     public DreamsService? DreamsService { get; init; }
     public AppBindingService? AppBindingService { get; init; }
     public IReadOnlyList<IThreadOriginPresentationProvider>? ThreadOriginPresentationProviders { get; init; }

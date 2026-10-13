@@ -291,21 +291,23 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
         if (string.IsNullOrWhiteSpace(workspacePath))
             return true;
         var workspaceRoots = ReadWorkspaceRoots(descriptor, workspacePath);
-        var trustedPaths = descriptor.TryGetProperty("trustedReadPaths", out var trusted)
-                           && trusted.ValueKind == JsonValueKind.Array
-            ? trusted.EnumerateArray()
+        var guard = new FileAccessGuard(
+            workspacePath,
+            trustedReadPaths: ReadPaths(descriptor, "trustedReadPaths"),
+            workspaceRoots: workspaceRoots,
+            trustedPaths: ReadPaths(descriptor, "trustedPaths"));
+        var fullPath = guard.ResolvePath(string.IsNullOrWhiteSpace(target) ? "." : target);
+        return guard.RequiresOutsideWorkspaceApproval(fullPath, operation);
+    }
+
+    private static string[] ReadPaths(JsonElement descriptor, string propertyName) =>
+        descriptor.TryGetProperty(propertyName, out var paths) && paths.ValueKind == JsonValueKind.Array
+            ? paths.EnumerateArray()
                 .Where(static item => item.ValueKind == JsonValueKind.String)
                 .Select(static item => item.GetString()!)
                 .Where(static item => !string.IsNullOrWhiteSpace(item))
                 .ToArray()
             : [];
-        var guard = new FileAccessGuard(
-            workspacePath,
-            trustedReadPaths: trustedPaths,
-            workspaceRoots: workspaceRoots);
-        var fullPath = guard.ResolvePath(string.IsNullOrWhiteSpace(target) ? "." : target);
-        return guard.RequiresOutsideWorkspaceApproval(fullPath, operation);
-    }
 
     private static IReadOnlyList<string> ReadWorkspaceRoots(
         JsonElement descriptor,

@@ -11,10 +11,8 @@ internal static class ToolPlanningThreadClassifier
     {
         ArgumentNullException.ThrowIfNull(thread);
 
-        if (thread.Ephemeral
-            && thread.Metadata.TryGetValue(ThreadVisibility.InternalMetadataKey, out var internalKind)
-            && string.Equals(internalKind, PromptSuggestionThread.InternalValue, StringComparison.Ordinal)
-            && thread.Metadata.TryGetValue(PromptSuggestionThread.ToolKindKey, out var inheritedKind)
+        if (CacheSharingFork.PurposeOf(thread) is not null
+            && thread.Metadata.TryGetValue(CacheSharingFork.ToolKindKey, out var inheritedKind)
             && Enum.TryParse<ToolPlanningThreadKind>(inheritedKind, out var kind))
         {
             return kind;

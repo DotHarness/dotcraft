@@ -27,6 +27,8 @@ public static partial class AppServerRpc
         "PluginConfigurationWriteFailed"
     ];
 
+    private static string[] DreamsApplyErrors => [.. CommonErrors, "storeChanged"];
+
     /// <summary>The errors remoteToolHost/connect returns beyond the common set.</summary>
     private static string[] RemoteToolHostErrors =>
     [

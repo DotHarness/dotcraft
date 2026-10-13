@@ -35,6 +35,7 @@ import { CORE_TOOL_PRESENTATION_IDS, resolveCoreToolRenderPlan } from '../../uti
 import { CapacityRetryRow } from './CapacityRetryRow'
 import { TurnFailureNotice } from './TurnFailureNotice'
 import { parseWorkflowLaunch } from '../workflow/WorkflowToolCard'
+import { MemoryUpdateCard } from './MemoryUpdateCard'
 
 interface AgentResponseBlockProps {
   turn: ConversationTurn
@@ -551,6 +552,8 @@ function renderAggregatedEntry(
           turnRunning={turnRunning}
           shellRuntimeScope={shellRuntimeScope}
         />
+      ) : entry.category === 'memoryUpdate' ? (
+        <MemoryUpdateCard items={entry.items} running={false} />
       ) : (
         <GroupedToolCallRow
           category={entry.category}

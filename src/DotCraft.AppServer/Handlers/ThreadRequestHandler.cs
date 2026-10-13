@@ -221,7 +221,7 @@ internal sealed partial class ThreadRequestHandler(
                 RuntimeWorkspaceRoots = ValueOrDefault(p.RuntimeWorkspaceRoots),
                 DisplayName = ValueOrDefault(p.DisplayName),
                 Ephemeral = ValueOrDefault(p.Ephemeral) ?? false,
-                PromptSuggestion = ValueOrDefault(p.PromptSuggestion) ?? false
+                Purpose = ValueOrDefault(p.PromptSuggestion) == true ? ThreadForkPurpose.PromptSuggestion : null
             },
             ct);
 

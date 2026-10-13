@@ -258,6 +258,23 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     }
 
     [Fact]
+    public void EvaluateRegistration_PlanModeAllowsWritesToTheMemoryStoreOnly()
+    {
+        var context = CreateContext();
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration { Mode = "plan" }, context);
+        var write = Registration(new ToolName(null, "WriteFile"), ToolSourceKind.CoreNative, "core");
+        var memoryFile = Path.Combine(context.MemoryStore.MemoryDirectoryPath, "use-pnpm.md");
+
+        Assert.True(policy.EvaluateRegistration(write, new JsonObject { ["path"] = memoryFile }, _tempRoot).Allowed);
+        Assert.False(policy.EvaluateRegistration(write, new JsonObject { ["path"] = "notes.md" }, _tempRoot).Allowed);
+
+        var disabled = new ThreadCapabilityPolicyEvaluator(
+            new ThreadConfiguration { Mode = "plan" },
+            CreateContext(memoryEnabled: false));
+        Assert.False(disabled.EvaluateRegistration(write, new JsonObject { ["path"] = memoryFile }, _tempRoot).Allowed);
+    }
+
+    [Fact]
     public void EvaluateRegistration_PlanModeClassifiesOnlyTheShellExecTool()
     {
         var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration { Mode = "plan" }, CreateContext());
@@ -615,7 +632,8 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     private AgentRuntimeContext CreateContext(
         string originChannel = "test-channel",
         ThreadSource? source = null,
-        AppConfig? appConfig = null)
+        AppConfig? appConfig = null,
+        bool memoryEnabled = true)
     {
         Directory.CreateDirectory(_tempRoot);
         var craftPath = Path.Combine(_tempRoot, ".craft");
@@ -627,6 +645,7 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             WorkspacePath = _tempRoot,
             BotPath = craftPath,
             MemoryStore = new MemoryStore(craftPath),
+            MemoryEnabled = memoryEnabled,
             SkillsLoader = new SkillsLoader(craftPath),
             ContextPageManager = new ContextPageManager(),
             ApprovalService = new AutoApproveApprovalService(),

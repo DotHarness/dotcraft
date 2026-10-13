@@ -37,6 +37,8 @@ public sealed class AgentProfileDraft
     /// <summary>Null when the profile does not declare the key; the builder never authors it.</summary>
     public bool? RequireApprovalOutsideWorkspace { get; set; }
 
+    public string? Memory { get; set; }
+
     public string RoleInstructions { get; set; } = string.Empty;
 }
 
@@ -146,6 +148,8 @@ public static class AgentProfileDraftEditor
                 draft.RequireApprovalOutsideWorkspace = Scalar(permissions, "requireApprovalOutsideWorkspace") == "true";
         }
 
+        draft.Memory = NonEmpty(Scalar(root, "memory"));
+
         draft.ToolPolicyMode = hasToolsAllow ? "allowList" : hasToolsDeny ? "denyList" : "all";
 
         return draft;
@@ -200,6 +204,8 @@ public static class AgentProfileDraftEditor
         fm.Add($"  approvalPolicy: {draft.ApprovalPolicy}");
         if (draft.RequireApprovalOutsideWorkspace is { } requireApprovalOutsideWorkspace)
             fm.Add($"  requireApprovalOutsideWorkspace: {(requireApprovalOutsideWorkspace ? "true" : "false")}");
+        if (draft.Memory is { } memory)
+            fm.Add($"memory: {memory}");
         fm.Add("---");
 
         return $"{string.Join('\n', fm)}\n\n{draft.RoleInstructions.Trim()}\n";

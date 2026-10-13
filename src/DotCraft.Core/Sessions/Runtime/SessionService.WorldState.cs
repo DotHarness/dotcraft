@@ -1,6 +1,7 @@
 using DotCraft.Agents;
 using DotCraft.Context;
 using DotCraft.Context.WorldState;
+using DotCraft.Memory;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -38,7 +39,8 @@ public sealed partial class SessionService
             WorkspacePath = workspacePath,
             HasActivePlan = hasActivePlan,
             ThreadGoal = threadGoal,
-            SessionStartHookContext = sessionStartHookContext
+            SessionStartHookContext = sessionStartHookContext,
+            MemoryStore = ResolveMemoryIndexStore(thread.Configuration)
         };
 
         var baseline = _runtimeRegistry.TryGetRuntime(thread.Id, out var runtime)
@@ -215,6 +217,18 @@ public sealed partial class SessionService
         runtime.WorldStateBaselineRestored = true;
         runtime.WorldStateBaselineOrigin = "none";
         logger?.LogDebug("Reset world state baseline for thread {ThreadId}: {Reason}", threadId, reason);
+    }
+
+    private MemoryStore? ResolveMemoryIndexStore(ThreadConfiguration? config)
+    {
+        // A Thread running on caller-supplied instructions has no memory instructions, so it gets no index either.
+        if (config?.MemoryEnabled == false
+            || config is { UseToolProfileOnly: true } && !string.IsNullOrWhiteSpace(config.AgentInstructions))
+        {
+            return null;
+        }
+
+        return ResolveMemoryStore(config);
     }
 
     private static IReadOnlySet<string> SectionIdsInHistory(IReadOnlyList<ChatMessage> history)

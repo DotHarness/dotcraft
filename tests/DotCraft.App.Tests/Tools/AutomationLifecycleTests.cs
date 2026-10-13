@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using DotCraft.Agents;
 using DotCraft.Automations;
 using DotCraft.Automations.Protocol;
 using DotCraft.Channels;
@@ -189,7 +190,7 @@ public sealed class AutomationLifecycleTests : IDisposable
         finally { await service.StopAsync(); }
     }
     [Fact]
-    public async Task EveryRun_OfOneAutomation_CarriesThatAutomationsMemoryScope()
+    public async Task EveryRun_OfOneAutomation_CarriesThatAutomationsMemoryScope_WithExtractionDisabled()
     {
         var service = Service(); var client = new Sessions(); service.SetSessionClient(client);
         var definition = await service.CreateAsync(Input() with { Status = "paused", ExecutionMode = "independent" });
@@ -199,6 +200,30 @@ public sealed class AutomationLifecycleTests : IDisposable
             await Finish(service, await service.RunAsync(definition.Id));
             await Finish(service, await service.RunAsync(definition.Id));
             Assert.Equal([definition.Id, definition.Id], client.MemoryScopes);
+            Assert.Equal([false, false], client.MemoryAutoExtract);
+        }
+        finally { await service.StopAsync(); }
+    }
+    [Fact]
+    public async Task RunOfOwnMemoryProfile_KeepsTheAutomationsMemoryScope()
+    {
+        var craft = Path.Combine(_root, ".craft");
+        new AgentProfileStore(craft).Upsert("keeper", AgentProfileSources.Workspace, """
+            ---
+            name: keeper
+            description: Keeps its own memory
+            memory: own
+            ---
+
+            Body.
+            """);
+        var service = Service(); var client = new Sessions { DataPath = craft }; service.SetSessionClient(client);
+        var definition = await service.CreateAsync(Input() with { Status = "paused", ExecutionMode = "independent", AgentProfileId = "keeper" });
+        await service.StartAsync();
+        try
+        {
+            await Finish(service, await service.RunAsync(definition.Id));
+            Assert.Equal([definition.Id], client.MemoryScopes);
         }
         finally { await service.StopAsync(); }
     }
@@ -315,16 +340,18 @@ public sealed class AutomationLifecycleTests : IDisposable
     }
     private sealed class Sessions : IAutomationSessionClient
     {
-        public string DataPath => "unused";
+        public string DataPath { get; init; } = "unused";
         public string? UserDataPath => null;
         public int Submissions;
         public bool Fail;
         public Action<string>? DuringTurn;
         public string? LastMessage;
         public List<string?> MemoryScopes { get; } = [];
+        public List<bool?> MemoryAutoExtract { get; } = [];
         public Task<string> CreateThreadAsync(string channelName, string userId, ThreadConfiguration config, CancellationToken ct, string? displayName = null)
         {
             MemoryScopes.Add(config.MemoryScope);
+            MemoryAutoExtract.Add(config.MemoryAutoExtract);
             return Task.FromResult(userId);
         }
         public Task<ThreadWorktreeInfo> EnsureRunWorktreeAsync(string threadId, string taskId, CancellationToken ct) => throw new InvalidOperationException("worktree failed");

@@ -19,6 +19,14 @@ const EDIT: CoreFixturePresentation = {
   options: { operation: 'edit' }
 }
 const SHELL: CoreFixturePresentation = { presentationId: CORE_TOOL_PRESENTATION_IDS.shell }
+const RECALL: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.readFile,
+  options: { operation: 'read', memory: 'recall' }
+}
+const MEMORY_EDIT: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.fileWrite,
+  options: { operation: 'edit', memory: 'update' }
+}
 const WEB_SEARCH: CoreFixturePresentation = {
   presentationId: CORE_TOOL_PRESENTATION_IDS.web,
   options: { operation: 'search' }
@@ -437,5 +445,39 @@ describe('aggregateToolCalls', () => {
 
     expect(result.entries).toHaveLength(1)
     expect(result.entries[0].kind).toBe('group')
+  })
+})
+
+describe('aggregateToolCalls memory calls', () => {
+  function shape(items: ConversationItem[]): Array<[string, string | string[]]> {
+    return aggregateToolCalls(items).map((entry) => entry.kind === 'group'
+      ? [entry.category, entry.items.map((item) => item.id)]
+      : ['single', entry.item.id])
+  }
+
+  it('keeps recalls in the exploration group they join', () => {
+    expect(shape([
+      makeItem(EXPLORE, 'ReadFile', '1'),
+      makeItem(RECALL, 'ReadFile', '2'),
+      makeItem(RECALL, 'GrepFiles', '3'),
+      makeItem(EXPLORE, 'ReadFile', '4')
+    ])).toEqual([
+      ['explore', ['1', '2', '3', '4']]
+    ])
+  })
+
+  it('merges consecutive memory updates apart from file writes, leaving a failed update on its own', () => {
+    expect(shape([
+      makeItem(WRITE, 'WriteFile', '1'),
+      makeItem(MEMORY_EDIT, 'EditFile', '2'),
+      makeItem(MEMORY_EDIT, 'EditFile', '3'),
+      makeItem(MEMORY_EDIT, 'EditFile', '4', { success: false }),
+      makeItem(MEMORY_EDIT, 'EditFile', '5')
+    ])).toEqual([
+      ['single', '1'],
+      ['memoryUpdate', ['2', '3']],
+      ['single', '4'],
+      ['single', '5']
+    ])
   })
 })

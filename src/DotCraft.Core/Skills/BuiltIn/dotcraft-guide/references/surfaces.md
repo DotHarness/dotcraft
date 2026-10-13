@@ -17,7 +17,7 @@ Everything DotCraft keeps on disk. Confirm a path exists before quoting it; a wo
 | `plugins/` | user-editable | Plugins that come with this workspace, each with `.craft-plugin/plugin.json`. Desktop never installs here |
 | `agents/` | user-editable | Subagent definitions |
 | `automations/` | user-editable | Saved automations |
-| `memory/MEMORY.md` | user-editable | Preferences and corrections the user taught, loaded into new sessions while memory is enabled |
+| `memory/` | user-editable | Memory files, one memory each, and their `MEMORY.md` index, which sessions see while memory is enabled |
 | `skill-variants/` | runtime-owned | Self-learning overlays on source skills |
 | `threads/active/*.jsonl` `threads/archived/*.jsonl` | never touch | Authoritative thread rollouts |
 | `state.db` (`-shm`, `-wal`) | never touch | Projections, runtime state, traces |

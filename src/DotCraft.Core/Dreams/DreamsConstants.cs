@@ -13,4 +13,5 @@ public static class DreamsConstants
     public const string TriggerScheduled = "scheduled";
     public const string RunIdMetadataKey = "dreams.runId";
     public const string TriggerMetadataKey = "dreams.trigger";
+    public const string StoreChangedErrorType = "storeChanged";
 }

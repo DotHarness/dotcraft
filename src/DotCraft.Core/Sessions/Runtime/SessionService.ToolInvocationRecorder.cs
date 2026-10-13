@@ -28,12 +28,18 @@ public sealed partial class SessionService
         SessionItem? commandExecutionItem = null;
         bool emitStarted;
         var channel = turnRuntime.EventChannel ?? runtime.Broker.CreateTurnChannel(turn.Id);
+        var memory = ResolveMemoryPresentation(
+            registration.Definition,
+            arguments,
+            context.WorkspacePath,
+            turnRuntime.Context?.Configuration);
         lock (turnRuntime.ToolProjectionLock)
         {
             // Ahead of this invocation, so a pending notice never splits a call from its result.
             RecordQueuedSystemNotices(context, turnRuntime, turn, channel);
             var existing = turn.Items.LastOrDefault(candidate => HasCallId(candidate, context.CallId));
-            emitStarted = existing is null || !HasTrustedProjection(existing);
+            // Only this projection carries the memory mark, so a call already projected while streaming is announced again.
+            emitStarted = existing is null || !HasTrustedProjection(existing) || memory is not null;
             item = existing ?? new SessionItem
             {
                 Id = SessionIdGenerator.NewItemId(
@@ -49,7 +55,8 @@ public sealed partial class SessionService
                         $"Missing flat provider alias for tool '{registration.Definition.Name}'."),
                 context.SnapshotRevision,
                 context.CallId,
-                arguments);
+                arguments,
+                memory);
             item.InvocationOrigin = context.Origin?.Kind;
             if (existing is null)
                 turn.Items.Add(item);
@@ -232,7 +239,9 @@ public sealed partial class SessionService
                         BindingRevision = registration.Binding.Revision,
                         SnapshotRevision = context.SnapshotRevision,
                         Source = ToSessionProvenance(registration.Definition),
-                        Presentation = ToSessionPresentation(registration.Definition.Presentation),
+                        Presentation = startedItem.Payload is ToolCallPayload started
+                            ? started.Presentation
+                            : ToSessionPresentation(registration.Definition.Presentation),
                         DurationMs = durationMs,
                         Result = result.Content ?? result.Error?.Message ?? string.Empty,
                         ContentItems = ToModelContentItems(result.ContentItems, result.Content),
@@ -295,10 +304,12 @@ public sealed partial class SessionService
         string providerFlatName,
         long snapshotRevision,
         string callId,
-        JsonObject? arguments)
+        JsonObject? arguments,
+        string? memory = null)
     {
         item.Status = ItemStatus.Started;
         item.CompletedAt = null;
+        var presentation = ToSessionPresentation(registration.Definition.Presentation, memory);
         switch (registration.ProjectionShape)
         {
             case ToolProjectionShape.McpLifecycle:
@@ -314,7 +325,7 @@ public sealed partial class SessionService
                     SnapshotRevision = snapshotRevision,
                     McpGeneration = registration.Binding.Revision,
                     Source = ToSessionProvenance(registration.Definition),
-                    Presentation = ToSessionPresentation(registration.Definition.Presentation),
+                    Presentation = presentation,
                     McpAppResourceUri = GetMcpAppResourceUri(registration.Definition),
                     Server = registration.Definition.Id.SourceId,
                     Origin = registration.Definition.Provenance.Origin ?? "workspace",
@@ -336,7 +347,7 @@ public sealed partial class SessionService
                     BindingRevision = registration.Binding.Revision,
                     SnapshotRevision = snapshotRevision,
                     Source = ToSessionProvenance(registration.Definition),
-                    Presentation = ToSessionPresentation(registration.Definition.Presentation),
+                    Presentation = presentation,
                     CallId = callId,
                     Arguments = arguments?.DeepClone().AsObject(),
                     Status = "inProgress"
@@ -359,7 +370,7 @@ public sealed partial class SessionService
                     BindingRevision = registration.Binding.Revision,
                     SnapshotRevision = snapshotRevision,
                     Source = ToSessionProvenance(registration.Definition),
-                    Presentation = ToSessionPresentation(registration.Definition.Presentation),
+                    Presentation = presentation,
                     Arguments = arguments?.DeepClone().AsObject(),
                     CallId = callId
                 };
@@ -410,13 +421,17 @@ public sealed partial class SessionService
             : null
     };
 
-    private static ToolPresentationPayload? ToSessionPresentation(ToolPresentationDescriptor? presentation)
+    private static ToolPresentationPayload? ToSessionPresentation(
+        ToolPresentationDescriptor? presentation,
+        string? memory = null)
     {
         if (presentation is null)
             return null;
         var options = new JsonObject();
         foreach (var (name, value) in presentation.Options)
             options[name] = JsonNode.Parse(value.GetRawText());
+        if (memory is not null)
+            options[MemoryPresentationOption] = memory;
         return new ToolPresentationPayload
         {
             PresentationId = presentation.Id.Value,

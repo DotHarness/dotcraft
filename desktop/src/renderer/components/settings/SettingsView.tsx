@@ -504,6 +504,8 @@ export function SettingsView({
     t('settings.personalization.sharedSkillsSaveFailed', { error }))
   const memory = useConfigSetting('Memory.Enabled', (error) =>
     t('settings.personalization.memory.saveFailed', { error }))
+  const memoryAutoExtract = useConfigSetting('Memory.AutoExtract', (error) =>
+    t('settings.personalization.memory.saveFailed', { error }))
   const defaultApproval = useConfigSetting('Permissions.DefaultApprovalPolicy', (error) =>
     t('settings.permissions.saveFailed', { error }))
   const selfLearningEnabled = selfLearning.value === true
@@ -2735,6 +2737,15 @@ export function SettingsView({
                           applying: memory.pending,
                           onToggle: (checked) => {
                             void memory.set(checked)
+                          }
+                        }
+                      : null}
+                    autoExtractToggle={configManagementEnabled
+                      ? {
+                          enabled: memoryAutoExtract.value === true,
+                          applying: memoryAutoExtract.pending,
+                          onToggle: (checked) => {
+                            void memoryAutoExtract.set(checked)
                           }
                         }
                       : null}

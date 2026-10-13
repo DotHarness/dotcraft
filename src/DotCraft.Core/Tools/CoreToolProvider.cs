@@ -85,7 +85,7 @@ public sealed class CoreToolSource(
 
         return FileToolAccess.TryGet(function.Name, out var access)
             ? FileApproval(access.PathArgument, access.Operation, context.WorkspacePath, context.WorkspaceRoots,
-                trustedRead: access.Operation == "read")
+                context.MemoryStoreDirectory, trustedRead: access.Operation == "read")
             : null;
     }
 
@@ -102,6 +102,7 @@ public sealed class CoreToolSource(
         string operation,
         string workspacePath,
         IReadOnlyList<string> workspaceRoots,
+        string? memoryStoreDirectory,
         bool trustedRead = false) => new
     {
         kind = "file",
@@ -112,7 +113,10 @@ public sealed class CoreToolSource(
         outsideWorkspaceOnly = true,
         trustedReadPaths = trustedRead && userDataPath != null
             ? new[] { userDataPath }
-            : Array.Empty<string>()
+            : Array.Empty<string>(),
+        trustedPaths = memoryStoreDirectory == null
+            ? Array.Empty<string>()
+            : new[] { memoryStoreDirectory }
     };
 
     /// <inheritdoc />
@@ -165,7 +169,8 @@ public sealed class CoreToolSource(
             lspServerManager: lspServerManager,
             ripgrepPath: config.Tools.File.RipgrepPath,
             searchTimeout: fileSearchTimeout,
-            workspaceRoots: context.WorkspaceRoots);
+            workspaceRoots: context.WorkspaceRoots,
+            memoryStoreDirectory: context.MemoryStoreDirectory);
         tools.AddRange(GeneratedToolFunctions.All(fileTools));
 
         // LSP tool

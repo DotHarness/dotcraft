@@ -60,6 +60,15 @@ public sealed partial class TraceCollector(TraceStore store) : IModelRuntimeDiag
                     MetadataJson = SerializeMetadata(properties)
                 });
                 break;
+            case "memory_extraction.outcome":
+                store.Record(new TraceEvent
+                {
+                    Type = TraceEventType.ProviderResponseDiagnostic,
+                    SessionKey = sessionKey,
+                    Content = "Memory extraction outcome",
+                    MetadataJson = SerializeMetadata(properties)
+                });
+                break;
             case "provider.response":
                 RecordProviderResponseDiagnostic(
                     sessionKey,

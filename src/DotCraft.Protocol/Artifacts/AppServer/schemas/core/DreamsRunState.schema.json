@@ -10,8 +10,15 @@
     "candidateThreadCount": {
       "type": "integer"
     },
-    "dreamWritten": {
-      "type": "boolean"
+    "changes": {
+      "anyOf": [
+        {
+          "$ref": "./DreamsRunChanges.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "endedAt": {
       "anyOf": [
@@ -69,7 +76,7 @@
         }
       ]
     },
-    "outputStoreId": {
+    "reviewStatus": {
       "anyOf": [
         {
           "type": "string"
@@ -79,10 +86,7 @@
         }
       ]
     },
-    "processedThreadCount": {
-      "type": "integer"
-    },
-    "reviewStatus": {
+    "scope": {
       "anyOf": [
         {
           "type": "string"
@@ -99,7 +103,7 @@
     "status": {
       "type": "string"
     },
-    "threadId": {
+    "summary": {
       "anyOf": [
         {
           "type": "string"
@@ -109,11 +113,15 @@
         }
       ]
     },
-    "topicFilesDeleted": {
-      "type": "integer"
-    },
-    "topicFilesWritten": {
-      "type": "integer"
+    "threadId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "trigger": {
       "anyOf": [
@@ -135,12 +143,6 @@
         }
       ]
     },
-    "turnIds": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
     "usage": {
       "anyOf": [
         {
@@ -150,12 +152,6 @@
           "type": "null"
         }
       ]
-    },
-    "writtenPaths": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
     }
   },
   "additionalProperties": true

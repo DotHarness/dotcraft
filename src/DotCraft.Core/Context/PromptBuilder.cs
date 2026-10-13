@@ -1,7 +1,6 @@
 using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
 using DotCraft.Contributions;
-using DotCraft.Dreams;
 using DotCraft.Memory;
 using DotCraft.Skills;
 using Microsoft.Extensions.Logging;
@@ -24,7 +23,6 @@ public sealed class PromptBuilder(
     string? roleInstructions = null,
     string? developerInstructions = null,
     IContextPageManager? contextPageManager = null,
-    DreamStore? dreamStore = null,
     SubAgentWaitAgentTimeoutOptions? subAgentWaitAgentTimeoutOptions = null,
     string? originChannel = null,
     IReadOnlyList<string>? workspaceRoots = null,
@@ -41,8 +39,6 @@ public sealed class PromptBuilder(
         SkillsLoader = skillsLoader,
         CraftPath = Path.GetFullPath(craftPath),
         WorkspacePath = Path.GetFullPath(workspacePath),
-        RawCraftPath = craftPath,
-        RawWorkspacePath = workspacePath,
         WorkspaceRoots = workspaceRoots ?? [Path.GetFullPath(workspacePath)],
         CustomCommandLoader = customCommandLoader,
         DeferredMcpServerNames = deferredMcpServerNames,
@@ -52,7 +48,6 @@ public sealed class PromptBuilder(
         RoleInstructions = roleInstructions,
         DeveloperInstructions = developerInstructions,
         ContextPageManager = contextPageManager,
-        DreamStore = dreamStore,
         SubAgentWaitAgentTimeoutOptions = subAgentWaitAgentTimeoutOptions,
         // Must be the same view the section list is resolved from, or sections evaluate against foreign sources.
         Contributions = ResolveView(contributions),

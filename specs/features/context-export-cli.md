@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.8.6 |
 | **Status** | Draft |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-13 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) |
 
 Purpose: define a local, read-only CLI that turns DotCraft workspace sessions, trace metadata, and memory into handoff artifacts for external coding agents and troubleshooting workflows.
@@ -30,7 +30,6 @@ The feature is a local CLI surface, not an AppServer protocol extension. It read
 - No remote AppServer or JSON-RPC API in the first version.
 - No LLM, embedding, or network-backed ranking in the first version.
 - No mutation, repair, rollback, compaction, memory writes, or workspace cleanup.
-- No default export of Dreams memory. Dreams may be added later with explicit low-authority labeling.
 
 ## 4. Command Contract
 
@@ -50,7 +49,7 @@ Optional:
 Current export output includes:
 
 - thread metadata
-- workspace memory from `.craft/memory/MEMORY.md`
+- the thread's memory store: its index and memory files (see [Memory](memory.md#3-store-layout-and-format))
 - continuity events for rollback and compaction
 - a current-context section that reflects the latest surviving compaction checkpoint when one exists
 - surviving turns ordered by turn start time

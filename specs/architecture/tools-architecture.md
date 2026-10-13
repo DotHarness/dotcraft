@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7.10 |
+| Version | 0.8.6 |
 | Status | Living |
-| Date | 2026-10-02 |
+| Date | 2026-10-13 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 
 ## 1. Purpose
@@ -302,6 +302,10 @@ it with `[ToolPresentation(id, Operation = ...)]` and any further bounded option
 option budget and carries the descriptor on the generated declaration. Sources MUST NOT select
 presentation by tool name. Provenance still decides which renderers may honor it, so the same
 declaration on a plugin tool selects only plugin renderers.
+
+Core may add an option derived from one invocation when recording its Item, and only for a fact
+that Core alone resolves. The one such option is `memory`, which marks a file tool call that
+targets the Thread's memory store; see [Memory](../features/memory.md#8-presentation).
 
 The generator also emits a per-type factory that returns every executable tool declared on one
 instance. A source uses it when it exposes the whole type and names individual factories only when

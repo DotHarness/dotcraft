@@ -13,9 +13,17 @@ import {
 import { translate, type AppLocale } from '../../shared/locales'
 import type { ConversationItem } from '../types/conversation'
 import { formatBoardToolLabel, isBoardOperation } from './boardToolDisplay'
+import { formatMemoryRecallLabel } from './memoryToolDisplay'
 import { formatSkillManageLabel } from './skillManageToolDisplay'
 import { formatSkillViewLabel } from './skillViewToolDisplay'
-import { isShellCommandKind, resolveToolKind, resolveToolOperation, type ToolKind, type ToolKindSource } from './toolKind'
+import {
+  isShellCommandKind,
+  resolveMemoryOperation,
+  resolveToolKind,
+  resolveToolOperation,
+  type ToolKind,
+  type ToolKindSource
+} from './toolKind'
 import { formatInvocationDisplay, invocationNeedsCallingPrefix } from './webToolDisplay'
 
 type ToolArgs = Record<string, unknown> | undefined
@@ -282,6 +290,9 @@ export function formatCollapsedToolLabel(
 ): string {
   const toolName = item.toolName ?? 'tool'
   const kind = resolveToolKind(item)
+  const memory = resolveMemoryOperation(item)
+  if (memory === 'recall') return formatMemoryRecallLabel(args, locale)
+  if (memory === 'update') return translate(locale, 'toolCall.memory.updated.one')
   switch (kind) {
     case 'read':
       return formatReadFileLabel(args, locale) ?? formatExploredLabel(args, locale)

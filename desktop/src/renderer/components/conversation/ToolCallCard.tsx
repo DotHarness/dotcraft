@@ -22,10 +22,12 @@ import {
   formatCollapsedToolLabel,
   formatExpandedInvocation,
   formatWorkflowFailureLabel,
-  getToolRowIcon
+  getToolRowIcon,
+  isToolExecutionFailure
 } from '../../utils/toolCallDisplay'
 import { getStreamingToolDisplay } from '../../utils/streamingToolDisplay'
-import { resolveToolKind, type ToolKind, type ToolKindSource } from '../../utils/toolKind'
+import { resolveMemoryOperation, resolveToolKind, type ToolKind, type ToolKindSource } from '../../utils/toolKind'
+import { MemoryUpdateCard } from './MemoryUpdateCard'
 import { PlanToolOutput } from './PlanToolOutput'
 import { CreatePlanCard, hasCreatePlanDisplayData } from './CreatePlanCard'
 import { AutomationToolCard, parseAutomationResult } from './AutomationToolCard'
@@ -441,6 +443,10 @@ export const ToolCallCard = memo(function ToolCallCard({
         )}
       />
     )
+  }
+
+  if (resolveMemoryOperation(item) === 'update' && (isRunning || !isToolExecutionFailure(item))) {
+    return <MemoryUpdateCard items={[item]} running={isRunning} />
   }
 
   if (rendererFamily === 'createPlan' && hasCreatePlanDisplayData(item)) {

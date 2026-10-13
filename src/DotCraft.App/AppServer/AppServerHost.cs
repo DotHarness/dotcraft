@@ -378,7 +378,6 @@ public sealed class AppServerHost(
                 ModelProviderRegistry = _services.GetRequiredService<ModelProviderRegistry>(),
                 BackgroundTerminalService = _services.GetService<IBackgroundTerminalService>(),
                 ContextPageManager = runtime.ContextPageManager,
-                DreamStore = _services.GetService<DreamStore>(),
                 DreamsService = runtime.DreamsService,
                 AppBindingService = _services.GetService<AppBindingService>(),
                 ThreadOriginPresentationProviders = _services.GetServices<IThreadOriginPresentationProvider>().ToArray(),

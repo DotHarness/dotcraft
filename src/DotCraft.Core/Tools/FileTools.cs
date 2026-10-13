@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text;
 using System.Text.RegularExpressions;
 using DotCraft.Lsp;
+using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using Microsoft.Extensions.AI;
@@ -26,7 +27,8 @@ public sealed class FileTools(
     string? ripgrepPath = null,
     TimeSpan? searchTimeout = null,
     IReadOnlyList<string>? workspaceRoots = null,
-    bool managedSearchOnly = false)
+    bool managedSearchOnly = false,
+    string? memoryStoreDirectory = null)
 {
     private const int DefaultGrepMatches = 100;
 
@@ -63,7 +65,8 @@ public sealed class FileTools(
         approvalService,
         blacklist,
         trustedReadPaths,
-        workspaceRoots);
+        workspaceRoots,
+        memoryStoreDirectory is null ? null : [memoryStoreDirectory]);
     private readonly RipgrepFileSearcher _ripgrep = new(ripgrepPath);
     private readonly TimeSpan _searchTimeout = NormalizeSearchTimeout(searchTimeout);
 
@@ -120,7 +123,7 @@ public sealed class FileTools(
                 return ReadFileTextResult(FileContentClassifier.FormatBinaryUnsupportedMessage(path, fullPath, fileInfo.Length, detectedFromSample: true));
 
             if (TextFileReadLimiter.IsPagedRead(offset, limit))
-                return ReadFileTextResult(await WithSharingViolationRetryAsync(
+                return ReadTextFileResult(fullPath, await WithSharingViolationRetryAsync(
                     () => TextFileReadLimiter.ReadPageAsync(fullPath, path, offset, limit, cancellationToken),
                     cancellationToken));
 
@@ -130,7 +133,7 @@ public sealed class FileTools(
             var (content, _, error) = await WithSharingViolationRetryAsync(
                 () => TextFileEncoding.ReadAsync(fullPath, path, cancellationToken),
                 cancellationToken);
-            return ReadFileTextResult(error ?? TextFileReadLimiter.FormatInMemory(content!, offset, limit));
+            return ReadTextFileResult(fullPath, error ?? TextFileReadLimiter.FormatInMemory(content!, offset, limit));
         }
         catch (OperationCanceledException)
         {
@@ -147,6 +150,18 @@ public sealed class FileTools(
     }
 
     private static IList<AIContent> ReadFileTextResult(string text) => [new TextContent(text)];
+
+    private IList<AIContent> ReadTextFileResult(string fullPath, string text) =>
+        ReadFileTextResult(!text.StartsWith("Error", StringComparison.Ordinal)
+                           && memoryStoreDirectory is not null
+                           && MemoryFiles.ReadNote(memoryStoreDirectory, fullPath) is { } note
+            ? text + "\n\n" + note
+            : text);
+
+    private string MemoryIndexWriteNotice(string fullPath, string content) =>
+        memoryStoreDirectory is not null && MemoryIndex.WriteNotice(memoryStoreDirectory, fullPath, content) is { } notice
+            ? "\n\n" + notice
+            : string.Empty;
 
     private static bool TryGetImageMediaType(string fullPath, out string mediaType)
     {
@@ -195,7 +210,8 @@ public sealed class FileTools(
                 var lineCount = content.Split('\n').Length;
                 var result = outcome.Complete(
                     CreateFileChange(fullPath, existedBefore ? FileChangeKind.Update : FileChangeKind.Add, before, content),
-                    $"Successfully wrote {content.Length} bytes ({lineCount} lines) to {path}", ChangeReporter);
+                    $"Successfully wrote {content.Length} bytes ({lineCount} lines) to {path}" + MemoryIndexWriteNotice(fullPath, content),
+                    ChangeReporter);
                 await NotifyLspFileChangedAsync(fullPath, content);
                 return result;
             }
@@ -245,7 +261,7 @@ public sealed class FileTools(
                 outcome.BeginWrite();
                 await TextFileEncoding.WriteAsync(fullPath, prepared.WrittenContent, encoding);
                 result = outcome.Complete(CreateFileChange(fullPath, FileChangeKind.Update, content, prepared.WrittenContent),
-                    prepared.Result, ChangeReporter);
+                    prepared.Result + MemoryIndexWriteNotice(fullPath, prepared.WrittenContent), ChangeReporter);
                 writtenContent = prepared.WrittenContent;
             }
 

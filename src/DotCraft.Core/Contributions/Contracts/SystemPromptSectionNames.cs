@@ -41,7 +41,7 @@ public static class SystemPromptSectionNames
     /// <summary>The workspace bootstrap markdown files loaded from the DotCraft directory.</summary>
     public const string BootstrapFiles = "bootstrap-files";
 
-    /// <summary>Long-term memory and Dream memory.</summary>
+    /// <summary>Long-term memory instructions.</summary>
     public const string Memory = "memory";
 
     /// <summary>Skill self-learning guidance.</summary>

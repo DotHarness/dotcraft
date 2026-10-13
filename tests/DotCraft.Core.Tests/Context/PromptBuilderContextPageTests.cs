@@ -1,7 +1,7 @@
 using DotCraft.Context;
 using DotCraft.Contributions;
-using DotCraft.Dreams;
 using DotCraft.Memory;
+using DotCraft.Sessions;
 using DotCraft.Skills;
 using Xunit;
 
@@ -21,91 +21,38 @@ public sealed class PromptBuilderContextPageTests : IDisposable
     }
 
     [Fact]
-    public void BuildSystemPrompt_NamesTheStoreItReadAndKeepsScopesApart()
+    public void BuildSystemPrompt_NamesTheThreadStoreAndCarriesNoMemoryContent()
     {
         var manager = new ContextPageManager();
         var workspaceStore = new MemoryStore(_craft);
-        var scopedStore = MemoryScopes.Resolve("agent-a", _craft)!;
-        File.WriteAllText(workspaceStore.LongTermFilePath, "workspace-fact");
-        File.WriteAllText(scopedStore.LongTermFilePath, "scoped-fact");
+        var scopedStore = MemoryScopes.ForThread(new ThreadConfiguration { MemoryScope = "agent-a" }, workspaceStore, _craft);
+        WriteMemory(workspaceStore, "workspace-fact");
+        WriteMemory(scopedStore, "scoped-fact");
 
         var workspacePrompt = CreateBuilder(workspaceStore, manager).BuildSystemPrompt("thread-workspace");
         var scopedPrompt = CreateBuilder(scopedStore, manager).BuildSystemPrompt("thread-scoped");
 
-        Assert.Contains("workspace-fact", workspacePrompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("scoped-fact", workspacePrompt, StringComparison.Ordinal);
-        Assert.Contains("scoped-fact", scopedPrompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("workspace-fact", scopedPrompt, StringComparison.Ordinal);
-        Assert.Contains(Path.GetFullPath(scopedStore.MemoryDirectoryPath), scopedPrompt, StringComparison.Ordinal);
         Assert.Contains(Path.GetFullPath(workspaceStore.MemoryDirectoryPath), workspacePrompt, StringComparison.Ordinal);
+        Assert.Contains(Path.GetFullPath(scopedStore.MemoryDirectoryPath), scopedPrompt, StringComparison.Ordinal);
+        foreach (var prompt in new[] { workspacePrompt, scopedPrompt })
+        {
+            Assert.DoesNotContain("workspace-fact", prompt, StringComparison.Ordinal);
+            Assert.DoesNotContain("scoped-fact", prompt, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
-    public void BuildSystemPrompt_KeepsMemoryStableUntilRelease()
-    {
-        var manager = new ContextPageManager();
-        var memoryStore = new MemoryStore(_craft);
-        var dreamStore = new DreamStore(_craft);
-        var builder = CreateBuilder(memoryStore, manager, dreamStore: dreamStore);
-
-        File.WriteAllText(memoryStore.LongTermFilePath, "memory-v1");
-        dreamStore.SaveDreamRun("# Dream Memory\n\ndream-v1", null);
-
-        var first = builder.BuildSystemPrompt("thread-a");
-        Assert.Contains("memory-v1", first, StringComparison.Ordinal);
-        Assert.Contains("dream-v1", first, StringComparison.Ordinal);
-
-        File.WriteAllText(memoryStore.LongTermFilePath, "memory-v2");
-        dreamStore.SaveDreamRun("# Dream Memory\n\ndream-v2", null);
-        manager.MarkDirty(ContextPageKeys.MemoryLongTerm("*"));
-
-        var pinned = builder.BuildSystemPrompt("thread-a");
-        Assert.Contains("memory-v1", pinned, StringComparison.Ordinal);
-        Assert.Contains("dream-v1", pinned, StringComparison.Ordinal);
-        Assert.DoesNotContain("memory-v2", pinned, StringComparison.Ordinal);
-        Assert.DoesNotContain("dream-v2", pinned, StringComparison.Ordinal);
-
-        var newThread = builder.BuildSystemPrompt("thread-b");
-        Assert.Contains("memory-v2", newThread, StringComparison.Ordinal);
-        Assert.Contains("dream-v2", newThread, StringComparison.Ordinal);
-
-        manager.ReleaseStablePages("thread-a");
-        var refreshed = builder.BuildSystemPrompt("thread-a");
-        Assert.Contains("memory-v2", refreshed, StringComparison.Ordinal);
-        Assert.Contains("dream-v2", refreshed, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void BuildSystemPrompt_IncludesDreamMemoryAfterLongTermMemoryWithAuthorityWarning()
+    public void BuildSystemPrompt_IsIdenticalForEqualConfigurationWhateverTheMemoryHolds()
     {
         var memoryStore = new MemoryStore(_craft);
-        var dreamStore = new DreamStore(_craft);
-        var builder = CreateBuilder(memoryStore, contextPageManager: null, dreamStore: dreamStore);
-        File.WriteAllText(memoryStore.LongTermFilePath, "explicit-memory-fact");
-        dreamStore.SaveDreamRun("# Dream Memory\n\n- inferred-background-context", null);
+        WriteMemory(memoryStore, "first-fact");
+        var first = CreateBuilder(memoryStore, new ContextPageManager()).BuildSystemPrompt("thread-a");
 
-        var prompt = builder.BuildSystemPrompt("thread-a");
+        WriteMemory(memoryStore, "second-fact");
+        File.WriteAllText(Path.Combine(memoryStore.MemoryDirectoryPath, "extra.md"), "---\ndescription: extra\n---\nmore");
+        var second = CreateBuilder(memoryStore, new ContextPageManager()).BuildSystemPrompt("thread-b");
 
-        Assert.Contains("## Long-term Memory", prompt, StringComparison.Ordinal);
-        Assert.Contains("explicit-memory-fact", prompt, StringComparison.Ordinal);
-        Assert.Contains("## Dream Memory", prompt, StringComparison.Ordinal);
-        Assert.Contains("inferred background context generated by scheduled Dreams", prompt, StringComparison.Ordinal);
-        Assert.Contains("- inferred-background-context", prompt, StringComparison.Ordinal);
-        Assert.True(
-            prompt.IndexOf("explicit-memory-fact", StringComparison.Ordinal)
-            < prompt.IndexOf("## Dream Memory", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void BuildSystemPrompt_IgnoresMissingOrEmptyDreamMemory()
-    {
-        var memoryStore = new MemoryStore(_craft);
-        var dreamStore = new DreamStore(_craft);
-        var builder = CreateBuilder(memoryStore, contextPageManager: null, dreamStore: dreamStore);
-
-        var prompt = builder.BuildSystemPrompt("thread-a");
-
-        Assert.DoesNotContain("## Dream Memory", prompt, StringComparison.Ordinal);
+        Assert.Equal(first, second);
     }
 
     [Fact]
@@ -143,17 +90,16 @@ public sealed class PromptBuilderContextPageTests : IDisposable
     [Fact]
     public void BuildSystemPrompt_WithoutContextPageManager_ReloadsImmediately()
     {
-        var memoryStore = new MemoryStore(_craft);
-        var builder = CreateBuilder(memoryStore, contextPageManager: null);
+        var builder = CreateBuilder(new MemoryStore(_craft), contextPageManager: null);
 
-        File.WriteAllText(memoryStore.LongTermFilePath, "memory-v1");
-        Assert.Contains("memory-v1", builder.BuildSystemPrompt("thread"), StringComparison.Ordinal);
+        File.WriteAllText(Path.Combine(_craft, "USER.md"), "user-v1");
+        Assert.Contains("user-v1", builder.BuildSystemPrompt("thread"), StringComparison.Ordinal);
 
-        File.WriteAllText(memoryStore.LongTermFilePath, "memory-v2");
+        File.WriteAllText(Path.Combine(_craft, "USER.md"), "user-v2");
         var refreshed = builder.BuildSystemPrompt("thread");
 
-        Assert.Contains("memory-v2", refreshed, StringComparison.Ordinal);
-        Assert.DoesNotContain("memory-v1", refreshed, StringComparison.Ordinal);
+        Assert.Contains("user-v2", refreshed, StringComparison.Ordinal);
+        Assert.DoesNotContain("user-v1", refreshed, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -186,7 +132,6 @@ public sealed class PromptBuilderContextPageTests : IDisposable
         MemoryStore memoryStore,
         IContextPageManager? contextPageManager,
         SkillsLoader? skillsLoader = null,
-        DreamStore? dreamStore = null,
         IContributionView? contributions = null) =>
         new(
             memoryStore,
@@ -195,8 +140,13 @@ public sealed class PromptBuilderContextPageTests : IDisposable
             _workspace,
             toolNamesProvider: () => [],
             contextPageManager: contextPageManager,
-            dreamStore: dreamStore,
             contributions: contributions);
+
+    private static void WriteMemory(MemoryStore store, string fact)
+    {
+        File.WriteAllText(Path.Combine(store.MemoryDirectoryPath, "fact.md"), $"---\ndescription: {fact}\n---\n{fact}");
+        File.WriteAllText(store.IndexFilePath, $"- [Fact](fact.md) — {fact}");
+    }
 
     private void WriteAlwaysSkill(string description, string body)
     {

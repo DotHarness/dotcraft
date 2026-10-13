@@ -64,11 +64,13 @@ import { readConfigValue, useConfig } from '../../stores/configStore'
 import {
   APPROVAL_OPTIONS,
   DENY_APPROVAL_LABEL_KEY,
+  MEMORY_OPTIONS,
   createEmptyDraft,
   parseProfile,
   toMarkdown,
   type AgentProviderPreference,
   type ApprovalPolicy,
+  type MemoryChoice,
   type ProfileDraft,
   type SaveTarget,
   type ToolPolicyMode
@@ -926,6 +928,9 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
     }
     return options
   }, [authoredApprovalPolicy, t])
+  const memoryOptions = useMemo<SettingsSelectOption<MemoryChoice>[]>(() => MEMORY_OPTIONS
+    .map((option) => ({ value: option.value, label: t(option.labelKey), description: t(option.descriptionKey) })), [t])
+  const memoryDescription = memoryOptions.find((option) => option.value === draft.memory)?.description
 
   const selectedProviderId = draft.providerPreference?.providerId ?? null
   useEffect(() => {
@@ -1223,6 +1228,21 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
                     ariaLabel={t('agentBuilder.approval.label')}
                   />
                 </FieldAnchor>
+              )}
+            />
+            <SettingsRow
+              label={t('agentBuilder.memory.label')}
+              description={memoryDescription}
+              controlMinWidth={200}
+              control={(
+                <SettingsSelect<MemoryChoice>
+                  value={draft.memory}
+                  onValueChange={(memory) => setDraft((d) => ({ ...d, memory }))}
+                  disabled={preview}
+                  style={{ width: '100%' }}
+                  options={memoryOptions}
+                  ariaLabel={t('agentBuilder.memory.label')}
+                />
               )}
             />
           </SettingsGroup>

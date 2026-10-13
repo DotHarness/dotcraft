@@ -129,6 +129,17 @@ function hasOptionalOperation(...allowed: readonly string[]) {
   return (options: Readonly<Record<string, unknown>>): boolean => hasNoOptions(options) || named(options)
 }
 
+function allowsMemoryMark(
+  mark: 'recall' | 'update',
+  validate: (options: Readonly<Record<string, unknown>>) => boolean
+) {
+  return (options: Readonly<Record<string, unknown>>): boolean => {
+    if (!Object.hasOwn(options, 'memory')) return validate(options)
+    const { memory, ...rest } = options
+    return memory === mark && validate(rest)
+  }
+}
+
 export const CORE_TOOL_PRESENTATION_IDS = {
   createPlan: 'core.create-plan',
   automation: 'core.automation',
@@ -168,7 +179,7 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   }, hasOptionalOperation('exec', 'writeStdin')),
   registration(CORE_TOOL_PRESENTATION_IDS.fileWrite, 'fileWrite', {
     mode: 'collapsible', groupCategory: 'write'
-  }, hasOperation('write', 'edit')),
+  }, allowsMemoryMark('update', hasOperation('write', 'edit'))),
   registration(CORE_TOOL_PRESENTATION_IDS.web, 'web', {
     mode: 'collapsible', groupCategory: 'web'
   }, hasOperation('search', 'fetch')),
@@ -177,7 +188,7 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   }),
   registration(CORE_TOOL_PRESENTATION_IDS.readFile, 'readFile', {
     mode: 'collapsible', groupCategory: 'explore'
-  }, hasOptionalOperation('read', 'grep', 'find')),
+  }, allowsMemoryMark('recall', hasOptionalOperation('read', 'grep', 'find'))),
   registration(CORE_TOOL_PRESENTATION_IDS.lsp, 'lsp', {
     mode: 'collapsible', groupCategory: 'explore'
   }),

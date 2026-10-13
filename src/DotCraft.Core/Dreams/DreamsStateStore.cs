@@ -5,61 +5,24 @@ using DotCraft.Configuration;
 namespace DotCraft.Dreams;
 
 /// <summary>
-/// Persists the latest Dreams run state under .craft/dreams/state.json.
+/// Persists each run's state under <c>runs/&lt;id&gt;/state.json</c> and the latest run under <c>state.json</c>.
 /// </summary>
-public sealed class DreamsStateStore
+public sealed class DreamsStateStore(string dreamsDirectory)
 {
-    private readonly string _statePath;
-    private readonly string _runsDir;
+    private readonly string _statePath = Path.Combine(dreamsDirectory, "state.json");
+    private readonly string _runsDir = Path.Combine(dreamsDirectory, "runs");
     private readonly object _syncRoot = new();
-
-    public DreamsStateStore(DreamStore dreamStore)
-    {
-        _statePath = Path.Combine(dreamStore.DreamsDirectoryPath, "state.json");
-        _runsDir = dreamStore.RunsDirectoryPath;
-    }
-
-    public string StatePath => _statePath;
 
     public DreamsRunState? Load()
     {
         lock (_syncRoot)
-        {
-            if (!File.Exists(_statePath))
-                return null;
-
-            try
-            {
-                return JsonSerializer.Deserialize<DreamsRunState>(
-                    File.ReadAllText(_statePath, Encoding.UTF8),
-                    AppConfig.SerializerOptions);
-            }
-            catch (JsonException)
-            {
-                return null;
-            }
-        }
+            return Read(_statePath);
     }
 
     public DreamsRunState? Load(string runId)
     {
         lock (_syncRoot)
-        {
-            var path = GetRunStatePath(runId);
-            if (!File.Exists(path))
-                return null;
-
-            try
-            {
-                return JsonSerializer.Deserialize<DreamsRunState>(
-                    File.ReadAllText(path, Encoding.UTF8),
-                    AppConfig.SerializerOptions);
-            }
-            catch (JsonException)
-            {
-                return null;
-            }
-        }
+            return Read(GetRunStatePath(runId));
     }
 
     public IReadOnlyList<DreamsRunState> List(bool includeArchived = false)
@@ -69,49 +32,33 @@ public sealed class DreamsStateStore
             if (!Directory.Exists(_runsDir))
                 return [];
 
-            var runs = new List<DreamsRunState>();
-            foreach (var statePath in Directory.EnumerateFiles(_runsDir, "state.json", SearchOption.AllDirectories))
-            {
-                try
-                {
-                    var state = JsonSerializer.Deserialize<DreamsRunState>(
-                        File.ReadAllText(statePath, Encoding.UTF8),
-                        AppConfig.SerializerOptions);
-                    if (state == null)
-                        continue;
-                    if (!includeArchived && state.ReviewStatus == DreamsReviewStatuses.Archived)
-                        continue;
-                    runs.Add(state);
-                }
-                catch (JsonException)
-                {
-                    // Ignore corrupt per-run state and keep the management surface usable.
-                }
-            }
-
-            return runs
+            return Directory.EnumerateDirectories(_runsDir)
+                .Select(directory => Read(Path.Combine(directory, "state.json")))
+                .OfType<DreamsRunState>()
+                .Where(state => includeArchived || state.ReviewStatus != DreamsReviewStatuses.Archived)
                 .OrderByDescending(static state => state.StartedAt)
                 .ToArray();
         }
     }
 
+    /// <summary>Saves a run and makes it the latest run.</summary>
     public void Save(DreamsRunState state)
     {
         lock (_syncRoot)
         {
-            SaveLatestStateCore(state);
-            SaveRunStateCore(state);
+            WriteAtomic(_statePath, state);
+            WriteAtomic(GetRunStatePath(state.Id), state);
         }
     }
 
+    /// <summary>Saves a run, updating the latest run only when it is that run.</summary>
     public void SaveRun(DreamsRunState state)
     {
         lock (_syncRoot)
         {
-            SaveRunStateCore(state);
-            var latest = Load();
-            if (latest?.Id == state.Id)
-                SaveLatestStateCore(state);
+            WriteAtomic(GetRunStatePath(state.Id), state);
+            if (Read(_statePath)?.Id == state.Id)
+                WriteAtomic(_statePath, state);
         }
     }
 
@@ -123,109 +70,69 @@ public sealed class DreamsStateStore
             if (!Directory.Exists(runDirectory))
                 return false;
 
-            var latest = Load();
-            var attributes = File.GetAttributes(runDirectory);
-            Directory.Delete(runDirectory, recursive: (attributes & FileAttributes.ReparsePoint) == 0);
-
-            if (latest?.Id == runId)
-            {
-                var replacement = List(includeArchived: true).FirstOrDefault();
-                if (replacement == null)
-                {
-                    if (File.Exists(_statePath))
-                        File.Delete(_statePath);
-                }
-                else
-                {
-                    SaveLatestStateCore(replacement);
-                }
-            }
-
+            DreamsArtifacts.DeleteEntry(runDirectory);
+            if (Read(_statePath)?.Id == runId)
+                ReplaceLatest();
             return true;
         }
     }
 
-    public int DeleteAllRuns()
+    public void DeleteAllRuns()
     {
         lock (_syncRoot)
         {
-            var count = List(includeArchived: true).Count;
             if (Directory.Exists(_runsDir))
             {
                 foreach (var entry in Directory.EnumerateFileSystemEntries(_runsDir).ToArray())
-                {
-                    var attributes = File.GetAttributes(entry);
-                    if ((attributes & FileAttributes.Directory) != 0)
-                        Directory.Delete(entry, recursive: (attributes & FileAttributes.ReparsePoint) == 0);
-                    else
-                        File.Delete(entry);
-                }
+                    DreamsArtifacts.DeleteEntry(entry);
             }
 
             if (File.Exists(_statePath))
                 File.Delete(_statePath);
-            Directory.CreateDirectory(_runsDir);
-            return count;
         }
     }
 
-    private void SaveLatestStateCore(DreamsRunState state)
+    private void ReplaceLatest()
     {
-        var dir = Path.GetDirectoryName(_statePath)!;
-        Directory.CreateDirectory(dir);
-        var tempFile = Path.Combine(dir, $".state.{Guid.NewGuid():N}.tmp");
-        var json = JsonSerializer.Serialize(state, AppConfig.SerializerOptions) + Environment.NewLine;
-        File.WriteAllText(tempFile, json, Encoding.UTF8);
+        var replacement = List(includeArchived: true).FirstOrDefault();
+        if (replacement != null)
+            WriteAtomic(_statePath, replacement);
+        else if (File.Exists(_statePath))
+            File.Delete(_statePath);
+    }
+
+    private string GetRunStatePath(string runId) =>
+        Path.Combine(_runsDir, DreamsArtifacts.NormalizeRunId(runId), "state.json");
+
+    private static DreamsRunState? Read(string path)
+    {
+        if (!File.Exists(path))
+            return null;
+
         try
         {
-            if (File.Exists(_statePath))
-                File.Replace(tempFile, _statePath, null);
-            else
-                File.Move(tempFile, _statePath);
+            return JsonSerializer.Deserialize<DreamsRunState>(File.ReadAllText(path, Encoding.UTF8), AppConfig.SerializerOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static void WriteAtomic(string path, DreamsRunState state)
+    {
+        var directory = Path.GetDirectoryName(path)!;
+        Directory.CreateDirectory(directory);
+        var tempFile = Path.Combine(directory, $".state.{Guid.NewGuid():N}.tmp");
+        File.WriteAllText(tempFile, JsonSerializer.Serialize(state, AppConfig.SerializerOptions) + Environment.NewLine, Encoding.UTF8);
+        try
+        {
+            File.Move(tempFile, path, overwrite: true);
         }
         finally
         {
             if (File.Exists(tempFile))
                 File.Delete(tempFile);
         }
-    }
-
-    private void SaveRunStateCore(DreamsRunState state)
-    {
-        var path = GetRunStatePath(state.Id);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var tempFile = Path.Combine(Path.GetDirectoryName(path)!, $".state.{Guid.NewGuid():N}.tmp");
-        var json = JsonSerializer.Serialize(state, AppConfig.SerializerOptions) + Environment.NewLine;
-        File.WriteAllText(tempFile, json, Encoding.UTF8);
-        try
-        {
-            if (File.Exists(path))
-            {
-                File.Replace(tempFile, path, null);
-            }
-            else
-            {
-                File.Move(tempFile, path);
-            }
-        }
-        finally
-        {
-            if (File.Exists(tempFile))
-                File.Delete(tempFile);
-        }
-    }
-
-    private string GetRunStatePath(string runId)
-    {
-        if (string.IsNullOrWhiteSpace(runId))
-            throw new ArgumentException("Dream run id is required.", nameof(runId));
-        foreach (var ch in runId)
-        {
-            if (char.IsAsciiLetterOrDigit(ch) || ch is '-' or '_')
-                continue;
-            throw new ArgumentException($"Dream run id contains invalid characters: {runId}", nameof(runId));
-        }
-
-        return Path.Combine(_runsDir, runId, "state.json");
     }
 }

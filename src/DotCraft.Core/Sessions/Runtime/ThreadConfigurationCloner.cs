@@ -9,6 +9,7 @@ internal static class ThreadConfigurationCloner
         AgentProfileId = source.AgentProfileId,
         MemoryScope = source.MemoryScope,
         MemoryEnabled = source.MemoryEnabled,
+        MemoryAutoExtract = source.MemoryAutoExtract,
         AgentProfileSource = source.AgentProfileSource,
         AgentProfileFingerprint = source.AgentProfileFingerprint,
         AgentBuilderTargetId = source.AgentBuilderTargetId,

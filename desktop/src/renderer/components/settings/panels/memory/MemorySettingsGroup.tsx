@@ -6,12 +6,15 @@ import { PillSwitch } from '../../../ui/PillSwitch'
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import type { DreamsSettings } from './useDreamsSettings'
 
+interface MemoryToggle {
+  enabled: boolean
+  applying: boolean
+  onToggle: (checked: boolean) => void
+}
+
 interface MemorySettingsGroupProps {
-  memoryToggle: {
-    enabled: boolean
-    applying: boolean
-    onToggle: (checked: boolean) => void
-  } | null
+  memoryToggle: MemoryToggle | null
+  autoExtractToggle: MemoryToggle | null
   dreams: DreamsSettings | null
   onManageDreams: () => void
   deleteMemories: {
@@ -22,6 +25,7 @@ interface MemorySettingsGroupProps {
 
 export function MemorySettingsGroup({
   memoryToggle,
+  autoExtractToggle,
   dreams,
   onManageDreams,
   deleteMemories
@@ -45,6 +49,25 @@ export function MemorySettingsGroup({
               aria-label={t('settings.personalization.memory.enable')}
               onChange={memoryToggle.onToggle}
             />
+          }
+        />
+      )}
+      {autoExtractToggle && (
+        <SettingsRow
+          label={t('settings.personalization.memory.autoExtract')}
+          description={t('settings.personalization.memory.autoExtractHint')}
+          control={
+            <ActionTooltip
+              label=""
+              disabledReason={memoryEnabled ? undefined : t('settings.personalization.memory.requiredForAutoExtract')}
+            >
+              <PillSwitch
+                checked={autoExtractToggle.enabled}
+                disabled={!memoryEnabled || autoExtractToggle.applying}
+                aria-label={t('settings.personalization.memory.autoExtract')}
+                onChange={autoExtractToggle.onToggle}
+              />
+            </ActionTooltip>
           }
         />
       )}

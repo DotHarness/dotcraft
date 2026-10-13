@@ -1,5 +1,4 @@
 using DotCraft.Memory;
-using DotCraft.Dreams;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
 using DotCraft.Sessions;
@@ -94,7 +93,6 @@ public sealed class AppServerWelcomeSuggestionsTests : IDisposable
             await using var service = new WelcomeSuggestionService(
                 sessionService,
                 new MemoryStore(craftPath),
-                new DreamStore(craftPath),
                 workspacePath,
                 new AppConfig(),
                 craftPath);

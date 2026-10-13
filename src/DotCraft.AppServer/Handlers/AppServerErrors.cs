@@ -124,6 +124,7 @@ public static class AppServerErrors
     public const int SessionImportErrorCode = -32102;
     public const int FileSystemErrorCode = -32103;
     public const int CommandExecErrorCode = -32104;
+    public const int DreamsStoreChangedCode = -32105;
     // ── Automation-specific codes (-32050 to -32059) ──
 
     public const int AutomationNotFoundCode = -32051;
@@ -230,6 +231,9 @@ public static class AppServerErrors
 
     public static AppServerException FileSystem(string code, string fallbackText, string path) =>
         Create(FileSystemErrorCode, code, $"errors.fileSystem.{char.ToLowerInvariant(code[0])}{code[1..]}", fallbackText, new FileSystemErrorParams(path));
+
+    public static AppServerException DreamsStoreChanged(string detail) =>
+        Create(DreamsStoreChangedCode, "storeChanged", "errors.dreams.storeChanged", "The memory store changed after the Dreams run started.", detail: detail);
 
     public static AppServerException CommandExec(string code, string fallbackText) =>
         Create(CommandExecErrorCode, code, $"errors.commandExec.{char.ToLowerInvariant(code[0])}{code[1..]}", fallbackText);

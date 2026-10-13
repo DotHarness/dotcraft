@@ -17,8 +17,8 @@ public sealed class ThreadConfiguration
     public string? AgentProfileId { get; set; }
 
     /// <summary>
-    /// Names this Thread's own durable memory instead of the workspace's. Set by an independent
-    /// recurring principal such as an automation; unset, the Thread reads and writes the workspace store.
+    /// Names this Thread's own durable memory instead of the workspace's, such as an automation's or an
+    /// Agent Profile's that keeps its own; unset, the Thread reads and writes the workspace store.
     /// </summary>
     public string? MemoryScope { get; set; }
 
@@ -27,6 +27,12 @@ public sealed class ThreadConfiguration
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public bool? MemoryEnabled { get; set; }
+
+    /// <summary>
+    /// Whether this Thread runs memory extraction, captured from the workspace at creation. Unset means disabled.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public bool? MemoryAutoExtract { get; set; }
 
     /// <summary>
     /// Optional source of the Agent Profile snapshot, such as <c>builtIn</c>, <c>user</c>, or <c>workspace</c>.

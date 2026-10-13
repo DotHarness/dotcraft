@@ -45,7 +45,7 @@ public sealed class ContextExportService
                 ? $"Model history warning ({warning.Code}): {warning.Message}"
                 : $"Model history warning for turn '{warning.TurnId}' ({warning.Code}): {warning.Message}");
         }
-        var memory = _reader.LoadMemory(loaded.Paths);
+        var memory = _reader.LoadMemory(loaded, warnings);
         var markdown = BuildMarkdown(loaded, memory, replay, options, warnings);
 
         return new ContextExportResult
@@ -110,19 +110,25 @@ public sealed class ContextExportService
         StringBuilder sb,
         ContextWorkspaceMemory memory)
     {
-        sb.AppendLine("## Workspace Memory");
-        sb.AppendLine($"Source: `{memory.MemoryPath}`");
-        if (string.IsNullOrWhiteSpace(memory.Memory))
-        {
-            sb.AppendLine();
-            sb.AppendLine("(empty)");
-        }
-        else
-        {
-            AppendCodeBlock(sb, "markdown", memory.Memory.TrimEnd());
-        }
-
+        sb.AppendLine("## Memory");
+        sb.AppendLine($"Store: `{memory.StoreDirectory}`");
         sb.AppendLine();
+        sb.AppendLine("### MEMORY.md");
+        if (string.IsNullOrWhiteSpace(memory.Index))
+            sb.AppendLine("(empty)");
+        else
+            AppendCodeBlock(sb, "markdown", memory.Index.TrimEnd());
+        sb.AppendLine();
+
+        foreach (var file in memory.Files)
+        {
+            sb.AppendLine($"### {file.Info.FileName}");
+            AppendMetadata(sb, "Type", file.Info.Type ?? "(none)");
+            AppendMetadata(sb, "Description", file.Info.Description ?? "(none)");
+            AppendMetadata(sb, "Last Modified", file.Info.LastModified.ToString("O"));
+            AppendCodeBlock(sb, "markdown", file.Content.TrimEnd());
+            sb.AppendLine();
+        }
     }
 
     private static void AppendContinuity(

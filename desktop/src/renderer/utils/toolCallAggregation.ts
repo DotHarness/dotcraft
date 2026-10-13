@@ -2,8 +2,10 @@ import type { ConversationItem } from '../types/conversation'
 import { resolveCoreToolRenderPlan } from './toolRendererRegistry'
 import { resolveDesktopPluginToolRenderer } from '../plugins/desktopPluginRegistry'
 import { isBoardReadOperation } from './boardToolDisplay'
+import { resolveMemoryOperation } from './toolKind'
+import { isToolExecutionFailure } from './toolCallDisplay'
 
-export type ToolGroupCategory = 'explore' | 'write' | 'shell' | 'web' | 'subagent' | 'board'
+export type ToolGroupCategory = 'explore' | 'write' | 'memoryUpdate' | 'shell' | 'web' | 'subagent' | 'board'
 
 export type AggregatedToolCall =
   | { kind: 'single'; item: ConversationItem }
@@ -16,6 +18,8 @@ interface ToolItemLiveContext {
 function getGroupCategory(item: ConversationItem): ToolGroupCategory | null {
   const plan = resolveCoreFallbackPlan(item)
   if (plan?.groupCategory === 'board') return isBoardReadOperation(plan.options.operation) ? 'board' : null
+  // A failed update keeps its own row, which names the file and the error.
+  if (plan && resolveMemoryOperation(item) === 'update') return isToolExecutionFailure(item) ? null : 'memoryUpdate'
   if (plan?.groupCategory !== 'subagent') return plan?.groupCategory ?? null
   return plan.options.operation === 'spawn' || plan.options.operation === 'followupTask'
     ? 'subagent'

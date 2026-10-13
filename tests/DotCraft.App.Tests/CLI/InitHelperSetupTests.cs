@@ -70,6 +70,7 @@ public sealed class InitHelperSetupTests : IDisposable
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
         Assert.DoesNotContain("ProviderId", workspaceNode.Select(p => p.Key));
         Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Path.Combine(craftPath, "memory")));
         Assert.Contains("/visualizations/", File.ReadAllText(Path.Combine(craftPath, ".gitignore")), StringComparison.Ordinal);
     }
 

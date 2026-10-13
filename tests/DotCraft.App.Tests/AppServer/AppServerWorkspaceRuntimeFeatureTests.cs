@@ -4,12 +4,12 @@ using DotCraft.Agents;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
 using DotCraft.Dreams;
-using DotCraft.Memory;
 using DotCraft.Modules;
 using DotCraft.Runtime;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using DotCraft.Sessions;
+using DotCraft.Tests.Dreams;
 using Contract = DotCraft.Protocol.AppServer;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
@@ -231,18 +231,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
 
         var paths = new DotCraftPaths(fixture.WorkspacePath, fixture.BotPath, userDataPath: null);
         sessionService ??= new FakeSessionService();
-        var dreamStore = new DreamStore(fixture.BotPath);
-        var dreamsService = new DreamsService(
-            config,
-            new DreamsInputCollector(
-                config,
-                fixture.WorkspacePath,
-                new MemoryStore(fixture.BotPath),
-                dreamStore,
-                new ThreadStore(fixture.BotPath)),
-            new FakeDreamsRunner(),
-            dreamStore,
-            new DreamsStateStore(dreamStore));
+        var dreamsService = new DreamsService(config, paths, new ThreadStore(fixture.BotPath), new FakeDreamsRunner());
         var services = new ServiceCollection().BuildServiceProvider();
 
         return new WorkspaceRuntimeAppServerFeatureContext(
@@ -512,29 +501,5 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         public Task DeleteThreadPermanentlyAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
         public Task RenameThreadAsync(string threadId, string displayName, CancellationToken ct = default) => throw new NotImplementedException();
         public ContextUsageSnapshot? TryGetContextUsageSnapshot(string threadId) => null;
-    }
-
-    private sealed class FakeDreamsRunner : IDreamsRunner
-    {
-        public string ModelId => "fake-dream-model";
-
-        public Task<DreamsGenerationResult> GenerateAsync(
-            DreamsRunInput input,
-            string runId,
-            string trigger,
-            string? outputStoreId = null,
-            string? modelId = null,
-            Action<DreamsRunSessionBinding>? onSessionBinding = null,
-            CancellationToken cancellationToken = default)
-        {
-            _ = input;
-            _ = runId;
-            _ = trigger;
-            _ = outputStoreId;
-            _ = modelId;
-            _ = onSessionBinding;
-            _ = cancellationToken;
-            return Task.FromResult(DreamsGenerationResult.Failed("not used"));
-        }
     }
 }

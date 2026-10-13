@@ -1,84 +1,65 @@
 using System.Text;
-using System.Collections.Concurrent;
+using DotCraft.Security;
 using DotCraft.Tools;
 
 namespace DotCraft.Memory;
 
 public sealed class MemoryStore
 {
-    public const int MaxContextChars = 10000;
+    public const string IndexFileName = "MEMORY.md";
 
-    private static readonly ConcurrentDictionary<string, object> StoreLocks = new(
-        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
-
-    private readonly string _memoryDir;
-
-    private readonly string _longTermFile;
-
-    private readonly object _syncRoot;
-
-    public MemoryStore(string workspaceRoot)
+    public MemoryStore(string dataPath)
     {
-        _memoryDir = Path.Combine(workspaceRoot, "memory");
-        Directory.CreateDirectory(_memoryDir);
-        _longTermFile = Path.Combine(_memoryDir, "MEMORY.md");
-        _syncRoot = StoreLocks.GetOrAdd(Path.GetFullPath(_memoryDir), static _ => new object());
+        MemoryDirectoryPath = DirectoryOf(dataPath);
+        Directory.CreateDirectory(MemoryDirectoryPath);
+        IndexFilePath = Path.Combine(MemoryDirectoryPath, IndexFileName);
     }
 
-    public string LongTermFilePath => _longTermFile;
+    public string MemoryDirectoryPath { get; }
 
-    public string MemoryDirectoryPath => _memoryDir;
+    public string IndexFilePath { get; }
 
-    public string ReadLongTerm()
-    {
-        lock (_syncRoot)
-        {
-            using var memoryLock = PathAsyncMutex.Acquire(_longTermFile);
-            return File.Exists(_longTermFile) ? File.ReadAllText(_longTermFile, Encoding.UTF8) : string.Empty;
-        }
-    }
+    public static string DirectoryOf(string dataPath) => Path.Combine(dataPath, "memory");
+
+    /// <summary>The whole index file, unbounded; prompts use <see cref="MemoryIndex"/> instead.</summary>
+    public string ReadIndexText() => ReadIndexText(IndexFilePath);
 
     public void ClearAll()
     {
-        lock (_syncRoot)
-        {
-            using var memoryLock = PathAsyncMutex.Acquire(_longTermFile);
-            RejectReparsePointRoot();
-            Directory.CreateDirectory(_memoryDir);
+        using var indexLock = PathAsyncMutex.Acquire(IndexFilePath);
+        RejectReparsePointRoot();
+        Directory.CreateDirectory(MemoryDirectoryPath);
 
-            foreach (var entry in Directory.EnumerateFileSystemEntries(_memoryDir).ToArray())
+        foreach (var entry in Directory.EnumerateFileSystemEntries(MemoryDirectoryPath).ToArray())
+        {
+            var attributes = File.GetAttributes(entry);
+            if ((attributes & FileAttributes.Directory) != 0)
             {
-                var attributes = File.GetAttributes(entry);
-                if ((attributes & FileAttributes.Directory) != 0)
-                {
-                    Directory.Delete(entry, recursive: (attributes & FileAttributes.ReparsePoint) == 0);
-                }
-                else
-                {
-                    File.Delete(entry);
-                }
+                Directory.Delete(entry, recursive: (attributes & FileAttributes.ReparsePoint) == 0);
+            }
+            else
+            {
+                File.Delete(entry);
             }
         }
     }
 
-    public string GetMemoryContext()
+    internal static string ReadIndexText(string indexFilePath)
     {
-        var longTerm = ReadLongTerm();
-        if (string.IsNullOrWhiteSpace(longTerm))
-            return string.Empty;
-        if (longTerm.Length > MaxContextChars)
-            longTerm = longTerm[..MaxContextChars]
-                + "\n\n[Memory excerpt truncated. Read the actual file before editing or recalling further details.]";
-        return "## Long-term Memory\n" + longTerm;
+        using var indexLock = PathAsyncMutex.Acquire(indexFilePath);
+        return File.Exists(indexFilePath) ? File.ReadAllText(indexFilePath, Encoding.UTF8) : string.Empty;
     }
+
+    internal static bool IsIndexFile(string storeDirectory, string fullPath) =>
+        WorkspaceBoundary.IsWithin(fullPath, Path.Combine(storeDirectory, IndexFileName));
 
     private void RejectReparsePointRoot()
     {
-        if (!Directory.Exists(_memoryDir))
+        if (!Directory.Exists(MemoryDirectoryPath))
             return;
 
-        var attributes = File.GetAttributes(_memoryDir);
+        var attributes = File.GetAttributes(MemoryDirectoryPath);
         if ((attributes & FileAttributes.ReparsePoint) != 0)
-            throw new IOException($"Refusing to clear reparse-point memory directory: {_memoryDir}");
+            throw new IOException($"Refusing to clear reparse-point memory directory: {MemoryDirectoryPath}");
     }
 }

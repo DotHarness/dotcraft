@@ -138,55 +138,58 @@ Replaces the workspace configuration file with the posted JSON object. A `***` v
 
 ### `GET /dashboard/api/dreams/status`
 
-Returns current workspace Dreams config, run status, active store, and latest run.
+Returns the workspace's Dreams settings (`enabled`, `interval`, `autoApply`, `minSessionsSinceLastRun`), `running`, `nextRunAt`, the latest run as `lastRun` (`null` when Dreams has never run), and `pendingCount`, the number of runs waiting for review.
+
+A run carries `id`, `scope` (omitted for the workspace memory store, otherwise the scope of an Agent Profile's own store), `status` (`running`, `succeeded`, `skipped`, `failed`, or `canceled`), `trigger` (`manual` or `scheduled`), timestamps, `changes` (the memory files the run added, updated, and deleted, and whether `MEMORY.md` changed), `reviewStatus` (`pending`, `applied`, `discarded`, or `archived`), `autoApplied`, `summary`, `errorType` and `message`, and the internal `threadId` and `turnId`. The [AppServer protocol specification](https://github.com/DotHarness/dotcraft/blob/main/specs/protocols/appserver-protocol.md#271-run-object) lists every field.
 
 ### `GET /dashboard/api/dreams/runs`
 
-Returns Dreams run records. Archived runs are excluded unless the request passes `?includeArchived=true`. Archive changes review state and does not physically delete run artifacts.
+Returns `{ runs }` with every run, archived runs included.
 
 ### `GET /dashboard/api/dreams/runs/{runId}`
 
-Returns one Dreams run, active/output index preview, and topic paths for Dashboard review.
+Returns one run with its review material as `{ run, files, manifest }`. `files` lists each file the run changed, `MEMORY.md` included, with its `name`, `change` (`added`, `updated`, or `deleted`), the `baseline` text from when the run started, and the proposed `candidate` text. An added file has no `baseline` and a deleted file has no `candidate`. `manifest` is the run's input manifest as Markdown, or an empty string when there is none. Returns `404 Not Found` for an unknown run.
 
 ### `POST /dashboard/api/dreams/run`
 
-Requests an immediate Dreams run.
+Requests a manual run for every store Dreams consolidates that holds memory files or has sessions since its last consolidation. Those stores are the workspace memory store and the store of each Agent Profile that declares `memory: own`. The runs execute one at a time in the background and skip `Dreams.Interval` and `Dreams.MinSessionsSinceLastRun`.
+
+Returns `{ run, status }`. `run` is the first requested run, or the active run when one is already running, and is `null` when memory or Dreams is disabled. `status` has the shape of the status endpoint.
 
 ### `POST /dashboard/api/dreams/runs/{runId}/{action}`
 
-Runs a Dreams review action. `action` supports `apply`, `discard`, `archive`, and `cancel`.
-`apply` also makes any succeeded, non-discarded, non-archived run the active store.
-`archive` retains the run directory, input snapshot, output store, internal thread, and trace. Desktop uses this existing action for both Archive and Archive all; Archive all sends one request per eligible run.
+Runs a review action on one run and returns `{ run }` with its updated state.
+
+| `action` | Accepted for | Effect |
+|----------|--------------|--------|
+| `apply` | A pending run | Replaces the store's memory files and `MEMORY.md` with the run's candidate, only while the store still matches the run's baseline |
+| `restore` | An applied run | Writes the run's baseline back, only while the store still matches the run's candidate. The run becomes `discarded` |
+| `discard` | A pending run | Marks the run `discarded` and leaves the store unchanged |
+| `archive` | A run that is not running | Marks the run `archived`, which hides it from default AppServer lists. Its files, internal thread, and trace stay |
+| `cancel` | A running run | Cancels the run, best effort |
+
+When the store changed after the run started, `apply` returns `409 Conflict` with `code: "storeChanged"`, records that error on the run, and leaves the run pending and the store untouched. `restore` returns the same `409 Conflict` when the store no longer matches the run's result. Errors return `{ error, code }`. An unknown run returns `404 Not Found`, and an unknown action or a run in the wrong state returns `400 Bad Request`.
 
 ### `DELETE /dashboard/api/dreams/runs/{runId}`
 
-Permanently deletes one non-running Dreams run. Deletion removes the run directory and input snapshot, removes its output store unless that store is active, and cleans up the related internal thread and trace when present. The active store is preserved even when its producing run is deleted.
-
-Returns `404 Not Found` when the run does not exist. Returns `409 Conflict` without deleting anything when the run is running.
+Permanently deletes one run. Returns `404 Not Found` when the run does not exist and `409 Conflict` when it is running.
 
 ### `DELETE /dashboard/api/dreams/runs`
 
-Permanently deletes all Dreams runs. The request includes archived runs and uses the same cleanup rules as single-run deletion. If any run is running, the endpoint returns `409 Conflict` before deleting anything.
+Permanently deletes every run, archived runs included. Returns `409 Conflict` before deleting anything when a run is active.
 
-After either endpoint succeeds, the latest Dreams state is rebuilt from the newest remaining run, or cleared when no run remains.
-
-A successful single-run deletion returns:
+Deletion removes each run's directory and, best effort, its internal thread and trace. It never changes a memory store. Afterwards the latest Dreams state is rebuilt from the newest remaining run, or cleared when no run remains. Both endpoints return:
 
 ```json
 {
-  "deleted": true,
-  "runId": "dream_20260511000000_abc123",
-  "outputStoreDeleted": true,
-  "activeStorePreserved": false,
-  "traceDeleted": true,
+  "deletedRunIds": ["dream_20261013000000_abc123"],
+  "deletedCount": 1,
   "partial": false,
-  "cleanupWarnings": []
+  "traceCleanupFailures": []
 }
 ```
 
-Run/input and eligible output-store deletion is authoritative. Internal thread and trace cleanup is best effort. When that cleanup fails after the Dreams artifacts are deleted, the endpoint still succeeds, sets `partial: true`, and lists each failure in `cleanupWarnings`.
-
-Bulk deletion returns `deletedCount` and `traceDeletedCount` in place of `runId`, `outputStoreDeleted`, and `traceDeleted`. The remaining fields are the same.
+When thread or trace cleanup fails, the request still succeeds with `partial: true`, and each `traceCleanupFailures` entry carries `runId`, `threadId`, and `error`.
 
 ### `DELETE /dashboard/api/sessions/{sessionKey}`
 

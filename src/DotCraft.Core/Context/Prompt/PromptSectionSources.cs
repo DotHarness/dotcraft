@@ -1,7 +1,6 @@
 using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
 using DotCraft.Contributions;
-using DotCraft.Dreams;
 using DotCraft.Memory;
 using DotCraft.Skills;
 using Microsoft.Extensions.Logging;
@@ -20,12 +19,6 @@ internal sealed class PromptSectionSources
 
     /// <summary>Gets the normalized workspace path.</summary>
     internal required string WorkspacePath { get; init; }
-
-    /// <summary>Gets the DotCraft data directory path exactly as supplied by the caller.</summary>
-    internal required string RawCraftPath { get; init; }
-
-    /// <summary>Gets the workspace path exactly as supplied by the caller.</summary>
-    internal required string RawWorkspacePath { get; init; }
 
     /// <summary>Gets the additional workspace roots exposed to the model.</summary>
     internal IReadOnlyList<string> WorkspaceRoots { get; init; } = [];
@@ -51,8 +44,6 @@ internal sealed class PromptSectionSources
 
     /// <summary>Gets the manager that pins prompt-cache-stable pages, when one is active.</summary>
     internal IContextPageManager? ContextPageManager { get; init; }
-
-    internal DreamStore? DreamStore { get; init; }
 
     /// <summary>Gets the <c>WaitAgent</c> timeout bounds quoted in the SubAgent lifecycle section.</summary>
     internal SubAgentWaitAgentTimeoutOptions? SubAgentWaitAgentTimeoutOptions { get; init; }
