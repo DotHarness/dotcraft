@@ -806,6 +806,13 @@ export function isToolExecutionFailure(item: ConversationItem): boolean {
     || resultStatus === 'cancelled'
     || resultStatus === 'canceled'
     || readString(parsedResult, 'error') != null
+    || isStructuredError(parsedResult?.error)
+}
+
+function isStructuredError(value: unknown): boolean {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return false
+  const error = value as Record<string, unknown>
+  return readString(error, 'code') != null || readString(error, 'message') != null
 }
 
 export function parseToolResultObject(value: string | undefined): Record<string, unknown> | undefined {

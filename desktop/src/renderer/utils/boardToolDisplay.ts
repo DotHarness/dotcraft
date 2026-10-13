@@ -255,8 +255,6 @@ function toPost(value: Record<string, unknown>): BoardPost {
   const text = asString(value.text) ?? asString(value.textPreview) ?? ''
   const shownChars = Array.from(text).length
   const totalChars = typeof value.nChars === 'number' ? value.nChars : shownChars
-  // A slice reports where the next one starts; a preview reports only that it was cut.
-  const end = typeof value.nextOffsetChars === 'number' ? value.nextOffsetChars : shownChars
   const messageId = asString(value.messageId) ?? ''
   const threadId = asString(value.threadId)
   return {
@@ -267,7 +265,7 @@ function toPost(value: Record<string, unknown>): BoardPost {
     createdAt: asString(value.createdAt),
     text,
     totalChars,
-    hiddenChars: Math.max(0, totalChars - end),
+    hiddenChars: Math.max(0, totalChars - shownChars),
     topic: messageId.length > 0 && messageId === threadId
   }
 }

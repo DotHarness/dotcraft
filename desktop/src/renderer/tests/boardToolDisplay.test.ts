@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ConversationItem } from '../types/conversation'
 import { aggregateToolCalls } from '../utils/toolCallAggregation'
 import { parseBoardCall, type BoardOperation } from '../utils/boardToolDisplay'
+import { isToolExecutionFailure } from '../utils/toolCallDisplay'
 import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
 import { withTestCorePresentation } from './testToolPresentation'
 
@@ -11,16 +12,25 @@ function preview(messageId: string, author: string, text: string) {
   return { messageId, channelName: 'release', author, threadId: TOPIC, createdAt: '2026-10-13T08:12:00Z', textPreview: text, nChars: text.length, truncated: false }
 }
 
-function boardItem(id: string, operation: BoardOperation): ConversationItem {
+function boardItem(id: string, operation: BoardOperation, result: unknown = {}): ConversationItem {
   return withTestCorePresentation({
     id,
     type: 'toolCall',
     status: 'completed',
     toolName: `Board${operation}`,
     arguments: {},
-    result: '{}',
+    result: JSON.stringify(result),
     success: true
   }, CORE_TOOL_PRESENTATION_IDS.board, { operation })
+}
+
+function readSlice(text: string, nextOffsetChars: number) {
+  return parseBoardCall({
+    operation: 'readPost',
+    args: {},
+    result: JSON.stringify({ messageId: 'post', author: '/root', text, nChars: 10, nextOffsetChars }),
+    running: false
+  }).post
 }
 
 describe('board tool display', () => {
@@ -50,6 +60,18 @@ describe('board tool display', () => {
     expect(call.phase).toBe('failed')
     expect(call.errorMessage).toBe('Not found in this team.')
     expect(call.post).toBeNull()
+  })
+
+  it('counts only the returned slice as shown when a post is read from an offset', () => {
+    expect(readSlice('efgh', 8)?.hiddenChars).toBe(6)
+    expect(readSlice('ij', 10)?.hiddenChars).toBe(8)
+  })
+
+  it('reports a board error result as a failed tool so a folded read group shows it', () => {
+    const failed = boardItem('failed', 'readThread', { error: { code: 'board_not_found', message: 'Not found in this team.' } })
+
+    expect(isToolExecutionFailure(failed)).toBe(true)
+    expect(isToolExecutionFailure(boardItem('read', 'readThread'))).toBe(false)
   })
 
   it('folds consecutive reads but keeps writes and subscriptions on their own rows', () => {
