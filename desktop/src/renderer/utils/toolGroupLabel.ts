@@ -89,6 +89,10 @@ export function formatToolGroupLabel(
     return translate(locale, 'toolCall.group.webUsed', { count })
   }
 
+  if (category === 'board') {
+    return translate(locale, 'toolCall.group.readBoard', { count })
+  }
+
   if (category === 'subagent') {
     const operation = resolveCoreToolRenderPlan(items[0])?.options.operation
     if (operation === 'followupTask') {

@@ -14,6 +14,8 @@ public sealed partial class SessionService
             .ToDictionary(input => input.Identity.InputId);
         if (inputs.Count == 0) return;
 
+        await ReconcileBoardInputHistoryAsync(thread, history, ct);
+
         using (await AcquireThreadQueueLockAsync(thread.Id, ct))
         {
             var consumed = thread.QueuedInputs.Where(input => inputs.ContainsKey(input.Id)).ToArray();

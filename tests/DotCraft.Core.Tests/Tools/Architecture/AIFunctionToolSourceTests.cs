@@ -208,6 +208,25 @@ public sealed class AIFunctionToolSourceTests
     }
 
     [Theory]
+    [InlineData("BoardCreateChannel", "createChannel")]
+    [InlineData("BoardGetChannels", "getChannels")]
+    [InlineData("BoardListThreads", "listThreads")]
+    [InlineData("BoardSearchPosts", "searchPosts")]
+    [InlineData("BoardReadThread", "readThread")]
+    [InlineData("BoardReadPost", "readPost")]
+    [InlineData("BoardSubscribe", "subscribe")]
+    [InlineData("BoardUnsubscribe", "unsubscribe")]
+    [InlineData("BoardPost", "post")]
+    public void MessageBoardTools_UseTrustedBoardPresentation(string toolName, string operation)
+    {
+        var presentation = CoreToolPresentationCatalog.Resolve(toolName);
+
+        Assert.NotNull(presentation);
+        Assert.Equal("core.board", presentation.Id.Value);
+        Assert.Equal(operation, presentation.Options["operation"].GetString());
+    }
+
+    [Theory]
     [InlineData("LSP", "core.lsp")]
     [InlineData("CommitSuggest", "core.commit-suggest")]
     [InlineData("Sleep", "core.sleep")]

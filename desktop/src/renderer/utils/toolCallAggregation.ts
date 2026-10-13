@@ -1,8 +1,9 @@
 import type { ConversationItem } from '../types/conversation'
 import { resolveCoreToolRenderPlan } from './toolRendererRegistry'
 import { resolveDesktopPluginToolRenderer } from '../plugins/desktopPluginRegistry'
+import { isBoardReadOperation } from './boardToolDisplay'
 
-export type ToolGroupCategory = 'explore' | 'write' | 'shell' | 'web' | 'subagent'
+export type ToolGroupCategory = 'explore' | 'write' | 'shell' | 'web' | 'subagent' | 'board'
 
 export type AggregatedToolCall =
   | { kind: 'single'; item: ConversationItem }
@@ -14,6 +15,7 @@ interface ToolItemLiveContext {
 
 function getGroupCategory(item: ConversationItem): ToolGroupCategory | null {
   const plan = resolveCoreFallbackPlan(item)
+  if (plan?.groupCategory === 'board') return isBoardReadOperation(plan.options.operation) ? 'board' : null
   if (plan?.groupCategory !== 'subagent') return plan?.groupCategory ?? null
   return plan.options.operation === 'spawn' || plan.options.operation === 'followupTask'
     ? 'subagent'

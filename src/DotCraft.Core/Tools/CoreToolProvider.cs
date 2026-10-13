@@ -191,6 +191,17 @@ public sealed class CoreToolSource(
         tools.Add(GeneratedToolFunctions.AgentTools_ListAgents(agentTools));
         tools.Add(GeneratedToolFunctions.AgentTools_CloseAgent(agentTools));
 
+        var boardTools = new AgentMessageBoardTools();
+        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardCreateChannel(boardTools));
+        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardGetChannels(boardTools));
+        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardListThreads(boardTools));
+        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardSearchPosts(boardTools));
+        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardReadThread(boardTools));
+        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardReadPost(boardTools));
+        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardSubscribe(boardTools));
+        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardUnsubscribe(boardTools));
+        tools.Add(GeneratedToolFunctions.AgentMessageBoardTools_BoardPost(boardTools));
+
         // File tools
         var fileTools = new FileTools(
             context.WorkspacePath,

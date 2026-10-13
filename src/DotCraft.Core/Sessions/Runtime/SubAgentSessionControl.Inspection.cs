@@ -54,7 +54,8 @@ public static partial class SubAgentSessionControl
             context.RootThreadId,
             currentPath.Value,
             ct);
-        if (pending.Count > 0)
+        if (pending.Count > 0 || context.SessionService is SessionService service
+            && service.HasBoardNotification(context.ParentThread.Id, context.ParentTurnId))
             return new SubAgentWaitResult { Status = "changed", TimedOut = false };
 
         try
