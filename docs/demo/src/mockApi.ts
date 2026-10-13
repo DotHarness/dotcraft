@@ -7,6 +7,7 @@ import { normalizeLocale } from '../../../desktop/src/shared/locales'
 import type { AppLocale } from '../../../desktop/src/shared/locales'
 import { VOICE_SESSION_CAPACITY } from '../../../desktop/src/shared/voice'
 import type { VoiceApi, VoiceRuntimeSnapshot } from '../../../desktop/src/shared/voice'
+import { demoProfileInsights, demoUsageHistory } from './data/demoUsage'
 
 const params = new URLSearchParams(window.location.search)
 
@@ -33,7 +34,8 @@ const connectionStatusPayload = {
     modelCatalogManagement: true,
     workspaceConfigManagement: true,
     threadGoals: true,
-    manualCompaction: true
+    manualCompaction: true,
+    usageTelemetry: true
   }
 }
 
@@ -146,6 +148,10 @@ function handleAppServerRequest(method: string, params?: { threadId?: string; co
       return { automations: [] }
     case 'automation/presets/list':
       return { presets: [] }
+    case 'usage/history':
+      return demoUsageHistory()
+    case 'profile/insights':
+      return demoProfileInsights(DEMO_MODEL)
     default:
       return {}
   }

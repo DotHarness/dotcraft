@@ -4,6 +4,10 @@ Desktop 把工作区、会话、diff、计划、模型配置和运行状态放�
 
 下载安装、选工作区、配模型这几步见[快速开始](./)。本页讲装好之后 Desktop 能帮你做什么。
 
+下面这个窗口直接在浏览器里运行，带着一个示例项目，可以打开会话、查看 diff 或翻看计划。
+
+<LiveExample feature="desktop" :examples="['review-changes']" />
+
 ## 看清 Agent 做了什么
 
 Agent 的每一步都摊在窗口里。打开一个会话就能逐条回看它读了什么、改了什么，文件改动以 diff 呈现，写文件和执行命令前会停下来等你批准。[自动化与目标](../guide/automations)跑出的结果同样在这里等你过目。
@@ -17,6 +21,8 @@ Agent 的每一步都摊在窗口里。打开一个会话就能逐条回看它�
 当计算器、方案对比或小测验比文字更能回答问题时，DotCraft 会在回复里给出一个[交互式回答](../guide/interactive-answers)。想看图表、模拟演示或几版设计稿，DotCraft 会画出[交互式可视化](../guide/visualizations)，不用离开对话就能探索和修改。
 
 ## 一个窗口里管多个项目
+
+<LiveExample feature="desktop" :examples="['several-projects']" />
 
 换一个工作区就换一个项目，配置、技能、记忆和自动化任务都跟着项目走，互不干扰。项目的记忆开关、梦境和删除记忆在**设置 → 个性化**里，它们各自管什么见[记忆与梦境](../guide/memory)。
 
@@ -103,6 +109,8 @@ JSON 的内容是 `{ "target": "custom:review", "path": "<绝对路径>", "locat
 默认使用项目自己的 `environment.json`。有多个环境时，从**操作 → 更换环境**中选择，Desktop 会为这个项目记住选择。无法读取的文件会在环境信息一栏显示问题，点击即可打开该文件。
 
 ## 看 token 花在哪
+
+<LiveExample feature="desktop" :examples="['token-activity']" />
 
 **设置 → 个人资料**里有一张 Token 活动图，像 GitHub 贡献图那样按天铺开当前工作区所有会话的用量，旁边是累计 Token、单日峰值和连续使用天数。需要先为这个工作区开启 tracing，这张图才有数据。
 

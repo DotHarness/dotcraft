@@ -10,7 +10,9 @@ import { useConnectionStore } from '@renderer/stores/connectionStore'
 import { useWorkspaceProjectsStore } from '@renderer/stores/workspaceProjectsStore'
 import { useUIStore } from '@renderer/stores/uiStore'
 import type { Thread, ThreadSummary } from '@renderer/types/thread'
+import { getDemoProjects } from './data/demoProjects'
 import { getDemoThreads, planToMarkdown, type DemoThread } from './data/demoThreads'
+import { demoStart } from './demoStart'
 import {
   DEMO_MODEL,
   DEMO_PROVIDER_ID,
@@ -93,7 +95,8 @@ export function bootstrapDemo(): void {
       modelCatalogManagement: true,
       workspaceConfigManagement: true,
       threadGoals: true,
-      manualCompaction: true
+      manualCompaction: true,
+      usageTelemetry: true
     }
   })
 
@@ -113,16 +116,27 @@ export function bootstrapDemo(): void {
         threadCount: demoThreads.length,
         threads: [],
         pinned: false
-      }
+      },
+      ...(demoStart === 'several-projects' ? getDemoProjects(demoLocale) : [])
     ]
   })
 
   const ui = useUIStore.getState()
   ui.setDetailPanelVisible(true)
 
-  // The demo only models the conversation surface; keep nav clicks
-  // (Channels / Plugins / Settings) from switching to unpopulated views.
-  useUIStore.setState({ setActiveMainView: () => {} })
+  // The demo models the conversation surface, plus Settings when a page starts
+  // there; keep other nav clicks from switching to unpopulated views.
+  const setActiveMainView = ui.setActiveMainView
+  const reachableViews = new Set<string>(demoStart === 'token-activity' ? ['conversation', 'settings'] : [])
+  useUIStore.setState({
+    setActiveMainView: (view) => {
+      if (reachableViews.has(view)) setActiveMainView(view)
+    }
+  })
+  if (demoStart === 'token-activity') {
+    setActiveMainView('settings')
+    ui.setActiveSettingsTab('profile')
+  }
 
   const threadStore = useThreadStore.getState()
   threadStore.setThreadList(demoThreads.map(toSummary), DEMO_WORKSPACE_PATH)

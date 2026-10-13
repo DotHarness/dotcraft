@@ -1,0 +1,195 @@
+.dc-walk {
+  margin: 24px 0;
+}
+
+.dc-walk[data-pinned] {
+  height: calc(var(--walk-steps) * 80vh + 100vh - var(--vp-nav-height) - var(--dc-band-height));
+}
+
+.dc-walk__pin {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dc-walk[data-pinned] .dc-walk__pin {
+  position: sticky;
+  top: calc(var(--vp-nav-height) + var(--dc-band-height));
+  justify-content: center;
+  height: calc(100vh - var(--vp-nav-height) - var(--dc-band-height));
+}
+
+.dc-walk__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.dc-walk__nav {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--bg-primary);
+}
+
+.dc-walk__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 14px 0 6px;
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease, opacity var(--duration-fast) ease;
+}
+
+.dc-walk__step:hover {
+  color: var(--text-primary);
+}
+
+.dc-walk__step[aria-pressed="true"] {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.dc-walk__step:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.dc-walk__num {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.dc-walk__step[aria-pressed="true"] .dc-walk__num {
+  background: var(--bg-inverse);
+  color: var(--text-on-inverse);
+}
+
+.dc-walk__cards {
+  display: grid;
+  width: 100%;
+  max-width: 620px;
+}
+
+.vp-doc .dc-walk__card {
+  grid-area: 1 / 1;
+  margin: 0;
+  color: var(--text-secondary);
+  text-align: center;
+  text-wrap: pretty;
+  transition: opacity var(--duration-base) ease, transform var(--duration-base) ease;
+}
+
+.dc-walk__card:not([data-active]) {
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.dc-walk__stage .dc-live {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-walk__step,
+  .vp-doc .dc-walk__card {
+    transition: none;
+  }
+
+  .dc-walk__card:not([data-active]) {
+    transform: none;
+  }
+}
+
+.dc-walk[data-layout="side"] .dc-walk__pin {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: center;
+  align-items: center;
+  gap: 32px;
+}
+
+.dc-walk[data-layout="side"] .dc-walk__head {
+  align-items: stretch;
+}
+
+/* The phone keeps its design width; the bezel and backdrop add 76px around its 390px screen. */
+.dc-walk[data-layout="side"] .dc-walk__stage {
+  width: 466px;
+}
+
+.dc-walk[data-layout="side"] .dc-walk__nav {
+  display: grid;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.dc-walk[data-layout="side"] .dc-walk__step {
+  align-items: flex-start;
+  height: auto;
+  padding: 12px 14px;
+  border-radius: 12px;
+  white-space: normal;
+  text-align: left;
+}
+
+.dc-walk[data-layout="side"] .dc-walk__num {
+  flex: none;
+  margin-top: 1px;
+}
+
+.dc-walk__label {
+  display: grid;
+  gap: 4px;
+}
+
+.dc-walk[data-layout="side"] .dc-walk__label > span:first-child {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.dc-walk__body {
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 400;
+  line-height: 20px;
+}
+
+.dc-walk[data-layout="side"] .dc-walk__step:not([aria-pressed="true"]) {
+  opacity: 0.6;
+}
+
+.dc-walk[data-layout="side"] .dc-walk__step:not([aria-pressed="true"]):hover {
+  opacity: 1;
+}
+
+@media (max-width: 720px) {
+  .dc-walk[data-layout="side"] .dc-walk__pin {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dc-walk[data-layout="side"] .dc-walk__stage {
+    width: auto;
+  }
+}

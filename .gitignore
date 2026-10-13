@@ -50,6 +50,9 @@ desktop/.playwright-cli/
 # Generated desktop web demo bundle (built from docs/demo)
 docs/public/demo/
 
+# Generated phone web demo bundle (built from mobile)
+docs/public/phone-demo/
+
 # Local Docker deployment state
 /docker/.env
 /docker/workspace/

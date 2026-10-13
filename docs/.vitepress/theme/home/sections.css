@@ -96,6 +96,31 @@
   color: var(--text-primary);
 }
 
+.dc-tour-scroll[data-pinned] {
+  height: calc(var(--tour-steps) * 75vh + 100vh - var(--vp-nav-height));
+}
+
+.dc-tour-scroll[data-pinned] .dc-tour-scroll__pin {
+  position: sticky;
+  top: var(--vp-nav-height);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: calc(100vh - var(--vp-nav-height));
+}
+
+.dc-tour-scroll[data-pinned] .dc-tour__panel {
+  transition: opacity var(--duration-base) ease, transform var(--duration-base) ease;
+}
+
+.dc-tour-scroll[data-pinned] .dc-tour__panel:not([data-active]) {
+  display: block;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+}
+
 .dc-tour {
   display: grid;
   grid-template-columns: 368px minmax(0, 1fr);
@@ -192,33 +217,14 @@
   height: 2px;
   overflow: hidden;
   border-radius: 2px;
-  opacity: 0;
 }
 
-.dc-tour__progress::after {
-  content: "";
+.dc-tour__progress span {
   display: block;
   width: 100%;
   height: 100%;
   background: color-mix(in srgb, var(--text-primary) 28%, transparent);
-  transform: scaleX(0);
   transform-origin: left;
-}
-
-.dc-tour[data-auto] .dc-tour__progress {
-  opacity: 1;
-}
-
-.dc-tour[data-auto] .dc-tour__progress::after {
-  animation: dc-progress var(--tour-ms) linear forwards;
-}
-
-.dc-tour[data-paused] .dc-tour__progress::after {
-  animation-play-state: paused;
-}
-
-@keyframes dc-progress {
-  to { transform: scaleX(1); }
 }
 
 .dc-tour__panel {
@@ -396,5 +402,12 @@
 
   .dc-shot {
     border-radius: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-tour-scroll[data-pinned] .dc-tour__panel {
+    transform: none;
+    transition: none;
   }
 }

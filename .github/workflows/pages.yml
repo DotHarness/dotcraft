@@ -8,6 +8,18 @@ on:
       # The desktop web demo (docs/demo) imports Desktop renderer sources;
       # rebuild the site when they change so reuse drift fails the deploy.
       - 'desktop/src/**'
+      - 'mobile/src/**'
+      - 'mobile/modules/**'
+      - 'mobile/public/**'
+      - 'mobile/assets/**'
+      - 'mobile/scripts/**'
+      - 'mobile/app.json'
+      - 'mobile/app.config.js'
+      - 'mobile/metro.config.js'
+      - 'mobile/package.json'
+      - 'mobile/package-lock.json'
+      - 'sdk/typescript/src/**'
+      - 'sdk/typescript/packages/avatar/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -36,6 +48,8 @@ jobs:
           cache-dependency-path: |
             docs/package-lock.json
             docs/demo/package-lock.json
+            sdk/typescript/package-lock.json
+            mobile/package-lock.json
 
       - name: Setup Pages
         id: pages
@@ -48,6 +62,23 @@ jobs:
       - name: Build desktop demo
         run: npm run build
         working-directory: docs/demo
+
+      - name: Build SDK packages for the phone demo
+        working-directory: sdk/typescript
+        run: |
+          npm ci
+          npm run build
+          npm run build --workspace @dotcraft/avatar
+
+      - name: Install phone app dependencies
+        run: npm ci
+        working-directory: mobile
+
+      - name: Export phone demo
+        run: npm run export:docs
+        working-directory: mobile
+        env:
+          VITEPRESS_BASE: ${{ steps.pages.outputs.base_path }}/
 
       - name: Install dependencies
         run: npm ci
@@ -85,6 +116,7 @@ jobs:
           test -s docs/.vitepress/dist/index.html
           test -d docs/.vitepress/dist/assets
           test -s docs/.vitepress/dist/build-info.json
+          grep -q '<title>DotCraft Phone Demo</title>' docs/.vitepress/dist/phone-demo/index.html
           file_count=$(find docs/.vitepress/dist -type f | wc -l)
           if [ "$file_count" -lt 10 ]; then
             echo "::error::Pages artifact looks incomplete: only $file_count files"

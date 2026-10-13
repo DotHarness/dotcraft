@@ -1,0 +1,351 @@
+.cu-sheet {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+}
+
+.cu-sheet__ribbon {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.cu-sheet__tool,
+.cu-form__button,
+.cu-form__new,
+.cu-mail__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--type-secondary-size);
+  cursor: default;
+}
+
+.cu-sheet__tool--bold {
+  font-weight: 700;
+}
+
+.cu-sheet__formula {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 28px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.cu-sheet__ref {
+  width: 26px;
+  color: var(--text-secondary);
+}
+
+.cu-sheet__fx {
+  color: var(--text-dimmed);
+  font-style: italic;
+}
+
+.cu-sheet__grid {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 0.8fr) minmax(0, 1.4fr) minmax(0, 0.9fr);
+  grid-auto-rows: 30px;
+}
+
+.cu-sheet__corner,
+.cu-sheet__head,
+.cu-sheet__cell {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+.cu-sheet__corner,
+.cu-sheet__head {
+  justify-content: center;
+  background: var(--bg-secondary);
+  color: var(--text-dimmed);
+  font-size: 11.5px;
+}
+
+.cu-sheet__cell {
+  padding: 0 8px;
+}
+
+.cu-sheet__cell[data-header] {
+  color: var(--text-secondary);
+}
+
+.cu-sheet__cell[data-bold] {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.cu-sheet__cell[data-number] {
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+
+.cu-sheet__cell[data-selected] {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.cu-form {
+  display: grid;
+  height: 100%;
+  grid-template-columns: 112px minmax(0, 1fr);
+}
+
+.cu-form__nav {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 10px 8px;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+}
+
+.cu-form__nav-item {
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+}
+
+.cu-form__nav-item[data-active] {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.cu-form__main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.cu-form__list {
+  display: grid;
+  gap: 8px;
+}
+
+.cu-form__row {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.cu-form__meta,
+.cu-form__empty,
+.cu-mail__from,
+.cu-mail__empty {
+  color: var(--text-dimmed);
+}
+
+.cu-form__sheet {
+  display: grid;
+  gap: 10px;
+}
+
+.cu-form__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cu-form__field {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.cu-form__label {
+  color: var(--text-secondary);
+  font-size: 11.5px;
+}
+
+.cu-form__input {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  white-space: nowrap;
+}
+
+.cu-form__placeholder {
+  color: var(--text-dimmed);
+}
+
+.cu-form__chevron {
+  margin-left: auto;
+  color: var(--text-dimmed);
+}
+
+.cu-form__options {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  z-index: 2;
+  display: grid;
+  padding: 4px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-level-2);
+}
+
+.cu-form__options span {
+  padding: 5px 8px;
+  border-radius: 5px;
+}
+
+.cu-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cu-form__saved {
+  color: var(--success);
+}
+
+.cu-form__button--primary,
+.cu-mail__button--primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.cu-mail {
+  display: grid;
+  height: 100%;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr);
+}
+
+.cu-mail__list {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 10px 8px;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+}
+
+.cu-mail__folder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px 6px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.cu-mail__item {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding: 7px 8px;
+  border-radius: 6px;
+}
+
+.cu-mail__item span {
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cu-mail__item[data-unread] strong {
+  color: var(--accent);
+}
+
+.cu-mail__item[data-selected] {
+  background: var(--bg-tertiary);
+}
+
+.cu-mail__pane {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.cu-mail__message {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+
+.cu-mail__message p {
+  margin: 4px 0;
+  color: var(--text-secondary);
+}
+
+.cu-mail__compose {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.cu-mail__header {
+  width: 100%;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.cu-mail__header span {
+  color: var(--text-dimmed);
+}
+
+.cu-mail__body {
+  width: 100%;
+  min-height: 52px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  white-space: pre-wrap;
+}
+
+.cu-mail__sent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+@media (max-width: 640px) {
+  .cu-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cu-form__nav {
+    display: none;
+  }
+}

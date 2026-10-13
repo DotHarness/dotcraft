@@ -1,70 +1,56 @@
 .dc-live {
-  margin: 20px 0;
-  overflow: hidden;
-  border: 1px solid var(--border-default);
-  border-radius: 12px;
-  background: var(--bg-primary);
+  margin: 24px 0;
 }
 
 .dc-live__bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  padding: 6px;
-  border-bottom: 1px solid var(--border-subtle);
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 14px;
 }
 
-.dc-live__chips {
-  display: flex;
+.dc-live__tabs,
+.dc-live__modes {
+  display: inline-flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--bg-primary);
 }
 
-.dc-live__chip {
+.dc-live__tab,
+.dc-live__modes button {
   display: inline-flex;
   align-items: center;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 8px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
   color: var(--text-secondary);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 500;
-  line-height: 28px;
+  line-height: 32px;
   white-space: nowrap;
   transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
 }
 
-.dc-live__chip:hover {
+.dc-live__tab:hover,
+.dc-live__modes button:hover {
   color: var(--text-primary);
 }
 
-.dc-live__chip[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+.dc-live__tab[aria-pressed="true"] {
+  background: var(--bg-tertiary);
   color: var(--text-primary);
 }
 
 .dc-live__modes {
-  display: inline-flex;
-  margin-left: auto;
-  padding: 3px;
-  border-radius: var(--button-text-radius);
+  border-color: transparent;
   background: var(--bg-tertiary);
-}
-
-.dc-live__modes button {
-  padding: 3px 12px;
-  border-radius: var(--button-text-radius);
-  color: var(--text-secondary);
-  font-size: 12.5px;
-  font-weight: 500;
-  line-height: 18px;
-  white-space: nowrap;
-  transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
-}
-
-.dc-live__modes button:hover {
-  color: var(--text-primary);
 }
 
 .dc-live__modes button[aria-pressed="true"] {
@@ -74,13 +60,36 @@
   font-weight: 600;
 }
 
-.dc-live :is(.dc-live__chip, .dc-live__modes button):focus-visible {
+.dc-live :is(.dc-live__tab, .dc-live__modes button, .dc-live__play):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
+.dc-live__card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: var(--bg-primary);
+}
+
+.dc-live[data-frameless] .dc-live__card {
+  border: 0;
+  background: transparent;
+}
+
+.dc-live[data-backdrop] .dc-live__card {
+  border-color: var(--border-subtle);
+  border-radius: var(--dc-surface-radius);
+  background:
+    radial-gradient(110% 90% at 0% 0%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 62%),
+    radial-gradient(90% 80% at 100% 100%, color-mix(in srgb, var(--ansi-cyan) 24%, transparent), transparent 64%),
+    var(--bg-secondary);
+}
+
 .dc-live__stage {
   position: relative;
+  box-sizing: border-box;
   transition: height var(--duration-expand) ease;
 }
 
@@ -89,30 +98,91 @@
   overflow-y: hidden;
 }
 
+.dc-live[data-backdrop] .dc-live__device {
+  overflow: hidden;
+  border-radius: 10px;
+  box-shadow: var(--shadow-level-3);
+}
+
+.dc-live[data-phone] .dc-live__device {
+  width: fit-content;
+  margin-inline: auto;
+  border: 10px solid #121212;
+  border-radius: 46px;
+  background: #121212;
+}
+
+.dc-live[data-phone] .dc-live__screen {
+  overflow: hidden;
+  border-radius: 36px;
+}
+
+.dc-live__screen {
+  position: relative;
+}
+
+/* The frame stays visible under the opaque placeholder: Chrome throttles rendering in fully transparent
+   frames, which would delay the frame's own ready signal. */
 .dc-live__frame {
   display: block;
   border: 0;
   background: var(--bg-primary);
-  opacity: 0;
+}
+
+.dc-live-fade-leave-active {
   transition: opacity var(--duration-base) ease;
 }
 
-.dc-live[data-ready] .dc-live__frame {
-  opacity: 1;
+.dc-live-fade-leave-to {
+  opacity: 0;
 }
 
 .dc-live__placeholder {
   position: absolute;
   inset: 0;
   z-index: 1;
+  background: var(--bg-primary);
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 20px clamp(12px, 3vw, 24px);
 }
 
+.dc-live__placeholder[data-shape] {
+  padding: 0;
+  background: var(--bg-primary);
+}
+
+.dc-live__placeholder[data-shape="phone"] {
+  gap: 10px;
+  padding: 56px 18px 18px;
+}
+
+.dc-live__placeholder[data-shape="window"] {
+  flex-direction: row;
+  gap: 0;
+}
+
+.dc-live__rail {
+  display: flex;
+  flex: 0 0 22%;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 14px;
+  background: var(--bg-secondary);
+}
+
+.dc-live__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px clamp(12px, 4%, 40px);
+}
+
 .dc-live__line,
-.dc-live__block {
+.dc-live__block,
+.dc-live__row {
   display: block;
   border-radius: 8px;
   background: var(--bg-tertiary);
@@ -122,6 +192,22 @@
 .dc-live__line {
   width: 82%;
   height: 14px;
+}
+
+.dc-live__line--title {
+  width: 42%;
+  height: 18px;
+  margin-bottom: 8px;
+}
+
+.dc-live__row {
+  height: 48px;
+  border-radius: 12px;
+}
+
+.dc-live__rail .dc-live__line {
+  width: 100%;
+  height: 12px;
 }
 
 .dc-live__line--prompt {
@@ -152,6 +238,48 @@
   white-space: nowrap;
 }
 
+.dc-live__playback {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 14px 4px 4px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: var(--glass-surface-strong);
+  box-shadow: var(--shadow-level-2);
+  backdrop-filter: blur(var(--glass-blur-soft));
+}
+
+.dc-live__play {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg-inverse);
+  color: var(--text-on-inverse);
+}
+
+.dc-live__progress {
+  width: 96px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text-primary) 14%, transparent);
+}
+
+.dc-live__progress span {
+  display: block;
+  height: 100%;
+  background: var(--text-primary);
+  transform-origin: left;
+  transition: transform 200ms linear;
+}
+
 @keyframes dc-live-pulse {
   50% {
     opacity: 0.55;
@@ -161,24 +289,26 @@
 @media (max-width: 640px) {
   .dc-live__modes {
     width: 100%;
-    margin-left: 0;
   }
 
   .dc-live__modes button {
     flex: 1;
+    justify-content: center;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .dc-live__stage,
-  .dc-live__frame,
-  .dc-live__chip,
-  .dc-live__modes button {
+  .dc-live-fade-leave-active,
+  .dc-live__tab,
+  .dc-live__modes button,
+  .dc-live__progress span {
     transition: none;
   }
 
   .dc-live__line,
-  .dc-live__block {
+  .dc-live__block,
+  .dc-live__row {
     animation: none;
   }
 }

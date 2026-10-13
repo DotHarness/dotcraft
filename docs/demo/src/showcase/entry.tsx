@@ -13,6 +13,7 @@ import { demoTheme, DEMO_WORKSPACE_PATH } from '../mockApi'
 import { AgentBuilderExample } from './AgentBuilderExample'
 import { installBuilderHost } from './builderHost'
 import { installConversationHost } from './conversationHost'
+import { ComputerUseExample } from './ComputerUseExample'
 import { ConversationExample, defaultExample } from './ConversationExample'
 import { installShowcaseHost } from './host'
 import { feature, initialSelection, SHOWCASE_THREAD_ID, type AnswerMode, type Selection } from './params'
@@ -20,7 +21,12 @@ import './showcase.css'
 
 type HostMessage =
   | { type: 'dotcraft-demo:set-theme'; theme: 'dark' | 'light' }
-  | { type: 'dotcraft-showcase:show'; example: string; mode: AnswerMode }
+  | { type: 'dotcraft-showcase:show'; example: string; mode: AnswerMode; chapter?: string }
+
+const ROOT_CLASS: Partial<Record<typeof feature, string>> = {
+  'agent-builder': 'showcase showcase--builder',
+  'computer-use': 'showcase showcase--computer-use'
+}
 
 function seedStores(): void {
   const startedAt = new Date().toISOString()
@@ -64,7 +70,11 @@ function Showcase(): JSX.Element {
       const message = event.data as HostMessage | null
       if (message?.type === 'dotcraft-demo:set-theme' && (message.theme === 'dark' || message.theme === 'light')) applyTheme(message.theme)
       if (message?.type === 'dotcraft-showcase:show' && typeof message.example === 'string') {
-        setSelection({ example: message.example, mode: message.mode === 'plain' ? 'plain' : 'interactive' })
+        setSelection({
+          example: message.example,
+          mode: message.mode === 'plain' ? 'plain' : 'interactive',
+          chapter: typeof message.chapter === 'string' ? message.chapter : undefined
+        })
       }
     }
     window.addEventListener('message', onMessage)
@@ -74,8 +84,10 @@ function Showcase(): JSX.Element {
   useLayoutEffect(() => (rootRef.current ? reportHeight(rootRef.current) : undefined), [])
 
   return (
-    <div ref={rootRef} className={feature === 'agent-builder' ? 'showcase showcase--builder' : 'showcase'}>
-      {feature === 'agent-builder' ? <AgentBuilderExample /> : <ConversationExample feature={feature} selection={selection} />}
+    <div ref={rootRef} className={ROOT_CLASS[feature] ?? 'showcase'}>
+      {feature === 'agent-builder' ? <AgentBuilderExample />
+        : feature === 'computer-use' ? <ComputerUseExample example={selection.example} chapter={selection.chapter} />
+          : <ConversationExample feature={feature} selection={selection} />}
     </div>
   )
 }

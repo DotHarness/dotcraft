@@ -23,10 +23,13 @@ background:linear-gradient(rgba(20,21,21,.94),rgba(20,21,21,.94)) padding-box,li
 </style></head><body><div class="pill"><span class="dot"></span><span>${escapeHtml(strings.usingComputer)}</span><span class="sep">·</span><span class="hint">${escapeHtml(strings.escToCancel)}</span></div></body></html>`
 }
 
+export const COMPUTER_USE_GLOW_SHADOW =
+  'inset 0 0 0 2px rgba(95,130,247,.9),inset 0 0 28px 4px rgba(36,88,247,.45),inset 0 0 72px 12px rgba(143,165,255,.2)'
+
 export function computerUseGlowHtml(): string {
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 html,body{margin:0;height:100%;background:transparent;overflow:hidden;}
-.glow{position:fixed;inset:0;box-shadow:inset 0 0 0 2px rgba(95,130,247,.9),inset 0 0 28px 4px rgba(36,88,247,.45),inset 0 0 72px 12px rgba(143,165,255,.2);animation:breathe 2.8s ease-in-out infinite;}
+.glow{position:fixed;inset:0;box-shadow:${COMPUTER_USE_GLOW_SHADOW};animation:breathe 2.8s ease-in-out infinite;}
 @keyframes breathe{0%,100%{opacity:.6}50%{opacity:1}}
 @media (prefers-reduced-motion:reduce){.glow{animation:none}}
 </style></head><body><div class="glow"></div></body></html>`

@@ -2,6 +2,13 @@
 
 Keep up with DotCraft from your phone while you're away from your desk. The agent keeps running on your computer, and the phone app shows what's running, puts approvals and questions in front of you, and starts new chats in your projects.
 
+<LiveTour feature="phone" :steps="[
+  { example: 'unpaired', chapter: 'pair', title: 'Pair your phone', body: 'Scan the QR code from Settings on your computer, then allow the phone. In the demo, tap the viewfinder to scan.' },
+  { example: 'home', chapter: 'home', title: 'See what is running', body: 'The home screen lists your projects and recent chats. Chats waiting on you are marked.' },
+  { example: 'home', chapter: 'approval', title: 'Approve from anywhere', body: 'Open a chat waiting on approval and choose Allow once, Allow for session, or Reject.' },
+  { example: 'home', chapter: 'question', title: 'Answer its questions', body: 'When the agent asks something, pick an option or type a reply.' }
+]" />
+
 ## Install the app
 
 On your phone, download `DotCraft-v<version>-android.apk` from [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) and open it to install. The first time, Android asks you to allow your browser or file manager to install apps.
@@ -21,7 +28,7 @@ The phone needs to be on the same network as the computer, or on the same privat
 
 ## Follow and answer your chats
 
-The app's home screen opens with **Needs you**: every chat waiting on an approval or a question, across all running projects. Your projects and recent chats follow.
+The app's home screen lists your projects and recent chats across all running projects. A chat waiting on an approval or a question stays in the list, marked **Needs approval** or **Needs answer**.
 
 - **Follow** a running chat and see its progress live.
 - **Approve** a command or file change with **Allow once**, **Allow for session**, or **Reject**.
@@ -35,7 +42,7 @@ The phone and the computer show the same chats, so a chat started on one continu
 
 When you leave the app while a chat is running or waiting on you, DotCraft keeps a live session and shows one ongoing notification, such as "2 running · 1 needs you". A new approval arrives as a notification with **Allow once** and **Reject**, so you can answer without opening the app. New questions and finished chats notify you too.
 
-The live session ends on its own after two minutes with nothing running or waiting, or when you choose **End** on the ongoing notification. The app asks for notification permission the first time a chat runs while it's open. Without it, the app disconnects in the background.
+The live session ends on its own after two minutes with nothing running or waiting, or when you choose **Disconnect** on the ongoing notification. The app asks for notification permission the first time a chat runs while it's open. Without it, the app disconnects in the background.
 
 ## Access from anywhere
 

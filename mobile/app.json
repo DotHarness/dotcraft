@@ -23,6 +23,7 @@
       ]
     },
     "web": {
+      "name": "DotCraft Phone Demo",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [

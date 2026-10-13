@@ -7,6 +7,7 @@
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "web": "expo start --web",
+    "export:docs": "node scripts/export-docs.mjs",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

@@ -4,6 +4,10 @@ Desktop puts the workspace, threads, diffs, plans, model configuration, and live
 
 For download, workspace selection, and model setup, follow [Getting started](./). This page covers what Desktop does for you once it's installed.
 
+The window below runs in your browser with a sample project, so you can open a thread, read its diff, or check a plan.
+
+<LiveExample feature="desktop" :examples="['review-changes']" />
+
 ## See what the agent did
 
 Every step the agent takes is laid out in the window. Open a thread to walk through what it read and what it changed, review file edits as diffs, and approve writes and commands before they run. Results from [automations and goals](../guide/automations) wait here for your review too.
@@ -17,6 +21,8 @@ Fenced `mermaid` blocks in a reply render as diagrams, falling back to the sourc
 When a calculator, comparison, or quiz answers a question better than text, DotCraft puts one in the reply as an [interactive answer](../guide/interactive-answers). Ask for a chart, a simulation, or a few design mockups, and DotCraft draws a [visualization](../guide/visualizations) you can explore and refine without leaving the conversation.
 
 ## Keep several projects in one window
+
+<LiveExample feature="desktop" :examples="['several-projects']" />
 
 Switching workspaces switches projects: configuration, skills, memory, and automations all follow the project and stay out of each other's way. The memory switch, Dreams, and memory deletion live under **Settings → Personalization**, and [Memory and Dreams](../guide/memory) explains what each one covers.
 
@@ -103,6 +109,8 @@ Each JSON file in `.craft/environments/` is one environment, a named set of acti
 The project's own `environment.json` is used by default. When there are several environments, pick one from **Actions → Change environment**. Desktop remembers the choice for the project. A file that can't be read shows the problem in the Environment section. Select it to open the file.
 
 ## See where your tokens go
+
+<LiveExample feature="desktop" :examples="['token-activity']" />
 
 **Settings → Profile** shows a token activity chart that spreads daily usage across every thread in the current workspace, GitHub-contribution style, alongside lifetime tokens, single-day peak, and usage streaks. Enable tracing for the workspace first, or the chart has nothing to plot.
 

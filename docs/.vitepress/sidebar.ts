@@ -74,6 +74,7 @@ export const enSections: DocSection[] = [
           { text: withIcon('puzzle', 'Plugins & Tools'), link: '/guide/plugins-tools' },
           { text: withIcon('package', 'Plugin Marketplaces'), link: '/guide/plugin-marketplaces' },
           { text: withIcon('plug', 'Connected Apps'), link: '/guide/connected-apps' },
+          { text: withIcon('monitor', 'Computer Use'), link: '/guide/computer-use' },
           { text: withIcon('satelliteDish', 'DotCraft Satellite'), link: '/guide/satellite' }
         ]
       },
@@ -323,6 +324,7 @@ export const zhSections: DocSection[] = [
           { text: withIcon('puzzle', '插件与工具'), link: '/zh/guide/plugins-tools' },
           { text: withIcon('package', '插件市场'), link: '/zh/guide/plugin-marketplaces' },
           { text: withIcon('plug', '应用连接'), link: '/zh/guide/connected-apps' },
+          { text: withIcon('monitor', '电脑操控'), link: '/zh/guide/computer-use' },
           { text: withIcon('satelliteDish', 'DotCraft 卫星'), link: '/zh/guide/satellite' }
         ]
       },

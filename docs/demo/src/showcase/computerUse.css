@@ -1,0 +1,305 @@
+.showcase.showcase--computer-use {
+  padding: 0;
+}
+
+.cu-screen {
+  position: relative;
+  overflow: hidden;
+  padding: 60px 16px 0;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--border-default);
+  background:
+    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%),
+    radial-gradient(90% 80% at 0% 100%, color-mix(in srgb, var(--ansi-cyan) 16%, transparent), transparent 62%),
+    var(--bg-secondary);
+  font-family: var(--font-ui);
+}
+
+.cu-screen__windows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  height: 500px;
+}
+
+.cu-window {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-level-3);
+}
+
+.cu-window__titlebar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+}
+
+.cu-window__title {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cu-window__controls {
+  display: inline-flex;
+  gap: 14px;
+  color: var(--text-dimmed);
+}
+
+.cu-app-icon {
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.cu-app-icon[data-kind="sheet"] {
+  color: var(--ansi-green);
+}
+
+.cu-app-icon[data-kind="form"] {
+  color: var(--ansi-magenta);
+}
+
+.cu-app-icon[data-kind="mail"] {
+  color: var(--ansi-blue);
+}
+
+.cu-chat__scroll {
+  min-height: 72px;
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 14px 4px 12px;
+  overscroll-behavior: contain;
+}
+
+.cu-chat__scroll .dc-conversation-column-stack {
+  padding-inline: 12px;
+}
+
+.cu-chat__dock {
+  flex: none;
+  padding-bottom: 10px;
+}
+
+.cu-chat__dock > div {
+  padding-inline: 10px !important;
+}
+
+.cu-reply {
+  display: grid;
+  gap: 8px;
+  margin: 0 12px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+}
+
+.cu-reply__label {
+  color: var(--text-dimmed);
+  font-size: var(--type-secondary-size);
+}
+
+.cu-reply__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cu-chat__note:not(:has(.showcase-note)) {
+  display: none;
+}
+
+.cu-chat__note {
+  padding: 0 12px 10px;
+}
+
+.cu-app__body {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--type-secondary-size);
+}
+
+.cu-app__body [data-focus] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.cu-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 520ms var(--ease-standard, ease), opacity 200ms ease;
+}
+
+.cu-cursor[data-visible] {
+  opacity: 1;
+}
+
+.cu-cursor svg {
+  display: block;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 35%));
+}
+
+.cu-cursor__click {
+  position: absolute;
+  top: -11px;
+  left: -11px;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  opacity: 0;
+  animation: cu-click 420ms ease-out;
+}
+
+@keyframes cu-click {
+  from {
+    opacity: 0.9;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+}
+
+.cu-taskbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+}
+
+.cu-taskbar__app {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+  color: var(--text-secondary);
+}
+
+.cu-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease;
+}
+
+/* Desktop's glow breathes between these opacities on the real screen edge. */
+.cu-glow[data-active] {
+  animation: cu-glow-breathe 2.8s ease-in-out infinite;
+  opacity: 1;
+}
+
+@keyframes cu-glow-breathe {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cu-glow[data-active] {
+    animation: none;
+  }
+}
+
+.cu-pill {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 11;
+  max-width: calc(100% - 24px);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+  translate: -50% -6px;
+  transition: opacity 200ms ease, translate 200ms ease;
+}
+
+.cu-pill[data-active] {
+  opacity: 1;
+  pointer-events: auto;
+  cursor: pointer;
+  translate: -50% 0;
+}
+
+.cu-pill:focus-visible {
+  border-radius: 22px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.cu-pill__frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  color-scheme: normal;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .cu-screen {
+    padding: 56px 10px 0;
+  }
+
+  .cu-screen__windows {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 460px 344px;
+    height: auto;
+    gap: 10px;
+  }
+
+  .cu-pill {
+    max-width: none;
+    transform-origin: top center;
+    scale: 0.76;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cu-cursor,
+  .cu-glow,
+  .cu-pill {
+    transition: none;
+  }
+
+  .cu-cursor__click {
+    animation: none;
+  }
+}

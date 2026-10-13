@@ -11,10 +11,12 @@ import './doc.css'
 import './code.css'
 import './search.css'
 import './live-example.css'
+import './live-tour.css'
 import DocBand from './components/DocBand.vue'
 import DocMeta from './components/DocMeta.vue'
 import DocOutlineActions from './components/DocOutlineActions.vue'
 import LiveExample from './components/LiveExample.vue'
+import LiveTour from './components/LiveTour.vue'
 import { setupCodeWrap } from './codeWrap'
 
 export default {
@@ -27,6 +29,7 @@ export default {
     }),
   enhanceApp({ app }) {
     app.component('LiveExample', LiveExample)
+    app.component('LiveTour', LiveTour)
     if (typeof window !== 'undefined') setupCodeWrap()
   }
 }

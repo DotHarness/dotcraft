@@ -130,9 +130,11 @@ export function PairScanScreen({ params }: { params: Record<string, string | str
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Simulate scanning the code"
-              style={StyleSheet.absoluteFill}
+              style={[StyleSheet.absoluteFill, styles.demoCode]}
               onPress={() => scan(demo.scanPayload())}
-            />
+            >
+              <Icon name="qrCode" size={120} color={camera.textHint} strokeWidth={1.2} />
+            </Pressable>
           ) : (
             <CameraArea active={focused} onScan={scan} />
           )}
@@ -313,6 +315,7 @@ const styles = StyleSheet.create({
   scanNote: { marginTop: 8, color: camera.textMuted },
   frame: { width: FRAME, height: FRAME, marginTop: 48 },
   viewfinder: { position: 'absolute', top: 6, left: 6, right: 6, bottom: 6, borderRadius: 24, overflow: 'hidden' },
+  demoCode: { alignItems: 'center', justifyContent: 'center' },
   corner: { position: 'absolute', width: 40, height: 40, borderColor: camera.text },
   permission: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16 },
   permissionNote: { color: camera.textMuted, textAlign: 'center' },

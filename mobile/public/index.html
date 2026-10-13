@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>%WEB_TITLE%</title>
+    <script>
+      // The docs embed the demo as `<base>/index.html?lang=...`. Set the page language, and hand the router
+      // the base path it expects before it reads the URL.
+      ;(function () {
+        var lang = new URLSearchParams(location.search).get('lang')
+        if (lang) document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en'
+        if (location.pathname.slice(-11) === '/index.html') {
+          history.replaceState(null, '', location.pathname.slice(0, -10) + location.search + location.hash)
+        }
+      })()
+    </script>
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        overflow: hidden;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+      /* The composer draws its own focus border, as on the phone. */
+      textarea:focus-visible,
+      input:focus-visible {
+        outline: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  </body>
+</html>

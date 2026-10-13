@@ -5,6 +5,7 @@
  * sidebar grouping ("Today") stays fresh while a given load renders
  * deterministically.
  */
+import { createTwoFilesPatch } from 'diff'
 import type { AppLocale } from '../../../../desktop/src/shared/locales'
 import { DEMO_WORKSPACE_PATH } from '../mockApi'
 
@@ -130,6 +131,26 @@ const GIT_LOG_OUTPUT = `f3a92c1 feat: gallery keyboard navigation (#214)
 51c2e90 perf: lazy-load gallery thumbnails (#212)
 2ad1f04 docs: self-hosting guide for the sync server (#210)`
 
+/** A file tool's `fileChange` structured result, which feeds the Changes tab and the inline diff. */
+function fileChange(path: string, oldText: string, newText: string): Record<string, unknown> {
+  const added = oldText === ''
+  const patch = createTwoFilesPatch(added ? '/dev/null' : `a/${path}`, `b/${path}`, oldText, newText, '', '', { context: 3 })
+  const diff = `diff --git a/${path} b/${path}\n${patch.replace(/^=+\n/, '')}`
+  const lines = diff.split('\n')
+  return {
+    kind: 'fileChange',
+    changes: [
+      {
+        path: `${DEMO_WORKSPACE_PATH}/${path}`,
+        kind: added ? 'add' : 'update',
+        diff,
+        additions: lines.filter((line) => line.startsWith('+') && !line.startsWith('+++')).length,
+        deletions: lines.filter((line) => line.startsWith('-') && !line.startsWith('---')).length
+      }
+    ]
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Turn builders
 // ---------------------------------------------------------------------------
@@ -232,6 +253,7 @@ function buildRetryTurns(threadId: string, s: RetryThreadStrings): Array<Record<
           type: 'toolResult',
           toolCallId: t('c-edit'),
           result: 'Successfully edited src/sync/worker.ts',
+          structuredResult: fileChange('src/sync/worker.ts', `${WORKER_OLD_TEXT}\n`, `${WORKER_NEW_TEXT}\n`),
           success: true,
           createdAt: minutesAgo(130),
           completedAt: minutesAgo(130)
@@ -252,6 +274,7 @@ function buildRetryTurns(threadId: string, s: RetryThreadStrings): Array<Record<
           type: 'toolResult',
           toolCallId: t('c-write'),
           result: 'Wrote 29 lines to src/sync/worker.test.ts',
+          structuredResult: fileChange('src/sync/worker.test.ts', '', `${WORKER_TEST_CONTENT}\n`),
           success: true,
           createdAt: minutesAgo(129),
           completedAt: minutesAgo(129)

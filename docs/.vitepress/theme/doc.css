@@ -19,16 +19,37 @@
   }
 }
 
+.VPContent:has(> .VPDoc) {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The page fills the viewport, so on a short page the footer sits at the bottom instead of mid-screen. */
+.VPContent > .VPDoc {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.VPContent .VPDoc .container {
+  flex: 1;
+}
+
 .VPContent .VPDoc .container > .content {
+  display: flex;
+  flex-direction: column;
   grid-area: 1 / 2;
   min-width: 0;
   width: auto;
   margin: 0;
-  padding: 0 0 96px;
+  padding: 0 0 32px;
 }
 
 .VPContent .VPDoc .content-container,
 .VPContent .VPDoc.has-aside .content-container {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   max-width: none;
 }
 
@@ -64,7 +85,7 @@
   }
 
   .VPContent .VPDoc .container > .content {
-    padding-bottom: 64px;
+    padding-bottom: 24px;
   }
 }
 
@@ -398,7 +419,13 @@
 }
 
 .VPDoc .VPDocFooter {
-  margin-top: 48px;
+  margin-top: auto;
+  padding-top: 64px;
+}
+
+.VPDoc .VPDocFooter > :first-child {
+  padding-top: 20px;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .VPDoc .VPDocFooter .edit-info {
