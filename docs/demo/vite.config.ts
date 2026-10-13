@@ -54,6 +54,7 @@ export default defineConfig({
       '@dnd-kit/utilities',
       'recharts',
       'react-colorful',
+      'uqr',
       'sucrase'
     ]
   },
