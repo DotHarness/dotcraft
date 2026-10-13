@@ -113,7 +113,7 @@ internal static class DotNetPluginSampleEffects
             host.Registry.Resolve<IChatMiddleware>(ThreadId),
             (IChatClient)inner,
             (client, middleware) =>
-                middleware.Wrap(client, new ChatPipelineContext(ChatPipelineKind.Agent, ThreadId)) ?? client,
+                middleware.Wrap(client, new ChatPipelineContext(ThreadId)) ?? client,
             reverse: true);
 
         var response = await pipeline.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")]);
@@ -122,7 +122,7 @@ internal static class DotNetPluginSampleEffects
         Assert.Equal(CountingChatClient.Reply, response.Text);
         await host.AssertJournalContainsAsync(
             ProviderId,
-            "model call on Agent pipeline");
+            "model call");
         ledger.Prove<IChatMiddleware>();
     }
 

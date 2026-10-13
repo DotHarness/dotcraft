@@ -97,8 +97,6 @@ public sealed class TraceEvent
 
     public string? ToolName { get; init; }
 
-    public string? ToolIcon { get; init; }
-
     /// <summary>
     /// Usage attribution of the tool or skill (<see cref="ToolUsageSource"/>), recorded on
     /// <see cref="TraceEventType.ToolCallCompleted"/> and <see cref="TraceEventType.SkillReferenced"/>.

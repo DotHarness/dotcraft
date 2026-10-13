@@ -52,9 +52,8 @@ internal static class ChatMiddlewareCatalog
             (client, middleware) => middleware.Wrap(client, context) ?? client,
             (middleware, ex) => logger?.LogError(
                 ex,
-                "Chat middleware {MiddlewareName} failed and was omitted from the {PipelineKind} pipeline.",
-                SafeName(middleware),
-                context.Kind),
+                "Chat middleware {MiddlewareName} failed and was omitted from the pipeline.",
+                SafeName(middleware)),
             reverse: true);
     }
 
@@ -63,8 +62,6 @@ internal static class ChatMiddlewareCatalog
     [
         (ChatMiddlewareNames.Tracing, 200, new BuiltInChatMiddleware.Tracing()),
         (ChatMiddlewareNames.FunctionInvocation, 300, new BuiltInChatMiddleware.FunctionInvocation()),
-        (ChatMiddlewareNames.SubAgentProgress, 400, new BuiltInChatMiddleware.SubAgentProgress()),
-        (ChatMiddlewareNames.SubAgentTracing, 500, new BuiltInChatMiddleware.SubAgentTracing()),
         (ChatMiddlewareNames.DynamicToolInjection, 600, new BuiltInChatMiddleware.DynamicToolInjection()),
         (ChatMiddlewareNames.ImageSanitizing, 700, new BuiltInChatMiddleware.ImageSanitizing())
     ];

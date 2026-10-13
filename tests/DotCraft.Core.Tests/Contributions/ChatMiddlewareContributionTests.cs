@@ -24,7 +24,7 @@ public sealed class ChatMiddlewareContributionTests
             builder.Use(inner => new ImageContentSanitizingChatClient(inner));
         });
 
-        AssertChain(expected, Compose(ChatPipelineKind.Agent, host));
+        AssertChain(expected, Compose(host));
     }
 
     [Fact]
@@ -37,38 +37,11 @@ public sealed class ChatMiddlewareContributionTests
             builder.Use(inner => new ImageContentSanitizingChatClient(inner));
         });
 
-        var actual = Compose(ChatPipelineKind.Agent, host);
+        var actual = Compose(host);
 
         AssertChain(expected, actual);
         Assert.DoesNotContain(nameof(TracingChatClient), ChainTypes(actual));
         Assert.DoesNotContain(nameof(DynamicToolInjectionChatClient), ChainTypes(actual));
-    }
-
-    [Fact]
-    public void SubAgentPipeline_MatchesTheBuilderChain()
-    {
-        var host = CreateHost(tracing: true, deferredTools: true, subAgentProgress: true);
-        var expected = BuildExpectedChain(builder =>
-        {
-            builder.Use(inner => host.CreateFunctionInvokingClient!(inner));
-            builder.Use(inner => new SubAgentProgressChatClient(inner, host.SubAgentProgress!));
-            builder.Use(inner => new TracingChatClient(inner, host.TraceCollector!));
-        });
-
-        AssertChain(expected, Compose(ChatPipelineKind.SubAgent, host));
-    }
-
-    [Fact]
-    public void SubAgentPipeline_WithoutProgressEntry_OmitsTheProgressClient()
-    {
-        var host = CreateHost(tracing: true, deferredTools: false);
-        var expected = BuildExpectedChain(builder =>
-        {
-            builder.Use(inner => host.CreateFunctionInvokingClient!(inner));
-            builder.Use(inner => new TracingChatClient(inner, host.TraceCollector!));
-        });
-
-        AssertChain(expected, Compose(ChatPipelineKind.SubAgent, host));
     }
 
     [Fact]
@@ -83,7 +56,7 @@ public sealed class ChatMiddlewareContributionTests
 
         Assert.DoesNotContain(
             nameof(DynamicToolInjectionChatClient),
-            ChainTypes(Compose(ChatPipelineKind.Agent, host)));
+            ChainTypes(Compose(host)));
     }
 
     [Fact]
@@ -94,29 +67,13 @@ public sealed class ChatMiddlewareContributionTests
         registry.Add<IChatMiddleware>(new MarkerMiddleware("outer"), new ContributionOptions(Order: 650));
         registry.Add<IChatMiddleware>(new MarkerMiddleware("inner"), new ContributionOptions(Order: 750));
 
-        var chain = ChainTypes(Compose(ChatPipelineKind.Agent, CreateHost(), registry));
+        var chain = ChainTypes(Compose(CreateHost(), registry));
 
         AssertOrder(
             chain,
             $"{nameof(MarkerChatClient)}:outer",
             nameof(ImageContentSanitizingChatClient),
             $"{nameof(MarkerChatClient)}:inner");
-    }
-
-    [Fact]
-    public void Contribution_AppliesOnlyToTheKindsItAccepts()
-    {
-        var registry = CreateRegistry();
-        registry.Add<IChatMiddleware>(
-            new MarkerMiddleware("agent-only", ChatPipelineKind.Agent),
-            new ContributionOptions(Order: 50));
-
-        Assert.Contains(
-            $"{nameof(MarkerChatClient)}:agent-only",
-            ChainTypes(Compose(ChatPipelineKind.Agent, CreateHost(), registry)));
-        Assert.DoesNotContain(
-            $"{nameof(MarkerChatClient)}:agent-only",
-            ChainTypes(Compose(ChatPipelineKind.SubAgent, CreateHost(), registry)));
     }
 
     [Fact]
@@ -129,7 +86,7 @@ public sealed class ChatMiddlewareContributionTests
         var pipeline = ChatMiddlewareCatalog.Compose(
             registry,
             baseClient,
-            new ChatPipelineContext(ChatPipelineKind.Agent) { Host = CreateHost() });
+            new ChatPipelineContext { Host = CreateHost() });
         var response = await pipeline.GetResponseAsync([new ChatMessage(ChatRole.User, "hi")]);
 
         Assert.Equal("short-circuited", response.Text);
@@ -146,13 +103,13 @@ public sealed class ChatMiddlewareContributionTests
 
         Assert.Contains(
             $"{nameof(MarkerChatClient)}:thread-a",
-            ChainTypes(Compose(ChatPipelineKind.Agent, CreateHost(), registry, "thread-a")));
+            ChainTypes(Compose(CreateHost(), registry, "thread-a")));
         Assert.DoesNotContain(
             $"{nameof(MarkerChatClient)}:thread-a",
-            ChainTypes(Compose(ChatPipelineKind.Agent, CreateHost(), registry, "thread-b")));
+            ChainTypes(Compose(CreateHost(), registry, "thread-b")));
         Assert.DoesNotContain(
             $"{nameof(MarkerChatClient)}:thread-a",
-            ChainTypes(Compose(ChatPipelineKind.Agent, CreateHost(), registry)));
+            ChainTypes(Compose(CreateHost(), registry)));
     }
 
     [Fact]
@@ -163,13 +120,13 @@ public sealed class ChatMiddlewareContributionTests
             new MarkerMiddleware("sanitizer-swap"),
             new ContributionOptions(Order: 700, ReplaceTarget: ChatMiddlewareNames.ImageSanitizing));
 
-        var replaced = ChainTypes(Compose(ChatPipelineKind.Agent, CreateHost(), registry));
+        var replaced = ChainTypes(Compose(CreateHost(), registry));
         Assert.Contains($"{nameof(MarkerChatClient)}:sanitizer-swap", replaced);
         Assert.DoesNotContain(nameof(ImageContentSanitizingChatClient), replaced);
 
         handle.Dispose();
 
-        var restored = ChainTypes(Compose(ChatPipelineKind.Agent, CreateHost(), registry));
+        var restored = ChainTypes(Compose(CreateHost(), registry));
         Assert.Contains(nameof(ImageContentSanitizingChatClient), restored);
         Assert.DoesNotContain($"{nameof(MarkerChatClient)}:sanitizer-swap", restored);
     }
@@ -183,25 +140,22 @@ public sealed class ChatMiddlewareContributionTests
 
     private static ChatPipelineHostInputs CreateHost(
         bool tracing = false,
-        bool deferredTools = false,
-        bool subAgentProgress = false) =>
+        bool deferredTools = false) =>
         new()
         {
             TraceCollector = tracing ? new TraceCollector(new TraceStore()) : null,
             DeferredTools = deferredTools ? new DeferredToolActivationIndex([]) : null,
-            SubAgentProgress = subAgentProgress ? new SubAgentProgressBridge.ProgressEntry() : null,
             CreateFunctionInvokingClient = inner => new StreamingFunctionInvokingChatClient(inner)
         };
 
     private static IChatClient Compose(
-        ChatPipelineKind kind,
         ChatPipelineHostInputs host,
         IContributionView? contributions = null,
         string? threadId = null) =>
         ChatMiddlewareCatalog.Compose(
             contributions,
             new ProbeChatClient(),
-            new ChatPipelineContext(kind, threadId) { Host = host });
+            new ChatPipelineContext(threadId) { Host = host });
 
     private static IChatClient BuildExpectedChain(Action<ChatClientBuilder> register)
     {
@@ -246,12 +200,12 @@ public sealed class ChatMiddlewareContributionTests
             .GetProperty("InnerClient", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(client) as IChatClient;
 
-    private sealed class MarkerMiddleware(string label, ChatPipelineKind? only = null) : IChatMiddleware
+    private sealed class MarkerMiddleware(string label) : IChatMiddleware
     {
         public string Name => label;
 
         public IChatClient Wrap(IChatClient inner, ChatPipelineContext context) =>
-            only is null || only == context.Kind ? new MarkerChatClient(inner, label) : inner;
+            new MarkerChatClient(inner, label);
     }
 
     private sealed class MarkerChatClient(IChatClient inner, string label) : DelegatingChatClient(inner)

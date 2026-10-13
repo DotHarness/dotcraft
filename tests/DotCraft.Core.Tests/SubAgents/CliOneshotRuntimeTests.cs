@@ -415,8 +415,7 @@ public sealed class CliOneshotRuntimeTests : IDisposable
         string task,
         string? workingDirectory = null,
         IReadOnlyList<string>? extraLaunchArgs = null,
-        string? resumeSessionId = null,
-        ISubAgentEventSink? sink = null)
+        string? resumeSessionId = null)
     {
         var runtime = new CliOneshotRuntime();
         var effectiveWorkingDirectory = workingDirectory ?? _workspacePath;
@@ -436,7 +435,7 @@ public sealed class CliOneshotRuntimeTests : IDisposable
                     Task = task,
                     WorkingDirectory = effectiveWorkingDirectory
                 },
-                sink ?? NullSubAgentEventSink.Instance,
+                new NoopEventSink(),
                 CancellationToken.None);
         }
         finally
@@ -659,4 +658,22 @@ public sealed class CliOneshotRuntimeTests : IDisposable
         return shPath;
     }
 
+    private sealed class NoopEventSink : ISubAgentEventSink
+    {
+        public void OnInfo(string message)
+        {
+        }
+
+        public void OnProgress(string? currentTool, string? currentToolDisplay = null)
+        {
+        }
+
+        public void OnCompleted(string? summary = null, SubAgentTokenUsage? tokensUsed = null)
+        {
+        }
+
+        public void OnFailed(string? summary = null, SubAgentTokenUsage? tokensUsed = null)
+        {
+        }
+    }
 }

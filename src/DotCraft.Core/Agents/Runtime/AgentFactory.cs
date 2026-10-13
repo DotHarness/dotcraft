@@ -577,7 +577,7 @@ public sealed class AgentFactory : IAsyncDisposable
         var warmsPromptCache = promptCaching.Warming
             && string.Equals(runtime.Protocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal)
             && promptCaching.ShouldApply(runtime.Model);
-        var pipelineContext = new ChatPipelineContext(ChatPipelineKind.Agent, ctx.CurrentThreadId)
+        var pipelineContext = new ChatPipelineContext(ctx.CurrentThreadId)
         {
             Host = new ChatPipelineHostInputs
             {
@@ -846,8 +846,6 @@ public sealed class AgentFactory : IAsyncDisposable
             && value.TryGetInt32(out var limit)
                 ? limit
                 : null;
-        public string? Icon => null;
-        public Func<IDictionary<string, object?>?, string>? DisplayFormatter => null;
         public bool RpcEligible => RemoteToolMetadata.IsRpcEligible(definition);
         public ToolPresentationDescriptor? Presentation => definition.Presentation;
         public bool ReservedSchema => ReservedToolSchema.IsReserved(definition);

@@ -67,12 +67,6 @@ public sealed partial class AppConfig
     [ConfigField(Ignore = true)]
     public PromptCachingConfig PromptCaching { get; set; } = new();
 
-    /// <summary>
-    /// Maximum number of subagents that can run concurrently.
-    /// Controls parallel API call pressure. Excess subagents will queue and wait.
-    /// </summary>
-    public int SubagentMaxConcurrency { get; set; } = 3;
-
     [ConfigField(Ignore = true)]
     public bool AgentInterruptMessageEnabled { get; set; } = true;
 

@@ -47,11 +47,6 @@ public sealed record PluginFunctionDescriptor
     public JsonObject? OutputSchema { get; init; }
 
     /// <summary>
-    /// Optional display metadata for clients.
-    /// </summary>
-    public PluginFunctionDisplay? Display { get; init; }
-
-    /// <summary>
     /// Optional approval target metadata. Policy remains server-owned.
     /// </summary>
     public PluginFunctionApprovalDescriptor? Approval { get; init; }
@@ -65,18 +60,6 @@ public sealed record PluginFunctionDescriptor
     /// Reserved for future lazy-loading support. The current runtime records the value but does not apply lazy loading.
     /// </summary>
     public bool? DeferLoading { get; init; }
-}
-
-/// <summary>
-/// Display metadata attached to a plugin function.
-/// </summary>
-public sealed record PluginFunctionDisplay
-{
-    public string? Title { get; init; }
-
-    public string? Subtitle { get; init; }
-
-    public string? Icon { get; init; }
 }
 
 /// <summary>

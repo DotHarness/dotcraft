@@ -5,9 +5,7 @@ public sealed class TokenTracker
     private static readonly AsyncLocal<TokenTracker?> _current = new();
 
     /// <summary>
-    /// Ambient token tracker for the current async flow.
-    /// Set by terminal runners before the agent runs;
-    /// read in SubAgentManager to aggregate SubAgent token costs.
+    /// Ambient token tracker for the current turn; external SubAgent runs add their token costs to it.
     /// </summary>
     public static TokenTracker? Current
     {

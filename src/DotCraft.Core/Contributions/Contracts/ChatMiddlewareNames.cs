@@ -9,12 +9,6 @@ public static class ChatMiddlewareNames
     /// <summary>Runs the tool-call orchestration loop. Every pipeline.</summary>
     public const string FunctionInvocation = "function-invocation";
 
-    /// <summary>Publishes SubAgent progress to the live table. SubAgent pipeline only.</summary>
-    public const string SubAgentProgress = "subagent-progress";
-
-    /// <summary>Records SubAgent model calls into the trace collector, inside the orchestration loop. SubAgent pipeline only.</summary>
-    public const string SubAgentTracing = "subagent-tracing";
-
     /// <summary>Injects deferred tools activated mid-turn. Agent pipeline only.</summary>
     public const string DynamicToolInjection = "dynamic-tool-injection";
 

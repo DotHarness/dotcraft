@@ -434,7 +434,6 @@ public sealed partial class TraceCollector(TraceStore store) : IModelRuntimeDiag
             Type = TraceEventType.ToolCallStarted,
             SessionKey = sessionKey,
             ToolName = fc.Name,
-            ToolIcon = ToolRegistry.GetToolIcon(fc.Name),
             ToolArguments = argsJson,
             Content = fc.CallId,
             CallId = fc.CallId
@@ -450,7 +449,6 @@ public sealed partial class TraceCollector(TraceStore store) : IModelRuntimeDiag
             Type = TraceEventType.ToolCallCompleted,
             SessionKey = sessionKey,
             ToolName = toolName ?? "unknown",
-            ToolIcon = ToolRegistry.GetToolIcon(toolName ?? ""),
             ToolSource = TakeToolSource(fr.CallId),
             ToolResult = result,
             DurationMs = durationMs,
@@ -485,7 +483,6 @@ public sealed partial class TraceCollector(TraceStore store) : IModelRuntimeDiag
             Type = TraceEventType.ToolInjection,
             SessionKey = sessionKey,
             ToolName = $"{normalizedToolNames.Length} tool{(normalizedToolNames.Length != 1 ? "s" : "")} injected",
-            ToolIcon = "🔌",
             Content = string.Join(", ", normalizedToolNames),
             PromptCacheEventKind = PromptCacheEventKinds.ToolExtension,
             PromptCacheChangedFields = [PromptCacheChangedFields.Tools],
@@ -504,7 +501,6 @@ public sealed partial class TraceCollector(TraceStore store) : IModelRuntimeDiag
             Type = TraceEventType.ToolPolicyWithheld,
             SessionKey = sessionKey,
             ToolName = $"{tools.Count} tool{(tools.Count != 1 ? "s" : "")} withheld by policy",
-            ToolIcon = "🚫",
             Content = string.Join(", ", tools.Select(static tool => tool.Name)),
             MetadataJson = SerializeMetadata(new
             {
@@ -558,7 +554,6 @@ public sealed partial class TraceCollector(TraceStore store) : IModelRuntimeDiag
             Type = TraceEventType.DeferredToolLoading,
             SessionKey = sessionKey,
             ToolName = $"{normalizedToolNames.Length} deferred tool{(normalizedToolNames.Length != 1 ? "s" : "")} activated",
-            ToolIcon = "🔎",
             Content = string.Join(", ", normalizedToolNames),
             ChangedToolNames = normalizedToolNames,
             MetadataJson = SerializeMetadata(new

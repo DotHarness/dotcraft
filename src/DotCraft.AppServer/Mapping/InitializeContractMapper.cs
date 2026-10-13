@@ -138,12 +138,6 @@ internal static class InitializeContractMapper
         Description = value.Description,
         InputSchema = JsonNode.Parse(value.InputSchema.GetRawText()) as JsonObject,
         OutputSchema = value.OutputSchema is { } output ? JsonNode.Parse(output.GetRawText()) as JsonObject : null,
-        Display = value.Display is null ? null : new ChannelToolDisplaySpec
-        {
-            Title = value.Display.Title,
-            Subtitle = value.Display.Subtitle,
-            Icon = value.Display.Icon
-        },
         Approval = value.Approval is null ? null : new ChannelToolApprovalSpec
         {
             Kind = value.Approval.Kind,

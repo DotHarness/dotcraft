@@ -25,8 +25,7 @@ public sealed class GeneratedToolAttribute : Attribute
 }
 
 /// <summary>
-/// Assembly-level hook used by <see cref="ToolRegistry"/> and <see cref="BuiltInToolCatalog"/> to
-/// consume source-generated tool metadata before falling back to reflection scanning.
+/// Assembly-level hook used by <see cref="BuiltInToolCatalog"/> to read source-generated tool metadata.
 /// </summary>
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
 public sealed class GeneratedToolCatalogAttribute(Type providerType) : Attribute
@@ -40,8 +39,6 @@ public sealed class GeneratedToolCatalogAttribute(Type providerType) : Attribute
 public sealed record GeneratedToolDescriptor(
     string Name,
     string Description,
-    string Icon,
-    Func<IDictionary<string, object?>?, string>? DisplayFormatter,
     int? MaxResultChars,
     bool StreamArgumentsEnabled,
     bool CatalogVisible,
@@ -125,10 +122,6 @@ internal interface IGeneratedToolMetadata
 
     int? MaxResultChars { get; }
 
-    string? Icon { get; }
-
-    Func<IDictionary<string, object?>?, string>? DisplayFormatter { get; }
-
     bool RpcEligible { get; }
 
     ToolPresentationDescriptor? Presentation { get; }
@@ -185,10 +178,6 @@ public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
 
     public int? MaxResultChars => _metadata.MaxResultChars;
 
-    public string? Icon => string.IsNullOrEmpty(_metadata.Icon) ? null : _metadata.Icon;
-
-    public Func<IDictionary<string, object?>?, string>? DisplayFormatter => _metadata.DisplayFormatter;
-
     public bool RpcEligible => _metadata.RpcEligible;
 
     public ToolPresentationDescriptor? Presentation => _declaration.Presentation;
@@ -242,15 +231,6 @@ internal static class GeneratedToolMetadataResolver
 
         metadata = null!;
         return false;
-    }
-
-    /// <summary>Formats a call with the tool's own display formatter; a failing formatter yields null.</summary>
-    public static string? FormatCall(AITool tool, IDictionary<string, object?>? args)
-    {
-        if (!TryGet(tool, out var metadata) || metadata.DisplayFormatter is not { } formatter)
-            return null;
-        try { return formatter(args); }
-        catch { return null; }
     }
 }
 

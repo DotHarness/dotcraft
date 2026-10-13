@@ -177,7 +177,7 @@ public sealed class DotNetPluginSampleBundleTests : IDisposable
                 "plugin activated",
                 "thread started",
                 "turn started",
-                "streaming call on Agent pipeline",
+                "streaming call",
                 "turn ended status=Completed failed=False");
 
             await runtime.SetEnabledAsync(ProviderId, enabled: false);

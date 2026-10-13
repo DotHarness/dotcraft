@@ -39,7 +39,7 @@ public sealed class AppServerToolCatalogTests
         Assert.Contains("GrepFiles", names);
 
         var readFile = FindTool(tools, "ReadFile");
-        Assert.Equal("📄", readFile.GetProperty("icon").GetString());
+        Assert.False(readFile.TryGetProperty("icon", out _));
         Assert.Equal("builtin", readFile.GetProperty("source").GetString());
         Assert.False(string.IsNullOrWhiteSpace(readFile.GetProperty("description").GetString()));
     }
@@ -103,7 +103,6 @@ public sealed class AppServerToolCatalogTests
         var names = descriptors.Select(descriptor => descriptor.Name).ToList();
         Assert.Equal(names.Distinct(StringComparer.Ordinal).Count(), names.Count);
         Assert.Equal(names.OrderBy(name => name, StringComparer.Ordinal).ToList(), names);
-        Assert.All(descriptors, descriptor => Assert.False(string.IsNullOrEmpty(descriptor.Icon)));
         Assert.DoesNotContain(descriptors, descriptor => descriptor.Name == "imagegen");
     }
 

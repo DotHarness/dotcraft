@@ -242,12 +242,11 @@ Each `channelTools` descriptor supports:
 - `description: string`
 - `inputSchema: object`
 - `outputSchema?: object`
-- `display?: { icon?: string, title?: string, subtitle?: string }`
 - `requiresChatContext: boolean`
 - `approval?: { kind: string, targetArgument: string, operation?: string, operationArgument?: string }`
 - `deferLoading?: boolean`
 
-Channel tool names should use PascalCase. For cross-runtime icon support, adapters should prefer declaring emoji icons via `channelTools[].display.icon`.
+Channel tool names should use PascalCase.
 
 `deferLoading` requests lazy tool exposure. When the active provider supports native deferred tool loading, such as OpenAI Responses or Anthropic beta tool references with `nativeDeferredToolLoading`, the server may omit the tool from the top-level model tool list and expose it later through the provider's native deferred-search flow. Otherwise the server may simulate deferred loading with DotCraft's ordinary local tool-search mechanism.
 
@@ -4440,7 +4439,6 @@ Clients should check `capabilities.toolCatalog` in the `initialize` response bef
 {
   "name": "ReadFile",
   "description": "Read the contents of a file at the given path...",
-  "icon": "📄",
   "source": "builtin",
   "planMode": true
 }
@@ -4450,7 +4448,6 @@ Clients should check `capabilities.toolCatalog` in the `initialize` response bef
 |-------|------|-------------|
 | `name` | string | Canonical tool identifier (the model-visible tool name). This is the value used in Agent Profile `tools.allow` / `tools.deny`. |
 | `description` | string | Human-readable description from the tool's method-level metadata. May be empty when the tool declares none. |
-| `icon` | string | Display icon (emoji). Falls back to a generic tool glyph when the tool declares none. |
 | `source` | string | Always `"builtin"` for tools returned by this method. Reserved for forward compatibility with other tool origins. |
 | `planMode` | boolean | `true` when the tool is allowed while the thread is in Plan (read-only) mode. `false` for mutating tools that Plan mode hard-denies (for example `WriteFile`, `EditFile`). Tools that are conditionally restricted in Plan mode (for example shell `Exec`, which Plan mode allows only for read-only commands) report `true`. |
 
@@ -4471,11 +4468,11 @@ List the built-in tools the server can expose to the model.
 ```json
 {
   "tools": [
-    { "name": "EditFile", "description": "Make a targeted edit to an existing file...", "icon": "🔄", "source": "builtin", "planMode": false },
-    { "name": "Exec", "description": "Run a shell command...", "icon": "💻", "source": "builtin", "planMode": true },
-    { "name": "ReadFile", "description": "Read the contents of a file...", "icon": "📄", "source": "builtin", "planMode": true },
-    { "name": "WebSearch", "description": "Search the web...", "icon": "🔍", "source": "builtin", "planMode": true },
-    { "name": "WriteFile", "description": "Write content to a file...", "icon": "✏️", "source": "builtin", "planMode": false }
+    { "name": "EditFile", "description": "Make a targeted edit to an existing file...", "source": "builtin", "planMode": false },
+    { "name": "Exec", "description": "Run a shell command...", "source": "builtin", "planMode": true },
+    { "name": "ReadFile", "description": "Read the contents of a file...", "source": "builtin", "planMode": true },
+    { "name": "WebSearch", "description": "Search the web...", "source": "builtin", "planMode": true },
+    { "name": "WriteFile", "description": "Write content to a file...", "source": "builtin", "planMode": false }
   ]
 }
 ```

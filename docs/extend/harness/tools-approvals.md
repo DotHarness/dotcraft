@@ -61,8 +61,8 @@ Harness collects all `IToolSource` registrations when it builds the tool plan. K
 var handler = new SessionEventHandler
 {
     OnTextDelta = text => ui.AppendTextAsync(text),
-    OnToolStarted = (name, icon, display, callId) =>
-        ui.ShowToolStartedAsync(name, display),
+    OnToolStarted = (name, callId) =>
+        ui.ShowToolStartedAsync(callId, name),
     OnToolCompleted = (callId, result) =>
         ui.ShowToolResultAsync(callId, result),
     OnApprovalRequested = request =>

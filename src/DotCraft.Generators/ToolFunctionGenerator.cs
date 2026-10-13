@@ -117,10 +117,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             ?? GetNamedString(declarationAttribute, "Name")
             ?? method.Name;
         var streamArgumentsEnabled = GetStreamArgumentsEnabled(method);
-        var displayType = GetNamedType(toolAttribute, "DisplayType");
-        var displayMethod = GetNamedString(toolAttribute, "DisplayMethod");
         var maxResultChars = GetNamedInt(toolAttribute, "MaxResultChars", -1);
-        var icon = GetNamedString(toolAttribute, "Icon") ?? string.Empty;
         var presentationAttribute = FindAttribute(method, ToolPresentationAttributeFqn);
         var presentationOptions = new List<KeyValuePair<string, string>>();
         if (GetNamedString(presentationAttribute, "Operation") is { } operation)
@@ -148,9 +145,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             ReturnType: method.ReturnType.ToDisplayString(TypeFormat),
             FunctionName: functionName,
             Description: description,
-            Icon: icon,
-            DisplayType: displayType?.ToDisplayString(TypeFormat),
-            DisplayMethod: displayMethod,
             MaxResultChars: maxResultChars == -1 ? null : maxResultChars,
             StreamArgumentsEnabled: streamArgumentsEnabled,
             CatalogVisible: catalogVisible,
@@ -379,10 +373,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         sb.Append(", ");
         sb.Append(Quote(tool.Description));
         sb.Append(", ");
-        sb.Append(Quote(tool.Icon));
-        sb.Append(", ");
-        sb.Append(FormatDisplayFormatter(tool));
-        sb.Append(", ");
         sb.Append(tool.MaxResultChars.HasValue ? tool.MaxResultChars.Value.ToString(CultureInfo.InvariantCulture) : "null");
         sb.Append(", ");
         sb.Append(tool.StreamArgumentsEnabled ? "true" : "false");
@@ -390,14 +380,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         sb.Append(tool.CatalogVisible ? "true" : "false");
         sb.Append(", ");
         sb.Append(tool.RpcEligible ? "true" : "false");
-    }
-
-    private static string FormatDisplayFormatter(ToolInfo tool)
-    {
-        if (string.IsNullOrWhiteSpace(tool.DisplayType) || string.IsNullOrWhiteSpace(tool.DisplayMethod))
-            return "null";
-
-        return $"new global::System.Func<global::System.Collections.Generic.IDictionary<string, object?>?, string>({tool.DisplayType}.{tool.DisplayMethod})";
     }
 
     private static string FormatDefaultValue(ParameterInfo parameter)
@@ -454,9 +436,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
 
     private static string? GetNamedString(AttributeData? attribute, string name) =>
         attribute?.NamedArguments.FirstOrDefault(arg => arg.Key == name).Value.Value?.ToString();
-
-    private static INamedTypeSymbol? GetNamedType(AttributeData? attribute, string name) =>
-        attribute?.NamedArguments.FirstOrDefault(arg => arg.Key == name).Value.Value as INamedTypeSymbol;
 
     private static int GetNamedInt(AttributeData? attribute, string name, int defaultValue)
     {
@@ -541,9 +520,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             string ReturnType,
             string FunctionName,
             string Description,
-            string Icon,
-            string? DisplayType,
-            string? DisplayMethod,
             int? MaxResultChars,
             bool StreamArgumentsEnabled,
             bool CatalogVisible,
@@ -569,9 +545,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             this.ReturnType = ReturnType;
             this.FunctionName = FunctionName;
             this.Description = Description;
-            this.Icon = Icon;
-            this.DisplayType = DisplayType;
-            this.DisplayMethod = DisplayMethod;
             this.MaxResultChars = MaxResultChars;
             this.StreamArgumentsEnabled = StreamArgumentsEnabled;
             this.CatalogVisible = CatalogVisible;
@@ -598,9 +571,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         public string ReturnType { get; }
         public string FunctionName { get; }
         public string Description { get; }
-        public string Icon { get; }
-        public string? DisplayType { get; }
-        public string? DisplayMethod { get; }
         public int? MaxResultChars { get; }
         public bool StreamArgumentsEnabled { get; }
         public bool CatalogVisible { get; }

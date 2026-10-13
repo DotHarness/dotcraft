@@ -56,7 +56,7 @@ public sealed class WebTools
     /// Supports multiple providers: Bing (globally accessible), Exa (AI-optimized, free via MCP).
     /// </summary>
     [Description("Search the web for current information. Returns titles, URLs, and snippets.")]
-    [Tool(Icon = "🔍", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.WebSearch))]
+    [Tool]
     [ToolPresentation("core.web", Operation = "search")]
     public async Task<string> WebSearch(
         [Description("The search query.")] string query,
@@ -114,7 +114,7 @@ public sealed class WebTools
     /// Fetch and extract content from a URL.
     /// </summary>
     [Description("Fetch URL and extract readable content. Supports HTML, JSON, and plain text.")]
-    [Tool(Icon = "🌐", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.WebFetch))]
+    [Tool]
     [ToolPresentation("core.web", Operation = "fetch")]
     public async Task<string> WebFetch(
         [Description("The URL to fetch.")] string url,

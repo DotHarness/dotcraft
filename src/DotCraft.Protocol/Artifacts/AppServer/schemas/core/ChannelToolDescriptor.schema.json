@@ -27,16 +27,6 @@
     "description": {
       "type": "string"
     },
-    "display": {
-      "anyOf": [
-        {
-          "$ref": "./ChannelToolDisplay.schema.json"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "inputSchema": {},
     "name": {
       "type": "string"

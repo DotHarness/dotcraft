@@ -102,10 +102,6 @@ export class TelegramMediaTools {
         name: DOCUMENT_TOOL_NAME,
         description: "Send a document to the current Telegram chat using the official sendDocument API.",
         requiresChatContext: true,
-        display: {
-          icon: "\u{1F4CE}",
-          title: "Send document to current Telegram chat",
-        },
         approval: {
           kind: "file",
           targetArgument: "filePath",
@@ -125,10 +121,6 @@ export class TelegramMediaTools {
         name: VOICE_TOOL_NAME,
         description: "Send a voice note to the current Telegram chat using the official sendVoice API.",
         requiresChatContext: true,
-        display: {
-          icon: "\u{1F3A4}",
-          title: "Send voice to current Telegram chat",
-        },
         approval: {
           kind: "file",
           targetArgument: "filePath",
@@ -148,10 +140,6 @@ export class TelegramMediaTools {
         name: PHOTO_TOOL_NAME,
         description: "Send a photo to the current Telegram chat using the official sendPhoto API.",
         requiresChatContext: true,
-        display: {
-          icon: "\u{1F5BC}",
-          title: "Send photo to current Telegram chat",
-        },
         approval: {
           kind: "file",
           targetArgument: "filePath",

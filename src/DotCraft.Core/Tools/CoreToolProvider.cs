@@ -127,41 +127,12 @@ public sealed class CoreToolSource(
             config,
             context.EffectiveProviderId,
             context.EffectiveMainModel);
-        var subAgentChatClient = chatClientRegistry.GetSubAgentChatClient(
-            config,
-            mainRuntime.ProviderId,
-            mainRuntime.Model);
-        var subAgentRuntime = chatClientRegistry.ResolveSubAgentRuntime(
-            config,
-            mainRuntime.ProviderId,
-            mainRuntime.Model);
         var subAgentPreference = ModelPreferenceRules.Find(
             config.SubAgent.ProviderPreferences,
             mainRuntime.ProviderId);
-        var subAgentManager = new SubAgentManager(
-            subAgentChatClient,
-            context.WorkspacePath,
-            backgroundTerminalService,
-            maxConcurrency: config.SubagentMaxConcurrency,
-            shellTimeout: config.Tools.Shell.Timeout,
-            requireApprovalOutsideWorkspace: requireOutside,
-            reasoningConfig: subAgentPreference?.Reasoning ?? config.Reasoning,
-            promptCachingConfig: config.PromptCaching,
-            model: subAgentRuntime.Model,
-            providerProtocol: subAgentRuntime.Protocol,
-            blacklist: pathBlacklist,
-            approvalService: approvalService,
-            traceCollector: traceCollector,
-            ripgrepPath: config.Tools.File.RipgrepPath,
-            endpoint: subAgentRuntime.EndPoint,
-            maxOutputTokens: subAgentRuntime.MaxOutputTokens,
-            config: config,
-            workspaceRoots: context.WorkspaceRoots,
-            contributions: contributions,
-            shellPolicy: shellPolicy);
         var subAgentCoordinator = new SubAgentCoordinator(
             context.WorkspacePath,
-            [new NativeSubAgentRuntime(subAgentManager), new CliOneshotRuntime()],
+            [new CliOneshotRuntime()],
             config.SubAgentProfiles,
             approvalService,
             config.SubAgent.DisabledProfiles,
@@ -169,7 +140,7 @@ public sealed class CoreToolSource(
             enableExternalCliSessionResume: config.SubAgent.EnableExternalCliSessionResume,
             catalog: SubAgentProfileCatalog.Resolve(contributions, context.ThreadId));
         var agentTools = new AgentTools(
-            subAgentManager: subAgentCoordinator,
+            subAgentCoordinator: subAgentCoordinator,
             subAgentRoles: config.SubAgent.Roles,
             maxSubAgentDepth: config.SubAgent.MaxDepth,
             subAgentPreference: subAgentPreference,

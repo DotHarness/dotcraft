@@ -35,10 +35,7 @@ public sealed class WelcomeSuggestionToolItem
 
 internal sealed class WelcomeSuggestionToolMethods
 {
-    [Tool(
-        Icon = "✨",
-        DisplayType = typeof(WelcomeSuggestionToolDisplays),
-        DisplayMethod = nameof(WelcomeSuggestionToolDisplays.EmitWelcomeSuggestions))]
+    [Tool]
     [Description("Submit the generated welcome suggestions as one batch.")]
     public string EmitWelcomeSuggestions(
         [Description("Exactly the requested number of welcome suggestions.")]
@@ -52,15 +49,4 @@ internal sealed class WelcomeSuggestionToolMethods
 public static class WelcomeSuggestionMethods
 {
     public const string ToolName = "EmitWelcomeSuggestions";
-}
-
-public static class WelcomeSuggestionToolDisplays
-{
-    public static string EmitWelcomeSuggestions(IDictionary<string, object?>? args)
-    {
-        var count = "items";
-        if (args != null && args.TryGetValue("items", out var raw) && raw is System.Collections.ICollection collection)
-            count = $"{collection.Count} items";
-        return $"{WelcomeSuggestionMethods.ToolName} ({count})";
-    }
 }

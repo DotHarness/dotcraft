@@ -11,7 +11,7 @@ namespace DotCraft.Tools;
 /// Core tools for DotCraft agent.
 /// </summary>
 public sealed class AgentTools(
-    SubAgentCoordinator? subAgentManager = null,
+    SubAgentCoordinator? subAgentCoordinator = null,
     IEnumerable<SubAgentRoleConfig>? subAgentRoles = null,
     int maxSubAgentDepth = 1,
     ModelPreference? subAgentPreference = null,
@@ -24,7 +24,7 @@ public sealed class AgentTools(
     private static readonly JsonSerializerOptions ResultJsonOptions = new(JsonSerializerOptions.Web);
 
     [Description("Spawn a subagent as a child thread for concrete, bounded work that can run while the parent continues. Omit model to use the configured SubAgent or runtime default; set model only when an explicit override is needed.")]
-    [Tool(Icon = "🐧", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.SpawnAgent))]
+    [Tool]
     [ToolPresentation("core.subagent", Operation = "spawn")]
     public async Task<string> SpawnAgent(
         [Description("Task prompt for the child agent thread.")] string message,
@@ -74,13 +74,13 @@ public sealed class AgentTools(
                 ForkTurns = forkTurns
             },
             waitForCompletion: false,
-            subAgentManager,
+            subAgentCoordinator,
             cancellationToken);
         return SerializeResult(result);
     }
 
     [Description("Send a mailbox message to another agent path without starting a target turn.")]
-    [Tool(Icon = "💬")]
+    [Tool]
     [ToolPresentation("core.subagent", Operation = "sendMessage")]
     public async Task<string> SendMessage(
         [Description("Agent path target. Relative targets resolve from the current agent path; absolute targets start with /root.")] string target,
@@ -98,7 +98,7 @@ public sealed class AgentTools(
     }
 
     [Description("Start a follow-up task for an agent path. Pending mailbox messages for the target are delivered as context.")]
-    [Tool(Icon = "🧭")]
+    [Tool]
     [ToolPresentation("core.subagent", Operation = "followupTask")]
     public async Task<string> FollowupTask(
         [Description("Agent path target. Relative targets resolve from the current agent path; absolute targets start with /root.")] string target,
@@ -112,14 +112,14 @@ public sealed class AgentTools(
             sessionContext,
             target,
             message,
-            subAgentManager,
+            subAgentCoordinator,
             cancellationToken,
             deliveryMode);
         return SerializeResult(result);
     }
 
     [Description("Wait for a mailbox or SubAgent graph status change.")]
-    [Tool(Icon = "⏱️")]
+    [Tool]
     [ToolPresentation("core.subagent", Operation = "wait")]
     public async Task<string> WaitAgent(
         [Description("Optional timeout in milliseconds. Uses the configured default and must be within the configured range.")] int? timeoutMs = null,
@@ -136,7 +136,7 @@ public sealed class AgentTools(
     }
 
     [Description("List root and available SubAgent paths.")]
-    [Tool(Icon = "📋")]
+    [Tool]
     [ToolPresentation("core.subagent", Operation = "list")]
     public async Task<string> ListAgents(
         [Description("Optional path prefix. Relative prefixes resolve from the current agent path; absolute prefixes start with /root.")] string? pathPrefix = null,
@@ -152,7 +152,7 @@ public sealed class AgentTools(
     }
 
     [Description("Close a SubAgent path and cancel its active turn if one is running.")]
-    [Tool(Icon = "⏹️")]
+    [Tool]
     [ToolPresentation("core.subagent", Operation = "close")]
     public async Task<string> CloseAgent(
         [Description("Agent path target. Relative targets resolve from the current agent path; absolute targets start with /root.")] string target,

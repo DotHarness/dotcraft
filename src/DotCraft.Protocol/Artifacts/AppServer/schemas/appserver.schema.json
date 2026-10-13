@@ -4479,16 +4479,6 @@
         "description": {
           "type": "string"
         },
-        "display": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ChannelToolDisplay"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "inputSchema": {},
         "name": {
           "type": "string"
@@ -4505,43 +4495,6 @@
         "name",
         "requiresChatContext"
       ]
-    },
-    "ChannelToolDisplay": {
-      "title": "ChannelToolDisplay",
-      "type": "object",
-      "properties": {
-        "icon": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "subtitle": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "title": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
     },
     "ClientCapabilities": {
       "title": "ClientCapabilities",
@@ -19405,9 +19358,6 @@
       "type": "object",
       "properties": {
         "description": {
-          "type": "string"
-        },
-        "icon": {
           "type": "string"
         },
         "name": {

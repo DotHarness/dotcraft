@@ -70,9 +70,13 @@ public sealed record SubAgentTokenUsage(
 
 public sealed record SubAgentPreparedRun(
     SubAgentProfile Profile,
-    ISubAgentRuntime Runtime,
+    ISubAgentRuntime? Runtime,
     SubAgentLaunchContext LaunchContext,
-    SubAgentTaskRequest Request);
+    SubAgentTaskRequest Request)
+{
+    /// <summary>Gets the runtime type; a native run has no <see cref="Runtime"/> because Session Core runs it as a child thread.</summary>
+    public string RuntimeType => Runtime?.RuntimeType ?? NativeSubAgentRuntime.RuntimeTypeName;
+}
 
 public sealed record SubAgentProfileDiagnostic
 {
@@ -112,101 +116,10 @@ public interface ISubAgentEventSink
     void OnFailed(string? summary = null, SubAgentTokenUsage? tokensUsed = null);
 }
 
-public sealed class NullSubAgentEventSink : ISubAgentEventSink
-{
-    public static readonly NullSubAgentEventSink Instance = new();
-
-    private NullSubAgentEventSink()
-    {
-    }
-
-    public void OnInfo(string message)
-    {
-    }
-
-    public void OnProgress(string? currentTool, string? currentToolDisplay = null)
-    {
-    }
-
-    public void OnCompleted(string? summary = null, SubAgentTokenUsage? tokensUsed = null)
-    {
-    }
-
-    public void OnFailed(string? summary = null, SubAgentTokenUsage? tokensUsed = null)
-    {
-    }
-}
-
-public sealed class NativeSubAgentRuntime(SubAgentManager subAgentManager) : ISubAgentRuntime
+/// <summary>Names the built-in runtime that runs a subagent as a Session Core child thread.</summary>
+public static class NativeSubAgentRuntime
 {
     public const string RuntimeTypeName = "native";
-
-    public string RuntimeType => RuntimeTypeName;
-
-    public Task<SubAgentSessionHandle> CreateSessionAsync(
-        SubAgentProfile profile,
-        SubAgentLaunchContext context,
-        CancellationToken cancellationToken)
-        => Task.FromResult(
-            new SubAgentSessionHandle(
-                RuntimeType,
-                profile.Name,
-                new NativeSessionState(context)));
-
-    public async Task<SubAgentRunResult> RunAsync(
-        SubAgentSessionHandle session,
-        SubAgentTaskRequest request,
-        ISubAgentEventSink sink,
-        CancellationToken cancellationToken)
-    {
-        _ = sink;
-        var launchContext = (session.State as NativeSessionState)?.LaunchContext;
-        var approvalService = launchContext?.ApprovalService;
-        var approvalContext = request.ApprovalContext ?? launchContext?.ApprovalContext;
-
-        // TokenTracker is shared at the turn scope, so this is best-effort metadata only.
-        var tokenTracker = TokenTracker.Current;
-        var beforeInput = tokenTracker?.SubAgentInputTokens ?? 0;
-        var beforeOutput = tokenTracker?.SubAgentOutputTokens ?? 0;
-        var beforeCachedInput = tokenTracker?.SubAgentCachedInputTokens ?? 0;
-        var beforeCacheWriteInput = tokenTracker?.SubAgentCacheWriteInputTokens ?? 0;
-        var beforeReasoningOutput = tokenTracker?.SubAgentReasoningOutputTokens ?? 0;
-
-        var text = await subAgentManager.SpawnAsync(
-            request.Task,
-            request.Label,
-            approvalService,
-            approvalContext,
-            cancellationToken);
-
-        var afterInput = tokenTracker?.SubAgentInputTokens ?? beforeInput;
-        var afterOutput = tokenTracker?.SubAgentOutputTokens ?? beforeOutput;
-        var afterCachedInput = tokenTracker?.SubAgentCachedInputTokens ?? beforeCachedInput;
-        var afterCacheWriteInput = tokenTracker?.SubAgentCacheWriteInputTokens ?? beforeCacheWriteInput;
-        var afterReasoningOutput = tokenTracker?.SubAgentReasoningOutputTokens ?? beforeReasoningOutput;
-        var tokensUsed = new SubAgentTokenUsage(
-            Math.Max(0, afterInput - beforeInput),
-            Math.Max(0, afterOutput - beforeOutput),
-            Math.Max(0, afterCachedInput - beforeCachedInput),
-            Math.Max(0, afterCacheWriteInput - beforeCacheWriteInput),
-            Math.Max(0, afterReasoningOutput - beforeReasoningOutput));
-        var isError = text.StartsWith("Error:", StringComparison.OrdinalIgnoreCase);
-
-        return new SubAgentRunResult
-        {
-            Text = text,
-            IsError = isError,
-            TokensUsed = tokensUsed
-        };
-    }
-
-    public Task CancelAsync(SubAgentSessionHandle session, CancellationToken cancellationToken)
-        => Task.CompletedTask;
-
-    public Task DisposeSessionAsync(SubAgentSessionHandle session, CancellationToken cancellationToken)
-        => Task.CompletedTask;
-
-    private sealed record NativeSessionState(SubAgentLaunchContext LaunchContext);
 }
 
 public sealed class SubAgentProfileRegistry
@@ -559,7 +472,7 @@ public sealed class SubAgentCoordinator
 
         _profileRegistry = effectiveCatalog.CreateRegistry(
             configuredProfiles,
-            _runtimes.Keys,
+            [NativeSubAgentRuntime.RuntimeTypeName, .. _runtimes.Keys],
             disabledProfiles);
     }
 
@@ -573,7 +486,7 @@ public sealed class SubAgentCoordinator
         foreach (var profile in _profileRegistry.Profiles.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
         {
             var warnings = _profileRegistry.GetValidationWarningsForProfile(profile.Name);
-            var runtimeRegistered = _runtimes.ContainsKey(profile.Runtime);
+            var runtimeRegistered = IsNative(profile.Runtime) || _runtimes.ContainsKey(profile.Runtime);
             var enabled = _profileRegistry.IsEnabled(profile.Name);
 
             string? resolvedBinary = null;
@@ -642,27 +555,6 @@ public sealed class SubAgentCoordinator
         return diagnostics;
     }
 
-    public async Task<string> RunAsync(
-        SubAgentTaskRequest request,
-        string? profileName = null,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var prepared = PrepareRun(request, profileName);
-            var result = await ExecutePreparedRunAsync(prepared, cancellationToken: cancellationToken);
-            return result.Text;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
-    }
-
     public SubAgentPreparedRun PrepareRun(
         SubAgentTaskRequest request,
         string? profileName = null)
@@ -677,7 +569,8 @@ public sealed class SubAgentCoordinator
         if (!_profileRegistry.IsEnabled(profile.Name))
             throw new InvalidOperationException($"Subagent profile '{profile.Name}' is disabled.");
 
-        if (!_runtimes.TryGetValue(profile.Runtime, out var runtime))
+        ISubAgentRuntime? runtime = null;
+        if (!IsNative(profile.Runtime) && !_runtimes.TryGetValue(profile.Runtime, out runtime))
             throw new InvalidOperationException(
                 $"Subagent profile '{profile.Name}' references unknown runtime '{profile.Runtime}'.");
 
@@ -716,9 +609,10 @@ public sealed class SubAgentCoordinator
         ISubAgentEventSink? sink = null,
         CancellationToken cancellationToken = default)
     {
-        sink ??= CreateEventSink(prepared.Request, prepared.Runtime.RuntimeType);
+        var runtime = prepared.Runtime
+            ?? throw new InvalidOperationException("Native subagents run as Session Core child threads.");
+        sink ??= CreateEventSink(prepared.Request);
         var profile = prepared.Profile;
-        var runtime = prepared.Runtime;
         var session = await runtime.CreateSessionAsync(profile, prepared.LaunchContext, cancellationToken);
         try
         {
@@ -774,12 +668,12 @@ public sealed class SubAgentCoordinator
             $"Subagent profile '{profile.Name}' has unsupported workingDirectoryMode '{profile.WorkingDirectoryMode}'.");
     }
 
-    private static ISubAgentEventSink CreateEventSink(SubAgentTaskRequest request, string runtimeType)
-    {
-        if (string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase))
-            return NullSubAgentEventSink.Instance;
+    private static bool IsNative(string runtimeType) =>
+        string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase);
 
-        var bridgeKey = SubAgentManager.NormalizeLabel(request.Label, request.Task);
+    private static ISubAgentEventSink CreateEventSink(SubAgentTaskRequest request)
+    {
+        var bridgeKey = SubAgentProgressBridge.NormalizeLabel(request.Label, request.Task);
         var progressEntry = SubAgentProgressBridge.GetOrCreate(bridgeKey);
         return new BridgeSubAgentEventSink(progressEntry, bridgeKey);
     }

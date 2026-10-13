@@ -183,8 +183,7 @@ public sealed record SubAgentProgressEntry
     public string? CurrentTool { get; init; }
 
     /// <summary>
-    /// Human-readable formatted display text for the current tool (e.g. "Read src/foo.cs lines 10-20").
-    /// Null when no display formatter is registered; clients should fall back to <see cref="CurrentTool"/>.
+    /// Progress text an external runtime reports for its current step; clients fall back to <see cref="CurrentTool"/> when it is null.
     /// </summary>
     public string? CurrentToolDisplay { get; init; }
 

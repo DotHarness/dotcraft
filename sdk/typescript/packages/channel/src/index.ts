@@ -22,7 +22,6 @@ export type {
 export type { LifecycleStatus, ModuleError, ModuleErrorCode } from "./lifecycle.js";
 export type {
   CapabilitySummary,
-  ChannelToolDisplayDescriptor,
   ChannelToolDescriptor,
   DeliveryCapabilityDescriptor,
   ToolApprovalDescriptor,

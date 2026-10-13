@@ -1,8 +1,3 @@
-/**
- * Web search, web fetch and deferred tool search display aligned with
- * DotCraft.Core CoreToolDisplays.
- */
-
 import { translate, type AppLocale } from '../../shared/locales'
 import type { ToolKind } from './toolKind'
 
@@ -46,7 +41,6 @@ function getToolSearchQuery(args: Record<string, unknown> | undefined): string |
 }
 
 /**
- * Human-readable invocation line aligned with CoreToolDisplays.
  * Returns null when required string fields are missing or not JSON strings so
  * the caller can use the generic "Called …" label.
  */
@@ -382,7 +376,6 @@ export function getWebToolSectionLabel(kind: WebToolKind, locale: AppLocale): st
   return translate(locale, 'toolCall.searchTools.section')
 }
 
-/** Icon from ToolRegistry / server (🔍 WebSearch, 🌐 WebFetch); SearchTools uses wrench-style search. */
 export function getWebToolIcon(kind: WebToolKind): string {
   if (kind === 'webSearch') return '🔍'
   if (kind === 'webFetch') return '🌐'

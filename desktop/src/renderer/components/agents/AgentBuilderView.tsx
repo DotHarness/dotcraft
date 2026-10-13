@@ -100,7 +100,6 @@ interface ProfileEntry {
 interface ToolInfo {
   name: string
   description?: string
-  icon?: string
   planMode?: boolean
 }
 

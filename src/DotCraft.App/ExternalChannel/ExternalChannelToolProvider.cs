@@ -82,14 +82,6 @@ internal sealed class ExternalChannelToolProvider(
             Description = descriptor.Description,
             InputSchema = descriptor.InputSchema,
             OutputSchema = descriptor.OutputSchema,
-            Display = descriptor.Display == null
-                ? null
-                : new PluginFunctionDisplay
-                {
-                    Title = descriptor.Display.Title,
-                    Subtitle = descriptor.Display.Subtitle,
-                    Icon = descriptor.Display.Icon
-                },
             Approval = descriptor.Approval == null
                 ? null
                 : new PluginFunctionApprovalDescriptor

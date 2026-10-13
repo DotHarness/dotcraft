@@ -11,7 +11,7 @@ public sealed class RequestUserInputTools
 {
     private static readonly JsonSerializerOptions JsonOptions = JsonSerializerOptions.Web;
 
-    [Tool(Icon = "❓", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.RequestUserInput))]
+    [Tool]
     [ToolPresentation("core.request-user-input")]
     [Description("Request user input for one to three short questions and wait for the response.")]
     public async Task<string> RequestUserInput(

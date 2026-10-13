@@ -1151,18 +1151,10 @@ export interface ChannelToolDescriptor {
   approval?: ChannelToolApprovalDescriptor | null;
   deferLoading?: boolean | null;
   description: string;
-  display?: ChannelToolDisplay | null;
   inputSchema: JsonValue;
   name: string;
   outputSchema?: JsonValue;
   requiresChatContext: boolean;
-  [key: string]: unknown;
-}
-
-export interface ChannelToolDisplay {
-  icon?: string | null;
-  subtitle?: string | null;
-  title?: string | null;
   [key: string]: unknown;
 }
 
@@ -4765,7 +4757,6 @@ export interface ToolExecutionProgressNotification {
 
 export interface ToolInfo {
   description?: string;
-  icon?: string;
   name?: string;
   planMode?: boolean;
   source?: string;
