@@ -22,9 +22,8 @@ public sealed class ModeSupplementalToolSource(
         if (planStore != null)
         {
             var planTools = new PlanTools(planStore, TracingChatClient.GetActiveSessionKey, onPlanUpdated);
-            yield return GeneratedToolFunctions.PlanTools_CreatePlan(planTools);
-            yield return GeneratedToolFunctions.PlanTools_UpdateTodos(planTools);
-            yield return GeneratedToolFunctions.PlanTools_TodoWrite(planTools);
+            foreach (var function in GeneratedToolFunctions.All(planTools))
+                yield return function;
         }
 
         if (context.ThreadKind is not (ToolPlanningThreadKind.Internal or ToolPlanningThreadKind.SubAgentChild))

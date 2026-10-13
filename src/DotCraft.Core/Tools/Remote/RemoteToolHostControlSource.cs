@@ -19,34 +19,11 @@ internal sealed class RemoteToolHostControlSource(IRemoteToolHostClient client, 
     protected override string? GetNamespaceDescription(AIFunction function, ToolPlanningContext context) =>
         "Manage this thread's remote workspace connection.";
 
-    protected override ToolPresentationDescriptor? GetPresentation(AIFunction function, ToolPlanningContext context)
-    {
-        var operation = function.Name switch
-        {
-            "List" => "list",
-            "Connect" => "connect",
-            "Disconnect" => "disconnect",
-            "Transfer" => "transfer",
-            _ => null
-        };
-        return operation is null
-            ? null
-            : new ToolPresentationDescriptor(
-                new PresentationId("core.remote-tool-host"),
-                new Dictionary<string, JsonElement>(StringComparer.Ordinal)
-                {
-                    ["operation"] = JsonSerializer.SerializeToElement(operation)
-                });
-    }
-
     protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
-        var tools = new RemoteToolHostTools(client);
         return
         [
-            GeneratedToolFunctions.RemoteToolHostTools_List(tools),
-            GeneratedToolFunctions.RemoteToolHostTools_Connect(tools),
-            GeneratedToolFunctions.RemoteToolHostTools_Disconnect(tools),
+            .. GeneratedToolFunctions.All(new RemoteToolHostTools(client)),
             GeneratedToolFunctions.RemoteToolHostTransferTools_Transfer(new RemoteToolHostTransferTools(client,
                 local is null ? null : local with { WorkspacePath = context.WorkspacePath, WorkspaceRoots = context.WorkspaceRoots }))
         ];
@@ -66,6 +43,7 @@ internal sealed class RemoteToolHostTools(IRemoteToolHostClient client)
     private static readonly JsonSerializerOptions JsonOptions = JsonSerializerOptions.Web;
 
     [GeneratedTool(Name = "List")]
+    [ToolPresentation("core.remote-tool-host", Operation = "list")]
     [Description("List registered Remote Tool Hosts, their workspaces, and this thread's current connection.")]
     public async Task<string> List(CancellationToken cancellationToken = default)
     {
@@ -75,6 +53,7 @@ internal sealed class RemoteToolHostTools(IRemoteToolHostClient client)
     }
 
     [GeneratedTool(Name = "Connect")]
+    [ToolPresentation("core.remote-tool-host", Operation = "connect")]
     [Description("Connect this thread to a remote workspace. RPC plugin tools are prepared automatically. Skill files remain local; read with target=\"local\" and Transfer as needed.")]
     public async Task<string> Connect(
         [Description("Remote Tool Host id.")] string hostId,
@@ -93,6 +72,7 @@ internal sealed class RemoteToolHostTools(IRemoteToolHostClient client)
     }
 
     [GeneratedTool(Name = "Disconnect")]
+    [ToolPresentation("core.remote-tool-host", Operation = "disconnect")]
     [Description("Disconnect this thread from its remote workspace.")]
     public async Task<string> Disconnect(CancellationToken cancellationToken = default)
     {

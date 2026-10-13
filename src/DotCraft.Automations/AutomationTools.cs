@@ -12,13 +12,13 @@ public sealed class AutomationToolSource(AutomationService service) : AIFunction
     public override string SourceId => "automations";
     protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context) =>
         [DotCraft.GeneratedTools.Automations.GeneratedToolFunctions.AutomationTools_Automation(new AutomationTools(service, context.ThreadId))];
-    protected override ToolPresentationDescriptor? GetPresentation(AIFunction function, ToolPlanningContext context) => new(new PresentationId("core.automation"));
 }
 /// <summary>Conversation-driven automation lifecycle.</summary>
 public sealed class AutomationTools(AutomationService service, string? planningThreadId = null)
 {
     [GeneratedTool]
     [Tool(Icon = "⏰")]
+    [ToolPresentation("core.automation")]
     [Description("Manage scheduled work. Create and update take a complete definition; update also requires expectedVersion. Report records the current run's outcome.")]
     public async Task<string> Automation(
         [Description("Operation to perform.")] AutomationToolAction action,

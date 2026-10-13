@@ -3,8 +3,8 @@ using System.Reflection;
 namespace DotCraft.Tools;
 
 /// <summary>
-/// Registry for tool metadata discovered via <see cref="ToolAttribute"/>.
-/// Stores icons and optional display formatter delegates for each tool method.
+/// Display metadata for surfaces that know only a tool name, such as CLI events, tracing and the
+/// dashboard. Generated assemblies supply icons and call formatters; channel tools register theirs.
 /// </summary>
 public static class ToolRegistry
 {
@@ -12,52 +12,18 @@ public static class ToolRegistry
     private static readonly Dictionary<string, Func<IDictionary<string, object?>?, string>> DisplayFormatters = new();
     private static readonly Dictionary<string, string> DisplayTitles = new();
     private static readonly Dictionary<string, string> DisplaySubtitles = new();
-    private static readonly Dictionary<string, int> MaxResultCharsByTool = new();
 
     private static readonly Lock LockObject = new();
     private static readonly HashSet<Assembly> ScannedAssemblies = [];
 
     private const string DefaultIcon = "🔧";
 
-    /// <summary>
-    /// Scans an assembly for tool methods decorated with <see cref="ToolAttribute"/>.
-    /// Registers icons and resolves display formatter delegates.
-    /// </summary>
     public static void ScanAssembly(Assembly assembly)
     {
         lock (LockObject)
         {
-            if (!ScannedAssemblies.Add(assembly))
-                return;
-
-            var generatedDescriptors = ReadGeneratedDescriptors(assembly);
-            if (generatedDescriptors.Count > 0)
-            {
-                RegisterGenerated(generatedDescriptors);
-                return;
-            }
-
-            foreach (var type in assembly.GetTypes())
-            {
-                if (type.IsAbstract || type.IsGenericTypeDefinition || !type.IsClass)
-                    continue;
-
-                foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance))
-                {
-                    var attr = method.GetCustomAttribute<ToolAttribute>();
-                    if (attr == null)
-                        continue;
-
-                    if (!string.IsNullOrEmpty(attr.Icon))
-                        ToolIcons[method.Name] = attr.Icon;
-
-                    if (attr.DisplayType != null && !string.IsNullOrEmpty(attr.DisplayMethod))
-                        TryRegisterDisplayFormatter(method.Name, attr.DisplayType, attr.DisplayMethod);
-
-                    if (attr.MaxResultChars != -1)
-                        MaxResultCharsByTool[method.Name] = attr.MaxResultChars;
-                }
-            }
+            if (ScannedAssemblies.Add(assembly))
+                RegisterGenerated(ReadGeneratedDescriptors(assembly));
         }
     }
 
@@ -75,13 +41,6 @@ public static class ToolRegistry
     /// </summary>
     public static string GetToolIcon(string toolName)
         => ToolIcons.GetValueOrDefault(toolName, DefaultIcon);
-
-    /// <summary>
-    /// Returns the per-tool maximum result length in characters when set on <see cref="ToolAttribute"/>,
-    /// or <see langword="null"/> to use the global default from configuration.
-    /// </summary>
-    public static int? GetMaxResultChars(string toolName)
-        => MaxResultCharsByTool.TryGetValue(toolName, out var n) ? n : null;
 
     /// <summary>
     /// Returns a human-readable description for a tool call, or null if no formatter is registered.
@@ -119,31 +78,6 @@ public static class ToolRegistry
         return FormatToolCall(toolName, dict);
     }
 
-    /// <summary>
-    /// Returns structured human-readable lines for a tool result, or null if no formatter
-    /// is available for this tool. Callers should fall back to generic truncation when null.
-    /// </summary>
-    public static IReadOnlyList<string>? FormatToolResult(string? toolName, string? result)
-    {
-        return toolName switch
-        {
-            "SearchTools" => CoreToolDisplays.SearchToolsResult(result),
-            "WebSearch" => CoreToolDisplays.WebSearchResult(result),
-            "WebFetch" => CoreToolDisplays.WebFetchResult(result),
-            "ReadFile" => CoreToolDisplays.ReadFileResult(result),
-            "WriteFile" => CoreToolDisplays.WriteFileResult(result),
-            "EditFile" => CoreToolDisplays.EditFileResult(result),
-            "GrepFiles" => CoreToolDisplays.GrepFilesResult(result),
-            "FindFiles" => CoreToolDisplays.FindFilesResult(result),
-            "Exec" => CoreToolDisplays.ExecResult(result),
-            "LSP" => CoreToolDisplays.LspResult(result),
-            _ => null
-        };
-    }
-
-    public static void RegisterIcon(string toolName, string icon)
-        => ToolIcons[toolName] = icon;
-
     public static void RegisterDisplay(string toolName, string? title = null, string? subtitle = null, string? icon = null)
     {
         if (!string.IsNullOrWhiteSpace(icon))
@@ -160,15 +94,6 @@ public static class ToolRegistry
             DisplaySubtitles.Remove(toolName);
     }
 
-    public static void RegisterDisplayFormatter(string toolName, Func<IDictionary<string, object?>?, string> formatter)
-        => DisplayFormatters[toolName] = formatter;
-
-    public static void RegisterDisplayFormatter(string toolName, Type displayType, string methodName)
-        => TryRegisterDisplayFormatter(toolName, displayType, methodName);
-
-    public static void RegisterMaxResultChars(string toolName, int maxResultChars)
-        => MaxResultCharsByTool[toolName] = maxResultChars;
-
     internal static void RegisterGenerated(IEnumerable<GeneratedToolDescriptor> descriptors)
     {
         foreach (var descriptor in descriptors)
@@ -178,52 +103,11 @@ public static class ToolRegistry
 
             if (descriptor.DisplayFormatter != null)
                 DisplayFormatters[descriptor.Name] = descriptor.DisplayFormatter;
-
-            if (descriptor.MaxResultChars.HasValue)
-                MaxResultCharsByTool[descriptor.Name] = descriptor.MaxResultChars.Value;
         }
     }
-
-    public static bool IsToolIconRegistered(string toolName)
-        => ToolIcons.ContainsKey(toolName);
 
     public static IReadOnlyDictionary<string, string> GetAllToolIcons()
         => ToolIcons;
-
-    /// <summary>
-    /// Resets all registry state. Used in tests only.
-    /// </summary>
-    internal static void Reset()
-    {
-        lock (LockObject)
-        {
-            ToolIcons.Clear();
-            DisplayFormatters.Clear();
-            DisplayTitles.Clear();
-            DisplaySubtitles.Clear();
-            MaxResultCharsByTool.Clear();
-            ScannedAssemblies.Clear();
-        }
-    }
-
-    private static void TryRegisterDisplayFormatter(string toolName, Type displayType, string methodName)
-    {
-        var method = displayType.GetMethod(
-            methodName,
-            BindingFlags.Public | BindingFlags.Static,
-            [typeof(IDictionary<string, object?>)]);
-
-        if (method == null)
-            return;
-
-        var del = (Func<IDictionary<string, object?>?, string>)Delegate.CreateDelegate(
-            typeof(Func<IDictionary<string, object?>?, string>),
-            method,
-            throwOnBindFailure: false)!;
-
-        if (del != null)
-            DisplayFormatters[toolName] = del;
-    }
 
     internal static IReadOnlyList<GeneratedToolDescriptor> ReadGeneratedDescriptors(Assembly assembly)
     {

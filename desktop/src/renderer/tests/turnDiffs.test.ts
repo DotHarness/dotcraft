@@ -13,6 +13,7 @@ import {
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
 import type { TurnDiff } from '../types/turnDiff'
 import { parseUnifiedDiff } from '../utils/unifiedDiff'
+import { coreToolFields } from './testToolPresentation'
 
 const createdAt = '2026-09-23T00:00:00Z'
 
@@ -29,11 +30,11 @@ function fileChange(path: string, diff: string, additions = 1, deletions = 1, ki
 }
 
 function edit(id: string, structuredResult?: unknown, toolName = 'EditFile'): ConversationItem {
-  return { id, type: 'toolCall', status: 'completed', toolName, toolCallId: `call-${id}`, createdAt, structuredResult }
+  return { id, type: 'toolCall', status: 'completed', toolName, ...coreToolFields(toolName), toolCallId: `call-${id}`, createdAt, structuredResult }
 }
 
 function editResult(id: string, structuredResult: unknown): ConversationItem {
-  return { id: `${id}-result`, type: 'toolResult', status: 'completed', toolName: 'EditFile', toolCallId: `call-${id}`, createdAt, structuredResult }
+  return { id: `${id}-result`, type: 'toolResult', status: 'completed', toolName: 'EditFile', ...coreToolFields('EditFile'), toolCallId: `call-${id}`, createdAt, structuredResult }
 }
 
 function turn(id: string, items: ConversationItem[]): ConversationTurn {

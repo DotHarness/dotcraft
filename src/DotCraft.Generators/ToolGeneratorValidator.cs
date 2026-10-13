@@ -102,6 +102,17 @@ internal static class ToolGeneratorValidator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor InvalidPresentation = new(
+        "DCGEN013",
+        "Invalid generated tool presentation",
+        "Generated tool '{0}' has an invalid presentation: {1}",
+        "DotCraft.Generators",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    // Desktop rejects presentation options above this serialized size.
+    private const int MaximumPresentationOptionsBytes = 4096;
+
     public static void ValidateRpcMarker(SourceProductionContext context, IMethodSymbol method)
     {
         if (ToolSchemaEmitter.FindAttribute(method, "DotCraft.Tools.ToolAttribute") != null
@@ -115,6 +126,22 @@ internal static class ToolGeneratorValidator
             InvalidRpcMarker,
             method.Locations.FirstOrDefault(),
             method.ToDisplayString()));
+    }
+
+    private static string? DescribePresentationProblem(ToolFunctionGenerator.ToolInfo tool)
+    {
+        if (!tool.HasPresentation)
+            return tool.PresentationOptions.Count > 0 ? "options require ToolPresentationAttribute" : null;
+        var id = tool.PresentationId;
+        if (string.IsNullOrWhiteSpace(id) || id!.Trim() != id)
+            return "the identifier must be non-empty without edge whitespace";
+        if (tool.PresentationOptions.Any(static option => string.IsNullOrWhiteSpace(option.Key)))
+            return "option names must be non-empty";
+        if (tool.PresentationOptions.GroupBy(static option => option.Key, StringComparer.Ordinal).Any(static group => group.Count() > 1))
+            return "option names must be unique";
+        if (System.Text.Encoding.UTF8.GetByteCount(tool.PresentationOptionsJson) > MaximumPresentationOptionsBytes)
+            return $"options exceed {MaximumPresentationOptionsBytes} bytes";
+        return null;
     }
 
     public static bool ValidateUniqueFactoryNames(
@@ -171,6 +198,8 @@ internal static class ToolGeneratorValidator
             context.ReportDiagnostic(Diagnostic.Create(InvalidDeclarationMethod, tool.Location, tool.FunctionName));
         if (string.IsNullOrWhiteSpace(tool.Description))
             context.ReportDiagnostic(Diagnostic.Create(MissingDescription, tool.Location, tool.FunctionName, "method"));
+        if (DescribePresentationProblem(tool) is { } presentationProblem)
+            context.ReportDiagnostic(Diagnostic.Create(InvalidPresentation, tool.Location, tool.FunctionName, presentationProblem));
 
         foreach (var duplicate in tool.Parameters
                      .Where(static parameter => parameter.IsModelParameter)

@@ -145,17 +145,6 @@ public static class ToolResultProcessor
     }
 
     /// <summary>
-    /// Resolves the default maximum result length: per-tool attribute, then global config.
-    /// A value of <c>0</c> means unlimited.
-    /// </summary>
-    public static int ResolveMaxResultChars(string toolName, int globalMaxToolResultChars)
-    {
-        var perTool = ToolRegistry.GetMaxResultChars(toolName);
-        var limit = perTool ?? globalMaxToolResultChars;
-        return limit <= 0 ? 0 : limit;
-    }
-
-    /// <summary>
     /// Caps head and tail excerpt length so their combined character count does not exceed
     /// <paramref name="maxPreviewChars"/> (marker line is outside this budget).
     /// </summary>

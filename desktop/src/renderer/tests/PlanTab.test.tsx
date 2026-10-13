@@ -5,6 +5,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { PlanTab } from '../components/detail/PlanTab'
 import { useConversationStore } from '../stores/conversationStore'
 import { installDesktopApiMock } from './desktopApiMock'
+import { streamingToolCallStarted } from './testToolPresentation'
 
 function renderPlanTab(): RenderResult {
   return render(
@@ -36,6 +37,7 @@ describe('PlanTab', () => {
       }
     ])
 
+    store.onItemStarted(streamingToolCallStarted('turn-1', 'item-plan-1', 'CreatePlan', 'call-1'))
     store.onToolCallArgumentsDelta({
       turnId: 'turn-1',
       itemId: 'item-plan-1',
@@ -67,6 +69,7 @@ describe('PlanTab', () => {
       }
     ])
 
+    store.onItemStarted(streamingToolCallStarted('turn-1', 'item-plan-2', 'CreatePlan', 'call-2'))
     store.onToolCallArgumentsDelta({
       turnId: 'turn-1',
       itemId: 'item-plan-2',
@@ -95,6 +98,7 @@ describe('PlanTab', () => {
 
     const slash = String.fromCharCode(92)
     const escapedTodo = `${slash}u8fd0${slash}u884c${slash}u6d4b${slash}u8bd5`
+    store.onItemStarted(streamingToolCallStarted('turn-1', 'item-plan-3', 'CreatePlan', 'call-3'))
     store.onToolCallArgumentsDelta({
       turnId: 'turn-1',
       itemId: 'item-plan-3',

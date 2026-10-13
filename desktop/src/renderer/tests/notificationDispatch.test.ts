@@ -19,6 +19,7 @@ import type { SubAgentEntry } from '../types/toolCall'
 import { resolveConfigChangedPayload } from '../utils/configChanged'
 import { buildComposerInputParts } from '../utils/composeInputParts'
 import { installDesktopApiMock } from './desktopApiMock'
+import { coreToolFields } from './testToolPresentation'
 
 function normalizeApprovalDecision(value: unknown): ApprovalDecision | null {
   return value === 'accept' ||
@@ -1130,7 +1131,7 @@ describe('notification dispatch payload format', () => {
           type: 'toolCall',
           payload: {
             callId: 'write-1',
-            toolName: 'WriteFile'
+            toolName: 'WriteFile', ...coreToolFields('WriteFile')
           }
         }
       }
@@ -1141,7 +1142,7 @@ describe('notification dispatch payload format', () => {
         threadId: 'thread-1',
         turnId: 'turn_1',
         itemId: 'tool_write_1',
-        toolName: 'WriteFile',
+        toolName: 'WriteFile', ...coreToolFields('WriteFile'),
         callId: 'write-1',
         delta: '{"path":"a.txt","content":"hello\\nworld"}'
       }
@@ -1162,7 +1163,7 @@ describe('notification dispatch payload format', () => {
           type: 'toolCall',
           payload: {
             callId: 'edit-1',
-            toolName: 'EditFile'
+            toolName: 'EditFile', ...coreToolFields('EditFile')
           }
         }
       }
@@ -1173,7 +1174,7 @@ describe('notification dispatch payload format', () => {
         threadId: 'thread-1',
         turnId: 'turn_1',
         itemId: 'tool_edit_1',
-        toolName: 'EditFile',
+        toolName: 'EditFile', ...coreToolFields('EditFile'),
         callId: 'edit-1',
         delta: '{"path":"a.txt","oldText":"before","newText":"## title\\ncontent"}'
       }
@@ -1198,7 +1199,7 @@ describe('notification dispatch payload format', () => {
           type: 'toolCall',
           payload: {
             callId: 'exec-3',
-            toolName: 'Exec',
+            toolName: 'Exec', ...coreToolFields('Exec'),
             arguments: { command: 'dir' }
           }
         }
@@ -1245,7 +1246,7 @@ describe('notification dispatch payload format', () => {
           type: 'toolCall',
           payload: {
             callId: 'exec-terminal',
-            toolName: 'Exec',
+            toolName: 'Exec', ...coreToolFields('Exec'),
             arguments: { command: 'npm test' }
           }
         }
@@ -1314,7 +1315,7 @@ describe('notification dispatch payload format', () => {
           type: 'toolCall',
           payload: {
             callId: 'exec-background',
-            toolName: 'Exec',
+            toolName: 'Exec', ...coreToolFields('Exec'),
             arguments: { command: 'npm run dev', runInBackground: true }
           }
         }
@@ -1372,7 +1373,7 @@ describe('notification dispatch payload format', () => {
           type: 'toolCall',
           payload: {
             callId: 'exec-real-order',
-            toolName: 'Exec'
+            toolName: 'Exec', ...coreToolFields('Exec')
           }
         }
       }
@@ -1386,7 +1387,7 @@ describe('notification dispatch payload format', () => {
           type: 'toolCall',
           payload: {
             callId: 'exec-real-order',
-            toolName: 'Exec',
+            toolName: 'Exec', ...coreToolFields('Exec'),
             arguments: { command: 'dir' }
           }
         }

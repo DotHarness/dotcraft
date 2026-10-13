@@ -42,10 +42,10 @@ internal sealed partial class RemoteToolHostMcpHandlers
         else if (toolName == "LSP")
             await approval.RequestAsync("process", "languageServer", JsonSerializer.Serialize(args)).ConfigureAwait(false);
 
-        if (toolName is "ReadFile" or "WriteFile" or "EditFile" or "GrepFiles" or "FindFiles" or "LSP")
+        if (FileToolAccess.TryGet(toolName, out var access))
         {
-            var path = Argument(args, toolName == "LSP" ? "filePath" : "path");
-            var operation = toolName == "EditFile" ? "edit" : toolName == "WriteFile" ? "write" : "read";
+            var path = Argument(args, access.PathArgument);
+            var operation = access.Operation;
             var config = HostWorkspaceRuntime.LoadWorkspaceConfig(_storage.GlobalConfigPath, workspacePath);
             var guard = new FileAccessGuard(workspacePath, approvalService: new HostInvocationApprovalService(),
                 blacklist: new PathBlacklist(config.Security.BlacklistedPaths), trustedReadPaths: [ArtifactRoot]);

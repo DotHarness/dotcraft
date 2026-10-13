@@ -2,7 +2,7 @@ import { translate, type AppLocale } from '../../shared/locales'
 import type { FileDiff } from '../types/toolCall'
 import { computeDiffHunks } from './diffHunks'
 
-export const SKILL_MANAGE_TOOL_NAME = 'SkillManage'
+const SKILL_MANAGE_TOOL_NAME = 'SkillManage'
 
 export type SkillManageAction = 'create' | 'edit' | 'patch' | 'write_file' | 'remove_file' | 'delete'
 

@@ -9,7 +9,7 @@ describe('streamingDiff', () => {
 
   it('builds WriteFile streaming diff against empty baseline', () => {
     const diff = computeStreamingFileDiff({
-      toolName: 'WriteFile',
+      kind: 'write',
       argumentsPreview: '{"path":"src/new.ts","content":"line 1\\nline 2"}',
       filePath: null
     })
@@ -23,7 +23,7 @@ describe('streamingDiff', () => {
 
   it('builds WriteFile streaming diff against disk baseline', () => {
     const diff = computeStreamingFileDiff({
-      toolName: 'WriteFile',
+      kind: 'write',
       argumentsPreview: '{"path":"src/app.ts","content":"line1\\nline2\\nline3\\n"}',
       filePath: 'src/app.ts',
       baselineContent: 'line1\nline2\n'
@@ -38,7 +38,7 @@ describe('streamingDiff', () => {
 
   it('builds EditFile streaming diff from baseline in oldText/newText mode', () => {
     const diff = computeStreamingFileDiff({
-      toolName: 'EditFile',
+      kind: 'edit',
       argumentsPreview: '{"path":"src/edit.ts","oldText":"old-value","newText":"new"}',
       filePath: 'src/edit.ts',
       baselineContent: 'const value = "old-value"\nconsole.log(value)\n'
@@ -52,7 +52,7 @@ describe('streamingDiff', () => {
 
   it('builds EditFile streaming diff from baseline in line-range mode', () => {
     const diff = computeStreamingFileDiff({
-      toolName: 'EditFile',
+      kind: 'edit',
       argumentsPreview: '{"path":"src/range.ts","startLine":2,"endLine":3,"newText":"X\\nY\\n"}',
       filePath: 'src/range.ts',
       baselineContent: 'A\nB\nC\nD\n'

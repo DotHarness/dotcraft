@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import {
-  extractPartialJsonStringValue,
-  getStreamingToolDisplay
-} from '../utils/toolCallDisplay'
+import { extractPartialJsonStringValue } from '../utils/toolCallDisplay'
+import { getStreamingToolDisplay } from '../utils/streamingToolDisplay'
+import { coreToolFields } from './testToolPresentation'
+
+const tool = (toolName: string) => ({ toolName, ...coreToolFields(toolName) })
 
 describe('getStreamingToolDisplay', () => {
   it('extracts WriteFile preview fields while arguments stream', () => {
-    const display = getStreamingToolDisplay(
-      'WriteFile',
+    const display = getStreamingToolDisplay(tool('WriteFile'),
       '{"path":"src/demo.rs","content":"let x',
       'en'
     )
@@ -16,8 +16,7 @@ describe('getStreamingToolDisplay', () => {
   })
 
   it('extracts the Exec command while arguments stream', () => {
-    const display = getStreamingToolDisplay(
-      'Exec',
+    const display = getStreamingToolDisplay(tool('Exec'),
       '{"command":"npm run build',
       'en'
     )
@@ -26,8 +25,7 @@ describe('getStreamingToolDisplay', () => {
   })
 
   it('extracts CreatePlan draft preview while arguments stream', () => {
-    const display = getStreamingToolDisplay(
-      'CreatePlan',
+    const display = getStreamingToolDisplay(tool('CreatePlan'),
       '{"plan":"# Ship feature X\\n\\n## Summary\\n\\nNot yet',
       'en'
     )
@@ -37,8 +35,7 @@ describe('getStreamingToolDisplay', () => {
 
   it('preserves the complete SpawnAgent task label while streaming', () => {
     const task = 'Review every formatter used by the conversation tool activity header'
-    const display = getStreamingToolDisplay(
-      'SpawnAgent',
+    const display = getStreamingToolDisplay(tool('SpawnAgent'),
       `{"agentPrompt":"${task}`,
       'en'
     )
@@ -49,14 +46,18 @@ describe('getStreamingToolDisplay', () => {
     const command = 'node scripts/verify-desktop.mjs --workspace /workspace/dotcraft-lab --surface conversation --scenario tool-row-width'
     const pattern = 'tool activity title truncation shared disclosure conversation width'
 
-    expect(getStreamingToolDisplay('Exec', `{"command":"${command}`, 'en').label).toContain(command)
-    expect(getStreamingToolDisplay('GrepFiles', `{"pattern":"${pattern}`, 'en').label).toContain(pattern)
-    expect(getStreamingToolDisplay('SearchTools', `{"query":"${pattern}`, 'en').label).toContain(pattern)
+    expect(getStreamingToolDisplay(tool('Exec'), `{"command":"${command}`, 'en').label).toContain(command)
+    expect(getStreamingToolDisplay(tool('GrepFiles'), `{"pattern":"${pattern}`, 'en').label).toContain(pattern)
+    expect(getStreamingToolDisplay(tool('SearchTools'), `{"query":"${pattern}`, 'en').label).toContain(pattern)
+  })
+
+  it('never shows argument text for a tool without a trusted presentation', () => {
+    const display = getStreamingToolDisplay({ toolName: 'Exec' }, '{"command":"rm -rf /tmp/x', 'en')
+    expect(display.label).not.toContain('rm -rf')
   })
 
   it('does not expose WaitAgent child thread ids', () => {
-    const display = getStreamingToolDisplay(
-      'WaitAgent',
+    const display = getStreamingToolDisplay(tool('WaitAgent'),
       '{"childThreadId":"thread_20260503_child"',
       'en'
     )

@@ -69,6 +69,7 @@ public sealed class FileTools(
 
     [Description("Read a text file with line numbers, view an image (.png, .jpg, .jpeg, .gif, .webp, .bmp), or list a directory. Use offset/limit or GrepFiles for large text files. Read images without offset/limit. PDF and other binary formats are not supported.")]
     [Tool(Icon = "📄", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.ReadFile), MaxResultChars = 0)]
+    [ToolPresentation("core.read-file", Operation = "read")]
     [ToolRpc]
     public async Task<IList<AIContent>> ReadFile(
         [Description("The workspace-relative or absolute path to read.")] string path,
@@ -161,6 +162,7 @@ public sealed class FileTools(
 
     [Description("Create or overwrite a file, creating parent directories as needed. Use EditFile for targeted changes to existing files.")]
     [Tool(Icon = "✏️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.WriteFile))]
+    [ToolPresentation("core.file-write", Operation = "write")]
     [ToolRpc]
     public async Task<ToolExecutionResult> WriteFile(
         [Description("The workspace-relative or absolute file path to write to.")] string path,
@@ -206,6 +208,7 @@ public sealed class FileTools(
 
     [Description("Replace a text snippet in an existing file. Copy oldText from the file, using a small snippet with enough context to identify the intended location. Use WriteFile for new files or full rewrites.")]
     [Tool(Icon = "🔄", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.EditFile))]
+    [ToolPresentation("core.file-write", Operation = "edit")]
     [ToolRpc]
     public async Task<ToolExecutionResult> EditFile(
         [Description("The workspace-relative or absolute file path to edit.")] string path,
@@ -259,6 +262,7 @@ public sealed class FileTools(
 
     [Description("Search file contents using a regular expression. Returns matching lines with file paths and line numbers. Skips binary files and .git/node_modules directories.")]
     [Tool(Icon = "🔍", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.GrepFiles), MaxResultChars = 20_000)]
+    [ToolPresentation("core.read-file", Operation = "grep")]
     [ToolRpc]
     public async Task<string> GrepFiles(
         [Description("The regular expression pattern to search for.")] string pattern,
@@ -391,6 +395,7 @@ public sealed class FileTools(
 
     [Description("Find files by name pattern. Searches recursively, skipping .git and node_modules directories.")]
     [Tool(Icon = "📂", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.FindFiles))]
+    [ToolPresentation("core.read-file", Operation = "find")]
     [ToolRpc]
     public async Task<string> FindFiles(
         [Description("The file name pattern to match (e.g. \"*.cs\", \"*.json\"). Use semicolons for multiple patterns.")] string pattern,

@@ -1,12 +1,12 @@
 /**
- * WebSearch / WebFetch / SearchTools display aligned with
+ * Web search, web fetch and deferred tool search display aligned with
  * DotCraft.Core CoreToolDisplays.
  */
 
 import { translate, type AppLocale } from '../../shared/locales'
+import type { ToolKind } from './toolKind'
 
-const TOOL_SEARCH_TOOLS = new Set(['SearchTools'])
-const WEB_TOOLS = new Set(['WebSearch', 'WebFetch', 'SearchTools'])
+export type WebToolKind = Extract<ToolKind, 'webSearch' | 'webFetch' | 'toolSearch'>
 
 export interface WebSearchResultRow {
   title: string
@@ -23,12 +23,8 @@ export type WebSearchResultDisplay =
   | { kind: 'empty'; message: string }
   | { kind: 'error'; message: string }
 
-export function isWebToolName(toolName: string): boolean {
-  return WEB_TOOLS.has(toolName)
-}
-
-export function isToolSearchTool(toolName: string): boolean {
-  return TOOL_SEARCH_TOOLS.has(toolName)
+export function isWebToolKind(kind: ToolKind | null): kind is WebToolKind {
+  return kind === 'webSearch' || kind === 'webFetch' || kind === 'toolSearch'
 }
 
 export function truncate(s: string, max: number): string {
@@ -55,35 +51,31 @@ function getToolSearchQuery(args: Record<string, unknown> | undefined): string |
  * the caller can use the generic "Called …" label.
  */
 export function formatInvocationDisplay(
-  toolName: string,
+  kind: WebToolKind,
   args: Record<string, unknown> | undefined,
   locale: AppLocale
 ): string | null {
-  if (toolName === 'WebSearch') {
+  if (kind === 'webSearch') {
     const query = getJsonStringField(args, 'query')
     if (query === undefined) return null
     return translate(locale, 'toolCall.webSearch.invocation', { query })
   }
-  if (toolName === 'WebFetch') {
+  if (kind === 'webFetch') {
     const url = getJsonStringField(args, 'url')
     if (url === undefined) return null
     return translate(locale, 'toolCall.webFetch.invocation', { url })
   }
-  if (isToolSearchTool(toolName)) {
-    const query = getToolSearchQuery(args)
-    if (query === undefined) return null
-    return translate(locale, 'toolCall.searchTools.invocation', { query })
-  }
-  return null
+  const query = getToolSearchQuery(args)
+  if (query === undefined) return null
+  return translate(locale, 'toolCall.searchTools.invocation', { query })
 }
 
 /** When true, ToolCallCard uses "Calling …" + toolName; otherwise it shows the standalone sentence. */
 export function invocationNeedsCallingPrefix(
-  toolName: string,
+  kind: WebToolKind,
   args: Record<string, unknown> | undefined
 ): boolean {
-  if (!isWebToolName(toolName)) return true
-  return formatInvocationDisplay(toolName, args, 'en') === null
+  return formatInvocationDisplay(kind, args, 'en') === null
 }
 
 function peelJsonStringWrapper(parsed: unknown): unknown {
@@ -127,19 +119,16 @@ function jsonNumberToInt(v: unknown): number | null {
   return null
 }
 
-/**
- * Structured result lines (matches ToolRegistry.FormatToolResult for web tools).
- * Returns null to fall back to generic raw preview.
- */
-export function formatResultSummary(toolName: string, result: string | undefined): string[] | null {
+/** Structured result lines; null falls back to the generic raw preview. */
+export function formatResultSummary(kind: WebToolKind, result: string | undefined): string[] | null {
   const trimmed = result?.trim() ?? ''
   if (trimmed === '') return null
 
-  if (isToolSearchTool(toolName)) {
+  if (kind === 'toolSearch') {
     return parseToolSearchResultSummary(trimmed)
   }
 
-  if (toolName === 'WebSearch') {
+  if (kind === 'webSearch') {
     const parsed = parseWebSearchResultDisplay(result)
     if (!parsed) return null
     if (parsed.kind === 'error') return [`Error: ${parsed.message}`]
@@ -156,26 +145,20 @@ export function formatResultSummary(toolName: string, result: string | undefined
     return lines
   }
 
-  if (toolName === 'WebFetch') {
-    let root: unknown
-    try {
-      root = JSON.parse(trimmed) as unknown
-    } catch {
-      return null
-    }
-    root = peelJsonStringWrapper(root)
-    return parseWebFetchResult(root)
+  let root: unknown
+  try {
+    root = JSON.parse(trimmed) as unknown
+  } catch {
+    return null
   }
-
-  return null
+  root = peelJsonStringWrapper(root)
+  return parseWebFetchResult(root)
 }
 
 export function formatToolSearchCompletedLabel(
-  toolName: string,
   result: string | undefined,
   locale: AppLocale
 ): string | null {
-  if (!isToolSearchTool(toolName)) return null
   const count = extractToolSearchResultCount(result)
   if (count === null) return null
   return count === 1
@@ -393,23 +376,15 @@ function extractToolSearchResultCount(result: string | undefined): number | null
   return bulletCount > 0 ? bulletCount : null
 }
 
-export function getWebToolSectionLabel(toolName: string, locale: AppLocale): string | null {
-  if (toolName === 'WebSearch') {
-    return translate(locale, 'toolCall.webSearch.section')
-  }
-  if (toolName === 'WebFetch') {
-    return translate(locale, 'toolCall.webFetch.section')
-  }
-  if (isToolSearchTool(toolName)) {
-    return translate(locale, 'toolCall.searchTools.section')
-  }
-  return null
+export function getWebToolSectionLabel(kind: WebToolKind, locale: AppLocale): string {
+  if (kind === 'webSearch') return translate(locale, 'toolCall.webSearch.section')
+  if (kind === 'webFetch') return translate(locale, 'toolCall.webFetch.section')
+  return translate(locale, 'toolCall.searchTools.section')
 }
 
 /** Icon from ToolRegistry / server (🔍 WebSearch, 🌐 WebFetch); SearchTools uses wrench-style search. */
-export function getWebToolIcon(toolName: string): string {
-  if (toolName === 'WebSearch') return '🔍'
-  if (toolName === 'WebFetch') return '🌐'
-  if (isToolSearchTool(toolName)) return '🔧'
+export function getWebToolIcon(kind: WebToolKind): string {
+  if (kind === 'webSearch') return '🔍'
+  if (kind === 'webFetch') return '🌐'
   return '🔧'
 }

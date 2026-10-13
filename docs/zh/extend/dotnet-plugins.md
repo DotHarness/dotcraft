@@ -142,14 +142,10 @@ internal sealed class PluginTool : AIFunctionToolSource
     protected override ToolPolicyHints GetPolicyHints(
         AIFunction function,
         ToolPlanningContext context) => new(ReadOnly: true);
-
-    protected override ToolPresentationDescriptor? GetPresentation(
-        AIFunction function,
-        ToolPlanningContext context) => null;
 }
 ```
 
-上面的生成命名空间假设入口程序集为 manifest 中的 `Acme.ReviewCore.Plugin.dll`。源码编译器同样使用 manifest 入口程序集的文件名作为程序集名。插件显式返回空的 Core 呈现描述符。如需 Desktop 呈现，请贡献插件自有的呈现组件。
+上面的生成命名空间假设入口程序集为 manifest 中的 `Acme.ReviewCore.Plugin.dll`。源码编译器同样使用 manifest 入口程序集的文件名作为程序集名。工具默认没有呈现，除非方法声明了 `[ToolPresentation("acme.review-status")]`。如需 Desktop 呈现，请为该标识贡献插件自有的渲染组件。
 
 激活上下文承载了插件模型的两个方向：
 

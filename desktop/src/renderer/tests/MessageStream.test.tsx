@@ -9,6 +9,7 @@ import type { ThreadGoal } from '../types/thread'
 import type { FileDiff } from '../types/toolCall'
 import type { TurnDiff } from '../types/turnDiff'
 import { installDesktopApiMock } from './desktopApiMock'
+import { coreToolFields } from './testToolPresentation'
 
 const appServerSendRequest = vi.fn()
 
@@ -99,9 +100,8 @@ function completedToolTurn(
         type: 'toolCall',
         status: 'completed',
         toolCallId: `${id}-tool-call`,
-        toolName: 'ReadFile',
+        toolName: 'ReadFile', ...coreToolFields('ReadFile'),
             source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-            presentation: { presentationId: 'core.read-file' },
         arguments: { path: toolPath },
         result: 'ok',
         success: true,
@@ -377,7 +377,7 @@ describe('MessageStream', () => {
               type: 'toolCall',
               status: 'completed',
               toolCallId: 'turn-1-write-call',
-              toolName: 'WriteFile',
+              toolName: 'WriteFile', ...coreToolFields('WriteFile'),
             source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WriteFile' },
             presentation: { presentationId: 'core.file-write', options: { operation: 'write' } },
               arguments: { path: 'docs/old-artifact.md', content: 'new\n' },
@@ -439,9 +439,8 @@ describe('MessageStream', () => {
                 type: 'toolCall',
                 status: 'completed',
                 toolCallId: `${activeTurnId}-tool-call`,
-                toolName: 'ReadFile',
+                toolName: 'ReadFile', ...coreToolFields('ReadFile'),
             source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-            presentation: { presentationId: 'core.read-file' },
                 arguments: { path: `src/active-${status}.ts` },
                 result: 'ok',
                 success: true,
@@ -540,7 +539,7 @@ describe('MessageStream', () => {
             id: 'tool-1',
             type: 'toolCall',
             status: 'streaming',
-            toolName: 'WebFetch',
+            toolName: 'WebFetch', ...coreToolFields('WebFetch'),
             source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WebFetch' },
             presentation: { presentationId: 'core.web', options: { operation: 'fetch' } },
             toolCallId: 'webfetch-1',
@@ -570,7 +569,7 @@ describe('MessageStream', () => {
         threadId: 'thread-1',
         turnId: 'turn-1',
         itemId: 'tool-1',
-        toolName: 'WebFetch',
+        toolName: 'WebFetch', ...coreToolFields('WebFetch'),
             source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WebFetch' },
             presentation: { presentationId: 'core.web', options: { operation: 'fetch' } },
         callId: 'webfetch-1',
@@ -677,7 +676,7 @@ describe('MessageStream', () => {
             id: 'request-user-input-tool',
             type: 'toolCall',
             status: 'completed',
-            toolName: 'RequestUserInput',
+            toolName: 'RequestUserInput', ...coreToolFields('RequestUserInput'),
             source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'RequestUserInput' },
             presentation: { presentationId: 'core.request-user-input' },
             toolCallId: 'call-question',

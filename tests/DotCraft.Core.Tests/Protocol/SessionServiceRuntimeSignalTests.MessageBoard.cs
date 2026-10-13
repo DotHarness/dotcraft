@@ -78,7 +78,8 @@ public sealed partial class SessionServiceRuntimeSignalTests
         var turn = Assert.Single((await service.GetThreadAsync(root.Id)).Turns);
         Assert.True(turn.Status == TurnStatus.Completed, turn.Error);
         var call = Assert.IsType<ToolCallPayload>(Assert.Single(turn.Items, i => i.Type == ItemType.ToolCall).Payload);
-        Assert.Null(call.Presentation);
+        Assert.Equal("core.board", call.Presentation?.PresentationId);
+        Assert.Equal("post", call.Presentation?.Options?["operation"]?.GetValue<string>());
         var result = Assert.IsType<ToolResultPayload>(Assert.Single(turn.Items, i => i.Type == ItemType.ToolResult).Payload);
         Assert.True(result.Success);
         Assert.Contains(events, e => e.EventType == SessionEventType.ItemCompleted && e.ItemPayload?.Type == ItemType.ToolResult);

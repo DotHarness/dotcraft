@@ -47,3 +47,25 @@ public class ToolAttribute : Attribute
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, Inherited = false)]
 public sealed class ToolRpcAttribute : Attribute;
+
+/// <summary>
+/// Selects the trusted local renderer for a generated tool. Provenance decides which renderers may
+/// honor it, so the same declaration on a plugin tool selects only plugin renderers.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method, Inherited = false)]
+public sealed class ToolPresentationAttribute(string id) : Attribute
+{
+    public string Id { get; } = id;
+
+    /// <summary>Sets the renderer's <c>operation</c> option.</summary>
+    public string? Operation { get; set; }
+}
+
+/// <summary>Adds one bounded string option to a method's <see cref="ToolPresentationAttribute"/>.</summary>
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
+public sealed class ToolPresentationOptionAttribute(string key, string value) : Attribute
+{
+    public string Key { get; } = key;
+
+    public string Value { get; } = value;
+}

@@ -8,12 +8,25 @@ function item(type: string, payload: Record<string, unknown>, turnId = 'turn-1',
   return { id: `item-${counter}`, turnId, type, createdAt, payload }
 }
 
+// The trusted presentations the server declares on the source-producing tools.
+const PRESENTATIONS: Record<string, Record<string, unknown>> = {
+  WebSearch: { presentationId: 'core.web', options: { operation: 'search' } },
+  WebFetch: { presentationId: 'core.web', options: { operation: 'fetch' } },
+  ReadFile: { presentationId: 'core.read-file', options: { operation: 'read' } },
+  SkillView: { presentationId: 'core.skill-view' }
+}
+
+function core(toolName: string): Record<string, unknown> {
+  const presentation = PRESENTATIONS[toolName]
+  return presentation ? { source: { kind: 'CoreNative', sourceId: 'core-native' }, presentation } : {}
+}
+
 function call(callId: string, toolName: string, args: Record<string, unknown>, extra: Record<string, unknown> = {}): SummaryItem {
-  return item('toolCall', { callId, toolName, arguments: args, ...extra })
+  return item('toolCall', { callId, toolName, ...core(toolName), arguments: args, ...extra })
 }
 
 function result(callId: string, toolName: string, text: string, success = true): SummaryItem {
-  return item('toolResult', { callId, toolName, result: text, success })
+  return item('toolResult', { callId, toolName, ...core(toolName), result: text, success })
 }
 
 describe('Summary sources', () => {

@@ -849,6 +849,7 @@ public sealed class AgentFactory : IAsyncDisposable
         public string? Icon => null;
         public Func<IDictionary<string, object?>?, string>? DisplayFormatter => null;
         public bool RpcEligible => RemoteToolMetadata.IsRpcEligible(definition);
+        public ToolPresentationDescriptor? Presentation => definition.Presentation;
         public bool ReservedSchema => ReservedToolSchema.IsReserved(definition);
         public bool? Strict => ReservedSchema ? false : null;
         public ToolFreeformInput? FreeformInput => definition.FreeformInput;
@@ -922,7 +923,7 @@ public sealed class AgentFactory : IAsyncDisposable
         {
             var limit = GeneratedToolMetadataResolver.TryGet(fn, out var metadata) && metadata.MaxResultChars.HasValue
                 ? metadata.MaxResultChars.Value
-                : ToolResultProcessor.ResolveMaxResultChars(fn.Name, globalMax);
+                : Math.Max(0, globalMax);
             return new ResultSizeLimitingFunction(fn, limit, workspacePath, dataPath, previewLines);
         }
     }

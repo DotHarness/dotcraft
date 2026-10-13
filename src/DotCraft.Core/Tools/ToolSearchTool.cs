@@ -25,6 +25,7 @@ public sealed class ToolSearchTool(DeferredToolActivationIndex registry, int max
     /// available for use in subsequent calls.
     /// </summary>
     [Tool(Icon = "🔍", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.SearchTools))]
+    [ToolPresentation("core.deferred-search")]
     [Description(
         "Search for deferred tools by keyword. " +
         "Call this when you need a tool that is not in your current tool list. " +

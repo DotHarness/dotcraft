@@ -270,9 +270,7 @@ public sealed class SubAgentManager
                             progressEntry.CurrentTool = toolName;
                             progressEntry.LastTool = toolName;
 
-                            // Generate human-readable display text via ToolRegistry
-                            IDictionary<string, object?> args = context.Arguments;
-                            var display = ToolRegistry.FormatToolCall(toolName, args);
+                            var display = GeneratedToolMetadataResolver.FormatCall(context.Function, context.Arguments);
                             progressEntry.CurrentToolDisplay = display;
                             progressEntry.LastToolDisplay = display;
 

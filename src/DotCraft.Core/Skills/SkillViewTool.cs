@@ -19,6 +19,7 @@ public sealed class SkillViewTool(
     /// Loads a skill's effective <c>SKILL.md</c> body.
     /// </summary>
     [GeneratedTool]
+    [ToolPresentation("core.skill-view")]
     [Description(SkillViewDescription)]
     public string SkillView(
         [Description("Skill name, for example 'browser' or 'skill-authoring'.")]

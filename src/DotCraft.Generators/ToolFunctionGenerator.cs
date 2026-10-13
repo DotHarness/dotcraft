@@ -19,6 +19,8 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
     private const string ToolDeclarationAttributeFqn = "DotCraft.Tools.ToolDeclarationAttribute";
     private const string ToolRpcAttributeFqn = "DotCraft.Tools.ToolRpcAttribute";
     private const string ToolParameterAttributeFqn = "DotCraft.Tools.ToolParameterAttribute";
+    private const string ToolPresentationAttributeFqn = "DotCraft.Tools.ToolPresentationAttribute";
+    private const string ToolPresentationOptionAttributeFqn = "DotCraft.Tools.ToolPresentationOptionAttribute";
     private const string DescriptionAttributeFqn = "System.ComponentModel.DescriptionAttribute";
     private const string StreamArgumentsAttributeFqn = "DotCraft.Agents.StreamArgumentsAttribute";
     private const string RequiredAttributeFqn = "System.ComponentModel.DataAnnotations.RequiredAttribute";
@@ -119,6 +121,17 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         var displayMethod = GetNamedString(toolAttribute, "DisplayMethod");
         var maxResultChars = GetNamedInt(toolAttribute, "MaxResultChars", -1);
         var icon = GetNamedString(toolAttribute, "Icon") ?? string.Empty;
+        var presentationAttribute = FindAttribute(method, ToolPresentationAttributeFqn);
+        var presentationOptions = new List<KeyValuePair<string, string>>();
+        if (GetNamedString(presentationAttribute, "Operation") is { } operation)
+            presentationOptions.Add(new KeyValuePair<string, string>("operation", operation));
+        foreach (var option in method.GetAttributes()
+                     .Where(static attr => attr.AttributeClass?.ToDisplayString() == ToolPresentationOptionAttributeFqn))
+        {
+            presentationOptions.Add(new KeyValuePair<string, string>(
+                option.ConstructorArguments.ElementAtOrDefault(0).Value as string ?? string.Empty,
+                option.ConstructorArguments.ElementAtOrDefault(1).Value as string ?? string.Empty));
+        }
         var parameters = method.Parameters
             .Select(parameter => ParameterInfo.From(parameter, ToolParameterAttributeFqn))
             .ToList();
@@ -145,7 +158,10 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             GenerateFunction: generateFunction,
             IsAbstract: method.IsAbstract,
             Parameters: parameters,
-            Location: method.Locations.FirstOrDefault());
+            Location: method.Locations.FirstOrDefault(),
+            HasPresentation: presentationAttribute != null,
+            PresentationId: presentationAttribute?.ConstructorArguments.ElementAtOrDefault(0).Value as string,
+            PresentationOptions: presentationOptions);
     }
 
     private static ImmutableArray<ToolInfo?> ScanCompilationForTools(Compilation compilation)
@@ -222,7 +238,9 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             sb.AppendLine($"        {Quote(tool.Description)},");
             sb.AppendLine($"        {Quote(ToolSchemaEmitter.BuildFunctionSchema(tool))},");
             sb.AppendLine($"        typeof({tool.ReturnType}),");
-            sb.AppendLine($"        {(tool.RpcEligible ? "true" : "false")});");
+            sb.AppendLine($"        {(tool.RpcEligible ? "true" : "false")},");
+            sb.AppendLine($"        {(tool.HasPresentation ? Quote(tool.PresentationId ?? string.Empty) : "null")},");
+            sb.AppendLine($"        {(tool.PresentationOptions.Count > 0 ? Quote(tool.PresentationOptionsJson) : "null")});");
         }
         sb.AppendLine("}");
         sb.AppendLine();
@@ -266,6 +284,17 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             {
                 sb.AppendLine($"    public static global::Microsoft.Extensions.AI.AIFunction {tool.FactoryName}({tool.ContainingTypeFullName} target) => new {tool.WrapperTypeName}(target);");
             }
+        }
+
+        foreach (var type in executableTools
+                     .Where(static tool => !tool.IsStatic)
+                     .GroupBy(static tool => tool.ContainingTypeFullName, StringComparer.Ordinal))
+        {
+            var factories = type
+                .OrderBy(static tool => tool.Location?.SourceTree?.FilePath ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(static tool => tool.Location?.SourceSpan.Start ?? 0)
+                .Select(static tool => $"{tool.FactoryName}(target)");
+            sb.AppendLine($"    public static global::Microsoft.Extensions.AI.AIFunction[] All({type.Key} target) => new global::Microsoft.Extensions.AI.AIFunction[] {{ {string.Join(", ", factories)} }};");
         }
 
         sb.AppendLine();
@@ -473,6 +502,21 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
 
     private static string Quote(string value) => SymbolDisplay.FormatLiteral(value, quote: true);
 
+    private static string JsonString(string value)
+    {
+        var sb = new StringBuilder(value.Length + 2).Append('"');
+        foreach (var ch in value)
+        {
+            if (ch == '"' || ch == '\\')
+                sb.Append('\\').Append(ch);
+            else if (ch < ' ')
+                sb.Append("\\u").Append(((int)ch).ToString("x4", CultureInfo.InvariantCulture));
+            else
+                sb.Append(ch);
+        }
+        return sb.Append('"').ToString();
+    }
+
     private static void AppendHeader(StringBuilder sb)
     {
         sb.AppendLine("// <auto-generated>");
@@ -507,7 +551,10 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             bool GenerateFunction,
             bool IsAbstract,
             IReadOnlyList<ParameterInfo> Parameters,
-            Location? Location)
+            Location? Location,
+            bool HasPresentation,
+            string? PresentationId,
+            IReadOnlyList<KeyValuePair<string, string>> PresentationOptions)
         {
             this.Identity = Identity;
             this.Namespace = Namespace;
@@ -533,6 +580,9 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             this.IsAbstract = IsAbstract;
             this.Parameters = Parameters;
             this.Location = Location;
+            this.HasPresentation = HasPresentation;
+            this.PresentationId = PresentationId;
+            this.PresentationOptions = PresentationOptions;
         }
 
         public string Identity { get; }
@@ -559,6 +609,11 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         public bool IsAbstract { get; }
         public IReadOnlyList<ParameterInfo> Parameters { get; }
         public Location? Location { get; }
+        public bool HasPresentation { get; }
+        public string? PresentationId { get; }
+        public IReadOnlyList<KeyValuePair<string, string>> PresentationOptions { get; }
+        public string PresentationOptionsJson =>
+            "{" + string.Join(",", PresentationOptions.Select(static option => $"{JsonString(option.Key)}:{JsonString(option.Value)}")) + "}";
     }
 
     internal sealed class ParameterInfo

@@ -7,8 +7,7 @@ import {
   parseFileChangeStructuredContent,
   type ParsedFilePatch
 } from '../utils/unifiedDiff'
-
-const FILE_CHANGE_TOOLS = new Set(['WriteFile', 'EditFile'])
+import { isFileWriteKind, resolveToolKind } from '../utils/toolKind'
 
 interface FileChangeCall {
   item: ConversationItem
@@ -19,7 +18,7 @@ function fileChangeCalls(turn: ConversationTurn): FileChangeCall[] {
   let results: Map<string, ConversationItem> | undefined
   const calls: FileChangeCall[] = []
   for (const item of turn.items) {
-    if (item.type !== 'toolCall' || !FILE_CHANGE_TOOLS.has(item.toolName ?? '')) continue
+    if (item.type !== 'toolCall' || !isFileWriteKind(resolveToolKind(item))) continue
     let content = parseFileChangeStructuredContent(item.structuredResult)
     if (!content && item.toolCallId) {
       results ??= new Map(

@@ -33,7 +33,8 @@ public abstract class AIFunctionToolSource : IToolSource
     /// <summary>Returns trusted Core presentation metadata for a generated declaration.</summary>
     protected virtual ToolPresentationDescriptor? GetPresentation(
         AIFunction function,
-        ToolPlanningContext context) => CoreToolPresentationCatalog.Resolve(function.Name);
+        ToolPlanningContext context) =>
+        GeneratedToolMetadataResolver.TryGet(function, out var metadata) ? metadata.Presentation : null;
 
     /// <summary>Returns the model-visible description frozen into this planning snapshot.</summary>
     protected virtual string GetDescription(AIFunction function, ToolPlanningContext context) =>
@@ -127,76 +128,6 @@ public abstract class AIFunctionToolSource : IToolSource
 
         return annotations.Count == 0 ? null : annotations;
     }
-}
-
-/// <summary>Stable presentation registrations emitted only by trusted Core native sources.</summary>
-internal static class CoreToolPresentationCatalog
-{
-    public static ToolPresentationDescriptor? Resolve(string toolName) => toolName switch
-    {
-        "CreatePlan" => Descriptor("core.create-plan"),
-        "SkillManage" => Descriptor("core.skill-manage"),
-        "SkillView" => Descriptor("core.skill-view"),
-        "SpawnAgent" => Descriptor("core.subagent", "spawn"),
-        "WaitAgent" => Descriptor("core.subagent", "wait"),
-        "SendMessage" => Descriptor("core.subagent", "sendMessage"),
-        "FollowupTask" => Descriptor("core.subagent", "followupTask"),
-        "ListAgents" => Descriptor("core.subagent", "list"),
-        "CloseAgent" => Descriptor("core.subagent", "close"),
-        "SendInput" => Descriptor("core.subagent", "sendInput"),
-        "ResumeAgent" => Descriptor("core.subagent", "resume"),
-        "BoardCreateChannel" => Descriptor("core.board", "createChannel"),
-        "BoardGetChannels" => Descriptor("core.board", "getChannels"),
-        "BoardListThreads" => Descriptor("core.board", "listThreads"),
-        "BoardSearchPosts" => Descriptor("core.board", "searchPosts"),
-        "BoardReadThread" => Descriptor("core.board", "readThread"),
-        "BoardReadPost" => Descriptor("core.board", "readPost"),
-        "BoardSubscribe" => Descriptor("core.board", "subscribe"),
-        "BoardUnsubscribe" => Descriptor("core.board", "unsubscribe"),
-        "BoardPost" => Descriptor("core.board", "post"),
-        "Exec" or "WriteStdin" => Descriptor("core.shell"),
-        "WriteFile" => Descriptor("core.file-write", "write"),
-        "EditFile" => Descriptor("core.file-write", "edit"),
-        "WebSearch" => Descriptor("core.web", "search"),
-        "WebFetch" => Descriptor("core.web", "fetch"),
-        "RequestUserInput" => Descriptor("core.request-user-input"),
-        "SendUserMessageAsync" => Descriptor("core.send-user-message-async"),
-        "Sleep" => Descriptor("core.sleep"),
-        "ReadFile" or "GrepFiles" or "FindFiles" => Descriptor("core.read-file"),
-        "LSP" => Descriptor("core.lsp"),
-        "CommitSuggest" => Descriptor("core.commit-suggest"),
-        "TodoWrite" or "UpdateTodos" => Descriptor("core.todo"),
-        "SearchTools" => Descriptor("core.deferred-search"),
-        "SetAgentName" => FieldDescriptor("name"),
-        "SetAgentDescription" => FieldDescriptor("description"),
-        "SetAgentInstructions" or "AppendAgentInstructions" => FieldDescriptor("instructions"),
-        "SetAgentToolPolicy" => FieldDescriptor("tools.policy"),
-        "SetAgentToolControl" => FieldDescriptor("tools.agentControl"),
-        "AddAgentSkills" or "RemoveAgentSkills" => FieldDescriptor("skills.preload"),
-        "AddAgentMcpServers" or "RemoveAgentMcpServers" => FieldDescriptor("mcp.servers"),
-        "SetAgentProviderPreference" or "ClearAgentProviderPreference" => FieldDescriptor("providerPreference"),
-        "SetAgentApproval" => FieldDescriptor("approval"),
-        _ => null
-    };
-
-    // Agent Builder edits (specs/features/agent-profiles.md §12A.2) name the profile field they touch.
-    private static ToolPresentationDescriptor FieldDescriptor(string field) =>
-        new(
-            new PresentationId("core.agent-builder"),
-            new Dictionary<string, JsonElement>(StringComparer.Ordinal)
-            {
-                ["field"] = JsonSerializer.SerializeToElement(field)
-            });
-
-    private static ToolPresentationDescriptor Descriptor(string id, string? operation = null) =>
-        new(
-            new PresentationId(id),
-            operation is null
-                ? null
-                : new Dictionary<string, JsonElement>(StringComparer.Ordinal)
-                {
-                    ["operation"] = JsonSerializer.SerializeToElement(operation)
-                });
 }
 
 /// <summary>Executes a generated MEAI function behind a source-neutral runtime binding.</summary>

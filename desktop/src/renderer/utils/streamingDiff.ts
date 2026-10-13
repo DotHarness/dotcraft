@@ -2,10 +2,8 @@ import type { FileDiff } from '../types/toolCall'
 import { computeDiffHunks } from './diffHunks'
 import { extractPartialJsonStringValue } from './toolCallDisplay'
 
-type FileToolName = 'WriteFile' | 'EditFile'
-
 interface StreamingDiffOptions {
-  toolName: FileToolName
+  kind: 'write' | 'edit'
   argumentsPreview: string
   filePath: string | null
   baselineContent?: string | null
@@ -136,11 +134,11 @@ export function extractStreamingFilePath(argumentsPreview: string): string | nul
 }
 
 export function computeStreamingFileDiff(options: StreamingDiffOptions): FileDiff | null {
-  const { toolName, argumentsPreview, baselineContent } = options
+  const { kind, argumentsPreview, baselineContent } = options
   const filePath = options.filePath ?? extractStreamingFilePath(argumentsPreview)
   if (!filePath) return null
 
-  if (toolName === 'WriteFile') {
+  if (kind === 'write') {
     const content = extractPartialJsonStringValue(argumentsPreview, 'content')
     if (content == null) return null
     const originalContent = baselineContent ?? ''

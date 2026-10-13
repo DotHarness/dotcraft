@@ -296,6 +296,17 @@ or `[GeneratedTool]`, with typed business parameters and constructor-supplied se
 configuration; its shared adapter owns registration and JSON argument conversion. Custom
 `IToolRuntime` implementations and `[ToolDeclaration]` remain available for specialized adapters.
 
+A tool's trusted presentation is part of its declaration, not a source decision. A method declares
+it with `[ToolPresentation(id, Operation = ...)]` and any further bounded options with
+`[ToolPresentationOption(key, value)]`; the generator validates the identifier and the 4,096-byte
+option budget and carries the descriptor on the generated declaration. Sources MUST NOT select
+presentation by tool name. Provenance still decides which renderers may honor it, so the same
+declaration on a plugin tool selects only plugin renderers.
+
+The generator also emits a per-type factory that returns every executable tool declared on one
+instance. A source uses it when it exposes the whole type and names individual factories only when
+it exposes a deliberate subset or gates a tool on its planning context.
+
 A method MAY request one required, non-nullable, by-value `ToolInvocationContext` parameter when it
 needs live invocation identity. The generator MUST exclude this parameter and `CancellationToken`
 from model schema and JSON binding. Model arguments MUST NOT override injected context.

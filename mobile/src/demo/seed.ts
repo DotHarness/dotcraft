@@ -487,7 +487,7 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
   const tool = (toolName: string, args: Record<string, unknown>, result: Record<string, unknown> = {}) => {
     const callId = nextCall()
     const presentation = PRESENTATIONS[toolName]
-    const shown = presentation ? { presentation } : {}
+    const shown = presentation ? { presentation, source: CORE_SOURCE } : {}
     push('toolCall', { toolName, providerFlatName: toolName, callId, arguments: args, ...shown })
     push('toolResult', { toolName, providerFlatName: toolName, callId, result: 'ok', success: true, ...shown, ...result })
   }
@@ -505,7 +505,7 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
         push('reasoningContent', { text: line.text }, line.seconds, line.live ? 'started' : 'completed')
         break
       case 'ran':
-        if (line.live) push('toolCall', { toolName: 'Exec', providerFlatName: 'Exec', callId: nextCall(), arguments: { command: line.command }, presentation: PRESENTATIONS.Exec }, 1, 'started')
+        if (line.live) push('toolCall', { toolName: 'Exec', providerFlatName: 'Exec', callId: nextCall(), arguments: { command: line.command }, presentation: PRESENTATIONS.Exec, source: CORE_SOURCE }, 1, 'started')
         else tool('Exec', { command: line.command }, line.output ? { result: line.output } : {})
         break
       case 'read':
@@ -638,15 +638,17 @@ function accountUsage(now: Date): Record<string, unknown> {
   }
 }
 
+const CORE_SOURCE = { kind: 'CoreNative', sourceId: 'core-native' }
+
 const PRESENTATIONS: Record<string, { presentationId: string; options?: { operation: string } }> = {
-  Exec: { presentationId: 'core.shell' },
+  Exec: { presentationId: 'core.shell', options: { operation: 'exec' } },
   WriteFile: { presentationId: 'core.file-write', options: { operation: 'write' } },
   EditFile: { presentationId: 'core.file-write', options: { operation: 'edit' } },
   WebSearch: { presentationId: 'core.web', options: { operation: 'search' } },
   WebFetch: { presentationId: 'core.web', options: { operation: 'fetch' } },
-  ReadFile: { presentationId: 'core.read-file' },
-  GrepFiles: { presentationId: 'core.read-file' },
-  FindFiles: { presentationId: 'core.read-file' },
+  ReadFile: { presentationId: 'core.read-file', options: { operation: 'read' } },
+  GrepFiles: { presentationId: 'core.read-file', options: { operation: 'grep' } },
+  FindFiles: { presentationId: 'core.read-file', options: { operation: 'find' } },
 }
 
 function releaseBackground(now: Date): FakeBackgroundSeed {

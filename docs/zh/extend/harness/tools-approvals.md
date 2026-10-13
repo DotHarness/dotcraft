@@ -30,7 +30,7 @@ public sealed class ClockToolSource : AIFunctionToolSource
 
 `CreateFunctions` 收到当前 Thread 与 Turn 的不可变规划上下文。工具只在特定 workspace、模式或 Provider 能力下可用时，用它决定这次是否产出这个函数。
 
-生成器负责 schema 生成与强类型参数绑定。为每个模型参数添加 `[Description]`。C# 默认值对应可选参数。`[Tool]` 使用同一个生成器，并增加内置目录和呈现元数据。插件通常使用默认不进入内置目录的 `[GeneratedTool]`。
+生成器负责 schema 生成与强类型参数绑定。为每个模型参数添加 `[Description]`。C# 默认值对应可选参数。`[Tool]` 使用同一个生成器，并增加内置目录元数据；`[ToolPresentation]` 为工具结果选择 Desktop 渲染组件。插件通常使用默认不进入内置目录的 `[GeneratedTool]`。
 
 ### 按需获取真实调用身份
 
