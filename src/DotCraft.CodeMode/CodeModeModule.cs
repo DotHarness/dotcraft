@@ -1,6 +1,7 @@
 using DotCraft.Configuration;
 using DotCraft.Modules;
 using DotCraft.Processes;
+using DotCraft.Scripting;
 using DotCraft.Sessions;
 using DotCraft.Tools;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,20 +15,37 @@ public sealed partial class CodeModeModule : ModuleBase
 {
     public override bool IsEnabled(AppConfig config) => true;
 
-    public override void ConfigureServices(IServiceCollection services, ModuleContext context)
+    public override void ConfigureServices(IServiceCollection services, ModuleContext context) =>
+        services.AddDotCraftCodeMode(context.Paths.WorkspacePath, context.Config);
+}
+
+public static class CodeModeServiceCollectionExtensions
+{
+    /// <summary>
+    /// Adds Code Mode for the workspace. Its scripts run in a child process started as
+    /// <c>&lt;workerHostName&gt; script-worker code-mode</c>, a command that host serves through
+    /// <see cref="CodeModeWorkerRunner.RunAsync"/>; <c>Tools.CodeMode.Mode</c> decides whether a snapshot uses it.
+    /// </summary>
+    public static IServiceCollection AddDotCraftCodeMode(
+        this IServiceCollection services,
+        string workspacePath,
+        AppConfig config,
+        string workerHostName = ScriptWorkerProcess.DefaultHostName,
+        CodeModeLimits? limits = null)
     {
         services.TryAddSingleton<IManagedChildProcessFactory, ManagedChildProcessFactory>();
         services.TryAddSingleton<CodeModeStore>();
         services.TryAddSingleton(sp => new CodeModeWorkerHost(
             sp.GetRequiredService<IManagedChildProcessFactory>(),
-            context.Paths.WorkspacePath,
-            new CodeModeLimits(),
-            sp.GetService<ILogger<CodeModeWorkerHost>>()));
+            workspacePath,
+            limits ?? new CodeModeLimits(),
+            sp.GetService<ILogger<CodeModeWorkerHost>>(),
+            workerHostName));
         services.AddSingleton<IToolSnapshotFinalizer>(sp =>
         {
             var monitor = sp.GetService<IAppConfigMonitor>();
             return new CodeModeToolFinalizer(
-                () => monitor?.Current ?? context.Config,
+                () => monitor?.Current ?? config,
                 sp.GetRequiredService<CodeModeWorkerHost>(),
                 sp.GetRequiredService<CodeModeStore>(),
                 sp.GetRequiredService<IToolDispatcher>(),
@@ -36,6 +54,7 @@ public sealed partial class CodeModeModule : ModuleBase
         services.AddSingleton<IThreadLifecycleObserver>(sp => new CodeModeThreadObserver(
             sp.GetRequiredService<CodeModeWorkerHost>(),
             sp.GetRequiredService<CodeModeStore>()));
+        return services;
     }
 }
 

@@ -14,4 +14,11 @@ public sealed class DotCraftHarnessOptions
 
     /// <summary>Null disables implicit user-level discovery and persistence.</summary>
     public string? UserDataPath { get; set; }
+
+    /// <summary>
+    /// Enables Code Mode when set: the name of the host executable or assembly that serves
+    /// <c>script-worker code-mode</c> by calling <c>CodeModeWorkerRunner.RunAsync</c>.
+    /// <c>Tools.CodeMode.Mode</c> then decides how Turns use it.
+    /// </summary>
+    public string? CodeModeWorkerHost { get; set; }
 }

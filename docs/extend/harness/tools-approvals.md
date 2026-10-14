@@ -107,6 +107,26 @@ A shell request carries `request.Shell` with what the safety check found: `Reaso
 
 `RememberedPrefixes` and `RemembersExactCommand` describe what `AcceptAlways` will store: an allow rule per prefix in the workspace's `shell-rules.json`, the exact command key, or both. State that scope in the `AcceptAlways` option itself so the user sees it before choosing. `AcceptForSession` always keys on the exact command, shell, and directory.
 
+## Let the model script its tool calls
+
+Code Mode gives the model one `CodeMode` tool that runs a JavaScript program calling the Thread's other tools, so a batch of calls takes one model round trip. The scripts run in a child process of your application, so turn it on by naming your executable, and serve the worker command from it:
+
+```csharp
+builder.Services.AddDotCraftHarness(config, options =>
+{
+    options.WorkspacePath = workspacePath;
+    options.CodeModeWorkerHost = "myapp";
+});
+```
+
+```csharp
+if (args is ["script-worker", "code-mode"])
+    return await CodeModeWorkerRunner.RunAsync(
+        Console.OpenStandardInput(), Console.OpenStandardOutput(), Console.OpenStandardError(), CancellationToken.None);
+```
+
+`Tools.CodeMode.Mode` then decides how Turns use it: `only` by default, `on`, or `off`. A tool that returns `AIContent` items, such as text alongside a `DataContent` image, gives a script those items as a `CallToolResult`, and the script shows an image to the model with `image()`.
+
 ## Related docs
 
 - [Configuration and paths](./configuration-paths) — the workspace data directory where `AcceptAlways` state is written.

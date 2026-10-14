@@ -1,5 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Auth.OpenAI;
+using DotCraft.CodeMode;
 using DotCraft.Configuration;
 using DotCraft.Harness;
 using DotCraft.Runtime;
@@ -65,6 +66,27 @@ public sealed class DotCraftHarnessRegistrationTests
             host.Services.GetRequiredService<OpenAITokenStore>().FilePath);
 
         Assert.NotNull(host.Services.GetRequiredService<WorkspaceRuntime>());
+    }
+
+    [Fact]
+    public async Task CodeMode_IsAddedOnlyWhenTheHostNamesItsScriptWorker()
+    {
+        await using var without = Build(null);
+        await using var with = Build("embedder");
+
+        Assert.Null(without.GetService<CodeModeWorkerHost>());
+        Assert.NotNull(with.GetService<CodeModeWorkerHost>());
+
+        static ServiceProvider Build(string? workerHost)
+        {
+            var services = new ServiceCollection();
+            services.AddDotCraftHarness(CreateConfig(), options =>
+            {
+                options.WorkspacePath = NewTemporaryPath();
+                options.CodeModeWorkerHost = workerHost;
+            });
+            return services.BuildServiceProvider();
+        }
     }
 
     [Fact]

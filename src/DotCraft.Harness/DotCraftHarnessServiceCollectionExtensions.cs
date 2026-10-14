@@ -1,5 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Agents.Remote;
+using DotCraft.CodeMode;
 using DotCraft.Configuration;
 using DotCraft.Runtime;
 using DotCraft.Workspaces;
@@ -37,7 +38,10 @@ public static class DotCraftHarnessServiceCollectionExtensions
             appConfig.Providers.Clear();
         var runtimeOptions = CreateRuntimeOptions(appConfig, harnessOptions);
         var paths = DotCraftPathResolver.Resolve(runtimeOptions);
-        return AddDotCraftHarness(services, runtimeOptions, paths, harnessOptions.RefreshModelServiceCatalog);
+        AddDotCraftHarness(services, runtimeOptions, paths, harnessOptions.RefreshModelServiceCatalog);
+        if (harnessOptions.CodeModeWorkerHost is { } workerHost)
+            services.AddDotCraftCodeMode(paths.WorkspacePath, appConfig, workerHost);
+        return services;
     }
 
     internal static IServiceCollection AddDotCraftHarness(
