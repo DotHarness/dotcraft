@@ -175,4 +175,6 @@ For each gated call, Desktop main:
 ## 10. Packaging
 
 - The Windows build downloads the pinned `cua-driver` release archive for the target architecture, verifies its SHA-256 and Authenticode signer, and packages `cua-driver.exe` with its MIT license under the Desktop resources `bin/cua-driver` directory.
+- Driver staging uses the repository's shared artifact downloader for progress, bounded downloads, and a SHA-256-verified cache outside the disposable staging directory. Extraction/signature waits are bounded, and cached archives still pass the executable signature check before packaging.
+- Downloads use up to eight concurrent byte-range requests when supported, retry failed ranges while keeping completed ranges, and validate the assembled archive before caching. Servers without range support use a single response.
 - No other driver components, installers or scheduled tasks are shipped or registered.

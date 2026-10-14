@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { downloadArtifact } from '../../../../../scripts/download-artifact.mjs'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const packageRoot = path.resolve(scriptDir, '..')
@@ -18,7 +19,7 @@ const outputDir = options.output ? path.resolve(options.output) : path.join(pack
 const catalogPath = path.join(packageRoot, 'official-cli', 'lark-cli-shortcuts.json')
 const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'dotcraft-lark-cli-'))
 try {
-  const staged = await downloadArtifact(target, platform, arch, path.join(temporaryRoot, 'target'))
+  const staged = await stageArtifact(target, platform, arch, path.join(temporaryRoot, 'target'))
   const { archiveSha256, executable: stagedExecutable, extractedDir } = staged
   const executableName = executableNameFor(platform)
   const destinationExecutable = path.join(outputDir, executableName)
@@ -55,15 +56,12 @@ try {
   await rm(temporaryRoot, { recursive: true, force: true })
 }
 
-async function downloadArtifact(targetArtifact, targetPlatform, targetArch, targetRoot) {
+async function stageArtifact(targetArtifact, targetPlatform, targetArch, targetRoot) {
   await mkdir(targetRoot, { recursive: true })
   const archivePath = path.join(targetRoot, targetArtifact.file)
   const artifactUrl = `https://github.com/${lock.repository}/releases/download/v${lock.version}/${targetArtifact.file}`
-  const archive = await downloadWithRetry(artifactUrl)
-  const archiveSha256 = sha256(archive)
-  if (archiveSha256 !== targetArtifact.sha256) {
-    throw new Error(`Checksum mismatch for lark-cli ${targetPlatform}-${targetArch}.`)
-  }
+  const archive = await downloadArtifact(artifactUrl, targetArtifact)
+  const archiveSha256 = targetArtifact.sha256
   await writeFile(archivePath, archive)
 
   const extractedDir = path.join(targetRoot, 'extracted')
@@ -73,45 +71,6 @@ async function downloadArtifact(targetArtifact, targetPlatform, targetArch, targ
   const executable = path.join(extractedDir, executableNameFor(targetPlatform))
   if (targetPlatform !== 'win32') await chmod(executable, 0o755)
   return { archiveSha256, executable, extractedDir }
-}
-
-async function downloadWithRetry(url) {
-  const maxAttempts = 4
-  let lastError
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    let response
-    try {
-      response = await fetch(url, { redirect: 'follow' })
-    } catch (error) {
-      lastError = error
-    }
-
-    if (response) {
-      if (!response.ok) {
-        const error = new Error(`Failed to download pinned lark-cli artifact: HTTP ${response.status}.`)
-        if (!isRetryableStatus(response.status)) throw error
-        lastError = error
-      } else {
-        try {
-          return Buffer.from(await response.arrayBuffer())
-        } catch (error) {
-          lastError = error
-        }
-      }
-    }
-
-    if (attempt < maxAttempts) await delay(1000 * (2 ** (attempt - 1)))
-  }
-
-  throw new Error(`Failed to download pinned lark-cli artifact after ${maxAttempts} attempts.`, { cause: lastError })
-}
-
-function isRetryableStatus(status) {
-  return status === 408 || status === 429 || status >= 500
-}
-
-function delay(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
 
 function executableNameFor(targetPlatform) {

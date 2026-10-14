@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { downloadArtifact } from '../../scripts/download-artifact.mjs'
 
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lock = JSON.parse(await readFile(path.join(desktopRoot, 'src', 'main', 'computerUse', 'cua-driver.lock.json'), 'utf8'))
@@ -32,16 +33,16 @@ if (await isCurrent()) {
 const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'dotcraft-cua-driver-'))
 try {
   const url = `https://github.com/${lock.repository}/releases/download/${lock.tag}/${artifact.file}`
-  const archive = await downloadWithRetry(url)
-  if (sha256(archive) !== artifact.sha256) throw new Error(`Checksum mismatch for ${artifact.file}.`)
+  const archive = await downloadArtifact(url, artifact)
   const archivePath = path.join(temporaryRoot, artifact.file)
   await writeFile(archivePath, archive)
 
   const extractedDir = path.join(temporaryRoot, 'extracted')
   await mkdir(extractedDir)
   const tar = process.platform === 'win32' ? path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar'
-  const extraction = spawnSync(tar, ['-xf', archivePath, '-C', extractedDir], { encoding: 'utf8' })
-  if (extraction.status !== 0) throw new Error(`Failed to extract ${artifact.file}: ${extraction.stderr}`)
+  process.stdout.write(`[cua-driver] Extracting ${artifact.file}.\n`)
+  const extraction = spawnSync(tar, ['-xf', archivePath, '-C', extractedDir], { encoding: 'utf8', timeout: 60_000 })
+  if (extraction.status !== 0) throw new Error(`Failed to extract ${artifact.file}: ${extraction.error?.message ?? extraction.stderr}`)
   const stagedExecutable = await findFile(extractedDir, 'cua-driver.exe')
   if (!stagedExecutable) throw new Error(`${artifact.file} does not contain cua-driver.exe.`)
   if (process.platform === 'win32') verifySigner(stagedExecutable)
@@ -76,10 +77,12 @@ async function isCurrent() {
 }
 
 function verifySigner(file) {
+  process.stdout.write(`[cua-driver] Verifying executable signature.\n`)
   const script = `$s = Get-AuthenticodeSignature -LiteralPath '${file.replace(/'/g, "''")}'; "$($s.Status)|$($s.SignerCertificate.Subject)"`
   // A PSModulePath inherited from PowerShell 7 stops Windows PowerShell from loading Get-AuthenticodeSignature.
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toLowerCase() !== 'psmodulepath'))
-  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', env })
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', env, timeout: 60_000 })
+  if (result.error) throw new Error(`Failed to verify cua-driver.exe signature: ${result.error.message}`, { cause: result.error })
   const [status, subject = ''] = (result.stdout ?? '').trim().split('|')
   if (status !== 'Valid' || !subject.includes(`CN="${lock.signer}"`)) {
     throw new Error(`cua-driver.exe signature is not valid for ${lock.signer} (status ${status || 'unknown'}). ${result.stderr ?? ''}`.trim())
@@ -96,21 +99,6 @@ async function findFile(root, name) {
     }
   }
   return null
-}
-
-async function downloadWithRetry(url) {
-  let lastError
-  for (let attempt = 1; attempt <= 4; attempt++) {
-    try {
-      const response = await fetch(url)
-      if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`)
-      return Buffer.from(await response.arrayBuffer())
-    } catch (error) {
-      lastError = error
-      await new Promise((resolve) => setTimeout(resolve, attempt * 2000))
-    }
-  }
-  throw lastError
 }
 
 function sha256(buffer) {

@@ -91,6 +91,8 @@ The Feishu Channel package owns the CLI version lock, release checksums, staging
 
 Build tooling downloads the selected official release artifact, verifies SHA-256 before extraction, and stages the executable, generated catalog, and MIT license inside the Feishu module directory. The bundled adapter resolves these artifacts relative to its own module location. Desktop packaging may invoke the module's staging and verification commands and copy the resulting module directory, but it must not contain Feishu-specific runtime configuration or artifact resolution.
 
+Artifact staging uses the repository's shared downloader and SHA-256-verified cache. The downloader reports progress, bounds network waits, and uses up to eight concurrent byte-range requests with per-range retries when supported; servers without range support use a single response.
+
 Runtime downloads, automatic updates, npm launchers, Go source integration, and fallback to another executable are forbidden. Missing or mismatched artifacts cause a stable tool failure.
 
 ## 8. Protocol boundary

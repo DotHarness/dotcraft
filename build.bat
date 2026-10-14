@@ -112,6 +112,7 @@ if %ERRORLEVEL% neq 0 (
     cd ..
     goto :failure
 )
+echo Staging computer use driver...
 node scripts\stage-cua-driver.mjs --platform win32 --arch x64
 if %ERRORLEVEL% neq 0 (
     echo Failed to stage the computer use driver for Desktop build.
@@ -126,6 +127,7 @@ mkdir resources\modules\channel-weixin
 mkdir resources\modules\channel-telegram
 mkdir resources\modules\channel-qq
 mkdir resources\modules\channel-wecom
+echo Staging channel-feishu companion CLI...
 node ..\sdk\typescript\packages\channel-feishu\scripts\stage-official-cli.mjs --platform win32 --arch x64 --output "%CD%\resources\modules\channel-feishu\vendor"
 if %ERRORLEVEL% neq 0 (
     echo Failed to stage the channel-feishu companion CLI.
