@@ -160,7 +160,7 @@ export function describeBuilderEdit(
         : value === 'allowList' ? 'toolCall.agentBuilder.delegation.allowList' : 'toolCall.agentBuilder.delegation.full'
       return { title: t(key), panel: null, failed: false }
     }
-    case 'skills.preload':
+    case 'skills.allow':
       return listEdit(
         change,
         args,

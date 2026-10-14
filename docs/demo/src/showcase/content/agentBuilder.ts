@@ -183,7 +183,7 @@ function planEdits(plan: AgentPlan): BuilderEdit[] {
       args: { mode: 'allowList', names: plan.tools },
       change: { op: 'set', mode: 'allowList', list: plan.tools }
     },
-    ...(plan.skills.length > 0 ? [add('AddAgentSkills', 'skills.preload', plan.skills)] : []),
+    ...(plan.skills.length > 0 ? [add('AddAgentSkills', 'skills.allow', plan.skills)] : []),
     ...(plan.mcp.length > 0 ? [add('AddAgentMcpServers', 'mcp.servers', plan.mcp)] : []),
     set('SetAgentApproval', 'approval', 'policy', plan.approval)
   ]

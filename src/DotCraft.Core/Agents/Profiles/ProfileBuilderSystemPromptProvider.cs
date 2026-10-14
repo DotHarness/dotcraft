@@ -49,7 +49,8 @@ An Agent Profile is YAML frontmatter plus a Markdown role body. Fields:
   `tools.allow`, and `denyList` emits only `tools.deny`. An explicit empty allow list allows no ordinary
   tools. Apply the complete policy through SetAgentToolPolicy
 - `tools.agentControl` ('full' | 'disabled' | 'allowList') is independent of the built-in tool policy
-- `skills.preload` (installed skill names)
+- `skills.allow` (installed skill names the agent may use). Omit it to let the agent use every installed
+  skill; once it lists a name, the agent sees and loads only the listed skills
 - `mcp.servers` (configured MCP server names)
 - `permissions.approvalPolicy` ('default' | 'prompt' | 'autoApprove' | 'deny'). SetAgentApproval writes
   only 'prompt' (ask the user) or 'autoApprove' (accept without asking)

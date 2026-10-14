@@ -2,6 +2,7 @@ using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
 using DotCraft.Contributions;
 using DotCraft.Memory;
+using DotCraft.Sessions;
 using DotCraft.Skills;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -27,7 +28,8 @@ public sealed class PromptBuilder(
     string? originChannel = null,
     IReadOnlyList<string>? workspaceRoots = null,
     ILogger<PromptBuilder>? logger = null,
-    IContributionView? contributions = null)
+    IContributionView? contributions = null,
+    ThreadSkillsPolicy? skillsPolicy = null)
 {
     private readonly ILogger<PromptBuilder> _logger = logger ?? NullLogger<PromptBuilder>.Instance;
 
@@ -45,6 +47,7 @@ public sealed class PromptBuilder(
         SubAgentProfilesSection = subAgentProfilesSection,
         SkillVariantModeEnabled = skillVariantModeEnabled,
         SkillVariantTarget = skillVariantTarget,
+        SkillsPolicy = skillsPolicy,
         RoleInstructions = roleInstructions,
         DeveloperInstructions = developerInstructions,
         ContextPageManager = contextPageManager,

@@ -101,7 +101,6 @@ public class ToolProfileAndApprovalPolicyTests
             },
             SkillsPolicy = new ThreadSkillsPolicy
             {
-                Preload = ["code-review"],
                 Allow = ["code-review", "repo-style"],
                 Deny = ["dangerous-skill"],
                 AllowManage = false
@@ -128,7 +127,7 @@ public class ToolProfileAndApprovalPolicyTests
         Assert.Equal(["*write*"], roundTrip.McpPolicy.Tools.Deny!);
         Assert.Equal(["github"], roundTrip.PluginPolicy!.Allow!);
         Assert.Equal(["sample-plugin"], roundTrip.PluginPolicy.Deny!);
-        Assert.Equal(["code-review"], roundTrip.SkillsPolicy!.Preload!);
+        Assert.Equal(["code-review", "repo-style"], roundTrip.SkillsPolicy!.Allow!);
         Assert.False(roundTrip.SkillsPolicy?.AllowManage);
     }
 }

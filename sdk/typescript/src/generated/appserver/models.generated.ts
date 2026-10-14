@@ -4516,7 +4516,6 @@ export interface ThreadSkillsPolicy {
   allow?: string[] | null;
   allowManage?: boolean | null;
   deny?: string[] | null;
-  preload?: string[] | null;
   [key: string]: unknown;
 }
 

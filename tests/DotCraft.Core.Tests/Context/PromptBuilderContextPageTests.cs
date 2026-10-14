@@ -56,7 +56,7 @@ public sealed class PromptBuilderContextPageTests : IDisposable
     }
 
     [Fact]
-    public void BuildSystemPrompt_KeepsAlwaysSkillAndSummaryStableUntilRelease()
+    public void BuildSystemPrompt_KeepsAlwaysSkillStableUntilRelease()
     {
         var manager = new ContextPageManager();
         var memoryStore = new MemoryStore(_craft);
@@ -65,25 +65,20 @@ public sealed class PromptBuilderContextPageTests : IDisposable
         var builder = CreateBuilder(memoryStore, manager, skillsLoader);
 
         var first = builder.BuildSystemPrompt("thread-a");
-        Assert.Contains("description-v1", first, StringComparison.Ordinal);
         Assert.Contains("body-v1", first, StringComparison.Ordinal);
 
         WriteAlwaysSkill("description-v2", "body-v2");
         manager.MarkDirty(ContextPageKeys.SkillsWildcard());
 
         var pinned = builder.BuildSystemPrompt("thread-a");
-        Assert.Contains("description-v1", pinned, StringComparison.Ordinal);
         Assert.Contains("body-v1", pinned, StringComparison.Ordinal);
-        Assert.DoesNotContain("description-v2", pinned, StringComparison.Ordinal);
         Assert.DoesNotContain("body-v2", pinned, StringComparison.Ordinal);
 
         var newThread = builder.BuildSystemPrompt("thread-b");
-        Assert.Contains("description-v2", newThread, StringComparison.Ordinal);
         Assert.Contains("body-v2", newThread, StringComparison.Ordinal);
 
         manager.ReleaseStablePages("thread-a");
         var refreshed = builder.BuildSystemPrompt("thread-a");
-        Assert.Contains("description-v2", refreshed, StringComparison.Ordinal);
         Assert.Contains("body-v2", refreshed, StringComparison.Ordinal);
     }
 

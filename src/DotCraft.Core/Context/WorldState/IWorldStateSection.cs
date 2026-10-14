@@ -3,6 +3,7 @@ using DotCraft.Agents;
 using DotCraft.Contributions;
 using DotCraft.Memory;
 using DotCraft.Sessions;
+using DotCraft.Skills;
 
 namespace DotCraft.Context.WorldState;
 
@@ -40,6 +41,9 @@ public sealed record WorldStateContext
 
     /// <summary>The Thread's memory store, or <c>null</c> when the Thread does not use memory.</summary>
     public MemoryStore? MemoryStore { get; init; }
+
+    /// <summary>Reads the skills the Thread may use, or <c>null</c> when it composes no skill context.</summary>
+    public Func<IReadOnlyList<SkillCatalogEntry>>? Skills { get; init; }
 }
 
 public enum PreviousSectionKind

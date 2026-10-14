@@ -18145,19 +18145,6 @@
               "type": "null"
             }
           ]
-        },
-        "preload": {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "additionalProperties": true

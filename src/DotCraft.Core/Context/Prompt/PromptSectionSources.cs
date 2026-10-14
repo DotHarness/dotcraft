@@ -2,6 +2,7 @@ using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
 using DotCraft.Contributions;
 using DotCraft.Memory;
+using DotCraft.Sessions;
 using DotCraft.Skills;
 using Microsoft.Extensions.Logging;
 
@@ -35,6 +36,9 @@ internal sealed class PromptSectionSources
     internal bool SkillVariantModeEnabled { get; init; }
 
     internal SkillVariantTarget? SkillVariantTarget { get; init; }
+
+    /// <summary>Gets the thread's skill policy, which keeps excluded always-loaded skills out of the prompt.</summary>
+    internal ThreadSkillsPolicy? SkillsPolicy { get; init; }
 
     /// <summary>Gets the channel or automation role instructions.</summary>
     internal string? RoleInstructions { get; init; }

@@ -1,4 +1,5 @@
 using DotCraft.Plugins;
+using DotCraft.Sessions;
 using DotCraft.Skills;
 using Xunit;
 
@@ -228,7 +229,7 @@ public sealed class SkillsLoaderTests : IDisposable
     }
 
     [Fact]
-    public void DeclaredRequirements_DoNotFilterDiscoveryOrSummary()
+    public void DeclaredRequirements_DoNotFilterDiscoveryOrCatalog()
     {
         var sharedSkills = Path.Combine(_tempRoot, "shared-skills");
         var loader = new SkillsLoader(_tempRoot, null, sharedSkills);
@@ -240,12 +241,13 @@ public sealed class SkillsLoaderTests : IDisposable
 
         var skill = Assert.Single(loader.ListSkills(), candidate => candidate.Name == "declarative-requirements");
         var metadata = loader.GetSkillMetadata(skill.Name);
-        var summary = loader.BuildSkillsSummary();
+        var entry = Assert.Single(
+            loader.ListCatalog(variantModeEnabled: false, target: null),
+            candidate => candidate.Name == "declarative-requirements");
 
         Assert.Equal("command-that-does-not-exist-dotcraft", metadata!["bins"]);
-        Assert.Contains("<name>declarative-requirements</name>", summary);
-        Assert.DoesNotContain("available=", summary);
-        Assert.DoesNotContain("<requires>", summary);
+        Assert.Equal("Declarative requirements", entry.Description);
+        Assert.False(entry.AlwaysLoaded);
     }
 
     [Fact]
@@ -260,6 +262,20 @@ public sealed class SkillsLoaderTests : IDisposable
 
         Assert.Contains("always-declarative", loader.GetAlwaysSkills());
         Assert.Contains("Always instructions", loader.LoadSkillsForContext(loader.GetAlwaysSkills()));
+    }
+
+    [Fact]
+    public void ListCatalog_LeavesOutDisabledSkillsAndThoseThePolicyExcludes()
+    {
+        var loader = new SkillsLoader(_tempRoot);
+        foreach (var name in new[] { "allowed", "denied", "disabled", "unlisted" })
+            WriteSkill(loader.WorkspaceSkillsPath, name);
+        loader.SetDisabledSkills(["disabled"]);
+        var policy = new ThreadSkillsPolicy { Allow = ["Allowed", "denied", "disabled"], Deny = ["DENIED"] };
+
+        var names = loader.ListCatalog(variantModeEnabled: false, target: null, policy).Select(entry => entry.Name);
+
+        Assert.Equal(["allowed"], names);
     }
 
     public void Dispose()

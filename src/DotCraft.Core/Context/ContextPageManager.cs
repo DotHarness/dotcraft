@@ -275,9 +275,6 @@ public static class ContextPageKeys
     public static ContextPageKey SkillsAlways(string variant) =>
         new("skills", "always", variant);
 
-    public static ContextPageKey SkillsSummary(string variant) =>
-        new("skills", "summary", variant);
-
     public static ContextPageKey SkillsWildcard() =>
         new("skills", "*", "*");
 

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.8.7 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-14 |
 
 Purpose: define the durable architecture for DotCraft Skills, including discovery, prompt loading,
 effective Skill resolution, self-learning adaptations, installation, client access, and remote use.
@@ -83,26 +83,42 @@ process start. DotCraft does not own that directory, so a Skill resolved from it
 but not uninstalled.
 
 Workspace configuration stores disabled Skill names in `Skills.DisabledSkills`. Thread and Agent
-Profile policy can further restrict Skill names with `preload`, `allow`, and `deny`, and can disable
-`SkillManage` with `allowManage`. Runtime policy enforces these restrictions during discovery and
-invocation; prompt text is not the enforcement boundary.
+Profile policy can further restrict Skill names with `allow` and `deny`, and can disable
+`SkillManage` with `allowManage`. `allow` names the Skills an Agent may use; when it is absent, every
+enabled Skill is available, and deny wins over allow. Names match case-insensitively, as Skill names
+do everywhere. Runtime policy enforces these restrictions in
+Agent context and on invocation: a Skill the policy excludes is left out of active Skill context and
+the catalog, and `SkillView` refuses it. Prompt text is not the enforcement boundary.
 
 ## 4. Prompt loading and references
 
-[Prompt Composition](prompt-composition.md) owns placement and caching. The Skill subsystem provides:
+[Prompt Composition](prompt-composition.md) owns placement and caching, and
+[World State](world-state.md) owns how a change reaches the model. The Skill subsystem provides:
 
-- active instructions for enabled Skills marked `always: true`;
-- a compact catalog of other enabled Skills, including name, description, effective location,
-  and declared metadata;
+- active instructions for enabled, permitted Skills marked `always: true`, in base instructions;
+- routing guidance in base instructions, telling the Agent to call `SkillView` when a task matches
+  a Skill. `ReadFile` is a fallback when `SkillView` is unavailable and remains valid for an
+  explicitly referenced supporting file or diagnostics;
+- the catalog of enabled, permitted Skills, with name, description, effective location, and whether
+  each is always loaded, as the `skills` world-state section;
 - self-learning guidance only when `SkillManage` is exposed.
 
-The catalog instructs the Agent to call `SkillView` when a task matches a Skill. `ReadFile` is a
-fallback when `SkillView` is unavailable and remains valid for an explicitly referenced supporting
-file or diagnostics.
+### 4.1 Catalog freshness
+
+The catalog is read again for each Turn, and again within a Turn when the Skill loader reports a
+change: an install, uninstall, enablement change, plugin change, or `SkillManage` mutation. When it
+differs from what the model was last shown, the complete current catalog is appended to history and
+replaces the earlier one. Base instructions and earlier history are never rewritten, so the cached
+prompt prefix survives a Skill change, and a thread sees an added or removed Skill on its next
+sampling request.
+
+Always-loaded instructions stay in base instructions and are pinned until compaction.
+
+### 4.2 References
 
 A native `skillRef` input identifies a Skill by name. Input materialization resolves the current
-effective path but does not inline the instructions into the user message. Always-loaded and
-profile-preloaded Skills are already present in context and do not need a `SkillView` call.
+effective path but does not inline the instructions into the user message. Always-loaded Skills are
+already present in context and do not need a `SkillView` call.
 
 ## 5. Effective Skills and adaptations
 

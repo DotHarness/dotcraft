@@ -686,7 +686,8 @@ public sealed class AgentFactory : IAsyncDisposable
                 // child's instruction channel stays byte-identical to its parent's.
                 RoleInstructions = isNativeSubAgent ? null : ctx.RoleInstructions,
                 // On a developer-role protocol the thread carries these as a developer item instead.
-                DeveloperInstructions = isNativeSubAgent || runtime.IsOpenAIResponses ? null : ctx.DeveloperInstructions
+                DeveloperInstructions = isNativeSubAgent || runtime.IsOpenAIResponses ? null : ctx.DeveloperInstructions,
+                SkillsPolicy = ctx.SkillsPolicy
             };
             // Reads the same inputs a replacement of the memory target sees, so both compose from one set of facts.
             createBuiltInProvider = () => new MemoryContextProvider(
@@ -708,7 +709,8 @@ public sealed class AgentFactory : IAsyncDisposable
                 originChannel: ctx.CurrentOriginChannel,
                 workspaceRoots: ctx.WorkspaceRoots,
                 loggerFactory: _loggerFactory,
-                contributions: ctx.Contributions);
+                contributions: ctx.Contributions,
+                skillsPolicy: promptInputs.SkillsPolicy);
         }
 
         // Caller-supplied instructions run with no context pipeline at all, contributions included.

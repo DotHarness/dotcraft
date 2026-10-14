@@ -14,7 +14,7 @@ public sealed record AgentProfileReferences(
         if (values is null)
             return None;
         return new AgentProfileReferences(
-            Names(Child(values, "skills", "preload")).Concat(Names(Child(values, "skills", "allow"))).Distinct(StringComparer.Ordinal).ToArray(),
+            Names(Child(values, "skills", "allow")).Distinct(StringComparer.Ordinal).ToArray(),
             Names(Child(values, "mcp", "servers")).Distinct(StringComparer.Ordinal).ToArray(),
             Names(Child(values, "plugins", "allow")).Distinct(StringComparer.Ordinal).ToArray(),
             Names(Child(values, "tools", "allow")).Distinct(StringComparer.Ordinal).ToArray());

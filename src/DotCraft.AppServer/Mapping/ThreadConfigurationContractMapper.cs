@@ -244,7 +244,6 @@ internal static class ThreadConfigurationContractMapper
 
     private static Contract.ThreadSkillsPolicy ToContract(Domain.ThreadSkillsPolicy value) => new()
     {
-        Preload = OmitIfNull<IReadOnlyList<string>>(value.Preload),
         Allow = OmitIfNull<IReadOnlyList<string>>(value.Allow),
         Deny = OmitIfNull<IReadOnlyList<string>>(value.Deny),
         AllowManage = OmitIfNull(value.AllowManage)
@@ -252,7 +251,6 @@ internal static class ThreadConfigurationContractMapper
 
     private static Domain.ThreadSkillsPolicy FromContract(Contract.ThreadSkillsPolicy value) => new()
     {
-        Preload = ValueOrDefault(value.Preload)?.ToArray(),
         Allow = ValueOrDefault(value.Allow)?.ToArray(),
         Deny = ValueOrDefault(value.Deny)?.ToArray(),
         AllowManage = ValueOrDefault(value.AllowManage)

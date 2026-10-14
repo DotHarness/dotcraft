@@ -366,13 +366,7 @@ public sealed class ThreadPluginPolicy
 public sealed class ThreadSkillsPolicy
 {
     /// <summary>
-    /// Skill names that should be preloaded into prompt context by profile-aware prompt rendering.
-    /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public string[]? Preload { get; set; }
-
-    /// <summary>
-    /// Skill names the agent may read. Null means no allow-list; empty means none.
+    /// Skill names the agent may use. Null means no allow-list; empty means none.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? Allow { get; set; }
@@ -389,4 +383,16 @@ public sealed class ThreadSkillsPolicy
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public bool? AllowManage { get; set; }
+
+    public bool Denies(string skillName) => Lists(Deny, skillName);
+
+    public bool Allows(string skillName) => Allow == null || Lists(Allow, skillName);
+
+    /// <summary>Whether the agent may see and load the skill: deny wins over allow.</summary>
+    public bool Permits(string skillName) => !Denies(skillName) && Allows(skillName);
+
+    private static bool Lists(string[]? names, string skillName) =>
+        names != null
+        && names.Any(name => !string.IsNullOrWhiteSpace(name)
+                             && string.Equals(skillName, name.Trim(), StringComparison.OrdinalIgnoreCase));
 }

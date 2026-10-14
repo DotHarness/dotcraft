@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.6 |
+| **Version** | 0.8.7 |
 | **Status** | Draft |
-| **Date** | 2026-10-13 |
+| **Date** | 2026-10-14 |
 | **Parent Specs** | [Prompt Composition](prompt-composition.md) |
 
 Purpose: define the model-visible state DotCraft re-sends only when it changes — what counts as a
@@ -30,7 +30,8 @@ A **section** owns one coherent piece of that state. A section has:
 State qualifies as a section when it persists across turns and the model must be told when it moves:
 the environment the agent runs in, the active mode and the actions that mode allows, an active goal's
 identity and status, the availability of a capability such as a remote tool host, the model-visible
-state saved by a visualization, the memory index, and equivalent state contributed by a plugin.
+state saved by a visualization, the memory index, the Skills the agent may use, and equivalent
+state contributed by a plugin.
 
 The following are not sections and stay in the turn's own reminder:
 
@@ -112,6 +113,11 @@ fork that does not carry a section's item must restate that section.
 
 World state is evaluated before every sampling request, not once per turn, so state a tool changed
 reaches the model within the same turn.
+
+A section whose state is costly to read may read it once per turn and reuse it for the turn's later
+steps until its source reports a change. The Skill catalog does this: reading it resolves every
+Skill's effective location, so it is read at the turn's first step and again only after the Skill
+loader reports a change.
 
 ## 5. Failure behaviour
 

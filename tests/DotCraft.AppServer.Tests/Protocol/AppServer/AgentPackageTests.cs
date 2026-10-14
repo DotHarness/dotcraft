@@ -13,7 +13,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed class AgentPackageTests : IDisposable
 {
     private const string Document =
-        "---\nname: Release captain\ndescription: Ships releases.\nskills:\n  preload:\n    - release-notes\n    - deploy-checklist\n---\n\nShip the release.\n";
+        "---\nname: Release captain\ndescription: Ships releases.\nskills:\n  allow:\n    - release-notes\n    - deploy-checklist\n---\n\nShip the release.\n";
 
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), $"agent_packages_{Guid.NewGuid():N}");
     private readonly string _workspaceCraftPath;

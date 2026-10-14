@@ -64,6 +64,7 @@ public sealed partial class SkillsLoader
     public void SetDisabledSkills(IEnumerable<string>? names)
     {
         _disabledSkills = new HashSet<string>(names ?? [], StringComparer.OrdinalIgnoreCase);
+        MarkChanged();
     }
 
     public void SetPluginSkillSources(
@@ -78,6 +79,7 @@ public sealed partial class SkillsLoader
         _disabledPluginSkillNames = new HashSet<string>(
             disabledPluginSkillNames ?? [],
             StringComparer.OrdinalIgnoreCase);
+        MarkChanged();
     }
 
     /// <summary>
@@ -99,13 +101,8 @@ public sealed partial class SkillsLoader
         return File.Exists(skillFile);
     }
 
-    /// <summary>
-    /// Invalidates cached skill descriptors. This loader currently scans on demand,
-    /// but mutation callers use this hook so future caching can be added centrally.
-    /// </summary>
-    public void RefreshDescriptors()
-    {
-    }
+    /// <summary>Reports that skills changed on disk, so catalogs read before this call are stale.</summary>
+    public void RefreshDescriptors() => MarkChanged();
 
     /// <summary>
     /// List all discovered skills.
@@ -282,7 +279,10 @@ public sealed partial class SkillsLoader
             return false;
 
         var fingerprint = SkillVariantStore.ComputeSourceFingerprint(source.Path);
-        return _variantStore.RestoreOriginal(source, fingerprint, target);
+        var restored = _variantStore.RestoreOriginal(source, fingerprint, target);
+        if (restored)
+            MarkChanged();
+        return restored;
     }
 
     /// <summary>
@@ -383,50 +383,6 @@ public sealed partial class SkillsLoader
         }
 
         return parts.Count > 0 ? string.Join("\n\n---\n\n", parts) : string.Empty;
-    }
-
-    /// <summary>
-    /// Build a summary of all skills (for progressive loading).
-    /// The agent can read the full skill content using ReadFile when needed.
-    /// </summary>
-    public string BuildSkillsSummary()
-    {
-        return BuildSkillsSummary(variantModeEnabled: false, target: null);
-    }
-
-    /// <summary>
-    /// Build a summary of all skills with effective locations when variants are enabled.
-    /// </summary>
-    public string BuildSkillsSummary(
-        bool variantModeEnabled,
-        SkillVariantTarget? target)
-    {
-        var allSkills = ListSkills();
-        if (allSkills.Count == 0)
-            return string.Empty;
-
-        var sb = new StringBuilder();
-        sb.AppendLine("<skills>");
-
-        foreach (var skill in allSkills)
-        {
-            if (!skill.Enabled)
-                continue;
-
-            var description = GetSkillDescription(skill.Name);
-            var metadata = GetSkillMetadata(skill.Name);
-            var alwaysLoad = metadata?.GetValueOrDefault("always", "false").ToLowerInvariant() == "true";
-            sb.AppendLine(
-                $"  <skill always=\"{alwaysLoad.ToString().ToLower()}\">");
-            sb.AppendLine($"    <name>{EscapeXml(skill.Name)}</name>");
-            sb.AppendLine($"    <description>{EscapeXml(description)}</description>");
-            sb.AppendLine($"    <location>{EscapeXml(ResolveEffectiveSkillFile(skill, variantModeEnabled, target) ?? skill.Path)}</location>");
-
-            sb.AppendLine("  </skill>");
-        }
-
-        sb.AppendLine("</skills>");
-        return sb.ToString();
     }
 
     /// <summary>
@@ -678,15 +634,6 @@ public sealed partial class SkillsLoader
 
         var match = Regex.Match(content, @"^---\r?\n.*?\r?\n---\r?\n", RegexOptions.Singleline);
         return match.Success ? content[match.Length..].Trim() : content;
-    }
-
-    private static string EscapeXml(string text)
-    {
-        return text
-            .Replace("&", "&amp;")
-            .Replace("<", "&lt;")
-            .Replace(">", "&gt;")
-            .Replace("\"", "&quot;");
     }
 
     public sealed class SkillInfo

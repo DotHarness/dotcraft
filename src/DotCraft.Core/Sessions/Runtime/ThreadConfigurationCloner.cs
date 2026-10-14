@@ -89,7 +89,6 @@ internal static class ThreadConfigurationCloner
             ? null
             : new ThreadSkillsPolicy
             {
-                Preload = source.Preload == null ? null : [.. source.Preload],
                 Allow = source.Allow == null ? null : [.. source.Allow],
                 Deny = source.Deny == null ? null : [.. source.Deny],
                 AllowManage = source.AllowManage

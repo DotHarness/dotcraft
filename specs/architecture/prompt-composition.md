@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.6 |
+| **Version** | 0.8.7 |
 | **Status** | Draft |
-| **Date** | 2026-10-13 |
+| **Date** | 2026-10-14 |
 
 Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, App Binding, and AppServer clients.
 
@@ -56,8 +56,8 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 10 | Bootstrap files | DotCraft-owned workspace bootstrap files. Repository `AGENTS.md` content is excluded and belongs to project instructions (§4a). |
 | 11 | Memory | Memory instructions with the resolved store path. Holds no memory content; the index arrives as the `memory_index` world-state section (§4b). Omitted when the Thread has memory disabled. See [Memory](../features/memory.md#5-memory-in-the-prompt). |
 | 12 | Skill self-learning | Included only when skill management is available. |
-| 13 | Always-loaded skills | Full content for skills that must always be loaded. |
-| 14 | Skills summary | Skill discovery and routing summary. |
+| 13 | Always-loaded skills | Full content for enabled skills marked always-loaded that the thread's skill policy permits. |
+| 14 | Skills summary | How to choose and load a skill. Holds no catalog; the available skills arrive as the `skills` world-state section (搂4b). See [Skills](skills.md#4-prompt-loading-and-references). |
 | 15 | Custom command summary | Available custom commands. |
 | 16 | Global prompt context | Process-wide prompt extension points. |
 | 17 | Deferred capability discovery | Included only when deferred loading is active. |

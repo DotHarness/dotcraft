@@ -156,7 +156,7 @@ mcp:
 plugins:
   deny: [dangerous-plugin]
 skills:
-  preload: [code-review]
+  allow: [code-review]
   allowManage: false
 permissions:
   approvalPolicy: deny
@@ -193,7 +193,7 @@ Focus on correctness.
         Assert.Equal(new[] { "dangerous-plugin" }, pluginPolicy.Deny ?? Array.Empty<string>());
         Assert.NotNull(config.SkillsPolicy);
         var skillsPolicy = config.SkillsPolicy!;
-        Assert.Equal(new[] { "code-review" }, skillsPolicy.Preload ?? Array.Empty<string>());
+        Assert.Equal(new[] { "code-review" }, skillsPolicy.Allow ?? Array.Empty<string>());
         Assert.False(skillsPolicy.AllowManage);
         Assert.Equal(ApprovalPolicy.Deny, config.ApprovalPolicy);
         Assert.True(config.RequireApprovalOutsideWorkspace);

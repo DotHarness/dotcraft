@@ -197,7 +197,7 @@ public sealed class AIFunctionToolSourceTests
         AssertPresentation(GeneratedToolDeclarations.UserCoordinationTools_Sleep_Declaration, "core.sleep");
         AssertPresentation(GeneratedToolDeclarations.AgentMessageBoardTools_BoardPost_Declaration, "core.board", ("operation", "post"));
         AssertPresentation(GeneratedToolDeclarations.RemoteToolHostTransferTools_Transfer_Declaration, "core.remote-tool-host", ("operation", "transfer"));
-        AssertPresentation(GeneratedToolDeclarations.AgentProfileBuilderToolMethods_RemoveAgentSkills_Declaration, "core.agent-builder", ("field", "skills.preload"));
+        AssertPresentation(GeneratedToolDeclarations.AgentProfileBuilderToolMethods_RemoveAgentSkills_Declaration, "core.agent-builder", ("field", "skills.allow"));
         Assert.Null(GeneratedToolDeclarations.UserCoordinationTools_CurrentTime_Declaration.Presentation);
     }
 

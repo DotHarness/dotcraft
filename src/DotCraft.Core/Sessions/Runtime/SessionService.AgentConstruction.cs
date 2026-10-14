@@ -264,8 +264,7 @@ public sealed partial class SessionService
 
     private static bool HasPolicy(ThreadSkillsPolicy? policy) =>
         policy != null
-        && (policy.Preload != null
-            || policy.Allow != null
+        && (policy.Allow != null
             || policy.Deny != null
             || policy.AllowManage.HasValue);
 
@@ -354,7 +353,8 @@ public sealed partial class SessionService
                 ToolAllowList = ToSet(config.ToolAllowList),
                 ToolDenyList = ToSet(config.ToolDenyList),
                 RoleInstructions = config.RoleInstructions,
-                DeveloperInstructions = config.DeveloperInstructions
+                DeveloperInstructions = config.DeveloperInstructions,
+                SkillsPolicy = config.SkillsPolicy
             };
         }
 
@@ -367,6 +367,7 @@ public sealed partial class SessionService
         var toolContext = CloneContextWithWorkspace(
             scopedContext ?? threadBaseContext,
             ThreadWorkspaceResolver.Resolve(thread));
+        threadRuntimeState.SkillCatalogSource = SkillCatalogSource.For(toolContext);
 
         var bindingMcpServers = threadRuntimeState.GetBindingMcpServers();
         if (config.McpServers is not null || bindingMcpServers.Count > 0)
@@ -598,7 +599,8 @@ public sealed partial class SessionService
             ToolAllowList = thread == null ? source.ToolAllowList : ToSet(thread.Configuration?.ToolAllowList),
             ToolDenyList = thread == null ? source.ToolDenyList : ToSet(thread.Configuration?.ToolDenyList),
             RoleInstructions = thread?.Configuration?.RoleInstructions ?? source.RoleInstructions,
-            DeveloperInstructions = thread?.Configuration?.DeveloperInstructions ?? source.DeveloperInstructions
+            DeveloperInstructions = thread?.Configuration?.DeveloperInstructions ?? source.DeveloperInstructions,
+            SkillsPolicy = thread == null ? source.SkillsPolicy : thread.Configuration?.SkillsPolicy
         };
         return cloned;
     }

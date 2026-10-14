@@ -325,7 +325,7 @@ one. Its payload is defined in [Session Core](session-core.md) §4.2.
 At the start of each Turn, the Agent Host appends a Remote Tool Host section to the latest user
 message runtime context when the thread has a connected or lost route. The section contains
 `Status`, `HostId`, `WorkspaceId`, `HostName`, `OperatingSystem`, `UserName`, and
-`RemoteWorkingDirectory` and remote supporting-file paths for automatic or preloaded Skills.
+`RemoteWorkingDirectory` and remote supporting-file paths for always-loaded Skills.
 Values are bounded
 and encoded as single-line scalars. The section MUST
 omit lease and Host instance identifiers, endpoints, tokens, certificates, and credential
