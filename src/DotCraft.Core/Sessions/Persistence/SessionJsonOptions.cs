@@ -44,6 +44,7 @@ internal sealed class SessionItemConverter : JsonConverter<SessionItem>
             CreatedAt = root.GetDateTimeOffset("createdAt"),
             CompletedAt = root.GetNullableDateTimeOffset("completedAt"),
             InvocationOrigin = root.TryGetProperty("invocationOrigin", out var origin) ? origin.GetString() : null,
+            InvocationSourceId = root.TryGetProperty("invocationSourceId", out var source) ? source.GetString() : null,
             FreeformCall = root.TryGetProperty("freeformCall", out var freeform) && freeform.ValueKind == JsonValueKind.True
         };
 
@@ -95,6 +96,8 @@ internal sealed class SessionItemConverter : JsonConverter<SessionItem>
             writer.WriteNull("completedAt");
         if (value.InvocationOrigin is not null)
             writer.WriteString("invocationOrigin", value.InvocationOrigin);
+        if (value.InvocationSourceId is not null)
+            writer.WriteString("invocationSourceId", value.InvocationSourceId);
         if (value.FreeformCall)
             writer.WriteBoolean("freeformCall", true);
 

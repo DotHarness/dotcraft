@@ -58,6 +58,7 @@ public sealed partial class SessionService
                 arguments,
                 memory);
             item.InvocationOrigin = context.Origin?.Kind;
+            item.InvocationSourceId = context.Origin?.SourceItemId;
             if (existing is null)
                 turn.Items.Add(item);
             turnRuntime.ToolInvocationItems[context.CallId] = item;
@@ -124,6 +125,7 @@ public sealed partial class SessionService
             Status = ItemStatus.Started,
             CreatedAt = DateTimeOffset.UtcNow,
             InvocationOrigin = context.Origin?.Kind,
+            InvocationSourceId = context.Origin?.SourceItemId,
             Payload = new CommandExecutionPayload
             {
                 CallId = context.CallId,
@@ -225,6 +227,7 @@ public sealed partial class SessionService
                     CreatedAt = completedAt,
                     CompletedAt = completedAt,
                     InvocationOrigin = context.Origin?.Kind,
+                    InvocationSourceId = context.Origin?.SourceItemId,
                     Payload = new ToolResultPayload
                     {
                         CallId = context.CallId,

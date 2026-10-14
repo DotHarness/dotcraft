@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Tools;
 using DotCraft.Utilities;
@@ -155,8 +156,17 @@ internal sealed class CodeModeExecRuntime(CodeModeExecDependencies dependencies)
             .Where(static item => item.Data is not null)
             .Select(static item => (AIContent)new DataContent(Convert.FromBase64String(item.Data!), item.MimeType!))
             .ToList();
+        var structured = new JsonObject
+        {
+            ["status"] = outcome.Status,
+            ["wallTimeMs"] = (long)elapsed.TotalMilliseconds,
+            ["nestedCalls"] = calls.Count
+        };
+        if (outcome.Status == CodeModeProtocol.Failed)
+            structured["error"] = outcome.Error ?? "The script failed.";
         return ToolExecutionResult.Succeeded(
             text,
+            structuredContent: JsonSerializer.SerializeToElement(structured),
             contentItems: images.Count == 0 ? null : [new TextContent(text), .. images]);
     }
 }
