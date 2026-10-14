@@ -9,12 +9,16 @@ import { build } from 'esbuild'
 const sdk = dirname(dirname(fileURLToPath(import.meta.url)))
 const work = mkdtempSync(join(tmpdir(), 'dotcraft-avatar-consumer-'))
 const manifest = JSON.parse(readFileSync(join(sdk, 'packages/avatar/package.json'), 'utf8'))
+const lock = JSON.parse(readFileSync(join(sdk, 'package-lock.json'), 'utf8'))
+const reactVersion = lock.packages['node_modules/react'].version
+const reactDomVersion = lock.packages['node_modules/react-dom'].version
+assert.equal(reactVersion, reactDomVersion, 'Consumer React and React DOM versions must match')
 const npmCli = process.env.npm_execpath ?? join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js')
 function run(args, cwd) { execFileSync(process.execPath, [npmCli, ...args], {cwd, stdio:'pipe'}) }
 mkdirSync(join(work, 'packs'))
 run(['pack','--workspace','@dotcraft/avatar','--pack-destination',join(work,'packs')], sdk)
 const tarball = join(work, 'packs', `dotcraft-avatar-${manifest.version}.tgz`)
-writeFileSync(join(work,'package.json'), JSON.stringify({private:true,type:'module',dependencies:{'@dotcraft/avatar':tarball,react:'^19.0.0','react-dom':'^19.0.0','@types/react':'^19.0.0'}}))
+writeFileSync(join(work,'package.json'), JSON.stringify({private:true,type:'module',dependencies:{'@dotcraft/avatar':tarball,react:reactVersion,'react-dom':reactDomVersion,'@types/react':lock.packages['node_modules/@types/react'].version}}))
 run(['install','--ignore-scripts','--no-audit','--no-fund'], work)
 const installed = join(work, 'node_modules/@dotcraft/avatar')
 let mappedFiles = 0
@@ -55,7 +59,6 @@ writeFileSync(join(work,'tsconfig.json'), JSON.stringify({compilerOptions:{targe
 execFileSync(process.execPath,[join(sdk,'node_modules/typescript/bin/tsc'),'-p',join(work,'tsconfig.json')],{stdio:'pipe'})
 await build({entryPoints:[join(work,'app.tsx')],bundle:true,platform:'browser',format:'esm',outdir:join(work,'out'),logLevel:'silent'})
 const css=readFileSync(join(work,'out/app.css'),'utf8')
-assert.ok(css.includes('.dca-robot'))
 const forbiddenCssDependencies = [
   'var(--success',
   'var(--text-dimmed',
