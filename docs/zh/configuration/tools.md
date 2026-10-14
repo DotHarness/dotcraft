@@ -9,7 +9,7 @@
 | `Tools.File.MaxFileSize` | 最大可读取文件大小（字节） | `10485760` |
 | `Tools.File.RipgrepPath` | 可选 `rg` 路径。为空时依次尝试 `DOTCRAFT_RG_PATH`、`PATH` 和内置回退 | `""` |
 | `Tools.File.SearchTimeoutSeconds` | `GrepFiles` 内容搜索最长运行时间，超时后返回超时结果 | `30` |
-| `Tools.Shell.Timeout` | Shell 命令超时时间（秒） | `300` |
+| `Tools.Shell.Timeout` | agent 等待命令的最长时间（秒），超时后停止命令。运行超过 `Tools.Shell.Background.DefaultYieldTimeMs` 的命令会改为把会话交还给 agent，并继续运行直到结束或被停止，后台终端被关闭时除外 | `300` |
 | `Tools.Shell.MaxOutputLength` | Shell 命令最大输出长度（字符） | `10000` |
 
 ## 后台终端
@@ -17,8 +17,8 @@
 | 配置项 | 说明 | 默认值 |
 |---|---|---|
 | `Tools.Shell.Background.Enabled` | 是否启用后台终端会话 | `true` |
-| `Tools.Shell.Background.DefaultYieldTimeMs` | 运行中命令返回后台会话快照前的默认等待时间 | `1000` |
-| `Tools.Shell.Background.MaxYieldTimeMs` | 后台会话读取或写入可接受的最长等待时间 | `30000` |
+| `Tools.Shell.Background.DefaultYieldTimeMs` | 仍在运行的命令返回会话前的默认等待时间 | `10000` |
+| `Tools.Shell.Background.MaxYieldTimeMs` | 运行中命令返回前，以及后台会话读取或写入可接受的最长等待时间 | `30000` |
 | `Tools.Shell.Background.MaxSessionsPerThread` | 每个线程可同时运行的后台终端上限 | `8` |
 | `Tools.Shell.Background.MaxSessionsPerWorkspace` | 每个工作区可同时运行的后台终端上限 | `32` |
 | `Tools.Shell.Background.IdleTimeoutSeconds` | 预留字段。后台终端服务当前不执行该限制 | `1800` |

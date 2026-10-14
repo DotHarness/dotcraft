@@ -666,6 +666,16 @@ aggregated Turn diff in [Turn Diff Events](#turn-diff-events) is live-only.
 }
 ```
 
+An `Exec` without `runInBackground` waits for its process for at most its
+yield time: `yieldTimeMs`, or `Tools.Shell.Background.DefaultYieldTimeMs`
+(10 seconds) when omitted, capped by `Tools.Shell.Background.MaxYieldTimeMs`.
+A `runInBackground` command uses the same yield time. A process still running then is handed
+to the background terminal runtime, and the tool returns its session ID so the
+model can poll it with `WriteStdin`. The process keeps running until it exits
+or is stopped. `Tools.Shell.Timeout` applies only while the tool still waits:
+with a yield time at or above it, or with background terminals disabled, the
+tool waits until the process exits or times out.
+
 When an `Exec`-style tool returns while its process is still alive, the
 `CommandExecution` Item is completed with `status = "backgrounded"`. Later
 process lifecycle changes are represented by the background terminal runtime,
@@ -676,7 +686,9 @@ work. Cancelling the Turn stops its process tree, completes the
 `CommandExecution` Item with `status = "cancelled"`, and only then completes Turn
 cancellation. A process explicitly started with `runInBackground = true` transfers
 ownership to the background terminal runtime once it starts; Turn cancellation
-does not stop it, including while the tool is waiting for its initial yield.
+does not stop it, including while the tool is waiting for its initial yield. A
+foreground process handed over after its yield time is likewise no longer
+stopped by Turn cancellation.
 
 Terminal-capable AppServer clients consume live shell process output from
 `terminal/*` notifications. `CommandExecution` remains the persisted observable

@@ -42,7 +42,7 @@ public sealed record BackgroundTerminalStartRequest
 
     public int TimeoutSeconds { get; init; } = 300;
 
-    public int YieldTimeMs { get; init; } = 1000;
+    public int? YieldTimeMs { get; init; }
 
     public int MaxOutputChars { get; init; } = 10000;
 }

@@ -54,7 +54,7 @@ public sealed class ShellTools
         [Description("The shell command to execute.")] string command,
         [Description("Optional working directory for the command.")] string? workingDir = null,
         [Description("Run the command in the background and return a session ID for later WriteStdin calls.")] bool runInBackground = false,
-        [Description("Milliseconds to wait for initial output before returning when runInBackground is true.")] int? yieldTimeMs = null,
+        [Description("Maximum milliseconds to wait before returning a session ID for a still-running command. Commands that finish sooner return immediately. Omit this parameter to use the default.")] int? yieldTimeMs = null,
         [Description("Maximum output characters to return in this tool result.")] int? maxOutputChars = null,
         [Description("Keep stdin open so WriteStdin can send input to the running process. This is pipe-based, not a full PTY.")] bool interactive = false,
         [Description("Optional shell override. Defaults to the shell reported in the environment context.")] string? shell = null,
@@ -127,7 +127,7 @@ public sealed class ShellTools
             var snapshot = await _backgroundTerminals.WriteStdinAsync(
                 sessionId,
                 input,
-                yieldTimeMs ?? 1000,
+                yieldTimeMs ?? (input.Length == 0 ? 5000 : 1000),
                 maxOutputChars ?? _maxOutputLength,
                 cancellationToken);
             return SnapshotResult(snapshot, FormatSnapshot(snapshot));
@@ -204,7 +204,7 @@ public sealed class ShellTools
                     Shell = stdinSession.Shell,
                     StdinSession = stdinSession,
                     TimeoutSeconds = _timeoutSeconds,
-                    YieldTimeMs = yieldTimeMs ?? 1000,
+                    YieldTimeMs = yieldTimeMs,
                     MaxOutputChars = maxOutputChars ?? _maxOutputLength
                 }, cancellationToken);
             }
