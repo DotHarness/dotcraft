@@ -7,10 +7,8 @@ import { createMarkdownRenderer, defineLoader, type SiteConfig } from 'vitepress
 import { lucideParts, simpleIconParts, type IconParts } from '../icons'
 import type * as Avatars from './avatars'
 
-export type Pose = 'idle' | 'greeting' | 'done'
-
 export interface HomeData {
-  mascots: Record<'hero' | 'close', Record<Pose, string>>
+  mascots: Record<'hero' | 'close', string>
   agents: string[]
   icons: Record<string, IconParts>
   program: string
@@ -27,7 +25,7 @@ const harnessPage = resolve(docs, 'extend/harness/index.md')
 const lucide = [
   'app-window', 'arrow-right', 'blocks', 'bot', 'check', 'chevron-down', 'chevron-right', 'circuit-board', 'copy', 'cpu',
   'download', 'external-link', 'file-code', 'layers', 'layout-dashboard', 'monitor', 'mouse-pointer-2', 'plug-zap',
-  'puzzle', 'server', 'sparkles', 'terminal'
+  'puzzle', 'server', 'sparkles'
 ]
 const simple = ['android', 'apple', 'dotnet', 'github', 'linux', 'npm', 'nuget', 'windows']
 
@@ -72,10 +70,8 @@ export default defineLoader({
   watch: ['./avatars.tsx', '../../../extend/harness/index.md', '../../../../sdk/typescript/packages/avatar/src/*.{ts,tsx}'],
   async load(): Promise<HomeData> {
     const avatars = await loadAvatars()
-    const poses = (sequence: Pose[], size: number) =>
-      Object.fromEntries(sequence.map((pose) => [pose, avatars.renderMascot(pose, size)])) as Record<Pose, string>
     return {
-      mascots: { hero: poses(['idle', 'greeting', 'done'], 84), close: poses(['idle', 'done', 'greeting'], 72) },
+      mascots: { hero: avatars.renderMascot(84), close: avatars.renderMascot(72) },
       agents: ['Leader', 'Explorer', 'Builder', 'Reviewer', 'Operator'].map((name) => avatars.renderAgent(name, 26)),
       icons: Object.fromEntries([
         ...lucide.map((name) => [name, lucideParts(name)]),

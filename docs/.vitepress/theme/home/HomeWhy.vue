@@ -10,7 +10,6 @@ const { t, href } = useHome()
     <div class="dc-wrap">
       <header class="dc-head">
         <h2 id="why-title">{{ t.why.title }}</h2>
-        <p>{{ t.why.lead }}</p>
       </header>
       <div class="dc-why">
         <section v-for="(group, index) in t.why.groups" :key="group.title" class="dc-group" :aria-labelledby="`why-group-${index}`">

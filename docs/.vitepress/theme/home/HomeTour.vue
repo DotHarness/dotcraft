@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useData } from 'vitepress'
 import Icon from './Icon.vue'
 import { data } from './home.data'
 import { reducedMotion, useHome } from './home'
 import { useScrollSteps } from '../components/scrollSteps'
 
 const { t, href } = useHome()
+const { isDark } = useData()
+const mounted = ref(false)
 const section = ref<HTMLElement>()
 const pin = ref<HTMLElement>()
 const tour = ref<HTMLElement>()
@@ -39,6 +42,7 @@ function loadAllWhenStacked(): void {
 }
 
 onMounted(() => {
+  mounted.value = true
   narrow = window.matchMedia('(max-width: 980px)')
   loadAllWhenStacked()
   narrow.addEventListener('change', loadAllWhenStacked)
@@ -90,9 +94,9 @@ onBeforeUnmount(() => {
                 :aria-labelledby="`tour-tab-${at}`"
                 :data-active="index === at || undefined"
               >
-                <div class="dc-shot">
+                <div class="dc-shot dc-field">
                   <img
-                    :src="loaded.has(at) ? story.media.src : undefined"
+                    :src="mounted && loaded.has(at) ? story.media[isDark ? 'dark' : 'light'] : undefined"
                     :alt="story.media.alt"
                     :width="story.media.width"
                     :height="story.media.height"

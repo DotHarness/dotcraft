@@ -16,7 +16,7 @@ export interface Story {
   icon: string
   name: string
   line: string
-  media: { src: string; alt: string; width: number; height: number }
+  media: { light: string; dark: string; alt: string; width: number; height: number }
   links: Link[]
   team?: boolean
 }
@@ -27,13 +27,11 @@ export interface Product {
   hint: string
   get: string
   href: string
-  art: string
 }
 
 const raw = 'https://github.com/DotHarness/resources/raw/master/'
-const cdn = 'https://cdn.jsdelivr.net/gh/DotHarness/resources@master/'
 
-function stories(base: string, text: { name: string; line: string; alt: string; links: string[] }[]): Story[] {
+function stories(text: { name: string; line: string; alt: string; links: string[] }[]): Story[] {
   const shape = [
     { icon: 'monitor', src: 'dotcraft/docs/tour-desktop', hrefs: ['/start/desktop', '/start/'] },
     { icon: 'bot', src: 'dotcraft/docs/tour-agents', hrefs: ['/guide/agent-profiles', '/guide/subagents', '/guide/automations'], team: true },
@@ -44,27 +42,22 @@ function stories(base: string, text: { name: string; line: string; alt: string; 
     icon: story.icon,
     name: text[index].name,
     line: text[index].line,
-    media: { src: `${base}${story.src}.webp`, alt: text[index].alt, width: 1600, height: 900 },
+    media: { light: `${raw}${story.src}-light.webp`, dark: `${raw}${story.src}-dark.webp`, alt: text[index].alt, width: 1600, height: 900 },
     links: story.hrefs.map((href, at) => ({ text: text[index].links[at], href })),
     team: story.team
   }))
 }
 
-const productHrefs = {
+const productHrefs: Record<ProductId, string> = {
   desktop: '/start/desktop',
   mobile: '/start/mobile',
-  cli: '/start/entry-points',
-  satellite: '/guide/satellite',
-  oratorio: '/guide/oratorio/',
-  chatBots: '/guide/channels/',
-  harness: '/extend/harness/',
-  sdks: '/extend/sdks/'
+  cli: '/start/entry-points'
 }
 
-export type ProductId = 'desktop' | 'mobile' | 'cli' | 'satellite' | 'oratorio' | 'chat-bots' | 'harness' | 'sdks' | 'avatar'
+export type ProductId = 'desktop' | 'mobile' | 'cli'
 
-function products(rows: [ProductId, string, string, string, string][]): Product[] {
-  return rows.map(([id, label, hint, get, href]) => ({ id, label, hint, get, href, art: `${raw}dotcraft/docs/product-${id}.webp` }))
+function products(rows: [ProductId, string, string, string][]): Product[] {
+  return rows.map(([id, label, hint, get]) => ({ id, label, hint, get, href: productHrefs[id] }))
 }
 
 export const homeCopy = {
@@ -72,8 +65,7 @@ export const homeCopy = {
     hero: {
       eyebrow: 'Open source, built on .NET 10',
       lines: ['An agent runtime you', 'embed and extend'],
-      stop: '.',
-      lead: 'Run the app, or add the package.'
+      stop: '.'
     },
     start: 'Get started',
     download: {
@@ -93,7 +85,6 @@ export const homeCopy = {
     },
     why: {
       title: 'Why DotCraft?',
-      lead: 'Run it as a desktop app, add it to your own .NET application, and extend both with plugins.',
       groups: [
         {
           title: 'Run the app',
@@ -120,7 +111,7 @@ export const homeCopy = {
     tour: {
       title: 'From the app to your own product.',
       readMore: 'Read more',
-      stories: stories(raw, [
+      stories: stories([
         { name: 'DotCraft Desktop', line: 'Plan, build, review, and automate in one app.', alt: 'DotCraft Desktop working through a Ship dark mode plan: two subagents run, the in-app browser checks the settings page, and a weekly contrast check is set up as an automation', links: ['Desktop', 'Getting Started'] },
         { name: 'Agent Builder + Profiles', line: 'Build your own Agent team through conversation.', alt: 'Agent Builder turning a short description into a contrast-checker agent with its own avatar, tools and skills', links: ['Agent Profiles', 'Subagents', 'Automations'] },
         { name: 'Plugins', line: 'Extend the runtime in C#, and Desktop in TypeScript.', alt: 'A .NET plugin adding review tools and lifecycle hooks, then a Desktop plugin changing the app wallpaper', links: ['.NET Plugins', 'Desktop Plugins'] },
@@ -130,15 +121,9 @@ export const homeCopy = {
     products: {
       title: 'Explore DotCraft',
       rows: products([
-        ['desktop', 'Desktop', 'Plans, builds and checks the work in your projects.', 'Download', productHrefs.desktop],
-        ['mobile', 'Mobile', 'Follow and answer your chats from your phone.', 'Download', productHrefs.mobile],
-        ['cli', 'CLI', 'One command, and the answer is in your terminal.', 'Install script', productHrefs.cli],
-        ['satellite', 'Satellite', 'Your agent works on another Windows PC.', 'Download', productHrefs.satellite],
-        ['oratorio', 'Oratorio', 'Every task, from hand-off to review, on one board.', 'Built in', productHrefs.oratorio],
-        ['chat-bots', 'Chat bots', 'Ask about your project right in the group chat.', 'Built in', productHrefs.chatBots],
-        ['harness', 'Harness', 'The whole agent runtime, inside your .NET app.', 'NuGet', productHrefs.harness],
-        ['sdks', 'SDKs', 'Make your own app a DotCraft client.', 'npm · NuGet', productHrefs.sdks],
-        ['avatar', 'Avatar', 'A face for your agent that moves and dresses up.', 'npm', '/extend/sdks/typescript#avatar-package']
+        ['desktop', 'Desktop', 'Plans, builds and checks the work in your projects.', 'Download'],
+        ['mobile', 'Mobile', 'Follow and answer your chats from your phone.', 'Download'],
+        ['cli', 'CLI', 'One command, and the answer is in your terminal.', 'Install script']
       ])
     },
     harness: {
@@ -160,8 +145,7 @@ export const homeCopy = {
     hero: {
       eyebrow: '开源，基于 .NET 10 构建',
       lines: ['可嵌入、可扩展的', 'Agent Runtime'],
-      stop: '。',
-      lead: '直接运行，或装进你的应用。'
+      stop: '。'
     },
     start: '开始使用',
     download: {
@@ -173,7 +157,7 @@ export const homeCopy = {
     },
     install: { tablist: 'CLI 安装平台', copy: '复制', copied: '已复制', copyLabel: '复制安装命令' },
     demo: {
-      poster: cdn + 'dotcraft/desktop_banner.png',
+      poster: raw + 'dotcraft/desktop_banner.png',
       alt: 'DotCraft Desktop 预览',
       try: '试一试 Live Demo',
       load: '加载交互演示',
@@ -181,7 +165,6 @@ export const homeCopy = {
     },
     why: {
       title: '为什么选择 DotCraft？',
-      lead: '它可以作为桌面应用直接运行，也可以引入你自己的 .NET 应用，两者都能用插件扩展。',
       groups: [
         {
           title: '直接运行',
@@ -208,7 +191,7 @@ export const homeCopy = {
     tour: {
       title: '从应用到你自己的产品。',
       readMore: '了解更多',
-      stories: stories(cdn, [
+      stories: stories([
         { name: 'DotCraft Desktop', line: '规划、执行、审阅和自动化，都在一个桌面应用里完成。', alt: 'DotCraft Desktop 按「Ship dark mode」计划推进：两个子智能体并行工作，应用内浏览器检查设置页，再把每周对比度检查设为自动化任务', links: ['Desktop', '快速开始'] },
         { name: 'Agent Builder + Profiles', line: '通过对话，打造属于你的 Agent 团队。', alt: 'Agent Builder 把一段描述变成 contrast-checker Agent，带上它自己的形象、工具和技能', links: ['Agent Profiles', 'Subagents', '自动化'] },
         { name: '插件', line: '用 C# 扩展运行时，用 TypeScript 扩展 Desktop。', alt: '一个 .NET 插件添加评审工具和生命周期钩子，再由一个 Desktop 插件更换应用壁纸', links: ['.NET 插件', 'Desktop Plugins'] },
@@ -218,15 +201,9 @@ export const homeCopy = {
     products: {
       title: '探索 DotCraft',
       rows: products([
-        ['desktop', 'Desktop', '在你的项目里规划、动手、自己验收。', '下载', productHrefs.desktop],
-        ['mobile', '手机 App', '在手机上跟进和处理你的聊天。', '下载', productHrefs.mobile],
-        ['cli', 'CLI', '一条命令，答案直接回到终端。', '安装脚本', productHrefs.cli],
-        ['satellite', '卫星', '你的 Agent 在另一台 Windows 电脑上工作。', '下载', productHrefs.satellite],
-        ['oratorio', 'Oratorio', '每个任务从派发到评审，都在一块看板上。', '已内置', productHrefs.oratorio],
-        ['chat-bots', '聊天机器人', '在群聊里直接问项目的事。', '已内置', productHrefs.chatBots],
-        ['harness', 'Harness', '整套 Agent 运行时，装进你的 .NET 应用。', 'NuGet', productHrefs.harness],
-        ['sdks', 'SDK', '让你的应用成为 DotCraft 客户端。', 'npm · NuGet', productHrefs.sdks],
-        ['avatar', 'Avatar', '给你的 Agent 一张会动、能换装的脸。', 'npm', '/extend/sdks/typescript#avatar-包']
+        ['desktop', 'Desktop', '在你的项目里规划、动手、自己验收。', '下载'],
+        ['mobile', '手机 App', '在手机上跟进和处理你的聊天。', '下载'],
+        ['cli', 'CLI', '一条命令，答案直接回到终端。', '安装脚本']
       ])
     },
     harness: {

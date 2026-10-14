@@ -1,4 +1,7 @@
+export type Pose = 'idle' | 'greeting' | 'done'
+
 const GAZE_OFFSET = 34
+const SUCCESS_LIGHT = 'var(--dca-success, #16a34a)'
 const GAZE_REACH = 420
 
 const blinkFrames: Keyframe[] = [
@@ -42,5 +45,17 @@ export function bringToLife(mascot: HTMLElement): () => void {
     window.clearTimeout(blinkTimer)
     cancelAnimationFrame(frame)
     window.removeEventListener('pointermove', onPointerMove)
+  }
+}
+
+export function setPose(mascot: HTMLElement, pose: Pose): void {
+  mascot.querySelector<HTMLElement>('.dca-robot')!.dataset.pose = pose
+  mascot.querySelector<SVGElement>('.dca-part-robot')!.dataset.expression = pose === 'idle' ? 'neutral' : 'happy'
+  const rig = mascot.querySelector('.dca-rig')!.classList
+  rig.toggle('dca-action-wave', pose === 'greeting')
+  rig.toggle('dca-action-celebrate', pose === 'done')
+  for (const light of mascot.querySelectorAll<SVGElement>('.dca-part-glow, .dca-part-light')) {
+    light.dataset.fill ??= light.getAttribute('fill') ?? ''
+    light.setAttribute('fill', pose === 'done' ? SUCCESS_LIGHT : light.dataset.fill)
   }
 }

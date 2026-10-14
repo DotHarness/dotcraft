@@ -1,6 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { AppearanceAvatar, Avatar } from '../../../../sdk/typescript/packages/avatar/src/Avatar'
-import type { AvatarPose } from '../../../../sdk/typescript/packages/avatar/src/characters'
 import { originalAppearance } from '../../../../sdk/typescript/packages/avatar/src/appearanceModel'
 
 let serial = 0
@@ -19,8 +18,8 @@ function unique(markup: string): string {
   return out
 }
 
-export function renderMascot(pose: AvatarPose, size: number): string {
-  return unique(renderToStaticMarkup(<AppearanceAvatar appearance={originalAppearance} state={pose} size={size} motion="system" />))
+export function renderMascot(size: number): string {
+  return unique(renderToStaticMarkup(<AppearanceAvatar appearance={originalAppearance} state="idle" size={size} motion="system" />))
 }
 
 export function renderAgent(name: string, size: number): string {

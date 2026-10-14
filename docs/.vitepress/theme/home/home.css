@@ -20,16 +20,44 @@
 }
 
 .Layout.dc-home-page .VPContent {
-  background: var(--shell-chrome-tone);
+  background: var(--main-surface);
+}
+
+.Layout.dc-home-page .VPNav {
+  --text-secondary: color-mix(in srgb, var(--text-primary) 82%, transparent);
+  transition: background-color 240ms ease;
+}
+
+.Layout.dc-home-page .VPNav:has(.VPNavBar.top:not(.screen-open)):not(:hover, :focus-within) {
+  background-color: transparent;
+}
+
+.Layout.dc-home-page .VPNav :is(.VPNavBarMenu, .VPNavBarSearch) {
+  display: none;
+}
+
+.Layout.dc-home-page .VPNav .VPNavBar .content-body {
+  justify-content: flex-end;
+}
+
+@media (min-width: 960px) {
+  .Layout.dc-home-page .VPContent {
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 959px) {
+  .Layout.dc-home-page .VPNav {
+    position: absolute;
+    width: 100%;
+  }
 }
 
 .dc-sheet {
   position: relative;
-  min-height: calc(100vh - var(--vp-nav-height));
+  min-height: 100vh;
   overflow-x: clip;
-  border-radius: var(--dc-surface-radius) var(--dc-surface-radius) 0 0;
   background: var(--main-surface);
-  box-shadow: inset 0 1px 0 0 var(--main-surface-top-border);
   color: var(--text-primary);
   font-size: var(--type-body-size);
   line-height: var(--type-body-line-height);
@@ -64,13 +92,14 @@
 }
 
 .dc-hero {
-  padding-top: 88px;
+  padding-top: calc(var(--vp-nav-height) + 88px);
   text-align: center;
 }
 
 .dc-backdrop {
   position: absolute;
   z-index: -1;
+  overflow: hidden;
   background: url("./media/hero-backdrop-light.webp") center / cover no-repeat;
   pointer-events: none;
 }
@@ -79,10 +108,22 @@
   background-image: url("./media/hero-backdrop-dark.webp");
 }
 
+.dc-backdrop > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 600ms ease;
+}
+
+.dc-backdrop > canvas[data-ready] {
+  opacity: 1;
+}
+
 .dc-hero .dc-backdrop {
   inset: 0 0 auto;
-  height: 1040px;
-  border-radius: var(--dc-surface-radius) var(--dc-surface-radius) 0 0;
+  height: calc(var(--vp-nav-height) + 1040px);
   -webkit-mask-image: linear-gradient(180deg, #000 62%, transparent);
   mask-image: linear-gradient(180deg, #000 62%, transparent);
 }
@@ -91,6 +132,15 @@
   inset: 0;
   -webkit-mask-image: linear-gradient(180deg, transparent, #000 32%);
   mask-image: linear-gradient(180deg, transparent, #000 32%);
+}
+
+.dc-field {
+  border-radius: var(--dc-surface-radius);
+  background: url("./media/hero-backdrop-light.webp") var(--field-x, 50%) 40% / auto 150% no-repeat;
+}
+
+.dark .dc-field {
+  background-image: url("./media/hero-backdrop-dark.webp");
 }
 
 .dc-hero__eyebrow {
@@ -136,20 +186,12 @@
   color: var(--dc-logo-gold);
 }
 
-.dc-hero__lead {
-  margin-top: 20px;
-  color: color-mix(in srgb, var(--text-primary) 82%, transparent);
-  font-size: 19px;
-  line-height: 28px;
-  text-wrap: balance;
-}
-
 .dc-hero__actions {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 18px;
-  margin-top: 34px;
+  margin-top: 40px;
 }
 
 .dc-actions,
@@ -182,20 +224,12 @@
   text-wrap: balance;
 }
 
-.dc-head p {
-  margin-top: 14px;
-  color: var(--text-secondary);
-  font-size: 17px;
-  line-height: 26px;
-  text-wrap: balance;
-}
-
 :root:lang(zh) :is(.dc-hero__title, .dc-head h2, .dc-close h2, .dc-harness__title) {
   letter-spacing: -0.01em;
 }
 
 .dc-close {
-  padding: 168px 0 136px;
+  padding-top: 168px;
   text-align: center;
 }
 
@@ -218,9 +252,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  margin-top: 136px;
   padding: 22px 32px 28px;
-  box-shadow: inset 0 1px 0 var(--border-subtle);
-  color: var(--text-secondary);
+  color: color-mix(in srgb, var(--text-primary) 72%, transparent);
   font-size: var(--type-ui-size);
 }
 
@@ -236,7 +270,7 @@
   }
 
   .dc-hero {
-    padding-top: 48px;
+    padding-top: calc(var(--vp-nav-height) + 48px);
   }
 
   .dc-backdrop {
@@ -244,7 +278,7 @@
   }
 
   .dc-hero .dc-backdrop {
-    height: 860px;
+    height: calc(var(--vp-nav-height) + 860px);
   }
 
   .dc-hero__title {
@@ -254,11 +288,6 @@
 
   .dc-line {
     display: inline;
-  }
-
-  .dc-hero__lead {
-    font-size: 17px;
-    line-height: 25px;
   }
 
   .dc-hero__actions {
@@ -286,13 +315,8 @@
     line-height: 1.15;
   }
 
-  .dc-head p {
-    font-size: 16px;
-    line-height: 24px;
-  }
-
   .dc-close {
-    padding: 112px 0 88px;
+    padding-top: 112px;
     text-align: left;
   }
 
@@ -311,6 +335,7 @@
   .dc-foot {
     flex-direction: column;
     align-items: flex-start;
+    margin-top: 88px;
     padding: 20px 16px 28px;
   }
 }

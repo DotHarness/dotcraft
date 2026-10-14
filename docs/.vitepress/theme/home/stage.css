@@ -112,17 +112,6 @@
   pointer-events: auto;
 }
 
-.dc-mascot__look {
-  display: none;
-  grid-area: 1 / 1;
-}
-
-.dc-mascot[data-look="idle"] > [data-pose="idle"],
-.dc-mascot[data-look="greeting"] > [data-pose="greeting"],
-.dc-mascot[data-look="done"] > [data-pose="done"] {
-  display: block;
-}
-
 .dc-perch {
   position: absolute;
   bottom: calc(100% - var(--size) * (1024 - var(--perch-ink-bottom)) / 1024 - 0.6px);
@@ -168,20 +157,28 @@
 }
 
 .dc-perch .dca-robot[data-motion="on"][data-pose="idle"] .dca-body-motion {
-  animation: dc-perch-breathe 5s ease-in-out infinite;
+  animation: dc-perch-breathe 5s ease-in-out 300ms infinite;
+}
+
+.dc-perch .dca-robot[data-motion="on"][data-pose="greeting"] .dca-body-motion {
+  animation: dc-perch-lean 260ms cubic-bezier(0.22, 0.7, 0.3, 1);
 }
 
 .dc-perch .dca-robot[data-motion="on"][data-pose="done"] .dca-body-motion {
   animation: dc-perch-hop 900ms cubic-bezier(0.3, 0, 0.3, 1) both;
 }
 
-.dc-perch:has(.dc-mascot[data-look="done"] .dca-robot[data-motion="on"]) .dc-perch__shadow {
+.dc-perch:has(.dca-robot[data-motion="on"][data-pose="done"]) .dc-perch__shadow {
   animation: dc-perch-shadow 900ms cubic-bezier(0.3, 0, 0.3, 1) both;
 }
 
 @keyframes dc-perch-breathe {
   0%, 100% { transform: scale(1, 1); }
   50% { transform: scale(1.006, 1.02); }
+}
+
+@keyframes dc-perch-lean {
+  from { transform: none; }
 }
 
 @keyframes dc-perch-hop {

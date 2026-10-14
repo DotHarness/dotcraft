@@ -1,5 +1,5 @@
 ---
-version: "0.8.6"
+version: "0.8.7"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -2120,13 +2120,26 @@ change here is mirrored in the docs theme. Two exceptions serve reading in a
 browser: the dark theme re-seeds `--seed-surface` deeper, so every derived dark
 surface moves together, and the home page's hero and closing call to action sit
 on a generated, fully defocused colour-field image in a light and a dark
-variant. It fills the hero edge to edge and fades into the main surface behind
-the demo window; copy over it uses frosted or near-primary text so it stays
-legible.
+variant. The field drifts slowly, warping the same image so its colours never
+change; reduced motion or a missing WebGL context leaves it still. It fills the
+hero edge to edge from the top of the window and fades into the main surface
+behind the demo window. The closing field fades in above the call to action and
+runs to the bottom of the page, carrying the footer with no rule or surface
+change. Copy over it uses frosted or near-primary text so it stays legible.
 
-- A chrome-tone band runs across the top of every page. Content pages add the
-  Desktop sidebar, with its sentence-case group labels, row grammar, and
+- A chrome-tone band runs across the top of every page. On the home page it
+  carries only the lockup, language, appearance, and GitHub, with no section
+  tabs or search; it is transparent over the hero field while the page is
+  scrolled to the top, and takes its chrome tone on hover, focus, or once the
+  page scrolls. Content pages
+  add the Desktop sidebar, with its sentence-case group labels, row grammar, and
   collapsible groups, and set the page on the main surface.
+- Every product visual on the home page sits on the same colour field: the tour
+  media (a light and a dark file, picked by the site theme), the product cards,
+  and the Harness code window. Each shows a different slice of the field, and the
+  product card row reads as one continuous field. Product cards crop real product
+  UI at the card edge and show the core clients only; the sidebar lists the
+  rest. The Harness code window is a static figure with no tabs or actions.
 - A sticky top band on content pages follows the catalog top-bar rules: the
   breadcrumb aligns with the text column, and Copy link and Edit are icon actions
   with inverse tooltips.
@@ -2139,8 +2152,8 @@ legible.
   plain text links with arrows in a side gutter. No boxed pager cards, and no
   copyright row on content pages.
 - Sora is the brand display face and appears only in the home page's display type:
-  the hero headline, section headings, story titles, and the product sticker
-  labels. Body text, controls, the
+  the hero headline, section headings, story titles, and the product card
+  names. Body text, controls, the
   sidebar, and content-page headings stay on the system stack. Chinese falls back
   to the system CJK face.
 - The icon and "DotCraft" wordmark align by visual weight. The docs nav lockup (a
@@ -2150,7 +2163,9 @@ legible.
 - A perched mascot stands on its surface: its measured ink bottom rests on the
   surface's top edge over a soft contact shadow, inset from the corner radius. It
   never overlaps a window's title bar or hovers above a surface, and its idle
-  motion stays anchored at the base.
+  motion stays anchored at the base. It changes pose in place, as Desktop's
+  composer mascot does, so the face, arms, and lean transition between poses
+  instead of cutting to a separate render.
 - The live Desktop demo renders at its real resolution. Never transform-scale its
   frame, and hide the poster over an opaque surface once the demo is ready.
 

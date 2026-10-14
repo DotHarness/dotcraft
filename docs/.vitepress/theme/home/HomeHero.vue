@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import Backdrop from './Backdrop.vue'
 import CopyButton from './CopyButton.vue'
 import DemoWindow from './DemoWindow.vue'
 import DownloadSplit from './DownloadSplit.vue'
@@ -16,7 +17,7 @@ const mascot = ref<InstanceType<typeof PerchedMascot>>()
 
 <template>
   <section class="dc-hero" aria-labelledby="hero-title">
-    <div class="dc-backdrop" aria-hidden="true" />
+    <Backdrop />
     <div class="dc-wrap">
       <a class="dc-hero__eyebrow" href="https://github.com/DotHarness/dotcraft">
         <Icon name="github" :size="14" />
@@ -28,7 +29,6 @@ const mascot = ref<InstanceType<typeof PerchedMascot>>()
         {{ ' ' }}
         <span class="dc-line">{{ t.hero.lines[1] }}<span class="dc-dot">{{ t.hero.stop }}</span></span>
       </h1>
-      <p class="dc-hero__lead">{{ t.hero.lead }}</p>
       <div class="dc-hero__actions">
         <div class="dc-actions">
           <a class="dc-button" data-variant="primary" data-size="prominent" :href="href('/start/')">{{ t.start }}</a>
@@ -58,7 +58,7 @@ const mascot = ref<InstanceType<typeof PerchedMascot>>()
     </div>
     <figure class="dc-stage">
       <div class="dc-stage__glow" aria-hidden="true" />
-      <PerchedMascot ref="mascot" perch="hero" :poses="data.mascots.hero" :size="84" />
+      <PerchedMascot ref="mascot" perch="hero" :markup="data.mascots.hero" :size="84" />
       <DemoWindow />
     </figure>
   </section>
