@@ -159,6 +159,15 @@ internal sealed class CommandExecutionTracker
         _emitItemCompleted(_item);
     }
 
+    public static string StatusOf(BackgroundTerminalSnapshot snapshot) => snapshot.Status switch
+    {
+        BackgroundTerminalStatus.Running => "backgrounded",
+        BackgroundTerminalStatus.Completed => "completed",
+        BackgroundTerminalStatus.Killed or BackgroundTerminalStatus.TimedOut => "cancelled",
+        BackgroundTerminalStatus.Lost => "lost",
+        _ => "failed"
+    };
+
     public void RecordTerminal(BackgroundTerminalSnapshot snapshot)
     {
         if (_item.AsCommandExecution is { } payload)

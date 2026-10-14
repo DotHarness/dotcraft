@@ -24,9 +24,10 @@ describe('attachTerminalInputs', () => {
       id, type: 'toolCall', toolCallId: id, ...coreToolFields('WriteStdin'), arguments: { sessionId: 'term_1', input }
     })
 
+    const denied = { ...write('w4', 'rm -rf build\n'), success: false }
     const turns = attachTerminalInputs([
       turn('t1', [command]),
-      turn('t2', [write('w1', ''), write('w2', 'y'), write('w3', 'es\n')])
+      turn('t2', [write('w1', ''), write('w2', 'y'), write('w3', 'es\n'), denied])
     ])
 
     expect(turns[0].items[0].terminalInputs).toEqual(['yes'])

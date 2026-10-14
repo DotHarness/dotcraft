@@ -2004,7 +2004,7 @@ Emitted when `WriteStdin` writes input to the process of a `commandExecution` it
 ```
 
 - The notification is not persisted. The `WriteStdin` `toolCall` and `toolResult` items remain in the turn as the durable record and model history; their `sessionId` argument matches the command item's payload `sessionId`.
-- Clients present non-empty input on the command it was written to, and show neither a poll nor the `WriteStdin` call as a tool card of its own. When rebuilding from history, they attach each `WriteStdin` input to the `commandExecution` item with the same `sessionId`.
+- Clients present non-empty input on the command it was written to, and show neither a poll nor a successful `WriteStdin` call as a tool card of its own; a failed call keeps its card. When rebuilding from history, they attach the input of each successful `WriteStdin` call to the `commandExecution` item with the same `sessionId`.
 - Sent only to connections that advertise `capabilities.commandExecutionStreaming = true`.
 
 #### `toolExecution` lifecycle

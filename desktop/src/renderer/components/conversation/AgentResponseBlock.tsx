@@ -425,7 +425,7 @@ function shouldHideCoordinationTool(item: ConversationItem, turnRunning: boolean
   if (!isToolLikeItemType(item.type)) return false
   if (item.presentation?.presentationId === CORE_TOOL_PRESENTATION_IDS.sendUserMessageAsync) return true
   if (item.presentation?.presentationId === 'core.sleep') return true
-  if (resolveToolKind(item) === 'writeStdin') return true
+  if (resolveToolKind(item) === 'writeStdin') return !isToolExecutionFailure(item)
   return item.presentation?.presentationId === 'core.request-user-input'
     && isToolItemLive(item, { turnRunning })
 }

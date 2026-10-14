@@ -1356,6 +1356,10 @@ public sealed partial class SessionService(
                 }.CommitAsync();
             }
 
+            var settledCommands = await SettleOrphanedCommandsAsync(thread, ct);
+            if (settledCommands)
+                await persistence.SaveThreadAsync(thread, ct);
+
             var runtime = _runtimeRegistry.SetThread(thread);
             runtime.Materialized = true;
             if (interruptedTurn != null)
@@ -1686,6 +1690,48 @@ public sealed partial class SessionService(
 
         await persistence.SaveThreadAsync(thread, ct);
         SetMaterializedIfCurrent(thread, materialized: true);
+    }
+
+    private async Task<bool> SettleOrphanedCommandsAsync(SessionThread thread, CancellationToken ct)
+    {
+        var settled = false;
+        foreach (var turn in thread.Turns.Where(static t =>
+                     t.Status is not (TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)))
+        {
+            foreach (var item in turn.Items)
+            {
+                if (item.Type != ItemType.CommandExecution
+                    || item.Status == ItemStatus.Completed
+                    || item.AsCommandExecution is not { } payload)
+                    continue;
+
+                BackgroundTerminalSnapshot? terminal = null;
+                if (!string.IsNullOrEmpty(payload.SessionId) && BackgroundTerminalService is { } terminals)
+                {
+                    try
+                    {
+                        terminal = await terminals.ReadAsync(payload.SessionId, ct: ct);
+                    }
+                    catch (KeyNotFoundException)
+                    {
+                    }
+                    if (terminal?.Status == BackgroundTerminalStatus.Running)
+                        continue;
+                }
+
+                item.Status = ItemStatus.Completed;
+                item.CompletedAt = terminal?.CompletedAt ?? DateTimeOffset.UtcNow;
+                item.Payload = payload with
+                {
+                    Status = terminal is null ? "lost" : CommandExecutionTracker.StatusOf(terminal),
+                    AggregatedOutput = string.IsNullOrEmpty(terminal?.Output) ? payload.AggregatedOutput : terminal.Output,
+                    ExitCode = terminal?.ExitCode
+                };
+                settled = true;
+            }
+        }
+
+        return settled;
     }
 
     private async Task PersistItemAfterTurnAsync(string threadId, string turnId, SessionItem item)

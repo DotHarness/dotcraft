@@ -230,7 +230,7 @@ public sealed class ShellTools
 
             commandExecution?.Complete(
                 toolResult,
-                CommandStatus(snapshot),
+                CommandExecutionTracker.StatusOf(snapshot),
                 snapshot.ExitCode,
                 snapshot.SessionId,
                 snapshot.OutputPath,
@@ -279,20 +279,12 @@ public sealed class ShellTools
             }
             while (snapshot.Status == BackgroundTerminalStatus.Running);
 
-            await commandExecution.CompleteFromTerminalAsync(snapshot, FormatForegroundSnapshot(snapshot), CommandStatus(snapshot));
+            await commandExecution.CompleteFromTerminalAsync(snapshot, FormatForegroundSnapshot(snapshot), CommandExecutionTracker.StatusOf(snapshot));
         }
         catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException or IOException)
         {
         }
     }
-
-    private static string CommandStatus(BackgroundTerminalSnapshot snapshot) => snapshot.Status switch
-    {
-        BackgroundTerminalStatus.Running => "backgrounded",
-        BackgroundTerminalStatus.Completed => "completed",
-        BackgroundTerminalStatus.Killed or BackgroundTerminalStatus.TimedOut => "cancelled",
-        _ => "failed"
-    };
 
     private static ToolExecutionResult SnapshotResult(BackgroundTerminalSnapshot snapshot, string content)
     {

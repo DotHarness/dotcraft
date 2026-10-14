@@ -683,13 +683,18 @@ over after its yield time instead keeps its Item in progress, records the
 terminal `sessionId` on it, and completes it with the final output, status, and
 exit code when the process exits, even after its Turn has completed. That late completion is persisted into the Turn and
 published as `item/completed`; output produced after the hand-over reaches
-clients through `terminal/*` notifications, not `CommandExecution` deltas.
+clients through `terminal/*` notifications, not `CommandExecution` deltas. When
+a thread is loaded, such an Item still in progress on a finished Turn whose
+terminal is no longer running, for example after a host restart, is completed
+from the terminal's final state, or with `status = "lost"` when the terminal is
+unknown, and the result is persisted.
 
 `WriteStdin` keeps its `ToolCall` and `ToolResult` Items, which carry the model
 history and the persisted record of what was written. Clients present that input
 on the command it went to, through the terminal interaction delta live and by
 matching the call's `sessionId` argument to the command Item's `sessionId` when
-history is reloaded, rather than as a tool call of its own.
+history is reloaded, rather than as a tool call of its own. A failed call wrote
+nothing, so it is not presented on the command and remains a tool call.
 
 An `Exec` process that is still owned by the active tool invocation is foreground
 work. Cancelling the Turn stops its process tree, completes the

@@ -1,4 +1,5 @@
 import type { ConversationTurn } from '../types/conversation'
+import { isToolExecutionFailure } from './toolCallDisplay'
 import { resolveToolKind } from './toolKind'
 
 export function readTerminalInput(buffer: string, stdin: string): { commands: string[]; buffer: string } {
@@ -25,7 +26,7 @@ export function attachTerminalInputs(turns: ConversationTurn[]): ConversationTur
   const buffers = new Map<string, string>()
   for (const turn of turns) {
     for (const item of turn.items) {
-      if (item.type !== 'toolCall' || resolveToolKind(item) !== 'writeStdin') continue
+      if (item.type !== 'toolCall' || resolveToolKind(item) !== 'writeStdin' || isToolExecutionFailure(item)) continue
       const sessionId = item.arguments?.sessionId
       const input = item.arguments?.input
       if (typeof sessionId !== 'string' || typeof input !== 'string' || input.length === 0) continue
