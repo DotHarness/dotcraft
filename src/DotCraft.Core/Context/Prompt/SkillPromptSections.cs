@@ -1,10 +1,11 @@
 using DotCraft.Contributions;
+using DotCraft.Sessions;
 using DotCraft.Skills;
 using System.Text;
 
 namespace DotCraft.Context;
 
-/// <summary>The built-in skill sections: self-learning guidance, the inlined always-loaded skills, and the progressive-loading summary of the rest.</summary>
+/// <summary>The built-in skill sections: self-learning guidance, the inlined always-loaded skills, and how to choose and load the rest. The catalog itself is the <c>skills</c> world-state section.</summary>
 internal static class SkillPromptSections
 {
     /// <summary>Builds the <c>self-learning</c> section, or omits it without <c>SkillManage</c>.</summary>
@@ -22,7 +23,7 @@ Correct outdated or incomplete instructions in a loaded skill before finishing. 
 
 Update an existing skill when it covers the task. Scope new skills to a reusable task type.
 
-Skill changes may require a new turn or session refresh to appear in the prompt.
+Skill changes reach the skills list on your next step.
 """
             : null;
 
@@ -35,7 +36,9 @@ Skill changes may require a new turn or session refresh to appear in the prompt.
             ContextPageKeys.SkillsAlways(BuildSkillsVariant(sources)),
             () =>
             {
-                var alwaysSkills = sources.SkillsLoader.GetAlwaysSkills();
+                var alwaysSkills = sources.SkillsLoader.GetAlwaysSkills()
+                    .Where(name => sources.SkillsPolicy?.Permits(name) != false)
+                    .ToList();
                 return alwaysSkills.Count == 0
                     ? string.Empty
                     : sources.SkillsLoader.LoadSkillsForContext(
@@ -47,20 +50,9 @@ Skill changes may require a new turn or session refresh to appear in the prompt.
         return string.IsNullOrWhiteSpace(content) ? null : $"# Active Skills\n\n{content}";
     }
 
-    /// <summary>Builds the <c>skills-summary</c> section listing the skills available on demand.</summary>
+    /// <summary>Builds the <c>skills-summary</c> section: how to choose and load a skill from the catalog.</summary>
     internal static string? SkillsSummary(SystemPromptSectionContext context)
     {
-        var sources = context.RequireSources();
-        var summary = sources.GetContextPage(
-            context.ThreadId,
-            ContextPageKeys.SkillsSummary(BuildSkillsVariant(sources)),
-            () => sources.SkillsLoader.BuildSkillsSummary(
-                sources.SkillVariantModeEnabled,
-                sources.SkillVariantTarget));
-
-        if (string.IsNullOrWhiteSpace(summary))
-            return null;
-
         var skillLoadInstruction = context.IsToolAvailable("SkillView")
             ? "If the user names a skill or the task clearly matches its description, load it with SkillView and follow its instructions. Use ReadFile for supporting files referenced by the loaded skill."
             : "If the user names a skill or the task clearly matches its description, read its SKILL.md and follow its instructions.";
@@ -75,11 +67,11 @@ Use the minimal set of matching skills. Reuse a skill across turns only when it 
 
 Active skills shown above are already loaded. Follow them without loading them again.
 
-{summary}
+The skills you can use are listed in the Skills context section. When the list is restated, the newest one applies.
 """;
     }
 
-    /// <summary>Builds the cache variant key pinning both skill pages to the workspace, skill root, and variant selection.</summary>
+    /// <summary>Builds the cache variant key pinning the always-loaded page to the workspace, skill root, variant selection, and skill policy.</summary>
     private static string BuildSkillsVariant(PromptSectionSources sources)
     {
         var sb = new StringBuilder();
@@ -91,7 +83,17 @@ Active skills shown above are already loaded. Follow them without loading them a
         sb.Append(sources.SkillVariantModeEnabled.ToString().ToLowerInvariant());
         sb.Append("|target:");
         AppendSkillVariantTarget(sb, sources.SkillVariantTarget);
+        sb.Append("|policy:");
+        AppendSkillsPolicy(sb, sources.SkillsPolicy);
         return sb.ToString();
+    }
+
+    private static void AppendSkillsPolicy(StringBuilder sb, ThreadSkillsPolicy? policy)
+    {
+        sb.Append("allow=");
+        sb.Append(policy?.Allow == null ? "*" : string.Join(',', policy.Allow));
+        sb.Append(";deny=");
+        sb.Append(policy?.Deny == null ? string.Empty : string.Join(',', policy.Deny));
     }
 
     private static void AppendSkillVariantTarget(StringBuilder sb, SkillVariantTarget? target)

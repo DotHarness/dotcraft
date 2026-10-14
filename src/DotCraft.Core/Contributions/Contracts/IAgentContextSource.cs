@@ -27,6 +27,9 @@ public sealed record AgentPromptInputs
 
     /// <summary>Gets the instructions supplied by the application that started the thread, or <see langword="null"/>.</summary>
     public string? DeveloperInstructions { get; init; }
+
+    /// <summary>Gets the thread's skill policy, or <see langword="null"/> when every enabled skill is available.</summary>
+    public DotCraft.Sessions.ThreadSkillsPolicy? SkillsPolicy { get; init; }
 }
 
 /// <summary>Describes the agent being built, so a contribution can decide whether to take part and how to parameterize the provider it returns.</summary>

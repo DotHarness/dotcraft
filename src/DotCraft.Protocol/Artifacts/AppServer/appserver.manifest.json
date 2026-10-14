@@ -22348,13 +22348,6 @@
           "required": false,
           "nullable": true,
           "const": null
-        },
-        {
-          "name": "preload",
-          "type": "array<string>",
-          "required": false,
-          "nullable": true,
-          "const": null
         }
       ],
       "variants": []

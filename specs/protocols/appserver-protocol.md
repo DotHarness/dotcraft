@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.6 |
+| **Version** | 0.8.7 |
 | **Status** | Living |
-| **Date** | 2026-10-13 |
+| **Date** | 2026-10-14 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md) |
 
@@ -486,7 +486,6 @@ Rules:
     "deny": []
   },
   "skillsPolicy": {
-    "preload": ["code-review"],
     "allow": ["code-review"],
     "deny": [],
     "allowManage": false
@@ -530,7 +529,7 @@ Fields:
 | `toolPolicy` | object | Structured tool policy with `allow`, `deny`, `agentControl`, and `allowedAgentControlTools`. Null or omitted keeps existing runtime defaults. |
 | `mcpPolicy` | object | Structured MCP policy. `servers` filters by effective MCP server name where available. `tools.allow` and `tools.deny` match canonical tool selectors and may use `*` wildcards: `name` for a top-level tool or `namespace/name` for a namespaced tool. They do not match `providerFlatName`, raw `SourceToolId`, or connection `runtimeName`. |
 | `pluginPolicy` | object | Structured plugin/app policy with source-aware `allow` and `deny` lists where metadata exists, falling back to stable tool-name denial. |
-| `skillsPolicy` | object | Structured skills policy with `preload`, skill name `allow`/`deny`, and `allowManage`. |
+| `skillsPolicy` | object | Structured skills policy with skill name `allow`/`deny` and `allowManage`. `allow` names the Skills the thread may use; omitted means every enabled Skill. Excluded Skills are left out of Skill context and refused by `SkillView`. |
 | `approvalPolicy` | string | Thread-scoped approval mode: `default`, `prompt`, `autoApprove`, or `deny`. `default` means the thread consults the workspace default approval policy; `prompt` always uses the interactive approval flow regardless of the workspace default. |
 | `automationTaskDirectory` | string | Optional local automation task directory. |
 | `reasoning` | object | Optional per-thread reasoning configuration. When absent, the thread falls back to the current workspace defaults. Uses camelCase wire enum values such as `low`, `medium`, `high`, `extraHigh`, `max`, `ultra` and output values such as `none`, `summary`, or `full`. |

@@ -5935,10 +5935,6 @@ public sealed class ThreadSkillsPolicy : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<string>?> Deny { get; init; }
 
-    [JsonPropertyName("preload")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<string>?> Preload { get; init; }
-
 }
 
 /// <summary>Executable wire contract for ThreadSpawnEdge.</summary>

@@ -64,7 +64,6 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
             McpServers = ["github"],
             McpToolsAllow = ["search"],
             McpToolsDeny = ["delete"],
-            SkillsPreload = ["pdf", "docx"],
             SkillsAllow = ["xlsx"],
             SkillsDeny = ["pptx"],
             ApprovalPolicy = "deny",
@@ -89,7 +88,6 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         Assert.Equal(draft.McpServers, roundTripped.McpServers);
         Assert.Equal(draft.McpToolsAllow, roundTripped.McpToolsAllow);
         Assert.Equal(draft.McpToolsDeny, roundTripped.McpToolsDeny);
-        Assert.Equal(draft.SkillsPreload, roundTripped.SkillsPreload);
         Assert.Equal(draft.SkillsAllow, roundTripped.SkillsAllow);
         Assert.Equal(draft.SkillsDeny, roundTripped.SkillsDeny);
         Assert.Equal(draft.ApprovalPolicy, roundTripped.ApprovalPolicy);
@@ -112,7 +110,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
                     ]
                 agentControl: disabled
             skills:
-                preload:
+                allow:
                     - research
             ---
             Body
@@ -124,7 +122,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         Assert.Equal("allowList", draft.ToolPolicyMode);
         Assert.Equal(["ReadFile", "WebSearch"], draft.ToolsAllow);
         Assert.Equal("disabled", draft.AgentControl);
-        Assert.Equal(["research"], draft.SkillsPreload);
+        Assert.Equal(["research"], draft.SkillsAllow);
         Assert.Equal("Body", draft.RoleInstructions);
     }
 
@@ -214,7 +212,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
             Description = "Writes documentation",
             ToolPolicyMode = "allowList",
             ToolsAllow = ["ReadFile"],
-            SkillsPreload = ["docx"],
+            SkillsAllow = ["docx"],
             ApprovalPolicy = "deny",
             Memory = "own",
             RoleInstructions = "You write clear documentation."

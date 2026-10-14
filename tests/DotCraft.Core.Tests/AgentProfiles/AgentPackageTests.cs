@@ -9,7 +9,7 @@ namespace DotCraft.Tests.Agents;
 public sealed class AgentPackageTests : IDisposable
 {
     private const string Document =
-        "---\nname: Release captain\ndescription: Ships releases.\nskills:\n  preload:\n    - release-notes\n---\n\nShip the release.\n";
+        "---\nname: Release captain\ndescription: Ships releases.\nskills:\n  allow:\n    - release-notes\n---\n\nShip the release.\n";
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"agent_package_{Guid.NewGuid():N}");
 
@@ -157,12 +157,12 @@ public sealed class AgentPackageTests : IDisposable
     public void WithIdentity_RewritesOnlyNameAndDescription()
     {
         const string document =
-            "---\nname: Old name\ndescription: >\n  Folded\n\n  description\nskills:\n  preload:\n    - release-notes\n---\n\nBody: keep.\n";
+            "---\nname: Old name\ndescription: >\n  Folded\n\n  description\nskills:\n  allow:\n    - release-notes\n---\n\nBody: keep.\n";
 
         var rewritten = AgentPackageDocument.WithIdentity(document, "New: name", "Ships releases.");
 
         Assert.Equal(
-            "---\nname: \"New: name\"\ndescription: Ships releases.\nskills:\n  preload:\n    - release-notes\n---\n\nBody: keep.\n",
+            "---\nname: \"New: name\"\ndescription: Ships releases.\nskills:\n  allow:\n    - release-notes\n---\n\nBody: keep.\n",
             rewritten);
         Assert.Equal("New: name", AgentPackageDocument.ReadName(rewritten));
     }

@@ -17,6 +17,7 @@ public sealed partial class SessionService
 
     private WorldStateTurnUpdate BuildWorldStateUpdate(
         SessionThread thread,
+        string turnId,
         string workspacePath,
         IReadOnlyList<ChatMessage> history,
         ThreadContextCarrier carrier,
@@ -40,7 +41,8 @@ public sealed partial class SessionService
             HasActivePlan = hasActivePlan,
             ThreadGoal = threadGoal,
             SessionStartHookContext = sessionStartHookContext,
-            MemoryStore = ResolveMemoryIndexStore(thread.Configuration)
+            MemoryStore = ResolveMemoryIndexStore(thread.Configuration),
+            Skills = ResolveSkillCatalog(thread, turnId)
         };
 
         var baseline = _runtimeRegistry.TryGetRuntime(thread.Id, out var runtime)
@@ -125,6 +127,7 @@ public sealed partial class SessionService
 
         var update = BuildWorldStateUpdate(
             thread,
+            turnId,
             workspacePath,
             history,
             carrier,

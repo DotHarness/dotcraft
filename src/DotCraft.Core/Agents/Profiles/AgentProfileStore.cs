@@ -234,7 +234,6 @@ public sealed partial class AgentProfileStore
 
     private static readonly HashSet<string> SkillsFields = new(StringComparer.Ordinal)
     {
-        "preload",
         "allow",
         "deny",
         "allowManage"
@@ -1080,7 +1079,6 @@ public sealed partial class AgentProfileStore
 
         return new ThreadSkillsPolicy
         {
-            Preload = ReadOptionalStringArray(skills, "preload", diagnostics),
             Allow = ReadOptionalStringArray(skills, "allow", diagnostics),
             Deny = ReadOptionalStringArray(skills, "deny", diagnostics),
             AllowManage = ReadOptionalBool(skills, "allowManage", diagnostics)
@@ -1498,7 +1496,6 @@ public sealed partial class AgentProfileStore
             ? null
             : new ThreadSkillsPolicy
             {
-                Preload = source.SkillsPolicy.Preload == null ? null : [.. source.SkillsPolicy.Preload],
                 Allow = source.SkillsPolicy.Allow == null ? null : [.. source.SkillsPolicy.Allow],
                 Deny = source.SkillsPolicy.Deny == null ? null : [.. source.SkillsPolicy.Deny],
                 AllowManage = source.SkillsPolicy.AllowManage

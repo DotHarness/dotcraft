@@ -9,7 +9,7 @@ export type BuilderField =
   | 'instructions'
   | 'tools.policy'
   | 'tools.agentControl'
-  | 'skills.preload'
+  | 'skills.allow'
   | 'mcp.servers'
   | 'providerPreference'
   | 'approval'
@@ -44,8 +44,8 @@ const BUILDER_TOOL_FIELDS: ReadonlyMap<string, BuilderField> = new Map([
   ['AppendAgentInstructions', 'instructions'],
   ['SetAgentToolPolicy', 'tools.policy'],
   ['SetAgentToolControl', 'tools.agentControl'],
-  ['AddAgentSkills', 'skills.preload'],
-  ['RemoveAgentSkills', 'skills.preload'],
+  ['AddAgentSkills', 'skills.allow'],
+  ['RemoveAgentSkills', 'skills.allow'],
   ['AddAgentMcpServers', 'mcp.servers'],
   ['RemoveAgentMcpServers', 'mcp.servers'],
   ['SetAgentProviderPreference', 'providerPreference'],
@@ -61,7 +61,7 @@ export const BUILDER_FIELD_LABEL_KEYS: Record<BuilderField, string> = {
   instructions: 'agentBuilder.field.instructions',
   'tools.policy': 'agentBuilder.field.tools',
   'tools.agentControl': 'agentBuilder.field.delegation',
-  'skills.preload': 'agentBuilder.field.skills',
+  'skills.allow': 'agentBuilder.field.skills',
   'mcp.servers': 'agentBuilder.field.mcp',
   providerPreference: 'agentBuilder.field.model',
   approval: 'agentBuilder.field.approval'
@@ -151,8 +151,8 @@ export function applyBuilderChange(
       }
       break
     }
-    case 'skills.preload':
-      next.skills = { ...draft.skills, preload: ch?.list ?? draft.skills.preload }
+    case 'skills.allow':
+      next.skills = { ...draft.skills, allow: ch?.list ?? draft.skills.allow }
       break
     case 'mcp.servers':
       next.mcp = { ...draft.mcp, servers: ch?.list ?? draft.mcp.servers }

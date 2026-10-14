@@ -43,7 +43,6 @@ export interface ProfileDraft {
     toolsDeny: string[]
   }
   skills: {
-    preload: string[]
     allow: string[]
     deny: string[]
   }
@@ -76,7 +75,7 @@ export function createEmptyDraft(): ProfileDraft {
     providerPreference: null,
     tools: { mode: 'all', allow: [], deny: [], agentControl: 'full' },
     mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
-    skills: { preload: [], allow: [], deny: [] },
+    skills: { allow: [], deny: [] },
     permissions: { approvalPolicy: 'prompt', requireApprovalOutsideWorkspace: null },
     memory: 'shared',
     roleInstructions: ''
@@ -137,7 +136,6 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
   draft.mcp.toolsDeny = parseList(mcpTools.deny)
 
   const skills = isMap(front.skills) ? front.skills : {}
-  draft.skills.preload = parseList(skills.preload)
   draft.skills.allow = parseList(skills.allow)
   draft.skills.deny = parseList(skills.deny)
 
@@ -208,9 +206,8 @@ export function toMarkdown(draft: ProfileDraft): string {
     }
   }
 
-  if (draft.skills.preload.length || draft.skills.allow.length || draft.skills.deny.length) {
+  if (draft.skills.allow.length || draft.skills.deny.length) {
     fm.push('skills:')
-    if (draft.skills.preload.length) fm.push(`  preload: ${yamlList(draft.skills.preload)}`)
     if (draft.skills.allow.length) fm.push(`  allow: ${yamlList(draft.skills.allow)}`)
     if (draft.skills.deny.length) fm.push(`  deny: ${yamlList(draft.skills.deny)}`)
   }

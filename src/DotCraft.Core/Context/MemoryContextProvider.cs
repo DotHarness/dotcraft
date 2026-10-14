@@ -4,6 +4,7 @@ using DotCraft.Configuration;
 using DotCraft.Contributions;
 using DotCraft.Tracing;
 using DotCraft.Memory;
+using DotCraft.Sessions;
 using DotCraft.Skills;
 using Microsoft.Extensions.Logging;
 
@@ -31,7 +32,8 @@ public sealed class MemoryContextProvider(
     string? originChannel = null,
     IReadOnlyList<string>? workspaceRoots = null,
     ILoggerFactory? loggerFactory = null,
-    IContributionView? contributions = null) : AIContextProvider
+    IContributionView? contributions = null,
+    ThreadSkillsPolicy? skillsPolicy = null) : AIContextProvider
 {
     private readonly PromptBuilder _promptBuilder = new(
         memoryStore,
@@ -51,7 +53,8 @@ public sealed class MemoryContextProvider(
         originChannel,
         workspaceRoots,
         loggerFactory?.CreateLogger<PromptBuilder>(),
-        contributions);
+        contributions,
+        skillsPolicy);
 
     public ValueTask<string> ProvideInstructionsAsync(CancellationToken cancellationToken = default)
     {

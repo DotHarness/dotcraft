@@ -1106,11 +1106,11 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
         <Section label={t('agentBuilder.skills.label')}>
           <CatalogField
             options={skillOptions}
-            selected={draft.skills.preload}
-            onChange={(preload) => setDraft((d) => ({ ...d, skills: { ...d.skills, preload } }))}
+            selected={draft.skills.allow}
+            onChange={(allow) => setDraft((d) => ({ ...d, skills: { ...d.skills, allow } }))}
             addLabel={t('agentBuilder.skills.add')}
             kind="skill"
-            field="skills.preload"
+            field="skills.allow"
             readOnly={preview}
           />
         </Section>

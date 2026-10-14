@@ -173,10 +173,10 @@ public sealed class AgentProfileBuilderToolMethodsTests
         var result = Parse(await methods.AddAgentSkills(["pdf", "docx"]));
 
         Assert.True(result.GetProperty("ok").GetBoolean());
-        Assert.Equal("skills.preload", result.GetProperty("field").GetString());
+        Assert.Equal("skills.allow", result.GetProperty("field").GetString());
 
         var draft = AgentProfileDraftEditor.Parse(ProfileBuilderDraftStore.TryGet(threadId)!.Markdown);
-        Assert.Equal(["pdf", "docx"], draft.SkillsPreload);
+        Assert.Equal(["pdf", "docx"], draft.SkillsAllow);
 
         ProfileBuilderDraftStore.Remove(threadId);
     }

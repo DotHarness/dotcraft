@@ -520,13 +520,13 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
 
     private static bool AllowsSkillName(string skillName, ThreadSkillsPolicy policy, out string reason)
     {
-        if (MatchesAny(skillName, policy.Deny, allowWildcards: false))
+        if (policy.Denies(skillName))
         {
             reason = "The thread skills policy denies this skill.";
             return false;
         }
 
-        if (policy.Allow != null && !MatchesAny(skillName, policy.Allow, allowWildcards: false))
+        if (!policy.Allows(skillName))
         {
             reason = "The thread skills policy does not allow this skill.";
             return false;

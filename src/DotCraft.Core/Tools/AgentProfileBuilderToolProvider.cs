@@ -188,27 +188,27 @@ internal sealed class AgentProfileBuilderToolMethods(
 
     [GeneratedTool]
     [ToolPresentation("core.agent-builder")]
-    [ToolPresentationOption("field", "skills.preload")]
-    [Description("Preload one or more skills for the agent (adds to skills.preload). Names must be installed skill names.")]
-    public async Task<string> AddAgentSkills([Description("Skill names to preload, e.g. ['pdf','docx'].")] string[] names)
+    [ToolPresentationOption("field", "skills.allow")]
+    [Description("Let the agent use one or more skills (adds to skills.allow). Once the list has a name, the agent sees and loads only the listed skills. Names must be installed skill names.")]
+    public async Task<string> AddAgentSkills([Description("Skill names the agent may use, e.g. ['pdf','docx'].")] string[] names)
     {
         var (valid, rejected) = await PartitionSkillsAsync(names);
-        return Mutate("skills.preload", draft =>
+        return Mutate("skills.allow", draft =>
         {
-            var added = AgentProfileDraftEditor.AddTo(draft.SkillsPreload, valid);
-            return Change("add", values: added, rejected: rejected, list: draft.SkillsPreload);
+            var added = AgentProfileDraftEditor.AddTo(draft.SkillsAllow, valid);
+            return Change("add", values: added, rejected: rejected, list: draft.SkillsAllow);
         });
     }
 
     [GeneratedTool]
     [ToolPresentation("core.agent-builder")]
-    [ToolPresentationOption("field", "skills.preload")]
-    [Description("Remove one or more skills from the agent's preload list (skills.preload).")]
+    [ToolPresentationOption("field", "skills.allow")]
+    [Description("Remove one or more skills from the skills the agent may use (skills.allow). Removing the last one lets the agent use every installed skill again.")]
     public string RemoveAgentSkills([Description("Skill names to remove.")] string[] names) =>
-        Mutate("skills.preload", draft =>
+        Mutate("skills.allow", draft =>
         {
-            var removed = AgentProfileDraftEditor.RemoveFrom(draft.SkillsPreload, names ?? []);
-            return Change("remove", values: removed, list: draft.SkillsPreload);
+            var removed = AgentProfileDraftEditor.RemoveFrom(draft.SkillsAllow, names ?? []);
+            return Change("remove", values: removed, list: draft.SkillsAllow);
         });
 
     [GeneratedTool]

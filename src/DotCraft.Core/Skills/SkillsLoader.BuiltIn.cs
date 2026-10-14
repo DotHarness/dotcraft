@@ -59,6 +59,7 @@ public sealed partial class SkillsLoader
         var resourcesBySkill = GetBuiltInResources(assembly);
         foreach (var group in resourcesBySkill)
             _availableBuiltInSkills.Add(ReadBuiltInSkillName(assembly, group) ?? group.Key);
+        MarkChanged();
 
         Directory.CreateDirectory(WorkspaceSkillsPath);
 

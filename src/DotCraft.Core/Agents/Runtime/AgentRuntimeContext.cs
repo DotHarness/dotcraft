@@ -78,6 +78,7 @@ public sealed class AgentRuntimeContext
         ToolInvocationPolicy = source.ToolInvocationPolicy;
         RoleInstructions = source.RoleInstructions;
         DeveloperInstructions = source.DeveloperInstructions;
+        SkillsPolicy = source.SkillsPolicy;
         CurrentOriginChannel = source.CurrentOriginChannel;
         CurrentChannelContext = source.CurrentChannelContext;
         AcpExtensionProxy = source.AcpExtensionProxy;
@@ -347,6 +348,9 @@ public sealed class AgentRuntimeContext
     /// instructions. Native SubAgent threads do not carry them.
     /// </summary>
     public string? DeveloperInstructions { get; init; }
+
+    /// <summary>The current thread's skill policy, which decides the skills its prompt may name.</summary>
+    public DotCraft.Sessions.ThreadSkillsPolicy? SkillsPolicy { get; init; }
 
     /// <summary>
     /// Origin channel of the current session-backed thread.

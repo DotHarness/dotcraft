@@ -9,7 +9,7 @@ describe('agent profile draft avatar metadata', () => {
       providerPreference: null,
       tools: { mode: 'all', allow: [], deny: [], agentControl: 'full' },
       mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
-      skills: { preload: [], allow: [], deny: [] },
+      skills: { allow: [], deny: [] },
       permissions: { approvalPolicy: 'prompt', requireApprovalOutsideWorkspace: null },
       memory: 'shared',
       roleInstructions: 'Avatar body.'
@@ -182,7 +182,7 @@ function createDraftWithProviderPreference(): ProfileDraft {
     },
     tools: { mode: 'all', allow: [], deny: [], agentControl: 'full' },
     mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
-    skills: { preload: [], allow: [], deny: [] },
+    skills: { allow: [], deny: [] },
     permissions: { approvalPolicy: 'prompt', requireApprovalOutsideWorkspace: null },
     memory: 'shared',
     roleInstructions: ''
@@ -217,12 +217,12 @@ tools:
         ]
     agentControl: disabled
 skills:
-    preload:
+    allow:
         - research
 ---
 Body`)
     expect(parsed.tools).toEqual({ mode: 'allowList', allow: ['ReadFile', 'WebSearch'], deny: [], agentControl: 'disabled' })
-    expect(parsed.skills.preload).toEqual(['research'])
+    expect(parsed.skills.allow).toEqual(['research'])
     expect(parsed.roleInstructions).toBe('Body')
   })
 })

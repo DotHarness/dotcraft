@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.6 |
+| **Version** | 0.8.7 |
 | **Status** | Draft |
-| **Date** | 2026-10-13 |
+| **Date** | 2026-10-14 |
 | **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Session Core](../architecture/session-core.md) |
 
 Purpose: define Agent Profiles as reusable agent configuration templates. A profile gives a thread a role, default runtime preferences, and enforceable capability policy without replacing DotCraft's generated base instructions.
@@ -76,7 +76,7 @@ Supported frontmatter groups:
 | `tools` | Built-in, dynamic, deferred, and agent-control tool policy. |
 | `mcp` | MCP server and MCP tool policy. |
 | `plugins` | Plugin/app capability policy. |
-| `skills` | Skill preload, list/read access, and skill-management policy. |
+| `skills` | Which Skills the agent may use (`allow`, `deny`) and skill-management policy (`allowManage`). |
 | `permissions` | Approval and workspace-boundary policy. |
 | `memory` | `shared` (default) uses the workspace memory store; `own` gives the profile a store of its own. See [Memory](memory.md#4-memory-scope). |
 | `locked` | Managed-source governance constraints only. |
@@ -299,7 +299,7 @@ The profile-builder agent is given fine-grained, model-visible tools — each mu
 | `SetAgentInstructions(text)` / `AppendAgentInstructions(text)` | Replace or append the Markdown role body. |
 | `SetAgentToolPolicy(mode, names[])` | Atomically set the built-in tool policy. `mode` is `all`, `allowList`, or `denyList`; `names` is empty for `all` and is the complete active list otherwise. |
 | `SetAgentToolControl(value)` | Set `tools.agentControl` (`full` / `disabled` / `allowList`). |
-| `AddAgentSkills(names[])` / `RemoveAgentSkills(names[])` | Add/remove `skills.preload`. |
+| `AddAgentSkills(names[])` / `RemoveAgentSkills(names[])` | Add/remove names in `skills.allow`, the Skills the agent may use. Removing the last name removes the allow-list, so every enabled Skill is available again. |
 | `AddAgentMcpServers(names[])` / `RemoveAgentMcpServers(names[])` | Add/remove `mcp.servers`. |
 | `SetAgentProviderPreference(...)` | Set the fixed `providerPreference` atomically. The input contains provider, model, reasoning enabled/effort, speed; it does not expose reasoning output. |
 | `ClearAgentProviderPreference()` | Remove `providerPreference` so the profile inherits model settings. |
@@ -307,7 +307,7 @@ The profile-builder agent is given fine-grained, model-visible tools — each mu
 
 Every tool validates names against any live catalogs available to the builder runtime — built-in tools via the tool catalog (AppServer protocol Section 18A), skills via the skills loader, MCP servers via the configured MCP manager. When a catalog is available, unknown values are rejected with a diagnostic the agent can correct. When a catalog is not available in the host context, the builder preserves the requested names and relies on normal profile validation/refresh diagnostics to surface unresolved references. Each successful tool call leaves the working draft valid per the normal profile validation rules (Section 3).
 
-Tool results are **fine-grained change descriptors, not the whole document**: each returns `{ ok, field, change }`, where `field` is the changed field path (for example `name`, `instructions`, `tools.policy`, `skills.preload`, `mcp.servers`, `providerPreference`, `approval`) and `change` carries the operation (`set` / `add` / `remove` / `append`) with the scalar value or the added/removed/rejected items. `SetAgentToolPolicy` returns the complete derived mode and active list. `SetAgentProviderPreference` carries the complete atomic preference in `change.providerPreference`; `ClearAgentProviderPreference` carries `change.op = "remove"`. Rejections return `{ ok: false, field, error }`. The authoritative full draft is the server-side working draft (12A.1), injected into prompt composition (12A.3) rather than echoed per call. Clients read the descriptors from the normal tool-call stream to drive the per-field cursor highlight and apply the same single-field change to their local document — no additional request method or notification is introduced.
+Tool results are **fine-grained change descriptors, not the whole document**: each returns `{ ok, field, change }`, where `field` is the changed field path (for example `name`, `instructions`, `tools.policy`, `skills.allow`, `mcp.servers`, `providerPreference`, `approval`) and `change` carries the operation (`set` / `add` / `remove` / `append`) with the scalar value or the added/removed/rejected items. `SetAgentToolPolicy` returns the complete derived mode and active list. `SetAgentProviderPreference` carries the complete atomic preference in `change.providerPreference`; `ClearAgentProviderPreference` carries `change.op = "remove"`. Rejections return `{ ok: false, field, error }`. The authoritative full draft is the server-side working draft (12A.1), injected into prompt composition (12A.3) rather than echoed per call. Clients read the descriptors from the normal tool-call stream to drive the per-field cursor highlight and apply the same single-field change to their local document — no additional request method or notification is introduced.
 
 Every builder tool carries the trusted presentation id `core.agent-builder` with `options.field` set to the field path it edits. Desktop renders such calls as profile-change rows (the changed field stated in words, with the value as an inline reference and long values behind the row's disclosure) instead of generic tool output; other clients keep the text descriptor.
 

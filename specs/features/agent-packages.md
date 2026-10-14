@@ -35,7 +35,7 @@ Export is available for created user and workspace profiles. Built-in, plugin, a
 
 - The document is the stored profile file.
 - The offered packages are the skills of the user and workspace skill roots and the installed plugins, each once by kind and name. Built-in skills, plugin skills, and plugins that the installation's bundled or host-provided plugin sources offer are not offered, because every installation has them.
-- A package starts included when the document relies on it: a skill the document preloads or allows, a plugin providing such a skill, a plugin whose MCP server the document names (`<pluginId>:<server>`), a plugin the document's plugin policy allows, or a plugin that registers a tool the document allows by its model-visible name. The user may include or leave out any package.
+- A package starts included when the document relies on it: a skill the document allows, a plugin providing such a skill, a plugin whose MCP server the document names (`<pluginId>:<server>`), a plugin the document's plugin policy allows, or a plugin that registers a tool the document allows by its model-visible name. The user may include or leave out any package.
 - A plugin that a configured git or archive marketplace offers under the same id travels as that marketplace reference. Every other included package travels as its zip.
 - MCP servers configured in settings never travel, because their configuration can hold credentials. The import lists the names the document uses that nothing provides.
 - An export whose file exceeds the bound, or that the import rules would refuse, is refused, and the user can leave a package out. Every written file is read back with the import rules before it is returned.

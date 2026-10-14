@@ -1338,6 +1338,7 @@ public sealed partial class SessionService
 
                 var worldStateUpdate = BuildWorldStateUpdate(
                     thread,
+                    turn.Id,
                     turnContext.Workspace.Cwd,
                     session,
                     threadContextCarrier,

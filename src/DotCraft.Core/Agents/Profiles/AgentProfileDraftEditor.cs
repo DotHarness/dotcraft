@@ -29,7 +29,6 @@ public sealed class AgentProfileDraft
     public List<string> McpToolsAllow { get; set; } = [];
     public List<string> McpToolsDeny { get; set; } = [];
 
-    public List<string> SkillsPreload { get; set; } = [];
     public List<string> SkillsAllow { get; set; } = [];
     public List<string> SkillsDeny { get; set; } = [];
 
@@ -136,7 +135,6 @@ public static class AgentProfileDraftEditor
 
         if (Child(root, "skills") is YamlMappingNode skills)
         {
-            draft.SkillsPreload = List(skills, "preload");
             draft.SkillsAllow = List(skills, "allow");
             draft.SkillsDeny = List(skills, "deny");
         }
@@ -192,10 +190,9 @@ public static class AgentProfileDraftEditor
             }
         }
 
-        if (draft.SkillsPreload.Count > 0 || draft.SkillsAllow.Count > 0 || draft.SkillsDeny.Count > 0)
+        if (draft.SkillsAllow.Count > 0 || draft.SkillsDeny.Count > 0)
         {
             fm.Add("skills:");
-            if (draft.SkillsPreload.Count > 0) fm.Add($"  preload: {YamlList(draft.SkillsPreload)}");
             if (draft.SkillsAllow.Count > 0) fm.Add($"  allow: {YamlList(draft.SkillsAllow)}");
             if (draft.SkillsDeny.Count > 0) fm.Add($"  deny: {YamlList(draft.SkillsDeny)}");
         }
