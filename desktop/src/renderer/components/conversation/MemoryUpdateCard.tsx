@@ -2,7 +2,6 @@ import { useState, type JSX } from 'react'
 import { Brain } from 'lucide-react'
 import { translate } from '../../../shared/locales'
 import { useLocale } from '../../contexts/LocaleContext'
-import { useConversationStore } from '../../stores/conversationStore'
 import type { ConversationItem } from '../../types/conversation'
 import type { FileDiff } from '../../types/toolCall'
 import { collectMemoryFileNames, formatMemoryUpdatedLabel } from '../../utils/memoryToolDisplay'
@@ -11,6 +10,7 @@ import { RunningShimmer } from '../ui/RunningShimmer'
 import { FileDiffStats } from './FileDiffStats'
 import { InlineDiffView } from './InlineDiffView'
 import { ToolDisclosure } from './ToolDisclosure'
+import { useTranscriptItemDiffs, useTranscriptWorkspacePath } from './transcriptDiffs'
 import styles from './MemoryUpdateCard.module.css'
 
 const MEMORY_ICON = { icon: Brain }
@@ -40,8 +40,8 @@ export function MemoryUpdateCard({ items, running }: MemoryUpdateCardProps): JSX
 
 function MemoryUpdatedRow({ items }: { items: readonly ConversationItem[] }): JSX.Element {
   const locale = useLocale()
-  const workspacePath = useConversationStore((state) => state.workspacePath)
-  const itemDiffs = useConversationStore((state) => state.itemDiffs)
+  const workspacePath = useTranscriptWorkspacePath()
+  const itemDiffs = useTranscriptItemDiffs()
   const [expanded, setExpanded] = useState(false)
   const [hovered, setHovered] = useState(false)
   const diffs = items

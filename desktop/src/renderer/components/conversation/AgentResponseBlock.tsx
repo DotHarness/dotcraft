@@ -27,6 +27,7 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
 import { resolveDesktopPluginToolRenderer, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { ToolDisclosure } from './ToolDisclosure'
+import { useTranscriptItemDiffs } from './transcriptDiffs'
 import { getSubAgentChipDisplay } from './SubAgentChips'
 import { SubAgentGroupChips } from './SubAgentGroupChips'
 import { useLocale } from '../../contexts/LocaleContext'
@@ -615,7 +616,7 @@ function GroupedToolCallRow({
   shellRuntimeScope
 }: GroupedToolCallRowProps): JSX.Element {
   const locale = useLocale()
-  const itemDiffs = useConversationStore((s) => s.itemDiffs)
+  const itemDiffs = useTranscriptItemDiffs()
   const label = formatToolGroupLabel(category, items, locale, itemDiffs)
   const hasFailedItems = items.some(isGroupedItemFailed)
   const [expanded, setExpanded] = useState(false)

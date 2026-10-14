@@ -19,6 +19,7 @@ import { UserMessageBlock } from '../conversation/UserMessageBlock'
 import { collectConversationImages, ConversationImagesContext } from '../conversation/imagePreview/galleryImages'
 import { ScrollToBottomButton } from '../conversation/ScrollToBottomButton'
 import { TurnChangesCard } from '../conversation/TurnCompletionSummary'
+import { TranscriptThreadContext } from '../conversation/transcriptDiffs'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { IconButton } from '../ui/IconButton'
 import { Skeleton } from '../ui/Skeleton'
@@ -181,18 +182,20 @@ const TranscriptTurn = memo(function TranscriptTurn({
           sentAsGoal={item.sentAsGoal === true}
         />
       ))}
-      <AgentResponseBlock
-        turn={turn}
-        streamingMessage={live?.kind === 'agentMessage' ? live.text : ''}
-        streamingReasoning={live?.kind === 'reasoningContent' ? live.text : ''}
-        isRunning={running}
-        isLastTurn={isLastTurn}
-        showIdleThinkingFallback={running && !live?.text}
-        activeItemIdOverride={live?.itemId ?? null}
-        shellRuntimeScope="none"
-        readOnly
-        renderTurnCompletion={renderTurnCompletion}
-      />
+      <TranscriptThreadContext.Provider value={childThreadId}>
+        <AgentResponseBlock
+          turn={turn}
+          streamingMessage={live?.kind === 'agentMessage' ? live.text : ''}
+          streamingReasoning={live?.kind === 'reasoningContent' ? live.text : ''}
+          isRunning={running}
+          isLastTurn={isLastTurn}
+          showIdleThinkingFallback={running && !live?.text}
+          activeItemIdOverride={live?.itemId ?? null}
+          shellRuntimeScope="none"
+          readOnly
+          renderTurnCompletion={renderTurnCompletion}
+        />
+      </TranscriptThreadContext.Provider>
     </div>
   )
 })

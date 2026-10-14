@@ -36,6 +36,7 @@ import { BUILDER_FIELD_LABEL_KEYS, isBuilderField, type BuilderField } from '../
 import { renderSkillToolLabel } from './SkillToolLabel'
 import { McpAppView, hasAvailableMcpApp } from './McpAppView'
 import { ToolDisclosure } from './ToolDisclosure'
+import { useTranscriptItemDiff, useTranscriptWorkspacePath } from './transcriptDiffs'
 import { useRemoteToolHostRow } from './RemoteToolHostRow'
 import { RemoteToolHostListResult } from './RemoteToolHostListResult'
 import { RemoteFileTransferResult } from './RemoteFileTransferResult'
@@ -206,7 +207,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   allowPluginRenderer = true
 }: ToolCallCardProps): JSX.Element {
   const locale = useLocale()
-  const workspacePath = useConversationStore((state) => state.workspacePath)
+  const workspacePath = useTranscriptWorkspacePath()
   const [hovered, setHovered] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [autoExpanded, setAutoExpanded] = useState(false)
@@ -275,9 +276,7 @@ export const ToolCallCard = memo(function ToolCallCard({
 
   const runningElapsedLabel = `${(elapsedMs / 1000).toFixed(1)}s`
 
-  const fileDiff = useConversationStore((s) =>
-    isStreamingFileTool ? s.itemDiffs.get(item.id) : undefined
-  )
+  const fileDiff = useTranscriptItemDiff(item.id, isStreamingFileTool)
   const streamingFileDiff = useConversationStore((s) =>
     isStreamingFileTool ? s.streamingItemDiffs.get(item.id) : undefined
   )
