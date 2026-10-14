@@ -190,7 +190,7 @@ export function SummaryPanel({
         </Section>
       ) : null}
 
-      <BackgroundProcessesSection host={host} threadId={threadId} terminals={state.terminals} strings={strings} />
+      <BackgroundProcessesSection host={host} terminals={state.terminals} strings={strings} />
 
       {state.automations.length > 0 ? (
         <Section title={strings.scheduled}>

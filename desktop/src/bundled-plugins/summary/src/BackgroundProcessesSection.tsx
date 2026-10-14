@@ -7,9 +7,8 @@ import { GLYPH, Row, Section } from './SummaryRows'
 
 const STOP_GLYPH = { size: 14, strokeWidth: 1.75 } as const
 
-export function BackgroundProcessesSection({ host, threadId, terminals, strings }: {
+export function BackgroundProcessesSection({ host, terminals, strings }: {
   host: DesktopPluginHost
-  threadId: string
   terminals: readonly SummaryTerminal[]
   strings: SummaryStrings
 }): JSX.Element | null {
@@ -18,7 +17,8 @@ export function BackgroundProcessesSection({ host, threadId, terminals, strings 
 
   const stopAll = (sessionId: string): void => {
     setStopping(sessionId)
-    host.appServer.request('terminal/clean', { threadId }).then(
+    Promise.all(terminals.map((terminal) =>
+      host.appServer.request('terminal/stop', { sessionId: terminal.sessionId }))).then(
       () => setStopping(null),
       () => {
         setStopping(null)
