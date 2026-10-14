@@ -67,7 +67,10 @@ public static class CodeModeResults
         var bounded = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = Bound(JsonValue.Create(text), maxBytes) });
         foreach (var image in images)
             bounded.Add(image.DeepClone());
-        return new JsonObject { ["content"] = bounded };
+        var envelope = new JsonObject { ["content"] = bounded };
+        if (result["isError"] is { } isError)
+            envelope["isError"] = isError.DeepClone();
+        return envelope;
     }
 
     private static bool IsStringSchema(JsonElement schema) =>

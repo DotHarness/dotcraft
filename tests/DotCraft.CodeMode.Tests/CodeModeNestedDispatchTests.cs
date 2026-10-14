@@ -104,6 +104,27 @@ public sealed class CodeModeNestedDispatchTests
         Assert.Equal(2, result.StructuredContent?.GetProperty("nestedCalls").GetInt32());
     }
 
+    [Fact]
+    public void An_oversized_MCP_error_keeps_its_error_flag()
+    {
+        var id = new ToolDefinitionId(ToolSourceKind.Mcp, "server", new SourceToolId("Lookup"));
+        var registration = new ToolRegistration(
+            new ToolDefinition(id, new ToolName(null, "Lookup"), "Lookup", JsonSerializer.SerializeToElement(new { type = "object" })),
+            new ToolRuntimeBinding(new RuntimeBindingId("mcp:Lookup"), id, new EchoRuntime(), ToolBindingLeases.AlwaysAvailable, "server", 1),
+            ToolProjectionShape.StandardPair);
+        var raw = JsonSerializer.SerializeToElement(new
+        {
+            content = new[] { new { type = "text", text = new string('x', 2048) } },
+            isError = true
+        });
+        var result = new ToolExecutionResult(false, "failed", rawSourceResult: raw, error: new ToolError(ToolErrorCodes.ExecutionFailed, "failed"));
+
+        var (value, error) = CodeModeResults.ToScriptValue(registration, result, maxBytes: 1024);
+
+        Assert.Null(error);
+        Assert.True(value!["isError"]!.GetValue<bool>());
+    }
+
     private static ToolRegistration Registration(string name, bool requiresApproval, IToolRuntime? runtime = null, bool returnsContent = false)
     {
         var id = new ToolDefinitionId(ToolSourceKind.CoreNative, "test", new SourceToolId(name));
