@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "conversation-summary",
+  "id": "summary",
   "version": "0.1.0",
   "displayName": "Summary",
   "description": "Shows a chat's changes, plan, subagents, scheduled tasks, and sources beside the conversation.",
@@ -19,7 +19,7 @@
     "category": "Productivity",
     "capabilities": ["Desktop", "Conversation"],
     "defaultPrompt": "Which sources did this chat use?",
-    "logo": "./assets/conversation-summary.svg",
-    "composerIcon": "./assets/conversation-summary.svg"
+    "logo": "./assets/summary.svg",
+    "composerIcon": "./assets/summary.svg"
   }
 }
