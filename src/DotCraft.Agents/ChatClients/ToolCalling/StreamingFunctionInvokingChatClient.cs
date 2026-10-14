@@ -459,6 +459,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
                     && classifiedEmptyResponse.GetRetryDelay(turnRetryCount + 1) is not null)
                 {
                     turnRetryCount++;
+                    currentMessages = augmentedHistory ??= originalMessages.ToList();
                     if (await NotifyAndWaitForStreamRetryAsync(
                             classifiedEmptyResponse,
                             emptyResponseFailure,
