@@ -64,7 +64,7 @@ export interface ClientRequestMethods {
   "dreams/cancel": { params: Models.DreamsRunIdParams; result: Models.DreamsRunResult };
   "dreams/create": { params: Models.DreamsCreateParams; result: Models.DreamsRunResult };
   "dreams/discard": { params: Models.DreamsRunIdParams; result: Models.DreamsRunResult };
-  "dreams/get": { params: Models.DreamsRunIdParams; result: Models.DreamsRunResult };
+  "dreams/get": { params: Models.DreamsRunIdParams; result: Models.DreamsGetResult };
   "dreams/list": { params: Models.DreamsListParams; result: Models.DreamsListResult };
   "dreams/run": { params: Models.DreamsRunParams; result: Models.DreamsStatusResult };
   "dreams/status": { params: Models.DreamsStatusParams; result: Models.DreamsStatusResult };

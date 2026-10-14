@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Configuration;
 using DotCraft.Tools;
@@ -126,13 +127,22 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         return ModeToolPolicyDecision.Allow;
     }
 
+    private bool WritesMemoryStore(ToolRegistration registration, JsonObject arguments, string? workspacePath) =>
+        context.MemoryEnabled
+        && registration.Definition.Id.Kind == ToolSourceKind.CoreNative
+        && FileToolAccess.TryResolveTarget(registration.Definition.Id.SourceToolId.Value, arguments, workspacePath, out _, out var target)
+        && WorkspaceBoundary.IsWithin(target, context.MemoryStore.MemoryDirectoryPath);
+
     /// <summary>Evaluates the source-qualified registration at the common dispatcher boundary.</summary>
-    public ToolDispatchDecision EvaluateRegistration(ToolRegistration registration, JsonObject arguments)
+    public ToolDispatchDecision EvaluateRegistration(
+        ToolRegistration registration,
+        JsonObject arguments,
+        string? workspacePath = null)
     {
         var name = registration.Definition.Name.Name;
         if (string.Equals(config.Mode, "plan", StringComparison.OrdinalIgnoreCase))
         {
-            if (ModeToolPolicy.PlanDeniedToolNames.Contains(name))
+            if (ModeToolPolicy.PlanDeniedToolNames.Contains(name) && !WritesMemoryStore(registration, arguments, workspacePath))
                 return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, $"Plan mode does not allow {name}.");
             if (string.Equals(name, "Exec", StringComparison.Ordinal)
                 && !ReadOnlyCommandClassifier.IsReadOnly(

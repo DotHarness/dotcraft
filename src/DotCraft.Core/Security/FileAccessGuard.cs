@@ -13,9 +13,11 @@ public sealed class FileAccessGuard
     private readonly IApprovalService? _approvalService;
     private readonly PathBlacklist? _blacklist;
     private readonly IReadOnlyList<string> _trustedReadPaths;
+    private readonly IReadOnlyList<string> _trustedPaths;
 
     /// <summary>
     /// Creates a new guard for file access decisions in a workspace.
+    /// <paramref name="trustedPaths"/> are open to every operation outside the workspace boundary.
     /// </summary>
     public FileAccessGuard(
         string workspaceRoot,
@@ -23,7 +25,8 @@ public sealed class FileAccessGuard
         IApprovalService? approvalService = null,
         PathBlacklist? blacklist = null,
         IReadOnlyList<string>? trustedReadPaths = null,
-        IReadOnlyList<string>? workspaceRoots = null)
+        IReadOnlyList<string>? workspaceRoots = null,
+        IReadOnlyList<string>? trustedPaths = null)
     {
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
         _workspaceRoots = (workspaceRoots ?? [_workspaceRoot])
@@ -35,12 +38,18 @@ public sealed class FileAccessGuard
         _trustedReadPaths = (trustedReadPaths ?? [])
             .Select(Path.GetFullPath)
             .ToArray();
+        _trustedPaths = (trustedPaths ?? [])
+            .Select(Path.GetFullPath)
+            .ToArray();
     }
 
     /// <summary>
     /// Resolves a workspace-relative or absolute path to a normalized full path.
     /// </summary>
-    public string ResolvePath(string path)
+    public string ResolvePath(string path) => ResolvePath(_workspaceRoot, path);
+
+    /// <summary>Expands the home directory and environment variables, then resolves against <paramref name="workspaceRoot"/>.</summary>
+    public static string ResolvePath(string workspaceRoot, string path)
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
@@ -55,7 +64,7 @@ public sealed class FileAccessGuard
         var expanded = Environment.ExpandEnvironmentVariables(path);
         return Path.IsPathRooted(expanded)
             ? Path.GetFullPath(expanded)
-            : Path.GetFullPath(Path.Combine(_workspaceRoot, expanded));
+            : Path.GetFullPath(Path.Combine(workspaceRoot, expanded));
     }
 
     /// <summary>
@@ -74,11 +83,7 @@ public sealed class FileAccessGuard
         if (_blacklist != null && _blacklist.IsBlacklisted(fullPath))
             return $"Error: Path '{originalPath}' is in the blacklist and cannot be accessed.";
 
-        var isWithinWorkspace = IsWithinWorkspace(fullPath);
-        if (isWithinWorkspace)
-            return null;
-
-        if ((operation is "read" or "list") && IsWithinTrustedReadPath(fullPath))
+        if (!RequiresOutsideWorkspaceApproval(fullPath, operation))
             return null;
 
         if (!_requireApprovalOutsideWorkspace)
@@ -101,22 +106,11 @@ public sealed class FileAccessGuard
     /// </summary>
     public bool RequiresOutsideWorkspaceApproval(string fullPath, string operation)
     {
-        if (IsWithinWorkspace(fullPath))
+        if (IsWithinAny(fullPath, _workspaceRoots) || IsWithinAny(fullPath, _trustedPaths))
             return false;
-        return operation is not ("read" or "list") || !IsWithinTrustedReadPath(fullPath);
+        return operation is not ("read" or "list") || !IsWithinAny(fullPath, _trustedReadPaths);
     }
 
-    private bool IsWithinTrustedReadPath(string fullPath)
-    {
-        foreach (var trustedPath in _trustedReadPaths)
-        {
-            if (WorkspaceBoundary.IsWithin(fullPath, trustedPath))
-                return true;
-        }
-
-        return false;
-    }
-
-    private bool IsWithinWorkspace(string fullPath) =>
-        _workspaceRoots.Any(root => WorkspaceBoundary.IsWithin(fullPath, root));
+    private static bool IsWithinAny(string fullPath, IReadOnlyList<string> roots) =>
+        roots.Any(root => WorkspaceBoundary.IsWithin(fullPath, root));
 }

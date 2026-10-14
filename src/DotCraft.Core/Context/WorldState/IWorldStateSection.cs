@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Contributions;
+using DotCraft.Memory;
 using DotCraft.Sessions;
 
 namespace DotCraft.Context.WorldState;
@@ -36,6 +37,9 @@ public sealed record WorldStateContext
     public ThreadGoal? ThreadGoal { get; init; }
 
     public string? SessionStartHookContext { get; init; }
+
+    /// <summary>The Thread's memory store, or <c>null</c> when the Thread does not use memory.</summary>
+    public MemoryStore? MemoryStore { get; init; }
 }
 
 public enum PreviousSectionKind

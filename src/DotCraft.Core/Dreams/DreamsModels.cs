@@ -20,158 +20,112 @@ public static class DreamsReviewStatuses
     public const string Archived = "archived";
 }
 
+/// <summary>A consolidatable memory store; <see cref="Scope"/> is null for the workspace store.</summary>
+public sealed record DreamsStore(string? Scope, string Directory);
+
 public sealed record DreamsThreadInput(
     string ThreadId,
     string? DisplayName,
     string OriginChannel,
     ThreadStatus Status,
     DateTimeOffset CreatedAt,
-    DateTimeOffset LastActiveAt,
-    int CompletedTurnCount);
-
-public sealed record DreamsTopicFileInput(
-    string Path,
-    long SizeBytes,
-    DateTimeOffset LastModifiedAt,
-    string Preview);
-
-public sealed record DreamsRunInput(
-    string ExplicitMemory,
-    string ExistingDream,
-    IReadOnlyList<DreamsTopicFileInput> TopicFiles,
-    IReadOnlyList<DreamsThreadInput> Threads,
-    int CompletedTurnCount,
-    string? AdditionalInstructions = null)
-{
-    public bool HasEvidence =>
-        !string.IsNullOrWhiteSpace(ExplicitMemory)
-        || !string.IsNullOrWhiteSpace(ExistingDream)
-        || TopicFiles.Count > 0
-        || Threads.Count > 0;
-}
+    DateTimeOffset LastActiveAt);
 
 public sealed record DreamsRunRequest(
+    string? Scope = null,
     IReadOnlyList<string>? ThreadIds = null,
-    int? ThreadLookbackCount = null,
     string? Instructions = null,
     string? Model = null);
 
-public sealed record DreamStoreDescriptor(
-    string StoreId,
-    string DirectoryPath,
-    string IndexPath,
-    string TopicDirectoryPath);
-
-public sealed record DreamsRunWorkspace(
+public sealed record DreamsRunInput(
     string RunId,
-    string OutputStoreId,
-    string OutputStorePath,
-    string InputPath,
-    string ManifestPath,
-    string? ActiveStorePath);
-
-public sealed class DreamTopicFileWrite
-{
-    public string Path { get; set; } = string.Empty;
-
-    public string Content { get; set; } = string.Empty;
-}
-
-public sealed class DreamEvidenceReference
-{
-    public string SourceId { get; set; } = string.Empty;
-
-    public string? Note { get; set; }
-}
+    string Trigger,
+    string WorkspacePath,
+    string BaselineDirectory,
+    string CandidateDirectory,
+    string Manifest,
+    IReadOnlyList<DreamsThreadInput> Threads,
+    string? Instructions);
 
 public sealed record DreamsRunDiagnostics(
-    int CandidateThreadCount,
     IReadOnlyList<string> EvidenceThreadIds,
     int EvidenceSearchCount,
     int EvidenceReadCount);
 
 public sealed record DreamsGenerationResult(
     bool Succeeded,
-    string? DreamMarkdown,
-    string? HistoryEntry,
-    string? Message,
+    string? Summary,
+    string? Message = null,
+    string? ErrorType = null,
     string? ThreadId = null,
     string? TurnId = null,
-    IReadOnlyList<DreamTopicFileWrite>? TopicFiles = null,
-    IReadOnlyList<string>? DeletedTopicPaths = null,
-    IReadOnlyList<DreamEvidenceReference>? Evidence = null,
     DreamsRunDiagnostics? Diagnostics = null,
-    TokenUsageInfo? Usage = null,
-    string? OutputStoreId = null,
-    IReadOnlyList<string>? TurnIds = null,
-    string? ErrorType = null)
-{
-    public static DreamsGenerationResult Success(
-        string dreamMarkdown,
-        string? historyEntry,
-        string? threadId = null,
-        string? turnId = null,
-        IReadOnlyList<DreamTopicFileWrite>? topicFiles = null,
-        IReadOnlyList<string>? deletedTopicPaths = null,
-        IReadOnlyList<DreamEvidenceReference>? evidence = null,
-        DreamsRunDiagnostics? diagnostics = null,
-        TokenUsageInfo? usage = null,
-        string? outputStoreId = null,
-        IReadOnlyList<string>? turnIds = null) =>
-        new(true, dreamMarkdown, historyEntry, null, threadId, turnId, topicFiles, deletedTopicPaths, evidence, diagnostics, usage, outputStoreId, turnIds);
-
-    public static DreamsGenerationResult Failed(
-        string message,
-        string? threadId = null,
-        string? turnId = null,
-        DreamsRunDiagnostics? diagnostics = null,
-        TokenUsageInfo? usage = null,
-        IReadOnlyList<string>? turnIds = null,
-        string? errorType = null,
-        string? outputStoreId = null) =>
-        new(false, null, null, message, threadId, turnId, null, null, null, diagnostics, usage, outputStoreId, turnIds, errorType);
-}
+    TokenUsageInfo? Usage = null);
 
 public sealed record DreamsRunSessionBinding(string ThreadId, string? TurnId);
 
-public sealed record DreamsRunDeletionResult(
-    DreamsRunState Run,
-    bool OutputStoreDeleted,
-    bool ActiveStorePreserved,
-    IReadOnlyList<string> CleanupWarnings);
+public sealed class DreamsRunChanges
+{
+    public List<string> Added { get; set; } = [];
+
+    public List<string> Updated { get; set; } = [];
+
+    public List<string> Deleted { get; set; } = [];
+
+    public bool IndexChanged { get; set; }
+
+    [JsonIgnore]
+    public bool Any => IndexChanged || Added.Count > 0 || Updated.Count > 0 || Deleted.Count > 0;
+}
+
+/// <summary>One file that differs between a run's baseline and candidate; an added file has no baseline and a deleted file no candidate.</summary>
+public sealed record DreamsFileChange(string Name, string Change, string? Baseline, string? Candidate);
+
+public sealed record DreamsRunReview(DreamsRunState Run, IReadOnlyList<DreamsFileChange> Files);
+
+/// <summary>Raised when a store no longer matches the files a review action expects.</summary>
+public sealed class DreamsStoreChangedException(string message) : InvalidOperationException(message);
 
 public sealed class DreamsRunState
 {
     public string Id { get; set; } = string.Empty;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Scope { get; set; }
+
     public string Status { get; set; } = DreamsRunStatuses.Skipped;
+
+    public string Trigger { get; set; } = DreamsConstants.TriggerManual;
 
     public DateTimeOffset StartedAt { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DateTimeOffset? EndedAt { get; set; }
 
-    public int ProcessedThreadCount { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Model { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Instructions { get; set; }
 
     public int CandidateThreadCount { get; set; }
 
-    public bool DreamWritten { get; set; }
-
-    public int TopicFilesWritten { get; set; }
-
-    public int TopicFilesDeleted { get; set; }
+    public List<string> EvidenceThreadIds { get; set; } = [];
 
     public int EvidenceSearchCount { get; set; }
 
     public int EvidenceReadCount { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? OutputStoreId { get; set; }
+    public DreamsRunChanges? Changes { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ReviewStatus { get; set; }
 
     public bool AutoApplied { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Summary { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ErrorType { get; set; }
@@ -180,23 +134,10 @@ public sealed class DreamsRunState
     public string? Message { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public DateTimeOffset? NextRunAt { get; set; }
-
-    public int CompletedTurnWatermark { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Model { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ThreadId { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? TurnId { get; set; }
-
-    public List<string> TurnIds { get; set; } = [];
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Trigger { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public TokenUsageInfo? Usage { get; set; }
@@ -204,12 +145,6 @@ public sealed class DreamsRunState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? InputManifestPath { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Instructions { get; set; }
-
-    public List<string> ProcessedThreadIds { get; set; } = [];
-
-    public List<string> EvidenceThreadIds { get; set; } = [];
-
-    public List<string> WrittenPaths { get; set; } = [];
+    [JsonIgnore]
+    public bool IsRunning => Status == DreamsRunStatuses.Running && !EndedAt.HasValue;
 }

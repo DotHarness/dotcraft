@@ -45,7 +45,7 @@ public static partial class AppServerRpc
 
 
 
-    public static readonly RpcRequest<DreamsRunIdParams, DreamsRunResult> DreamsApply = new("dreams/apply", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "dreams", errors: CommonErrors);
+    public static readonly RpcRequest<DreamsRunIdParams, DreamsRunResult> DreamsApply = new("dreams/apply", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "dreams", errors: DreamsApplyErrors);
 
     public static readonly RpcRequest<DreamsRunIdParams, DreamsRunResult> DreamsArchive = new("dreams/archive", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "dreams", errors: CommonErrors);
 
@@ -55,7 +55,7 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<DreamsRunIdParams, DreamsRunResult> DreamsDiscard = new("dreams/discard", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "dreams", errors: CommonErrors);
 
-    public static readonly RpcRequest<DreamsRunIdParams, DreamsRunResult> DreamsGet = new("dreams/get", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "dreams", errors: CommonErrors);
+    public static readonly RpcRequest<DreamsRunIdParams, DreamsGetResult> DreamsGet = new("dreams/get", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "dreams", errors: CommonErrors);
 
     public static readonly RpcRequest<DreamsListParams, DreamsListResult> DreamsList = new("dreams/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "dreams", errors: CommonErrors);
 

@@ -3,6 +3,7 @@ import type { ConversationItem } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
 import type { ToolGroupCategory } from './toolCallAggregation'
 import { resolveCoreToolRenderPlan } from './toolRendererRegistry'
+import { collectMemoryFileNames, formatExplorationGroupLabel, formatMemoryUpdatedLabel } from './memoryToolDisplay'
 
 function getPathArgument(item: ConversationItem): string {
   const args = item.arguments
@@ -70,7 +71,11 @@ export function formatToolGroupLabel(
   const count = items.length
 
   if (category === 'explore') {
-    return translate(locale, 'toolCall.group.explored', { count })
+    return formatExplorationGroupLabel(items, locale)
+  }
+
+  if (category === 'memoryUpdate') {
+    return formatMemoryUpdatedLabel(collectMemoryFileNames(items).length, locale)
   }
 
   if (category === 'shell') {

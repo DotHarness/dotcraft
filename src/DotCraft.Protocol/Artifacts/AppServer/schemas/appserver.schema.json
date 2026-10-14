@@ -5594,6 +5594,16 @@
             }
           ]
         },
+        "scope": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "threadIds": {
           "anyOf": [
             {
@@ -5606,11 +5616,57 @@
               "type": "null"
             }
           ]
-        },
-        "threadLookbackCount": {
+        }
+      },
+      "additionalProperties": true
+    },
+    "DreamsFileChange": {
+      "title": "DreamsFileChange",
+      "type": "object",
+      "properties": {
+        "baseline": {
           "anyOf": [
             {
-              "type": "integer"
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "change": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "DreamsGetResult": {
+      "title": "DreamsGetResult",
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DreamsFileChange"
+          }
+        },
+        "run": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DreamsRunState"
             },
             {
               "type": "null"
@@ -5643,6 +5699,34 @@
       },
       "additionalProperties": true
     },
+    "DreamsRunChanges": {
+      "title": "DreamsRunChanges",
+      "type": "object",
+      "properties": {
+        "added": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deleted": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "indexChanged": {
+          "type": "boolean"
+        },
+        "updated": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
     "DreamsRunIdParams": {
       "title": "DreamsRunIdParams",
       "type": "object",
@@ -5659,75 +5743,10 @@
       "properties": {},
       "additionalProperties": true
     },
-    "DreamsRunPreview": {
-      "title": "DreamsRunPreview",
-      "type": "object",
-      "properties": {
-        "activeIndexMarkdown": {
-          "type": "string"
-        },
-        "activeStoreId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "activeTopicPaths": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "outputIndexMarkdown": {
-          "type": "string"
-        },
-        "outputStoreId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "outputTopicPaths": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
     "DreamsRunResult": {
       "title": "DreamsRunResult",
       "type": "object",
       "properties": {
-        "activeDreamStoreId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "preview": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/DreamsRunPreview"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "run": {
           "anyOf": [
             {
@@ -5751,8 +5770,15 @@
         "candidateThreadCount": {
           "type": "integer"
         },
-        "dreamWritten": {
-          "type": "boolean"
+        "changes": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DreamsRunChanges"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "endedAt": {
           "anyOf": [
@@ -5810,7 +5836,7 @@
             }
           ]
         },
-        "outputStoreId": {
+        "reviewStatus": {
           "anyOf": [
             {
               "type": "string"
@@ -5820,10 +5846,7 @@
             }
           ]
         },
-        "processedThreadCount": {
-          "type": "integer"
-        },
-        "reviewStatus": {
+        "scope": {
           "anyOf": [
             {
               "type": "string"
@@ -5840,7 +5863,7 @@
         "status": {
           "type": "string"
         },
-        "threadId": {
+        "summary": {
           "anyOf": [
             {
               "type": "string"
@@ -5850,11 +5873,15 @@
             }
           ]
         },
-        "topicFilesDeleted": {
-          "type": "integer"
-        },
-        "topicFilesWritten": {
-          "type": "integer"
+        "threadId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "trigger": {
           "anyOf": [
@@ -5876,12 +5903,6 @@
             }
           ]
         },
-        "turnIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
         "usage": {
           "anyOf": [
             {
@@ -5891,12 +5912,6 @@
               "type": "null"
             }
           ]
-        },
-        "writtenPaths": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
         }
       },
       "additionalProperties": true
@@ -5911,16 +5926,6 @@
       "title": "DreamsStatusResult",
       "type": "object",
       "properties": {
-        "activeDreamStoreId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "autoApply": {
           "type": "boolean"
         },
@@ -5940,7 +5945,7 @@
             }
           ]
         },
-        "minCompletedTurnsSinceLastRun": {
+        "minSessionsSinceLastRun": {
           "type": "integer"
         },
         "nextRunAt": {
@@ -5956,9 +5961,6 @@
         },
         "running": {
           "type": "boolean"
-        },
-        "threadLookbackCount": {
-          "type": "integer"
         }
       },
       "additionalProperties": true

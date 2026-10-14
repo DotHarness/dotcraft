@@ -6,6 +6,7 @@ import {
   coreToolRendererRegistry,
   type ToolRendererRegistration
 } from '../utils/toolRendererRegistry'
+import { resolveMemoryOperation } from '../utils/toolKind'
 
 function item(
   presentationId: string | undefined,
@@ -169,5 +170,33 @@ describe('ToolRendererRegistry', () => {
       family,
       ...(groupCategory ? { groupCategory } : {})
     })
+  })
+
+  it.each([
+    [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'grep', memory: 'recall' }, 'recall'],
+    [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'edit', memory: 'update' }, 'update'],
+    [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'read' }, null]
+  ] as const)('maps the memory mark on %s %o to %s', (presentationId, options, expected) => {
+    const marked = item(presentationId, 'CoreNative', { ...options })
+
+    expect(coreToolRendererRegistry.resolve(marked)?.options.operation).toBe(options.operation)
+    expect(resolveMemoryOperation(marked)).toBe(expected)
+  })
+
+  it.each([
+    [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'read', memory: 'update' }],
+    [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'write', memory: 'recall' }],
+    [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'write', memory: true }],
+    [CORE_TOOL_PRESENTATION_IDS.web, { operation: 'search', memory: 'recall' }]
+  ] as const)('rejects a memory mark %s does not carry: %o', (presentationId, options) => {
+    expect(coreToolRendererRegistry.resolve(item(presentationId, 'CoreNative', { ...options }))).toBeNull()
+  })
+
+  it('ignores a memory mark from an untrusted source', () => {
+    expect(resolveMemoryOperation(item(
+      CORE_TOOL_PRESENTATION_IDS.fileWrite,
+      'Mcp',
+      { operation: 'write', memory: 'update' }
+    ))).toBeNull()
   })
 })

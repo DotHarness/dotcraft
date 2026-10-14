@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.3 |
+| **Version** | 0.8.6 |
 | **Status** | Draft |
-| **Date** | 2026-10-06 |
+| **Date** | 2026-10-13 |
 | **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Session Core](../architecture/session-core.md) |
 
 Purpose: define Agent Profiles as reusable agent configuration templates. A profile gives a thread a role, default runtime preferences, and enforceable capability policy without replacing DotCraft's generated base instructions.
@@ -78,6 +78,7 @@ Supported frontmatter groups:
 | `plugins` | Plugin/app capability policy. |
 | `skills` | Skill preload, list/read access, and skill-management policy. |
 | `permissions` | Approval and workspace-boundary policy. |
+| `memory` | `shared` (default) uses the workspace memory store; `own` gives the profile a store of its own. See [Memory](memory.md#4-memory-scope). |
 | `locked` | Managed-source governance constraints only. |
 
 Validation rules:
@@ -171,6 +172,7 @@ A profile-backed thread stores:
 | Model snapshot | Complete provider, model, reasoning, and speed values resolved at thread creation. |
 | Runtime defaults | Mode and prompt profile when set by the profile. |
 | Capability policies | Tool, MCP, plugin/app, skills, approval, and workspace-boundary policy. |
+| Memory scope | The profile's own scope when it declares `memory: own` and the thread creator sets none. |
 
 Policy semantics:
 

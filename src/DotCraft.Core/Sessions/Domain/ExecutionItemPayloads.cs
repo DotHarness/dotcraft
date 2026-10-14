@@ -415,6 +415,6 @@ public sealed record ToolPresentationPayload
     /// <summary>Gets the trusted presentation registration identifier.</summary>
     public string PresentationId { get; init; } = string.Empty;
 
-    /// <summary>Gets bounded renderer-specific options captured from the tool definition.</summary>
+    /// <summary>Gets bounded renderer-specific options from the tool definition and any Core derives from the invocation.</summary>
     public JsonObject? Options { get; init; }
 }

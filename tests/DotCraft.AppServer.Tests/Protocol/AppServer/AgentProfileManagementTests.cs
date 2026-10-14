@@ -3,6 +3,7 @@ using DotCraft.Agents;
 using DotCraft.Tools;
 using System.Text.Json;
 using DotCraft.AppServer;
+using DotCraft.Memory;
 using Microsoft.Extensions.Logging;
 using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
 using Xunit;
@@ -218,6 +219,47 @@ public sealed class AgentProfileManagementTests : IDisposable
         Assert.Equal("reviewer-lite", persistedConfig.GetProperty("agentProfileId").GetString());
         Assert.Equal(fingerprint, persistedConfig.GetProperty("agentProfileFingerprint").GetString());
         Assert.Equal("Profile body for reviewer-lite.", persistedConfig.GetProperty("roleInstructions").GetString());
+    }
+
+    [Fact]
+    public async Task ThreadStart_WithOwnMemoryProfile_UsesTheProfileStore()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
+        {
+            id = "Night Shift",
+            source = "workspace",
+            rawContent = """
+---
+name: Night Shift
+description: Keeps its own memory
+memory: own
+---
+
+Body.
+"""
+        }));
+        await harness.Transport.ReadNextSentAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath },
+            config = new { agentProfileId = "Night Shift" }
+        }));
+
+        string threadId;
+        using (var startResponse = await harness.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(startResponse);
+            threadId = startResponse.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
+        }
+
+        var thread = await harness.Service.GetThreadAsync(threadId);
+        Assert.Equal(
+            Path.Combine(_workspaceCraftPath, "scopes", AgentProfileName.MemoryScope("Night Shift"), "memory"),
+            MemoryScopes.StoreDirectory(thread.Configuration, _workspaceCraftPath));
     }
 
     [Fact]

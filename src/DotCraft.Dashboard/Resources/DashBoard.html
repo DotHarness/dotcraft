@@ -406,7 +406,7 @@ body {
 .stat-value.warning { color: var(--warning); }
 .stat-value.info { color: var(--info); }
 
-/* Dreams status band: reuse .stat-card, add subtext + inline store id */
+/* Dreams status band: reuse .stat-card, add subtext */
 .stat-sub {
   font-size: 11px;
   color: var(--text-muted);
@@ -414,17 +414,18 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.dreams-storeid {
-  display: inline-block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.dreams-scope {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-top: 3px;
   font-family: var(--font-mono);
-  font-size: 15px;
-  font-weight: 600;
-  vertical-align: bottom;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
 }
+.dreams-scope span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .dreams-state-dot {
   display: inline-block;
@@ -452,13 +453,6 @@ body {
 }
 .dreams-copy:hover { color: var(--text-primary); background: var(--bg-hover); }
 .dreams-copy svg { width: 13px; height: 13px; }
-
-.dreams-grid {
-  display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
 
 /* Master-detail layout: headers share a grid row so both columns' bodies
    start at the same Y regardless of differing header heights. */
@@ -650,12 +644,9 @@ body {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.dreams-metric-value.mono {
-  font-family: var(--font-mono);
+.dreams-metric-value.compact {
   font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
 }
 .dreams-metric-value .add { color: var(--success); }
 .dreams-metric-value .del { color: var(--error); }
@@ -677,21 +668,30 @@ body {
   word-break: break-word;
 }
 
-/* Index diff lines */
 .dreams-diff-line { display: block; padding: 0 4px; border-radius: 2px; }
 .dreams-diff-line.add { color: var(--success); background: var(--success-dim); }
 .dreams-diff-line.del { color: var(--error); background: var(--error-dim); }
 .dreams-diff-line.ctx { color: var(--text-secondary); }
-.dreams-diff-legend {
-  display: flex;
-  gap: 14px;
-  font-size: 11px;
-  color: var(--text-muted);
-  margin: 2px 0 8px;
-  font-variant-numeric: tabular-nums;
+
+.dreams-summary {
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
-.dreams-diff-legend .add { color: var(--success); }
-.dreams-diff-legend .del { color: var(--error); }
+
+.dreams-link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent-light);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.dreams-link:hover { text-decoration: underline; }
 
 .dreams-evidence-list {
   list-style: none;
@@ -707,16 +707,6 @@ body {
   color: var(--text-secondary);
   word-break: break-all;
 }
-.dreams-evidence-list button.link {
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--accent-light);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-}
-.dreams-evidence-list button.link:hover { text-decoration: underline; }
 .dreams-kv { font-size: 12px; color: var(--text-secondary); line-height: 1.7; }
 .dreams-kv .k { color: var(--text-muted); }
 
@@ -726,7 +716,8 @@ body {
   padding-top: 12px;
 }
 
-.dreams-details summary {
+.dreams-details > summary,
+.dreams-file > summary {
   cursor: pointer;
   font-size: 12px;
   color: var(--text-secondary);
@@ -736,8 +727,10 @@ body {
   align-items: center;
   gap: 6px;
 }
-.dreams-details summary::-webkit-details-marker { display: none; }
-.dreams-details summary::before {
+.dreams-details > summary::-webkit-details-marker,
+.dreams-file > summary::-webkit-details-marker { display: none; }
+.dreams-details > summary::before,
+.dreams-file > summary::before {
   content: "";
   width: 0;
   height: 0;
@@ -746,8 +739,22 @@ body {
   border-bottom: 3.5px solid transparent;
   transition: transform var(--transition);
 }
-.dreams-details[open] summary::before { transform: rotate(90deg); }
-.dreams-details summary .count { color: var(--text-muted); font-weight: 500; }
+.dreams-details[open] > summary::before,
+.dreams-file[open] > summary::before { transform: rotate(90deg); }
+.dreams-details > summary .count { color: var(--text-muted); font-weight: 500; }
+
+.dreams-file { margin-top: 10px; }
+.dreams-file > summary { color: var(--text-primary); font-weight: 500; }
+.dreams-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+.dreams-file > summary .count { margin-left: auto; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.dreams-file > summary .add { color: var(--success); }
+.dreams-file > summary .del { color: var(--error); }
 
 /* Skeleton run rows reuse .skeleton shimmer */
 .dreams-skel-row {
@@ -760,9 +767,6 @@ body {
 }
 
 @media (max-width: 980px) {
-  .dreams-grid {
-    grid-template-columns: 1fr;
-  }
   .dreams-layout {
     grid-template-columns: 1fr;
     grid-template-areas:
@@ -2284,15 +2288,6 @@ const DASHBOARD_THEME_KEY = 'dotcraft.dashboard.theme';
 
 let automationsAvailable = false;
 let _automationsLastData = null;
-let dreamsAvailable = false;
-let dreamsStatus = null;
-let dreamsRuns = [];
-let selectedDreamRunId = null;
-let selectedDreamRunDetails = null;
-let dreamsFilter = 'all';
-let dreamsListLoading = false;
-let dreamsDetailLoading = false;
-let dreamsDeleteBusy = null;
 let dashboardRuntime = {
   mode: 'interactive',
   readOnly: false,
@@ -2471,7 +2466,9 @@ async function postJson(url) {
   const res = await fetch(API + url, { method: 'POST', credentials: 'same-origin' });
   const body = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new Error(body?.error || 'Request failed');
+    const error = new Error(body?.error || 'Request failed');
+    error.status = res.status;
+    throw error;
   }
   return body;
 }
@@ -5247,720 +5244,9 @@ function checkAuthEnabled() {
   }).catch(() => {});
 }
 
+/* DOTCRAFT_DREAMS_SCRIPT */
+
 // Automations (read-only dashboard; AppServer + Automations module)
-
-function dreamStatusLabel(run) {
-  const status = run?.status || 'unknown';
-  const review = run?.reviewStatus ? ` · ${run.reviewStatus}` : '';
-  const auto = run?.autoApplied ? ' · auto-applied' : '';
-  return `${status}${review}${auto}`;
-}
-
-function dreamBadgeClass(value) {
-  if (value === 'succeeded' || value === 'applied') return 'badge-success';
-  if (value === 'running' || value === 'pending') return 'badge-info';
-  if (value === 'failed' || value === 'discarded') return 'badge-warning';
-  if (value === 'canceled' || value === 'archived') return 'badge-accent';
-  return 'badge-info';
-}
-
-function dreamTriggerLabel(run) {
-  const t = String(run?.trigger || '').toLowerCase();
-  if (t === 'manual') return 'Manual';
-  if (t === 'scheduled') return 'Scheduled';
-  return t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
-}
-
-// Human-friendly run label, e.g. "Manual run · Jul 20, 12:48".
-function dreamFriendlyLabel(run) {
-  const trig = dreamTriggerLabel(run);
-  const prefix = trig ? `${trig} run` : 'Dream run';
-  const ts = run?.startedAt || run?.endedAt;
-  if (!ts) return prefix;
-  const d = new Date(ts);
-  if (isNaN(d.getTime())) return prefix;
-  const when = d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
-  return `${prefix} · ${when}`;
-}
-
-// Elapsed wall-clock time between start and end.
-function dreamDurationText(run) {
-  if (!run?.startedAt || !run?.endedAt) return null;
-  const ms = new Date(run.endedAt).getTime() - new Date(run.startedAt).getTime();
-  if (!isFinite(ms) || ms < 0) return null;
-  if (ms < 1000) return ms + 'ms';
-  const s = ms / 1000;
-  if (s < 60) return s.toFixed(1) + 's';
-  const m = Math.floor(s / 60);
-  const rem = Math.round(s % 60);
-  return `${m}m ${rem}s`;
-}
-
-function dreamUsageTotal(usage) {
-  if (!usage) return null;
-  const total = usage.totalTokens || 0;
-  return total ? fmtTokens(total) : null;
-}
-
-// Middle-ellipsis for long ids in constrained spaces; full value stays in title attr.
-function truncateMiddle(text, max = 30) {
-  const s = String(text || '');
-  if (s.length <= max) return s;
-  const head = Math.ceil((max - 1) / 2);
-  const tail = Math.floor((max - 1) / 2);
-  return s.slice(0, head) + '…' + s.slice(s.length - tail);
-}
-
-function dreamCopyBtn(value) {
-  if (!value) return '';
-  return `<button class="dreams-copy" title="Copy" aria-label="Copy" onclick="event.stopPropagation();dreamCopy('${encodeURIComponent(value)}')">${iconSvg('copy', 13)}</button>`;
-}
-
-function dreamCopy(enc) {
-  const value = decodeURIComponent(enc);
-  const done = () => showToast('Copied to clipboard.', 'success', 1600);
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(value).then(done).catch(() => showToast('Copy failed.', 'error'));
-    return;
-  }
-  const ta = document.createElement('textarea');
-  ta.value = value;
-  document.body.appendChild(ta);
-  ta.select();
-  try { document.execCommand('copy'); done(); } catch { showToast('Copy failed.', 'error'); }
-  ta.remove();
-}
-
-// Shared line-based diff so the +N/-M count and the rendered lines always agree.
-// Presentation-focused: matches on line content (removed block first, then the new
-// document with additions highlighted); it does not attempt full LCS alignment.
-function computeIndexDiff(oldText, newText) {
-  const split = (t) => (String(t || '').trim() ? String(t).split(/\r?\n/) : []);
-  const oldLines = split(oldText);
-  const newLines = split(newText);
-  const countOf = (arr) => {
-    const m = new Map();
-    for (const l of arr) m.set(l, (m.get(l) || 0) + 1);
-    return m;
-  };
-  const rows = [];
-  let additions = 0;
-  let removals = 0;
-  const newRemaining = countOf(newLines);
-  for (const line of oldLines) {
-    if ((newRemaining.get(line) || 0) > 0) {
-      newRemaining.set(line, newRemaining.get(line) - 1);
-    } else {
-      rows.push({ type: 'del', text: line });
-      removals++;
-    }
-  }
-  const oldRemaining = countOf(oldLines);
-  for (const line of newLines) {
-    if ((oldRemaining.get(line) || 0) > 0) {
-      oldRemaining.set(line, oldRemaining.get(line) - 1);
-      rows.push({ type: 'ctx', text: line });
-    } else {
-      rows.push({ type: 'add', text: line });
-      additions++;
-    }
-  }
-  return { rows, additions, removals };
-}
-
-function renderIndexDiff(diff) {
-  if (!diff.rows.length || (diff.additions === 0 && diff.removals === 0)) {
-    return '<span style="color:var(--text-muted)">No index changes.</span>';
-  }
-  return diff.rows.map(r => {
-    const marker = r.type === 'add' ? '+' : r.type === 'del' ? '-' : ' ';
-    return `<span class="dreams-diff-line ${r.type}">${escapeHtml(marker + r.text)}</span>`;
-  }).join('');
-}
-
-async function probeDreams() {
-  if (!dashboardCapability('dreams')) {
-    dreamsAvailable = false;
-    applyDreamsNavState();
-    return;
-  }
-  try {
-    const res = await fetch('/dashboard/api/dreams/status');
-    dreamsAvailable = res.ok;
-    if (res.ok) dreamsStatus = await res.json();
-  } catch {
-    dreamsAvailable = false;
-  }
-  applyDreamsNavState();
-}
-
-function applyDreamsNavState() {
-  const tab = document.getElementById('navTabDreams');
-  if (!tab) return;
-  tab.disabled = !dreamsAvailable;
-  tab.title = dreamsAvailable ? 'Review Dreams stores and runs.' : 'Dreams endpoints are not available for this workspace.';
-  if (!dreamsAvailable && currentPanel === 'dreams') switchPanel('dashboard');
-}
-
-// Relative "in 3h" text for the next scheduled eligibility check.
-function nextRunText(iso) {
-  if (!iso) return 'Not scheduled';
-  const d = new Date(iso).getTime();
-  if (isNaN(d)) return 'Not scheduled';
-  const diff = d - Date.now();
-  if (diff <= 0) return 'Due now';
-  const mins = Math.round(diff / 60000);
-  if (mins < 60) return 'in ' + mins + 'm';
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return 'in ' + hrs + 'h' + (mins % 60 ? ' ' + (mins % 60) + 'm' : '');
-  const days = Math.floor(hrs / 24);
-  return 'in ' + days + 'd' + (hrs % 24 ? ' ' + (hrs % 24) + 'h' : '');
-}
-
-// Compact interval label from a .NET TimeSpan "c" string ([d.]hh:mm:ss).
-function formatInterval(s) {
-  if (!s) return '';
-  const m = /^(?:(\d+)\.)?(\d{2}):(\d{2}):(\d{2})/.exec(String(s));
-  if (!m) return String(s);
-  const days = parseInt(m[1] || '0', 10);
-  const hrs = parseInt(m[2], 10);
-  const mins = parseInt(m[3], 10);
-  const parts = [];
-  if (days) parts.push(days + 'd');
-  if (hrs) parts.push(hrs + 'h');
-  if (mins) parts.push(mins + 'm');
-  return parts.length ? parts.join(' ') : '0m';
-}
-
-function updateDreamsRunNowBtn() {
-  const btn = document.getElementById('dreamsRunNowBtn');
-  if (!btn) return;
-  const running = !!dreamsStatus?.running;
-  const off = dreamsStatus?.enabled === false;
-  btn.disabled = running || off;
-  btn.title = running
-    ? 'A Dreams run is already in progress.'
-    : off ? 'Dreams is disabled for this workspace.' : 'Request a Dreams run now.';
-}
-
-function renderDreamsStats() {
-  const statsEl = document.getElementById('dreamsStats');
-  if (!statsEl) return;
-  const st = dreamsStatus || {};
-  const lastRun = st.lastRun;
-  let stateDot = 'off';
-  let stateLabel = 'Disabled';
-  if (st.running) { stateDot = 'running'; stateLabel = 'Running'; }
-  else if (st.enabled) { stateDot = 'on'; stateLabel = 'Enabled'; }
-  const activeStore = st.activeDreamStoreId || '';
-  const pending = st.pendingCount || 0;
-  const lastRunTs = lastRun?.endedAt || lastRun?.startedAt;
-  const lastRunHtml = lastRun
-    ? `<span class="badge ${dreamBadgeClass(lastRun.reviewStatus || lastRun.status)}">${escapeHtml(lastRun.reviewStatus || lastRun.status)}</span>`
-    : '<span style="font-size:16px;color:var(--text-muted)">Never</span>';
-  statsEl.innerHTML = `
-    <div class="stat-card">
-      <div class="stat-label">State</div>
-      <div class="stat-value" style="font-size:17px"><span class="dreams-state-dot ${stateDot}"></span>${stateLabel}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Active Store</div>
-      <div class="stat-value" style="display:flex;align-items:center;gap:5px">${activeStore
-        ? `<span class="dreams-storeid" title="${escapeHtml(activeStore)}">${escapeHtml(truncateMiddle(activeStore, 26))}</span>${dreamCopyBtn(activeStore)}`
-        : '<span style="font-size:16px;color:var(--text-muted)">None</span>'}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Pending</div>
-      <div class="stat-value ${pending > 0 ? 'warning' : ''}">${formatNumber(pending)}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Auto Apply</div>
-      <div class="stat-value ${st.autoApply ? 'success' : ''}">${st.autoApply ? 'On' : 'Off'}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Next Run</div>
-      <div class="stat-value" style="font-size:17px">${escapeHtml(nextRunText(st.nextRunAt))}</div>
-      ${st.interval ? `<div class="stat-sub">every ${escapeHtml(formatInterval(st.interval))}</div>` : ''}
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Last Run</div>
-      <div class="stat-value" style="font-size:17px">${lastRunHtml}</div>
-      ${lastRunTs ? `<div class="stat-sub">${escapeHtml(formatRelative(lastRunTs))}</div>` : ''}
-    </div>
-  `;
-  updateDreamsRunNowBtn();
-}
-
-function dreamsAnyRunRunning() {
-  return !!dreamsStatus?.running || dreamsRuns.some(run => run.status === 'running');
-}
-
-function updateDreamsDeleteAllBtn() {
-  const btn = document.getElementById('dreamsDeleteAllBtn');
-  if (!btn) return;
-  const running = dreamsAnyRunRunning();
-  const busy = dreamsDeleteBusy !== null;
-  btn.disabled = !dreamsRuns.length || running || busy;
-  btn.textContent = dreamsDeleteBusy === 'all' ? 'Deleting…' : 'Delete all';
-  btn.title = running
-    ? 'Dream Runs cannot be deleted while any run is in progress.'
-    : !dreamsRuns.length ? 'There are no Dream Runs to delete.'
-    : busy ? 'A Dreams deletion is already in progress.'
-    : 'Permanently delete all Dream Runs and their non-active artifacts.';
-}
-
-function filteredDreamRuns() {
-  if (dreamsFilter === 'pending') return dreamsRuns.filter(r => r.reviewStatus === 'pending');
-  if (dreamsFilter === 'applied') return dreamsRuns.filter(r => r.reviewStatus === 'applied' || (r.autoApplied && r.reviewStatus !== 'archived'));
-  if (dreamsFilter === 'archived') return dreamsRuns.filter(r => r.reviewStatus === 'archived');
-  if (dreamsFilter === 'other') return dreamsRuns.filter(r => r.reviewStatus !== 'pending' && r.reviewStatus !== 'applied' && r.reviewStatus !== 'archived' && !r.autoApplied);
-  return dreamsRuns;
-}
-
-function setDreamsFilter(id) {
-  dreamsFilter = id;
-  renderDreamsFilter();
-  renderDreamsRunList();
-}
-
-function renderDreamsFilter() {
-  const el = document.getElementById('dreamsFilter');
-  if (!el) return;
-  if (dreamsListLoading || !dreamsRuns.length) { el.innerHTML = ''; return; }
-  const counts = {
-    all: dreamsRuns.length,
-    pending: dreamsRuns.filter(r => r.reviewStatus === 'pending').length,
-    applied: dreamsRuns.filter(r => r.reviewStatus === 'applied' || (r.autoApplied && r.reviewStatus !== 'archived')).length,
-    archived: dreamsRuns.filter(r => r.reviewStatus === 'archived').length,
-  };
-  counts.other = counts.all - counts.pending - counts.applied - counts.archived;
-  const chip = (id, label) => `<button class="dreams-chip ${dreamsFilter === id ? 'active' : ''}" onclick="setDreamsFilter('${id}')">${label}<span class="dreams-chip-count">${counts[id]}</span></button>`;
-  el.innerHTML = chip('all', 'All') + chip('pending', 'Pending') + chip('applied', 'Applied') + chip('archived', 'Archived') + chip('other', 'Other');
-}
-
-function dreamsRunSkeleton(n = 3) {
-  let out = '';
-  for (let i = 0; i < n; i++) {
-    out += `<div class="dreams-skel-row">
-      <div class="skeleton skeleton-text" style="width:42%"></div>
-      <div class="skeleton skeleton-text" style="width:72%"></div>
-      <div class="skeleton skeleton-text" style="width:56%;margin-bottom:0"></div>
-    </div>`;
-  }
-  return out;
-}
-
-function renderDreamsRunList() {
-  const listEl = document.getElementById('dreamsRunList');
-  if (!listEl) return;
-  renderDreamsFilter();
-  updateDreamsDeleteAllBtn();
-  if (dreamsListLoading) { listEl.innerHTML = dreamsRunSkeleton(); return; }
-  if (!dreamsRuns.length) {
-    listEl.innerHTML = '<div class="empty-state"><p>No Dreams runs yet.</p></div>';
-    return;
-  }
-  const runs = filteredDreamRuns();
-  if (!runs.length) {
-    listEl.innerHTML = '<div class="empty-state"><p>No runs match this filter.</p></div>';
-    return;
-  }
-  listEl.innerHTML = runs.map(run => {
-    const selected = run.id === selectedDreamRunId;
-    const runTime = run.endedAt || run.startedAt;
-    const enc = encodeURIComponent(run.id);
-    const badges = [`<span class="badge ${dreamBadgeClass(run.status)}">${escapeHtml(run.status)}</span>`];
-    if (run.reviewStatus) badges.push(`<span class="badge ${dreamBadgeClass(run.reviewStatus)}">${escapeHtml(run.reviewStatus)}</span>`);
-    if (run.autoApplied) badges.push('<span class="badge badge-success">auto</span>');
-    const pendingDot = run.reviewStatus === 'pending' ? '<span class="dreams-pending-dot" title="Needs review"></span>' : '';
-    const metrics = [`${formatNumber(run.processedThreadCount || 0)} threads`];
-    if (run.topicFilesWritten || run.topicFilesDeleted) metrics.push(`${formatNumber(run.topicFilesWritten || 0)} topics`);
-    if (run.outputStoreId) metrics.push(truncateMiddle(run.outputStoreId, 22));
-    return `
-      <article class="dreams-run-card ${selected ? 'active' : ''}" role="button" tabindex="0" aria-pressed="${selected}"
-        onclick="selectDreamRun('${enc}')"
-        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectDreamRun('${enc}');}">
-        <div class="dreams-run-header">
-          <div class="dreams-run-badges">${badges.join('')}</div>
-          <div class="dreams-run-time">${runTime ? escapeHtml(formatRelative(runTime)) : 'Unknown'}</div>
-        </div>
-        <div class="dreams-run-title">${pendingDot}${escapeHtml(dreamFriendlyLabel(run))}</div>
-        <div class="dreams-run-id" title="${escapeHtml(run.id)}">${escapeHtml(run.id)}</div>
-        <div class="dreams-run-metrics">${metrics.map(m => `<span>${escapeHtml(m)}</span>`).join('')}</div>
-      </article>`;
-  }).join('');
-}
-
-function dreamMetric(label, valueHtml, extraStyle) {
-  return `<div><div class="dreams-metric-label">${escapeHtml(label)}</div><div class="dreams-metric-value"${extraStyle ? ` style="${extraStyle}"` : ''}>${valueHtml}</div></div>`;
-}
-
-// Detail head and body live in separate grid cells (see .dreams-layout) so the
-// detail header aligns with the run-list header and both bodies start at the same Y.
-function setDreamsDetail(headHtml, bodyHtml) {
-  const head = document.getElementById('dreamsDetailHead');
-  const body = document.getElementById('dreamsRunDetail');
-  if (head) head.innerHTML = headHtml;
-  if (body) body.innerHTML = bodyHtml;
-}
-
-function dreamsDetailHeadSkeleton() {
-  return `<div class="skeleton skeleton-text" style="width:60%;height:18px;margin-bottom:6px"></div>
-    <div class="skeleton skeleton-text" style="width:82%;height:12px;margin-bottom:0"></div>`;
-}
-
-function dreamsDetailBodySkeleton() {
-  return `
-    <div class="dreams-metrics">
-      ${Array.from({ length: 6 }).map(() => `<div><div class="skeleton skeleton-text" style="width:60%;height:11px"></div><div class="skeleton skeleton-text" style="width:80%;height:18px;margin-bottom:0"></div></div>`).join('')}
-    </div>
-    <div class="skeleton skeleton-text" style="width:100%;height:120px;margin-bottom:0"></div>`;
-}
-
-function renderDreamsRunDetail() {
-  const detailEl = document.getElementById('dreamsRunDetail');
-  if (!detailEl) return;
-  if (dreamsDetailLoading) { setDreamsDetail(dreamsDetailHeadSkeleton(), dreamsDetailBodySkeleton()); return; }
-  const data = selectedDreamRunDetails;
-  const run = data?.run || dreamsRuns.find(r => r.id === selectedDreamRunId);
-  if (!run) {
-    setDreamsDetail('', '<div class="empty-state"><p>Select a Dreams run to review.</p></div>');
-    return;
-  }
-  const preview = data?.preview || null;
-  const activeIndex = preview?.activeIndexMarkdown || '';
-  const outputIndex = preview?.outputIndexMarkdown || '';
-  const diff = computeIndexDiff(activeIndex, outputIndex);
-  const canApply = run.status === 'succeeded' && run.reviewStatus !== 'discarded' && run.reviewStatus !== 'archived';
-  const canDiscard = run.reviewStatus === 'pending';
-  const canCancel = run.status === 'running';
-  const canArchive = run.status !== 'running' && run.reviewStatus !== 'archived';
-  const deleteDisabled = dreamsAnyRunRunning() || dreamsDeleteBusy !== null;
-  const enc = encodeURIComponent(run.id);
-
-  // Actions: exactly one primary (Apply / Make active, neutral inversion); the rest secondary.
-  const actions = [];
-  if (run.threadId) actions.push(`<button class="btn" onclick="openDreamTrace('${encodeURIComponent(run.threadId)}')">Open trace</button>`);
-  if (canCancel) actions.push(`<button class="btn" onclick="dreamAction('${enc}','cancel')">Cancel</button>`);
-  if (canDiscard) actions.push(`<button class="btn" onclick="dreamAction('${enc}','discard')">Discard</button>`);
-  if (canArchive) actions.push(`<button class="btn" onclick="dreamAction('${enc}','archive')">Archive</button>`);
-  actions.push(`<button class="btn btn-danger" onclick="confirmDeleteDreamRun('${enc}')" ${deleteDisabled ? 'disabled' : ''} title="${dreamsAnyRunRunning() ? 'Dream Runs cannot be deleted while any run is in progress.' : dreamsDeleteBusy !== null ? 'A Dreams deletion is already in progress.' : 'Permanently delete this Dream Run and its non-active artifacts.'}">${dreamsDeleteBusy !== null ? 'Deleting…' : 'Delete'}</button>`);
-  if (canApply) actions.push(`<button class="btn btn-primary" onclick="dreamAction('${enc}','apply')">${run.reviewStatus === 'pending' ? 'Apply pending' : 'Make active'}</button>`);
-
-  const badges = [`<span class="badge ${dreamBadgeClass(run.status)}">${escapeHtml(run.status)}</span>`];
-  if (run.reviewStatus) badges.push(`<span class="badge ${dreamBadgeClass(run.reviewStatus)}">${escapeHtml(run.reviewStatus)}</span>`);
-  if (run.autoApplied) badges.push('<span class="badge badge-success">auto-applied</span>');
-
-  const runTime = run.endedAt || run.startedAt;
-  const duration = dreamDurationText(run);
-  const usage = dreamUsageTotal(run.usage);
-
-  const metrics = [];
-  metrics.push(dreamMetric('Output Store', run.outputStoreId
-    ? `<span class="dreams-storeid" style="font-size:13px" title="${escapeHtml(run.outputStoreId)}">${escapeHtml(truncateMiddle(run.outputStoreId, 24))}</span>${dreamCopyBtn(run.outputStoreId)}`
-    : '<span class="muted">None</span>', 'display:flex;align-items:center;gap:4px'));
-  metrics.push(dreamMetric('Index Change', `<span class="add">+${diff.additions}</span> <span class="muted">/</span> <span class="del">-${diff.removals}</span>`));
-  metrics.push(dreamMetric('Threads', `${formatNumber(run.processedThreadCount || 0)}<span class="muted"> / ${formatNumber(run.candidateThreadCount || 0)}</span>`));
-  metrics.push(dreamMetric('Evidence Reads', formatNumber(run.evidenceReadCount || 0)));
-  metrics.push(dreamMetric('Evidence Searches', formatNumber(run.evidenceSearchCount || 0)));
-  metrics.push(dreamMetric('Topic Files', `<span class="add">+${formatNumber(run.topicFilesWritten || 0)}</span> <span class="muted">/</span> <span class="del">-${formatNumber(run.topicFilesDeleted || 0)}</span>`));
-  if (duration) metrics.push(dreamMetric('Duration', escapeHtml(duration)));
-  if (usage) metrics.push(dreamMetric('Tokens', escapeHtml(usage)));
-
-  const isFailed = run.status === 'failed';
-  const banner = (run.errorType || run.message)
-    ? `<div class="message ${isFailed ? 'message-error' : 'message-warning'}" style="margin-bottom:14px">${escapeHtml([run.errorType, run.message].filter(Boolean).join(': '))}</div>`
-    : '';
-
-  const evidenceLinks = (run.evidenceThreadIds || []).length
-    ? run.evidenceThreadIds.map(id => `<li><button class="link" onclick="openSession('${encodeURIComponent(id)}')">${escapeHtml(id)}</button></li>`).join('')
-    : '<li style="color:var(--text-muted)">No evidence threads recorded.</li>';
-  const writtenPaths = (run.writtenPaths || []).length
-    ? run.writtenPaths.map(p => `<li>${escapeHtml(p)}</li>`).join('')
-    : '<li style="color:var(--text-muted)">No paths written.</li>';
-  const usageKv = run.usage
-    ? `<div class="dreams-kv"><span class="k">Input:</span> ${formatNumber(run.usage.inputTokens || 0)} · <span class="k">Output:</span> ${formatNumber(run.usage.outputTokens || 0)} · <span class="k">Cached:</span> ${formatNumber(run.usage.cachedInputTokens || 0)} · <span class="k">Total:</span> ${formatNumber(run.usage.totalTokens || 0)}</div>`
-    : '<div class="dreams-kv" style="color:var(--text-muted)">No token usage recorded.</div>';
-  const turnIds = (run.turnIds || []).length ? run.turnIds.join(', ') : (run.turnId || 'none');
-
-  const headHtml = `
-    <div class="dreams-detail-head">
-      <div style="min-width:0">
-        <div class="dreams-detail-title">${escapeHtml(dreamFriendlyLabel(run))}${badges.join('')}</div>
-        <div class="dreams-detail-sub">
-          <span>${escapeHtml(truncateMiddle(run.id, 40))}</span>${dreamCopyBtn(run.id)}
-          ${runTime ? `· ${escapeHtml(formatRelative(runTime))}` : ''}${duration ? ` · ${escapeHtml(duration)}` : ''}
-        </div>
-      </div>
-      <div class="dreams-actions">${actions.join('')}</div>
-    </div>`;
-
-  const bodyHtml = `
-    ${banner}
-    <div class="dreams-metrics">${metrics.join('')}</div>
-    <details class="dreams-details" open>
-      <summary>Index diff <span class="count">+${diff.additions} / -${diff.removals}</span></summary>
-      <div class="dreams-diff-legend"><span class="add">+ added</span><span class="del">- removed</span></div>
-      <pre class="dreams-code">${renderIndexDiff(diff)}</pre>
-    </details>
-    <details class="dreams-details">
-      <summary>Raw indexes</summary>
-      <div class="dreams-grid" style="margin-top:10px">
-        <div><div class="dreams-metric-label">Active index</div><pre class="dreams-code">${escapeHtml(activeIndex || 'No active index content.')}</pre></div>
-        <div><div class="dreams-metric-label">Output index</div><pre class="dreams-code">${escapeHtml(outputIndex || 'No output index content.')}</pre></div>
-      </div>
-    </details>
-    <details class="dreams-details">
-      <summary>Topics &amp; manifest <span class="count">${(preview?.outputTopicPaths || []).length} topics</span></summary>
-      <pre class="dreams-code">${escapeHtml([
-        `Active topics: ${(preview?.activeTopicPaths || []).join(', ') || 'none'}`,
-        `Output topics: ${(preview?.outputTopicPaths || []).join(', ') || 'none'}`,
-        `Input manifest path: ${run.inputManifestPath || 'none'}`,
-        '',
-        preview?.inputManifestMarkdown || ''
-      ].join('\n'))}</pre>
-    </details>
-    <details class="dreams-details">
-      <summary>Evidence &amp; trace</summary>
-      <div style="margin-top:10px">
-        <div class="dreams-metric-label">Evidence threads <span style="text-transform:none;color:var(--text-muted)">(${(run.evidenceThreadIds || []).length})</span></div>
-        <ul class="dreams-evidence-list">${evidenceLinks}</ul>
-        <div class="dreams-metric-label" style="margin-top:12px">Written paths <span style="text-transform:none;color:var(--text-muted)">(${(run.writtenPaths || []).length})</span></div>
-        <ul class="dreams-evidence-list">${writtenPaths}</ul>
-        <div class="dreams-metric-label" style="margin-top:12px">Token usage</div>
-        ${usageKv}
-        <div class="dreams-metric-label" style="margin-top:12px">Turn ids</div>
-        <div class="dreams-kv" style="font-family:var(--font-mono)">${escapeHtml(turnIds)}</div>
-      </div>
-    </details>`;
-
-  setDreamsDetail(headHtml, bodyHtml);
-}
-
-async function refreshDreams() {
-  if (!dreamsAvailable) return;
-  dreamsListLoading = !dreamsRuns.length;
-  if (dreamsListLoading) renderDreamsRunList();
-  dreamsStatus = await fetchJson('/dreams/status');
-  const list = await fetchJson('/dreams/runs?includeArchived=true');
-  dreamsRuns = Array.isArray(list?.runs) ? list.runs : [];
-  dreamsListLoading = false;
-  if (selectedDreamRunId && !dreamsRuns.some(run => run.id === selectedDreamRunId)) {
-    selectedDreamRunId = null;
-    selectedDreamRunDetails = null;
-  }
-  if (!selectedDreamRunId && dreamsRuns.length) {
-    selectedDreamRunId = dreamsRuns.find(run => run.reviewStatus === 'pending')?.id || dreamsRuns[0].id;
-  }
-  renderDreamsStats();
-  renderDreamsRunList();
-  if (selectedDreamRunId) await loadDreamRun(selectedDreamRunId);
-  else renderDreamsRunDetail();
-}
-
-async function loadDreamRun(runId) {
-  dreamsDetailLoading = true;
-  renderDreamsRunDetail();
-  const data = await fetchJson('/dreams/runs/' + encodeURIComponent(runId));
-  dreamsDetailLoading = false;
-  if (data) {
-    selectedDreamRunDetails = data;
-    selectedDreamRunId = data.run?.id || runId;
-  }
-  renderDreamsStats();
-  renderDreamsRunList();
-  renderDreamsRunDetail();
-}
-
-function selectDreamRun(encodedRunId) {
-  const runId = decodeURIComponent(encodedRunId);
-  selectedDreamRunId = runId;
-  history.replaceState(null, '', '#dreams/run/' + encodeURIComponent(runId));
-  loadDreamRun(runId);
-}
-
-async function runDreamsNow() {
-  if (!dashboardCapability('dreams')) return;
-  if (!dreamsAvailable) return;
-  if (dreamsStatus?.running) {
-    showToast('A Dreams run is already in progress.', 'info');
-    return;
-  }
-  try {
-    await postJson('/dreams/run');
-    showToast('Dreams run requested.', 'success');
-    await refreshDreams();
-  } catch (error) {
-    showToast(error.message || 'Dreams run failed.', 'error');
-  }
-}
-
-async function dreamAction(encodedRunId, action) {
-  if (!dashboardCapability('dreams')) return;
-  const runId = decodeURIComponent(encodedRunId);
-  try {
-    await postJson('/dreams/runs/' + encodeURIComponent(runId) + '/' + action);
-    showToast(`Dreams ${action} complete.`, 'success');
-    await refreshDreams();
-    await loadDreamRun(runId);
-  } catch (error) {
-    showToast(error.message || `Dreams ${action} failed.`, 'error');
-  }
-}
-
-function syncDreamsSelectionHash() {
-  const nextHash = selectedDreamRunId
-    ? '#dreams/run/' + encodeURIComponent(selectedDreamRunId)
-    : '#dreams';
-  history.replaceState(null, '', nextHash);
-}
-
-async function deleteDreamsJson(url) {
-  const res = await fetch(API + url, { method: 'DELETE', credentials: 'same-origin' });
-  const body = await res.json().catch(() => null);
-  if (res.status === 401) throw new Error('Not authorized — sign in to the dashboard first.');
-  if (!res.ok) throw new Error(body?.error || `Delete failed (HTTP ${res.status})`);
-  return body || {};
-}
-
-function showDreamsDeleteToasts(result, successMessage) {
-  showToast(successMessage, 'success');
-  if (result?.activeStorePreserved) {
-    showToast('The active Dream Store was preserved and remains available.', 'info', 7000);
-  }
-  const cleanupWarnings = result?.cleanupWarnings ?? result?.traceCleanupFailures;
-  const warnings = Array.isArray(cleanupWarnings)
-    ? cleanupWarnings
-    : cleanupWarnings ? [cleanupWarnings] : [];
-  if (result?.partial && !warnings.length) {
-    showToast('Dreams artifacts were deleted, but trace cleanup was only partial.', 'warning', 10000);
-  }
-  for (const warning of warnings) {
-    const threadId = warning && typeof warning === 'object' ? warning.threadId : null;
-    const detail = typeof warning === 'string'
-      ? warning
-      : warning?.message || warning?.error || warning?.warning || '';
-    const target = threadId ? ` for thread ${threadId}` : '';
-    const suffix = detail ? `: ${detail}` : '.';
-    showToast(`Dreams artifacts were deleted, but trace cleanup was only partial${target}${suffix}`, 'warning', 10000);
-  }
-}
-
-function confirmDeleteDreamRun(encodedRunId) {
-  if (!dashboardCapability('dreams')) return;
-  const runId = decodeURIComponent(encodedRunId);
-  const run = dreamsRuns.find(item => item.id === runId);
-  if (!run) {
-    showToast('Dream Run not found. Refreshing history.', 'warning');
-    refreshDreams();
-    return;
-  }
-  if (dreamsAnyRunRunning()) {
-    showToast('Dream Runs cannot be deleted while any run is in progress.', 'info');
-    return;
-  }
-  if (dreamsDeleteBusy !== null) return;
-  showConfirmModal(
-    'Delete Dream Run',
-    `Permanently delete "${run.id}" and its run data, non-active output store, internal thread, and traces? The active Dream Store will be preserved. This cannot be undone.`,
-    () => deleteDreamRun(run.id),
-    'btn-danger',
-    'Delete'
-  );
-}
-
-async function deleteDreamRun(runId) {
-  if (dreamsAnyRunRunning()) {
-    showToast('Dream Runs cannot be deleted while any run is in progress.', 'info');
-    return;
-  }
-  dreamsDeleteBusy = runId;
-  renderDreamsRunList();
-  renderDreamsRunDetail();
-  try {
-    const result = await deleteDreamsJson('/dreams/runs/' + encodeURIComponent(runId));
-    if (selectedDreamRunId === runId) {
-      selectedDreamRunId = null;
-      selectedDreamRunDetails = null;
-    }
-    await refreshDreams();
-    syncDreamsSelectionHash();
-    showDreamsDeleteToasts(result, 'Dream Run permanently deleted.');
-  } catch (error) {
-    showToast(error.message || 'Dream Run deletion failed.', 'error');
-  } finally {
-    dreamsDeleteBusy = null;
-    renderDreamsRunList();
-    renderDreamsRunDetail();
-  }
-}
-
-function confirmDeleteAllDreamRuns() {
-  if (!dashboardCapability('dreams')) return;
-  if (!dreamsRuns.length) return;
-  if (dreamsAnyRunRunning()) {
-    showToast('Dream Runs cannot be deleted while any run is in progress.', 'info');
-    return;
-  }
-  if (dreamsDeleteBusy !== null) return;
-  showConfirmModal(
-    'Delete All Dream Runs',
-    `Permanently delete all ${dreamsRuns.length} Dream Runs, their run data, non-active output stores, internal threads, and traces? The active Dream Store will be preserved. This cannot be undone.`,
-    deleteAllDreamRuns,
-    'btn-danger',
-    'Delete All'
-  );
-}
-
-async function deleteAllDreamRuns() {
-  if (dreamsAnyRunRunning()) {
-    showToast('Dream Runs cannot be deleted while any run is in progress.', 'info');
-    return;
-  }
-  dreamsDeleteBusy = 'all';
-  renderDreamsRunList();
-  renderDreamsRunDetail();
-  try {
-    const result = await deleteDreamsJson('/dreams/runs');
-    selectedDreamRunId = null;
-    selectedDreamRunDetails = null;
-    await refreshDreams();
-    syncDreamsSelectionHash();
-    showDreamsDeleteToasts(result, 'All Dream Runs permanently deleted.');
-  } catch (error) {
-    showToast(error.message || 'Dream Run deletion failed.', 'error');
-  } finally {
-    dreamsDeleteBusy = null;
-    renderDreamsRunList();
-    renderDreamsRunDetail();
-  }
-}
-
-function openDreamTrace(encodedThreadId) {
-  const threadId = decodeURIComponent(encodedThreadId);
-  openSession(threadId);
-}
-
-function handleDashboardHash() {
-  const hash = window.location.hash || '';
-  if (hash === '#dreams') {
-    switchPanel('dreams');
-    return;
-  }
-  const match = /^#dreams\/run\/(.+)$/.exec(hash);
-  if (match) {
-    selectedDreamRunId = decodeURIComponent(match[1]);
-    switchPanel('dreams');
-    loadDreamRun(selectedDreamRunId);
-  }
-}
-
-function fmtTokens(n) {
-  if (n == null) return '-';
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
-  return String(n);
-}
 
 /* DOTCRAFT_AUTOMATIONS_SCRIPT */
 

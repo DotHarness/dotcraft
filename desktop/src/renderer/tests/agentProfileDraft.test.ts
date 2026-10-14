@@ -11,6 +11,7 @@ describe('agent profile draft avatar metadata', () => {
       mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
       skills: { preload: [], allow: [], deny: [] },
       permissions: { approvalPolicy: 'prompt', requireApprovalOutsideWorkspace: null },
+      memory: 'shared',
       roleInstructions: 'Avatar body.'
     }
 
@@ -146,6 +147,29 @@ Body.
   })
 })
 
+describe('profile memory', () => {
+  it('writes memory only when the profile keeps its own', () => {
+    const own = parseProfile(`---
+name: keeper
+description: Keeps its own memory
+memory: own
+---
+Body`)
+    expect(own.memory).toBe('own')
+    expect(parseProfile(toMarkdown(own)).memory).toBe('own')
+
+    const shared = parseProfile(`---
+name: sharer
+description: Shares memory
+memory: shared
+---
+Body`)
+    expect(shared.memory).toBe('shared')
+    expect(toMarkdown(shared)).not.toContain('memory:')
+    expect(toMarkdown(createEmptyDraft())).not.toContain('memory:')
+  })
+})
+
 function createDraftWithProviderPreference(): ProfileDraft {
   return {
     name: 'pinned-bot',
@@ -160,6 +184,7 @@ function createDraftWithProviderPreference(): ProfileDraft {
     mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
     skills: { preload: [], allow: [], deny: [] },
     permissions: { approvalPolicy: 'prompt', requireApprovalOutsideWorkspace: null },
+    memory: 'shared',
     roleInstructions: ''
   }
 }

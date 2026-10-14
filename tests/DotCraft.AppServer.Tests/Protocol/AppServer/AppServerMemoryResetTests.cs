@@ -5,6 +5,7 @@ using DotCraft.Dreams;
 using DotCraft.Memory;
 using DotCraft.AppServer;
 using DotCraft.Sessions;
+using DotCraft.Tests.Dreams;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -39,14 +40,18 @@ public sealed class AppServerMemoryResetTests : IDisposable
     public async Task MemoryReset_NoParams_ReturnsEmptyObjectAndClearsMemoryAndDreams()
     {
         var memoryStore = new MemoryStore(_workspaceCraftPath);
-        var dreamStore = new DreamStore(_workspaceCraftPath);
-        File.WriteAllText(memoryStore.LongTermFilePath, "remember this");
+        var dreams = new DreamsArtifacts(_workspaceCraftPath);
+        File.WriteAllText(memoryStore.IndexFilePath, "remember this");
         File.WriteAllText(Path.Combine(memoryStore.MemoryDirectoryPath, "HISTORY.md"), "legacy event");
-        dreamStore.SaveDreamRun("# Dream Memory\n\n- passive context", "dream history");
-        File.WriteAllText(Path.Combine(dreamStore.DreamsDirectoryPath, "state.json"), "{}");
+        DreamsTestWorkspace.WriteFile(dreams.DreamsDirectoryPath, "state.json", "{}");
+        DreamsTestWorkspace.WriteFile(dreams.CandidateDirectory("dream_old"), "fact.md", "candidate");
         var derivedDir = Path.Combine(memoryStore.MemoryDirectoryPath, "derived");
         Directory.CreateDirectory(derivedDir);
         await File.WriteAllTextAsync(Path.Combine(derivedDir, "snapshot.json"), "{}");
+        var automationStore = MemoryScopes.ForThread(
+            new ThreadConfiguration { MemoryScope = "nightly-report" }, memoryStore, _workspaceCraftPath);
+        File.WriteAllText(automationStore.IndexFilePath, "- [Report](report.md) — format");
+        File.WriteAllText(Path.Combine(automationStore.MemoryDirectoryPath, "report.md"), "Use tables.");
 
         var configPath = Path.Combine(_workspaceCraftPath, "config.json");
         await File.WriteAllTextAsync(
@@ -71,7 +76,6 @@ public sealed class AppServerMemoryResetTests : IDisposable
             workspaceCraftPath: _workspaceCraftPath,
             appConfigMonitor: monitor,
             memoryStore: memoryStore,
-            dreamStore: dreamStore,
             welcomeSuggestionService: welcomeSuggestions);
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
@@ -88,13 +92,10 @@ public sealed class AppServerMemoryResetTests : IDisposable
 
         Assert.True(Directory.Exists(memoryStore.MemoryDirectoryPath));
         Assert.Empty(Directory.EnumerateFileSystemEntries(memoryStore.MemoryDirectoryPath));
-        Assert.True(Directory.Exists(dreamStore.DreamsDirectoryPath));
-        Assert.Equal(
-            ["runs", "stores"],
-            Directory.EnumerateDirectories(dreamStore.DreamsDirectoryPath)
-                .Select(path => Path.GetFileName(path)!)
-                .OrderBy(static name => name)
-                .ToArray());
+        Assert.True(Directory.Exists(automationStore.MemoryDirectoryPath));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(automationStore.MemoryDirectoryPath));
+        Assert.True(Directory.Exists(dreams.DreamsDirectoryPath));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(dreams.DreamsDirectoryPath));
         Assert.True(File.Exists(configPath));
         Assert.False(harness.Monitor.Current.Memory.Enabled);
 
@@ -104,10 +105,36 @@ public sealed class AppServerMemoryResetTests : IDisposable
     }
 
     [Fact]
+    public async Task MemoryReset_CancelsTheActiveDreamRunAndClearsItsRuns()
+    {
+        using var workspace = new DreamsTestWorkspace();
+        workspace.WriteMemory("deploy", "Deploy on Fridays.");
+        var runner = new FakeDreamsRunner { BlockUntilReleased = true };
+        await using var dreamsService = workspace.CreateService(runner);
+        using var harness = new AppServerTestHarness(
+            workspaceCraftPath: workspace.CraftPath,
+            appConfigMonitor: new AppConfigMonitor(workspace.Config),
+            memoryStore: new MemoryStore(workspace.CraftPath),
+            dreamsService: dreamsService);
+        await harness.InitializeAsync();
+        await dreamsService.RequestRunAsync();
+        await runner.WaitUntilCalledAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MemoryReset, new { }));
+
+        AppServerTestHarness.AssertIsSuccessResponse(await harness.Transport.ReadNextSentAsync());
+        Assert.True(runner.Canceled);
+        Assert.False(dreamsService.IsRunning);
+        Assert.Null(dreamsService.LoadLatestState());
+        Assert.Empty(dreamsService.ListRuns(includeArchived: true));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(workspace.WorkspaceStore));
+    }
+
+    [Fact]
     public async Task MemoryReset_ObjectParams_ReturnsEmptyObject()
     {
         var memoryStore = new MemoryStore(_workspaceCraftPath);
-        File.WriteAllText(memoryStore.LongTermFilePath, "remember this");
+        File.WriteAllText(memoryStore.IndexFilePath, "remember this");
         using var harness = new AppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
             memoryStore: memoryStore);

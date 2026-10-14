@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using DotCraft.Memory;
 using DotCraft.Sessions;
 using SessionThread = DotCraft.Sessions.SessionThread;
 
@@ -95,14 +96,38 @@ internal sealed class ContextWorkspaceReader
             warnings);
     }
 
-    public ContextWorkspaceMemory LoadMemory(ContextWorkspacePaths paths)
+    public ContextWorkspaceMemory LoadMemory(ContextLoadedThread loaded, List<string> warnings)
     {
-        var memoryPath = Path.Combine(paths.CraftPath, "memory", "MEMORY.md");
-        var memory = File.Exists(memoryPath)
-            ? File.ReadAllText(memoryPath, Encoding.UTF8)
-            : string.Empty;
+        string storeDirectory;
+        try
+        {
+            storeDirectory = MemoryScopes.StoreDirectory(loaded.Thread.Configuration, loaded.Paths.CraftPath);
+        }
+        catch (ArgumentException ex)
+        {
+            warnings.Add($"Unable to resolve the thread's memory store: {ex.Message}");
+            return new ContextWorkspaceMemory(string.Empty, string.Empty, []);
+        }
 
-        return new ContextWorkspaceMemory(memoryPath, memory);
+        var indexPath = Path.Combine(storeDirectory, MemoryStore.IndexFileName);
+        var index = File.Exists(indexPath) ? File.ReadAllText(indexPath, Encoding.UTF8) : string.Empty;
+        var files = MemoryFiles.List(storeDirectory)
+            .Select(file => new ContextMemoryFile(file, ReadText(Path.Combine(storeDirectory, file.FileName), warnings)))
+            .ToArray();
+        return new ContextWorkspaceMemory(storeDirectory, index, files);
+    }
+
+    private static string ReadText(string path, List<string> warnings)
+    {
+        try
+        {
+            return File.ReadAllText(path, Encoding.UTF8);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            warnings.Add($"Unable to read memory file {path}: {ex.Message}");
+            return string.Empty;
+        }
     }
 
     public IReadOnlyList<ContextThreadIndexRow> LoadThreadIndex(
@@ -353,8 +378,11 @@ internal sealed class ContextWorkspaceReader
 internal sealed record ContextWorkspacePaths(string WorkspacePath, string CraftPath);
 
 internal sealed record ContextWorkspaceMemory(
-    string MemoryPath,
-    string Memory);
+    string StoreDirectory,
+    string Index,
+    IReadOnlyList<ContextMemoryFile> Files);
+
+internal sealed record ContextMemoryFile(MemoryFileInfo Info, string Content);
 
 internal sealed record ContextLoadedThread(
     ContextWorkspacePaths Paths,

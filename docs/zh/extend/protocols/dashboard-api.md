@@ -134,55 +134,58 @@ fingerprint 同时覆盖内容和有序来源。等价快照会去重。该诊�
 
 ### `GET /dashboard/api/dreams/status`
 
-返回当前工作区 Dreams 配置、运行状态、active store 和最近一次运行。
+返回工作区的 Dreams 设置（`enabled`、`interval`、`autoApply`、`minSessionsSinceLastRun`）、`running`、`nextRunAt`、最近一次运行 `lastRun`（Dreams 从未运行时为 `null`），以及等待审阅的运行数 `pendingCount`。
+
+一次运行包含 `id`、`scope`（工作区记忆 store 不带此字段，否则是某个 Agent Profile 自有 store 的 scope）、`status`（`running`、`succeeded`、`skipped`、`failed` 或 `canceled`）、`trigger`（`manual` 或 `scheduled`）、时间戳、`changes`（这次运行新增、更新和删除的记忆文件，以及 `MEMORY.md` 是否变化）、`reviewStatus`（`pending`、`applied`、`discarded` 或 `archived`）、`autoApplied`、`summary`、`errorType` 和 `message`，以及内部的 `threadId` 和 `turnId`。完整字段见 [AppServer 协议规范](https://github.com/DotHarness/dotcraft/blob/main/specs/protocols/appserver-protocol.md#271-run-object)。
 
 ### `GET /dashboard/api/dreams/runs`
 
-返回 Dreams 运行记录。默认不包含 archived 运行，传 `?includeArchived=true` 才一并返回。
+返回 `{ runs }`，包含全部运行，archived 运行也在其中。
 
 ### `GET /dashboard/api/dreams/runs/{runId}`
 
-返回单次 Dreams 运行详情、active/output index 预览和 topic 路径，供 Dashboard 审阅页使用。
+以 `{ run, files, manifest }` 返回单次运行及其审阅材料。`files` 列出这次运行改动的每个文件（包括 `MEMORY.md`），带有 `name`、`change`（`added`、`updated` 或 `deleted`）、运行开始时的 `baseline` 文本和提议的 `candidate` 文本。新增文件没有 `baseline`，删除的文件没有 `candidate`。`manifest` 是这次运行的输入清单 Markdown，没有时为空字符串。run 不存在时返回 `404 Not Found`。
 
 ### `POST /dashboard/api/dreams/run`
 
-请求立即运行一次 Dreams。
+为 Dreams 整理的每个 store 请求一次手动运行，前提是它有记忆文件，或自上次整理以来有会话使用过它。这些 store 是工作区记忆 store，以及每个声明了 `memory: own` 的 Agent Profile 自有 store。这些运行在后台逐个执行，并跳过 `Dreams.Interval` 和 `Dreams.MinSessionsSinceLastRun`。
+
+返回 `{ run, status }`。`run` 是请求的第一次运行，已有运行在进行时则是那次运行，记忆或 Dreams 关闭时为 `null`。`status` 与 status 接口的返回结构相同。
 
 ### `POST /dashboard/api/dreams/runs/{runId}/{action}`
 
-执行 Dreams 审阅动作。`action` 支持 `apply`、`discard`、`archive`、`cancel`。
-`apply` 也用于将任意成功且未丢弃、未归档的 run 设为 active store。
-`archive` 保留 run 目录、输入快照、输出 store、内部线程和 trace。Desktop 的 Archive 与 Archive all 都调用这个动作，Archive all 会对每个符合条件的 run 各发一次请求。
+对单次运行执行审阅动作，返回更新后的 `{ run }`。
+
+| `action` | 适用于 | 效果 |
+|----------|--------|------|
+| `apply` | pending 的运行 | 用这次运行的 candidate 替换 store 的记忆文件和 `MEMORY.md`，前提是 store 仍与运行的 baseline 一致 |
+| `restore` | applied 的运行 | 写回这次运行的 baseline，前提是 store 仍与运行的 candidate 一致。运行随之变为 `discarded` |
+| `discard` | pending 的运行 | 把运行标记为 `discarded`，store 保持不变 |
+| `archive` | 未在运行的运行 | 把运行标记为 `archived`，AppServer 默认列表不再显示它。运行文件、内部线程和 trace 都保留 |
+| `cancel` | 正在运行的运行 | 尽力取消这次运行 |
+
+运行开始后 store 有变化时，`apply` 返回 `409 Conflict` 和 `code: "storeChanged"`，并把这个错误记在运行上，运行保持 pending，store 不受影响。store 与运行结果不再一致时，`restore` 同样返回 `409 Conflict`。错误返回 `{ error, code }`。run 不存在时返回 `404 Not Found`，动作未知或运行状态不符时返回 `400 Bad Request`。
 
 ### `DELETE /dashboard/api/dreams/runs/{runId}`
 
-永久删除一次未在运行的 Dreams run。删除会移除 run 目录和输入快照，移除它的输出 store（active store 除外），并清理关联的内部线程与 trace。即使被删除的 run 正是 active store 的产出者，active store 也会保留。
-
-run 不存在时返回 `404 Not Found`。run 正在运行时返回 `409 Conflict`，且不删除任何内容。
+永久删除一次运行。run 不存在时返回 `404 Not Found`，run 正在运行时返回 `409 Conflict`。
 
 ### `DELETE /dashboard/api/dreams/runs`
 
-永久删除全部 Dreams run，包含 archived run，清理规则与单次删除一致。只要有任何一个 run 正在运行，接口在删除任何内容之前先返回 `409 Conflict`。
+永久删除全部运行，包括 archived 运行。只要有运行正在进行，接口在删除任何内容之前先返回 `409 Conflict`。
 
-两个接口成功后，最近一次 Dreams 状态会用剩下最新的 run 重建，一个 run 都不剩时清空。
-
-单次删除成功返回：
+删除会移除每次运行的目录，并尽力清理它的内部线程和 trace，从不改动任何记忆 store。之后最近一次 Dreams 状态会用剩下最新的运行重建，一个都不剩时清空。两个接口都返回：
 
 ```json
 {
-  "deleted": true,
-  "runId": "dream_20260511000000_abc123",
-  "outputStoreDeleted": true,
-  "activeStorePreserved": false,
-  "traceDeleted": true,
+  "deletedRunIds": ["dream_20261013000000_abc123"],
+  "deletedCount": 1,
   "partial": false,
-  "cleanupWarnings": []
+  "traceCleanupFailures": []
 }
 ```
 
-run 目录、输入快照和可删除的输出 store 是权威结果，内部线程与 trace 清理是 best effort。Dreams 文件已删除但这部分清理失败时，接口仍返回成功，同时把 `partial` 置为 `true`，并在 `cleanupWarnings` 中列出每条失败原因。
-
-全量删除返回 `deletedCount` 和 `traceDeletedCount`，其余字段与单次删除一致。
+线程或 trace 清理失败时，请求仍然成功，`partial` 为 `true`，`traceCleanupFailures` 的每一项都带有 `runId`、`threadId` 和 `error`。
 
 ### `DELETE /dashboard/api/sessions/{sessionKey}`
 

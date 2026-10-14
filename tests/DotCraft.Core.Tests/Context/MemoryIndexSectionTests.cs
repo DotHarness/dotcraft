@@ -1,0 +1,162 @@
+using DotCraft.Context.WorldState;
+using DotCraft.Memory;
+using DotCraft.Sessions;
+using Xunit;
+
+namespace DotCraft.Tests.Context;
+
+public sealed class MemoryIndexSectionTests : IDisposable
+{
+    private const string Branches = "- [Branches](no-branches.md) — never branch unasked";
+    private const string Release = "- [Release](release.md) — 0.8.6 copy is written";
+    private const string Tests = "- [Tests](focused-tests.md) — run affected tests only";
+
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "MemoryIndexSection_" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly MemoryStore _store;
+    private readonly WorldState _world = WorldStateComposer.Build();
+
+    public MemoryIndexSectionTests()
+    {
+        Directory.CreateDirectory(_root);
+        _store = new MemoryStore(_root);
+    }
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_root, true); }
+        catch { /* best-effort */ }
+    }
+
+    [Fact]
+    public void MemoryDisabled_ContributesNeitherTextNorBaseline()
+    {
+        WriteIndex(Branches);
+
+        var render = _world.RenderFull(Context(memory: null));
+
+        Assert.DoesNotContain(render.Fragments, static fragment => fragment.SectionId == MemoryIndexSection.SectionId);
+        Assert.False(render.Snapshot.TryGetSection(MemoryIndexSection.SectionId, out _));
+    }
+
+    [Fact]
+    public void FirstStep_ShowsTheWholeIndexAndThenStaysSilent()
+    {
+        WriteIndex(Branches, Release);
+
+        var first = _world.RenderFull(Context());
+        var text = MemoryText(first);
+        Assert.Contains(Branches, text, StringComparison.Ordinal);
+        Assert.Contains(Release, text, StringComparison.Ordinal);
+
+        var next = _world.Render(Context(), first.Snapshot, sectionIdsInHistory: null);
+        Assert.Null(MemoryTextOrNull(next));
+        Assert.Contains(MemoryIndexSection.SectionId, next.SilentSectionIds);
+    }
+
+    [Fact]
+    public void EmptyIndex_IsShownAndRecordedDistinctlyFromAnAbsentOne()
+    {
+        var first = _world.RenderFull(Context());
+
+        Assert.NotNull(MemoryTextOrNull(first));
+        Assert.True(first.Snapshot.TryGetSection(MemoryIndexSection.SectionId, out _));
+
+        WriteIndex(Branches);
+        var next = _world.Render(Context(), first.Snapshot, sectionIdsInHistory: null);
+
+        Assert.Contains(Branches, MemoryText(next), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ChangeFromAnotherWriterBetweenSteps_RestatesOnlyTheEntriesThatMoved()
+    {
+        WriteIndex(Branches, Release, "Legacy note that is not a pointer.");
+        var first = _world.RenderFull(Context());
+
+        var otherThreadStore = new MemoryStore(_root);
+        const string editedRelease = "- [Release](release.md) — 0.8.6 copy is published";
+        File.WriteAllText(otherThreadStore.IndexFilePath, string.Join('\n', Branches, editedRelease, Tests));
+
+        var text = MemoryText(_world.Render(Context(), first.Snapshot, sectionIdsInHistory: null));
+
+        Assert.Contains(editedRelease, text, StringComparison.Ordinal);
+        Assert.Contains(Tests, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(Branches, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(Release, text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Legacy note", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RemovedEntries_AreNamedByTheirFile()
+    {
+        WriteIndex(Branches, Release);
+        var first = _world.RenderFull(Context());
+
+        WriteIndex(Branches);
+        var text = MemoryText(_world.Render(Context(), first.Snapshot, sectionIdsInHistory: null));
+
+        Assert.Contains("release.md", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(Branches, text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BaselineReset_RestatesTheWholeIndex()
+    {
+        WriteIndex(Branches, Release);
+        var first = _world.RenderFull(Context());
+        Assert.Null(MemoryTextOrNull(_world.Render(Context(), first.Snapshot, sectionIdsInHistory: null)));
+
+        var afterCompaction = _world.RenderFull(Context());
+
+        var text = MemoryText(afterCompaction);
+        Assert.Contains(Branches, text, StringComparison.Ordinal);
+        Assert.Contains(Release, text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SectionInHistoryWithoutABaseline_RestatesTheWholeIndex()
+    {
+        WriteIndex(Branches, Release);
+        var baselineWithoutMemory = WorldStateSnapshot.FromSections([]);
+
+        var render = _world.Render(
+            Context(),
+            baselineWithoutMemory,
+            new HashSet<string>(StringComparer.Ordinal) { MemoryIndexSection.SectionId });
+
+        var text = MemoryText(render);
+        Assert.Contains(Branches, text, StringComparison.Ordinal);
+        Assert.Contains(Release, text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Snapshot_SurvivesAMergePatchRoundTrip()
+    {
+        WriteIndex(Branches, Release);
+        var first = _world.RenderFull(Context());
+        WriteIndex(Release, Tests);
+        var second = _world.Render(Context(), first.Snapshot, sectionIdsInHistory: null);
+
+        var replayed = WorldStateSnapshot.FromJsonObject(first.Snapshot.ToJsonObject());
+        replayed.ApplyMergePatch(second.Snapshot.MergePatchFrom(first.Snapshot)!);
+
+        Assert.Null(MemoryTextOrNull(_world.Render(Context(), replayed, sectionIdsInHistory: null)));
+    }
+
+    private void WriteIndex(params string[] lines) =>
+        File.WriteAllText(_store.IndexFilePath, string.Join('\n', lines));
+
+    private WorldStateContext Context(MemoryStore? memory) => new()
+    {
+        Thread = new SessionThread { Id = "thread_memory", WorkspacePath = _root },
+        MemoryStore = memory
+    };
+
+    private WorldStateContext Context() => Context(_store);
+
+    private static string MemoryText(WorldStateRender render) =>
+        MemoryTextOrNull(render) ?? throw new Xunit.Sdk.XunitException("The memory index section rendered nothing.");
+
+    private static string? MemoryTextOrNull(WorldStateRender render) =>
+        render.Fragments.SingleOrDefault(static fragment => fragment.SectionId == MemoryIndexSection.SectionId)?.Text;
+}

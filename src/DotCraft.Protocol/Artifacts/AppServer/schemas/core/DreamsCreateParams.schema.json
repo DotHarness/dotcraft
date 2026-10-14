@@ -24,6 +24,16 @@
         }
       ]
     },
+    "scope": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "threadIds": {
       "anyOf": [
         {
@@ -31,16 +41,6 @@
           "items": {
             "type": "string"
           }
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "threadLookbackCount": {
-      "anyOf": [
-        {
-          "type": "integer"
         },
         {
           "type": "null"

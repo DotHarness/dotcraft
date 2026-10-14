@@ -6903,15 +6903,79 @@
           "const": null
         },
         {
-          "name": "threadIds",
-          "type": "array<string>",
+          "name": "scope",
+          "type": "string",
           "required": false,
           "nullable": true,
           "const": null
         },
         {
-          "name": "threadLookbackCount",
-          "type": "integer",
+          "name": "threadIds",
+          "type": "array<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.DreamsFileChange",
+      "name": "DreamsFileChange",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/DreamsFileChange.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "baseline",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "candidate",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "change",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.DreamsGetResult",
+      "name": "DreamsGetResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/DreamsGetResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "files",
+          "type": "array<core.DreamsFileChange>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "run",
+          "type": "core.DreamsRunState",
           "required": false,
           "nullable": true,
           "const": null
@@ -6956,6 +7020,45 @@
       "variants": []
     },
     {
+      "id": "core.DreamsRunChanges",
+      "name": "DreamsRunChanges",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/DreamsRunChanges.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "added",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "deleted",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "indexChanged",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "updated",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.DreamsRunIdParams",
       "name": "DreamsRunIdParams",
       "module": "core",
@@ -6984,59 +7087,6 @@
       "variants": []
     },
     {
-      "id": "core.DreamsRunPreview",
-      "name": "DreamsRunPreview",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/DreamsRunPreview.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "activeIndexMarkdown",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "activeStoreId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "activeTopicPaths",
-          "type": "array<string>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "outputIndexMarkdown",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "outputStoreId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "outputTopicPaths",
-          "type": "array<string>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.DreamsRunResult",
       "name": "DreamsRunResult",
       "module": "core",
@@ -7044,20 +7094,6 @@
       "schema": "schemas/core/DreamsRunResult.schema.json",
       "additionalProperties": true,
       "fields": [
-        {
-          "name": "activeDreamStoreId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "preview",
-          "type": "core.DreamsRunPreview",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
         {
           "name": "run",
           "type": "core.DreamsRunState",
@@ -7091,10 +7127,10 @@
           "const": null
         },
         {
-          "name": "dreamWritten",
-          "type": "boolean",
+          "name": "changes",
+          "type": "core.DreamsRunChanges",
           "required": false,
-          "nullable": false,
+          "nullable": true,
           "const": null
         },
         {
@@ -7154,21 +7190,14 @@
           "const": null
         },
         {
-          "name": "outputStoreId",
+          "name": "reviewStatus",
           "type": "string",
           "required": false,
           "nullable": true,
           "const": null
         },
         {
-          "name": "processedThreadCount",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "reviewStatus",
+          "name": "scope",
           "type": "string",
           "required": false,
           "nullable": true,
@@ -7189,24 +7218,17 @@
           "const": null
         },
         {
-          "name": "threadId",
+          "name": "summary",
           "type": "string",
           "required": false,
           "nullable": true,
           "const": null
         },
         {
-          "name": "topicFilesDeleted",
-          "type": "integer",
+          "name": "threadId",
+          "type": "string",
           "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "topicFilesWritten",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
+          "nullable": true,
           "const": null
         },
         {
@@ -7224,24 +7246,10 @@
           "const": null
         },
         {
-          "name": "turnIds",
-          "type": "array<string>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
           "name": "usage",
           "type": "core.TokenUsageInfo",
           "required": false,
           "nullable": true,
-          "const": null
-        },
-        {
-          "name": "writtenPaths",
-          "type": "array<string>",
-          "required": false,
-          "nullable": false,
           "const": null
         }
       ],
@@ -7265,13 +7273,6 @@
       "schema": "schemas/core/DreamsStatusResult.schema.json",
       "additionalProperties": true,
       "fields": [
-        {
-          "name": "activeDreamStoreId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
         {
           "name": "autoApply",
           "type": "boolean",
@@ -7301,7 +7302,7 @@
           "const": null
         },
         {
-          "name": "minCompletedTurnsSinceLastRun",
+          "name": "minSessionsSinceLastRun",
           "type": "integer",
           "required": false,
           "nullable": false,
@@ -7317,13 +7318,6 @@
         {
           "name": "running",
           "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "threadLookbackCount",
-          "type": "integer",
           "required": false,
           "nullable": false,
           "const": null
@@ -28463,7 +28457,8 @@
       "errors": [
         "InvalidParams",
         "InvalidRequest",
-        "MethodNotFound"
+        "MethodNotFound",
+        "storeChanged"
       ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
@@ -28555,7 +28550,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "core.DreamsRunIdParams",
-      "resultType": "core.DreamsRunResult",
+      "resultType": "core.DreamsGetResult",
       "module": "core",
       "capability": "dreams",
       "scope": "connection",

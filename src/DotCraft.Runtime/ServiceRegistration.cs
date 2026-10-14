@@ -99,8 +99,6 @@ public static class ServiceRegistration
                 config.Tools.Shell.Background,
                 sp.GetService<ILoggerFactory>()?.CreateLogger<BackgroundTerminalService>()));
         services.AddSingleton(_ => new MemoryStore(dataPath));
-        services.AddSingleton(_ => new DreamStore(dataPath));
-        services.AddSingleton<DreamsStateStore>();
         services.AddSingleton(_ => new ApprovalStore(dataPath));
         services.AddSingleton(_ =>
         {
@@ -144,13 +142,7 @@ public static class ServiceRegistration
         services.AddSingleton(sp => new ThreadStore(dataPath, sp.GetRequiredService<WorkspaceStateDatabase>()));
         services.AddSingleton<IWorldStateSection>(sp =>
             new VisualizationStateSection(sp.GetRequiredService<ThreadStore>().VisualizationWidgetStates));
-        services.AddSingleton(sp => new DreamsInputCollector(
-            sp.GetRequiredService<AppConfig>(),
-            workspacePath,
-            sp.GetRequiredService<MemoryStore>(),
-            sp.GetRequiredService<DreamStore>(),
-            sp.GetRequiredService<ThreadStore>()));
-        services.AddSingleton<DreamsRunRegistry>();
+        services.AddSingleton(sp => new DreamsRunRegistry(sp.GetRequiredService<ThreadStore>()));
         services.AddSingleton<IToolProfileRegistry>(sp =>
         {
             var reg = new ToolProfileRegistry();

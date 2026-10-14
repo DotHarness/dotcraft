@@ -69,6 +69,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
             SkillsDeny = ["pptx"],
             ApprovalPolicy = "deny",
             RequireApprovalOutsideWorkspace = true,
+            Memory = "own",
             RoleInstructions = "You write crisp, accurate release notes."
         };
 
@@ -93,6 +94,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         Assert.Equal(draft.SkillsDeny, roundTripped.SkillsDeny);
         Assert.Equal(draft.ApprovalPolicy, roundTripped.ApprovalPolicy);
         Assert.True(roundTripped.RequireApprovalOutsideWorkspace);
+        Assert.Equal(draft.Memory, roundTripped.Memory);
         Assert.Equal(draft.RoleInstructions, roundTripped.RoleInstructions);
     }
 
@@ -139,6 +141,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         Assert.DoesNotContain("reasoning:", md);
         Assert.DoesNotContain("tools:", md);
         Assert.DoesNotContain("mcp:", md);
+        Assert.DoesNotContain("memory:", md);
         Assert.Contains("permissions:", md);
         Assert.Contains("approvalPolicy: default", md);
     }
@@ -213,6 +216,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
             ToolsAllow = ["ReadFile"],
             SkillsPreload = ["docx"],
             ApprovalPolicy = "deny",
+            Memory = "own",
             RoleInstructions = "You write clear documentation."
         };
         File.WriteAllText(

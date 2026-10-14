@@ -1,6 +1,5 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.Dreams;
 using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Sessions;
@@ -22,62 +21,91 @@ public sealed class SessionServiceMemorySwitchTests : IDisposable
     {
         Directory.CreateDirectory(_root);
         _memoryStore = new MemoryStore(_root);
-        File.WriteAllText(_memoryStore.LongTermFilePath, "remembered-lesson");
-        new DreamStore(_root).SaveDreamRun("# Dream Memory\n\n- inferred-context", null);
+        File.WriteAllText(_memoryStore.IndexFilePath, "remembered-lesson");
     }
 
     [Fact]
-    public async Task NewThreads_CaptureTheSwitch_AndOnlyMemoryThreadsCarryMemoryOrDreams()
+    public async Task NewThreads_CaptureTheSwitch_AndOnlyMemoryThreadsCarryMemory()
     {
         await using var factory = CreateAgentFactory();
         var service = CreateService(factory);
 
         var withMemory = await service.CreateThreadAsync(MakeIdentity());
         _config.Memory.Enabled = false;
+        _config.Memory.AutoExtract = true;
         var withoutMemory = await service.CreateThreadAsync(MakeIdentity());
 
         Assert.True(withMemory.Configuration?.MemoryEnabled);
+        Assert.False(withMemory.Configuration?.MemoryAutoExtract);
         Assert.False(withoutMemory.Configuration?.MemoryEnabled);
+        Assert.True(withoutMemory.Configuration?.MemoryAutoExtract);
 
         await DrainAsync(service.SubmitInputAsync(withoutMemory.Id, [new TextContent("hello")]));
         Assert.DoesNotContain("remembered-lesson", _recorder.LastPrompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("inferred-context", _recorder.LastPrompt, StringComparison.Ordinal);
         Assert.DoesNotContain(Path.GetFullPath(_memoryStore.MemoryDirectoryPath), _recorder.LastPrompt, StringComparison.Ordinal);
 
         await DrainAsync(service.SubmitInputAsync(withMemory.Id, [new TextContent("hello")]));
         Assert.Contains("remembered-lesson", _recorder.LastPrompt, StringComparison.Ordinal);
-        Assert.Contains("inferred-context", _recorder.LastPrompt, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task UpdateThreadConfiguration_KeepsTheCapturedSwitch()
+    public async Task RunningThread_SeesIndexChangesAtItsNextTurnWithUnchangedInstructions()
     {
-        _config.Memory.Enabled = false;
         await using var factory = CreateAgentFactory();
         var service = CreateService(factory);
         var thread = await service.CreateThreadAsync(MakeIdentity());
+        File.WriteAllText(_memoryStore.IndexFilePath, "- [Tests](focused-tests.md) — run affected tests only");
 
-        await service.UpdateThreadConfigurationAsync(thread.Id, new ThreadConfiguration { Mode = "agent" });
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+        var firstInstructions = _recorder.LastInstructions;
+        Assert.Contains("run affected tests only", _recorder.LastPrompt, StringComparison.Ordinal);
+
+        File.WriteAllText(
+            _memoryStore.IndexFilePath,
+            "- [Tests](focused-tests.md) — run affected tests only\n- [Branches](no-branches.md) — never branch unasked");
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("again")]));
+
+        Assert.Contains("never branch unasked", _recorder.LastPrompt, StringComparison.Ordinal);
+        Assert.Equal(firstInstructions, _recorder.LastInstructions);
+    }
+
+    [Fact]
+    public async Task UpdateThreadConfiguration_KeepsTheCapturedMemorySettings()
+    {
+        _config.Memory.Enabled = false;
+        _config.Memory.AutoExtract = true;
+        await using var factory = CreateAgentFactory();
+        var service = CreateService(factory);
+        var thread = await service.CreateThreadAsync(MakeIdentity(), new ThreadConfiguration { MemoryScope = "agent-before" });
+
+        await service.UpdateThreadConfigurationAsync(
+            thread.Id,
+            new ThreadConfiguration { Mode = "agent", MemoryScope = "agent-after", MemoryAutoExtract = false });
 
         var reloaded = await service.GetThreadAsync(thread.Id);
         Assert.False(reloaded.Configuration?.MemoryEnabled);
+        Assert.True(reloaded.Configuration?.MemoryAutoExtract);
+        Assert.Equal("agent-before", reloaded.Configuration?.MemoryScope);
     }
 
     [Fact]
     public async Task ForkWithPartialConfig_InheritsTheSourceMemorySettings()
     {
         _config.Memory.Enabled = false;
+        _config.Memory.AutoExtract = true;
         await using var factory = CreateAgentFactory();
         var service = CreateService(factory);
         var source = await service.CreateThreadAsync(MakeIdentity(), new ThreadConfiguration { MemoryScope = "nightly" });
         await DrainAsync(service.SubmitInputAsync(source.Id, [new TextContent("hello")]));
         _config.Memory.Enabled = true;
+        _config.Memory.AutoExtract = false;
 
         var fork = await service.ForkThreadAsync(
             source.Id,
             new ThreadForkOptions { Config = new ThreadConfiguration { Mode = "agent" } });
 
         Assert.False(fork.Configuration?.MemoryEnabled);
+        Assert.True(fork.Configuration?.MemoryAutoExtract);
         Assert.Equal("nightly", fork.Configuration?.MemoryScope);
     }
 
@@ -124,6 +152,8 @@ public sealed class SessionServiceMemorySwitchTests : IDisposable
     {
         public string LastPrompt { get; private set; } = string.Empty;
 
+        public string LastInstructions { get; private set; } = string.Empty;
+
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> chatMessages,
             ChatOptions? options = null,
@@ -143,8 +173,11 @@ public sealed class SessionServiceMemorySwitchTests : IDisposable
             await Task.CompletedTask;
         }
 
-        private void Record(IEnumerable<ChatMessage> chatMessages, ChatOptions? options) =>
-            LastPrompt = (options?.Instructions ?? string.Empty) + "\n" + string.Join("\n", chatMessages.Select(message => message.Text));
+        private void Record(IEnumerable<ChatMessage> chatMessages, ChatOptions? options)
+        {
+            LastInstructions = options?.Instructions ?? string.Empty;
+            LastPrompt = LastInstructions + "\n" + string.Join("\n", chatMessages.Select(message => message.Text));
+        }
 
         public object? GetService(Type serviceType, object? serviceKey = null) => null;
 

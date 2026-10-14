@@ -24,7 +24,7 @@ Cite only `www.dotcraft.net` and `github.com/DotHarness/dotcraft`. Never invent 
 |---|---|
 | Something done once, right now | Just do it. Nothing to persist |
 | A convention for everyone working in this repository | `AGENTS.md` |
-| A preference or correction to keep for later sessions | `.craft/memory/MEMORY.md` |
+| A preference or correction to keep for later sessions | A memory file in `.craft/memory/`, with its pointer line in `MEMORY.md` |
 | A setting for this project | `<workspace>/.craft/config.json` |
 | A personal default, credentials, or endpoints | `~/.craft/config.json` |
 | A custom model's context window or Fast capability | `<workspace>/.craft/models.json`, or `~/.craft/models.json` for every workspace |

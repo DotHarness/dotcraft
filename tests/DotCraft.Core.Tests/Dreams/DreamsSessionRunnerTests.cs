@@ -1,10 +1,8 @@
 using DotCraft.Configuration;
 using DotCraft.Dreams;
-using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Tools;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
-using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
@@ -14,180 +12,105 @@ namespace DotCraft.Tests.Dreams;
 
 public sealed class DreamsSessionRunnerTests : IDisposable
 {
-    private readonly string _root;
-    private readonly string _workspace;
-    private readonly string _craft;
-    private readonly ThreadStore _threadStore;
+    private readonly DreamsTestWorkspace _workspace = new();
 
-    public DreamsSessionRunnerTests()
-    {
-        _root = Path.Combine(Path.GetTempPath(), "DreamsRunner_" + Guid.NewGuid().ToString("N")[..8]);
-        _workspace = Path.Combine(_root, "workspace");
-        _craft = Path.Combine(_workspace, ".craft");
-        Directory.CreateDirectory(_craft);
-        _threadStore = new ThreadStore(_craft);
-    }
-
-    public void Dispose()
-    {
-        try { Directory.Delete(_root, recursive: true); }
-        catch { }
-    }
+    public void Dispose() => _workspace.Dispose();
 
     [Fact]
-    public async Task GenerateAsync_CreatesInternalThreadRunsTwoPassesAndArchivesThread()
+    public async Task GenerateAsync_RunsOneTurnOnAnInternalThreadAndArchivesIt()
     {
-        var dreamStore = new DreamStore(_craft);
-        var memoryStore = new MemoryStore(_craft);
-        var runRegistry = new DreamsRunRegistry(_threadStore, memoryStore, dreamStore);
-        var submitCalls = 0;
-        var sessionService = new TestableSessionService(_threadStore)
+        var registry = new DreamsRunRegistry(_workspace.Threads);
+        var submits = 0;
+        var toolNames = new List<string>();
+        var sessionService = new TestableSessionService(_workspace.Threads)
         {
-            CreateThreadHandler = (thread, _) =>
+            CreateThreadHandler = async (thread, _) =>
             {
-                var threadConfig = thread.Configuration;
-                if (threadConfig == null
-                    || !string.Equals(threadConfig.ToolProfile, DreamsConstants.ToolProfileName, StringComparison.Ordinal))
-                    return Task.CompletedTask;
-
-                var source = new DreamsToolSource(runRegistry, new AppConfig(), new PathBlacklist([]));
-                var registrations = source.GetRegistrationsAsync(
-                    new ToolPlanningContext(thread.Id, null, _workspace, Path.Combine(_workspace, ".craft"), "agent", "dreams", [], 1)).AsTask().GetAwaiter().GetResult();
-                if (threadConfig.UseToolProfileOnly && registrations.Count == 0)
-                    throw new InvalidOperationException("UseToolProfileOnly requires a registered ToolProfile with at least one tool.");
-
-                return Task.CompletedTask;
+                var registrations = await new DreamsToolSource(registry, new AppConfig(), new PathBlacklist([]))
+                    .GetRegistrationsAsync(new ToolPlanningContext(thread.Id, null, _workspace.WorkspacePath, _workspace.CraftPath, "agent", DreamsConstants.ToolProfileName, [], 1));
+                toolNames.AddRange(registrations.Select(static registration => registration.Definition.Name.Name));
             },
-            SubmitInputHandler = (threadId, content, _) =>
+            SubmitInputHandler = (threadId, _, _) =>
             {
-                submitCalls++;
-                if (submitCalls == 2)
-                {
-                    var outputStore = Directory.EnumerateDirectories(dreamStore.StoresDirectoryPath).Single();
-                    File.WriteAllText(Path.Combine(outputStore, "INDEX.md"), ValidDreamMarkdown());
-                }
-
-                return CreateDreamTurnEvents(threadId, $"turn_{submitCalls:000}");
+                submits++;
+                return TurnEvents(threadId, "Merged two deploy memories.");
             }
         };
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "fake-main"  } },
+            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "fake-main" } },
             ConsolidationModel = "fake-consolidation"
         };
         var runner = new DreamsSessionRunner(
             sessionService,
-            new SessionPersistenceService(_threadStore),
+            new SessionPersistenceService(_workspace.Threads),
             TestModelProviderRegistry.Create(),
             config,
-            _workspace,
-            runRegistry,
-            dreamStore);
+            registry);
+        var bindings = new List<DreamsRunSessionBinding>();
 
-        var result = await runner.GenerateAsync(
-            new DreamsRunInput(
-                ExplicitMemory: "Explicit memory",
-                ExistingDream: "",
-                TopicFiles: [],
-                Threads:
-                [
-                    new DreamsThreadInput(
-                        "thread_history",
-                        "History thread",
-                        "cli",
-                        ThreadStatus.Active,
-                        DateTimeOffset.UtcNow.AddMinutes(-2),
-                        DateTimeOffset.UtcNow,
-                        2)
-                ],
-                CompletedTurnCount: 2),
-            runId: "dream_run_001",
-            trigger: DreamsConstants.TriggerManual);
+        var result = await runner.GenerateAsync(Input(), runner.ModelId, bindings.Add);
 
         Assert.True(result.Succeeded);
-        Assert.Equal("turn_002", result.TurnId);
-        Assert.Equal(["turn_001", "turn_002"], result.TurnIds);
-        Assert.Equal(
-            NormalizeNewlines(ValidDreamMarkdown()).Trim(),
-            NormalizeNewlines(result.DreamMarkdown ?? string.Empty).Trim());
-        Assert.Null(result.HistoryEntry);
-        Assert.False(string.IsNullOrWhiteSpace(result.OutputStoreId));
-        Assert.Equal(1, result.Diagnostics?.CandidateThreadCount);
-        Assert.False(string.IsNullOrWhiteSpace(result.ThreadId));
+        Assert.Equal("Merged two deploy memories.", result.Summary);
+        Assert.Equal("turn_001", result.TurnId);
+        Assert.Equal(1, submits);
+        Assert.Contains(bindings, binding => binding.TurnId == "turn_001");
+        Assert.Contains("DeleteMemoryFile", toolNames);
+        Assert.Contains("SearchTranscripts", toolNames);
+        Assert.False(registry.TryGet(result.ThreadId, out _));
 
-        var saved = await _threadStore.LoadThreadAsync(result.ThreadId!);
+        var saved = await _workspace.Threads.LoadThreadAsync(result.ThreadId!);
         Assert.NotNull(saved);
         Assert.Equal(ThreadStatus.Archived, saved.Status);
         Assert.Equal(DreamsConstants.ChannelName, saved.OriginChannel);
-        Assert.Equal(DreamsConstants.InternalMetadataValue, saved.Metadata[ThreadVisibility.InternalMetadataKey]);
-        Assert.Equal("dream_run_001", saved.Metadata[DreamsConstants.RunIdMetadataKey]);
-        Assert.Equal(DreamsConstants.TriggerManual, saved.Metadata[DreamsConstants.TriggerMetadataKey]);
         Assert.True(ThreadVisibility.IsInternal(saved));
+        Assert.Equal("dream_run_001", saved.Metadata[DreamsConstants.RunIdMetadataKey]);
         Assert.Equal(DreamsConstants.ToolProfileName, saved.Configuration?.ToolProfile);
         Assert.True(saved.Configuration?.UseToolProfileOnly);
+        Assert.False(saved.Configuration?.MemoryEnabled);
         Assert.Equal(ApprovalPolicy.AutoApprove, saved.Configuration?.ApprovalPolicy);
         Assert.Equal("fake-consolidation", saved.Configuration?.Model);
-
-        Assert.Equal(2, submitCalls);
     }
 
-    private static SessionEvent[] CreateDreamTurnEvents(string threadId, string turnId)
+    private DreamsRunInput Input() => new(
+        "dream_run_001",
+        DreamsConstants.TriggerManual,
+        _workspace.WorkspacePath,
+        _workspace.Artifacts.BaselineDirectory("dream_run_001"),
+        _workspace.Artifacts.CandidateDirectory("dream_run_001"),
+        "manifest",
+        [],
+        null);
+
+    private static SessionEvent[] TurnEvents(string threadId, string summary)
     {
-        var turn = new SessionTurn
-        {
-            Id = turnId,
-            ThreadId = threadId,
-            Status = TurnStatus.Running,
-            StartedAt = DateTimeOffset.UtcNow
-        };
+        var started = new SessionTurn { Id = "turn_001", ThreadId = threadId, Status = TurnStatus.Running, StartedAt = DateTimeOffset.UtcNow };
         var completed = new SessionTurn
         {
-            Id = turn.Id,
+            Id = "turn_001",
             ThreadId = threadId,
             Status = TurnStatus.Completed,
+            StartedAt = started.StartedAt,
             CompletedAt = DateTimeOffset.UtcNow,
-            StartedAt = turn.StartedAt,
-            Items = []
+            Items =
+            [
+                new SessionItem
+                {
+                    Id = "item_summary",
+                    TurnId = "turn_001",
+                    Type = ItemType.AgentMessage,
+                    Status = ItemStatus.Completed,
+                    Payload = new AgentMessagePayload { Text = summary },
+                    CreatedAt = DateTimeOffset.UtcNow
+                }
+            ]
         };
         return
         [
-            new SessionEvent
-            {
-                EventType = SessionEventType.TurnStarted,
-                ThreadId = threadId,
-                TurnId = turn.Id,
-                Payload = turn
-            },
-            new SessionEvent
-            {
-                EventType = SessionEventType.TurnCompleted,
-                ThreadId = threadId,
-                TurnId = turn.Id,
-                Payload = completed
-            }
+            new SessionEvent { EventType = SessionEventType.TurnStarted, ThreadId = threadId, TurnId = "turn_001", Payload = started },
+            new SessionEvent { EventType = SessionEventType.TurnCompleted, ThreadId = threadId, TurnId = "turn_001", Payload = completed }
         ];
     }
-
-    private static string ValidDreamMarkdown() =>
-        """
-        # Dream Memory
-
-        Generated by scheduled Dreams from recent workspace sessions. Treat as inferred background context, not explicit user instruction.
-
-        ## Workspace Focus
-        - Test focus.
-
-        ## Active Threads And Open Loops
-
-        ## Inferred Project Conventions
-
-        ## Repeated Problems And Prior Mistakes
-
-        ## Latest Stable Understanding
-
-        ## Low-Signal Or One-Off Context To Ignore
-        """;
-
-    private static string NormalizeNewlines(string value) => value.Replace("\r\n", "\n");
 }

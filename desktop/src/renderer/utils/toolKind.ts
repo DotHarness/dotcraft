@@ -70,6 +70,14 @@ export function resolveToolOperation(item: ToolKindSource): unknown {
   return resolveCoreToolRenderPlan(item as ConversationItem)?.options.operation
 }
 
+export type MemoryOperation = 'recall' | 'update'
+
+/** Core's mark on a file tool call that targets the Thread's memory store. */
+export function resolveMemoryOperation(item: ToolKindSource): MemoryOperation | null {
+  const memory = resolveCoreToolRenderPlan(item as ConversationItem)?.options.memory
+  return memory === 'recall' || memory === 'update' ? memory : null
+}
+
 export function isShellCommandKind(kind: ToolKind | null): boolean {
   return kind === 'exec' || kind === 'shell'
 }

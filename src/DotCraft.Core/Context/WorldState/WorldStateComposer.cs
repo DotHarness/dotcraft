@@ -23,6 +23,7 @@ public static class WorldStateComposer
         world.AddSection(new ModeSection());
         world.AddSection(new SessionStartHookSection());
         world.AddSection(new ThreadGoalSection());
+        world.AddSection(new MemoryIndexSection());
 
         foreach (var section in contributedSections ?? [])
             world.TryAddSection(section);

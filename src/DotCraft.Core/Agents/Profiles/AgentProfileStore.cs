@@ -188,6 +188,7 @@ public sealed partial class AgentProfileStore
         "plugins",
         "skills",
         "permissions",
+        "memory",
         "locked"
     };
 
@@ -524,7 +525,8 @@ public sealed partial class AgentProfileStore
         }
 
         var resolved = CloneThreadConfiguration(profile.CompiledConfiguration);
-        resolved.MemoryScope = requested.MemoryScope;
+        if (!string.IsNullOrEmpty(requested.MemoryScope))
+            resolved.MemoryScope = requested.MemoryScope;
         if (profile.ProviderPreference != null)
             ApplyProviderPreference(resolved, profile.ProviderPreference, appConfig);
         var selectsRuntimeModel = HasConfigProperty(configElement, "providerId")
@@ -854,6 +856,8 @@ public sealed partial class AgentProfileStore
             config.ApprovalPolicy = ParseApprovalPolicy(approvalPolicy, diagnostics);
             config.RequireApprovalOutsideWorkspace = ReadOptionalBool(permissions, "requireApprovalOutsideWorkspace", diagnostics);
         }
+
+        config.MemoryScope = CompileMemoryScope(frontmatter, id, diagnostics);
 
         config.AgentControlToolAccess = ParseAgentControlLegacy(config.ToolPolicy?.AgentControl);
         config.AllowedAgentControlTools = config.ToolPolicy?.AllowedAgentControlTools == null

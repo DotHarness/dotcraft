@@ -125,7 +125,8 @@ public sealed class ContextExportServiceTests : IDisposable
 
         var memoryDir = Path.Combine(_craft, "memory");
         Directory.CreateDirectory(memoryDir);
-        await File.WriteAllTextAsync(Path.Combine(memoryDir, "MEMORY.md"), "Remember: use readonly export.");
+        await File.WriteAllTextAsync(Path.Combine(memoryDir, "MEMORY.md"), "- [Export](export.md) — readonly export");
+        await File.WriteAllTextAsync(Path.Combine(memoryDir, "export.md"), "Remember: use readonly export.");
 
         var result = await new ContextExportService().ExportAsync(new ContextExportOptions
         {
@@ -135,8 +136,43 @@ public sealed class ContextExportServiceTests : IDisposable
 
         Assert.Contains("compacted summary", result.Markdown);
         Assert.Contains("recent request", result.Markdown);
+        Assert.Contains("- [Export](export.md) — readonly export", result.Markdown);
         Assert.Contains("Remember: use readonly export.", result.Markdown);
         Assert.Contains("Compaction", result.Markdown);
+    }
+
+    [Fact]
+    public async Task ExportAsync_ReadsTheThreadsOwnMemoryStoreWithoutCreatingIt()
+    {
+        var thread = CreateThread();
+        thread.Configuration = new ThreadConfiguration { MemoryScope = "nightly" };
+        AddTurnWithMessages(thread, "request", "answer");
+        await _threadStore.SaveThreadAsync(thread);
+        var workspaceMemory = Path.Combine(_craft, "memory");
+        Directory.CreateDirectory(workspaceMemory);
+        await File.WriteAllTextAsync(Path.Combine(workspaceMemory, "workspace.md"), "workspace-only fact");
+
+        var scoped = await new ContextExportService().ExportAsync(new ContextExportOptions
+        {
+            ThreadId = thread.Id,
+            WorkspacePath = _workspace
+        });
+
+        Assert.DoesNotContain("workspace-only fact", scoped.Markdown);
+        Assert.False(Directory.Exists(Path.Combine(_craft, "scopes", "nightly", "memory")));
+
+        var scopedMemory = Path.Combine(_craft, "scopes", "nightly", "memory");
+        Directory.CreateDirectory(scopedMemory);
+        await File.WriteAllTextAsync(Path.Combine(scopedMemory, "report.md"), "nightly-only fact");
+
+        var refreshed = await new ContextExportService().ExportAsync(new ContextExportOptions
+        {
+            ThreadId = thread.Id,
+            WorkspacePath = _workspace
+        });
+
+        Assert.Contains("nightly-only fact", refreshed.Markdown);
+        Assert.DoesNotContain("workspace-only fact", refreshed.Markdown);
     }
 
     [Fact]

@@ -2,7 +2,6 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.Dreams;
 using DotCraft.Memory;
 using DotCraft.Persistence;
 using DotCraft.Security;
@@ -19,28 +18,14 @@ public sealed class WelcomeSuggestionEvidenceTests : IDisposable
 {
     private readonly string _workspace = Path.Combine(Path.GetTempPath(), "welcome-evidence-" + Guid.NewGuid().ToString("N"));
 
-    [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public async Task Refresh_SuppliesCapturedMemoryToRealSessionAndCachesThatSnapshot(bool hasMemory, bool hasDream)
+    [Fact]
+    public async Task Refresh_SuppliesCapturedMemoryToRealSessionAndCachesThatSnapshot()
     {
         var dataPath = Path.Combine(_workspace, ".craft");
         Directory.CreateDirectory(dataPath);
         var memory = new MemoryStore(dataPath);
-        var dreams = new DreamStore(dataPath);
         const string memoryText = "User preference: focus on retry behavior in QueueWorker.cs.";
-        const string dreamText = "Inferred task: inspect duplicate handling in EventInbox.cs.";
-        if (hasMemory)
-            File.WriteAllText(memory.LongTermFilePath, memoryText);
-        string? dreamPath = null;
-        if (hasDream)
-        {
-            var store = dreams.CreateOutputStore("evidence", DateTimeOffset.UtcNow);
-            dreamPath = store.IndexPath;
-            File.WriteAllText(dreamPath, dreamText);
-            dreams.SetActiveStore(store.StoreId);
-        }
+        WriteMemory(memory, memoryText);
 
         var client = new SuggestionClient();
         var config = AppConfigTestFactory.CreateOpenAI();
@@ -59,7 +44,7 @@ public sealed class WelcomeSuggestionEvidenceTests : IDisposable
         recorder.Bind(sessions);
         var identity = new SessionIdentity { ChannelName = "test", UserId = "user", WorkspacePath = _workspace };
 
-        WelcomeSuggestionService CreateService() => new(sessions, memory, dreams, _workspace, config, dataPath);
+        WelcomeSuggestionService CreateService() => new(sessions, memory, _workspace, config, dataPath);
         async Task<WelcomeSuggestionSnapshot> GenerateAsync(bool clearCache = false)
         {
             await using var service = CreateService();
@@ -84,20 +69,17 @@ public sealed class WelcomeSuggestionEvidenceTests : IDisposable
             threadFilesDuringRequest = Directory.Exists(threadsDirectory)
                 ? Directory.EnumerateFiles(threadsDirectory, "*", SearchOption.AllDirectories).Count()
                 : 0;
-            if (hasMemory) File.WriteAllText(memory.LongTermFilePath, "Changed memory after request capture.");
-            if (dreamPath != null) File.WriteAllText(dreamPath, "Changed dream after request capture.");
+            WriteMemory(memory, "Changed memory after request capture.");
         };
         var first = await GenerateAsync();
         var captured = Assert.Single(client.Requests);
-        Assert.Equal(hasMemory, captured.Contains(memoryText, StringComparison.Ordinal));
-        Assert.Equal(hasDream, captured.Contains(dreamText, StringComparison.Ordinal));
+        Assert.Contains(memoryText, captured, StringComparison.Ordinal);
+        Assert.Contains("retry-focus.md", captured, StringComparison.Ordinal);
         Assert.Equal(4, first.Items.Count);
         Assert.Equal(0, threadFilesDuringRequest);
 
         client.OnRequest = null;
-        if (hasMemory)
-            File.WriteAllText(memory.LongTermFilePath, memoryText);
-        if (dreamPath != null) File.WriteAllText(dreamPath, dreamText);
+        WriteMemory(memory, memoryText);
         await using (var restored = CreateService())
         {
             var cached = await restored.SuggestAsync(new WelcomeSuggestionRequest { Identity = identity, MaxItems = 4 });
@@ -106,14 +88,21 @@ public sealed class WelcomeSuggestionEvidenceTests : IDisposable
         var repeated = await GenerateAsync(clearCache: true);
         Assert.Equal(first.Fingerprint, repeated.Fingerprint);
         const string updatedEvidence = "Next task: add coverage for RetryPolicy.cs.";
-        if (hasMemory) File.WriteAllText(memory.LongTermFilePath, updatedEvidence);
-        else File.WriteAllText(dreamPath!, updatedEvidence);
+        WriteMemory(memory, updatedEvidence);
         var changed = await GenerateAsync(clearCache: true);
         Assert.NotEqual(first.Fingerprint, changed.Fingerprint);
         Assert.Contains(updatedEvidence, client.Requests.Last());
         var cachePath = Path.Combine(dataPath, "cache", "welcome-suggestions.json");
         using var cache = JsonDocument.Parse(await File.ReadAllTextAsync(cachePath));
         Assert.Equal(1, cache.RootElement.GetProperty("SchemaVersion").GetInt32());
+    }
+
+    private static void WriteMemory(MemoryStore memory, string fact)
+    {
+        File.WriteAllText(
+            Path.Combine(memory.MemoryDirectoryPath, "retry-focus.md"),
+            $"---\nname: retry-focus\ndescription: \"{fact}\"\nmetadata:\n  type: feedback\n---\n\n{fact}");
+        File.WriteAllText(memory.IndexFilePath, $"- [Retry focus](retry-focus.md) — {fact}");
     }
 
     public void Dispose()

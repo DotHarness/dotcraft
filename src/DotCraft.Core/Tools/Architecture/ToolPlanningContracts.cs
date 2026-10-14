@@ -21,7 +21,8 @@ public sealed class ToolPlanningContext
         string? effectiveMainModel = null,
         IReadOnlyList<string>? workspaceRoots = null,
         SubAgentModelCatalogSnapshot? subAgentModelCatalogSnapshot = null,
-        bool? requireApprovalOutsideWorkspace = null)
+        bool? requireApprovalOutsideWorkspace = null,
+        string? memoryStoreDirectory = null)
     {
         if (string.IsNullOrWhiteSpace(threadId))
             throw new ArgumentException("A thread identifier is required.", nameof(threadId));
@@ -46,6 +47,7 @@ public sealed class ToolPlanningContext
         EffectiveMainModel = effectiveMainModel;
         SubAgentModelCatalogSnapshot = subAgentModelCatalogSnapshot;
         RequireApprovalOutsideWorkspace = requireApprovalOutsideWorkspace;
+        MemoryStoreDirectory = memoryStoreDirectory;
     }
 
     /// <summary>Gets the thread identifier.</summary>
@@ -81,4 +83,6 @@ public sealed class ToolPlanningContext
     /// through the approval service, <see langword="false"/> rejects them without prompting.
     /// </summary>
     public bool? RequireApprovalOutsideWorkspace { get; }
+    /// <summary>Gets the Thread's memory store directory, or null when the Thread has memory disabled.</summary>
+    public string? MemoryStoreDirectory { get; }
 }

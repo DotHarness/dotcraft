@@ -30,8 +30,7 @@ public static class InitHelper
     private static string GetTemplateContent(string templateName)
     {
         const string langSuffix = "en";
-        var extension = templateName == "gitignore" ? string.Empty : ".md";
-        var resourceName = $"DotCraft.Resources.Templates.{templateName}_{langSuffix}{extension}";
+        var resourceName = $"DotCraft.Resources.Templates.{templateName}_{langSuffix}";
 
         var assembly = Assembly.GetExecutingAssembly();
         using var stream = assembly.GetManifestResourceStream(resourceName);
@@ -79,10 +78,6 @@ public static class InitHelper
         string craftPath,
         List<(string Status, string Path)>? createdItems = null)
     {
-        var memoryPath = Path.Combine(craftPath, "memory", "MEMORY.md");
-        File.WriteAllText(memoryPath, GetTemplateContent("MEMORY"), Encoding.UTF8);
-        createdItems?.Add(("[green]✓[/]", "memory/MEMORY.md"));
-
         var gitignorePath = Path.Combine(craftPath, ".gitignore");
         File.WriteAllText(gitignorePath, GetTemplateContent("gitignore"), Encoding.UTF8);
         createdItems?.Add(("[green]✓[/]", ".gitignore"));

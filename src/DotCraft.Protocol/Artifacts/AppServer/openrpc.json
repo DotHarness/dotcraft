@@ -1887,7 +1887,8 @@
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
-        "MethodNotFound"
+        "MethodNotFound",
+        "storeChanged"
       ]
     },
     {
@@ -2037,7 +2038,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/DreamsRunResult.schema.json"
+          "$ref": "./schemas/core/DreamsGetResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",

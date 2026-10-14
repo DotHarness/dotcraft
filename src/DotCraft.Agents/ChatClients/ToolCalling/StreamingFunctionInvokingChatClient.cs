@@ -158,6 +158,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
         var turnRetryBudget =
             (GetService(typeof(IStreamRetryBudget)) as IStreamRetryBudget)?.MaxStreamRetries ?? 0;
         var turnRetryCount = 0;
+        var modelRequestLimit = ModelRequestLimitScope.Current;
         var providerManagedContinuationLimit = providerManagedContinuationPolicy?.MaximumContinuations ?? 0;
         if (providerManagedContinuationLimit < 0)
         {
@@ -186,6 +187,8 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
         for (var iteration = 0; ; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (iteration >= modelRequestLimit)
+                yield break;
 
             var preparation = await PrepareMessagesForSamplingAsync(currentMessages, options, cancellationToken);
             var preparedMessages = preparation.Messages;

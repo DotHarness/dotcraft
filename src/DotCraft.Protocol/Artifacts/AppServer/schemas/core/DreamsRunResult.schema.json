@@ -4,26 +4,6 @@
   "title": "DreamsRunResult",
   "type": "object",
   "properties": {
-    "activeDreamStoreId": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "preview": {
-      "anyOf": [
-        {
-          "$ref": "./DreamsRunPreview.schema.json"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "run": {
       "anyOf": [
         {

@@ -269,8 +269,8 @@ public sealed class ContextPageManager : IContextPageManager
 /// </summary>
 public static class ContextPageKeys
 {
-    public static ContextPageKey MemoryLongTerm(string variant = "") =>
-        new("memory", "longTerm", variant);
+    public static ContextPageKey Memory(string variant) =>
+        new("memory", "instructions", variant);
 
     public static ContextPageKey SkillsAlways(string variant) =>
         new("skills", "always", variant);

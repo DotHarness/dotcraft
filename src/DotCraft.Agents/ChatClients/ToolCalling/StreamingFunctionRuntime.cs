@@ -170,6 +170,25 @@ public static class StreamingToolInvocationRuntimeScope
     }
 }
 
+/// <summary>Caps the model requests one tool loop makes; the loop ends normally at the cap.</summary>
+public static class ModelRequestLimitScope
+{
+    private static readonly AsyncLocal<int?> CurrentLimit = new();
+
+    public static int? Current => CurrentLimit.Value;
+
+    internal static IDisposable Suppress() => Set(null);
+
+    public static IDisposable Set(int? limit)
+    {
+        if (limit < 1)
+            throw new ArgumentOutOfRangeException(nameof(limit), limit, "A model request limit must be positive.");
+        var previous = CurrentLimit.Value;
+        CurrentLimit.Value = limit;
+        return new RestoreScope(() => CurrentLimit.Value = previous);
+    }
+}
+
 internal sealed class RestoreScope(Action restore) : IDisposable
 {
     private int _disposed;

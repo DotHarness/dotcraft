@@ -184,9 +184,9 @@ describe('SettingsView', () => {
       InstantInterruptEnabled: true,
       WelcomeSuggestions: { Enabled: true },
       PromptSuggestions: { Enabled: true },
-      Memory: { Enabled: true },
+      Memory: { Enabled: true, AutoExtract: false },
       Skills: { SelfLearning: { Enabled: false }, IncludeSharedSkills: true },
-      Dreams: { Enabled: true, Interval: '1.00:00:00', ThreadLookbackCount: 20, AutoApply: false },
+      Dreams: { Enabled: true, Interval: '1.00:00:00', AutoApply: false },
       Permissions: { DefaultApprovalPolicy: 'default' },
       Tools: { CodeMode: { Mode: 'Only' }, ImageGeneration: { Enabled: true, Provider: null } }
     }
@@ -194,12 +194,10 @@ describe('SettingsView', () => {
     const dreamsStatus = {
       enabled: true,
       interval: '24:00:00',
-      threadLookbackCount: 20,
       autoApply: false,
-      minCompletedTurnsSinceLastRun: 5,
+      minSessionsSinceLastRun: 3,
       nextRunAt: null,
       running: false,
-      activeDreamStoreId: null as string | null,
       lastRun: null as any
     }
     const dreamRuns: any[] = []
@@ -225,27 +223,19 @@ describe('SettingsView', () => {
         const run = {
           id: runNumber === 1 ? 'dream_20260511000000_test' : `dream_20260511000000_test_${runNumber}`,
           status: 'succeeded',
+          trigger: 'manual',
           startedAt: '2026-05-11T00:00:00Z',
           endedAt: '2026-05-11T00:00:02Z',
-          processedThreadCount: 2,
           candidateThreadCount: 2,
-          dreamWritten: true,
-          topicFilesWritten: 0,
-          topicFilesDeleted: 0,
+          evidenceThreadIds: ['thread-one'],
           evidenceSearchCount: 1,
           evidenceReadCount: 1,
-          outputStoreId: 'store_20260511000000_test',
+          changes: { added: [], updated: ['package-manager.md'], deleted: ['old-build-note.md'], indexChanged: true },
           reviewStatus: 'pending',
           autoApplied: false,
-          errorType: null,
-          evidenceThreadIds: ['thread-one'],
-          writtenPaths: ['stores/store_20260511000000_test/INDEX.md'],
+          summary: 'Merged two package-manager memories.',
           threadId: 'thread_dream_fake',
-          turnId: 'turn_dream_fake_2',
-          turnIds: ['turn_dream_fake_1', 'turn_dream_fake_2'],
-          trigger: 'manual',
-          inputManifestPath: 'C:\\sample\\workspace\\.craft\\dreams\\runs\\dream_20260511000000_test\\input\\MANIFEST.md',
-          message: null
+          turnId: 'turn_dream_fake'
         }
         dreamsStatus.lastRun = run
         dreamRuns.unshift(run)
@@ -254,39 +244,10 @@ describe('SettingsView', () => {
       if (method === 'dreams/list') {
         return { runs: dreamRuns.filter((run) => run.reviewStatus !== 'archived') }
       }
-      if (method === 'dreams/get') {
+      if (method === 'dreams/archive') {
         const run = dreamRuns.find((item) => item.id === params?.runId) ?? null
-        return {
-          run,
-          activeDreamStoreId: dreamsStatus.activeDreamStoreId,
-          preview: run == null
-            ? null
-            : {
-                activeStoreId: dreamsStatus.activeDreamStoreId,
-                outputStoreId: run.outputStoreId,
-                activeIndexMarkdown: dreamsStatus.activeDreamStoreId == null ? '' : '# Dream Store\n\n- Applied focus',
-                outputIndexMarkdown: '# Dream Store\n\n- Pending focus',
-                activeTopicPaths: [],
-                outputTopicPaths: []
-              }
-        }
-      }
-      if (method === 'dreams/apply' || method === 'dreams/discard' || method === 'dreams/archive' || method === 'dreams/cancel') {
-        const run = dreamRuns.find((item) => item.id === params?.runId) ?? null
-        if (run != null) {
-          if (method === 'dreams/apply') {
-            run.reviewStatus = 'applied'
-            dreamsStatus.activeDreamStoreId = run.outputStoreId
-          } else if (method === 'dreams/discard') {
-            run.reviewStatus = 'discarded'
-          } else if (method === 'dreams/archive') {
-            run.reviewStatus = 'archived'
-          } else {
-            run.status = 'canceled'
-          }
-          dreamsStatus.lastRun = run
-        }
-        return { run, activeDreamStoreId: dreamsStatus.activeDreamStoreId }
+        if (run != null) run.reviewStatus = 'archived'
+        return { run }
       }
       if (method === 'channel/list') {
         return { channels: [] }
@@ -437,6 +398,20 @@ describe('SettingsView', () => {
     expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
   })
 
+  it('saves the missed-memories toggle', async () => {
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
+    const toggle = await screen.findByRole('switch', { name: 'Save missed memories' })
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'))
+
+    fireEvent.click(toggle)
+
+    await waitFor(() => {
+      expectWrite('Memory.AutoExtract', true)
+    })
+  })
+
   it('offers steering right away only in Steer mode and saves it to the workspace', async () => {
     settingsGet.mockResolvedValue({ locale: 'en', connectionMode: 'stdio', followUpQueueMode: 'queue' })
     renderView()
@@ -479,12 +454,12 @@ describe('SettingsView', () => {
   })
 
   it('disables settings that depend on memory while memory is off', async () => {
-    serverConfig.Memory = { Enabled: false }
+    serverConfig.Memory = { Enabled: false, AutoExtract: true }
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
       if (method === 'config/read') return defaultSendRequest?.(method, params)
       if (method === 'dreams/status') {
-        return { enabled: true, interval: '24:00:00', threadLookbackCount: 20, autoApply: false, running: false, lastRun: null }
+        return { enabled: true, interval: '24:00:00', autoApply: false, minSessionsSinceLastRun: 3, running: false, lastRun: null }
       }
       if (method === 'channel/list') {
         return { channels: [] }
@@ -513,6 +488,9 @@ describe('SettingsView', () => {
     const suggestionsToggle = screen.getByRole('switch', { name: 'Enable suggestions' })
     expect(suggestionsToggle).toBeDisabled()
     expect(suggestionsToggle).toHaveAttribute('aria-checked', 'true')
+    const autoExtractToggle = screen.getByRole('switch', { name: 'Save missed memories' })
+    expect(autoExtractToggle).toBeDisabled()
+    expect(autoExtractToggle).toHaveAttribute('aria-checked', 'true')
   })
 
   it('resets memory after confirmation and shows success toast', async () => {
@@ -588,7 +566,6 @@ describe('SettingsView', () => {
     expect(await screen.findByRole('switch', { name: 'Auto-update Dreams' })).toHaveAttribute('aria-checked', 'false')
     fireEvent.click(screen.getByRole('switch', { name: 'Auto-update Dreams' }))
     await chooseSelectValue('Dreams frequency', '12:00:00')
-    await chooseSelectValue('Recent threads', '50')
 
     await waitFor(() => {
       expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
@@ -597,7 +574,6 @@ describe('SettingsView', () => {
       }))
       expectWrite('Dreams.AutoApply', true)
       expectWrite('Dreams.Interval', '12:00:00')
-      expectWrite('Dreams.ThreadLookbackCount', 50)
     })
   })
 
@@ -627,6 +603,52 @@ describe('SettingsView', () => {
     })
   })
 
+  it('reports a failed Dreams run with its error message', async () => {
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'dreams/run') {
+        return {
+          enabled: true,
+          interval: '24:00:00',
+          autoApply: false,
+          running: false,
+          lastRun: {
+            id: 'dream_failed',
+            status: 'failed',
+            trigger: 'manual',
+            startedAt: '2026-05-11T00:00:00Z',
+            endedAt: '2026-05-11T00:00:05Z',
+            errorType: 'provider',
+            message: 'provider timed out'
+          }
+        }
+      }
+      return defaultSendRequest?.(method, params)
+    })
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        workspaceConfigManagement: true,
+        memoryManagement: true,
+        dreams: true
+      }
+    })
+
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Dreams' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Run now' }))
+
+    await waitFor(() => {
+      expect(useToastStore.getState().toasts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ message: 'Dreams run failed: provider timed out', type: 'error' })
+        ])
+      )
+    })
+  })
+
   it('opens Dreams management and sends run review to Dashboard', async () => {
     useConnectionStore.setState({
       status: 'connected',
@@ -648,18 +670,18 @@ describe('SettingsView', () => {
       expect(appServerSendRequest).toHaveBeenCalledWith('dreams/run', {}, 20_000)
     })
 
-    expect(await screen.findByText('2 threads')).toBeInTheDocument()
-    expect(screen.getByText('Succeeded')).toBeInTheDocument()
-    expect(screen.queryByText('dream_20260511000000_test')).not.toBeInTheDocument()
-    expect(screen.queryByText('Overview')).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Review' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Back to Personalization' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Personalization', exact: true })).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Personalization', exact: true })).toHaveAttribute('aria-current', 'page')
 
-    const listCallsBeforeRefresh = appServerSendRequest.mock.calls.filter(([method]) => method === 'dreams/list').length
+    const callCount = (name: string) => appServerSendRequest.mock.calls.filter(([method]) => method === name).length
+    const listCallsBeforeRefresh = callCount('dreams/list')
+    const statusCallsBeforeRefresh = callCount('dreams/status')
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     await waitFor(() => {
-      expect(appServerSendRequest.mock.calls.filter(([method]) => method === 'dreams/list')).toHaveLength(listCallsBeforeRefresh + 1)
+      expect(callCount('dreams/list')).toBe(listCallsBeforeRefresh + 1)
+      expect(callCount('dreams/status')).toBe(statusCallsBeforeRefresh + 1)
     })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Review' }))
@@ -669,8 +691,9 @@ describe('SettingsView', () => {
         'http://127.0.0.1:8080/dashboard#dreams/run/dream_20260511000000_test'
       )
     })
-    expect(appServerSendRequest).not.toHaveBeenCalledWith('dreams/get', expect.anything(), expect.anything())
-    expect(appServerSendRequest).not.toHaveBeenCalledWith('dreams/apply', expect.anything(), expect.anything())
+    for (const method of ['dreams/get', 'dreams/apply', 'dreams/discard', 'dreams/cancel']) {
+      expect(appServerSendRequest).not.toHaveBeenCalledWith(method, expect.anything(), expect.anything())
+    }
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to Personalization' }))
     expect(await screen.findByRole('button', { name: 'Manage Dreams' })).toBeInTheDocument()
@@ -697,7 +720,7 @@ describe('SettingsView', () => {
       expect(appServerSendRequest).toHaveBeenCalledWith('dreams/run', {}, 20_000)
     })
 
-    expect(await screen.findByText('2 threads')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Review' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Archive', exact: true }))
 
     await waitFor(() => {
@@ -711,7 +734,7 @@ describe('SettingsView', () => {
       expect(appServerSendRequest).toHaveBeenCalledWith('dreams/archive', {
         runId: 'dream_20260511000000_test'
       }, 20_000)
-      expect(screen.getByText('No Dreams runs yet.')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Review' })).not.toBeInTheDocument()
     })
     expect(useToastStore.getState().toasts).toEqual(
       expect.arrayContaining([
@@ -783,22 +806,21 @@ describe('SettingsView', () => {
     expect(screen.getAllByRole('button', { name: 'Review' })).toHaveLength(1)
   })
 
-  it('disables Dreams archive actions while a run is running', async () => {
+  it('disables Run now, review, and archive actions while a Dreams run is active', async () => {
+    const runningRun = { id: 'dream_running', status: 'running', trigger: 'manual', startedAt: '2026-05-11T00:00:00Z' }
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'dreams/status') {
+        return { enabled: true, interval: '24:00:00', autoApply: false, running: true, lastRun: runningRun }
+      }
       if (method === 'dreams/list') {
-        return {
-          runs: [{
-            id: 'dream_running',
-            status: 'running',
-            startedAt: '2026-05-11T00:00:00Z'
-          }]
-        }
+        return { runs: [runningRun] }
       }
       return defaultSendRequest?.(method, params)
     })
     useConnectionStore.setState({
       status: 'connected',
+      dashboardUrl: 'http://127.0.0.1:8080/dashboard',
       capabilities: {
         workspaceConfigManagement: true,
         memoryManagement: true,
@@ -811,10 +833,13 @@ describe('SettingsView', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Manage Dreams' }))
 
-    expect(await screen.findByText('Running')).toBeInTheDocument()
-    expect(screen.queryByText('dream_running')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Archive', exact: true })).toBeDisabled()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Archive', exact: true })).toBeDisabled()
+    })
     expect(screen.getByRole('button', { name: 'Archive all' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Review' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Run now' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Running...' })).toBeDisabled()
   })
 
   it('shows memory reset failures in a toast', async () => {

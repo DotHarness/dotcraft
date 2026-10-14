@@ -1401,8 +1401,22 @@ export interface ContextUsageSnapshot {
 export interface DreamsCreateParams {
   instructions?: string | null;
   model?: string | null;
+  scope?: string | null;
   threadIds?: string[] | null;
-  threadLookbackCount?: number | null;
+  [key: string]: unknown;
+}
+
+export interface DreamsFileChange {
+  baseline?: string | null;
+  candidate?: string | null;
+  change?: string;
+  name?: string;
+  [key: string]: unknown;
+}
+
+export interface DreamsGetResult {
+  files?: DreamsFileChange[];
+  run?: DreamsRunState | null;
   [key: string]: unknown;
 }
 
@@ -1416,6 +1430,14 @@ export interface DreamsListResult {
   [key: string]: unknown;
 }
 
+export interface DreamsRunChanges {
+  added?: string[];
+  deleted?: string[];
+  indexChanged?: boolean;
+  updated?: string[];
+  [key: string]: unknown;
+}
+
 export interface DreamsRunIdParams {
   runId?: string;
   [key: string]: unknown;
@@ -1425,19 +1447,7 @@ export interface DreamsRunParams {
   [key: string]: unknown;
 }
 
-export interface DreamsRunPreview {
-  activeIndexMarkdown?: string;
-  activeStoreId?: string | null;
-  activeTopicPaths?: string[];
-  outputIndexMarkdown?: string;
-  outputStoreId?: string | null;
-  outputTopicPaths?: string[];
-  [key: string]: unknown;
-}
-
 export interface DreamsRunResult {
-  activeDreamStoreId?: string | null;
-  preview?: DreamsRunPreview | null;
   run?: DreamsRunState | null;
   [key: string]: unknown;
 }
@@ -1445,7 +1455,7 @@ export interface DreamsRunResult {
 export interface DreamsRunState {
   autoApplied?: boolean;
   candidateThreadCount?: number;
-  dreamWritten?: boolean;
+  changes?: DreamsRunChanges | null;
   endedAt?: string | null;
   errorType?: string | null;
   evidenceReadCount?: number;
@@ -1454,19 +1464,15 @@ export interface DreamsRunState {
   id?: string;
   inputManifestPath?: string | null;
   message?: string | null;
-  outputStoreId?: string | null;
-  processedThreadCount?: number;
   reviewStatus?: string | null;
+  scope?: string | null;
   startedAt?: string;
   status?: string;
+  summary?: string | null;
   threadId?: string | null;
-  topicFilesDeleted?: number;
-  topicFilesWritten?: number;
   trigger?: string | null;
   turnId?: string | null;
-  turnIds?: string[];
   usage?: TokenUsageInfo | null;
-  writtenPaths?: string[];
   [key: string]: unknown;
 }
 
@@ -1475,15 +1481,13 @@ export interface DreamsStatusParams {
 }
 
 export interface DreamsStatusResult {
-  activeDreamStoreId?: string | null;
   autoApply?: boolean;
   enabled?: boolean;
   interval?: string;
   lastRun?: DreamsRunState | null;
-  minCompletedTurnsSinceLastRun?: number;
+  minSessionsSinceLastRun?: number;
   nextRunAt?: string | null;
   running?: boolean;
-  threadLookbackCount?: number;
   [key: string]: unknown;
 }
 

@@ -13,7 +13,7 @@ A workable handoff usually includes four things:
 - The repository, or the exact files the other agent may read.
 - The exported document for the relevant conversation.
 - The concrete task you want it to do next.
-- Any privacy constraints, such as whether tool output and memory history may travel with it.
+- Any privacy constraints, such as whether tool output and memory files may travel with it.
 
 Never hand over provider credentials, the global `~/.craft/config.json`, or raw workspace database files. A Markdown export is far easier to trim and inspect than raw state, but it is not automatically safe to share.
 

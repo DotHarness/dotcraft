@@ -13,6 +13,7 @@ internal sealed class WorktreeRequestHandler(
     WorkspaceConfigEditor workspaceConfig,
     IAppConfigMonitor? appConfigMonitor,
     string? hostWorkspacePath,
+    AgentProfileThreadConfigResolver profileResolver,
     Func<SessionThread, bool, bool, CancellationToken, Task<SessionWireThread>> projectThreadAsync) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
@@ -87,10 +88,10 @@ internal sealed class WorktreeRequestHandler(
             ? ThreadConfigurationContractMapper.FromContract(contractConfig)
             : null;
         threadBinder.ValidateRuntimeInputs(dynamicTools, additionalContext);
-        ValidateRuntimeConfiguration(config);
-
         var identity = WorktreeContractMapper.ToDomain(ValueOrDefault(p.Identity))
                        ?? throw AppServerErrors.InvalidParams("'identity' is required.");
+        config = profileResolver.Resolve(config, request.Message);
+        ValidateRuntimeConfiguration(config);
 
         var result = await sessionService.CreateWorktreeAndStartAsync(
             new WorktreeCreateAndStartOptions

@@ -5,7 +5,6 @@ import { addToast } from '../../../../stores/toastStore'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import {
   DREAMS_INTERVAL_OPTIONS,
-  DREAMS_THREAD_LOOKBACK_OPTIONS,
   delay,
   formatDreamsIntervalForConfig,
   normalizeDreamsInterval,
@@ -35,8 +34,6 @@ export function useDreamsSettings({
   const config = useConfig()
   const enabled = readConfigValue(config, 'Dreams.Enabled') === true
   const runInterval = normalizeDreamsInterval(readConfigValue(config, 'Dreams.Interval')) ?? ''
-  const lookback = readConfigValue(config, 'Dreams.ThreadLookbackCount')
-  const threadLookbackCount = typeof lookback === 'number' ? lookback : null
   const autoApply = readConfigValue(config, 'Dreams.AutoApply') === true
   const [status, setStatus] = useState<DreamsStatus | null>(null)
   const [runs, setRuns] = useState<DreamsRunState[]>([])
@@ -80,6 +77,10 @@ export function useDreamsSettings({
       setRunsLoading(false)
     }
   }, [available, t])
+
+  const refresh = useCallback(async (): Promise<void> => {
+    await Promise.all([reloadStatus(), reloadRuns()])
+  }, [reloadRuns, reloadStatus])
 
   useEffect(() => {
     if (available && (personalizationActive || dreamsPageActive)) {
@@ -125,10 +126,6 @@ export function useDreamsSettings({
 
   const changeInterval = useCallback(async (next: string): Promise<void> => {
     await updateConfig('Dreams.Interval', formatDreamsIntervalForConfig(next))
-  }, [updateConfig])
-
-  const changeThreadLookback = useCallback(async (next: number): Promise<void> => {
-    await updateConfig('Dreams.ThreadLookbackCount', next)
   }, [updateConfig])
 
   const runNow = useCallback(async (): Promise<void> => {
@@ -183,7 +180,7 @@ export function useDreamsSettings({
     try {
       await window.api.appServer.sendRequest('dreams/archive', { runId: run.id }, 20_000)
       addToast(t('settings.dreams.archiveSucceeded'), 'success')
-      await reloadRuns()
+      await refresh()
     } catch (err) {
       addToast(t('settings.dreams.actionFailed', {
         error: err instanceof Error ? err.message : String(err)
@@ -191,7 +188,7 @@ export function useDreamsSettings({
     } finally {
       setArchivingRunId(null)
     }
-  }, [archivingAll, archivingRunId, confirm, reloadRuns, t])
+  }, [archivingAll, archivingRunId, confirm, refresh, t])
 
   const archiveBusy = archivingRunId != null || archivingAll
   const archiveAllDisabled =
@@ -236,11 +233,11 @@ export function useDreamsSettings({
       } else {
         addToast(t('settings.dreams.actionFailed', { error: firstError }), 'error')
       }
-      await reloadRuns()
+      await refresh()
     } finally {
       setArchivingAll(false)
     }
-  }, [archiveAllDisabled, confirm, reloadRuns, runs, t])
+  }, [archiveAllDisabled, confirm, refresh, runs, t])
 
   const intervalOptions = useMemo(() => {
     return !runInterval || DREAMS_INTERVAL_OPTIONS.includes(runInterval as typeof DREAMS_INTERVAL_OPTIONS[number])
@@ -248,17 +245,9 @@ export function useDreamsSettings({
       : [runInterval, ...DREAMS_INTERVAL_OPTIONS]
   }, [runInterval])
 
-  const threadLookbackOptions = useMemo(() => {
-    return threadLookbackCount == null
-      || DREAMS_THREAD_LOOKBACK_OPTIONS.includes(threadLookbackCount as typeof DREAMS_THREAD_LOOKBACK_OPTIONS[number])
-      ? [...DREAMS_THREAD_LOOKBACK_OPTIONS]
-      : [threadLookbackCount, ...DREAMS_THREAD_LOOKBACK_OPTIONS]
-  }, [threadLookbackCount])
-
   return {
     enabled,
     interval: runInterval,
-    threadLookbackCount,
     autoApply,
     status,
     runs,
@@ -268,13 +257,11 @@ export function useDreamsSettings({
     archiveBusy,
     archiveAllDisabled,
     intervalOptions,
-    threadLookbackOptions,
     reloadStatus,
-    reloadRuns,
+    refresh,
     toggleEnabled,
     toggleAutoApply,
     changeInterval,
-    changeThreadLookback,
     runNow,
     openReview,
     archiveRun,

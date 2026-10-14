@@ -12,6 +12,7 @@ export type SaveTarget = 'user' | 'workspace'
 export type AgentControl = 'full' | 'disabled' | 'allowList'
 export type ToolPolicyMode = 'all' | 'allowList' | 'denyList'
 export type ApprovalPolicy = 'default' | 'prompt' | 'autoApprove' | 'deny'
+export type MemoryChoice = 'shared' | 'own'
 
 export interface AgentProviderPreference {
   providerId: string
@@ -51,6 +52,7 @@ export interface ProfileDraft {
     /** `null` when the profile does not author the key; the builder neither presents nor writes it. */
     requireApprovalOutsideWorkspace: boolean | null
   }
+  memory: MemoryChoice
   roleInstructions: string
 }
 
@@ -62,6 +64,11 @@ export const APPROVAL_OPTIONS: { value: ApprovalPolicy; labelKey: string }[] = [
 
 export const DENY_APPROVAL_LABEL_KEY = 'agentBuilder.approval.deny'
 
+export const MEMORY_OPTIONS: { value: MemoryChoice; labelKey: string; descriptionKey: string }[] = [
+  { value: 'shared', labelKey: 'agentBuilder.memory.shared', descriptionKey: 'agentBuilder.memory.sharedDescription' },
+  { value: 'own', labelKey: 'agentBuilder.memory.own', descriptionKey: 'agentBuilder.memory.ownDescription' }
+]
+
 export function createEmptyDraft(): ProfileDraft {
   return {
     name: '',
@@ -71,6 +78,7 @@ export function createEmptyDraft(): ProfileDraft {
     mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
     skills: { preload: [], allow: [], deny: [] },
     permissions: { approvalPolicy: 'prompt', requireApprovalOutsideWorkspace: null },
+    memory: 'shared',
     roleInstructions: ''
   }
 }
@@ -138,6 +146,7 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
   if ('requireApprovalOutsideWorkspace' in permissions) {
     draft.permissions.requireApprovalOutsideWorkspace = scalarText(permissions.requireApprovalOutsideWorkspace) === 'true'
   }
+  draft.memory = scalarText(front.memory) === 'own' ? 'own' : 'shared'
 
   const preference = isMap(front.providerPreference) ? front.providerPreference : null
   const reasoning = preference && isMap(preference.reasoning) ? preference.reasoning : null
@@ -211,6 +220,7 @@ export function toMarkdown(draft: ProfileDraft): string {
   if (draft.permissions.requireApprovalOutsideWorkspace !== null) {
     fm.push(`  requireApprovalOutsideWorkspace: ${draft.permissions.requireApprovalOutsideWorkspace ? 'true' : 'false'}`)
   }
+  if (draft.memory === 'own') fm.push('memory: own')
   fm.push('---')
 
   return `${fm.join('\n')}\n\n${draft.roleInstructions.trim()}\n`

@@ -911,8 +911,8 @@ public sealed partial class SessionService
                     .ConfigureAwait(false);
 
                 // Bind tracing and token tracking before model history reconstruction.
-                if (PromptSuggestionThread.IsSuggestion(thread))
-                    BindPromptSuggestionTrace(thread);
+                if (CacheSharingFork.PurposeOf(thread) is not null)
+                    BindCacheSharingForkTrace(thread);
                 else if (traceCollector != null && thread.Source.SubAgent is { } subAgentSource)
                 {
                     var traceRootThreadId = string.IsNullOrWhiteSpace(subAgentSource.RootThreadId)
@@ -1435,6 +1435,7 @@ public sealed partial class SessionService
                             NotifyAttemptCompleted = diagnostic =>
                                 traceCollector?.RecordStreamAttemptDiagnostic(threadId, diagnostic)
                         });
+                    using var modelRequestLimitScope = ModelRequestLimitScope.Set(CacheSharingFork.ModelRequestLimit(thread));
 
                     turnModelHistory = new TurnModelHistory(session, turn.Id, turnCommitter,
                         (delta, historyCt) => thread.Ephemeral

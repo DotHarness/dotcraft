@@ -74,6 +74,51 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
         Assert.Equal(ShellRiskLevel.OutsideWorkspace, request.Risk);
     }
 
+    [Fact]
+    public async Task Memory_store_outside_the_workspace_needs_no_approval_while_other_outside_paths_still_ask()
+    {
+        var store = Path.Combine(_tempRoot, "state", "memory");
+        Directory.CreateDirectory(store);
+        var approvals = new RecordingApprovalService();
+        var registrations = await GetRegistrationsAsync(requireApprovalOutsideWorkspace: null, approvals, store);
+        var writeFile = Assert.Single(registrations, item => item.Definition.Name.Name == "WriteFile");
+        var evaluator = new CommonToolApprovalEvaluator();
+        evaluator.Bind(approvals);
+
+        var storeDecision = await evaluator.RequestAsync(
+            InvocationContext(writeFile), writeFile, new JsonObject { ["path"] = Path.Combine(store, "fact.md") });
+        Assert.True(storeDecision.Allowed);
+        Assert.Empty(approvals.FileRequests);
+
+        await evaluator.RequestAsync(InvocationContext(writeFile), writeFile, new JsonObject { ["path"] = _outsideFile });
+        Assert.Equal(_outsideFile, Assert.Single(approvals.FileRequests));
+    }
+
+    [Fact]
+    public async Task Memory_store_outside_the_workspace_is_writable_when_outside_paths_are_rejected()
+    {
+        var store = Path.Combine(_tempRoot, "state", "memory");
+        Directory.CreateDirectory(store);
+        var registrations = await GetRegistrationsAsync(requireApprovalOutsideWorkspace: false, memoryStoreDirectory: store);
+        var writeFile = Assert.Single(registrations, item => item.Definition.Name.Name == "WriteFile");
+
+        var stored = await InvokeAsync(writeFile, new JsonObject
+        {
+            ["path"] = Path.Combine(store, "fact.md"),
+            ["content"] = "A fact."
+        });
+        var rejected = await InvokeAsync(writeFile, new JsonObject
+        {
+            ["path"] = _outsideFile,
+            ["content"] = "overwritten"
+        });
+
+        Assert.True(stored.Success);
+        Assert.Equal("A fact.", File.ReadAllText(Path.Combine(store, "fact.md")));
+        Assert.False(rejected.Success);
+        Assert.Equal("TOP-PRIVATE-CONTENT", File.ReadAllText(_outsideFile));
+    }
+
     public void Dispose()
     {
         try
@@ -89,7 +134,8 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
 
     private async Task<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
         bool? requireApprovalOutsideWorkspace,
-        IApprovalService? approvalService = null)
+        IApprovalService? approvalService = null,
+        string? memoryStoreDirectory = null)
     {
         var config = AppConfigTestFactory.CreateOpenAI();
         Assert.True(config.Tools.File.RequireApprovalOutsideWorkspace);
@@ -110,31 +156,38 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
             [],
             1,
             workspaceRoots: [_workspace],
-            requireApprovalOutsideWorkspace: requireApprovalOutsideWorkspace));
+            requireApprovalOutsideWorkspace: requireApprovalOutsideWorkspace,
+            memoryStoreDirectory: memoryStoreDirectory));
     }
 
     private static async Task<ToolExecutionResult> InvokeAsync(
         ToolRegistration registration,
         JsonObject arguments) =>
-        await registration.Binding.Runtime.InvokeAsync(
-            new ToolInvocationContext(
-                "thread-analyst",
-                null,
-                "call-1",
-                ToolInvocationAudience.Model,
-                registration.Definition.Name,
-                registration.Definition.Id,
-                registration.Binding.Id,
-                registration.Binding.Revision,
-                DateTimeOffset.UtcNow),
-            arguments);
+        await registration.Binding.Runtime.InvokeAsync(InvocationContext(registration), arguments);
+
+    private static ToolInvocationContext InvocationContext(ToolRegistration registration) =>
+        new(
+            "thread-analyst",
+            null,
+            "call-1",
+            ToolInvocationAudience.Model,
+            registration.Definition.Name,
+            registration.Definition.Id,
+            registration.Binding.Id,
+            registration.Binding.Revision,
+            DateTimeOffset.UtcNow);
 
     private sealed class RecordingApprovalService : IApprovalService
     {
         public List<ShellApprovalRequest> ShellRequests { get; } = [];
 
-        public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null) =>
-            Task.FromResult(true);
+        public List<string> FileRequests { get; } = [];
+
+        public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null)
+        {
+            FileRequests.Add(path);
+            return Task.FromResult(true);
+        }
 
         public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null)
         {

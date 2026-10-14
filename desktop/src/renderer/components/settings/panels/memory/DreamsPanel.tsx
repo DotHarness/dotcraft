@@ -7,13 +7,21 @@ import { Button } from '../../../ui/Button'
 import { IconButton } from '../../../ui/IconButton'
 import { PillSwitch } from '../../../ui/PillSwitch'
 import { Skeleton } from '../../../ui/Skeleton'
+import { StatusIndicator } from '../../../ui/StatusIndicator'
 import { SettingsBreadcrumb } from '../../SettingsBreadcrumb'
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { SettingsDescriptionWithLearnMore } from '../../SettingsLearnMoreLink'
 import { SettingsPanelShell } from '../../SettingsPanelShell'
 import { settingsPlaceholderStyle } from '../../settingsTypography'
 import { SettingsSelect } from '../../ui/SettingsSelect'
-import { formatDreamsIntervalOption } from './dreamsModel'
+import styles from './DreamsPanel.module.css'
+import {
+  dreamsChangeSummary,
+  dreamsRunStateLabel,
+  dreamsStoreLabel,
+  formatDreamsIntervalOption,
+  type DreamsRunState
+} from './dreamsModel'
 import type { DreamsSettings } from './useDreamsSettings'
 
 interface DreamsPanelProps {
@@ -24,9 +32,27 @@ interface DreamsPanelProps {
   onBack: () => void
 }
 
+function DreamsRunLine({ run, details }: { run: DreamsRunState; details: string[] }): JSX.Element {
+  const t = useT()
+  const state = dreamsRunStateLabel(run)
+  return (
+    <span className={styles.runLine}>
+      <StatusIndicator tone={state.tone} />
+      <span className={styles.runText}>{[t(state.labelKey), ...details].join(' · ')}</span>
+    </span>
+  )
+}
+
 export function DreamsPanel({ dreams, memoryEnabled, dashboardUrl, locale, onBack }: DreamsPanelProps): JSX.Element {
   const t = useT()
   const settingsDisabled = dreams.settingsBusy || !memoryEnabled
+  const lastRun = dreams.status?.lastRun ?? null
+  const formatRunTime = (run: DreamsRunState): string => {
+    const runTime = run.endedAt ?? run.startedAt
+    return runTime
+      ? new Date(runTime).toLocaleString(locale)
+      : t('settings.personalization.dreamsStatus.unknownTime')
+  }
 
   return (
     <SettingsPanelShell
@@ -50,7 +76,7 @@ export function DreamsPanel({ dreams, memoryEnabled, dashboardUrl, locale, onBac
             label={t('settings.dreams.refresh')}
             tooltipLabel={t('settings.dreams.refresh')}
             disabled={dreams.runsLoading}
-            onClick={() => void dreams.reloadRuns()}
+            onClick={() => void dreams.refresh()}
           />
           <Button
             variant="primary"
@@ -65,6 +91,24 @@ export function DreamsPanel({ dreams, memoryEnabled, dashboardUrl, locale, onBac
       }
     >
       <SettingsGroup>
+        <SettingsRow
+          label={t('settings.dreams.lastRun')}
+          description={
+            dreams.status == null
+              ? <Skeleton width="40%" height={11} />
+              : lastRun == null
+                ? t('settings.dreams.lastRunNever')
+                : (
+                    <DreamsRunLine
+                      run={lastRun}
+                      details={[
+                        formatRunTime(lastRun),
+                        ...(lastRun.status === 'failed' && lastRun.message ? [lastRun.message] : [])
+                      ]}
+                    />
+                  )
+          }
+        />
         <SettingsRow
           label={t('settings.personalization.dreamsAutoApply')}
           description={t('settings.personalization.dreamsAutoApplyHint')}
@@ -94,25 +138,6 @@ export function DreamsPanel({ dreams, memoryEnabled, dashboardUrl, locale, onBac
               options={dreams.intervalOptions.map((optionValue) => ({
                 value: optionValue,
                 label: formatDreamsIntervalOption(optionValue, t)
-              }))}
-            />
-          }
-        />
-        <SettingsRow
-          label={t('settings.personalization.dreamsThreadLookback')}
-          description={t('settings.personalization.dreamsThreadLookbackHint')}
-          control={
-            <SettingsSelect
-              ariaLabel={t('settings.personalization.dreamsThreadLookback')}
-              value={dreams.threadLookbackCount == null ? '' : String(dreams.threadLookbackCount)}
-              disabled={settingsDisabled}
-              onValueChange={(next) => {
-                void dreams.changeThreadLookback(Number(next))
-              }}
-              style={{ minWidth: '120px' }}
-              options={dreams.threadLookbackOptions.map((optionValue) => ({
-                value: String(optionValue),
-                label: optionValue
               }))}
             />
           }
@@ -154,33 +179,13 @@ export function DreamsPanel({ dreams, memoryEnabled, dashboardUrl, locale, onBac
         )}
 
         {dreams.runs.map((run) => {
-          const runTime = run.endedAt ?? run.startedAt
-          const statusColor = run.status === 'succeeded'
-            ? 'var(--success)'
-            : run.status === 'failed'
-              ? 'var(--error)'
-              : run.status === 'running'
-                ? 'var(--info)'
-                : 'var(--text-secondary)'
           const running = run.status === 'running'
           return (
             <SettingsRow
               key={run.id}
-              label={
-                <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {runTime
-                    ? new Date(runTime).toLocaleString(locale)
-                    : t('settings.personalization.dreamsStatus.unknownTime')}
-                </span>
-              }
+              label={<span className={styles.runTime}>{formatRunTime(run)}</span>}
               description={
-                <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-                  <span style={{ color: statusColor }}>
-                    {t(`settings.personalization.dreamsStatus.${run.status}`)}
-                  </span>
-                  <span aria-hidden>·</span>
-                  <span>{t(run.processedThreadCount === 1 ? 'settings.dreams.threadCount.one' : 'settings.dreams.threadCount.other', { count: run.processedThreadCount })}</span>
-                </span>
+                <DreamsRunLine run={run} details={[dreamsStoreLabel(run, t), ...dreamsChangeSummary(run, t)]} />
               }
               control={
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>

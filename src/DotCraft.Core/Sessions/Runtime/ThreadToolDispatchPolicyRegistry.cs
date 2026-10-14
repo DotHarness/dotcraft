@@ -33,7 +33,7 @@ public sealed class ThreadToolDispatchPolicyRegistry : IToolPolicyEvaluator
     {
         cancellationToken.ThrowIfCancellationRequested();
         return ValueTask.FromResult(_policies.TryGetValue(context.ThreadId, out var policy)
-            ? policy.EvaluateRegistration(registration, arguments)
+            ? policy.EvaluateRegistration(registration, arguments, context.WorkspacePath)
             : ToolDispatchDecision.Allow);
     }
 }

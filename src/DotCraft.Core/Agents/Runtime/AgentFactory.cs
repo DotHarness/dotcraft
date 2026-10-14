@@ -11,7 +11,6 @@ using DotCraft.Contributions;
 using DotCraft.Tracing;
 using DotCraft.Hooks;
 using DotCraft.Memory;
-using DotCraft.Dreams;
 using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Tools;
@@ -104,7 +103,6 @@ public sealed class AgentFactory : IAsyncDisposable
             WorkspacePath = workspacePath,
             BotPath = dotcraftPath,
             MemoryStore = memoryStore,
-            DreamStore = new DreamStore(dotcraftPath),
             SkillsLoader = skillsLoader,
             ContextPageManager = contextPageManager ?? new ContextPageManager(),
             ApprovalService = approvalService,
@@ -320,7 +318,7 @@ public sealed class AgentFactory : IAsyncDisposable
         var builder = new EffectiveToolSnapshotBuilder();
         var registrations = await builder.CollectAsync(sources, planningContext, cancellationToken)
             .ConfigureAwait(false);
-        registrations = RemoteToolRegistrationRouter.Wrap(registrations, _remoteToolHostClient);
+        registrations = RemoteToolRegistrationRouter.Wrap(registrations, _remoteToolHostClient, planningContext.MemoryStoreDirectory);
         return ApplyGlobalToolExposure(builder.Build(
             ApplyToolRestrictions(registrations, planningContext),
             planningContext.Revision,
@@ -705,7 +703,6 @@ public sealed class AgentFactory : IAsyncDisposable
                 roleInstructions: promptInputs.RoleInstructions,
                 developerInstructions: promptInputs.DeveloperInstructions,
                 contextPageManager: ctx.ContextPageManager,
-                dreamStore: ctx.DreamStore,
                 subAgentWaitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(ctx.Config.SubAgent),
                 threadId: ctx.CurrentThreadId,
                 originChannel: ctx.CurrentOriginChannel,

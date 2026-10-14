@@ -4,7 +4,6 @@ using DotCraft.Configuration;
 using DotCraft.Contributions;
 using DotCraft.Tracing;
 using DotCraft.Memory;
-using DotCraft.Dreams;
 using DotCraft.Skills;
 using Microsoft.Extensions.Logging;
 
@@ -27,7 +26,6 @@ public sealed class MemoryContextProvider(
     string? roleInstructions = null,
     string? developerInstructions = null,
     IContextPageManager? contextPageManager = null,
-    DreamStore? dreamStore = null,
     SubAgentWaitAgentTimeoutOptions? subAgentWaitAgentTimeoutOptions = null,
     string? threadId = null,
     string? originChannel = null,
@@ -49,7 +47,6 @@ public sealed class MemoryContextProvider(
         roleInstructions,
         developerInstructions,
         contextPageManager,
-        dreamStore,
         subAgentWaitAgentTimeoutOptions,
         originChannel,
         workspaceRoots,

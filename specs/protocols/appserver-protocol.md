@@ -1139,6 +1139,7 @@ Create a Git worktree, optionally copy dirty source changes, then start a new em
 
 Semantics:
 
+- When `config.agentProfileId` is set, the server resolves the Agent Profile and applies its overlays exactly as `thread/start` does (§4.1), before creating the worktree. A missing or invalid profile, or a rejected overlay, fails the request with the same errors and creates neither a worktree nor a thread.
 - The server creates the thread only after worktree creation and dirty handoff have succeeded.
 - The returned thread has `worktree` and an `effectiveWorkspacePath` pointing to the worktree path.
 - The thread's rollout, memory, goals, plans, app bindings, and metadata remain in the original state workspace.
@@ -1545,7 +1546,7 @@ Suggest a source-control summary from the **source thread’s** recent conversat
 
 Return welcome-screen quick suggestions for the current workspace. This method is intended for clients that render an empty or ready-to-start conversation state and want to show a small set of prompts that feel relevant to the user's recent work.
 
-The result is advisory and read-only. The server derives these suggestions from the workspace `MEMORY.md`; it should not inspect conversation history on this path. When `Memory.Enabled` is `false`, the server produces no dynamic suggestions.
+The result is advisory and read-only. The server derives these suggestions from the workspace memory store, its index and memory file listing; it should not inspect conversation history on this path. When `Memory.Enabled` is `false`, the server produces no dynamic suggestions.
 
 **Direction**: client → server (request)
 
@@ -2595,7 +2596,7 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 | `-32084` | SubAgent profile validation failed | The profile payload is invalid or incompatible with runtime rules. |
 | `-32085` | SubAgent profile protected | The operation targets a protected profile such as `native`. |
 | `-32086` | Agent Profile not found | The requested Agent Profile id/source does not exist. |
-| `-32087` | Agent Profile validation failed | Markdown/frontmatter validation failed, or `thread/start` supplied an unsupported overlay with `agentProfileId`. |
+| `-32087` | Agent Profile validation failed | Markdown/frontmatter validation failed, or `thread/start` or `worktree/createAndStart` supplied an unsupported overlay with `agentProfileId`. |
 | `-32088` | Agent Profile protected | A write or remove targeted a built-in profile. |
 | `-32089` | Agent Profile source unavailable | The requested source is unsupported or cannot be read/written in this runtime. |
 | `-32091` | Agent Profile conflict | The requested id conflicts with the profile frontmatter name or a protected source. |
@@ -2607,6 +2608,7 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 | `-32101` | Remote workspace busy | `remoteToolHost/connect`: another Agent Host holds the lease on the requested folder. `error.data.params.owner` is `self` or `other`. |
 | `-32103` | File system | `fs/*`: the path is blocked, missing, the wrong kind, or too large. `error.data.code` names the case and `error.data.params.path` the path (§25B). |
 | `-32104` | Command execution | `command/exec`: the program or working directory is missing, the program cannot be started, or the working directory is blocked. `error.data.code` names the case (§25C). |
+| `-32105` | Dreams store changed | `dreams/apply`: the memory store changed after the run started. `error.data.code` is `storeChanged` (§27.7). |
 
 Automation task methods (`automation/*`) share this error space and are defined in [automations-lifecycle.md](../features/automations-lifecycle.md), which owns their params, results, and persisted shapes.
 
@@ -6073,7 +6075,7 @@ Uploads and exports are held for the requesting connection for at most one hour 
 | Code | Constant | When |
 |------|----------|------|
 | `-32086` | `AgentProfileNotFound` | Requested Agent Profile id/source does not exist. |
-| `-32087` | `AgentProfileValidationFailed` | Markdown/frontmatter validation failed, or `thread/start` supplied an unsupported overlay with `agentProfileId`. |
+| `-32087` | `AgentProfileValidationFailed` | Markdown/frontmatter validation failed, or `thread/start` or `worktree/createAndStart` supplied an unsupported overlay with `agentProfileId`. |
 | `-32088` | `AgentProfileProtected` | Write/remove targeted a built-in profile. |
 | `-32089` | `AgentProfileSourceUnavailable` | Requested source is unsupported or cannot be read/written in this runtime. |
 | `-32091` | `AgentProfileConflict` | Requested id conflicts with the profile frontmatter name or a protected source. |
@@ -7049,9 +7051,9 @@ Clear the current workspace's durable memory artifacts.
 
 **Semantics**:
 
-- The server clears the contents of the current workspace memory root, including `MEMORY.md` and any files left by earlier versions, and clears Dreams-derived memory under `.craft/dreams`, while preserving the memory and Dreams directories themselves.
-- The operation does not delete sessions, archived sessions, thread history, skills, plugins, automation tasks, or configuration.
-- The operation preserves `Memory.Enabled`; later threads may save new memory according to the current configuration.
+- The server clears the contents of every memory store of the current workspace, the workspace store and every scope store, including files left by earlier versions, and clears Dreams artifacts under `.craft/dreams`, while preserving the store and Dreams directories themselves. See [Memory](../features/memory.md#9-deleting-memory).
+- The operation does not delete sessions, archived sessions, thread history, skills, plugins, automation tasks, Agent Profiles, or configuration.
+- The operation preserves `Memory.Enabled` and `Memory.AutoExtract`; later threads may save new memory according to the current configuration.
 - The server clears memory-derived welcome suggestion caches so clients do not continue displaying suggestions generated from deleted memory.
 - On success, the server emits `config/changed` with `source: "memory/reset"` and `regions: ["memory"]`.
 
@@ -7061,11 +7063,32 @@ Clients must check `capabilities.memoryManagement` before calling `memory/reset`
 
 ## 27. Dreams Management Methods
 
-Dreams methods expose workspace-level background memory organization, pending output stores, and review actions. Actual Dreams model runs are Session-backed internal maintenance threads with two turns: pruning pass and consolidation pass. Those threads are trace-visible for Dashboard users, but ordinary thread lists omit them by default.
+Dreams methods expose background consolidation of workspace memory stores and the review of its results. Each Dream Run consolidates one store into a candidate that replaces the store's files when applied. Model runs are Session-backed internal maintenance threads with one turn; they are trace-visible for Dashboard users, and ordinary thread lists omit them by default. The product contract is [Dreams](../features/dreams.md).
 
 Clients must check `capabilities.dreams` in `initialize` before calling Dreams methods. If absent or `false`, the server returns `-32601` (Method not found).
 
-### 27.1 `dreams/status`
+### 27.1 Run object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Run id. |
+| `scope` | string? | Scope of the consolidated store; omitted for the workspace store. |
+| `status` | string | `running`, `succeeded`, `skipped`, `failed`, or `canceled`. |
+| `trigger` | string | `manual` or `scheduled`. |
+| `startedAt` / `endedAt` | string? | ISO-8601 timestamps. |
+| `candidateThreadCount` | int | Threads listed in the run manifest. |
+| `evidenceThreadIds` | string[] | Threads the run searched or read. |
+| `evidenceSearchCount` / `evidenceReadCount` | int | Evidence tool calls used. |
+| `changes` | object? | `{ "added": string[], "updated": string[], "deleted": string[], "indexChanged": bool }`, naming memory files. |
+| `reviewStatus` | string? | `pending`, `applied`, `discarded`, or `archived`. |
+| `autoApplied` | bool | Whether `Dreams.AutoApply` applied the run. |
+| `summary` | string? | The run's own summary of what it changed. |
+| `errorType` / `message` | string? | Failure or apply-conflict class (`storeChanged` for a conflict) and a short message. |
+| `threadId` / `turnId` | string? | The internal Dreams thread and its turn, filled as soon as known. |
+| `usage` | object? | Token usage when available. |
+| `inputManifestPath` | string? | Path to the run's manifest. |
+
+### 27.2 `dreams/status`
 
 Return current Dreams configuration and latest run state for the connected workspace.
 
@@ -7079,44 +7102,36 @@ Return current Dreams configuration and latest run state for the connected works
 {
   "enabled": true,
   "interval": "24:00:00",
-  "threadLookbackCount": 20,
   "autoApply": false,
-  "minCompletedTurnsSinceLastRun": 5,
-  "nextRunAt": "2026-05-12T00:00:00Z",
+  "minSessionsSinceLastRun": 3,
+  "nextRunAt": "2026-10-14T00:00:00Z",
   "running": false,
-  "activeDreamStoreId": "store_20260510000000_active",
   "lastRun": {
-    "id": "dream_20260511000000_abc123",
+    "id": "dream_20261013000000_abc123",
     "status": "succeeded",
-    "startedAt": "2026-05-11T00:00:00Z",
-    "endedAt": "2026-05-11T00:00:28Z",
-    "processedThreadCount": 18,
-    "candidateThreadCount": 18,
+    "trigger": "scheduled",
+    "startedAt": "2026-10-13T00:00:00Z",
+    "endedAt": "2026-10-13T00:00:41Z",
+    "candidateThreadCount": 6,
     "evidenceThreadIds": ["thread_abc"],
-    "writtenPaths": ["stores/store_20260511000000_pending/INDEX.md"],
     "evidenceSearchCount": 3,
-    "evidenceReadCount": 4,
-    "dreamWritten": true,
-    "outputStoreId": "store_20260511000000_pending",
+    "evidenceReadCount": 2,
+    "changes": { "added": [], "updated": ["package-manager.md"], "deleted": ["old-build-note.md"], "indexChanged": true },
     "reviewStatus": "pending",
     "autoApplied": false,
-    "threadId": "thread_20260511_abcd",
-    "turnId": "turn_002",
-    "turnIds": ["turn_001", "turn_002"],
-    "trigger": "manual",
-    "message": null,
-    "inputManifestPath": ".craft/dreams/runs/dream_20260511000000_abc123/input/MANIFEST.md"
+    "summary": "Merged two package-manager memories and removed a stale build note.",
+    "threadId": "thread_20261013_abcd",
+    "turnId": "turn_001",
+    "inputManifestPath": ".craft/dreams/runs/dream_20261013000000_abc123/input/MANIFEST.md"
   }
 }
 ```
 
-If Dreams has never run, `lastRun` is `null`. Run status values are `running`, `succeeded`, `skipped`, `failed`, and `canceled`. Review status values are `pending`, `applied`, `discarded`, and `archived`.
+If Dreams has never run, `lastRun` is `null`.
 
-`threadLookbackCount` limits the number of eligible candidate sessions listed in the Dream Run source manifest. Raw transcripts are not inlined into the initial Dreams request; the internal Dreams session uses its file-tool sandbox to read/search eligible input snapshots, repo evidence, and the candidate output store.
+### 27.3 `dreams/run`
 
-### 27.2 `dreams/run`
-
-Shortcut for requesting an immediate Dream Run with default manual parameters.
+Request runs for every consolidatable store: the workspace store and each own Agent Profile store that holds memory files or has eligible threads.
 
 **Direction**: client -> server (request)
 
@@ -7126,78 +7141,64 @@ Shortcut for requesting an immediate Dream Run with default manual parameters.
 
 **Semantics**:
 
-- If Dreams is enabled and idle, the server persists a `running` state, starts one forced Dream Run in the background, and returns a status snapshot quickly.
-- If a Dream Run is already active, the server returns the active status snapshot without starting a duplicate run.
-- If Dreams or memory (`Memory.Enabled`) is disabled, the server returns a skipped or disabled status without starting a run.
-- With `Dreams.AutoApply = false`, successful runs generate pending output stores and do not affect prompts until `dreams/apply`. With `Dreams.AutoApply = true`, future successful runs immediately switch the active Dream Store, record `reviewStatus = "applied"`, and set `autoApplied = true`; existing pending runs are unchanged.
-- Actual model runs create a new internal Session Core thread with `originChannel = "dreams"` and `dotcraft.internal = "dreams"` metadata. The Dashboard may surface the trace/session for that thread; default `thread/list` responses continue to hide it unless `includeInternal = true`.
-- Skipped attempts before model generation do not create Session threads.
-- The baseline protocol does not require streaming progress or a completion notification. Clients may poll `dreams/status`.
+- If Dreams is enabled and idle, the server persists a `running` state for the first run, executes the runs one at a time in the background, and returns a status snapshot quickly.
+- If a run is already active, the server returns the active status snapshot without starting duplicates.
+- If Dreams or memory (`Memory.Enabled`) is disabled, the server returns the disabled status without starting a run.
+- Manual runs bypass the interval and session thresholds but not the store's consolidation lock.
+- With `Dreams.AutoApply = true`, a succeeded run applies itself under the conflict rule in 27.7 and records `autoApplied = true`; runs already pending are unchanged.
+- Model runs create a new internal Session Core thread with `originChannel = "dreams"` and `dotcraft.internal = "dreams"` metadata. Default `thread/list` responses hide it unless `includeInternal = true`.
+- There is no streaming progress or completion notification. Clients may poll `dreams/status`.
 
-### 27.3 `dreams/create`
+### 27.4 `dreams/create`
 
-Request an immediate Dream Run with optional input selection and additional instructions.
+Request a run for one store with optional input selection and instructions.
 
 **Params**:
 
 ```json
 {
+  "scope": "agent-3f1c…",
   "threadIds": ["thread_abc"],
-  "threadLookbackCount": 20,
-  "instructions": "Focus protocol decisions.",
-  "model": "gpt-5.2"
+  "instructions": "Focus on testing conventions.",
+  "model": "gpt-5.6"
 }
 ```
+
+All fields are optional. An omitted `scope` targets the workspace store; a scope must name a consolidatable store. `threadIds` narrows the threads listed in the manifest. `model` overrides the model used for the run.
 
 **Result**:
 
 ```json
-{
-  "run": {
-    "id": "dream_20260511000000_abc123",
-    "status": "running"
-  },
-  "activeDreamStoreId": "store_20260510000000_active"
-}
+{ "run": { "id": "dream_20261013000000_abc123", "status": "running" } }
 ```
 
-`threadLookbackCount`, when present, must be positive. `threadIds` narrows the candidate sessions. `model`, when present, overrides the model recorded and used for the internal Dreams session.
+### 27.5 `dreams/get`
 
-### 27.4 `dreams/get`
-
-Read one Dream Run plus preview data for detailed Dashboard review.
+Read one run with its review material.
 
 **Params**:
 
 ```json
-{ "runId": "dream_20260511000000_abc123" }
+{ "runId": "dream_20261013000000_abc123" }
 ```
 
 **Result**:
 
 ```json
 {
-  "run": {
-    "id": "dream_20260511000000_abc123",
-    "status": "succeeded",
-    "reviewStatus": "pending",
-    "outputStoreId": "store_20260511000000_pending"
-  },
-  "activeDreamStoreId": "store_20260510000000_active",
-  "preview": {
-    "activeStoreId": "store_20260510000000_active",
-    "outputStoreId": "store_20260511000000_pending",
-    "activeIndexMarkdown": "# Dream Memory\n\n...",
-    "outputIndexMarkdown": "# Dream Memory\n\n...",
-    "activeTopicPaths": [],
-    "outputTopicPaths": ["api-conventions.md"]
-  }
+  "run": { "id": "dream_20261013000000_abc123", "status": "succeeded", "reviewStatus": "pending" },
+  "files": [
+    { "name": "package-manager.md", "change": "updated", "baseline": "---\nname: package-manager\n…", "candidate": "---\nname: package-manager\n…" },
+    { "name": "MEMORY.md", "change": "updated", "baseline": "- [Package manager](package-manager.md) — …", "candidate": "- [Package manager](package-manager.md) — …" }
+  ]
 }
 ```
 
-### 27.5 `dreams/list`
+`files` lists each changed file with its baseline and candidate text; an added file has no `baseline` and a deleted file has no `candidate`.
 
-List Dream Runs for the connected workspace.
+### 27.6 `dreams/list`
+
+List runs for the connected workspace.
 
 **Params**:
 
@@ -7211,21 +7212,21 @@ List Dream Runs for the connected workspace.
 { "runs": [] }
 ```
 
-### 27.6 Review Actions
+### 27.7 Review Actions
 
 `dreams/cancel`, `dreams/apply`, `dreams/discard`, and `dreams/archive` all take:
 
 ```json
-{ "runId": "dream_20260511000000_abc123" }
+{ "runId": "dream_20261013000000_abc123" }
 ```
 
-They return the same run-result envelope as `dreams/create` without preview.
+They return `{ "run": Run }`.
 
 Review semantics:
 
-- `dreams/apply` switches `activeDreamStoreId` to the run's `outputStoreId` and emits a memory-region config change.
-- `dreams/discard` marks non-applied runs discarded without deleting the output store.
-- `dreams/archive` hides runs from default list results without deleting the output store.
+- `dreams/apply` replaces the store's memory files and index with the run's candidate only while the store still matches the run's baseline. When the store changed after the run started, the server returns a `storeChanged` error, the run stays `pending`, and the store is untouched. On success the server emits a memory-region config change.
+- `dreams/discard` marks a pending run discarded and leaves the store unchanged.
+- `dreams/archive` hides a run from default list results without deleting its files.
 - `dreams/cancel` is best-effort for running jobs.
 
 ## 27A. Usage Telemetry Methods

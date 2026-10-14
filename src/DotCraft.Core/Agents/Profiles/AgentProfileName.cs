@@ -31,6 +31,10 @@ public static class AgentProfileName
     }
 
     /// <summary>Returns an opaque, portable filename; the document remains the identity authority.</summary>
-    public static string FileName(string name) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Normalize(name)))).ToLowerInvariant() + ".md";
+    public static string FileName(string name) => Digest(name) + ".md";
+
+    public static string MemoryScope(string name) => "agent-" + Digest(name);
+
+    private static string Digest(string name) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Normalize(name)))).ToLowerInvariant();
 }

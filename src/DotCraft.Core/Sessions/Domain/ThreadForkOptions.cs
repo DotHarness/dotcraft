@@ -19,6 +19,13 @@ public static class ThreadForkPositions
     public const string After = "after";
 }
 
+/// <summary>The internal job of an ephemeral fork that shares its source's prompt cache.</summary>
+public enum ThreadForkPurpose
+{
+    PromptSuggestion,
+    MemoryExtraction
+}
+
 /// <summary>
 /// Options used to fork a thread into a new sibling thread.
 /// </summary>
@@ -40,8 +47,8 @@ public sealed record ThreadForkOptions
 
     public bool Ephemeral { get; init; }
 
-    /// <summary>Preserves the source's tool role and cache route for an ephemeral prompt-suggestion fork.</summary>
-    public bool PromptSuggestion { get; init; }
+    /// <summary>Makes an internal fork after the latest completed Turn that keeps the source's tool role and cache route.</summary>
+    public ThreadForkPurpose? Purpose { get; init; }
 
     public ThreadWorktreeInfo? Worktree { get; init; }
 }
