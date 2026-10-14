@@ -170,6 +170,7 @@ internal sealed class SessionEventConverter : JsonConverter<SessionEvent>
             {
                 "reasoningContent" => payload.Deserialize<ReasoningContentDelta>(options),
                 "commandExecution" => payload.Deserialize<CommandExecutionOutputDelta>(options),
+                "commandExecutionTerminalInteraction" => payload.Deserialize<CommandExecutionTerminalInteraction>(options),
                 "agentMessage" => payload.Deserialize<AgentMessageDelta>(options),
                 _ => payload.Deserialize<AgentMessageDelta>(options)
             };

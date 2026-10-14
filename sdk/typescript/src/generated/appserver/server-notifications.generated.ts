@@ -18,6 +18,7 @@ export interface ServerNotificationMethods {
   "item/agentMessage/delta": { params: Models.ItemDeltaNotification; result: Models.RpcEmpty };
   "item/approval/resolved": { params: Models.ItemNotification; result: Models.RpcEmpty };
   "item/commandExecution/outputDelta": { params: Models.ItemDeltaNotification; result: Models.RpcEmpty };
+  "item/commandExecution/terminalInteraction": { params: Models.TerminalInteractionNotification; result: Models.RpcEmpty };
   "item/completed": { params: Models.ItemNotification; result: Models.RpcEmpty };
   "item/reasoning/delta": { params: Models.ItemDeltaNotification; result: Models.RpcEmpty };
   "item/started": { params: Models.ItemNotification; result: Models.RpcEmpty };

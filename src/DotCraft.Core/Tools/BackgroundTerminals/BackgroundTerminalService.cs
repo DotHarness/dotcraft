@@ -126,7 +126,7 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
 
         _ = WatchProcessAsync(terminal);
 
-        var yieldMs = NormalizeYield(request.YieldTimeMs);
+        var yieldMs = NormalizeYield(request.YieldTimeMs ?? 0);
         if (request.RunInBackground)
         {
             var outcome = await WaitForExitOrDelayAsync(process, TimeSpan.FromMilliseconds(yieldMs), ct).ConfigureAwait(false);
@@ -135,8 +135,12 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
         }
         else
         {
-            var timeoutSeconds = Math.Max(1, request.TimeoutSeconds);
-            var outcome = await WaitForExitOrDelayAsync(process, TimeSpan.FromSeconds(timeoutSeconds), ct).ConfigureAwait(false);
+            var timeout = TimeSpan.FromSeconds(Math.Max(1, request.TimeoutSeconds));
+            var yieldAfter = TimeSpan.FromMilliseconds(yieldMs);
+            var canYield = _config.Enabled && yieldAfter < timeout;
+            var outcome = await WaitForExitOrDelayAsync(process, canYield ? yieldAfter : timeout, ct).ConfigureAwait(false);
+            if (outcome == ProcessWaitOutcome.TimedOut && canYield)
+                return terminal.CreateSnapshot(BackgroundTerminalStatus.Running, request.MaxOutputChars);
             if (outcome == ProcessWaitOutcome.TimedOut)
             {
                 await KillAsync(terminal, BackgroundTerminalStatus.TimedOut, CancellationToken.None).ConfigureAwait(false);

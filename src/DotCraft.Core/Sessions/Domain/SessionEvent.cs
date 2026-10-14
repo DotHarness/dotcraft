@@ -66,6 +66,9 @@ public sealed class SessionEvent
     public CommandExecutionOutputDelta? CommandExecutionDeltaPayload => Payload as CommandExecutionOutputDelta;
 
     [JsonIgnore]
+    public CommandExecutionTerminalInteraction? TerminalInteractionPayload => Payload as CommandExecutionTerminalInteraction;
+
+    [JsonIgnore]
     public ToolCallArgumentsDelta? ToolCallArgumentsDeltaPayload => Payload as ToolCallArgumentsDelta;
 
     [JsonIgnore]

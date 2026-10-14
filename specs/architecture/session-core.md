@@ -666,17 +666,44 @@ aggregated Turn diff in [Turn Diff Events](#turn-diff-events) is live-only.
 }
 ```
 
-When an `Exec`-style tool returns while its process is still alive, the
-`CommandExecution` Item is completed with `status = "backgrounded"`. Later
-process lifecycle changes are represented by the background terminal runtime,
-not by appending deltas to an already completed Turn.
+An `Exec` without `runInBackground` waits for its process for at most its
+yield time: `yieldTimeMs`, or `Tools.Shell.Background.DefaultYieldTimeMs`
+(10 seconds) when omitted, capped by `Tools.Shell.Background.MaxYieldTimeMs`.
+A `runInBackground` command uses the same yield time. A process still running then is handed
+to the background terminal runtime, and the tool returns its session ID so the
+model can poll it with `WriteStdin`. The process keeps running until it exits
+or is stopped. `Tools.Shell.Timeout` applies only while the tool still waits:
+with a yield time at or above it, or with background terminals disabled, the
+tool waits until the process exits or times out.
+
+A `runInBackground` command completes its `CommandExecution` Item with
+`status = "backgrounded"` when the tool returns, and later process lifecycle
+changes are represented by the background terminal runtime. A command handed
+over after its yield time instead keeps its Item in progress, records the
+terminal `sessionId` on it, and completes it with the final output, status, and
+exit code when the process exits, even after its Turn has completed. That late completion is persisted into the Turn and
+published as `item/completed`; output produced after the hand-over reaches
+clients through `terminal/*` notifications, not `CommandExecution` deltas. When
+a thread is loaded, such an Item still in progress on a finished Turn whose
+terminal is no longer running, for example after a host restart, is completed
+from the terminal's final state, or with `status = "lost"` when the terminal is
+unknown, and the result is persisted.
+
+`WriteStdin` keeps its `ToolCall` and `ToolResult` Items, which carry the model
+history and the persisted record of what was written. Clients present that input
+on the command it went to, through the terminal interaction delta live and by
+matching the call's `sessionId` argument to the command Item's `sessionId` when
+history is reloaded, rather than as a tool call of its own. A failed call wrote
+nothing, so it is not presented on the command and remains a tool call.
 
 An `Exec` process that is still owned by the active tool invocation is foreground
 work. Cancelling the Turn stops its process tree, completes the
 `CommandExecution` Item with `status = "cancelled"`, and only then completes Turn
 cancellation. A process explicitly started with `runInBackground = true` transfers
 ownership to the background terminal runtime once it starts; Turn cancellation
-does not stop it, including while the tool is waiting for its initial yield.
+does not stop it, including while the tool is waiting for its initial yield. A
+foreground process handed over after its yield time is likewise no longer
+stopped by Turn cancellation.
 
 Terminal-capable AppServer clients consume live shell process output from
 `terminal/*` notifications. `CommandExecution` remains the persisted observable
@@ -1116,6 +1143,7 @@ SessionEvent
   - May be emitted many times per Item. Adapters that support streaming should forward these to the user progressively.
   - Adapters that do not support streaming may ignore deltas and wait for `item/completed`.
   - Persistence still uses the final completed Item payload as source of truth; intermediate `ToolCall` argument preview deltas are for progressive rendering.
+  - A `CommandExecution` Item also receives a terminal interaction delta, `{ sessionId, stdin }`, when `WriteStdin` writes to the process it started, or polls it while it is still running (`stdin` is then empty). It carries the command Item's own Turn id, may arrive after that Item completed or during a later Turn, and is not persisted on the Item.
 
 - **`item/completed`**
   - Emitted when an Item is finalized.

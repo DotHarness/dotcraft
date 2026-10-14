@@ -117,7 +117,7 @@ Three message kinds:
 - Enums are serialized as **camelCase strings** (e.g., `"active"`, `"running"`, `"toolCall"`, `"waitingApproval"`).
 - Nullable fields are omitted from the JSON when `null`, unless explicitly stated otherwise.
 - Wire DTOs are distinct from the on-disk persistence models. Persisted thread JSON may contain internal-only fields; the wire contract must remain lossless and transport-stable.
-- AppServer projects Session Core `item/delta` events to specific wire methods (`item/agentMessage/delta`, `item/reasoning/delta`, `item/toolCall/argumentsDelta`, `item/commandExecution/outputDelta`). Delta notifications that can represent multiple logical kinds carry `deltaKind`.
+- AppServer projects Session Core `item/delta` events to specific wire methods (`item/agentMessage/delta`, `item/reasoning/delta`, `item/toolCall/argumentsDelta`, `item/commandExecution/outputDelta`, `item/commandExecution/terminalInteraction`). Delta notifications that can represent multiple logical kinds carry `deltaKind`.
 - `id` fields in JSON-RPC messages may be strings or integers. The server preserves the type and value when responding.
 
 ## 3. Initialization
@@ -157,7 +157,7 @@ Client                              Server
 | `capabilities.approvalSupport` | boolean | no | Whether the client can handle server-initiated approval requests. Default `true`. |
 | `capabilities.requestUserInputSupport` | boolean | no | Whether the client can handle model-initiated Plan Mode question requests (`item/tool/requestUserInput`). Default `false`. |
 | `capabilities.streamingSupport` | boolean | no | Whether the client can consume `item/*/delta` notifications. Default `true`. |
-| `capabilities.commandExecutionStreaming` | boolean | no | Whether the client can consume `commandExecution` items and `item/commandExecution/outputDelta` fallback notifications. Default `false`. |
+| `capabilities.commandExecutionStreaming` | boolean | no | Whether the client can consume `commandExecution` items, `item/commandExecution/outputDelta` fallback notifications, and `item/commandExecution/terminalInteraction` notifications. Default `false`. |
 | `capabilities.toolExecutionLifecycle` | boolean | no | Whether the client can consume `toolExecution` lifecycle items and `item/toolExecution/progress` notifications. Default `false`. |
 | `capabilities.backgroundTerminals` | boolean | no | Whether the client can consume `terminal/*` terminal notifications for server-managed shell processes. Default `false`. |
 | `capabilities.configChange` | boolean | no | Whether the client wants `config/changed` notifications. Default `true`. |
@@ -1387,7 +1387,7 @@ Each persisted Turn also records an `initiator` object with durable actor metada
 
 Request cancellation of an in-progress turn. The server cancels the agent execution via `CancellationToken` and emits `turn/cancelled` once shutdown completes.
 
-Shutdown includes stopping foreground external work still owned by the active tool invocation. It does not stop terminal sessions already detached through `runInBackground`; clients use terminal stop or thread terminal cleanup operations for those sessions.
+Shutdown includes stopping foreground external work still owned by the active tool invocation. It does not stop terminal sessions already detached through `runInBackground` or handed over after a foreground `Exec` yield time; clients use terminal stop or thread terminal cleanup operations for those sessions.
 
 Before emitting `turn/cancelled`, the server resolves the turn's pending approvals and user-input requests (§7.6), finalizes any currently streaming agent/reasoning items with their accumulated text, and persists the cancelled turn as canonical history. Future `turn/start` calls on server-managed threads must include the cancelled turn's user input and completed partial assistant output when rebuilding model context.
 
@@ -1984,6 +1984,28 @@ Delivery rules:
 - The underlying `toolCall` / `toolResult` items still exist for model execution and persistence. Clients that consume both `terminal/*` and `commandExecution` must merge by `callId` and avoid double-rendering the same shell output.
 - A client may use `commandExecution` as an enhancement source for an existing `Exec` tool card when `terminal/*` notifications are unavailable.
 - Clients that do not advertise the capability rely on `toolCall` / `toolResult` alone.
+- An `Exec` that outlives its yield time returns its tool result while the process keeps running. Its `commandExecution` item stays in progress and completes when the process exits, which can be after `turn/completed`; clients apply that late `item/completed` to the completed turn. Output after the hand-over arrives only through `terminal/*` notifications, and the client keeps the command's card live until `terminal/completed` or that `item/completed`.
+
+#### `item/commandExecution/terminalInteraction`
+
+Emitted when `WriteStdin` writes input to the process of a `commandExecution` item, or polls that process while it is still running. `itemId` and `turnId` identify the command item, which may belong to an earlier turn and may already be completed; `stdin` is exactly what was written, and is empty for a poll.
+
+**Params**:
+
+```json
+{
+  "threadId": "thread_20260413_ab12cd",
+  "turnId": "turn_001",
+  "itemId": "item_004",
+  "sessionId": "term_abcd1234",
+  "stdin": "y
+"
+}
+```
+
+- The notification is not persisted. The `WriteStdin` `toolCall` and `toolResult` items remain in the turn as the durable record and model history; their `sessionId` argument matches the command item's payload `sessionId`.
+- Clients present non-empty input on the command it was written to, and show neither a poll nor a successful `WriteStdin` call as a tool card of its own; a failed call keeps its card. When rebuilding from history, they attach the input of each successful `WriteStdin` call to the `commandExecution` item with the same `sessionId`.
+- Sent only to connections that advertise `capabilities.commandExecutionStreaming = true`.
 
 #### `toolExecution` lifecycle
 
@@ -2324,6 +2346,7 @@ This rule applies to all turn-scoped notifications:
 | `item/reasoning/delta` | yes |
 | `item/toolCall/argumentsDelta` | yes |
 | `item/commandExecution/outputDelta` | yes |
+| `item/commandExecution/terminalInteraction` | yes |
 | `item/completed` | yes |
 | `item/usage/delta` | yes |
 | `subagent/progress` | yes |
@@ -4459,7 +4482,7 @@ Clients should check `capabilities.toolCatalog` in the `initialize` response bef
 | `name` | string | Canonical tool identifier (the model-visible tool name). This is the value used in Agent Profile `tools.allow` / `tools.deny`. |
 | `description` | string | Human-readable description from the tool's method-level metadata. May be empty when the tool declares none. |
 | `source` | string | Always `"builtin"` for tools returned by this method. Reserved for forward compatibility with other tool origins. |
-| `planMode` | boolean | `true` when the tool is allowed while the thread is in Plan (read-only) mode. `false` for mutating tools that Plan mode hard-denies (for example `WriteFile`, `EditFile`). Tools that are conditionally restricted in Plan mode (for example shell `Exec`, which Plan mode allows only for read-only commands) report `true`. |
+| `planMode` | boolean | `true` when the tool is allowed while the thread is in Plan (read-only) mode. `false` for mutating tools that Plan mode hard-denies (for example `WriteFile`, `EditFile`). Tools that are conditionally restricted in Plan mode (for example shell `Exec`, which Plan mode allows only for read-only commands, and `WriteStdin`, which it allows only with empty input) report `true`. |
 
 ### 18A.3 `tool/list`
 

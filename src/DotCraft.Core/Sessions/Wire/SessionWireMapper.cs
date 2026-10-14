@@ -167,6 +167,7 @@ public static class SessionWireMapper
     /// <item><see cref="AgentMessageDelta"/> (<c>deltaKind = "agentMessage"</c>) → <c>"item/agentMessage/delta"</c></item>
     /// <item><see cref="ReasoningContentDelta"/> (<c>deltaKind = "reasoningContent"</c>) → <c>"item/reasoning/delta"</c></item>
     /// <item><see cref="CommandExecutionOutputDelta"/> (<c>deltaKind = "commandExecution"</c>) → <c>"item/commandExecution/outputDelta"</c></item>
+    /// <item><see cref="CommandExecutionTerminalInteraction"/> → <c>"item/commandExecution/terminalInteraction"</c></item>
     /// <item><see cref="ToolCallArgumentsDelta"/> (<c>deltaKind = "toolCallArguments"</c>) → <c>"item/toolCall/argumentsDelta"</c></item>
     /// <item><see cref="ToolExecutionProgressPayload"/> → <c>"item/toolExecution/progress"</c></item>
     /// </list>
@@ -185,6 +186,7 @@ public static class SessionWireMapper
             SessionEventType.ItemStarted => "item/started",
             // ItemDelta maps to two different methods depending on payload DeltaKind
             SessionEventType.ItemDelta when evt.Payload is CommandExecutionOutputDelta => "item/commandExecution/outputDelta",
+            SessionEventType.ItemDelta when evt.Payload is CommandExecutionTerminalInteraction => "item/commandExecution/terminalInteraction",
             SessionEventType.ItemDelta when evt.Payload is ReasoningContentDelta => "item/reasoning/delta",
             SessionEventType.ItemDelta when evt.Payload is ToolCallArgumentsDelta => "item/toolCall/argumentsDelta",
             SessionEventType.ItemDelta when evt.Payload is ToolExecutionProgressPayload => "item/toolExecution/progress",
@@ -254,6 +256,7 @@ public static class SessionWireMapper
                 AgentMessageDelta agentDelta => new { delta = agentDelta.TextDelta },
                 ReasoningContentDelta reasoningDelta => new { delta = reasoningDelta.TextDelta },
                 CommandExecutionOutputDelta commandDelta => new { delta = commandDelta.TextDelta },
+                CommandExecutionTerminalInteraction interaction => new { sessionId = interaction.SessionId, stdin = interaction.Stdin },
                 ToolCallArgumentsDelta toolCallDelta => new
                 {
                     deltaKind = toolCallDelta.DeltaKind,
@@ -338,6 +341,7 @@ public static class SessionWireMapper
             AgentMessageDelta => "agentMessageDelta",
             ReasoningContentDelta => "reasoningContentDelta",
             CommandExecutionOutputDelta => "commandExecutionOutputDelta",
+            CommandExecutionTerminalInteraction => "commandExecutionTerminalInteraction",
             ToolCallArgumentsDelta => "toolCallArgumentsDelta",
             ToolExecutionProgressPayload => "toolExecutionProgress",
             CommandExecutionPayload => "commandExecution",

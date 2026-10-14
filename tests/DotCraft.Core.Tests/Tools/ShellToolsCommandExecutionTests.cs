@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using DotCraft.Configuration;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Tools;
@@ -234,6 +235,46 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
         Assert.Equal("cancelled", Assert.IsType<CommandExecutionPayload>(item.Payload).Status);
     }
 
+    [Fact]
+    public async Task WriteStdin_PollingAHandedBackCommand_ReportsTheInteractionOnItsItem()
+    {
+        const string callId = "call_exec_poll";
+        var command = OperatingSystem.IsWindows() ? "Start-Sleep -Milliseconds 1500" : "sleep 1.5";
+        var turn = CreateTurn();
+        var pending = CreatePendingCommandExecution(turn, callId, command, _tempDir);
+        var interactions = new List<(string TurnId, string CallId, CommandExecutionTerminalInteraction Interaction)>();
+        var context = CreateRuntimeContext(turn, [], emitTerminalInteractionAsync: (turnId, interactionCallId, interaction) =>
+        {
+            interactions.Add((turnId, interactionCallId, interaction));
+            return Task.CompletedTask;
+        });
+        context.RegisterPending(new PendingCommandExecutionRegistration
+        {
+            CallId = callId,
+            Command = command,
+            WorkingDirectory = _tempDir,
+            Source = "host",
+            Item = pending
+        });
+        await using var terminals = new BackgroundTerminalService(_tempDir, new AppConfig.ShellBackgroundConfig());
+        var tools = new ShellTools(_tempDir, terminals, timeoutSeconds: 30);
+        using var _ = CommandExecutionRuntimeScope.Set(context);
+
+        await tools.Exec(command, yieldTimeMs: 100);
+        var sessionId = Assert.IsType<CommandExecutionPayload>(pending.Payload).SessionId;
+        Assert.NotNull(sessionId);
+
+        await tools.WriteStdin(sessionId, yieldTimeMs: 100);
+        var polled = Assert.Single(interactions);
+        Assert.Equal((turn.Id, callId), (polled.TurnId, polled.CallId));
+        Assert.Equal(sessionId, polled.Interaction.SessionId);
+        Assert.Equal(string.Empty, polled.Interaction.Stdin);
+
+        await tools.WriteStdin(sessionId, yieldTimeMs: 5000);
+        await tools.WriteStdin(sessionId, yieldTimeMs: 100);
+        Assert.Single(interactions);
+    }
+
     private SessionTurn CreateTurn() => new()
     {
         Id = "turn_001",
@@ -273,7 +314,8 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
         SessionTurn turn,
         List<SessionItem> completed,
         bool supportsCommandExecutionStreaming = true,
-        List<object>? deltas = null)
+        List<object>? deltas = null,
+        Func<string, string, CommandExecutionTerminalInteraction, Task>? emitTerminalInteractionAsync = null)
     {
         var nextItemSequence = 1;
         return new CommandExecutionRuntimeContext
@@ -285,7 +327,8 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
             EmitItemStarted = _ => { },
             EmitItemDelta = (_, delta) => deltas?.Add(delta),
             EmitItemCompleted = completed.Add,
-            SupportsCommandExecutionStreaming = supportsCommandExecutionStreaming
+            SupportsCommandExecutionStreaming = supportsCommandExecutionStreaming,
+            EmitTerminalInteractionAsync = emitTerminalInteractionAsync
         };
     }
 

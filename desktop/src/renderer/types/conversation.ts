@@ -145,6 +145,12 @@ export interface ConversationItem {
   aggregatedOutput?: string
   exitCode?: number | null
   executionStatus?: 'inProgress' | 'completed' | 'failed' | 'cancelled'
+  /** The command's process is still running, even after its tool call returned. */
+  terminalRunning?: boolean
+  /** Background terminal session that runs the command. */
+  terminalSessionId?: string
+  /** Lines written to the command's process through WriteStdin. */
+  terminalInputs?: string[]
   imageGenerationStatus?: 'inProgress' | 'completed' | 'failed'
   revisedPrompt?: string
   mediaType?: string
@@ -668,6 +674,7 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
       ?? (payload.exitCode as number | null | undefined),
     executionStatus: (raw.executionStatus as ConversationItem['executionStatus'] | undefined)
       ?? (payload.status as ConversationItem['executionStatus'] | undefined),
+    terminalSessionId: type === 'commandExecution' ? (payload.sessionId as string | undefined) : undefined,
     imageGenerationStatus: type === 'imageGeneration'
       ? normalizeImageGenerationStatus((raw.imageGenerationStatus as unknown) ?? (payload.status as unknown))
       : undefined,

@@ -1696,6 +1696,25 @@ public sealed class ItemDeltaNotification : ExtensibleJsonObject
     public required string Delta { get; init; }
 }
 
+/// <summary>Input written to, or a poll of, the process of a commandExecution item.</summary>
+public sealed class TerminalInteractionNotification : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")]
+    public required string ThreadId { get; init; }
+
+    [JsonPropertyName("turnId")]
+    public required string TurnId { get; init; }
+
+    [JsonPropertyName("itemId")]
+    public required string ItemId { get; init; }
+
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; init; }
+
+    [JsonPropertyName("stdin")]
+    public required string Stdin { get; init; }
+}
+
 /// <summary>Live structured progress for a toolExecution item.</summary>
 public sealed class ToolExecutionProgressNotification : ExtensibleJsonObject
 {

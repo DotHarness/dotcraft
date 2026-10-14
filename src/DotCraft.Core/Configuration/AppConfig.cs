@@ -638,7 +638,7 @@ public sealed partial class AppConfig
         public bool Enabled { get; set; } = true;
 
         [ConfigField(Min = 0, Hint = "milliseconds")]
-        public int DefaultYieldTimeMs { get; set; } = 1000;
+        public int DefaultYieldTimeMs { get; set; } = 10000;
 
         [ConfigField(Min = 1, Hint = "milliseconds")]
         public int MaxYieldTimeMs { get; set; } = 30000;

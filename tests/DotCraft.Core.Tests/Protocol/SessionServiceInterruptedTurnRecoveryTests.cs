@@ -5,6 +5,7 @@ using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Tools;
+using DotCraft.Tools.BackgroundTerminals;
 using Microsoft.Extensions.AI;
 using Xunit;
 
@@ -88,6 +89,98 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
             "\"status\":\"Cancelled\"",
             await File.ReadAllTextAsync(rolloutPath),
             StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task EnsureThreadLoadedAsync_SettlesCommandsWhoseTerminalsNoLongerRun()
+    {
+        await using var terminals = new BackgroundTerminalService(
+            CraftPath,
+            new AppConfig.ShellBackgroundConfig { DefaultReadMaxOutputChars = 4 });
+        var finished = await terminals.StartAsync(new BackgroundTerminalStartRequest
+        {
+            ThreadId = "thread_terminals",
+            Command = OperatingSystem.IsWindows() ? "Write-Output 'finished'" : "echo finished",
+            WorkingDirectory = _tempDir,
+            TimeoutSeconds = 30
+        });
+        var running = await terminals.StartAsync(new BackgroundTerminalStartRequest
+        {
+            ThreadId = "thread_terminals",
+            Command = OperatingSystem.IsWindows() ? "Start-Sleep -Seconds 30" : "sleep 30",
+            WorkingDirectory = _tempDir,
+            RunInBackground = true,
+            YieldTimeMs = 100
+        });
+        var threadId = await SeedCompletedTurnWithCommandsAsync(finished.SessionId, "term_missing", running.SessionId);
+        var chatClient = new StaticChatClient("unused");
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var service = new SessionService(
+            agentFactory,
+            chatClient.AsAIAgent(),
+            new SessionPersistenceService(new ThreadStore(CraftPath)),
+            new SessionGate(),
+            backgroundTerminalService: terminals);
+
+        await service.EnsureThreadLoadedAsync(threadId);
+
+        await using var freshStore = new ThreadStore(CraftPath);
+        var items = Assert.Single(Assert.IsType<SessionThread>(await freshStore.LoadThreadAsync(threadId)).Turns).Items;
+        var payloads = items.Select(static item => Assert.IsType<CommandExecutionPayload>(item.Payload)).ToArray();
+        Assert.Equal(["completed", "lost", "inProgress"], payloads.Select(static payload => payload.Status));
+        Assert.True(payloads[0].Truncated);
+        Assert.True(payloads[0].OriginalOutputChars >= "finished".Length);
+        Assert.Contains($"Full output: {finished.OutputPath}", payloads[0].AggregatedOutput);
+        Assert.Equal([ItemStatus.Completed, ItemStatus.Completed, ItemStatus.Started], items.Select(static item => item.Status));
+        await terminals.StopAsync(running.SessionId);
+    }
+
+    private async Task<string> SeedCompletedTurnWithCommandsAsync(params string[] sessionIds)
+    {
+        var now = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var thread = new SessionThread
+        {
+            Id = SessionIdGenerator.NewThreadId(),
+            WorkspacePath = _tempDir,
+            UserId = "u",
+            OriginChannel = "test",
+            DisplayName = "Orphaned command test",
+            Status = ThreadStatus.Active,
+            CreatedAt = now,
+            LastActiveAt = now,
+            HistoryMode = HistoryMode.Server,
+            ProviderHistorySchemaVersion = ProviderHistorySchema.CurrentSchemaVersion
+        };
+        var turn = new SessionTurn
+        {
+            Id = "turn_001",
+            ThreadId = thread.Id,
+            Status = TurnStatus.Completed,
+            StartedAt = now,
+            CompletedAt = now,
+            Items = sessionIds.Select((sessionId, index) => new SessionItem
+            {
+                Id = $"item_00{index + 1}",
+                TurnId = "turn_001",
+                Type = ItemType.CommandExecution,
+                Status = ItemStatus.Started,
+                CreatedAt = now,
+                Payload = new CommandExecutionPayload
+                {
+                    CallId = $"call_{index + 1}",
+                    Command = "command",
+                    WorkingDirectory = _tempDir,
+                    Status = "inProgress",
+                    SessionId = sessionId
+                }
+            }).ToList()
+        };
+
+        await using var store = new ThreadStore(CraftPath);
+        await store.SaveThreadAsync(thread);
+        thread.Turns.Add(turn);
+        await store.SaveTurnAsync(thread, turn);
+        return thread.Id;
     }
 
     [Fact]

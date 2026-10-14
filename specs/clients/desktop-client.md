@@ -491,6 +491,8 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
 - In the conversation view, shell work remains collapsed by default using the normal tool-card style. If the user expands the card, live output may be shown there while the command is still running.
 - The Terminal detail surface merges terminal snapshots and command execution history for the current thread, including in-progress commands.
 - If `terminal.backgroundReason = "runInBackground"`, Desktop does not keep appending subsequent process output to the inline foreground `Exec` card; the background terminal UI owns ongoing output.
+- An `Exec` card whose tool result returned while its process keeps running stays live, keeps appending output, and settles on `terminal/completed` or the command's late `item/completed`, even after its turn ended.
+- Successful `WriteStdin` calls have no card of their own; a failed call keeps its card so its error stays visible. Input written to a command appears on that command's `Exec` card as further command lines, split into lines the way a terminal reads them (Enter ends a line, Ctrl+C discards the pending line, Backspace removes a character); polls with empty input are not shown.
 - If the user switches to another thread while a command is still running, the output continues updating in the background thread state without forcing a focus change.
 - Desktop does not require interactive terminal input; shell output is read-only from the Desktop client's perspective.
 - The client may reveal related context automatically when new changes or plans appear, but the rule should be based on relevance, not on any fixed panel design.

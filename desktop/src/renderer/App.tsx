@@ -1965,6 +1965,19 @@ export function App(): JSX.Element {
             break
           }
 
+          case 'item/commandExecution/terminalInteraction': {
+            const tid = (p.threadId as string | undefined) ?? ''
+            if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
+              conv.onTerminalInteraction({
+                turnId: p.turnId as string | undefined,
+                itemId: p.itemId as string | undefined,
+                stdin: p.stdin as string | undefined
+              })
+            }
+
+            break
+          }
+
           case 'item/commandExecution/outputDelta': {
             const tid = (p.threadId as string | undefined) ?? ''
             const params = {

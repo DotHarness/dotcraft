@@ -152,6 +152,9 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             {
                 return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, shellReason);
             }
+            if (string.Equals(name, "WriteStdin", StringComparison.Ordinal)
+                && !ModeToolPolicy.IsStdinPoll(arguments["input"]?.GetValue<string>()))
+                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, ModeToolPolicy.StdinPollOnlyReason);
         }
         else if (string.Equals(config.Mode, "agent", StringComparison.OrdinalIgnoreCase)
                  && string.Equals(name, "CreatePlan", StringComparison.OrdinalIgnoreCase))
@@ -295,6 +298,12 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             case SubAgentShellAccess.ReadOnly:
                 if (isWriteStdin)
                 {
+                    if (ModeToolPolicy.IsStdinPoll(TryGetStringArgument(arguments, "input")))
+                    {
+                        reason = string.Empty;
+                        return true;
+                    }
+
                     reason = $"The SubAgent role '{role.Name}' allows read-only shell commands only, so it cannot write to process input.";
                     return false;
                 }

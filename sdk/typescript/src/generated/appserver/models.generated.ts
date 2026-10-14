@@ -3984,6 +3984,15 @@ export interface TerminalCleanResult {
   [key: string]: unknown;
 }
 
+export interface TerminalInteractionNotification {
+  itemId: string;
+  sessionId: string;
+  stdin: string;
+  threadId: string;
+  turnId: string;
+  [key: string]: unknown;
+}
+
 export interface TerminalLifecycleNotification {
   delta?: string | null;
   terminal?: BackgroundTerminalSnapshot;

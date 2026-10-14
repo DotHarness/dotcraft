@@ -54,7 +54,7 @@ public sealed class ShellTools
         [Description("The shell command to execute.")] string command,
         [Description("Optional working directory for the command.")] string? workingDir = null,
         [Description("Run the command in the background and return a session ID for later WriteStdin calls.")] bool runInBackground = false,
-        [Description("Milliseconds to wait for initial output before returning when runInBackground is true.")] int? yieldTimeMs = null,
+        [Description("Maximum milliseconds to wait before returning a session ID for a still-running command. Commands that finish sooner return immediately. Omit this parameter to use the default.")] int? yieldTimeMs = null,
         [Description("Maximum output characters to return in this tool result.")] int? maxOutputChars = null,
         [Description("Keep stdin open so WriteStdin can send input to the running process. This is pipe-based, not a full PTY.")] bool interactive = false,
         [Description("Optional shell override. Defaults to the shell reported in the environment context.")] string? shell = null,
@@ -127,9 +127,10 @@ public sealed class ShellTools
             var snapshot = await _backgroundTerminals.WriteStdinAsync(
                 sessionId,
                 input,
-                yieldTimeMs ?? 1000,
+                yieldTimeMs ?? (input.Length == 0 ? 5000 : 1000),
                 maxOutputChars ?? _maxOutputLength,
                 cancellationToken);
+            await EmitTerminalInteractionAsync(snapshot, input);
             return SnapshotResult(snapshot, FormatSnapshot(snapshot));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -204,7 +205,7 @@ public sealed class ShellTools
                     Shell = stdinSession.Shell,
                     StdinSession = stdinSession,
                     TimeoutSeconds = _timeoutSeconds,
-                    YieldTimeMs = yieldTimeMs ?? 1000,
+                    YieldTimeMs = yieldTimeMs,
                     MaxOutputChars = maxOutputChars ?? _maxOutputLength
                 }, cancellationToken);
             }
@@ -217,16 +218,19 @@ public sealed class ShellTools
             var toolResult = runInBackground || snapshot.Status == BackgroundTerminalStatus.Running
                 ? FormatSnapshot(snapshot)
                 : FormatForegroundSnapshot(snapshot);
-            var status = snapshot.Status == BackgroundTerminalStatus.Running
-                ? "backgrounded"
-                : snapshot.Status == BackgroundTerminalStatus.Completed
-                    ? "completed"
-                    : snapshot.Status == BackgroundTerminalStatus.Killed || snapshot.Status == BackgroundTerminalStatus.TimedOut
-                        ? "cancelled"
-                        : "failed";
+            if (!runInBackground && snapshot.Status == BackgroundTerminalStatus.Running)
+            {
+                if (commandExecution != null)
+                {
+                    commandExecution.RecordTerminal(snapshot);
+                    _ = CompleteWhenTerminalEndsAsync(snapshot.SessionId, commandExecution, maxOutputChars ?? _maxOutputLength);
+                }
+                return SnapshotResult(snapshot, toolResult);
+            }
+
             commandExecution?.Complete(
                 toolResult,
-                status,
+                CommandExecutionTracker.StatusOf(snapshot),
                 snapshot.ExitCode,
                 snapshot.SessionId,
                 snapshot.OutputPath,
@@ -245,6 +249,40 @@ public sealed class ShellTools
             var error = ToolFailure.FromException(ex, "Command execution");
             commandExecution?.Complete(error.Message, status: "failed", exitCode: null);
             return ToolExecutionResult.Failed(error, error.Message);
+        }
+    }
+
+    private static async Task EmitTerminalInteractionAsync(BackgroundTerminalSnapshot snapshot, string input)
+    {
+        var runtime = CommandExecutionRuntimeScope.Current;
+        if ((input.Length == 0 && snapshot.Status != BackgroundTerminalStatus.Running)
+            || runtime?.EmitTerminalInteractionAsync is not { } emit
+            || !string.Equals(snapshot.ThreadId, runtime.ThreadId, StringComparison.Ordinal)
+            || snapshot.TurnId is not { } turnId
+            || snapshot.CallId is not { } callId)
+            return;
+
+        await emit(turnId, callId, new CommandExecutionTerminalInteraction { SessionId = snapshot.SessionId, Stdin = input });
+    }
+
+    private async Task CompleteWhenTerminalEndsAsync(
+        string sessionId,
+        CommandExecutionTracker commandExecution,
+        int maxOutputChars)
+    {
+        try
+        {
+            BackgroundTerminalSnapshot snapshot;
+            do
+            {
+                snapshot = await _backgroundTerminals.ReadAsync(sessionId, int.MaxValue, maxOutputChars);
+            }
+            while (snapshot.Status == BackgroundTerminalStatus.Running);
+
+            await commandExecution.CompleteFromTerminalAsync(snapshot, FormatForegroundSnapshot(snapshot), CommandExecutionTracker.StatusOf(snapshot));
+        }
+        catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException or IOException)
+        {
         }
     }
 
@@ -302,7 +340,7 @@ public sealed class ShellTools
         return sb.ToString().TrimEnd();
     }
 
-    private static string FormatForegroundSnapshot(BackgroundTerminalSnapshot snapshot)
+    internal static string FormatForegroundSnapshot(BackgroundTerminalSnapshot snapshot)
     {
         var output = string.IsNullOrWhiteSpace(snapshot.Output) ? "(no output)" : snapshot.Output;
         if (snapshot.Truncated)

@@ -1356,6 +1356,10 @@ public sealed partial class SessionService(
                 }.CommitAsync();
             }
 
+            var settledCommands = await SettleOrphanedCommandsAsync(thread, ct);
+            if (settledCommands)
+                await persistence.SaveThreadAsync(thread, ct);
+
             var runtime = _runtimeRegistry.SetThread(thread);
             runtime.Materialized = true;
             if (interruptedTurn != null)
@@ -1686,6 +1690,91 @@ public sealed partial class SessionService(
 
         await persistence.SaveThreadAsync(thread, ct);
         SetMaterializedIfCurrent(thread, materialized: true);
+    }
+
+    private async Task<bool> SettleOrphanedCommandsAsync(SessionThread thread, CancellationToken ct)
+    {
+        var settled = false;
+        foreach (var turn in thread.Turns.Where(static t =>
+                     t.Status is not (TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)))
+        {
+            foreach (var item in turn.Items)
+            {
+                if (item.Type != ItemType.CommandExecution
+                    || item.Status == ItemStatus.Completed
+                    || item.AsCommandExecution is not { } payload)
+                    continue;
+
+                BackgroundTerminalSnapshot? terminal = null;
+                if (!string.IsNullOrEmpty(payload.SessionId) && BackgroundTerminalService is { } terminals)
+                {
+                    try
+                    {
+                        terminal = await terminals.ReadAsync(payload.SessionId, ct: ct);
+                    }
+                    catch (KeyNotFoundException)
+                    {
+                    }
+                    if (terminal?.Status == BackgroundTerminalStatus.Running)
+                        continue;
+                }
+
+                item.Status = ItemStatus.Completed;
+                item.CompletedAt = terminal?.CompletedAt ?? DateTimeOffset.UtcNow;
+                item.Payload = terminal is null
+                    ? payload with { Status = "lost" }
+                    : payload with
+                    {
+                        Status = CommandExecutionTracker.StatusOf(terminal),
+                        AggregatedOutput = ShellTools.FormatForegroundSnapshot(terminal),
+                        ExitCode = terminal.ExitCode,
+                        OriginalOutputChars = terminal.OriginalOutputChars,
+                        Truncated = terminal.Truncated
+                    };
+                settled = true;
+            }
+        }
+
+        return settled;
+    }
+
+    private async Task PersistItemAfterTurnAsync(string threadId, string turnId, SessionItem item)
+    {
+        var thread = await GetOrLoadThreadAsync(threadId, CancellationToken.None);
+        var turn = thread.Turns.FirstOrDefault(t => string.Equals(t.Id, turnId, StringComparison.Ordinal));
+        if (turn is null || turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
+            return;
+
+        var index = turn.Items.FindIndex(i => string.Equals(i.Id, item.Id, StringComparison.Ordinal));
+        if (index < 0)
+            return;
+
+        turn.Items[index] = item;
+        await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+    }
+
+    private async Task EmitTerminalInteractionAsync(
+        string threadId,
+        string turnId,
+        string callId,
+        CommandExecutionTerminalInteraction interaction)
+    {
+        SessionThread thread;
+        try
+        {
+            thread = await GetOrLoadThreadAsync(threadId, CancellationToken.None);
+        }
+        catch (KeyNotFoundException)
+        {
+            return;
+        }
+
+        var item = thread.Turns
+            .FirstOrDefault(t => string.Equals(t.Id, turnId, StringComparison.Ordinal))?
+            .Items.FirstOrDefault(i => i.Type == ItemType.CommandExecution
+                && string.Equals(i.AsCommandExecution?.CallId, callId, StringComparison.Ordinal));
+        if (item is not null)
+            GetOrCreateBroker(threadId).PublishItemDelta(turnId, item.Id, interaction);
     }
 
     private async Task PersistTurnStateWithMaterializationAsync(

@@ -20,6 +20,10 @@ public sealed class CommandExecutionRuntimeContext
 
     public required bool SupportsCommandExecutionStreaming { get; init; }
 
+    public Func<SessionItem, Task>? PersistItemAfterTurnAsync { get; init; }
+
+    public Func<string, string, CommandExecutionTerminalInteraction, Task>? EmitTerminalInteractionAsync { get; init; }
+
     private readonly ConcurrentQueue<PendingCommandExecutionRegistration> _pending = new();
 
     private readonly ConcurrentQueue<PendingShellExecutionRegistration> _pendingShellExecutions = new();

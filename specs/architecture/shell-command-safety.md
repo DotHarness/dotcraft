@@ -255,6 +255,8 @@ An approval raised for standard input carries the input as its command and the s
 
 Denial reasons name the rejected command or option so the model can rewrite the command; single-quoting is the documented way to pass an argument the classifier would otherwise refuse.
 
+Plan mode and read-only roles accept `WriteStdin` only with empty input, which polls a command that has outlived its yield time; any other input is denied.
+
 ## 12. Configuration
 
 ```jsonc

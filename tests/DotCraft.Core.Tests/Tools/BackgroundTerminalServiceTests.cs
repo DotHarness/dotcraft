@@ -23,7 +23,6 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
             _tempDir,
             new AppConfig.ShellBackgroundConfig
             {
-                DefaultYieldTimeMs = 100,
                 MaxYieldTimeMs = 5000,
                 DefaultReadMaxOutputChars = 4000
             });
@@ -265,6 +264,28 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task StartAsync_ForegroundCommandOutlivingYield_KeepsRunningPastTheTimeout()
+    {
+        var started = await Service.StartAsync(new BackgroundTerminalStartRequest
+        {
+            ThreadId = "thread_yield",
+            Command = OperatingSystem.IsWindows()
+                ? "Start-Sleep -Milliseconds 1500; Write-Output 'after-yield'"
+                : "sleep 1.5; echo 'after-yield'",
+            WorkingDirectory = _tempDir,
+            TimeoutSeconds = 1,
+            YieldTimeMs = 100,
+            MaxOutputChars = 1000
+        });
+
+        Assert.Equal(BackgroundTerminalStatus.Running, started.Status);
+        Assert.Null(started.BackgroundReason);
+        var completed = await Service.ReadAsync(started.SessionId, waitMs: 5000);
+        Assert.Equal(BackgroundTerminalStatus.Completed, completed.Status);
+        Assert.Contains("after-yield", completed.Output);
+    }
+
+    [Fact]
     public async Task StartAsync_DisabledBackgroundMode_StillAllowsForegroundExecution()
     {
         var disabledRoot = Path.Combine(_tempDir, "disabled-background");
@@ -276,9 +297,10 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
         var completed = await disabledService.StartAsync(new BackgroundTerminalStartRequest
         {
             ThreadId = "thread_foreground_only",
-            Command = EchoCommand("foreground-still-runs"),
+            Command = DelayedEchoCommand("foreground-still-runs"),
             WorkingDirectory = disabledRoot,
             TimeoutSeconds = 5,
+            YieldTimeMs = 100,
             MaxOutputChars = 1000
         });
 

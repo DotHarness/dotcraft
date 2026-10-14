@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, memo, useEffect, useRef, useState, type ReactNode } from 'react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { ConversationItem } from '../../types/conversation'
 import { useLocale } from '../../contexts/LocaleContext'
@@ -679,6 +679,7 @@ export const ToolCallCard = memo(function ToolCallCard({
           locale={locale}
           workspacePath={workspacePath}
           shellCommand={shellCommand}
+          shellInputs={item.terminalInputs}
           planTodos={planTodos}
         />
         )}
@@ -710,6 +711,7 @@ interface ExpandedContentProps {
   locale: AppLocale
   workspacePath?: string
   shellCommand?: string
+  shellInputs?: string[]
   planTodos?: Array<{ id: string; content: string }>
 }
 
@@ -725,6 +727,7 @@ function ExpandedContent({
   locale,
   workspacePath,
   shellCommand,
+  shellInputs,
   planTodos
 }: ExpandedContentProps): JSX.Element {
   if (rendererFamily === 'createPlan') {
@@ -853,10 +856,14 @@ function ExpandedContent({
               marginBottom: '6px'
             }}
           >
-            <span aria-hidden style={{ color: 'var(--text-dimmed)' }}>$</span>
-            <span style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-              {shellCommand}
-            </span>
+            {[shellCommand, ...(shellInputs ?? [])].map((line, index) => (
+              <Fragment key={index}>
+                <span aria-hidden style={{ color: 'var(--text-dimmed)' }}>$</span>
+                <span style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                  {line}
+                </span>
+              </Fragment>
+            ))}
           </div>
         )}
         {output ? (

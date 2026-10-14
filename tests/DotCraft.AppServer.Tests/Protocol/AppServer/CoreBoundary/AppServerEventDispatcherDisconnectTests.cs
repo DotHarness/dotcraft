@@ -66,6 +66,43 @@ public sealed class AppServerEventDispatcherDisconnectTests
         }
     }
 
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public async Task RunAsync_TerminalInteraction_RequiresCommandExecutionStreaming(
+        bool commandExecutionStreaming,
+        int expectedNotifications)
+    {
+        using var harness = new AppServerTestHarness();
+        var transport = new CapturingTransport();
+        var evt = new SessionEvent
+        {
+            EventId = "e_terminal_interaction",
+            EventType = SessionEventType.ItemDelta,
+            ThreadId = "thread_001",
+            TurnId = "turn_001",
+            ItemId = "item_command_001",
+            Timestamp = DateTimeOffset.UtcNow,
+            Payload = new CommandExecutionTerminalInteraction { SessionId = "term_001", Stdin = string.Empty }
+        };
+        var dispatcher = new AppServerEventDispatcher(
+            TrackEvents([evt], []),
+            CreateReadyConnection(commandExecutionStreaming: commandExecutionStreaming),
+            transport,
+            harness.Service);
+
+        await dispatcher.RunAsync();
+
+        Assert.Equal(expectedNotifications, transport.Sent.Count);
+        if (expectedNotifications == 1)
+        {
+            var json = JsonSerializer.Serialize(Assert.Single(transport.Sent));
+            Assert.Contains(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandTerminalInteraction, json);
+            Assert.Contains("item_command_001", json);
+            Assert.Contains("term_001", json);
+        }
+    }
+
     [Fact]
     public async Task RunAsync_ReplayRecent_DoesNotSendHistoricalThreadStatusChanges()
     {
@@ -460,7 +497,8 @@ public sealed class AppServerEventDispatcherDisconnectTests
         bool backgroundTerminals = false,
         bool optOutTerminalDelta = false,
         bool toolExecutionLifecycle = false,
-        bool streamingSupport = true)
+        bool streamingSupport = true,
+        bool commandExecutionStreaming = false)
     {
         var connection = new AppServerConnection();
         Assert.True(connection.TryMarkInitialized(
@@ -473,6 +511,7 @@ public sealed class AppServerEventDispatcherDisconnectTests
                 McpApps = mcpApps,
                 BackgroundTerminals = backgroundTerminals,
                 ToolExecutionLifecycle = toolExecutionLifecycle,
+                CommandExecutionStreaming = commandExecutionStreaming,
                 OptOutNotificationMethods = optOutTerminalDelta
                     ? [DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalOutputDelta]
                     : []

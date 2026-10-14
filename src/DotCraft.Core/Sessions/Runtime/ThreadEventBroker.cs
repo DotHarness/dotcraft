@@ -227,6 +227,20 @@ internal sealed class ThreadEventBroker(string threadId)
         });
     }
 
+    public void PublishItemDelta(string turnId, string itemId, object payload)
+    {
+        Publish(new SessionEvent
+        {
+            EventId = NextEventId(),
+            EventType = SessionEventType.ItemDelta,
+            ThreadId = threadId,
+            TurnId = turnId,
+            ItemId = itemId,
+            Timestamp = DateTimeOffset.UtcNow,
+            Payload = payload
+        });
+    }
+
     /// <summary>
     /// Subscribes to thread events until the returned async sequence is cancelled or completed.
     /// </summary>
