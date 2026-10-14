@@ -124,7 +124,7 @@ console.log(result.text);
 - [**卫星**](https://www.dotcraft.net/zh/guide/satellite)：让你的 Agent 在另一台 Windows 电脑上工作。共享电脑的人可以选择完全访问或只开放一个文件夹，在屏幕顶部看到每个请求，并随时暂停共享。在 Desktop 打开 **设置 → 连接 → 卫星 → 邀请**，把链接发给对方，对方在那个页面下载 DotCraft Satellite。
 - [**Oratorio**](https://www.dotcraft.net/zh/guide/oratorio/)：内置在 Desktop 里的项目看板。本地任务、GitHub 的 issue 和 pull request、GitLab 的 issue 和 merge request 都汇集在同一块看板上；把卡片交给 Agent，跟进执行过程，评审结果。在 Desktop 侧边栏选择 **Oratorio**。[工作流](https://www.dotcraft.net/zh/guide/oratorio/workflow)
 - [**聊天机器人**](https://www.dotcraft.net/zh/guide/channels/)：把 DotCraft 拉进群聊，团队成员不用打开 Desktop 也能问项目的事。支持飞书、QQ、Telegram、企业微信和微信，这些对话和其他入口共用同一个工作区。在 Desktop 打开 **渠道**，选择平台并填写凭据。
-- [**Avatar**](https://www.dotcraft.net/zh/extend/sdks/typescript#avatar-包)：就是你在 Desktop 里看到的那个机器人，做成了 React 组件。它会随 Agent 的状态变化而动起来，160 多件收藏道具可以给它换装，同一个名字永远画出同一个形象。`npm install @dotcraft/avatar`
+- [**Avatar**](https://www.dotcraft.net/zh/extend/sdks/typescript#avatar-包)：DotCraft Desktop 内置桌宠和 Agent Profile 个性化形象背后的角色，开放为 React 组件 npm 包，方便你在自己的应用里集成展示。形象会随 Agent 的状态变化而动起来，160 多件收藏道具可以换装，同一个名字永远画出同一个形象。`npm install @dotcraft/avatar`
 
 ## 贡献代码
 
