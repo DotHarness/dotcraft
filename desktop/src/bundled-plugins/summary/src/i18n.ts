@@ -29,6 +29,10 @@ export interface SummaryStrings {
   readonly changeEnvironment: string
   readonly openTerminal: string
   readonly setUpEnvironment: string
+  readonly backgroundProcesses: string
+  readonly backgroundTerminal: string
+  readonly stopBackgroundTerminals: string
+  readonly stopBackgroundTerminalsFailed: string
 }
 
 const CATALOG: Record<SummaryLocale, SummaryStrings> = {
@@ -58,7 +62,11 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     addAction: 'Add action',
     changeEnvironment: 'Change environment',
     openTerminal: 'Open terminal',
-    setUpEnvironment: 'Set up local environment'
+    setUpEnvironment: 'Set up local environment',
+    backgroundProcesses: 'Background processes',
+    backgroundTerminal: 'Background terminal',
+    stopBackgroundTerminals: 'Stop all background terminals',
+    stopBackgroundTerminalsFailed: 'Unable to stop background terminals'
   },
   'zh-Hans': {
     panelLabel: '摘要',
@@ -86,7 +94,11 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     addAction: '添加操作',
     changeEnvironment: '更换环境',
     openTerminal: '打开终端',
-    setUpEnvironment: '设置本地环境'
+    setUpEnvironment: '设置本地环境',
+    backgroundProcesses: '后台进程',
+    backgroundTerminal: '后台终端',
+    stopBackgroundTerminals: '停止所有后台终端',
+    stopBackgroundTerminalsFailed: '无法停止后台终端'
   },
   ja: {
     panelLabel: 'サマリー',
@@ -114,7 +126,11 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     addAction: 'アクションを追加',
     changeEnvironment: '環境を変更',
     openTerminal: 'ターミナルを開く',
-    setUpEnvironment: 'ローカル環境をセットアップ'
+    setUpEnvironment: 'ローカル環境をセットアップ',
+    backgroundProcesses: 'バックグラウンドプロセス',
+    backgroundTerminal: 'バックグラウンドターミナル',
+    stopBackgroundTerminals: 'すべてのバックグラウンドターミナルを停止',
+    stopBackgroundTerminalsFailed: 'バックグラウンドターミナルを停止できません'
   },
   ko: {
     panelLabel: '요약',
@@ -142,7 +158,11 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     addAction: '작업 추가',
     changeEnvironment: '환경 변경',
     openTerminal: '터미널 열기',
-    setUpEnvironment: '로컬 환경 설정'
+    setUpEnvironment: '로컬 환경 설정',
+    backgroundProcesses: '백그라운드 프로세스',
+    backgroundTerminal: '백그라운드 터미널',
+    stopBackgroundTerminals: '모든 백그라운드 터미널 중지',
+    stopBackgroundTerminalsFailed: '백그라운드 터미널을 중지할 수 없습니다'
   },
   es: {
     panelLabel: 'Resumen',
@@ -170,7 +190,11 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     addAction: 'Añadir acción',
     changeEnvironment: 'Cambiar de entorno',
     openTerminal: 'Abrir terminal',
-    setUpEnvironment: 'Configurar entorno local'
+    setUpEnvironment: 'Configurar entorno local',
+    backgroundProcesses: 'Procesos en segundo plano',
+    backgroundTerminal: 'Terminal en segundo plano',
+    stopBackgroundTerminals: 'Detener todas las terminales en segundo plano',
+    stopBackgroundTerminalsFailed: 'No se pudieron detener las terminales en segundo plano'
   },
   fr: {
     panelLabel: 'Résumé',
@@ -198,7 +222,11 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     addAction: 'Ajouter une action',
     changeEnvironment: 'Changer d’environnement',
     openTerminal: 'Ouvrir un terminal',
-    setUpEnvironment: 'Configurer l’environnement local'
+    setUpEnvironment: 'Configurer l’environnement local',
+    backgroundProcesses: 'Processus en arrière-plan',
+    backgroundTerminal: 'Terminal en arrière-plan',
+    stopBackgroundTerminals: 'Arrêter tous les terminaux en arrière-plan',
+    stopBackgroundTerminalsFailed: 'Impossible d’arrêter les terminaux en arrière-plan'
   },
   de: {
     panelLabel: 'Übersicht',
@@ -226,7 +254,11 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     addAction: 'Aktion hinzufügen',
     changeEnvironment: 'Umgebung wechseln',
     openTerminal: 'Terminal öffnen',
-    setUpEnvironment: 'Lokale Umgebung einrichten'
+    setUpEnvironment: 'Lokale Umgebung einrichten',
+    backgroundProcesses: 'Hintergrundprozesse',
+    backgroundTerminal: 'Hintergrundterminal',
+    stopBackgroundTerminals: 'Alle Hintergrundterminals beenden',
+    stopBackgroundTerminalsFailed: 'Hintergrundterminals konnten nicht beendet werden'
   }
 }
 

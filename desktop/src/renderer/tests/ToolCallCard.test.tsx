@@ -200,7 +200,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    const { container } = renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
+    const { container } = renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" turnRunning />)
 
     expect(document.querySelector('pre')).toBeNull()
     expect(document.querySelector('.dc-spinner')).toBeNull()
@@ -230,7 +230,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" turnRunning />)
 
     const toolButton = screen.getByTestId('tool-row')
     expect(toolButton).toHaveTextContent('Running: npm run build')
@@ -563,7 +563,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: '2026-04-13T10:00:00.000Z'
     }
 
-    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" turnRunning />)
 
     expect(document.querySelector('[data-running-shimmer]')).toBeInTheDocument()
 
@@ -605,7 +605,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" turnRunning />)
 
     expect(document.querySelector('[data-running-shimmer]')).toBeInTheDocument()
     expect(screen.getByTestId('tool-row')).toHaveTextContent('Running: echo hello')
@@ -626,7 +626,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: '2026-04-13T10:00:00.000Z'
     }
 
-    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" turnRunning />)
     act(() => {
       useConversationStore.setState({
         shellRuntimeByCallId: new Map([[
@@ -659,7 +659,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" turnRunning />)
 
     expect(screen.getByText('Running: dotnet test --filter Session')).toBeInTheDocument()
     expect(screen.queryByText('Ran Exec')).not.toBeInTheDocument()
@@ -699,7 +699,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: '2026-04-13T10:00:00.000Z'
     } as ConversationItem
 
-    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" turnRunning />)
 
     expect(document.querySelector('[data-running-shimmer]')).toBeInTheDocument()
 
@@ -731,7 +731,7 @@ describe('ToolCallCard shell rendering', () => {
 
     const { rerender } = render(
       <LocaleProvider>
-        <ToolCallCard threadId="thread-1" item={runningItem} turnId="turn-1" />
+        <ToolCallCard threadId="thread-1" item={runningItem} turnId="turn-1" turnRunning />
       </LocaleProvider>
     )
 
@@ -745,7 +745,7 @@ describe('ToolCallCard shell rendering', () => {
 
     rerender(
       <LocaleProvider>
-        <ToolCallCard threadId="thread-1" item={completedItem} turnId="turn-1" />
+        <ToolCallCard threadId="thread-1" item={completedItem} turnId="turn-1" turnRunning />
       </LocaleProvider>
     )
 

@@ -19,7 +19,7 @@ public sealed record CommandExecutionPayload
     public string Source { get; init; } = "host";
 
     /// <summary>
-    /// "inProgress", "completed", "failed", "cancelled", "backgrounded", "killed", or "lost".
+    /// "inProgress", "completed", "failed", "cancelled", "killed", or "lost".
     /// </summary>
     public string Status { get; init; } = "inProgress";
 

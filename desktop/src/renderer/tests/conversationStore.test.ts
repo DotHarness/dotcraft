@@ -874,39 +874,7 @@ describe('turn lifecycle', () => {
     expect(s().shellRuntimeByCallId.size).toBe(0)
   })
 
-  it('ignores runInBackground terminal events for inline Exec tool output', () => {
-    s().onTurnStarted(makeTurn())
-    s().onItemStarted({
-      turnId: 'turn-1',
-      item: {
-        id: 'tool-terminal-background',
-        type: 'toolCall',
-        payload: {
-          callId: 'exec-terminal-background',
-          toolName: 'Exec', ...coreToolFields('Exec'),
-          arguments: { command: 'sleep 60' }
-        }
-      }
-    })
-
-    s().onTerminalEvent({
-      event: 'terminal/outputDelta',
-      terminal: {
-        threadId: 'thread-1',
-        turnId: 'turn-1',
-        callId: 'exec-terminal-background',
-        status: 'running',
-        backgroundReason: 'runInBackground',
-        output: 'still running\n'
-      },
-      delta: 'still running\n'
-    })
-
-    const toolItem = s().turns[0].items.find((i) => i.id === 'tool-terminal-background')
-    expect(toolItem?.aggregatedOutput).toBeUndefined()
-  })
-
-  it('keeps a shell card live after its tool returns while the command still runs', () => {
+  it.each([undefined, 'runInBackground'])('keeps a shell card live after its tool returns while the command still runs (%s)', (backgroundReason) => {
     vi.useFakeTimers()
     s().onTurnStarted(makeTurn())
     s().onItemStarted({
@@ -917,7 +885,7 @@ describe('turn lifecycle', () => {
         payload: { callId: 'exec-handed-back', toolName: 'Exec', ...coreToolFields('Exec'), arguments: { command: 'npm test' } }
       }
     })
-    const terminal = { threadId: 'thread-1', turnId: 'turn-1', callId: 'exec-handed-back' }
+    const terminal = { threadId: 'thread-1', turnId: 'turn-1', callId: 'exec-handed-back', backgroundReason }
     s().onTerminalEvent({ event: 'terminal/started', terminal: { ...terminal, status: 'running' } })
     s().onItemCompleted({
       turnId: 'turn-1',

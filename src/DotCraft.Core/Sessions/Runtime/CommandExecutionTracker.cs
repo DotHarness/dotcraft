@@ -161,7 +161,6 @@ internal sealed class CommandExecutionTracker
 
     public static string StatusOf(BackgroundTerminalSnapshot snapshot) => snapshot.Status switch
     {
-        BackgroundTerminalStatus.Running => "backgrounded",
         BackgroundTerminalStatus.Completed => "completed",
         BackgroundTerminalStatus.Killed or BackgroundTerminalStatus.TimedOut => "cancelled",
         BackgroundTerminalStatus.Lost => "lost",

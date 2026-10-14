@@ -184,6 +184,20 @@
   font-variant-numeric: tabular-nums;
 }
 
+.conversation-summary-row__trailing {
+  display: inline-flex;
+  flex: none;
+  margin: -2px -4px -2px auto;
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.conversation-summary-row:hover .conversation-summary-row__trailing,
+.conversation-summary-row__trailing:has(:focus-visible),
+.conversation-summary-row__trailing:has([aria-busy='true']) {
+  opacity: 1;
+}
+
 .conversation-summary-row[data-muted] .conversation-summary-row__label {
   color: var(--text-secondary);
 }

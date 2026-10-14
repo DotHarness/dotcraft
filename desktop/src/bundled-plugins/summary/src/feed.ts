@@ -14,11 +14,25 @@ export interface SummaryPlan {
   readonly total: number
 }
 
+export interface SummaryTerminal {
+  readonly sessionId: string
+  readonly command: string
+}
+
 export interface SummaryState {
   readonly subagents: readonly DesktopPluginSubAgent[]
   readonly automations: readonly SummaryAutomation[]
   readonly plan: SummaryPlan | null
   readonly items: readonly SummaryItem[]
+  readonly terminals: readonly SummaryTerminal[]
+}
+
+interface TerminalSnapshot {
+  readonly sessionId?: string
+  readonly threadId?: string
+  readonly turnId?: string | null
+  readonly command?: string
+  readonly status?: string
 }
 
 const ITEM_PAGE_LIMIT = 500
@@ -34,11 +48,16 @@ export function startSummaryFeed(
   const pendingItems: SummaryItem[] = []
   let reconcileInFlight = false
   let reconcileQueued = false
+  const runningTerminals = new Map<string, { command: string; turnId: string | null }>()
+  const endedTerminals = new Set<string>()
+  let activeTurnId: string | null = null
+  let runtimeReceived = false
   let state: SummaryState = {
     subagents: host.subagents.list(threadId),
     automations: [],
     plan: null,
-    items: []
+    items: [],
+    terminals: []
   }
 
   const publish = (patch: Partial<SummaryState>): void => {
@@ -61,6 +80,24 @@ export function startSummaryFeed(
       }
     }
     publish({ items: next })
+  }
+
+  const publishTerminals = (): void => publish({
+    terminals: [...runningTerminals]
+      .filter(([, terminal]) => !activeTurnId || terminal.turnId !== activeTurnId)
+      .map(([sessionId, terminal]) => ({ sessionId, command: terminal.command }))
+  })
+
+  const trackTerminal = (terminal: TerminalSnapshot | undefined, ended = false): boolean => {
+    const sessionId = terminal?.sessionId
+    if (!terminal || !sessionId || terminal.threadId !== threadId || endedTerminals.has(sessionId)) return false
+    if (!ended && terminal.status === 'running') {
+      runningTerminals.set(sessionId, { command: terminal.command ?? '', turnId: terminal.turnId ?? null })
+    } else {
+      endedTerminals.add(sessionId)
+      runningTerminals.delete(sessionId)
+    }
+    return true
   }
 
   const readItemsPage = (cursor: string | null) => host.appServer.request('thread/items/list', {
@@ -107,11 +144,24 @@ export function startSummaryFeed(
     }
   }
 
-  const loadPlan = async (): Promise<void> => {
+  const loadThread = async (): Promise<void> => {
     try {
       const result = await host.appServer.request('thread/read', { threadId })
       if (disposed) return
+      if (!runtimeReceived) activeTurnId = result.thread?.runtime?.activeTurnId ?? null
       publish({ plan: toPlan(result.thread?.plan) })
+      publishTerminals()
+    } catch {
+      return
+    }
+  }
+
+  const loadTerminals = async (): Promise<void> => {
+    try {
+      const result = await host.appServer.request('terminal/list', { threadId })
+      if (disposed) return
+      for (const terminal of result.terminals ?? []) trackTerminal(terminal)
+      publishTerminals()
     } catch {
       return
     }
@@ -179,13 +229,30 @@ export function startSummaryFeed(
   })
 
   const stopRuntime = host.appServer.onNotification('thread/status/changed', (params) => {
-    if (params.threadId === threadId) void reconcileRollback()
+    if (params.threadId !== threadId) return
+    runtimeReceived = true
+    const nextTurnId = params.runtime?.activeTurnId ?? null
+    if (nextTurnId !== activeTurnId) {
+      activeTurnId = nextTurnId
+      publishTerminals()
+    }
+    void reconcileRollback()
   })
+
+  const onTerminal = (ended: boolean) => (params: { terminal?: TerminalSnapshot }): void => {
+    if (trackTerminal(params.terminal, ended)) publishTerminals()
+  }
+  const stopTerminals = [
+    host.appServer.onNotification('terminal/started', onTerminal(false)),
+    host.appServer.onNotification('terminal/completed', onTerminal(true)),
+    host.appServer.onNotification('terminal/cleaned', onTerminal(true))
+  ]
 
   onChange(state)
   void loadHistory()
   void loadAutomations()
-  void loadPlan()
+  void loadThread()
+  void loadTerminals()
 
   return () => {
     disposed = true
@@ -195,6 +262,7 @@ export function startSummaryFeed(
     stopAutomations()
     stopTurnStarted()
     stopRuntime()
+    for (const stop of stopTerminals) stop()
   }
 }
 

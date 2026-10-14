@@ -638,10 +638,6 @@ function mergeCommandExecutionAcrossItems(
   return items.map((i) => mergeCommandExecutionIntoToolCall(i, commandExecution))
 }
 
-function isRunInBackgroundTerminal(terminal: Record<string, unknown>): boolean {
-  return terminal.backgroundReason === 'runInBackground'
-}
-
 function mergePendingTerminalEntry(
   previous: PendingTerminalEntry | undefined,
   terminal: Record<string, unknown>,
@@ -2040,8 +2036,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
   onTerminalEvent(params) {
     const terminal = params.terminal ?? {}
-    if (isRunInBackgroundTerminal(terminal)) return
-
     const callId = terminal.callId as string | undefined
     if (!callId) return
 

@@ -107,8 +107,10 @@ public sealed class SessionShellCancellationTests : IAsyncLifetime
                 && terminalEvent.Terminal.CallId == "call-shell").Terminal.Status);
     }
 
-    [Fact]
-    public async Task CommandOutlivingItsTurn_PersistsItsCompletionWhenTheProcessExits()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CommandOutlivingItsTurn_PersistsItsCompletionWhenTheProcessExits(bool runInBackground)
     {
         await using var terminals = new BackgroundTerminalService(
             _tempDir,
@@ -116,7 +118,7 @@ public sealed class SessionShellCancellationTests : IAsyncLifetime
         var command = OperatingSystem.IsWindows()
             ? "Start-Sleep -Milliseconds 1500; Write-Output 'after-turn'"
             : "sleep 1.5; echo 'after-turn'";
-        var chatClient = new ShellCallingChatClient(command, yieldTimeMs: 100);
+        var chatClient = new ShellCallingChatClient(command, yieldTimeMs: 100, runInBackground);
         var recorder = new ToolInvocationRecorderRouter();
         var dispatcher = new ToolDispatcher(recorder: recorder);
         await using var agentFactory = new AgentFactory(
@@ -189,7 +191,7 @@ public sealed class SessionShellCancellationTests : IAsyncLifetime
         }
     }
 
-    private sealed class ShellCallingChatClient(string command, int? yieldTimeMs = null) : IChatClient
+    private sealed class ShellCallingChatClient(string command, int? yieldTimeMs = null, bool runInBackground = false) : IChatClient
     {
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> chatMessages,
@@ -211,6 +213,8 @@ public sealed class SessionShellCancellationTests : IAsyncLifetime
             var arguments = new Dictionary<string, object?> { ["command"] = command };
             if (yieldTimeMs is { } yieldTime)
                 arguments["yieldTimeMs"] = yieldTime;
+            if (runInBackground)
+                arguments["runInBackground"] = true;
             yield return new ChatResponseUpdate(ChatRole.Assistant,
             [
                 new FunctionCallContent("call-shell", "Exec", arguments)

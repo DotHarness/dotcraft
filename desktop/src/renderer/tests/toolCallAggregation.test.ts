@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { aggregateToolCalls, isToolItemLive, planToolRunRender } from '../utils/toolCallAggregation'
+import { aggregateToolCalls, isToolItemLive, planToolRunRender, resolveShellBackgroundState } from '../utils/toolCallAggregation'
 import type { ConversationItem } from '../types/conversation'
 import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
 import { withTestCorePresentation } from './testToolPresentation'
@@ -479,5 +479,32 @@ describe('aggregateToolCalls memory calls', () => {
       ['single', '4'],
       ['single', '5']
     ])
+  })
+})
+
+describe('resolveShellBackgroundState', () => {
+  const live = makeItem(SHELL, 'Exec', 'live', { executionStatus: 'inProgress', terminalSessionId: 'term_1' })
+  const stopped = makeItem(SHELL, 'Exec', 'stopped', { executionStatus: 'cancelled', terminalSessionId: 'term_1', success: true })
+
+  it('leaves rows of a running turn in their in-turn state', () => {
+    expect(resolveShellBackgroundState(live, { turnRunning: true })).toBeNull()
+    expect(resolveShellBackgroundState(stopped, { turnRunning: true })).toBeNull()
+  })
+
+  it('marks a command still running after its turn as a background terminal', () => {
+    expect(resolveShellBackgroundState(live)).toBe('backgroundRunning')
+    expect(resolveShellBackgroundState(makeItem(SHELL, 'Exec', 'term', { executionStatus: 'completed', terminalRunning: true })))
+      .toBe('backgroundRunning')
+  })
+
+  it('marks a cancelled handed-back command as a stopped background terminal', () => {
+    expect(resolveShellBackgroundState(stopped)).toBe('backgroundStopped')
+  })
+
+  it('leaves other finished commands and non-shell tools alone', () => {
+    expect(resolveShellBackgroundState(makeItem(SHELL, 'Exec', 'a', { executionStatus: 'cancelled', success: true }))).toBeNull()
+    expect(resolveShellBackgroundState({ ...stopped, success: undefined })).toBeNull()
+    expect(resolveShellBackgroundState(makeItem(SHELL, 'Exec', 'b', { executionStatus: 'completed', terminalSessionId: 'term_1' }))).toBeNull()
+    expect(resolveShellBackgroundState(makeItem(EXPLORE, 'ReadFile', 'c', { status: 'streaming' }))).toBeNull()
   })
 })

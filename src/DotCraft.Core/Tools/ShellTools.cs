@@ -176,15 +176,12 @@ public sealed class ShellTools
                     return;
                 if (!string.Equals(evt.Terminal.CallId, callId, StringComparison.Ordinal))
                     return;
-                if (string.Equals(evt.Terminal.BackgroundReason, "runInBackground", StringComparison.Ordinal))
-                    return;
 
                 commandExecution?.Append(evt.Delta, mirrorsTerminalOutput: true);
             }
 
             var shouldForwardTerminalDelta =
-                !runInBackground
-                && commandExecution != null
+                commandExecution != null
                 && !string.IsNullOrWhiteSpace(callId);
             if (shouldForwardTerminalDelta)
                 terminals.TerminalEvent += ForwardForegroundTerminalDelta;
@@ -218,7 +215,7 @@ public sealed class ShellTools
             var toolResult = runInBackground || snapshot.Status == BackgroundTerminalStatus.Running
                 ? FormatSnapshot(snapshot)
                 : FormatForegroundSnapshot(snapshot);
-            if (!runInBackground && snapshot.Status == BackgroundTerminalStatus.Running)
+            if (snapshot.Status == BackgroundTerminalStatus.Running)
             {
                 if (commandExecution != null)
                 {
