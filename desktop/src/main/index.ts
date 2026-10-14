@@ -211,6 +211,7 @@ import {
 import {
   applyWorkspaceThreadListRequestResult,
   applyWorkspaceThreadNotificationToCache,
+  beginWorkspaceThreadListRequest,
   refreshWorkspaceThreadListCache
 } from './workspaceThreadCache'
 
@@ -452,11 +453,12 @@ function observeAppServerRequestCompletion(
   client: DesktopAppServerClient,
   method: string,
   params: unknown,
-  result: unknown
+  result: unknown,
+  requestGeneration?: number
 ): void {
   const entry = findWorkspaceConnectionByClient(client)
   if (!entry) return
-  if (applyWorkspaceThreadListRequestResult(entry, method, params, result)) {
+  if (applyWorkspaceThreadListRequestResult(entry, method, params, result, requestGeneration)) {
     emitWorkspaceProjects()
     return
   }
@@ -2889,8 +2891,12 @@ function buildCallbacks(): IpcHandlerCallbacks {
       // secondary project group immediately (thread/list omits archived threads).
       await refreshConnectionThreadList(entry)
     },
-    onAppServerRequestCompleted: (client, method, params, result) => {
-      observeAppServerRequestCompletion(client, method, params, result)
+    onAppServerRequestStarted: (client, method, params) => {
+      const entry = findWorkspaceConnectionByClient(client)
+      return entry ? beginWorkspaceThreadListRequest(entry, method, params) : undefined
+    },
+    onAppServerRequestCompleted: (client, method, params, result, requestGeneration) => {
+      observeAppServerRequestCompletion(client, method, params, result, requestGeneration)
     },
     getUserInputAutoResolutionSnapshot: () => userInputAutoResolution.getSnapshot(),
     onUserInputConversationPresented: (threadId) => {

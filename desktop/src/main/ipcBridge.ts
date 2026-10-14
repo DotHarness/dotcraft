@@ -798,12 +798,18 @@ export interface IpcHandlerCallbacks {
   clearProjects?: () => Promise<void>
   getConnectionStatus: () => ConnectionStatusPayload
   getWorkspaceStatus: () => WorkspaceStatusPayload
+  onAppServerRequestStarted?: (
+    client: DesktopAppServerClient,
+    method: string,
+    params: unknown
+  ) => number | undefined
   /** Observes only successful renderer AppServer requests, feeding Desktop-local routing state. */
   onAppServerRequestCompleted?: (
     client: DesktopAppServerClient,
     method: string,
     params: unknown,
-    result: unknown
+    result: unknown,
+    requestGeneration?: number
   ) => void
   getUserInputAutoResolutionSnapshot?: () => UserInputAutoResolutionState[]
   onUserInputConversationPresented?: (threadId: string | null) => void
@@ -988,8 +994,10 @@ export function registerIpcHandlers(
     onCompleted?: (
       client: DesktopAppServerClient,
       requestParams: unknown,
-      result: unknown
-    ) => void
+      result: unknown,
+      requestGeneration?: number
+    ) => void,
+    onStarted?: (client: DesktopAppServerClient, requestParams: unknown) => number | undefined
   ): Promise<unknown> => {
     try {
       const client = getWireClient()
@@ -1001,10 +1009,11 @@ export function registerIpcHandlers(
         method === 'auth/openai/status' ? {} : params ?? {},
         callbacks?.getWorkspaceStatus().workspacePath
       )
+      const requestGeneration = onStarted?.(client, requestParams)
       const result = await sendDesktopAppServerRequest(client, method, requestParams, timeoutMs, {
         supportsDynamicToolRebind: callbacks?.getConnectionStatus().capabilities?.dynamicToolRebind === true
       })
-      onCompleted?.(client, requestParams, result)
+      onCompleted?.(client, requestParams, result, requestGeneration)
       return result
     } catch (error) {
       return toAppServerErrorEnvelope(error)
@@ -1014,9 +1023,9 @@ export function registerIpcHandlers(
   handleSafe(
     'appserver:send-request',
     (_event, method: string, params?: unknown, timeoutMs?: number) => (
-      sendAppServerRequest(method, params, timeoutMs, (client, requestParams, result) => {
-        callbacks?.onAppServerRequestCompleted?.(client, method, requestParams, result)
-      })
+      sendAppServerRequest(method, params, timeoutMs, (client, requestParams, result, requestGeneration) => {
+        callbacks?.onAppServerRequestCompleted?.(client, method, requestParams, result, requestGeneration)
+      }, (client, requestParams) => callbacks?.onAppServerRequestStarted?.(client, method, requestParams))
     )
   )
 

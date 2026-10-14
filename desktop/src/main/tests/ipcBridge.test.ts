@@ -138,7 +138,7 @@ import { setDesktopServiceHandoffHandler } from '../desktopServiceHandoff'
 import { SshMachinesManager } from '../sshMachines/sshMachinesManager'
 import { normalizeSshMachines } from '../../shared/sshMachines'
 import { unwrapAppServerResult } from '../../shared/appServerError'
-import { applyWorkspaceThreadListRequestResult } from '../workspaceThreadCache'
+import { applyWorkspaceThreadListRequestResult, beginWorkspaceThreadListRequest } from '../workspaceThreadCache'
 import { setLocalChatsFolderRootsResolver } from '../chatFolderAccess'
 import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
 import { isTerminalCwdAllowed } from '../viewerTerminalIpc'
@@ -403,11 +403,16 @@ describe('registerIpcHandlers', () => {
     const entryB = { workspacePath: '/project-b', threads: [], errorMessage: 'thread/list timed out' }
     const entries = new Map([[clientA, entryA], [clientB, entryB]])
     let foreground = clientA
-    const onCompleted = vi.fn((client, method, params, result) => {
+    const onStarted = vi.fn((client, method, params) => {
       const entry = entries.get(client)
-      if (entry) applyWorkspaceThreadListRequestResult(entry, method, params, result)
+      return entry ? beginWorkspaceThreadListRequest(entry, method, params) : undefined
+    })
+    const onCompleted = vi.fn((client, method, params, result, generation) => {
+      const entry = entries.get(client)
+      if (entry) applyWorkspaceThreadListRequestResult(entry, method, params, result, generation)
     })
     const handlers = registerHandlersForTest('/project-a', () => foreground as never, createIpcCallbacks({
+      onAppServerRequestStarted: onStarted,
       onAppServerRequestCompleted: onCompleted
     }))
     const params = (workspacePath: string) => ({ identity: { workspacePath }, scope: 'workspace', includeSubAgents: true })
@@ -418,8 +423,8 @@ describe('registerIpcHandlers', () => {
     resolveA(resultA)
     await expect(pendingA).resolves.toEqual(resultA)
 
-    expect(onCompleted).toHaveBeenCalledWith(clientA, 'thread/list', params('/project-a'), resultA)
-    expect(onCompleted).toHaveBeenCalledWith(clientB, 'thread/list', params('/project-b'), resultB)
+    expect(onCompleted).toHaveBeenCalledWith(clientA, 'thread/list', params('/project-a'), resultA, expect.any(Number))
+    expect(onCompleted).toHaveBeenCalledWith(clientB, 'thread/list', params('/project-b'), resultB, expect.any(Number))
     expect(entryA.threads).toEqual(resultA.data)
     expect(entryB.threads).toEqual(resultB.data)
     expect(entryA.errorMessage).toBeUndefined()
@@ -428,6 +433,39 @@ describe('registerIpcHandlers', () => {
     expect(entries.get(foreground)?.threads).toEqual(resultA.data)
     foreground = clientB
     expect(entries.get(foreground)?.threads).toEqual(resultB.data)
+  })
+
+  it('captures foreground list generations before dispatch and rejects out-of-order IPC completions', async () => {
+    const entry = { workspacePath: '/workspace', threads: [], errorMessage: 'prior timeout' }
+    const params = { identity: { workspacePath: '/workspace' }, scope: 'workspace', includeSubAgents: true }
+    const resolvers: Array<(result: { data: unknown[] }) => void> = []
+    const onStarted = vi.fn((_client, method, requestParams) => beginWorkspaceThreadListRequest(entry, method, requestParams))
+    const onCompleted = vi.fn((_client, method, requestParams, result, generation) =>
+      applyWorkspaceThreadListRequestResult(entry, method, requestParams, result, generation)
+    )
+    const client = {
+      sendRequest: vi.fn(() => {
+        expect(onStarted).toHaveBeenCalledTimes(resolvers.length + 1)
+        return new Promise<{ data: unknown[] }>((resolve) => resolvers.push(resolve))
+      })
+    }
+    const handlers = registerHandlersForTest('/workspace', () => client as never, createIpcCallbacks({
+      onAppServerRequestStarted: onStarted,
+      onAppServerRequestCompleted: onCompleted
+    }))
+    const older = handlers.get('appserver:send-request')?.({}, 'thread/list', params)
+    const newer = handlers.get('appserver:send-request')?.({}, 'thread/list', params)
+    const result = { data: [{ id: 'existing' }, { id: 'newly-loaded' }] }
+
+    resolvers[1](result)
+    await expect(newer).resolves.toEqual(result)
+    expect(entry.threads).toEqual(result.data)
+    resolvers[0]({ data: [{ id: 'existing' }] })
+    await older
+
+    expect(entry.threads).toEqual(result.data)
+    expect(entry.errorMessage).toBeUndefined()
+    expect(onCompleted.mock.results.map((call) => call.value)).toEqual([true, false])
   })
 
   it('carries a JSON-RPC code and data through to the preload-side Error', async () => {
@@ -726,7 +764,8 @@ describe('registerIpcHandlers', () => {
       client,
       'thread/subscribe',
       params,
-      result
+      result,
+      undefined
     )
   })
 

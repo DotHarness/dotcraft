@@ -174,19 +174,39 @@ export function applyWorkspaceThreadListRefreshSuccess(
   entry.errorMessage = undefined
 }
 
-export function applyWorkspaceThreadListRequestResult(
+function isCompleteWorkspaceThreadListRequest(
   entry: WorkspaceThreadListRefreshState & { workspacePath: string },
   method: string,
-  params: unknown,
-  result: unknown
+  params: unknown
 ): boolean {
-  if (method !== 'thread/list' || !isRecord(params) || !isRecord(result) || !Array.isArray(result.data)) return false
+  if (method !== 'thread/list' || !isRecord(params)) return false
   const identity = isRecord(params.identity) ? params.identity : null
   if (!sameWorkspaceProjectKey(stringField(identity?.workspacePath), entry.workspacePath)) return false
   if (params.scope !== 'workspace' || params.includeSubAgents !== true) return false
   if (params.includeArchived === true || params.includeInternal === true) return false
   if (params.limit != null || stringField(params.cursor) || stringField(params.query) || stringField(params.channelName)) return false
-  if (result.nextCursor != null) return false
+  return true
+}
+
+export function beginWorkspaceThreadListRequest(
+  entry: WorkspaceThreadListRefreshState & { workspacePath: string },
+  method: string,
+  params: unknown
+): number | undefined {
+  if (!isCompleteWorkspaceThreadListRequest(entry, method, params)) return undefined
+  return advanceThreadListRevision(entry)
+}
+
+export function applyWorkspaceThreadListRequestResult(
+  entry: WorkspaceThreadListRefreshState & { workspacePath: string },
+  method: string,
+  params: unknown,
+  result: unknown,
+  requestGeneration: number | undefined
+): boolean {
+  if (requestGeneration == null || threadListRevisions.get(entry) !== requestGeneration) return false
+  if (!isCompleteWorkspaceThreadListRequest(entry, method, params)) return false
+  if (!isRecord(result) || !Array.isArray(result.data) || result.nextCursor != null) return false
 
   applyWorkspaceThreadListRefreshSuccess(entry, result.data)
   return true
