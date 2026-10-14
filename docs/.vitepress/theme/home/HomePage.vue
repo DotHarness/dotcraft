@@ -5,7 +5,6 @@ import HomeHarness from './HomeHarness.vue'
 import HomeHero from './HomeHero.vue'
 import HomeProducts from './HomeProducts.vue'
 import HomeTour from './HomeTour.vue'
-import HomeWhy from './HomeWhy.vue'
 import { homeCopy, type Locale } from './copy'
 import { localHref, provideHome, type InstallOs } from './home'
 import './home.css'
@@ -29,10 +28,9 @@ onMounted(() => {
 <template>
   <div class="dc-sheet">
     <HomeHero />
-    <HomeWhy />
     <HomeTour />
-    <HomeProducts />
     <HomeHarness />
+    <HomeProducts />
     <HomeClose />
   </div>
 </template>

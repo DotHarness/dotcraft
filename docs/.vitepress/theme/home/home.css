@@ -129,9 +129,10 @@
 }
 
 .dc-close .dc-backdrop {
-  inset: 0;
-  -webkit-mask-image: linear-gradient(180deg, transparent, #000 32%);
-  mask-image: linear-gradient(180deg, transparent, #000 32%);
+  --fade: linear-gradient(180deg, transparent, rgb(0 0 0 / 0.05) 70px, rgb(0 0 0 / 0.2) 150px, rgb(0 0 0 / 0.48) 230px, rgb(0 0 0 / 0.8) 310px, #000 380px);
+  inset: 120px 0 0;
+  -webkit-mask-image: var(--fade);
+  mask-image: var(--fade);
 }
 
 .dc-field {
@@ -229,7 +230,7 @@
 }
 
 .dc-close {
-  padding-top: 168px;
+  padding-top: 360px;
   text-align: center;
 }
 
@@ -316,8 +317,12 @@
   }
 
   .dc-close {
-    padding-top: 112px;
+    padding-top: 260px;
     text-align: left;
+  }
+
+  .dc-close .dc-backdrop {
+    top: 80px;
   }
 
   .dc-close__composer {

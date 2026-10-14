@@ -2123,9 +2123,9 @@ on a generated, fully defocused colour-field image in a light and a dark
 variant. The field drifts slowly, warping the same image so its colours never
 change; reduced motion or a missing WebGL context leaves it still. It fills the
 hero edge to edge from the top of the window and fades into the main surface
-behind the demo window. The closing field fades in above the call to action and
-runs to the bottom of the page, carrying the footer with no rule or surface
-change. Copy over it uses frosted or near-primary text so it stays legible.
+behind the demo window. The closing field starts a clear gap below the section
+before it, fades in on an eased ramp, so no edge or band shows, and runs to the
+bottom of the page, carrying the footer with no rule or surface change. Copy over it uses frosted or near-primary text so it stays legible.
 
 - A chrome-tone band runs across the top of every page. On the home page it
   carries only the lockup, language, appearance, and GitHub, with no section
@@ -2134,6 +2134,9 @@ change. Copy over it uses frosted or near-primary text so it stays legible.
   page scrolls. Content pages
   add the Desktop sidebar, with its sentence-case group labels, row grammar, and
   collapsible groups, and set the page on the main surface.
+- The home page runs hero, tour, Harness, product cards, then the closing call to
+  action. Each section says something the others do not; feature checklists that
+  repeat the tour or the README stay off the home page.
 - Every product visual on the home page sits on the same colour field: the tour
   media (a light and a dark file, picked by the site theme), the product cards,
   and the Harness code window. Each shows a different slice of the field, and the

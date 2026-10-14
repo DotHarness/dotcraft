@@ -23,9 +23,8 @@ const docs = resolve(repo, 'docs')
 const harnessPage = resolve(docs, 'extend/harness/index.md')
 
 const lucide = [
-  'app-window', 'arrow-right', 'blocks', 'bot', 'check', 'chevron-down', 'chevron-right', 'circuit-board', 'copy', 'cpu',
-  'download', 'external-link', 'file-code', 'layers', 'layout-dashboard', 'monitor', 'mouse-pointer-2', 'plug-zap',
-  'puzzle', 'server', 'sparkles'
+  'arrow-right', 'blocks', 'bot', 'check', 'chevron-down', 'chevron-right', 'copy', 'cpu', 'download', 'external-link',
+  'file-code', 'layers', 'monitor', 'mouse-pointer-2', 'puzzle'
 ]
 const simple = ['android', 'apple', 'dotnet', 'github', 'linux', 'npm', 'nuget', 'windows']
 

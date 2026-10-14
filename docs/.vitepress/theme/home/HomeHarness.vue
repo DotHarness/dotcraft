@@ -14,7 +14,7 @@ const { t, href } = useHome()
         <h2 id="harness-title" class="dc-harness__title">{{ t.harness.title }}</h2>
         <div class="dc-points">
           <div v-for="point in t.harness.points" :key="point.title" class="dc-point">
-            <span class="dc-row__mark"><Icon :name="point.icon" :size="18" /></span>
+            <span class="dc-point__mark"><Icon :name="point.icon" :size="18" /></span>
             <div>
               <h3>{{ point.title }}</h3>
               <p>{{ point.text }}</p>

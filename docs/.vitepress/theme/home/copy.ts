@@ -5,13 +5,6 @@ export interface Link {
   href: string
 }
 
-export interface Row {
-  icon: string
-  label: string
-  hint: string
-  href: string
-}
-
 export interface Story {
   icon: string
   name: string
@@ -83,31 +76,6 @@ export const homeCopy = {
       load: 'Load the live demo',
       frame: 'DotCraft Desktop live demo'
     },
-    why: {
-      title: 'Why DotCraft?',
-      groups: [
-        {
-          title: 'Run the app',
-          link: { text: 'Getting Started', href: '/start/' },
-          rows: [
-            { icon: 'sparkles', label: 'Ready out of the box', hint: 'Plan, subagents, automations and the in-app browser, built in.', href: '/guide/' },
-            { icon: 'app-window', label: 'Works in your apps', hint: 'Agents operate the Windows apps you allow.', href: '/start/desktop' },
-            { icon: 'layers', label: 'Pick up anywhere', hint: 'Desktop, CLI, editors, your phone and chat bots share one workspace.', href: '/start/entry-points' },
-            { icon: 'server', label: 'Your models, your costs', hint: 'Any compatible provider or ChatGPT, with keys kept on one machine.', href: '/self-hosting/server-deployment' }
-          ]
-        },
-        {
-          title: 'Embed and extend',
-          link: { text: 'DotCraft Harness', href: '/extend/harness/' },
-          rows: [
-            { icon: 'circuit-board', label: 'Build it into your product', hint: 'Embed the runtime behind Desktop in your .NET app.', href: '/extend/harness/' },
-            { icon: 'plug-zap', label: 'Connect existing products', hint: 'Bring agents in through the SDKs and App Binding.', href: '/extend/sdks/' },
-            { icon: 'dotnet', label: '.NET plugins', hint: 'Add tools and commands; the agent can write and hot-swap them.', href: '/extend/dotnet-plugins' },
-            { icon: 'layout-dashboard', label: 'Desktop plugins', hint: "React plugins reshape Desktop's interface.", href: '/extend/desktop-plugins' }
-          ]
-        }
-      ]
-    },
     tour: {
       title: 'From the app to your own product.',
       readMore: 'Read more',
@@ -162,31 +130,6 @@ export const homeCopy = {
       try: '试一试 Live Demo',
       load: '加载交互演示',
       frame: 'DotCraft Desktop 交互演示'
-    },
-    why: {
-      title: '为什么选择 DotCraft？',
-      groups: [
-        {
-          title: '直接运行',
-          link: { text: '快速开始', href: '/start/' },
-          rows: [
-            { icon: 'sparkles', label: '开箱即用', hint: '计划、子智能体、自动化和应用内浏览器都已内置。', href: '/guide/' },
-            { icon: 'app-window', label: '操作你的应用', hint: 'Agent 可以操作你允许的 Windows 应用。', href: '/start/desktop' },
-            { icon: 'layers', label: '随处接着做', hint: 'Desktop、CLI、编辑器、手机和聊天机器人共用一个工作区。', href: '/start/entry-points' },
-            { icon: 'server', label: '模型和成本由你掌控', hint: '任选兼容的模型服务或 ChatGPT 订阅，密钥可由一台机器统一保管。', href: '/self-hosting/server-deployment' }
-          ]
-        },
-        {
-          title: '嵌入与扩展',
-          link: { text: 'DotCraft Harness', href: '/extend/harness/' },
-          rows: [
-            { icon: 'circuit-board', label: '装进你的产品', hint: '把 Desktop 背后的运行时嵌入你的 .NET 应用。', href: '/extend/harness/' },
-            { icon: 'plug-zap', label: '接入现有产品', hint: '通过 SDK 和 App Binding 把 Agent 带进现有产品。', href: '/extend/sdks/' },
-            { icon: 'dotnet', label: '.NET 插件', hint: '添加工具和命令，Agent 还能自己编写并热替换。', href: '/extend/dotnet-plugins' },
-            { icon: 'layout-dashboard', label: 'Desktop 插件', hint: 'React 插件可以改造 Desktop 的界面。', href: '/extend/desktop-plugins' }
-          ]
-        }
-      ]
     },
     tour: {
       title: '从应用到你自己的产品。',

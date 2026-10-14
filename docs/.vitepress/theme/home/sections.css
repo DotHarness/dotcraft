@@ -1,101 +1,3 @@
-.dc-why {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 28px;
-}
-
-.dc-group {
-  display: flex;
-  flex-direction: column;
-}
-
-.dc-group__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 0 2px;
-}
-
-.dc-group__head h3 {
-  font-size: 17px;
-  font-weight: 600;
-  line-height: 24px;
-}
-
-.dc-card {
-  overflow: hidden;
-  border: 1px solid var(--border-default);
-  border-radius: 12px;
-  background: var(--bg-secondary);
-}
-
-.dc-group .dc-card {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  margin-top: 10px;
-}
-
-.dc-row {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 14px;
-  min-height: 76px;
-  padding: 14px 18px 14px 16px;
-  transition: background-color var(--duration-fast) ease;
-}
-
-.dc-row + .dc-row {
-  box-shadow: inset 0 1px 0 var(--border-default);
-}
-
-.dc-row:hover {
-  background: var(--bg-hover);
-}
-
-.dc-row__mark {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.dc-row__copy {
-  flex: 1;
-  min-width: 0;
-}
-
-.dc-row__label {
-  display: block;
-  font-size: var(--type-body-size);
-  font-weight: 600;
-  line-height: 20px;
-}
-
-.dc-row__hint {
-  display: block;
-  margin-top: 2px;
-  color: var(--text-secondary);
-  font-size: 13.5px;
-  line-height: 20px;
-}
-
-.dc-row__go {
-  color: var(--text-dimmed);
-  transition: color var(--duration-fast) ease;
-}
-
-.dc-row:hover .dc-row__go {
-  color: var(--text-primary);
-}
-
 .dc-tour-scroll[data-pinned] {
   height: calc(var(--tour-steps) * 75vh + 100vh - var(--vp-nav-height));
 }
@@ -429,10 +331,6 @@
 }
 
 @media (max-width: 980px) {
-  .dc-why {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .dc-tour {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -471,15 +369,6 @@
   .dc-products {
     grid-template-columns: minmax(0, 1fr);
     gap: 40px;
-  }
-
-  .dc-row {
-    align-items: flex-start;
-    padding: 14px;
-  }
-
-  .dc-row__go {
-    display: none;
   }
 
   .dc-tour__line {
