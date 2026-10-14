@@ -55,7 +55,6 @@ export function useDetailPanelTabClose(): DetailPanelTabClose {
     if (closing.kind === 'file' && closing.contentClass === 'text') {
       const saved = await useFileEditorStore.getState().save(tabId)
       if (!saved) {
-        if (useFileEditorStore.getState().sessions.get(tabId)?.review) return false
         const discard = await confirm({
           title: t('viewer.discardChangesTitle'),
           message: t('viewer.discardChangesMessage'),

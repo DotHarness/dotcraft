@@ -213,7 +213,7 @@ describe('file editor sessions', () => {
       expect(disk.text).toBe(choice === 'reject' ? 'disk' : 'local')
     }
   )
-  it('blocks saving, mode switching and closing during unresolved review', async () => {
+  it('blocks saving and mode switching during unresolved review', async () => {
     await open(true)
     store().updateText('tab', 'local')
     await external('disk')

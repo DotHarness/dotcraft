@@ -132,6 +132,7 @@ function applyDisk(tabId: string, result: ReadTextResult): void {
     return {
       ...session,
       saveState: 'conflict',
+      error: undefined,
       review: {
         disk,
         oldText: clean ? session.text : disk.text,
