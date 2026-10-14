@@ -8,11 +8,11 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
 [![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-lightgrey)](https://github.com/DotHarness/dotcraft/releases)
 
-[中文](./README_ZH.md) · [Documentation](https://www.dotcraft.net/) · [Quick Start](https://www.dotcraft.net/start/) · [Releases](https://github.com/DotHarness/dotcraft/releases) · [License](./LICENSE)
+[中文](./README_ZH.md) · [Documentation](https://www.dotcraft.net/) · [Live demo](https://www.dotcraft.net/demo/) · [Quick Start](https://www.dotcraft.net/start/)
 
 </div>
 
-DotCraft is an open-source AI agent that runs on your own machine. Use the desktop app to code and get work done, keep up with it from your phone, or build the same agent into your own apps and extend it with plugins.
+DotCraft is an open-source agent runtime that runs on your own machine. Use the desktop app to code and get work done, keep up with it from your phone, or build the same agent into your own apps and extend it with plugins.
 
 ## Why DotCraft
 
@@ -49,10 +49,6 @@ See [Getting started](https://www.dotcraft.net/start/) for the full walkthrough.
 
 A workbench where the agent plans in your project, hands parts to subagents, and checks the result before it says done.
 
-**Get it:** [Download](https://github.com/DotHarness/dotcraft/releases) for Windows, macOS or Linux.
-
-<p align="center"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/desktop-strip.webp" width="830" alt="Four Desktop features in turn: the in-app browser checking your app's settings page, Computer Use working in another Windows app, Agent Builder setting up a new agent, and the pet finding Dragon wings to wear."></p>
-
 **Ready out of the box**
 
 - **Plan** drafts the steps first and waits for your go-ahead.
@@ -87,41 +83,11 @@ dotcraft exec "Which colors in src/components are still hard-coded?"
 
 [Entry points](https://www.dotcraft.net/start/entry-points) · [IDEs](https://www.dotcraft.net/start/editors)
 
-## Satellite
-
-<p align="center"><a href="https://www.dotcraft.net/guide/satellite"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-satellite.png" width="830" alt="Another PC's screen with the Satellite capsule at the top: Ann is requesting access to run npm run test:contrast, with Deny and Allow once."></a></p>
-
-Let your agent work on another Windows PC. The person sharing it chooses full access or one folder, sees every request at the top of the screen, and can pause sharing at any time.
-
-**Get it:** in Desktop, open **Settings → Connections → Satellites → Invite** and send the link. The other PC downloads DotCraft Satellite from that page.
-
-[Satellite guide](https://www.dotcraft.net/guide/satellite)
-
-## Oratorio
-
-<p align="center"><a href="https://www.dotcraft.net/guide/oratorio/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-oratorio.png" width="830" alt="The Oratorio board: one issue in progress with the agent working on it, one pull request in review with checks passing."></a></p>
-
-Your project board, built into Desktop. Local tasks, GitHub issues and pull requests, and GitLab issues and merge requests land on one board; hand a card to the agent, follow the run, review the result.
-
-**Get it:** built in. Select **Oratorio** in the Desktop sidebar.
-
-[Oratorio guide](https://www.dotcraft.net/guide/oratorio/) · [Workflow](https://www.dotcraft.net/guide/oratorio/workflow)
-
-## Chat bots
-
-<p align="center"><a href="https://www.dotcraft.net/guide/channels/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-chat-bots.png" width="830" alt="The Channels page in Desktop with Feishu, QQ, Telegram and WeCom connected."></a></p>
-
-Put DotCraft in the group chat so teammates can ask about the project without opening Desktop. Feishu / Lark, QQ, Telegram, WeCom and WeChat connect, and their conversations share the workspace with every other entry point.
-
-**Get it:** built in. Open **Channels** in Desktop, pick a platform and fill in its credentials.
-
-[Channels & bots](https://www.dotcraft.net/guide/channels/)
-
-## Harness
+## Build it into your product
 
 <p align="center"><a href="https://www.dotcraft.net/extend/harness/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-harness.png" width="830" alt="Program.cs creating a thread with ISessionService and streaming the agent's reply as it is written."></a></p>
 
-The whole agent runtime behind DotCraft Desktop, inside your own .NET app: sessions, tools, approvals and model providers, on your host's lifecycle.
+**Harness** puts the whole agent runtime behind DotCraft Desktop inside your own .NET app: sessions, tools, approvals and model providers, on your host's lifecycle.
 
 ```bash
 dotnet add package DotCraft.Harness
@@ -136,13 +102,7 @@ using var host = builder.Build();
 await host.StartAsync();
 ```
 
-[Harness guide](https://www.dotcraft.net/extend/harness/) · [.NET plugins](https://www.dotcraft.net/extend/dotnet-plugins)
-
-## SDKs
-
-<p align="center"><a href="https://www.dotcraft.net/extend/sdks/quickstart"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-sdks.png" width="830" alt="app.ts starting a thread with the TypeScript SDK and streaming the agent's reply as it is written."></a></p>
-
-Make your own app a DotCraft client: connect to a workspace, start a thread and run a turn, from TypeScript or .NET.
+Already have an app? The **SDKs** make it a DotCraft client: connect to a workspace, start a thread and run a turn, from TypeScript or .NET.
 
 ```bash
 npm install @dotcraft/sdk        # or: dotnet add package DotCraft.Sdk
@@ -157,19 +117,14 @@ const result = await thread.run("Check contrast in dark mode.");
 console.log(result.text);
 ```
 
-[SDK quickstart](https://www.dotcraft.net/extend/sdks/quickstart) · [App Binding](https://www.dotcraft.net/extend/app-binding) · [Desktop plugins](https://www.dotcraft.net/extend/desktop-plugins)
+[Harness guide](https://www.dotcraft.net/extend/harness/) · [.NET plugins](https://www.dotcraft.net/extend/dotnet-plugins) · [SDK quickstart](https://www.dotcraft.net/extend/sdks/quickstart) · [App Binding](https://www.dotcraft.net/extend/app-binding) · [Desktop plugins](https://www.dotcraft.net/extend/desktop-plugins)
 
-## Avatar
+## More from DotCraft
 
-<p align="center"><a href="https://www.dotcraft.net/extend/sdks/typescript#avatar-package"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-avatar.webp" width="830" alt="A crowd of DotCraft robots in different outfits, with one in front wearing a cloud dragon and star glasses."></a></p>
-
-The robot you see in Desktop, as a React component. It moves with the agent's state, 160+ collectible items dress it up, and the same name always draws the same avatar.
-
-```bash
-npm install @dotcraft/avatar
-```
-
-[Avatar package](https://www.dotcraft.net/extend/sdks/typescript#avatar-package)
+- [**Satellite**](https://www.dotcraft.net/guide/satellite): let your agent work on another Windows PC. The person sharing it chooses full access or one folder, sees every request at the top of the screen, and can pause sharing at any time. In Desktop, open **Settings → Connections → Satellites → Invite** and send the link; the other PC downloads DotCraft Satellite from that page.
+- [**Oratorio**](https://www.dotcraft.net/guide/oratorio/): your project board, built into Desktop. Local tasks, GitHub issues and pull requests, and GitLab issues and merge requests land on one board; hand a card to the agent, follow the run, review the result. Select **Oratorio** in the Desktop sidebar. [Workflow](https://www.dotcraft.net/guide/oratorio/workflow)
+- [**Chat bots**](https://www.dotcraft.net/guide/channels/): put DotCraft in the group chat so teammates can ask about the project without opening Desktop. Feishu, QQ, Telegram, WeCom and WeChat connect, and their conversations share the workspace with every other entry point. Open **Channels** in Desktop, pick a platform and fill in its credentials.
+- [**Avatar**](https://www.dotcraft.net/extend/sdks/typescript#avatar-package): the robot you see in Desktop, as a React component. It moves with the agent's state, 160+ collectible items dress it up, and the same name always draws the same avatar. `npm install @dotcraft/avatar`
 
 ## Contributing
 
@@ -177,14 +132,11 @@ Start with [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Credits
 
-Inspired by [nanobot](https://github.com/HKUDS/nanobot), [codex](https://github.com/openai/codex) and [agent-framework](https://github.com/microsoft/agent-framework).
-
-Special thanks to:
+DotCraft is inspired by and thankful to:
 
 - [HKUDS/nanobot](https://github.com/HKUDS/nanobot)
 - [openai/codex](https://github.com/openai/codex)
 - [microsoft/agent-framework](https://github.com/microsoft/agent-framework)
-- [modelcontextprotocol/csharp-sdk](https://github.com/modelcontextprotocol/csharp-sdk)
 - [openai/symphony](https://github.com/openai/symphony)
 
 ## License
