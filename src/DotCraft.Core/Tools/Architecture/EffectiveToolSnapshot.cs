@@ -69,6 +69,9 @@ public sealed class EffectiveToolSnapshot
     /// <summary>Gets deferred definitions grouped by their search namespace.</summary>
     public IReadOnlyDictionary<string, IReadOnlyList<ToolDefinition>> DeferredDefinitions { get; }
 
+    /// <summary>Gets definitions a finalizer withheld from the model tool list, such as tools a Code Mode script calls.</summary>
+    public IReadOnlyList<ToolDefinition> ModelHiddenDefinitions { get; private set; } = [];
+
     /// <summary>Gets the resolved model-visible description for each canonical namespace.</summary>
     public IReadOnlyDictionary<string, string> NamespaceDescriptions { get; }
 
@@ -125,7 +128,7 @@ public sealed class EffectiveToolSnapshot
         var added = replaced.Where(name => !Registrations.ContainsKey(name)).ToHashSet();
         var hidden = finalization.ModelHidden;
         var predicate = _modelExposurePredicate;
-        return new EffectiveToolSnapshotBuilder().BuildFiltered(
+        var finalized = new EffectiveToolSnapshotBuilder().BuildFiltered(
             SourceRegistrations
                 .Where(registration => !replaced.Contains(registration.Definition.Name))
                 .Concat(finalization.Registrations),
@@ -134,6 +137,12 @@ public sealed class EffectiveToolSnapshot
             definition => !hidden.Contains(definition.Name)
                           && (added.Contains(definition.Name) || predicate(definition)),
             []);
+        finalized.ModelHiddenDefinitions = ModelHiddenDefinitions
+            .Concat(ModelVisibleDefinitions.Concat(DeferredDefinitions.Values.SelectMany(static group => group))
+                .Where(definition => hidden.Contains(definition.Name) && !replaced.Contains(definition.Name)))
+            .Where(definition => finalized.Registrations.ContainsKey(definition.Name))
+            .ToArray();
+        return finalized;
     }
 }
 

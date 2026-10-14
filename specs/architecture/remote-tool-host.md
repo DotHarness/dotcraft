@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7.10 |
+| Version | 0.8.7 |
 | Status | Draft |
-| Date | 2026-10-02 |
+| Date | 2026-10-14 |
 | Parent | [Tool Architecture](tools-architecture.md) |
 
 ## 1. Purpose
@@ -694,8 +694,9 @@ availability. Neither arbitrary shell commands nor Skill prose are rewritten.
 
 The Agent's accepted plugin bundles and effective tool snapshot are authoritative. Before publishing
 a connection, and before sampling a new Turn on an existing connection, the Agent prepares every
-RPC-eligible .NET source in that thread's effective snapshot, including deferred tools. Tool search
-and ordinary snapshot reads do not deploy code. MCP and Runtime Dynamic sources remain local.
+RPC-eligible .NET source in that thread's effective snapshot, including deferred tools and the tools
+only a Code Mode script calls. Tool search and ordinary snapshot reads do not deploy code. MCP and
+Runtime Dynamic sources remain local.
 
 Preparation transfers complete immutable bundles, their actual dependency closure, and plugin-only
 effective settings through the existing leased chunked file-transfer machinery. Source files remain

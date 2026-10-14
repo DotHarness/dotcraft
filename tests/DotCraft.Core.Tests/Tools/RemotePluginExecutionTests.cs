@@ -65,6 +65,29 @@ public sealed class RemotePluginExecutionTests
     }
 
     [Fact]
+    public async Task ToolWithheldFromModelListForCodeMode_IsStillPreparedOnTheHost()
+    {
+        using var harness = new PluginRuntimeHarness();
+        RemotePluginFixture.Write(harness);
+        await using var manager = harness.CreateManager();
+        await manager.StartAsync(default);
+        using var home = new TemporaryDirectory();
+        using var workspace = new TemporaryDirectory();
+        await using var server = new RemoteToolHostTestServer(Setup(home.Path, workspace.Path));
+        await using var client = server.CreateClient();
+        var planning = new ToolPlanningContext("thread", null, Path.GetTempPath(), Path.GetTempPath(), "agent", null, [], 1);
+        var snapshot = new EffectiveToolSnapshotBuilder()
+            .Build(RemoteToolRegistrationRouter.Wrap(await manager.ToolSource.GetRegistrationsAsync(planning), client), 1)
+            .WithFinalization(new ToolSnapshotFinalization([], new HashSet<ToolName> { new("Probe", "Run") }));
+        client.UpdateRemoteToolSnapshot("thread", snapshot, "agent");
+
+        await client.ConnectAsync("thread", server.PeerId, "repo");
+
+        var result = await InvokeAsync(snapshot, "thread", "read");
+        Assert.True(result.Success, result.Error?.Message);
+    }
+
+    [Fact]
     public async Task ThreadsKeepDistinctSnapshotsAndState_ReleaseDoesNotStopAnotherThread()
     {
         using var harness = new PluginRuntimeHarness();
