@@ -107,6 +107,26 @@ Shell 请求带有 `request.Shell`，记录安全检查的结果：`Reasons` 解
 
 `RememberedPrefixes` 与 `RemembersExactCommand` 描述 `AcceptAlways` 会记住什么：按前缀写入工作区 `shell-rules.json` 的放行规则、精确的命令键，或两者都有。把这个范围写进 `AcceptAlways` 选项本身，让用户在选择前看到。`AcceptForSession` 始终按精确的命令、shell 和目录记忆。
 
+## 让模型用脚本调用工具
+
+Code Mode 给模型一个 `CodeMode` 工具：模型写一段 JavaScript，在里面调用当前 Thread 的其他工具，一批调用只需一次模型往返。脚本在你的应用的子进程里运行，所以开启时要写明你的可执行文件名，并让它响应脚本子进程命令：
+
+```csharp
+builder.Services.AddDotCraftHarness(config, options =>
+{
+    options.WorkspacePath = workspacePath;
+    options.CodeModeWorkerHost = "myapp";
+});
+```
+
+```csharp
+if (args is ["script-worker", "code-mode"])
+    return await CodeModeWorkerRunner.RunAsync(
+        Console.OpenStandardInput(), Console.OpenStandardOutput(), Console.OpenStandardError(), CancellationToken.None);
+```
+
+之后由 `Tools.CodeMode.Mode` 决定 Turn 怎么用它：默认 `only`，也可以是 `on` 或 `off`。返回 `AIContent` 内容项（比如文字加一张 `DataContent` 图片）的工具，会把这些内容项以 `CallToolResult` 的形式交给脚本，脚本用 `image()` 把图片交给模型。
+
 ## 相关文档
 
 - [配置与路径](./configuration-paths)——`AcceptAlways` 写入的审批状态落在 workspace 数据目录里。

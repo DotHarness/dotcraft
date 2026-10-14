@@ -844,6 +844,7 @@ public sealed class AgentFactory : IAsyncDisposable
                 ? limit
                 : null;
         public bool RpcEligible => RemoteToolMetadata.IsRpcEligible(definition);
+        public bool ReturnsContent => ToolContentMetadata.ReturnsContent(definition);
         public ToolPresentationDescriptor? Presentation => definition.Presentation;
         public bool ReservedSchema => ReservedToolSchema.IsReserved(definition);
         public bool? Strict => ReservedSchema ? false : null;

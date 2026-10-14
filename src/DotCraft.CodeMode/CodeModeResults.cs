@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Tools;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.CodeMode;
 
@@ -17,23 +18,59 @@ public static class CodeModeResults
         if (!result.Success)
         {
             if (isMcp && result.RawSourceResult is { } rawError && result.Error?.Code == ToolErrorCodes.ExecutionFailed)
-                return (Bound(JsonNode.Parse(rawError.GetRawText()), maxBytes), null);
+                return (BoundContent(JsonNode.Parse(rawError.GetRawText()), maxBytes), null);
             var code = result.Error?.Code ?? ToolErrorCodes.ExecutionFailed;
             var message = result.Error?.Message ?? result.Content ?? "Tool execution failed.";
             return (null, $"{code}: {message}");
         }
 
-        JsonNode? value;
         if (isMcp && result.RawSourceResult is { } raw)
-            value = JsonNode.Parse(raw.GetRawText());
-        else if ((definition.OutputSchema is not null || CodeModeDeclarations.IsCommandExecution(definition))
-                 && result.StructuredContent is { } structured)
-            value = JsonNode.Parse(structured.GetRawText());
-        else if (definition.OutputSchema is { } schema && !IsStringSchema(schema) && TryParse(result.Content, out var parsed))
-            value = parsed;
-        else
-            value = JsonValue.Create(result.Content ?? string.Empty);
-        return (Bound(value, maxBytes), null);
+            return (BoundContent(JsonNode.Parse(raw.GetRawText()), maxBytes), null);
+        if ((definition.OutputSchema is not null || CodeModeDeclarations.IsCommandExecution(definition))
+            && result.StructuredContent is { } structured)
+            return (Bound(JsonNode.Parse(structured.GetRawText()), maxBytes), null);
+        if (definition.OutputSchema is { } schema && !IsStringSchema(schema) && TryParse(result.Content, out var parsed))
+            return (Bound(parsed, maxBytes), null);
+        if (result.ContentItems?.Any(IsImage) == true)
+            return (BoundContent(ContentResult(result.ContentItems), maxBytes), null);
+        return (Bound(JsonValue.Create(result.Content ?? string.Empty), maxBytes), null);
+    }
+
+    private static JsonObject ContentResult(IEnumerable<AIContent> items) => new()
+    {
+        ["content"] = new JsonArray(items.Select(static item => item switch
+        {
+            TextContent text => new JsonObject { ["type"] = "text", ["text"] = text.Text },
+            DataContent data when IsImage(data) => new JsonObject
+            {
+                ["type"] = "image",
+                ["data"] = Convert.ToBase64String(data.Data.Span),
+                ["mimeType"] = data.MediaType
+            },
+            _ => null
+        }).OfType<JsonNode>().ToArray())
+    };
+
+    private static bool IsImage(AIContent item) => item is DataContent data && data.HasTopLevelMediaType("image");
+
+    private static JsonNode? BoundContent(JsonNode? value, int maxBytes)
+    {
+        if (value is not JsonObject result || result["content"] is not JsonArray content)
+            return Bound(value, maxBytes);
+        var images = content.OfType<JsonObject>().Where(static block => (string?)block["type"] == "image").ToList();
+        var imageBytes = images.Sum(static image => Encoding.UTF8.GetByteCount((string?)image["data"] ?? string.Empty));
+        if (Encoding.UTF8.GetByteCount(result.ToJsonString()) - imageBytes <= maxBytes)
+            return result;
+        var text = string.Join("\n", content.OfType<JsonObject>()
+            .Where(static block => (string?)block["type"] == "text")
+            .Select(static block => (string?)block["text"]));
+        var bounded = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = Bound(JsonValue.Create(text), maxBytes) });
+        foreach (var image in images)
+            bounded.Add(image.DeepClone());
+        var envelope = new JsonObject { ["content"] = bounded };
+        if (result["isError"] is { } isError)
+            envelope["isError"] = isError.DeepClone();
+        return envelope;
     }
 
     private static bool IsStringSchema(JsonElement schema) =>

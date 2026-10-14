@@ -35,6 +35,8 @@ public sealed class SessionItem
 
     public string? InvocationOrigin { get; set; }
 
+    public string? InvocationSourceId { get; set; }
+
     public bool FreeformCall { get; set; }
 
     // Typed payload accessors

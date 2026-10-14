@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DotCraft.Harness\DotCraft.Harness.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.CodeMode\DotCraft.CodeMode.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Runtime\DotCraft.Runtime.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.RemoteTools\DotCraft.RemoteTools.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" />

@@ -20,6 +20,9 @@ internal static class CodeModeDeclarations
 
     public static bool IsMcp(ToolDefinition definition) => definition.Id.Kind == ToolSourceKind.Mcp;
 
+    public static bool UsesContentTypes(ToolDefinition definition) =>
+        IsMcp(definition) || (definition.OutputSchema is null && ToolContentMetadata.ReturnsContent(definition));
+
     public static bool IsCommandExecution(ToolDefinition definition) =>
         definition.Id.Kind == ToolSourceKind.CoreNative
         && definition.Id.SourceId == "core-native"
@@ -59,7 +62,9 @@ internal static class CodeModeDeclarations
         }
         if (definition.OutputSchema is { } output)
             return Bounded(CodeModeTypeScript.Render(output, indent, inline), "unknown");
-        return IsCommandExecution(definition) ? CommandResultType : "string";
+        if (IsCommandExecution(definition))
+            return CommandResultType;
+        return ToolContentMetadata.ReturnsContent(definition) ? "string | CallToolResult" : "string";
     }
 
     private static string Bounded(string type, string fallback) => type.Length > MaxTypeChars ? fallback : type;

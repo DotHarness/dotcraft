@@ -14,7 +14,8 @@ public sealed class CodeModeWorkerHost(
     IManagedChildProcessFactory processFactory,
     string workspacePath,
     CodeModeLimits limits,
-    ILogger? logger = null) : IAsyncDisposable
+    ILogger? logger = null,
+    string workerHostName = ScriptWorkerProcess.DefaultHostName) : IAsyncDisposable
 {
     private readonly SemaphoreSlim _startGate = new(1, 1);
     private volatile Worker? _worker;
@@ -106,7 +107,7 @@ public sealed class CodeModeWorkerHost(
         ManagedChildProcess? process = null;
         try
         {
-            process = ScriptWorkerProcess.Start(processFactory, CodeModeProtocol.WorkerKind, workspacePath);
+            process = ScriptWorkerProcess.Start(processFactory, CodeModeProtocol.WorkerKind, workspacePath, workerHostName);
             var connection = new ScriptProtocolConnection(
                 process.Process.StandardOutput.BaseStream,
                 process.Process.StandardInput.BaseStream,

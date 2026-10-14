@@ -223,6 +223,7 @@ internal sealed class SessionEventChannel(
         CreatedAt = item.CreatedAt,
         CompletedAt = item.CompletedAt,
         InvocationOrigin = item.InvocationOrigin,
+        InvocationSourceId = item.InvocationSourceId,
         FreeformCall = item.FreeformCall,
         Payload = item.Payload
     };

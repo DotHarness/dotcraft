@@ -23,6 +23,7 @@ internal sealed class CodeModeToolFinalizer(
     ILogger? logger = null) : IToolSnapshotFinalizer
 {
     private const string SourceId = "code-mode";
+    public const string PresentationId = "core.code-mode";
 
     private static readonly ToolFreeformInput ExecInput = new(
         "code",
@@ -55,7 +56,7 @@ internal sealed class CodeModeToolFinalizer(
         {
             var reason = host.UnavailableReason ?? "The code mode worker is unavailable.";
             if (mode == AppConfig.CodeModeSetting.Only)
-                throw new InvalidOperationException($"{CodeModeExecRuntime.UnavailableErrorCode}: {reason}");
+                throw new CodeModeUnavailableException($"{CodeModeExecRuntime.UnavailableErrorCode}: {reason}");
             if (_warnedThreads.TryAdd(context.ThreadId, 0))
                 logger?.LogWarning("Code mode is off for thread {ThreadId}: {Reason}", context.ThreadId, reason);
             return ToolSnapshotFinalization.None;
@@ -75,6 +76,7 @@ internal sealed class CodeModeToolFinalizer(
                 ["dotcraft/maxResultChars"] = JsonSerializer.SerializeToElement(0)
             },
             provenance: new ToolProvenance(ToolSourceKind.CoreNative, SourceId),
+            presentation: new ToolPresentationDescriptor(new DotCraft.Tools.PresentationId(PresentationId), null),
             policyScope: ToolPolicyScope.RuntimeManaged,
             freeformInput: ExecInput);
         var runtime = new CodeModeExecRuntime(new CodeModeExecDependencies(

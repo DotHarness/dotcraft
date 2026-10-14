@@ -7,27 +7,30 @@ namespace DotCraft.Scripting;
 
 public static class ScriptWorkerProcess
 {
+    public const string DefaultHostName = "dotcraft";
+
     public static ManagedChildProcess Start(
         IManagedChildProcessFactory processFactory,
         string kind,
-        string workingDirectory) =>
-        processFactory.Start(CreateStartInfo(kind, workingDirectory));
+        string workingDirectory,
+        string hostName = DefaultHostName) =>
+        processFactory.Start(CreateStartInfo(kind, workingDirectory, hostName));
 
-    private static ProcessStartInfo CreateStartInfo(string kind, string workingDirectory)
+    private static ProcessStartInfo CreateStartInfo(string kind, string workingDirectory, string hostName)
     {
         var processPath = Environment.ProcessPath;
         var entryAssembly = Assembly.GetEntryAssembly()?.Location;
         var loadedAppAssembly = AppDomain.CurrentDomain.GetAssemblies()
-            .FirstOrDefault(assembly => string.Equals(assembly.GetName().Name, "dotcraft", StringComparison.OrdinalIgnoreCase))
+            .FirstOrDefault(assembly => string.Equals(assembly.GetName().Name, hostName, StringComparison.OrdinalIgnoreCase))
             ?.Location;
         var binary = !string.IsNullOrWhiteSpace(processPath)
-                     && string.Equals(Path.GetFileNameWithoutExtension(processPath), "dotcraft", StringComparison.OrdinalIgnoreCase)
+                     && string.Equals(Path.GetFileNameWithoutExtension(processPath), hostName, StringComparison.OrdinalIgnoreCase)
             ? processPath
             : !string.IsNullOrWhiteSpace(entryAssembly)
-              && string.Equals(Path.GetFileNameWithoutExtension(entryAssembly), "dotcraft", StringComparison.OrdinalIgnoreCase)
+              && string.Equals(Path.GetFileNameWithoutExtension(entryAssembly), hostName, StringComparison.OrdinalIgnoreCase)
                 ? entryAssembly
                 : loadedAppAssembly;
-        if (string.IsNullOrWhiteSpace(binary)) throw new InvalidOperationException("Cannot resolve the current DotCraft executable.");
+        if (string.IsNullOrWhiteSpace(binary)) throw new InvalidOperationException($"Cannot resolve the '{hostName}' executable that runs script workers.");
         var startInfo = new ProcessStartInfo
         {
             FileName = binary.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? "dotnet" : binary,
