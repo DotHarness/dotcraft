@@ -4706,7 +4706,7 @@ Snapshots retain at most 1 MiB of the latest UTF-8 output, including after serve
 
 Clients with terminal rendering support, such as Desktop, use these notifications for live Shell tool output, including foreground `Exec` calls. When a terminal originates from an `Exec` tool call, `terminal.callId` correlates it to the `toolCall` item that should receive live output and status updates. `terminal.threadId` scopes the update to the owning thread, and `terminal.turnId` scopes it to the originating turn when available.
 
-If `terminal.backgroundReason = "runInBackground"`, the client must not keep appending later process output into the inline foreground `Exec` card. The inline card may show the returned session/status/final summary, while the background terminal UI owns ongoing process output.
+A terminal started with `runInBackground` (`terminal.backgroundReason = "runInBackground"`) correlates to its `Exec` item the same way as one handed over after its yield time.
 
 ## 19B. Remote Tool Host Routing Methods
 

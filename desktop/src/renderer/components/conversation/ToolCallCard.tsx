@@ -58,7 +58,7 @@ import {
   formatSkillViewRunningLabel,
   getSkillViewDisplay
 } from '../../utils/skillViewToolDisplay'
-import { isToolItemLive } from '../../utils/toolCallAggregation'
+import { isToolItemLive, resolveShellBackgroundState, type ShellBackgroundState } from '../../utils/toolCallAggregation'
 import { formatDefaultToolResultForDisplay } from '../../utils/toolResultDisplay'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { SubAgentToolResultCard, getSubAgentToolDisplay, formatSubAgentRunningLabel } from './SubAgentToolResultCard'
@@ -110,6 +110,22 @@ function formatRunningToolLabel(
     return formatInvocationDisplay(kind, args, locale) ?? streamingLabel
   }
   return streamingLabel
+}
+
+function formatShellBackgroundLabel(
+  state: ShellBackgroundState,
+  locale: AppLocale,
+  shellCommand?: string
+): string {
+  const firstLine = shellCommand?.split(/\r?\n/, 1)[0]
+  if (state === 'backgroundRunning') {
+    return firstLine
+      ? translate(locale, 'toolCall.backgroundTerminalStartedWith', { command: firstLine })
+      : translate(locale, 'toolCall.backgroundTerminalStarted')
+  }
+  return firstLine
+    ? translate(locale, 'toolCall.backgroundTerminalStoppedWith', { command: firstLine })
+    : translate(locale, 'toolCall.backgroundTerminalStopped')
 }
 
 function getFilename(path: string): string {
@@ -247,6 +263,8 @@ export const ToolCallCard = memo(function ToolCallCard({
     ? { ...args, command: shellCommand }
     : args
   const isRunning = isToolItemLive(item, { turnRunning })
+  const shellBackgroundState = resolveShellBackgroundState(item, { turnRunning })
+  const liveInTurn = isRunning && shellBackgroundState == null
   const toolResult = item.result ?? item.errorMessage ?? item.resultPreview
   const conversationShellRuntime = useConversationStore((state) =>
     shellRuntimeScope === 'conversation' && item.toolCallId
@@ -263,7 +281,7 @@ export const ToolCallCard = memo(function ToolCallCard({
 
   useEffect(() => {
     const start = item.createdAt ? new Date(item.createdAt).getTime() : Date.now()
-    if (!isRunning) {
+    if (!liveInTurn) {
       setElapsedMs(Math.max(0, Date.now() - start))
       return
     }
@@ -272,7 +290,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       setElapsedMs(Math.max(0, Date.now() - start))
     }, 100)
     return () => clearInterval(interval)
-  }, [isRunning, item.createdAt])
+  }, [liveInTurn, item.createdAt])
 
   const runningElapsedLabel = `${(elapsedMs / 1000).toFixed(1)}s`
 
@@ -381,7 +399,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       return
     }
 
-    if (isRunning) {
+    if (liveInTurn) {
       if (!userInteracted && !expanded && autoExpandTimerRef.current == null) {
         autoExpandTimerRef.current = setTimeout(() => {
           setExpanded(true)
@@ -407,7 +425,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     if (autoExpanded) {
       setAutoExpanded(false)
     }
-  }, [autoExpandEligible, autoExpanded, expanded, isRunning, userInteracted])
+  }, [autoExpandEligible, autoExpanded, liveInTurn, expanded, userInteracted])
 
   useEffect(() => {
     return () => {
@@ -480,7 +498,9 @@ export const ToolCallCard = memo(function ToolCallCard({
 
   if (isRunning) {
     const runningExpanded = expanded && canExpandWhileRunning
-    const runningDisplayLabel = runningExpanded && isStreamingFileTool
+    const runningDisplayLabel = shellBackgroundState
+      ? formatShellBackgroundLabel(shellBackgroundState, locale, runningExpanded ? undefined : shellCommand)
+      : runningExpanded && isStreamingFileTool
       ? formatExpandedFileToolLabel(rendererOperation, renderableStreamingFileDiff, locale)
       : runningExpanded && isShellTool
         ? translate(locale, 'toolCall.runningCommand')
@@ -490,7 +510,9 @@ export const ToolCallCard = memo(function ToolCallCard({
     const runningResolvedPath = runningFilePath && workspacePath
       ? toAbsoluteWorkspacePath(workspacePath, runningFilePath)
       : runningFilePath ?? undefined
-    const runningTitle = runningFilePath && !runningExpanded ? (
+    const runningTitle = shellBackgroundState ? (
+      <span className="dc-tool-row-running-label">{runningDisplayLabel}</span>
+    ) : runningFilePath && !runningExpanded ? (
       <ActionTooltip
         label={runningResolvedPath ?? runningFilePath}
         wrapperStyle={{ minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
@@ -505,7 +527,7 @@ export const ToolCallCard = memo(function ToolCallCard({
         {!runningExpanded && renderableStreamingFileDiff && (
           <FileToolDiffStats diff={renderableStreamingFileDiff} colorized={hovered} />
         )}
-        <span>{runningElapsedLabel}</span>
+        {liveInTurn && <span>{runningElapsedLabel}</span>}
       </>
     )
 
@@ -565,6 +587,8 @@ export const ToolCallCard = memo(function ToolCallCard({
       ? formatSkillManageLabel(args, item.result, locale)
       : isSkillViewTool
         ? formatSkillViewLabel(args, locale)
+        : shellBackgroundState
+          ? formatShellBackgroundLabel(shellBackgroundState, locale, shellCommand)
         : isShellTool && !shellCommand
           ? translate(locale, 'toolCall.ranCommand')
         : formatCollapsedToolLabel(item, shellDisplayArgs, locale, { planTodos }))
@@ -590,6 +614,8 @@ export const ToolCallCard = memo(function ToolCallCard({
   const completedExpanded = canExpandCompleted && expanded
   const completedDisplayLabel = completedExpanded && isStreamingFileTool
     ? formatExpandedFileToolLabel(rendererOperation, renderableFileDiff, locale)
+    : completedExpanded && shellBackgroundState
+      ? formatShellBackgroundLabel(shellBackgroundState, locale)
     : completedExpanded && isShellTool
       ? translate(locale, 'toolCall.ranCommand')
     : completedExpanded && rendererFamily === 'readFile' && resolveMemoryOperation(item) !== 'recall'

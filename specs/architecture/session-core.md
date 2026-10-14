@@ -654,7 +654,7 @@ aggregated Turn diff in [Turn Diff Events](#turn-diff-events) is live-only.
   "command": string,              // Shell command text
   "workingDirectory": string,     // Effective working directory
   "source": string,               // "host"
-  "status": string,               // "inProgress", "completed", "failed", "cancelled", "backgrounded", "killed", or "lost"
+  "status": string,               // "inProgress", "completed", "failed", "cancelled", "killed", or "lost"
   "aggregatedOutput": string,     // Full accumulated output shown to the user
   "sessionId": string | null,     // Background terminal id when the command continues after tool return
   "outputPath": string | null,    // Host-local output log for background terminal sessions
@@ -676,12 +676,10 @@ or is stopped. `Tools.Shell.Timeout` applies only while the tool still waits:
 with a yield time at or above it, or with background terminals disabled, the
 tool waits until the process exits or times out.
 
-A `runInBackground` command completes its `CommandExecution` Item with
-`status = "backgrounded"` when the tool returns, and later process lifecycle
-changes are represented by the background terminal runtime. A command handed
-over after its yield time instead keeps its Item in progress, records the
-terminal `sessionId` on it, and completes it with the final output, status, and
-exit code when the process exits, even after its Turn has completed. That late completion is persisted into the Turn and
+A command handed over after its yield time, with or without `runInBackground`,
+keeps its Item in progress, records the terminal `sessionId` on it, and
+completes it with the final output, status, and exit code when the process
+exits, even after its Turn has completed. That late completion is persisted into the Turn and
 published as `item/completed`; output produced after the hand-over reaches
 clients through `terminal/*` notifications, not `CommandExecution` deltas. When
 a thread is loaded, such an Item still in progress on a finished Turn whose

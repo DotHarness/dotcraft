@@ -1888,7 +1888,7 @@ Content beside the conversation stays quieter than the conversation itself. The 
   - **Motion:** when a shell panel leaves too little room for the pinned summary, it starts fading and sliding out as that panel opens, not after the stream finishes narrowing. Keep the outgoing card mounted only through its exit, non-interactive and hidden from assistive technology. Preserve the pin preference and reverse an interrupted exit when room returns. Reduced motion removes the slide and completes the exit immediately.
   - **Header:** the workspace name at ui size and medium weight.
   - **Sections:** a secondary-size title in muted text with no count. Sections are separated by a hairline.
-  - **Rows:** single-line at ui size, with a 16px leading glyph and no trailing meta. Action rows take the standard hover fill.
+  - **Rows:** single-line at ui size, with a 16px leading glyph and no trailing meta. Action rows take the standard hover fill. A row's trailing icon action stays hidden until the row is hovered or the action has keyboard focus.
 - **Avatar stacks.** Overlapping agent avatars carry a 1.5px ring of the card surface. A muted row also mutes its avatars.
 
 ## Viewers and editors

@@ -1,6 +1,7 @@
 import { AgentAvatar, type DesktopPluginHost } from '@dotcraft/plugin'
 import { Box, ChevronUp, Clock, FileDiff, FileText, Globe, Lightbulb, Link, Server } from 'lucide-react'
 import { useEffect, useMemo, useState, type JSX } from 'react'
+import { BackgroundProcessesSection } from './BackgroundProcessesSection'
 import { EnvironmentSection } from './EnvironmentSection'
 import { startSummaryFeed, type SummaryAutomation, type SummaryState } from './feed'
 import { fill, stringsFor, type SummaryStrings } from './i18n'
@@ -154,7 +155,8 @@ export function SummaryPanel({
 
   const plan = state.plan
   const planLabel = plan ? plan.title || fill(strings.progressCount, { done: plan.done, total: plan.total }) : ''
-  const empty = !changed && !plan && state.subagents.length === 0 && state.automations.length === 0 && sources.length === 0
+  const empty = !changed && !plan && state.subagents.length === 0 && state.automations.length === 0
+    && state.terminals.length === 0 && sources.length === 0
 
   return (
     <div className="conversation-summary" data-variant={variant}>
@@ -187,6 +189,8 @@ export function SummaryPanel({
           <SubagentsRow host={host} state={state} strings={strings} />
         </Section>
       ) : null}
+
+      <BackgroundProcessesSection host={host} threadId={threadId} terminals={state.terminals} strings={strings} />
 
       {state.automations.length > 0 ? (
         <Section title={strings.scheduled}>

@@ -59,6 +59,17 @@ export function isToolItemLive(
   return context.turnRunning === true && isToolCallAwaitingResult(item)
 }
 
+export type ShellBackgroundState = 'backgroundRunning' | 'backgroundStopped'
+
+export function resolveShellBackgroundState(
+  item: ConversationItem,
+  context: ToolItemLiveContext = {}
+): ShellBackgroundState | null {
+  if (context.turnRunning === true || resolveCoreFallbackPlan(item)?.family !== 'shell') return null
+  if (isToolItemLive(item, context)) return 'backgroundRunning'
+  return item.executionStatus === 'cancelled' && item.terminalSessionId && item.success === true ? 'backgroundStopped' : null
+}
+
 function resolveCoreFallbackPlan(item: ConversationItem) {
   const presentationId = item.presentation?.presentationId
   return presentationId && resolveDesktopPluginToolRenderer(presentationId)

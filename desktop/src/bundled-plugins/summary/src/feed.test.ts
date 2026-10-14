@@ -98,4 +98,47 @@ describe('Summary feed', () => {
     expect(state!.items.map((item) => item.id)).toEqual(['a'])
     stop()
   })
+
+  it('lists running terminals that outlived their turn, adding those of the active turn when it ends', async () => {
+    const terminal = (sessionId: string, turnId: string, status = 'running', threadId = 'thread-1') =>
+      ({ sessionId, threadId, turnId, command: `run ${sessionId}`, status })
+    const { host, notify } = createHost({
+      'thread/read': () => ({ thread: { plan: null, runtime: { activeTurnId: 't2' } } }),
+      'terminal/list': () => ({
+        terminals: [terminal('a', 't1'), terminal('b', 't2'), terminal('c', 't1', 'completed'), terminal('d', 't1', 'running', 'thread-2')]
+      })
+    })
+    let state: SummaryState | null = null
+    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    await settle()
+
+    expect(state!.terminals.map((entry) => entry.sessionId)).toEqual(['a'])
+
+    notify('thread/status/changed', { threadId: 'thread-1', runtime: { running: false } })
+    expect(state!.terminals.map((entry) => entry.sessionId)).toEqual(['a', 'b'])
+    stop()
+  })
+
+  it('follows terminal notifications without reviving a terminal that ended while the list loaded', async () => {
+    let releaseList: (value: unknown) => void = () => undefined
+    const { host, notify } = createHost({
+      'terminal/list': () => new Promise((resolve) => { releaseList = resolve })
+    })
+    let state: SummaryState | null = null
+    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    const running = { sessionId: 'x', threadId: 'thread-1', turnId: 't1', command: 'npm run dev', status: 'running' }
+
+    notify('terminal/completed', { terminal: { ...running, status: 'killed' } })
+    releaseList({ terminals: [running] })
+    await settle()
+    expect(state!.terminals).toEqual([])
+
+    notify('terminal/started', { terminal: { ...running, sessionId: 'y' } })
+    notify('terminal/started', { terminal: { ...running, sessionId: 'z', threadId: 'thread-2' } })
+    expect(state!.terminals).toEqual([{ sessionId: 'y', command: 'npm run dev' }])
+
+    notify('terminal/completed', { terminal: { ...running, sessionId: 'y', status: 'completed' } })
+    expect(state!.terminals).toEqual([])
+    stop()
+  })
 })

@@ -9,6 +9,7 @@ export function Row({
   title,
   ariaExpanded,
   muted,
+  trailing,
   onClick
 }: {
   leading: ReactNode
@@ -17,16 +18,24 @@ export function Row({
   title?: string
   ariaExpanded?: boolean
   muted?: boolean
+  trailing?: ReactNode
   onClick?: () => void
 }): JSX.Element {
   const content = (
     <>
       <span className="conversation-summary-row__leading" aria-hidden="true">{leading}</span>
-      <span className="conversation-summary-row__label">{label}</span>
+      <span className="conversation-summary-row__label" title={trailing ? title : undefined}>{label}</span>
       {inline ? <span className="conversation-summary-row__inline">{inline}</span> : null}
     </>
   )
-  if (!onClick) return <li className="conversation-summary-row" title={title}>{content}</li>
+  if (!onClick) {
+    return (
+      <li className="conversation-summary-row" title={trailing ? undefined : title}>
+        {content}
+        {trailing ? <span className="conversation-summary-row__trailing">{trailing}</span> : null}
+      </li>
+    )
+  }
   return (
     <li>
       <button
