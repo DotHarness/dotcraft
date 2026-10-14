@@ -19791,6 +19791,52 @@
       "variants": []
     },
     {
+      "id": "core.TerminalInteractionNotification",
+      "name": "TerminalInteractionNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/TerminalInteractionNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "itemId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "sessionId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "stdin",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "turnId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.TerminalLifecycleNotification",
       "name": "TerminalLifecycleNotification",
       "module": "core",
@@ -29578,6 +29624,22 @@
       "resultType": "core.RpcEmpty",
       "module": "core",
       "capability": null,
+      "scope": "thread",
+      "notificationOptOut": true,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "item/commandExecution/terminalInteraction",
+      "descriptorMember": "CommandTerminalInteraction",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.TerminalInteractionNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "commandExecutionStreaming",
       "scope": "thread",
       "notificationOptOut": true,
       "errors": [],

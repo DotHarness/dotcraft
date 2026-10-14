@@ -676,10 +676,20 @@ or is stopped. `Tools.Shell.Timeout` applies only while the tool still waits:
 with a yield time at or above it, or with background terminals disabled, the
 tool waits until the process exits or times out.
 
-When an `Exec`-style tool returns while its process is still alive, the
-`CommandExecution` Item is completed with `status = "backgrounded"`. Later
-process lifecycle changes are represented by the background terminal runtime,
-not by appending deltas to an already completed Turn.
+A `runInBackground` command completes its `CommandExecution` Item with
+`status = "backgrounded"` when the tool returns, and later process lifecycle
+changes are represented by the background terminal runtime. A command handed
+over after its yield time instead keeps its Item in progress, records the
+terminal `sessionId` on it, and completes it with the final output, status, and
+exit code when the process exits, even after its Turn has completed. That late completion is persisted into the Turn and
+published as `item/completed`; output produced after the hand-over reaches
+clients through `terminal/*` notifications, not `CommandExecution` deltas.
+
+`WriteStdin` keeps its `ToolCall` and `ToolResult` Items, which carry the model
+history and the persisted record of what was written. Clients present that input
+on the command it went to, through the terminal interaction delta live and by
+matching the call's `sessionId` argument to the command Item's `sessionId` when
+history is reloaded, rather than as a tool call of its own.
 
 An `Exec` process that is still owned by the active tool invocation is foreground
 work. Cancelling the Turn stops its process tree, completes the
@@ -1128,6 +1138,7 @@ SessionEvent
   - May be emitted many times per Item. Adapters that support streaming should forward these to the user progressively.
   - Adapters that do not support streaming may ignore deltas and wait for `item/completed`.
   - Persistence still uses the final completed Item payload as source of truth; intermediate `ToolCall` argument preview deltas are for progressive rendering.
+  - A `CommandExecution` Item also receives a terminal interaction delta, `{ sessionId, stdin }`, when `WriteStdin` writes to the process it started, or polls it while it is still running (`stdin` is then empty). It carries the command Item's own Turn id, may arrive after that Item completed or during a later Turn, and is not persisted on the Item.
 
 - **`item/completed`**
   - Emitted when an Item is finalized.

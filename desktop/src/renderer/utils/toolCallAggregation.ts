@@ -47,6 +47,7 @@ export function isToolItemLive(
       || (context.turnRunning === true && isToolCallAwaitingResult(item))
   }
 
+  if (item.terminalRunning) return true
   if (item.executionStatus != null) {
     if (item.executionStatus === 'inProgress') return true
     // Legacy: wire item lifecycle "started" was mistakenly stored as executionStatus.

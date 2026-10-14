@@ -33,6 +33,7 @@ import { SubAgentGroupChips } from './SubAgentGroupChips'
 import { useLocale } from '../../contexts/LocaleContext'
 import { formatToolGroupLabel } from '../../utils/toolGroupLabel'
 import { CORE_TOOL_PRESENTATION_IDS, resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
+import { resolveToolKind } from '../../utils/toolKind'
 import { CapacityRetryRow } from './CapacityRetryRow'
 import { TurnFailureNotice } from './TurnFailureNotice'
 import { parseWorkflowLaunch } from '../workflow/WorkflowToolCard'
@@ -424,6 +425,7 @@ function shouldHideCoordinationTool(item: ConversationItem, turnRunning: boolean
   if (!isToolLikeItemType(item.type)) return false
   if (item.presentation?.presentationId === CORE_TOOL_PRESENTATION_IDS.sendUserMessageAsync) return true
   if (item.presentation?.presentationId === 'core.sleep') return true
+  if (resolveToolKind(item) === 'writeStdin') return true
   return item.presentation?.presentationId === 'core.request-user-input'
     && isToolItemLive(item, { turnRunning })
 }

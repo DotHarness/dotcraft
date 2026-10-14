@@ -6,6 +6,7 @@ import {
   useConversationStore
 } from '../stores/conversationStore'
 import { getStreamingToolDisplay } from '../utils/streamingToolDisplay'
+import { isToolItemLive } from '../utils/toolCallAggregation'
 import { coreToolFields, streamingToolCallStarted } from './testToolPresentation'
 
 const s = () => useConversationStore.getState()
@@ -903,6 +904,79 @@ describe('turn lifecycle', () => {
 
     const toolItem = s().turns[0].items.find((i) => i.id === 'tool-terminal-background')
     expect(toolItem?.aggregatedOutput).toBeUndefined()
+  })
+
+  it('keeps a shell card live after its tool returns while the command still runs', () => {
+    vi.useFakeTimers()
+    s().onTurnStarted(makeTurn())
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'tool-handed-back',
+        type: 'toolCall',
+        payload: { callId: 'exec-handed-back', toolName: 'Exec', ...coreToolFields('Exec'), arguments: { command: 'npm test' } }
+      }
+    })
+    const terminal = { threadId: 'thread-1', turnId: 'turn-1', callId: 'exec-handed-back' }
+    s().onTerminalEvent({ event: 'terminal/started', terminal: { ...terminal, status: 'running' } })
+    s().onItemCompleted({
+      turnId: 'turn-1',
+      item: {
+        id: 'execution-handed-back',
+        type: 'toolExecution',
+        payload: {
+          callId: 'exec-handed-back',
+          toolName: 'Exec', ...coreToolFields('Exec'),
+          status: 'completed',
+          success: true,
+          resultPreview: 'Status: Running'
+        }
+      }
+    })
+
+    const handedBack = () => s().turns[0].items.find((i) => i.id === 'tool-handed-back')!
+    expect(isToolItemLive(handedBack())).toBe(true)
+    s().onTerminalEvent({
+      event: 'terminal/outputDelta',
+      terminal: { ...terminal, status: 'running' },
+      delta: 'after hand-back\n'
+    })
+    vi.advanceTimersByTime(50)
+    expect(s().shellRuntimeByCallId.get('exec-handed-back')?.output).toBe('after hand-back\n')
+
+    s().onTerminalEvent({
+      event: 'terminal/completed',
+      terminal: { ...terminal, status: 'completed', exitCode: 0, output: 'after hand-back\ndone\n' }
+    })
+    expect(isToolItemLive(handedBack())).toBe(false)
+    expect(handedBack().aggregatedOutput).toBe('after hand-back\ndone\n')
+  })
+
+  it('attaches terminal interaction input to the command card it was written to', () => {
+    s().onTurnStarted(makeTurn())
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'tool-interactive',
+        type: 'toolCall',
+        payload: { callId: 'exec-interactive', toolName: 'Exec', ...coreToolFields('Exec'), arguments: { command: 'npm init' } }
+      }
+    })
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'cmd-interactive',
+        type: 'commandExecution',
+        payload: { callId: 'exec-interactive', command: 'npm init', status: 'inProgress', aggregatedOutput: '' }
+      }
+    })
+
+    s().onTerminalInteraction({ turnId: 'turn-1', itemId: 'cmd-interactive', stdin: '' })
+    s().onTerminalInteraction({ turnId: 'turn-1', itemId: 'cmd-interactive', stdin: 'my-app' })
+    s().onTerminalInteraction({ turnId: 'turn-1', itemId: 'cmd-interactive', stdin: '\n' })
+
+    const card = s().turns[0].items.find((i) => i.id === 'tool-interactive')
+    expect(card?.terminalInputs).toEqual(['my-app'])
   })
 
   it('does not copy pending running terminal output into a restored durable turn', () => {

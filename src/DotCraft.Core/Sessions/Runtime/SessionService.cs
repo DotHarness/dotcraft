@@ -1688,6 +1688,45 @@ public sealed partial class SessionService(
         SetMaterializedIfCurrent(thread, materialized: true);
     }
 
+    private async Task PersistItemAfterTurnAsync(string threadId, string turnId, SessionItem item)
+    {
+        var thread = await GetOrLoadThreadAsync(threadId, CancellationToken.None);
+        var turn = thread.Turns.FirstOrDefault(t => string.Equals(t.Id, turnId, StringComparison.Ordinal));
+        if (turn is null || turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
+            return;
+
+        var index = turn.Items.FindIndex(i => string.Equals(i.Id, item.Id, StringComparison.Ordinal));
+        if (index < 0)
+            return;
+
+        turn.Items[index] = item;
+        await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+    }
+
+    private async Task EmitTerminalInteractionAsync(
+        string threadId,
+        string turnId,
+        string callId,
+        CommandExecutionTerminalInteraction interaction)
+    {
+        SessionThread thread;
+        try
+        {
+            thread = await GetOrLoadThreadAsync(threadId, CancellationToken.None);
+        }
+        catch (KeyNotFoundException)
+        {
+            return;
+        }
+
+        var item = thread.Turns
+            .FirstOrDefault(t => string.Equals(t.Id, turnId, StringComparison.Ordinal))?
+            .Items.FirstOrDefault(i => i.Type == ItemType.CommandExecution
+                && string.Equals(i.AsCommandExecution?.CallId, callId, StringComparison.Ordinal));
+        if (item is not null)
+            GetOrCreateBroker(threadId).PublishItemDelta(turnId, item.Id, interaction);
+    }
+
     private async Task PersistTurnStateWithMaterializationAsync(
         SessionThread thread,
         SessionTurn turn,

@@ -162,6 +162,10 @@ public static partial class AppServerRpc
     public static readonly RpcNotification<ItemDeltaNotification> CommandOutputDelta =
         new("item/commandExecution/outputDelta", RpcDirection.ServerToClient, "1", Spec, scope: "thread", notificationOptOut: true);
 
+    /// <summary>item/commandExecution/terminalInteraction notification.</summary>
+    public static readonly RpcNotification<TerminalInteractionNotification> CommandTerminalInteraction =
+        new("item/commandExecution/terminalInteraction", RpcDirection.ServerToClient, "1", Spec, capability: "commandExecutionStreaming", scope: "thread", notificationOptOut: true);
+
     /// <summary>item/toolCall/argumentsDelta notification.</summary>
     public static readonly RpcNotification<ItemDeltaNotification> ToolArgumentsDelta =
         new("item/toolCall/argumentsDelta", RpcDirection.ServerToClient, "1", Spec, scope: "thread", notificationOptOut: true);

@@ -45,6 +45,18 @@ public sealed record CommandExecutionPayload
     public string? CallId { get; init; }
 }
 /// <summary>
+/// Delta payload emitted when WriteStdin writes to, or polls, the process of a command execution.
+/// </summary>
+public sealed record CommandExecutionTerminalInteraction
+{
+    public string DeltaKind { get; init; } = "commandExecutionTerminalInteraction";
+
+    public string SessionId { get; init; } = string.Empty;
+
+    public string Stdin { get; init; } = string.Empty;
+}
+
+/// <summary>
 /// Delta payload emitted while a command execution is producing output.
 /// </summary>
 public sealed record CommandExecutionOutputDelta

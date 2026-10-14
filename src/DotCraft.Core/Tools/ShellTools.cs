@@ -130,6 +130,7 @@ public sealed class ShellTools
                 yieldTimeMs ?? (input.Length == 0 ? 5000 : 1000),
                 maxOutputChars ?? _maxOutputLength,
                 cancellationToken);
+            await EmitTerminalInteractionAsync(snapshot, input);
             return SnapshotResult(snapshot, FormatSnapshot(snapshot));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -217,16 +218,19 @@ public sealed class ShellTools
             var toolResult = runInBackground || snapshot.Status == BackgroundTerminalStatus.Running
                 ? FormatSnapshot(snapshot)
                 : FormatForegroundSnapshot(snapshot);
-            var status = snapshot.Status == BackgroundTerminalStatus.Running
-                ? "backgrounded"
-                : snapshot.Status == BackgroundTerminalStatus.Completed
-                    ? "completed"
-                    : snapshot.Status == BackgroundTerminalStatus.Killed || snapshot.Status == BackgroundTerminalStatus.TimedOut
-                        ? "cancelled"
-                        : "failed";
+            if (!runInBackground && snapshot.Status == BackgroundTerminalStatus.Running)
+            {
+                if (commandExecution != null)
+                {
+                    commandExecution.RecordTerminal(snapshot);
+                    _ = CompleteWhenTerminalEndsAsync(snapshot.SessionId, commandExecution, maxOutputChars ?? _maxOutputLength);
+                }
+                return SnapshotResult(snapshot, toolResult);
+            }
+
             commandExecution?.Complete(
                 toolResult,
-                status,
+                CommandStatus(snapshot),
                 snapshot.ExitCode,
                 snapshot.SessionId,
                 snapshot.OutputPath,
@@ -247,6 +251,48 @@ public sealed class ShellTools
             return ToolExecutionResult.Failed(error, error.Message);
         }
     }
+
+    private static async Task EmitTerminalInteractionAsync(BackgroundTerminalSnapshot snapshot, string input)
+    {
+        var runtime = CommandExecutionRuntimeScope.Current;
+        if ((input.Length == 0 && snapshot.Status != BackgroundTerminalStatus.Running)
+            || runtime?.EmitTerminalInteractionAsync is not { } emit
+            || !string.Equals(snapshot.ThreadId, runtime.ThreadId, StringComparison.Ordinal)
+            || snapshot.TurnId is not { } turnId
+            || snapshot.CallId is not { } callId)
+            return;
+
+        await emit(turnId, callId, new CommandExecutionTerminalInteraction { SessionId = snapshot.SessionId, Stdin = input });
+    }
+
+    private async Task CompleteWhenTerminalEndsAsync(
+        string sessionId,
+        CommandExecutionTracker commandExecution,
+        int maxOutputChars)
+    {
+        try
+        {
+            BackgroundTerminalSnapshot snapshot;
+            do
+            {
+                snapshot = await _backgroundTerminals.ReadAsync(sessionId, int.MaxValue, maxOutputChars);
+            }
+            while (snapshot.Status == BackgroundTerminalStatus.Running);
+
+            await commandExecution.CompleteFromTerminalAsync(snapshot, FormatForegroundSnapshot(snapshot), CommandStatus(snapshot));
+        }
+        catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException or IOException)
+        {
+        }
+    }
+
+    private static string CommandStatus(BackgroundTerminalSnapshot snapshot) => snapshot.Status switch
+    {
+        BackgroundTerminalStatus.Running => "backgrounded",
+        BackgroundTerminalStatus.Completed => "completed",
+        BackgroundTerminalStatus.Killed or BackgroundTerminalStatus.TimedOut => "cancelled",
+        _ => "failed"
+    };
 
     private static ToolExecutionResult SnapshotResult(BackgroundTerminalSnapshot snapshot, string content)
     {

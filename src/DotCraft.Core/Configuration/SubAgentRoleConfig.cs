@@ -201,7 +201,8 @@ You may use agent-control tools only when they are exposed by the current depth 
                 "BoardSubscribe",
                 "BoardUnsubscribe",
                 "BoardPost",
-                "Exec"
+                "Exec",
+                "WriteStdin"
             ],
             Instructions = """
 You are an explorer SubAgent. Answer specific research questions using read-only inspection and web research when available.

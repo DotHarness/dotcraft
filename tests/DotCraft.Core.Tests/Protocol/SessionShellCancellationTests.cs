@@ -107,6 +107,75 @@ public sealed class SessionShellCancellationTests : IAsyncLifetime
                 && terminalEvent.Terminal.CallId == "call-shell").Terminal.Status);
     }
 
+    [Fact]
+    public async Task CommandOutlivingItsTurn_PersistsItsCompletionWhenTheProcessExits()
+    {
+        await using var terminals = new BackgroundTerminalService(
+            _tempDir,
+            new AppConfig.ShellBackgroundConfig());
+        var command = OperatingSystem.IsWindows()
+            ? "Start-Sleep -Milliseconds 1500; Write-Output 'after-turn'"
+            : "sleep 1.5; echo 'after-turn'";
+        var chatClient = new ShellCallingChatClient(command, yieldTimeMs: 100);
+        var recorder = new ToolInvocationRecorderRouter();
+        var dispatcher = new ToolDispatcher(recorder: recorder);
+        await using var agentFactory = new AgentFactory(
+            dotcraftPath: _tempDir,
+            workspacePath: _tempDir,
+            config: AppConfigTestFactory.CreateOpenAI(),
+            memoryStore: new MemoryStore(_tempDir),
+            skillsLoader: new SkillsLoader(_tempDir),
+            approvalService: new SessionScopedApprovalService(new AutoApproveApprovalService()),
+            blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create(),
+            chatClient: chatClient,
+            toolDispatcher: dispatcher,
+            toolSources: [new ShellToolSource(new ShellTools(_tempDir, terminals, timeoutSeconds: 30))]);
+        var service = new SessionService(
+            agentFactory,
+            new StreamingFunctionInvokingChatClient(chatClient).AsAIAgent(),
+            new SessionPersistenceService(new ThreadStore(_tempDir)),
+            new SessionGate(),
+            backgroundTerminalService: terminals);
+        recorder.Bind(service);
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "user",
+            WorkspacePath = _tempDir
+        });
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        SessionClientCapabilitiesScope.Current = new SessionClientCapabilities(
+            SupportsCommandExecutionStreaming: true,
+            SupportsToolExecutionLifecycle: true);
+        await foreach (var _ in service.SubmitInputAsync(thread.Id, [new TextContent("run shell")]))
+        {
+        }
+
+        var afterTurn = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
+        var turn = Assert.Single(afterTurn!.Turns);
+        Assert.Equal(TurnStatus.Completed, turn.Status);
+        Assert.Equal("inProgress", CommandPayload(turn).Status);
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        CommandExecutionPayload payload;
+        do
+        {
+            await Task.Delay(100);
+            payload = CommandPayload(Assert.Single((await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id))!.Turns));
+        }
+        while (payload.Status == "inProgress" && DateTimeOffset.UtcNow < deadline);
+
+        Assert.Equal("completed", payload.Status);
+        Assert.Equal(0, payload.ExitCode);
+        Assert.Contains("after-turn", payload.AggregatedOutput);
+    }
+
+    private static CommandExecutionPayload CommandPayload(SessionTurn turn) =>
+        Assert.IsType<CommandExecutionPayload>(
+            Assert.Single(turn.Items, item => item.Type == ItemType.CommandExecution).Payload);
+
     private static string SleepCommand() =>
         OperatingSystem.IsWindows() ? "Start-Sleep -Seconds 30" : "sleep 30";
 
@@ -120,7 +189,7 @@ public sealed class SessionShellCancellationTests : IAsyncLifetime
         }
     }
 
-    private sealed class ShellCallingChatClient(string command) : IChatClient
+    private sealed class ShellCallingChatClient(string command, int? yieldTimeMs = null) : IChatClient
     {
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> chatMessages,
@@ -133,12 +202,18 @@ public sealed class SessionShellCancellationTests : IAsyncLifetime
             ChatOptions? options = null,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
+            if (chatMessages.Any(message => message.Contents.OfType<FunctionResultContent>().Any()))
+            {
+                yield return new ChatResponseUpdate(ChatRole.Assistant, "done");
+                yield break;
+            }
+
+            var arguments = new Dictionary<string, object?> { ["command"] = command };
+            if (yieldTimeMs is { } yieldTime)
+                arguments["yieldTimeMs"] = yieldTime;
             yield return new ChatResponseUpdate(ChatRole.Assistant,
             [
-                new FunctionCallContent("call-shell", "Exec", new Dictionary<string, object?>
-                {
-                    ["command"] = command
-                })
+                new FunctionCallContent("call-shell", "Exec", arguments)
             ]);
             await Task.CompletedTask;
         }

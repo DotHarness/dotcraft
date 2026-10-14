@@ -236,7 +236,7 @@ A role may define:
 
 Native child tools use the normal session tool-construction path. The child inherits the parent's tool
 allow/deny boundary, then applies role restrictions. Role restrictions narrow authority and cannot
-bypass the parent's approval service, approval context, or workspace policy. Tool reachability and shell access are independent gates: omitted shell access means `full`, while `readOnly` also rejects stdin writes. The default role denies Agent control; explorer permits read-only exploration, and worker permits writes and Agent control within the depth limit.
+bypass the parent's approval service, approval context, or workspace policy. Tool reachability and shell access are independent gates: omitted shell access means `full`, while `readOnly` also rejects stdin writes but still lets `WriteStdin` with empty input poll a running command. The default role denies Agent control; explorer permits read-only exploration, and worker permits writes and Agent control within the depth limit.
 
 Role instructions are stored as a thread context item after inherited history and before the initial
 task. Changing or clearing native role instructions establishes an explicit history replacement boundary before sampling. Invocation-specific task data belongs in the task input rather than stable base instructions.

@@ -10,17 +10,20 @@ internal sealed class CommandExecutionTracker
     private readonly object _sync = new();
     private readonly Action<SessionItem, object> _emitItemDelta;
     private readonly Action<SessionItem> _emitItemCompleted;
+    private readonly Func<SessionItem, Task>? _persistItemAfterTurnAsync;
 
     private CommandExecutionTracker(
         SessionItem item,
         DateTimeOffset startedAt,
         Action<SessionItem, object> emitItemDelta,
-        Action<SessionItem> emitItemCompleted)
+        Action<SessionItem> emitItemCompleted,
+        Func<SessionItem, Task>? persistItemAfterTurnAsync)
     {
         _item = item;
         _startedAt = startedAt;
         _emitItemDelta = emitItemDelta;
         _emitItemCompleted = emitItemCompleted;
+        _persistItemAfterTurnAsync = persistItemAfterTurnAsync;
     }
 
     public string? CallId => _item.AsCommandExecution?.CallId;
@@ -95,7 +98,12 @@ internal sealed class CommandExecutionTracker
             item.Payload = existing with { Source = source, WorkingDirectory = workingDirectory, Command = command };
         }
 
-        return new CommandExecutionTracker(item, DateTimeOffset.UtcNow, runtime.EmitItemDelta, runtime.EmitItemCompleted);
+        return new CommandExecutionTracker(
+            item,
+            DateTimeOffset.UtcNow,
+            runtime.EmitItemDelta,
+            runtime.EmitItemCompleted,
+            runtime.PersistItemAfterTurnAsync);
     }
 
     public void Append(string text, bool mirrorsTerminalOutput = false)
@@ -149,5 +157,26 @@ internal sealed class CommandExecutionTracker
             CallId = currentPayload?.CallId
         };
         _emitItemCompleted(_item);
+    }
+
+    public void RecordTerminal(BackgroundTerminalSnapshot snapshot)
+    {
+        if (_item.AsCommandExecution is { } payload)
+            _item.Payload = payload with { SessionId = snapshot.SessionId, OutputPath = snapshot.OutputPath };
+    }
+
+    public async Task CompleteFromTerminalAsync(BackgroundTerminalSnapshot snapshot, string aggregatedOutput, string status)
+    {
+        Complete(
+            aggregatedOutput,
+            status,
+            snapshot.ExitCode,
+            snapshot.SessionId,
+            snapshot.OutputPath,
+            snapshot.OriginalOutputChars,
+            snapshot.Truncated,
+            snapshot.BackgroundReason);
+        if (_persistItemAfterTurnAsync is not null)
+            await _persistItemAfterTurnAsync(_item);
     }
 }

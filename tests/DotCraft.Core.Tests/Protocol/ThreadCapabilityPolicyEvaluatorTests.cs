@@ -287,6 +287,16 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     }
 
     [Fact]
+    public void EvaluateRegistration_PlanModeAllowsWriteStdinOnlyToPoll()
+    {
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration { Mode = "plan" }, CreateContext());
+        var stdin = Registration(new ToolName(null, "WriteStdin"), ToolSourceKind.CoreNative, "core");
+
+        Assert.True(policy.EvaluateRegistration(stdin, new JsonObject { ["sessionId"] = "term_1", ["input"] = "" }).Allowed);
+        Assert.False(policy.EvaluateRegistration(stdin, new JsonObject { ["sessionId"] = "term_1", ["input"] = "y" }).Allowed);
+    }
+
+    [Fact]
     public void McpToolsAnswerToTheMcpPolicyRatherThanTheProfileToolLists()
     {
         var config = new ThreadConfiguration
@@ -497,7 +507,7 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     }
 
     [Fact]
-    public void SubAgentExplorer_DeniesWriteStdin()
+    public void SubAgentExplorer_AllowsWriteStdinOnlyToPoll()
     {
         var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
         var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
@@ -508,6 +518,12 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
                 "call-1",
                 "WriteStdin",
                 new Dictionary<string, object?> { ["input"] = "y" })).Kind);
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.Allow,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "WriteStdin",
+                new Dictionary<string, object?> { ["sessionId"] = "term_1", ["input"] = "" })).Kind);
     }
 
     [Fact]

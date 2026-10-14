@@ -35,6 +35,7 @@ import {
   setTurnFileStatus as withTurnFileStatus
 } from './turnDiffs'
 import { parseUnifiedDiff } from '../utils/unifiedDiff'
+import { attachTerminalInputs, readTerminalInput } from '../utils/terminalInput'
 import { toAbsoluteWorkspacePath } from '../utils/workspacePaths'
 import {
   computeStreamingFileDiff,
@@ -379,6 +380,8 @@ interface ConversationActions {
   onReasoningDelta(delta: string): void
   /** item/commandExecution/outputDelta notification */
   onCommandExecutionDelta(params: { threadId?: string; turnId?: string; itemId?: string; delta?: string }): void
+  /** item/commandExecution/terminalInteraction notification */
+  onTerminalInteraction(params: { turnId?: string; itemId?: string; stdin?: string }): void
   /** terminal/* notification */
   onTerminalEvent(params: { event: string; terminal?: Record<string, unknown>; delta?: string }): void
   /** item/toolCall/argumentsDelta notification */
@@ -560,7 +563,10 @@ function clearShellRuntime(callId: string): void {
 
 function resetShellRuntimeBuffer(): void {
   shellRuntimeBuffer.reset()
+  terminalInputBuffers.clear()
 }
+
+const terminalInputBuffers = new Map<string, string>()
 
 function flushConversationTextDeltas(): void {
   conversationTextDeltaBuffer.flush()
@@ -617,6 +623,8 @@ function mergeCommandExecutionIntoToolCall(
     executionStatus: staleInProgressCommand
       ? item.executionStatus
       : commandExecution.executionStatus ?? item.executionStatus,
+    terminalRunning: commandExecution.status === 'completed' ? false : item.terminalRunning,
+    terminalSessionId: commandExecution.terminalSessionId ?? item.terminalSessionId,
     exitCode: commandExecution.exitCode ?? item.exitCode,
     commandSource: commandExecution.commandSource ?? item.commandSource,
     duration: commandExecution.duration ?? item.duration
@@ -940,6 +948,9 @@ function mergeRealtimeToolCall(
     success: existing.success ?? incoming.success,
     duration: existing.duration ?? incoming.duration,
     executionStatus: existing.executionStatus ?? incoming.executionStatus,
+    terminalRunning: existing.terminalRunning ?? incoming.terminalRunning,
+    terminalSessionId: existing.terminalSessionId ?? incoming.terminalSessionId,
+    terminalInputs: existing.terminalInputs ?? incoming.terminalInputs,
     completedAt: existing.completedAt ?? incoming.completedAt
   }
 }
@@ -1488,7 +1499,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       return wireTurnToConversationTurn(t)
     })
 
-    const rehydratedTurns = converted.map((turn) => {
+    const rehydratedTurns = attachTerminalInputs(converted.map((turn) => {
       const resultByCallId = new Map<string, ConversationItem>()
       const commandExecutionByCallId = new Map<string, ConversationItem>()
       const toolExecutionByCallId = new Map<string, ConversationItem>()
@@ -1541,7 +1552,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       })
 
       return { ...turn, items: mergedItems.filter((item) => item.type !== 'toolExecution') }
-    })
+    }))
 
     // If the loaded history contains a non-terminal turn (e.g. switching back to a thread
     // that had an active turn or is waiting on a user decision), restore active state.
@@ -1934,6 +1945,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           ?? 'inProgress',
         toolCallId: (item?.callId as string | undefined)
           ?? (itemPayload.callId as string | undefined),
+        terminalSessionId: itemPayload.sessionId as string | undefined,
         createdAt: (item?.createdAt as string) ?? new Date().toISOString()
       }
       set((state) => ({
@@ -2002,6 +2014,30 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     }))
   },
 
+  onTerminalInteraction({ turnId, itemId, stdin }) {
+    if (!turnId || !itemId || !stdin) return
+    const read = readTerminalInput(terminalInputBuffers.get(itemId) ?? '', stdin)
+    if (read.buffer) terminalInputBuffers.set(itemId, read.buffer)
+    else terminalInputBuffers.delete(itemId)
+    if (read.commands.length === 0) return
+
+    set((state) => ({
+      turns: state.turns.map((turn) => {
+        if (turn.id !== turnId) return turn
+        const callId = turn.items.find((item) => item.id === itemId && item.type === 'commandExecution')?.toolCallId
+        if (!callId) return turn
+        return {
+          ...turn,
+          items: turn.items.map((item) =>
+            item.type === 'toolCall' && item.toolCallId === callId
+              ? { ...item, terminalInputs: [...(item.terminalInputs ?? []), ...read.commands] }
+              : item
+          )
+        }
+      })
+    }))
+  },
+
   onTerminalEvent(params) {
     const terminal = params.terminal ?? {}
     if (isRunInBackgroundTerminal(terminal)) return
@@ -2019,7 +2055,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         ?.items.find((item) => item.type === 'toolCall' && item.toolCallId === callId)
       if (completedPending?.event === 'terminal/completed'
           || completedPending?.event === 'terminal/cleaned'
-          || isTerminalExecutionStatus(matchingToolCall?.executionStatus)) return
+          || (isTerminalExecutionStatus(matchingToolCall?.executionStatus) && !matchingToolCall?.terminalRunning)) return
 
       const snapshotOutput = terminal.output as string | undefined
       queueShellRuntimeUpdate(
@@ -2489,6 +2525,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
                       toolCallId: (item?.callId as string | undefined)
                         ?? (itemPayload.callId as string | undefined)
                         ?? i.toolCallId,
+                      terminalSessionId: (itemPayload.sessionId as string | undefined) ?? i.terminalSessionId,
                       duration: (itemPayload.durationMs as number | undefined) ?? (endMs - startMs),
                       completedAt: (item?.completedAt as string) ?? new Date().toISOString()
                     }

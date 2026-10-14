@@ -106,6 +106,8 @@ public sealed class AppServerEventDispatcher
             return;
         if (evt.ToolExecutionProgressPayload is not null && !_connection.SupportsToolExecutionLifecycle)
             return;
+        if (evt.TerminalInteractionPayload is not null && !_connection.SupportsCommandExecutionStreaming)
+            return;
 
         switch (evt.EventType)
         {
@@ -136,7 +138,7 @@ public sealed class AppServerEventDispatcher
                 // Also skip empty deltas — the LLM emits empty string chunks at stream boundaries.
                 if (_connection.IsClientReady
                     && !_transportUnavailable
-                    && (_connection.SupportsStreaming || evt.ToolExecutionProgressPayload is not null)
+                    && (_connection.SupportsStreaming || evt.ToolExecutionProgressPayload is not null || evt.TerminalInteractionPayload is not null)
                     && !IsEmptyDelta(evt)
                     && !ShouldSuppressTerminalMirror(evt)
                     && _connection.ShouldSendNotification(method))
@@ -398,6 +400,14 @@ public sealed class AppServerEventDispatcher
             ToolName = toolCallDelta.ToolName,
             CallId = toolCallDelta.CallId,
             Delta = toolCallDelta.Delta
+        },
+        SessionEventType.ItemDelta when evt.TerminalInteractionPayload is { } interaction => new Contract.TerminalInteractionNotification
+        {
+            ThreadId = evt.ThreadId,
+            TurnId = evt.TurnId ?? throw new InvalidOperationException("terminal interaction requires a turn id."),
+            ItemId = evt.ItemId ?? throw new InvalidOperationException("terminal interaction requires an item id."),
+            SessionId = interaction.SessionId,
+            Stdin = interaction.Stdin
         },
         SessionEventType.ItemDelta when evt.ToolExecutionProgressPayload is { } toolProgress => new Contract.ToolExecutionProgressNotification
         {

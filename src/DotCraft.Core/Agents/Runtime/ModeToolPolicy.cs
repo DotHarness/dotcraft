@@ -13,13 +13,12 @@ public sealed class ModeToolPolicy(AgentModeManager modeManager)
     /// Built-in tool names that Plan (read-only) mode hard-denies. Exposed so the tool catalog
     /// (<c>tool/list</c>, spec Section 18A) can annotate Plan-mode availability from a single source
     /// of truth. Tools that are only conditionally restricted in Plan mode (for example shell
-    /// <c>Exec</c>) are intentionally not listed here.
+    /// <c>Exec</c>, or <c>WriteStdin</c>, which may only poll) are intentionally not listed here.
     /// </summary>
     public static readonly IReadOnlySet<string> PlanDeniedToolNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "WriteFile",
         "EditFile",
-        "WriteStdin",
         "Transfer",
         "UpdateTodos",
         "TodoWrite",
@@ -56,8 +55,16 @@ public sealed class ModeToolPolicy(AgentModeManager modeManager)
                 return DenyPlanMode(toolName, reason);
         }
 
+        if (string.Equals(toolName, "WriteStdin", StringComparison.Ordinal)
+            && !IsStdinPoll(TryGetStringArgument(context.Arguments, "input")))
+            return DenyPlanMode(toolName, StdinPollOnlyReason);
+
         return ModeToolPolicyDecision.Allow;
     }
+
+    internal const string StdinPollOnlyReason = "Read-only access only allows WriteStdin with empty input, which reads a running command's output.";
+
+    internal static bool IsStdinPoll(string? input) => string.IsNullOrEmpty(input);
 
     private static ModeToolPolicyDecision DenyPlanMode(string toolName, string reason) =>
         ModeToolPolicyDecision.DenyRecoverable(

@@ -15819,6 +15819,35 @@
       },
       "additionalProperties": true
     },
+    "TerminalInteractionNotification": {
+      "title": "TerminalInteractionNotification",
+      "type": "object",
+      "properties": {
+        "itemId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "stdin": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "itemId",
+        "sessionId",
+        "stdin",
+        "threadId",
+        "turnId"
+      ]
+    },
     "TerminalLifecycleNotification": {
       "title": "TerminalLifecycleNotification",
       "type": "object",

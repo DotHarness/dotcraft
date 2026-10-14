@@ -56,6 +56,8 @@ function mergeTerminalIntoExecToolCall(
     commandSource: (terminal.source as 'host' | undefined) ?? item.commandSource,
     aggregatedOutput,
     executionStatus: status ?? item.executionStatus,
+    terminalRunning: status ? status === 'inProgress' : item.terminalRunning,
+    terminalSessionId: (terminal.sessionId as string | undefined) ?? item.terminalSessionId,
     exitCode: (terminal.exitCode as number | null | undefined) ?? item.exitCode,
     duration: (terminal.wallTimeMs as number | undefined) ?? item.duration
   }

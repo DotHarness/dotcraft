@@ -87,6 +87,33 @@ public sealed class ModeToolPolicyTests
         Assert.Contains("NextAllowedActions:", result.Result?.ToString(), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("", true)]
+    [InlineData("y", false)]
+    public async Task StreamingClient_AllowsPlanModeWriteStdinOnlyToPoll(string input, bool allowed)
+    {
+        var modeManager = new AgentModeManager();
+        modeManager.SwitchMode(AgentMode.Plan);
+        var inner = new ToolCallChatClient("WriteStdin", new Dictionary<string, object?>
+        {
+            ["sessionId"] = "term_1",
+            ["input"] = input
+        });
+        var tool = AIFunctionFactory.Create(() => "polled", name: "WriteStdin");
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [tool],
+            ModeToolPolicy = new ModeToolPolicy(modeManager).Evaluate
+        };
+
+        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
+        {
+        }
+
+        var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
+        Assert.Equal(allowed, result.Result?.ToString() == "polled");
+    }
+
     [Fact]
     public async Task StreamingClient_AppliesToolCallPolicyBeforeToolResolution()
     {

@@ -1202,7 +1202,10 @@ public sealed partial class SessionService
                         EmitItemStarted = eventChannel.EmitItemStarted,
                         EmitItemDelta = eventChannel.EmitItemDelta,
                         EmitItemCompleted = eventChannel.EmitItemCompleted,
-                        SupportsCommandExecutionStreaming = supportsCommandExecutionStreaming
+                        SupportsCommandExecutionStreaming = supportsCommandExecutionStreaming,
+                        PersistItemAfterTurnAsync = item => PersistItemAfterTurnAsync(threadId, turn.Id, item),
+                        EmitTerminalInteractionAsync = (commandTurnId, callId, interaction) =>
+                            EmitTerminalInteractionAsync(threadId, commandTurnId, callId, interaction)
                     });
                 using var toolExecutionScope = ToolExecutionRuntimeScope.Set(
                     new ToolExecutionRuntimeContext
