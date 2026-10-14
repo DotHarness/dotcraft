@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.3 |
+| **Version** | 0.8.7 |
 | **Status** | Draft |
 | **Date** | 2026-10-06 |
 | **Parent Specs** | [Tool Architecture](../architecture/tools-architecture.md), [Session Core](../architecture/session-core.md), [Prompt Cache](../architecture/prompt-cache.md), [Dynamic Workflows](dynamic-workflows.md) |
@@ -42,8 +42,8 @@ engines other than Jint.
 | Cell | One execution of one program, from start to its terminal outcome. |
 | Nested call | A tool call a cell makes through `tools.<name>(...)`. |
 | Nested surface | The set of registrations a cell can call. |
-| Script host | AppServer-side service that owns script worker processes, frames, limits, and host calls. |
-| Script worker | A hidden child process of the DotCraft executable that evaluates scripts with Jint. |
+| Script host | The in-process service that owns script worker processes, frames, limits, and host calls. |
+| Script worker | A hidden child process of the host executable (DotCraft, or an application embedding the Harness) that evaluates scripts with Jint. |
 
 ## 3. Configuration and Enablement
 
@@ -83,6 +83,14 @@ fails with `code_mode_unavailable`. A later snapshot build retries the start bef
 when it still fails, `on` falls back to direct tools for that snapshot and records one warning for the
 thread, and `only` fails the Turn with a stable `code_mode_unavailable` error rather than silently
 removing tools.
+
+An application that embeds DotCraft through the Harness opts into code mode by setting
+`DotCraftHarnessOptions.CodeModeWorkerHost` to the name of its own executable or assembly, which must
+serve `script-worker code-mode` by calling `CodeModeWorkerRunner.RunAsync` with its standard streams.
+Without that option the Harness registers no code mode, whatever `Mode` says. The DotCraft application
+registers it through its module; both paths call `AddDotCraftCodeMode`, which also accepts the cell and
+worker limits for hosts that need others than §9.3. When the worker cannot start, `only` fails the Turn
+with `CodeModeUnavailableException`, whose message starts with `code_mode_unavailable`.
 
 ## 4. Model-Facing Surface
 
@@ -171,8 +179,9 @@ recursion guard that renders a repeated reference as `unknown`. An input or outp
 follows §6: `CallToolResult<T>` for MCP tools, with `T` from the output schema; the output type for
 other tools with an output schema;
 `{ sessionId: string; status: "running" | "completed" | "failed"; output: string; exitCode: number | null; truncated: boolean; outputPath?: string }` for command
-execution; otherwise `string`. One shared preamble defines `ContentBlock`, `TextContent`,
-`ImageContent`, and `CallToolResult` once when any nested tool is an MCP tool.
+execution; `string | CallToolResult` for a tool whose results are content items; otherwise `string`.
+One shared preamble defines `ContentBlock`, `TextContent`, `ImageContent`, and `CallToolResult` once
+when any nested tool is an MCP tool or returns content items.
 
 Deferred registrations are callable but not listed. `ALL_TOOLS` lists `{ name, description }` for the
 entire nested surface, where `description` is the tool's declaration, so a program finds a deferred or
@@ -193,7 +202,7 @@ Declarations and these lines are derived only from the snapshot, like the `CodeM
 | `tools` | Frozen object of nested-call functions. Reading an unknown member throws a `TypeError` that names close matches and points to `ALL_TOOLS`. |
 | `ALL_TOOLS` | Frozen array of `{ name, description }` for the nested surface. |
 | `text(value)` | Appends a text output item; non-strings are JSON-stringified. |
-| `image(value)` | Appends an image output item from a base64 `data:` URL or an MCP image content block. Remote URLs are rejected. |
+| `image(value)` | Appends an image output item from a base64 `data:` URL or an image content block, such as one from a nested `CallToolResult`. Remote URLs are rejected. |
 | `exit()` | Ends the cell successfully, keeping output and store writes. |
 | `store(key, value)` / `load(key)` | Per-thread JSON store (§8). |
 
@@ -239,11 +248,18 @@ The value a nested Promise resolves to is:
 | Tool with an output schema | Its structured result. |
 | MCP tool | The complete `CallToolResult`, including `isError`. |
 | Command execution (`Exec`, `WriteStdin`) | `{ sessionId, status, output, exitCode, truncated, outputPath? }`; `sessionId` lets a program pass a still-running command to `WriteStdin`. The shell tools produce this object only for calls with the `codeMode` origin; direct calls and their items are unchanged. |
+| Any other tool whose result holds images | `{ content: ContentBlock[] }`, the result's text and image items in order, so `image()` can show an image block. |
 | Any other tool | Its text result. |
 
+A nested tool's images reach the model only through `image()`; nothing is forwarded on the program's
+behalf. A tool whose results are content items, such as `ReadFile`, which returns an image file as an
+image, carries the `dotcraft/returnsContent` annotation, and its declaration says
+`string | CallToolResult`. A generated tool gains the annotation from its declared return type.
+
 A failed dispatch rejects the Promise with an `Error` whose message is the stable error code and
-message. A nested result entering the engine is at most 1 MiB; an oversized result is truncated with a
-marker and the full value stays in the item.
+message. A nested result entering the engine is at most 1 MiB, counting everything but image data;
+an oversized result is truncated with a marker, its images are kept whole, and the full value stays in
+the item.
 
 ## 7. Output
 
@@ -261,7 +277,8 @@ The first line is `Script completed`, `Script failed`, or `Script timed out`. A 
 their status under `Tool calls made before the failure:`, because their effects are not undone.
 
 A completed, failed, or timed-out cell is a successful `CodeMode` call, as a nonzero exit code is for a
-command. Only an invalid pragma or an unavailable worker fails the call itself.
+command. Only an invalid pragma or an unavailable worker fails the call itself. The result's structured
+content says how the cell ended: `{ status: "completed" | "failed" | "timedOut", wallTimeMs, nestedCalls, error? }`.
 
 Text output is limited to `max_output_tokens`, default 10,000, using the common truncation policy:
 the beginning and end are kept around an elision marker, and the full text is written to the thread's
@@ -283,8 +300,9 @@ for the thread and is not persisted across AppServer restarts.
 
 `DotCraft.Scripting` owns the script host used by both code mode and Dynamic Workflows:
 
-- launching the DotCraft executable as `dotcraft script-worker <kind>`, where `kind` is `workflow` or
-  `code-mode`, and supervising it;
+- launching the host executable as `<host> script-worker <kind>`, where `host` is `dotcraft` unless the
+  embedding application names its own and `kind` is `workflow` or `code-mode`, and supervising it. The
+  host is found as the current process, the entry assembly, or a loaded assembly of that name;
 - JSONL framing on redirected standard input and output, each frame carrying a version, sequence
   number, scope, type, and payload, with stderr bounded for diagnostics;
 - the Jint engine factory and its constraints (§9.3);
@@ -328,7 +346,9 @@ is a limit violation. The worker as a whole is capped at 1 GiB resident memory.
 `CodeMode` is recorded as a standard `ToolCall` and `ToolResult`, so model history replays it exactly.
 Each nested call is recorded through its own registration's projection (`ToolCall`/`ToolResult`,
 `McpToolCall`, `CommandExecution`, and so on) with its `exec-` call id. Every item of a nested call
-persists the invocation origin kind `codeMode`; the wire item gains no field.
+persists the invocation origin kind `codeMode` and, as `invocationSourceId`, the call id of the
+`CodeMode` call that made it, so the calls of concurrent cells stay apart; the wire item gains no
+field. The `CodeMode` call carries the trusted presentation `core.code-mode`.
 
 When model history is rebuilt from items, nested call items are skipped, because the model saw only the
 `CodeMode` result. Compaction works on model history, so nested calls never reach it as model-visible tool
