@@ -209,9 +209,9 @@ import {
   type WorkspaceConnectionRole
 } from './workspaceConnectionRouting'
 import {
-  applyWorkspaceThreadListRefreshFailure,
-  applyWorkspaceThreadListRefreshSuccess,
-  applyWorkspaceThreadNotificationToCache
+  applyWorkspaceThreadListRequestResult,
+  applyWorkspaceThreadNotificationToCache,
+  refreshWorkspaceThreadListCache
 } from './workspaceThreadCache'
 
 // Each Electron process owns exactly one window and one AppServer connection.
@@ -451,11 +451,16 @@ function releaseConnectionThreadSubscription(entry: WorkspaceConnectionEntry, re
 function observeAppServerRequestCompletion(
   client: DesktopAppServerClient,
   method: string,
-  params: unknown
+  params: unknown,
+  result: unknown
 ): void {
-  if (method !== 'thread/subscribe' && method !== 'thread/unsubscribe') return
   const entry = findWorkspaceConnectionByClient(client)
   if (!entry) return
+  if (applyWorkspaceThreadListRequestResult(entry, method, params, result)) {
+    emitWorkspaceProjects()
+    return
+  }
+  if (method !== 'thread/subscribe' && method !== 'thread/unsubscribe') return
   const threadId = threadIdFromRequestParams(params)
   if (!threadId) return
 
@@ -609,18 +614,14 @@ function getWorkspaceProjectsPayload(): WorkspaceProjectsPayload {
 
 async function refreshConnectionThreadList(entry: WorkspaceConnectionEntry): Promise<void> {
   if (!entry.connected) return
-  try {
-    const result = await entry.client.sendRequest<{ data?: unknown[] }>('thread/list', {
+  const changed = await refreshWorkspaceThreadListCache(entry, () =>
+    entry.client.sendRequest<{ data?: unknown[] }>('thread/list', {
       identity: makeThreadListIdentity(entry.workspacePath),
       scope: 'workspace',
       includeSubAgents: true
     })
-    applyWorkspaceThreadListRefreshSuccess(entry, result.data)
-    emitWorkspaceProjects()
-  } catch (error) {
-    applyWorkspaceThreadListRefreshFailure(entry, error)
-    emitWorkspaceProjects()
-  }
+  )
+  if (changed && workspaceConnections.get(entry.key) === entry) emitWorkspaceProjects()
 }
 
 function applyWorkspaceThreadNotification(entry: WorkspaceConnectionEntry, method: string, params: unknown): void {
@@ -2888,8 +2889,8 @@ function buildCallbacks(): IpcHandlerCallbacks {
       // secondary project group immediately (thread/list omits archived threads).
       await refreshConnectionThreadList(entry)
     },
-    onAppServerRequestCompleted: (client, method, params) => {
-      observeAppServerRequestCompletion(client, method, params)
+    onAppServerRequestCompleted: (client, method, params, result) => {
+      observeAppServerRequestCompletion(client, method, params, result)
     },
     getUserInputAutoResolutionSnapshot: () => userInputAutoResolution.getSnapshot(),
     onUserInputConversationPresented: (threadId) => {

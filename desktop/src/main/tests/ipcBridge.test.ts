@@ -138,6 +138,7 @@ import { setDesktopServiceHandoffHandler } from '../desktopServiceHandoff'
 import { SshMachinesManager } from '../sshMachines/sshMachinesManager'
 import { normalizeSshMachines } from '../../shared/sshMachines'
 import { unwrapAppServerResult } from '../../shared/appServerError'
+import { applyWorkspaceThreadListRequestResult } from '../workspaceThreadCache'
 import { setLocalChatsFolderRootsResolver } from '../chatFolderAccess'
 import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
 import { isTerminalCwdAllowed } from '../viewerTerminalIpc'
@@ -390,6 +391,43 @@ describe('registerIpcHandlers', () => {
       stale: false
     })
     existsSyncMock.mockReturnValue(true)
+  })
+
+  it('recovers each project cache through the originating client when foreground projects switch during list loads', async () => {
+    let resolveA!: (result: { data: unknown[] }) => void
+    const resultA = { data: [{ id: 'running-a', runtime: { state: 'running' } }] }
+    const resultB = { data: [{ id: 'running-b', runtime: { state: 'running' } }] }
+    const clientA = { sendRequest: vi.fn(() => new Promise<{ data: unknown[] }>((resolve) => { resolveA = resolve })) }
+    const clientB = { sendRequest: vi.fn().mockResolvedValue(resultB) }
+    const entryA = { workspacePath: '/project-a', threads: [], errorMessage: 'thread/list timed out' }
+    const entryB = { workspacePath: '/project-b', threads: [], errorMessage: 'thread/list timed out' }
+    const entries = new Map([[clientA, entryA], [clientB, entryB]])
+    let foreground = clientA
+    const onCompleted = vi.fn((client, method, params, result) => {
+      const entry = entries.get(client)
+      if (entry) applyWorkspaceThreadListRequestResult(entry, method, params, result)
+    })
+    const handlers = registerHandlersForTest('/project-a', () => foreground as never, createIpcCallbacks({
+      onAppServerRequestCompleted: onCompleted
+    }))
+    const params = (workspacePath: string) => ({ identity: { workspacePath }, scope: 'workspace', includeSubAgents: true })
+    const pendingA = handlers.get('appserver:send-request')?.({}, 'thread/list', params('/project-a'))
+
+    foreground = clientB
+    await expect(handlers.get('appserver:send-request')?.({}, 'thread/list', params('/project-b'))).resolves.toEqual(resultB)
+    resolveA(resultA)
+    await expect(pendingA).resolves.toEqual(resultA)
+
+    expect(onCompleted).toHaveBeenCalledWith(clientA, 'thread/list', params('/project-a'), resultA)
+    expect(onCompleted).toHaveBeenCalledWith(clientB, 'thread/list', params('/project-b'), resultB)
+    expect(entryA.threads).toEqual(resultA.data)
+    expect(entryB.threads).toEqual(resultB.data)
+    expect(entryA.errorMessage).toBeUndefined()
+    expect(entryB.errorMessage).toBeUndefined()
+    foreground = clientA
+    expect(entries.get(foreground)?.threads).toEqual(resultA.data)
+    foreground = clientB
+    expect(entries.get(foreground)?.threads).toEqual(resultB.data)
   })
 
   it('carries a JSON-RPC code and data through to the preload-side Error', async () => {

@@ -1,4 +1,5 @@
 import { isHiddenThread } from '../shared/hiddenThreads'
+import { sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 
 export interface WorkspaceThreadCacheUpdateResult {
   threads: unknown[]
@@ -9,6 +10,14 @@ export interface WorkspaceThreadCacheUpdateResult {
 export interface WorkspaceThreadListRefreshState {
   threads: unknown[]
   errorMessage?: string
+}
+
+const threadListRevisions = new WeakMap<WorkspaceThreadListRefreshState, number>()
+
+function advanceThreadListRevision(entry: WorkspaceThreadListRefreshState): number {
+  const revision = (threadListRevisions.get(entry) ?? 0) + 1
+  threadListRevisions.set(entry, revision)
+  return revision
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -160,8 +169,43 @@ export function applyWorkspaceThreadListRefreshSuccess(
   entry: WorkspaceThreadListRefreshState,
   data: unknown
 ): void {
+  advanceThreadListRevision(entry)
   entry.threads = Array.isArray(data) ? data : []
   entry.errorMessage = undefined
+}
+
+export function applyWorkspaceThreadListRequestResult(
+  entry: WorkspaceThreadListRefreshState & { workspacePath: string },
+  method: string,
+  params: unknown,
+  result: unknown
+): boolean {
+  if (method !== 'thread/list' || !isRecord(params) || !isRecord(result) || !Array.isArray(result.data)) return false
+  const identity = isRecord(params.identity) ? params.identity : null
+  if (!sameWorkspaceProjectKey(stringField(identity?.workspacePath), entry.workspacePath)) return false
+  if (params.scope !== 'workspace' || params.includeSubAgents !== true) return false
+  if (params.includeArchived === true || params.includeInternal === true) return false
+  if (params.limit != null || stringField(params.cursor) || stringField(params.query) || stringField(params.channelName)) return false
+  if (result.nextCursor != null) return false
+
+  applyWorkspaceThreadListRefreshSuccess(entry, result.data)
+  return true
+}
+
+export async function refreshWorkspaceThreadListCache(
+  entry: WorkspaceThreadListRefreshState,
+  load: () => Promise<{ data?: unknown[] }>
+): Promise<boolean> {
+  const revision = advanceThreadListRevision(entry)
+  try {
+    const result = await load()
+    if (threadListRevisions.get(entry) !== revision) return false
+    applyWorkspaceThreadListRefreshSuccess(entry, result.data)
+  } catch (error) {
+    if (threadListRevisions.get(entry) !== revision) return false
+    applyWorkspaceThreadListRefreshFailure(entry, error)
+  }
+  return true
 }
 
 export function applyWorkspaceThreadListRefreshFailure(

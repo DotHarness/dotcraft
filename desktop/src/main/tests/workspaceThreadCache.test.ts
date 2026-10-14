@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   applyWorkspaceThreadListRefreshFailure,
   applyWorkspaceThreadListRefreshSuccess,
-  applyWorkspaceThreadNotificationToCache
+  applyWorkspaceThreadListRequestResult,
+  applyWorkspaceThreadNotificationToCache,
+  refreshWorkspaceThreadListCache
 } from '../workspaceThreadCache'
 
 function thread(id: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
@@ -146,7 +148,103 @@ describe('workspace thread cache notifications', () => {
   })
 })
 
+const workspaceListParams = {
+  identity: { workspacePath: '/workspace' },
+  scope: 'workspace',
+  includeSubAgents: true
+}
+
 describe('workspace thread list refresh cache', () => {
+  it('keeps recovered running threads and clears the error when a foreground list becomes the background cache', () => {
+    const entry = { workspacePath: '/workspace', threads: [], errorMessage: 'thread/list timed out' }
+    const running = thread('running', { runtime: { state: 'running' } })
+
+    expect(applyWorkspaceThreadListRequestResult(entry, 'thread/list', workspaceListParams, { data: [running] })).toBe(true)
+    expect(entry.threads).toEqual([running])
+    expect(entry.errorMessage).toBeUndefined()
+  })
+
+  it.each([
+    { query: 'search' },
+    { limit: 20 },
+    { cursor: 'next-page' },
+    { channelName: 'cli' },
+    { includeArchived: true },
+    { includeInternal: true },
+    { includeSubAgents: false },
+    { scope: 'identity' },
+    { identity: { workspacePath: '/other-project' } }
+  ])('does not replace the sidebar cache with a different list selection: %j', (selection) => {
+    const entry = { workspacePath: '/workspace', threads: [thread('running')], errorMessage: 'prior error' }
+    const params = { ...workspaceListParams, ...selection }
+
+    expect(applyWorkspaceThreadListRequestResult(entry, 'thread/list', params, { data: [] })).toBe(false)
+    expect(ids(entry.threads)).toEqual(['running'])
+    expect(entry.errorMessage).toBe('prior error')
+  })
+
+  it.each([
+    ['thread/read', workspaceListParams, { data: [] }],
+    ['thread/list', null, { data: [] }],
+    ['thread/list', workspaceListParams, null],
+    ['thread/list', workspaceListParams, {}],
+    ['thread/list', workspaceListParams, { data: [], nextCursor: 'more' }]
+  ])('ignores unrelated or incomplete results (%s)', (method, params, result) => {
+    const entry = { workspacePath: '/workspace', threads: [thread('running')], errorMessage: 'prior error' }
+
+    expect(applyWorkspaceThreadListRequestResult(entry, method as string, params, result)).toBe(false)
+    expect(ids(entry.threads)).toEqual(['running'])
+    expect(entry.errorMessage).toBe('prior error')
+  })
+
+  it('accepts an empty complete list and equivalent Windows workspace paths', () => {
+    const entry = { workspacePath: 'E:/Projects/DN', threads: [thread('old')], errorMessage: 'prior error' }
+    const params = { ...workspaceListParams, identity: { workspacePath: 'e:\\Projects\\DN\\' } }
+
+    expect(applyWorkspaceThreadListRequestResult(entry, 'thread/list', params, { data: [], nextCursor: null })).toBe(true)
+    expect(entry.threads).toEqual([])
+    expect(entry.errorMessage).toBeUndefined()
+  })
+
+  it.each(['failure', 'success'])('ignores an older background %s after a successful foreground list', async (outcome) => {
+    const entry = { workspacePath: '/workspace', threads: [], errorMessage: 'prior error' }
+    let resolve!: (value: { data: unknown[] }) => void
+    let reject!: (error: Error) => void
+    const pending = new Promise<{ data: unknown[] }>((res, rej) => { resolve = res; reject = rej })
+    const refresh = refreshWorkspaceThreadListCache(entry, () => pending)
+    const running = thread('running')
+
+    applyWorkspaceThreadListRequestResult(entry, 'thread/list', workspaceListParams, { data: [running] })
+    if (outcome === 'failure') reject(new Error('old request timed out'))
+    else resolve({ data: [thread('outdated')] })
+
+    expect(await refresh).toBe(false)
+    expect(entry.threads).toEqual([running])
+    expect(entry.errorMessage).toBeUndefined()
+  })
+
+  it('uses the latest background refresh without letting an earlier request overwrite it', async () => {
+    const entry = { threads: [thread('old')] }
+    let resolve!: (value: { data: unknown[] }) => void
+    const older = refreshWorkspaceThreadListCache(entry, () => new Promise((res) => { resolve = res }))
+
+    expect(await refreshWorkspaceThreadListCache(entry, async () => ({ data: [thread('latest')] }))).toBe(true)
+    resolve({ data: [thread('outdated')] })
+    expect(await older).toBe(false)
+    expect(ids(entry.threads)).toEqual(['latest'])
+  })
+
+  it('preserves loaded rows on failure and recovers after a later successful refresh', async () => {
+    const entry = { threads: [thread('running')], errorMessage: undefined as string | undefined }
+
+    expect(await refreshWorkspaceThreadListCache(entry, async () => { throw new Error('timeout') })).toBe(true)
+    expect(ids(entry.threads)).toEqual(['running'])
+    expect(entry.errorMessage).toBe('timeout')
+    expect(await refreshWorkspaceThreadListCache(entry, async () => ({ data: [thread('fresh')] }))).toBe(true)
+    expect(ids(entry.threads)).toEqual(['fresh'])
+    expect(entry.errorMessage).toBeUndefined()
+  })
+
   it('clears a prior refresh error after a later successful thread list load', () => {
     const entry = {
       threads: [thread('stale')],
