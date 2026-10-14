@@ -256,7 +256,7 @@ export function Composer({
             piece.type === 'text' ? (
               piece.value
             ) : (
-              <Text key={index} style={[styles.reference, { backgroundColor: colors.roundFill }]}>
+              <Text key={index} style={[styles.reference, { color: piece.reference.kind === 'skill' ? colors.refSkill : colors.refBase }]}>
                 {referenceToken(piece.reference)}
               </Text>
             ),
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
   noticeRetry: { fontWeight: '600' },
   noticeDimmed: { opacity: 0.5 },
   card: { borderWidth: 1, borderRadius: 26, paddingTop: 6, paddingBottom: 8, paddingHorizontal: 8 },
-  reference: { fontWeight: '500' },
+  reference: { fontWeight: '600' },
   input: { minHeight: 40, maxHeight: 140, paddingTop: 8, paddingBottom: 6, paddingHorizontal: 10, outlineWidth: 0 },
   bar: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   controls: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 4 },

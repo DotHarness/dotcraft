@@ -19,7 +19,7 @@ import { Txt } from '../parts'
 import { RunningShimmer } from '../RunningShimmer'
 import { metrics, type, useTheme } from '../theme'
 import { TurnChangesCard } from './Changes'
-import { FileChip, InlineChip, SkillChip } from './Chips'
+import { FileChip, SkillChip } from './Chips'
 import { CopyButton } from './CopyButton'
 import { ImageThumb, SentImage } from './Images'
 import { Markdown } from './Markdown'
@@ -326,9 +326,11 @@ function UserText({ segments, workspacePath }: { segments: UserSegment[]; worksp
         segment.type === 'text' ? (
           segment.value
         ) : (
-          <InlineChip key={index}>
-            {segment.type === 'file' ? <FileChip path={workspaceFile(segment.path, workspacePath)} label={baseName(segment.display)} /> : <SkillChip name={segment.name} />}
-          </InlineChip>
+          segment.type === 'file' ? (
+            <FileChip key={index} path={workspaceFile(segment.path, workspacePath)} label={baseName(segment.display)} />
+          ) : (
+            <SkillChip key={index} name={segment.name} />
+          )
         ),
       )}
     </>

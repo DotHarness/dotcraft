@@ -616,7 +616,24 @@ const RELEASE_SCRIPT = [
   '',
 ].join('\n')
 
-const RELEASE_NOTES = ['# DotCraft {{version}}', '', '## Highlights', '', '{{highlights}}', '', '## Fixes', '', '{{fixes}}', ''].join('\n')
+const RELEASE_NOTES = [
+  '---',
+  'title: DotCraft {{version}}',
+  'description: Notes filled in by the release script for every published version.',
+  'channels: [stable, preview]',
+  '---',
+  '',
+  '# DotCraft {{version}}',
+  '',
+  '## Highlights',
+  '',
+  '{{highlights}}',
+  '',
+  '## Fixes',
+  '',
+  '{{fixes}}',
+  '',
+].join('\n')
 
 function studioFiles(): Record<string, string> {
   return {

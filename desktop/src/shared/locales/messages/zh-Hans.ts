@@ -2484,7 +2484,6 @@ export const MESSAGES_ZH_HANS = {
   'toolCall.memory.updating': '正在更新记忆',
   'toolCall.memory.updated.one': '记忆已更新',
   'toolCall.memory.updated.other': '记忆已更新',
-  'toolCall.memory.manage': '管理',
   'toolCall.edited': '已编辑 {{filename}}',
   'toolCall.editedFile': '已编辑文件',
   'toolCall.created': '已创建 {{filename}}',

@@ -3249,7 +3249,6 @@ export const MESSAGES_KO = {
   'toolCall.memory.updating': '메모리 업데이트 중',
   'toolCall.memory.updated.one': '메모리 업데이트됨',
   'toolCall.memory.updated.other': '메모리 업데이트됨',
-  'toolCall.memory.manage': '관리',
   'toolCall.edited': '{{filename}} 수정됨',
   'toolCall.editedFile': '편집된 파일',
   'toolCall.created': '{{filename}}을(를) 생성했습니다.',

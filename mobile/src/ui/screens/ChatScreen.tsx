@@ -301,7 +301,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
           onOpenFile={openFile ? (path) => openFile(workspaceFile(path, workspacePath)) : null}
         />
       ) : null}
-      <FileSheet path={openPath} read={readFile} onClose={() => setOpenPath(null)} />
+      <FileSheet path={openPath} read={readFile} workspacePath={workspacePath} onClose={() => setOpenPath(null)} />
       <TasksSheet
         visible={tasksOpen}
         running={tasks.running}

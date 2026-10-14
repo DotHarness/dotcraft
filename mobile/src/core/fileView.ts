@@ -19,6 +19,10 @@ function extension(path: string): string {
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
 }
 
+export function isMarkdownPath(path: string): boolean {
+  return ['md', 'markdown', 'mdx'].includes(extension(path))
+}
+
 export function mediaTypeOf(path: string): string {
   return IMAGE_TYPES[extension(path)] ?? 'application/octet-stream'
 }

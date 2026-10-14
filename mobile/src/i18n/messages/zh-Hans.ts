@@ -193,6 +193,8 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'file.unsupported': '无法在这里显示此类型的文件。',
   'file.failed': '无法打开此文件。',
   'file.download': '下载',
+  'file.viewSource': '查看源码',
+  'file.viewPreview': '查看预览',
   'file.saved': '已保存到 下载/DotCraft：{{file}}',
   'file.saveFailed': '无法保存文件。',
   'file.saveUnsupported': '保存到「下载」需要 Android 10 或更高版本。',

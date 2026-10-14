@@ -2527,7 +2527,6 @@ export const MESSAGES_EN = {
   'toolCall.memory.updating': 'Updating memory',
   'toolCall.memory.updated.one': 'Memory updated',
   'toolCall.memory.updated.other': 'Memories updated',
-  'toolCall.memory.manage': 'Manage',
   'toolCall.edited': 'Edited {{filename}}',
   'toolCall.editedFile': 'Edited file',
   'toolCall.created': 'Created {{filename}}',

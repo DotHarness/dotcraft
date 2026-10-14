@@ -445,7 +445,9 @@ list shows **failed** only for a chat whose failure the phone has seen.
   turn's `fileChange` results in history, as Desktop does. A stopped or failed turn has no card.
   Tapping the pill or a card opens Changes for that turn. The phone offers no Undo.
 - Tapping a file chip, or a file's name in Changes, opens File with `fs/readFile`. Text shows with its
-  syntax and images show as images; another type, or a file over the read limit, shows its name and
+  syntax with long lines wrapped, and images show as images. Markdown opens as its rendered preview,
+  with leading YAML frontmatter shown as a card of keys and values, and the header switches between
+  View source and View preview; another type, or a file over the read limit, shows its name and
   path to copy. Without `capabilities.fileSystem`, a file chip only shows its path.
 - The context ring starts from the `contextUsage` in `thread/read` and follows the `contextUsage`
   carried by `item/usage/delta` and by terminal compaction events, as Desktop's ring does; a chat
@@ -461,7 +463,8 @@ list shows **failed** only for a chat whose failure the phone has seen.
   inline: a web image loads directly and an image on the computer is read with `fs/readFile`. A link to a local file shows
   as a file chip with its name that opens File. Web links open the browser. File and skill
   references in user messages show as chips, and photos sent with a message show as thumbnails in
-  it, from the moment it is sent. An image a message refers to by `localImage` path, from the phone
+  it, from the moment it is sent. As on Desktop, a chip is tinted text with an icon and no box,
+  sitting on the line's baseline so it never changes the line height. An image a message refers to by `localImage` path, from the phone
   or any other client, is read with `fs/readFile` to show its thumbnail.
   Math uses Desktop's delimiters; the phone does not typeset it, so a formula shows its TeX source
   styled as inline code, or as a code block for display math.

@@ -593,7 +593,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     ? formatExpandedFileToolLabel(rendererOperation, renderableFileDiff, locale)
     : completedExpanded && isShellTool
       ? translate(locale, 'toolCall.ranCommand')
-    : completedExpanded && rendererFamily === 'readFile'
+    : completedExpanded && rendererFamily === 'readFile' && resolveMemoryOperation(item) !== 'recall'
       ? translate(locale, 'toolCall.readFile.file')
       : label
   const readFilePath = rendererFamily === 'readFile' && typeof args?.path === 'string'

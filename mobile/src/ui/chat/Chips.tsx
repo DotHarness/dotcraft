@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard'
-import { createContext, useContext, useState, type ReactNode } from 'react'
-import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { createContext, useContext, useState } from 'react'
+import { Linking, Platform, StyleSheet, Text, View } from 'react-native'
 import { useComputer } from '../../app-state/SessionContext'
 import { baseName } from '../../core/transcript'
 import { useI18n } from '../../i18n'
@@ -9,22 +9,39 @@ import { PhoneButton, Txt } from '../parts'
 import { SheetHeader, SheetLayer } from '../Sheet'
 import { type, useTheme } from '../theme'
 
-function Chip({ icon, label, onPress, accessibilityLabel }: { icon: IconName; label: string; onPress?: () => void; accessibilityLabel?: string }) {
+type RefTone = 'base' | 'skill'
+
+function Ref({
+  icon,
+  label,
+  tone = 'base',
+  onPress,
+  accessibilityLabel,
+}: {
+  icon: IconName
+  label: string
+  tone?: RefTone
+  onPress?: () => void
+  accessibilityLabel?: string
+}) {
   const { colors } = useTheme()
+  const [pressed, setPressed] = useState(false)
+  const color = pressed ? colors.textPrimary : tone === 'skill' ? colors.refSkill : colors.refBase
   return (
-    <Pressable
+    <Text
       accessibilityRole={onPress ? 'button' : 'text'}
       accessibilityLabel={accessibilityLabel ?? label}
-      disabled={!onPress}
       onPress={onPress}
-      hitSlop={4}
-      style={({ pressed }) => [styles.chip, { backgroundColor: pressed ? colors.roundFillPressed : colors.roundFill }]}
+      onPressIn={onPress ? () => setPressed(true) : undefined}
+      onPressOut={onPress ? () => setPressed(false) : undefined}
+      suppressHighlighting
+      style={[styles.ref, tone === 'skill' && styles.skill, { color }]}
     >
-      <Icon name={icon} size={12} color={colors.textSecondary} strokeWidth={2} />
-      <Text numberOfLines={1} style={[type.meta, styles.label, { color: colors.textPrimary }]}>
-        {label}
-      </Text>
-    </Pressable>
+      <View style={styles.icon}>
+        <Icon name={icon} size={13} color={color} strokeWidth={2} />
+      </View>
+      {label}
+    </Text>
   )
 }
 
@@ -67,38 +84,27 @@ export function FileChip({ path, label }: { path: string; label: string }) {
   const { t } = useI18n()
   const openFile = useContext(FileViewerContext)
   const [open, setOpen] = useState(false)
-  if (openFile) return <Chip icon="file" label={label} accessibilityLabel={t('file.open', { file: label })} onPress={() => openFile(path)} />
+  if (openFile) return <Ref icon="file" label={label} accessibilityLabel={t('file.open', { file: label })} onPress={() => openFile(path)} />
   return (
     <>
-      <Chip icon="file" label={label} accessibilityLabel={t('file.show', { file: label })} onPress={() => setOpen(true)} />
+      <Ref icon="file" label={label} accessibilityLabel={t('file.show', { file: label })} onPress={() => setOpen(true)} />
       <FilePathSheet path={path} visible={open} onClose={() => setOpen(false)} />
     </>
   )
 }
 
 export function LinkChip({ url, label }: { url: string; label: string }) {
-  return <Chip icon={/^https?:/i.test(url) ? 'globe' : 'link'} label={label} onPress={() => void Linking.openURL(url).catch(() => undefined)} />
+  return <Ref icon={/^https?:/i.test(url) ? 'globe' : 'link'} label={label} onPress={() => void Linking.openURL(url).catch(() => undefined)} />
 }
 
 export function SkillChip({ name }: { name: string }) {
-  return <Chip icon="box" label={name} />
-}
-
-export function InlineChip({ children }: { children: ReactNode }) {
-  return <View style={styles.inline}>{children}</View>
+  return <Ref icon="box" label={name} tone="skill" />
 }
 
 const styles = StyleSheet.create({
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    maxWidth: 240,
-    height: 22,
-    paddingHorizontal: 6,
-    borderRadius: 6,
-  },
-  label: { flexShrink: 1, fontWeight: '500' },
-  inline: { paddingHorizontal: 2, transform: [{ translateY: Platform.OS === 'web' ? 0 : 4 }] },
+  ref: { fontWeight: '500' },
+  skill: { fontWeight: '600' },
+  // An inline view sits on the baseline, so it is lowered to centre on the label.
+  icon: { marginRight: 4, transform: [{ translateY: Platform.OS === 'web' ? 1 : 2 }] },
   path: { padding: 12, borderRadius: 12, lineHeight: 20, overflow: 'hidden' },
 })

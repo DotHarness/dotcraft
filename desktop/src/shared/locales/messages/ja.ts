@@ -3247,7 +3247,6 @@ export const MESSAGES_JA = {
   'toolCall.memory.updating': 'メモリを更新しています',
   'toolCall.memory.updated.one': 'メモリを更新しました',
   'toolCall.memory.updated.other': 'メモリを更新しました',
-  'toolCall.memory.manage': '管理',
   'toolCall.edited': '{{filename}}を編集しました',
   'toolCall.editedFile': '編集したファイル',
   'toolCall.created': '{{filename}} を作成しました',

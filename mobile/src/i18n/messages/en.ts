@@ -191,6 +191,8 @@ export const MESSAGES_EN = {
   'file.unsupported': 'This type of file can’t be shown here.',
   'file.failed': 'Couldn’t open this file.',
   'file.download': 'Download',
+  'file.viewSource': 'View source',
+  'file.viewPreview': 'View preview',
   'file.saved': 'Saved to Downloads/DotCraft as {{file}}',
   'file.saveFailed': 'Couldn’t save the file.',
   'file.saveUnsupported': 'Saving to Downloads needs Android 10 or later.',

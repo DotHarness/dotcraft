@@ -3250,7 +3250,6 @@ export const MESSAGES_DE = {
   'toolCall.memory.updating': 'Erinnerung wird aktualisiert',
   'toolCall.memory.updated.one': 'Erinnerung aktualisiert',
   'toolCall.memory.updated.other': 'Erinnerungen aktualisiert',
-  'toolCall.memory.manage': 'Verwalten',
   'toolCall.edited': 'Bearbeitet {{filename}}',
   'toolCall.editedFile': 'Bearbeitete Datei',
   'toolCall.created': 'Erstellt {{filename}}',
