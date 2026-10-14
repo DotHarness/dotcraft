@@ -114,6 +114,10 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     ? defaultRenderableItems.filter(isTrimmedHistoryRenderableItem)
     : defaultRenderableItems
 
+  const offersCapacityRetry = !readOnly && isLastTurn && turn.status === 'failed'
+    && turn.providerError === 'serverOverloaded'
+  const lastErrorItemId = turn.items.findLast((item) => item.type === 'error')?.id
+
   const renderItemSequence = (
     itemsToRender: ConversationItem[],
     keyPrefix = ''
@@ -237,6 +241,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
               key={item.id}
               message={item.text ?? 'Unknown error'}
               providerError={turn.providerError}
+              retry={offersCapacityRetry && item.id === lastErrorItemId ? <CapacityRetryRow /> : undefined}
             />
           )
         })
@@ -402,11 +407,11 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       <ConversationNodeFlow nodes={renderNodes} defaultGap="var(--conversation-tool-assistant-gap)" />
 
       {turn.status === 'failed' && turn.error && !hasMatchingErrorItem && (
-        <TurnFailureNotice message={turn.error} providerError={turn.providerError} />
-      )}
-
-      {!readOnly && isLastTurn && turn.status === 'failed' && turn.providerError === 'serverOverloaded' && (
-        <CapacityRetryRow />
+        <TurnFailureNotice
+          message={turn.error}
+          providerError={turn.providerError}
+          retry={offersCapacityRetry && lastErrorItemId === undefined ? <CapacityRetryRow /> : undefined}
+        />
       )}
 
       {/* Fallback for completed turns that have file changes but no visible final message footer. */}

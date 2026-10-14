@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.Sessions;
 using Microsoft.Extensions.AI;
 using Xunit;
 
@@ -206,6 +207,47 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         Assert.Equal(3, inner.Requests.Count);
     }
 
+    [Fact]
+    public async Task GetStreamingResponseAsync_WhenErrorOnlyResponseIsOverload_ReportsTheClassification()
+    {
+        ProviderFailure? classified = null;
+        using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
+        {
+            NotifyRetry = _ => { },
+            NotifyFailureClassified = failure => classified = failure
+        });
+        var inner = new ScriptedStreamChatClient(
+            ([ToolCall("call-1", "GetStatus")], null),
+            ([ErrorUpdate("server_is_overloaded Our servers are currently overloaded.")], null));
+        var client = new StreamingFunctionInvokingChatClient(
+            new RetryBudgetChatClient(inner, 3, new OpenAIProviderFailureClassifier(isSubscriptionBackend: true)))
+        {
+            AdditionalTools = [AIFunctionFactory.Create(() => "ok", name: "GetStatus")]
+        };
+
+        await Assert.ThrowsAsync<EmptyProviderResponseException>(() =>
+            CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")])));
+
+        Assert.Equal(ProviderFailureKind.ServerOverloaded, classified?.Kind);
+        Assert.Equal(2, inner.Requests.Count);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_WhenErrorOnlyResponseIsRetryable_ReissuesTheRequest()
+    {
+        var inner = new ScriptedStreamChatClient(
+            ([ErrorUpdate("slow_down: please try again in 0ms")], null),
+            ([Text("done")], null));
+        var client = new StreamingFunctionInvokingChatClient(
+            new RetryBudgetChatClient(inner, 1, new OpenAIProviderFailureClassifier(isSubscriptionBackend: true)));
+
+        var updates = await CollectAsync(
+            client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]));
+
+        Assert.Equal(2, inner.Requests.Count);
+        Assert.Equal("done", Text(updates));
+    }
+
     private static ChatResponseUpdate Text(string text) => new(ChatRole.Assistant, text);
 
     private static string Text(IEnumerable<ChatResponseUpdate> updates) =>
@@ -215,12 +257,23 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     private static ChatResponseUpdate ToolCall(string callId, string name) =>
         new(ChatRole.Assistant, [new FunctionCallContent(callId, name, new Dictionary<string, object?>())]);
 
+    private static ChatResponseUpdate ErrorUpdate(string message) =>
+        new(ChatRole.Assistant, [new ErrorContent(message)]);
+
     private sealed class PassthroughChatClient(IChatClient innerClient) : DelegatingChatClient(innerClient);
 
-    private sealed class RetryBudgetChatClient(IChatClient innerClient, int maxStreamRetries)
+    private sealed class RetryBudgetChatClient(
+        IChatClient innerClient,
+        int maxStreamRetries,
+        IProviderFailureClassifier? classifier = null)
         : DelegatingChatClient(innerClient), IStreamRetryBudget
     {
         public int MaxStreamRetries => maxStreamRetries;
+
+        public override object? GetService(Type serviceType, object? serviceKey = null) =>
+            serviceType == typeof(IProviderFailureClassifier) && classifier is not null
+                ? classifier
+                : base.GetService(serviceType, serviceKey);
     }
 
     private sealed class ScriptedStreamChatClient(

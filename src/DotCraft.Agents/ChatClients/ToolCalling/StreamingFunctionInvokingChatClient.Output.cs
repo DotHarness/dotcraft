@@ -1,3 +1,4 @@
+using DotCraft.Context.Compaction;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Agents;
@@ -80,8 +81,15 @@ public sealed partial class StreamingFunctionInvokingChatClient
         }
     }
 
-    private static string BuildEmptyProviderResponseMessage(string fallbackMessage, string? providerErrorText) =>
-        string.IsNullOrWhiteSpace(providerErrorText)
+    private static InvalidOperationException CreateEmptyProviderResponseFailure(
+        string fallbackMessage,
+        string? providerErrorText)
+    {
+        var message = string.IsNullOrWhiteSpace(providerErrorText)
             ? fallbackMessage
             : fallbackMessage + " Provider error: " + providerErrorText;
+        return CompactionErrors.IsPromptTooLongMessage(providerErrorText)
+            ? new InvalidOperationException(message)
+            : new EmptyProviderResponseException(message);
+    }
 }

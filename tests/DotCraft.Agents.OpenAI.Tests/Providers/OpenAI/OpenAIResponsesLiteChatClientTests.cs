@@ -227,6 +227,21 @@ public sealed class OpenAIResponsesLiteChatClientTests
     }
 
     [Fact]
+    public async Task StreamingResponse_FailedResponseKeepsTheProviderErrorCode()
+    {
+        var payload = """
+            data: {"type":"response.failed","sequence_number":1,"response":{"id":"resp-failed","object":"response","created_at":0,"model":"gpt-test","status":"failed","error":{"code":"server_is_overloaded","message":"Our servers are currently overloaded."}}}
+
+            """;
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(payload));
+
+        var exception = await Assert.ThrowsAsync<IOException>(async () =>
+            await CollectAsync(OpenAIResponsesLiteTransport.ReadStreamingResponseAsync(stream)));
+
+        Assert.Contains("server_is_overloaded", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task StreamingResponse_TreatsIncompleteAsRetryableStreamFailure()
     {
         var payload = """

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocale } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
+import { Button } from '../ui/Button'
 import styles from './CapacityRetryControl.module.css'
 
 interface CapacityRetryControlProps {
@@ -43,21 +44,20 @@ export function CapacityRetryControl({
   const progress = counting && delaySeconds ? (delaySeconds - remaining) / delaySeconds : 0
 
   return (
-    <div className={styles.control}>
-      <button
-        type="button"
-        className={styles.button}
-        disabled={busy}
-        onClick={() => {
-          firedRef.current = true
-          onRetry()
-        }}
-      >
-        {counting && (
-          <span className={styles.fill} style={{ transform: `scaleX(${progress})` }} aria-hidden />
-        )}
-        <span className={styles.label}>{label}</span>
-      </button>
-    </div>
+    <Button
+      size="sm"
+      variant="secondary"
+      className={styles.button}
+      disabled={busy}
+      onClick={() => {
+        firedRef.current = true
+        onRetry()
+      }}
+    >
+      {counting && (
+        <span className={styles.fill} style={{ transform: `scaleX(${progress})` }} aria-hidden />
+      )}
+      <span className={styles.label}>{label}</span>
+    </Button>
   )
 }

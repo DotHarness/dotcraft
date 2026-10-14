@@ -24,6 +24,7 @@ import { wireTurnToConversationTurn } from '../../types/conversation'
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
 import type { ContextUsageSnapshotWire, Thread } from '../../types/thread'
 import { getSpawnedFromThreadId } from '../../utils/subAgentThreads'
+import { findSupersededRetryTurnIds } from '../../utils/failedTurnResume'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { readThreadHistoryHead } from '../../utils/threadHistory'
 import { isVisibleUserMessage } from '../../utils/visibleUserMessage'
@@ -126,6 +127,7 @@ function MessageStreamContent(): JSX.Element {
     [historyGaps]
   )
   const threadStartLoaded = historyHeadLoaded && turns.length > 0 && !gapIdBeforeTurn.has(turns[0].id)
+  const supersededRetryTurnIds = useMemo(() => findSupersededRetryTurnIds(turns), [turns])
   const threadList = useThreadStore((s) => s.threadList)
   // Origin of a thread spawned by another thread (Desktop CreateThread). Drives the
   // "From another thread" pill on the first user message; null for normal threads.
@@ -275,12 +277,13 @@ function MessageStreamContent(): JSX.Element {
           {turns.map((turn, idx) => {
             const isActiveTurn = turn.id === activeTurnId
             const gapId = gapIdBeforeTurn.get(turn.id)
+            const superseded = supersededRetryTurnIds.has(turn.id)
             return (
               <Fragment key={turn.id}>
                 {gapId !== undefined && (
                   <div className="dc-conversation-history-gap" data-history-gap={gapId} aria-hidden="true" />
                 )}
-                <div
+                {!superseded && <div
                   data-turn-id={turn.id}
                   className="dc-conversation-turn-shell"
                   data-active={isActiveTurn ? 'true' : undefined}
@@ -331,7 +334,7 @@ function MessageStreamContent(): JSX.Element {
                       void submitInlineEdit()
                     }}
                   />
-                </div>
+                </div>}
               </Fragment>
             )
           })}

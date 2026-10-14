@@ -156,8 +156,12 @@ internal sealed class OpenAIResponsesLiteTransport(ResponsesClient responsesClie
             yield return update;
             if (update is StreamingResponseIncompleteUpdate)
                 throw new IOException("Responses stream ended with response.incomplete.");
-            if (update is StreamingResponseFailedUpdate)
-                throw new IOException("Responses stream ended with response.failed.");
+            if (update is StreamingResponseFailedUpdate failed)
+            {
+                throw new IOException(failed.Response?.Error is { } failure
+                    ? $"Responses stream ended with response.failed: {failure.Code}: {failure.Message}"
+                    : "Responses stream ended with response.failed.");
+            }
             if (update is StreamingResponseErrorUpdate error)
                 throw new IOException($"Responses stream ended with {error.Code}: {error.Message}");
         }

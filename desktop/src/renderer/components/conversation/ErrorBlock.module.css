@@ -1,0 +1,43 @@
+.block {
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-top: 4px;
+  padding: 8px 8px 8px 12px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--conversation-secondary-size);
+  line-height: var(--conversation-line-height);
+}
+
+.body {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 200px;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.icon {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--error-text);
+}
+
+.message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
