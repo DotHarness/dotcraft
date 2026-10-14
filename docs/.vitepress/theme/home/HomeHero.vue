@@ -16,6 +16,7 @@ const mascot = ref<InstanceType<typeof PerchedMascot>>()
 
 <template>
   <section class="dc-hero" aria-labelledby="hero-title">
+    <div class="dc-backdrop" aria-hidden="true" />
     <div class="dc-wrap">
       <a class="dc-hero__eyebrow" href="https://github.com/DotHarness/dotcraft">
         <Icon name="github" :size="14" />

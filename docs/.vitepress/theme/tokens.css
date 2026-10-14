@@ -101,6 +101,10 @@
   --vp-c-bg: var(--bg-secondary);
 }
 
+:root.dark {
+  --seed-surface: #0b0c0c;
+}
+
 @media (max-width: 639px) {
   :root {
     --vp-nav-height: 52px;

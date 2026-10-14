@@ -14,6 +14,7 @@ const mascot = ref<InstanceType<typeof PerchedMascot>>()
 
 <template>
   <section class="dc-close" aria-labelledby="close-title">
+    <div class="dc-backdrop" aria-hidden="true" />
     <div class="dc-wrap">
       <h2 id="close-title">{{ t.close.title }}</h2>
       <div class="dc-close__composer">
