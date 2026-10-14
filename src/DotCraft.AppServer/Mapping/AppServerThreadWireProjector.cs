@@ -53,14 +53,17 @@ internal sealed class AppServerThreadWireProjector(
     public SessionWireThread EnrichForNotification(SessionWireThread wire) =>
         WithOriginPresentation(WithAppBindingAttribution(wire, wire.Id, wire.WorkspacePath));
 
-    public async Task<ThreadGoalSnapshot?> TryGetGoalSnapshotAsync(string threadId, CancellationToken ct)
+    public Task<ThreadGoalSnapshot?> TryGetGoalSnapshotAsync(string threadId, CancellationToken ct) =>
+        TryReadGoalSnapshotAsync(() => sessionService.GetThreadGoalAsync(threadId, ct));
+
+    private async Task<ThreadGoalSnapshot?> TryReadGoalSnapshotAsync(Func<Task<ThreadGoal?>> readGoal)
     {
         if (!GoalsCapabilityEnabled())
             return null;
 
         try
         {
-            var goal = await sessionService.GetThreadGoalAsync(threadId, ct);
+            var goal = await readGoal();
             return goal is null ? null : ThreadGoalSnapshot.FromGoal(goal);
         }
         catch (NotSupportedException)
@@ -74,7 +77,7 @@ internal sealed class AppServerThreadWireProjector(
         Dictionary<string, AppCatalogSnapshot?> catalogByWorkspace,
         CancellationToken ct)
     {
-        summary.Goal = await TryGetGoalSnapshotAsync(summary.Id, ct);
+        summary.Goal = await TryReadGoalSnapshotAsync(() => sessionService.GetStoredThreadGoalAsync(summary.Id, ct));
         summary.OriginPresentation = ResolveOriginPresentation(
             summary.Id,
             summary.WorkspacePath,

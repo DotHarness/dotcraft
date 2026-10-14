@@ -861,9 +861,9 @@ public sealed class AppServerHost(
                 await transport.WriteMessageAsync(AppServerRequestHandler.BuildErrorResponse(msg.Id, ex.ToError()), ct);
                 return;
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                // Request cancelled — no response needed
+                // The connection is closing — no response can be delivered.
                 return;
             }
             catch (Exception ex)
