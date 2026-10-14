@@ -79,6 +79,9 @@ internal sealed class ResultSizeLimitingFunction : DelegatingAIFunction,
     public bool RpcEligible =>
         GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) && metadata.RpcEligible;
 
+    public bool ReturnsContent =>
+        GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) && metadata.ReturnsContent;
+
     public ToolPresentationDescriptor? Presentation =>
         GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) ? metadata.Presentation : null;
 

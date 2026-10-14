@@ -183,6 +183,13 @@ public sealed class AIFunctionToolSourceTests
     }
 
     [Fact]
+    public void A_tool_returning_content_items_says_so_and_a_value_tool_does_not()
+    {
+        Assert.True(GeneratedToolDeclarations.FileTools_ReadFile_Declaration.ReturnsContent);
+        Assert.False(GeneratedToolDeclarations.FileTools_GrepFiles_Declaration.ReturnsContent);
+    }
+
+    [Fact]
     public void FirstPartyTools_DeclareTheirDesktopPresentation()
     {
         AssertPresentation(GeneratedToolDeclarations.FileTools_ReadFile_Declaration, "core.read-file", ("operation", "read"));

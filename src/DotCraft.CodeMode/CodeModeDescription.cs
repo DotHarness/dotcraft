@@ -16,7 +16,7 @@ public static class CodeModeDescription
             "",
             "Globals:",
             "- `text(value)` appends text to the output; non-strings are JSON-stringified.",
-            "- `image(value)` appends an image from a base64 `data:` URL or an MCP image content block.",
+            "- `image(value)` appends an image from a base64 `data:` URL or an image content block. A tool result that holds images is a `CallToolResult`; pass its image block, for example `image(result.content.find(block => block.type === \"image\"))`, so you can see it.",
             "- `exit()` ends the program successfully.",
             "- `store(key, value)` and `load(key)` keep JSON values across `CodeMode` calls in this conversation; storing `undefined` deletes a key.",
             "- `ALL_TOOLS` lists `{ name, description }` for every callable tool; each description ends with the tool's declaration.",
@@ -30,8 +30,8 @@ public static class CodeModeDescription
         };
         if (surface.HasUnlistedTools)
             lines.Add("More callable tools are not listed; find them by filtering `ALL_TOOLS` by name or description.");
-        if (surface.Tools.Any(static tool => CodeModeDeclarations.IsMcp(tool.Registration.Definition)))
-            lines.AddRange(["", "MCP tools resolve to `CallToolResult`:", CodeModeDeclarations.McpPreamble]);
+        if (surface.Tools.Any(static tool => CodeModeDeclarations.UsesContentTypes(tool.Registration.Definition)))
+            lines.AddRange(["", "MCP tools, and tools returning images, resolve to `CallToolResult`:", CodeModeDeclarations.McpPreamble]);
         if (mode == AppConfig.CodeModeSetting.Only)
             AppendDeclarations(lines, surface);
         return string.Join('\n', lines);

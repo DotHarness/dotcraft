@@ -7,6 +7,7 @@ using DotCraft.Processes;
 using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Tools;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.CodeMode.Tests;
 
@@ -63,7 +64,47 @@ public sealed class CodeModeNestedDispatchTests
         });
     }
 
-    private static ToolRegistration Registration(string name, bool requiresApproval)
+    [Fact]
+    public async Task ANestedResultWithImagesReachesTheScriptAsContentBlocksItCanShow()
+    {
+        _ = typeof(CommandLineArgs).Assembly;
+        var workspace = Directory.CreateTempSubdirectory("codemode-").FullName;
+        var dispatcher = new ToolDispatcher();
+        var snapshot = new EffectiveToolSnapshotBuilder().Build(
+            [Registration("Echo", requiresApproval: false), Registration("Snapshot", requiresApproval: false, new ImageRuntime(), returnsContent: true)],
+            revision: 1);
+        await using var host = new CodeModeWorkerHost(new ManagedChildProcessFactory(), workspace, new CodeModeLimits());
+        var config = new AppConfig();
+        config.Tools.CodeMode.Mode = AppConfig.CodeModeSetting.Only;
+        var finalizer = new CodeModeToolFinalizer(() => config, host, new CodeModeStore(), dispatcher);
+        var planning = new ToolPlanningContext("thread_1", null, workspace, Path.Combine(workspace, ".craft"), "agent", null, null, 1);
+        var exec = (await finalizer.FinalizeAsync(snapshot, planning)).Registrations.Single(static registration => registration.Definition.Name.Name == "CodeMode");
+        var context = new ToolInvocationContext(
+            "thread_1", "turn_1", "call_exec", ToolInvocationAudience.Model, exec.Definition.Name,
+            exec.Definition.Id, exec.Binding.Id, 1, DateTimeOffset.UtcNow, WorkspacePath: workspace);
+
+        var result = await exec.Binding.Runtime.InvokeAsync(context, new JsonObject
+        {
+            ["code"] = """
+                const echoed = await tools.Echo({ value: 'hi' });
+                const shot = await tools.Snapshot({});
+                text(typeof echoed);
+                text(shot.content[0].text);
+                image(shot.content.find(block => block.type === 'image'));
+                """
+        });
+
+        Assert.True(result.Success, result.Content);
+        Assert.Contains("string", result.Content);
+        Assert.Contains("captured", result.Content);
+        var image = Assert.Single(result.ContentItems!.OfType<DataContent>());
+        Assert.Equal("image/png", image.MediaType);
+        Assert.Equal(ImageRuntime.Png, image.Data.ToArray());
+        Assert.Equal("completed", result.StructuredContent?.GetProperty("status").GetString());
+        Assert.Equal(2, result.StructuredContent?.GetProperty("nestedCalls").GetInt32());
+    }
+
+    private static ToolRegistration Registration(string name, bool requiresApproval, IToolRuntime? runtime = null, bool returnsContent = false)
     {
         var id = new ToolDefinitionId(ToolSourceKind.CoreNative, "test", new SourceToolId(name));
         var definition = new ToolDefinition(
@@ -75,11 +116,14 @@ public sealed class CodeModeNestedDispatchTests
                 type = "object",
                 properties = new { value = new { type = "string" } }
             }),
+            annotations: returnsContent
+                ? new Dictionary<string, JsonElement> { [ToolContentMetadata.ReturnsContentAnnotation] = JsonSerializer.SerializeToElement(true) }
+                : null,
             policyHints: new ToolPolicyHints(RequiresApproval: requiresApproval));
         var binding = new ToolRuntimeBinding(
             new RuntimeBindingId($"test:{name}"),
             id,
-            new EchoRuntime(),
+            runtime ?? new EchoRuntime(),
             ToolBindingLeases.AlwaysAvailable,
             "test",
             1);
@@ -93,6 +137,19 @@ public sealed class CodeModeNestedDispatchTests
             JsonObject arguments,
             CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(ToolExecutionResult.Succeeded($"echo:{arguments["value"]}"));
+    }
+
+    private sealed class ImageRuntime : IToolRuntime
+    {
+        public static readonly byte[] Png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3];
+
+        public ValueTask<ToolExecutionResult> InvokeAsync(
+            ToolInvocationContext context,
+            JsonObject arguments,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ToolExecutionResult.Succeeded(
+                "captured",
+                contentItems: [new TextContent("captured"), new DataContent(Png, "image/png")]));
     }
 
     private sealed class RecordingRecorder : IToolInvocationRecorder

@@ -124,6 +124,11 @@ public abstract class AIFunctionToolSource : IToolSource
                 annotations[RemoteToolMetadata.RpcEligibleAnnotation] =
                     JsonSerializer.SerializeToElement(true);
             }
+            if (metadata.ReturnsContent)
+            {
+                annotations[ToolContentMetadata.ReturnsContentAnnotation] =
+                    JsonSerializer.SerializeToElement(true);
+            }
         }
 
         return annotations.Count == 0 ? null : annotations;

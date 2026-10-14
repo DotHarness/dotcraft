@@ -67,6 +67,7 @@ public sealed class GeneratedToolDeclaration
         Description = description;
         InputSchema = GeneratedToolSchema.Parse(inputSchemaJson);
         OutputSchema = GeneratedToolSchema.CreateReturnSchema(outputType, OutputSerializerOptions);
+        ReturnsContent = GeneratedToolSchema.ReturnsContent(outputType);
         RpcEligible = rpcEligible;
         Presentation = presentationId is null
             ? null
@@ -88,6 +89,9 @@ public sealed class GeneratedToolDeclaration
 
     /// <summary>Gets the immutable output JSON Schema when one is declared.</summary>
     public JsonElement? OutputSchema { get; }
+
+    /// <summary>Gets whether the tool returns content items, such as text alongside images, rather than a value.</summary>
+    public bool ReturnsContent { get; }
 
     /// <summary>Gets whether the native declaration may be exported by a Remote Tool Host.</summary>
     public bool RpcEligible { get; }
@@ -123,6 +127,8 @@ internal interface IGeneratedToolMetadata
     int? MaxResultChars { get; }
 
     bool RpcEligible { get; }
+
+    bool ReturnsContent { get; }
 
     ToolPresentationDescriptor? Presentation { get; }
 }
@@ -179,6 +185,8 @@ public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
     public int? MaxResultChars => _metadata.MaxResultChars;
 
     public bool RpcEligible => _metadata.RpcEligible;
+
+    public bool ReturnsContent => _declaration.ReturnsContent;
 
     public ToolPresentationDescriptor? Presentation => _declaration.Presentation;
 }
@@ -252,6 +260,9 @@ internal static class GeneratedToolSchema
 
         return AIJsonUtilities.CreateJsonSchema(unwrapped, serializerOptions: serializerOptions);
     }
+
+    public static bool ReturnsContent(Type? returnType) =>
+        UnwrapReturnType(returnType) is { } unwrapped && GeneratedToolArgumentBinder.IsAIContentResultType(unwrapped);
 
     private static Type? UnwrapReturnType(Type? returnType)
     {
