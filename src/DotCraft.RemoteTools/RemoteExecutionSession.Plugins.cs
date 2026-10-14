@@ -13,6 +13,7 @@ public sealed partial class RemoteExecutionSession
     public void UpdateRemoteToolSnapshot(string threadId, EffectiveToolSnapshot snapshot, string mode)
     {
         var visible = snapshot.ModelVisibleDefinitions.Concat(snapshot.DeferredDefinitions.Values.SelectMany(items => items))
+            .Concat(snapshot.ModelHiddenDefinitions)
             .Select(definition => definition.Id).ToHashSet();
         var registrations = snapshot.Registrations.Values
             .Where(item => visible.Contains(item.Definition.Id) && RemoteToolMetadata.IsRpcEligible(item)).ToArray();
