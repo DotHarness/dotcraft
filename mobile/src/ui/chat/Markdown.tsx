@@ -8,7 +8,7 @@ import { ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native
 import { resolveLink } from '../../core/links'
 import { Icon } from '../icons'
 import { metrics, type, useTheme } from '../theme'
-import { FileChip, InlineChip, LinkChip } from './Chips'
+import { FileChip, LinkChip } from './Chips'
 import { ImageThumb, SentImage } from './Images'
 import { mathSyntax } from './mathSyntax'
 
@@ -74,11 +74,8 @@ function inline(nodes: PhrasingContent[], env: Env, key = ''): ReactNode[] {
       case 'link': {
         const target = resolveLink(node.url, plain(node.children), env.workspacePath)
         if (target.kind === 'reject') return target.label
-        return (
-          <InlineChip key={id}>
-            {target.kind === 'file' ? <FileChip path={target.path} label={target.label} /> : <LinkChip url={target.url} label={target.label} />}
-          </InlineChip>
-        )
+        if (target.kind === 'file') return <FileChip key={id} path={target.path} label={target.label} />
+        return <LinkChip key={id} url={target.url} label={target.label} />
       }
       case 'image':
         return node.alt ?? ''

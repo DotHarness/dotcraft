@@ -193,6 +193,8 @@ export const MESSAGES_KO: Catalog = {
   'file.unsupported': '이 유형의 파일은 여기에 표시할 수 없습니다.',
   'file.failed': '이 파일을 열 수 없습니다.',
   'file.download': '다운로드',
+  'file.viewSource': '소스 보기',
+  'file.viewPreview': '미리 보기',
   'file.saved': '다운로드/DotCraft에 {{file}}(으)로 저장했습니다',
   'file.saveFailed': '파일을 저장하지 못했습니다.',
   'file.saveUnsupported': '다운로드에 저장하려면 Android 10 이상이 필요합니다.',

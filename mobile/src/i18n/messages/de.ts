@@ -193,6 +193,8 @@ export const MESSAGES_DE: Catalog = {
   'file.unsupported': 'Dieser Dateityp kann hier nicht angezeigt werden.',
   'file.failed': 'Diese Datei konnte nicht geöffnet werden.',
   'file.download': 'Herunterladen',
+  'file.viewSource': 'Quelltext anzeigen',
+  'file.viewPreview': 'Vorschau anzeigen',
   'file.saved': 'Unter Downloads/DotCraft als {{file}} gespeichert',
   'file.saveFailed': 'Die Datei konnte nicht gespeichert werden.',
   'file.saveUnsupported': 'Zum Speichern in Downloads ist Android 10 oder neuer nötig.',

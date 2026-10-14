@@ -2107,7 +2107,13 @@ error row that carries the board's own message.
 The documentation site (`docs/.vitepress/theme/`) is a Desktop window, not a
 marketing skin. It reuses this file's tokens in both themes, the neutral-first
 posture, and the primary action rule; it keeps no palette of its own. A token
-change here is mirrored in the docs theme.
+change here is mirrored in the docs theme. Two exceptions serve reading in a
+browser: the dark theme re-seeds `--seed-surface` deeper, so every derived dark
+surface moves together, and the home page's hero and closing call to action sit
+on a generated, fully defocused colour-field image in a light and a dark
+variant. It fills the hero edge to edge and fades into the main surface behind
+the demo window; copy over it uses frosted or near-primary text so it stays
+legible.
 
 - A chrome-tone band runs across the top of every page. Content pages add the
   Desktop sidebar, with its sentence-case group labels, row grammar, and

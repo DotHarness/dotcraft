@@ -3248,7 +3248,6 @@ export const MESSAGES_ES = {
   'toolCall.memory.updating': 'Actualizando memoria',
   'toolCall.memory.updated.one': 'Memoria actualizada',
   'toolCall.memory.updated.other': 'Memorias actualizadas',
-  'toolCall.memory.manage': 'Gestionar',
   'toolCall.edited': 'Editado {{filename}}',
   'toolCall.editedFile': 'archivo editado',
   'toolCall.created': 'Creado {{filename}}',

@@ -186,7 +186,7 @@ Clients show dependent settings as disabled while memory is off, with their stor
 
 A file tool call whose target lies inside the Thread's resolved store is a memory operation. When recording the Item, Core marks the call in its trusted presentation options as `memory: "recall"` for a read or search, or `memory: "update"` for a write or edit. Only Core resolves the store, so clients rely on this mark rather than on paths.
 
-Clients group recall operations as recalled memories and show an update as a memory update with an entry into memory settings. They count memory files, not writes that change only `MEMORY.md`. Extraction adds no Items, so its writes do not appear in the conversation.
+Clients group recall operations as recalled memories and show an update as a memory update whose changes can be reviewed like a file edit. They count memory files, not writes that change only `MEMORY.md`. Extraction adds no Items, so its writes do not appear in the conversation.
 
 ## 9. Deleting Memory
 

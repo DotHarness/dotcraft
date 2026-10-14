@@ -193,6 +193,8 @@ export const MESSAGES_JA: Catalog = {
   'file.unsupported': 'この種類のファイルはここでは表示できません。',
   'file.failed': 'このファイルを開けませんでした。',
   'file.download': 'ダウンロード',
+  'file.viewSource': 'ソースを表示',
+  'file.viewPreview': 'プレビューを表示',
   'file.saved': 'ダウンロード/DotCraft に {{file}} を保存しました',
   'file.saveFailed': 'ファイルを保存できませんでした。',
   'file.saveUnsupported': 'ダウンロードへの保存には Android 10 以降が必要です。',

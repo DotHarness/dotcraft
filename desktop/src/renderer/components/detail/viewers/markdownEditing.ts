@@ -9,6 +9,9 @@ import {
 import { syntaxTree } from '@codemirror/language'
 import type { ThemeMode } from '../../../../shared/theme'
 import { renderMermaidSvg } from '../../conversation/MermaidDiagram'
+import { parseFrontmatter, type FrontmatterEntry } from '../../../utils/frontmatter'
+
+const FRONTMATTER_SCAN_LENGTH = 16_384
 
 const focusChanged = StateEffect.define<boolean>()
 const focused = StateField.define<boolean>({
@@ -91,9 +94,23 @@ function decorateMarkdown(state: EditorState, theme: ThemeMode): DecorationSet {
   const mark = (from: number, to: number, className: string) => {
     if (to > from) ranges.push(Decoration.mark({ class: className }).range(from, to))
   }
+  const frontmatter = parseFrontmatter(state.doc.sliceString(0, FRONTMATTER_SCAN_LENGTH))
+  const frontmatterEnd = frontmatter ? state.doc.lineAt(frontmatter.end - 1).to : -1
+  if (frontmatter && !selected(0, frontmatterEnd)) {
+    ranges.push(
+      Decoration.replace({ widget: new FrontmatterWidget(frontmatter.entries), block: true }).range(
+        0,
+        frontmatterEnd
+      )
+    )
+  } else if (frontmatter) {
+    for (let number = 1; number <= state.doc.lineAt(frontmatterEnd).number; number++)
+      line(state.doc.line(number).from, 'dc-md-frontmatter-line')
+  }
   syntaxTree(state).iterate({
     enter: ({ node }) => {
       const { name, from, to } = node
+      if (to <= frontmatterEnd && name !== 'Document') return false
       const active = selected(from, to)
       if (name.startsWith('ATXHeading') || name.startsWith('SetextHeading')) {
         const level = Number(name.slice(-1))
@@ -230,6 +247,44 @@ function decorateMarkdown(state: EditorState, theme: ThemeMode): DecorationSet {
     }
   })
   return Decoration.set(ranges, true)
+}
+
+class FrontmatterWidget extends WidgetType {
+  constructor(private entries: FrontmatterEntry[]) {
+    super()
+  }
+  eq(other: FrontmatterWidget) {
+    return JSON.stringify(other.entries) === JSON.stringify(this.entries)
+  }
+  toDOM(view: EditorView) {
+    const element = document.createElement('dl')
+    element.className = 'dc-md-frontmatter'
+    // The card gives way to its YAML under the pointer, so a click must not become a drag selection.
+    element.addEventListener('mousedown', (event) => {
+      if (event.button !== 0) return
+      event.preventDefault()
+      view.focus()
+      view.dispatch({ selection: { anchor: view.state.doc.line(Math.min(2, view.state.doc.lines)).from } })
+    })
+    for (const { key, value } of this.entries) {
+      const term = document.createElement('dt')
+      term.textContent = key
+      term.title = key
+      const detail = document.createElement('dd')
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          const tag = document.createElement('span')
+          tag.className = 'dc-md-frontmatter-tag'
+          tag.textContent = item
+          detail.append(tag)
+        }
+      } else {
+        detail.textContent = value
+      }
+      element.append(term, detail)
+    }
+    return element
+  }
 }
 
 let mermaidId = 0
