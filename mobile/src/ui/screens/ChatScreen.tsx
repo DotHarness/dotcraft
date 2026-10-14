@@ -301,7 +301,11 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
           onOpenFile={openFile ? (path) => openFile(workspaceFile(path, workspacePath)) : null}
         />
       ) : null}
-      <FileSheet path={openPath} read={readFile} workspacePath={workspacePath} onClose={() => setOpenPath(null)} />
+      <FileViewerContext.Provider value={openFile}>
+        <ImageReaderContext.Provider value={imageReader}>
+          <FileSheet path={openPath} read={readFile} onClose={() => setOpenPath(null)} />
+        </ImageReaderContext.Provider>
+      </FileViewerContext.Provider>
       <TasksSheet
         visible={tasksOpen}
         running={tasks.running}

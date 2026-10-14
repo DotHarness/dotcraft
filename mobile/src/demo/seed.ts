@@ -625,6 +625,8 @@ const RELEASE_NOTES = [
   '',
   '# DotCraft {{version}}',
   '',
+  'Filled in by [release.ps1](release.ps1).',
+  '',
   '## Highlights',
   '',
   '{{highlights}}',

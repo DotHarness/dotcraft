@@ -7,7 +7,7 @@ describe('parseFrontmatter', () => {
       '---',
       'name: commit-message-style',
       'description: "Single-line subjects: no body"',
-      'tags: [git, style]',
+      'tags: ["git, history", style]',
       'metadata:',
       '  type: feedback',
       '  owners:',
@@ -25,7 +25,7 @@ describe('parseFrontmatter', () => {
       entries: [
         { key: 'name', value: 'commit-message-style' },
         { key: 'description', value: 'Single-line subjects: no body' },
-        { key: 'tags', value: ['git', 'style'] },
+        { key: 'tags', value: ['git, history', 'style'] },
         { key: 'metadata.type', value: 'feedback' },
         { key: 'metadata.owners', value: ['docs', 'desktop'] },
         { key: 'notes', value: 'first\nsecond' }

@@ -63,17 +63,17 @@ function FrontmatterCard({ entries }: { entries: FrontmatterEntry[] }) {
   )
 }
 
-function MarkdownFile({ text, workspacePath }: { text: string; workspacePath: string | null }) {
+function MarkdownFile({ text, directory }: { text: string; directory: string }) {
   const frontmatter = useMemo(() => parseFrontmatter(text), [text])
   return (
     <View style={styles.markdown}>
       {frontmatter ? <FrontmatterCard entries={frontmatter.entries} /> : null}
-      <Markdown text={frontmatter ? text.slice(frontmatter.end) : text} workspacePath={workspacePath} />
+      <Markdown text={frontmatter ? text.slice(frontmatter.end) : text} workspacePath={directory} />
     </View>
   )
 }
 
-function FileBody({ path, result, preview, workspacePath }: { path: string; result: Result; preview: boolean; workspacePath: string | null }) {
+function FileBody({ path, result, preview }: { path: string; result: Result; preview: boolean }) {
   const { t } = useI18n()
   if (result.state === 'loading') {
     return (
@@ -83,7 +83,7 @@ function FileBody({ path, result, preview, workspacePath }: { path: string; resu
     )
   }
   if (result.state === 'ready' && result.content.kind === 'text') {
-    return preview ? <MarkdownFile text={result.content.text} workspacePath={workspacePath} /> : <TextFile text={result.content.text} />
+    return preview ? <MarkdownFile text={result.content.text} directory={path.replace(/[\\/][^\\/]*$/, '')} /> : <TextFile text={result.content.text} />
   }
   if (result.state === 'ready' && result.content.kind === 'image')
     return <ImageThumb uri={result.content.uri} name={baseName(path)} label={t('image.open')} style={styles.image} />
@@ -91,7 +91,7 @@ function FileBody({ path, result, preview, workspacePath }: { path: string; resu
   return <FilePath path={path} note={note} />
 }
 
-function OpenFile({ path, read, workspacePath }: { path: string; read: (path: string) => Promise<string>; workspacePath: string | null }) {
+function OpenFile({ path, read }: { path: string; read: (path: string) => Promise<string> }) {
   const { t } = useI18n()
   const [result, setResult] = useState<Result>({ state: 'loading' })
   const [source, setSource] = useState(false)
@@ -130,25 +130,15 @@ function OpenFile({ path, read, workspacePath }: { path: string; read: (path: st
           ) : null
         }
       />
-      <FileBody path={path} result={result} preview={markdown && !source} workspacePath={workspacePath} />
+      <FileBody path={path} result={result} preview={markdown && !source} />
     </>
   )
 }
 
-export function FileSheet({
-  path,
-  read,
-  workspacePath,
-  onClose,
-}: {
-  path: string | null
-  read: (path: string) => Promise<string>
-  workspacePath: string | null
-  onClose: () => void
-}) {
+export function FileSheet({ path, read, onClose }: { path: string | null; read: (path: string) => Promise<string>; onClose: () => void }) {
   return (
     <SheetLayer visible={path !== null} onClose={onClose}>
-      {path ? <OpenFile key={path} path={path} read={read} workspacePath={workspacePath} /> : null}
+      {path ? <OpenFile key={path} path={path} read={read} /> : null}
     </SheetLayer>
   )
 }

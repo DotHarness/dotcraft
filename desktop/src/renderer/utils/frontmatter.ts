@@ -18,11 +18,26 @@ function unquote(value: string): string {
   return text
 }
 
+function flowItems(text: string): string[] {
+  const items: string[] = []
+  let current = ''
+  let quote = ''
+  for (const char of text) {
+    if (!quote && char === ',') {
+      items.push(current)
+      current = ''
+      continue
+    }
+    if (quote ? char === quote : char === '"' || char === "'") quote = quote ? '' : char
+    current += char
+  }
+  items.push(current)
+  return items.map(unquote).filter((item) => item.length > 0)
+}
+
 function scalar(value: string): string | string[] {
   const text = value.trim()
-  if (text.startsWith('[') && text.endsWith(']')) {
-    return text.slice(1, -1).split(',').map(unquote).filter((item) => item.length > 0)
-  }
+  if (text.startsWith('[') && text.endsWith(']')) return flowItems(text.slice(1, -1))
   return unquote(text)
 }
 
