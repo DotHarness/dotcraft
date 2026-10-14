@@ -149,6 +149,32 @@ public sealed class ProviderFailureClassifierTests
     }
 
     [Fact]
+    public void OpenAI_SubscriptionCapacityRejectionIsServerOverload()
+    {
+        var failure = Classify(
+            isSubscriptionBackend: true,
+            status: 429,
+            body: "{\"error\":{\"type\":\"rate_limit_error\",\"code\":\"turn_rate_limit_exceeded\",\"message\":\"Codex is at capacity, please try again later\"}}");
+
+        Assert.Equal(ProviderFailureKind.ServerOverloaded, failure.Kind);
+        Assert.Equal(429, failure.HttpStatus);
+        Assert.True(failure.IsTerminal);
+    }
+
+    [Fact]
+    public void OpenAI_SubscriptionThrottlingWithRetryAfterIsRetried()
+    {
+        var failure = Classify(
+            isSubscriptionBackend: true,
+            status: 429,
+            body: "{\"error\":{\"code\":\"rate_limit_exceeded\"}}",
+            retryAfter: "5");
+
+        Assert.Equal(ProviderFailureKind.RateLimitExceeded, failure.Kind);
+        Assert.InRange(failure.GetRetryDelay(1)!.Value, TimeSpan.Zero, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public void OpenAI_RequestIdSurvivesClassification()
     {
         var failure = Classify(

@@ -7,7 +7,7 @@ import { usePluginStore } from '../../stores/pluginStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
-import { startTurnWithOptimisticUI } from '../../utils/startTurn'
+import { reissueFailedTurn, startTurnWithOptimisticUI } from '../../utils/startTurn'
 import type { ContextMenuItem } from '../ui/ContextMenu'
 import type { ComposerMascotInteraction } from './ComposerShell'
 import type { InputPart } from '../../types/conversation'
@@ -207,30 +207,13 @@ export function useComposerMascot({
   )
 
   const retry = useCallback(async (): Promise<void> => {
-    let text = ''
-    outer: for (let i = turns.length - 1; i >= 0; i--) {
-      const items = turns[i].items
-      for (let j = items.length - 1; j >= 0; j--) {
-        const item = items[j]
-        if (item.type === 'userMessage' && item.text && item.text.trim().length > 0) {
-          text = item.text
-          break outer
-        }
-      }
-    }
-    if (!text) {
-      addToast(t('mascot.toast.retryNothing'), 'warning')
-      return
-    }
     setLocal(null)
-    await startTurnWithOptimisticUI({
-      threadId,
-      workspacePath,
-      text,
-      fallbackThreadName: text,
-      renameThreadFromText: false
-    })
-  }, [t, threadId, turns, workspacePath])
+    try {
+      await reissueFailedTurn({ threadId, workspacePath })
+    } catch (err) {
+      console.error('mascot retry failed:', err)
+    }
+  }, [threadId, workspacePath])
 
   // Submits to the CURRENT thread, unlike the doctor actions above.
   const submitToCurrent = useCallback(

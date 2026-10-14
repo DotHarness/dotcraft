@@ -16,6 +16,7 @@
 }
 
 .composer-submit-glyphs[data-glyph='send'] .composer-submit-glyph--send,
+.composer-submit-glyphs[data-glyph='resume'] .composer-submit-glyph--resume,
 .composer-submit-glyphs[data-glyph='stop'] .composer-submit-glyph--stop,
 .composer-submit-glyphs[data-glyph='stopping'] .composer-submit-glyph--stopping {
   opacity: 1;

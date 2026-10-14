@@ -223,6 +223,30 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         Assert.Equal([StreamingGuidanceBoundary.TurnStart, StreamingGuidanceBoundary.AfterTools], steer.Boundaries);
     }
 
+    [Fact]
+    public async Task GetStreamingResponseAsync_UserSteerDuringErrorOnlyRetryBackoffReissuesImmediatelyWithIt()
+    {
+        var inner = new ScriptedStreamChatClient(
+            ([new ChatResponseUpdate(ChatRole.Assistant, [new ErrorContent("slow_down: please try again in 30s")])], null),
+            ([Text("done")], null));
+        var client = new StreamingFunctionInvokingChatClient(
+            new RetryBudgetChatClient(inner, 1, new OpenAIProviderFailureClassifier(isSubscriptionBackend: true)));
+        var steer = new InstantSteer();
+        using var guidance = StreamingGuidanceRuntimeScope.Set(steer.Context);
+        using var retry = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
+        {
+            NotifyRetry = _ => steer.Submit("steer")
+        });
+
+        await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(2, inner.Requests.Count);
+        Assert.Equal(
+            ["user:start", "user:steer"],
+            inner.Requests[1].Select(message => $"{message.Role}:{message.Text}"));
+    }
+
     private sealed class InstantSteer
     {
         private readonly Lock _gate = new();

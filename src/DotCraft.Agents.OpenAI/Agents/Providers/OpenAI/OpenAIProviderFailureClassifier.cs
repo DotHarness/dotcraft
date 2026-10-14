@@ -32,7 +32,7 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
 
     private ProviderFailure Refine(ProviderFailure failure, string detail, ProviderRetryDeadline? retryDeadline)
     {
-        var refined = failure with { Kind = ResolveKind(failure, detail) };
+        var refined = failure with { Kind = ResolveKind(failure, detail, retryDeadline) };
         if (refined.IsTerminal) return refined;
         if (retryDeadline is null && refined.Kind is ProviderFailureKind.RateLimitExceeded)
             retryDeadline = ProviderFailureParsing.ParseRetryAfterFromMessage(detail) is { } delay
@@ -40,10 +40,15 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
         return refined with { ServerRetryAfter = retryDeadline?.Delay, RetryDeadline = retryDeadline };
     }
 
-    private ProviderFailureKind ResolveKind(ProviderFailure failure, string detail)
+    private ProviderFailureKind ResolveKind(
+        ProviderFailure failure,
+        string detail,
+        ProviderRetryDeadline? retryDeadline)
     {
         if (ProviderFailureParsing.Mentions(detail, "server_is_overloaded")
-            || ProviderFailureParsing.Mentions(detail, "insufficient_system_resource"))
+            || ProviderFailureParsing.Mentions(detail, "insufficient_system_resource")
+            || ProviderFailureParsing.Mentions(detail, "turn_rate_limit_exceeded")
+            || ProviderFailureParsing.Mentions(detail, "at capacity"))
         {
             return ProviderFailureKind.ServerOverloaded;
         }
@@ -57,9 +62,9 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
         if (ProviderFailureParsing.LooksLikeQuotaExhausted(detail))
             return ProviderFailureKind.UsageLimitExceeded;
 
-        // The subscription backend answers ordinary plan throttling with a plain 429 that no
-        // amount of waiting inside one turn clears, so it is surfaced rather than retried.
-        return isSubscriptionBackend
+        // Without server retry advice, ordinary subscription plan throttling does not clear
+        // within one turn, so it is surfaced rather than retried.
+        return isSubscriptionBackend && retryDeadline is null
             ? ProviderFailureKind.ResponseTooManyFailedAttempts
             : ProviderFailureKind.RateLimitExceeded;
     }

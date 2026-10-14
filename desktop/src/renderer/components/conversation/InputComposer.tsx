@@ -31,6 +31,7 @@ import type {
   QueuedTurnInput
 } from '../../types/conversation'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
+import { useFailedTurnResume } from './useFailedTurnResume'
 import { emptyComposerDraftSnapshot, mergeRestoredComposerDraft } from '../../utils/composerSubmission'
 import { expandInitCommand } from '../../utils/initCommand'
 import { useComposerMascot } from './useComposerMascot'
@@ -1582,6 +1583,14 @@ function InputComposerCore({
     canSuggest: composerEmpty && !hasSubmitOverride && !isWaitingApproval && !isWaitingInput
       && !modelLoading && !voiceRecording && !voiceProcessing
   })
+  const { canResume: canResumeTurn, resume: resumeFailedTurn } = useFailedTurnResume({
+    threadId,
+    workspacePath: effectiveFileWorkspacePath,
+    identityWorkspacePath: workspacePath,
+    enabled: !hasSubmitOverride && !goalComposeMode
+  })
+  const resumeAvailable = canResumeTurn && composerEmpty && !voiceRecording && !voiceProcessing
+    && !isWaitingApproval && !isWaitingInput && !modelLoading
   const canSendWithVoice = voiceRecording || (canSend && !voiceProcessing)
   const submitOrStopVoice = useCallback((): void => {
     if (voiceRecording && !isBusyForInput) {
@@ -1992,10 +2001,10 @@ function InputComposerCore({
                 )
               ) : (
                 <ComposerSubmitButton
-                  mode="send"
-                  tone={canSendWithVoice ? 'enabled' : 'disabled'}
-                  disabled={!canSendWithVoice}
-                  onClick={submitOrStopVoice}
+                  mode={resumeAvailable ? 'resume' : 'send'}
+                  tone={canSendWithVoice || resumeAvailable ? 'enabled' : 'disabled'}
+                  disabled={!canSendWithVoice && !resumeAvailable}
+                  onClick={resumeAvailable ? resumeFailedTurn : submitOrStopVoice}
                 />
               )
             ) : null}

@@ -1296,7 +1296,7 @@ Clients that intend to render a turn from `thread/subscribe` notifications SHOUL
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `threadId` | string | yes | Target thread. Must be `"active"` with no running turn or active maintenance. |
-| `input` | InputPart[] | yes | User input. At least one part required. |
+| `input` | InputPart[] | yes | User input. An empty array starts a Turn without a new user message, continuing from the thread's committed history; clients use it to retry a failed Turn. |
 | `sender` | SenderContext | no | Sender identity for group sessions. |
 | `messages` | ChatMessage[] | conditional | Required when the thread uses `historyMode = "client"`. Forbidden when the thread uses `historyMode = "server"`. |
 | `sentAsGoal` | boolean | no | Submits the message as the thread goal. It is projected onto the resulting `userMessage` item; see [Section 6.3](#63-item-notifications). |
@@ -2629,6 +2629,15 @@ The `turn/failed` notification includes the error in `turn.error`:
 ```
 
 If an `Error` item was created during the turn, it appears in the `items` array and is also emitted via `item/started` / `item/completed` before the `turn/failed` notification.
+
+When the failure came from the model provider, the Turn also carries:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `providerError` | string? | Classified provider failure: `contextWindowExceeded`, `usageLimitExceeded`, `rateLimitExceeded`, `serverOverloaded`, `internalServerError`, `unauthorized`, `badRequest`, `httpConnectionFailed`, `responseStreamConnectionFailed`, `responseStreamDisconnected`, `responseTooManyFailedAttempts`, or `other`. Error frames delivered inside a successful stream are classified the same way as HTTP failures. |
+| `httpStatus` | int? | Upstream HTTP status when known. |
+
+Clients may offer a retry for transient classifications by starting a turn with empty `input` (see `turn/start`), which continues the thread from its committed history without repeating the user's message.
 
 ## 9. Backpressure
 

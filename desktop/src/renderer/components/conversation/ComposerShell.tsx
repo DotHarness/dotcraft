@@ -8,7 +8,7 @@ import {
   type JSX,
   type ReactNode
 } from 'react'
-import { Bot, CircleX, ListChecks, Square } from 'lucide-react'
+import { Bot, CircleX, ListChecks, Play, Square } from 'lucide-react'
 import { Spinner } from '../ui/Spinner'
 import type {
   DesktopPluginComposerSurfaceContext,
@@ -579,4 +579,8 @@ export function SendProcessingIcon(): JSX.Element {
 
 export function StopIcon(): JSX.Element {
   return <Square size={12} strokeWidth={0} fill="currentColor" aria-hidden="true" />
+}
+
+export function ResumeIcon(): JSX.Element {
+  return <Play size={14} strokeWidth={0} fill="currentColor" aria-hidden="true" />
 }

@@ -1709,6 +1709,15 @@ action (Reveal in Finder, Open in Explorer, or Open in File Manager) only when t
 saved on this machine, and Download a copy. Downloads open a save dialog named
 "DotCraft Image <date>". A generated image's thumbnail shows its saved path as a tooltip.
 
+### Turn errors
+
+A turn error is one quiet notice, not a red card: `--bg-secondary`, 8px radius, a 14px alert
+icon in `--error-text`, and the message in `--text-secondary` as selectable text. Its trailing
+edge holds one action: a secondary `Retry` whose countdown fills the button when the turn can be
+retried in place, and otherwise the frameless `CopyButton`, which copies the raw message. A capacity
+or throttling failure shows a short localized sentence in place of the raw message. Reaching a usage
+limit is a neutral timeline divider instead.
+
 ### Interactive tool UI
 
 MCP tools may render an interactive UI in a sandboxed iframe (see

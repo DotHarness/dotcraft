@@ -2,13 +2,14 @@ import type { JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
-import { ComposerSendButton, SendIcon, SendProcessingIcon, StopIcon } from './ComposerShell'
+import { ComposerSendButton, ResumeIcon, SendIcon, SendProcessingIcon, StopIcon } from './ComposerShell'
 
-export type ComposerSubmitMode = 'send' | 'steer' | 'queue' | 'stop' | 'stopping'
-export type ComposerSubmitGlyph = 'send' | 'stop' | 'stopping'
+export type ComposerSubmitMode = 'send' | 'resume' | 'steer' | 'queue' | 'stop' | 'stopping'
+export type ComposerSubmitGlyph = 'send' | 'resume' | 'stop' | 'stopping'
 
 const modes: Record<ComposerSubmitMode, { title: string; aria: string; glyph: ComposerSubmitGlyph }> = {
   send: { title: 'composer.sendAriaAlt', aria: 'composer.sendAriaAlt', glyph: 'send' },
+  resume: { title: 'composer.resumeTitle', aria: 'composer.resumeTitle', glyph: 'resume' },
   steer: { title: 'composer.steerSendTitle', aria: 'composer.steerSendAria', glyph: 'send' },
   queue: { title: 'composer.queueSendTitle', aria: 'composer.queueSendAria', glyph: 'send' },
   stop: { title: 'composer.stopTitle', aria: 'composer.stopAria', glyph: 'stop' },
@@ -57,6 +58,7 @@ export function ComposerSubmitGlyphs({ glyph }: { glyph: ComposerSubmitGlyph }):
   return (
     <span className="composer-submit-glyphs" data-glyph={glyph}>
       <span className="composer-submit-glyph composer-submit-glyph--send"><SendIcon /></span>
+      <span className="composer-submit-glyph composer-submit-glyph--resume"><ResumeIcon /></span>
       <span className="composer-submit-glyph composer-submit-glyph--stop"><StopIcon /></span>
       <span className="composer-submit-glyph composer-submit-glyph--stopping"><SendProcessingIcon /></span>
     </span>

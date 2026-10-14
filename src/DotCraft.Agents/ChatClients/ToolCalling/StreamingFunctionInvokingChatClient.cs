@@ -5,7 +5,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
-using DotCraft.Context.Compaction;
 using DotCraft.Sessions;
 using DotCraft.Tools;
 using DotCraft.Tracing;
@@ -443,28 +442,40 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
 
             var hasEffectiveProviderOutput = HasEffectiveProviderOutput(updates);
             var providerErrorText = CollectErrorContentText(updates);
-            if (!hasEffectiveProviderOutput && !hasAnyEffectiveProviderOutput)
+            if (!hasEffectiveProviderOutput && (!hasAnyEffectiveProviderOutput || awaitingPostToolContinuation))
             {
-                var message = BuildEmptyProviderResponseMessage(
-                    "The model provider returned an empty streaming response before any assistant content, reasoning output, or tool call was received.",
-                    providerErrorText);
-                if (CompactionErrors.IsPromptTooLongMessage(providerErrorText))
-                    throw new InvalidOperationException(message);
-
-                throw new EmptyProviderResponseException(message);
-            }
-            if (!hasEffectiveProviderOutput && awaitingPostToolContinuation)
-            {
-                if (string.IsNullOrWhiteSpace(providerErrorText))
+                if (hasAnyEffectiveProviderOutput && string.IsNullOrWhiteSpace(providerErrorText))
                     yield break;
 
-                var message = BuildEmptyProviderResponseMessage(
-                    "The model provider returned an error response after tool results were returned to the model.",
+                var emptyResponseFailure = CreateEmptyProviderResponseFailure(
+                    hasAnyEffectiveProviderOutput
+                        ? "The model provider returned an error response after tool results were returned to the model."
+                        : "The model provider returned an empty streaming response before any assistant content, reasoning output, or tool call was received.",
                     providerErrorText);
-                if (CompactionErrors.IsPromptTooLongMessage(providerErrorText))
-                    throw new InvalidOperationException(message);
+                var classifiedEmptyResponse = streamFailureClassifier.ClassifyCaptured(emptyResponseFailure);
+                if (providerErrorText is not null
+                    && !cancellationToken.IsCancellationRequested
+                    && turnRetryCount < turnRetryBudget
+                    && classifiedEmptyResponse.GetRetryDelay(turnRetryCount + 1) is not null)
+                {
+                    turnRetryCount++;
+                    currentMessages = augmentedHistory ??= originalMessages.ToList();
+                    if (await NotifyAndWaitForStreamRetryAsync(
+                            classifiedEmptyResponse,
+                            emptyResponseFailure,
+                            turnRetryCount,
+                            turnRetryBudget,
+                            cancellationToken))
+                    {
+                        pendingDrain = StreamingGuidanceBoundary.AfterTools;
+                    }
+                    continue;
+                }
 
-                throw new EmptyProviderResponseException(message);
+                ModelStreamRetryRuntimeScope.Current?.NotifyFailureClassified?.Invoke(classifiedEmptyResponse);
+                if (turnRetryCount > 0)
+                    ModelStreamRetryRuntimeScope.Current?.NotifyFinalFailure?.Invoke(emptyResponseFailure);
+                throw emptyResponseFailure;
             }
 
             hasAnyEffectiveProviderOutput |= hasEffectiveProviderOutput;
